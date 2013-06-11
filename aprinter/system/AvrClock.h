@@ -30,7 +30,11 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
+#include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Assert.h>
+#include <aprinter/base/Lock.h>
+#include <aprinter/system/AvrLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -44,7 +48,7 @@ class AvrClock
 public:
     typedef uint32_t TimeType;
     
-private:
+public:
     static constexpr TimeType prescale_divide =
         (Prescale == 1) ? 1 :
         (Prescale == 2) ? 8 :
@@ -52,13 +56,13 @@ private:
         (Prescale == 4) ? 256 :
         (Prescale == 5) ? 1024 : 0;
     
-public:
     static constexpr double time_unit = (double)prescale_divide / F_CPU;
     static constexpr TimeType past = UINT32_C(0x20000000);
     
     void init (Context c)
     {
         m_offset = 0;
+        TCCR1A = 0;
         TCCR1B = (uint16_t)Prescale;
         TIMSK1 = (1 << TOIE1);
         this->debugInit(c);
@@ -71,23 +75,35 @@ public:
         TCCR1B = 0;
     }
     
-    TimeType getTime (Context c)
+    template <typename ThisContext>
+    TimeType getTime (ThisContext c)
     {
         this->debugAccess(c);
         
-        while (1) {
-            uint16_t offset1 = m_offset;
-            __sync_synchronize();
+        if (IsAvrInterruptContext<ThisContext>::value) {
+            uint16_t offset = m_offset;
             uint16_t tcnt = TCNT1;
             __sync_synchronize();
-            uint16_t offset2 = m_offset;
-            if (offset1 == offset2) {
-                return (((TimeType)offset1 << 16) + tcnt);
+            if ((TIFR1 & (1 << TOV1))) {
+                return (((TimeType)(m_offset + 1) << 16) + TCNT1);
+            } else {
+                return (((TimeType)offset << 16) + tcnt);
+            }
+        } else {
+            while (1) {
+                uint16_t offset1 = m_offset;
+                __sync_synchronize();
+                uint16_t tcnt = TCNT1;
+                __sync_synchronize();
+                uint16_t offset2 = m_offset;
+                if (offset1 == offset2) {
+                    return (((TimeType)offset1 << 16) + tcnt);
+                }
             }
         }
     }
     
-    void timer1_ovf_isr (Context c)
+    void timer1_ovf_isr (AvrInterruptContext<Context> c)
     {
         m_offset++;
     }
@@ -96,10 +112,95 @@ private:
     volatile uint16_t m_offset;
 };
 
+template <typename Context, typename Handler>
+class AvrClockInterruptTimer
+: private DebugObject<Context, AvrClockInterruptTimer<Context, Handler>>
+{
+public:
+    typedef typename Context::Clock Clock;
+    typedef typename Clock::TimeType TimeType;
+    
+    static const TimeType clearance = (100 / Clock::prescale_divide) + 1;
+    
+    void init (Context c)
+    {
+        this->debugInit(c);
+        
+        m_lock.init(c);
+    }
+    
+    void deinit (Context c)
+    {
+        this->debugDeinit(c);
+        
+        TIMSK1 &= ~(1 << OCIE1A);
+        m_lock.deinit(c);
+    }
+    
+    template <typename ThisContext>
+    void set (ThisContext c, TimeType time)
+    {
+        this->debugAccess(c);
+        
+        TimeType now = c.clock()->getTime(c);
+        TimeType ref = now - Clock::past;
+        
+        if ((TimeType)(time - ref) < (TimeType)((TimeType)(now + clearance) - ref)) {
+            time = now + clearance;
+        }
+        
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            m_time = time;
+            m_running = true;
+            OCR1A = time;
+            TIMSK1 |= (1 << OCIE1A);
+        });
+    }
+    
+    template <typename ThisContext>
+    void unset (ThisContext c)
+    {
+        this->debugAccess(c);
+        
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            m_running = false;
+            TIMSK1 &= ~(1 << OCIE1A);
+        });
+    }
+    
+    void timer1_compa_isr (AvrInterruptContext<Context> c)
+    {
+        AMBRO_ASSERT(m_running)
+        
+        TimeType now = c.clock()->getTime(c);
+        TimeType ref = now - Clock::past;
+        
+        if ((TimeType)(now - ref) < (TimeType)(m_time - ref)) {
+            return;
+        }
+        
+        m_running = false;
+        TIMSK1 &= ~(1 << OCIE1A);
+        
+        return Handler::call(this, c);
+    }
+    
+private:
+    bool m_running;
+    TimeType m_time;
+    AvrLock<Context> m_lock;
+};
+
 #define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \
 ISR(TIMER1_OVF_vect) \
 { \
-    (avrclock).timer1_ovf_isr((context)); \
+    (avrclock).timer1_ovf_isr(MakeAvrInterruptContext((context))); \
+}
+
+#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(avrclockinterrupttimer, context) \
+ISR(TIMER1_COMPA_vect) \
+{ \
+    (avrclockinterrupttimer).timer1_compa_isr(MakeAvrInterruptContext((context))); \
 }
 
 #include <aprinter/EndNamespace.h>

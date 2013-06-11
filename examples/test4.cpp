@@ -41,6 +41,7 @@
 #include <aprinter/system/AvrPins.h>
 #include <aprinter/system/AvrPinWatcher.h>
 #include <aprinter/system/AvrSerial.h>
+#include <aprinter/system/AvrLock.h>
 #include <aprinter/devices/SoftPwm.h>
 #include <aprinter/devices/Stepper.h>
 #include <aprinter/driver/AxisDriver.h>
@@ -70,6 +71,7 @@
 #define COMMAND_BUFFER_SIZE 63
 #define NUM_MOVE_ITERS 4
 #define SPEED_T_SCALE (0.154*3)
+#define INTERRUPT_TIMER_TIME 1.0
 
 using namespace APrinter;
 
@@ -82,7 +84,9 @@ struct DriverGetStepperHandler;
 struct DriverGetStepperHandler2;
 struct DriverAvailHandler;
 struct DriverAvailHandler2;
+struct InterruptTimerHandler;
 
+typedef DebugObjectGroup<MyContext> MyDebugObjectGroup;
 typedef AvrClock<MyContext, CLOCK_TIMER_PRESCALER> MyClock;
 typedef AvrEventLoop<EventLoopParams> MyLoop;
 typedef AvrPins<MyContext> MyPins;
@@ -96,14 +100,17 @@ typedef Stepper<MyContext, Y_DIR_PIN, Y_STEP_PIN, XYE_ENABLE_PIN> MyStepper;
 typedef Stepper<MyContext, X_DIR_PIN, X_STEP_PIN, XYE_ENABLE_PIN> MyStepper2;
 typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler, DriverAvailHandler> MyDriver;
 typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler2, DriverAvailHandler2> MyDriver2;
+typedef AvrClockInterruptTimer<MyContext, InterruptTimerHandler> MyInterruptTimer;
 
 struct MyContext {
+    typedef MyDebugObjectGroup DebugGroup;
+    typedef AvrLock<MyContext> Lock;
     typedef MyClock Clock;
     typedef MyLoop EventLoop;
     typedef MyPins Pins;
     typedef MyPinWatcherService PinWatcherService;
     
-    DebugObjectGroup * debugObjectGroup () const;
+    MyDebugObjectGroup * debugGroup () const;
     MyClock * clock () const;
     MyLoop * eventLoop () const;
     MyPins * pins () const;
@@ -114,7 +121,7 @@ struct EventLoopParams {
     typedef MyContext Context;
 };
 
-static DebugObjectGroup d_group;
+static MyDebugObjectGroup d_group;
 static MyClock myclock;
 static MyLoop myloop;
 static MyPins mypins;
@@ -135,8 +142,10 @@ static MyDriver2 driver2;
 static int num_left;
 static int num_left2;
 static bool prev_button;
+static MyInterruptTimer interrupt_timer;
+static MyClock::TimeType next_int_time;
 
-DebugObjectGroup * MyContext::debugObjectGroup () const
+MyDebugObjectGroup * MyContext::debugGroup () const
 {
     return &d_group;
 }
@@ -164,6 +173,7 @@ MyPinWatcherService * MyContext::pinWatcherService () const
 AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
 AMBRO_AVR_SERIAL_ISRS(myserial, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(interrupt_timer, MyContext())
 
 static void write_to_serial (MyContext c, const char *str)
 {
@@ -225,10 +235,10 @@ static void add_commands2 (MyContext c)
 
 static void mytimer_handler (MyTimer *, MyContext c)
 {
-    blink_state = !blink_state;
-    mypins.set<LED1_PIN>(c, blink_state);
-    next_time += (uint32_t)(BLINK_INTERVAL / MyClock::time_unit);
-    mytimer.appendAt(c, next_time, false);
+    //blink_state = !blink_state;
+    //mypins.set<LED1_PIN>(c, blink_state);
+    next_time += (MyClock::TimeType)(BLINK_INTERVAL / MyClock::time_unit);
+    mytimer.appendAt(c, next_time);
 }
 
 static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
@@ -345,6 +355,14 @@ static void driver_avail_handler2 (MyDriver2 *, MyContext c)
     add_commands2(c);
 }
 
+static void interrupt_timer_handler (MyInterruptTimer *, AvrInterruptContext<MyContext> c)
+{
+    blink_state = !blink_state;
+    mypins.set<LED1_PIN>(c, blink_state);
+    next_int_time += (MyClock::TimeType)(INTERRUPT_TIMER_TIME / MyClock::time_unit);
+    interrupt_timer.set(c, next_int_time);
+}
+
 struct PinWatcherHandler : public AMBRO_WFUNC(pinwatcher_handler) {};
 struct SerialRecvHandler : public AMBRO_WFUNC(serial_recv_handler) {};
 struct SerialSendHandler : public AMBRO_WFUNC(serial_send_handler) {};
@@ -352,6 +370,7 @@ struct DriverGetStepperHandler : public AMBRO_WFUNC(driver_get_stepper_handler) 
 struct DriverGetStepperHandler2 : public AMBRO_WFUNC(driver_get_stepper_handler2) {};
 struct DriverAvailHandler : public AMBRO_WFUNC(driver_avail_handler) {};
 struct DriverAvailHandler2 : public AMBRO_WFUNC(driver_avail_handler2) {};
+struct InterruptTimerHandler : public AMBRO_WFUNC(interrupt_timer_handler) {};
 
 FILE uart_output;
 
@@ -374,7 +393,7 @@ int main ()
 {
     MyContext c;
     
-    d_group.init();
+    d_group.init(c);
     myclock.init(c);
     myloop.init(c);
     mypins.init(c);
@@ -389,6 +408,7 @@ int main ()
     stepper2.init(c);
     driver.init(c);
     driver2.init(c);
+    interrupt_timer.init(c);
     
     mypins.setOutput<LED1_PIN>(c);
     mypins.setOutput<LED2_PIN>(c);
@@ -398,7 +418,7 @@ int main ()
     
     blink_state = false;
     next_time = myclock.getTime(c) + (uint32_t)(BLINK_INTERVAL / MyClock::time_unit);
-    mytimer.appendAt(c, next_time, false);
+    mytimer.appendAt(c, next_time);
     servo_mode = false;
     mysoftpwm.setOnTime(c, SERVO_PULSE_MIN / MyClock::time_unit);
     mysoftpwm2.setOnTime(c, SERVO_PULSE_MIN / MyClock::time_unit);
@@ -406,6 +426,8 @@ int main ()
     //mysoftpwm2.enable(c, ref_time + (MyClock::TimeType)(((SERVO_PULSE_INTERVAL*0.000001)/2) / MyClock::time_unit));
     gen_rem = 0;
     prev_button = false;
+    next_int_time = ref_time;
+    interrupt_timer.set(c, next_int_time);
     
     /*
     uint32_t x = 0;
@@ -469,10 +491,32 @@ int main ()
         }
     }
     */
-    
+    /*
+    for (uint32_t i = 0; i < UINT32_C(400000); i++) {
+        uint32_t x;
+        *((uint8_t *)&x + 0) = rand();
+        *((uint8_t *)&x + 1) = rand();
+        *((uint8_t *)&x + 2) = rand();
+        *((uint8_t *)&x + 3) = rand();
+        uint16_t y;
+        *((uint8_t *)&y + 0) = rand();
+        *((uint8_t *)&y + 1) = rand();
+        if (y == 0) {
+            continue;
+        }
+        uint32_t low;
+        uint16_t high;
+        mul_32_16(x, y, &low, &high);
+        uint64_t res = ((uint64_t)high << 32) | low;
+        if (res != (uint64_t)x * y) {
+            printf("ERROR %" PRIu32 " * %" PRIu16 "\n", x, y);
+        }
+    }
+    */
     myloop.run(c);
     
 #ifdef AMBROLIB_SUPPORT_QUIT
+    interrupt_timer.deinit(c);
     driver2.deinit(c);
     driver.deinit(c);
     stepper2.deinit(c);

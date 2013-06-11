@@ -110,7 +110,7 @@ private:
             c.pins()->template set<Pin>(c, false);
         }
         
-        m_timer.prependAt(c, next_time, false);
+        m_timer.prependAt(c, next_time);
     }
     
 #ifdef AMBROLIB_ASSERTIONS

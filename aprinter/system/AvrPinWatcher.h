@@ -43,6 +43,7 @@
 #include <aprinter/structure/SingleEndedList.h>
 #include <aprinter/system/AvrPins.h>
 #include <aprinter/system/AvrIo.h>
+#include <aprinter/system/AvrLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -73,10 +74,10 @@ public:
     }
     
     template <typename Port>
-    void pcint_isr (Context c)
+    void pcint_isr (AvrInterruptContext<Context> c)
     {
         PortState<Port> *ps = getPortState<Port>();
-        ps->queued_event.appendNow(c, true);
+        ps->queued_event.appendNow(c);
     }
     
 private:
@@ -139,7 +140,7 @@ private:
         PortState<Port> *ps = getPortState<Port>();
         
         for (WatcherBase<Port> *base = ps->watchers_list.first(); base; base = ps->watchers_list.next(base)) {
-            base->pending.prependNow(c, false);
+            base->pending.prependNow(c);
         }
     }
     
@@ -165,7 +166,7 @@ public:
         
         ps->watchers_list.prepend(&m_base);
         m_base.pending.init(c, AMBRO_OFFSET_CALLBACK2_T(&AvrPinWatcher::m_base, &WatcherBase::pending, &AvrPinWatcher::pending_handler));
-        m_base.pending.prependNow(c, false);
+        m_base.pending.prependNow(c);
         avrSoftSetBitReg<Port::pcmsk_io_addr>(Pin::port_pin);
         
         this->debugInit(c);
@@ -197,19 +198,19 @@ private:
 #define AMBRO_AVR_PIN_WATCHER_ISRS(service, context) \
 ISR(PCINT0_vect) \
 { \
-    (service).pcint_isr<AvrPortA>((context)); \
+    (service).pcint_isr<AvrPortA>(MakeAvrInterruptContext(context)); \
 } \
 ISR(PCINT1_vect) \
 { \
-    (service).pcint_isr<AvrPortB>((context)); \
+    (service).pcint_isr<AvrPortB>(MakeAvrInterruptContext(context)); \
 } \
 ISR(PCINT2_vect) \
 { \
-    (service).pcint_isr<AvrPortC>((context)); \
+    (service).pcint_isr<AvrPortC>(MakeAvrInterruptContext(context)); \
 } \
 ISR(PCINT3_vect) \
 { \
-    (service).pcint_isr<AvrPortD>((context)); \
+    (service).pcint_isr<AvrPortD>(MakeAvrInterruptContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>

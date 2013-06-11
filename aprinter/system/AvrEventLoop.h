@@ -33,6 +33,8 @@
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Lock.h>
+#include <aprinter/system/AvrLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -56,6 +58,7 @@ public:
 #endif
         m_now = c.clock()->getTime(c);
         m_queued_event_list.init();
+        m_lock.init(c);
         
         this->debugInit(c);
     }
@@ -63,6 +66,7 @@ public:
     void deinit (Context c)
     {
         this->debugDeinit(c);
+        m_lock.deinit(c);
         AMBRO_ASSERT(m_queued_event_list.isEmpty())
     }
     
@@ -113,6 +117,7 @@ private:
 #endif
     TimeType m_now;
     QueuedEventList m_queued_event_list;
+    AvrLock<Context> m_lock;
 };
 
 template <typename Loop>
@@ -132,85 +137,91 @@ public:
         this->debugInit(c);
     }
     
-    void deinit (Context c)
+    template <typename ThisContext>
+    void deinit (ThisContext c)
     {
         this->debugDeinit(c);
         Loop *l = c.eventLoop();
         
-        cli();
-        if (!Loop::QueuedEventList::isRemoved(this)) {
-            l->m_queued_event_list.remove(this);
-        }
-        sei();
+        AMBRO_LOCK_T(l->m_lock, c, lock_c, {
+            if (!Loop::QueuedEventList::isRemoved(this)) {
+                l->m_queued_event_list.remove(this);
+            }
+        });
     }
     
-    void appendAt (Context c, TimeType time, bool interrupt)
+    template <typename ThisContext>
+    void appendAt (ThisContext c, TimeType time)
     {
         this->debugAccess(c);
         Loop *l = c.eventLoop();
         
-        if (!interrupt) cli();
-        if (!Loop::QueuedEventList::isRemoved(this)) {
-            l->m_queued_event_list.remove(this);
-        }
-        l->m_queued_event_list.append(this);
-        m_time = time;
-        if (!interrupt) sei();
+        AMBRO_LOCK_T(l->m_lock, c, lock_c, {
+            if (!Loop::QueuedEventList::isRemoved(this)) {
+                l->m_queued_event_list.remove(this);
+            }
+            l->m_queued_event_list.append(this);
+            m_time = time;
+        });
     }
     
-    void appendNow (Context c, bool interrupt)
+    template <typename ThisContext>
+    void appendNow (ThisContext c)
     {
         this->debugAccess(c);
         Loop *l = c.eventLoop();
         
-        if (!interrupt) cli();
-        if (!Loop::QueuedEventList::isRemoved(this)) {
-            l->m_queued_event_list.remove(this);
-        }
-        l->m_queued_event_list.append(this);
-        m_time = l->m_now;
-        if (!interrupt) sei();
+        AMBRO_LOCK_T(l->m_lock, c, lock_c, {
+            if (!Loop::QueuedEventList::isRemoved(this)) {
+                l->m_queued_event_list.remove(this);
+            }
+            l->m_queued_event_list.append(this);
+            m_time = l->m_now;
+        });
     }
     
-    void prependAt (Context c, TimeType time, bool interrupt)
+    template <typename ThisContext>
+    void prependAt (ThisContext c, TimeType time)
     {
         this->debugAccess(c);
         Loop *l = c.eventLoop();
         
-        if (!interrupt) cli();
-        if (!Loop::QueuedEventList::isRemoved(this)) {
-            l->m_queued_event_list.remove(this);
-        }
-        l->m_queued_event_list.prepend(this);
-        m_time = time;
-        if (!interrupt) sei();
+        AMBRO_LOCK_T(l->m_lock, c, lock_c, {
+            if (!Loop::QueuedEventList::isRemoved(this)) {
+                l->m_queued_event_list.remove(this);
+            }
+            l->m_queued_event_list.prepend(this);
+            m_time = time;
+        });
     }
     
-    void prependNow (Context c, bool interrupt)
+    template <typename ThisContext>
+    void prependNow (ThisContext c)
     {
         this->debugAccess(c);
         Loop *l = c.eventLoop();
         
-        if (!interrupt) cli();
-        if (!Loop::QueuedEventList::isRemoved(this)) {
-            l->m_queued_event_list.remove(this);
-        }
-        l->m_queued_event_list.prepend(this);
-        m_time = l->m_now;
-        if (!interrupt) sei();
+        AMBRO_LOCK_T(l->m_lock, c, lock_c, {
+            if (!Loop::QueuedEventList::isRemoved(this)) {
+                l->m_queued_event_list.remove(this);
+            }
+            l->m_queued_event_list.prepend(this);
+            m_time = l->m_now;
+        });
     }
     
-    void unset (Context c, bool interrupt)
+    template <typename ThisContext>
+    void unset (ThisContext c)
     {
         this->debugAccess(c);
         Loop *l = c.eventLoop();
         
-        if (!interrupt) cli();
-        if (!Loop::QueuedEventList::isRemoved(this)) {
-            l->m_queued_event_list.remove(this);
-            Loop::QueuedEventList::markRemoved(this);
-        }
-        if (!interrupt) sei();
+        AMBRO_LOCK_T(l->m_lock, c, lock_c, {
+            if (!Loop::QueuedEventList::isRemoved(this)) {
+                l->m_queued_event_list.remove(this);
+                Loop::QueuedEventList::markRemoved(this);
+            }
+        });
     }
     
     bool isSet (Context c)

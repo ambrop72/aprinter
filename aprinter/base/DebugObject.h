@@ -28,29 +28,37 @@
 #include <stdint.h>
 
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Lock.h>
 
 #include <aprinter/BeginNamespace.h>
 
+template <typename Context>
 class DebugObjectGroup {
 public:
-    inline void init ();
-    inline void deinit ();
+    void init (Context c);
+    void deinit (Context c);
     
 private:
 #ifdef AMBROLIB_ASSERTIONS
     uint32_t m_count;
+    typename Context::Lock m_lock;
 #endif
     
-    template <typename Context, typename Ident>
+    template <typename TContext, typename Ident>
     friend class DebugObject;
 };
 
 template <typename Context, typename Ident>
 class DebugObject {
 public:
-    void debugInit (Context c);
-    void debugDeinit (Context c);
-    void debugAccess (Context c);
+    template <typename ThisContext>
+    void debugInit (ThisContext c);
+    
+    template <typename ThisContext>
+    void debugDeinit (ThisContext c);
+    
+    template <typename ThisContext>
+    void debugAccess (ThisContext c);
     
 private:
     static uint32_t getMagic ();
@@ -60,43 +68,54 @@ private:
 #endif
 };
 
-void DebugObjectGroup::init ()
+template <typename Context>
+void DebugObjectGroup<Context>::init (Context c)
 {
 #ifdef AMBROLIB_ASSERTIONS
     m_count = 0;
+    m_lock.init(c);
 #endif
 }
 
-void DebugObjectGroup::deinit ()
+template <typename Context>
+void DebugObjectGroup<Context>::deinit (Context c)
 {
 #ifdef AMBROLIB_ASSERTIONS
     AMBRO_ASSERT(m_count == 0)
+    m_lock.deinit(c);
 #endif
 }
 
 template <typename Context, typename Ident>
-void DebugObject<Context, Ident>::debugInit (Context c)
+template <typename ThisContext>
+void DebugObject<Context, Ident>::debugInit (ThisContext c)
 {
 #ifdef AMBROLIB_ASSERTIONS
-    DebugObjectGroup *g = c.debugObjectGroup();
+    DebugObjectGroup<Context> *g = c.debugGroup();
     m_magic = getMagic();
-    g->m_count++;
+    AMBRO_LOCK_T(g->m_lock, c, lock_c, {
+        g->m_count++;
+    });
 #endif
 }
 
 template <typename Context, typename Ident>
-void DebugObject<Context, Ident>::debugDeinit (Context c)
+template <typename ThisContext>
+void DebugObject<Context, Ident>::debugDeinit (ThisContext c)
 {
 #ifdef AMBROLIB_ASSERTIONS
-    DebugObjectGroup *g = c.debugObjectGroup();
+    DebugObjectGroup<Context> *g = c.debugGroup();
     AMBRO_ASSERT(m_magic == getMagic())
     m_magic = 0;
-    g->m_count--;
+    AMBRO_LOCK_T(g->m_lock, c, lock_c, {
+        g->m_count--;
+    });
 #endif
 }
 
 template <typename Context, typename Ident>
-void DebugObject<Context, Ident>::debugAccess (Context c)
+template <typename ThisContext>
+void DebugObject<Context, Ident>::debugAccess (ThisContext c)
 {
 #ifdef AMBROLIB_ASSERTIONS
     AMBRO_ASSERT(m_magic == getMagic())

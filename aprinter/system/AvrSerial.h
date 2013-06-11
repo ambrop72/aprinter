@@ -36,6 +36,8 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Lock.h>
+#include <aprinter/system/AvrLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -60,11 +62,13 @@ public:
         m_recv_start = 0;
         m_recv_end = 0;
         m_recv_overrun = false;
+        m_recv_lock.init(c);
         
         m_send_queued_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AvrSerial::m_send_queued_event, &AvrSerial::send_queued_event_handler));
         m_send_start = 0;
         m_send_end = 0;
         m_send_event = send_buffer_mod - 1;
+        m_send_lock.init(c);
         
         uint16_t ubrr = (((2 * (uint32_t)F_CPU) + (16 * baud)) / (2 * 16 * baud)) - 1;
         
@@ -87,7 +91,9 @@ public:
         UBRR0L = 0;
         UBRR0H = 0;
         
+        m_send_lock.deinit(c);
         m_send_queued_event.deinit(c);
+        m_recv_lock.deinit(c);
         m_recv_queued_event.deinit(c);
     }
     
@@ -96,11 +102,15 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(out_overrun)
         
-        cli();
-        RecvSizeType start = m_recv_start;
-        RecvSizeType end = m_recv_end;
-        bool overrun = m_recv_overrun;
-        sei();
+        bool overrun;
+        RecvSizeType start;
+        RecvSizeType end;
+        
+        AMBRO_LOCK_T(m_recv_lock, c, lock_c, {
+            start = m_recv_start;
+            end = m_recv_end;
+            overrun = m_recv_overrun;
+        });
         
         *out_overrun = overrun;
         return recv_avail(start, end);
@@ -128,28 +138,29 @@ public:
     {
         this->debugAccess(c);
         
-        cli();
-        AMBRO_ASSERT(amount <= recv_avail(m_recv_start, m_recv_end))
-        m_recv_start = (RecvSizeType)(m_recv_start + amount) % recv_buffer_mod;
-        sei();
+        AMBRO_LOCK_T(m_recv_lock, c, lock_c, {
+            AMBRO_ASSERT(amount <= recv_avail(m_recv_start, m_recv_end))
+            m_recv_start = (RecvSizeType)(m_recv_start + amount) % recv_buffer_mod;
+        });
     }
     
     void recvClearOverrun (Context c)
     {
         this->debugAccess(c);
         
-        cli();
-        m_recv_overrun = false;
-        sei();
+        AMBRO_LOCK_T(m_recv_lock, c, lock_c, {
+            m_recv_overrun = false;
+        });
     }
     
     SendSizeType sendQuery (Context c)
     {
         this->debugAccess(c);
         
-        cli();
-        SendSizeType start = m_send_start;
-        sei();
+        SendSizeType start;
+        AMBRO_LOCK_T(m_send_lock, c, lock_c, {
+            start = m_send_start;
+        });
         
         return send_avail(start, m_send_end);
     }
@@ -176,11 +187,11 @@ public:
     {
         this->debugAccess(c);
         
-        cli();
-        AMBRO_ASSERT(amount <= send_avail(m_send_start, m_send_end))
-        m_send_end = (SendSizeType)(m_send_end + amount) % send_buffer_mod;
-        UCSR0B |= (1 << UDRIE0);
-        sei();
+        AMBRO_LOCK_T(m_send_lock, c, lock_c, {
+            AMBRO_ASSERT(amount <= send_avail(m_send_start, m_send_end))
+            m_send_end = (SendSizeType)(m_send_end + amount) % send_buffer_mod;
+            UCSR0B |= (1 << UDRIE0);
+        });
     }
     
     void sendRequestEvent (Context c, SendSizeType min_amount)
@@ -189,25 +200,25 @@ public:
         AMBRO_ASSERT(min_amount > 0)
         AMBRO_ASSERT(min_amount <= SendBufferSize)
         
-        cli();
-        if (send_avail(m_send_start, m_send_end) >= min_amount) {
-            m_send_event = send_buffer_mod - 1;
-            m_send_queued_event.appendNow(c, true);
-        } else {
-            m_send_event = min_amount - 1;
-            m_send_queued_event.unset(c, true);
-        }
-        sei();
+        AMBRO_LOCK_T(m_send_lock, c, lock_c, {
+            if (send_avail(m_send_start, m_send_end) >= min_amount) {
+                m_send_event = send_buffer_mod - 1;
+                m_send_queued_event.appendNow(lock_c);
+            } else {
+                m_send_event = min_amount - 1;
+                m_send_queued_event.unset(lock_c);
+            }
+        });
     }
     
     void sendCancelEvent (Context c)
     {
         this->debugAccess(c);
         
-        cli();
-        m_send_event = send_buffer_mod - 1;
-        m_send_queued_event.unset(c, true);
-        sei();
+        AMBRO_LOCK_T(m_send_lock, c, lock_c, {
+            m_send_event = send_buffer_mod - 1;
+            m_send_queued_event.unset(lock_c, true);
+        });
     }
     
     void sendBlock (Context c, SendSizeType min_amount)
@@ -218,13 +229,13 @@ public:
         
         bool ok;
         do {
-            cli();
-            ok = (send_avail(m_send_start, m_send_end) >= min_amount);
-            sei();
+            AMBRO_LOCK_T(m_send_lock, c, lock_c, {
+                ok = (send_avail(m_send_start, m_send_end) >= min_amount);
+            });
         } while (!ok);
     }
     
-    void rx_isr (Context c)
+    void rx_isr (AvrInterruptContext<Context> c)
     {
         uint8_t byte = UDR0;
         if (!m_recv_overrun) {
@@ -237,10 +248,10 @@ public:
             }
         }
         
-        m_recv_queued_event.appendNow(c, true);
+        m_recv_queued_event.appendNow(c);
     }
     
-    void udre_isr (Context c)
+    void udre_isr (AvrInterruptContext<Context> c)
     {
         AMBRO_ASSERT(m_send_start != m_send_end)
         
@@ -253,7 +264,7 @@ public:
         
         if (send_avail(m_send_start, m_send_end) > m_send_event) {
             m_send_event = send_buffer_mod - 1;
-            m_send_queued_event.appendNow(c, true);
+            m_send_queued_event.appendNow(c);
         }
     }
     
@@ -290,22 +301,24 @@ private:
     RecvSizeType m_recv_end;
     bool m_recv_overrun;
     char m_recv_buffer[(size_t)RecvBufferSize + 1];
+    AvrLock<Context> m_recv_lock;
     
     typename Loop::QueuedEvent m_send_queued_event;
     SendSizeType m_send_start;
     SendSizeType m_send_end;
     SendSizeType m_send_event;
     char m_send_buffer[(size_t)SendBufferSize + 1];
+    AvrLock<Context> m_send_lock;
 };
 
 #define AMBRO_AVR_SERIAL_ISRS(avrserial, context) \
 ISR(USART0_RX_vect) \
 { \
-    (avrserial).rx_isr((context)); \
+    (avrserial).rx_isr(MakeAvrInterruptContext(context)); \
 } \
 ISR(USART0_UDRE_vect) \
 { \
-    (avrserial).udre_isr((context)); \
+    (avrserial).udre_isr(MakeAvrInterruptContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>

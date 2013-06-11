@@ -82,7 +82,7 @@ private:
     static const int step_bits = 13;
     static const int time_bits = 22;
     static const int q_div_shift = 16;
-    static const int time_mul_bits = 15;
+    static const int time_mul_bits = 15; // TODO precision, reproduce with timer prescaler 5
     
 public:
     typedef typename Clock::TimeType TimeType;
@@ -172,7 +172,7 @@ public:
         if (m_running && was_empty) {
             D::stepper(this, c)->setDir(c, cmd.dir);
             TimeType timer_t = (cmd.x.bitsValue() == 0) ? (cmd.clock_offset + cmd.t_plain) : cmd.clock_offset;
-            m_timer.prependAt(c, timer_t, false);
+            m_timer.prependAt(c, timer_t);
         }
     }
     
@@ -184,10 +184,10 @@ public:
         
         if (buffer_avail(m_start, m_end) >= min_amount) {
             m_event_amount = CommandBufferSize;
-            m_avail_event.appendNow(c, false);
+            m_avail_event.appendNow(c);
         } else {
             m_event_amount = min_amount - 1;
-            m_avail_event.unset(c, false);
+            m_avail_event.unset(c);
         }
     }
     
@@ -218,7 +218,7 @@ public:
             Command *cmd = &m_commands[m_start];
             D::stepper(this, c)->setDir(c, cmd->dir);
             TimeType timer_t = (cmd->x.bitsValue() == 0) ? (cmd->clock_offset + cmd->t_plain) : cmd->clock_offset;
-            m_timer.prependAt(c, timer_t, false);
+            m_timer.prependAt(c, timer_t);
         }
     }
     
@@ -228,8 +228,8 @@ public:
         AMBRO_ASSERT(m_running)
         
         D::stepper(this, c)->enable(c, false);
-        m_timer.unset(c, false);
-        m_avail_event.unset(c, false);
+        m_timer.unset(c);
+        m_avail_event.unset(c);
         m_running = false;
     }
     
@@ -331,7 +331,7 @@ private:
                 
                 // schedule next step
                 TimeType timer_t = cmd->clock_offset + t_mul_drop.bitsValue();
-                m_timer.prependAt(c, timer_t, false);
+                m_timer.prependAt(c, timer_t);
                 return;
             } while (0);
             
@@ -343,7 +343,7 @@ private:
             CommandSizeType avail = buffer_avail(m_start, m_end);
             if (avail > m_event_amount) {
                 m_event_amount = CommandBufferSize;
-                m_avail_event.appendNow(c, false);
+                m_avail_event.appendNow(c);
             }
             
             // have we run out of commands?
@@ -358,7 +358,7 @@ private:
             // if this is a motionless command, wait
             if (cmd->x.bitsValue() == 0) {
                 TimeType timer_t = cmd->clock_offset + cmd->t_plain;
-                m_timer.prependAt(c, timer_t, false);
+                m_timer.prependAt(c, timer_t);
                 return;
             }
         }
