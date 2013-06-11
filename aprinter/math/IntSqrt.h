@@ -30,7 +30,7 @@
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #ifdef AMBROLIB_AVR
-#include "../avr-asm-ops/sqrt_32_large.h"
+#include <avr-asm-ops/sqrt_32_large.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>

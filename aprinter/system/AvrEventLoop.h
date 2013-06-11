@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_EVENT_LOOP_H
-#define AMBROLIB_EVENT_LOOP_H
+#ifndef AMBROLIB_AVR_EVENT_LOOP_H
+#define AMBROLIB_AVR_EVENT_LOOP_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -37,16 +37,17 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename>
-class EventLoopQueuedEvent;
+class AvrEventLoopQueuedEvent;
 
 template <typename Params>
-class EventLoop
-: private DebugObject<typename Params::Context, EventLoop<Params>>
+class AvrEventLoop
+: private DebugObject<typename Params::Context, AvrEventLoop<Params>>
 {
 public:
     typedef typename Params::Context Context;
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
+    typedef AvrEventLoopQueuedEvent<AvrEventLoop> QueuedEvent;
     
     void init (Context c)
     {
@@ -103,9 +104,8 @@ public:
     
 private:
     template <typename>
-    friend class EventLoopQueuedEvent;
+    friend class AvrEventLoopQueuedEvent;
     
-    typedef EventLoopQueuedEvent<EventLoop> QueuedEvent;
     typedef DoubleEndedList<QueuedEvent, &QueuedEvent::m_list_node> QueuedEventList;
     
 #ifdef AMBROLIB_SUPPORT_QUIT
@@ -116,13 +116,13 @@ private:
 };
 
 template <typename Loop>
-class EventLoopQueuedEvent
-: private DebugObject<typename Loop::Context, EventLoopQueuedEvent<Loop>>
+class AvrEventLoopQueuedEvent
+: private DebugObject<typename Loop::Context, AvrEventLoopQueuedEvent<Loop>>
 {
 public:
     typedef typename Loop::Context Context;
     typedef typename Loop::TimeType TimeType;
-    typedef void (*HandlerType) (EventLoopQueuedEvent *, Context);
+    typedef void (*HandlerType) (AvrEventLoopQueuedEvent *, Context);
     
     void init (Context c, HandlerType handler)
     {
@@ -232,7 +232,7 @@ private:
     
     HandlerType m_handler;
     TimeType m_time;
-    DoubleEndedListNode<EventLoopQueuedEvent> m_list_node;
+    DoubleEndedListNode<AvrEventLoopQueuedEvent> m_list_node;
 };
 
 #include <aprinter/EndNamespace.h>

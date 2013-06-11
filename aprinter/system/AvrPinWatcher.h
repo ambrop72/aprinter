@@ -41,7 +41,6 @@
 #include <aprinter/base/GetContainer.h>
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/structure/SingleEndedList.h>
-#include <aprinter/system/EventLoop.h>
 #include <aprinter/system/AvrPins.h>
 #include <aprinter/system/AvrIo.h>
 
@@ -87,7 +86,7 @@ private:
     template <typename Port>
     struct WatcherBase {
         SingleEndedListNode<WatcherBase> watchers_list_node;
-        EventLoopQueuedEvent<Loop> pending;
+        typename Loop::QueuedEvent pending;
     };
     
     template <typename TPort>
@@ -100,7 +99,7 @@ private:
             o->template queued_event_handler<Port>(c);
         }
         
-        EventLoopQueuedEvent<Loop> queued_event;
+        typename Loop::QueuedEvent queued_event;
         SingleEndedList<WatcherBase<Port>, &WatcherBase<Port>::watchers_list_node> watchers_list;
     };
     

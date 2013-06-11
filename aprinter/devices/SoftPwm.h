@@ -30,7 +30,6 @@
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/system/EventLoop.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -119,7 +118,7 @@ private:
 #endif
     TimeType m_on_time;
     TimeType m_start_time;
-    EventLoopQueuedEvent<Loop> m_timer;
+    typename Loop::QueuedEvent m_timer;
 };
 
 #include <aprinter/EndNamespace.h>

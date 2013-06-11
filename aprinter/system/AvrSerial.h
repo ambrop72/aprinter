@@ -32,10 +32,10 @@
 #include <stddef.h>
 
 #include <aprinter/meta/IsPowerOfTwo.h>
+#include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/system/EventLoop.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -45,6 +45,8 @@ template <typename Context,
 class AvrSerial
 : private DebugObject<Context, AvrSerial<Context, RecvSizeType, RecvBufferSize, RecvHandler, SendSizeType, SendBufferSize, SendHandler>>
 {
+    static_assert(!IntTypeInfo<RecvSizeType>::is_signed, "RecvSizeType must be unsigned");
+    static_assert(!IntTypeInfo<SendSizeType>::is_signed, "SendSizeType must be unsigned");
     static_assert(IsPowerOfTwo<uintmax_t, (uintmax_t)RecvBufferSize + 1>::value, "RecvBufferSize+1 must be a power of two");
     static_assert(IsPowerOfTwo<uintmax_t, (uintmax_t)SendBufferSize + 1>::value, "SendBufferSize+1 must be a power of two");
     
@@ -283,13 +285,13 @@ private:
         SendHandler::call(this, c);
     }
     
-    EventLoopQueuedEvent<Loop> m_recv_queued_event;
+    typename Loop::QueuedEvent m_recv_queued_event;
     RecvSizeType m_recv_start;
     RecvSizeType m_recv_end;
     bool m_recv_overrun;
     char m_recv_buffer[(size_t)RecvBufferSize + 1];
     
-    EventLoopQueuedEvent<Loop> m_send_queued_event;
+    typename Loop::QueuedEvent m_send_queued_event;
     SendSizeType m_send_start;
     SendSizeType m_send_end;
     SendSizeType m_send_event;

@@ -36,7 +36,7 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/system/EventLoop.h>
+#include <aprinter/system/AvrEventLoop.h>
 #include <aprinter/system/AvrClock.h>
 #include <aprinter/system/AvrPins.h>
 #include <aprinter/system/AvrPinWatcher.h>
@@ -67,7 +67,9 @@
 #define SERIAL_RX_BUFFER 63
 #define SERIAL_TX_BUFFER 63
 #define SERIAL_GEN_LENGTH 3000
-#define STEP_INTERVAL UINT32_C(120)
+#define COMMAND_BUFFER_SIZE 63
+#define NUM_MOVE_ITERS 4
+#define SPEED_T_SCALE (0.154*3)
 
 using namespace APrinter;
 
@@ -78,20 +80,22 @@ struct SerialRecvHandler;
 struct SerialSendHandler;
 struct DriverGetStepperHandler;
 struct DriverGetStepperHandler2;
+struct DriverAvailHandler;
+struct DriverAvailHandler2;
 
 typedef AvrClock<MyContext, CLOCK_TIMER_PRESCALER> MyClock;
-typedef EventLoop<EventLoopParams> MyLoop;
+typedef AvrEventLoop<EventLoopParams> MyLoop;
 typedef AvrPins<MyContext> MyPins;
 typedef AvrPinWatcherService<MyContext> MyPinWatcherService;
-typedef EventLoopQueuedEvent<MyLoop> MyTimer;
+typedef AvrEventLoopQueuedEvent<MyLoop> MyTimer;
 typedef AvrPinWatcher<MyContext, WATCH_PIN, PinWatcherHandler> MyPinWatcher;
 typedef SoftPwm<MyContext, SERVO_PIN, SERVO_PULSE_INTERVAL> MySoftPwm;
 typedef SoftPwm<MyContext, SERVO2_PIN, SERVO_PULSE_INTERVAL> MySoftPwm2;
 typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8_t, SERIAL_TX_BUFFER, SerialSendHandler> MySerial;
 typedef Stepper<MyContext, Y_DIR_PIN, Y_STEP_PIN, XYE_ENABLE_PIN> MyStepper;
 typedef Stepper<MyContext, X_DIR_PIN, X_STEP_PIN, XYE_ENABLE_PIN> MyStepper2;
-typedef AxisDriver<MyContext, uint8_t, 63, DriverGetStepperHandler> MyDriver;
-typedef AxisDriver<MyContext, uint8_t, 63, DriverGetStepperHandler2> MyDriver2;
+typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler, DriverAvailHandler> MyDriver;
+typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler2, DriverAvailHandler2> MyDriver2;
 
 struct MyContext {
     typedef MyClock Clock;
@@ -128,6 +132,8 @@ static MyStepper stepper;
 static MyStepper2 stepper2;
 static MyDriver driver;
 static MyDriver2 driver2;
+static int num_left;
+static int num_left2;
 static bool prev_button;
 
 DebugObjectGroup * MyContext::debugObjectGroup () const
@@ -189,43 +195,32 @@ static void update_servos (MyContext c)
     }
 }
 
-static void start_driver (MyContext c)
+static void add_commands (MyContext c)
 {
-    
-    float t_scale = 0.146*2;
-    //float t_scale = 0.162*2;
-    
-    
-    driver.stop(c);
-    driver.prepare(c);
-    for (int i = 0; i < 4; i++) {
-        driver.bufferProvide(c, true, 20.0, 1.0 * t_scale, 20.0);
-        driver.bufferProvide(c, true, 40.0, 1.0 * t_scale, 0.0);
-        driver.bufferProvide(c, true, 20.0, 1.0 * t_scale, -20.0);
-        driver.bufferProvide(c, false, 20.0, 1.0 * t_scale, 20.0);
-        driver.bufferProvide(c, false, 40.0, 1.0 * t_scale, 0.0);
-        driver.bufferProvide(c, false, 20.0, 1.0 * t_scale, -20.0);
+    float t_scale = SPEED_T_SCALE;
+    if (driver.bufferQuery(c) >= 6) {
+        driver.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
+        driver.bufferProvideTest(c, true, 40.0, 1.0 * t_scale, 0.0);
+        driver.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
+        driver.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
+        driver.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
+        driver.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
     }
-    
-    driver2.stop(c);
-    driver2.prepare(c);
-    for (int i = 0; i < 6; i++) {
-        driver2.bufferProvide(c, true, 20.0, 1.0 * t_scale, 20.0);
-        driver2.bufferProvide(c, true, 20.0, 1.0 * t_scale, -20.0);
-        driver2.bufferProvide(c, false, 20.0, 1.0 * t_scale, 20.0);
-        driver2.bufferProvide(c, false, 20.0, 1.0 * t_scale, -20.0);
+    driver.bufferRequestEvent(c, COMMAND_BUFFER_SIZE);
+}
+
+static void add_commands2 (MyContext c)
+{
+    float t_scale = SPEED_T_SCALE;
+    if (driver2.bufferQuery(c) >= 6) {
+        driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
+        driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
+        driver2.bufferProvideTest(c, true, 0.0, 1.0 * t_scale, 0.0);
+        driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
+        driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
+        driver2.bufferProvideTest(c, false, 0.0, 1.0 * t_scale, 0.0);
     }
-    
-    driver.start(c);
-    driver2.start(c);
-    
-    
-    /*
-    driver2.stop(c);
-    driver2.prepare(c);
-    driver2.bufferProvide(c, true, 204.0, 10.0, 204.0);
-    driver2.start(c);
-    */
+    driver2.bufferRequestEvent(c, COMMAND_BUFFER_SIZE);
 }
 
 static void mytimer_handler (MyTimer *, MyContext c)
@@ -239,8 +234,25 @@ static void mytimer_handler (MyTimer *, MyContext c)
 static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
 {
     mypins.set<LED2_PIN>(c, !state);
-    if (!prev_button && state && !driver.isRunning(c) && !driver2.isRunning(c)) {
-        start_driver(c);
+    if (!prev_button && state) {
+        if (driver.isRunning(c) || driver2.isRunning(c)) {
+            if (driver.isRunning(c)) {
+                driver.stop(c);
+            }
+            if (driver2.isRunning(c)) {
+                driver2.stop(c);
+            }
+        } else {
+            driver.clearBuffer(c);
+            driver2.clearBuffer(c);
+            add_commands(c);
+            add_commands2(c);
+            MyClock::TimeType start_time = myclock.getTime(c);
+            driver.start(c, start_time);
+            driver2.start(c, start_time);
+            num_left = NUM_MOVE_ITERS - 1;
+            num_left2 = NUM_MOVE_ITERS - 1;
+        }
     }
     prev_button = state;
 }
@@ -313,11 +325,33 @@ static MyStepper2 * driver_get_stepper_handler2 (MyDriver2 *, MyContext c)
     return &stepper2;
 }
 
+static void driver_avail_handler (MyDriver *, MyContext c)
+{
+    if (num_left == 0) {
+        driver.stop(c);
+        return;
+    }
+    num_left--;
+    add_commands(c);
+}
+
+static void driver_avail_handler2 (MyDriver2 *, MyContext c)
+{
+    if (num_left2 == 0) {
+        driver2.stop(c);
+        return;
+    }
+    num_left2--;
+    add_commands2(c);
+}
+
 struct PinWatcherHandler : public AMBRO_WFUNC(pinwatcher_handler) {};
 struct SerialRecvHandler : public AMBRO_WFUNC(serial_recv_handler) {};
 struct SerialSendHandler : public AMBRO_WFUNC(serial_send_handler) {};
 struct DriverGetStepperHandler : public AMBRO_WFUNC(driver_get_stepper_handler) {};
 struct DriverGetStepperHandler2 : public AMBRO_WFUNC(driver_get_stepper_handler2) {};
+struct DriverAvailHandler : public AMBRO_WFUNC(driver_avail_handler) {};
+struct DriverAvailHandler2 : public AMBRO_WFUNC(driver_avail_handler2) {};
 
 FILE uart_output;
 

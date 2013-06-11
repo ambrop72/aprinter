@@ -30,8 +30,8 @@
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/base/Assert.h>
 #ifdef AMBROLIB_AVR
-#include "../avr-asm-ops/div_32_32_large.h"
-#include "../avr-asm-ops/div_32_16_large.h"
+#include <avr-asm-ops/div_32_32_large.h>
+#include <avr-asm-ops/div_32_16_large.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>

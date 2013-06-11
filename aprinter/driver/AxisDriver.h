@@ -33,11 +33,11 @@
 #include <aprinter/meta/IsPowerOfTwo.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Modulo.h>
+#include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/OffsetCallback.h>
-#include <aprinter/system/EventLoop.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -53,10 +53,11 @@
 
 #define DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
-template <typename Context, typename CommandSizeType, CommandSizeType CommandBufferSize, typename GetStepper>
+template <typename Context, typename CommandSizeType, CommandSizeType CommandBufferSize, typename GetStepper, typename AvailHandler>
 class AxisDriver
-: private DebugObject<Context, AxisDriver<Context, CommandSizeType, CommandBufferSize, GetStepper>>
+: private DebugObject<Context, AxisDriver<Context, CommandSizeType, CommandBufferSize, GetStepper, AvailHandler>>
 {
+    static_assert(!IntTypeInfo<CommandSizeType>::is_signed, "CommandSizeType must be unsigned");
     static_assert(IsPowerOfTwo<uintmax_t, (uintmax_t)CommandBufferSize + 1>::value, "CommandBufferSize+1 must be a power of two");
     
 private:
@@ -93,22 +94,26 @@ public:
     void init (Context c)
     {
         m_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisDriver::m_timer, &AxisDriver::timer_handler));
+        m_avail_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisDriver::m_avail_event, &AxisDriver::avail_event_handler));
         m_running = false;
+        m_start = 0;
+        m_end = 0;
+        m_event_amount = CommandBufferSize;
         this->debugInit(c);
     }
     
     void deinit (Context c)
     {
         this->debugDeinit(c);
+        m_avail_event.deinit(c);
         m_timer.deinit(c);
     }
     
-    void prepare (Context c)
+    void clearBuffer (Context c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
         
-        m_timer.unset(c, false);
         m_start = 0;
         m_end = 0;
     }
@@ -120,17 +125,17 @@ public:
         return buffer_avail(m_start, m_end);
     }
     
-    void bufferProvide (Context c, bool dir, float x, float t, float ha)
+    void bufferProvideTest (Context c, bool dir, float x, float t, float ha)
     {
         float step_length = 0.0125;
-        bufferProvideReal(c, dir, x / step_length, t / Clock::time_unit, ha / step_length);
+        bufferProvide(c, dir, x / step_length, t / Clock::time_unit, ha / step_length);
     }
     
-    void bufferProvideReal (Context c, bool dir, StepType x_arg, TimeType t_arg, StepType ha_arg)
+    void bufferProvide (Context c, bool dir, StepType x_arg, TimeType t_arg, StepType ha_arg)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(bufferQuery(c) >= 1)
-        AMBRO_ASSERT(x_arg > 0)
+        AMBRO_ASSERT(x_arg >= 0)
         AMBRO_ASSERT(x_arg <= StepFixedType::BoundedIntType::maxValue())
         AMBRO_ASSERT(t_arg > 0)
         AMBRO_ASSERT(t_arg <= TimeFixedType::BoundedIntType::maxValue())
@@ -146,47 +151,86 @@ public:
         cmd.dir = dir;
         cmd.x = x;
         cmd.t = t;
+        cmd.t_plain = t_arg;
         cmd.ha_mul = HAMUL_EXPR(x, t, ha);
         cmd.v0 = V0_EXPR(x, t, ha);
         cmd.v02 = V02_EXPR(x, t, ha);
         cmd.t_mul = TMUL_EXPR(x, t, ha);
         
+        // compute the clock offset based on the last command. If not running start() will do it.
+        if (m_running) {
+            Command *last_cmd = &m_commands[buffer_last(m_end)];
+            cmd.clock_offset = last_cmd->clock_offset + last_cmd->t_plain;
+        }
+        
         // add command to queue
+        bool was_empty = (m_start == m_end);
         m_commands[m_end] = cmd;
         m_end = (CommandSizeType)(m_end + 1) % buffer_mod;
+        
+        // if we have run out of commands, continue motion
+        if (m_running && was_empty) {
+            D::stepper(this, c)->setDir(c, cmd.dir);
+            TimeType timer_t = (cmd.x.bitsValue() == 0) ? (cmd.clock_offset + cmd.t_plain) : cmd.clock_offset;
+            m_timer.prependAt(c, timer_t, false);
+        }
     }
     
-    void start (Context c)
+    void bufferRequestEvent (Context c, CommandSizeType min_amount)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(min_amount > 0)
+        AMBRO_ASSERT(min_amount <= CommandBufferSize)
+        
+        if (buffer_avail(m_start, m_end) >= min_amount) {
+            m_event_amount = CommandBufferSize;
+            m_avail_event.appendNow(c, false);
+        } else {
+            m_event_amount = min_amount - 1;
+            m_avail_event.unset(c, false);
+        }
+    }
+    
+    void start (Context c, TimeType start_time)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
-        AMBRO_ASSERT(m_start != m_end)
         
-        TimeType now = c.clock()->getTime(c);
-        
-        // TODO compute this for new instructions added after starting
-        TimeType prev_t = 0;
-        for (CommandSizeType i = m_start; i != m_end; i = (CommandSizeType)(i + 1) % buffer_mod) {
-            m_commands[i].clock_offset = (TimeType)(now + prev_t);
-            prev_t += (TimeType)m_commands[i].t.bitsValue();
+        // compute clock offsets for commands
+        if (m_start == m_end) {
+            Command *last_cmd = &m_commands[buffer_last(m_end)];
+            last_cmd->clock_offset = start_time;
+            last_cmd->t_plain = 0;
+        } else {
+            TimeType clock_offset = start_time;
+            for (CommandSizeType i = m_start; i != m_end; i = (CommandSizeType)(i + 1) % buffer_mod) {
+                m_commands[i].clock_offset = clock_offset;
+                clock_offset += m_commands[i].t_plain;
+            }
         }
         
-        m_rel_x = 0;
-        m_timer.prependNow(c, false);
-        D::stepper(this, c)->enable(c, true);
-        D::stepper(this, c)->setDir(c, m_commands[m_start].dir);
         m_running = true;
+        m_rel_x = 0;
+        D::stepper(this, c)->enable(c, true);
+        
+        // unless we don['t have any commands, begin motion
+        if (m_start != m_end) {
+            Command *cmd = &m_commands[m_start];
+            D::stepper(this, c)->setDir(c, cmd->dir);
+            TimeType timer_t = (cmd->x.bitsValue() == 0) ? (cmd->clock_offset + cmd->t_plain) : cmd->clock_offset;
+            m_timer.prependAt(c, timer_t, false);
+        }
     }
     
     void stop (Context c)
     {
         this->debugAccess(c);
+        AMBRO_ASSERT(m_running)
         
-        if (m_running) {
-            D::stepper(this, c)->enable(c, false);
-            m_timer.unset(c, false);
-            m_running = false;
-        }
+        D::stepper(this, c)->enable(c, false);
+        m_timer.unset(c, false);
+        m_avail_event.unset(c, false);
+        m_running = false;
     }
     
     bool isRunning (Context c)
@@ -204,10 +248,16 @@ private:
         return (CommandSizeType)((CommandSizeType)(start - 1) - end) % buffer_mod;
     }
     
+    CommandSizeType buffer_last (CommandSizeType end)
+    {
+        return (CommandSizeType)(end - 1) % buffer_mod;
+    }
+    
     struct Command {
         bool dir;
         StepFixedType x;
         TimeFixedType t;
+        TimeType t_plain;
         decltype(HAMUL_EXPR_HELPER(DUMMY_VARS)) ha_mul;
         decltype(V0_EXPR_HELPER(DUMMY_VARS)) v0;
         decltype(V02_EXPR_HELPER(DUMMY_VARS)) v02;
@@ -228,94 +278,106 @@ private:
         AMBRO_ASSERT(m_running)
         AMBRO_ASSERT(m_start != m_end)
         
-    next_command:
         Command *cmd = &m_commands[m_start];
-        {
-            if (AMBRO_UNLIKELY(m_rel_x == cmd->x.bitsValue())) {
-                goto finish_command;
+        
+        while (1) {
+            do {
+                if (m_rel_x == cmd->x.bitsValue()) {
+                    break;
+                }
+                
+                // imcrement position and get it into a fixed type
+                m_rel_x++;
+                auto next_x_rel = StepFixedType::importBits(m_rel_x);
+                
+                // compute product part of discriminant
+                auto s_prod = (cmd->ha_mul * next_x_rel.toSigned()).template shift<2>();
+                
+                // compute discriminant
+                static_assert(decltype(cmd->v02.toSigned())::exp == decltype(s_prod)::exp, "slow shift");
+                auto s = cmd->v02.toSigned() + s_prod;
+                
+                // we don't like negative discriminants
+                if (s.bitsValue() < 0) {
+                    perform_steps(c, cmd->x.bitsValue() - (m_rel_x - 1));
+                    break;
+                }
+                
+                // perform the step
+                D::stepper(this, c)->step(c);
+                
+                // compute the thing with the square root
+                static_assert(decltype(cmd->v0)::exp == decltype(s.squareRoot())::exp, "slow shift");
+                auto q = (cmd->v0 + s.squareRoot()).template shift<-1>();
+                
+                // compute numerator for division
+                static_assert(Modulo(q_div_shift, 8) == 0, "slow shift");
+                auto numerator = next_x_rel.template shiftBits<(-q_div_shift)>();
+                
+                // compute solution as fraction of total time
+                auto t_frac_comp = numerator / q; // TODO div0
+                
+                // we expect t_frac_comp to be approximately in [0, 1] so drop all but 1 highest non-fraction bits
+                auto t_frac_drop = t_frac_comp.template dropBitsSaturated<(-decltype(t_frac_comp)::exp)>();
+                
+                // multiply by the time of this command
+                auto t = t_frac_drop * cmd->t_mul;
+                
+                // drop all fraction bits, we don't need them
+                static_assert(Modulo(decltype(t)::exp, 8) == 0, "slow shift");
+                auto t_mul_drop = t.template bitsTo<(decltype(t)::num_bits + decltype(t)::exp)>();
+                static_assert(decltype(t_mul_drop)::exp == 0, "");
+                static_assert(!decltype(t_mul_drop)::is_signed, "");
+                
+                // schedule next step
+                TimeType timer_t = cmd->clock_offset + t_mul_drop.bitsValue();
+                m_timer.prependAt(c, timer_t, false);
+                return;
+            } while (0);
+            
+            // consume command
+            m_start = (CommandSizeType)(m_start + 1) % buffer_mod;
+            m_rel_x = 0;
+            
+            // report avail event if we have enough buffer space
+            CommandSizeType avail = buffer_avail(m_start, m_end);
+            if (avail > m_event_amount) {
+                m_event_amount = CommandBufferSize;
+                m_avail_event.appendNow(c, false);
             }
             
-            // imcrement position and get it into a fixed type
-            m_rel_x++;
-            auto next_x_rel = StepFixedType::importBits(m_rel_x);
-            
-            // compute product part of discriminant
-            auto s_prod = (cmd->ha_mul * next_x_rel.toSigned()).template shift<2>();
-            
-            // compute discriminant
-            static_assert(decltype(cmd->v02.toSigned())::exp == decltype(s_prod)::exp, "slow shift");
-            auto s = cmd->v02.toSigned() + s_prod;
-            
-            // we don't like negative discriminants
-            if (AMBRO_UNLIKELY(s.bitsValue() < 0)) {
-                perform_steps(c, cmd->x.bitsValue() - (m_rel_x - 1));
-                goto finish_command;
+            // have we run out of commands?
+            if (m_start == m_end) {
+                return;
             }
             
-            // perform the step
-            D::stepper(this, c)->step(c);
+            // continue with next command
+            cmd = &m_commands[m_start];
+            D::stepper(this, c)->setDir(c, cmd->dir);
             
-            // compute the thing with the square root
-            static_assert(decltype(cmd->v0)::exp == decltype(s.squareRoot())::exp, "slow shift");
-            auto q = (cmd->v0 + s.squareRoot()).template shift<-1>();
-            
-            // compute numerator for division
-            static_assert(Modulo(q_div_shift, 8) == 0, "slow shift");
-            auto numerator = next_x_rel.template shiftBits<(-q_div_shift)>();
-            
-            // compute solution as fraction of total time
-            auto t_frac_comp = numerator / q; // TODO div0
-            
-            // we expect t_frac_comp to be approximately in [0, 1] so drop all but 1 highest non-fraction bits
-            auto t_frac_drop = t_frac_comp.template dropBitsSaturated<(-decltype(t_frac_comp)::exp)>(); // TODO overflow
-            
-            // multiply by the time of this command
-            auto t = t_frac_drop * cmd->t_mul;
-            
-            // drop all fraction bits, we don't need them
-            static_assert(Modulo(decltype(t)::exp, 8) == 0, "slow shift");
-            auto t_mul_drop = t.template bitsTo<(decltype(t)::num_bits + decltype(t)::exp)>();
-            static_assert(decltype(t_mul_drop)::exp == 0, "");
-            static_assert(!decltype(t_mul_drop)::is_signed, "");
-            
-            // schedule next step
-            TimeType timer_t = cmd->clock_offset + t_mul_drop.bitsValue();
-            m_timer.prependAt(c, timer_t, false);
-            return;
+            // if this is a motionless command, wait
+            if (cmd->x.bitsValue() == 0) {
+                TimeType timer_t = cmd->clock_offset + cmd->t_plain;
+                m_timer.prependAt(c, timer_t, false);
+                return;
+            }
         }
-        
-    finish_command:
-        // move to next command and possibly report to user
-        complete_command(c);
-        
-        // no commands left?
-        if (AMBRO_UNLIKELY(m_start == m_end)) {
-            D::stepper(this, c)->enable(c, false);
-            m_running = false;
-            return;
-        }
-        
-        // continue with next command
-        m_rel_x = 0;
-        D::stepper(this, c)->setDir(c, m_commands[m_start].dir);
-        goto next_command;
     }
     
-    void complete_command (Context c)
+    void avail_event_handler (Context c)
     {
+        this->debugAccess(c);
         AMBRO_ASSERT(m_running)
-        AMBRO_ASSERT(m_start != m_end)
         
-        // consume it
-        m_start = (CommandSizeType)(m_start + 1) % buffer_mod;
-        
-        // TODO report
+        return AvailHandler::call(this, c);
     }
     
-    EventLoopQueuedEvent<Loop> m_timer;
+    typename Loop::QueuedEvent m_timer;
+    typename Loop::QueuedEvent m_avail_event;
     Command m_commands[buffer_mod];
     CommandSizeType m_start;
     CommandSizeType m_end;
+    CommandSizeType m_event_amount;
     typename StepFixedType::IntType m_rel_x;
     bool m_running;
 };

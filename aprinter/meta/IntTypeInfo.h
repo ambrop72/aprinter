@@ -27,9 +27,10 @@
 
 #include <stdint.h>
 
-#include <aprinter/BeginNamespace.h>
-
 #include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/If.h>
+
+#include <aprinter/BeginNamespace.h>
 
 template <typename T>
 struct IntTypeInfo {
