@@ -27,11 +27,11 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/If.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/Modulo.h>
+#include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/math/IntSqrt.h>
 #include <aprinter/math/IntMultiply.h>
@@ -44,20 +44,10 @@ class BoundedInt {
 public:
     static_assert(NumBits > 0, "");
     static_assert((!Signed || NumBits < 32) && (!!Signed || NumBits <= 32), "Too many bits, fix your operations.");
-    //static_assert(NumBits < 64, "Too many bits, fix your operations.");
     
     static const int num_bits = NumBits;
     
-    typedef
-        typename If<(Signed && NumBits < 8), int8_t,
-        typename If<(Signed && NumBits < 16), int16_t,
-        typename If<(Signed && NumBits < 32), int32_t,
-        typename If<(Signed && NumBits < 64), int64_t,
-        typename If<(!Signed && NumBits <= 8), uint8_t,
-        typename If<(!Signed && NumBits <= 16), uint16_t,
-        typename If<(!Signed && NumBits <= 32), uint32_t,
-        typename If<(!Signed && NumBits <= 64), uint64_t,
-        void>::Type>::Type>::Type>::Type>::Type>::Type>::Type>::Type IntType;
+    typedef typename ChooseInt<NumBits, Signed>::Type IntType;
     
     static IntType minValue ()
     {
@@ -169,10 +159,7 @@ public:
         AMBRO_ASSERT(op2.m_int != 0)
         
         return BoundedInt<NumBits, (Signed || Signed2)>::import(
-            IntDivide<
-                typename BoundedInt<NumBits, Signed>::IntType,
-                typename BoundedInt<NumBits2, Signed2>::IntType
-            >::call(m_int, op2.m_int)
+            IntDivide<NumBits, Signed, NumBits2, Signed2>::call(m_int, op2.m_int)
         );
     }
     
@@ -180,7 +167,7 @@ public:
     {
         AMBRO_ASSERT(m_int >= 0)
         
-        return BoundedInt<max(1, ((NumBits / 2) + Modulo(NumBits, 2))), false>::import(IntSqrt<typename IntTypeInfo<IntType>::UnsignedType>::call(m_int));
+        return BoundedInt<max(1, ((NumBits / 2) + Modulo(NumBits, 2))), false>::import(IntSqrt<NumBits>::call(m_int));
     }
     
     template <int NumBits2>

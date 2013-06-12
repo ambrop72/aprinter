@@ -34,6 +34,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
+#include <aprinter/base/OffsetCallback.h>
 #include <aprinter/system/AvrLock.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -244,6 +245,44 @@ private:
     HandlerType m_handler;
     TimeType m_time;
     DoubleEndedListNode<AvrEventLoopQueuedEvent> m_list_node;
+};
+
+template <typename Context, typename Handler>
+class AvrEventLoopTimer {
+public:
+    typedef typename Context::Clock Clock;
+    typedef typename Clock::TimeType TimeType;
+    typedef Context HandlerContext;
+    
+    void init (Context c)
+    {
+        m_queued_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AvrEventLoopTimer::m_queued_event, &AvrEventLoopTimer::queued_event_handler));
+    }
+    
+    void deinit (Context c)
+    {
+        m_queued_event.deinit(c);
+    }
+    
+    template <typename ThisContext>
+    void set (ThisContext c, TimeType time)
+    {
+        m_queued_event.appendAt(c, time);
+    }
+    
+    template <typename ThisContext>
+    void unset (ThisContext c)
+    {
+        m_queued_event.unset(c);
+    }
+    
+private:
+    void queued_event_handler (Context c)
+    {
+        return Handler::call(this, c);
+    }
+    
+    AvrEventLoopQueuedEvent<typename Context::EventLoop> m_queued_event;
 };
 
 #include <aprinter/EndNamespace.h>

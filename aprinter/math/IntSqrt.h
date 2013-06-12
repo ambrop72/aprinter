@@ -29,21 +29,36 @@
 
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/ChooseInt.h>
 #ifdef AMBROLIB_AVR
 #include <avr-asm-ops/sqrt_32_large.h>
+#include <avr-asm-ops/sqrt_29_large.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename T>
-struct IntSqrt {
-    static_assert(!IntTypeInfo<T>::is_signed, "square root of signed not supported");
-    static_assert(!TypesAreEqual<typename IntTypeInfo<T>::PrevType, void>::value, "square root of smallest integer type not supported");
+template <int NumBits>
+class IntSqrt {
+public:
+    typedef typename ChooseInt<NumBits, false>::Type IntType;
+    typedef typename IntTypeInfo<IntType>::PrevType PrevIntType;
+    static_assert(!TypesAreEqual<PrevIntType, void>::value, "square root of smallest integer type not supported");
     
-    static typename IntTypeInfo<T>::PrevType call (T op)
+    static PrevIntType call (IntType op)
     {
-        T res = 0;
-        T one = ((T)1) << (IntTypeInfo<T>::nonsign_bits - 2);
+        return
+#ifdef AMBROLIB_AVR
+            (NumBits <= 29) ? sqrt_29_large(op) :
+            (NumBits <= 32) ? sqrt_32_large(op) :
+#endif
+            default_sqrt(op);
+    }
+    
+private:
+    static PrevIntType default_sqrt (IntType op)
+    {
+        IntType res = 0;
+        IntType one = ((IntType)1) << (IntTypeInfo<IntType>::nonsign_bits - 2);
         
         while (one > op) {
             one >>= 2;
@@ -61,16 +76,6 @@ struct IntSqrt {
         return res;
     }
 };
-
-#ifdef AMBROLIB_AVR
-template <>
-struct IntSqrt<uint32_t> {
-    static uint16_t call (uint32_t op)
-    {
-        return sqrt_32_large(op);
-    }
-};
-#endif
 
 #include <aprinter/EndNamespace.h>
 

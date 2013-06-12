@@ -70,7 +70,7 @@
 #define SERIAL_GEN_LENGTH 3000
 #define COMMAND_BUFFER_SIZE 63
 #define NUM_MOVE_ITERS 4
-#define SPEED_T_SCALE (0.154*3)
+#define SPEED_T_SCALE (0.138*2)
 #define INTERRUPT_TIMER_TIME 1.0
 
 using namespace APrinter;
@@ -84,7 +84,6 @@ struct DriverGetStepperHandler;
 struct DriverGetStepperHandler2;
 struct DriverAvailHandler;
 struct DriverAvailHandler2;
-struct InterruptTimerHandler;
 
 typedef DebugObjectGroup<MyContext> MyDebugObjectGroup;
 typedef AvrClock<MyContext, CLOCK_TIMER_PRESCALER> MyClock;
@@ -98,9 +97,8 @@ typedef SoftPwm<MyContext, SERVO2_PIN, SERVO_PULSE_INTERVAL> MySoftPwm2;
 typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8_t, SERIAL_TX_BUFFER, SerialSendHandler> MySerial;
 typedef Stepper<MyContext, Y_DIR_PIN, Y_STEP_PIN, XYE_ENABLE_PIN> MyStepper;
 typedef Stepper<MyContext, X_DIR_PIN, X_STEP_PIN, XYE_ENABLE_PIN> MyStepper2;
-typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler, DriverAvailHandler> MyDriver;
-typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler2, DriverAvailHandler2> MyDriver2;
-typedef AvrClockInterruptTimer<MyContext, InterruptTimerHandler> MyInterruptTimer;
+typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler> MyDriver;
+typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler2, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler2> MyDriver2;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -142,8 +140,6 @@ static MyDriver2 driver2;
 static int num_left;
 static int num_left2;
 static bool prev_button;
-static MyInterruptTimer interrupt_timer;
-static MyClock::TimeType next_int_time;
 
 MyDebugObjectGroup * MyContext::debugGroup () const
 {
@@ -173,7 +169,8 @@ MyPinWatcherService * MyContext::pinWatcherService () const
 AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
 AMBRO_AVR_SERIAL_ISRS(myserial, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(interrupt_timer, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*driver.getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*driver2.getTimer(), MyContext())
 
 static void write_to_serial (MyContext c, const char *str)
 {
@@ -208,35 +205,33 @@ static void update_servos (MyContext c)
 static void add_commands (MyContext c)
 {
     float t_scale = SPEED_T_SCALE;
-    if (driver.bufferQuery(c) >= 6) {
-        driver.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
-        driver.bufferProvideTest(c, true, 40.0, 1.0 * t_scale, 0.0);
-        driver.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
-        driver.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
-        driver.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
-        driver.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
-    }
-    driver.bufferRequestEvent(c, COMMAND_BUFFER_SIZE);
+    driver.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
+    driver.bufferProvideTest(c, true, 40.0, 1.0 * t_scale, 0.0);
+    driver.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
+    driver.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
+    driver.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
+    driver.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
+    num_left--;
+    driver.bufferRequestEvent(c, COMMAND_BUFFER_SIZE - 6 * (num_left > 0));
 }
 
 static void add_commands2 (MyContext c)
 {
     float t_scale = SPEED_T_SCALE;
-    if (driver2.bufferQuery(c) >= 6) {
-        driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
-        driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
-        driver2.bufferProvideTest(c, true, 0.0, 1.0 * t_scale, 0.0);
-        driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
-        driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
-        driver2.bufferProvideTest(c, false, 0.0, 1.0 * t_scale, 0.0);
-    }
-    driver2.bufferRequestEvent(c, COMMAND_BUFFER_SIZE);
+    driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
+    driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
+    driver2.bufferProvideTest(c, true, 0.0, 1.0 * t_scale, 0.0);
+    driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
+    driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
+    driver2.bufferProvideTest(c, false, 0.0, 1.0 * t_scale, 0.0);
+    num_left2--;
+    driver2.bufferRequestEvent(c, COMMAND_BUFFER_SIZE - 6 * (num_left2 > 0));
 }
 
 static void mytimer_handler (MyTimer *, MyContext c)
 {
-    //blink_state = !blink_state;
-    //mypins.set<LED1_PIN>(c, blink_state);
+    blink_state = !blink_state;
+    mypins.set<LED1_PIN>(c, blink_state);
     next_time += (MyClock::TimeType)(BLINK_INTERVAL / MyClock::time_unit);
     mytimer.appendAt(c, next_time);
 }
@@ -255,13 +250,13 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
         } else {
             driver.clearBuffer(c);
             driver2.clearBuffer(c);
+            num_left = NUM_MOVE_ITERS;
+            num_left2 = NUM_MOVE_ITERS;
             add_commands(c);
             add_commands2(c);
             MyClock::TimeType start_time = myclock.getTime(c);
             driver.start(c, start_time);
             driver2.start(c, start_time);
-            num_left = NUM_MOVE_ITERS - 1;
-            num_left2 = NUM_MOVE_ITERS - 1;
         }
     }
     prev_button = state;
@@ -341,7 +336,6 @@ static void driver_avail_handler (MyDriver *, MyContext c)
         driver.stop(c);
         return;
     }
-    num_left--;
     add_commands(c);
 }
 
@@ -351,16 +345,7 @@ static void driver_avail_handler2 (MyDriver2 *, MyContext c)
         driver2.stop(c);
         return;
     }
-    num_left2--;
     add_commands2(c);
-}
-
-static void interrupt_timer_handler (MyInterruptTimer *, AvrInterruptContext<MyContext> c)
-{
-    blink_state = !blink_state;
-    mypins.set<LED1_PIN>(c, blink_state);
-    next_int_time += (MyClock::TimeType)(INTERRUPT_TIMER_TIME / MyClock::time_unit);
-    interrupt_timer.set(c, next_int_time);
 }
 
 struct PinWatcherHandler : public AMBRO_WFUNC(pinwatcher_handler) {};
@@ -370,7 +355,6 @@ struct DriverGetStepperHandler : public AMBRO_WFUNC(driver_get_stepper_handler) 
 struct DriverGetStepperHandler2 : public AMBRO_WFUNC(driver_get_stepper_handler2) {};
 struct DriverAvailHandler : public AMBRO_WFUNC(driver_avail_handler) {};
 struct DriverAvailHandler2 : public AMBRO_WFUNC(driver_avail_handler2) {};
-struct InterruptTimerHandler : public AMBRO_WFUNC(interrupt_timer_handler) {};
 
 FILE uart_output;
 
@@ -408,7 +392,6 @@ int main ()
     stepper2.init(c);
     driver.init(c);
     driver2.init(c);
-    interrupt_timer.init(c);
     
     mypins.setOutput<LED1_PIN>(c);
     mypins.setOutput<LED2_PIN>(c);
@@ -426,8 +409,6 @@ int main ()
     //mysoftpwm2.enable(c, ref_time + (MyClock::TimeType)(((SERVO_PULSE_INTERVAL*0.000001)/2) / MyClock::time_unit));
     gen_rem = 0;
     prev_button = false;
-    next_int_time = ref_time;
-    interrupt_timer.set(c, next_int_time);
     
     /*
     uint32_t x = 0;
@@ -516,7 +497,6 @@ int main ()
     myloop.run(c);
     
 #ifdef AMBROLIB_SUPPORT_QUIT
-    interrupt_timer.deinit(c);
     driver2.deinit(c);
     driver.deinit(c);
     stepper2.deinit(c);

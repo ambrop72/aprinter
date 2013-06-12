@@ -52,19 +52,24 @@ public:
         this->debugDeinit(c);
     }
     
-    void enable (Context c, bool e)
+    template <typename ThisContext>
+    void enable (ThisContext c, bool e)
     {
         this->debugAccess(c);
         
         c.pins()->template set<EnablePin>(c, !e);
     }
     
-    void setDir (Context c, bool dir)
+    template <typename ThisContext>
+    void setDir (ThisContext c, bool dir)
     {
+        this->debugAccess(c);
+        
         c.pins()->template set<DirPin>(c, dir);
     }
     
-    void step (Context c)
+    template <typename ThisContext>
+    void step (ThisContext c)
     {
         this->debugAccess(c);
         

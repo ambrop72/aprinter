@@ -34,28 +34,29 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/IntTypeInfo.h>
+#include <aprinter/meta/WrapCallback.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Likely.h>
 #include <aprinter/base/OffsetCallback.h>
+#include <aprinter/base/Lock.h>
 
 #include <aprinter/BeginNamespace.h>
 
-#define HAMUL_EXPR(x, t, ha) ((ha).template shiftBits<(-2)>())
-#define V0_EXPR(x, t, ha) (((x).toSigned() - (ha)).toUnsignedUnsafe())
-#define V02_EXPR(x, t, ha) ((V0_EXPR((x), (t), (ha)) * V0_EXPR((x), (t), (ha))))
-#define TMUL_EXPR(x, t, ha) ((t).template bitsTo<time_mul_bits>())
+#define AXISDRIVER_HAMUL_EXPR(x, t, ha) ((ha).template shiftBits<(-2)>())
+#define AXISDRIVER_V0_EXPR(x, t, ha) (((x).toSigned() - (ha)).toUnsignedUnsafe())
+#define AXISDRIVER_V02_EXPR(x, t, ha) ((AXISDRIVER_V0_EXPR((x), (t), (ha)) * AXISDRIVER_V0_EXPR((x), (t), (ha))))
+#define AXISDRIVER_TMUL_EXPR(x, t, ha) ((t).template bitsTo<time_mul_bits>())
 
-#define HAMUL_EXPR_HELPER(args) HAMUL_EXPR(args)
-#define V0_EXPR_HELPER(args) V0_EXPR(args)
-#define V02_EXPR_HELPER(args) V02_EXPR(args)
-#define TMUL_EXPR_HELPER(args) TMUL_EXPR(args)
+#define AXISDRIVER_HAMUL_EXPR_HELPER(args) AXISDRIVER_HAMUL_EXPR(args)
+#define AXISDRIVER_V0_EXPR_HELPER(args) AXISDRIVER_V0_EXPR(args)
+#define AXISDRIVER_V02_EXPR_HELPER(args) AXISDRIVER_V02_EXPR(args)
+#define AXISDRIVER_TMUL_EXPR_HELPER(args) AXISDRIVER_TMUL_EXPR(args)
 
-#define DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
+#define AXISDRIVER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
-template <typename Context, typename CommandSizeType, CommandSizeType CommandBufferSize, typename GetStepper, typename AvailHandler>
+template <typename Context, typename CommandSizeType, CommandSizeType CommandBufferSize, typename GetStepper, template<typename, typename> class Timer, typename AvailHandler>
 class AxisDriver
-: private DebugObject<Context, AxisDriver<Context, CommandSizeType, CommandBufferSize, GetStepper, AvailHandler>>
+: private DebugObject<Context, AxisDriver<Context, CommandSizeType, CommandBufferSize, GetStepper, Timer, AvailHandler>>
 {
     static_assert(!IntTypeInfo<CommandSizeType>::is_signed, "CommandSizeType must be unsigned");
     static_assert(IsPowerOfTwo<uintmax_t, (uintmax_t)CommandBufferSize + 1>::value, "CommandBufferSize+1 must be a power of two");
@@ -63,6 +64,7 @@ class AxisDriver
 private:
     typedef typename Context::EventLoop Loop;
     typedef typename Context::Clock Clock;
+    typedef typename Context::Lock Lock;
     
     struct D {
         static auto stepper (AxisDriver *o, Context c) -> decltype(GetStepper::call(o, c))
@@ -84,7 +86,10 @@ private:
     static const int q_div_shift = 16;
     static const int time_mul_bits = 15; // TODO precision, reproduce with timer prescaler 5
     
+    struct TimerHandler;
+    
 public:
+    typedef Timer<Context, TimerHandler> TimerInstance;
     typedef typename Clock::TimeType TimeType;
     typedef int16_t StepType;
     typedef FixedPoint<step_bits, false, 0> StepFixedType;
@@ -93,18 +98,20 @@ public:
     
     void init (Context c)
     {
-        m_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisDriver::m_timer, &AxisDriver::timer_handler));
+        m_timer.init(c);
         m_avail_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisDriver::m_avail_event, &AxisDriver::avail_event_handler));
         m_running = false;
         m_start = 0;
         m_end = 0;
         m_event_amount = CommandBufferSize;
+        m_lock.init(c);
         this->debugInit(c);
     }
     
     void deinit (Context c)
     {
         this->debugDeinit(c);
+        m_lock.deinit(c);
         m_avail_event.deinit(c);
         m_timer.deinit(c);
     }
@@ -122,7 +129,12 @@ public:
     {
         this->debugAccess(c);
         
-        return buffer_avail(m_start, m_end);
+        CommandSizeType start;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            start = m_start;
+        });
+        
+        return buffer_avail(start, m_end);
     }
     
     void bufferProvideTest (Context c, bool dir, float x, float t, float ha)
@@ -152,10 +164,10 @@ public:
         cmd.x = x;
         cmd.t = t;
         cmd.t_plain = t_arg;
-        cmd.ha_mul = HAMUL_EXPR(x, t, ha);
-        cmd.v0 = V0_EXPR(x, t, ha);
-        cmd.v02 = V02_EXPR(x, t, ha);
-        cmd.t_mul = TMUL_EXPR(x, t, ha);
+        cmd.ha_mul = AXISDRIVER_HAMUL_EXPR(x, t, ha);
+        cmd.v0 = AXISDRIVER_V0_EXPR(x, t, ha);
+        cmd.v02 = AXISDRIVER_V02_EXPR(x, t, ha);
+        cmd.t_mul = AXISDRIVER_TMUL_EXPR(x, t, ha);
         
         // compute the clock offset based on the last command. If not running start() will do it.
         if (m_running) {
@@ -164,15 +176,18 @@ public:
         }
         
         // add command to queue
-        bool was_empty = (m_start == m_end);
         m_commands[m_end] = cmd;
-        m_end = (CommandSizeType)(m_end + 1) % buffer_mod;
+        bool was_empty;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            was_empty = (m_start == m_end);
+            m_end = (CommandSizeType)(m_end + 1) % buffer_mod;
+        });
         
         // if we have run out of commands, continue motion
         if (m_running && was_empty) {
             D::stepper(this, c)->setDir(c, cmd.dir);
             TimeType timer_t = (cmd.x.bitsValue() == 0) ? (cmd.clock_offset + cmd.t_plain) : cmd.clock_offset;
-            m_timer.prependAt(c, timer_t);
+            m_timer.set(c, timer_t);
         }
     }
     
@@ -182,13 +197,15 @@ public:
         AMBRO_ASSERT(min_amount > 0)
         AMBRO_ASSERT(min_amount <= CommandBufferSize)
         
-        if (buffer_avail(m_start, m_end) >= min_amount) {
-            m_event_amount = CommandBufferSize;
-            m_avail_event.appendNow(c);
-        } else {
-            m_event_amount = min_amount - 1;
-            m_avail_event.unset(c);
-        }
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            if (buffer_avail(m_start, m_end) >= min_amount) {
+                m_event_amount = CommandBufferSize;
+                m_avail_event.appendNow(lock_c);
+            } else {
+                m_event_amount = min_amount - 1;
+                m_avail_event.unset(lock_c);
+            }
+        });
     }
     
     void start (Context c, TimeType start_time)
@@ -218,7 +235,7 @@ public:
             Command *cmd = &m_commands[m_start];
             D::stepper(this, c)->setDir(c, cmd->dir);
             TimeType timer_t = (cmd->x.bitsValue() == 0) ? (cmd->clock_offset + cmd->t_plain) : cmd->clock_offset;
-            m_timer.prependAt(c, timer_t);
+            m_timer.set(c, timer_t);
         }
     }
     
@@ -227,8 +244,8 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(m_running)
         
-        D::stepper(this, c)->enable(c, false);
         m_timer.unset(c);
+        D::stepper(this, c)->enable(c, false);
         m_avail_event.unset(c);
         m_running = false;
     }
@@ -240,15 +257,20 @@ public:
         return m_running;
     }
     
+    TimerInstance * getTimer ()
+    {
+        return &m_timer;
+    }
+    
 private:
     static const size_t buffer_mod = (size_t)CommandBufferSize + 1;
     
-    CommandSizeType buffer_avail (CommandSizeType start, CommandSizeType end)
+    static CommandSizeType buffer_avail (CommandSizeType start, CommandSizeType end)
     {
         return (CommandSizeType)((CommandSizeType)(start - 1) - end) % buffer_mod;
     }
     
-    CommandSizeType buffer_last (CommandSizeType end)
+    static CommandSizeType buffer_last (CommandSizeType end)
     {
         return (CommandSizeType)(end - 1) % buffer_mod;
     }
@@ -258,25 +280,28 @@ private:
         StepFixedType x;
         TimeFixedType t;
         TimeType t_plain;
-        decltype(HAMUL_EXPR_HELPER(DUMMY_VARS)) ha_mul;
-        decltype(V0_EXPR_HELPER(DUMMY_VARS)) v0;
-        decltype(V02_EXPR_HELPER(DUMMY_VARS)) v02;
-        decltype(TMUL_EXPR_HELPER(DUMMY_VARS)) t_mul;
+        decltype(AXISDRIVER_HAMUL_EXPR_HELPER(AXISDRIVER_DUMMY_VARS)) ha_mul;
+        decltype(AXISDRIVER_V0_EXPR_HELPER(AXISDRIVER_DUMMY_VARS)) v0;
+        decltype(AXISDRIVER_V02_EXPR_HELPER(AXISDRIVER_DUMMY_VARS)) v02;
+        decltype(AXISDRIVER_TMUL_EXPR_HELPER(AXISDRIVER_DUMMY_VARS)) t_mul;
         TimeType clock_offset;
     };
     
-    void perform_steps (Context c, StepType steps)
+    template <typename ThisContext>
+    void perform_steps (ThisContext c, StepType steps)
     {
         while (steps-- > 0) {
             D::stepper(this, c)->step(c);
         }
     }
     
-    void timer_handler (Context c)
+    void timer_handler (typename TimerInstance::HandlerContext c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_running)
-        AMBRO_ASSERT(m_start != m_end)
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            AMBRO_ASSERT(m_start != m_end)
+        });
         
         Command *cmd = &m_commands[m_start];
         
@@ -303,6 +328,8 @@ private:
                     break;
                 }
                 
+                static_assert(decltype(s)::num_bits <= 29, "");
+                
                 // perform the step
                 D::stepper(this, c)->step(c);
                 
@@ -315,6 +342,8 @@ private:
                 auto numerator = next_x_rel.template shiftBits<(-q_div_shift)>();
                 
                 // compute solution as fraction of total time
+                static_assert(decltype(numerator)::num_bits <= 29, "");
+                static_assert(decltype(q)::num_bits <= 16, "");
                 auto t_frac_comp = numerator / q; // TODO div0
                 
                 // we expect t_frac_comp to be approximately in [0, 1] so drop all but 1 highest non-fraction bits
@@ -331,23 +360,30 @@ private:
                 
                 // schedule next step
                 TimeType timer_t = cmd->clock_offset + t_mul_drop.bitsValue();
-                m_timer.prependAt(c, timer_t);
+                m_timer.set(c, timer_t);
                 return;
             } while (0);
             
-            // consume command
-            m_start = (CommandSizeType)(m_start + 1) % buffer_mod;
+            // reset step counter for next command
             m_rel_x = 0;
             
-            // report avail event if we have enough buffer space
-            CommandSizeType avail = buffer_avail(m_start, m_end);
-            if (avail > m_event_amount) {
-                m_event_amount = CommandBufferSize;
-                m_avail_event.appendNow(c);
-            }
+            bool run_out;
+            AMBRO_LOCK_T(m_lock, c, lock_c, {
+                // consume command
+                m_start = (CommandSizeType)(m_start + 1) % buffer_mod;
+                
+                // report avail event if we have enough buffer space
+                CommandSizeType avail = buffer_avail(m_start, m_end);
+                if (avail > m_event_amount) {
+                    m_event_amount = CommandBufferSize;
+                    m_avail_event.appendNow(lock_c);
+                }
+                
+                // have we run out of commands?
+                run_out = (m_start == m_end);
+            });
             
-            // have we run out of commands?
-            if (m_start == m_end) {
+            if (run_out) {
                 return;
             }
             
@@ -358,7 +394,7 @@ private:
             // if this is a motionless command, wait
             if (cmd->x.bitsValue() == 0) {
                 TimeType timer_t = cmd->clock_offset + cmd->t_plain;
-                m_timer.prependAt(c, timer_t);
+                m_timer.set(c, timer_t);
                 return;
             }
         }
@@ -372,7 +408,7 @@ private:
         return AvailHandler::call(this, c);
     }
     
-    typename Loop::QueuedEvent m_timer;
+    TimerInstance m_timer;
     typename Loop::QueuedEvent m_avail_event;
     Command m_commands[buffer_mod];
     CommandSizeType m_start;
@@ -380,6 +416,9 @@ private:
     CommandSizeType m_event_amount;
     typename StepFixedType::IntType m_rel_x;
     bool m_running;
+    Lock m_lock;
+    
+    struct TimerHandler : public AMBRO_WCALLBACK_TD(&AxisDriver::timer_handler, &AxisDriver::m_timer) {};
 };
 
 #include <aprinter/EndNamespace.h>

@@ -80,32 +80,32 @@ public:
         this->debugDeinit(c);
     }
     
-    template <typename Pin>
-    void setInput (Context c)
+    template <typename Pin, typename ThisContext>
+    void setInput (ThisContext c)
     {
         this->debugAccess(c);
         
         asm("cbi %0,%1" :: "i" (Pin::Port::ddr_io_addr), "i" (Pin::port_pin));
     }
     
-    template <typename Pin>
-    void setOutput (Context c)
+    template <typename Pin, typename ThisContext>
+    void setOutput (ThisContext c)
     {
         this->debugAccess(c);
         
         asm("sbi %0,%1" :: "i" (Pin::Port::ddr_io_addr), "i" (Pin::port_pin));
     }
     
-    template <typename Pin>
-    bool get (Context c)
+    template <typename Pin, typename ThisContext>
+    bool get (ThisContext c)
     {
         this->debugAccess(c);
         
         return (Pin::Port::getPin() & (1 << Pin::port_pin));
     }
     
-    template <typename Pin>
-    void set (Context c, bool x)
+    template <typename Pin, typename ThisContext>
+    void set (ThisContext c, bool x)
     {
         this->debugAccess(c);
         

@@ -69,7 +69,7 @@ public:
         m_enabled = true;
 #endif
         m_start_time = start_time;
-        m_timer.prependAt(c, m_start_time, false);
+        m_timer.appendAt(c, m_start_time, false);
         c.pins()->template setOutput<Pin>(c);
     }
     
@@ -110,7 +110,7 @@ private:
             c.pins()->template set<Pin>(c, false);
         }
         
-        m_timer.prependAt(c, next_time);
+        m_timer.appendAt(c, next_time);
     }
     
 #ifdef AMBROLIB_ASSERTIONS

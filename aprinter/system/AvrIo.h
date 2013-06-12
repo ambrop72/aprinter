@@ -38,9 +38,21 @@ void avrSetReg (uint8_t value)
 }
 
 template <uint32_t IoAddr>
+void avrSetReg16 (uint16_t value)
+{
+    _SFR_IO16(IoAddr) = value;
+}
+
+template <uint32_t IoAddr>
 uint8_t avrGetReg ()
 {
     return _SFR_IO8(IoAddr);
+}
+
+template <uint32_t IoAddr>
+uint16_t avrGetReg16 ()
+{
+    return _SFR_IO16(IoAddr);
 }
 
 template <uint32_t IoAddr>

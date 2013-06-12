@@ -27,47 +27,40 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/IntTypeInfo.h>
-#include <aprinter/base/Assert.h>
+#include <aprinter/meta/ChooseInt.h>
 #ifdef AMBROLIB_AVR
 #include <avr-asm-ops/div_32_32_large.h>
 #include <avr-asm-ops/div_32_16_large.h>
+#include <avr-asm-ops/div_29_16_large.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename T1, typename T2, typename Void = void>
-struct IntDivide {
-    static_assert(IntTypeInfo<T1>::is_signed == IntTypeInfo<T2>::is_signed,
-                  "division of operands with different signedness not supported");
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+class IntDivide {
+public:
+    typedef typename ChooseInt<NumBits1, Signed1>::Type IntType1;
+    typedef typename ChooseInt<NumBits2, Signed2>::Type IntType2;
+    typedef typename ChooseInt<NumBits1, (Signed1 || Signed2)>::Type ResType;
+    static_assert(Signed1 == Signed2, "division of operands with different signedness not supported");
     
-    static T1 call (T1 op1, T2 op2)
+    static ResType call (IntType1 op1, IntType2 op2)
     {
-        AMBRO_ASSERT(op2 != 0)
-        
+        return
+#ifdef AMBROLIB_AVR
+            (!Signed1 && NumBits1 <= 29 && !Signed2 && NumBits2 <= 16) ? div_29_16_large(op1, op2) :
+            (!Signed1 && NumBits1 <= 32 && !Signed2 && NumBits2 <= 16) ? div_32_16_large(op1, op2) :
+            (!Signed1 && NumBits1 <= 32 && !Signed2 && NumBits2 <= 32) ? div_32_32_large(op1, op2) :
+#endif
+            default_divide(op1, op2);
+    }
+    
+private:
+    static ResType default_divide (IntType1 op1, IntType2 op2)
+    {
         return (op1 / op2);
     }
 };
-
-#ifdef AMBROLIB_AVR
-
-template <>
-struct IntDivide<uint32_t, uint32_t> {
-    static uint32_t call (uint32_t n, uint32_t d)
-    {
-        return div_32_32_large(n, d);
-    }
-};
-
-template <>
-struct IntDivide<uint32_t, uint16_t> {
-    static uint32_t call (uint32_t n, uint16_t d)
-    {
-        return div_32_16_large(n, d);
-    }
-};
-
-#endif
 
 #include <aprinter/EndNamespace.h>
 

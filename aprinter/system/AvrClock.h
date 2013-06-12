@@ -29,12 +29,14 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/sfr_defs.h>
 
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/AvrLock.h>
+#include <aprinter/system/AvrIo.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -112,15 +114,14 @@ private:
     volatile uint16_t m_offset;
 };
 
-template <typename Context, typename Handler>
+template <typename Context, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg>
 class AvrClockInterruptTimer
-: private DebugObject<Context, AvrClockInterruptTimer<Context, Handler>>
+: private DebugObject<Context, AvrClockInterruptTimer<Context, Handler, timsk_reg, ocie_bit, ocr_reg>>
 {
 public:
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
-    
-    static const TimeType clearance = (100 / Clock::prescale_divide) + 1;
+    typedef AvrInterruptContext<Context> HandlerContext;
     
     void init (Context c)
     {
@@ -133,7 +134,7 @@ public:
     {
         this->debugDeinit(c);
         
-        TIMSK1 &= ~(1 << OCIE1A);
+        avrSoftClearBitReg<timsk_reg>(ocie_bit);
         m_lock.deinit(c);
     }
     
@@ -151,9 +152,11 @@ public:
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             m_time = time;
+#ifdef AMBROLIB_ASSERTIONS
             m_running = true;
-            OCR1A = time;
-            TIMSK1 |= (1 << OCIE1A);
+#endif
+            avrSetReg16<ocr_reg>(time);
+            avrSoftSetBitReg<timsk_reg>(ocie_bit);
         });
     }
     
@@ -163,33 +166,49 @@ public:
         this->debugAccess(c);
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
+#ifdef AMBROLIB_ASSERTIONS
             m_running = false;
-            TIMSK1 &= ~(1 << OCIE1A);
+#endif
+            avrSoftClearBitReg<timsk_reg>(ocie_bit);
         });
     }
     
-    void timer1_compa_isr (AvrInterruptContext<Context> c)
+    template <uint32_t check_ocr_reg>
+    void timer_comp_isr (AvrInterruptContext<Context> c)
     {
+        static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         AMBRO_ASSERT(m_running)
         
         TimeType now = c.clock()->getTime(c);
         TimeType ref = now - Clock::past;
         
-        if ((TimeType)(now - ref) < (TimeType)(m_time - ref)) {
+        if ((TimeType)Clock::past < (TimeType)(m_time - ref)) {
             return;
         }
         
+#ifdef AMBROLIB_ASSERTIONS
         m_running = false;
-        TIMSK1 &= ~(1 << OCIE1A);
+#endif
+        avrSoftClearBitReg<timsk_reg>(ocie_bit);
         
         return Handler::call(this, c);
     }
     
 private:
+    static const TimeType clearance = (64 / Clock::prescale_divide) + 2;
+    
+#ifdef AMBROLIB_ASSERTIONS
     bool m_running;
+#endif
     TimeType m_time;
     AvrLock<Context> m_lock;
 };
+
+template <typename Context, typename Handler>
+using AvrClockInterruptTimer_TC1_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1A, _SFR_IO_ADDR(OCR1A)>;
+
+template <typename Context, typename Handler>
+using AvrClockInterruptTimer_TC1_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1B, _SFR_IO_ADDR(OCR1B)>;
 
 #define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \
 ISR(TIMER1_OVF_vect) \
@@ -197,10 +216,16 @@ ISR(TIMER1_OVF_vect) \
     (avrclock).timer1_ovf_isr(MakeAvrInterruptContext((context))); \
 }
 
-#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(avrclockinterrupttimer, context) \
+#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER1_COMPA_vect) \
 { \
-    (avrclockinterrupttimer).timer1_compa_isr(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR1A)>(MakeAvrInterruptContext((context))); \
+}
+
+#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(avrclockinterrupttimer, context) \
+ISR(TIMER1_COMPB_vect) \
+{ \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR1B)>(MakeAvrInterruptContext((context))); \
 }
 
 #include <aprinter/EndNamespace.h>
