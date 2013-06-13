@@ -171,7 +171,6 @@ public:
         this->debugDeinit(c);
         
         avrSoftClearBitReg<timsk_reg>(ocie_bit);
-        avrSetBitReg<tifr_reg>(ocf_bit);
         m_lock.deinit(c);
     }
     
@@ -181,9 +180,8 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
         
-#if 1
         TimeType time_plus_past = time + (TimeType)Clock::past;
-        TimeType clearance_plus_past = (TimeType)clearance + Clock::past;
+        static const TimeType clearance_plus_past = (TimeType)clearance + Clock::past;
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             uint16_t now_high = lock_c.clock()->m_offset;
@@ -205,10 +203,10 @@ public:
                 "    sbc %B[time_plus_past],%B[now_low]\n"
                 "    sbc %C[time_plus_past],%A[now_high]\n"
                 "    sbc %D[time_plus_past],%B[now_high]\n"
-                "    sub %A[time_plus_past],%A[clearance_plus_past]\n"
-                "    sbc %B[time_plus_past],%B[clearance_plus_past]\n"
-                "    sbc %C[time_plus_past],%C[clearance_plus_past]\n"
-                "    sbc %D[time_plus_past],%D[clearance_plus_past]\n"
+                "    subi %A[time_plus_past],%[cppA]\n"
+                "    sbci %B[time_plus_past],%[cppB]\n"
+                "    sbci %C[time_plus_past],%[cppC]\n"
+                "    sbci %D[time_plus_past],%[cppD]\n"
                 "    brcc no_saturation_%=\n"
                 "    sub %A[time],%A[time_plus_past]\n"
                 "    sbc %B[time],%B[time_plus_past]\n"
@@ -220,24 +218,24 @@ public:
                 "    lds %[tmp],%[timsk]\n"
                 "    ori %[tmp],1<<%[ocie_bit]\n"
                 "    sts %[timsk],%[tmp]\n"
-                
                 : [now_low] "=&r" (now_low),
                   [now_high] "=&a" (now_high),
                   [tmp] "=&a" (tmp),
-                  [time_plus_past] "=&r" (time_plus_past),
+                  [time_plus_past] "=&a" (time_plus_past),
                   [time] "=&r" (time)
                 : "[now_high]" (now_high),
                   "[time_plus_past]" (time_plus_past),
                   "[time]" (time),
-                  [clearance_plus_past] "r" (clearance_plus_past),
+                  [cppA] "n" ((clearance_plus_past >> 0) & 0xFF),
+                  [cppB] "n" ((clearance_plus_past >> 8) & 0xFF),
+                  [cppC] "n" ((clearance_plus_past >> 16) & 0xFF),
+                  [cppD] "n" ((clearance_plus_past >> 24) & 0xFF),
                   [tcnt] "n" (_SFR_MEM_ADDR(TCNT1)),
                   [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
                   [tov] "n" (TOV1),
                   [ocr] "n" (ocr_reg + __SFR_OFFSET),
                   [timsk] "n" (timsk_reg + __SFR_OFFSET),
                   [ocie_bit] "n" (ocie_bit),
-                  [tifr] "I" (tifr_reg),
-                  [ocf_bit] "n" (ocf_bit)
             );
             
             m_time = time;
@@ -245,7 +243,6 @@ public:
             m_running = true;
 #endif
         });
-#endif
     }
     
     template <typename ThisContext>
@@ -255,7 +252,6 @@ public:
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
-            avrSetBitReg<tifr_reg>(ocf_bit);
 #ifdef AMBROLIB_ASSERTIONS
             m_running = false;
 #endif
