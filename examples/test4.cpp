@@ -70,7 +70,7 @@
 #define SERIAL_GEN_LENGTH 3000
 #define COMMAND_BUFFER_SIZE 15
 #define NUM_MOVE_ITERS 4
-#define SPEED_T_SCALE (0.133*2.0)
+#define SPEED_T_SCALE (0.130*1.0)
 #define INTERRUPT_TIMER_TIME 1.0
 
 using namespace APrinter;
@@ -98,7 +98,7 @@ typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8
 typedef Stepper<MyContext, Y_DIR_PIN, Y_STEP_PIN, XYE_ENABLE_PIN> MyStepper;
 typedef Stepper<MyContext, X_DIR_PIN, X_STEP_PIN, XYE_ENABLE_PIN> MyStepper2;
 typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler> MyDriver;
-typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler2, AvrClockInterruptTimer_TC3_OCA, DriverAvailHandler2> MyDriver2;
+typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler2, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler2> MyDriver2;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -170,7 +170,7 @@ AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
 AMBRO_AVR_SERIAL_ISRS(myserial, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*driver.getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*driver2.getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*driver2.getTimer(), MyContext())
 
 static void write_to_serial (MyContext c, const char *str)
 {
@@ -264,7 +264,7 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
             add_commands(c);
             add_commands2(c);
             MyClock::TimeType start_time = myclock.getTime(c);
-            driver.start(c, start_time);
+            //driver.start(c, start_time);
             driver2.start(c, start_time);
         }
     }

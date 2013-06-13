@@ -175,7 +175,7 @@ private:
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2, int RightShiftBits>
 struct FixedPointMultiply {
-    typedef FixedPoint<NumBits1 + NumBits2 - RightShiftBits, (Signed1 || Signed2), Exp1 + Exp2 + RightShiftBits> ResultType;
+    typedef FixedPoint<(NumBits1 + NumBits2 - RightShiftBits), (Signed1 || Signed2), (Exp1 + Exp2 + RightShiftBits)> ResultType;
     
     static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
     {
@@ -225,20 +225,26 @@ typename FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::ResultType opera
     return FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::call(op1, -op2);
 }
 
-template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2, int LeftShiftBits>
 struct FixedPointDivide {
-    typedef FixedPoint<NumBits1, (Signed1 || Signed2), Exp1 - Exp2> ResultType;
+    typedef FixedPoint<(NumBits1 + LeftShiftBits), (Signed1 || Signed2), (Exp1 - Exp2 - LeftShiftBits)> ResultType;
     
     static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
     {
-        return ResultType::importBoundedBits(op1.bitsBoundedValue() / op2.bitsBoundedValue());
+        return ResultType::importBoundedBits(op1.bitsBoundedValue().template leftShiftAndDivide<LeftShiftBits>(op2.bitsBoundedValue()));
     }
 };
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
-typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ResultType operator/ (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, 0>::ResultType operator/ (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
-    return FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::call(op1, op2);
+    return FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, 0>::call(op1, op2);
+}
+
+template <int LeftShiftBits, int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, LeftShiftBits>::ResultType FixedLeftShiftBitsDivide (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+{
+    return FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, LeftShiftBits>::call(op1, op2);
 }
 
 template <int NumBits1, int Exp1, int NumBits2, int Exp2, bool Signed>

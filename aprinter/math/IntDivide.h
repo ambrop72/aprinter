@@ -28,37 +28,38 @@
 #include <stdint.h>
 
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/PowerOfTwo.h>
 
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/div_29_16_large.h>
+#include <avr-asm-ops/div_13_16_l16_large.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
 
-template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2, int LeftShift>
 class IntDivide {
 public:
+    static_assert(LeftShift >= 0, "LeftShift must be non-negative");
+    
     typedef typename ChooseInt<NumBits1, Signed1>::Type Op1Type;
     typedef typename ChooseInt<NumBits2, Signed2>::Type Op2Type;
-    typedef typename ChooseInt<NumBits1, (Signed1 || Signed2)>::Type ResType;
+    typedef typename ChooseInt<(NumBits1 + LeftShift), (Signed1 || Signed2)>::Type ResType;
     
     static ResType call (Op1Type op1, Op2Type op2)
     {
         return
 #ifdef AMBROLIB_AVR
-            (!Signed1 && NumBits1 > 16 && NumBits1 <= 29 && !Signed2 && NumBits2 <= 16) ? div_29_16_large(op1, op2) :
+            (LeftShift == 16 && !Signed1 && NumBits1 > 8 && NumBits1 <= 13 && !Signed2 && NumBits2 <= 16) ? div_13_16_l16_large(op1, op2) :
 #endif
             default_divide(op1, op2);
     }
     
 private:
-    typedef typename ChooseInt<NumBits1, (Signed1 || Signed2)>::Type TempType1;
     typedef typename ChooseInt<NumBits2, (Signed1 || Signed2)>::Type TempType2;
     
     static ResType default_divide (Op1Type op1, Op2Type op2)
     {
-        return ((TempType1)op1 / (TempType2)op2);
+        return (((ResType)op1 * PowerOfTwo<ResType, LeftShift>::value) / (TempType2)op2);
     }
 };
 

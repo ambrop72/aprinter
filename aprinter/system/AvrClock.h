@@ -34,6 +34,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
+#include <aprinter/base/Likely.h>
 #include <aprinter/system/AvrLock.h>
 #include <aprinter/system/AvrIo.h>
 
@@ -105,6 +106,17 @@ public:
         }
     }
     
+    template <typename ThisContext>
+    void handleOverflow (ThisContext c)
+    {
+        if (IsAvrInterruptContext<ThisContext>::value) {
+            if ((TIFR1 & (1 << TOV1))) {
+                m_offset++;
+                TIFR1 |= (1 << TOV1);
+            }
+        }
+    }
+    
     void initTC3 (Context c)
     {
         this->debugAccess(c);
@@ -112,7 +124,7 @@ public:
         TIMSK3 = 0;
         TCCR3A = 0;
         TCCR3B = (uint16_t)Prescale;
-        TCNT3 = TCNT1 + sync_clearance;
+        TCNT3 = TCNT1 + sync_clearance; // TODO
     }
     
     void deinitTC3 (Context c)
@@ -131,12 +143,13 @@ public:
 private:
     static const TimeType sync_clearance = 16 / prescale_divide;
     
+public:
     volatile uint16_t m_offset;
 };
 
-template <typename Context, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg>
+template <typename Context, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg, uint32_t tifr_reg, uint8_t ocf_bit>
 class AvrClockInterruptTimer
-: private DebugObject<Context, AvrClockInterruptTimer<Context, Handler, timsk_reg, ocie_bit, ocr_reg>>
+: private DebugObject<Context, AvrClockInterruptTimer<Context, Handler, timsk_reg, ocie_bit, ocr_reg, tifr_reg, ocf_bit>>
 {
 public:
     typedef typename Context::Clock Clock;
@@ -148,6 +161,9 @@ public:
         this->debugInit(c);
         
         m_lock.init(c);
+#ifdef AMBROLIB_ASSERTIONS
+        m_running = false;
+#endif
     }
     
     void deinit (Context c)
@@ -155,6 +171,7 @@ public:
         this->debugDeinit(c);
         
         avrSoftClearBitReg<timsk_reg>(ocie_bit);
+        avrSetBitReg<tifr_reg>(ocf_bit);
         m_lock.deinit(c);
     }
     
@@ -162,22 +179,73 @@ public:
     void set (ThisContext c, TimeType time)
     {
         this->debugAccess(c);
+        AMBRO_ASSERT(!m_running)
         
-        TimeType now = c.clock()->getTime(c);
-        TimeType ref = now - Clock::past;
-        
-        if ((TimeType)(time - ref) < (TimeType)((TimeType)(now + clearance) - ref)) {
-            time = now + clearance;
-        }
+#if 1
+        TimeType time_plus_past = time + (TimeType)Clock::past;
+        TimeType clearance_plus_past = (TimeType)clearance + Clock::past;
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
+            uint16_t now_high = lock_c.clock()->m_offset;
+            uint16_t now_low;
+            uint8_t tmp;
+            
+            asm volatile (
+                "    lds %A[now_low],%[tcnt]+0\n"
+                "    lds %B[now_low],%[tcnt]+1\n"
+                "    in %[tmp],%[tifr1]\n"
+                "    andi %[tmp],1<<%[tov]\n"
+                "    breq no_overflow_%=\n"
+                "    subi %A[now_high],-1\n"
+                "    sbci %B[now_high],-1\n"
+                "    lds %A[now_low],%[tcnt]+0\n"
+                "    lds %B[now_low],%[tcnt]+1\n"
+                "no_overflow_%=:\n"
+                "    sub %A[time_plus_past],%A[now_low]\n"
+                "    sbc %B[time_plus_past],%B[now_low]\n"
+                "    sbc %C[time_plus_past],%A[now_high]\n"
+                "    sbc %D[time_plus_past],%B[now_high]\n"
+                "    sub %A[time_plus_past],%A[clearance_plus_past]\n"
+                "    sbc %B[time_plus_past],%B[clearance_plus_past]\n"
+                "    sbc %C[time_plus_past],%C[clearance_plus_past]\n"
+                "    sbc %D[time_plus_past],%D[clearance_plus_past]\n"
+                "    brcc no_saturation_%=\n"
+                "    sub %A[time],%A[time_plus_past]\n"
+                "    sbc %B[time],%B[time_plus_past]\n"
+                "    sbc %C[time],%C[time_plus_past]\n"
+                "    sbc %D[time],%D[time_plus_past]\n"
+                "no_saturation_%=:\n"
+                "    sts %[ocr]+1,%B[time]\n"
+                "    sts %[ocr]+0,%A[time]\n"
+                "    lds %[tmp],%[timsk]\n"
+                "    ori %[tmp],1<<%[ocie_bit]\n"
+                "    sts %[timsk],%[tmp]\n"
+                
+                : [now_low] "=&r" (now_low),
+                  [now_high] "=&a" (now_high),
+                  [tmp] "=&a" (tmp),
+                  [time_plus_past] "=&r" (time_plus_past),
+                  [time] "=&r" (time)
+                : "[now_high]" (now_high),
+                  "[time_plus_past]" (time_plus_past),
+                  "[time]" (time),
+                  [clearance_plus_past] "r" (clearance_plus_past),
+                  [tcnt] "n" (_SFR_MEM_ADDR(TCNT1)),
+                  [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
+                  [tov] "n" (TOV1),
+                  [ocr] "n" (ocr_reg + __SFR_OFFSET),
+                  [timsk] "n" (timsk_reg + __SFR_OFFSET),
+                  [ocie_bit] "n" (ocie_bit),
+                  [tifr] "I" (tifr_reg),
+                  [ocf_bit] "n" (ocf_bit)
+            );
+            
             m_time = time;
 #ifdef AMBROLIB_ASSERTIONS
             m_running = true;
 #endif
-            avrSetReg16<ocr_reg>(time);
-            avrSoftSetBitReg<timsk_reg>(ocie_bit);
         });
+#endif
     }
     
     template <typename ThisContext>
@@ -186,10 +254,11 @@ public:
         this->debugAccess(c);
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
+            avrSoftClearBitReg<timsk_reg>(ocie_bit);
+            avrSetBitReg<tifr_reg>(ocf_bit);
 #ifdef AMBROLIB_ASSERTIONS
             m_running = false;
 #endif
-            avrSoftClearBitReg<timsk_reg>(ocie_bit);
         });
     }
     
@@ -206,35 +275,35 @@ public:
             return;
         }
         
+        avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
         m_running = false;
 #endif
-        avrSoftClearBitReg<timsk_reg>(ocie_bit);
         
         return Handler::call(this, c);
     }
     
 private:
-    static const TimeType clearance = (104 / Clock::prescale_divide) + 1;
+    static const TimeType clearance = (35 / Clock::prescale_divide) + 2;
     
+    TimeType m_time;
+    AvrLock<Context> m_lock;
 #ifdef AMBROLIB_ASSERTIONS
     bool m_running;
 #endif
-    TimeType m_time;
-    AvrLock<Context> m_lock;
 };
 
 template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC1_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1A, _SFR_IO_ADDR(OCR1A)>;
+using AvrClockInterruptTimer_TC1_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1A, _SFR_IO_ADDR(OCR1A), _SFR_IO_ADDR(TIFR1), OCF1A>;
 
 template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC1_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1B, _SFR_IO_ADDR(OCR1B)>;
+using AvrClockInterruptTimer_TC1_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1B, _SFR_IO_ADDR(OCR1B), _SFR_IO_ADDR(TIFR1), OCF1B>;
 
 template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC3_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3A, _SFR_IO_ADDR(OCR3A)>;
+using AvrClockInterruptTimer_TC3_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3A, _SFR_IO_ADDR(OCR3A), _SFR_IO_ADDR(TIFR3), OCF3A>;
 
 template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC3_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3B, _SFR_IO_ADDR(OCR3B)>;
+using AvrClockInterruptTimer_TC3_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3B, _SFR_IO_ADDR(OCR3B), _SFR_IO_ADDR(TIFR3), OCF3B>;
 
 #define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \
 ISR(TIMER1_OVF_vect) \

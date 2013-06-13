@@ -162,7 +162,17 @@ public:
         AMBRO_ASSERT(op2.m_int != 0)
         
         return BoundedInt<NumBits, (Signed || Signed2)>::import(
-            IntDivide<NumBits, Signed, NumBits2, Signed2>::call(m_int, op2.m_int)
+            IntDivide<NumBits, Signed, NumBits2, Signed2, 0>::call(m_int, op2.m_int)
+        );
+    }
+    
+    template <int LeftShift, int NumBits2, bool Signed2>
+    BoundedInt<(NumBits + LeftShift), (Signed || Signed2)> leftShiftAndDivide (BoundedInt<NumBits2, Signed2> op2) const
+    {
+        AMBRO_ASSERT(op2.m_int != 0)
+        
+        return BoundedInt<(NumBits + LeftShift), (Signed || Signed2)>::import(
+            IntDivide<NumBits, Signed, NumBits2, Signed2, LeftShift>::call(m_int, op2.m_int)
         );
     }
     

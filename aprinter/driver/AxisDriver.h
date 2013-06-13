@@ -102,6 +102,7 @@ public:
         m_start = 0;
         m_end = 0;
         m_event_amount = CommandBufferSize;
+        m_current_command = &m_commands[m_start];
         m_lock.init(c);
         this->debugInit(c);
     }
@@ -121,6 +122,7 @@ public:
         
         m_start = 0;
         m_end = 0;
+        m_current_command = &m_commands[m_start];
     }
     
     CommandSizeType bufferQuery (Context c)
@@ -299,12 +301,10 @@ private:
             AMBRO_ASSERT(m_start != m_end)
         });
         
-        Command *cmd = &m_commands[m_start];
-        
         while (1) {
             do {
                 // is command finished?
-                if (m_rel_x == cmd->x.bitsValue()) {
+                if (m_rel_x == m_current_command->x.bitsValue()) {
                     break;
                 }
                 
@@ -316,41 +316,38 @@ private:
                 D::stepper(this, c)->step(c);
                 
                 // compute product part of discriminant
-                auto s_prod = (cmd->ha_mul * next_x_rel.toSigned()).template shift<2>();
+                auto s_prod = (m_current_command->ha_mul * next_x_rel.toSigned()).template shift<2>();
                 
                 // compute discriminant
-                static_assert(decltype(cmd->v02.toSigned())::exp == decltype(s_prod)::exp, "slow shift");
-                auto s = cmd->v02.toSigned() + s_prod;
+                static_assert(decltype(m_current_command->v02.toSigned())::exp == decltype(s_prod)::exp, "slow shift");
+                auto s = m_current_command->v02.toSigned() + s_prod;
                 
                 // we don't like negative discriminants
                 if (s.bitsValue() < 0) {
-                    perform_steps(c, cmd->x.bitsValue() - m_rel_x);
+                    perform_steps(c, m_current_command->x.bitsValue() - m_rel_x);
                     break;
                 }
                 
                 // compute the thing with the square root
-                static_assert(decltype(cmd->v0)::exp == decltype(s.squareRoot())::exp, "slow shift");
-                auto q = (cmd->v0 + s.squareRoot()).template shift<-1>();
-                
-                // compute numerator for division
-                static_assert(Modulo(q_div_shift, 8) == 0, "slow shift");
-                auto numerator = next_x_rel.template shiftBits<(-q_div_shift)>();
+                static_assert(decltype(m_current_command->v0)::exp == decltype(s.squareRoot())::exp, "slow shift");
+                auto q = (m_current_command->v0 + s.squareRoot()).template shift<-1>();
                 
                 // compute solution as fraction of total time
-                auto t_frac_comp = numerator / q; // TODO div0
+                static_assert(Modulo(q_div_shift, 8) == 0, "slow shift");
+                auto t_frac_comp = FixedLeftShiftBitsDivide<q_div_shift>(next_x_rel, q); // TODO div0
                 
                 // we expect t_frac_comp to be approximately in [0, 1] so drop all but 1 highest non-fraction bits
                 auto t_frac_drop = t_frac_comp.template dropBitsSaturated<(-decltype(t_frac_comp)::exp)>();
                 
                 // multiply by the time of this command, and drop fraction bits at the same time
-                typedef decltype(cmd->t_mul * t_frac_drop) ProdType;
+                typedef decltype(m_current_command->t_mul * t_frac_drop) ProdType;
                 static_assert(Modulo(ProdType::exp, 8) == 0, "slow shift");
-                auto t_mul_drop = FixedRightShiftBitsMultuply<(-ProdType::exp)>(cmd->t_mul, t_frac_drop);
+                auto t_mul_drop = FixedRightShiftBitsMultuply<(-ProdType::exp)>(m_current_command->t_mul, t_frac_drop);
                 
                 // schedule next step
                 static_assert(decltype(t_mul_drop)::exp == 0, "");
                 static_assert(!decltype(t_mul_drop)::is_signed, "");
-                TimeType timer_t = cmd->clock_offset + t_mul_drop.bitsValue();
+                TimeType timer_t = m_current_command->clock_offset + t_mul_drop.bitsValue();
                 m_timer.set(c, timer_t);
                 return;
             } while (0);
@@ -362,6 +359,7 @@ private:
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 // consume command
                 m_start = (CommandSizeType)(m_start + 1) % buffer_mod;
+                m_current_command = &m_commands[m_start];
                 
                 // report avail event if we have enough buffer space
                 CommandSizeType avail = buffer_avail(m_start, m_end);
@@ -379,12 +377,11 @@ private:
             }
             
             // continue with next command
-            cmd = &m_commands[m_start];
-            D::stepper(this, c)->setDir(c, cmd->dir);
+            D::stepper(this, c)->setDir(c, m_current_command->dir);
             
             // if this is a motionless command, wait
-            if (cmd->x.bitsValue() == 0) {
-                TimeType timer_t = cmd->clock_offset + cmd->t_plain;
+            if (m_current_command->x.bitsValue() == 0) {
+                TimeType timer_t = m_current_command->clock_offset + m_current_command->t_plain;
                 m_timer.set(c, timer_t);
                 return;
             }
@@ -405,6 +402,7 @@ private:
     CommandSizeType m_start;
     CommandSizeType m_end;
     CommandSizeType m_event_amount;
+    Command *m_current_command;
     typename StepFixedType::IntType m_rel_x;
     bool m_running;
     Lock m_lock;
