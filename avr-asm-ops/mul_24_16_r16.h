@@ -22,65 +22,59 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBRO_AVR_ASM_MUL_32_16
-#define AMBRO_AVR_ASM_MUL_32_16
+#ifndef AMBRO_AVR_ASM_MUL_24_16_R16
+#define AMBRO_AVR_ASM_MUL_24_16_R16
 
 #include <stdint.h>
 
-static inline void mul_32_16 (uint32_t op1, uint16_t op2, uint32_t *low, uint16_t *high)
+static inline __uint24 mul_24_16_r16 (__uint24 op1, uint16_t op2)
 {
+    uint16_t low;
+    __uint24 res;
     uint8_t zero;
     
     asm(
         "clr %[zero]\n"
         
         "mul %A[op1],%A[op2]\n"
-        "movw %A[resL],r0\n"
+        "movw %A[low],r0\n"
         
         "mul %B[op1],%B[op2]\n"
-        "movw %C[resL],r0\n"
+        "movw %A[res],r0\n"
         
-        "mul %D[op1],%B[op2]\n"
-        "movw %A[resH],r0\n"
+        "clr %C[res]\n"
         
         "mul %A[op1],%B[op2]\n"
-        "add %B[resL],r0\n"
-        "adc %C[resL],r1\n"
-        "adc %D[resL],%[zero]\n"
-        "adc %A[resH],%[zero]\n"
-        "adc %B[resH],%[zero]\n"
+        "add %B[low],r0\n"
+        "adc %A[res],r1\n"
+        "adc %B[res],%[zero]\n"
+        "adc %C[res],%[zero]\n"
         
         "mul %B[op1],%A[op2]\n"
-        "add %B[resL],r0\n"
-        "adc %C[resL],r1\n"
-        "adc %D[resL],%[zero]\n"
-        "adc %A[resH],%[zero]\n"
-        "adc %B[resH],%[zero]\n"
+        "add %B[low],r0\n"
+        "adc %A[res],r1\n"
+        "adc %B[res],%[zero]\n"
+        "adc %C[res],%[zero]\n"
         
         "mul %C[op1],%A[op2]\n"
-        "add %C[resL],r0\n"
-        "adc %D[resL],r1\n"
-        "adc %A[resH],%[zero]\n"
-        "adc %B[resH],%[zero]\n"
+        "add %A[res],r0\n"
+        "adc %B[res],r1\n"
+        "adc %C[res],%[zero]\n"
         
         "mul %C[op1],%B[op2]\n"
-        "add %D[resL],r0\n"
-        "adc %A[resH],r1\n"
-        "adc %B[resH],%[zero]\n"
+        "add %B[res],r0\n"
+        "adc %C[res],r1\n"
 
-        "mul %D[op1],%A[op2]\n"
-        "add %D[resL],r0\n"
-        "adc %A[resH],r1\n"
-        "adc %B[resH],%[zero]\n"
-        
         "clr __zero_reg__\n"
         
-        : [resL] "=&r" (*low),
-          [resH] "=&r" (*high),
-          [zero] "=&r" (zero)
+        : [res] "=&r" (res),
+          [zero] "=&r" (zero),
+          [low] "=&r" (low)
         : [op1] "r" (op1),
           [op2] "r" (op2)
     );
+    
+    return res;
 }
 
 #endif

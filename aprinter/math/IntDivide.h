@@ -28,9 +28,9 @@
 #include <stdint.h>
 
 #include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/MinMax.h>
+
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/div_32_32_large.h>
-#include <avr-asm-ops/div_32_16_large.h>
 #include <avr-asm-ops/div_29_16_large.h>
 #endif
 
@@ -39,26 +39,26 @@
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
 class IntDivide {
 public:
-    typedef typename ChooseInt<NumBits1, Signed1>::Type IntType1;
-    typedef typename ChooseInt<NumBits2, Signed2>::Type IntType2;
+    typedef typename ChooseInt<NumBits1, Signed1>::Type Op1Type;
+    typedef typename ChooseInt<NumBits2, Signed2>::Type Op2Type;
     typedef typename ChooseInt<NumBits1, (Signed1 || Signed2)>::Type ResType;
-    static_assert(Signed1 == Signed2, "division of operands with different signedness not supported");
     
-    static ResType call (IntType1 op1, IntType2 op2)
+    static ResType call (Op1Type op1, Op2Type op2)
     {
         return
 #ifdef AMBROLIB_AVR
-            (!Signed1 && NumBits1 <= 29 && !Signed2 && NumBits2 <= 16) ? div_29_16_large(op1, op2) :
-            (!Signed1 && NumBits1 <= 32 && !Signed2 && NumBits2 <= 16) ? div_32_16_large(op1, op2) :
-            (!Signed1 && NumBits1 <= 32 && !Signed2 && NumBits2 <= 32) ? div_32_32_large(op1, op2) :
+            (!Signed1 && NumBits1 > 16 && NumBits1 <= 29 && !Signed2 && NumBits2 <= 16) ? div_29_16_large(op1, op2) :
 #endif
             default_divide(op1, op2);
     }
     
 private:
-    static ResType default_divide (IntType1 op1, IntType2 op2)
+    typedef typename ChooseInt<NumBits1, (Signed1 || Signed2)>::Type TempType1;
+    typedef typename ChooseInt<NumBits2, (Signed1 || Signed2)>::Type TempType2;
+    
+    static ResType default_divide (Op1Type op1, Op2Type op2)
     {
-        return (op1 / op2);
+        return ((TempType1)op1 / (TempType2)op2);
     }
 };
 

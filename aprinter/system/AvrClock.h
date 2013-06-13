@@ -31,7 +31,6 @@
 #include <avr/interrupt.h>
 #include <avr/sfr_defs.h>
 
-#include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -64,6 +63,7 @@ public:
     void init (Context c)
     {
         m_offset = 0;
+        TIMSK1 = 0;
         TCCR1A = 0;
         TCCR1B = (uint16_t)Prescale;
         TIMSK1 = (1 << TOIE1);
@@ -105,12 +105,32 @@ public:
         }
     }
     
+    void initTC3 (Context c)
+    {
+        this->debugAccess(c);
+        
+        TIMSK3 = 0;
+        TCCR3A = 0;
+        TCCR3B = (uint16_t)Prescale;
+        TCNT3 = TCNT1 + sync_clearance;
+    }
+    
+    void deinitTC3 (Context c)
+    {
+        this->debugAccess(c);
+        
+        TIMSK3 = 0;
+        TCCR3B = 0;
+    }
+    
     void timer1_ovf_isr (AvrInterruptContext<Context> c)
     {
         m_offset++;
     }
     
 private:
+    static const TimeType sync_clearance = 16 / prescale_divide;
+    
     volatile uint16_t m_offset;
 };
 
@@ -195,7 +215,7 @@ public:
     }
     
 private:
-    static const TimeType clearance = (64 / Clock::prescale_divide) + 2;
+    static const TimeType clearance = (104 / Clock::prescale_divide) + 1;
     
 #ifdef AMBROLIB_ASSERTIONS
     bool m_running;
@@ -209,6 +229,12 @@ using AvrClockInterruptTimer_TC1_OCA = AvrClockInterruptTimer<Context, Handler, 
 
 template <typename Context, typename Handler>
 using AvrClockInterruptTimer_TC1_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1B, _SFR_IO_ADDR(OCR1B)>;
+
+template <typename Context, typename Handler>
+using AvrClockInterruptTimer_TC3_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3A, _SFR_IO_ADDR(OCR3A)>;
+
+template <typename Context, typename Handler>
+using AvrClockInterruptTimer_TC3_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3B, _SFR_IO_ADDR(OCR3B)>;
 
 #define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \
 ISR(TIMER1_OVF_vect) \
@@ -226,6 +252,18 @@ ISR(TIMER1_COMPA_vect) \
 ISR(TIMER1_COMPB_vect) \
 { \
     (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR1B)>(MakeAvrInterruptContext((context))); \
+}
+
+#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(avrclockinterrupttimer, context) \
+ISR(TIMER3_COMPA_vect) \
+{ \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR3A)>(MakeAvrInterruptContext((context))); \
+}
+
+#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(avrclockinterrupttimer, context) \
+ISR(TIMER3_COMPB_vect) \
+{ \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR3B)>(MakeAvrInterruptContext((context))); \
 }
 
 #include <aprinter/EndNamespace.h>

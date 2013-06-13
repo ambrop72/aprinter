@@ -46,7 +46,7 @@
 #include <aprinter/devices/Stepper.h>
 #include <aprinter/driver/AxisDriver.h>
 
-#define CLOCK_TIMER_PRESCALER 3
+#define CLOCK_TIMER_PRESCALER 2
 #define LED1_PIN AvrPin<AvrPortA, 4>
 #define LED2_PIN AvrPin<AvrPortA, 3>
 #define WATCH_PIN AvrPin<AvrPortC, 2>
@@ -68,9 +68,9 @@
 #define SERIAL_RX_BUFFER 63
 #define SERIAL_TX_BUFFER 63
 #define SERIAL_GEN_LENGTH 3000
-#define COMMAND_BUFFER_SIZE 63
+#define COMMAND_BUFFER_SIZE 15
 #define NUM_MOVE_ITERS 4
-#define SPEED_T_SCALE (0.138*2)
+#define SPEED_T_SCALE (0.133*2.0)
 #define INTERRUPT_TIMER_TIME 1.0
 
 using namespace APrinter;
@@ -98,7 +98,7 @@ typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8
 typedef Stepper<MyContext, Y_DIR_PIN, Y_STEP_PIN, XYE_ENABLE_PIN> MyStepper;
 typedef Stepper<MyContext, X_DIR_PIN, X_STEP_PIN, XYE_ENABLE_PIN> MyStepper2;
 typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler> MyDriver;
-typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler2, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler2> MyDriver2;
+typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler2, AvrClockInterruptTimer_TC3_OCA, DriverAvailHandler2> MyDriver2;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -170,7 +170,7 @@ AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
 AMBRO_AVR_SERIAL_ISRS(myserial, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*driver.getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*driver2.getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*driver2.getTimer(), MyContext())
 
 static void write_to_serial (MyContext c, const char *str)
 {
@@ -212,20 +212,29 @@ static void add_commands (MyContext c)
     driver.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
     driver.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
     num_left--;
-    driver.bufferRequestEvent(c, COMMAND_BUFFER_SIZE - 6 * (num_left > 0));
+    
+    driver.bufferRequestEvent(c, (num_left == 0) ? COMMAND_BUFFER_SIZE : 6);
 }
 
 static void add_commands2 (MyContext c)
 {
     float t_scale = SPEED_T_SCALE;
+    /*
     driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
     driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
     driver2.bufferProvideTest(c, true, 0.0, 1.0 * t_scale, 0.0);
     driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
     driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
     driver2.bufferProvideTest(c, false, 0.0, 1.0 * t_scale, 0.0);
+    */
+    driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
+    driver2.bufferProvideTest(c, true, 40.0, 1.0 * t_scale, 0.0);
+    driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
+    driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
+    driver2.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
+    driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
     num_left2--;
-    driver2.bufferRequestEvent(c, COMMAND_BUFFER_SIZE - 6 * (num_left2 > 0));
+    driver2.bufferRequestEvent(c, (num_left2 == 0) ? COMMAND_BUFFER_SIZE : 6);
 }
 
 static void mytimer_handler (MyTimer *, MyContext c)
@@ -334,18 +343,18 @@ static void driver_avail_handler (MyDriver *, MyContext c)
 {
     if (num_left == 0) {
         driver.stop(c);
-        return;
+    } else {
+        add_commands(c);
     }
-    add_commands(c);
 }
 
 static void driver_avail_handler2 (MyDriver2 *, MyContext c)
 {
     if (num_left2 == 0) {
         driver2.stop(c);
-        return;
+    } else {
+        add_commands2(c);
     }
-    add_commands2(c);
 }
 
 struct PinWatcherHandler : public AMBRO_WFUNC(pinwatcher_handler) {};
@@ -379,6 +388,7 @@ int main ()
     
     d_group.init(c);
     myclock.init(c);
+    myclock.initTC3(c);
     myloop.init(c);
     mypins.init(c);
     mypinwatcherservice.init(c);
@@ -509,7 +519,8 @@ int main ()
     mypinwatcherservice.deinit(c);
     mypins.deinit(c);
     myloop.deinit(c);
+    myclock.deinitTC3(c);
     myclock.deinit(c);
-    d_group.deinit();
+    d_group.deinit(c);
 #endif
 }

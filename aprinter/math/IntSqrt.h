@@ -27,11 +27,10 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/IntTypeInfo.h>
-#include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/PowerOfTwo.h>
+
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/sqrt_32_large.h>
 #include <avr-asm-ops/sqrt_29_large.h>
 #endif
 
@@ -40,25 +39,23 @@
 template <int NumBits>
 class IntSqrt {
 public:
-    typedef typename ChooseInt<NumBits, false>::Type IntType;
-    typedef typename IntTypeInfo<IntType>::PrevType PrevIntType;
-    static_assert(!TypesAreEqual<PrevIntType, void>::value, "square root of smallest integer type not supported");
+    typedef typename ChooseInt<NumBits, false>::Type OpType;
+    typedef typename ChooseInt<((NumBits + 1) / 2), false>::Type ResType;
     
-    static PrevIntType call (IntType op)
+    static ResType call (OpType op)
     {
         return
 #ifdef AMBROLIB_AVR
             (NumBits <= 29) ? sqrt_29_large(op) :
-            (NumBits <= 32) ? sqrt_32_large(op) :
 #endif
             default_sqrt(op);
     }
     
 private:
-    static PrevIntType default_sqrt (IntType op)
+    static ResType default_sqrt (OpType op)
     {
-        IntType res = 0;
-        IntType one = ((IntType)1) << (IntTypeInfo<IntType>::nonsign_bits - 2);
+        OpType res = 0;
+        OpType one = PowerOfTwo<OpType, (NumBits - 2)>::value;
         
         while (one > op) {
             one >>= 2;

@@ -27,8 +27,6 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <inttypes.h>
 
 #include <aprinter/meta/IsPowerOfTwo.h>
 #include <aprinter/meta/FixedPoint.h>
@@ -84,7 +82,7 @@ private:
     static const int step_bits = 13;
     static const int time_bits = 22;
     static const int q_div_shift = 16;
-    static const int time_mul_bits = 15; // TODO precision, reproduce with timer prescaler 5
+    static const int time_mul_bits = 23;
     
     struct TimerHandler;
     
@@ -162,7 +160,6 @@ public:
         Command cmd;
         cmd.dir = dir;
         cmd.x = x;
-        cmd.t = t;
         cmd.t_plain = t_arg;
         cmd.ha_mul = AXISDRIVER_HAMUL_EXPR(x, t, ha);
         cmd.v0 = AXISDRIVER_V0_EXPR(x, t, ha);
@@ -278,7 +275,6 @@ private:
     struct Command {
         bool dir;
         StepFixedType x;
-        TimeFixedType t;
         TimeType t_plain;
         decltype(AXISDRIVER_HAMUL_EXPR_HELPER(AXISDRIVER_DUMMY_VARS)) ha_mul;
         decltype(AXISDRIVER_V0_EXPR_HELPER(AXISDRIVER_DUMMY_VARS)) v0;
@@ -307,6 +303,7 @@ private:
         
         while (1) {
             do {
+                // is command finished?
                 if (m_rel_x == cmd->x.bitsValue()) {
                     break;
                 }
@@ -314,6 +311,9 @@ private:
                 // imcrement position and get it into a fixed type
                 m_rel_x++;
                 auto next_x_rel = StepFixedType::importBits(m_rel_x);
+                
+                // perform the step
+                D::stepper(this, c)->step(c);
                 
                 // compute product part of discriminant
                 auto s_prod = (cmd->ha_mul * next_x_rel.toSigned()).template shift<2>();
@@ -324,14 +324,9 @@ private:
                 
                 // we don't like negative discriminants
                 if (s.bitsValue() < 0) {
-                    perform_steps(c, cmd->x.bitsValue() - (m_rel_x - 1));
+                    perform_steps(c, cmd->x.bitsValue() - m_rel_x);
                     break;
                 }
-                
-                static_assert(decltype(s)::num_bits <= 29, "");
-                
-                // perform the step
-                D::stepper(this, c)->step(c);
                 
                 // compute the thing with the square root
                 static_assert(decltype(cmd->v0)::exp == decltype(s.squareRoot())::exp, "slow shift");
@@ -342,23 +337,19 @@ private:
                 auto numerator = next_x_rel.template shiftBits<(-q_div_shift)>();
                 
                 // compute solution as fraction of total time
-                static_assert(decltype(numerator)::num_bits <= 29, "");
-                static_assert(decltype(q)::num_bits <= 16, "");
                 auto t_frac_comp = numerator / q; // TODO div0
                 
                 // we expect t_frac_comp to be approximately in [0, 1] so drop all but 1 highest non-fraction bits
                 auto t_frac_drop = t_frac_comp.template dropBitsSaturated<(-decltype(t_frac_comp)::exp)>();
                 
-                // multiply by the time of this command
-                auto t = t_frac_drop * cmd->t_mul;
-                
-                // drop all fraction bits, we don't need them
-                static_assert(Modulo(decltype(t)::exp, 8) == 0, "slow shift");
-                auto t_mul_drop = t.template bitsTo<(decltype(t)::num_bits + decltype(t)::exp)>();
-                static_assert(decltype(t_mul_drop)::exp == 0, "");
-                static_assert(!decltype(t_mul_drop)::is_signed, "");
+                // multiply by the time of this command, and drop fraction bits at the same time
+                typedef decltype(cmd->t_mul * t_frac_drop) ProdType;
+                static_assert(Modulo(ProdType::exp, 8) == 0, "slow shift");
+                auto t_mul_drop = FixedRightShiftBitsMultuply<(-ProdType::exp)>(cmd->t_mul, t_frac_drop);
                 
                 // schedule next step
+                static_assert(decltype(t_mul_drop)::exp == 0, "");
+                static_assert(!decltype(t_mul_drop)::is_signed, "");
                 TimeType timer_t = cmd->clock_offset + t_mul_drop.bitsValue();
                 m_timer.set(c, timer_t);
                 return;
@@ -379,10 +370,10 @@ private:
                     m_avail_event.appendNow(lock_c);
                 }
                 
-                // have we run out of commands?
                 run_out = (m_start == m_end);
             });
             
+            // have we run out of commands?
             if (run_out) {
                 return;
             }

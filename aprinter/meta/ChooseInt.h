@@ -22,46 +22,42 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_INT_MULTIPLY_H
-#define AMBROLIB_INT_MULTIPLY_H
+#ifndef AMBROLIB_CHOOSE_INT_H
+#define AMBROLIB_CHOOSE_INT_H
 
 #include <stdint.h>
 
-#include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/PowerOfTwo.h>
-
-#ifdef AMBROLIB_AVR
-#include <avr-asm-ops/mul_24_16_r16.h>
-#endif
+#include <aprinter/meta/If.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <int NumBits1, bool Signed1, int NumBits2, bool Signed2, int RightShift>
-class IntMultiply {
+template <int NumBits, bool Signed>
+class ChooseInt {
 public:
-    static_assert(RightShift >= 0, "RightShift must be non-negative");
-    static_assert(RightShift < NumBits1 + NumBits2, "RightShift must be less than multiplication result width");
+    static_assert(NumBits > 0, "");
+    static_assert((!Signed || NumBits < 64), "Too many bits (signed)");
+    static_assert((!!Signed || NumBits <= 64), "Too many bits (unsigned).");
     
-    typedef typename ChooseInt<NumBits1, Signed1>::Type Op1Type;
-    typedef typename ChooseInt<NumBits2, Signed2>::Type Op2Type;
-    typedef typename ChooseInt<(NumBits1 + NumBits2 - RightShift), (Signed1 || Signed2)>::Type ResType;
-    
-    static ResType call (Op1Type op1, Op2Type op2)
-    {
-        return
+    typedef
+        typename If<(Signed && NumBits < 8), int8_t,
+        typename If<(Signed && NumBits < 16), int16_t,
 #ifdef AMBROLIB_AVR
-            (!Signed1 && NumBits1 > 16 && NumBits1 <= 24 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16 && RightShift == 16) ? mul_24_16_r16(op1, op2) :
+        typename If<(Signed && NumBits < 24), __int24,
 #endif
-            default_multiply(op1, op2);
-    }
-    
-private:
-    typedef typename ChooseInt<(NumBits1 + NumBits2), (Signed1 || Signed2)>::Type TempResType;
-    
-    static ResType default_multiply (Op1Type op1, Op2Type op2)
-    {
-        return ((TempResType)op1 * (TempResType)op2) / PowerOfTwo<TempResType, RightShift>::value;
-    }
+        typename If<(Signed && NumBits < 32), int32_t,
+        typename If<(Signed && NumBits < 64), int64_t,
+        typename If<(!Signed && NumBits <= 8), uint8_t,
+#ifdef AMBROLIB_AVR
+        typename If<(!Signed && NumBits <= 24), __uint24,
+#endif
+        typename If<(!Signed && NumBits <= 16), uint16_t,
+        typename If<(!Signed && NumBits <= 32), uint32_t,
+        typename If<(!Signed && NumBits <= 64), uint64_t,
+        void>::Type>::Type>::Type>::Type>::Type>::Type>::Type>::Type
+#ifdef AMBROLIB_AVR
+        >::Type>::Type
+#endif
+        Type;
 };
 
 #include <aprinter/EndNamespace.h>

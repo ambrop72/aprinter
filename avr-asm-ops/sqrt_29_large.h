@@ -22,23 +22,12 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBRO_AVR_ASM_SQRT_32_LARGE
-#define AMBRO_AVR_ASM_SQRT_32_LARGE
+#ifndef AMBRO_AVR_ASM_SQRT_29_LARGE
+#define AMBRO_AVR_ASM_SQRT_29_LARGE
 
 #include <stdint.h>
 
-#define SQRT_32_ITER_0_0(i) \
-"    cp %D[x],%B[goo]\n" \
-"    brcs zero_bit_" #i "_%=\n" \
-"    sub %D[x],%B[goo]\n" \
-"    or %B[goo],__tmp_reg__\n" \
-"zero_bit_" #i "_%=:\n" \
-"    lsr __tmp_reg__\n" \
-"    eor %B[goo],__tmp_reg__\n" \
-"    lsr __tmp_reg__\n" \
-"    lsr %B[goo]\n"
-
-#define SQRT_32_ITER_1_4(i) \
+#define SQRT_29_ITER_1_4(i) \
 "    cp %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %D[x],%B[goo]\n" \
@@ -50,7 +39,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_32_ITER_5_5(i) \
+#define SQRT_29_ITER_5_5(i) \
 "    cp %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %D[x],%B[goo]\n" \
@@ -64,7 +53,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_32_ITER_6_6(i) \
+#define SQRT_29_ITER_6_6(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -78,7 +67,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_32_ITER_7_8(i) \
+#define SQRT_29_ITER_7_8(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -92,7 +81,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_32_ITER_9_12(i) \
+#define SQRT_29_ITER_9_12(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -106,7 +95,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_32_ITER_13_13(i) \
+#define SQRT_29_ITER_13_13(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -124,7 +113,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_32_ITER_14_14(i) \
+#define SQRT_29_ITER_14_14(i) \
 "    brcs one_bit_" #i "_%=\n" \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
@@ -139,27 +128,26 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-static inline uint16_t sqrt_32_large (uint32_t x)
+static inline uint16_t sqrt_29_large (uint32_t x)
 {
-    uint16_t goo = UINT16_C(0x40C0);
+    uint16_t goo = UINT16_C(0x1030);
     
     asm(
         "    mov __tmp_reg__,%A[goo]\n"
-        SQRT_32_ITER_0_0(0)
-        SQRT_32_ITER_1_4(1)
-        SQRT_32_ITER_1_4(2)
-        SQRT_32_ITER_1_4(3)
-        SQRT_32_ITER_1_4(4)
-        SQRT_32_ITER_5_5(5)
-        SQRT_32_ITER_6_6(6)
-        SQRT_32_ITER_7_8(7)
-        SQRT_32_ITER_7_8(8)
-        SQRT_32_ITER_9_12(9)
-        SQRT_32_ITER_9_12(10)
-        SQRT_32_ITER_9_12(11)
-        SQRT_32_ITER_9_12(12)
-        SQRT_32_ITER_13_13(13)
-        SQRT_32_ITER_14_14(14)
+        SQRT_29_ITER_1_4(1)
+        SQRT_29_ITER_1_4(2)
+        SQRT_29_ITER_1_4(3)
+        SQRT_29_ITER_1_4(4)
+        SQRT_29_ITER_5_5(5)
+        SQRT_29_ITER_6_6(6)
+        SQRT_29_ITER_7_8(7)
+        SQRT_29_ITER_7_8(8)
+        SQRT_29_ITER_9_12(9)
+        SQRT_29_ITER_9_12(10)
+        SQRT_29_ITER_9_12(11)
+        SQRT_29_ITER_9_12(12)
+        SQRT_29_ITER_13_13(13)
+        SQRT_29_ITER_14_14(14)
         "    brcs end_inc%=\n"
         "    lsl %A[x]\n"
         "    cpc %A[goo],%C[x]\n"

@@ -132,9 +132,9 @@ public:
         return (cond ? -*this : *this);
     }
     
-    FixedPoint<((NumBits + Modulo(Exp, 2)) / 2 + Modulo(NumBits + Modulo(Exp, 2), 2)), false, ((Exp - Modulo(Exp, 2)) / 2)> squareRoot () const
+    FixedPoint<((NumBits + Modulo(Exp, 2) + 1) / 2), false, ((Exp - Modulo(Exp, 2)) / 2)> squareRoot () const
     {
-        return FixedPoint<((NumBits + Modulo(Exp, 2)) / 2 + Modulo(NumBits + Modulo(Exp, 2), 2)), false, ((Exp - Modulo(Exp, 2)) / 2)>::importBoundedBits(bitsBoundedValue().template shiftLeft<Modulo(Exp, 2)>().squareRoot());
+        return FixedPoint<((NumBits + Modulo(Exp, 2) + 1) / 2), false, ((Exp - Modulo(Exp, 2)) / 2)>::importBoundedBits(bitsBoundedValue().template shiftLeft<Modulo(Exp, 2)>().squareRoot());
     }
     
     template <int NewBits>
@@ -173,20 +173,26 @@ private:
     BoundedIntType m_bits;
 };
 
-template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2, int RightShiftBits>
 struct FixedPointMultiply {
-    typedef FixedPoint<NumBits1 + NumBits2, (Signed1 || Signed2), Exp1 + Exp2> ResultType;
+    typedef FixedPoint<NumBits1 + NumBits2 - RightShiftBits, (Signed1 || Signed2), Exp1 + Exp2 + RightShiftBits> ResultType;
     
     static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
     {
-        return ResultType::importBoundedBits(op1.bitsBoundedValue() * op2.bitsBoundedValue());
+        return ResultType::importBoundedBits(op1.bitsBoundedValue().template multiplyAndRightShift<RightShiftBits>(op2.bitsBoundedValue()));
     }
 };
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
-typename FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ResultType operator* (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+typename FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, 0>::ResultType operator* (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
-    return FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::call(op1, op2);
+    return FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, 0>::call(op1, op2);
+}
+
+template <int RightShiftBits, int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+typename FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, RightShiftBits>::ResultType FixedRightShiftBitsMultuply (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+{
+    return FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, RightShiftBits>::call(op1, op2);
 }
 
 template <int NumBits1, int Exp1, int NumBits2, int Exp2, bool Signed>

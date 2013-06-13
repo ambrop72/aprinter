@@ -43,7 +43,6 @@ template <int NumBits, bool Signed = true>
 class BoundedInt {
 public:
     static_assert(NumBits > 0, "");
-    static_assert((!Signed || NumBits < 32) && (!!Signed || NumBits <= 32), "Too many bits, fix your operations.");
     
     static const int num_bits = NumBits;
     
@@ -145,11 +144,15 @@ public:
     BoundedInt<NumBits + NumBits2, (Signed || Signed2)> operator* (BoundedInt<NumBits2, Signed2> op2) const
     {
         return BoundedInt<NumBits + NumBits2, (Signed || Signed2)>::import(
-            IntMultiply<
-                IntType,
-                typename BoundedInt<NumBits2, Signed2>::IntType,
-                typename BoundedInt<NumBits + NumBits2, (Signed || Signed2)>::IntType
-            >::call(m_int, op2.m_int)
+            IntMultiply<NumBits, Signed, NumBits2, Signed2, 0>::call(m_int, op2.m_int)
+        );
+    }
+    
+    template <int RightShift, int NumBits2, bool Signed2>
+    BoundedInt<NumBits + NumBits2 - RightShift, (Signed || Signed2)> multiplyAndRightShift (BoundedInt<NumBits2, Signed2> op2) const
+    {
+        return BoundedInt<NumBits + NumBits2 - RightShift, (Signed || Signed2)>::import(
+            IntMultiply<NumBits, Signed, NumBits2, Signed2, RightShift>::call(m_int, op2.m_int)
         );
     }
     
@@ -163,11 +166,11 @@ public:
         );
     }
     
-    BoundedInt<max(1, ((NumBits / 2) + Modulo(NumBits, 2))), false> squareRoot () const
+    BoundedInt<((NumBits + 1) / 2), false> squareRoot () const
     {
         AMBRO_ASSERT(m_int >= 0)
         
-        return BoundedInt<max(1, ((NumBits / 2) + Modulo(NumBits, 2))), false>::import(IntSqrt<NumBits>::call(m_int));
+        return BoundedInt<((NumBits + 1) / 2), false>::import(IntSqrt<NumBits>::call(m_int));
     }
     
     template <int NumBits2>
