@@ -28,32 +28,32 @@
 #include <stdint.h>
 
 #define DIVIDE_13_16_L16_S15_ITER_17_23(i) \
-"    lsl __tmp_reg__\n" \
+"    lsl %A[n]\n" \
 "    rol %B[n]\n" \
-"    rol %A[n]\n" \
-"    cp __tmp_reg__,%A[d]\n" \
+"    rol __tmp_reg__\n" \
+"    cp %A[n],%A[d]\n" \
 "    cpc %B[n],%B[d]\n" \
-"    cpc %A[n],__zero_reg__\n" \
+"    cpc __tmp_reg__,__zero_reg__\n" \
 "    brcs zero_bit_" #i "__%=\n" \
-"    sub __tmp_reg__,%A[d]\n" \
+"    sub %A[n],%A[d]\n" \
 "    sbc %B[n],%B[d]\n" \
-"    sbc %A[n],__zero_reg__\n" \
+"    sbc __tmp_reg__,__zero_reg__\n" \
 "    ori %B[q],1<<(23-" #i ")\n" \
 "zero_bit_" #i "__%=:\n"
 
 #define DIVIDE_13_16_L16_S15_ITER_24_30(i) \
-"    lsl __tmp_reg__\n" \
+"    lsl %A[n]\n" \
 "    rol %B[n]\n" \
-"    rol %A[n]\n" \
+"    rol __tmp_reg__\n" \
 "    rol %[t]\n" \
-"    cp __tmp_reg__,%A[d]\n" \
+"    cp %A[n],%A[d]\n" \
 "    cpc %B[n],%B[d]\n" \
-"    cpc %A[n],__zero_reg__\n" \
+"    cpc __tmp_reg__,__zero_reg__\n" \
 "    cpc %[t],__zero_reg__\n" \
 "    brcs zero_bit_" #i "__%=\n" \
-"    sub __tmp_reg__,%A[d]\n" \
+"    sub %A[n],%A[d]\n" \
 "    sbc %B[n],%B[d]\n" \
-"    sbc %A[n],__zero_reg__\n" \
+"    sbc __tmp_reg__,__zero_reg__\n" \
 "    sbc %[t],__zero_reg__\n" \
 "    ori %A[q],1<<(31-" #i ")\n" \
 "zero_bit_" #i "__%=:\n"
@@ -71,12 +71,10 @@ static inline uint16_t div_13_16_l16_s15 (uint16_t n, uint16_t d)
     uint8_t t;
     
     asm(
-        "    clr %A[q]\n"
-        "    clr %B[q]\n"
+        "    clr __tmp_reg__\n"
+        "    movw %A[q],__tmp_reg__\n"
         "    clr %[t]\n"
-        "    mov __tmp_reg__,%A[n]\n"
-        "    clr %A[n]\n"
-        "    lsl __tmp_reg__\n"
+        "    lsl %A[n]\n"
         "    rol %B[n]\n"
         DIVIDE_13_16_L16_S15_ITER_17_23(17)
         DIVIDE_13_16_L16_S15_ITER_17_23(18)
@@ -92,13 +90,13 @@ static inline uint16_t div_13_16_l16_s15 (uint16_t n, uint16_t d)
         DIVIDE_13_16_L16_S15_ITER_24_30(28)
         DIVIDE_13_16_L16_S15_ITER_24_30(29)
         DIVIDE_13_16_L16_S15_ITER_24_30(30)
-        "    lsl __tmp_reg__\n"
+        "    lsl %A[n]\n"
         "    rol %B[n]\n"
-        "    rol %A[n]\n"
+        "    rol __tmp_reg__\n"
         "    rol %[t]\n"
-        "    cp __tmp_reg__,%A[d]\n"
+        "    cp %A[n],%A[d]\n"
         "    cpc %B[n],%B[d]\n"
-        "    cpc %A[n],__zero_reg__\n"
+        "    cpc __tmp_reg__,__zero_reg__\n"
         "    cpc %[t],__zero_reg__\n"
         "    sbci %A[q],-1\n"
         
