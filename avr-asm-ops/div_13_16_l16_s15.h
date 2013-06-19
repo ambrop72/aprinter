@@ -27,7 +27,18 @@
 
 #include <stdint.h>
 
-#define DIVIDE_13_16_L16_S15_ITER_17_23(i) \
+#define DIVIDE_13_16_L16_S15_ITER_17_18(i) \
+"    lsl %A[n]\n" \
+"    rol %B[n]\n" \
+"    cp %A[n],%A[d]\n" \
+"    cpc %B[n],%B[d]\n" \
+"    brcs zero_bit_" #i "__%=\n" \
+"    sub %A[n],%A[d]\n" \
+"    sbc %B[n],%B[d]\n" \
+"    ori %B[q],1<<(23-" #i ")\n" \
+"zero_bit_" #i "__%=:\n"
+
+#define DIVIDE_13_16_L16_S15_ITER_19_23(i) \
 "    lsl %A[n]\n" \
 "    rol %B[n]\n" \
 "    rol __tmp_reg__\n" \
@@ -41,7 +52,21 @@
 "    ori %B[q],1<<(23-" #i ")\n" \
 "zero_bit_" #i "__%=:\n"
 
-#define DIVIDE_13_16_L16_S15_ITER_24_30(i) \
+#define DIVIDE_13_16_L16_S15_ITER_24_26(i) \
+"    lsl %A[n]\n" \
+"    rol %B[n]\n" \
+"    rol __tmp_reg__\n" \
+"    cp %A[n],%A[d]\n" \
+"    cpc %B[n],%B[d]\n" \
+"    cpc __tmp_reg__,__zero_reg__\n" \
+"    brcs zero_bit_" #i "__%=\n" \
+"    sub %A[n],%A[d]\n" \
+"    sbc %B[n],%B[d]\n" \
+"    sbc __tmp_reg__,__zero_reg__\n" \
+"    ori %A[q],1<<(31-" #i ")\n" \
+"zero_bit_" #i "__%=:\n"
+
+#define DIVIDE_13_16_L16_S15_ITER_27_30(i) \
 "    lsl %A[n]\n" \
 "    rol %B[n]\n" \
 "    rol __tmp_reg__\n" \
@@ -76,20 +101,20 @@ static inline uint16_t div_13_16_l16_s15 (uint16_t n, uint16_t d)
         "    clr %[t]\n"
         "    lsl %A[n]\n"
         "    rol %B[n]\n"
-        DIVIDE_13_16_L16_S15_ITER_17_23(17)
-        DIVIDE_13_16_L16_S15_ITER_17_23(18)
-        DIVIDE_13_16_L16_S15_ITER_17_23(19)
-        DIVIDE_13_16_L16_S15_ITER_17_23(20)
-        DIVIDE_13_16_L16_S15_ITER_17_23(21)
-        DIVIDE_13_16_L16_S15_ITER_17_23(22)
-        DIVIDE_13_16_L16_S15_ITER_17_23(23)
-        DIVIDE_13_16_L16_S15_ITER_24_30(24)
-        DIVIDE_13_16_L16_S15_ITER_24_30(25)
-        DIVIDE_13_16_L16_S15_ITER_24_30(26)
-        DIVIDE_13_16_L16_S15_ITER_24_30(27)
-        DIVIDE_13_16_L16_S15_ITER_24_30(28)
-        DIVIDE_13_16_L16_S15_ITER_24_30(29)
-        DIVIDE_13_16_L16_S15_ITER_24_30(30)
+        DIVIDE_13_16_L16_S15_ITER_17_18(17)
+        DIVIDE_13_16_L16_S15_ITER_17_18(18)
+        DIVIDE_13_16_L16_S15_ITER_19_23(19)
+        DIVIDE_13_16_L16_S15_ITER_19_23(20)
+        DIVIDE_13_16_L16_S15_ITER_19_23(21)
+        DIVIDE_13_16_L16_S15_ITER_19_23(22)
+        DIVIDE_13_16_L16_S15_ITER_19_23(23)
+        DIVIDE_13_16_L16_S15_ITER_24_26(24)
+        DIVIDE_13_16_L16_S15_ITER_24_26(25)
+        DIVIDE_13_16_L16_S15_ITER_24_26(26)
+        DIVIDE_13_16_L16_S15_ITER_27_30(27)
+        DIVIDE_13_16_L16_S15_ITER_27_30(28)
+        DIVIDE_13_16_L16_S15_ITER_27_30(29)
+        DIVIDE_13_16_L16_S15_ITER_27_30(30)
         "    lsl %A[n]\n"
         "    rol %B[n]\n"
         "    rol __tmp_reg__\n"
