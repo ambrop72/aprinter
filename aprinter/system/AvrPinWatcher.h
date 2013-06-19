@@ -34,7 +34,6 @@
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
-#include <aprinter/meta/EnableIf.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>

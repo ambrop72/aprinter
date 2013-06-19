@@ -29,7 +29,6 @@
 
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
