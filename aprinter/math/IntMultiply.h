@@ -32,6 +32,7 @@
 
 #ifdef AMBROLIB_AVR
 #include <avr-asm-ops/mul_24_16_r16.h>
+#include <avr-asm-ops/mul_s16_16.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
@@ -50,7 +51,8 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
-            (!Signed1 && NumBits1 > 16 && NumBits1 <= 24 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16 && RightShift == 16) ? mul_24_16_r16(op1, op2) :
+            (RightShift == 16 && !Signed1 && NumBits1 > 16 && NumBits1 <= 24 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_24_16_r16(op1, op2) :
+            (RightShift == 0 && Signed1 && NumBits1 > 7 && NumBits1 <= 15 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_s16_16(op1, op2) :
 #endif
             default_multiply(op1, op2);
     }

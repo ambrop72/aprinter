@@ -48,12 +48,12 @@ public:
     
     typedef typename ChooseInt<NumBits, Signed>::Type IntType;
     
-    static IntType minValue ()
+    static constexpr IntType minValue ()
     {
         return Signed ? -PowerOfTwoMinusOne<IntType, NumBits>::value : 0;
     }
     
-    static IntType maxValue ()
+    static constexpr IntType maxValue ()
     {
         return PowerOfTwoMinusOne<IntType, NumBits>::value;
     }
@@ -149,7 +149,7 @@ public:
     }
     
     template <int RightShift, int NumBits2, bool Signed2>
-    BoundedInt<NumBits + NumBits2 - RightShift, (Signed || Signed2)> multiplyAndRightShift (BoundedInt<NumBits2, Signed2> op2) const
+    BoundedInt<NumBits + NumBits2 - RightShift, (Signed || Signed2)> multiply (BoundedInt<NumBits2, Signed2> op2) const
     {
         return BoundedInt<NumBits + NumBits2 - RightShift, (Signed || Signed2)>::import(
             IntMultiply<NumBits, Signed, NumBits2, Signed2, RightShift>::call(m_int, op2.m_int)
@@ -162,17 +162,17 @@ public:
         AMBRO_ASSERT(op2.m_int != 0)
         
         return BoundedInt<NumBits, (Signed || Signed2)>::import(
-            IntDivide<NumBits, Signed, NumBits2, Signed2, 0>::call(m_int, op2.m_int)
+            IntDivide<NumBits, Signed, NumBits2, Signed2, 0, NumBits>::call(m_int, op2.m_int)
         );
     }
     
-    template <int LeftShift, int NumBits2, bool Signed2>
-    BoundedInt<(NumBits + LeftShift), (Signed || Signed2)> leftShiftAndDivide (BoundedInt<NumBits2, Signed2> op2) const
+    template <int LeftShift, int ResSatBits, int NumBits2, bool Signed2>
+    BoundedInt<ResSatBits, (Signed || Signed2)> divide (BoundedInt<NumBits2, Signed2> op2) const
     {
         AMBRO_ASSERT(op2.m_int != 0)
         
-        return BoundedInt<(NumBits + LeftShift), (Signed || Signed2)>::import(
-            IntDivide<NumBits, Signed, NumBits2, Signed2, LeftShift>::call(m_int, op2.m_int)
+        return BoundedInt<ResSatBits, (Signed || Signed2)>::import(
+            IntDivide<NumBits, Signed, NumBits2, Signed2, LeftShift, ResSatBits>::call(m_int, op2.m_int)
         );
     }
     

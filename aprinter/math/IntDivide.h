@@ -31,35 +31,47 @@
 #include <aprinter/meta/PowerOfTwo.h>
 
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/div_13_16_l16_large.h>
+#include <avr-asm-ops/div_13_16_l16_s15.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
 
-template <int NumBits1, bool Signed1, int NumBits2, bool Signed2, int LeftShift>
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2, int LeftShift, int ResSatBits>
 class IntDivide {
 public:
     static_assert(LeftShift >= 0, "LeftShift must be non-negative");
+    static_assert(ResSatBits <= NumBits1 + LeftShift, "ResSatBits is needlessly large");
     
     typedef typename ChooseInt<NumBits1, Signed1>::Type Op1Type;
     typedef typename ChooseInt<NumBits2, Signed2>::Type Op2Type;
-    typedef typename ChooseInt<(NumBits1 + LeftShift), (Signed1 || Signed2)>::Type ResType;
+    typedef typename ChooseInt<ResSatBits, (Signed1 || Signed2)>::Type ResType;
     
     static ResType call (Op1Type op1, Op2Type op2)
     {
         return
 #ifdef AMBROLIB_AVR
-            (LeftShift == 16 && !Signed1 && NumBits1 > 8 && NumBits1 <= 13 && !Signed2 && NumBits2 <= 16) ? div_13_16_l16_large(op1, op2) :
+            (LeftShift == 16 && ResSatBits == 15 && !Signed1 && NumBits1 > 8 && NumBits1 <= 13 && !Signed2 && NumBits2 <= 16) ? div_13_16_l16_s15(op1, op2) :
 #endif
             default_divide(op1, op2);
     }
     
 private:
+    typedef typename ChooseInt<(NumBits1 + LeftShift), (Signed1 || Signed2)>::Type TempResType;
     typedef typename ChooseInt<NumBits2, (Signed1 || Signed2)>::Type TempType2;
     
     static ResType default_divide (Op1Type op1, Op2Type op2)
     {
-        return (((ResType)op1 * PowerOfTwo<ResType, LeftShift>::value) / (TempType2)op2);
+        TempResType res = (((TempResType)op1 * PowerOfTwo<TempResType, LeftShift>::value) / (TempType2)op2);
+        if (ResSatBits < NumBits1 + LeftShift) {
+            if (res > PowerOfTwoMinusOne<ResType, ResSatBits>::value) {
+                res = PowerOfTwoMinusOne<ResType, ResSatBits>::value;
+            } else if (Signed1 || Signed2) {
+                if (res < -PowerOfTwoMinusOne<ResType, ResSatBits>::value) {
+                    res = -PowerOfTwoMinusOne<ResType, ResSatBits>::value;
+                }
+            }
+        }
+        return res;
     }
 };
 

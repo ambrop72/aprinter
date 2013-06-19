@@ -70,7 +70,7 @@
 #define SERIAL_GEN_LENGTH 3000
 #define COMMAND_BUFFER_SIZE 15
 #define NUM_MOVE_ITERS 4
-#define SPEED_T_SCALE (0.126*1.0)
+#define SPEED_T_SCALE (0.109*1.0)
 #define INTERRUPT_TIMER_TIME 1.0
 
 using namespace APrinter;

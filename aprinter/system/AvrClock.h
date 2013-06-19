@@ -180,7 +180,7 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
         
-        TimeType time_plus_past = time + (TimeType)Clock::past;
+        TimeType time_plus_past = time + Clock::past;
         static const TimeType clearance_plus_past = (TimeType)clearance + Clock::past;
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
@@ -189,15 +189,15 @@ public:
             uint8_t tmp;
             
             asm volatile (
-                "    lds %A[now_low],%[tcnt]+0\n"
-                "    lds %B[now_low],%[tcnt]+1\n"
+                "    lds %A[now_low],%[tcnt1]+0\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
                 "    in %[tmp],%[tifr1]\n"
-                "    andi %[tmp],1<<%[tov]\n"
+                "    andi %[tmp],1<<%[tov1]\n"
                 "    breq no_overflow_%=\n"
                 "    subi %A[now_high],-1\n"
                 "    sbci %B[now_high],-1\n"
-                "    lds %A[now_low],%[tcnt]+0\n"
-                "    lds %B[now_low],%[tcnt]+1\n"
+                "    lds %A[now_low],%[tcnt1]+0\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
                 "no_overflow_%=:\n"
                 "    sub %A[time_plus_past],%A[now_low]\n"
                 "    sbc %B[time_plus_past],%B[now_low]\n"
@@ -230,12 +230,12 @@ public:
                   [cppB] "n" ((clearance_plus_past >> 8) & 0xFF),
                   [cppC] "n" ((clearance_plus_past >> 16) & 0xFF),
                   [cppD] "n" ((clearance_plus_past >> 24) & 0xFF),
-                  [tcnt] "n" (_SFR_MEM_ADDR(TCNT1)),
+                  [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
                   [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
-                  [tov] "n" (TOV1),
+                  [tov1] "n" (TOV1),
                   [ocr] "n" (ocr_reg + __SFR_OFFSET),
                   [timsk] "n" (timsk_reg + __SFR_OFFSET),
-                  [ocie_bit] "n" (ocie_bit),
+                  [ocie_bit] "n" (ocie_bit)
             );
             
             m_time = time;
@@ -264,19 +264,54 @@ public:
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         AMBRO_ASSERT(m_running)
         
-        TimeType now = c.clock()->getTime(c);
-        TimeType ref = now - Clock::past;
+        TimeType time_plus_past = m_time + Clock::past;
+        static const TimeType past_plus_1 = Clock::past + 1;
+        uint16_t now_high = c.clock()->m_offset;
+        uint16_t now_low;
+        uint8_t tmp;
         
-        if ((TimeType)Clock::past < (TimeType)(m_time - ref)) {
-            return;
-        }
+        asm volatile (
+                "    lds %A[now_low],%[tcnt1]+0\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
+                "    in %[tmp],%[tifr1]\n"
+                "    andi %[tmp],1<<%[tov1]\n"
+                "    breq no_overflow_%=\n"
+                "    subi %A[now_high],-1\n"
+                "    sbci %B[now_high],-1\n"
+                "    lds %A[now_low],%[tcnt1]+0\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
+                "no_overflow_%=:\n"
+                "    sub %A[time_plus_past],%A[now_low]\n"
+                "    sbc %B[time_plus_past],%B[now_low]\n"
+                "    sbc %C[time_plus_past],%A[now_high]\n"
+                "    sbc %D[time_plus_past],%B[now_high]\n"
+                "    subi %A[time_plus_past],%[cpA]\n"
+                "    sbci %B[time_plus_past],%[cpB]\n"
+                "    sbci %C[time_plus_past],%[cpC]\n"
+                "    sbci %D[time_plus_past],%[cpD]\n"
+                "    sbc %[tmp],%[tmp]\n"
+            : [now_low] "=&r" (now_low),
+              [now_high] "=&a" (now_high),
+              [tmp] "=&a" (tmp),
+              [time_plus_past] "=&a" (time_plus_past)
+            : "[now_high]" (now_high),
+              "[time_plus_past]" (time_plus_past),
+              [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
+              [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
+              [tov1] "n" (TOV1),
+              [cpA] "n" ((past_plus_1 >> 0) & 0xFF),
+              [cpB] "n" ((past_plus_1 >> 8) & 0xFF),
+              [cpC] "n" ((past_plus_1 >> 16) & 0xFF),
+              [cpD] "n" ((past_plus_1 >> 24) & 0xFF)
+        );
         
-        avrSoftClearBitReg<timsk_reg>(ocie_bit);
+        if (AMBRO_LIKELY(tmp)) {
+            avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
-        m_running = false;
+            m_running = false;
 #endif
-        
-        return Handler::call(this, c);
+            Handler::call(this, c);
+        }
     }
     
 private:

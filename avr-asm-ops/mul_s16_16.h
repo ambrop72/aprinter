@@ -22,56 +22,37 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBRO_AVR_ASM_MUL_24_16_R16_H
-#define AMBRO_AVR_ASM_MUL_24_16_R16_H
+#ifndef AMBRO_AVR_ASM_MUL_S16_16_H
+#define AMBRO_AVR_ASM_MUL_S16_16_H
 
 #include <stdint.h>
 
-static inline __uint24 mul_24_16_r16 (__uint24 op1, uint16_t op2)
+static inline int32_t mul_s16_16 (int16_t op1, uint16_t op2)
 {
-    uint16_t low;
-    __uint24 res;
+    int32_t res;
     uint8_t zero;
     
     asm(
         "clr %[zero]\n"
-        
-        "mul %A[op1],%A[op2]\n"
-        "movw %A[low],r0\n"
-        
-        "mul %B[op1],%B[op2]\n"
-        "movw %A[res],r0\n"
-        
-        "clr %C[res]\n"
-        
-        "mul %A[op1],%B[op2]\n"
-        "add %B[low],r0\n"
-        "adc %A[res],r1\n"
-        "adc %B[res],%[zero]\n"
-        "adc %C[res],%[zero]\n"
-        
-        "mul %B[op1],%A[op2]\n"
-        "add %B[low],r0\n"
-        "adc %A[res],r1\n"
-        "adc %B[res],%[zero]\n"
-        "adc %C[res],%[zero]\n"
-        
-        "mul %C[op1],%A[op2]\n"
-        "add %A[res],r0\n"
-        "adc %B[res],r1\n"
-        "adc %C[res],%[zero]\n"
-        
-        "mul %C[op1],%B[op2]\n"
-        "add %B[res],r0\n"
-        "adc %C[res],r1\n"
-
+        "mul %A[op1], %A[op2]\n"
+        "movw %A[res], r0\n"
+        "mulsu %B[op1], %B[op2]\n"
+        "movw %C[res], r0\n"
+        "mul %B[op2], %A[op1]\n"
+        "add %B[res], r0\n"
+        "adc %C[res], r1\n"
+        "adc %D[res], %[zero]\n"
+        "mulsu %B[op1], %A[op2]\n"
+        "sbc %D[res], %[zero]\n"
+        "add %B[res], r0\n"
+        "adc %C[res], r1\n"
+        "adc %D[res], %[zero]\n"
         "clr __zero_reg__\n"
         
         : [res] "=&r" (res),
-          [zero] "=&r" (zero),
-          [low] "=&r" (low)
-        : [op1] "r" (op1),
-          [op2] "r" (op2)
+          [zero] "=&r" (zero)
+        : [op1] "a" (op1),
+          [op2] "a" (op2)
     );
     
     return res;

@@ -310,13 +310,12 @@ private:
                 
                 // imcrement position and get it into a fixed type
                 m_rel_x++;
-                auto next_x_rel = StepFixedType::importBits(m_rel_x);
                 
                 // perform the step
                 D::stepper(this, c)->step(c);
                 
                 // compute product part of discriminant
-                auto s_prod = (m_current_command->ha_mul * next_x_rel.toSigned()).template shift<2>();
+                auto s_prod = (m_current_command->ha_mul * StepFixedType::importBits(m_rel_x)).template shift<2>();
                 
                 // compute discriminant
                 static_assert(decltype(m_current_command->v02.toSigned())::exp == decltype(s_prod)::exp, "slow shift");
@@ -334,20 +333,18 @@ private:
                 
                 // compute solution as fraction of total time
                 static_assert(Modulo(q_div_shift, 8) == 0, "slow shift");
-                auto t_frac_comp = FixedLeftShiftBitsDivide<q_div_shift>(next_x_rel, q); // TODO div0
-                
-                // we expect t_frac_comp to be approximately in [0, 1] so drop all but 1 highest non-fraction bits
-                auto t_frac_drop = t_frac_comp.template dropBitsSaturated<(-decltype(t_frac_comp)::exp)>();
+                static const int div_res_sat_bits = -(StepFixedType::exp - decltype(q)::exp - q_div_shift);
+                auto t_frac = FixedDivide<q_div_shift, div_res_sat_bits>(StepFixedType::importBits(m_rel_x), q); // TODO div0
                 
                 // multiply by the time of this command, and drop fraction bits at the same time
-                typedef decltype(m_current_command->t_mul * t_frac_drop) ProdType;
+                typedef decltype(m_current_command->t_mul * t_frac) ProdType;
                 static_assert(Modulo(ProdType::exp, 8) == 0, "slow shift");
-                auto t_mul_drop = FixedRightShiftBitsMultuply<(-ProdType::exp)>(m_current_command->t_mul, t_frac_drop);
+                auto t = FixedRightShiftBitsMultuply<(-ProdType::exp)>(m_current_command->t_mul, t_frac);
                 
                 // schedule next step
-                static_assert(decltype(t_mul_drop)::exp == 0, "");
-                static_assert(!decltype(t_mul_drop)::is_signed, "");
-                TimeType timer_t = m_current_command->clock_offset + t_mul_drop.bitsValue();
+                static_assert(decltype(t)::exp == 0, "");
+                static_assert(!decltype(t)::is_signed, "");
+                TimeType timer_t = m_current_command->clock_offset + t.bitsValue();
                 m_timer.set(c, timer_t);
                 return;
             } while (0);
