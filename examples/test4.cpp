@@ -36,6 +36,7 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/system/AvrEventLoop.h>
 #include <aprinter/system/AvrClock.h>
 #include <aprinter/system/AvrPins.h>
@@ -45,6 +46,7 @@
 #include <aprinter/devices/SoftPwm.h>
 #include <aprinter/devices/Stepper.h>
 #include <aprinter/driver/AxisDriver.h>
+#include <aprinter/driver/StepperSynchronizer.h>
 
 #define CLOCK_TIMER_PRESCALER 2
 #define LED1_PIN AvrPin<AvrPortA, 4>
@@ -72,6 +74,11 @@
 #define NUM_MOVE_ITERS 4
 #define SPEED_T_SCALE (0.105*2.0)
 #define INTERRUPT_TIMER_TIME 1.0
+#define STEPPERS \
+    MakeTypeList< \
+        StepperDef<X_DIR_PIN, X_STEP_PIN, XYE_ENABLE_PIN>, \
+        StepperDef<Y_DIR_PIN, Y_STEP_PIN, XYE_ENABLE_PIN> \
+    >::Type
 
 using namespace APrinter;
 
@@ -95,8 +102,7 @@ typedef AvrPinWatcher<MyContext, WATCH_PIN, PinWatcherHandler> MyPinWatcher;
 typedef SoftPwm<MyContext, SERVO_PIN, SERVO_PULSE_INTERVAL> MySoftPwm;
 typedef SoftPwm<MyContext, SERVO2_PIN, SERVO_PULSE_INTERVAL> MySoftPwm2;
 typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8_t, SERIAL_TX_BUFFER, SerialSendHandler> MySerial;
-typedef Stepper<MyContext, Y_DIR_PIN, Y_STEP_PIN, XYE_ENABLE_PIN> MyStepper;
-typedef Stepper<MyContext, X_DIR_PIN, X_STEP_PIN, XYE_ENABLE_PIN> MyStepper2;
+typedef StepperSynchronizer<MyContext, STEPPERS> MyStepperSynchronizer;
 typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler> MyDriver;
 typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler2, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler2> MyDriver2;
 
@@ -133,8 +139,7 @@ static MySerial myserial;
 static uint32_t gen_rem;
 static bool blink_state;
 static MyClock::TimeType next_time;
-static MyStepper stepper;
-static MyStepper2 stepper2;
+static MyStepperSynchronizer stepper_synchronizer;
 static MyDriver driver;
 static MyDriver2 driver2;
 static int num_left;
@@ -320,14 +325,14 @@ static void serial_send_handler (MySerial *, MyContext c)
     }
 }
 
-static MyStepper * driver_get_stepper_handler (MyDriver *, MyContext c)
+static MyStepperSynchronizer::StepperType<0> * driver_get_stepper_handler (MyDriver *, MyContext c) 
 {
-    return &stepper;
+    return stepper_synchronizer.getStepper<0>();
 }
 
-static MyStepper2 * driver_get_stepper_handler2 (MyDriver2 *, MyContext c)
+static MyStepperSynchronizer::StepperType<1> * driver_get_stepper_handler2 (MyDriver2 *, MyContext c)
 {
-    return &stepper2;
+    return stepper_synchronizer.getStepper<1>();
 }
 
 static void driver_avail_handler (MyDriver *, MyContext c)
@@ -389,8 +394,7 @@ int main ()
     mysoftpwm2.init(c);
     myserial.init(c, SERIAL_BAUD);
     setup_uart_stdio();
-    stepper.init(c);
-    stepper2.init(c);
+    stepper_synchronizer.init(c);
     driver.init(c);
     driver2.init(c);
     
@@ -500,8 +504,7 @@ int main ()
 #ifdef AMBROLIB_SUPPORT_QUIT
     driver2.deinit(c);
     driver.deinit(c);
-    stepper2.deinit(c);
-    stepper.deinit(c);
+    stepper_synchronizer.deinit(c);
     myserial.deinit(c);
     mysoftpwm2.deinit(c);
     mysoftpwm.deinit(c);

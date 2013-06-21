@@ -22,50 +22,17 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STEPPER_H
-#define AMBROLIB_STEPPER_H
-
-#include <avr/cpufunc.h>
-
-#include <aprinter/base/DebugObject.h>
+#ifndef AMBROLIB_COMPOSE_FUNCTIONS_H
+#define AMBROLIB_COMPOSE_FUNCTIONS_H
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename DirPin, typename StepPin>
-class Stepper
-: private DebugObject<Context, Stepper<Context, DirPin, StepPin>>
-{
-public:
-    void init (Context c)
-    {
-        c.pins()->template set<DirPin>(c, false);
-        c.pins()->template set<StepPin>(c, false);
-        c.pins()->template setOutput<DirPin>(c);
-        c.pins()->template setOutput<StepPin>(c);
-        this->debugInit(c);
-    }
-    
-    void deinit (Context c)
-    {
-        this->debugDeinit(c);
-    }
-    
-    template <typename ThisContext>
-    void setDir (ThisContext c, bool dir)
-    {
-        this->debugAccess(c);
-        
-        c.pins()->template set<DirPin>(c, dir);
-    }
-    
-    template <typename ThisContext>
-    void step (ThisContext c)
-    {
-        this->debugAccess(c);
-        
-        c.pins()->template set<StepPin>(c, true);
-        c.pins()->template set<StepPin>(c, false);
-    }
+template <typename Func1, typename Func2>
+struct ComposeFunctions {
+    template <typename X>
+    struct Call {
+        typedef typename Func1::template Call<typename Func2::template Call<X>::Type>::Type Type;
+    };
 };
 
 #include <aprinter/EndNamespace.h>

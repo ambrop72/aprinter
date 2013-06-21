@@ -22,49 +22,31 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STEPPER_H
-#define AMBROLIB_STEPPER_H
+#ifndef AMBROLIB_RUNTIME_LIST_FOLD_H
+#define AMBROLIB_RUNTIME_LIST_FOLD_H
 
-#include <avr/cpufunc.h>
-
-#include <aprinter/base/DebugObject.h>
+#include <aprinter/meta/TypeList.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename DirPin, typename StepPin>
-class Stepper
-: private DebugObject<Context, Stepper<Context, DirPin, StepPin>>
-{
-public:
-    void init (Context c)
+template <typename List>
+struct RuntimeListFold;
+
+template <typename Head, typename Tail>
+struct RuntimeListFold<ConsTypeList<Head, Tail>> {
+    template <typename Oper, typename... Args>
+    static auto call (Args... args) -> decltype(Oper::template combine<Head>(RuntimeListFold<Tail>::template call<Oper>(args...), args...))
     {
-        c.pins()->template set<DirPin>(c, false);
-        c.pins()->template set<StepPin>(c, false);
-        c.pins()->template setOutput<DirPin>(c);
-        c.pins()->template setOutput<StepPin>(c);
-        this->debugInit(c);
+        return Oper::template combine<Head>(RuntimeListFold<Tail>::template call<Oper>(args...), args...);
     }
-    
-    void deinit (Context c)
+};
+
+template <>
+struct RuntimeListFold<EmptyTypeList> {
+    template <typename Oper, typename... Args>
+    static auto call (Args... args) -> decltype(Oper::zero(args...))
     {
-        this->debugDeinit(c);
-    }
-    
-    template <typename ThisContext>
-    void setDir (ThisContext c, bool dir)
-    {
-        this->debugAccess(c);
-        
-        c.pins()->template set<DirPin>(c, dir);
-    }
-    
-    template <typename ThisContext>
-    void step (ThisContext c)
-    {
-        this->debugAccess(c);
-        
-        c.pins()->template set<StepPin>(c, true);
-        c.pins()->template set<StepPin>(c, false);
+        return Oper::zero(args...);
     }
 };
 

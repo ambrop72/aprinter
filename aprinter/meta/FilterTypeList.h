@@ -22,51 +22,41 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STEPPER_H
-#define AMBROLIB_STEPPER_H
+#ifndef AMBROLIB_FILTER_TYPE_LIST_H
+#define AMBROLIB_FILTER_TYPE_LIST_H
 
-#include <avr/cpufunc.h>
-
-#include <aprinter/base/DebugObject.h>
+#include <aprinter/meta/TypeList.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename DirPin, typename StepPin>
-class Stepper
-: private DebugObject<Context, Stepper<Context, DirPin, StepPin>>
-{
-public:
-    void init (Context c)
-    {
-        c.pins()->template set<DirPin>(c, false);
-        c.pins()->template set<StepPin>(c, false);
-        c.pins()->template setOutput<DirPin>(c);
-        c.pins()->template setOutput<StepPin>(c);
-        this->debugInit(c);
-    }
-    
-    void deinit (Context c)
-    {
-        this->debugDeinit(c);
-    }
-    
-    template <typename ThisContext>
-    void setDir (ThisContext c, bool dir)
-    {
-        this->debugAccess(c);
-        
-        c.pins()->template set<DirPin>(c, dir);
-    }
-    
-    template <typename ThisContext>
-    void step (ThisContext c)
-    {
-        this->debugAccess(c);
-        
-        c.pins()->template set<StepPin>(c, true);
-        c.pins()->template set<StepPin>(c, false);
-    }
+template <typename List, typename Predicate>
+struct FilterTypeList;
+
+namespace Private {
+    template <typename Head, typename Tail, typename Predicate, bool IncludeHead>
+    struct FilterTypeListHelper;
+
+    template <typename Head, typename Tail, typename Predicate>
+    struct FilterTypeListHelper<Head, Tail, Predicate, true> {
+        typedef ConsTypeList<Head, typename FilterTypeList<Tail, Predicate>::Type> Type;
+    };
+
+    template <typename Head, typename Tail, typename Predicate>
+    struct FilterTypeListHelper<Head, Tail, Predicate, false> {
+        typedef typename FilterTypeList<Tail, Predicate>::Type Type;
+    };
+}
+
+template <typename Predicate>
+struct FilterTypeList<EmptyTypeList, Predicate> {
+    typedef EmptyTypeList Type;
 };
+
+template <typename Head, typename Tail, typename Predicate>
+struct FilterTypeList<ConsTypeList<Head, Tail>, Predicate> {
+    typedef typename Private::FilterTypeListHelper<Head, Tail, Predicate, Predicate::template Call<Head>::Type::value>::Type Type;
+};
+
 
 #include <aprinter/EndNamespace.h>
 

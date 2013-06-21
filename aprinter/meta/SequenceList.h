@@ -22,50 +22,25 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STEPPER_H
-#define AMBROLIB_STEPPER_H
+#ifndef AMBROLIB_SEQUENCE_LIST_H
+#define AMBROLIB_SEQUENCE_LIST_H
 
-#include <avr/cpufunc.h>
-
-#include <aprinter/base/DebugObject.h>
+#include <aprinter/meta/TypeList.h>
+#include <aprinter/meta/WrapValue.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename DirPin, typename StepPin>
-class Stepper
-: private DebugObject<Context, Stepper<Context, DirPin, StepPin>>
-{
-public:
-    void init (Context c)
-    {
-        c.pins()->template set<DirPin>(c, false);
-        c.pins()->template set<StepPin>(c, false);
-        c.pins()->template setOutput<DirPin>(c);
-        c.pins()->template setOutput<StepPin>(c);
-        this->debugInit(c);
-    }
-    
-    void deinit (Context c)
-    {
-        this->debugDeinit(c);
-    }
-    
-    template <typename ThisContext>
-    void setDir (ThisContext c, bool dir)
-    {
-        this->debugAccess(c);
-        
-        c.pins()->template set<DirPin>(c, dir);
-    }
-    
-    template <typename ThisContext>
-    void step (ThisContext c)
-    {
-        this->debugAccess(c);
-        
-        c.pins()->template set<StepPin>(c, true);
-        c.pins()->template set<StepPin>(c, false);
-    }
+template <int Count, int Start = 0>
+struct SequenceList {
+    typedef ConsTypeList<
+        WrapInt<Start>,
+        typename SequenceList<(Count - 1), (Start + 1)>::Type
+    > Type;
+};
+
+template <int Start>
+struct SequenceList<0, Start> {
+    typedef EmptyTypeList Type;
 };
 
 #include <aprinter/EndNamespace.h>

@@ -106,17 +106,6 @@ public:
         }
     }
     
-    template <typename ThisContext>
-    void handleOverflow (ThisContext c)
-    {
-        if (IsAvrInterruptContext<ThisContext>::value) {
-            if ((TIFR1 & (1 << TOV1))) {
-                m_offset++;
-                TIFR1 |= (1 << TOV1);
-            }
-        }
-    }
-    
     void initTC3 (Context c)
     {
         this->debugAccess(c);
