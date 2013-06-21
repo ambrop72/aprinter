@@ -86,9 +86,8 @@
 /**
  * Division 2^16*(13bit/16bit), saturated to 15 bits.
  * 
- * WRONG
- * Cycles in worst case: 308
- * = 4 + 9 + (4 * 7) + (8 * 9) + (8 * 11) + (7 * 14) + 9
+ * Cycles in worst case: 174
+ * = 5 + (2 * 8) + (5 * 11) + (3 * 11) + (4 * 14) + 9
  */
 static inline uint16_t div_13_16_l16_s15 (uint16_t n, uint16_t d)
 {

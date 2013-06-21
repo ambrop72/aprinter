@@ -70,7 +70,7 @@
 #define SERIAL_GEN_LENGTH 3000
 #define COMMAND_BUFFER_SIZE 15
 #define NUM_MOVE_ITERS 4
-#define SPEED_T_SCALE (0.109*1.0)
+#define SPEED_T_SCALE (0.105*2.0)
 #define INTERRUPT_TIMER_TIME 1.0
 
 using namespace APrinter;
@@ -212,21 +212,12 @@ static void add_commands (MyContext c)
     driver.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
     driver.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
     num_left--;
-    
     driver.bufferRequestEvent(c, (num_left == 0) ? COMMAND_BUFFER_SIZE : 6);
 }
 
 static void add_commands2 (MyContext c)
 {
     float t_scale = SPEED_T_SCALE;
-    /*
-    driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
-    driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
-    driver2.bufferProvideTest(c, true, 0.0, 1.0 * t_scale, 0.0);
-    driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
-    driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
-    driver2.bufferProvideTest(c, false, 0.0, 1.0 * t_scale, 0.0);
-    */
     driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
     driver2.bufferProvideTest(c, true, 40.0, 1.0 * t_scale, 0.0);
     driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
@@ -264,7 +255,7 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
             add_commands(c);
             add_commands2(c);
             MyClock::TimeType start_time = myclock.getTime(c);
-            //driver.start(c, start_time);
+            driver.start(c, start_time);
             driver2.start(c, start_time);
         }
     }

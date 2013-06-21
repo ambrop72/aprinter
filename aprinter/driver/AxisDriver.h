@@ -339,7 +339,7 @@ private:
                 // multiply by the time of this command, and drop fraction bits at the same time
                 typedef decltype(m_current_command->t_mul * t_frac) ProdType;
                 static_assert(Modulo(ProdType::exp, 8) == 0, "slow shift");
-                auto t = FixedRightShiftBitsMultuply<(-ProdType::exp)>(m_current_command->t_mul, t_frac);
+                auto t = FixedMultiply<(-ProdType::exp)>(m_current_command->t_mul, t_frac);
                 
                 // schedule next step
                 static_assert(decltype(t)::exp == 0, "");
