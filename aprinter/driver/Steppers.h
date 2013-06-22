@@ -44,59 +44,33 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template<class List >
-class Tuple;
 template <typename TDirPin, typename TStepPin, typename TEnablePin>
 struct StepperDef {
-    typedef TDirPin DirPin;
-    typedef TStepPin StepPin;
-    typedef TEnablePin EnablePin;
+    using DirPin = TDirPin;
+    using StepPin = TStepPin;
+    using EnablePin = TEnablePin;
 };
+
+template <typename Context, typename StepperDefsList, int DefIndex>
+class SteppersStepper;
 
 template <typename Context, typename StepperDefsList>
 class Steppers : private DebugObject<Context, Steppers<Context, StepperDefsList>> {
-public:
-    template <typename DefIndex>
-    class StepperEntry;
-    
 private:
-    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetEnablePinFunc, EnablePin)
+    template <typename, typename, int>
+    friend class SteppersStepper;
     
-    template <typename EnablePin>
-    using SameEnableIndices = typename FilterTypeList<
-        typename SequenceList<
-            TypeListLength<StepperDefsList>::value
-        >::Type,
-        ComposeFunctions<
-            IsEqualFunc<EnablePin>,
-            ComposeFunctions<
-                GetEnablePinFunc,
-                TypeListGetFunc<StepperDefsList>
-            >
-        >
-    >::Type;
+    template <typename Index>
+    using StepperByIndex = SteppersStepper<Context, StepperDefsList, Index::value>;
     
     typedef Tuple<
         typename MapTypeList<
             typename SequenceList<
                 TypeListLength<StepperDefsList>::value
             >::Type,
-            TemplateFunc<StepperEntry>
+            TemplateFunc<StepperByIndex>
         >::Type
     > SteppersTuple;
-    
-    struct OrEnableOper {
-        static bool zero (SteppersTuple *steppers)
-        {
-            return false;
-        }
-        
-        template <typename Index>
-        static bool combine (bool x, SteppersTuple *steppers)
-        {
-            return (x || TupleGet<SteppersTuple, Index::value>::getElem(steppers)->m_enabled);
-        }
-    };
     
     struct SteppersInitHelper {
         template <typename ThisStepperEntry>
@@ -115,69 +89,6 @@ private:
     };
     
 public:
-    template <typename DefIndex>
-    class StepperEntry {
-    public:
-        template <typename ThisContext>
-        void enable (ThisContext c, bool e)
-        {
-            parent()->debugAccess(c);
-            m_enabled = e;
-            bool pin_enabled = RuntimeListFold<OrEnableOper, SameEnableIndices<EnablePin>>::call(&parent()->m_steppers);
-            c.pins()->template set<EnablePin>(c, !pin_enabled);
-        }
-        
-        template <typename ThisContext>
-        void setDir (ThisContext c, bool dir)
-        {
-            parent()->debugAccess(c);
-            c.pins()->template set<DirPin>(c, dir);
-        }
-        
-        template <typename ThisContext>
-        void step (ThisContext c)
-        {
-            parent()->debugAccess(c);
-            c.pins()->template set<StepPin>(c, true);
-            c.pins()->template set<StepPin>(c, false);
-        }
-        
-    private:
-        friend Steppers;
-        
-        void init (Context c)
-        {
-            m_enabled = false;
-            c.pins()->template set<DirPin>(c, false);
-            c.pins()->template set<StepPin>(c, false);
-            c.pins()->template set<EnablePin>(c, true);
-            c.pins()->template setOutput<DirPin>(c);
-            c.pins()->template setOutput<StepPin>(c);
-            c.pins()->template setOutput<EnablePin>(c);
-        }
-        
-        void deinit (Context c)
-        {
-            c.pins()->template set<EnablePin>(c, true);
-        }
-        
-        Steppers * parent ()
-        {
-            SteppersTuple *steppers = TupleGet<SteppersTuple, DefIndex::value>::getFromElem(this);
-            return AMBRO_WMEMB_TD(&Steppers::m_steppers)::container(steppers);
-        }
-        
-        typedef typename TypeListGet<StepperDefsList, DefIndex::value>::Type ThisDef;
-        typedef typename ThisDef::DirPin DirPin;
-        typedef typename ThisDef::StepPin StepPin;
-        typedef typename ThisDef::EnablePin EnablePin;
-        
-        bool m_enabled;
-    };
-    
-    template <int StepperIndex>
-    using StepperType = StepperEntry<WrapInt<StepperIndex>>;
-    
     void init (Context c)
     {
         TupleForEach<SteppersTuple>::call_forward(&m_steppers, SteppersInitHelper(), c);
@@ -191,13 +102,107 @@ public:
     }
     
     template <int StepperIndex>
-    StepperType<StepperIndex> * getStepper ()
+    SteppersStepper<Context, StepperDefsList, StepperIndex> * getStepper ()
     {
         return TupleGet<SteppersTuple, StepperIndex>::getElem(&m_steppers);
     }
     
 private:
     SteppersTuple m_steppers;
+};
+
+template <typename Context, typename StepperDefsList, int StepperIndex>
+class SteppersStepper {
+public:
+    template <typename ThisContext>
+    void enable (ThisContext c, bool e)
+    {
+        parent()->debugAccess(c);
+        m_enabled = e;
+        bool pin_enabled = RuntimeListFold<OrEnableOper, SameEnableIndices>::call(&parent()->m_steppers);
+        c.pins()->template set<EnablePin>(c, !pin_enabled);
+    }
+    
+    template <typename ThisContext>
+    void setDir (ThisContext c, bool dir)
+    {
+        parent()->debugAccess(c);
+        c.pins()->template set<DirPin>(c, dir);
+    }
+    
+    template <typename ThisContext>
+    void step (ThisContext c)
+    {
+        parent()->debugAccess(c);
+        c.pins()->template set<StepPin>(c, true);
+        c.pins()->template set<StepPin>(c, false);
+    }
+    
+private:
+    template <typename, typename>
+    friend class Steppers;
+    template <typename, typename, int>
+    friend class SteppersStepper;
+    
+    typedef Steppers<Context, StepperDefsList> OurSteppers;
+    typedef typename OurSteppers::SteppersTuple SteppersTuple;
+    
+    void init (Context c)
+    {
+        m_enabled = false;
+        c.pins()->template set<DirPin>(c, false);
+        c.pins()->template set<StepPin>(c, false);
+        c.pins()->template set<EnablePin>(c, true);
+        c.pins()->template setOutput<DirPin>(c);
+        c.pins()->template setOutput<StepPin>(c);
+        c.pins()->template setOutput<EnablePin>(c);
+    }
+    
+    void deinit (Context c)
+    {
+        c.pins()->template set<EnablePin>(c, true);
+    }
+    
+    OurSteppers * parent ()
+    {
+        SteppersTuple *steppers = TupleGet<SteppersTuple, StepperIndex>::getFromElem(this);
+        return AMBRO_WMEMB_TD(&OurSteppers::m_steppers)::container(steppers);
+    }
+    
+    typedef typename TypeListGet<StepperDefsList, StepperIndex>::Type ThisDef;
+    typedef typename ThisDef::DirPin DirPin;
+    typedef typename ThisDef::StepPin StepPin;
+    typedef typename ThisDef::EnablePin EnablePin;
+    
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetEnablePinFunc, EnablePin)
+    
+    using SameEnableIndices = typename FilterTypeList<
+        typename SequenceList<
+            TypeListLength<StepperDefsList>::value
+        >::Type,
+        ComposeFunctions<
+            IsEqualFunc<EnablePin>,
+            ComposeFunctions<
+                GetEnablePinFunc,
+                TypeListGetFunc<StepperDefsList>
+            >
+        >
+    >::Type;
+    
+    struct OrEnableOper {
+        static bool zero (SteppersTuple *steppers)
+        {
+            return false;
+        }
+        
+        template <typename Index>
+        static bool combine (bool x, SteppersTuple *steppers)
+        {
+            return (x || TupleGet<SteppersTuple, Index::value>::getElem(steppers)->m_enabled);
+        }
+    };
+    
+    bool m_enabled;
 };
 
 #include <aprinter/EndNamespace.h>

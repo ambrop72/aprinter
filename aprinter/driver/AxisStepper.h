@@ -52,9 +52,9 @@
 
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
-template <typename Context, typename CommandSizeType, CommandSizeType CommandBufferSize, typename GetStepper, template<typename, typename> class Timer, typename AvailHandler>
+template <typename Context, typename CommandSizeType, CommandSizeType CommandBufferSize, typename Stepper, typename GetStepper, template<typename, typename> class Timer, typename AvailHandler>
 class AxisStepper
-: private DebugObject<Context, AxisStepper<Context, CommandSizeType, CommandBufferSize, GetStepper, Timer, AvailHandler>>
+: private DebugObject<Context, AxisStepper<Context, CommandSizeType, CommandBufferSize, Stepper, GetStepper, Timer, AvailHandler>>
 {
     static_assert(!IntTypeInfo<CommandSizeType>::is_signed, "CommandSizeType must be unsigned");
     static_assert(IsPowerOfTwo<uintmax_t, (uintmax_t)CommandBufferSize + 1>::value, "CommandBufferSize+1 must be a power of two");
@@ -63,13 +63,6 @@ private:
     typedef typename Context::EventLoop Loop;
     typedef typename Context::Clock Clock;
     typedef typename Context::Lock Lock;
-    
-    struct D {
-        static auto stepper (AxisStepper *o, Context c) -> decltype(GetStepper::call(o, c))
-        {
-            return GetStepper::call(o, c);
-        }
-    };
     
     // WARNING: these were very carefully chosen.
     // An attempt was made to:
@@ -184,7 +177,7 @@ public:
         
         // if we have run out of commands, continue motion
         if (m_running && was_empty) {
-            D::stepper(this, c)->setDir(c, cmd.dir);
+            stepper(this)->setDir(c, cmd.dir);
             TimeType timer_t = (cmd.x.bitsValue() == 0) ? (cmd.clock_offset + cmd.t_plain) : cmd.clock_offset;
             m_timer.set(c, timer_t);
         }
@@ -231,7 +224,7 @@ public:
         // unless we don['t have any commands, begin motion
         if (m_start != m_end) {
             Command *cmd = &m_commands[m_start];
-            D::stepper(this, c)->setDir(c, cmd->dir);
+            stepper(this)->setDir(c, cmd->dir);
             TimeType timer_t = (cmd->x.bitsValue() == 0) ? (cmd->clock_offset + cmd->t_plain) : cmd->clock_offset;
             m_timer.set(c, timer_t);
         }
@@ -260,6 +253,11 @@ public:
     }
     
 private:
+    static Stepper * stepper (AxisStepper *o)
+    {
+        return GetStepper::call(o);
+    }
+    
     static const size_t buffer_mod = (size_t)CommandBufferSize + 1;
     
     static CommandSizeType buffer_avail (CommandSizeType start, CommandSizeType end)
@@ -287,7 +285,7 @@ private:
     void perform_steps (ThisContext c, StepType steps)
     {
         while (steps-- > 0) {
-            D::stepper(this, c)->step(c);
+            stepper(this)->step(c);
         }
     }
     
@@ -310,7 +308,7 @@ private:
                 m_rel_x++;
                 
                 // perform the step
-                D::stepper(this, c)->step(c);
+                stepper(this)->step(c);
                 
                 // compute product part of discriminant
                 auto s_prod = (m_current_command->ha_mul * StepFixedType::importBits(m_rel_x)).template shift<2>();
@@ -372,7 +370,7 @@ private:
             }
             
             // continue with next command
-            D::stepper(this, c)->setDir(c, m_current_command->dir);
+            stepper(this)->setDir(c, m_current_command->dir);
             
             // if this is a motionless command, wait
             if (m_current_command->x.bitsValue() == 0) {

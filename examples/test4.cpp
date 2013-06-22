@@ -103,8 +103,10 @@ typedef SoftPwm<MyContext, SERVO_PIN, SERVO_PULSE_INTERVAL> MySoftPwm;
 typedef SoftPwm<MyContext, SERVO2_PIN, SERVO_PULSE_INTERVAL> MySoftPwm2;
 typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8_t, SERIAL_TX_BUFFER, SerialSendHandler> MySerial;
 typedef Steppers<MyContext, STEPPERS> MySteppers;
-typedef AxisStepper<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler0> MyAxisStepper0;
-typedef AxisStepper<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler1> MyAxisStepper1;
+typedef SteppersStepper<MyContext, STEPPERS, 0> MySteppersStepper0;
+typedef SteppersStepper<MyContext, STEPPERS, 1> MySteppersStepper1;
+typedef AxisStepper<MyContext, uint8_t, COMMAND_BUFFER_SIZE, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler0> MyAxisStepper0;
+typedef AxisStepper<MyContext, uint8_t, COMMAND_BUFFER_SIZE, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler1> MyAxisStepper1;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -327,12 +329,12 @@ static void serial_send_handler (MySerial *, MyContext c)
     }
 }
 
-static MySteppers::StepperType<0> * driver_get_stepper_handler0 (MyAxisStepper0 *, MyContext c) 
+static MySteppersStepper0 * driver_get_stepper_handler0 (MyAxisStepper0 *) 
 {
     return steppers.getStepper<0>();
 }
 
-static MySteppers::StepperType<1> * driver_get_stepper_handler1 (MyAxisStepper1 *, MyContext c)
+static MySteppersStepper1* driver_get_stepper_handler1 (MyAxisStepper1 *)
 {
     return steppers.getStepper<1>();
 }
