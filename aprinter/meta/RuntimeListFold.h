@@ -29,21 +29,21 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename List>
+template <typename Oper, typename List>
 struct RuntimeListFold;
 
-template <typename Head, typename Tail>
-struct RuntimeListFold<ConsTypeList<Head, Tail>> {
-    template <typename Oper, typename... Args>
-    static auto call (Args... args) -> decltype(Oper::template combine<Head>(RuntimeListFold<Tail>::template call<Oper>(args...), args...))
+template <typename Oper, typename Head, typename Tail>
+struct RuntimeListFold<Oper, ConsTypeList<Head, Tail>> {
+    template <typename... Args>
+    static auto call (Args... args) -> decltype(Oper::template combine<Head>(RuntimeListFold<Oper, Tail>::call(args...), args...))
     {
-        return Oper::template combine<Head>(RuntimeListFold<Tail>::template call<Oper>(args...), args...);
+        return Oper::template combine<Head>(RuntimeListFold<Oper, Tail>::call(args...), args...);
     }
 };
 
-template <>
-struct RuntimeListFold<EmptyTypeList> {
-    template <typename Oper, typename... Args>
+template <typename Oper>
+struct RuntimeListFold<Oper, EmptyTypeList> {
+    template <typename... Args>
     static auto call (Args... args) -> decltype(Oper::zero(args...))
     {
         return Oper::zero(args...);

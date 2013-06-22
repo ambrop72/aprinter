@@ -22,26 +22,28 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STEPPER_H
-#define AMBROLIB_STEPPER_H
-
-#include <avr/cpufunc.h>
+#ifndef AMBROLIB_AXIS_CONTROLLER_H
+#define AMBROLIB_AXIS_CONTROLLER_H
 
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename DirPin, typename StepPin>
-class Stepper
-: private DebugObject<Context, Stepper<Context, DirPin, StepPin>>
-{
+template <typename Context, typename GetAxisStepper>
+class AxisController : private DebugObject<Context, AxisController<Context, GetAxisStepper>> {
+private:
+    struct D {
+        static auto axisStepper (AxisController *o) -> decltype(GetAxisStepper::call(o))
+        {
+            return GetAxisStepper::call(o);
+        }
+    };
+    
 public:
+    //typedef typename decltype(axisStepper(0))::StepType StepType;
+    
     void init (Context c)
     {
-        c.pins()->template set<DirPin>(c, false);
-        c.pins()->template set<StepPin>(c, false);
-        c.pins()->template setOutput<DirPin>(c);
-        c.pins()->template setOutput<StepPin>(c);
         this->debugInit(c);
     }
     
@@ -50,22 +52,8 @@ public:
         this->debugDeinit(c);
     }
     
-    template <typename ThisContext>
-    void setDir (ThisContext c, bool dir)
-    {
-        this->debugAccess(c);
-        
-        c.pins()->template set<DirPin>(c, dir);
-    }
+private:
     
-    template <typename ThisContext>
-    void step (ThisContext c)
-    {
-        this->debugAccess(c);
-        
-        c.pins()->template set<StepPin>(c, true);
-        c.pins()->template set<StepPin>(c, false);
-    }
 };
 
 #include <aprinter/EndNamespace.h>

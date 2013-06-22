@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STEPPER_SYNCHRONIZER_H
-#define AMBROLIB_STEPPER_SYNCHRONIZER_H
+#ifndef AMBROLIB_STEPPERS_H
+#define AMBROLIB_STEPPERS_H
 
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/Tuple.h>
@@ -39,7 +39,8 @@
 #include <aprinter/meta/SequenceList.h>
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/RuntimeListFold.h>
-#include <aprinter/devices/Stepper.h>
+#include <aprinter/meta/WrapMember.h>
+#include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -53,7 +54,7 @@ struct StepperDef {
 };
 
 template <typename Context, typename StepperDefsList>
-class StepperSynchronizer {
+class Steppers : private DebugObject<Context, Steppers<Context, StepperDefsList>> {
 public:
     template <typename DefIndex>
     class StepperEntry;
@@ -101,10 +102,7 @@ private:
         template <typename ThisStepperEntry>
         void operator() (ThisStepperEntry *se, Context c)
         {
-            se->m_enabled = false;
-            se->m_stepper.init(c);
-            c.pins()->template setOutput<typename ThisStepperEntry::EnablePin>(c);
-            c.pins()->template set<typename ThisStepperEntry::EnablePin>(c, true);
+            se->init(c);
         }
     };
     
@@ -112,8 +110,7 @@ private:
         template <typename ThisStepperEntry>
         void operator() (ThisStepperEntry *se, Context c)
         {
-            c.pins()->template set<typename ThisStepperEntry::EnablePin>(c, true);
-            se->m_stepper.deinit(c);
+            se->deinit(c);
         }
     };
     
@@ -124,36 +121,58 @@ public:
         template <typename ThisContext>
         void enable (ThisContext c, bool e)
         {
+            parent()->debugAccess(c);
             m_enabled = e;
-            SteppersTuple *steppers = TupleGet<SteppersTuple, DefIndex::value>::getFromElem(this);
-            bool pin_enabled = RuntimeListFold<MySameEnableIndices>::template call<OrEnableOper>(steppers);
+            bool pin_enabled = RuntimeListFold<OrEnableOper, SameEnableIndices<EnablePin>>::call(&parent()->m_steppers);
             c.pins()->template set<EnablePin>(c, !pin_enabled);
         }
         
         template <typename ThisContext>
         void setDir (ThisContext c, bool dir)
         {
-            m_stepper.setDir(c, dir);
+            parent()->debugAccess(c);
+            c.pins()->template set<DirPin>(c, dir);
         }
         
         template <typename ThisContext>
         void step (ThisContext c)
         {
-            m_stepper.step(c);
+            parent()->debugAccess(c);
+            c.pins()->template set<StepPin>(c, true);
+            c.pins()->template set<StepPin>(c, false);
         }
         
     private:
-        friend class StepperSynchronizer;
+        friend Steppers;
+        
+        void init (Context c)
+        {
+            m_enabled = false;
+            c.pins()->template set<DirPin>(c, false);
+            c.pins()->template set<StepPin>(c, false);
+            c.pins()->template set<EnablePin>(c, true);
+            c.pins()->template setOutput<DirPin>(c);
+            c.pins()->template setOutput<StepPin>(c);
+            c.pins()->template setOutput<EnablePin>(c);
+        }
+        
+        void deinit (Context c)
+        {
+            c.pins()->template set<EnablePin>(c, true);
+        }
+        
+        Steppers * parent ()
+        {
+            SteppersTuple *steppers = TupleGet<SteppersTuple, DefIndex::value>::getFromElem(this);
+            return AMBRO_WMEMB_TD(&Steppers::m_steppers)::container(steppers);
+        }
         
         typedef typename TypeListGet<StepperDefsList, DefIndex::value>::Type ThisDef;
         typedef typename ThisDef::DirPin DirPin;
         typedef typename ThisDef::StepPin StepPin;
         typedef typename ThisDef::EnablePin EnablePin;
-        typedef Stepper<Context, DirPin, StepPin> ThisStepper;
-        typedef SameEnableIndices<EnablePin> MySameEnableIndices;
         
         bool m_enabled;
-        ThisStepper m_stepper;
     };
     
     template <int StepperIndex>
@@ -162,10 +181,12 @@ public:
     void init (Context c)
     {
         TupleForEach<SteppersTuple>::call_forward(&m_steppers, SteppersInitHelper(), c);
+        this->debugInit(c);
     }
     
     void deinit (Context c)
     {
+        this->debugDeinit(c);
         TupleForEach<SteppersTuple>::call_reverse(&m_steppers, SteppersDeinitHelper(), c);
     }
     

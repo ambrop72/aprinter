@@ -44,9 +44,9 @@
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/system/AvrLock.h>
 #include <aprinter/devices/SoftPwm.h>
-#include <aprinter/devices/Stepper.h>
-#include <aprinter/driver/AxisDriver.h>
-#include <aprinter/driver/StepperSynchronizer.h>
+#include <aprinter/driver/Steppers.h>
+#include <aprinter/driver/AxisStepper.h>
+#include <aprinter/driver/AxisController.h>
 
 #define CLOCK_TIMER_PRESCALER 2
 #define LED1_PIN AvrPin<AvrPortA, 4>
@@ -87,10 +87,10 @@ struct EventLoopParams;
 struct PinWatcherHandler;
 struct SerialRecvHandler;
 struct SerialSendHandler;
-struct DriverGetStepperHandler;
-struct DriverGetStepperHandler2;
-struct DriverAvailHandler;
-struct DriverAvailHandler2;
+struct DriverGetStepperHandler0;
+struct DriverGetStepperHandler1;
+struct DriverAvailHandler0;
+struct DriverAvailHandler1;
 
 typedef DebugObjectGroup<MyContext> MyDebugObjectGroup;
 typedef AvrClock<MyContext, CLOCK_TIMER_PRESCALER> MyClock;
@@ -102,9 +102,9 @@ typedef AvrPinWatcher<MyContext, WATCH_PIN, PinWatcherHandler> MyPinWatcher;
 typedef SoftPwm<MyContext, SERVO_PIN, SERVO_PULSE_INTERVAL> MySoftPwm;
 typedef SoftPwm<MyContext, SERVO2_PIN, SERVO_PULSE_INTERVAL> MySoftPwm2;
 typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8_t, SERIAL_TX_BUFFER, SerialSendHandler> MySerial;
-typedef StepperSynchronizer<MyContext, STEPPERS> MyStepperSynchronizer;
-typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler> MyDriver;
-typedef AxisDriver<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler2, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler2> MyDriver2;
+typedef Steppers<MyContext, STEPPERS> MySteppers;
+typedef AxisStepper<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler0> MyAxisStepper0;
+typedef AxisStepper<MyContext, uint8_t, COMMAND_BUFFER_SIZE, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler1> MyAxisStepper1;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -139,11 +139,11 @@ static MySerial myserial;
 static uint32_t gen_rem;
 static bool blink_state;
 static MyClock::TimeType next_time;
-static MyStepperSynchronizer stepper_synchronizer;
-static MyDriver driver;
-static MyDriver2 driver2;
-static int num_left;
-static int num_left2;
+static MySteppers steppers;
+static MyAxisStepper0 axis_stepper0;
+static MyAxisStepper1 axis_stepper1;
+static int num_left0;
+static int num_left1;
 static bool prev_button;
 
 MyDebugObjectGroup * MyContext::debugGroup () const
@@ -174,8 +174,8 @@ MyPinWatcherService * MyContext::pinWatcherService () const
 AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
 AMBRO_AVR_SERIAL_ISRS(myserial, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*driver.getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*driver2.getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*axis_stepper0.getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*axis_stepper1.getTimer(), MyContext())
 
 static void write_to_serial (MyContext c, const char *str)
 {
@@ -207,30 +207,30 @@ static void update_servos (MyContext c)
     }
 }
 
-static void add_commands (MyContext c)
+static void add_commands0 (MyContext c)
 {
     float t_scale = SPEED_T_SCALE;
-    driver.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
-    driver.bufferProvideTest(c, true, 40.0, 1.0 * t_scale, 0.0);
-    driver.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
-    driver.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
-    driver.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
-    driver.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
-    num_left--;
-    driver.bufferRequestEvent(c, (num_left == 0) ? COMMAND_BUFFER_SIZE : 6);
+    axis_stepper0.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
+    axis_stepper0.bufferProvideTest(c, true, 40.0, 1.0 * t_scale, 0.0);
+    axis_stepper0.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
+    axis_stepper0.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
+    axis_stepper0.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
+    axis_stepper0.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
+    num_left0--;
+    axis_stepper0.bufferRequestEvent(c, (num_left0 == 0) ? COMMAND_BUFFER_SIZE : 6);
 }
 
-static void add_commands2 (MyContext c)
+static void add_commands1 (MyContext c)
 {
     float t_scale = SPEED_T_SCALE;
-    driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
-    driver2.bufferProvideTest(c, true, 40.0, 1.0 * t_scale, 0.0);
-    driver2.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
-    driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
-    driver2.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
-    driver2.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
-    num_left2--;
-    driver2.bufferRequestEvent(c, (num_left2 == 0) ? COMMAND_BUFFER_SIZE : 6);
+    axis_stepper1.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, 20.0);
+    axis_stepper1.bufferProvideTest(c, true, 40.0, 1.0 * t_scale, 0.0);
+    axis_stepper1.bufferProvideTest(c, true, 20.0, 1.0 * t_scale, -20.0);
+    axis_stepper1.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, 20.0);
+    axis_stepper1.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
+    axis_stepper1.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
+    num_left1--;
+    axis_stepper1.bufferRequestEvent(c, (num_left1 == 0) ? COMMAND_BUFFER_SIZE : 6);
 }
 
 static void mytimer_handler (MyTimer *, MyContext c)
@@ -245,23 +245,25 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
 {
     mypins.set<LED2_PIN>(c, !state);
     if (!prev_button && state) {
-        if (driver.isRunning(c) || driver2.isRunning(c)) {
-            if (driver.isRunning(c)) {
-                driver.stop(c);
+        if (axis_stepper0.isRunning(c) || axis_stepper1.isRunning(c)) {
+            if (axis_stepper0.isRunning(c)) {
+                axis_stepper0.stop(c);
             }
-            if (driver2.isRunning(c)) {
-                driver2.stop(c);
+            if (axis_stepper1.isRunning(c)) {
+                axis_stepper1.stop(c);
             }
         } else {
-            driver.clearBuffer(c);
-            driver2.clearBuffer(c);
-            num_left = NUM_MOVE_ITERS;
-            num_left2 = NUM_MOVE_ITERS;
-            add_commands(c);
-            add_commands2(c);
+            axis_stepper0.clearBuffer(c);
+            axis_stepper1.clearBuffer(c);
+            num_left0 = NUM_MOVE_ITERS;
+            num_left1 = NUM_MOVE_ITERS;
+            add_commands0(c);
+            add_commands1(c);
             MyClock::TimeType start_time = myclock.getTime(c);
-            driver.start(c, start_time);
-            driver2.start(c, start_time);
+            steppers.getStepper<0>()->enable(c, true);
+            steppers.getStepper<1>()->enable(c, true);
+            axis_stepper0.start(c, start_time);
+            axis_stepper1.start(c, start_time);
         }
     }
     prev_button = state;
@@ -325,41 +327,43 @@ static void serial_send_handler (MySerial *, MyContext c)
     }
 }
 
-static MyStepperSynchronizer::StepperType<0> * driver_get_stepper_handler (MyDriver *, MyContext c) 
+static MySteppers::StepperType<0> * driver_get_stepper_handler0 (MyAxisStepper0 *, MyContext c) 
 {
-    return stepper_synchronizer.getStepper<0>();
+    return steppers.getStepper<0>();
 }
 
-static MyStepperSynchronizer::StepperType<1> * driver_get_stepper_handler2 (MyDriver2 *, MyContext c)
+static MySteppers::StepperType<1> * driver_get_stepper_handler1 (MyAxisStepper1 *, MyContext c)
 {
-    return stepper_synchronizer.getStepper<1>();
+    return steppers.getStepper<1>();
 }
 
-static void driver_avail_handler (MyDriver *, MyContext c)
+static void driver_avail_handler0 (MyAxisStepper0 *, MyContext c)
 {
-    if (num_left == 0) {
-        driver.stop(c);
+    if (num_left0 == 0) {
+        axis_stepper0.stop(c);
+        steppers.getStepper<0>()->enable(c, false);
     } else {
-        add_commands(c);
+        add_commands0(c);
     }
 }
 
-static void driver_avail_handler2 (MyDriver2 *, MyContext c)
+static void driver_avail_handler1 (MyAxisStepper1 *, MyContext c)
 {
-    if (num_left2 == 0) {
-        driver2.stop(c);
+    if (num_left1 == 0) {
+        axis_stepper1.stop(c);
+        steppers.getStepper<1>()->enable(c, false);
     } else {
-        add_commands2(c);
+        add_commands1(c);
     }
 }
 
 struct PinWatcherHandler : public AMBRO_WFUNC(pinwatcher_handler) {};
 struct SerialRecvHandler : public AMBRO_WFUNC(serial_recv_handler) {};
 struct SerialSendHandler : public AMBRO_WFUNC(serial_send_handler) {};
-struct DriverGetStepperHandler : public AMBRO_WFUNC(driver_get_stepper_handler) {};
-struct DriverGetStepperHandler2 : public AMBRO_WFUNC(driver_get_stepper_handler2) {};
-struct DriverAvailHandler : public AMBRO_WFUNC(driver_avail_handler) {};
-struct DriverAvailHandler2 : public AMBRO_WFUNC(driver_avail_handler2) {};
+struct DriverGetStepperHandler0 : public AMBRO_WFUNC(driver_get_stepper_handler0) {};
+struct DriverGetStepperHandler1 : public AMBRO_WFUNC(driver_get_stepper_handler1) {};
+struct DriverAvailHandler0 : public AMBRO_WFUNC(driver_avail_handler0) {};
+struct DriverAvailHandler1 : public AMBRO_WFUNC(driver_avail_handler1) {};
 
 FILE uart_output;
 
@@ -394,9 +398,9 @@ int main ()
     mysoftpwm2.init(c);
     myserial.init(c, SERIAL_BAUD);
     setup_uart_stdio();
-    stepper_synchronizer.init(c);
-    driver.init(c);
-    driver2.init(c);
+    steppers.init(c);
+    axis_stepper0.init(c);
+    axis_stepper1.init(c);
     
     mypins.setOutput<LED1_PIN>(c);
     mypins.setOutput<LED2_PIN>(c);
@@ -502,9 +506,9 @@ int main ()
     myloop.run(c);
     
 #ifdef AMBROLIB_SUPPORT_QUIT
-    driver2.deinit(c);
-    driver.deinit(c);
-    stepper_synchronizer.deinit(c);
+    axis_stepper1.deinit(c);
+    axis_stepper0.deinit(c);
+    steppers.deinit(c);
     myserial.deinit(c);
     mysoftpwm2.deinit(c);
     mysoftpwm.deinit(c);
