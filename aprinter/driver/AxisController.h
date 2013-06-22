@@ -25,22 +25,33 @@
 #ifndef AMBROLIB_AXIS_CONTROLLER_H
 #define AMBROLIB_AXIS_CONTROLLER_H
 
+#include <stdint.h>
+
+#include <aprinter/meta/BoundedInt.h>
+#include <aprinter/meta/IntTypeInfo.h>
+#include <aprinter/meta/IsPowerOfTwo.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename GetAxisStepper>
-class AxisController : private DebugObject<Context, AxisController<Context, GetAxisStepper>> {
+template <typename Context, typename AxisStepperType, typename GetAxisStepper, typename CommandSizeType, CommandSizeType CommandBufferSize>
+class AxisController : private DebugObject<Context, AxisController<Context, AxisStepperType, GetAxisStepper, CommandSizeType, CommandBufferSize>> {
 private:
-    struct D {
-        static auto axisStepper (AxisController *o) -> decltype(GetAxisStepper::call(o))
-        {
-            return GetAxisStepper::call(o);
-        }
-    };
+    static_assert(!IntTypeInfo<CommandSizeType>::is_signed, "CommandSizeType must be unsigned");
+    static_assert(IsPowerOfTwo<uintmax_t, (uintmax_t)CommandBufferSize + 1>::value, "CommandBufferSize+1 must be a power of two");
+    
+    using Loop = typename Context::EventLoop;
+    using Clock = typename Context::Clock;
+    
+    static const int step_bits = 23;
+    static const bool step_singed = true;
     
 public:
-    //typedef typename decltype(axisStepper(0))::StepType StepType;
+    using StepBoundedType = BoundedInt<step_bits, step_singed>;
+    using TimeType = typename Clock::TimeType;
+    using RelStepBoundedType = typename AxisStepperType::StepBoundedType;
+    using RelAccelBoundedType = typename AxisStepperType::AccelBoundedType;
+    using RelTimeBoundedType = typename AxisStepperType::TimeBoundedType;
     
     void init (Context c)
     {
@@ -53,6 +64,11 @@ public:
     }
     
 private:
+    static AxisStepperType * axisStepper (AxisController *o)
+    {
+        return GetAxisStepper::call(o);
+    }
+    
     
 };
 

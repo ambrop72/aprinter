@@ -40,128 +40,109 @@ public:
     static const int num_bits = NumBits;
     static const bool is_signed = Signed;
     static const int exp = Exp;
-    typedef BoundedInt<NumBits, Signed> BoundedIntType;
-    typedef typename BoundedIntType::IntType IntType;
+    using BoundedIntType = BoundedInt<NumBits, Signed>;
+    using IntType = typename BoundedIntType::IntType;
     
-    static FixedPoint importBoundedBits (BoundedIntType op)
+    inline static FixedPoint importBoundedBits (BoundedIntType op)
     {
         FixedPoint res;
         res.m_bits = op;
         return res;
     }
     
-    static FixedPoint importBits (IntType op)
+    inline static FixedPoint importBits (IntType op)
     {
         return importBoundedBits(BoundedIntType::import(op));
     }
     
-    BoundedIntType bitsBoundedValue () const
+    inline BoundedIntType bitsBoundedValue () const
     {
         return m_bits;
     }
     
-    IntType bitsValue () const
+    inline IntType bitsValue () const
     {
         return m_bits.value();
     }
     
-    static FixedPoint importDouble (double op)
+    inline static FixedPoint importDouble (double op)
     {
-        AMBRO_ASSERT(ldexp(op, -Exp) >= BoundedIntType::minValue())
-        AMBRO_ASSERT(ldexp(op, -Exp) <= BoundedIntType::maxValue())
+        AMBRO_ASSERT(ldexp(op, -Exp) >= BoundedIntType::minIntValue())
+        AMBRO_ASSERT(ldexp(op, -Exp) <= BoundedIntType::maxIntValue())
         
         return importBits(BoundedIntType::import(ldexp(op, -Exp)));
     }
     
-    double doubleValue () const
+    inline double doubleValue () const
     {
         return ldexp(bitsValue(), Exp);
     }
     
-    FixedPoint<NumBits, true, Exp> toSigned () const
+    inline FixedPoint<NumBits, true, Exp> toSigned () const
     {
         return FixedPoint<NumBits, true, Exp>::importBoundedBits(m_bits.toSigned());
     }
     
-    FixedPoint<NumBits, false, Exp> toUnsignedUnsafe () const
+    inline FixedPoint<NumBits, false, Exp> toUnsignedUnsafe () const
     {
         return FixedPoint<NumBits, false, Exp>::importBoundedBits(m_bits.toUnsignedUnsafe());
     }
     
     template <int ShiftExp>
-    FixedPoint<NumBits - ShiftExp, Signed, Exp + ShiftExp> shiftBits () const
+    inline FixedPoint<NumBits - ShiftExp, Signed, Exp + ShiftExp> shiftBits () const
     {
         return FixedPoint<NumBits - ShiftExp, Signed, Exp + ShiftExp>::importBoundedBits(bitsBoundedValue().template shift<ShiftExp>());
     }
     
     template <int NewBits>
-    FixedPoint<NewBits, Signed, Exp - (NewBits - NumBits)> bitsTo () const
+    inline FixedPoint<NewBits, Signed, Exp - (NewBits - NumBits)> bitsTo () const
     {
         return FixedPoint<NewBits, Signed, Exp - (NewBits - NumBits)>::importBoundedBits(bitsBoundedValue().template shift<(NumBits - NewBits)>());
     }
     
     template <int MaxBits>
-    FixedPoint<min(NumBits, MaxBits), Signed, Exp - (min(NumBits, MaxBits) - NumBits)> bitsDown () const
+    inline FixedPoint<min(NumBits, MaxBits), Signed, Exp - (min(NumBits, MaxBits) - NumBits)> bitsDown () const
     {
         return FixedPoint<min(NumBits, MaxBits), Signed, Exp - (min(NumBits, MaxBits) - NumBits)>::importBoundedBits(bitsBoundedValue().template shift<(NumBits - min(NumBits, MaxBits))>());
     }
     
     template <int MinBits>
-    FixedPoint<max(NumBits, MinBits), Signed, Exp - (max(NumBits, MinBits) - NumBits)> bitsUp () const
+    inline FixedPoint<max(NumBits, MinBits), Signed, Exp - (max(NumBits, MinBits) - NumBits)> bitsUp () const
     {
         return FixedPoint<max(NumBits, MinBits), Signed, Exp - (max(NumBits, MinBits) - NumBits)>::importBoundedBits(bitsBoundedValue().template shift<(NumBits - max(NumBits, MinBits))>());
     }
     
     template <int ShiftExp>
-    FixedPoint<NumBits, Signed, Exp + ShiftExp> shift () const
+    inline FixedPoint<NumBits, Signed, Exp + ShiftExp> shift () const
     {
         return FixedPoint<NumBits, Signed, Exp + ShiftExp>::importBoundedBits(bitsBoundedValue());
     }
     
-    FixedPoint operator- () const
-    {
-        // TODO remove for unsigned
-        AMBRO_ASSERT(Signed)
-        return importBoundedBits(-bitsBoundedValue());
-    }
-    
-    FixedPoint negateIf (bool cond) const
-    {
-        // TODO remove for unsigned
-        AMBRO_ASSERT(Signed)
-        return (cond ? -*this : *this);
-    }
-    
-    FixedPoint<((NumBits + Modulo(Exp, 2) + 1) / 2), false, ((Exp - Modulo(Exp, 2)) / 2)> squareRoot () const
-    {
-        return FixedPoint<((NumBits + Modulo(Exp, 2) + 1) / 2), false, ((Exp - Modulo(Exp, 2)) / 2)>::importBoundedBits(bitsBoundedValue().template shiftLeft<Modulo(Exp, 2)>().squareRoot());
-    }
-    
     template <int NewBits>
-    FixedPoint<NewBits, Signed, Exp> dropBitsUnsafe () const
+    inline FixedPoint<NewBits, Signed, Exp> dropBitsUnsafe () const
     {
-        AMBRO_ASSERT((m_bits.value() >= BoundedInt<NewBits, Signed>::minValue()))
-        AMBRO_ASSERT((m_bits.value() <= BoundedInt<NewBits, Signed>::maxValue()))
+        AMBRO_ASSERT((m_bits.value() >= BoundedInt<NewBits, Signed>::minIntValue()))
+        AMBRO_ASSERT((m_bits.value() <= BoundedInt<NewBits, Signed>::maxIntValue()))
         
         return FixedPoint<NewBits, Signed, Exp>::importBits(bitsValue());
     }
     
     template <int NewBits>
-    FixedPoint<NewBits, Signed, Exp> dropBitsSaturated () const
+    inline FixedPoint<NewBits, Signed, Exp> dropBitsSaturated () const
     {
         IntType bits_value = m_bits.value();
-        if (bits_value < BoundedInt<NewBits, Signed>::minValue()) {
-            bits_value = BoundedInt<NewBits, Signed>::minValue();
+        if (bits_value < BoundedInt<NewBits, Signed>::minIntValue()) {
+            bits_value = BoundedInt<NewBits, Signed>::minIntValue();
         }
-        else if (bits_value > BoundedInt<NewBits, Signed>::maxValue()) {
-            bits_value = BoundedInt<NewBits, Signed>::maxValue();
+        else if (bits_value > BoundedInt<NewBits, Signed>::maxIntValue()) {
+            bits_value = BoundedInt<NewBits, Signed>::maxIntValue();
         }
         
         return FixedPoint<NewBits, Signed, Exp>::importBits(bits_value);
     }
     
     template <typename Dummy = void>
-    static FixedPoint one (Dummy)
+    inline static FixedPoint one (Dummy)
     {
         static_assert(Exp <= 0, "");
         static_assert(NumBits + Exp > 0, "");
@@ -173,24 +154,30 @@ public:
     BoundedIntType m_bits;
 };
 
+template <int NumBits, bool Signed, int Exp>
+inline FixedPoint<NumBits, true, Exp> operator- (FixedPoint<NumBits, Signed, Exp> op)
+{
+    return FixedPoint<NumBits, true, Exp>::importBoundedBits(-op.bitsBoundedValue());
+}
+
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2, int RightShiftBits>
 struct FixedPointMultiply {
-    typedef FixedPoint<(NumBits1 + NumBits2 - RightShiftBits), (Signed1 || Signed2), (Exp1 + Exp2 + RightShiftBits)> ResultType;
+    using ResultType = FixedPoint<(NumBits1 + NumBits2 - RightShiftBits), (Signed1 || Signed2), (Exp1 + Exp2 + RightShiftBits)>;
     
     static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
     {
-        return ResultType::importBoundedBits(op1.bitsBoundedValue().template multiply<RightShiftBits>(op2.bitsBoundedValue()));
+        return ResultType::importBoundedBits(BoundedMultiply<RightShiftBits>(op1.bitsBoundedValue(), op2.bitsBoundedValue()));
     }
 };
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
-typename FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, 0>::ResultType operator* (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+inline typename FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, 0>::ResultType operator* (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
     return FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, 0>::call(op1, op2);
 }
 
 template <int RightShiftBits, int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
-typename FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, RightShiftBits>::ResultType FixedMultiply (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+inline typename FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, RightShiftBits>::ResultType FixedMultiply (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
     return FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, RightShiftBits>::call(op1, op2);
 }
@@ -205,64 +192,125 @@ struct FixedPointAdd {
     static const int numbits_result = max(numbits_shift_op1, numbits_shift_op2) + 1;
     static const int exp_result = Exp1 + shift_op1;
     
-    typedef FixedPoint<numbits_result, Signed, exp_result> ResultType;
+    using ResultType = FixedPoint<numbits_result, Signed, exp_result>;
     
-    static ResultType call (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
+    inline static ResultType call (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
     {
         return ResultType::importBoundedBits(op1.bitsBoundedValue().template shift<shift_op1>() + op2.bitsBoundedValue().template shift<shift_op2>());
     }
 };
 
 template <int NumBits1, int Exp1, int NumBits2, int Exp2, bool Signed>
-typename FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::ResultType operator+ (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
+inline typename FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::ResultType operator+ (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
 {
     return FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::call(op1, op2);
 }
 
 template <int NumBits1, int Exp1, int NumBits2, int Exp2, bool Signed>
-typename FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::ResultType operator- (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
+inline typename FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::ResultType operator- (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
 {
     return FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::call(op1, -op2);
 }
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2, int LeftShiftBits, int ResSatBits>
 struct FixedPointDivide {
-    typedef FixedPoint<ResSatBits, (Signed1 || Signed2), (Exp1 - Exp2 - LeftShiftBits)> ResultType;
+    using ResultType = FixedPoint<ResSatBits, (Signed1 || Signed2), (Exp1 - Exp2 - LeftShiftBits)>;
     
-    static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+    inline static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
     {
-        return ResultType::importBoundedBits(op1.bitsBoundedValue().template divide<LeftShiftBits, ResSatBits>(op2.bitsBoundedValue()));
+        return ResultType::importBoundedBits(BoundedDivide<LeftShiftBits, ResSatBits>(op1.bitsBoundedValue(), op2.bitsBoundedValue()));
     }
 };
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
-typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, 0, NumBits1>::ResultType operator/ (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+inline typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, 0, NumBits1>::ResultType operator/ (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
     return FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, 0, NumBits1>::call(op1, op2);
 }
 
 template <int LeftShiftBits, int ResSatBits, int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
-typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, LeftShiftBits, ResSatBits>::ResultType FixedDivide (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+inline typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, LeftShiftBits, ResSatBits>::ResultType FixedDivide (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
     return FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, LeftShiftBits, ResSatBits>::call(op1, op2);
 }
 
-template <int NumBits1, int Exp1, int NumBits2, int Exp2, bool Signed>
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
 struct FixedPointCompare {
     static const int shift_op1 = min(0, Exp2 - Exp1);
     static const int shift_op2 = min(0, Exp1 - Exp2);
     static_assert(Exp1 + shift_op1 == Exp2 + shift_op2, "");
     
-    static bool less (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
+    inline static bool eq (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+    {
+        return (op1.bitsBoundedValue().template shift<shift_op1>() == op2.bitsBoundedValue().template shift<shift_op2>());
+    }
+    
+    inline static bool ne (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+    {
+        return (op1.bitsBoundedValue().template shift<shift_op1>() != op2.bitsBoundedValue().template shift<shift_op2>());
+    }
+    
+    inline static bool lt (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
     {
         return (op1.bitsBoundedValue().template shift<shift_op1>() < op2.bitsBoundedValue().template shift<shift_op2>());
     }
+    
+    inline static bool gt (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+    {
+        return (op1.bitsBoundedValue().template shift<shift_op1>() > op2.bitsBoundedValue().template shift<shift_op2>());
+    }
+    
+    inline static bool le (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+    {
+        return (op1.bitsBoundedValue().template shift<shift_op1>() <= op2.bitsBoundedValue().template shift<shift_op2>());
+    }
+    
+    inline static bool ge (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+    {
+        return (op1.bitsBoundedValue().template shift<shift_op1>() >= op2.bitsBoundedValue().template shift<shift_op2>());
+    }
 };
 
-template <int NumBits1, int Exp1, int NumBits2, int Exp2, bool Signed>
-bool operator< (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+inline bool operator== (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
-    return FixedPointCompare<NumBits1, Exp1, NumBits2, Exp2, Signed>::less(op1, op2);
+    return FixedPointCompare<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::eq(op1, op2);
+}
+
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+inline bool operator!= (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+{
+    return FixedPointCompare<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ne(op1, op2);
+}
+
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+inline bool operator< (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+{
+    return FixedPointCompare<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::lt(op1, op2);
+}
+
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+inline bool operator> (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+{
+    return FixedPointCompare<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::gt(op1, op2);
+}
+
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+inline bool operator<= (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+{
+    return FixedPointCompare<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::le(op1, op2);
+}
+
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+inline bool operator>= (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+{
+    return FixedPointCompare<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ge(op1, op2);
+}
+
+template <int NumBits, bool Signed, int Exp>
+inline FixedPoint<((NumBits + Modulo(Exp, 2) + 1) / 2), false, ((Exp - Modulo(Exp, 2)) / 2)> FixedSquareRoot (FixedPoint<NumBits, Signed, Exp> op)
+{
+    return FixedPoint<((NumBits + Modulo(Exp, 2) + 1) / 2), false, ((Exp - Modulo(Exp, 2)) / 2)>::importBoundedBits(BoundedSquareRoot(op.bitsBoundedValue().template shiftLeft<Modulo(Exp, 2)>()));
 }
 
 #include <aprinter/EndNamespace.h>

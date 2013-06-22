@@ -45,155 +45,91 @@ public:
     
     static const int num_bits = NumBits;
     
-    typedef typename ChooseInt<NumBits, Signed>::Type IntType;
+    using IntType = typename ChooseInt<NumBits, Signed>::Type;
     
-    static constexpr IntType minValue ()
+    inline static constexpr IntType minIntValue ()
     {
         return Signed ? -PowerOfTwoMinusOne<IntType, NumBits>::value : 0;
     }
     
-    static constexpr IntType maxValue ()
+    inline static constexpr IntType maxIntValue ()
     {
         return PowerOfTwoMinusOne<IntType, NumBits>::value;
     }
     
-    static BoundedInt import (IntType the_int)
+    inline static BoundedInt minValue ()
     {
-        AMBRO_ASSERT(the_int >= minValue())
-        AMBRO_ASSERT(the_int <= maxValue())
-        
-        BoundedInt res = {the_int};
-        return res;
+        return BoundedInt::import(minIntValue());
     }
     
-    IntType value () const
+    inline static BoundedInt maxValue ()
+    {
+        return BoundedInt::import(maxIntValue());
+    }
+    
+    inline static BoundedInt import (IntType the_int)
+    {
+        AMBRO_ASSERT(the_int >= minIntValue())
+        AMBRO_ASSERT(the_int <= maxIntValue())
+        
+        return BoundedInt{the_int};
+    }
+    
+    inline IntType value () const
     {
         return m_int;
     }
     
     template <int NewNumBits, bool NewSigned>
-    BoundedInt<NewNumBits, NewSigned> convert () const
+    inline BoundedInt<NewNumBits, NewSigned> convert () const
     {
         static_assert(NewNumBits >= NumBits, "");
         static_assert(!Signed || NewSigned, "");
         
-        return BoundedInt<NewNumBits, NewSigned>::import(m_int);
+        return BoundedInt<NewNumBits, NewSigned>::import(value());
     }
     
-    BoundedInt<NumBits, true> toSigned () const
+    inline BoundedInt<NumBits, true> toSigned () const
     {
-        return BoundedInt<NumBits, true>::import(m_int);
+        return BoundedInt<NumBits, true>::import(value());
     }
     
-    BoundedInt<NumBits, false> toUnsignedUnsafe () const
+    inline BoundedInt<NumBits, false> toUnsignedUnsafe () const
     {
-        AMBRO_ASSERT(m_int >= 0)
+        AMBRO_ASSERT(value() >= 0)
         
-        return BoundedInt<NumBits, false>::import(m_int);
+        return BoundedInt<NumBits, false>::import(value());
     }
     
     template <int ShiftExp>
-    BoundedInt<NumBits - ShiftExp, Signed> shiftRight () const
+    inline BoundedInt<NumBits - ShiftExp, Signed> shiftRight () const
     {
         static_assert(ShiftExp >= 0, "");
         
-        return BoundedInt<NumBits - ShiftExp, Signed>::import(m_int / PowerOfTwo<IntType, ShiftExp>::value);
+        return BoundedInt<NumBits - ShiftExp, Signed>::import(value() / PowerOfTwo<IntType, ShiftExp>::value);
     }
     
     template <int ShiftExp>
-    BoundedInt<NumBits + ShiftExp, Signed> shiftLeft () const
+    inline BoundedInt<NumBits + ShiftExp, Signed> shiftLeft () const
     {
         static_assert(ShiftExp >= 0, "");
         
-        return BoundedInt<NumBits + ShiftExp, Signed>::import(m_int * PowerOfTwo<typename BoundedInt<NumBits + ShiftExp, Signed>::IntType, ShiftExp>::value);
+        return BoundedInt<NumBits + ShiftExp, Signed>::import(value() * PowerOfTwo<typename BoundedInt<NumBits + ShiftExp, Signed>::IntType, ShiftExp>::value);
     }
     
     template <int ShiftExp>
-    BoundedInt<NumBits - ShiftExp, Signed> shift () const
+    inline BoundedInt<NumBits - ShiftExp, Signed> shift () const
     {
         return ShiftHelper<ShiftExp, (ShiftExp < 0)>::call(*this);
     }
     
-    BoundedInt operator- () const
-    {
-        // TODO remove for unsigned
-        AMBRO_ASSERT(Signed)
-        return import(-m_int);
-    }
-    
-    template <int NumBits2>
-    BoundedInt<max(NumBits, NumBits2) + 1, Signed> operator+ (BoundedInt<NumBits2, Signed> op2) const
-    {
-        return BoundedInt<max(NumBits, NumBits2) + 1, Signed>::import(
-            (typename BoundedInt<max(NumBits, NumBits2) + 1, Signed>::IntType)m_int +
-            (typename BoundedInt<max(NumBits, NumBits2) + 1, Signed>::IntType)op2.m_int
-        );
-    }
-    
-    template <int NumBits2>
-    BoundedInt<max(NumBits, NumBits2) + 1, Signed> operator- (BoundedInt<NumBits2, Signed> op2) const
-    {
-        return BoundedInt<max(NumBits, NumBits2) + 1, Signed>::import(
-            (typename BoundedInt<max(NumBits, NumBits2) + 1, Signed>::IntType)m_int -
-            (typename BoundedInt<max(NumBits, NumBits2) + 1, Signed>::IntType)op2.m_int
-        );
-    }
-    
-    template <int NumBits2, bool Signed2>
-    BoundedInt<NumBits + NumBits2, (Signed || Signed2)> operator* (BoundedInt<NumBits2, Signed2> op2) const
-    {
-        return BoundedInt<NumBits + NumBits2, (Signed || Signed2)>::import(
-            IntMultiply<NumBits, Signed, NumBits2, Signed2, 0>::call(m_int, op2.m_int)
-        );
-    }
-    
-    template <int RightShift, int NumBits2, bool Signed2>
-    BoundedInt<NumBits + NumBits2 - RightShift, (Signed || Signed2)> multiply (BoundedInt<NumBits2, Signed2> op2) const
-    {
-        return BoundedInt<NumBits + NumBits2 - RightShift, (Signed || Signed2)>::import(
-            IntMultiply<NumBits, Signed, NumBits2, Signed2, RightShift>::call(m_int, op2.m_int)
-        );
-    }
-    
-    template <int NumBits2, bool Signed2>
-    BoundedInt<NumBits, (Signed || Signed2)> operator/ (BoundedInt<NumBits2, Signed2> op2) const
-    {
-        AMBRO_ASSERT(op2.m_int != 0)
-        
-        return BoundedInt<NumBits, (Signed || Signed2)>::import(
-            IntDivide<NumBits, Signed, NumBits2, Signed2, 0, NumBits>::call(m_int, op2.m_int)
-        );
-    }
-    
-    template <int LeftShift, int ResSatBits, int NumBits2, bool Signed2>
-    BoundedInt<ResSatBits, (Signed || Signed2)> divide (BoundedInt<NumBits2, Signed2> op2) const
-    {
-        AMBRO_ASSERT(op2.m_int != 0)
-        
-        return BoundedInt<ResSatBits, (Signed || Signed2)>::import(
-            IntDivide<NumBits, Signed, NumBits2, Signed2, LeftShift, ResSatBits>::call(m_int, op2.m_int)
-        );
-    }
-    
-    BoundedInt<((NumBits + 1) / 2), false> squareRoot () const
-    {
-        AMBRO_ASSERT(m_int >= 0)
-        
-        return BoundedInt<((NumBits + 1) / 2), false>::import(IntSqrt<NumBits>::call(m_int));
-    }
-    
-    template <int NumBits2>
-    bool operator< (BoundedInt<NumBits2, Signed> op2) const
-    {
-        return (m_int < op2.m_int);
-    }
-    
+private:
     template <int ShiftExp, bool Left>
     struct ShiftHelper;
     
     template <int ShiftExp>
     struct ShiftHelper<ShiftExp, false> {
-        static BoundedInt<NumBits - ShiftExp, Signed> call (BoundedInt op)
+        inline static BoundedInt<NumBits - ShiftExp, Signed> call (BoundedInt op)
         {
             return op.shiftRight<ShiftExp>();
         }
@@ -201,7 +137,7 @@ public:
     
     template <int ShiftExp>
     struct ShiftHelper<ShiftExp, true> {
-        static BoundedInt<NumBits - ShiftExp, Signed> call (BoundedInt op)
+        inline static BoundedInt<NumBits - ShiftExp, Signed> call (BoundedInt op)
         {
             return op.shiftLeft<(-ShiftExp)>();
         }
@@ -210,6 +146,131 @@ public:
 public:
     IntType m_int;
 };
+
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline bool operator== (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    using TempType = typename ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>::Type;
+    return ((TempType)op1.value() == (TempType)op2.value());
+}
+
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline bool operator!= (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    using TempType = typename ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>::Type;
+    return ((TempType)op1.value() != (TempType)op2.value());
+}
+
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline bool operator< (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    using TempType = typename ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>::Type;
+    return ((TempType)op1.value() < (TempType)op2.value());
+}
+
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline bool operator> (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    using TempType = typename ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>::Type;
+    return ((TempType)op1.value() > (TempType)op2.value());
+}
+
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline bool operator<= (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    using TempType = typename ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>::Type;
+    return ((TempType)op1.value() <= (TempType)op2.value());
+}
+
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline bool operator>= (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    using TempType = typename ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>::Type;
+    return ((TempType)op1.value() >= (TempType)op2.value());
+}
+
+template <int NumBits, bool Signed>
+inline BoundedInt<NumBits, true> operator- (BoundedInt<NumBits, Signed> op)
+{
+    using TempType = typename ChooseInt<NumBits, true>::Type;
+    return BoundedInt<NumBits, true>::import(-(TempType)op.value());
+}
+
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline BoundedInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)> operator+ (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    using TempType = typename ChooseInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)>::Type;
+    return BoundedInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)>::import((TempType)op1.value() + (TempType)op2.value());
+}
+
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline BoundedInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)> operator- (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    using TempType = typename ChooseInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)>::Type;
+    return BoundedInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)>::import((TempType)op1.value() - (TempType)op2.value());
+}
+
+template <int RightShift, int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline BoundedInt<(NumBits1 + NumBits2 - RightShift), (Signed1 || Signed2)> BoundedMultiply (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    return BoundedInt<(NumBits1 + NumBits2 - RightShift), (Signed1 || Signed2)>::import(
+        IntMultiply<NumBits1, Signed1, NumBits2, Signed2, RightShift>::call(op1.value(), op2.value())
+    );
+}
+
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline BoundedInt<(NumBits1 + NumBits2), (Signed1 || Signed2)> operator* (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    return BoundedMultiply<0>(op1, op2);
+}
+
+template <int LeftShift, int ResSatBits, int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline BoundedInt<ResSatBits, (Signed1 || Signed2)> BoundedDivide (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    AMBRO_ASSERT(op2.value() != 0)
+    
+    return BoundedInt<ResSatBits, (Signed1 || Signed2)>::import(
+        IntDivide<NumBits1, Signed1, NumBits2, Signed2, LeftShift, ResSatBits>::call(op1.value(), op2.value())
+    );
+}
+
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+inline BoundedInt<NumBits1, (Signed1 || Signed2)> operator/ (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+{
+    return BoundedDivide<0, NumBits1>(op1, op2);
+}
+
+template <int NumBits, bool Signed>
+inline BoundedInt<((NumBits + 1) / 2), false> BoundedSquareRoot (BoundedInt<NumBits, Signed> op1)
+{
+    AMBRO_ASSERT(op1.value() >= 0)
+    
+    return BoundedInt<((NumBits + 1) / 2), false>::import(IntSqrt<NumBits>::call(op1.value()));
+}
+
+template <int NumBits>
+inline BoundedInt<NumBits, false> BoundedModuloAdd (BoundedInt<NumBits, false> op1, BoundedInt<NumBits, false> op2)
+{
+    return BoundedInt<NumBits, false>::import((typename BoundedInt<NumBits, false>::IntType)(op1.value() + op2.value()) & BoundedInt<NumBits, false>::maxIntValue());
+}
+
+template <int NumBits>
+inline BoundedInt<NumBits, false> BoundedModuloSubtract (BoundedInt<NumBits, false> op1, BoundedInt<NumBits, false> op2)
+{
+    return BoundedInt<NumBits, false>::import((typename BoundedInt<NumBits, false>::IntType)(op1.value() - op2.value()) & BoundedInt<NumBits, false>::maxIntValue());
+}
+
+template <int NumBits>
+inline BoundedInt<NumBits, false> BoundedModuloNegative (BoundedInt<NumBits, false> op)
+{
+    return BoundedInt<NumBits, false>::import((typename BoundedInt<NumBits, false>::IntType)(-op.value()) & BoundedInt<NumBits, false>::maxIntValue());
+}
+
+template <int NumBits>
+inline BoundedInt<NumBits, false> BoundedModuloInc (BoundedInt<NumBits, false> op)
+{
+    return BoundedInt<NumBits, false>::import((typename BoundedInt<NumBits, false>::IntType)(op.value() + 1) & BoundedInt<NumBits, false>::maxIntValue());
+}
 
 #include <aprinter/EndNamespace.h>
 

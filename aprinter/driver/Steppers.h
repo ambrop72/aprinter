@@ -63,14 +63,14 @@ private:
     template <typename Index>
     using StepperByIndex = SteppersStepper<Context, StepperDefsList, Index::value>;
     
-    typedef Tuple<
+    using SteppersTuple = Tuple<
         typename MapTypeList<
             typename SequenceList<
                 TypeListLength<StepperDefsList>::value
             >::Type,
             TemplateFunc<StepperByIndex>
         >::Type
-    > SteppersTuple;
+    >;
     
     struct SteppersInitHelper {
         template <typename ThisStepperEntry>
@@ -102,7 +102,7 @@ public:
     }
     
     template <int StepperIndex>
-    SteppersStepper<Context, StepperDefsList, StepperIndex> * getStepper ()
+    inline SteppersStepper<Context, StepperDefsList, StepperIndex> * getStepper ()
     {
         return TupleGet<SteppersTuple, StepperIndex>::getElem(&m_steppers);
     }
@@ -115,7 +115,7 @@ template <typename Context, typename StepperDefsList, int StepperIndex>
 class SteppersStepper {
 public:
     template <typename ThisContext>
-    void enable (ThisContext c, bool e)
+    inline void enable (ThisContext c, bool e)
     {
         parent()->debugAccess(c);
         m_enabled = e;
@@ -124,14 +124,14 @@ public:
     }
     
     template <typename ThisContext>
-    void setDir (ThisContext c, bool dir)
+    inline void setDir (ThisContext c, bool dir)
     {
         parent()->debugAccess(c);
         c.pins()->template set<DirPin>(c, dir);
     }
     
     template <typename ThisContext>
-    void step (ThisContext c)
+    inline void step (ThisContext c)
     {
         parent()->debugAccess(c);
         c.pins()->template set<StepPin>(c, true);
@@ -144,8 +144,8 @@ private:
     template <typename, typename, int>
     friend class SteppersStepper;
     
-    typedef Steppers<Context, StepperDefsList> OurSteppers;
-    typedef typename OurSteppers::SteppersTuple SteppersTuple;
+    using OurSteppers = Steppers<Context, StepperDefsList>;
+    using SteppersTuple = typename OurSteppers::SteppersTuple;
     
     void init (Context c)
     {
@@ -163,16 +163,16 @@ private:
         c.pins()->template set<EnablePin>(c, true);
     }
     
-    OurSteppers * parent ()
+    inline OurSteppers * parent ()
     {
         SteppersTuple *steppers = TupleGet<SteppersTuple, StepperIndex>::getFromElem(this);
         return AMBRO_WMEMB_TD(&OurSteppers::m_steppers)::container(steppers);
     }
     
-    typedef typename TypeListGet<StepperDefsList, StepperIndex>::Type ThisDef;
-    typedef typename ThisDef::DirPin DirPin;
-    typedef typename ThisDef::StepPin StepPin;
-    typedef typename ThisDef::EnablePin EnablePin;
+    using ThisDef = typename TypeListGet<StepperDefsList, StepperIndex>::Type;
+    using DirPin = typename ThisDef::DirPin;
+    using StepPin = typename ThisDef::StepPin;
+    using EnablePin = typename ThisDef::EnablePin;
     
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetEnablePinFunc, EnablePin)
     

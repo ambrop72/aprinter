@@ -35,8 +35,8 @@
 template <typename Context>
 class DebugObjectGroup {
 public:
-    void init (Context c);
-    void deinit (Context c);
+    inline void init (Context c);
+    inline void deinit (Context c);
     
 private:
 #ifdef AMBROLIB_ASSERTIONS
@@ -52,16 +52,16 @@ template <typename Context, typename Ident>
 class DebugObject {
 public:
     template <typename ThisContext>
-    void debugInit (ThisContext c);
+    inline void debugInit (ThisContext c);
     
     template <typename ThisContext>
-    void debugDeinit (ThisContext c);
+    inline void debugDeinit (ThisContext c);
     
     template <typename ThisContext>
-    void debugAccess (ThisContext c);
+    inline void debugAccess (ThisContext c);
     
 private:
-    static uint32_t getMagic ();
+    inline static uint32_t getMagic ();
     
 #ifdef AMBROLIB_ASSERTIONS
     uint32_t m_magic;
@@ -69,7 +69,7 @@ private:
 };
 
 template <typename Context>
-void DebugObjectGroup<Context>::init (Context c)
+inline void DebugObjectGroup<Context>::init (Context c)
 {
 #ifdef AMBROLIB_ASSERTIONS
     m_count = 0;
@@ -78,7 +78,7 @@ void DebugObjectGroup<Context>::init (Context c)
 }
 
 template <typename Context>
-void DebugObjectGroup<Context>::deinit (Context c)
+inline void DebugObjectGroup<Context>::deinit (Context c)
 {
 #ifdef AMBROLIB_ASSERTIONS
     AMBRO_ASSERT(m_count == 0)
@@ -88,7 +88,7 @@ void DebugObjectGroup<Context>::deinit (Context c)
 
 template <typename Context, typename Ident>
 template <typename ThisContext>
-void DebugObject<Context, Ident>::debugInit (ThisContext c)
+inline void DebugObject<Context, Ident>::debugInit (ThisContext c)
 {
 #ifdef AMBROLIB_ASSERTIONS
     DebugObjectGroup<Context> *g = c.debugGroup();
@@ -101,7 +101,7 @@ void DebugObject<Context, Ident>::debugInit (ThisContext c)
 
 template <typename Context, typename Ident>
 template <typename ThisContext>
-void DebugObject<Context, Ident>::debugDeinit (ThisContext c)
+inline void DebugObject<Context, Ident>::debugDeinit (ThisContext c)
 {
 #ifdef AMBROLIB_ASSERTIONS
     DebugObjectGroup<Context> *g = c.debugGroup();
@@ -115,7 +115,7 @@ void DebugObject<Context, Ident>::debugDeinit (ThisContext c)
 
 template <typename Context, typename Ident>
 template <typename ThisContext>
-void DebugObject<Context, Ident>::debugAccess (ThisContext c)
+inline void DebugObject<Context, Ident>::debugAccess (ThisContext c)
 {
 #ifdef AMBROLIB_ASSERTIONS
     AMBRO_ASSERT(m_magic == getMagic())
@@ -123,7 +123,7 @@ void DebugObject<Context, Ident>::debugAccess (ThisContext c)
 }
 
 template <typename Context, typename Ident>
-uint32_t DebugObject<Context, Ident>::getMagic ()
+inline uint32_t DebugObject<Context, Ident>::getMagic ()
 {
     return UINT32_C(0x1c5c0678);
 }

@@ -79,18 +79,17 @@ public:
     }
     
     template <typename ThisContext>
-    TimeType getTime (ThisContext c)
+    inline TimeType getTime (ThisContext c)
     {
         this->debugAccess(c);
         
         if (IsAvrInterruptContext<ThisContext>::value) {
-            uint16_t offset = m_offset;
             uint16_t tcnt = TCNT1;
             __sync_synchronize();
             if ((TIFR1 & (1 << TOV1))) {
                 return (((TimeType)(m_offset + 1) << 16) + TCNT1);
             } else {
-                return (((TimeType)offset << 16) + tcnt);
+                return (((TimeType)m_offset << 16) + tcnt);
             }
         } else {
             while (1) {
@@ -164,7 +163,7 @@ public:
     }
     
     template <typename ThisContext>
-    void set (ThisContext c, TimeType time)
+    inline void set (ThisContext c, TimeType time)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
@@ -235,7 +234,7 @@ public:
     }
     
     template <typename ThisContext>
-    void unset (ThisContext c)
+    inline void unset (ThisContext c)
     {
         this->debugAccess(c);
         

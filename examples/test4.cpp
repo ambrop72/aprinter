@@ -70,7 +70,7 @@
 #define SERIAL_RX_BUFFER 63
 #define SERIAL_TX_BUFFER 63
 #define SERIAL_GEN_LENGTH 3000
-#define COMMAND_BUFFER_SIZE 15
+#define COMMAND_BUFFER_BITS 4
 #define NUM_MOVE_ITERS 4
 #define SPEED_T_SCALE (0.105*2.0)
 #define INTERRUPT_TIMER_TIME 1.0
@@ -105,8 +105,8 @@ typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8
 typedef Steppers<MyContext, STEPPERS> MySteppers;
 typedef SteppersStepper<MyContext, STEPPERS, 0> MySteppersStepper0;
 typedef SteppersStepper<MyContext, STEPPERS, 1> MySteppersStepper1;
-typedef AxisStepper<MyContext, uint8_t, COMMAND_BUFFER_SIZE, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler0> MyAxisStepper0;
-typedef AxisStepper<MyContext, uint8_t, COMMAND_BUFFER_SIZE, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler1> MyAxisStepper1;
+typedef AxisStepper<MyContext, COMMAND_BUFFER_BITS, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler0> MyAxisStepper0;
+typedef AxisStepper<MyContext, COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler1> MyAxisStepper1;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -219,7 +219,7 @@ static void add_commands0 (MyContext c)
     axis_stepper0.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
     axis_stepper0.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
     num_left0--;
-    axis_stepper0.bufferRequestEvent(c, (num_left0 == 0) ? COMMAND_BUFFER_SIZE : 6);
+    axis_stepper0.bufferRequestEvent(c, (num_left0 == 0) ? MyAxisStepper0::BufferBoundedType::maxValue() : MyAxisStepper0::BufferBoundedType::import(6));
 }
 
 static void add_commands1 (MyContext c)
@@ -232,7 +232,7 @@ static void add_commands1 (MyContext c)
     axis_stepper1.bufferProvideTest(c, false, 40.0, 1.0 * t_scale, 0.0);
     axis_stepper1.bufferProvideTest(c, false, 20.0, 1.0 * t_scale, -20.0);
     num_left1--;
-    axis_stepper1.bufferRequestEvent(c, (num_left1 == 0) ? COMMAND_BUFFER_SIZE : 6);
+    axis_stepper1.bufferRequestEvent(c, (num_left1 == 0) ? MyAxisStepper1::BufferBoundedType::maxValue() : MyAxisStepper1::BufferBoundedType::import(6));
 }
 
 static void mytimer_handler (MyTimer *, MyContext c)

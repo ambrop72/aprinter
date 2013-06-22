@@ -28,7 +28,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <aprinter/meta/IsPowerOfTwo.h>
+#include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/IntTypeInfo.h>
@@ -52,17 +52,16 @@
 
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
-template <typename Context, typename CommandSizeType, CommandSizeType CommandBufferSize, typename Stepper, typename GetStepper, template<typename, typename> class Timer, typename AvailHandler>
+template <typename Context, int CommandBufferBits, typename Stepper, typename GetStepper, template<typename, typename> class Timer, typename AvailHandler>
 class AxisStepper
-: private DebugObject<Context, AxisStepper<Context, CommandSizeType, CommandBufferSize, Stepper, GetStepper, Timer, AvailHandler>>
+: private DebugObject<Context, AxisStepper<Context, CommandBufferBits, Stepper, GetStepper, Timer, AvailHandler>>
 {
-    static_assert(!IntTypeInfo<CommandSizeType>::is_signed, "CommandSizeType must be unsigned");
-    static_assert(IsPowerOfTwo<uintmax_t, (uintmax_t)CommandBufferSize + 1>::value, "CommandBufferSize+1 must be a power of two");
+    static_assert(CommandBufferBits >= 2, "");
     
 private:
-    typedef typename Context::EventLoop Loop;
-    typedef typename Context::Clock Clock;
-    typedef typename Context::Lock Lock;
+    using Loop = typename Context::EventLoop;
+    using Clock = typename Context::Clock;
+    using Lock = typename Context::Lock;
     
     // WARNING: these were very carefully chosen.
     // An attempt was made to:
@@ -79,23 +78,27 @@ private:
     
     struct TimerHandler;
     
+    using TimerInstance = Timer<Context, TimerHandler>;
+    using StepFixedType = FixedPoint<step_bits, false, 0>;
+    using AccelFixedType = FixedPoint<step_bits, true, 0>;
+    using TimeFixedType = FixedPoint<time_bits, false, 0>;
+    
 public:
-    typedef Timer<Context, TimerHandler> TimerInstance;
-    typedef typename Clock::TimeType TimeType;
-    typedef int16_t StepType;
-    typedef FixedPoint<step_bits, false, 0> StepFixedType;
-    typedef FixedPoint<step_bits, true, 0> AccelFixedType;
-    typedef FixedPoint<time_bits, false, 0> TimeFixedType;
+    using BufferBoundedType = BoundedInt<CommandBufferBits, false>;
+    using TimeType = typename Clock::TimeType;
+    using StepBoundedType = typename StepFixedType::BoundedIntType;
+    using AccelBoundedType = typename AccelFixedType::BoundedIntType;
+    using TimeBoundedType = typename TimeFixedType::BoundedIntType;
     
     void init (Context c)
     {
         m_timer.init(c);
         m_avail_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisStepper::m_avail_event, &AxisStepper::avail_event_handler));
         m_running = false;
-        m_start = 0;
-        m_end = 0;
-        m_event_amount = CommandBufferSize;
-        m_current_command = &m_commands[m_start];
+        m_start = BufferBoundedType::import(0);
+        m_end = BufferBoundedType::import(0);
+        m_event_amount = BufferBoundedType::maxValue();
+        m_current_command = &m_commands[m_start.value()];
         m_lock.init(c);
         this->debugInit(c);
     }
@@ -113,16 +116,16 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
         
-        m_start = 0;
-        m_end = 0;
-        m_current_command = &m_commands[m_start];
+        m_start = BufferBoundedType::import(0);
+        m_end = BufferBoundedType::import(0);
+        m_current_command = &m_commands[m_start.value()];
     }
     
-    CommandSizeType bufferQuery (Context c)
+    BufferBoundedType bufferQuery (Context c)
     {
         this->debugAccess(c);
         
-        CommandSizeType start;
+        BufferBoundedType start;
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             start = m_start;
         });
@@ -133,29 +136,25 @@ public:
     void bufferProvideTest (Context c, bool dir, float x, float t, float ha)
     {
         float step_length = 0.0125;
-        bufferProvide(c, dir, x / step_length, t / Clock::time_unit, ha / step_length);
+        bufferProvide(c, dir, StepBoundedType::import(x / step_length), TimeBoundedType::import(t / Clock::time_unit), AccelBoundedType::import(ha / step_length));
     }
     
-    void bufferProvide (Context c, bool dir, StepType x_arg, TimeType t_arg, StepType ha_arg)
+    void bufferProvide (Context c, bool dir, StepBoundedType x_arg, TimeBoundedType t_arg, AccelBoundedType ha_arg)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(bufferQuery(c) >= 1)
-        AMBRO_ASSERT(x_arg >= 0)
-        AMBRO_ASSERT(x_arg <= StepFixedType::BoundedIntType::maxValue())
-        AMBRO_ASSERT(t_arg > 0)
-        AMBRO_ASSERT(t_arg <= TimeFixedType::BoundedIntType::maxValue())
+        AMBRO_ASSERT(bufferQuery(c) >= BufferBoundedType::import(1))
         AMBRO_ASSERT(ha_arg >= -x_arg)
         AMBRO_ASSERT(ha_arg <= x_arg)
         
-        auto x = StepFixedType::importBits(x_arg);
-        auto t = TimeFixedType::importBits(t_arg);
-        auto ha = AccelFixedType::importBits(ha_arg);
+        auto x = StepFixedType::importBoundedBits(x_arg);
+        auto t = TimeFixedType::importBoundedBits(t_arg);
+        auto ha = AccelFixedType::importBoundedBits(ha_arg);
         
         // compute the command parameters
         Command cmd;
         cmd.dir = dir;
         cmd.x = x;
-        cmd.t_plain = t_arg;
+        cmd.t_plain = t_arg.value();
         cmd.ha_mul = AXIS_STEPPER_HAMUL_EXPR(x, t, ha);
         cmd.v0 = AXIS_STEPPER_V0_EXPR(x, t, ha);
         cmd.v02 = AXIS_STEPPER_V02_EXPR(x, t, ha);
@@ -163,16 +162,16 @@ public:
         
         // compute the clock offset based on the last command. If not running start() will do it.
         if (m_running) {
-            Command *last_cmd = &m_commands[buffer_last(m_end)];
+            Command *last_cmd = &m_commands[buffer_last(m_end).value()];
             cmd.clock_offset = last_cmd->clock_offset + last_cmd->t_plain;
         }
         
         // add command to queue
-        m_commands[m_end] = cmd;
+        m_commands[m_end.value()] = cmd;
         bool was_empty;
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             was_empty = (m_start == m_end);
-            m_end = (CommandSizeType)(m_end + 1) % buffer_mod;
+            m_end = BoundedModuloInc(m_end);
         });
         
         // if we have run out of commands, continue motion
@@ -183,18 +182,17 @@ public:
         }
     }
     
-    void bufferRequestEvent (Context c, CommandSizeType min_amount)
+    void bufferRequestEvent (Context c, BufferBoundedType min_amount)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(min_amount > 0)
-        AMBRO_ASSERT(min_amount <= CommandBufferSize)
+        AMBRO_ASSERT(min_amount.value() > 0)
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             if (buffer_avail(m_start, m_end) >= min_amount) {
-                m_event_amount = CommandBufferSize;
+                m_event_amount = BufferBoundedType::maxValue();
                 m_avail_event.appendNow(lock_c);
             } else {
-                m_event_amount = min_amount - 1;
+                m_event_amount = BoundedModuloSubtract(min_amount, BufferBoundedType::import(1));
                 m_avail_event.unset(lock_c);
             }
         });
@@ -207,23 +205,23 @@ public:
         
         // compute clock offsets for commands
         if (m_start == m_end) {
-            Command *last_cmd = &m_commands[buffer_last(m_end)];
+            Command *last_cmd = &m_commands[buffer_last(m_end).value()];
             last_cmd->clock_offset = start_time;
             last_cmd->t_plain = 0;
         } else {
             TimeType clock_offset = start_time;
-            for (CommandSizeType i = m_start; i != m_end; i = (CommandSizeType)(i + 1) % buffer_mod) {
-                m_commands[i].clock_offset = clock_offset;
-                clock_offset += m_commands[i].t_plain;
+            for (BufferBoundedType i = m_start; i != m_end; i = BoundedModuloInc(i)) {
+                m_commands[i.value()].clock_offset = clock_offset;
+                clock_offset += m_commands[i.value()].t_plain;
             }
         }
         
         m_running = true;
         m_rel_x = 0;
         
-        // unless we don['t have any commands, begin motion
-        if (m_start != m_end) {
-            Command *cmd = &m_commands[m_start];
+        // unless we don't have any commands, begin motion
+        if (m_start.value() != m_end.value()) {
+            Command *cmd = &m_commands[m_start.value()];
             stepper(this)->setDir(c, cmd->dir);
             TimeType timer_t = (cmd->x.bitsValue() == 0) ? (cmd->clock_offset + cmd->t_plain) : cmd->clock_offset;
             m_timer.set(c, timer_t);
@@ -258,16 +256,14 @@ private:
         return GetStepper::call(o);
     }
     
-    static const size_t buffer_mod = (size_t)CommandBufferSize + 1;
-    
-    static CommandSizeType buffer_avail (CommandSizeType start, CommandSizeType end)
+    static BufferBoundedType buffer_avail (BufferBoundedType start, BufferBoundedType end)
     {
-        return (CommandSizeType)((CommandSizeType)(start - 1) - end) % buffer_mod;
+        return BoundedModuloSubtract(BoundedModuloSubtract(start, BufferBoundedType::import(1)), end);
     }
     
-    static CommandSizeType buffer_last (CommandSizeType end)
+    static BufferBoundedType buffer_last (BufferBoundedType end)
     {
-        return (CommandSizeType)(end - 1) % buffer_mod;
+        return BoundedModuloSubtract(end, BufferBoundedType::import(1));
     }
     
     struct Command {
@@ -282,7 +278,7 @@ private:
     };
     
     template <typename ThisContext>
-    void perform_steps (ThisContext c, StepType steps)
+    void perform_steps (ThisContext c, typename StepFixedType::IntType steps)
     {
         while (steps-- > 0) {
             stepper(this)->step(c);
@@ -294,7 +290,7 @@ private:
         this->debugAccess(c);
         AMBRO_ASSERT(m_running)
         AMBRO_LOCK_T(m_lock, c, lock_c, {
-            AMBRO_ASSERT(m_start != m_end)
+            AMBRO_ASSERT(m_start.value() != m_end.value())
         });
         
         while (1) {
@@ -324,8 +320,8 @@ private:
                 }
                 
                 // compute the thing with the square root
-                static_assert(decltype(m_current_command->v0)::exp == decltype(s.squareRoot())::exp, "slow shift");
-                auto q = (m_current_command->v0 + s.squareRoot()).template shift<-1>();
+                static_assert(decltype(m_current_command->v0)::exp == decltype(FixedSquareRoot(s))::exp, "slow shift");
+                auto q = (m_current_command->v0 + FixedSquareRoot(s)).template shift<-1>();
                 
                 // compute solution as fraction of total time
                 static_assert(Modulo(q_div_shift, 8) == 0, "slow shift");
@@ -333,7 +329,7 @@ private:
                 auto t_frac = FixedDivide<q_div_shift, div_res_sat_bits>(StepFixedType::importBits(m_rel_x), q); // TODO div0
                 
                 // multiply by the time of this command, and drop fraction bits at the same time
-                typedef decltype(m_current_command->t_mul * t_frac) ProdType;
+                using ProdType = decltype(m_current_command->t_mul * t_frac);
                 static_assert(Modulo(ProdType::exp, 8) == 0, "slow shift");
                 auto t = FixedMultiply<(-ProdType::exp)>(m_current_command->t_mul, t_frac);
                 
@@ -351,13 +347,12 @@ private:
             bool run_out;
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 // consume command
-                m_start = (CommandSizeType)(m_start + 1) % buffer_mod;
-                m_current_command = &m_commands[m_start];
+                m_start = BoundedModuloInc(m_start);
+                m_current_command = &m_commands[m_start.value()];
                 
                 // report avail event if we have enough buffer space
-                CommandSizeType avail = buffer_avail(m_start, m_end);
-                if (avail > m_event_amount) {
-                    m_event_amount = CommandBufferSize;
+                if (buffer_avail(m_start, m_end).value() > m_event_amount.value()) {
+                    m_event_amount = BufferBoundedType::maxValue();
                     m_avail_event.appendNow(lock_c);
                 }
                 
@@ -381,7 +376,7 @@ private:
         }
     }
     
-    void avail_event_handler (Context c)
+    inline void avail_event_handler (Context c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_running)
@@ -391,10 +386,10 @@ private:
     
     TimerInstance m_timer;
     typename Loop::QueuedEvent m_avail_event;
-    Command m_commands[buffer_mod];
-    CommandSizeType m_start;
-    CommandSizeType m_end;
-    CommandSizeType m_event_amount;
+    Command m_commands[(size_t)BufferBoundedType::maxIntValue() + 1];
+    BufferBoundedType m_start;
+    BufferBoundedType m_end;
+    BufferBoundedType m_event_amount;
     Command *m_current_command;
     typename StepFixedType::IntType m_rel_x;
     bool m_running;
