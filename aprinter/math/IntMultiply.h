@@ -47,7 +47,7 @@ public:
     typedef typename ChooseInt<NumBits2, Signed2>::Type Op2Type;
     typedef typename ChooseInt<(NumBits1 + NumBits2 - RightShift), (Signed1 || Signed2)>::Type ResType;
     
-    inline static ResType call (Op1Type op1, Op2Type op2)
+    static ResType call (Op1Type op1, Op2Type op2)
     {
         return
 #ifdef AMBROLIB_AVR
@@ -60,7 +60,7 @@ public:
 private:
     typedef typename ChooseInt<(NumBits1 + NumBits2), (Signed1 || Signed2)>::Type TempResType;
     
-    inline static ResType default_multiply (Op1Type op1, Op2Type op2)
+    static ResType default_multiply (Op1Type op1, Op2Type op2)
     {
         return ((TempResType)op1 * (TempResType)op2) / PowerOfTwo<TempResType, RightShift>::value;
     }

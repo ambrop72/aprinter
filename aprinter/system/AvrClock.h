@@ -79,7 +79,7 @@ public:
     }
     
     template <typename ThisContext>
-    inline TimeType getTime (ThisContext c)
+    TimeType getTime (ThisContext c)
     {
         this->debugAccess(c);
         
@@ -163,7 +163,7 @@ public:
     }
     
     template <typename ThisContext>
-    inline void set (ThisContext c, TimeType time)
+    void set (ThisContext c, TimeType time)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
@@ -234,7 +234,7 @@ public:
     }
     
     template <typename ThisContext>
-    inline void unset (ThisContext c)
+    void unset (ThisContext c)
     {
         this->debugAccess(c);
         

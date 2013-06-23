@@ -42,7 +42,7 @@ public:
     typedef typename ChooseInt<NumBits, false>::Type OpType;
     typedef typename ChooseInt<((NumBits + 1) / 2), false>::Type ResType;
     
-    inline static ResType call (OpType op)
+    static ResType call (OpType op)
     {
         return
 #ifdef AMBROLIB_AVR
@@ -52,7 +52,7 @@ public:
     }
     
 private:
-    inline static ResType default_sqrt (OpType op)
+    static ResType default_sqrt (OpType op)
     {
         OpType res = 0;
         OpType one = PowerOfTwo<OpType, (NumBits - 2)>::value;

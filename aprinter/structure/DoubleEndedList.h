@@ -76,37 +76,37 @@ template <class Entry, DoubleEndedListNode<Entry> Entry::*NodeMember>
 class DoubleEndedList : public DoubleEndedListWithAccessor<Entry, DoubleEndedListAccessor<Entry, NodeMember> > {};
 
 template <class Entry, class Accessor>
-inline DoubleEndedListNode<Entry> * DoubleEndedListWithAccessor<Entry, Accessor>::ac (Entry *e)
+DoubleEndedListNode<Entry> * DoubleEndedListWithAccessor<Entry, Accessor>::ac (Entry *e)
 {
     return Accessor::access(e);
 }
 
 template <class Entry, class Accessor>
-inline void DoubleEndedListWithAccessor<Entry, Accessor>::init ()
+void DoubleEndedListWithAccessor<Entry, Accessor>::init ()
 {
     m_first = NULL;
 }
 
 template <class Entry, class Accessor>
-inline bool DoubleEndedListWithAccessor<Entry, Accessor>::isEmpty () const
+bool DoubleEndedListWithAccessor<Entry, Accessor>::isEmpty () const
 {
     return (m_first == NULL);
 }
 
 template <class Entry, class Accessor>
-inline Entry * DoubleEndedListWithAccessor<Entry, Accessor>::first () const
+Entry * DoubleEndedListWithAccessor<Entry, Accessor>::first () const
 {
     return m_first;
 }
 
 template <class Entry, class Accessor>
-inline Entry * DoubleEndedListWithAccessor<Entry, Accessor>::next (Entry *e) const
+Entry * DoubleEndedListWithAccessor<Entry, Accessor>::next (Entry *e) const
 {
     return ac(e)->next;
 }
 
 template <class Entry, class Accessor>
-inline void DoubleEndedListWithAccessor<Entry, Accessor>::prepend (Entry *e)
+void DoubleEndedListWithAccessor<Entry, Accessor>::prepend (Entry *e)
 {
     ac(e)->next = m_first;
     if (m_first) {
@@ -118,7 +118,7 @@ inline void DoubleEndedListWithAccessor<Entry, Accessor>::prepend (Entry *e)
 }
 
 template <class Entry, class Accessor>
-inline void DoubleEndedListWithAccessor<Entry, Accessor>::append (Entry *e)
+void DoubleEndedListWithAccessor<Entry, Accessor>::append (Entry *e)
 {
     ac(e)->next = NULL;
     if (m_first) {
@@ -131,7 +131,7 @@ inline void DoubleEndedListWithAccessor<Entry, Accessor>::append (Entry *e)
 }
 
 template <class Entry, class Accessor>
-inline void DoubleEndedListWithAccessor<Entry, Accessor>::remove (Entry *e)
+void DoubleEndedListWithAccessor<Entry, Accessor>::remove (Entry *e)
 {
     if (e != m_first) {
         ac(ac(e)->prev)->next = ac(e)->next;
@@ -146,7 +146,7 @@ inline void DoubleEndedListWithAccessor<Entry, Accessor>::remove (Entry *e)
 }
 
 template <class Entry, class Accessor>
-inline void DoubleEndedListWithAccessor<Entry, Accessor>::removeFirst ()
+void DoubleEndedListWithAccessor<Entry, Accessor>::removeFirst ()
 {
     AMBRO_ASSERT(m_first)
     
@@ -154,13 +154,13 @@ inline void DoubleEndedListWithAccessor<Entry, Accessor>::removeFirst ()
 }
 
 template <class Entry, class Accessor>
-inline void DoubleEndedListWithAccessor<Entry, Accessor>::markRemoved (Entry *e)
+void DoubleEndedListWithAccessor<Entry, Accessor>::markRemoved (Entry *e)
 {
     ac(e)->next = e;
 }
 
 template <class Entry, class Accessor>
-inline bool DoubleEndedListWithAccessor<Entry, Accessor>::isRemoved (Entry *e)
+bool DoubleEndedListWithAccessor<Entry, Accessor>::isRemoved (Entry *e)
 {
     return (ac(e)->next == e);
 }

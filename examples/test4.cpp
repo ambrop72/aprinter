@@ -72,7 +72,7 @@
 #define SERIAL_GEN_LENGTH 3000
 #define COMMAND_BUFFER_BITS 4
 #define NUM_MOVE_ITERS 4
-#define SPEED_T_SCALE (0.105*2.0)
+#define SPEED_T_SCALE (0.104*2.0)
 #define INTERRUPT_TIMER_TIME 1.0
 #define STEPPERS \
     MakeTypeList< \

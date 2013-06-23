@@ -102,7 +102,7 @@ public:
     }
     
     template <int StepperIndex>
-    inline SteppersStepper<Context, StepperDefsList, StepperIndex> * getStepper ()
+    SteppersStepper<Context, StepperDefsList, StepperIndex> * getStepper ()
     {
         return TupleGet<SteppersTuple, StepperIndex>::getElem(&m_steppers);
     }
@@ -115,7 +115,7 @@ template <typename Context, typename StepperDefsList, int StepperIndex>
 class SteppersStepper {
 public:
     template <typename ThisContext>
-    inline void enable (ThisContext c, bool e)
+    void enable (ThisContext c, bool e)
     {
         parent()->debugAccess(c);
         m_enabled = e;
@@ -124,14 +124,14 @@ public:
     }
     
     template <typename ThisContext>
-    inline void setDir (ThisContext c, bool dir)
+    void setDir (ThisContext c, bool dir)
     {
         parent()->debugAccess(c);
         c.pins()->template set<DirPin>(c, dir);
     }
     
     template <typename ThisContext>
-    inline void step (ThisContext c)
+    void step (ThisContext c)
     {
         parent()->debugAccess(c);
         c.pins()->template set<StepPin>(c, true);
@@ -163,7 +163,7 @@ private:
         c.pins()->template set<EnablePin>(c, true);
     }
     
-    inline OurSteppers * parent ()
+    OurSteppers * parent ()
     {
         SteppersTuple *steppers = TupleGet<SteppersTuple, StepperIndex>::getFromElem(this);
         return AMBRO_WMEMB_TD(&OurSteppers::m_steppers)::container(steppers);

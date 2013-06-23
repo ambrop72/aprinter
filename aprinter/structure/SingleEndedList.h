@@ -71,37 +71,37 @@ template <class Entry, SingleEndedListNode<Entry> Entry::*NodeMember>
 class SingleEndedList : public SingleEndedListWithAccessor<Entry, SingleEndedListAccessor<Entry, NodeMember> > {};
 
 template <class Entry, class Accessor>
-inline SingleEndedListNode<Entry> * SingleEndedListWithAccessor<Entry, Accessor>::ac (Entry *e)
+SingleEndedListNode<Entry> * SingleEndedListWithAccessor<Entry, Accessor>::ac (Entry *e)
 {
     return Accessor::access(e);
 }
 
 template <class Entry, class Accessor>
-inline void SingleEndedListWithAccessor<Entry, Accessor>::init ()
+void SingleEndedListWithAccessor<Entry, Accessor>::init ()
 {
     m_first = NULL;
 }
 
 template <class Entry, class Accessor>
-inline bool SingleEndedListWithAccessor<Entry, Accessor>::isEmpty () const
+bool SingleEndedListWithAccessor<Entry, Accessor>::isEmpty () const
 {
     return (m_first == NULL);
 }
 
 template <class Entry, class Accessor>
-inline Entry * SingleEndedListWithAccessor<Entry, Accessor>::first () const
+Entry * SingleEndedListWithAccessor<Entry, Accessor>::first () const
 {
     return m_first;
 }
 
 template <class Entry, class Accessor>
-inline Entry * SingleEndedListWithAccessor<Entry, Accessor>::next (Entry *e) const
+Entry * SingleEndedListWithAccessor<Entry, Accessor>::next (Entry *e) const
 {
     return ac(e)->next;
 }
 
 template <class Entry, class Accessor>
-inline void SingleEndedListWithAccessor<Entry, Accessor>::prepend (Entry *e)
+void SingleEndedListWithAccessor<Entry, Accessor>::prepend (Entry *e)
 {
     ac(e)->next = m_first;
     if (m_first) {
@@ -111,7 +111,7 @@ inline void SingleEndedListWithAccessor<Entry, Accessor>::prepend (Entry *e)
 }
 
 template <class Entry, class Accessor>
-inline void SingleEndedListWithAccessor<Entry, Accessor>::insertBefore (Entry *e, Entry *target)
+void SingleEndedListWithAccessor<Entry, Accessor>::insertBefore (Entry *e, Entry *target)
 {
     ac(e)->next = target;
     if (target != m_first) {
@@ -124,7 +124,7 @@ inline void SingleEndedListWithAccessor<Entry, Accessor>::insertBefore (Entry *e
 }
 
 template <class Entry, class Accessor>
-inline void SingleEndedListWithAccessor<Entry, Accessor>::insertAfter (Entry *e, Entry *target)
+void SingleEndedListWithAccessor<Entry, Accessor>::insertAfter (Entry *e, Entry *target)
 {
     ac(e)->next = ac(target)->next;
     ac(e)->prev = target;
@@ -135,7 +135,7 @@ inline void SingleEndedListWithAccessor<Entry, Accessor>::insertAfter (Entry *e,
 }
 
 template <class Entry, class Accessor>
-inline void SingleEndedListWithAccessor<Entry, Accessor>::remove (Entry *e)
+void SingleEndedListWithAccessor<Entry, Accessor>::remove (Entry *e)
 {
     if (e != m_first) {
         ac(ac(e)->prev)->next = ac(e)->next;
@@ -148,7 +148,7 @@ inline void SingleEndedListWithAccessor<Entry, Accessor>::remove (Entry *e)
 }
 
 template <class Entry, class Accessor>
-inline void SingleEndedListWithAccessor<Entry, Accessor>::removeFirst ()
+void SingleEndedListWithAccessor<Entry, Accessor>::removeFirst ()
 {
     AMBRO_ASSERT(m_first)
     
@@ -156,13 +156,13 @@ inline void SingleEndedListWithAccessor<Entry, Accessor>::removeFirst ()
 }
 
 template <class Entry, class Accessor>
-inline void SingleEndedListWithAccessor<Entry, Accessor>::markRemoved (Entry *e)
+void SingleEndedListWithAccessor<Entry, Accessor>::markRemoved (Entry *e)
 {
     ac(e)->next = e;
 }
 
 template <class Entry, class Accessor>
-inline bool SingleEndedListWithAccessor<Entry, Accessor>::isRemoved (Entry *e)
+bool SingleEndedListWithAccessor<Entry, Accessor>::isRemoved (Entry *e)
 {
     return (ac(e)->next == e);
 }

@@ -31,7 +31,6 @@
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Modulo.h>
-#include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/WrapCallback.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -79,16 +78,13 @@ private:
     struct TimerHandler;
     
     using TimerInstance = Timer<Context, TimerHandler>;
+    
+public:
+    using TimeType = typename Clock::TimeType;
+    using BufferBoundedType = BoundedInt<CommandBufferBits, false>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
     using TimeFixedType = FixedPoint<time_bits, false, 0>;
-    
-public:
-    using BufferBoundedType = BoundedInt<CommandBufferBits, false>;
-    using TimeType = typename Clock::TimeType;
-    using StepBoundedType = typename StepFixedType::BoundedIntType;
-    using AccelBoundedType = typename AccelFixedType::BoundedIntType;
-    using TimeBoundedType = typename TimeFixedType::BoundedIntType;
     
     void init (Context c)
     {
@@ -136,25 +132,21 @@ public:
     void bufferProvideTest (Context c, bool dir, float x, float t, float ha)
     {
         float step_length = 0.0125;
-        bufferProvide(c, dir, StepBoundedType::import(x / step_length), TimeBoundedType::import(t / Clock::time_unit), AccelBoundedType::import(ha / step_length));
+        bufferProvide(c, dir, StepFixedType::importDouble(x / step_length), TimeFixedType::importDouble(t / Clock::time_unit), AccelFixedType::importDouble(ha / step_length));
     }
     
-    void bufferProvide (Context c, bool dir, StepBoundedType x_arg, TimeBoundedType t_arg, AccelBoundedType ha_arg)
+    void bufferProvide (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType ha)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(bufferQuery(c) >= BufferBoundedType::import(1))
-        AMBRO_ASSERT(ha_arg >= -x_arg)
-        AMBRO_ASSERT(ha_arg <= x_arg)
-        
-        auto x = StepFixedType::importBoundedBits(x_arg);
-        auto t = TimeFixedType::importBoundedBits(t_arg);
-        auto ha = AccelFixedType::importBoundedBits(ha_arg);
+        AMBRO_ASSERT(ha >= -x)
+        AMBRO_ASSERT(ha <= x)
         
         // compute the command parameters
         Command cmd;
         cmd.dir = dir;
         cmd.x = x;
-        cmd.t_plain = t_arg.value();
+        cmd.t_plain = t.bitsValue();
         cmd.ha_mul = AXIS_STEPPER_HAMUL_EXPR(x, t, ha);
         cmd.v0 = AXIS_STEPPER_V0_EXPR(x, t, ha);
         cmd.v02 = AXIS_STEPPER_V02_EXPR(x, t, ha);
@@ -324,18 +316,15 @@ private:
                 auto q = (m_current_command->v0 + FixedSquareRoot(s)).template shift<-1>();
                 
                 // compute solution as fraction of total time
-                static_assert(Modulo(q_div_shift, 8) == 0, "slow shift");
-                static const int div_res_sat_bits = -(StepFixedType::exp - decltype(q)::exp - q_div_shift);
-                auto t_frac = FixedDivide<q_div_shift, div_res_sat_bits>(StepFixedType::importBits(m_rel_x), q); // TODO div0
+                //static_assert(Modulo(q_div_shift, 8) == 0, "slow shift");
+                //static const int div_res_sat_bits = -(StepFixedType::exp - decltype(q)::exp - q_div_shift);
+                //auto t_frac = FixedDivide<q_div_shift, div_res_sat_bits>(StepFixedType::importBits(m_rel_x), q); // TODO div0
+                auto t_frac = FixedFracDivide(StepFixedType::importBits(m_rel_x), q);
                 
                 // multiply by the time of this command, and drop fraction bits at the same time
-                using ProdType = decltype(m_current_command->t_mul * t_frac);
-                static_assert(Modulo(ProdType::exp, 8) == 0, "slow shift");
-                auto t = FixedMultiply<(-ProdType::exp)>(m_current_command->t_mul, t_frac);
+                TimeFixedType t = FixedResMultiply(m_current_command->t_mul, t_frac);
                 
                 // schedule next step
-                static_assert(decltype(t)::exp == 0, "");
-                static_assert(!decltype(t)::is_signed, "");
                 TimeType timer_t = m_current_command->clock_offset + t.bitsValue();
                 m_timer.set(c, timer_t);
                 return;
@@ -351,7 +340,7 @@ private:
                 m_current_command = &m_commands[m_start.value()];
                 
                 // report avail event if we have enough buffer space
-                if (buffer_avail(m_start, m_end).value() > m_event_amount.value()) {
+                if (buffer_avail(m_start, m_end) > m_event_amount) {
                     m_event_amount = BufferBoundedType::maxValue();
                     m_avail_event.appendNow(lock_c);
                 }
@@ -376,7 +365,7 @@ private:
         }
     }
     
-    inline void avail_event_handler (Context c)
+    void avail_event_handler (Context c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_running)
