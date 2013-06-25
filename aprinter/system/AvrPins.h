@@ -43,20 +43,39 @@ struct ClassName { \
     static const uint8_t pcie_bit = PcIeBit; \
 };
 
+#define AMBRO_DEFINE_AVR_PORT_NOPCI(ClassName, PortReg, PinReg, DdrReg) \
+struct ClassName { \
+    static uint8_t getPin () { return PinReg; } \
+    static const uint32_t port_io_addr = _SFR_IO_ADDR(PortReg); \
+    static const uint32_t ddr_io_addr = _SFR_IO_ADDR(DdrReg); \
+};
+
 #ifdef PORTA
 AMBRO_DEFINE_AVR_PORT(AvrPortA, PORTA, PINA, DDRA, PCMSK0, PCIE0)
 #endif
+
 #ifdef PORTB
 AMBRO_DEFINE_AVR_PORT(AvrPortB, PORTB, PINB, DDRB, PCMSK1, PCIE1)
 #endif
+
 #ifdef PORTC
 AMBRO_DEFINE_AVR_PORT(AvrPortC, PORTC, PINC, DDRC, PCMSK2, PCIE2)
 #endif
+
 #ifdef PORTD
+#ifdef PCMSK3
 AMBRO_DEFINE_AVR_PORT(AvrPortD, PORTD, PIND, DDRD, PCMSK3, PCIE3)
+#else
+AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortD, PORTD, PIND, DDRD)
 #endif
+#endif
+
 #ifdef PORTE
+#ifdef PCMSK4
 AMBRO_DEFINE_AVR_PORT(AvrPortE, PORTE, PINE, DDRE, PCMSK4, PCIE4)
+#else
+AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortE, PORTE, PINE, DDRE)
+#endif
 #endif
 
 template <typename TPort, int PortPin>
@@ -93,7 +112,7 @@ public:
     {
         this->debugAccess(c);
         
-        asm("sbi %0,%1" :: "i" (Pin::Port::ddr_io_addr), "i" (Pin::port_pin));
+        //asm("sbi %0,%1" :: "i" (Pin::Port::ddr_io_addr), "i" (Pin::port_pin));
     }
     
     template <typename Pin, typename ThisContext>

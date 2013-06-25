@@ -421,6 +421,7 @@ int main ()
     mysoftpwm2.init(c);
     myserial.init(c, SERIAL_BAUD);
     setup_uart_stdio();
+    printf("HELLO\n");
     steppers.init(c);
     axis_controller0.init(c);
     axis_controller1.init(c);
@@ -526,6 +527,7 @@ int main ()
         }
     }
     */
+    pinwatcher_handler(NULL, c, 1);
     myloop.run(c);
     
 #ifdef AMBROLIB_SUPPORT_QUIT

@@ -186,6 +186,7 @@ public:
         
         // fill stepper command buffer
         while (m_backlog < m_command_buffer.readerGetAvail(c) && m_axis_stepper.bufferQuery(c).value() > 0) {
+            printf("Try...\n");
             send_stepper_command(c);
             printf("Survived!\n");
         }

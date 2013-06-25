@@ -103,7 +103,17 @@ private:
         SingleEndedList<WatcherBase<Port>, &WatcherBase<Port>::watchers_list_node> watchers_list;
     };
     
-    typedef typename MakeTypeList<AvrPortA, AvrPortB, AvrPortC, AvrPortD>::Type Ports;
+    typedef typename MakeTypeList<
+#ifdef PCMSK3
+        AvrPortD,
+#endif
+#ifdef PCMSK4
+        AvrPortE,
+#endif
+        AvrPortA,
+        AvrPortB,
+        AvrPortC
+    >::Type Ports;
     typedef typename MapTypeList<Ports, TemplateFunc<PortState>>::Type PortStateTypes;
     
     struct InitPortHelper {
@@ -194,6 +204,26 @@ private:
     WatcherBase m_base;
 };
 
+#ifdef PCMSK3
+#define AMBRO_AVR_PCMSK3_ISRS(service, context) \
+ISR(PCINT3_vect) \
+{ \
+    (service).pcint_isr<AvrPortD>(MakeAvrInterruptContext(context)); \
+}
+#else
+#define AMBRO_AVR_PCMSK3_ISRS(service, context)
+#endif
+
+#ifdef PCMSK4
+#define AMBRO_AVR_PCMSK4_ISRS(service, context) \
+ISR(PCINT4_vect) \
+{ \
+    (service).pcint_isr<AvrPortE>(MakeAvrInterruptContext(context)); \
+}
+#else
+#define AMBRO_AVR_PCMSK4_ISRS(service, context)
+#endif
+
 #define AMBRO_AVR_PIN_WATCHER_ISRS(service, context) \
 ISR(PCINT0_vect) \
 { \
@@ -207,10 +237,8 @@ ISR(PCINT2_vect) \
 { \
     (service).pcint_isr<AvrPortC>(MakeAvrInterruptContext(context)); \
 } \
-ISR(PCINT3_vect) \
-{ \
-    (service).pcint_isr<AvrPortD>(MakeAvrInterruptContext(context)); \
-}
+AMBRO_AVR_PCMSK3_ISRS(service, context) \
+AMBRO_AVR_PCMSK4_ISRS(service, context)
 
 #include <aprinter/EndNamespace.h>
 
