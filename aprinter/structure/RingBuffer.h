@@ -135,7 +135,7 @@ private:
     
     SizeType m_start;
     SizeType m_end;
-    Entry m_entries[(size_t)SizeType::maxValue() + 1];
+    Entry m_entries[(size_t)SizeType::maxIntValue() + 1];
 };
 
 #include <aprinter/EndNamespace.h>

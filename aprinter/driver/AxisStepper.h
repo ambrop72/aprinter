@@ -39,12 +39,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define AXIS_STEPPER_HAMUL_EXPR(x, t, ha) ((ha).template shiftBits<(-2)>())
+#define AXIS_STEPPER_AMUL_EXPR(x, t, ha) ((ha).template shiftBits<(-2)>())
 #define AXIS_STEPPER_V0_EXPR(x, t, ha) (((x).toSigned() - (ha)).toUnsignedUnsafe())
 #define AXIS_STEPPER_V02_EXPR(x, t, ha) ((AXIS_STEPPER_V0_EXPR((x), (t), (ha)) * AXIS_STEPPER_V0_EXPR((x), (t), (ha))))
 #define AXIS_STEPPER_TMUL_EXPR(x, t, ha) ((t).template bitsTo<time_mul_bits>())
 
-#define AXIS_STEPPER_HAMUL_EXPR_HELPER(args) AXIS_STEPPER_HAMUL_EXPR(args)
+#define AXIS_STEPPER_AMUL_EXPR_HELPER(args) AXIS_STEPPER_AMUL_EXPR(args)
 #define AXIS_STEPPER_V0_EXPR_HELPER(args) AXIS_STEPPER_V0_EXPR(args)
 #define AXIS_STEPPER_V02_EXPR_HELPER(args) AXIS_STEPPER_V02_EXPR(args)
 #define AXIS_STEPPER_TMUL_EXPR_HELPER(args) AXIS_STEPPER_TMUL_EXPR(args)
@@ -81,7 +81,7 @@ private:
     
 public:
     using TimeType = typename Clock::TimeType;
-    using BufferBoundedType = BoundedInt<CommandBufferBits, false>;
+    using BufferSizeType = BoundedInt<CommandBufferBits, false>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
     using TimeFixedType = FixedPoint<time_bits, false, 0>;
@@ -91,9 +91,9 @@ public:
         m_timer.init(c);
         m_avail_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisStepper::m_avail_event, &AxisStepper::avail_event_handler));
         m_running = false;
-        m_start = BufferBoundedType::import(0);
-        m_end = BufferBoundedType::import(0);
-        m_event_amount = BufferBoundedType::maxValue();
+        m_start = BufferSizeType::import(0);
+        m_end = BufferSizeType::import(0);
+        m_event_amount = BufferSizeType::maxValue();
         m_current_command = &m_commands[m_start.value()];
         m_lock.init(c);
         this->debugInit(c);
@@ -111,17 +111,19 @@ public:
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
+        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
+        AMBRO_ASSERT(!m_avail_event.isSet(c))
         
-        m_start = BufferBoundedType::import(0);
-        m_end = BufferBoundedType::import(0);
+        m_start = BufferSizeType::import(0);
+        m_end = BufferSizeType::import(0);
         m_current_command = &m_commands[m_start.value()];
     }
     
-    BufferBoundedType bufferQuery (Context c)
+    BufferSizeType bufferQuery (Context c)
     {
         this->debugAccess(c);
         
-        BufferBoundedType start;
+        BufferSizeType start;
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             start = m_start;
         });
@@ -135,22 +137,24 @@ public:
         bufferProvide(c, dir, StepFixedType::importDouble(x / step_length), TimeFixedType::importDouble(t / Clock::time_unit), AccelFixedType::importDouble(ha / step_length));
     }
     
-    void bufferProvide (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType ha)
+    void bufferProvide (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(bufferQuery(c) >= BufferBoundedType::import(1))
-        AMBRO_ASSERT(ha >= -x)
-        AMBRO_ASSERT(ha <= x)
+        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
+        AMBRO_ASSERT(!m_avail_event.isSet(c))
+        AMBRO_ASSERT(bufferQuery(c).value() > 0)
+        AMBRO_ASSERT(a >= -x)
+        AMBRO_ASSERT(a <= x)
         
         // compute the command parameters
         Command cmd;
         cmd.dir = dir;
         cmd.x = x;
         cmd.t_plain = t.bitsValue();
-        cmd.ha_mul = AXIS_STEPPER_HAMUL_EXPR(x, t, ha);
-        cmd.v0 = AXIS_STEPPER_V0_EXPR(x, t, ha);
-        cmd.v02 = AXIS_STEPPER_V02_EXPR(x, t, ha);
-        cmd.t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, ha);
+        cmd.ha_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
+        cmd.v0 = AXIS_STEPPER_V0_EXPR(x, t, a);
+        cmd.v02 = AXIS_STEPPER_V02_EXPR(x, t, a);
+        cmd.t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
         
         // compute the clock offset based on the last command. If not running start() will do it.
         if (m_running) {
@@ -174,19 +178,29 @@ public:
         }
     }
     
-    void bufferRequestEvent (Context c, BufferBoundedType min_amount)
+    void bufferRequestEvent (Context c, BufferSizeType min_amount = BufferSizeType::import(1))
     {
         this->debugAccess(c);
         AMBRO_ASSERT(min_amount.value() > 0)
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             if (buffer_avail(m_start, m_end) >= min_amount) {
-                m_event_amount = BufferBoundedType::maxValue();
-                m_avail_event.appendNow(lock_c);
+                m_event_amount = BufferSizeType::maxValue();
+                m_avail_event.prependNow(lock_c);
             } else {
-                m_event_amount = BoundedModuloSubtract(min_amount, BufferBoundedType::import(1));
+                m_event_amount = BoundedModuloDec(min_amount);
                 m_avail_event.unset(lock_c);
             }
+        });
+    }
+    
+    void bufferCancelEvent (Context c)
+    {
+        this->debugAccess(c);
+        
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            m_event_amount = BufferSizeType::maxValue();
+            m_avail_event.unset(lock_c);
         });
     }
     
@@ -202,7 +216,7 @@ public:
             last_cmd->t_plain = 0;
         } else {
             TimeType clock_offset = start_time;
-            for (BufferBoundedType i = m_start; i != m_end; i = BoundedModuloInc(i)) {
+            for (BufferSizeType i = m_start; i != m_end; i = BoundedModuloInc(i)) {
                 m_commands[i.value()].clock_offset = clock_offset;
                 clock_offset += m_commands[i.value()].t_plain;
             }
@@ -226,7 +240,6 @@ public:
         AMBRO_ASSERT(m_running)
         
         m_timer.unset(c);
-        m_avail_event.unset(c);
         m_running = false;
     }
     
@@ -248,21 +261,21 @@ private:
         return GetStepper::call(o);
     }
     
-    static BufferBoundedType buffer_avail (BufferBoundedType start, BufferBoundedType end)
+    static BufferSizeType buffer_avail (BufferSizeType start, BufferSizeType end)
     {
-        return BoundedModuloSubtract(BoundedModuloSubtract(start, BufferBoundedType::import(1)), end);
+        return BoundedModuloSubtract(BoundedModuloSubtract(start, BufferSizeType::import(1)), end);
     }
     
-    static BufferBoundedType buffer_last (BufferBoundedType end)
+    static BufferSizeType buffer_last (BufferSizeType end)
     {
-        return BoundedModuloSubtract(end, BufferBoundedType::import(1));
+        return BoundedModuloSubtract(end, BufferSizeType::import(1));
     }
     
     struct Command {
         bool dir;
         StepFixedType x;
         TimeType t_plain;
-        decltype(AXIS_STEPPER_HAMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) ha_mul;
+        decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) ha_mul;
         decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) v0;
         decltype(AXIS_STEPPER_V02_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) v02;
         decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) t_mul;
@@ -341,7 +354,7 @@ private:
                 
                 // report avail event if we have enough buffer space
                 if (buffer_avail(m_start, m_end) > m_event_amount) {
-                    m_event_amount = BufferBoundedType::maxValue();
+                    m_event_amount = BufferSizeType::maxValue();
                     m_avail_event.appendNow(lock_c);
                 }
                 
@@ -368,17 +381,18 @@ private:
     void avail_event_handler (Context c)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(buffer_avail(m_start, m_end).value() > 0)
+        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
         
         return AvailHandler::call(this, c);
     }
     
     TimerInstance m_timer;
     typename Loop::QueuedEvent m_avail_event;
-    Command m_commands[(size_t)BufferBoundedType::maxIntValue() + 1];
-    BufferBoundedType m_start;
-    BufferBoundedType m_end;
-    BufferBoundedType m_event_amount;
+    Command m_commands[(size_t)BufferSizeType::maxIntValue() + 1];
+    BufferSizeType m_start;
+    BufferSizeType m_end;
+    BufferSizeType m_event_amount;
     Command *m_current_command;
     typename StepFixedType::IntType m_rel_x;
     bool m_running;

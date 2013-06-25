@@ -40,16 +40,22 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename MyStepper, typename GetStepper, template<typename, typename> class StepperTimer, typename AvailHandler>
+template <typename Context, int BufferBits, int StepperBufferBits, typename MyStepper, typename GetStepper, template<typename, typename> class StepperTimer, typename AvailHandler>
 class AxisController : private DebugObject<Context, void> {
 private:
     using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
     
-    static const int command_buffer_bits = 4;
-    static const int stepper_command_buffer_bits = 4;
-    static const int step_bits = 13 + 6;
-    static const int time_bits = 22 + 6;
+    struct AxisStepperAvailHandler;
+    struct MyGetStepperHandler;
+    
+public:
+    using MyAxisStepper = AxisStepper<Context, StepperBufferBits, MyStepper, MyGetStepperHandler, StepperTimer, AxisStepperAvailHandler>;
+    
+private:
+    static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 6;
+    static const int time_bits = MyAxisStepper::TimeFixedType::num_bits + 6;
+    static const int gt_frac_square_shift = 12;
     
 public:
     using TimeType = typename Clock::TimeType;
@@ -58,6 +64,11 @@ public:
     using TimeFixedType = FixedPoint<time_bits, false, 0>;
     
 private:
+    using StepperBufferSizeType = typename MyAxisStepper::BufferSizeType;
+    using StepperStepType = typename MyAxisStepper::StepFixedType;
+    using StepperAccelType = typename MyAxisStepper::AccelFixedType;
+    using StepperTimeType = typename MyAxisStepper::TimeFixedType;
+    
     struct Command {
         bool dir;
         StepFixedType x;
@@ -65,25 +76,22 @@ private:
         TimeFixedType t;
         StepFixedType x_pos;
         TimeFixedType t_pos;
+        StepperBufferSizeType num_cmds;
     };
     
-    struct AxisStepperAvailHandler;
-    
-    using MyAxisStepper = AxisStepper<Context, stepper_command_buffer_bits, MyStepper, GetStepper, StepperTimer, AxisStepperAvailHandler>;
-    using CommandBuffer = RingBuffer<Context, Command, command_buffer_bits>;
-    using RelStepType = typename MyAxisStepper::StepFixedType;
-    using RelAccelType = typename MyAxisStepper::AccelFixedType;
-    using RelTimeType = typename MyAxisStepper::TimeFixedType;
+    using CommandBuffer = RingBuffer<Context, Command, BufferBits>;
     
 public:
-    using BufferBoundedType = typename CommandBuffer::SizeType;
+    using BufferSizeType = typename CommandBuffer::SizeType;
     
     void init (Context c)
     {
         m_axis_stepper.init(c);
         m_command_buffer.init(c);
         m_avail_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisController::m_avail_event, &AxisController::avail_event_handler));
-        m_event_amount = BufferBoundedType::maxValue();
+        m_event_amount = BufferSizeType::maxValue();
+        m_backlog = BufferSizeType::import(0);
+        m_stepper_nbacklog = StepperBufferSizeType::maxValue();
         
         this->debugInit(c);
     }
@@ -101,30 +109,39 @@ public:
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_axis_stepper.isRunning(c))
+        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
+        AMBRO_ASSERT(!m_avail_event.isSet(c))
         
         m_axis_stepper.clearBuffer(c);
         m_command_buffer.clear(c);
+        m_backlog = BufferSizeType::import(0);
+        m_stepper_nbacklog = StepperBufferSizeType::maxValue();
     }
     
-    BufferBoundedType writerGetAvail (Context c)
+    BufferSizeType writerGetAvail (Context c)
     {
         this->debugAccess(c);
         
         return m_command_buffer.writerGetAvail(c);
     }
     
-    void bufferAddCommandTest (Context c, bool dir, float x, float t, float ha)
+    void bufferAddCommandTest (Context c, bool dir, float x, float t, float a)
     {
         float step_length = 0.0125;
-        writerAddCommand(c, dir, StepFixedType::importDouble(x / step_length), TimeFixedType::importDouble(t / Clock::time_unit), AccelFixedType::importDouble(ha / step_length));
+        bufferAddCommand(c, dir, StepFixedType::importDouble(x / step_length), TimeFixedType::importDouble(t / Clock::time_unit), AccelFixedType::importDouble(a / step_length));
     }
     
-    void writerAddCommand (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
+    void bufferAddCommand (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
     {
+        printf("bufferAddCommand\n");
         this->debugAccess(c);
-        AMBRO_ASSERT(m_command_buffer.writerGetAvail(c) > 0)
-        AMBRO_ASSERT(a >= --x)
+        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
+        AMBRO_ASSERT(!m_avail_event.isSet(c))
+        AMBRO_ASSERT(m_command_buffer.writerGetAvail(c).value() > 0)
+        AMBRO_ASSERT(a >= -x)
         AMBRO_ASSERT(a <= x)
+        
+        bool was_empty = (m_backlog == m_command_buffer.readerGetAvail(c));
         
         Command *cmd = m_command_buffer.writerGetPtr(c);
         cmd->dir = dir;
@@ -133,42 +150,67 @@ public:
         cmd->t = t;
         cmd->x_pos = StepFixedType::importBits(0);
         cmd->t_pos = TimeFixedType::importBits(0);
+        cmd->num_cmds = StepperBufferSizeType::import(0);
         m_command_buffer.writerProvide(c);
         
-        if (m_command_buffer.readerGetAvail(c).value() == 1) {
-            m_axis_stepper.bufferRequestEvent(c, 1);
+        if (m_axis_stepper.isRunning(c) && was_empty) {
+            m_axis_stepper.bufferRequestEvent(c);
         }
     }
     
-    void bufferRequestEvent (Context c, BufferBoundedType min_amount)
+    void bufferRequestEvent (Context c, BufferSizeType min_amount)
     {
+        printf("bufferRequestEvent\n");
         this->debugAccess(c);
         AMBRO_ASSERT(min_amount.value() > 0)
         
         if (m_command_buffer.writerGetAvail(c) >= min_amount) {
-            m_event_amount = BufferBoundedType::maxValue();
-            m_avail_event.appendNow(c);
+            m_event_amount = BufferSizeType::maxValue();
+            m_avail_event.prependNow(c);
         } else {
-            m_event_amount = BoundedModuloSubtract(min_amount, BufferBoundedType::import(1));
+            m_event_amount = BoundedModuloDec(min_amount);
             m_avail_event.unset(c);
         }
     }
     
+    void bufferCancelEvent (Context c)
+    {
+        printf("bufferCancelEvent\n");
+        this->debugAccess(c);
+        
+        m_event_amount = BufferSizeType::maxValue();
+        m_avail_event.unset(c);
+    }
+    
     void start (Context c, TimeType start_time)
     {
+        printf("start\n");
         this->debugAccess(c);
         AMBRO_ASSERT(!m_axis_stepper.isRunning(c))
         
+        printf("start Q\n");
+        // fill stepper command buffer
+        while (m_backlog < m_command_buffer.readerGetAvail(c) && m_axis_stepper.bufferQuery(c).value() > 0) {
+            printf("start D\n");
+            send_stepper_command(c);
+            printf("start P\n");
+        }
+        
+        printf("start A\n");
         m_axis_stepper.start(c, start_time);
+        printf("start B\n");
+        m_axis_stepper.bufferRequestEvent(c);
+        printf("start C\n");
     }
     
     void stop (Context c)
     {
+        printf("stop\n");
         this->debugAccess(c);
         AMBRO_ASSERT(m_axis_stepper.isRunning(c))
         
+        m_axis_stepper.bufferCancelEvent(c);
         m_axis_stepper.stop(c);
-        m_avail_event.unset(c);
     }
     
     bool isRunning (Context c)
@@ -178,160 +220,165 @@ public:
         return m_axis_stepper.isRunning(c);
     }
     
+    MyAxisStepper * getAxisStepper ()
+    {
+        return &m_axis_stepper;
+    }
+    
 private:
+    void send_stepper_command (Context c)
+    {
+        printf("send_stepper_command\n");
+        AMBRO_ASSERT(m_backlog < m_command_buffer.readerGetAvail(c))
+        AMBRO_ASSERT(m_axis_stepper.bufferQuery(c).value() > 0)
+        
+        Command *cmd = m_command_buffer.readerGetPtr(c, m_backlog);
+        
+        StepFixedType new_x;
+        StepperStepType rel_x;
+        TimeFixedType new_t;
+        StepperTimeType rel_t;
+        StepperAccelType rel_a;
+        
+        // compute a stepper command, be fast if the entire command fits
+        printf("send_stepper_command A\n");
+        if (cmd->x_pos.bitsValue() == 0 && cmd->x <= StepperStepType::maxValue() && cmd->t <= StepperTimeType::maxValue()) {
+            printf("send_stepper_command Q\n");
+            new_x = cmd->x;
+            rel_x = StepperStepType::importBits(cmd->x.bitsValue());
+            new_t = cmd->t;
+            rel_t = StepperTimeType::importBits(cmd->t.bitsValue());
+            rel_a = StepperAccelType::importBits(cmd->a.bitsValue());
+#if 1
+        } else {
+            printf("send_stepper_command R\n");
+            StepFixedType remain_x = StepFixedType::importBits(cmd->x.bitsValue() - cmd->x_pos.bitsValue());
+            if (remain_x <= StepperStepType::maxValue()) {
+                printf("send_stepper_command F\n");
+                new_x = cmd->x;
+                rel_x = StepperStepType::importBits(remain_x.bitsValue());
+                new_t = cmd->t;
+            } else {
+                printf("send_stepper_command X0\n");
+                new_x = StepFixedType::importBits(cmd->x_pos.bitsValue() + StepperStepType::maxValue().bitsValue());
+                rel_x = StepperStepType::maxValue();
+                printf("send_stepper_command X1\n");
+                auto v0 = (cmd->x - cmd->a).toUnsignedUnsafe();
+                printf("send_stepper_command X2\n");
+                auto v02 = v0 * v0;
+                printf("send_stepper_command X3\n");
+                auto s = v02 + (cmd->a * new_x).template shift<2>();
+                printf("send_stepper_command X4\n");
+                AMBRO_ASSERT(s.bitsValue() >= 0)
+                auto q = (v0 + FixedSquareRoot(s)).template shift<-1>();
+                printf("send_stepper_command X5\n");
+                auto t_frac = FixedFracDivide(new_x, q);
+                printf("send_stepper_command X6\n");
+                new_t = FixedResMultiply(cmd->t, t_frac);
+                if (new_t < cmd->t_pos) {
+                    new_t = cmd->t_pos;
+                }
+                printf("send_stepper_command X7\n");
+            }
+            
+            printf("send_stepper_command X8\n");
+            rel_t = StepperTimeType::importBits(new_t.bitsValue() - cmd->t_pos.bitsValue());
+            printf("send_stepper_command X9\n");
+            auto gt_frac = FixedFracDivide(rel_t, cmd->t);
+            printf("send_stepper_command X10\n");
+            AccelFixedType a = FixedResMultiply(cmd->a, (gt_frac * gt_frac).template shiftBits<gt_frac_square_shift>());
+            printf("send_stepper_command X11\n");
+            rel_a = StepperAccelType::importBits(a.bitsValue()); // TODO
+        }
+#endif
+        
+        AMBRO_ASSERT(new_x == cmd->x || new_x > cmd->x_pos)
+        AMBRO_ASSERT(new_x <= cmd->x)
+        AMBRO_ASSERT(new_t >= cmd->t_pos)
+        AMBRO_ASSERT(new_t <= cmd->t)
+        
+        printf("send_stepper_command X12\n");
+        
+        // send a stepper command
+        m_axis_stepper.bufferProvide(c, cmd->dir, rel_x, rel_t, rel_a);
+        printf("send_stepper_command X13\n");
+        m_stepper_nbacklog = BoundedModuloDec(m_stepper_nbacklog);
+        printf("send_stepper_command X14\n");
+        // update our command
+        cmd->x_pos = new_x;
+        cmd->t_pos = new_t;
+        cmd->num_cmds = BoundedModuloInc(cmd->num_cmds);
+        printf("send_stepper_command X15\n");
+        // pussibly finish our command 
+        if (cmd->x_pos == cmd->x) {
+            m_backlog = BoundedModuloInc(m_backlog);
+        }
+        printf("send_stepper_command X16\n");
+    }
+    
     void axis_stepper_avail_handler (Context c)
     {
+        printf("axis_stepper_avail_handler\n");
         this->debugAccess(c);
         AMBRO_ASSERT(m_axis_stepper.isRunning(c))
         AMBRO_ASSERT(m_axis_stepper.bufferQuery(c).value() > 0)
-        AMBRO_ASSERT(m_command_buffer.readerGetAvail(c).value() > 0)
         
-        Command *cmd = m_command_buffer.readerGetPtr(c);
-        
-        StepFixedType remain_x = StepFixedType::importBits(cmd->x.bitsValue() - cmd->x_pos.bitsValue());
-        StepFixedType new_x;
-        RelStepType rel_x;
-        if (remain_x <= RelStepType::maxValue()) {
-            new_x = cmd->x;
-            rel_x = RelStepType::importBits(remain_x);
-        } else {
-            new_x = StepFixedType::importBits(cmd->x_pos.bitsValue() + RelStepType::maxIntValue());
-            rel_x = RelStepType::maxIntValue();
-        }
-        
-        auto v0 = (cmd->x - cmd->a).toUnsignedUnsafe();
-        auto v02 = v0 * v0;
-        auto s = v02 + (cmd->a * new_x).template shift<2>();
-        AMBRO_ASSERT(s.bitsValue() >= 0)
-        auto q = (v0 + FixedSquareRoot(s)).template shift<-1>();
-        auto t_frac = FixedFracDivide(new_x, q);
-        TimeFixedType new_t = FixedResMultiply(cmd->t, t_frac);
-        
-        RelTimeType rel_t = RelTimeType::importBits(new_t.bitsValue() - cmd->t_pos.bitsValue()); // TODO
-        
-        auto gt_frac = FixedFracDivide(rel_t, cmd->orig_t);
-        AccelFixedType a = FixedResMultiply(cmd->a, gt_frac * gt_frac);
-        
-        RelAccelType rel_a = RelAccelType::importBits(a); // TODO
-        
-        m_axis_stepper.bufferProvide(c, cmd->dir, rel_x, rel_t, rel_a);
-        
-        cmd->x_pos = new_x;
-        cmd->t_pos = new_t;
-        
-        if (cmd->x_pos == cmd->x) {
+        // clean up backlog
+        StepperBufferSizeType stepbuf_avail = m_axis_stepper.bufferQuery(c);
+        while (m_backlog.value() > 0) {
+            Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
+            if (stepbuf_avail < BoundedModuloAdd(m_stepper_nbacklog, backlock_cmd->num_cmds)) {
+                break;
+            }
+            m_backlog = BoundedModuloDec(m_backlog);
+            m_stepper_nbacklog = BoundedModuloAdd(m_stepper_nbacklog, backlock_cmd->num_cmds);
             m_command_buffer.readerConsume(c);
         }
         
-        if (m_command_buffer.readerGetAvail(c).value() > 0) {
-            m_axis_stepper.bufferRequestEvent(c, 1);
+        // possibly send a stepper command
+        if (m_backlog < m_command_buffer.readerGetAvail(c)) {
+            send_stepper_command(c);
         }
         
+        if (m_backlog < m_command_buffer.readerGetAvail(c)) {
+            m_axis_stepper.bufferRequestEvent(c);
+        } else if (m_backlog.value() > 0) {
+            Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
+            StepperBufferSizeType event_cmds = BoundedModuloAdd(m_stepper_nbacklog, backlock_cmd->num_cmds);
+            m_axis_stepper.bufferRequestEvent(c, event_cmds);
+        }
+        
+        // possibly send avail event to user
         if (m_command_buffer.writerGetAvail(c) > m_event_amount) {
-            m_event_amount = BufferBoundedType::maxValue();
-            m_avail_event.appendNow(c);
+            m_event_amount = BufferSizeType::maxValue();
+            m_avail_event.prependNow(c);
         }
     }
     
     void avail_event_handler (Context c)
     {
+        printf("avail_event_handler\n");
         this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
         AMBRO_ASSERT(m_command_buffer.writerGetAvail(c).value() > 0)
+        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
         
         return AvailHandler::call(this, c);
     }
     
-    /*
-    static void solve_t (float rx, float v0, float a)
+    MyStepper * my_get_stepper_handler ()
     {
-        float d = v0 * v0 + 4 * a * rx;
-        if (d < 0) {
-            return 1;
-        }
-        return (rx / ((v0 + sqrtf(d)) / 2));
+        return GetStepper::call(this);
     }
-    */
-#if 0
-    void axis_stepper_avail_handler (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.bufferQuery(c).value() > 0)
-        AMBRO_ASSERT(m_command_buffer.readerGetAvail(c).value() > 0)
-        
-        Command *cmd = m_command_buffer.readerGetPtr(c);
-        float v0 = cmd->dx - cmd->a;
-        
-        float rx = (cmd->dx > RelStepType::maxIntValue()) ? RelStepType::maxIntValue() : cmd->dx;
-        
-        float rt_frac = solve_t(rx, v0, cmd->a);
-        float rt_temp = rt_frac * cmd->t;
-        
-        if (rt_temp > RelTimeType::maxIntValue()) {
-            rt_temp = RelTimeType::maxIntValue();
-            float rx_temp = v0 * rt_temp + cmd->a * (rt_temp * rt_temp);
-            rx = RelStepType::import(
-                (rx_temp < RelStepType::minIntValue()) ? RelStepType::minIntValue() :
-                (rx_temp > RelStepType::maxIntValue()) ? RelStepType::maxIntValue() :
-                rx_temp
-            );
-            rt_frac = solve_t(rx.value(), v0, cmd->a);
-            rt_temp = rt_frac * cmd->t;
-            if (rt_temp > RelTimeType::maxIntValue()) {
-                rt_temp = RelTimeType::maxIntValue();
-            }
-        }
-        
-        float a = cmd->a * (rt_frac * rt_frac);
-        RelAccelType ra = RelAccelType::import(
-            (a < RelAccelType::minIntValue()) ? RelAccelType::minIntValue() :
-            (a > RelAccelType::maxIntValue()) ? RelAccelType::maxIntValue() :
-            a
-        );
-        
-        m_axis_stepper.bufferProvide(c, cmd->dir, rx, rt, ra);
-        
-        if (m_command_buffer.readerGetAvail(c).value() > 0) {
-            m_axis_stepper.bufferRequestEvent(c, 1);
-        }
-        
-        cmd->x -= rx.value();
-        cmd->a *= (1 - rt_frac) * (1 - rt_frac);
-        cmd->t *= (1 - rt_frac);
-        
-        
-        /*
-            float a = cmd->a * (t_frac * t_frac);
-            modff(a, &a);
-            if (a > RelAccelType::maxIntValue()) {
-                a = RelAccelType::maxIntValue();
-            } else if (a < RelAccelType::minIntValue()) {
-                a = RelAccelType::minIntValue();
-            }
-            ra = RelAccelType::import(a);
-            */
-        
-        /*
-            cmd->x -= rx.value();
-            cmd->a *= (1 - t_frac) * (1 - t_frac);
-            cmd->t *= (1 - t_frac);
-            */
-        
-        m_command_buffer.readerConsume(c);
-
-        
-        RelTimeType rt = RelTimeType::import(rt_temp); // TODO
-        
-        
-    }
-#endif
     
     MyAxisStepper m_axis_stepper;
     CommandBuffer m_command_buffer;
     typename Loop::QueuedEvent m_avail_event;
-    BufferBoundedType m_event_amount;
+    BufferSizeType m_event_amount;
+    BufferSizeType m_backlog;
+    StepperBufferSizeType m_stepper_nbacklog;
     
     struct AxisStepperAvailHandler : public AMBRO_WCALLBACK_TD(&AxisController::axis_stepper_avail_handler, &AxisController::m_axis_stepper) {};
+    struct MyGetStepperHandler : public AMBRO_WCALLBACK_TD(&AxisController::my_get_stepper_handler, &AxisController::m_axis_stepper) {};
 };
 
 #include <aprinter/EndNamespace.h>

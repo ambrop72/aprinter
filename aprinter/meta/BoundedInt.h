@@ -279,6 +279,12 @@ BoundedInt<NumBits, false> BoundedModuloInc (BoundedInt<NumBits, false> op)
     return BoundedInt<NumBits, false>::import((typename BoundedInt<NumBits, false>::IntType)(op.value() + 1) & BoundedInt<NumBits, false>::maxIntValue());
 }
 
+template <int NumBits>
+BoundedInt<NumBits, false> BoundedModuloDec (BoundedInt<NumBits, false> op)
+{
+    return BoundedInt<NumBits, false>::import((typename BoundedInt<NumBits, false>::IntType)(op.value() - 1) & BoundedInt<NumBits, false>::maxIntValue());
+}
+
 #include <aprinter/EndNamespace.h>
 
 #endif

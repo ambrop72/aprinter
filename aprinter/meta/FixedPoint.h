@@ -55,6 +55,16 @@ public:
         return importBoundedBits(BoundedIntType::import(op));
     }
     
+    static FixedPoint minValue ()
+    {
+        return importBoundedBits(BoundedIntType::minValue());
+    }
+    
+    static FixedPoint maxValue ()
+    {
+        return importBoundedBits(BoundedIntType::maxValue());
+    }
+    
     BoundedIntType bitsBoundedValue () const
     {
         return m_bits;
@@ -192,7 +202,7 @@ inline typename FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, E
     return FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, (ResExp - (Exp1 + Exp2))>::call(op1, op2);
 }
 
-template <int NumBits1, int Exp1, int NumBits2, int Exp2, bool Signed>
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
 struct FixedPointAdd {
     static const int shift_op1 = min(0, Exp2 - Exp1);
     static const int shift_op2 = min(0, Exp1 - Exp2);
@@ -202,24 +212,24 @@ struct FixedPointAdd {
     static const int numbits_result = max(numbits_shift_op1, numbits_shift_op2) + 1;
     static const int exp_result = Exp1 + shift_op1;
     
-    using ResultType = FixedPoint<numbits_result, Signed, exp_result>;
+    using ResultType = FixedPoint<numbits_result, (Signed1 || Signed2), exp_result>;
     
-    static ResultType call (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
+    static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
     {
         return ResultType::importBoundedBits(op1.bitsBoundedValue().template shift<shift_op1>() + op2.bitsBoundedValue().template shift<shift_op2>());
     }
 };
 
-template <int NumBits1, int Exp1, int NumBits2, int Exp2, bool Signed>
-typename FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::ResultType operator+ (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+typename FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ResultType operator+ (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
-    return FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::call(op1, op2);
+    return FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::call(op1, op2);
 }
 
-template <int NumBits1, int Exp1, int NumBits2, int Exp2, bool Signed>
-typename FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::ResultType operator- (FixedPoint<NumBits1, Signed, Exp1> op1, FixedPoint<NumBits2, Signed, Exp2> op2)
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+typename FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ResultType operator- (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
-    return FixedPointAdd<NumBits1, Exp1, NumBits2, Exp2, Signed>::call(op1, -op2);
+    return FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::call(op1, -op2);
 }
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2, int LeftShiftBits, int ResSatBits>

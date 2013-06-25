@@ -29,6 +29,7 @@
 
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/PowerOfTwo.h>
+#include <aprinter/meta/Modulo.h>
 
 #ifdef AMBROLIB_AVR
 #include <avr-asm-ops/sqrt_29_large.h>
@@ -52,10 +53,14 @@ public:
     }
     
 private:
-    static ResType default_sqrt (OpType op)
+    static ResType default_sqrt (OpType op_arg)
     {
-        OpType res = 0;
-        OpType one = PowerOfTwo<OpType, (NumBits - 2)>::value;
+        static const int TempBits = NumBits + Modulo(NumBits, 2);
+        using TempType = typename ChooseInt<TempBits, false>::Type;
+        
+        TempType op = op_arg;
+        TempType res = 0;
+        TempType one = PowerOfTwo<TempType, (TempBits - 2)>::value;
         
         while (one > op) {
             one >>= 2;
@@ -64,7 +69,7 @@ private:
         while (one != 0) {
             if (op >= res + one) {
                 op = op - (res + one);
-                res = res +  2 * one;
+                res = res + 2 * one;
             }
             res >>= 1;
             one >>= 2;
