@@ -133,7 +133,6 @@ public:
     
     void bufferAddCommand (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
     {
-        printf("bufferAddCommand\n");
         this->debugAccess(c);
         AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
         AMBRO_ASSERT(!m_avail_event.isSet(c))
@@ -160,7 +159,6 @@ public:
     
     void bufferRequestEvent (Context c, BufferSizeType min_amount)
     {
-        printf("bufferRequestEvent\n");
         this->debugAccess(c);
         AMBRO_ASSERT(min_amount.value() > 0)
         
@@ -175,7 +173,6 @@ public:
     
     void bufferCancelEvent (Context c)
     {
-        printf("bufferCancelEvent\n");
         this->debugAccess(c);
         
         m_event_amount = BufferSizeType::maxValue();
@@ -184,28 +181,21 @@ public:
     
     void start (Context c, TimeType start_time)
     {
-        printf("start\n");
         this->debugAccess(c);
         AMBRO_ASSERT(!m_axis_stepper.isRunning(c))
         
-        printf("start Q\n");
         // fill stepper command buffer
         while (m_backlog < m_command_buffer.readerGetAvail(c) && m_axis_stepper.bufferQuery(c).value() > 0) {
-            printf("start D\n");
             send_stepper_command(c);
-            printf("start P\n");
+            printf("Survived!\n");
         }
         
-        printf("start A\n");
         m_axis_stepper.start(c, start_time);
-        printf("start B\n");
         m_axis_stepper.bufferRequestEvent(c);
-        printf("start C\n");
     }
     
     void stop (Context c)
     {
-        printf("stop\n");
         this->debugAccess(c);
         AMBRO_ASSERT(m_axis_stepper.isRunning(c))
         
@@ -228,7 +218,6 @@ public:
 private:
     void send_stepper_command (Context c)
     {
-        printf("send_stepper_command\n");
         AMBRO_ASSERT(m_backlog < m_command_buffer.readerGetAvail(c))
         AMBRO_ASSERT(m_axis_stepper.bufferQuery(c).value() > 0)
         
@@ -241,9 +230,7 @@ private:
         StepperAccelType rel_a;
         
         // compute a stepper command, be fast if the entire command fits
-        printf("send_stepper_command A\n");
         if (cmd->x_pos.bitsValue() == 0 && cmd->x <= StepperStepType::maxValue() && cmd->t <= StepperTimeType::maxValue()) {
-            printf("send_stepper_command Q\n");
             new_x = cmd->x;
             rel_x = StepperStepType::importBits(cmd->x.bitsValue());
             new_t = cmd->t;
@@ -251,43 +238,30 @@ private:
             rel_a = StepperAccelType::importBits(cmd->a.bitsValue());
 #if 1
         } else {
-            printf("send_stepper_command R\n");
             StepFixedType remain_x = StepFixedType::importBits(cmd->x.bitsValue() - cmd->x_pos.bitsValue());
             if (remain_x <= StepperStepType::maxValue()) {
-                printf("send_stepper_command F\n");
                 new_x = cmd->x;
                 rel_x = StepperStepType::importBits(remain_x.bitsValue());
                 new_t = cmd->t;
             } else {
-                printf("send_stepper_command X0\n");
                 new_x = StepFixedType::importBits(cmd->x_pos.bitsValue() + StepperStepType::maxValue().bitsValue());
                 rel_x = StepperStepType::maxValue();
-                printf("send_stepper_command X1\n");
+            
                 auto v0 = (cmd->x - cmd->a).toUnsignedUnsafe();
-                printf("send_stepper_command X2\n");
                 auto v02 = v0 * v0;
-                printf("send_stepper_command X3\n");
                 auto s = v02 + (cmd->a * new_x).template shift<2>();
-                printf("send_stepper_command X4\n");
                 AMBRO_ASSERT(s.bitsValue() >= 0)
                 auto q = (v0 + FixedSquareRoot(s)).template shift<-1>();
-                printf("send_stepper_command X5\n");
                 auto t_frac = FixedFracDivide(new_x, q);
-                printf("send_stepper_command X6\n");
                 new_t = FixedResMultiply(cmd->t, t_frac);
                 if (new_t < cmd->t_pos) {
                     new_t = cmd->t_pos;
                 }
-                printf("send_stepper_command X7\n");
             }
             
-            printf("send_stepper_command X8\n");
             rel_t = StepperTimeType::importBits(new_t.bitsValue() - cmd->t_pos.bitsValue());
-            printf("send_stepper_command X9\n");
             auto gt_frac = FixedFracDivide(rel_t, cmd->t);
-            printf("send_stepper_command X10\n");
             AccelFixedType a = FixedResMultiply(cmd->a, (gt_frac * gt_frac).template shiftBits<gt_frac_square_shift>());
-            printf("send_stepper_command X11\n");
             rel_a = StepperAccelType::importBits(a.bitsValue()); // TODO
         }
 #endif
@@ -297,28 +271,25 @@ private:
         AMBRO_ASSERT(new_t >= cmd->t_pos)
         AMBRO_ASSERT(new_t <= cmd->t)
         
-        printf("send_stepper_command X12\n");
-        
         // send a stepper command
         m_axis_stepper.bufferProvide(c, cmd->dir, rel_x, rel_t, rel_a);
-        printf("send_stepper_command X13\n");
         m_stepper_nbacklog = BoundedModuloDec(m_stepper_nbacklog);
-        printf("send_stepper_command X14\n");
+        
         // update our command
         cmd->x_pos = new_x;
         cmd->t_pos = new_t;
         cmd->num_cmds = BoundedModuloInc(cmd->num_cmds);
-        printf("send_stepper_command X15\n");
+        
         // pussibly finish our command 
         if (cmd->x_pos == cmd->x) {
             m_backlog = BoundedModuloInc(m_backlog);
         }
-        printf("send_stepper_command X16\n");
+        
+        printf("Crashing now...\n");
     }
     
     void axis_stepper_avail_handler (Context c)
     {
-        printf("axis_stepper_avail_handler\n");
         this->debugAccess(c);
         AMBRO_ASSERT(m_axis_stepper.isRunning(c))
         AMBRO_ASSERT(m_axis_stepper.bufferQuery(c).value() > 0)
@@ -357,7 +328,6 @@ private:
     
     void avail_event_handler (Context c)
     {
-        printf("avail_event_handler\n");
         this->debugAccess(c);
         AMBRO_ASSERT(m_command_buffer.writerGetAvail(c).value() > 0)
         AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())

@@ -259,7 +259,6 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
     mypins.set<LED2_PIN>(c, !state);
     if (!prev_button && state) {
         if (axis_controller0.isRunning(c) || axis_controller1.isRunning(c)) {
-            printf("killing\n");
             if (axis_controller0.isRunning(c)) {
                 axis_controller0.stop(c);
                 axis_controller0.bufferCancelEvent(c);
@@ -272,19 +271,16 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
                 axis_controller1.clearBuffer(c);
                 steppers.getStepper<1>()->enable(c, false);
             }
-            printf("killing done\n");
         } else {
-            printf("preparing\n");
             num_left0 = NUM_MOVE_ITERS;
             //num_left1 = NUM_MOVE_ITERS;
             add_commands0(c);
             //add_commands1(c);
             MyClock::TimeType start_time = myclock.getTime(c);
-            //steppers.getStepper<0>()->enable(c, true);
+            steppers.getStepper<0>()->enable(c, true);
             //steppers.getStepper<1>()->enable(c, true);
             axis_controller0.start(c, start_time);
             //axis_controller1.start(c, start_time);
-            printf("done\n");
         }
     }
     prev_button = state;
@@ -413,7 +409,9 @@ int main ()
     
     d_group.init(c);
     myclock.init(c);
+#ifdef TCNT3
     myclock.initTC3(c);
+#endif
     myloop.init(c);
     mypins.init(c);
     mypinwatcherservice.init(c);
@@ -423,7 +421,6 @@ int main ()
     mysoftpwm2.init(c);
     myserial.init(c, SERIAL_BAUD);
     setup_uart_stdio();
-    printf("main\n");
     steppers.init(c);
     axis_controller0.init(c);
     axis_controller1.init(c);
@@ -543,7 +540,9 @@ int main ()
     mypinwatcherservice.deinit(c);
     mypins.deinit(c);
     myloop.deinit(c);
+#ifdef TCNT3
     myclock.deinitTC3(c);
+#endif
     myclock.deinit(c);
     d_group.deinit(c);
 #endif

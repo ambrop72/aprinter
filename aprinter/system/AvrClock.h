@@ -105,6 +105,7 @@ public:
         }
     }
     
+#ifdef TCNT3
     void initTC3 (Context c)
     {
         this->debugAccess(c);
@@ -122,6 +123,7 @@ public:
         TIMSK3 = 0;
         TCCR3B = 0;
     }
+#endif
     
     void timer1_ovf_isr (AvrInterruptContext<Context> c)
     {
@@ -318,11 +320,13 @@ using AvrClockInterruptTimer_TC1_OCA = AvrClockInterruptTimer<Context, Handler, 
 template <typename Context, typename Handler>
 using AvrClockInterruptTimer_TC1_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1B, _SFR_IO_ADDR(OCR1B), _SFR_IO_ADDR(TIFR1), OCF1B>;
 
+#ifdef TCNT3
 template <typename Context, typename Handler>
 using AvrClockInterruptTimer_TC3_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3A, _SFR_IO_ADDR(OCR3A), _SFR_IO_ADDR(TIFR3), OCF3A>;
 
 template <typename Context, typename Handler>
 using AvrClockInterruptTimer_TC3_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3B, _SFR_IO_ADDR(OCR3B), _SFR_IO_ADDR(TIFR3), OCF3B>;
+#endif
 
 #define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \
 ISR(TIMER1_OVF_vect) \
