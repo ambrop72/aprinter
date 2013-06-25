@@ -237,7 +237,6 @@ private:
             new_t = cmd->t;
             rel_t = StepperTimeType::importBits(cmd->t.bitsValue());
             rel_a = StepperAccelType::importBits(cmd->a.bitsValue());
-#if 1
         } else {
             StepFixedType remain_x = StepFixedType::importBits(cmd->x.bitsValue() - cmd->x_pos.bitsValue());
             if (remain_x <= StepperStepType::maxValue()) {
@@ -260,12 +259,12 @@ private:
                 }
             }
             
+            // TODO split if time is too large
             rel_t = StepperTimeType::importBits(new_t.bitsValue() - cmd->t_pos.bitsValue());
             auto gt_frac = FixedFracDivide(rel_t, cmd->t);
             AccelFixedType a = FixedResMultiply(cmd->a, (gt_frac * gt_frac).template shiftBits<gt_frac_square_shift>());
             rel_a = StepperAccelType::importBits(a.bitsValue()); // TODO
         }
-#endif
         
         AMBRO_ASSERT(new_x == cmd->x || new_x > cmd->x_pos)
         AMBRO_ASSERT(new_x <= cmd->x)

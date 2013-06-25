@@ -414,14 +414,16 @@ int main ()
 #endif
     myloop.init(c);
     mypins.init(c);
-    mypinwatcherservice.init(c);
-    mytimer.init(c, mytimer_handler);
-    mypinwatcher.init(c);
-    mysoftpwm.init(c);
-    mysoftpwm2.init(c);
+    //mypinwatcherservice.init(c);
+    //mytimer.init(c, mytimer_handler);
+    //mypinwatcher.init(c);
+    //mysoftpwm.init(c);
+    //mysoftpwm2.init(c);
     myserial.init(c, SERIAL_BAUD);
     setup_uart_stdio();
     printf("HELLO\n");
+    DDRB |= (1 << PB7);
+    PORTB |= (1 << PB7);
     steppers.init(c);
     axis_controller0.init(c);
     axis_controller1.init(c);
@@ -434,10 +436,10 @@ int main ()
     
     blink_state = false;
     next_time = myclock.getTime(c) + (uint32_t)(BLINK_INTERVAL / MyClock::time_unit);
-    mytimer.appendAt(c, next_time);
+    //mytimer.appendAt(c, next_time);
     servo_mode = false;
-    mysoftpwm.setOnTime(c, SERVO_PULSE_MIN / MyClock::time_unit);
-    mysoftpwm2.setOnTime(c, SERVO_PULSE_MIN / MyClock::time_unit);
+    //mysoftpwm.setOnTime(c, SERVO_PULSE_MIN / MyClock::time_unit);
+    //mysoftpwm2.setOnTime(c, SERVO_PULSE_MIN / MyClock::time_unit);
     //mysoftpwm.enable(c, ref_time);
     //mysoftpwm2.enable(c, ref_time + (MyClock::TimeType)(((SERVO_PULSE_INTERVAL*0.000001)/2) / MyClock::time_unit));
     gen_rem = 0;
