@@ -31,10 +31,9 @@
 "    cp %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %D[x],%B[goo]\n" \
-"    or %B[goo],__tmp_reg__\n" \
+"    ori %B[goo],1<<(6-" #i ")\n" \
 "zero_bit_" #i "_%=:\n" \
-"    lsr __tmp_reg__\n" \
-"    eor %B[goo],__tmp_reg__\n" \
+"    subi %B[goo],1<<(4-" #i ")\n" \
 "    lsl %B[x]\n" \
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
@@ -43,11 +42,9 @@
 "    cp %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %D[x],%B[goo]\n" \
-"    or %B[goo],__tmp_reg__\n" \
+"    ori %B[goo],1<<(6-" #i ")\n" \
 "zero_bit_" #i "_%=:\n" \
-"    lsr __tmp_reg__\n" \
-"    ror __tmp_reg__\n" \
-"    mov %A[goo],__tmp_reg__\n" \
+"    ldi %A[goo],0x80\n" \
 "    dec %B[goo]\n" \
 "    lsl %B[x]\n" \
 "    rol %C[x]\n" \
@@ -59,10 +56,9 @@
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %C[x],%A[goo]\n" \
 "    sbc %D[x],%B[goo]\n" \
-"    inc %B[goo]\n" \
+"    ori %B[goo],1<<(6-" #i ")\n" \
 "zero_bit_" #i "_%=:\n" \
-"    asr __tmp_reg__\n" \
-"    eor %A[goo],__tmp_reg__\n" \
+"    subi %A[goo],1<<(12-" #i ")\n" \
 "    lsl %B[x]\n" \
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
@@ -73,10 +69,9 @@
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %C[x],%A[goo]\n" \
 "    sbc %D[x],%B[goo]\n" \
-"    or %A[goo],__tmp_reg__\n" \
+"    ori %A[goo],1<<(14-" #i ")\n" \
 "zero_bit_" #i "_%=:\n" \
-"    lsr __tmp_reg__\n" \
-"    eor %A[goo],__tmp_reg__\n" \
+"    subi %A[goo],1<<(12-" #i ")\n" \
 "    lsl %B[x]\n" \
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
@@ -87,10 +82,9 @@
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %C[x],%A[goo]\n" \
 "    sbc %D[x],%B[goo]\n" \
-"    or %A[goo],__tmp_reg__\n" \
+"    ori %A[goo],1<<(14-" #i ")\n" \
 "zero_bit_" #i "_%=:\n" \
-"    lsr __tmp_reg__\n" \
-"    eor %A[goo],__tmp_reg__\n" \
+"    subi %A[goo],1<<(12-" #i ")\n" \
 "    lsl %A[x]\n" \
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
@@ -101,11 +95,11 @@
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %C[x],%A[goo]\n" \
 "    sbc %D[x],%B[goo]\n" \
-"    or %A[goo],__tmp_reg__\n" \
+"    ori %A[goo],1<<(14-" #i ")\n" \
 "zero_bit_" #i "_%=:\n" \
 "    lsl %A[goo]\n" \
 "    rol %B[goo]\n" \
-"    eor %A[goo],__tmp_reg__\n" \
+"    subi %A[goo],1<<(13-" #i ")\n" \
 "    lsl %A[x]\n" \
 "    rol %C[x]\n" \
 "    rol %D[x]\n" \
@@ -121,19 +115,24 @@
 "one_bit_" #i "_%=:\n" \
 "    sub %C[x],%A[goo]\n" \
 "    sbc %D[x],%B[goo]\n" \
-"    or %A[goo],__tmp_reg__\n" \
+"    ori %A[goo],1<<(15-" #i ")\n" \
 "zero_bit_" #i "_%=:\n" \
 "    dec %A[goo]\n" \
 "    lsl %A[x]\n" \
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
+/*
+ * Square root 29-bit.
+ * 
+ * Cycles in worst case: 142
+ * = 4 * 8 + 9 + 10 + 2 * 10 + 4 * 10 + 15 + 11 + 5
+ */
 static inline uint16_t sqrt_29_large (uint32_t x)
 {
     uint16_t goo = UINT16_C(0x1030);
     
     asm(
-        "    mov __tmp_reg__,%A[goo]\n"
         SQRT_29_ITER_1_4(1)
         SQRT_29_ITER_1_4(2)
         SQRT_29_ITER_1_4(3)
@@ -155,7 +154,7 @@ static inline uint16_t sqrt_29_large (uint32_t x)
         "end_inc%=:\n"
         "    adc %A[goo],__zero_reg__\n"
         
-        : [goo] "=&r" (goo),
+        : [goo] "=&d" (goo),
           [x] "=&r" (x)
         : "[x]" (x),
           "[goo]" (goo)

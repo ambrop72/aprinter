@@ -43,7 +43,6 @@
 #include <aprinter/system/AvrPinWatcher.h>
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/system/AvrLock.h>
-#include <aprinter/devices/SoftPwm.h>
 #include <aprinter/driver/Steppers.h>
 #include <aprinter/driver/AxisStepper.h>
 #include <aprinter/driver/AxisController.h>
@@ -52,8 +51,6 @@
 #define LED1_PIN AvrPin<AvrPortA, 4>
 #define LED2_PIN AvrPin<AvrPortA, 3>
 #define WATCH_PIN AvrPin<AvrPortC, 2>
-#define SERVO_PIN AvrPin<AvrPortA, 1>
-#define SERVO2_PIN AvrPin<AvrPortD, 2>
 #define X_DIR_PIN AvrPin<AvrPortC, 5>
 #define X_STEP_PIN AvrPin<AvrPortD, 7>
 #define Y_DIR_PIN AvrPin<AvrPortC, 7>
@@ -63,20 +60,15 @@
 #define Z_STEP_PIN AvrPin<AvrPortB, 3>
 #define Z_ENABLE_PIN AvrPin<AvrPortA, 5>
 #define BLINK_INTERVAL .051
-#define SERVO_PULSE_INTERVAL UINT32_C(20000)
-#define SERVO_PULSE_MIN .00115
-#define SERVO_PULSE_MAX .00185
 #define SERIAL_BAUD 115200
 #define SERIAL_RX_BUFFER 63
 #define SERIAL_TX_BUFFER 63
-#define SERIAL_GEN_LENGTH 3000
 #define COMMAND_BUFFER_BITS 3
 #define STEPPER_COMMAND_BUFFER_BITS 3
 #define NUM_MOVE_ITERS 4
-#define SPEED_T_SCALE (0.105*1.0)
+#define SPEED_T_SCALE (0.100*2.0)
 #define X_SCALE 1.0
 #define Y_SCALE 1.0
-#define INTERRUPT_TIMER_TIME 1.0
 #define STEPPERS \
     MakeTypeList< \
         StepperDef<X_DIR_PIN, X_STEP_PIN, XYE_ENABLE_PIN>, \
@@ -102,8 +94,6 @@ typedef AvrPins<MyContext> MyPins;
 typedef AvrPinWatcherService<MyContext> MyPinWatcherService;
 typedef AvrEventLoopQueuedEvent<MyLoop> MyTimer;
 typedef AvrPinWatcher<MyContext, WATCH_PIN, PinWatcherHandler> MyPinWatcher;
-typedef SoftPwm<MyContext, SERVO_PIN, SERVO_PULSE_INTERVAL> MySoftPwm;
-typedef SoftPwm<MyContext, SERVO2_PIN, SERVO_PULSE_INTERVAL> MySoftPwm2;
 typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8_t, SERIAL_TX_BUFFER, SerialSendHandler> MySerial;
 typedef Steppers<MyContext, STEPPERS> MySteppers;
 typedef SteppersStepper<MyContext, STEPPERS, 0> MySteppersStepper0;
@@ -137,16 +127,10 @@ static MyPins mypins;
 static MyPinWatcherService mypinwatcherservice;
 static MyTimer mytimer;
 static MyPinWatcher mypinwatcher;
-static bool servo_mode;
-static MySoftPwm mysoftpwm;
-static MySoftPwm2 mysoftpwm2;
 static MySerial myserial;
-static uint32_t gen_rem;
 static bool blink_state;
 static MyClock::TimeType next_time;
 static MySteppers steppers;
-//static MyAxisStepper0 axis_stepper0;
-//static MyAxisStepper1 axis_stepper1;
 static MyAxisController0 axis_controller0;
 static MyAxisController1 axis_controller1;
 static int num_left0;
@@ -184,48 +168,18 @@ AMBRO_AVR_SERIAL_ISRS(myserial, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*axis_controller0.getAxisStepper()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*axis_controller1.getAxisStepper()->getTimer(), MyContext())
 
-static void write_to_serial (MyContext c, const char *str)
-{
-    size_t str_length = strlen(str);
-    
-    uint8_t rem_length = myserial.sendQuery(c);
-    if (rem_length > str_length) {
-        rem_length = str_length;
-    }
-    
-    while (rem_length > 0) {
-        char *data = myserial.sendGetChunkPtr(c);
-        uint8_t length = myserial.sendGetChunkLen(c, rem_length);
-        memcpy(data, str, length);
-        str += length;
-        myserial.sendProvide(c, length);
-        rem_length -= length;
-    }
-}
-
-static void update_servos (MyContext c)
-{
-    if (servo_mode) {
-        mysoftpwm.setOnTime(c, SERVO_PULSE_MAX / MyClock::time_unit);
-        mysoftpwm2.setOnTime(c, SERVO_PULSE_MAX / MyClock::time_unit);
-    } else {
-        mysoftpwm.setOnTime(c, SERVO_PULSE_MIN / MyClock::time_unit);
-        mysoftpwm2.setOnTime(c, SERVO_PULSE_MIN / MyClock::time_unit);
-    }
-}
-
 static void add_commands0 (MyContext c)
 {
     static_assert(PowerOfTwoMinusOne<size_t, COMMAND_BUFFER_BITS>::value >= 6, "");
     float t_scale = SPEED_T_SCALE;
-    axis_controller0.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
-    axis_controller0.bufferAddCommandTest(c, true, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
-    //axis_controller0.bufferAddCommandTest(c, true, Y_SCALE * 40.0, 1.0 * t_scale, Y_SCALE * 0.0);
-    axis_controller0.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
-    axis_controller0.bufferAddCommandTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
-    axis_controller0.bufferAddCommandTest(c, false, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
-    //axis_controller0.bufferAddCommandTest(c, false, Y_SCALE * 40.0, 1.0 * t_scale, Y_SCALE * 0.0);
-    axis_controller0.bufferAddCommandTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
+    axis_controller0.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
+    axis_controller0.bufferAddCommandTest(c, true, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
+    //axis_controller0.bufferAddCommandTest(c, true, X_SCALE * 40.0, 1.0 * t_scale, X_SCALE * 0.0);
+    axis_controller0.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
+    axis_controller0.bufferAddCommandTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
+    axis_controller0.bufferAddCommandTest(c, false, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
+    //axis_controller0.bufferAddCommandTest(c, false, X_SCALE * 40.0, 1.0 * t_scale, X_SCALE * 0.0);
+    axis_controller0.bufferAddCommandTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
     num_left0--;
     axis_controller0.bufferRequestEvent(c, (num_left0 == 0) ? MyAxisController0::BufferSizeType::maxValue() : MyAxisController0::BufferSizeType::import(6));
 }
@@ -234,14 +188,14 @@ static void add_commands1 (MyContext c)
 {
     static_assert(PowerOfTwoMinusOne<size_t, COMMAND_BUFFER_BITS>::value >= 6, "");
     float t_scale = SPEED_T_SCALE;
-    axis_controller1.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
-    //axis_controller1.bufferAddCommandTest(c, true, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
-    axis_controller1.bufferAddCommandTest(c, true, X_SCALE * 40.0, 1.0 * t_scale, X_SCALE * 0.0);
-    axis_controller1.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
-    axis_controller1.bufferAddCommandTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
-    //axis_controller1.bufferAddCommandTest(c, false, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
-    axis_controller1.bufferAddCommandTest(c, false, X_SCALE * 40.0, 1.0 * t_scale, X_SCALE * 0.0);
-    axis_controller1.bufferAddCommandTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
+    axis_controller1.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
+    axis_controller1.bufferAddCommandTest(c, true, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
+    //axis_controller1.bufferAddCommandTest(c, true, Y_SCALE * 40.0, 1.0 * t_scale, Y_SCALE * 0.0);
+    axis_controller1.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
+    axis_controller1.bufferAddCommandTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
+    axis_controller1.bufferAddCommandTest(c, false, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
+    //axis_controller1.bufferAddCommandTest(c, false, Y_SCALE * 40.0, 1.0 * t_scale, Y_SCALE * 0.0);
+    axis_controller1.bufferAddCommandTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
     num_left1--;
     axis_controller1.bufferRequestEvent(c, (num_left1 == 0) ? MyAxisController1::BufferSizeType::maxValue() : MyAxisController1::BufferSizeType::import(6));
 }
@@ -273,14 +227,14 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
             }
         } else {
             num_left0 = NUM_MOVE_ITERS;
-            //num_left1 = NUM_MOVE_ITERS;
+            num_left1 = NUM_MOVE_ITERS;
             add_commands0(c);
-            //add_commands1(c);
+            add_commands1(c);
             MyClock::TimeType start_time = myclock.getTime(c);
             steppers.getStepper<0>()->enable(c, true);
-            //steppers.getStepper<1>()->enable(c, true);
+            steppers.getStepper<1>()->enable(c, true);
             axis_controller0.start(c, start_time);
-            //axis_controller1.start(c, start_time);
+            axis_controller1.start(c, start_time);
         }
     }
     prev_button = state;
@@ -288,60 +242,10 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
 
 static void serial_recv_handler (MySerial *, MyContext c)
 {
-    bool overrun;
-    uint8_t rem_length = myserial.recvQuery(c, &overrun);
-    
-    bool saw_magic = false;
-    
-    while (rem_length > 0) {
-        char *data = myserial.recvGetChunkPtr(c);
-        uint8_t length = myserial.recvGetChunkLen(c, rem_length);
-        for (size_t i = 0; i < length; i++) {
-            servo_mode = data[i];
-            if (data[i] == 0x41) {
-                saw_magic = true;
-            }
-        }
-        myserial.recvConsume(c, length);
-        rem_length -= length;
-    }
-    
-    if (overrun) {
-        myserial.recvClearOverrun(c);
-    }
-    
-    update_servos(c);
-    
-    if (saw_magic) {
-        gen_rem = SERIAL_GEN_LENGTH;
-        myserial.sendRequestEvent(c, 1);
-    } else {
-        write_to_serial(c, "OK\n");
-    }
 }
 
 static void serial_send_handler (MySerial *, MyContext c)
 {
-    AMBRO_ASSERT(gen_rem > 0)
-    
-    uint8_t rem_length = myserial.sendQuery(c);
-    if (rem_length > gen_rem) {
-        rem_length = gen_rem;
-    }
-    
-    gen_rem -= rem_length;
-    
-    while (rem_length > 0) {
-        char *data = myserial.sendGetChunkPtr(c);
-        uint8_t length = myserial.sendGetChunkLen(c, rem_length);
-        memset(data, 'G', length);
-        myserial.sendProvide(c, length);
-        rem_length -= length;
-    }
-    
-    if (gen_rem > 0) {
-        myserial.sendRequestEvent(c, 1);
-    }
 }
 
 static MySteppersStepper0 * driver_get_stepper_handler0 (MyAxisController0 *) 
@@ -414,16 +318,12 @@ int main ()
 #endif
     myloop.init(c);
     mypins.init(c);
-    //mypinwatcherservice.init(c);
-    //mytimer.init(c, mytimer_handler);
-    //mypinwatcher.init(c);
-    //mysoftpwm.init(c);
-    //mysoftpwm2.init(c);
+    mypinwatcherservice.init(c);
+    mytimer.init(c, mytimer_handler);
+    mypinwatcher.init(c);
     myserial.init(c, SERIAL_BAUD);
     setup_uart_stdio();
     printf("HELLO\n");
-    DDRB |= (1 << PB7);
-    PORTB |= (1 << PB7);
     steppers.init(c);
     axis_controller0.init(c);
     axis_controller1.init(c);
@@ -436,118 +336,31 @@ int main ()
     
     blink_state = false;
     next_time = myclock.getTime(c) + (uint32_t)(BLINK_INTERVAL / MyClock::time_unit);
-    //mytimer.appendAt(c, next_time);
-    servo_mode = false;
-    //mysoftpwm.setOnTime(c, SERVO_PULSE_MIN / MyClock::time_unit);
-    //mysoftpwm2.setOnTime(c, SERVO_PULSE_MIN / MyClock::time_unit);
-    //mysoftpwm.enable(c, ref_time);
-    //mysoftpwm2.enable(c, ref_time + (MyClock::TimeType)(((SERVO_PULSE_INTERVAL*0.000001)/2) / MyClock::time_unit));
-    gen_rem = 0;
+    mytimer.appendAt(c, next_time);
     prev_button = false;
     
     /*
     uint32_t x = 0;
     do {
-        uint16_t my = IntSqrt<uint32_t>::call(x);
-        if (!((uint32_t)my * my <= x && (my == UINT16_MAX || ((uint32_t)my + 1) * ((uint32_t)my + 1) > x))) {
+        uint16_t my = IntSqrt<29>::call(x);
+        if (!((uint32_t)my * my <= x && ((uint32_t)my + 1) * ((uint32_t)my + 1) > x)) {
             printf("%" PRIu32 " BAD my=%" PRIu16 "\n", x, my);
         }
         x++;
-    } while (x != 0);
+    } while (x < ((uint32_t)1 << 29));
     */
-    
     /*
-    printf("going\n");
-    uint32_t sum = 0;
-    uint32_t x = 1;
-    do {
-        //sum += UINT32_C(0xFEDCBA98) / x;
-        sum += IntDivide<uint32_t, uint32_t>::call(UINT32_C(0xFEDCBA98), x);
-        x++;
-    } while (x < UINT32_C(500000));
-    printf("hi %" PRIu32 "\n", sum);
-    */
-    
-    /*
-    for (uint32_t i = 0; i < UINT32_C(400000); i++) {
+    for (uint32_t i = 0; i < UINT32_C(1000000); i++) {
         uint32_t x;
         *((uint8_t *)&x + 0) = rand();
         *((uint8_t *)&x + 1) = rand();
         *((uint8_t *)&x + 2) = rand();
-        *((uint8_t *)&x + 3) = rand();
-        uint32_t y;
-        *((uint8_t *)&y + 0) = rand();
-        *((uint8_t *)&y + 1) = rand();
-        *((uint8_t *)&y + 2) = rand();
-        *((uint8_t *)&y + 3) = rand();
-        if (y == 0) {
-            continue;
-        }
-        if (IntDivide<uint32_t, uint32_t>::call(x, y) != x / y) {
-            printf("ERROR %" PRIu32 " / %" PRIu32 "\n", x, y);
+        *((uint8_t *)&x + 3) = rand() & 0x1F;
+        uint16_t my = IntSqrt<29>::call(x);
+        if (!((uint32_t)my * my <= x && ((uint32_t)my + 1) * ((uint32_t)my + 1) > x)) {
+            printf("%" PRIu32 " BAD my=%" PRIu16 "\n", x, my);
         }
     }
     */
-    
-    /*
-    for (uint32_t i = 0; i < UINT32_C(400000); i++) {
-        uint32_t x;
-        *((uint8_t *)&x + 0) = rand();
-        *((uint8_t *)&x + 1) = rand();
-        *((uint8_t *)&x + 2) = rand();
-        *((uint8_t *)&x + 3) = rand();
-        uint16_t y;
-        *((uint8_t *)&y + 0) = rand();
-        *((uint8_t *)&y + 1) = rand();
-        if (y == 0) {
-            continue;
-        }
-        if (IntDivide<uint32_t, uint16_t>::call(x, y) != x / y) {
-            printf("ERROR %" PRIu32 " / %" PRIu16 "\n", x, y);
-        }
-    }
-    */
-    /*
-    for (uint32_t i = 0; i < UINT32_C(400000); i++) {
-        uint32_t x;
-        *((uint8_t *)&x + 0) = rand();
-        *((uint8_t *)&x + 1) = rand();
-        *((uint8_t *)&x + 2) = rand();
-        *((uint8_t *)&x + 3) = rand();
-        uint16_t y;
-        *((uint8_t *)&y + 0) = rand();
-        *((uint8_t *)&y + 1) = rand();
-        if (y == 0) {
-            continue;
-        }
-        uint32_t low;
-        uint16_t high;
-        mul_32_16(x, y, &low, &high);
-        uint64_t res = ((uint64_t)high << 32) | low;
-        if (res != (uint64_t)x * y) {
-            printf("ERROR %" PRIu32 " * %" PRIu16 "\n", x, y);
-        }
-    }
-    */
-    pinwatcher_handler(NULL, c, 1);
     myloop.run(c);
-    
-#ifdef AMBROLIB_SUPPORT_QUIT
-    axis_controller1.deinit(c);
-    axis_controller0.deinit(c);
-    steppers.deinit(c);
-    myserial.deinit(c);
-    mysoftpwm2.deinit(c);
-    mysoftpwm.deinit(c);
-    mypinwatcher.deinit(c);
-    mytimer.deinit(c);
-    mypinwatcherservice.deinit(c);
-    mypins.deinit(c);
-    myloop.deinit(c);
-#ifdef TCNT3
-    myclock.deinitTC3(c);
-#endif
-    myclock.deinit(c);
-    d_group.deinit(c);
-#endif
 }

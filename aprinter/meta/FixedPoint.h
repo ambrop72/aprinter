@@ -45,9 +45,13 @@ public:
     
     static FixedPoint importBoundedBits (BoundedIntType op)
     {
+#if 0
         FixedPoint res;
         res.m_bits = op;
         return res;
+#else
+        return FixedPoint{op};
+#endif
     }
     
     static FixedPoint importBits (IntType op)
@@ -89,7 +93,11 @@ public:
     
     double doubleValue () const
     {
-        return ldexp(bitsValue(), Exp);
+        if (Exp == 0) {
+            return bitsValue();
+        } else {
+            return ldexp(bitsValue(), Exp);
+        }
     }
     
     FixedPoint<NumBits, true, Exp> toSigned () const
@@ -141,18 +149,29 @@ public:
         return FixedPoint<NewBits, Signed, Exp>::importBits(bitsValue());
     }
     
-    template <int NewBits>
-    FixedPoint<NewBits, Signed, Exp> dropBitsSaturated () const
+    template <int NewBits, bool NewSigned = Signed>
+    FixedPoint<NewBits, NewSigned, Exp> dropBitsSaturated () const
     {
-        IntType bits_value = m_bits.value();
-        if (bits_value < BoundedInt<NewBits, Signed>::minIntValue()) {
-            bits_value = BoundedInt<NewBits, Signed>::minIntValue();
+        FixedPoint<NewBits, NewSigned, Exp> res;
+        if (*this < FixedPoint<NewBits, NewSigned, Exp>::minValue()) {
+            res = FixedPoint<NewBits, NewSigned, Exp>::minValue();
+        } else if (*this > FixedPoint<NewBits, NewSigned, Exp>::maxValue()) {
+            res = FixedPoint<NewBits, NewSigned, Exp>::maxValue();
+        } else {
+            res = FixedPoint<NewBits, NewSigned, Exp>::importBits(m_bits.value());
         }
-        else if (bits_value > BoundedInt<NewBits, Signed>::maxIntValue()) {
-            bits_value = BoundedInt<NewBits, Signed>::maxIntValue();
+        return res;
+        /*
+        IntType bits_value = m_bits.value();
+        if (bits_value < BoundedInt<NewBits, NewSigned>::minIntValue()) {
+            bits_value = BoundedInt<NewBits, NewSigned>::minIntValue();
+        }
+        else if (bits_value > BoundedInt<NewBits, NewSigned>::maxIntValue()) {
+            bits_value = BoundedInt<NewBits, NewSigned>::maxIntValue();
         }
         
         return FixedPoint<NewBits, Signed, Exp>::importBits(bits_value);
+        */
     }
     
     template <typename Dummy = void>

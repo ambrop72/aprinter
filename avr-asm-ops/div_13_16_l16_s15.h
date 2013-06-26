@@ -124,7 +124,7 @@ static inline uint16_t div_13_16_l16_s15 (uint16_t n, uint16_t d)
         "    cpc %[t],__zero_reg__\n"
         "    sbci %A[q],-1\n"
         
-        : [q] "=&a" (q),
+        : [q] "=&d" (q),
           [n] "=&r" (n),
           [t] "=&r" (t)
         : "[n]" (n),

@@ -112,7 +112,7 @@ public:
     {
         this->debugAccess(c);
         
-        //asm("sbi %0,%1" :: "i" (Pin::Port::ddr_io_addr), "i" (Pin::port_pin));
+        asm("sbi %0,%1" :: "i" (Pin::Port::ddr_io_addr), "i" (Pin::port_pin));
     }
     
     template <typename Pin, typename ThisContext>

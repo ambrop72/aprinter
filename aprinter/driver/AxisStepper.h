@@ -39,10 +39,10 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define AXIS_STEPPER_AMUL_EXPR(x, t, ha) ((ha).template shiftBits<(-2)>())
-#define AXIS_STEPPER_V0_EXPR(x, t, ha) (((x).toSigned() - (ha)).toUnsignedUnsafe())
-#define AXIS_STEPPER_V02_EXPR(x, t, ha) ((AXIS_STEPPER_V0_EXPR((x), (t), (ha)) * AXIS_STEPPER_V0_EXPR((x), (t), (ha))))
-#define AXIS_STEPPER_TMUL_EXPR(x, t, ha) ((t).template bitsTo<time_mul_bits>())
+#define AXIS_STEPPER_AMUL_EXPR(x, t, a) ((a).template shiftBits<(-2)>())
+#define AXIS_STEPPER_V0_EXPR(x, t, a) (((x).toSigned() - (a)).toUnsignedUnsafe())
+#define AXIS_STEPPER_V02_EXPR(x, t, a) ((AXIS_STEPPER_V0_EXPR((x), (t), (a)) * AXIS_STEPPER_V0_EXPR((x), (t), (a)))).toSigned()
+#define AXIS_STEPPER_TMUL_EXPR(x, t, a) ((t).template bitsTo<time_mul_bits>())
 
 #define AXIS_STEPPER_AMUL_EXPR_HELPER(args) AXIS_STEPPER_AMUL_EXPR(args)
 #define AXIS_STEPPER_V0_EXPR_HELPER(args) AXIS_STEPPER_V0_EXPR(args)
@@ -62,14 +62,9 @@ private:
     using Clock = typename Context::Clock;
     using Lock = typename Context::Lock;
     
-    // WARNING: these were very carefully chosen.
-    // An attempt was made to:
-    // - avoid 64-bit multiplications,
-    // - avoid bit shifts or keep them close to being a multiple of 8,
-    // - provide acceptable precision.
-    // The maximum time and distance for a single move is relatively small for these
-    // reasons. If longer or larger moves are desired they need to be split prior
-    // to feeding them to this driver.
+    // DON'T TOUCH!
+    // These were chosen carefully for speed, and some operations
+    // were written in assembly specifically for use here.
     static const int step_bits = 13;
     static const int time_bits = 22;
     static const int q_div_shift = 16;
@@ -93,7 +88,7 @@ public:
         m_running = false;
         m_start = BufferSizeType::import(0);
         m_end = BufferSizeType::import(0);
-        m_event_amount = BufferSizeType::maxValue();
+        m_event_amount = m_end;
         m_current_command = &m_commands[m_start.value()];
         m_lock.init(c);
         this->debugInit(c);
@@ -111,11 +106,12 @@ public:
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
-        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
+        AMBRO_ASSERT(m_event_amount == m_end)
         AMBRO_ASSERT(!m_avail_event.isSet(c))
         
         m_start = BufferSizeType::import(0);
         m_end = BufferSizeType::import(0);
+        m_event_amount = m_end;
         m_current_command = &m_commands[m_start.value()];
     }
     
@@ -140,7 +136,7 @@ public:
     void bufferProvide (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
+        AMBRO_ASSERT(m_event_amount == m_end)
         AMBRO_ASSERT(!m_avail_event.isSet(c))
         AMBRO_ASSERT(bufferQuery(c).value() > 0)
         AMBRO_ASSERT(a >= -x)
@@ -151,7 +147,7 @@ public:
         cmd.dir = dir;
         cmd.x = x;
         cmd.t_plain = t.bitsValue();
-        cmd.ha_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
+        cmd.a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
         cmd.v0 = AXIS_STEPPER_V0_EXPR(x, t, a);
         cmd.v02 = AXIS_STEPPER_V02_EXPR(x, t, a);
         cmd.t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
@@ -168,6 +164,7 @@ public:
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             was_empty = (m_start == m_end);
             m_end = BoundedModuloInc(m_end);
+            m_event_amount = m_end;
         });
         
         // if we have run out of commands, continue motion
@@ -185,10 +182,10 @@ public:
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             if (buffer_avail(m_start, m_end) >= min_amount) {
-                m_event_amount = BufferSizeType::maxValue();
+                m_event_amount = m_end;
                 m_avail_event.prependNow(lock_c);
             } else {
-                m_event_amount = BoundedModuloDec(min_amount);
+                m_event_amount = BoundedModuloAdd(m_end, min_amount);
                 m_avail_event.unset(lock_c);
             }
         });
@@ -199,7 +196,7 @@ public:
         this->debugAccess(c);
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
-            m_event_amount = BufferSizeType::maxValue();
+            m_event_amount = m_end;
             m_avail_event.unset(lock_c);
         });
     }
@@ -275,7 +272,7 @@ private:
         bool dir;
         StepFixedType x;
         TimeType t_plain;
-        decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) ha_mul;
+        decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) a_mul;
         decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) v0;
         decltype(AXIS_STEPPER_V02_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) v02;
         decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) t_mul;
@@ -305,33 +302,23 @@ private:
                     break;
                 }
                 
-                // imcrement position and get it into a fixed type
+                // imcrement position
                 m_rel_x++;
                 
                 // perform the step
                 stepper(this)->step(c);
                 
                 // compute product part of discriminant
-                auto s_prod = (m_current_command->ha_mul * StepFixedType::importBits(m_rel_x)).template shift<2>();
+                auto s_prod = (m_current_command->a_mul * StepFixedType::importBits(m_rel_x)).template shift<2>();
                 
-                // compute discriminant
-                static_assert(decltype(m_current_command->v02.toSigned())::exp == decltype(s_prod)::exp, "slow shift");
-                auto s = m_current_command->v02.toSigned() + s_prod;
-                
-                // we don't like negative discriminants
-                if (s.bitsValue() < 0) {
-                    perform_steps(c, m_current_command->x.bitsValue() - m_rel_x);
-                    break;
-                }
+                // compute discriminant. It is not negative because of the constraints and the exact computation.
+                auto s = m_current_command->v02 + s_prod;
+                AMBRO_ASSERT(s.bitsValue() >= 0)
                 
                 // compute the thing with the square root
-                static_assert(decltype(m_current_command->v0)::exp == decltype(FixedSquareRoot(s))::exp, "slow shift");
                 auto q = (m_current_command->v0 + FixedSquareRoot(s)).template shift<-1>();
                 
                 // compute solution as fraction of total time
-                //static_assert(Modulo(q_div_shift, 8) == 0, "slow shift");
-                //static const int div_res_sat_bits = -(StepFixedType::exp - decltype(q)::exp - q_div_shift);
-                //auto t_frac = FixedDivide<q_div_shift, div_res_sat_bits>(StepFixedType::importBits(m_rel_x), q); // TODO div0
                 auto t_frac = FixedFracDivide(StepFixedType::importBits(m_rel_x), q);
                 
                 // multiply by the time of this command, and drop fraction bits at the same time
@@ -348,15 +335,15 @@ private:
             
             bool run_out;
             AMBRO_LOCK_T(m_lock, c, lock_c, {
+                // report avail event if we'll have enough buffer space
+                if (m_start == m_event_amount) {
+                    m_event_amount = m_end;
+                    m_avail_event.appendNowNotAlready(lock_c);
+                }
+                
                 // consume command
                 m_start = BoundedModuloInc(m_start);
                 m_current_command = &m_commands[m_start.value()];
-                
-                // report avail event if we have enough buffer space
-                if (buffer_avail(m_start, m_end) > m_event_amount) {
-                    m_event_amount = BufferSizeType::maxValue();
-                    m_avail_event.appendNow(lock_c);
-                }
                 
                 run_out = (m_start == m_end);
             });
@@ -382,7 +369,7 @@ private:
     {
         this->debugAccess(c);
         AMBRO_ASSERT(buffer_avail(m_start, m_end).value() > 0)
-        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
+        AMBRO_ASSERT(m_event_amount == m_end)
         
         return AvailHandler::call(this, c);
     }

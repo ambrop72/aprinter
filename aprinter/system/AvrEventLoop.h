@@ -182,6 +182,19 @@ public:
     }
     
     template <typename ThisContext>
+    void appendNowNotAlready (ThisContext c)
+    {
+        this->debugAccess(c);
+        Loop *l = c.eventLoop();
+        
+        AMBRO_LOCK_T(l->m_lock, c, lock_c, {
+            AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
+            l->m_queued_event_list.append(this);
+            m_time = l->m_now;
+        });
+    }
+    
+    template <typename ThisContext>
     void prependAt (ThisContext c, TimeType time)
     {
         this->debugAccess(c);

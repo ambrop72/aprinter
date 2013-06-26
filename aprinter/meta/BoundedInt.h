@@ -72,9 +72,13 @@ public:
         AMBRO_ASSERT(the_int >= minIntValue())
         AMBRO_ASSERT(the_int <= maxIntValue())
         
+#if 0
         BoundedInt res;
         res.m_int = the_int;
         return res;
+#else
+        return BoundedInt{the_int};
+#endif
     }
     
     IntType value () const

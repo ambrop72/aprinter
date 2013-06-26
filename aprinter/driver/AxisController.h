@@ -53,9 +53,9 @@ public:
     using MyAxisStepper = AxisStepper<Context, StepperBufferBits, MyStepper, MyGetStepperHandler, StepperTimer, AxisStepperAvailHandler>;
     
 private:
-    static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 6;
+    static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 4;
     static const int time_bits = MyAxisStepper::TimeFixedType::num_bits + 6;
-    static const int gt_frac_square_shift = 12;
+    static const int gt_frac_square_shift = 10;
     
 public:
     using TimeType = typename Clock::TimeType;
@@ -186,9 +186,7 @@ public:
         
         // fill stepper command buffer
         while (m_backlog < m_command_buffer.readerGetAvail(c) && m_axis_stepper.bufferQuery(c).value() > 0) {
-            printf("Try...\n");
             send_stepper_command(c);
-            printf("Survived!\n");
         }
         
         m_axis_stepper.start(c, start_time);
@@ -230,7 +228,7 @@ private:
         StepperTimeType rel_t;
         StepperAccelType rel_a;
         
-        // compute a stepper command, be fast if the entire command fits
+        // if command fits, be fast
         if (cmd->x_pos.bitsValue() == 0 && cmd->x <= StepperStepType::maxValue() && cmd->t <= StepperTimeType::maxValue()) {
             new_x = cmd->x;
             rel_x = StepperStepType::importBits(cmd->x.bitsValue());
@@ -238,15 +236,18 @@ private:
             rel_t = StepperTimeType::importBits(cmd->t.bitsValue());
             rel_a = StepperAccelType::importBits(cmd->a.bitsValue());
         } else {
+            // limit distance
+            bool second_try = false;
             StepFixedType remain_x = StepFixedType::importBits(cmd->x.bitsValue() - cmd->x_pos.bitsValue());
             if (remain_x <= StepperStepType::maxValue()) {
                 new_x = cmd->x;
                 rel_x = StepperStepType::importBits(remain_x.bitsValue());
                 new_t = cmd->t;
             } else {
+                // distance is too long, use largest possible distance, and compute time using quadratic formula 
                 new_x = StepFixedType::importBits(cmd->x_pos.bitsValue() + StepperStepType::maxValue().bitsValue());
                 rel_x = StepperStepType::maxValue();
-            
+            compute_time:
                 auto v0 = (cmd->x - cmd->a).toUnsignedUnsafe();
                 auto v02 = v0 * v0;
                 auto s = v02 + (cmd->a * new_x).template shift<2>();
@@ -259,11 +260,50 @@ private:
                 }
             }
             
-            // TODO split if time is too large
+            // limit time
+            if (new_t.bitsValue() - cmd->t_pos.bitsValue() > StepperTimeType::maxValue().bitsValue()) {
+                new_t = TimeFixedType::importBits(cmd->t_pos.bitsValue() + StepperTimeType::maxValue().bitsValue());
+                
+                // we could have already limited time but it's still bigger after the recomputation
+                if (second_try) {
+                    goto out;
+                }
+                
+                // compute distance for this time
+                auto t_frac = FixedFracDivide(new_t, cmd->t);
+                auto v0 = (cmd->x - cmd->a).toUnsignedUnsafe();
+                auto res = FixedResMultiply(t_frac, v0 + FixedResMultiply(cmd->a, t_frac));
+                StepFixedType calc_x = res.template dropBitsSaturated<StepFixedType::num_bits, StepFixedType::is_signed>();
+                if (calc_x < cmd->x_pos) {
+                    calc_x = cmd->x_pos;
+                } else if (calc_x > cmd->x) {
+                    calc_x = cmd->x;
+                }
+                
+                // recompute distance based on this time for best precision, unless the distance
+                // didn'g get smaller
+                if (calc_x < new_x) {
+                    new_x = calc_x;
+                    rel_x = StepperStepType::importBits(new_x.bitsValue() - cmd->x_pos.bitsValue());
+                    second_try = true;
+                    goto compute_time;
+                }
+            }
+            
+        out:;
             rel_t = StepperTimeType::importBits(new_t.bitsValue() - cmd->t_pos.bitsValue());
+            
+            // compute acceleration
             auto gt_frac = FixedFracDivide(rel_t, cmd->t);
-            AccelFixedType a = FixedResMultiply(cmd->a, (gt_frac * gt_frac).template shiftBits<gt_frac_square_shift>());
-            rel_a = StepperAccelType::importBits(a.bitsValue()); // TODO
+            auto gt_frac2 = (gt_frac * gt_frac).template shiftBits<gt_frac_square_shift>();
+            AccelFixedType a = FixedResMultiply(cmd->a, gt_frac2);
+            if (a < -rel_x) {
+                rel_a = -rel_x;
+            } else if (a > rel_x) {
+                rel_a = rel_x.toSigned();
+            } else {
+                rel_a = StepperAccelType::importBits(a.bitsValue());
+            }
         }
         
         AMBRO_ASSERT(new_x == cmd->x || new_x > cmd->x_pos)
@@ -284,8 +324,6 @@ private:
         if (cmd->x_pos == cmd->x) {
             m_backlog = BoundedModuloInc(m_backlog);
         }
-        
-        printf("Crashing now...\n");
     }
     
     void axis_stepper_avail_handler (Context c)
