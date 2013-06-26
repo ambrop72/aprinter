@@ -88,7 +88,7 @@ public:
         m_running = false;
         m_start = BufferSizeType::import(0);
         m_end = BufferSizeType::import(0);
-        m_event_amount = m_end;
+        m_event = m_end;
         m_current_command = &m_commands[m_start.value()];
         m_lock.init(c);
         this->debugInit(c);
@@ -106,16 +106,16 @@ public:
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
-        AMBRO_ASSERT(m_event_amount == m_end)
+        AMBRO_ASSERT(m_event == m_end)
         AMBRO_ASSERT(!m_avail_event.isSet(c))
         
         m_start = BufferSizeType::import(0);
         m_end = BufferSizeType::import(0);
-        m_event_amount = m_end;
+        m_event = m_end;
         m_current_command = &m_commands[m_start.value()];
     }
     
-    BufferSizeType bufferQuery (Context c)
+    BufferSizeType bufferGetAvail (Context c)
     {
         this->debugAccess(c);
         
@@ -136,7 +136,7 @@ public:
     void bufferProvide (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(m_event_amount == m_end)
+        AMBRO_ASSERT(m_event == m_end)
         AMBRO_ASSERT(!m_avail_event.isSet(c))
         AMBRO_ASSERT(bufferQuery(c).value() > 0)
         AMBRO_ASSERT(a >= -x)
@@ -164,7 +164,7 @@ public:
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             was_empty = (m_start == m_end);
             m_end = BoundedModuloInc(m_end);
-            m_event_amount = m_end;
+            m_event = m_end;
         });
         
         // if we have run out of commands, continue motion
@@ -182,10 +182,10 @@ public:
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             if (buffer_avail(m_start, m_end) >= min_amount) {
-                m_event_amount = m_end;
+                m_event = m_end;
                 m_avail_event.prependNow(lock_c);
             } else {
-                m_event_amount = BoundedModuloAdd(m_end, min_amount);
+                m_event = BoundedModuloAdd(m_end, min_amount);
                 m_avail_event.unset(lock_c);
             }
         });
@@ -196,7 +196,7 @@ public:
         this->debugAccess(c);
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
-            m_event_amount = m_end;
+            m_event = m_end;
             m_avail_event.unset(lock_c);
         });
     }
@@ -336,8 +336,8 @@ private:
             bool run_out;
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 // report avail event if we'll have enough buffer space
-                if (m_start == m_event_amount) {
-                    m_event_amount = m_end;
+                if (m_start == m_event) {
+                    m_event = m_end;
                     m_avail_event.appendNowNotAlready(lock_c);
                 }
                 
@@ -369,7 +369,7 @@ private:
     {
         this->debugAccess(c);
         AMBRO_ASSERT(buffer_avail(m_start, m_end).value() > 0)
-        AMBRO_ASSERT(m_event_amount == m_end)
+        AMBRO_ASSERT(m_event == m_end)
         
         return AvailHandler::call(this, c);
     }
@@ -379,7 +379,7 @@ private:
     Command m_commands[(size_t)BufferSizeType::maxIntValue() + 1];
     BufferSizeType m_start;
     BufferSizeType m_end;
-    BufferSizeType m_event_amount;
+    BufferSizeType m_event;
     Command *m_current_command;
     typename StepFixedType::IntType m_rel_x;
     bool m_running;

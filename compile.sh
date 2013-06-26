@@ -12,5 +12,5 @@ CXXFLAGS="-std=c++11 -mmcu=$MCU -DF_CPU=$F_CPU -DNDEBUG -O4 -fno-tree-vectorize 
 -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS \
 -DAMBROLIB_AVR -I. $CXXFLAGS"
 
-${CXX} $CXXFLAGS examples/test4.cpp -o test4.elf -Wl,-u,vfprintf -lprintf_flt -lm
-${CROSS}objcopy -j .text -j .data -O ihex test4.elf test4.hex
+${CXX} $CXXFLAGS aprinter/printer/aprinter.cpp -o aprinter.elf -Wl,-u,vfprintf -lprintf_flt -lm
+${CROSS}objcopy -j .text -j .data -O ihex aprinter.elf aprinter.hex

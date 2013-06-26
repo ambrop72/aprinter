@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_AXIS_CONTROLLER_H
-#define AMBROLIB_AXIS_CONTROLLER_H
+#ifndef AMBROLIB_AXIS_SPLITTER_
+#define AMBROLIB_AXIS_SPLITTER_
 
 #include <stdint.h>
 #include <math.h>
@@ -36,12 +36,12 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/structure/RingBuffer.h>
-#include <aprinter/driver/AxisStepper.h>
+#include <aprinter/stepper/AxisStepper.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, int BufferBits, int StepperBufferBits, typename MyStepper, typename GetStepper, template<typename, typename> class StepperTimer, typename AvailHandler>
-class AxisController : private DebugObject<Context, void> {
+class AxisSplitter : private DebugObject<Context, void> {
 private:
     using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
@@ -88,7 +88,7 @@ public:
     {
         m_axis_stepper.init(c);
         m_command_buffer.init(c);
-        m_avail_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisController::m_avail_event, &AxisController::avail_event_handler));
+        m_avail_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisSplitter::m_avail_event, &AxisSplitter::avail_event_handler));
         m_event_amount = BufferSizeType::maxValue();
         m_backlog = BufferSizeType::import(0);
         m_stepper_nbacklog = StepperBufferSizeType::maxValue();
@@ -118,7 +118,7 @@ public:
         m_stepper_nbacklog = StepperBufferSizeType::maxValue();
     }
     
-    BufferSizeType writerGetAvail (Context c)
+    BufferSizeType bufferGetAvail (Context c)
     {
         this->debugAccess(c);
         
@@ -185,7 +185,7 @@ public:
         AMBRO_ASSERT(!m_axis_stepper.isRunning(c))
         
         // fill stepper command buffer
-        while (m_backlog < m_command_buffer.readerGetAvail(c) && m_axis_stepper.bufferQuery(c).value() > 0) {
+        while (m_backlog < m_command_buffer.readerGetAvail(c) && m_axis_stepper.bufferGetAvail(c).value() > 0) {
             send_stepper_command(c);
         }
         
@@ -218,9 +218,13 @@ private:
     void send_stepper_command (Context c)
     {
         AMBRO_ASSERT(m_backlog < m_command_buffer.readerGetAvail(c))
-        AMBRO_ASSERT(m_axis_stepper.bufferQuery(c).value() > 0)
+        AMBRO_ASSERT(m_axis_stepper.bufferGetAvail(c).value() > 0)
         
         Command *cmd = m_command_buffer.readerGetPtr(c, m_backlog);
+        AMBRO_ASSERT(cmd->x_pos >= StepFixedType::import(0))
+        AMBRO_ASSERT(cmd->x_pos <= cmd->x)
+        AMBRO_ASSERT(cmd->t_pos >= TimeFixedType::import(0))
+        AMBRO_ASSERT(cmd->t_pos <= cmd->t)
         
         StepFixedType new_x;
         StepperStepType rel_x;
@@ -247,14 +251,28 @@ private:
                 // distance is too long, use largest possible distance, and compute time using quadratic formula 
                 new_x = StepFixedType::importBits(cmd->x_pos.bitsValue() + StepperStepType::maxValue().bitsValue());
                 rel_x = StepperStepType::maxValue();
+                
             compute_time:
+                AMBRO_ASSERT(new_x > cmd->x_pos)
+                AMBRO_ASSERT(new_x < cmd->x)
+                
+                // compute discriminant
                 auto v0 = (cmd->x - cmd->a).toUnsignedUnsafe();
                 auto v02 = v0 * v0;
                 auto s = v02 + (cmd->a * new_x).template shift<2>();
-                AMBRO_ASSERT(s.bitsValue() >= 0)
+                AMBRO_ASSERT(s.bitsValue() >= 0) // proof based on -x<=a<=x and 0<new_x<x
+                
+                // compute the thing with the square root
                 auto q = (v0 + FixedSquareRoot(s)).template shift<-1>();
+                AMBRO_ASSERT(q.bitsValue() > 0) // prove by assuming v0=0 i.e. a=x, result s>=4
+                
+                // compute solution as fraction of total time
                 auto t_frac = FixedFracDivide(new_x, q);
+                
+                // multiply by the time of this command, and drop fraction bits at the same time
                 new_t = FixedResMultiply(cmd->t, t_frac);
+                
+                // make sure the computed time isn't less than the previous time, just in case
                 if (new_t < cmd->t_pos) {
                     new_t = cmd->t_pos;
                 }
@@ -262,38 +280,44 @@ private:
             
             // limit time
             if (new_t.bitsValue() - cmd->t_pos.bitsValue() > StepperTimeType::maxValue().bitsValue()) {
+                // time is too large, use largest possible time
                 new_t = TimeFixedType::importBits(cmd->t_pos.bitsValue() + StepperTimeType::maxValue().bitsValue());
                 
-                // we could have already limited time but it's still bigger after the recomputation
+                // if we're here the second time because the recomputed time turned out larger than we wanted,
+                // stop to avoid getting caught in an infinite loop
                 if (second_try) {
                     goto out;
                 }
                 
-                // compute distance for this time
+                // compute time as a fraction of total time
                 auto t_frac = FixedFracDivide(new_t, cmd->t);
+                
+                // compute distance for this time
                 auto v0 = (cmd->x - cmd->a).toUnsignedUnsafe();
                 auto res = FixedResMultiply(t_frac, v0 + FixedResMultiply(cmd->a, t_frac));
                 StepFixedType calc_x = res.template dropBitsSaturated<StepFixedType::num_bits, StepFixedType::is_signed>();
+                
+                // update distance, making sure it's in range
                 if (calc_x < cmd->x_pos) {
                     calc_x = cmd->x_pos;
-                } else if (calc_x > cmd->x) {
-                    calc_x = cmd->x;
+                } else if (calc_x > new_x) {
+                    calc_x = new_x;
                 }
+                new_x = calc_x;
+                rel_x = StepperStepType::importBits(new_x.bitsValue() - cmd->x_pos.bitsValue());
                 
-                // recompute distance based on this time for best precision, unless the distance
-                // didn'g get smaller
-                if (calc_x < new_x) {
-                    new_x = calc_x;
-                    rel_x = StepperStepType::importBits(new_x.bitsValue() - cmd->x_pos.bitsValue());
+                // recompute time from distance unless distance is at a limit value
+                if (new_x > cmd->x_pos && new_x < cmd->x) {
                     second_try = true;
                     goto compute_time;
                 }
             }
             
         out:;
+            // compute relative time
             rel_t = StepperTimeType::importBits(new_t.bitsValue() - cmd->t_pos.bitsValue());
             
-            // compute acceleration
+            // compute acceleration for the stepper command
             auto gt_frac = FixedFracDivide(rel_t, cmd->t);
             auto gt_frac2 = (gt_frac * gt_frac).template shiftBits<gt_frac_square_shift>();
             AccelFixedType a = FixedResMultiply(cmd->a, gt_frac2);
@@ -306,10 +330,16 @@ private:
             }
         }
         
-        AMBRO_ASSERT(new_x == cmd->x || new_x > cmd->x_pos)
+        // these statements have been proven
+        AMBRO_ASSERT(new_x >= cmd->x_pos)
         AMBRO_ASSERT(new_x <= cmd->x)
         AMBRO_ASSERT(new_t >= cmd->t_pos)
         AMBRO_ASSERT(new_t <= cmd->t)
+        
+        // This statement has also been proven. It implies that  a command is complete
+        // after finitely many stepper commands have been generated from it.
+        // In words: if 'x' stayed the same, then either 't' increased, or the command is complete.
+        AMBRO_ASSERT(!(new_x == cmd->x_pos) || (new_t > cmd->t_pos || (new_x == cmd->x && new_t == cmd->t)))
         
         // send a stepper command
         m_axis_stepper.bufferProvide(c, cmd->dir, rel_x, rel_t, rel_a);
@@ -320,8 +350,8 @@ private:
         cmd->t_pos = new_t;
         cmd->num_cmds = BoundedModuloInc(cmd->num_cmds);
         
-        // pussibly finish our command 
-        if (cmd->x_pos == cmd->x) {
+        // possibly complete our command 
+        if (cmd->x_pos == cmd->x && cmd->t_pos == cmd->t) {
             m_backlog = BoundedModuloInc(m_backlog);
         }
     }
@@ -330,10 +360,10 @@ private:
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(m_axis_stepper.bufferQuery(c).value() > 0)
+        AMBRO_ASSERT(m_axis_stepper.bufferGetAvail(c).value() > 0)
         
         // clean up backlog
-        StepperBufferSizeType stepbuf_avail = m_axis_stepper.bufferQuery(c);
+        StepperBufferSizeType stepbuf_avail = m_axis_stepper.bufferGetAvail(c);
         while (m_backlog.value() > 0) {
             Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
             if (stepbuf_avail < BoundedModuloAdd(m_stepper_nbacklog, backlock_cmd->num_cmds)) {
@@ -385,8 +415,8 @@ private:
     BufferSizeType m_backlog;
     StepperBufferSizeType m_stepper_nbacklog;
     
-    struct AxisStepperAvailHandler : public AMBRO_WCALLBACK_TD(&AxisController::axis_stepper_avail_handler, &AxisController::m_axis_stepper) {};
-    struct MyGetStepperHandler : public AMBRO_WCALLBACK_TD(&AxisController::my_get_stepper_handler, &AxisController::m_axis_stepper) {};
+    struct AxisStepperAvailHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::axis_stepper_avail_handler, &AxisSplitter::m_axis_stepper) {};
+    struct MyGetStepperHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::my_get_stepper_handler, &AxisSplitter::m_axis_stepper) {};
 };
 
 #include <aprinter/EndNamespace.h>

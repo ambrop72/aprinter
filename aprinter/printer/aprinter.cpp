@@ -43,9 +43,9 @@
 #include <aprinter/system/AvrPinWatcher.h>
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/system/AvrLock.h>
-#include <aprinter/driver/Steppers.h>
-#include <aprinter/driver/AxisStepper.h>
-#include <aprinter/driver/AxisController.h>
+#include <aprinter/stepper/Steppers.h>
+#include <aprinter/stepper/AxisStepper.h>
+#include <aprinter/stepper/AxisSplitter.h>
 
 #define CLOCK_TIMER_PRESCALER 2
 #define LED1_PIN AvrPin<AvrPortA, 4>
@@ -63,8 +63,8 @@
 #define SERIAL_BAUD 115200
 #define SERIAL_RX_BUFFER 63
 #define SERIAL_TX_BUFFER 63
-#define COMMAND_BUFFER_BITS 3
-#define STEPPER_COMMAND_BUFFER_BITS 3
+#define COMMAND_BUFFER_BITS 4
+#define STEPPER_COMMAND_BUFFER_BITS 4
 #define NUM_MOVE_ITERS 4
 #define SPEED_T_SCALE (0.100*2.0)
 #define X_SCALE 1.0
@@ -98,8 +98,8 @@ typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8
 typedef Steppers<MyContext, STEPPERS> MySteppers;
 typedef SteppersStepper<MyContext, STEPPERS, 0> MySteppersStepper0;
 typedef SteppersStepper<MyContext, STEPPERS, 1> MySteppersStepper1;
-typedef AxisController<MyContext, COMMAND_BUFFER_BITS, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler0> MyAxisController0;
-typedef AxisController<MyContext, COMMAND_BUFFER_BITS, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler1> MyAxisController1;
+typedef AxisSplitter<MyContext, COMMAND_BUFFER_BITS, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler0> MyAxisSplitter0;
+typedef AxisSplitter<MyContext, COMMAND_BUFFER_BITS, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler1> MyAxisSplitter1;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -131,8 +131,8 @@ static MySerial myserial;
 static bool blink_state;
 static MyClock::TimeType next_time;
 static MySteppers steppers;
-static MyAxisController0 axis_controller0;
-static MyAxisController1 axis_controller1;
+static MyAxisSplitter0 axis_splitter0;
+static MyAxisSplitter1 axis_splitter1;
 static int num_left0;
 static int num_left1;
 static bool prev_button;
@@ -165,39 +165,41 @@ MyPinWatcherService * MyContext::pinWatcherService () const
 AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
 AMBRO_AVR_SERIAL_ISRS(myserial, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*axis_controller0.getAxisStepper()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*axis_controller1.getAxisStepper()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*axis_splitter0.getAxisStepper()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*axis_splitter1.getAxisStepper()->getTimer(), MyContext())
 
 static void add_commands0 (MyContext c)
 {
-    static_assert(PowerOfTwoMinusOne<size_t, COMMAND_BUFFER_BITS>::value >= 6, "");
+    static const int num_cmds = 6;
+    static_assert(PowerOfTwoMinusOne<size_t, COMMAND_BUFFER_BITS>::value >= num_cmds, "");
     float t_scale = SPEED_T_SCALE;
-    axis_controller0.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
-    axis_controller0.bufferAddCommandTest(c, true, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
-    //axis_controller0.bufferAddCommandTest(c, true, X_SCALE * 40.0, 1.0 * t_scale, X_SCALE * 0.0);
-    axis_controller0.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
-    axis_controller0.bufferAddCommandTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
-    axis_controller0.bufferAddCommandTest(c, false, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
-    //axis_controller0.bufferAddCommandTest(c, false, X_SCALE * 40.0, 1.0 * t_scale, X_SCALE * 0.0);
-    axis_controller0.bufferAddCommandTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
-    num_left0--;
-    axis_controller0.bufferRequestEvent(c, (num_left0 == 0) ? MyAxisController0::BufferSizeType::maxValue() : MyAxisController0::BufferSizeType::import(6));
+    axis_splitter0.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
+    axis_splitter0.bufferAddCommandTest(c, true, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
+    axis_splitter0.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
+    //axis_splitter0.bufferAddCommandTest(c, true, 0.0, 2.0 * t_scale, 0.0);
+    axis_splitter0.bufferAddCommandTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
+    axis_splitter0.bufferAddCommandTest(c, false, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
+    axis_splitter0.bufferAddCommandTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
+    //axis_splitter0.bufferAddCommandTest(c, false, 0.0, 2.0 * t_scale, 0.0);
+    //num_left0--;
+    axis_splitter0.bufferRequestEvent(c, (num_left0 == 0) ? MyAxisSplitter0::BufferSizeType::maxValue() : MyAxisSplitter0::BufferSizeType::import(num_cmds));
 }
 
 static void add_commands1 (MyContext c)
 {
-    static_assert(PowerOfTwoMinusOne<size_t, COMMAND_BUFFER_BITS>::value >= 6, "");
+    static const int num_cmds = 8;
+    static_assert(PowerOfTwoMinusOne<size_t, COMMAND_BUFFER_BITS>::value >= num_cmds, "");
     float t_scale = SPEED_T_SCALE;
-    axis_controller1.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
-    axis_controller1.bufferAddCommandTest(c, true, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
-    //axis_controller1.bufferAddCommandTest(c, true, Y_SCALE * 40.0, 1.0 * t_scale, Y_SCALE * 0.0);
-    axis_controller1.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
-    axis_controller1.bufferAddCommandTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
-    axis_controller1.bufferAddCommandTest(c, false, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
-    //axis_controller1.bufferAddCommandTest(c, false, Y_SCALE * 40.0, 1.0 * t_scale, Y_SCALE * 0.0);
-    axis_controller1.bufferAddCommandTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
-    num_left1--;
-    axis_controller1.bufferRequestEvent(c, (num_left1 == 0) ? MyAxisController1::BufferSizeType::maxValue() : MyAxisController1::BufferSizeType::import(6));
+    axis_splitter1.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
+    axis_splitter1.bufferAddCommandTest(c, true, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
+    axis_splitter1.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
+    axis_splitter1.bufferAddCommandTest(c, true, 0.0, 2.0 * t_scale, 0.0);
+    axis_splitter1.bufferAddCommandTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
+    axis_splitter1.bufferAddCommandTest(c, false, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
+    axis_splitter1.bufferAddCommandTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
+    axis_splitter1.bufferAddCommandTest(c, true, 0.0, 2.0 * t_scale, 0.0);
+    //num_left1--;
+    axis_splitter1.bufferRequestEvent(c, (num_left1 == 0) ? MyAxisSplitter1::BufferSizeType::maxValue() : MyAxisSplitter1::BufferSizeType::import(num_cmds));
 }
 
 static void mytimer_handler (MyTimer *, MyContext c)
@@ -212,17 +214,17 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
 {
     mypins.set<LED2_PIN>(c, !state);
     if (!prev_button && state) {
-        if (axis_controller0.isRunning(c) || axis_controller1.isRunning(c)) {
-            if (axis_controller0.isRunning(c)) {
-                axis_controller0.stop(c);
-                axis_controller0.bufferCancelEvent(c);
-                axis_controller0.clearBuffer(c);
+        if (axis_splitter0.isRunning(c) || axis_splitter1.isRunning(c)) {
+            if (axis_splitter0.isRunning(c)) {
+                axis_splitter0.stop(c);
+                axis_splitter0.bufferCancelEvent(c);
+                axis_splitter0.clearBuffer(c);
                 steppers.getStepper<0>()->enable(c, false);
             }
-            if (axis_controller1.isRunning(c)) {
-                axis_controller1.stop(c);
-                axis_controller1.bufferCancelEvent(c);
-                axis_controller1.clearBuffer(c);
+            if (axis_splitter1.isRunning(c)) {
+                axis_splitter1.stop(c);
+                axis_splitter1.bufferCancelEvent(c);
+                axis_splitter1.clearBuffer(c);
                 steppers.getStepper<1>()->enable(c, false);
             }
         } else {
@@ -233,8 +235,8 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
             MyClock::TimeType start_time = myclock.getTime(c);
             steppers.getStepper<0>()->enable(c, true);
             steppers.getStepper<1>()->enable(c, true);
-            axis_controller0.start(c, start_time);
-            axis_controller1.start(c, start_time);
+            axis_splitter0.start(c, start_time);
+            axis_splitter1.start(c, start_time);
         }
     }
     prev_button = state;
@@ -248,34 +250,34 @@ static void serial_send_handler (MySerial *, MyContext c)
 {
 }
 
-static MySteppersStepper0 * driver_get_stepper_handler0 (MyAxisController0 *) 
+static MySteppersStepper0 * driver_get_stepper_handler0 (MyAxisSplitter0 *) 
 {
     return steppers.getStepper<0>();
 }
 
-static MySteppersStepper1* driver_get_stepper_handler1 (MyAxisController1 *)
+static MySteppersStepper1* driver_get_stepper_handler1 (MyAxisSplitter1 *)
 {
     return steppers.getStepper<1>();
 }
 
-static void driver_avail_handler0 (MyAxisController0 *, MyContext c)
+static void driver_avail_handler0 (MyAxisSplitter0 *, MyContext c)
 {
-    AMBRO_ASSERT(axis_controller0.isRunning(c))
+    AMBRO_ASSERT(axis_splitter0.isRunning(c))
     
     if (num_left0 == 0) {
-        axis_controller0.stop(c);
+        axis_splitter0.stop(c);
         steppers.getStepper<0>()->enable(c, false);
     } else {
         add_commands0(c);
     }
 }
 
-static void driver_avail_handler1 (MyAxisController1 *, MyContext c)
+static void driver_avail_handler1 (MyAxisSplitter1 *, MyContext c)
 {
-    AMBRO_ASSERT(axis_controller1.isRunning(c))
+    AMBRO_ASSERT(axis_splitter1.isRunning(c))
     
     if (num_left1 == 0) {
-        axis_controller1.stop(c);
+        axis_splitter1.stop(c);
         steppers.getStepper<1>()->enable(c, false);
     } else {
         add_commands1(c);
@@ -325,8 +327,8 @@ int main ()
     setup_uart_stdio();
     printf("HELLO\n");
     steppers.init(c);
-    axis_controller0.init(c);
-    axis_controller1.init(c);
+    axis_splitter0.init(c);
+    axis_splitter1.init(c);
     
     mypins.setOutput<LED1_PIN>(c);
     mypins.setOutput<LED2_PIN>(c);
