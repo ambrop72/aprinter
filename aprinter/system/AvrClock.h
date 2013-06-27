@@ -59,7 +59,6 @@ public:
         (Prescale == 5) ? 1024 : 0;
     
     static constexpr double time_unit = (double)prescale_divide / F_CPU;
-    static constexpr TimeType past = UINT32_C(0x20000000);
     
     void init (Context c)
     {
@@ -170,8 +169,7 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
         
-        TimeType time_plus_past = time + Clock::past;
-        static const TimeType clearance_plus_past = (TimeType)clearance + Clock::past;
+        static const TimeType minus_clearance = -(TimeType)clearance;
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             uint16_t now_high = lock_c.clock()->m_offset;
@@ -189,37 +187,35 @@ public:
                 "    lds %A[now_low],%[tcnt1]+0\n"
                 "    lds %B[now_low],%[tcnt1]+1\n"
                 "no_overflow_%=:\n"
-                "    sub %A[time_plus_past],%A[now_low]\n"
-                "    sbc %B[time_plus_past],%B[now_low]\n"
-                "    sbc %C[time_plus_past],%A[now_high]\n"
-                "    sbc %D[time_plus_past],%B[now_high]\n"
-                "    subi %A[time_plus_past],%[cppA]\n"
-                "    sbci %B[time_plus_past],%[cppB]\n"
-                "    sbci %C[time_plus_past],%[cppC]\n"
-                "    sbci %D[time_plus_past],%[cppD]\n"
-                "    brcc no_saturation_%=\n"
-                "    sub %A[time],%A[time_plus_past]\n"
-                "    sbc %B[time],%B[time_plus_past]\n"
-                "    sbc %C[time],%C[time_plus_past]\n"
-                "    sbc %D[time],%D[time_plus_past]\n"
+                "    sub %A[now_low],%A[time]\n"
+                "    sbc %B[now_low],%B[time]\n"
+                "    sbc %A[now_high],%C[time]\n"
+                "    sbc %B[now_high],%D[time]\n"
+                "    subi %A[now_low],%[mcA]\n"
+                "    sbci %B[now_low],%[mcB]\n"
+                "    sbci %A[now_high],%[mcC]\n"
+                "    sbci %B[now_high],%[mcD]\n"
+                "    brmi no_saturation_%=\n"
+                "    add %A[time],%A[now_low]\n"
+                "    adc %B[time],%B[now_low]\n"
+                "    adc %C[time],%A[now_high]\n"
+                "    adc %D[time],%B[now_high]\n"
                 "no_saturation_%=:\n"
                 "    sts %[ocr]+1,%B[time]\n"
                 "    sts %[ocr]+0,%A[time]\n"
                 "    lds %[tmp],%[timsk]\n"
                 "    ori %[tmp],1<<%[ocie_bit]\n"
                 "    sts %[timsk],%[tmp]\n"
-                : [now_low] "=&r" (now_low),
+                : [now_low] "=&d" (now_low),
                   [now_high] "=&d" (now_high),
                   [tmp] "=&d" (tmp),
-                  [time_plus_past] "=&d" (time_plus_past),
                   [time] "=&r" (time)
                 : "[now_high]" (now_high),
-                  "[time_plus_past]" (time_plus_past),
                   "[time]" (time),
-                  [cppA] "n" ((clearance_plus_past >> 0) & 0xFF),
-                  [cppB] "n" ((clearance_plus_past >> 8) & 0xFF),
-                  [cppC] "n" ((clearance_plus_past >> 16) & 0xFF),
-                  [cppD] "n" ((clearance_plus_past >> 24) & 0xFF),
+                  [mcA] "n" ((minus_clearance >> 0) & 0xFF),
+                  [mcB] "n" ((minus_clearance >> 8) & 0xFF),
+                  [mcC] "n" ((minus_clearance >> 16) & 0xFF),
+                  [mcD] "n" ((minus_clearance >> 24) & 0xFF),
                   [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
                   [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
                   [tov1] "n" (TOV1),
@@ -254,8 +250,6 @@ public:
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         AMBRO_ASSERT(m_running)
         
-        TimeType time_plus_past = m_time + Clock::past;
-        static const TimeType past_plus_1 = Clock::past + 1;
         uint16_t now_high = c.clock()->m_offset;
         uint16_t now_low;
         uint8_t tmp;
@@ -271,31 +265,24 @@ public:
                 "    lds %A[now_low],%[tcnt1]+0\n"
                 "    lds %B[now_low],%[tcnt1]+1\n"
                 "no_overflow_%=:\n"
-                "    sub %A[time_plus_past],%A[now_low]\n"
-                "    sbc %B[time_plus_past],%B[now_low]\n"
-                "    sbc %C[time_plus_past],%A[now_high]\n"
-                "    sbc %D[time_plus_past],%B[now_high]\n"
-                "    subi %A[time_plus_past],%[cpA]\n"
-                "    sbci %B[time_plus_past],%[cpB]\n"
-                "    sbci %C[time_plus_past],%[cpC]\n"
-                "    sbci %D[time_plus_past],%[cpD]\n"
-                "    sbc %[tmp],%[tmp]\n"
+                "    cp %A[now_low],%A[time]\n"
+                "    cpc %B[now_low],%B[time]\n"
+                "    cpc %A[now_high],%C[time]\n"
+                "    cpc %B[now_high],%D[time]\n"
+                "    in %[tmp],%[sreg]\n"
+                "    andi %[tmp],(1<<2)\n"
             : [now_low] "=&r" (now_low),
               [now_high] "=&d" (now_high),
-              [tmp] "=&d" (tmp),
-              [time_plus_past] "=&d" (time_plus_past)
+              [tmp] "=&d" (tmp)
             : "[now_high]" (now_high),
-              "[time_plus_past]" (time_plus_past),
+              [time] "r" (m_time),
               [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
               [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
               [tov1] "n" (TOV1),
-              [cpA] "n" ((past_plus_1 >> 0) & 0xFF),
-              [cpB] "n" ((past_plus_1 >> 8) & 0xFF),
-              [cpC] "n" ((past_plus_1 >> 16) & 0xFF),
-              [cpD] "n" ((past_plus_1 >> 24) & 0xFF)
+              [sreg] "n" (_SFR_IO_ADDR(SREG))
         );
         
-        if (AMBRO_LIKELY(tmp)) {
+        if (AMBRO_LIKELY(!tmp)) {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
             m_running = false;

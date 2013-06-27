@@ -77,13 +77,12 @@ public:
         
         while (1) {
             TimeType now = c.clock()->getTime(c);
-            TimeType ref = now - Clock::past;
             
             cli();
             m_now = now;
             for (QueuedEvent *ev = m_queued_event_list.first(); ev; ev = m_queued_event_list.next(ev)) {
                 AMBRO_ASSERT(!QueuedEventList::isRemoved(ev))
-                if ((TimeType)(ev->m_time - ref) < Clock::past) {
+                if ((TimeType)(now - ev->m_time) < UINT32_C(0x80000000)) {
                     m_queued_event_list.remove(ev);
                     QueuedEventList::markRemoved(ev);
                     sei();
