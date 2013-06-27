@@ -42,20 +42,20 @@ public:
         typename If<(Signed && NumBits < 8), int8_t,
         typename If<(Signed && NumBits < 16), int16_t,
 #ifdef AMBROLIB_AVR
-        typename If<(Signed && NumBits < 24), __int24,
+//        typename If<(Signed && NumBits < 24), __int24,
 #endif
         typename If<(Signed && NumBits < 32), int32_t,
         typename If<(Signed && NumBits < 64), int64_t,
         typename If<(!Signed && NumBits <= 8), uint8_t,
 #ifdef AMBROLIB_AVR
-        typename If<(!Signed && NumBits <= 24), __uint24,
+//        typename If<(!Signed && NumBits <= 24), __uint24,
 #endif
         typename If<(!Signed && NumBits <= 16), uint16_t,
         typename If<(!Signed && NumBits <= 32), uint32_t,
         typename If<(!Signed && NumBits <= 64), uint64_t,
         void>::Type>::Type>::Type>::Type>::Type>::Type>::Type>::Type
 #ifdef AMBROLIB_AVR
-        >::Type>::Type
+//        >::Type>::Type
 #endif
         Type;
 };

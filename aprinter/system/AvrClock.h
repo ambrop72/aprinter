@@ -281,9 +281,9 @@ public:
                 "    sbci %D[time_plus_past],%[cpD]\n"
                 "    sbc %[tmp],%[tmp]\n"
             : [now_low] "=&r" (now_low),
-              [now_high] "=&a" (now_high),
-              [tmp] "=&a" (tmp),
-              [time_plus_past] "=&a" (time_plus_past)
+              [now_high] "=&d" (now_high),
+              [tmp] "=&d" (tmp),
+              [time_plus_past] "=&d" (time_plus_past)
             : "[now_high]" (now_high),
               "[time_plus_past]" (time_plus_past),
               [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),

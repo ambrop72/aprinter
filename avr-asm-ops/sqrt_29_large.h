@@ -44,7 +44,6 @@
 "    sub %D[x],%B[goo]\n" \
 "    ori %B[goo],1<<(6-" #i ")\n" \
 "zero_bit_" #i "_%=:\n" \
-"    ldi %A[goo],0x80\n" \
 "    dec %B[goo]\n" \
 "    lsl %B[x]\n" \
 "    rol %C[x]\n" \
@@ -125,14 +124,16 @@
 /*
  * Square root 29-bit.
  * 
- * Cycles in worst case: 142
- * = 4 * 8 + 9 + 10 + 2 * 10 + 4 * 10 + 15 + 11 + 5
+ * Cycles in worst case: 143
+ * = 2 + 4 * 8 + 8 + 10 + 2 * 10 + 4 * 10 + 15 + 11 + 5
  */
 static inline uint16_t sqrt_29_large (uint32_t x)
 {
-    uint16_t goo = UINT16_C(0x1030);
+    uint16_t goo;
     
     asm(
+        "    ldi %A[goo],0x80\n"
+        "    ldi %B[goo],0x10\n"
         SQRT_29_ITER_1_4(1)
         SQRT_29_ITER_1_4(2)
         SQRT_29_ITER_1_4(3)
@@ -156,8 +157,7 @@ static inline uint16_t sqrt_29_large (uint32_t x)
         
         : [goo] "=&d" (goo),
           [x] "=&r" (x)
-        : "[x]" (x),
-          "[goo]" (goo)
+        : "[x]" (x)
     );
     
     return goo;
