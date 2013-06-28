@@ -187,7 +187,7 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
         
-        static const TimeType minus_clearance = -(TimeType)clearance;
+        static const TimeType minus_clearance = -clearance;
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             uint16_t now_high = lock_c.clock()->m_offset;
