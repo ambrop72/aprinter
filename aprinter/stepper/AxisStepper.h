@@ -295,37 +295,7 @@ private:
             AMBRO_ASSERT(m_start.value() != m_end.value())
         });
         
-        while (1) {
-            if (m_rel_x != m_current_command->x.bitsValue()) {
-                // imcrement position
-                m_rel_x++;
-                
-                // perform the step
-                stepper(this)->step(c);
-                
-                // compute product part of discriminant
-                auto s_prod = (m_current_command->a_mul * StepFixedType::importBits(m_rel_x)).template shift<2>();
-                
-                // compute discriminant. It is not negative because of the constraints and the exact computation.
-                auto s = m_current_command->v02 + s_prod;
-                AMBRO_ASSERT(s.bitsValue() >= 0)
-                
-                // compute the thing with the square root. It can be proved it's not zero.
-                auto q = (m_current_command->v0 + FixedSquareRoot(s)).template shift<-1>();
-                AMBRO_ASSERT(q.bitsValue() > 0)
-                
-                // compute solution as fraction of total time
-                auto t_frac = FixedFracDivide(StepFixedType::importBits(m_rel_x), q);
-                
-                // multiply by the time of this command, and drop fraction bits at the same time
-                TimeFixedType t = FixedResMultiply(m_current_command->t_mul, t_frac);
-                
-                // schedule next step
-                TimeType timer_t = m_current_command->clock_offset + t.bitsValue();
-                m_timer.set(c, timer_t);
-                return;
-            }
-            
+        if (m_rel_x == m_current_command->x.bitsValue()) {
             // reset step counter for next command
             m_rel_x = 0;
             
@@ -359,6 +329,33 @@ private:
                 return;
             }
         }
+        
+        // imcrement position
+        m_rel_x++;
+        
+        // perform the step
+        stepper(this)->step(c);
+        
+        // compute product part of discriminant
+        auto s_prod = (m_current_command->a_mul * StepFixedType::importBits(m_rel_x)).template shift<2>();
+        
+        // compute discriminant. It is not negative because of the constraints and the exact computation.
+        auto s = m_current_command->v02 + s_prod;
+        AMBRO_ASSERT(s.bitsValue() >= 0)
+        
+        // compute the thing with the square root. It can be proved it's not zero.
+        auto q = (m_current_command->v0 + FixedSquareRoot(s)).template shift<-1>();
+        AMBRO_ASSERT(q.bitsValue() > 0)
+        
+        // compute solution as fraction of total time
+        auto t_frac = FixedFracDivide(StepFixedType::importBits(m_rel_x), q);
+        
+        // multiply by the time of this command, and drop fraction bits at the same time
+        TimeFixedType t = FixedResMultiply(m_current_command->t_mul, t_frac);
+        
+        // schedule next step
+        TimeType timer_t = m_current_command->clock_offset + t.bitsValue();
+        m_timer.set(c, timer_t);
     }
     
     void avail_event_handler (Context c)
