@@ -67,7 +67,7 @@ static inline __uint24 mul_24_16_r16 (__uint24 op1, uint16_t op2)
 
         "clr __zero_reg__\n"
         
-        : [res] "=&r" (res),
+        : [res] "=&d" (res),
           [zero] "=&r" (zero),
           [low] "=&r" (low)
         : [op1] "r" (op1),

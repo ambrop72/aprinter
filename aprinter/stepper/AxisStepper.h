@@ -39,8 +39,8 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define AXIS_STEPPER_AMUL_EXPR(x, t, a) ((a).template shiftBits<(-2)>())
-#define AXIS_STEPPER_V0_EXPR(x, t, a) (((x).toSigned() - (a)).toUnsignedUnsafe())
+#define AXIS_STEPPER_AMUL_EXPR(x, t, a) (-(a).template shiftBits<(-2)>())
+#define AXIS_STEPPER_V0_EXPR(x, t, a) (((x).toSigned() + (a)).toUnsignedUnsafe())
 #define AXIS_STEPPER_V02_EXPR(x, t, a) ((AXIS_STEPPER_V0_EXPR((x), (t), (a)) * AXIS_STEPPER_V0_EXPR((x), (t), (a)))).toSigned()
 #define AXIS_STEPPER_TMUL_EXPR(x, t, a) ((t).template bitsTo<time_mul_bits>())
 
@@ -153,7 +153,7 @@ public:
         // compute the clock offset based on the last command. If not running start() will do it.
         if (m_running) {
             Command *last_cmd = &m_commands[buffer_last(m_end).value()];
-            cmd.clock_offset = last_cmd->clock_offset + last_cmd->t_plain;
+            cmd.clock_offset = last_cmd->clock_offset + cmd.t_plain;
         }
         
         // add command to queue
@@ -169,7 +169,7 @@ public:
         if (m_running && was_empty) {
             m_current_command = m_commands[m_start.value()];
             stepper(this)->setDir(c, m_current_command.dir);
-            TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? (m_current_command.clock_offset + m_current_command.t_plain) : m_current_command.clock_offset;
+            TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : (m_current_command.clock_offset - m_current_command.t_plain);
             m_timer.set(c, timer_t);
         }
     }
@@ -213,19 +213,18 @@ public:
         } else {
             TimeType clock_offset = start_time;
             for (BufferSizeType i = m_start; i != m_end; i = BoundedModuloInc(i)) {
-                m_commands[i.value()].clock_offset = clock_offset;
                 clock_offset += m_commands[i.value()].t_plain;
+                m_commands[i.value()].clock_offset = clock_offset;
             }
         }
         
         m_running = true;
-        m_rel_x = 0;
         
         // unless we don't have any commands, begin motion
         if (m_start != m_end) {
             m_current_command = m_commands[m_start.value()];
             stepper(this)->setDir(c, m_current_command.dir);
-            TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? (m_current_command.clock_offset + m_current_command.t_plain) : m_current_command.clock_offset;
+            TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : (m_current_command.clock_offset - m_current_command.t_plain);
             m_timer.set(c, timer_t);
         }
     }
@@ -278,6 +277,66 @@ private:
         TimeType clock_offset;
     };
     
+    void __attribute__((noinline)) next_command (typename TimerInstance::HandlerContext c)
+    {
+        bool run_out;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            // report avail event if we'll have enough buffer space
+            if (m_start == m_event) {
+                m_event = m_end;
+                m_avail_event.appendNowNotAlready(lock_c);
+            }
+            
+            // consume command
+            m_start = BoundedModuloInc(m_start);
+            
+            run_out = (m_start == m_end);
+        });
+        
+        // have we run out of commands?
+        if (run_out) {
+            return;
+        }
+        
+        // continue with next command
+        m_current_command = m_commands[m_start.value()];
+        stepper(this)->setDir(c, m_current_command.dir);
+        
+        // if this is a motionless command, wait
+        if (m_current_command.x.bitsValue() == 0) {
+            TimeType timer_t = m_current_command.clock_offset;
+            m_timer.set(c, timer_t);
+            return;
+        }
+        
+        // imcrement position
+        m_current_command.x.m_bits.m_int--;
+        
+        // perform the step
+        stepper(this)->step(c);
+        
+        // compute product part of discriminant
+        auto s_prod = (m_current_command.a_mul * m_current_command.x).template shift<2>();
+        
+        // compute discriminant. It is not negative because of the constraints and the exact computation.
+        auto s = m_current_command.v02 + s_prod;
+        AMBRO_ASSERT(s.bitsValue() >= 0)
+        
+        // compute the thing with the square root. It can be proved it's not zero.
+        auto q = (m_current_command.v0 + FixedSquareRoot(s)).template shift<-1>();
+        AMBRO_ASSERT(q.bitsValue() > 0)
+        
+        // compute solution as fraction of total time
+        auto t_frac = FixedFracDivide(m_current_command.x, q);
+        
+        // multiply by the time of this command, and drop fraction bits at the same time
+        TimeFixedType t = FixedResMultiply(m_current_command.t_mul, t_frac);
+        
+        // schedule next step
+        TimeType timer_t = m_current_command.clock_offset - t.bitsValue();
+        m_timer.set(c, timer_t);
+    }
+    
     void timer_handler (typename TimerInstance::HandlerContext c)
     {
         this->debugAccess(c);
@@ -286,10 +345,7 @@ private:
             AMBRO_ASSERT(m_start != m_end)
         });
         
-        if (m_rel_x == m_current_command.x.bitsValue()) {
-            // reset step counter for next command
-            m_rel_x = 0;
-            
+        if (m_current_command.x.bitsValue() == 0) {
             bool run_out;
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 // report avail event if we'll have enough buffer space
@@ -315,20 +371,20 @@ private:
             
             // if this is a motionless command, wait
             if (m_current_command.x.bitsValue() == 0) {
-                TimeType timer_t = m_current_command.clock_offset + m_current_command.t_plain;
+                TimeType timer_t = m_current_command.clock_offset;
                 m_timer.set(c, timer_t);
                 return;
             }
         }
         
         // imcrement position
-        m_rel_x++;
+        m_current_command.x.m_bits.m_int--;
         
         // perform the step
         stepper(this)->step(c);
         
         // compute product part of discriminant
-        auto s_prod = (m_current_command.a_mul * StepFixedType::importBits(m_rel_x)).template shift<2>();
+        auto s_prod = (m_current_command.a_mul * m_current_command.x).template shift<2>();
         
         // compute discriminant. It is not negative because of the constraints and the exact computation.
         auto s = m_current_command.v02 + s_prod;
@@ -339,13 +395,13 @@ private:
         AMBRO_ASSERT(q.bitsValue() > 0)
         
         // compute solution as fraction of total time
-        auto t_frac = FixedFracDivide(StepFixedType::importBits(m_rel_x), q);
+        auto t_frac = FixedFracDivide(m_current_command.x, q);
         
         // multiply by the time of this command, and drop fraction bits at the same time
         TimeFixedType t = FixedResMultiply(m_current_command.t_mul, t_frac);
         
         // schedule next step
-        TimeType timer_t = m_current_command.clock_offset + t.bitsValue();
+        TimeType timer_t = m_current_command.clock_offset - t.bitsValue();
         m_timer.set(c, timer_t);
     }
     
@@ -365,7 +421,6 @@ private:
     BufferSizeType m_end;
     BufferSizeType m_event;
     Command m_current_command;
-    typename StepFixedType::IntType m_rel_x;
     bool m_running;
     Lock m_lock;
     
