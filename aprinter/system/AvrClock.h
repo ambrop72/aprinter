@@ -266,8 +266,8 @@ public:
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         AMBRO_ASSERT(m_running)
         
-        uint16_t now_high = c.clock()->m_offset;
         uint16_t now_low;
+        uint16_t now_high = c.clock()->m_offset;
         uint8_t tmp;
         
         asm volatile (
@@ -281,12 +281,10 @@ public:
                 "    lds %A[now_low],%[tcnt1]+0\n"
                 "    lds %B[now_low],%[tcnt1]+1\n"
                 "no_overflow_%=:\n"
-                "    cp %A[now_low],%A[time]\n"
-                "    cpc %B[now_low],%B[time]\n"
-                "    cpc %A[now_high],%C[time]\n"
-                "    cpc %B[now_high],%D[time]\n"
-                "    in %[tmp],%[sreg]\n"
-                "    andi %[tmp],(1<<2)\n"
+                "    sub %A[now_low],%A[time]\n"
+                "    sbc %B[now_low],%B[time]\n"
+                "    sbc %A[now_high],%C[time]\n"
+                "    sbc %B[now_high],%D[time]\n"
             : [now_low] "=&r" (now_low),
               [now_high] "=&d" (now_high),
               [tmp] "=&d" (tmp)
@@ -294,11 +292,10 @@ public:
               [time] "r" (m_time),
               [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
               [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
-              [tov1] "n" (TOV1),
-              [sreg] "n" (_SFR_IO_ADDR(SREG))
+              [tov1] "n" (TOV1)
         );
         
-        if (AMBRO_LIKELY(!tmp)) {
+        if (now_high < UINT16_C(0x8000)) {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
             m_running = false;
