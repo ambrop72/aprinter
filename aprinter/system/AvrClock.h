@@ -175,7 +175,9 @@ public:
     {
         this->debugDeinit(c);
         
-        avrSoftClearBitReg<timsk_reg>(ocie_bit);
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            avrSoftClearBitReg<timsk_reg>(ocie_bit);
+        });
         m_lock.deinit(c);
     }
     
