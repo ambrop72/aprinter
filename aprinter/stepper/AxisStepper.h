@@ -222,7 +222,7 @@ public:
         m_rel_x = 0;
         
         // unless we don't have any commands, begin motion
-        if (m_start.value() != m_end.value()) {
+        if (m_start != m_end) {
             m_current_command = m_commands[m_start.value()];
             stepper(this)->setDir(c, m_current_command.dir);
             TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? (m_current_command.clock_offset + m_current_command.t_plain) : m_current_command.clock_offset;
@@ -283,7 +283,7 @@ private:
         this->debugAccess(c);
         AMBRO_ASSERT(m_running)
         AMBRO_LOCK_T(m_lock, c, lock_c, {
-            AMBRO_ASSERT(m_start.value() != m_end.value())
+            AMBRO_ASSERT(m_start != m_end)
         });
         
         if (m_rel_x == m_current_command.x.bitsValue()) {
