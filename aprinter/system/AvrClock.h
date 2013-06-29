@@ -298,11 +298,12 @@ public:
         );
         
         if (now_high < UINT16_C(0x8000)) {
-            avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
             m_running = false;
 #endif
-            Handler::call(this, c);
+            if (!Handler::call(this, c)) {
+                avrSoftClearBitReg<timsk_reg>(ocie_bit);
+            }
         }
     }
     

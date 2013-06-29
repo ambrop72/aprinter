@@ -32,6 +32,7 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/WrapCallback.h>
+#include <aprinter/meta/CopyUnrolled.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -337,7 +338,7 @@ private:
         m_timer.set(c, timer_t);
     }
     
-    void timer_handler (typename TimerInstance::HandlerContext c)
+    bool timer_handler (typename TimerInstance::HandlerContext c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_running)
@@ -362,18 +363,19 @@ private:
             
             // have we run out of commands?
             if (run_out) {
-                return;
+                return false;
             }
             
             // continue with next command
-            m_current_command = m_commands[m_start.value()];
+            //m_current_command = m_commands[m_start.value()];
+            CopyUnrolled<sizeof(Command)>(&m_current_command, &m_commands[m_start.value()]);
             stepper(this)->setDir(c, m_current_command.dir);
             
             // if this is a motionless command, wait
             if (m_current_command.x.bitsValue() == 0) {
                 TimeType timer_t = m_current_command.clock_offset;
                 m_timer.set(c, timer_t);
-                return;
+                return true;
             }
         }
         
@@ -403,6 +405,7 @@ private:
         // schedule next step
         TimeType timer_t = m_current_command.clock_offset - t.bitsValue();
         m_timer.set(c, timer_t);
+        return true;
     }
     
     void avail_event_handler (Context c)
