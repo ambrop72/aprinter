@@ -367,7 +367,6 @@ private:
             }
             
             // continue with next command
-            //m_current_command = m_commands[m_start.value()];
             CopyUnrolled<sizeof(Command)>(&m_current_command, &m_commands[m_start.value()]);
             stepper(this)->setDir(c, m_current_command.dir);
             
