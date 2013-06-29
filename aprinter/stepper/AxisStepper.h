@@ -168,9 +168,10 @@ public:
         
         // if we have run out of commands, continue motion
         if (m_running && was_empty) {
-            m_current_command = m_commands[m_start.value()];
-            stepper(this)->setDir(c, m_current_command.dir);
-            TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : (m_current_command.clock_offset - m_current_command.t_plain);
+            Command *cmd = &m_commands[m_start.value()];
+            stepper(this)->setDir(c, cmd->dir);
+            m_current_command = *cmd;
+            TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : (m_current_command.clock_offset - cmd->t_plain);
             m_timer.set(c, timer_t);
         }
     }
@@ -223,9 +224,10 @@ public:
         
         // unless we don't have any commands, begin motion
         if (m_start != m_end) {
-            m_current_command = m_commands[m_start.value()];
-            stepper(this)->setDir(c, m_current_command.dir);
-            TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : (m_current_command.clock_offset - m_current_command.t_plain);
+            Command *cmd = &m_commands[m_start.value()];
+            stepper(this)->setDir(c, cmd->dir);
+            m_current_command = *cmd;
+            TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : (m_current_command.clock_offset - cmd->t_plain);
             m_timer.set(c, timer_t);
         }
     }
@@ -267,15 +269,18 @@ private:
         return BoundedModuloSubtract(end, BufferSizeType::import(1));
     }
     
-    struct Command {
-        bool dir;
+    struct CurrentCommand {
         StepFixedType x;
-        TimeType t_plain;
         decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) a_mul;
         decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) v0;
         decltype(AXIS_STEPPER_V02_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) v02;
         decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) t_mul;
         TimeType clock_offset;
+    };
+    
+    struct Command : public CurrentCommand {
+        TimeType t_plain;
+        bool dir;
     };
     
     bool timer_handler (typename TimerInstance::HandlerContext c)
@@ -302,13 +307,14 @@ private:
             });
             
             // have we run out of commands?
-            if (run_out) {
+            if (AMBRO_UNLIKELY(run_out)) {
                 return false;
             }
             
             // continue with next command
-            CopyUnrolled<sizeof(Command)>(&m_current_command, &m_commands[m_start.value()]);
-            stepper(this)->setDir(c, m_current_command.dir);
+            Command *cmd = &m_commands[m_start.value()];
+            stepper(this)->setDir(c, cmd->dir);
+            CopyUnrolled<sizeof(CurrentCommand)>(&m_current_command, (CurrentCommand *)cmd);
             
             // if this is a motionless command, wait
             if (m_current_command.x.bitsValue() == 0) {
@@ -362,7 +368,7 @@ private:
     BufferSizeType m_start;
     BufferSizeType m_end;
     BufferSizeType m_event;
-    Command m_current_command;
+    CurrentCommand m_current_command;
     bool m_running;
     Lock m_lock;
     
