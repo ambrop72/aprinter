@@ -66,7 +66,7 @@
 #define COMMAND_BUFFER_BITS 4
 #define STEPPER_COMMAND_BUFFER_BITS 4
 #define NUM_MOVE_ITERS 4
-#define SPEED_T_SCALE (0.094*2.0)
+#define SPEED_T_SCALE (0.092*2.0)
 #define X_SCALE 1.0
 #define Y_SCALE 1.0
 #define STEPPERS \

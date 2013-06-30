@@ -43,11 +43,12 @@
 #define AXIS_STEPPER_AMUL_EXPR(x, t, a) (-(a).template shiftBits<(-2)>())
 #define AXIS_STEPPER_V0_EXPR(x, t, a) (((x).toSigned() + (a)).toUnsignedUnsafe())
 #define AXIS_STEPPER_V02_EXPR(x, t, a) ((AXIS_STEPPER_V0_EXPR((x), (t), (a)) * AXIS_STEPPER_V0_EXPR((x), (t), (a)))).toSigned()
+#define AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a) (AXIS_STEPPER_V02_EXPR(x, t, a) + ((AXIS_STEPPER_AMUL_EXPR(x, t, a) * (x)).template shift<2>()))
 #define AXIS_STEPPER_TMUL_EXPR(x, t, a) ((t).template bitsTo<time_mul_bits>())
 
 #define AXIS_STEPPER_AMUL_EXPR_HELPER(args) AXIS_STEPPER_AMUL_EXPR(args)
 #define AXIS_STEPPER_V0_EXPR_HELPER(args) AXIS_STEPPER_V0_EXPR(args)
-#define AXIS_STEPPER_V02_EXPR_HELPER(args) AXIS_STEPPER_V02_EXPR(args)
+#define AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(args) AXIS_STEPPER_DISCRIMINANT_EXPR(args)
 #define AXIS_STEPPER_TMUL_EXPR_HELPER(args) AXIS_STEPPER_TMUL_EXPR(args)
 
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
@@ -143,13 +144,13 @@ public:
         
         // compute the command parameters
         Command cmd;
-        cmd.dir = dir;
         cmd.x = x;
-        cmd.t_plain = t.bitsValue();
+        cmd.discriminant = AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a);
         cmd.a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
         cmd.v0 = AXIS_STEPPER_V0_EXPR(x, t, a);
-        cmd.v02 = AXIS_STEPPER_V02_EXPR(x, t, a);
         cmd.t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
+        cmd.t_plain = t.bitsValue();
+        cmd.dir = dir;
         
         // compute the clock offset based on the last command. If not running start() will do it.
         if (m_running) {
@@ -271,9 +272,9 @@ private:
     
     struct CurrentCommand {
         StepFixedType x;
+        decltype(AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) discriminant;
         decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) a_mul;
         decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) v0;
-        decltype(AXIS_STEPPER_V02_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) v02;
         decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) t_mul;
         TimeType clock_offset;
     };
@@ -324,21 +325,18 @@ private:
             }
         }
         
-        // imcrement position
-        m_current_command.x.m_bits.m_int--;
-        
         // perform the step
         stepper(this)->step(c);
         
-        // compute product part of discriminant
-        auto s_prod = (m_current_command.a_mul * m_current_command.x).template shift<2>();
+        // increment position
+        m_current_command.x.m_bits.m_int--;
         
-        // compute discriminant. It is not negative because of the constraints and the exact computation.
-        auto s = m_current_command.v02 + s_prod;
-        AMBRO_ASSERT(s.bitsValue() >= 0)
+        // increment discriminant. It's not zero because of constraints on acceleration.
+        m_current_command.discriminant.m_bits.m_int -= m_current_command.a_mul.m_bits.m_int;
+        AMBRO_ASSERT(m_current_command.discriminant.bitsValue() >= 0)
         
         // compute the thing with the square root. It can be proved it's not zero.
-        auto q = (m_current_command.v0 + FixedSquareRoot(s)).template shift<-1>();
+        auto q = (m_current_command.v0 + FixedSquareRoot(m_current_command.discriminant)).template shift<-1>();
         AMBRO_ASSERT(q.bitsValue() > 0)
         
         // compute solution as fraction of total time
