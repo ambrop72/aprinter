@@ -138,7 +138,7 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(m_event == m_end)
         AMBRO_ASSERT(!m_avail_event.isSet(c))
-        AMBRO_ASSERT(bufferQuery(c).value() > 0)
+        AMBRO_ASSERT(bufferGetAvail(c).value() > 0)
         AMBRO_ASSERT(a >= -x)
         AMBRO_ASSERT(a <= x)
         
