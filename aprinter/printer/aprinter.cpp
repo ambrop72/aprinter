@@ -31,7 +31,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define AMBROLIB_ABORT_ACTION { sei(); while (1); }
+#define AMBROLIB_ABORT_ACTION { cli(); while (1); }
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/base/DebugObject.h>
