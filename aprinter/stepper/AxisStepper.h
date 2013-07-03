@@ -335,9 +335,8 @@ private:
         m_current_command.discriminant.m_bits.m_int -= m_current_command.a_mul.m_bits.m_int;
         AMBRO_ASSERT(m_current_command.discriminant.bitsValue() >= 0)
         
-        // compute the thing with the square root. It can be proved it's not zero.
+        // compute the thing with the square root
         auto q = (m_current_command.v0 + FixedSquareRoot(m_current_command.discriminant)).template shift<-1>();
-        AMBRO_ASSERT(q.bitsValue() > 0)
         
         // compute solution as fraction of total time
         auto t_frac = FixedFracDivide(m_current_command.x, q);

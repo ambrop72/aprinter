@@ -36,7 +36,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <int NumBits1, bool Signed1, int NumBits2, bool Signed2, int LeftShift, int ResSatBits>
+template <int NumBits1, bool Signed1, int NumBits2, bool Signed2, int LeftShift, int ResSatBits, bool SupportZero>
 class IntDivide {
 public:
     static_assert(LeftShift >= 0, "LeftShift must be non-negative");
@@ -61,6 +61,11 @@ private:
     
     static ResType default_divide (Op1Type op1, Op2Type op2)
     {
+        if (SupportZero && op2 == 0) {
+            return (op1 < 0) ? -PowerOfTwoMinusOne<ResType, ResSatBits>::value :
+                   (op1 == 0) ? 0 :
+                   PowerOfTwoMinusOne<ResType, ResSatBits>::value;
+        }
         TempResType res = (((TempResType)op1 * PowerOfTwo<TempResType, LeftShift>::value) / (TempType2)op2);
         if (ResSatBits < NumBits1 + LeftShift) {
             if (res > PowerOfTwoMinusOne<ResType, ResSatBits>::value) {

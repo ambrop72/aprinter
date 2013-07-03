@@ -235,20 +235,20 @@ BoundedInt<(NumBits1 + NumBits2), (Signed1 || Signed2)> operator* (BoundedInt<Nu
     return BoundedMultiply<0>(op1, op2);
 }
 
-template <int LeftShift, int ResSatBits, int NumBits1, bool Signed1, int NumBits2, bool Signed2>
+template <int LeftShift, int ResSatBits, bool SupportZero, int NumBits1, bool Signed1, int NumBits2, bool Signed2>
 BoundedInt<ResSatBits, (Signed1 || Signed2)> BoundedDivide (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    AMBRO_ASSERT(op2.value() != 0)
+    AMBRO_ASSERT(!!SupportZero || op2.value() != 0)
     
     return BoundedInt<ResSatBits, (Signed1 || Signed2)>::import(
-        IntDivide<NumBits1, Signed1, NumBits2, Signed2, LeftShift, ResSatBits>::call(op1.value(), op2.value())
+        IntDivide<NumBits1, Signed1, NumBits2, Signed2, LeftShift, ResSatBits, SupportZero>::call(op1.value(), op2.value())
     );
 }
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
 BoundedInt<NumBits1, (Signed1 || Signed2)> operator/ (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    return BoundedDivide<0, NumBits1>(op1, op2);
+    return BoundedDivide<0, NumBits1, false>(op1, op2);
 }
 
 template <int NumBits, bool Signed>
