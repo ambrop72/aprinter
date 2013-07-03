@@ -246,9 +246,9 @@ typename FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::Result
 }
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
-typename FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ResultType operator- (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+typename FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, true, Exp2>::ResultType operator- (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
-    return FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::call(op1, -op2);
+    return FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, true, Exp2>::call(op1, -op2);
 }
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2, int LeftShiftBits, int ResSatBits, bool SupportZero>

@@ -215,10 +215,10 @@ BoundedInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)> operator+ (Bound
 }
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
-BoundedInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)> operator- (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+BoundedInt<(max(NumBits1, NumBits2) + 1), true> operator- (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    using TempType = typename ChooseInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)>::Type;
-    return BoundedInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)>::import((TempType)op1.value() - (TempType)op2.value());
+    using TempType = typename ChooseInt<(max(NumBits1, NumBits2) + 1), true>::Type;
+    return BoundedInt<(max(NumBits1, NumBits2) + 1), true>::import((TempType)op1.value() - (TempType)op2.value());
 }
 
 template <int RightShift, int NumBits1, bool Signed1, int NumBits2, bool Signed2>
