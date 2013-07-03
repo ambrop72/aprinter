@@ -221,9 +221,9 @@ private:
         AMBRO_ASSERT(m_axis_stepper.bufferGetAvail(c).value() > 0)
         
         Command *cmd = m_command_buffer.readerGetPtr(c, m_backlog);
-        AMBRO_ASSERT(cmd->x_pos >= StepFixedType::import(0))
+        AMBRO_ASSERT(cmd->x_pos >= StepFixedType::importBits(0))
         AMBRO_ASSERT(cmd->x_pos <= cmd->x)
-        AMBRO_ASSERT(cmd->t_pos >= TimeFixedType::import(0))
+        AMBRO_ASSERT(cmd->t_pos >= TimeFixedType::importBits(0))
         AMBRO_ASSERT(cmd->t_pos <= cmd->t)
         
         StepFixedType new_x;
