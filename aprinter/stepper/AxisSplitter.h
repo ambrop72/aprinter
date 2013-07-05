@@ -51,7 +51,7 @@ public:
 private:
     static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 4;
     static const int time_bits = MyAxisStepper::TimeFixedType::num_bits + 6;
-    static const int gt_frac_square_shift = 10;
+    static const int gt_frac_square_bits = step_bits + 1;
     
 public:
     using Clock = typename Context::Clock;
@@ -313,7 +313,7 @@ private:
         
             // compute acceleration for the stepper command
             auto gt_frac = FixedFracDivide(rel_t, cmd->all_t);
-            auto gt_frac2 = (gt_frac * gt_frac).template shiftBits<gt_frac_square_shift>();
+            auto gt_frac2 = (gt_frac * gt_frac).template bitsDown<gt_frac_square_bits>();
             AccelFixedType a = FixedResMultiply(-cmd->a, gt_frac2);
             if (a < -rel_x) {
                 rel_a = -rel_x;
