@@ -91,7 +91,7 @@ public:
         m_avail_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisSplitter::m_avail_event, &AxisSplitter::avail_event_handler));
         m_event_amount = BufferSizeType::maxValue();
         m_backlog = BufferSizeType::import(0);
-        m_stepper_nbacklog = StepperBufferSizeType::maxValue();
+        m_stepper_avail = StepperBufferSizeType::maxValue();
         
         this->debugInit(c);
     }
@@ -115,7 +115,7 @@ public:
         m_axis_stepper.clearBuffer(c);
         m_command_buffer.clear(c);
         m_backlog = BufferSizeType::import(0);
-        m_stepper_nbacklog = StepperBufferSizeType::maxValue();
+        m_stepper_avail = StepperBufferSizeType::maxValue();
     }
     
     BufferSizeType bufferGetAvail (Context c)
@@ -340,7 +340,7 @@ private:
         
         // send a stepper command
         m_axis_stepper.bufferProvide(c, cmd->dir, rel_x, rel_t, rel_a);
-        m_stepper_nbacklog = BoundedModuloDec(m_stepper_nbacklog);
+        m_stepper_avail = BoundedModuloDec(m_stepper_avail);
         
         // update our command
         cmd->x = new_x;
@@ -363,11 +363,11 @@ private:
         StepperBufferSizeType stepbuf_avail = m_axis_stepper.bufferGetAvail(c);
         while (m_backlog.value() > 0) {
             Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
-            if (stepbuf_avail < BoundedModuloAdd(m_stepper_nbacklog, backlock_cmd->num_cmds)) {
+            if (stepbuf_avail < BoundedModuloAdd(m_stepper_avail, backlock_cmd->num_cmds)) {
                 break;
             }
             m_backlog = BoundedModuloDec(m_backlog);
-            m_stepper_nbacklog = BoundedModuloAdd(m_stepper_nbacklog, backlock_cmd->num_cmds);
+            m_stepper_avail = BoundedModuloAdd(m_stepper_avail, backlock_cmd->num_cmds);
             m_command_buffer.readerConsume(c);
         }
         
@@ -380,7 +380,7 @@ private:
             m_axis_stepper.bufferRequestEvent(c);
         } else if (m_backlog.value() > 0) {
             Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
-            StepperBufferSizeType event_cmds = BoundedModuloAdd(m_stepper_nbacklog, backlock_cmd->num_cmds);
+            StepperBufferSizeType event_cmds = BoundedModuloAdd(m_stepper_avail, backlock_cmd->num_cmds);
             m_axis_stepper.bufferRequestEvent(c, event_cmds);
         }
         
@@ -410,7 +410,7 @@ private:
     typename Loop::QueuedEvent m_avail_event;
     BufferSizeType m_event_amount;
     BufferSizeType m_backlog;
-    StepperBufferSizeType m_stepper_nbacklog;
+    StepperBufferSizeType m_stepper_avail;
     
     struct StepperAvailHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::axis_stepper_avail_handler, &AxisSplitter::m_axis_stepper) {};
     struct MyGetStepper : public AMBRO_WCALLBACK_TD(&AxisSplitter::my_get_stepper_handler, &AxisSplitter::m_axis_stepper) {};
