@@ -174,15 +174,15 @@ public:
     void bufferRequestEvent (Context c, BufferSizeType min_amount)
     {
         this->debugAccess(c);
+        AMBRO_ASSERT(m_event == m_end)
+        AMBRO_ASSERT(!m_avail_event.isSet(c))
         AMBRO_ASSERT(min_amount.value() > 0)
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             if (buffer_avail(m_start, m_end) >= min_amount) {
-                m_event = m_end;
                 m_avail_event.prependNow(lock_c);
             } else {
                 m_event = BoundedModuloAdd(m_end, min_amount);
-                m_avail_event.unset(lock_c);
             }
         });
     }

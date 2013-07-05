@@ -154,6 +154,7 @@ public:
         m_command_buffer.writerProvide(c);
         
         if (m_axis_stepper.isRunning(c) && was_empty) {
+            m_axis_stepper.bufferCancelEvent(c);
             m_axis_stepper.bufferRequestEvent(c, StepperBufferSizeType::import(1));
         }
     }
