@@ -22,16 +22,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_AXIS_SPLITTER_
-#define AMBROLIB_AXIS_SPLITTER_
+#ifndef AMBROLIB_AXIS_SPLITTER_H
+#define AMBROLIB_AXIS_SPLITTER_H
 
 #include <stdint.h>
-#include <math.h>
 
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/FixedPoint.h>
-#include <aprinter/meta/WrapCallback.h>
-#include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/WrapCallback.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -44,13 +41,12 @@ template <typename Context, int BufferBits, int StepperBufferBits, typename MySt
 class AxisSplitter : private DebugObject<Context, void> {
 private:
     using Loop = typename Context::EventLoop;
-    using Clock = typename Context::Clock;
     
     struct AxisStepperAvailHandler;
-    struct MyGetStepperHandler;
+    struct MyGetStepper;
     
 public:
-    using MyAxisStepper = AxisStepper<Context, StepperBufferBits, MyStepper, MyGetStepperHandler, StepperTimer, AxisStepperAvailHandler>;
+    using MyAxisStepper = AxisStepper<Context, StepperBufferBits, MyStepper, MyGetStepper, StepperTimer, AxisStepperAvailHandler>;
     
 private:
     static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 4;
@@ -58,6 +54,7 @@ private:
     static const int gt_frac_square_shift = 10;
     
 public:
+    using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
@@ -416,7 +413,7 @@ private:
     StepperBufferSizeType m_stepper_nbacklog;
     
     struct AxisStepperAvailHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::axis_stepper_avail_handler, &AxisSplitter::m_axis_stepper) {};
-    struct MyGetStepperHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::my_get_stepper_handler, &AxisSplitter::m_axis_stepper) {};
+    struct MyGetStepper : public AMBRO_WCALLBACK_TD(&AxisSplitter::my_get_stepper_handler, &AxisSplitter::m_axis_stepper) {};
 };
 
 #include <aprinter/EndNamespace.h>
