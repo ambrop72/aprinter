@@ -42,11 +42,11 @@ class AxisSplitter : private DebugObject<Context, void> {
 private:
     using Loop = typename Context::EventLoop;
     
-    struct AxisStepperAvailHandler;
+    struct StepperAvailHandler;
     struct MyGetStepper;
     
 public:
-    using MyAxisStepper = AxisStepper<Context, StepperBufferBits, MyStepper, MyGetStepper, StepperTimer, AxisStepperAvailHandler>;
+    using MyAxisStepper = AxisStepper<Context, StepperBufferBits, MyStepper, MyGetStepper, StepperTimer, StepperAvailHandler>;
     
 private:
     static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 4;
@@ -412,7 +412,7 @@ private:
     BufferSizeType m_backlog;
     StepperBufferSizeType m_stepper_nbacklog;
     
-    struct AxisStepperAvailHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::axis_stepper_avail_handler, &AxisSplitter::m_axis_stepper) {};
+    struct StepperAvailHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::axis_stepper_avail_handler, &AxisSplitter::m_axis_stepper) {};
     struct MyGetStepper : public AMBRO_WCALLBACK_TD(&AxisSplitter::my_get_stepper_handler, &AxisSplitter::m_axis_stepper) {};
 };
 
