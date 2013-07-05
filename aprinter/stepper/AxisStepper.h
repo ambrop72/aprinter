@@ -127,12 +127,6 @@ public:
         return buffer_avail(start, m_end);
     }
     
-    void bufferProvideTest (Context c, bool dir, float x, float t, float ha)
-    {
-        float step_length = 0.0125;
-        bufferProvide(c, dir, StepFixedType::importDouble(x / step_length), TimeFixedType::importDouble(t / Clock::time_unit), AccelFixedType::importDouble(ha / step_length));
-    }
-    
     void bufferProvide (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
     {
         this->debugAccess(c);
