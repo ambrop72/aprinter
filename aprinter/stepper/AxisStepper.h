@@ -171,7 +171,7 @@ public:
         }
     }
     
-    void bufferRequestEvent (Context c, BufferSizeType min_amount = BufferSizeType::import(1))
+    void bufferRequestEvent (Context c, BufferSizeType min_amount)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(min_amount.value() > 0)

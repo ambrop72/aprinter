@@ -154,7 +154,7 @@ public:
         m_command_buffer.writerProvide(c);
         
         if (m_axis_stepper.isRunning(c) && was_empty) {
-            m_axis_stepper.bufferRequestEvent(c);
+            m_axis_stepper.bufferRequestEvent(c, StepperBufferSizeType::import(1));
         }
     }
     
@@ -192,7 +192,7 @@ public:
         }
         
         m_axis_stepper.start(c, start_time);
-        m_axis_stepper.bufferRequestEvent(c);
+        m_axis_stepper.bufferRequestEvent(c, StepperBufferSizeType::import(1));
     }
     
     void stop (Context c)
@@ -378,7 +378,7 @@ private:
         }
         
         if (m_backlog < m_command_buffer.readerGetAvail(c)) {
-            m_axis_stepper.bufferRequestEvent(c);
+            m_axis_stepper.bufferRequestEvent(c, StepperBufferSizeType::import(1));
         } else if (m_backlog.value() > 0) {
             Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
             StepperBufferSizeType event_cmds = BoundedModuloAdd(m_stepper_avail, backlock_cmd->num_cmds);
