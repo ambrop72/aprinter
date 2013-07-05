@@ -167,7 +167,6 @@ public:
         AMBRO_ASSERT(min_amount.value() > 0)
         
         if (m_command_buffer.writerGetAvail(c) >= min_amount) {
-            m_event_amount = BufferSizeType::maxValue();
             m_avail_event.prependNow(c);
         } else {
             m_event_amount = BoundedModuloDec(min_amount);
