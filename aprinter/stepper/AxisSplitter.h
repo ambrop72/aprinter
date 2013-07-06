@@ -359,18 +359,14 @@ private:
         }
     }
     
-    void axis_stepper_avail_handler (Context c)
+    void clean_up_backlog (Context c)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(m_axis_stepper.bufferGetAvail(c).value() > 0)
+        StepperBufferSizeType new_avail = m_axis_stepper.bufferGetAvail(c);
         
-        // clean up backlog
-        StepperBufferSizeType stepbuf_avail = m_axis_stepper.bufferGetAvail(c);
         while (m_backlog.value() > 0) {
             Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
-            if (stepbuf_avail < BoundedUnsafeAdd(m_stepper_avail, backlock_cmd->num_cmds)) {
-                StepperBufferSizeType consume = BoundedUnsafeSubtract(stepbuf_avail, m_stepper_avail);
+            if (new_avail < BoundedUnsafeAdd(m_stepper_avail, backlock_cmd->num_cmds)) {
+                StepperBufferSizeType consume = BoundedUnsafeSubtract(new_avail, m_stepper_avail);
                 backlock_cmd->num_cmds = BoundedModuloSubtract(backlock_cmd->num_cmds, consume);
                 m_stepper_avail = BoundedUnsafeAdd(m_stepper_avail, consume);
                 break;
@@ -379,7 +375,17 @@ private:
             m_stepper_avail = BoundedUnsafeAdd(m_stepper_avail, backlock_cmd->num_cmds);
             m_command_buffer.readerConsume(c);
         }
-        AMBRO_ASSERT(m_stepper_avail == stepbuf_avail)
+        
+        AMBRO_ASSERT(m_stepper_avail == new_avail)
+    }
+    
+    void axis_stepper_avail_handler (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        AMBRO_ASSERT(m_axis_stepper.bufferGetAvail(c).value() > 0)
+        
+        clean_up_backlog(c);
         
         // possibly send a stepper command
         if (m_backlog < m_command_buffer.readerGetAvail(c)) {
