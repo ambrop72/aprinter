@@ -289,6 +289,36 @@ BoundedInt<NumBits, false> BoundedModuloDec (BoundedInt<NumBits, false> op)
     return BoundedInt<NumBits, false>::import((typename BoundedInt<NumBits, false>::IntType)(op.value() - 1) & BoundedInt<NumBits, false>::maxIntValue());
 }
 
+template <int NumBits, bool Signed>
+BoundedInt<NumBits, Signed> BoundedUnsafeAdd (BoundedInt<NumBits, Signed> op1, BoundedInt<NumBits, Signed> op2)
+{
+    return BoundedInt<NumBits, Signed>::import((typename BoundedInt<NumBits, Signed>::IntType)(op1.value() + op2.value()));
+}
+
+template <int NumBits, bool Signed>
+BoundedInt<NumBits, Signed> BoundedUnsafeSubtract (BoundedInt<NumBits, Signed> op1, BoundedInt<NumBits, Signed> op2)
+{
+    return BoundedInt<NumBits, Signed>::import((typename BoundedInt<NumBits, Signed>::IntType)(op1.value() - op2.value()));
+}
+
+template <int NumBits>
+BoundedInt<NumBits, true> BoundedUnsafeNegative (BoundedInt<NumBits, true> op)
+{
+    return BoundedInt<NumBits, true>::import((typename BoundedInt<NumBits, true>::IntType)(-op.value()));
+}
+
+template <int NumBits, bool Signed>
+BoundedInt<NumBits, Signed> BoundedUnsafeInc (BoundedInt<NumBits, Signed> op)
+{
+    return BoundedInt<NumBits, Signed>::import((typename BoundedInt<NumBits, Signed>::IntType)(op.value() + 1));
+}
+
+template <int NumBits, bool Signed>
+BoundedInt<NumBits, Signed> BoundedUnsafeDec (BoundedInt<NumBits, Signed> op)
+{
+    return BoundedInt<NumBits, Signed>::import((typename BoundedInt<NumBits, Signed>::IntType)(op.value() - 1));
+}
+
 #include <aprinter/EndNamespace.h>
 
 #endif
