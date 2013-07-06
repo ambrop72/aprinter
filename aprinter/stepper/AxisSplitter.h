@@ -144,8 +144,8 @@ public:
         
         Command *cmd = m_command_buffer.writerGetPtr(c);
         cmd->dir = dir;
-        cmd->a = -a;
-        cmd->v0 = (x - cmd->a).toUnsignedUnsafe();
+        cmd->a = a;
+        cmd->v0 = (x + a).toUnsignedUnsafe();
         cmd->v02 = cmd->v0 * cmd->v0;
         cmd->all_t = t;
         cmd->x = x;
@@ -236,7 +236,7 @@ private:
             new_t = TimeFixedType::importBits(0);
             rel_x = StepperStepType::importBits(cmd->x.bitsValue());
             rel_t = StepperTimeType::importBits(cmd->t.bitsValue());
-            rel_a = StepperAccelType::importBits(-cmd->a.bitsValue());
+            rel_a = StepperAccelType::importBits(cmd->a.bitsValue());
         } else {
             // limit distance
             bool second_try = false;
@@ -251,8 +251,8 @@ private:
                 AMBRO_ASSERT(new_x < cmd->x)
                 
                 // compute discriminant
-                auto discriminant = cmd->v02 + (cmd->a * new_x).template shift<2>();
-                AMBRO_ASSERT(discriminant.bitsValue() >= 0) // proof based on -x<=a<=x and 0<new_x<x
+                auto discriminant = cmd->v02 - (cmd->a * new_x).template shift<2>();
+                AMBRO_ASSERT(discriminant.bitsValue() >= 0) // proof based on -x<=a<=x and 0<=new_x<=x
                 
                 // compute the thing with the square root
                 auto q = (cmd->v0 + FixedSquareRoot(discriminant)).template shift<-1>();
@@ -277,45 +277,47 @@ private:
                 // if we're here the second time because the recomputed time turned out larger than we wanted,
                 // stop to avoid getting caught in an infinite loop
                 if (second_try) {
+                    AMBRO_ASSERT(new_x < cmd->x)
+                    new_x.m_bits.m_int++;
                     goto out;
                 }
                 
-                // compute time as a fraction of total time
-                auto t_frac = FixedFracDivide(new_t, cmd->all_t);
-                
-                // compute distance for this time
-                auto res = FixedResMultiply(t_frac, cmd->v0 + FixedResMultiply(cmd->a, t_frac));
-                StepFixedType calc_x = res.template dropBitsSaturated<StepFixedType::num_bits, StepFixedType::is_signed>();
-                
-                // increment this by one, this should avoid the time exceeding the limit after recomputation
-                if (calc_x < StepFixedType::maxValue()) {
-                    calc_x.m_bits.m_int++;
-                }
-                
-                // update distance, making sure it's in range
-                if (calc_x < new_x) {
-                    calc_x = new_x;
-                } else if (calc_x > cmd->x) {
-                    calc_x = cmd->x;
-                }
-                new_x = calc_x;
-                
-                // recompute time from distance unless distance is at a limit value
-                if (new_x < cmd->x) {
+                if (new_x != cmd->x) {
+                    // compute time as a fraction of total time
+                    auto t_frac = FixedFracDivide(new_t, cmd->all_t);
+                    
+                    // compute distance for this time
+                    auto res = FixedResMultiply(t_frac, cmd->v0 - FixedResMultiply(cmd->a, t_frac));
+                    StepFixedType calc_x = res.template dropBitsSaturated<StepFixedType::num_bits, StepFixedType::is_signed>();
+                    
+                    // increment this by one, this should avoid the time exceeding the limit after recomputation
+                    if (calc_x < StepFixedType::maxValue()) {
+                        calc_x.m_bits.m_int++;
+                    }
+                    
+                    // update distance
+                    if (calc_x < new_x) {
+                        calc_x = new_x;
+                    } else if (calc_x >= cmd->x) {
+                        calc_x = StepFixedType::importBits(cmd->x.bitsValue() - 1);
+                    }
+                    new_x = calc_x;
+                    
+                    // recompute time from distance
                     second_try = true;
                     goto compute_time;
                 }
             }
             
-        out:;
+        out:
             // compute rel_x and rel_t
             rel_x = StepperStepType::importBits(cmd->x.bitsValue() - new_x.bitsValue());
             rel_t = StepperTimeType::importBits(cmd->t.bitsValue() - new_t.bitsValue());
-        
+            
             // compute acceleration for the stepper command
             auto gt_frac = FixedFracDivide(rel_t, cmd->all_t);
             auto gt_frac2 = (gt_frac * gt_frac).template bitsDown<gt_frac_square_bits>();
-            AccelFixedType a = FixedResMultiply(-cmd->a, gt_frac2);
+            AccelFixedType a = FixedResMultiply(cmd->a, gt_frac2);
             if (a < -rel_x) {
                 rel_a = -rel_x;
             } else if (a > rel_x) {
