@@ -288,12 +288,14 @@ private:
                     
                     // compute distance for this time
                     auto res = FixedResMultiply(t_frac, cmd->v0 - FixedResMultiply(cmd->a, t_frac));
-                    StepFixedType calc_x = res.template dropBitsSaturated<StepFixedType::num_bits, StepFixedType::is_signed>();
                     
-                    // increment this by one, this should avoid the time exceeding the limit after recomputation
-                    if (calc_x < StepFixedType::maxValue()) {
-                        calc_x.m_bits.m_int++;
-                    }
+                    // add one. This ensures our result of the above polynomial evaluation is always greater
+                    // or equal to the precise value (error in t_frac not considered).
+                    // To prove this, take into account that the error of FixedResMultiply is in (-1, 0].
+                    res.m_bits.m_int++;
+                    
+                    // convert to StepFixedType
+                    StepFixedType calc_x = res.template dropBitsSaturated<StepFixedType::num_bits, StepFixedType::is_signed>();
                     
                     // update distance
                     if (calc_x < new_x) {
@@ -336,9 +338,9 @@ private:
         AMBRO_ASSERT(rel_a >= -rel_x)
         AMBRO_ASSERT(rel_a <= rel_x)
         
-        // This statement has also been proven. It implies that  a command is complete
+        // This statement has also been proven. It implies that a command is complete
         // after finitely many stepper commands have been generated from it.
-        // In words: if 'x' stayed the same, then either 't' increased, or the command is complete.
+        // In words: if 'x' stayed the same, then either 't' decreased, or the command is complete.
         AMBRO_ASSERT(!(new_x == cmd->x) || (new_t < cmd->t || (new_x.bitsValue() == 0 && new_t.bitsValue() == 0)))
         
         // send a stepper command
