@@ -169,7 +169,7 @@ public:
         if (m_command_buffer.writerGetAvail(c) >= min_amount) {
             m_avail_event.prependNow(c);
         } else {
-            m_event_amount = BoundedModuloDec(min_amount);
+            m_event_amount = BoundedUnsafeDec(min_amount);
         }
     }
     
@@ -343,16 +343,16 @@ private:
         
         // send a stepper command
         m_axis_stepper.bufferProvide(c, cmd->dir, rel_x, rel_t, rel_a);
-        m_stepper_avail = BoundedModuloDec(m_stepper_avail);
+        m_stepper_avail = BoundedUnsafeDec(m_stepper_avail);
         
         // update our command
         cmd->x = new_x;
         cmd->t = new_t;
-        cmd->num_cmds = BoundedModuloInc(cmd->num_cmds);
+        cmd->num_cmds = BoundedUnsafeInc(cmd->num_cmds);
         
         // possibly complete our command 
         if (cmd->x.bitsValue() == 0 && cmd->t.bitsValue() == 0) {
-            m_backlog = BoundedModuloInc(m_backlog);
+            m_backlog = BoundedUnsafeInc(m_backlog);
         }
     }
     
@@ -366,11 +366,11 @@ private:
         StepperBufferSizeType stepbuf_avail = m_axis_stepper.bufferGetAvail(c);
         while (m_backlog.value() > 0) {
             Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
-            if (stepbuf_avail < BoundedModuloAdd(m_stepper_avail, backlock_cmd->num_cmds)) {
+            if (stepbuf_avail < BoundedUnsafeAdd(m_stepper_avail, backlock_cmd->num_cmds)) {
                 break;
             }
-            m_backlog = BoundedModuloDec(m_backlog);
-            m_stepper_avail = BoundedModuloAdd(m_stepper_avail, backlock_cmd->num_cmds);
+            m_backlog = BoundedUnsafeDec(m_backlog);
+            m_stepper_avail = BoundedUnsafeAdd(m_stepper_avail, backlock_cmd->num_cmds);
             m_command_buffer.readerConsume(c);
         }
         
@@ -383,7 +383,7 @@ private:
             m_axis_stepper.bufferRequestEvent(c, StepperBufferSizeType::import(1));
         } else if (m_backlog.value() > 0) {
             Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
-            StepperBufferSizeType event_cmds = BoundedModuloAdd(m_stepper_avail, backlock_cmd->num_cmds);
+            StepperBufferSizeType event_cmds = BoundedUnsafeAdd(m_stepper_avail, backlock_cmd->num_cmds);
             m_axis_stepper.bufferRequestEvent(c, event_cmds);
         }
         
