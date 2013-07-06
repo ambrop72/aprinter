@@ -67,7 +67,7 @@
 #define STEPPER_COMMAND_BUFFER_BITS 4
 #define NUM_MOVE_ITERS 4
 #define SPEED_T_SCALE (0.092*2.0)
-#define X_SCALE 1.0
+#define X_SCALE 1.5
 #define Y_SCALE 1.0
 #define STEPPERS \
     MakeTypeList< \
@@ -172,7 +172,7 @@ static void add_commands0 (MyContext c)
 {
     static const int num_cmds = 6;
     static_assert(PowerOfTwoMinusOne<size_t, COMMAND_BUFFER_BITS>::value >= num_cmds, "");
-    float t_scale = SPEED_T_SCALE;
+    float t_scale = SPEED_T_SCALE * X_SCALE;
     axis_splitter0.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
     axis_splitter0.bufferAddCommandTest(c, true, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
     axis_splitter0.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
@@ -189,7 +189,7 @@ static void add_commands1 (MyContext c)
 {
     static const int num_cmds = 8;
     static_assert(PowerOfTwoMinusOne<size_t, COMMAND_BUFFER_BITS>::value >= num_cmds, "");
-    float t_scale = SPEED_T_SCALE;
+    float t_scale = SPEED_T_SCALE * Y_SCALE;
     axis_splitter1.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
     axis_splitter1.bufferAddCommandTest(c, true, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
     axis_splitter1.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
