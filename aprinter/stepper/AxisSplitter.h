@@ -167,7 +167,7 @@ public:
         AMBRO_ASSERT(min_amount.value() > 0)
         
         if (m_command_buffer.writerGetAvail(c) >= min_amount) {
-            m_avail_event.prependNow(c);
+            m_avail_event.prependNowNotAlready(c);
         } else {
             m_event_amount = BoundedUnsafeDec(min_amount);
         }
@@ -403,7 +403,7 @@ private:
         // possibly send avail event to user
         if (m_command_buffer.writerGetAvail(c) > m_event_amount) {
             m_event_amount = BufferSizeType::maxValue();
-            m_avail_event.prependNow(c);
+            m_avail_event.prependNowNotAlready(c);
         }
     }
     
