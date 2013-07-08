@@ -30,7 +30,6 @@
 
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/FixedPoint.h>
-#include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/WrapCallback.h>
 #include <aprinter/meta/CopyUnrolled.h>
 #include <aprinter/base/DebugObject.h>
@@ -53,9 +52,9 @@
 
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
-template <typename Context, int CommandBufferBits, typename Stepper, typename GetStepper, template<typename, typename> class Timer, typename AvailHandler>
+template <typename Context, int CommandBufferBits, typename Stepper, typename GetStepper, template<typename, typename> class Timer, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler>
 class AxisStepper
-: private DebugObject<Context, AxisStepper<Context, CommandBufferBits, Stepper, GetStepper, Timer, AvailHandler>>
+: private DebugObject<Context, void>
 {
     static_assert(CommandBufferBits >= 2, "");
     
@@ -74,9 +73,8 @@ private:
     
     struct TimerHandler;
     
-    using TimerInstance = Timer<Context, TimerHandler>;
-    
 public:
+    using TimerInstance = Timer<Context, TimerHandler>;
     using TimeType = typename Clock::TimeType;
     using BufferSizeType = BoundedInt<CommandBufferBits, false>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
@@ -85,58 +83,90 @@ public:
     
     void init (Context c)
     {
-        m_timer.init(c);
-        m_avail_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisStepper::m_avail_event, &AxisStepper::avail_event_handler));
-        m_running = false;
-        m_start = BufferSizeType::import(0);
-        m_end = BufferSizeType::import(0);
-        m_event = m_end;
+        m_pull_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisStepper::m_pull_event, &AxisStepper::pull_event_handler));
+        m_full_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisStepper::m_full_event, &AxisStepper::full_event_handler));
+        m_empty_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisStepper::m_empty_event, &AxisStepper::empty_event_handler));
         m_lock.init(c);
+        m_timer.init(c);
+        m_running = false;
+        
         this->debugInit(c);
     }
     
     void deinit (Context c)
     {
         this->debugDeinit(c);
-        m_lock.deinit(c);
-        m_avail_event.deinit(c);
+        
         m_timer.deinit(c);
+        m_lock.deinit(c);
+        m_empty_event.deinit(c);
+        m_full_event.deinit(c);
+        m_pull_event.deinit(c);
     }
     
-    void clearBuffer (Context c)
+    void start (Context c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
-        AMBRO_ASSERT(m_event == m_end)
-        AMBRO_ASSERT(!m_avail_event.isSet(c))
         
+        m_running = true;
+        m_stepping = false;
+        m_pulling = false;
         m_start = BufferSizeType::import(0);
         m_end = BufferSizeType::import(0);
-        m_event = m_end;
+        m_pull_event.prependNowNotAlready(c);
     }
     
-    BufferSizeType bufferGetAvail (Context c)
+    void stop (Context c)
     {
         this->debugAccess(c);
+        AMBRO_ASSERT(m_running)
         
-        BufferSizeType start;
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
-            start = m_start;
-        });
-        
-        return buffer_avail(start, m_end);
+        m_timer.unset(c);
+        m_empty_event.unset(c);
+        m_full_event.unset(c);
+        m_pull_event.unset(c);
+        m_running = false;
     }
     
-    void bufferProvide (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
+    void startStepping (Context c, TimeType start_time)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(m_event == m_end)
-        AMBRO_ASSERT(!m_avail_event.isSet(c))
-        AMBRO_ASSERT(bufferGetAvail(c).value() > 0)
+        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(!m_stepping)
+        
+        if (m_start == m_end) {
+            Command *last_cmd = &m_commands[buffer_last(m_end).value()];
+            last_cmd->clock_offset = start_time;
+        } else {
+            TimeType clock_offset = start_time;
+            for (BufferSizeType i = m_start; i != m_end; i = BoundedModuloInc(i)) {
+                clock_offset += m_commands[i.value()].t_plain;
+                m_commands[i.value()].clock_offset = clock_offset;
+            }
+        }
+        
+        m_stepping = true;
+        m_full_event.unset(c);
+        
+        if (m_start != m_end) {
+            start_first_command(c);
+        } else if (m_pulling) {
+            m_empty_event.prependNowNotAlready(c);
+        }
+    }
+    
+    void commandDone (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(m_pulling)
+        AMBRO_ASSERT(!buffer_is_full(c))
+        AMBRO_ASSERT(!m_pull_event.isSet(c))
+        AMBRO_ASSERT(!m_full_event.isSet(c))
         AMBRO_ASSERT(a >= -x)
         AMBRO_ASSERT(a <= x)
         
-        // compute the command parameters
         Command cmd;
         cmd.x = x;
         cmd.discriminant = AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a);
@@ -146,94 +176,32 @@ public:
         cmd.t_plain = t.bitsValue();
         cmd.dir = dir;
         
-        // compute the clock offset based on the last command. If not running start() will do it.
-        if (m_running) {
+        if (m_stepping) {
             Command *last_cmd = &m_commands[buffer_last(m_end).value()];
             cmd.clock_offset = last_cmd->clock_offset + cmd.t_plain;
         }
         
-        // add command to queue
         m_commands[m_end.value()] = cmd;
+        
         bool was_empty;
+        bool is_full;
         AMBRO_LOCK_T(m_lock, c, lock_c, {
-            was_empty = (m_start == m_end);
+            m_pulling = false;
+            m_empty_event.unset(lock_c);
+            was_empty = buffer_is_empty(lock_c);
             m_end = BoundedModuloInc(m_end);
-            m_event = m_end;
+            is_full = buffer_is_full(lock_c);
         });
         
-        // if we have run out of commands, continue motion
-        if (m_running && was_empty) {
-            Command *cmd = &m_commands[m_start.value()];
-            stepper(this)->setDir(c, cmd->dir);
-            m_current_command = *cmd;
-            TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : (m_current_command.clock_offset - cmd->t_plain);
-            m_timer.set(c, timer_t);
-        }
-    }
-    
-    void bufferRequestEvent (Context c, BufferSizeType min_amount)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_event == m_end)
-        AMBRO_ASSERT(!m_avail_event.isSet(c))
-        AMBRO_ASSERT(min_amount.value() > 0)
-        
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
-            if (buffer_avail(m_start, m_end) >= min_amount) {
-                m_avail_event.prependNow(lock_c);
-            } else {
-                m_event = BoundedModuloAdd(m_end, min_amount);
-            }
-        });
-    }
-    
-    void bufferCancelEvent (Context c)
-    {
-        this->debugAccess(c);
-        
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
-            m_event = m_end;
-            m_avail_event.unset(lock_c);
-        });
-    }
-    
-    void start (Context c, TimeType start_time)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(!m_running)
-        
-        // compute clock offsets for commands
-        if (m_start == m_end) {
-            Command *last_cmd = &m_commands[buffer_last(m_end).value()];
-            last_cmd->clock_offset = start_time;
-            last_cmd->t_plain = 0;
-        } else {
-            TimeType clock_offset = start_time;
-            for (BufferSizeType i = m_start; i != m_end; i = BoundedModuloInc(i)) {
-                clock_offset += m_commands[i.value()].t_plain;
-                m_commands[i.value()].clock_offset = clock_offset;
-            }
+        if (!is_full) {
+            m_pull_event.prependNowNotAlready(c);
+        } else if (!m_stepping) {
+            m_full_event.prependNowNotAlready(c);
         }
         
-        m_running = true;
-        
-        // unless we don't have any commands, begin motion
-        if (m_start != m_end) {
-            Command *cmd = &m_commands[m_start.value()];
-            stepper(this)->setDir(c, cmd->dir);
-            m_current_command = *cmd;
-            TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : (m_current_command.clock_offset - cmd->t_plain);
-            m_timer.set(c, timer_t);
+        if (m_stepping && was_empty) {
+            start_first_command(c);
         }
-    }
-    
-    void stop (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_running)
-        
-        m_timer.unset(c);
-        m_running = false;
     }
     
     bool isRunning (Context c)
@@ -243,27 +211,28 @@ public:
         return m_running;
     }
     
+    bool isStepping (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_running)
+        
+        return m_stepping;
+    }
+    
+    bool isPulling (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_running)
+        
+        return m_pulling;
+    }
+    
     TimerInstance * getTimer ()
     {
         return &m_timer;
     }
     
 private:
-    static Stepper * stepper (AxisStepper *o)
-    {
-        return GetStepper::call(o);
-    }
-    
-    static BufferSizeType buffer_avail (BufferSizeType start, BufferSizeType end)
-    {
-        return BoundedModuloSubtract(BoundedModuloSubtract(start, BufferSizeType::import(1)), end);
-    }
-    
-    static BufferSizeType buffer_last (BufferSizeType end)
-    {
-        return BoundedModuloSubtract(end, BufferSizeType::import(1));
-    }
-    
     struct CurrentCommand {
         StepFixedType x;
         decltype(AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) discriminant;
@@ -278,40 +247,77 @@ private:
         bool dir;
     };
     
+    static Stepper * stepper (AxisStepper *o)
+    {
+        return GetStepper::call(o);
+    }
+    
+    static BufferSizeType buffer_last (BufferSizeType end)
+    {
+        return BoundedModuloSubtract(end, BufferSizeType::import(1));
+    }
+    
+    template <typename ThisContext>
+    bool buffer_is_full (ThisContext c)
+    {
+        bool res;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            res = (BoundedModuloSubtract(m_start, m_end) == BufferSizeType::import(1));
+        });
+        return res;
+    }
+    
+    template <typename ThisContext>
+    bool buffer_is_empty (ThisContext c)
+    {
+        bool res;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            res = (m_start == m_end);
+        });
+        return res;
+    }
+    
+    void start_first_command (Context c)
+    {
+        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(m_stepping)
+        AMBRO_ASSERT(!buffer_is_empty(c))
+        
+        Command *cmd = &m_commands[m_start.value()];
+        stepper(this)->setDir(c, cmd->dir);
+        m_current_command = *cmd;
+        TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : (m_current_command.clock_offset - cmd->t_plain);
+        m_timer.set(c, timer_t);
+    }
+    
     bool timer_handler (typename TimerInstance::HandlerContext c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_running)
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
-            AMBRO_ASSERT(m_start != m_end)
-        });
+        AMBRO_ASSERT(m_stepping)
+        AMBRO_ASSERT(!buffer_is_empty(c))
         
         if (m_current_command.x.bitsValue() == 0) {
             bool run_out;
             AMBRO_LOCK_T(m_lock, c, lock_c, {
-                // report avail event if we'll have enough buffer space
-                if (m_start == m_event) {
-                    m_event = m_end;
-                    m_avail_event.appendNowNotAlready(lock_c);
+                if (buffer_is_full(lock_c)) {
+                    m_pull_event.appendNowNotAlready(lock_c);
                 }
-                
-                // consume command
                 m_start = BoundedModuloInc(m_start);
-                
+                if (m_pulling && buffer_is_empty(lock_c)) {
+                    m_empty_event.appendNowNotAlready(lock_c);
+                }
                 run_out = (m_start == m_end);
             });
             
-            // have we run out of commands?
             if (AMBRO_UNLIKELY(run_out)) {
                 return false;
             }
             
-            // continue with next command
             Command *cmd = &m_commands[m_start.value()];
             stepper(this)->setDir(c, cmd->dir);
             CopyUnrolled<sizeof(CurrentCommand)>(&m_current_command, (CurrentCommand *)cmd);
             
-            // if this is a motionless command, wait
             if (m_current_command.x.bitsValue() == 0) {
                 TimeType timer_t = m_current_command.clock_offset;
                 m_timer.set(c, timer_t);
@@ -319,49 +325,76 @@ private:
             }
         }
         
-        // perform the step
         stepper(this)->step(c);
         
-        // increment position
         m_current_command.x.m_bits.m_int--;
         
-        // increment discriminant. It's not zero because of constraints on acceleration.
         m_current_command.discriminant.m_bits.m_int -= m_current_command.a_mul.m_bits.m_int;
         AMBRO_ASSERT(m_current_command.discriminant.bitsValue() >= 0)
         
-        // compute the thing with the square root
         auto q = (m_current_command.v0 + FixedSquareRoot(m_current_command.discriminant)).template shift<-1>();
         
-        // compute solution as fraction of total time
         auto t_frac = FixedFracDivide(m_current_command.x, q);
         
-        // multiply by the time of this command, and drop fraction bits at the same time
         TimeFixedType t = FixedResMultiply(m_current_command.t_mul, t_frac);
         
-        // schedule next step
         TimeType timer_t = m_current_command.clock_offset - t.bitsValue();
         m_timer.set(c, timer_t);
         return true;
     }
     
-    void avail_event_handler (Context c)
+    void pull_event_handler (Context c)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(buffer_avail(m_start, m_end).value() > 0)
-        AMBRO_ASSERT(m_event == m_end)
+        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(!m_pulling)
+        AMBRO_ASSERT(!buffer_is_full(c))
+        AMBRO_ASSERT(!m_full_event.isSet(c))
+        AMBRO_ASSERT(!m_empty_event.isSet(c))
         
-        return AvailHandler::call(this, c);
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            m_pulling = true;
+            if (m_stepping && buffer_is_empty(lock_c)) {
+                m_empty_event.prependNowNotAlready(lock_c);
+            }
+        });
+        
+        return PullCmdHandler::call(this, c);
     }
     
+    void full_event_handler (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(!m_stepping)
+        AMBRO_ASSERT(buffer_is_full(c))
+        
+        return BufferFullHandler::call(this, c);
+    }
+    
+    void empty_event_handler (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(m_stepping)
+        AMBRO_ASSERT(m_pulling)
+        AMBRO_ASSERT(buffer_is_empty(c))
+        
+        return BufferEmptyHandler::call(this, c);
+    }
+    
+    typename Loop::QueuedEvent m_pull_event;
+    typename Loop::QueuedEvent m_full_event;
+    typename Loop::QueuedEvent m_empty_event;
+    Lock m_lock;
     TimerInstance m_timer;
-    typename Loop::QueuedEvent m_avail_event;
     Command m_commands[(size_t)BufferSizeType::maxIntValue() + 1];
     BufferSizeType m_start;
     BufferSizeType m_end;
-    BufferSizeType m_event;
     CurrentCommand m_current_command;
     bool m_running;
-    Lock m_lock;
+    bool m_stepping;
+    bool m_pulling;
     
     struct TimerHandler : public AMBRO_WCALLBACK_TD(&AxisStepper::timer_handler, &AxisStepper::m_timer) {};
 };

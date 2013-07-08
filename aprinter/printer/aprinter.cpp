@@ -63,11 +63,9 @@
 #define SERIAL_BAUD 115200
 #define SERIAL_RX_BUFFER 63
 #define SERIAL_TX_BUFFER 63
-#define COMMAND_BUFFER_BITS 4
 #define STEPPER_COMMAND_BUFFER_BITS 4
-#define NUM_MOVE_ITERS 4
 #define SPEED_T_SCALE (0.092*2.0)
-#define X_SCALE 1.5
+#define X_SCALE 1.2
 #define Y_SCALE 1.0
 #define STEPPERS \
     MakeTypeList< \
@@ -84,8 +82,12 @@ struct SerialRecvHandler;
 struct SerialSendHandler;
 struct DriverGetStepperHandler0;
 struct DriverGetStepperHandler1;
-struct DriverAvailHandler0;
-struct DriverAvailHandler1;
+struct DriverPullCmdHandler0;
+struct DriverPullCmdHandler1;
+struct DriverBufferFullHandler0;
+struct DriverBufferFullHandler1;
+struct DriverBufferEmptyHandler0;
+struct DriverBufferEmptyHandler1;
 
 typedef DebugObjectGroup<MyContext> MyDebugObjectGroup;
 typedef AvrClock<MyContext, CLOCK_TIMER_PRESCALER> MyClock;
@@ -98,8 +100,8 @@ typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8
 typedef Steppers<MyContext, STEPPERS> MySteppers;
 typedef SteppersStepper<MyContext, STEPPERS, 0> MySteppersStepper0;
 typedef SteppersStepper<MyContext, STEPPERS, 1> MySteppersStepper1;
-typedef AxisSplitter<MyContext, COMMAND_BUFFER_BITS, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA, DriverAvailHandler0> MyAxisSplitter0;
-typedef AxisSplitter<MyContext, COMMAND_BUFFER_BITS, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB, DriverAvailHandler1> MyAxisSplitter1;
+typedef AxisSplitter<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA, DriverPullCmdHandler0, DriverBufferFullHandler0, DriverBufferEmptyHandler0> MyAxisSplitter0;
+typedef AxisSplitter<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB, DriverPullCmdHandler1, DriverBufferFullHandler1, DriverBufferEmptyHandler1> MyAxisSplitter1;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -133,8 +135,11 @@ static MyClock::TimeType next_time;
 static MySteppers steppers;
 static MyAxisSplitter0 axis_splitter0;
 static MyAxisSplitter1 axis_splitter1;
-static int num_left0;
-static int num_left1;
+static int index0;
+static int index1;
+static int cnt0;
+static int cnt1;
+static int full;
 static bool prev_button;
 
 MyDebugObjectGroup * MyContext::debugGroup () const
@@ -165,42 +170,8 @@ MyPinWatcherService * MyContext::pinWatcherService () const
 AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
 AMBRO_AVR_SERIAL_ISRS(myserial, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*axis_splitter0.getAxisStepper()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*axis_splitter1.getAxisStepper()->getTimer(), MyContext())
-
-static void add_commands0 (MyContext c)
-{
-    static const int num_cmds = 6;
-    static_assert(PowerOfTwoMinusOne<size_t, COMMAND_BUFFER_BITS>::value >= num_cmds, "");
-    float t_scale = SPEED_T_SCALE * X_SCALE;
-    axis_splitter0.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
-    axis_splitter0.bufferAddCommandTest(c, true, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
-    axis_splitter0.bufferAddCommandTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
-    //axis_splitter0.bufferAddCommandTest(c, true, 0.0, 2.0 * t_scale, 0.0);
-    axis_splitter0.bufferAddCommandTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
-    axis_splitter0.bufferAddCommandTest(c, false, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
-    axis_splitter0.bufferAddCommandTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
-    //axis_splitter0.bufferAddCommandTest(c, false, 0.0, 2.0 * t_scale, 0.0);
-    //num_left0--;
-    axis_splitter0.bufferRequestEvent(c, (num_left0 == 0) ? MyAxisSplitter0::BufferSizeType::maxValue() : MyAxisSplitter0::BufferSizeType::import(num_cmds));
-}
-
-static void add_commands1 (MyContext c)
-{
-    static const int num_cmds = 8;
-    static_assert(PowerOfTwoMinusOne<size_t, COMMAND_BUFFER_BITS>::value >= num_cmds, "");
-    float t_scale = SPEED_T_SCALE * Y_SCALE;
-    axis_splitter1.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
-    axis_splitter1.bufferAddCommandTest(c, true, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
-    axis_splitter1.bufferAddCommandTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
-    axis_splitter1.bufferAddCommandTest(c, true, 0.0, 2.0 * t_scale, 0.0);
-    axis_splitter1.bufferAddCommandTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
-    axis_splitter1.bufferAddCommandTest(c, false, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
-    axis_splitter1.bufferAddCommandTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
-    axis_splitter1.bufferAddCommandTest(c, true, 0.0, 2.0 * t_scale, 0.0);
-    //num_left1--;
-    axis_splitter1.bufferRequestEvent(c, (num_left1 == 0) ? MyAxisSplitter1::BufferSizeType::maxValue() : MyAxisSplitter1::BufferSizeType::import(num_cmds));
-}
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*axis_splitter0.getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*axis_splitter1.getTimer(), MyContext())
 
 static void mytimer_handler (MyTimer *, MyContext c)
 {
@@ -217,26 +188,22 @@ static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
         if (axis_splitter0.isRunning(c) || axis_splitter1.isRunning(c)) {
             if (axis_splitter0.isRunning(c)) {
                 axis_splitter0.stop(c);
-                axis_splitter0.bufferCancelEvent(c);
-                axis_splitter0.clearBuffer(c);
                 steppers.getStepper<0>()->enable(c, false);
             }
             if (axis_splitter1.isRunning(c)) {
                 axis_splitter1.stop(c);
-                axis_splitter1.bufferCancelEvent(c);
-                axis_splitter1.clearBuffer(c);
                 steppers.getStepper<1>()->enable(c, false);
             }
         } else {
-            num_left0 = NUM_MOVE_ITERS;
-            num_left1 = NUM_MOVE_ITERS;
-            add_commands0(c);
-            add_commands1(c);
-            MyClock::TimeType start_time = myclock.getTime(c);
+            index0 = 0;
+            index1 = 0;
+            cnt0 = 0;
+            cnt1 = 0;
+            full = 0;
             steppers.getStepper<0>()->enable(c, true);
             steppers.getStepper<1>()->enable(c, true);
-            axis_splitter0.start(c, start_time);
-            axis_splitter1.start(c, start_time);
+            axis_splitter0.start(c);
+            axis_splitter1.start(c);
         }
     }
     prev_button = state;
@@ -260,28 +227,112 @@ static MySteppersStepper1* driver_get_stepper_handler1 (MyAxisSplitter1 *)
     return steppers.getStepper<1>();
 }
 
-static void driver_avail_handler0 (MyAxisSplitter0 *, MyContext c)
+static void full_common (MyContext c)
 {
-    AMBRO_ASSERT(axis_splitter0.isRunning(c))
-    
-    if (num_left0 == 0) {
-        axis_splitter0.stop(c);
-        steppers.getStepper<0>()->enable(c, false);
-    } else {
-        add_commands0(c);
+    full++;
+    if (full == 2) {
+        MyClock::TimeType start_time = myclock.getTime(c);
+        axis_splitter0.startStepping(c, start_time);
+        axis_splitter1.startStepping(c, start_time);
     }
 }
 
-static void driver_avail_handler1 (MyAxisSplitter1 *, MyContext c)
+static void driver_pull_cmd_handler0 (MyAxisSplitter0 *, MyContext c)
+{
+    AMBRO_ASSERT(axis_splitter0.isRunning(c))
+    
+    if (cnt0 == 7 * 6) {
+        if (!axis_splitter0.isStepping(c)) {
+            full_common(c);
+        }
+        return;
+    }
+    float t_scale = SPEED_T_SCALE * X_SCALE;
+    switch (index0) {
+        case 0:
+            axis_splitter0.commandDoneTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
+            break;
+        case 1:
+            axis_splitter0.commandDoneTest(c, true, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
+            break;
+        case 2:
+            axis_splitter0.commandDoneTest(c, true, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
+            break;
+        case 3:
+            axis_splitter0.commandDoneTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * 20.0);
+            break;
+        case 4:
+            axis_splitter0.commandDoneTest(c, false, X_SCALE * 120.0, 3.0 * t_scale, X_SCALE * 0.0);
+            break;
+        case 5:
+            axis_splitter0.commandDoneTest(c, false, X_SCALE * 20.0, 1.0 * t_scale, X_SCALE * -20.0);
+            break;
+    }
+    index0 = (index0 + 1) % 6;
+    cnt0++;
+}
+
+static void driver_pull_cmd_handler1 (MyAxisSplitter1 *, MyContext c)
 {
     AMBRO_ASSERT(axis_splitter1.isRunning(c))
     
-    if (num_left1 == 0) {
-        axis_splitter1.stop(c);
-        steppers.getStepper<1>()->enable(c, false);
-    } else {
-        add_commands1(c);
+    if (cnt1 == 6 * 8) {
+        if (!axis_splitter1.isStepping(c)) {
+            full_common(c);
+        }
+        return;
     }
+    float t_scale = SPEED_T_SCALE * Y_SCALE;
+    switch (index1) {
+        case 0:
+            axis_splitter1.commandDoneTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
+            break;
+        case 1:
+            axis_splitter1.commandDoneTest(c, true, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
+            break;
+        case 2:
+            axis_splitter1.commandDoneTest(c, true, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
+            break;
+        case 3:
+            axis_splitter1.commandDoneTest(c, true, Y_SCALE * 0.0, 2.0 * t_scale, Y_SCALE * 0.0);
+            break;
+        case 4:
+            axis_splitter1.commandDoneTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * 20.0);
+            break;
+        case 5:
+            axis_splitter1.commandDoneTest(c, false, Y_SCALE * 120.0, 3.0 * t_scale, Y_SCALE * 0.0);
+            break;
+        case 6:
+            axis_splitter1.commandDoneTest(c, false, Y_SCALE * 20.0, 1.0 * t_scale, Y_SCALE * -20.0);
+            break;
+        case 7:
+            axis_splitter1.commandDoneTest(c, false, Y_SCALE * 0.0, 2.0 * t_scale, Y_SCALE * 0.0);
+            break;
+    }
+    index1 = (index1 + 1) % 8;
+    cnt1++;
+}
+
+static void driver_buffer_full_handler0 (MyAxisSplitter0 *, MyContext c)
+{
+    full_common(c);
+}
+
+static void driver_buffer_full_handler1 (MyAxisSplitter1 *, MyContext c)
+{
+    full_common(c);
+}
+
+static void driver_buffer_empty_handler0 (MyAxisSplitter0 *, MyContext c)
+{
+    axis_splitter0.stop(c);
+    steppers.getStepper<0>()->enable(c, false);
+}
+
+static void driver_buffer_empty_handler1 (MyAxisSplitter1 *, MyContext c)
+{
+    axis_splitter1.stop(c);
+    steppers.getStepper<1>()->enable(c, false);
 }
 
 struct PinWatcherHandler : public AMBRO_WFUNC(pinwatcher_handler) {};
@@ -289,8 +340,12 @@ struct SerialRecvHandler : public AMBRO_WFUNC(serial_recv_handler) {};
 struct SerialSendHandler : public AMBRO_WFUNC(serial_send_handler) {};
 struct DriverGetStepperHandler0 : public AMBRO_WFUNC(driver_get_stepper_handler0) {};
 struct DriverGetStepperHandler1 : public AMBRO_WFUNC(driver_get_stepper_handler1) {};
-struct DriverAvailHandler0 : public AMBRO_WFUNC(driver_avail_handler0) {};
-struct DriverAvailHandler1 : public AMBRO_WFUNC(driver_avail_handler1) {};
+struct DriverPullCmdHandler0 : public AMBRO_WFUNC(driver_pull_cmd_handler0) {};
+struct DriverPullCmdHandler1 : public AMBRO_WFUNC(driver_pull_cmd_handler1) {};
+struct DriverBufferFullHandler0 : public AMBRO_WFUNC(driver_buffer_full_handler0) {};
+struct DriverBufferFullHandler1 : public AMBRO_WFUNC(driver_buffer_full_handler1) {};
+struct DriverBufferEmptyHandler0 : public AMBRO_WFUNC(driver_buffer_empty_handler0) {};
+struct DriverBufferEmptyHandler1 : public AMBRO_WFUNC(driver_buffer_empty_handler1) {};
 
 FILE uart_output;
 

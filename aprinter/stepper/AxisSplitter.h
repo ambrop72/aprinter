@@ -27,26 +27,27 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/WrapCallback.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/structure/RingBuffer.h>
 #include <aprinter/stepper/AxisStepper.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, int BufferBits, int StepperBufferBits, typename MyStepper, typename GetStepper, template<typename, typename> class StepperTimer, typename AvailHandler>
-class AxisSplitter : private DebugObject<Context, void> {
+template <typename Context, int StepperBufferBits, typename MyStepper, typename GetStepper, template<typename, typename> class StepperTimer, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler>
+class AxisSplitter
+: private DebugObject<Context, void> {
 private:
     using Loop = typename Context::EventLoop;
     
-    struct StepperAvailHandler;
     struct MyGetStepper;
+    struct StepperPullCmdHandler;
+    struct StepperBufferFullHandler;
+    struct StepperBufferEmptyHandler;
     
 public:
-    using MyAxisStepper = AxisStepper<Context, StepperBufferBits, MyStepper, MyGetStepper, StepperTimer, StepperAvailHandler>;
+    using MyAxisStepper = AxisStepper<Context, StepperBufferBits, MyStepper, MyGetStepper, StepperTimer, StepperPullCmdHandler, StepperBufferFullHandler, StepperBufferEmptyHandler>;
     
 private:
     static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 4;
@@ -61,7 +62,6 @@ public:
     using TimeFixedType = FixedPoint<time_bits, false, 0>;
     
 private:
-    using StepperBufferSizeType = typename MyAxisStepper::BufferSizeType;
     using StepperStepType = typename MyAxisStepper::StepFixedType;
     using StepperAccelType = typename MyAxisStepper::AccelFixedType;
     using StepperTimeType = typename MyAxisStepper::TimeFixedType;
@@ -76,22 +76,12 @@ private:
         TimeFixedType all_t;
         StepFixedType x;
         TimeFixedType t;
-        StepperBufferSizeType num_cmds;
     };
     
-    using CommandBuffer = RingBuffer<Context, Command, BufferBits>;
-    
 public:
-    using BufferSizeType = typename CommandBuffer::SizeType;
-    
     void init (Context c)
     {
         m_axis_stepper.init(c);
-        m_command_buffer.init(c);
-        m_avail_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisSplitter::m_avail_event, &AxisSplitter::avail_event_handler));
-        m_event_amount = BufferSizeType::maxValue();
-        m_backlog = BufferSizeType::import(0);
-        m_stepper_avail = StepperBufferSizeType::maxValue();
         
         this->debugInit(c);
     }
@@ -100,99 +90,16 @@ public:
     {
         this->debugDeinit(c);
         
-        m_avail_event.deinit(c);
-        m_command_buffer.deinit(c);
         m_axis_stepper.deinit(c);
     }
     
-    void clearBuffer (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(!m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
-        AMBRO_ASSERT(!m_avail_event.isSet(c))
-        
-        m_axis_stepper.clearBuffer(c);
-        m_command_buffer.clear(c);
-        m_backlog = BufferSizeType::import(0);
-        m_stepper_avail = StepperBufferSizeType::maxValue();
-    }
-    
-    BufferSizeType bufferGetAvail (Context c)
-    {
-        this->debugAccess(c);
-        
-        return m_command_buffer.writerGetAvail(c);
-    }
-    
-    void bufferAddCommandTest (Context c, bool dir, float x, float t, float a)
-    {
-        float step_length = 0.0125;
-        bufferAddCommand(c, dir, StepFixedType::importDouble(x / step_length), TimeFixedType::importDouble(t / Clock::time_unit), AccelFixedType::importDouble(a / step_length));
-    }
-    
-    void bufferAddCommand (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
-        AMBRO_ASSERT(!m_avail_event.isSet(c))
-        AMBRO_ASSERT(m_command_buffer.writerGetAvail(c).value() > 0)
-        AMBRO_ASSERT(a >= -x)
-        AMBRO_ASSERT(a <= x)
-        
-        bool was_empty = (m_backlog == m_command_buffer.readerGetAvail(c));
-        
-        Command *cmd = m_command_buffer.writerGetPtr(c);
-        cmd->dir = dir;
-        cmd->a = a;
-        cmd->v0 = (x + a).toUnsignedUnsafe();
-        cmd->v02 = cmd->v0 * cmd->v0;
-        cmd->all_t = t;
-        cmd->x = x;
-        cmd->t = t;
-        cmd->num_cmds = StepperBufferSizeType::import(0);
-        m_command_buffer.writerProvide(c);
-        
-        if (m_axis_stepper.isRunning(c) && was_empty) {
-            m_axis_stepper.bufferCancelEvent(c);
-            m_axis_stepper.bufferRequestEvent(c, StepperBufferSizeType::import(1));
-        }
-    }
-    
-    void bufferRequestEvent (Context c, BufferSizeType min_amount)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
-        AMBRO_ASSERT(!m_avail_event.isSet(c))
-        AMBRO_ASSERT(min_amount.value() > 0)
-        
-        if (m_command_buffer.writerGetAvail(c) >= min_amount) {
-            m_avail_event.prependNowNotAlready(c);
-        } else {
-            m_event_amount = BoundedUnsafeDec(min_amount);
-        }
-    }
-    
-    void bufferCancelEvent (Context c)
-    {
-        this->debugAccess(c);
-        
-        m_event_amount = BufferSizeType::maxValue();
-        m_avail_event.unset(c);
-    }
-    
-    void start (Context c, TimeType start_time)
+    void start (Context c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_axis_stepper.isRunning(c))
         
-        // fill stepper command buffer
-        while (m_backlog < m_command_buffer.readerGetAvail(c) && m_stepper_avail.value() > 0) {
-            send_stepper_command(c);
-        }
-        
-        m_axis_stepper.start(c, start_time);
-        m_axis_stepper.bufferRequestEvent(c, StepperBufferSizeType::import(1));
+        m_axis_stepper.start(c);
+        m_have_command = false;
     }
     
     void stop (Context c)
@@ -200,8 +107,44 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(m_axis_stepper.isRunning(c))
         
-        m_axis_stepper.bufferCancelEvent(c);
         m_axis_stepper.stop(c);
+    }
+    
+    void startStepping (Context c, TimeType start_time)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        AMBRO_ASSERT(!m_axis_stepper.isStepping(c))
+        
+        m_axis_stepper.startStepping(c, start_time);
+    }
+    
+    void commandDone (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        AMBRO_ASSERT(m_axis_stepper.isPulling(c))
+        AMBRO_ASSERT(!m_have_command)
+        AMBRO_ASSERT(a >= -x)
+        AMBRO_ASSERT(a <= x)
+        
+        Command *cmd = &m_command;
+        cmd->dir = dir;
+        cmd->a = a;
+        cmd->v0 = (x + a).toUnsignedUnsafe();
+        cmd->v02 = cmd->v0 * cmd->v0;
+        cmd->all_t = t;
+        cmd->x = x;
+        cmd->t = t;
+        
+        m_have_command = true;
+        send_stepper_command(c);
+    }
+    
+    void commandDoneTest (Context c, bool dir, float x, float t, float a)
+    {
+        float step_length = 0.0125;
+        commandDone(c, dir, StepFixedType::importDouble(x / step_length), TimeFixedType::importDouble(t / Clock::time_unit), AccelFixedType::importDouble(a / step_length));
     }
     
     bool isRunning (Context c)
@@ -211,19 +154,35 @@ public:
         return m_axis_stepper.isRunning(c);
     }
     
-    MyAxisStepper * getAxisStepper ()
+    bool isStepping (Context c)
     {
-        return &m_axis_stepper;
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        
+        return m_axis_stepper.isStepping(c);
+    }
+    
+    bool isPulling (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        
+        return m_axis_stepper.isPulling(c);
+    }
+    
+    typename MyAxisStepper::TimerInstance * getTimer ()
+    {
+        return m_axis_stepper.getTimer();
     }
     
 private:
     void send_stepper_command (Context c)
     {
-        AMBRO_ASSERT(m_backlog < m_command_buffer.readerGetAvail(c))
-        AMBRO_ASSERT(m_axis_stepper.bufferGetAvail(c).value() > 0)
-        AMBRO_ASSERT(m_stepper_avail.value() > 0)
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        AMBRO_ASSERT(m_axis_stepper.isPulling(c))
+        AMBRO_ASSERT(m_have_command)
         
-        Command *cmd = m_command_buffer.readerGetPtr(c, m_backlog);
+        Command *cmd = &m_command;
         
         StepFixedType new_x;
         TimeFixedType new_t;
@@ -345,75 +304,16 @@ private:
         AMBRO_ASSERT(!(new_x == cmd->x) || (new_t < cmd->t || (new_x.bitsValue() == 0 && new_t.bitsValue() == 0)))
         
         // send a stepper command
-        m_axis_stepper.bufferProvide(c, cmd->dir, rel_x, rel_t, rel_a);
-        m_stepper_avail = BoundedUnsafeDec(m_stepper_avail);
+        m_axis_stepper.commandDone(c, cmd->dir, rel_x, rel_t, rel_a);
         
         // update our command
         cmd->x = new_x;
         cmd->t = new_t;
-        cmd->num_cmds = BoundedUnsafeInc(cmd->num_cmds);
         
         // possibly complete our command 
         if (cmd->x.bitsValue() == 0 && cmd->t.bitsValue() == 0) {
-            m_backlog = BoundedUnsafeInc(m_backlog);
+            m_have_command = false;
         }
-    }
-    
-    void clean_up_backlog (Context c)
-    {
-        StepperBufferSizeType new_avail = m_axis_stepper.bufferGetAvail(c);
-        
-        while (m_backlog.value() > 0) {
-            Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
-            if (new_avail < BoundedUnsafeAdd(m_stepper_avail, backlock_cmd->num_cmds)) {
-                StepperBufferSizeType consume = BoundedUnsafeSubtract(new_avail, m_stepper_avail);
-                backlock_cmd->num_cmds = BoundedModuloSubtract(backlock_cmd->num_cmds, consume);
-                m_stepper_avail = BoundedUnsafeAdd(m_stepper_avail, consume);
-                break;
-            }
-            m_backlog = BoundedUnsafeDec(m_backlog);
-            m_stepper_avail = BoundedUnsafeAdd(m_stepper_avail, backlock_cmd->num_cmds);
-            m_command_buffer.readerConsume(c);
-        }
-        
-        AMBRO_ASSERT(m_stepper_avail == new_avail)
-    }
-    
-    void axis_stepper_avail_handler (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(m_axis_stepper.bufferGetAvail(c).value() > 0)
-        
-        clean_up_backlog(c);
-        
-        // possibly send a stepper command
-        if (m_backlog < m_command_buffer.readerGetAvail(c)) {
-            send_stepper_command(c);
-        }
-        
-        if (m_backlog < m_command_buffer.readerGetAvail(c)) {
-            m_axis_stepper.bufferRequestEvent(c, StepperBufferSizeType::import(1));
-        } else if (m_backlog.value() > 0) {
-            Command *backlock_cmd = m_command_buffer.readerGetPtr(c);
-            StepperBufferSizeType event_cmds = BoundedUnsafeAdd(m_stepper_avail, backlock_cmd->num_cmds);
-            m_axis_stepper.bufferRequestEvent(c, event_cmds);
-        }
-        
-        // possibly send avail event to user
-        if (m_command_buffer.writerGetAvail(c) > m_event_amount) {
-            m_event_amount = BufferSizeType::maxValue();
-            m_avail_event.prependNowNotAlready(c);
-        }
-    }
-    
-    void avail_event_handler (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_command_buffer.writerGetAvail(c).value() > 0)
-        AMBRO_ASSERT(m_event_amount == BufferSizeType::maxValue())
-        
-        return AvailHandler::call(this, c);
     }
     
     MyStepper * my_get_stepper_handler ()
@@ -421,15 +321,46 @@ private:
         return GetStepper::call(this);
     }
     
-    MyAxisStepper m_axis_stepper;
-    CommandBuffer m_command_buffer;
-    typename Loop::QueuedEvent m_avail_event;
-    BufferSizeType m_event_amount;
-    BufferSizeType m_backlog;
-    StepperBufferSizeType m_stepper_avail;
+    void stepper_pull_cmd_handler (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        AMBRO_ASSERT(m_axis_stepper.isPulling(c))
+        
+        if (!m_have_command) {
+            return PullCmdHandler::call(this, c);
+        }
+        
+        send_stepper_command(c);
+    }
     
-    struct StepperAvailHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::axis_stepper_avail_handler, &AxisSplitter::m_axis_stepper) {};
+    void stepper_buffer_full_handler (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        AMBRO_ASSERT(!m_axis_stepper.isStepping(c))
+        
+        return BufferFullHandler::call(this, c);
+    }
+    
+    void stepper_buffer_empty_handler (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        AMBRO_ASSERT(m_axis_stepper.isStepping(c))
+        AMBRO_ASSERT(m_axis_stepper.isPulling(c))
+        
+        return BufferEmptyHandler::call(this, c);
+    }
+    
+    MyAxisStepper m_axis_stepper;
+    bool m_have_command;
+    Command m_command;
+    
     struct MyGetStepper : public AMBRO_WCALLBACK_TD(&AxisSplitter::my_get_stepper_handler, &AxisSplitter::m_axis_stepper) {};
+    struct StepperPullCmdHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::stepper_pull_cmd_handler, &AxisSplitter::m_axis_stepper) {};
+    struct StepperBufferFullHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::stepper_buffer_full_handler, &AxisSplitter::m_axis_stepper) {};
+    struct StepperBufferEmptyHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::stepper_buffer_empty_handler, &AxisSplitter::m_axis_stepper) {};
 };
 
 #include <aprinter/EndNamespace.h>
