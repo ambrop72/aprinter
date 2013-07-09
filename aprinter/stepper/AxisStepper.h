@@ -156,6 +156,21 @@ public:
         }
     }
     
+    void stopStepping (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(m_stepping)
+        
+        m_timer.unset(c);
+        m_empty_event.unset(c);
+        m_stepping = false;
+        
+        if (m_start != m_end) {
+            m_commands[m_start.value()] = m_current_command;
+        }
+    }
+    
     void commandDone (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
     {
         this->debugAccess(c);
@@ -225,6 +240,31 @@ public:
         AMBRO_ASSERT(m_running)
         
         return m_pulling;
+    }
+    
+    struct SteppingState {
+        StepFixedType rem_extra_steps;
+        BufferSizeType rem_cmds;
+    };
+    
+    SteppingState getSteppingState (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(!m_stepping)
+        
+        SteppingState st;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            if (!buffer_is_empty(lock_c)) {
+                st.rem_extra_steps = m_commands[m_start.value()].x;
+                st.rem_cmds = BoundedUnsafeDec(BoundedModuloSubtract(m_end, m_start));
+            } else {
+                st.rem_extra_steps = StepFixedType::importBits(0);
+                st.rem_cmds = BufferSizeType::import(0);
+            }
+        });
+        
+        return st;
     }
     
     TimerInstance * getTimer ()
