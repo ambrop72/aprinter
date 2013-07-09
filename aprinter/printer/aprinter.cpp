@@ -50,16 +50,17 @@
 
 #define CLOCK_TIMER_PRESCALER 2
 #define LED1_PIN AvrPin<AvrPortA, 4>
-#define LED2_PIN AvrPin<AvrPortA, 3>
-#define WATCH_PIN AvrPin<AvrPortC, 2>
 #define X_DIR_PIN AvrPin<AvrPortC, 5>
 #define X_STEP_PIN AvrPin<AvrPortD, 7>
+#define X_STOP_PIN AvrPin<AvrPortC, 2>
 #define Y_DIR_PIN AvrPin<AvrPortC, 7>
 #define Y_STEP_PIN AvrPin<AvrPortC, 6>
+#define Y_STOP_PIN AvrPin<AvrPortC, 3>
 #define XYE_ENABLE_PIN AvrPin<AvrPortD, 6>
 #define Z_DIR_PIN AvrPin<AvrPortB, 2>
 #define Z_STEP_PIN AvrPin<AvrPortB, 3>
 #define Z_ENABLE_PIN AvrPin<AvrPortA, 5>
+#define Z_STOP_PIN AvrPin<AvrPortC, 4>
 #define BLINK_INTERVAL .051
 #define SERIAL_BAUD 115200
 #define SERIAL_RX_BUFFER 63
@@ -78,7 +79,9 @@ using namespace APrinter;
 
 struct MyContext;
 struct EventLoopParams;
-struct PinWatcherHandler;
+struct PinWatcherHandler0;
+struct PinWatcherHandler1;
+struct PinWatcherHandler2;
 struct SerialRecvHandler;
 struct SerialSendHandler;
 struct DriverGetStepperHandler0;
@@ -90,7 +93,9 @@ typedef AvrEventLoop<EventLoopParams> MyLoop;
 typedef AvrPins<MyContext> MyPins;
 typedef AvrPinWatcherService<MyContext> MyPinWatcherService;
 typedef AvrEventLoopQueuedEvent<MyLoop> MyTimer;
-typedef AvrPinWatcher<MyContext, WATCH_PIN, PinWatcherHandler> MyPinWatcher;
+typedef AvrPinWatcher<MyContext, X_STOP_PIN, PinWatcherHandler0> MyPinWatcher0;
+typedef AvrPinWatcher<MyContext, Y_STOP_PIN, PinWatcherHandler1> MyPinWatcher1;
+typedef AvrPinWatcher<MyContext, Z_STOP_PIN, PinWatcherHandler2> MyPinWatcher2;
 typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8_t, SERIAL_TX_BUFFER, SerialSendHandler> MySerial;
 typedef Steppers<MyContext, STEPPERS> MySteppers;
 typedef SteppersStepper<MyContext, STEPPERS, 0> MySteppersStepper0;
@@ -125,7 +130,12 @@ static MyLoop myloop;
 static MyPins mypins;
 static MyPinWatcherService mypinwatcherservice;
 static MyTimer mytimer;
-static MyPinWatcher mypinwatcher;
+static MyPinWatcher0 mypinwatcher0;
+static MyPinWatcher1 mypinwatcher1;
+static MyPinWatcher2 mypinwatcher2;
+static bool pin_prev0;
+static bool pin_prev1;
+static bool pin_prev2;
 static MySerial myserial;
 static bool blink_state;
 static MyClock::TimeType next_time;
@@ -138,8 +148,13 @@ static int index0;
 static int index1;
 static int cnt0;
 static int cnt1;
+static int eof;
 static int full;
-static bool prev_button;
+static int empty;
+static bool active;
+static bool stepping;
+static bool paused;
+static MyClock::TimeType pause_time;
 
 MyDebugObjectGroup * MyContext::debugGroup () const
 {
@@ -180,36 +195,108 @@ static void mytimer_handler (MyTimer *, MyContext c)
     mytimer.appendAt(c, next_time);
 }
 
-static void pinwatcher_handler (MyPinWatcher *, MyContext c, bool state)
+static void full_common (MyContext c, int inc)
 {
-    mypins.set<LED2_PIN>(c, !state);
-    if (!prev_button && state) {
-        if (axis_user0.isActive(c) || axis_user1.isActive(c)) {
-            if (axis_user0.isActive(c)) {
-                axis_user0.getAxis(c)->stop(c);
-                axis_user0.deactivate(c);
-                steppers.getStepper<0>()->enable(c, false);
-            }
-            if (axis_user1.isActive(c)) {
-                axis_user1.getAxis(c)->stop(c);
-                axis_user1.deactivate(c);
-                steppers.getStepper<1>()->enable(c, false);
-            }
-        } else {
-            index0 = 0;
-            index1 = 0;
-            cnt0 = 0;
-            cnt1 = 0;
-            full = 0;
-            steppers.getStepper<0>()->enable(c, true);
-            steppers.getStepper<1>()->enable(c, true);
-            axis_user0.activate(c);
-            axis_user1.activate(c);
-            axis_user0.getAxis(c)->start(c);
-            axis_user1.getAxis(c)->start(c);
+    AMBRO_ASSERT(active)
+    AMBRO_ASSERT(!stepping)
+    
+    full += inc;
+    if (full == 2 && !paused) {
+        MyClock::TimeType pause_duration = myclock.getTime(c) - pause_time;
+        axis_user0.getAxis(c)->addTime(c, pause_duration);
+        axis_user1.getAxis(c)->addTime(c, pause_duration);
+        axis_user0.getAxis(c)->startStepping(c);
+        axis_user1.getAxis(c)->startStepping(c);
+        empty = 0;
+        stepping = true;
+    }
+}
+
+static void empty_common (MyContext c, int inc)
+{
+    AMBRO_ASSERT(active)
+    
+    empty += inc;
+    if (empty == 2) {
+        axis_user0.getAxis(c)->stop(c);
+        axis_user1.getAxis(c)->stop(c);
+        axis_user0.deactivate(c);
+        axis_user1.deactivate(c);
+        steppers.getStepper<0>()->enable(c, false);
+        steppers.getStepper<1>()->enable(c, false);
+        active = false;
+        stepping = false;
+    }
+}
+
+static void endstop_common (MyContext c)
+{
+    if (!paused) {
+        paused = true;
+        if (active && stepping) {
+            pause_time = myclock.getTime(c);
+            axis_user0.getAxis(c)->stopStepping(c);
+            axis_user1.getAxis(c)->stopStepping(c);
+            full = eof;
+            stepping = false;
+        }
+    } else {
+        paused = false;
+        if (active) {
+            full_common(c, 0);
         }
     }
-    prev_button = state;
+}
+
+static void pinwatcher_handler0 (MyPinWatcher0 *, MyContext c, bool state)
+{
+    bool press = !pin_prev0 && state;
+    pin_prev0 = state;
+    if (!press) {
+        return;
+    }
+    endstop_common(c);
+}
+
+static void pinwatcher_handler1 (MyPinWatcher1 *, MyContext c, bool state)
+{
+    bool press = !pin_prev1 && state;
+    pin_prev1 = state;
+    if (!press) {
+        return;
+    }
+    endstop_common(c);
+}
+
+static void pinwatcher_handler2 (MyPinWatcher2 *, MyContext c, bool state)
+{
+    bool press = !pin_prev2 && state;
+    pin_prev2 = state;
+    if (!press) {
+        return;
+    }
+    
+    if (active) {
+        empty_common(c, 2 - empty);
+    } else {
+        AMBRO_ASSERT(!active)
+        AMBRO_ASSERT(!stepping)
+        active = true;
+        index0 = 0;
+        index1 = 0;
+        cnt0 = 0;
+        cnt1 = 0;
+        eof = 0;
+        full = 0;
+        empty = 0;
+        pause_time = myclock.getTime(c);
+        steppers.getStepper<0>()->enable(c, true);
+        steppers.getStepper<1>()->enable(c, true);
+        axis_user0.activate(c);
+        axis_user1.activate(c);
+        axis_user0.getAxis(c)->start(c, pause_time);
+        axis_user1.getAxis(c)->start(c, pause_time);
+    }
 }
 
 static void serial_recv_handler (MySerial *, MyContext c)
@@ -230,21 +317,14 @@ static MySteppersStepper1* driver_get_stepper_handler1 (MyAxisSharer1 *)
     return steppers.getStepper<1>();
 }
 
-static void full_common (MyContext c)
-{
-    full++;
-    if (full == 2) {
-        MyClock::TimeType start_time = myclock.getTime(c);
-        axis_user0.getAxis(c)->startStepping(c, start_time);
-        axis_user1.getAxis(c)->startStepping(c, start_time);
-    }
-}
-
 static void pull_cmd_handler0 (MyAxisUser0 *, MyContext c)
 {
+    AMBRO_ASSERT(active)
+    
     if (cnt0 == 7 * 6) {
-        if (!axis_user0.getAxis(c)->isStepping(c)) {
-            full_common(c);
+        eof++;
+        if (!stepping) {
+            full_common(c, 1);
         }
         return;
     }
@@ -275,9 +355,12 @@ static void pull_cmd_handler0 (MyAxisUser0 *, MyContext c)
 
 static void pull_cmd_handler1 (MyAxisUser1 *, MyContext c)
 {
+    AMBRO_ASSERT(active)
+    
     if (cnt1 == 6 * 8) {
-        if (!axis_user1.getAxis(c)->isStepping(c)) {
-            full_common(c);
+        eof++;
+        if (!stepping) {
+            full_common(c, 1);
         }
         return;
     }
@@ -314,29 +397,27 @@ static void pull_cmd_handler1 (MyAxisUser1 *, MyContext c)
 
 static void buffer_full_handler0 (MyAxisUser0 *, MyContext c)
 {
-    full_common(c);
+    full_common(c, 1);
 }
 
 static void buffer_full_handler1 (MyAxisUser1 *, MyContext c)
 {
-    full_common(c);
+    full_common(c, 1);
 }
 
 static void buffer_empty_handler0 (MyAxisUser0 *, MyContext c)
 {
-    axis_user0.getAxis(c)->stop(c);
-    axis_user0.deactivate(c);
-    steppers.getStepper<0>()->enable(c, false);
+    empty_common(c, 1);
 }
 
 static void buffer_empty_handler1 (MyAxisUser1 *, MyContext c)
 {
-    axis_user1.getAxis(c)->stop(c);
-    axis_user1.deactivate(c);
-    steppers.getStepper<1>()->enable(c, false);
+    empty_common(c, 1);
 }
 
-struct PinWatcherHandler : public AMBRO_WFUNC(pinwatcher_handler) {};
+struct PinWatcherHandler0 : public AMBRO_WFUNC(pinwatcher_handler0) {};
+struct PinWatcherHandler1 : public AMBRO_WFUNC(pinwatcher_handler1) {};
+struct PinWatcherHandler2 : public AMBRO_WFUNC(pinwatcher_handler2) {};
 struct SerialRecvHandler : public AMBRO_WFUNC(serial_recv_handler) {};
 struct SerialSendHandler : public AMBRO_WFUNC(serial_send_handler) {};
 struct DriverGetStepperHandler0 : public AMBRO_WFUNC(driver_get_stepper_handler0) {};
@@ -370,9 +451,14 @@ int main ()
 #endif
     myloop.init(c);
     mypins.init(c);
+    mypins.setInput<X_STOP_PIN>(c);
+    mypins.setInput<Z_STOP_PIN>(c);
+    mypins.setOutput<LED1_PIN>(c);
     mypinwatcherservice.init(c);
     mytimer.init(c, mytimer_handler);
-    mypinwatcher.init(c);
+    mypinwatcher0.init(c);
+    mypinwatcher1.init(c);
+    mypinwatcher2.init(c);
     myserial.init(c, SERIAL_BAUD);
     setup_uart_stdio();
     printf("HELLO\n");
@@ -382,16 +468,17 @@ int main ()
     axis_user0.init(c, &axis_sharer0, pull_cmd_handler0, buffer_full_handler0, buffer_empty_handler0);
     axis_user1.init(c, &axis_sharer1, pull_cmd_handler1, buffer_full_handler1, buffer_empty_handler1);
     
-    mypins.setOutput<LED1_PIN>(c);
-    mypins.setOutput<LED2_PIN>(c);
-    mypins.setInput<WATCH_PIN>(c);
-    
     MyClock::TimeType ref_time = myclock.getTime(c);
     
+    pin_prev0 = false;
+    pin_prev1 = false;
+    pin_prev2 = false;
     blink_state = false;
+    active = false;
+    stepping = false;
+    paused = false;
     next_time = myclock.getTime(c) + (uint32_t)(BLINK_INTERVAL / MyClock::time_unit);
     mytimer.appendAt(c, next_time);
-    prev_button = false;
     
     /*
     uint32_t x = 0;

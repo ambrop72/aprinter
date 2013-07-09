@@ -104,7 +104,7 @@ public:
         m_pull_event.deinit(c);
     }
     
-    void start (Context c)
+    void start (Context c, TimeType start_time)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
@@ -114,6 +114,7 @@ public:
         m_pulling = false;
         m_start = BufferSizeType::import(0);
         m_end = BufferSizeType::import(0);
+        m_commands[BoundedModuloDec(m_start).value()].clock_offset = start_time;
         m_pull_event.prependNowNotAlready(c);
     }
     
@@ -129,22 +130,23 @@ public:
         m_running = false;
     }
     
-    void startStepping (Context c, TimeType start_time)
+    void addTime (Context c, TimeType time_add)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_running)
         AMBRO_ASSERT(!m_stepping)
         
-        if (m_start == m_end) {
-            Command *last_cmd = &m_commands[buffer_last(m_end).value()];
-            last_cmd->clock_offset = start_time;
-        } else {
-            TimeType clock_offset = start_time;
-            for (BufferSizeType i = m_start; i != m_end; i = BoundedModuloInc(i)) {
-                clock_offset += m_commands[i.value()].t_plain;
-                m_commands[i.value()].clock_offset = clock_offset;
-            }
+        m_commands[BoundedModuloDec(m_start).value()].clock_offset += time_add;
+        for (BufferSizeType i = m_start; i != m_end; i = BoundedModuloInc(i)) {
+            m_commands[i.value()].clock_offset += time_add;
         }
+    }
+    
+    void startStepping (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(!m_stepping)
         
         m_stepping = true;
         m_full_event.unset(c);
@@ -167,7 +169,11 @@ public:
         m_stepping = false;
         
         if (m_start != m_end) {
-            m_commands[m_start.value()] = m_current_command;
+            static_cast<CurrentCommand &>(m_commands[m_start.value()]) = m_current_command;
+        }
+        
+        if (BoundedModuloSubtract(m_start, m_end) == BufferSizeType::import(1)) {
+            m_full_event.prependNowNotAlready(c);
         }
     }
     
@@ -190,11 +196,7 @@ public:
         cmd.t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
         cmd.t_plain = t.bitsValue();
         cmd.dir = dir;
-        
-        if (m_stepping) {
-            Command *last_cmd = &m_commands[buffer_last(m_end).value()];
-            cmd.clock_offset = last_cmd->clock_offset + cmd.t_plain;
-        }
+        cmd.clock_offset = m_commands[buffer_last(m_end).value()].clock_offset + cmd.t_plain;
         
         m_commands[m_end.value()] = cmd;
         

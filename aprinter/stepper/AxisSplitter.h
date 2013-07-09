@@ -94,12 +94,12 @@ public:
         m_axis_stepper.deinit(c);
     }
     
-    void start (Context c)
+    void start (Context c, TimeType start_time)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_axis_stepper.isRunning(c))
         
-        m_axis_stepper.start(c);
+        m_axis_stepper.start(c, start_time);
         m_have_command = false;
     }
     
@@ -111,13 +111,31 @@ public:
         m_axis_stepper.stop(c);
     }
     
-    void startStepping (Context c, TimeType start_time)
+    void addTime (Context c, TimeType time_add)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_axis_stepper.isRunning(c))
         AMBRO_ASSERT(!m_axis_stepper.isStepping(c))
         
-        m_axis_stepper.startStepping(c, start_time);
+        m_axis_stepper.addTime(c, time_add);
+    }
+    
+    void startStepping (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        AMBRO_ASSERT(!m_axis_stepper.isStepping(c))
+        
+        m_axis_stepper.startStepping(c);
+    }
+    
+    void stopStepping (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
+        AMBRO_ASSERT(m_axis_stepper.isStepping(c))
+        
+        m_axis_stepper.stopStepping(c);
     }
     
     void commandDone (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
