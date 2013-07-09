@@ -60,6 +60,7 @@ public:
     using StepFixedType = FixedPoint<step_bits, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
     using TimeFixedType = FixedPoint<time_bits, false, 0>;
+    using TimerInstance = typename MyAxisStepper::TimerInstance;
     
 private:
     using StepperStepType = typename MyAxisStepper::StepFixedType;
@@ -170,7 +171,7 @@ public:
         return m_axis_stepper.isPulling(c);
     }
     
-    typename MyAxisStepper::TimerInstance * getTimer ()
+    TimerInstance * getTimer ()
     {
         return m_axis_stepper.getTimer();
     }
