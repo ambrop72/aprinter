@@ -199,6 +199,36 @@ private:
     WatcherBase m_base;
 };
 
+#ifdef PCMSK0
+#define AMBRO_AVR_PCMSK0_ISRS(service, context) \
+ISR(PCINT0_vect) \
+{ \
+    (service).pcint_isr<AvrPortA>(MakeAvrInterruptContext(context)); \
+}
+#else
+#define AMBRO_AVR_PCMSK0_ISRS(service, context)
+#endif
+
+#ifdef PCMSK1
+#define AMBRO_AVR_PCMSK1_ISRS(service, context) \
+ISR(PCINT1_vect) \
+{ \
+    (service).pcint_isr<AvrPortB>(MakeAvrInterruptContext(context)); \
+}
+#else
+#define AMBRO_AVR_PCMSK1_ISRS(service, context)
+#endif
+
+#ifdef PCMSK2
+#define AMBRO_AVR_PCMSK2_ISRS(service, context) \
+ISR(PCINT2_vect) \
+{ \
+    (service).pcint_isr<AvrPortC>(MakeAvrInterruptContext(context)); \
+}
+#else
+#define AMBRO_AVR_PCMSK2_ISRS(service, context)
+#endif
+
 #ifdef PCMSK3
 #define AMBRO_AVR_PCMSK3_ISRS(service, context) \
 ISR(PCINT3_vect) \
@@ -220,18 +250,9 @@ ISR(PCINT4_vect) \
 #endif
 
 #define AMBRO_AVR_PIN_WATCHER_ISRS(service, context) \
-ISR(PCINT0_vect) \
-{ \
-    (service).pcint_isr<AvrPortA>(MakeAvrInterruptContext(context)); \
-} \
-ISR(PCINT1_vect) \
-{ \
-    (service).pcint_isr<AvrPortB>(MakeAvrInterruptContext(context)); \
-} \
-ISR(PCINT2_vect) \
-{ \
-    (service).pcint_isr<AvrPortC>(MakeAvrInterruptContext(context)); \
-} \
+AMBRO_AVR_PCMSK0_ISRS(service, context) \
+AMBRO_AVR_PCMSK1_ISRS(service, context) \
+AMBRO_AVR_PCMSK2_ISRS(service, context) \
 AMBRO_AVR_PCMSK3_ISRS(service, context) \
 AMBRO_AVR_PCMSK4_ISRS(service, context)
 
