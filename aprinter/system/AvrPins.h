@@ -30,6 +30,11 @@
 #include <avr/sfr_defs.h>
 #include <avr/io.h>
 
+#include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/FilterTypeList.h>
+#include <aprinter/meta/IsEqualFunc.h>
+#include <aprinter/meta/NotFunc.h>
+#include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -39,6 +44,7 @@ struct ClassName { \
     static uint8_t getPin () { return PinReg; } \
     static const uint32_t port_io_addr = _SFR_IO_ADDR(PortReg); \
     static const uint32_t ddr_io_addr = _SFR_IO_ADDR(DdrReg); \
+    using PinChangeTag = void; \
     static const uint32_t pcmsk_io_addr = _SFR_IO_ADDR(PcMskReg); \
     static const uint8_t pcie_bit = PcIeBit; \
 };
@@ -51,15 +57,27 @@ struct ClassName { \
 };
 
 #ifdef PORTA
+#ifdef PCMSK0
 AMBRO_DEFINE_AVR_PORT(AvrPortA, PORTA, PINA, DDRA, PCMSK0, PCIE0)
+#else
+AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortA, PORTA, PINA, DDRA)
+#endif
 #endif
 
 #ifdef PORTB
+#ifdef PCMSK1
 AMBRO_DEFINE_AVR_PORT(AvrPortB, PORTB, PINB, DDRB, PCMSK1, PCIE1)
+#else
+AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortB, PORTB, PINB, DDRB)
+#endif
 #endif
 
 #ifdef PORTC
+#ifdef PCMSK2
 AMBRO_DEFINE_AVR_PORT(AvrPortC, PORTC, PINC, DDRC, PCMSK2, PCIE2)
+#else
+AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortC, PORTC, PINC, DDRC)
+#endif
 #endif
 
 #ifdef PORTD
@@ -77,6 +95,31 @@ AMBRO_DEFINE_AVR_PORT(AvrPortE, PORTE, PINE, DDRE, PCMSK4, PCIE4)
 AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortE, PORTE, PINE, DDRE)
 #endif
 #endif
+
+using AvrPorts = FilterTypeList<
+    MakeTypeList<
+#ifdef PORTA
+        AvrPortA,
+#endif
+#ifdef PORTB
+        AvrPortB,
+#endif
+#ifdef PORTC
+        AvrPortC,
+#endif
+#ifdef PORTD
+        AvrPortD,
+#endif
+#ifdef PORTE
+        AvrPortE,
+#endif
+        void
+    >::Type,
+    ComposeFunctions<
+        NotFunc,
+        IsEqualFunc<void>
+    >
+>::Type;
 
 template <typename TPort, int PortPin>
 struct AvrPin {
