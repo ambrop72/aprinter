@@ -31,10 +31,11 @@
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/TupleFetch.h>
 #include <aprinter/meta/TupleForEach.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/FilterTypeList.h>
+#include <aprinter/meta/HasMemberTypeFunc.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/GetContainer.h>
@@ -103,17 +104,10 @@ private:
         SingleEndedList<WatcherBase<Port>, &WatcherBase<Port>::watchers_list_node> watchers_list;
     };
     
-    typedef typename MakeTypeList<
-#ifdef PCMSK3
-        AvrPortD,
-#endif
-#ifdef PCMSK4
-        AvrPortE,
-#endif
-        AvrPortA,
-        AvrPortB,
-        AvrPortC
-    >::Type Ports;
+    AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(HasPinChangeTagFunc, PinChangeTag)
+    
+    using Ports = typename FilterTypeList<AvrPorts, HasPinChangeTagFunc>::Type;
+    
     typedef typename MapTypeList<Ports, TemplateFunc<PortState>>::Type PortStateTypes;
     
     struct InitPortHelper {
@@ -164,6 +158,7 @@ private:
     typedef typename Context::EventLoop Loop;
     typedef AvrPinWatcherService<Context> Service;
     typedef typename Pin::Port Port;
+    static_assert(Service::HasPinChangeTagFunc::template Call<Port>::Type::value, "Port of this pin does not support pin change interrupts.");
     typedef typename Service::template PortState<Port> PortState;
     typedef typename Service::template WatcherBase<Port> WatcherBase;
 
