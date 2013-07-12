@@ -47,6 +47,7 @@
 #include <aprinter/stepper/AxisStepper.h>
 #include <aprinter/stepper/AxisSplitter.h>
 #include <aprinter/stepper/AxisSharer.h>
+#include <aprinter/stepper/AxisHomer.h>
 
 #define CLOCK_TIMER_PRESCALER 2
 #define LED1_PIN AvrPin<AvrPortA, 4>
@@ -86,6 +87,8 @@ struct SerialRecvHandler;
 struct SerialSendHandler;
 struct DriverGetStepperHandler0;
 struct DriverGetStepperHandler1;
+struct HomerGetSharerHandler0;
+struct HomerFinishedHandler0;
 
 typedef DebugObjectGroup<MyContext> MyDebugObjectGroup;
 typedef AvrClock<MyContext, CLOCK_TIMER_PRESCALER> MyClock;
@@ -104,6 +107,7 @@ typedef AxisSharer<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper0, D
 typedef AxisSharer<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB> MyAxisSharer1;
 typedef AxisSharerUser<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA> MyAxisUser0;
 typedef AxisSharerUser<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB> MyAxisUser1;
+typedef AxisHomer<MyContext, MyAxisSharer0, X_STOP_PIN, false, true, HomerGetSharerHandler0, HomerFinishedHandler0> MyHomer0;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -144,6 +148,7 @@ static MyAxisSharer0 axis_sharer0;
 static MyAxisSharer1 axis_sharer1;
 static MyAxisUser0 axis_user0;
 static MyAxisUser1 axis_user1;
+static MyHomer0 homer0;
 static int index0;
 static int index1;
 static int cnt0;
@@ -279,6 +284,10 @@ static void pinwatcher_handler2 (MyPinWatcher2 *, MyContext c, bool state)
     if (active) {
         empty_common(c, 2 - empty);
     } else {
+        if (homer0.isRunning(c)) {
+            homer0.stop(c);
+        }
+        
         AMBRO_ASSERT(!active)
         AMBRO_ASSERT(!stepping)
         active = true;
@@ -415,6 +424,16 @@ static void buffer_empty_handler1 (MyAxisUser1 *, MyContext c)
     empty_common(c, 1);
 }
 
+static MyAxisSharer0 * homer_get_sharer_handler0 (MyHomer0 *)
+{
+    return &axis_sharer0;
+}
+
+static void homer_finisher_handler0 (MyHomer0 *, MyContext c, bool success)
+{
+    printf("homing: %d\n", (int)success);
+}
+
 struct PinWatcherHandler0 : public AMBRO_WFUNC(pinwatcher_handler0) {};
 struct PinWatcherHandler1 : public AMBRO_WFUNC(pinwatcher_handler1) {};
 struct PinWatcherHandler2 : public AMBRO_WFUNC(pinwatcher_handler2) {};
@@ -422,6 +441,8 @@ struct SerialRecvHandler : public AMBRO_WFUNC(serial_recv_handler) {};
 struct SerialSendHandler : public AMBRO_WFUNC(serial_send_handler) {};
 struct DriverGetStepperHandler0 : public AMBRO_WFUNC(driver_get_stepper_handler0) {};
 struct DriverGetStepperHandler1 : public AMBRO_WFUNC(driver_get_stepper_handler1) {};
+struct HomerGetSharerHandler0 : public AMBRO_WFUNC(homer_get_sharer_handler0) {};
+struct HomerFinishedHandler0 : public AMBRO_WFUNC(homer_finisher_handler0) {};
 
 FILE uart_output;
 
@@ -467,6 +488,7 @@ int main ()
     axis_sharer1.init(c);
     axis_user0.init(c, &axis_sharer0, pull_cmd_handler0, buffer_full_handler0, buffer_empty_handler0);
     axis_user1.init(c, &axis_sharer1, pull_cmd_handler1, buffer_full_handler1, buffer_empty_handler1);
+    homer0.init(c, &axis_sharer0);
     
     MyClock::TimeType ref_time = myclock.getTime(c);
     
@@ -480,28 +502,20 @@ int main ()
     next_time = myclock.getTime(c) + (uint32_t)(BLINK_INTERVAL / MyClock::time_unit);
     mytimer.appendAt(c, next_time);
     
-    /*
-    uint32_t x = 0;
-    do {
-        uint16_t my = IntSqrt<29>::call(x);
-        if (!((uint32_t)my * my <= x && ((uint32_t)my + 1) * ((uint32_t)my + 1) > x)) {
-            printf("%" PRIu32 " BAD my=%" PRIu16 "\n", x, my);
-        }
-        x++;
-    } while (x < ((uint32_t)1 << 29));
-    */
-    /*
-    for (uint32_t i = 0; i < UINT32_C(1000000); i++) {
-        uint32_t x;
-        *((uint8_t *)&x + 0) = rand();
-        *((uint8_t *)&x + 1) = rand();
-        *((uint8_t *)&x + 2) = rand();
-        *((uint8_t *)&x + 3) = rand() & 0x1F;
-        uint16_t my = IntSqrt<29>::call(x);
-        if (!((uint32_t)my * my <= x && ((uint32_t)my + 1) * ((uint32_t)my + 1) > x)) {
-            printf("%" PRIu32 " BAD my=%" PRIu16 "\n", x, my);
-        }
-    }
-    */
+    float unit_mm = 1.0 / 0.0125;
+    float unit_sec = 20000000.0 / 8.0;
+    
+    typename MyHomer0::HomingParams params;
+    params.max_accel = MyHomer0::AbsAccFixedType::importDouble(500.0 * (unit_mm / (unit_sec * unit_sec)));
+    params.fast_max_dist = MyHomer0::StepFixedType::importDouble(300.0 * unit_mm);
+    params.retract_dist = MyHomer0::StepFixedType::importDouble(3.0 * unit_mm);
+    params.slow_max_dist = MyHomer0::StepFixedType::importDouble(5.0 * unit_mm);
+    params.fast_speed = MyHomer0::AbsVelFixedType::importDouble(40.0 * (unit_mm / unit_sec));
+    params.retract_speed = MyHomer0::AbsVelFixedType::importDouble(50.0 * (unit_mm / unit_sec));
+    params.slow_speed = MyHomer0::AbsVelFixedType::importDouble(5.0 * (unit_mm / unit_sec));
+    
+    steppers.getStepper<0>()->enable(c, true);
+    homer0.start(c, params);
+    
     myloop.run(c);
 }
