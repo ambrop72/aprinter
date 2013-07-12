@@ -132,17 +132,19 @@ public:
         AMBRO_ASSERT(icmd.max_v.bitsValue() > 0)
         AMBRO_ASSERT(icmd.max_a.bitsValue() > 0)
         
-        StepFixedType try_x = FixedResDivide<0, StepFixedType::num_bits, false>(icmd.max_v * icmd.max_v, icmd.max_a.template shift<1>());
-        StepFixedType half_x = StepFixedType::importBits(icmd.x.bitsValue() / 2);
+        auto norm_v = FixedDivide<false>(icmd.max_v, icmd.x);
+        auto norm_a = FixedDivide<false>(icmd.max_a, icmd.x);
+        auto norm_try_x = FixedResDivide<-StepFixedType::num_bits, StepFixedType::num_bits, false>(norm_v * norm_v, norm_a.template shift<1>());
+        auto norm_half_x = decltype(norm_try_x)::template powerOfTwo<-1>();
         
-        if (try_x > half_x) {
-            try_x = half_x;
+        if (norm_try_x > norm_half_x) {
+            norm_try_x = norm_half_x;
         }
         
         m_command.dir = icmd.dir;
         
-        m_command.x[0] = try_x;
-        m_command.x[2] = try_x;
+        m_command.x[0] = FixedResMultiply(icmd.x, norm_try_x);
+        m_command.x[2] = FixedResMultiply(icmd.x, norm_try_x);
         m_command.x[1] = StepFixedType::importBits(icmd.x.bitsValue() - m_command.x[0].bitsValue() - m_command.x[2].bitsValue());
         
         m_command.t[0] = FixedSquareRoot(FixedResDivide<0, (2 * TimeFixedType::num_bits), false>(m_command.x[0].template shift<1>(), icmd.max_a));
