@@ -80,6 +80,9 @@ public:
         ps->queued_event.appendNow(c);
     }
     
+    template <typename Pin, typename Handler>
+    using PinWatcher = AvrPinWatcher<Context, Pin, Handler>;
+    
 private:
     template <typename, typename, typename>
     friend class AvrPinWatcher;
