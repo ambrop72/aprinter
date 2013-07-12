@@ -279,6 +279,12 @@ typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, NumB
     return FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, NumBits2, NumBits2 + Exp2 - Exp1, true>::call(op1, op2);
 }
 
+template <int ResExp, int ResSatBits, bool SupportZero, int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, Exp1 - Exp2 - ResExp, ResSatBits, SupportZero>::ResultType FixedResDivide (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+{
+    return FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, Exp1 - Exp2 - ResExp, ResSatBits, SupportZero>::call(op1, op2);
+}
+
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
 struct FixedPointCompare {
     static const int shift_op1 = min(0, Exp2 - Exp1);
