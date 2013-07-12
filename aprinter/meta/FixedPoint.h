@@ -174,13 +174,13 @@ public:
         */
     }
     
-    template <typename Dummy = void>
-    static FixedPoint one (Dummy)
+    template <int PowerExp>
+    static FixedPoint powerOfTwo ()
     {
-        static_assert(Exp <= 0, "");
-        static_assert(NumBits + Exp > 0, "");
+        static_assert(PowerExp - Exp >= 0, "");
+        static_assert(PowerExp - Exp < NumBits, "");
         
-        return FixedPoint::importBits(PowerOfTwo<IntType, (-Exp)>::value);
+        return FixedPoint::importBits(PowerOfTwo<IntType, PowerExp - Exp>::value);
     }
     
 public:
