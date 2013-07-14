@@ -183,6 +183,16 @@ public:
         return FixedPoint::importBits(PowerOfTwo<IntType, PowerExp - Exp>::value);
     }
     
+    template <int NumBits2, bool Signed2, int Exp2>
+    operator FixedPoint<NumBits2, Signed2, Exp2> () const
+    {
+        static_assert(NumBits2 + Exp2 >= NumBits + Exp, "");
+        static_assert(Exp2 <= Exp, "");
+        static_assert(!Signed || Signed2, "");
+        
+        return FixedPoint<NumBits2, Signed2, Exp2>::importBoundedBits(m_bits.template shiftLeft<(Exp - Exp2)>());
+    }
+    
 public:
     BoundedIntType m_bits;
 };
