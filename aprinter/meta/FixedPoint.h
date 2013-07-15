@@ -408,6 +408,62 @@ typename FixedUnionTypesHelper<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>
 template <int NumBits, bool Signed, int Exp>
 FixedPoint<NumBits, Signed, Exp> FixedUnionTypes (FixedPoint<NumBits, Signed, Exp> op1, FixedIdentity op2);
 
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+auto FixedMax (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2) -> decltype(FixedUnionTypes(op1, op2))
+{
+    if (op1 > op2) {
+        return op1;
+    } else {
+        return op2;
+    }
+}
+
+template <int NumBits, bool Signed, int Exp>
+FixedPoint<NumBits, Signed, Exp> FixedMax (FixedPoint<NumBits, Signed, Exp> op1, FixedIdentity op2)
+{
+    return op1;
+}
+
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+struct FixedMinHelper {
+    static const int exp_result = min(Exp1, Exp2);
+    static const bool signed_result = (Signed1 || Signed2);
+    static const int numbits_result =
+        (
+            (!Signed1 && NumBits1 + Exp1 >= NumBits2 + Exp2) ||
+            (!Signed2 && NumBits2 + Exp2 >= NumBits1 + Exp1)
+        ) ?
+        (min(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result) :
+        (max(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result);
+    static const int shift1 = Exp1 - exp_result;
+    static const int shift2 = Exp2 - exp_result;
+    
+    using TempType1 = FixedPoint<numbits_result - shift1, Signed1, Exp1>;
+    using TempType2 = FixedPoint<numbits_result - shift2, Signed2, Exp2>;
+    using ResultType = FixedPoint<numbits_result, signed_result, exp_result>;
+    
+    static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+    {
+        if (op1 < op2) {
+            return TempType1::importBits(op1.bitsValue());
+        } else {
+            return TempType2::importBits(op2.bitsValue());
+        }
+    }
+};
+
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+typename FixedMinHelper<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ResultType FixedMin (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+{
+    return FixedMinHelper<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::call(op1, op2);
+}
+
+template <int NumBits, bool Signed, int Exp>
+FixedPoint<NumBits, Signed, Exp> FixedMin (FixedPoint<NumBits, Signed, Exp> op1, FixedIdentity op2)
+{
+    return op1;
+}
+
 #include <aprinter/EndNamespace.h>
 
 #endif
