@@ -29,15 +29,15 @@
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/SequenceList.h>
 #include <aprinter/meta/TypeListLength.h>
-#include <aprinter/meta/TemplateFunc.h>
+#include <aprinter/meta/ValueTemplateFunc.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename List, template<typename> class ElemTemplate>
+template <typename List, template<int> class ElemTemplate>
 using IndexElemTuple = Tuple<
     typename MapTypeList<
         typename SequenceList<TypeListLength<List>::value>::Type,
-        TemplateFunc<ElemTemplate>
+        ValueTemplateFunc<int, ElemTemplate>
     >::Type
 >;
 
