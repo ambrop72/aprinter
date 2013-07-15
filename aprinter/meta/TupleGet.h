@@ -92,6 +92,18 @@ struct TupleGet<Tuple<ConsTypeList<Head, Tail>>, 0> {
     }
 };
 
+template <int Index, typename TupleType>
+auto TupleGetElem (TupleType *tuple) -> decltype(TupleGet<TupleType, Index>::getElem(tuple))
+{
+    return TupleGet<TupleType, Index>::getElem(tuple);
+}
+
+template <int Index, typename TupleType, typename ElemPtr>
+auto TupleGetTuple (ElemPtr elem_ptr) -> decltype(TupleGet<TupleType, Index>::getFromElem(elem_ptr))
+{
+    return TupleGet<TupleType, Index>::getFromElem(elem_ptr);
+}
+
 #include <aprinter/EndNamespace.h>
 
 #endif
