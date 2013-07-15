@@ -170,6 +170,7 @@ public:
     {
         Service *srv = c.pinWatcherService();
         PortState *ps = srv->template getPortState<Port>();
+        AMBRO_ASSERT(!(avrGetReg<Port::pcmsk_io_addr>() & (1 << Pin::port_pin)))
         
         ps->watchers_list.prepend(&m_base);
         m_base.pending.init(c, AMBRO_OFFSET_CALLBACK2_T(&AvrPinWatcher::m_base, &WatcherBase::pending, &AvrPinWatcher::pending_handler));
