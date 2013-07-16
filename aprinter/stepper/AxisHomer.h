@@ -28,6 +28,8 @@
 #include <stdint.h>
 
 #include <aprinter/meta/WrapCallback.h>
+#include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/WrapValue.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/stepper/MotionPlanner.h>
@@ -45,12 +47,23 @@ private:
     struct PlannerBufferEmptyHandler;
     struct PinWatcherHandler;
     
-    using Planner = MotionPlanner<Context, Sharer, PlannerGetSharerHandler, PlannerPullCmdHandler, PlannerBufferFullHandler, PlannerBufferEmptyHandler>;
+    using PlannerAxes = typename MakeTypeList<
+        MotionPlannerAxisParams<
+            Sharer,
+            PlannerGetSharerHandler,
+            15,
+            -4,
+            15,
+            -24
+        >
+    >::Type;
+    
+    using Planner = MotionPlanner<Context, PlannerAxes, PlannerPullCmdHandler, PlannerBufferFullHandler, PlannerBufferEmptyHandler>;
     
 public:
-    using StepFixedType = typename Planner::StepFixedType;
-    using AbsVelFixedType = typename Planner::AbsVelFixedType;
-    using AbsAccFixedType = typename Planner::AbsAccFixedType;
+    using StepFixedType = typename Planner::template Axis<0>::StepFixedType;
+    using AbsVelFixedType = typename Planner::template Axis<0>::AbsVelFixedType;
+    using AbsAccFixedType = typename Planner::template Axis<0>::AbsAccFixedType;
     
     struct HomingParams {
         StepFixedType fast_max_dist;
@@ -64,7 +77,10 @@ public:
     
     void init (Context c, Sharer *sharer)
     {
-        m_planner.init(c, sharer);
+        typename Planner::SharersTuple sharers;
+        sharers.elem = sharer;
+        
+        m_planner.init(c, sharers);
         
         this->debugInit(c);
     }
@@ -139,22 +155,22 @@ private:
         PlannerCommand cmd;
         switch (m_state) {
             case STATE_FAST: {
-                cmd.dir = HomeDir;
-                cmd.x = m_params.fast_max_dist;
-                cmd.max_v = m_params.fast_speed;
-                cmd.max_a = m_params.max_accel;
+                cmd.axes.elem.dir = HomeDir;
+                cmd.axes.elem.x = m_params.fast_max_dist;
+                cmd.axes.elem.max_v = m_params.fast_speed;
+                cmd.axes.elem.max_a = m_params.max_accel;
             } break;
             case STATE_RETRACT: {
-                cmd.dir = !HomeDir;
-                cmd.x = m_params.retract_dist;
-                cmd.max_v = m_params.retract_speed;
-                cmd.max_a = m_params.max_accel;
+                cmd.axes.elem.dir = !HomeDir;
+                cmd.axes.elem.x = m_params.retract_dist;
+                cmd.axes.elem.max_v = m_params.retract_speed;
+                cmd.axes.elem.max_a = m_params.max_accel;
             } break;
             case STATE_SLOW: {
-                cmd.dir = HomeDir;
-                cmd.x = m_params.slow_max_dist;
-                cmd.max_v = m_params.slow_speed;
-                cmd.max_a = m_params.max_accel;
+                cmd.axes.elem.dir = HomeDir;
+                cmd.axes.elem.x = m_params.slow_max_dist;
+                cmd.axes.elem.max_v = m_params.slow_speed;
+                cmd.axes.elem.max_a = m_params.max_accel;
             } break;
         }
         

@@ -236,6 +236,11 @@ static void empty_common (MyContext c, int inc)
 
 static void endstop_common (MyContext c)
 {
+    bool new_paused = (mypins.get<X_STOP_PIN>(c) || mypins.get<Y_STOP_PIN>(c));
+    if (new_paused == paused) {
+        return;
+    }
+    
     if (!paused) {
         paused = true;
         if (active && stepping) {
@@ -253,23 +258,20 @@ static void endstop_common (MyContext c)
     }
 }
 
+static void finished_homing (MyContext c)
+{
+    steppers.getStepper<0>()->enable(c, false);
+    mypinwatcher0.init(c);
+    mypinwatcher1.init(c);
+}
+
 static void pinwatcher_handler0 (MyPinWatcher0 *, MyContext c, bool state)
 {
-    bool press = !pin_prev0 && state;
-    pin_prev0 = state;
-    if (!press) {
-        return;
-    }
     endstop_common(c);
 }
 
 static void pinwatcher_handler1 (MyPinWatcher1 *, MyContext c, bool state)
 {
-    bool press = !pin_prev1 && state;
-    pin_prev1 = state;
-    if (!press) {
-        return;
-    }
     endstop_common(c);
 }
 
@@ -286,6 +288,7 @@ static void pinwatcher_handler2 (MyPinWatcher2 *, MyContext c, bool state)
     } else {
         if (homer0.isRunning(c)) {
             homer0.stop(c);
+            finished_homing(c);
         }
         
         AMBRO_ASSERT(!active)
@@ -432,6 +435,7 @@ static MyAxisSharer0 * homer_get_sharer_handler0 (MyHomer0 *)
 static void homer_finisher_handler0 (MyHomer0 *, MyContext c, bool success)
 {
     printf("homing: %d\n", (int)success);
+    finished_homing(c);
 }
 
 struct PinWatcherHandler0 : public AMBRO_WFUNC(pinwatcher_handler0) {};
@@ -477,8 +481,6 @@ int main ()
     mypins.setOutput<LED1_PIN>(c);
     mypinwatcherservice.init(c);
     mytimer.init(c, mytimer_handler);
-    mypinwatcher0.init(c);
-    mypinwatcher1.init(c);
     mypinwatcher2.init(c);
     myserial.init(c, SERIAL_BAUD);
     setup_uart_stdio();
