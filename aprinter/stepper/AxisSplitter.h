@@ -29,6 +29,7 @@
 
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/WrapCallback.h>
+#include <aprinter/meta/ForwardHandler.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/stepper/AxisStepper.h>
@@ -335,11 +336,6 @@ private:
         }
     }
     
-    MyStepper * my_get_stepper_handler ()
-    {
-        return GetStepper::call(this);
-    }
-    
     void stepper_pull_cmd_handler (Context c)
     {
         this->debugAccess(c);
@@ -376,7 +372,7 @@ private:
     bool m_have_command;
     Command m_command;
     
-    struct MyGetStepper : public AMBRO_WCALLBACK_TD(&AxisSplitter::my_get_stepper_handler, &AxisSplitter::m_axis_stepper) {};
+    struct MyGetStepper : public AMBRO_FHANDLER_TD(&AxisSplitter::m_axis_stepper, GetStepper) {};
     struct StepperPullCmdHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::stepper_pull_cmd_handler, &AxisSplitter::m_axis_stepper) {};
     struct StepperBufferFullHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::stepper_buffer_full_handler, &AxisSplitter::m_axis_stepper) {};
     struct StepperBufferEmptyHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::stepper_buffer_empty_handler, &AxisSplitter::m_axis_stepper) {};

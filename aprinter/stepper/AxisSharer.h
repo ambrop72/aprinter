@@ -28,6 +28,7 @@
 #include <stddef.h>
 
 #include <aprinter/meta/WrapCallback.h>
+#include <aprinter/meta/ForwardHandler.h>
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -76,11 +77,6 @@ public:
 private:
     friend User;
     
-    Stepper * axisGetStepperHandler ()
-    {
-        return GetStepperHandler::call(this);
-    }
-    
     void axisPullCmdHandler (Context c)
     {
         this->debugAccess(c);
@@ -108,7 +104,7 @@ private:
     Axis m_axis;
     User *m_user;
     
-    struct AxisGetStepperHandler : public AMBRO_WCALLBACK_TD(&AxisSharer::axisGetStepperHandler, &AxisSharer::m_axis) {};
+    struct AxisGetStepperHandler : public AMBRO_FHANDLER_TD(&AxisSharer::m_axis, GetStepperHandler) {};
     struct AxisPullCmdHandler : public AMBRO_WCALLBACK_TD(&AxisSharer::axisPullCmdHandler, &AxisSharer::m_axis) {};
     struct AxisBufferFullHandler : public AMBRO_WCALLBACK_TD(&AxisSharer::axisBufferFullHandler, &AxisSharer::m_axis) {};
     struct AxisBufferEmptyHandler : public AMBRO_WCALLBACK_TD(&AxisSharer::axisBufferEmptyHandler, &AxisSharer::m_axis) {};

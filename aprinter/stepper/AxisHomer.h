@@ -30,6 +30,7 @@
 #include <aprinter/meta/WrapCallback.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/ForwardHandler.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/stepper/MotionPlanner.h>
@@ -135,11 +136,6 @@ private:
     using PinWatcherService = typename Context::PinWatcherService;
     using PlannerCommand = typename Planner::InputCommand;
     
-    Sharer * planner_get_sharer_handler ()
-    {
-        return GetSharerHandler::call(this);
-    }
-    
     void planner_pull_cmd_handler (Context c)
     {
         this->debugAccess(c);
@@ -239,7 +235,7 @@ private:
     bool m_command_sent;
     HomingParams m_params;
     
-    struct PlannerGetSharerHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_get_sharer_handler, &AxisHomer::m_planner) {};
+    struct PlannerGetSharerHandler : public AMBRO_FHANDLER_TD(&AxisHomer::m_planner, GetSharerHandler) {};
     struct PlannerPullCmdHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_pull_cmd_handler, &AxisHomer::m_planner) {};
     struct PlannerBufferFullHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_buffer_full_handler, &AxisHomer::m_planner) {};
     struct PlannerBufferEmptyHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_buffer_empty_handler, &AxisHomer::m_planner) {};
