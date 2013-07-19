@@ -30,20 +30,20 @@
 #include <aprinter/BeginNamespace.h>
 
 namespace WrapCallbackPrivate {
-    template <typename Obj, typename MemberType, typename R, typename... Args>
+    template <typename Obj, typename Obj2, typename MemberType, typename R, typename... Args>
     struct Helper {
-        template <R (Obj::*Method) (Args...), MemberType Obj::*Member>
+        template <R (Obj::*Method) (Args...), MemberType Obj2::*Member>
         struct Wrapper {
             static R call (MemberType *member, Args... args)
             {
-                Obj *o = AMBRO_WMEMB_TD(Member)::container(member);
+                Obj *o = static_cast<Obj *>(AMBRO_WMEMB_TD(Member)::container(member));
                 return (o->*Method)(args...);
             }
         };
     };
 
-    template <typename Obj, typename MemberType, typename R, typename... Args>
-    struct Helper<Obj, MemberType, R, Args...> MakeHelper (R (Obj::*method) (Args...), MemberType Obj::*member);
+    template <typename Obj, typename Obj2, typename MemberType, typename R, typename... Args>
+    struct Helper<Obj, Obj2, MemberType, R, Args...> MakeHelper (R (Obj::*method) (Args...), MemberType Obj2::*member);
 }
 
 #define AMBRO_WCALLBACK(method, member) decltype(APrinter::WrapCallbackPrivate::MakeHelper(method, member))::Wrapper<method, member>
