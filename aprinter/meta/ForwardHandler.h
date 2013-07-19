@@ -47,7 +47,7 @@ struct ForwardHandlerMatchStruct {
 template <typename ObjectType, typename MemberType>
 ForwardHandlerMatchStruct<ObjectType, MemberType> ForwardHandlerMatchFunc (MemberType ObjectType::*);
 
-#define AMBRO_FHANDLER_TD(member, handler) decltype(ForwardHandlerMatchFunc(member))::template Result<member, handler>
+#define AMBRO_FHANDLER_TD(member, handler) decltype(APrinter::ForwardHandlerMatchFunc(member))::template Result<member, handler>
 
 #include <aprinter/EndNamespace.h>
 

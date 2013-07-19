@@ -44,7 +44,7 @@ struct ClassName { \
         static No & test (...); \
         \
     public: \
-        typedef WrapBool<(sizeof(test<T>(0)) == sizeof(Yes))> Type; \
+        typedef APrinter::WrapBool<(sizeof(test<T>(0)) == sizeof(Yes))> Type; \
     }; \
 };
 
