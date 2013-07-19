@@ -22,16 +22,21 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_INDEX_ELEM_TUPLE_H
-#define AMBROLIB_INDEX_ELEM_TUPLE_H
+#ifndef AMBROLIB_INDEX_ELEM_LIST_H
+#define AMBROLIB_INDEX_ELEM_LIST_H
 
-#include <aprinter/meta/Tuple.h>
-#include <aprinter/meta/IndexElemList.h>
+#include <aprinter/meta/MapTypeList.h>
+#include <aprinter/meta/SequenceList.h>
+#include <aprinter/meta/TypeListLength.h>
+#include <aprinter/meta/ValueTemplateFunc.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename List, template<int> class ElemTemplate>
-using IndexElemTuple = Tuple<IndexElemList<List, ElemTemplate>>;
+using IndexElemList = typename MapTypeList<
+    typename SequenceList<TypeListLength<List>::value>::Type,
+    ValueTemplateFunc<int, ElemTemplate>
+>::Type;
 
 #include <aprinter/EndNamespace.h>
 
