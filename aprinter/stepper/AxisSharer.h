@@ -36,10 +36,10 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, int StepperBufferBits, typename Stepper, typename GetStepperHandler, template<typename, typename> class StepperTimer>
+template <typename Context, typename AxisStepperParams, typename Stepper, typename GetStepperHandler>
 class AxisSharerUser;
 
-template <typename Context, int StepperBufferBits, typename Stepper, typename GetStepperHandler, template<typename, typename> class StepperTimer>
+template <typename Context, typename AxisStepperParams, typename Stepper, typename GetStepperHandler>
 class AxisSharer
 : private DebugObject<Context, void>
 {
@@ -50,8 +50,8 @@ private:
     struct AxisBufferEmptyHandler;
     
 public:
-    using Axis = AxisSplitter<Context, StepperBufferBits, Stepper, AxisGetStepperHandler, StepperTimer, AxisPullCmdHandler, AxisBufferFullHandler, AxisBufferEmptyHandler>;
-    using User = AxisSharerUser<Context, StepperBufferBits, Stepper, GetStepperHandler, StepperTimer>;
+    using Axis = AxisSplitter<Context, AxisStepperParams, Stepper, AxisGetStepperHandler, AxisPullCmdHandler, AxisBufferFullHandler, AxisBufferEmptyHandler>;
+    using User = AxisSharerUser<Context, AxisStepperParams, Stepper, GetStepperHandler>;
     
     void init (Context c)
     {
@@ -110,12 +110,12 @@ private:
     struct AxisBufferEmptyHandler : public AMBRO_WCALLBACK_TD(&AxisSharer::axisBufferEmptyHandler, &AxisSharer::m_axis) {};
 };
 
-template <typename Context, int StepperBufferBits, typename Stepper, typename GetStepperHandler, template<typename, typename> class StepperTimer>
+template <typename Context, typename AxisStepperParams, typename Stepper, typename GetStepperHandler>
 class AxisSharerUser
 : private DebugObject<Context, void>
 {
 public:
-    using Sharer = AxisSharer<Context, StepperBufferBits, Stepper, GetStepperHandler, StepperTimer>;
+    using Sharer = AxisSharer<Context, AxisStepperParams, Stepper, GetStepperHandler>;
     using Axis = typename Sharer::Axis;
     
     using PullCmdHandler = void (*) (AxisSharerUser *, Context);

@@ -52,11 +52,18 @@
 
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
-template <typename Context, int CommandBufferBits, typename Stepper, typename GetStepper, template<typename, typename> class Timer, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler>
+template <int TCommandBufferBits, template<typename, typename> class TTimer>
+struct AxisStepperParams {
+    static const int CommandBufferBits = TCommandBufferBits;
+    template<typename X, typename Y>
+    using Timer = TTimer<X, Y>;
+};
+
+template <typename Context, typename Params, typename Stepper, typename GetStepper, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler>
 class AxisStepper
 : private DebugObject<Context, void>
 {
-    static_assert(CommandBufferBits >= 2, "");
+    static_assert(Params::CommandBufferBits >= 2, "");
     
 private:
     using Loop = typename Context::EventLoop;
@@ -74,9 +81,9 @@ private:
     struct TimerHandler;
     
 public:
-    using TimerInstance = Timer<Context, TimerHandler>;
+    using TimerInstance = typename Params::template Timer<Context, TimerHandler>;
     using TimeType = typename Clock::TimeType;
-    using BufferSizeType = BoundedInt<CommandBufferBits, false>;
+    using BufferSizeType = BoundedInt<Params::CommandBufferBits, false>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
     using TimeFixedType = FixedPoint<time_bits, false, 0>;

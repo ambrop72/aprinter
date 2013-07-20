@@ -36,7 +36,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, int StepperBufferBits, typename MyStepper, typename GetStepper, template<typename, typename> class StepperTimer, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler>
+template <typename Context, typename TheAxisStepperParams, typename MyStepper, typename GetStepper, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler>
 class AxisSplitter
 : private DebugObject<Context, void> {
 private:
@@ -48,7 +48,7 @@ private:
     struct StepperBufferEmptyHandler;
     
 public:
-    using MyAxisStepper = AxisStepper<Context, StepperBufferBits, MyStepper, MyGetStepper, StepperTimer, StepperPullCmdHandler, StepperBufferFullHandler, StepperBufferEmptyHandler>;
+    using MyAxisStepper = AxisStepper<Context, TheAxisStepperParams, MyStepper, MyGetStepper, StepperPullCmdHandler, StepperBufferFullHandler, StepperBufferEmptyHandler>;
     
 private:
     static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 4;

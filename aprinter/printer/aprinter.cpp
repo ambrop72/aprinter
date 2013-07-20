@@ -103,10 +103,12 @@ typedef AvrSerial<MyContext, uint8_t, SERIAL_RX_BUFFER, SerialRecvHandler, uint8
 typedef Steppers<MyContext, STEPPERS> MySteppers;
 typedef SteppersStepper<MyContext, STEPPERS, 0> MySteppersStepper0;
 typedef SteppersStepper<MyContext, STEPPERS, 1> MySteppersStepper1;
-typedef AxisSharer<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA> MyAxisSharer0;
-typedef AxisSharer<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB> MyAxisSharer1;
-typedef AxisSharerUser<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA> MyAxisUser0;
-typedef AxisSharerUser<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB> MyAxisUser1;
+using StepperParams0 = AxisStepperParams<STEPPER_COMMAND_BUFFER_BITS, AvrClockInterruptTimer_TC1_OCA>;
+using StepperParams1 = AxisStepperParams<STEPPER_COMMAND_BUFFER_BITS, AvrClockInterruptTimer_TC1_OCB>;
+typedef AxisSharer<MyContext, StepperParams0, MySteppersStepper0, DriverGetStepperHandler0> MyAxisSharer0;
+typedef AxisSharer<MyContext, StepperParams1, MySteppersStepper1, DriverGetStepperHandler1> MyAxisSharer1;
+typedef AxisSharerUser<MyContext, StepperParams0, MySteppersStepper0, DriverGetStepperHandler0> MyAxisUser0;
+typedef AxisSharerUser<MyContext, StepperParams1, MySteppersStepper1, DriverGetStepperHandler1> MyAxisUser1;
 using TheMotionPlannerParams = MotionPlannerAxisParams<15, -4, 15, -24>;
 typedef AxisHomer<MyContext, MyAxisSharer0, TheMotionPlannerParams, X_STOP_PIN, false, true, HomerGetSharerHandler0, HomerFinishedHandler0> MyHomer0;
 
