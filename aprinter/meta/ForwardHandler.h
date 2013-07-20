@@ -32,7 +32,7 @@
 template <typename ObjectType, typename MemberType, MemberType ObjectType::*MemberPtr, typename BaseHandler>
 struct ForwardHandler {
     template <typename... Args>
-    static auto call (MemberType *member, Args... args)
+    static auto call (MemberType *member, Args... args) -> decltype(BaseHandler::call(AMBRO_WMEMB_TD(MemberPtr)::container(member), args...))
     {
         return BaseHandler::call(AMBRO_WMEMB_TD(MemberPtr)::container(member), args...);
     }
