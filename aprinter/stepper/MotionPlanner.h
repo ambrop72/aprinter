@@ -60,10 +60,9 @@ struct MotionPlannerAxisTypes {
     using AbsAccFixedType = FixedPoint<AxisParams::accel_bits, false, (-AxisParams::accel_bits + AxisParams::accel_range_exp)>;
 };
 
-template <typename TSharer, typename TGetSharerHandler, typename TParams>
+template <typename TSharer, typename TParams>
 struct MotionPlannerAxisSpec {
     using Sharer = TSharer;
-    using GetSharerHandler = TGetSharerHandler;
     using Params = TParams;
 };
 

@@ -37,19 +37,18 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename Sharer, typename TheMotionPlannerParams, typename SwitchPin, bool SwitchInvert, bool HomeDir, typename GetSharerHandler, typename FinishedHandler>
+template <typename Context, typename Sharer, typename TheMotionPlannerParams, typename SwitchPin, bool SwitchInvert, bool HomeDir, typename FinishedHandler>
 class AxisHomer
 : private DebugObject<Context, void>
 {
 private:
-    struct PlannerGetSharerHandler;
     struct PlannerPullCmdHandler;
     struct PlannerBufferFullHandler;
     struct PlannerBufferEmptyHandler;
     struct PinWatcherHandler;
     
     using PlannerAxes = typename MakeTypeList<
-        MotionPlannerAxisSpec<Sharer, PlannerGetSharerHandler, TheMotionPlannerParams>
+        MotionPlannerAxisSpec<Sharer, TheMotionPlannerParams>
     >::Type;
     
     using Planner = MotionPlanner<Context, PlannerAxes, PlannerPullCmdHandler, PlannerBufferFullHandler, PlannerBufferEmptyHandler>;
@@ -228,7 +227,6 @@ private:
     bool m_command_sent;
     HomingParams m_params;
     
-    struct PlannerGetSharerHandler : public AMBRO_FHANDLER_TD(&AxisHomer::m_planner, GetSharerHandler) {};
     struct PlannerPullCmdHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_pull_cmd_handler, &AxisHomer::m_planner) {};
     struct PlannerBufferFullHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_buffer_full_handler, &AxisHomer::m_planner) {};
     struct PlannerBufferEmptyHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_buffer_empty_handler, &AxisHomer::m_planner) {};

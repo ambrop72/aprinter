@@ -110,7 +110,7 @@ typedef AxisSharer<MyContext, StepperParams1, MySteppersStepper1, DriverGetStepp
 typedef AxisSharerUser<MyContext, StepperParams0, MySteppersStepper0, DriverGetStepperHandler0> MyAxisUser0;
 typedef AxisSharerUser<MyContext, StepperParams1, MySteppersStepper1, DriverGetStepperHandler1> MyAxisUser1;
 using TheMotionPlannerParams = MotionPlannerAxisParams<15, -4, 15, -24>;
-typedef AxisHomer<MyContext, MyAxisSharer0, TheMotionPlannerParams, X_STOP_PIN, false, true, HomerGetSharerHandler0, HomerFinishedHandler0> MyHomer0;
+typedef AxisHomer<MyContext, MyAxisSharer0, TheMotionPlannerParams, X_STOP_PIN, false, true, HomerFinishedHandler0> MyHomer0;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -430,11 +430,6 @@ static void buffer_empty_handler1 (MyAxisUser1 *, MyContext c)
     empty_common(c, 1);
 }
 
-static MyAxisSharer0 * homer_get_sharer_handler0 (MyHomer0 *)
-{
-    return &axis_sharer0;
-}
-
 static void homer_finisher_handler0 (MyHomer0 *, MyContext c, bool success)
 {
     printf("homing: %d\n", (int)success);
@@ -448,7 +443,6 @@ struct SerialRecvHandler : public AMBRO_WFUNC(serial_recv_handler) {};
 struct SerialSendHandler : public AMBRO_WFUNC(serial_send_handler) {};
 struct DriverGetStepperHandler0 : public AMBRO_WFUNC(driver_get_stepper_handler0) {};
 struct DriverGetStepperHandler1 : public AMBRO_WFUNC(driver_get_stepper_handler1) {};
-struct HomerGetSharerHandler0 : public AMBRO_WFUNC(homer_get_sharer_handler0) {};
 struct HomerFinishedHandler0 : public AMBRO_WFUNC(homer_finisher_handler0) {};
 
 FILE uart_output;
