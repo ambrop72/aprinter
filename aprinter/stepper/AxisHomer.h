@@ -37,7 +37,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename Sharer, typename SwitchPin, bool SwitchInvert, bool HomeDir, typename GetSharerHandler, typename FinishedHandler>
+template <typename Context, typename Sharer, typename TheMotionPlannerParams, typename SwitchPin, bool SwitchInvert, bool HomeDir, typename GetSharerHandler, typename FinishedHandler>
 class AxisHomer
 : private DebugObject<Context, void>
 {
@@ -49,14 +49,7 @@ private:
     struct PinWatcherHandler;
     
     using PlannerAxes = typename MakeTypeList<
-        MotionPlannerAxisParams<
-            Sharer,
-            PlannerGetSharerHandler,
-            15,
-            -4,
-            15,
-            -24
-        >
+        MotionPlannerAxisSpec<Sharer, PlannerGetSharerHandler, TheMotionPlannerParams>
     >::Type;
     
     using Planner = MotionPlanner<Context, PlannerAxes, PlannerPullCmdHandler, PlannerBufferFullHandler, PlannerBufferEmptyHandler>;

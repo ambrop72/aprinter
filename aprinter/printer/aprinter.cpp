@@ -107,7 +107,8 @@ typedef AxisSharer<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper0, D
 typedef AxisSharer<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB> MyAxisSharer1;
 typedef AxisSharerUser<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper0, DriverGetStepperHandler0, AvrClockInterruptTimer_TC1_OCA> MyAxisUser0;
 typedef AxisSharerUser<MyContext, STEPPER_COMMAND_BUFFER_BITS, MySteppersStepper1, DriverGetStepperHandler1, AvrClockInterruptTimer_TC1_OCB> MyAxisUser1;
-typedef AxisHomer<MyContext, MyAxisSharer0, X_STOP_PIN, false, true, HomerGetSharerHandler0, HomerFinishedHandler0> MyHomer0;
+using TheMotionPlannerParams = MotionPlannerAxisParams<15, -4, 15, -24>;
+typedef AxisHomer<MyContext, MyAxisSharer0, TheMotionPlannerParams, X_STOP_PIN, false, true, HomerGetSharerHandler0, HomerFinishedHandler0> MyHomer0;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;

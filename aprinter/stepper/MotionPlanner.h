@@ -46,14 +46,25 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TSharer, typename TGetSharerHandler, int tvelocity_bits, int tvelocity_range_exp, int taccel_bits, int taccel_range_exp>
+template <int tvelocity_bits, int tvelocity_range_exp, int taccel_bits, int taccel_range_exp>
 struct MotionPlannerAxisParams {
-    using Sharer = TSharer;
-    using GetSharerHandler = TGetSharerHandler;
     static const int velocity_bits = tvelocity_bits;
     static const int velocity_range_exp = tvelocity_range_exp;
     static const int accel_bits = taccel_bits;
     static const int accel_range_exp = taccel_range_exp;
+};
+
+template <typename AxisParams>
+struct MotionPlannerAxisTypes {
+    using AbsVelFixedType = FixedPoint<AxisParams::velocity_bits, false, (-AxisParams::velocity_bits + AxisParams::velocity_range_exp)>;
+    using AbsAccFixedType = FixedPoint<AxisParams::accel_bits, false, (-AxisParams::accel_bits + AxisParams::accel_range_exp)>;
+};
+
+template <typename TSharer, typename TGetSharerHandler, typename TParams>
+struct MotionPlannerAxisSpec {
+    using Sharer = TSharer;
+    using GetSharerHandler = TGetSharerHandler;
+    using Params = TParams;
 };
 
 template <typename Context, typename AxesList, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler, int AxisIndex>
@@ -87,10 +98,10 @@ private:
     
     static_assert(ALL_CMD_END <= UINT8_MAX, "");
     
-    template <typename TheAxisParams, typename AccumType>
-    using MinTimeTypeHelper = FixedIntersectTypes<typename TheAxisParams::Sharer::Axis::TimeFixedType, AccumType>;
-    template <typename TheAxisParams, typename AccumType>
-    using MaxStepTypeHelper = FixedUnionTypes<typename TheAxisParams::Sharer::Axis::StepFixedType, AccumType>;
+    template <typename TheAxisSpec, typename AccumType>
+    using MinTimeTypeHelper = FixedIntersectTypes<typename TheAxisSpec::Sharer::Axis::TimeFixedType, AccumType>;
+    template <typename TheAxisSpec, typename AccumType>
+    using MaxStepTypeHelper = FixedUnionTypes<typename TheAxisSpec::Sharer::Axis::StepFixedType, AccumType>;
     
     using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
     using MaxStepType = TypeListFold<AxesList, FixedIdentity, MaxStepTypeHelper>;
@@ -321,13 +332,13 @@ public:
     using TheMotionPlanner = MotionPlanner<Context, AxesList, PullCmdHandler, BufferFullHandler, BufferEmptyHandler>;
     using TheAxisInputCommand = typename TheMotionPlanner::template AxisInputCommand<AxisIndex>;
     using TimeType = typename TheMotionPlanner::TimeType;
-    using AxisData = typename TypeListGet<AxesList, AxisIndex>::Type;
-    using Sharer = typename AxisData::Sharer;
+    using AxisSpec = typename TypeListGet<AxesList, AxisIndex>::Type;
+    using Sharer = typename AxisSpec::Sharer;
     using StepFixedType = typename Sharer::Axis::StepFixedType;
     using TimeFixedType = typename Sharer::Axis::TimeFixedType;
     using AccelFixedType = typename Sharer::Axis::AccelFixedType;
-    using AbsVelFixedType = FixedPoint<AxisData::velocity_bits, false, (-AxisData::velocity_bits + AxisData::velocity_range_exp)>;
-    using AbsAccFixedType = FixedPoint<AxisData::accel_bits, false, (-AxisData::accel_bits + AxisData::accel_range_exp)>;
+    using AbsVelFixedType = typename MotionPlannerAxisTypes<typename AxisSpec::Params>::AbsVelFixedType;
+    using AbsAccFixedType = typename MotionPlannerAxisTypes<typename AxisSpec::Params>::AbsAccFixedType;
     
 private:
     friend TheMotionPlanner;
