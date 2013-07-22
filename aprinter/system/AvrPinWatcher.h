@@ -109,9 +109,9 @@ private:
     
     AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(HasPinChangeTagFunc, PinChangeTag)
     
-    using Ports = typename FilterTypeList<AvrPorts, HasPinChangeTagFunc>::Type;
+    using Ports = FilterTypeList<AvrPorts, HasPinChangeTagFunc>;
     
-    typedef typename MapTypeList<Ports, TemplateFunc<PortState>>::Type PortStateTypes;
+    typedef MapTypeList<Ports, TemplateFunc<PortState>> PortStateTypes;
     
     struct InitPortHelper {
         template <typename PortStateType>

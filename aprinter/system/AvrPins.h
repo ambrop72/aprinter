@@ -114,12 +114,12 @@ using AvrPorts = FilterTypeList<
         AvrPortE,
 #endif
         void
-    >::Type,
+    >,
     ComposeFunctions<
         NotFunc,
         IsEqualFunc<void>
     >
->::Type;
+>;
 
 template <typename TPort, int PortPin>
 struct AvrPin {

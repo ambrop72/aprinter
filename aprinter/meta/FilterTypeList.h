@@ -30,33 +30,35 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename List, typename Predicate>
-struct FilterTypeList;
+struct FilterTypeListHelper;
 
 namespace Private {
     template <typename Head, typename Tail, typename Predicate, bool IncludeHead>
-    struct FilterTypeListHelper;
+    struct FilterTypeListHelperHelper;
 
     template <typename Head, typename Tail, typename Predicate>
-    struct FilterTypeListHelper<Head, Tail, Predicate, true> {
-        typedef ConsTypeList<Head, typename FilterTypeList<Tail, Predicate>::Type> Type;
+    struct FilterTypeListHelperHelper<Head, Tail, Predicate, true> {
+        typedef ConsTypeList<Head, typename FilterTypeListHelper<Tail, Predicate>::Type> Type;
     };
 
     template <typename Head, typename Tail, typename Predicate>
-    struct FilterTypeListHelper<Head, Tail, Predicate, false> {
-        typedef typename FilterTypeList<Tail, Predicate>::Type Type;
+    struct FilterTypeListHelperHelper<Head, Tail, Predicate, false> {
+        typedef typename FilterTypeListHelper<Tail, Predicate>::Type Type;
     };
 }
 
 template <typename Predicate>
-struct FilterTypeList<EmptyTypeList, Predicate> {
+struct FilterTypeListHelper<EmptyTypeList, Predicate> {
     typedef EmptyTypeList Type;
 };
 
 template <typename Head, typename Tail, typename Predicate>
-struct FilterTypeList<ConsTypeList<Head, Tail>, Predicate> {
-    typedef typename Private::FilterTypeListHelper<Head, Tail, Predicate, Predicate::template Call<Head>::Type::value>::Type Type;
+struct FilterTypeListHelper<ConsTypeList<Head, Tail>, Predicate> {
+    typedef typename Private::FilterTypeListHelperHelper<Head, Tail, Predicate, Predicate::template Call<Head>::Type::value>::Type Type;
 };
 
+template <typename List, typename Predicate>
+using FilterTypeList = typename FilterTypeListHelper<List, Predicate>::Type;
 
 #include <aprinter/EndNamespace.h>
 

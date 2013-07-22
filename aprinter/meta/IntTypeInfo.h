@@ -65,37 +65,37 @@ struct IntTypeInfo {
         TypesAreEqual<T, uint64_t>::value ? 64 : 0;
     
     typedef
-        typename If<TypesAreEqual<T, int8_t>::value, int16_t,
-        typename If<TypesAreEqual<T, int16_t>::value, int32_t,
-        typename If<TypesAreEqual<T, int32_t>::value, int64_t,
-        typename If<TypesAreEqual<T, int64_t>::value, void,
-        typename If<TypesAreEqual<T, uint8_t>::value, uint16_t,
-        typename If<TypesAreEqual<T, uint16_t>::value, uint32_t,
-        typename If<TypesAreEqual<T, uint32_t>::value, uint64_t,
-        typename If<TypesAreEqual<T, uint64_t>::value, void,
-        void>::Type>::Type>::Type>::Type>::Type>::Type>::Type>::Type NextType;
+        If<TypesAreEqual<T, int8_t>::value, int16_t,
+        If<TypesAreEqual<T, int16_t>::value, int32_t,
+        If<TypesAreEqual<T, int32_t>::value, int64_t,
+        If<TypesAreEqual<T, int64_t>::value, void,
+        If<TypesAreEqual<T, uint8_t>::value, uint16_t,
+        If<TypesAreEqual<T, uint16_t>::value, uint32_t,
+        If<TypesAreEqual<T, uint32_t>::value, uint64_t,
+        If<TypesAreEqual<T, uint64_t>::value, void,
+        void>>>>>>>> NextType;
     
     typedef
-        typename If<TypesAreEqual<T, int8_t>::value, void,
-        typename If<TypesAreEqual<T, int16_t>::value, int8_t,
-        typename If<TypesAreEqual<T, int32_t>::value, int16_t,
-        typename If<TypesAreEqual<T, int64_t>::value, int32_t,
-        typename If<TypesAreEqual<T, uint8_t>::value, void,
-        typename If<TypesAreEqual<T, uint16_t>::value, uint8_t,
-        typename If<TypesAreEqual<T, uint32_t>::value, uint16_t,
-        typename If<TypesAreEqual<T, uint64_t>::value, uint32_t,
-        void>::Type>::Type>::Type>::Type>::Type>::Type>::Type>::Type PrevType;
+        If<TypesAreEqual<T, int8_t>::value, void,
+        If<TypesAreEqual<T, int16_t>::value, int8_t,
+        If<TypesAreEqual<T, int32_t>::value, int16_t,
+        If<TypesAreEqual<T, int64_t>::value, int32_t,
+        If<TypesAreEqual<T, uint8_t>::value, void,
+        If<TypesAreEqual<T, uint16_t>::value, uint8_t,
+        If<TypesAreEqual<T, uint32_t>::value, uint16_t,
+        If<TypesAreEqual<T, uint64_t>::value, uint32_t,
+        void>>>>>>>> PrevType;
     
     typedef
-        typename If<TypesAreEqual<T, int8_t>::value, uint8_t,
-        typename If<TypesAreEqual<T, int16_t>::value, uint16_t,
-        typename If<TypesAreEqual<T, int32_t>::value, uint32_t,
-        typename If<TypesAreEqual<T, int64_t>::value, uint64_t,
-        typename If<TypesAreEqual<T, uint8_t>::value, uint8_t,
-        typename If<TypesAreEqual<T, uint16_t>::value, uint16_t,
-        typename If<TypesAreEqual<T, uint32_t>::value, uint32_t,
-        typename If<TypesAreEqual<T, uint64_t>::value, uint64_t,
-        void>::Type>::Type>::Type>::Type>::Type>::Type>::Type>::Type UnsignedType;
+        If<TypesAreEqual<T, int8_t>::value, uint8_t,
+        If<TypesAreEqual<T, int16_t>::value, uint16_t,
+        If<TypesAreEqual<T, int32_t>::value, uint32_t,
+        If<TypesAreEqual<T, int64_t>::value, uint64_t,
+        If<TypesAreEqual<T, uint8_t>::value, uint8_t,
+        If<TypesAreEqual<T, uint16_t>::value, uint16_t,
+        If<TypesAreEqual<T, uint32_t>::value, uint32_t,
+        If<TypesAreEqual<T, uint64_t>::value, uint64_t,
+        void>>>>>>>> UnsignedType;
 };
 
 #include <aprinter/EndNamespace.h>

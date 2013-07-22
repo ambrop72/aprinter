@@ -28,17 +28,20 @@
 #include <aprinter/BeginNamespace.h>
 
 template <bool Cond, typename T1, typename T2>
-struct If;
+struct IfHelper;
 
 template <typename T1, typename T2>
-struct If<true, T1, T2> {
+struct IfHelper<true, T1, T2> {
     typedef T1 Type;
 };
 
 template <typename T1, typename T2>
-struct If<false, T1, T2> {
+struct IfHelper<false, T1, T2> {
     typedef T2 Type;
 };
+
+template <bool Cond, typename T1, typename T2>
+using If = typename IfHelper<Cond, T1, T2>::Type;
 
 #include <aprinter/EndNamespace.h>
 

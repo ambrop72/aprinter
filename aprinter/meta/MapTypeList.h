@@ -30,17 +30,20 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename List, typename Func>
-struct MapTypeList;
+struct MapTypeListHelper;
 
 template <typename Func>
-struct MapTypeList<EmptyTypeList, Func> {
+struct MapTypeListHelper<EmptyTypeList, Func> {
     typedef EmptyTypeList Type;
 };
 
 template <typename Head, typename Tail, typename Func>
-struct MapTypeList<ConsTypeList<Head, Tail>, Func> {
-    typedef ConsTypeList<typename Func::template Call<Head>::Type, typename MapTypeList<Tail, Func>::Type> Type;
+struct MapTypeListHelper<ConsTypeList<Head, Tail>, Func> {
+    typedef ConsTypeList<typename Func::template Call<Head>::Type, typename MapTypeListHelper<Tail, Func>::Type> Type;
 };
+
+template <typename List, typename Func>
+using MapTypeList = typename MapTypeListHelper<List, Func>::Type;
 
 #include <aprinter/EndNamespace.h>
 

@@ -32,10 +32,10 @@
 
 template <typename List, typename MapFunc>
 using MapElemTuple = Tuple<
-    typename MapTypeList<
+    MapTypeList<
         List,
         MapFunc
-    >::Type
+    >
 >;
 
 #include <aprinter/EndNamespace.h>

@@ -30,23 +30,26 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename List, int Index>
-struct TypeListGet;
+struct TypeListGetHelper;
 
 template <typename Head, typename Tail>
-struct TypeListGet<ConsTypeList<Head, Tail>, 0> {
+struct TypeListGetHelper<ConsTypeList<Head, Tail>, 0> {
     typedef Head Type;
 };
 
 template <typename Head, typename Tail, int Index>
-struct TypeListGet<ConsTypeList<Head, Tail>, Index> {
-    typedef typename TypeListGet<Tail, (Index - 1)>::Type Type;
+struct TypeListGetHelper<ConsTypeList<Head, Tail>, Index> {
+    typedef typename TypeListGetHelper<Tail, (Index - 1)>::Type Type;
 };
+
+template <typename List, int Index>
+using TypeListGet = typename TypeListGetHelper<List, Index>::Type;
 
 template <typename List>
 struct TypeListGetFunc {
     template <typename Index>
     struct Call {
-        typedef typename TypeListGet<List, Index::value>::Type Type;
+        using Type = TypeListGet<List, Index::value>;
     };
 };
 

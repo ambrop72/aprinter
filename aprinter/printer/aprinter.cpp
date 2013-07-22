@@ -74,7 +74,7 @@
     MakeTypeList< \
         StepperDef<X_DIR_PIN, X_STEP_PIN, XYE_ENABLE_PIN>, \
         StepperDef<Y_DIR_PIN, Y_STEP_PIN, XYE_ENABLE_PIN> \
-    >::Type
+    >
 
 using namespace APrinter;
 

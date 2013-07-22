@@ -64,12 +64,12 @@ private:
     using StepperByIndex = SteppersStepper<Context, StepperDefsList, Index::value>;
     
     using SteppersTuple = Tuple<
-        typename MapTypeList<
-            typename SequenceList<
+        MapTypeList<
+            SequenceList<
                 TypeListLength<StepperDefsList>::value
-            >::Type,
+            >,
             TemplateFunc<StepperByIndex>
-        >::Type
+        >
     >;
     
     struct SteppersInitHelper {
@@ -169,17 +169,17 @@ private:
         return AMBRO_WMEMB_TD(&OurSteppers::m_steppers)::container(steppers);
     }
     
-    using ThisDef = typename TypeListGet<StepperDefsList, StepperIndex>::Type;
+    using ThisDef = TypeListGet<StepperDefsList, StepperIndex>;
     using DirPin = typename ThisDef::DirPin;
     using StepPin = typename ThisDef::StepPin;
     using EnablePin = typename ThisDef::EnablePin;
     
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetEnablePinFunc, EnablePin)
     
-    using SameEnableIndices = typename FilterTypeList<
-        typename SequenceList<
+    using SameEnableIndices = FilterTypeList<
+        SequenceList<
             TypeListLength<StepperDefsList>::value
-        >::Type,
+        >,
         ComposeFunctions<
             IsEqualFunc<EnablePin>,
             ComposeFunctions<
@@ -187,7 +187,7 @@ private:
                 TypeListGetFunc<StepperDefsList>
             >
         >
-    >::Type;
+    >;
     
     struct OrEnableOper {
         static bool zero (SteppersTuple *steppers)

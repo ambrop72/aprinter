@@ -47,9 +47,9 @@ private:
     struct PlannerBufferEmptyHandler;
     struct PinWatcherHandler;
     
-    using PlannerAxes = typename MakeTypeList<
+    using PlannerAxes = MakeTypeList<
         MotionPlannerAxisSpec<Sharer, TheMotionPlannerParams>
-    >::Type;
+    >;
     
     using Planner = MotionPlanner<Context, PlannerAxes, PlannerPullCmdHandler, PlannerBufferFullHandler, PlannerBufferEmptyHandler>;
     

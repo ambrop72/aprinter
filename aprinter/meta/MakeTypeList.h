@@ -30,17 +30,20 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename... Ts>
-struct MakeTypeList;
+struct MakeTypeListHelper;
 
 template <>
-struct MakeTypeList<> {
+struct MakeTypeListHelper<> {
     typedef EmptyTypeList Type;
 };
 
 template <typename T, typename... Ts>
-struct MakeTypeList<T, Ts...> {
-    typedef ConsTypeList<T, typename MakeTypeList<Ts...>::Type> Type;
+struct MakeTypeListHelper<T, Ts...> {
+    typedef ConsTypeList<T, typename MakeTypeListHelper<Ts...>::Type> Type;
 };
+
+template <typename... Ts>
+using MakeTypeList = typename MakeTypeListHelper<Ts...>::Type;
 
 #include <aprinter/EndNamespace.h>
 

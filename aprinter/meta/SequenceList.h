@@ -31,17 +31,20 @@
 #include <aprinter/BeginNamespace.h>
 
 template <int Count, int Start = 0>
-struct SequenceList {
+struct SequenceListHelper {
     typedef ConsTypeList<
         WrapInt<Start>,
-        typename SequenceList<(Count - 1), (Start + 1)>::Type
+        typename SequenceListHelper<(Count - 1), (Start + 1)>::Type
     > Type;
 };
 
 template <int Start>
-struct SequenceList<0, Start> {
+struct SequenceListHelper<0, Start> {
     typedef EmptyTypeList Type;
 };
+
+template <int Count, int Start = 0>
+using SequenceList = typename SequenceListHelper<Count, Start>::Type;
 
 #include <aprinter/EndNamespace.h>
 

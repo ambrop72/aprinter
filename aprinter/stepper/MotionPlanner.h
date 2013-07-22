@@ -331,7 +331,7 @@ public:
     using TheMotionPlanner = MotionPlanner<Context, AxesList, PullCmdHandler, BufferFullHandler, BufferEmptyHandler>;
     using TheAxisInputCommand = typename TheMotionPlanner::template AxisInputCommand<AxisIndex>;
     using TimeType = typename TheMotionPlanner::TimeType;
-    using AxisSpec = typename TypeListGet<AxesList, AxisIndex>::Type;
+    using AxisSpec = TypeListGet<AxesList, AxisIndex>;
     using Sharer = typename AxisSpec::Sharer;
     using StepFixedType = typename Sharer::Axis::StepFixedType;
     using TimeFixedType = typename Sharer::Axis::TimeFixedType;
