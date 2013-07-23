@@ -34,9 +34,10 @@
 #define AMBROLIB_ABORT_ACTION { cli(); while (1); }
 
 #include <aprinter/meta/WrapFunction.h>
+#include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/system/AvrEventLoop.h>
 #include <aprinter/system/AvrClock.h>
 #include <aprinter/system/AvrPins.h>
@@ -109,8 +110,9 @@ typedef AxisSharer<MyContext, StepperParams0, MySteppersStepper0, DriverGetStepp
 typedef AxisSharer<MyContext, StepperParams1, MySteppersStepper1, DriverGetStepperHandler1> MyAxisSharer1;
 typedef AxisSharerUser<MyContext, StepperParams0, MySteppersStepper0, DriverGetStepperHandler0> MyAxisUser0;
 typedef AxisSharerUser<MyContext, StepperParams1, MySteppersStepper1, DriverGetStepperHandler1> MyAxisUser1;
-using TheMotionPlannerParams = MotionPlannerAxisParams<15, -4, 15, -24>;
-typedef AxisHomer<MyContext, MyAxisSharer0, TheMotionPlannerParams, X_STOP_PIN, false, true, HomerFinishedHandler0> MyHomer0;
+using AbsVelFixedType = FixedPoint<15, false, -15-4>;
+using AbsAccFixedType = FixedPoint<15, false, -15-24>;
+typedef AxisHomer<MyContext, MyAxisSharer0, AbsVelFixedType, AbsAccFixedType, X_STOP_PIN, false, true, HomerFinishedHandler0> MyHomer0;
 
 struct MyContext {
     typedef MyDebugObjectGroup DebugGroup;
@@ -505,13 +507,13 @@ int main ()
     float unit_sec = 20000000.0 / 8.0;
     
     typename MyHomer0::HomingParams params;
-    params.max_accel = MyHomer0::AbsAccFixedType::importDouble(500.0 * (unit_mm / (unit_sec * unit_sec)));
+    params.max_accel = AbsAccFixedType::importDouble(500.0 * (unit_mm / (unit_sec * unit_sec)));
     params.fast_max_dist = MyHomer0::StepFixedType::importDouble(300.0 * unit_mm);
     params.retract_dist = MyHomer0::StepFixedType::importDouble(3.0 * unit_mm);
     params.slow_max_dist = MyHomer0::StepFixedType::importDouble(5.0 * unit_mm);
-    params.fast_speed = MyHomer0::AbsVelFixedType::importDouble(40.0 * (unit_mm / unit_sec));
-    params.retract_speed = MyHomer0::AbsVelFixedType::importDouble(50.0 * (unit_mm / unit_sec));
-    params.slow_speed = MyHomer0::AbsVelFixedType::importDouble(5.0 * (unit_mm / unit_sec));
+    params.fast_speed = AbsVelFixedType::importDouble(40.0 * (unit_mm / unit_sec));
+    params.retract_speed = AbsVelFixedType::importDouble(50.0 * (unit_mm / unit_sec));
+    params.slow_speed = AbsVelFixedType::importDouble(5.0 * (unit_mm / unit_sec));
     
     steppers.getStepper<0>()->enable(c, true);
     homer0.start(c, params);

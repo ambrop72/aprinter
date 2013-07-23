@@ -46,24 +46,11 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <int tvelocity_bits, int tvelocity_range_exp, int taccel_bits, int taccel_range_exp>
-struct MotionPlannerAxisParams {
-    static const int velocity_bits = tvelocity_bits;
-    static const int velocity_range_exp = tvelocity_range_exp;
-    static const int accel_bits = taccel_bits;
-    static const int accel_range_exp = taccel_range_exp;
-};
-
-template <typename AxisParams>
-struct MotionPlannerAxisTypes {
-    using AbsVelFixedType = FixedPoint<AxisParams::velocity_bits, false, (-AxisParams::velocity_bits + AxisParams::velocity_range_exp)>;
-    using AbsAccFixedType = FixedPoint<AxisParams::accel_bits, false, (-AxisParams::accel_bits + AxisParams::accel_range_exp)>;
-};
-
-template <typename TSharer, typename TParams>
+template <typename TSharer, typename TAbsVelFixedType, typename TAbsAccFixedType>
 struct MotionPlannerAxisSpec {
     using Sharer = TSharer;
-    using Params = TParams;
+    using AbsVelFixedType = TAbsVelFixedType;
+    using AbsAccFixedType = TAbsAccFixedType;
 };
 
 template <typename Context, typename AxesList, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler, int AxisIndex>
@@ -336,8 +323,11 @@ public:
     using StepFixedType = typename Sharer::Axis::StepFixedType;
     using TimeFixedType = typename Sharer::Axis::TimeFixedType;
     using AccelFixedType = typename Sharer::Axis::AccelFixedType;
-    using AbsVelFixedType = typename MotionPlannerAxisTypes<typename AxisSpec::Params>::AbsVelFixedType;
-    using AbsAccFixedType = typename MotionPlannerAxisTypes<typename AxisSpec::Params>::AbsAccFixedType;
+    using AbsVelFixedType = typename AxisSpec::AbsVelFixedType;
+    using AbsAccFixedType = typename AxisSpec::AbsAccFixedType;
+    
+    static_assert(!AbsVelFixedType::is_signed, "");
+    static_assert(!AbsAccFixedType::is_signed, "");
     
 private:
     friend TheMotionPlanner;

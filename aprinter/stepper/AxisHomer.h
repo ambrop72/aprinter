@@ -37,7 +37,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename Sharer, typename TheMotionPlannerParams, typename SwitchPin, bool SwitchInvert, bool HomeDir, typename FinishedHandler>
+template <typename Context, typename Sharer, typename AbsVelFixedType, typename AbsAccFixedType, typename SwitchPin, bool SwitchInvert, bool HomeDir, typename FinishedHandler>
 class AxisHomer
 : private DebugObject<Context, void>
 {
@@ -48,15 +48,13 @@ private:
     struct PinWatcherHandler;
     
     using PlannerAxes = MakeTypeList<
-        MotionPlannerAxisSpec<Sharer, TheMotionPlannerParams>
+        MotionPlannerAxisSpec<Sharer, AbsVelFixedType, AbsAccFixedType>
     >;
     
     using Planner = MotionPlanner<Context, PlannerAxes, PlannerPullCmdHandler, PlannerBufferFullHandler, PlannerBufferEmptyHandler>;
     
 public:
     using StepFixedType = typename Planner::template Axis<0>::StepFixedType;
-    using AbsVelFixedType = typename Planner::template Axis<0>::AbsVelFixedType;
-    using AbsAccFixedType = typename Planner::template Axis<0>::AbsAccFixedType;
     
     struct HomingParams {
         StepFixedType fast_max_dist;
