@@ -81,7 +81,7 @@ template <
     typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir,
     typename TTheAxisStepperParams, typename TAbsVelFixedType, typename TAbsAccFixedType,
     typename TDefaultStepsPerUnit, typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
-    typename THoming
+    typename TDefaultOffset, typename TDefaultLimit, typename THoming
 >
 struct PrinterMainAxisParams {
     static const char name = tname;
@@ -95,6 +95,8 @@ struct PrinterMainAxisParams {
     using DefaultStepsPerUnit = TDefaultStepsPerUnit;
     using DefaultMaxSpeed = TDefaultMaxSpeed;
     using DefaultMaxAccel = TDefaultMaxAccel;
+    using DefaultOffset = TDefaultOffset;
+    using DefaultLimit = TDefaultLimit;
     using Homing = THoming;
 };
 
@@ -306,6 +308,8 @@ private:
             m_steps_per_unit = AxisSpec::DefaultStepsPerUnit::value();
             m_max_speed = AxisSpec::DefaultMaxSpeed::value();
             m_max_accel = AxisSpec::DefaultMaxAccel::value();
+            m_offset = AxisSpec::DefaultOffset::value();
+            m_limit = AxisSpec::DefaultLimit::value();
             m_homing_feature.init(c);
             m_end_pos = StepFixedType::importBits(0);
             m_req_pos = StepFixedType::importBits(0);
@@ -349,7 +353,10 @@ private:
         {
             if (part->code == axis_name) {
                 double req = strtod(part->data, NULL);
-                StepFixedType new_req_pos = dist_from_real(req);
+                if (req > m_limit) {
+                    req = m_limit;
+                }
+                StepFixedType new_req_pos = dist_from_real(m_offset + req);
                 if (new_req_pos != m_req_pos) {
                     m_req_pos = new_req_pos;
                     *changed = true;
@@ -376,7 +383,8 @@ private:
         
         void append_position (Context c)
         {
-            parent()->reply_append_fmt(c, "%c:%f", axis_name, m_req_pos.bitsValue() / m_steps_per_unit);
+            double position = (m_req_pos.bitsValue() / m_steps_per_unit) - m_offset;
+            parent()->reply_append_fmt(c, "%c:%f", axis_name, position);
         }
         
         Sharer m_sharer;
@@ -384,6 +392,8 @@ private:
         float m_steps_per_unit;
         float m_max_speed;
         float m_max_accel;
+        float m_offset;
+        float m_limit;
         HomingFeature m_homing_feature;
         StepFixedType m_end_pos;
         StepFixedType m_req_pos;
