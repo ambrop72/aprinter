@@ -44,11 +44,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TDirPin, typename TStepPin, typename TEnablePin>
+template <typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir>
 struct StepperDef {
     using DirPin = TDirPin;
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
+    static const bool InvertDir = TInvertDir;
 };
 
 template <typename Context, typename StepperDefsList, int DefIndex>
@@ -127,7 +128,7 @@ public:
     void setDir (ThisContext c, bool dir)
     {
         parent()->debugAccess(c);
-        c.pins()->template set<DirPin>(c, dir);
+        c.pins()->template set<DirPin>(c, maybe_invert_dir(dir));
     }
     
     template <typename ThisContext>
@@ -147,10 +148,15 @@ private:
     using OurSteppers = Steppers<Context, StepperDefsList>;
     using SteppersTuple = typename OurSteppers::SteppersTuple;
     
+    static bool maybe_invert_dir (bool dir)
+    {
+        return (ThisDef::InvertDir) ? !dir : dir;
+    }
+    
     void init (Context c)
     {
         m_enabled = false;
-        c.pins()->template set<DirPin>(c, false);
+        c.pins()->template set<DirPin>(c, maybe_invert_dir(false));
         c.pins()->template set<StepPin>(c, false);
         c.pins()->template set<EnablePin>(c, true);
         c.pins()->template setOutput<DirPin>(c);
