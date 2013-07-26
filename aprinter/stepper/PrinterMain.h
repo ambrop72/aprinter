@@ -631,7 +631,7 @@ private:
             
             unknown_command:
             default: {
-                reply_append_str(c, "Error:Unknown command\n");
+                reply_append_fmt(c, "Error:Unknown command %s\n", (m_cmd->parts[0].data - 1));
             } break;
         }
         
