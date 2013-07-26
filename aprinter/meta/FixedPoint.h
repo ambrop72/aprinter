@@ -83,14 +83,36 @@ public:
     
     static FixedPoint importDouble (double op)
     {
-        AMBRO_ASSERT(ldexp(op, -Exp) >= BoundedIntType::minIntValue())
-        AMBRO_ASSERT(ldexp(op, -Exp) <= BoundedIntType::maxIntValue())
+#ifdef AMBROLIB_ASSERTIONS
+        double a = trunc(ldexp(op, -Exp));
+        AMBRO_ASSERT(!Signed || a > -ldexp(1.0, NumBits))
+        AMBRO_ASSERT(Signed || a >= 0.0)
+        AMBRO_ASSERT(a < ldexp(1.0, NumBits))
+#endif
         
         if (Exp == 0) {
-            return importBits(op);
+            return importBits(trunc(op));
         } else {
-            return importBits(ldexp(op, -Exp));
+            return importBits(trunc(ldexp(op, -Exp)));
         }
+    }
+    
+    static FixedPoint importDoubleSaturated (double op)
+    {
+        double a = trunc(ldexp(op, -Exp));
+        if (Signed) {
+            if (a <= -ldexp(1.0, NumBits)) {
+                return minValue();
+            }
+        } else {
+            if (a < 0.0) {
+                return minValue();
+            }
+        }
+        if (a >= ldexp(1.0, NumBits)) {
+            return maxValue();
+        }
+        return importBits(a);
     }
     
     double doubleValue () const
