@@ -28,6 +28,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include <aprinter/base/Stringify.h>
+
 #ifdef AMBROLIB_ABORT_ACTION
 #define AMBRO_ASSERT_ABORT_ACTION AMBROLIB_ABORT_ACTION
 #else
@@ -45,7 +47,7 @@
 #define AMBRO_ASSERT_FORCE(e) \
     { \
         if (!(e)) { \
-            fprintf(stderr, "%s:%d Assertion failed\n", __FILE__, __LINE__); \
+            puts("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__) "\n"); \
             AMBRO_ASSERT_ABORT_ACTION \
         } \
     }
