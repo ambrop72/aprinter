@@ -31,8 +31,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/meta/IsPowerOfTwo.h>
 #include <aprinter/meta/IntTypeInfo.h>
+#include <aprinter/meta/BoundedInt.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Assert.h>
@@ -41,42 +41,40 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context,
-          typename RecvSizeType, RecvSizeType RecvBufferSize, typename RecvHandler,
-          typename SendSizeType, SendSizeType SendBufferSize, typename SendHandler>
+template <typename Context, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler>
 class AvrSerial
-: private DebugObject<Context, AvrSerial<Context, RecvSizeType, RecvBufferSize, RecvHandler, SendSizeType, SendBufferSize, SendHandler>>
+: private DebugObject<Context, void>
 {
-    static_assert(!IntTypeInfo<RecvSizeType>::is_signed, "RecvSizeType must be unsigned");
-    static_assert(!IntTypeInfo<SendSizeType>::is_signed, "SendSizeType must be unsigned");
-    static_assert(IsPowerOfTwo<uintmax_t, (uintmax_t)RecvBufferSize + 1>::value, "RecvBufferSize+1 must be a power of two");
-    static_assert(IsPowerOfTwo<uintmax_t, (uintmax_t)SendBufferSize + 1>::value, "SendBufferSize+1 must be a power of two");
-    
 private:
     typedef typename Context::EventLoop Loop;
     
 public:
+    using RecvSizeType = BoundedInt<RecvBufferBits, false>;
+    using SendSizeType = BoundedInt<SendBufferBits, false>;
+    
     void init (Context c, uint32_t baud)
     {
+        m_lock.init(c);
+        
         m_recv_queued_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AvrSerial::m_recv_queued_event, &AvrSerial::recv_queued_event_handler));
-        m_recv_start = 0;
-        m_recv_end = 0;
+        m_recv_start = RecvSizeType::import(0);
+        m_recv_end = RecvSizeType::import(0);
         m_recv_overrun = false;
-        m_recv_lock.init(c);
         
         m_send_queued_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AvrSerial::m_send_queued_event, &AvrSerial::send_queued_event_handler));
-        m_send_start = 0;
-        m_send_end = 0;
-        m_send_event = send_buffer_mod - 1;
-        m_send_lock.init(c);
+        m_send_start = SendSizeType::import(0);
+        m_send_end = SendSizeType::import(0);;
+        m_send_event = SendSizeType::maxValue();
         
         uint16_t ubrr = (((2 * (uint32_t)F_CPU) + (16 * baud)) / (2 * 16 * baud)) - 1;
         
-        UBRR0H = (ubrr >> 8);
-        UBRR0L = ubrr;
-        UCSR0A = 0;
-        UCSR0B = (1 << RXCIE0) | (1 << RXEN0) | (1 << TXEN0);
-        UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            UBRR0H = (ubrr >> 8);
+            UBRR0L = ubrr;
+            UCSR0A = 0;
+            UCSR0B = (1 << RXCIE0) | (1 << RXEN0) | (1 << TXEN0);
+            UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
+        });
         
         this->debugInit(c);
     }
@@ -85,16 +83,17 @@ public:
     {
         this->debugDeinit(c);
         
-        UCSR0C = 0;
-        UCSR0B = 0;
-        UCSR0A = 0;
-        UBRR0L = 0;
-        UBRR0H = 0;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            UCSR0C = 0;
+            UCSR0B = 0;
+            UCSR0A = 0;
+            UBRR0L = 0;
+            UBRR0H = 0;
+        });
         
-        m_send_lock.deinit(c);
         m_send_queued_event.deinit(c);
-        m_recv_lock.deinit(c);
         m_recv_queued_event.deinit(c);
+        m_lock.deinit(c);
     }
     
     RecvSizeType recvQuery (Context c, bool *out_overrun)
@@ -102,54 +101,58 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(out_overrun)
         
-        bool overrun;
-        RecvSizeType start;
         RecvSizeType end;
-        
-        AMBRO_LOCK_T(m_recv_lock, c, lock_c, {
-            start = m_recv_start;
+        bool overrun;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
             end = m_recv_end;
             overrun = m_recv_overrun;
         });
         
         *out_overrun = overrun;
-        return recv_avail(start, end);
-    }
-    
-    RecvSizeType recvGetChunkLen (Context c, RecvSizeType rem_length)
-    {
-        this->debugAccess(c);
-        
-        if (rem_length > recv_buffer_mod - m_recv_start) {
-            rem_length = recv_buffer_mod - m_recv_start;
-        }
-        
-        return rem_length;
+        return recv_avail(m_recv_start, end);
     }
     
     char * recvGetChunkPtr (Context c)
     {
         this->debugAccess(c);
         
-        return (m_recv_buffer + m_recv_start);
+        return (m_recv_buffer + m_recv_start.value());
     }
     
     void recvConsume (Context c, RecvSizeType amount)
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(m_recv_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
             AMBRO_ASSERT(amount <= recv_avail(m_recv_start, m_recv_end))
-            m_recv_start = (RecvSizeType)(m_recv_start + amount) % recv_buffer_mod;
+            m_recv_start = BoundedModuloAdd(m_recv_start, amount);
         });
     }
     
     void recvClearOverrun (Context c)
     {
         this->debugAccess(c);
+        AMBRO_ASSERT(m_recv_overrun)
         
-        AMBRO_LOCK_T(m_recv_lock, c, lock_c, {
-            m_recv_overrun = false;
+        m_recv_overrun = false;
+        
+        while ((UCSR0A & (1 << RXC0))) {
+            (void)UDR0;
+        }
+        
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            UCSR0B |= (1 << RXCIE0);
+        });
+    }
+    
+    void recvForceEvent (Context c)
+    {
+        this->debugAccess(c);
+        
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            if (m_recv_start != m_recv_end && !m_recv_queued_event.isSet(lock_c)) {
+                m_recv_queued_event.appendNow(lock_c);
+            }
         });
     }
     
@@ -158,7 +161,7 @@ public:
         this->debugAccess(c);
         
         SendSizeType start;
-        AMBRO_LOCK_T(m_send_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
             start = m_send_start;
         });
         
@@ -169,8 +172,8 @@ public:
     {
         this->debugAccess(c);
         
-        if (rem_length > send_buffer_mod - m_send_end) {
-            rem_length = send_buffer_mod - m_send_end;
+        if (m_send_end.value() > 0 && rem_length > BoundedModuloNegative(m_send_end)) {
+            rem_length = BoundedModuloNegative(m_send_end);
         }
         
         return rem_length;
@@ -180,16 +183,16 @@ public:
     {
         this->debugAccess(c);
         
-        return (m_send_buffer + m_send_end);
+        return (m_send_buffer + m_send_end.value());
     }
     
     void sendProvide (Context c, SendSizeType amount)
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(m_send_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
             AMBRO_ASSERT(amount <= send_avail(m_send_start, m_send_end))
-            m_send_end = (SendSizeType)(m_send_end + amount) % send_buffer_mod;
+            m_send_end = BoundedModuloAdd(m_send_end, amount);
             UCSR0B |= (1 << UDRIE0);
         });
     }
@@ -197,15 +200,14 @@ public:
     void sendRequestEvent (Context c, SendSizeType min_amount)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(min_amount > 0)
-        AMBRO_ASSERT(min_amount <= SendBufferSize)
+        AMBRO_ASSERT(min_amount > SendSizeType::import(0))
         
-        AMBRO_LOCK_T(m_send_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
             if (send_avail(m_send_start, m_send_end) >= min_amount) {
-                m_send_event = send_buffer_mod - 1;
+                m_send_event = SendSizeType::maxValue();
                 m_send_queued_event.appendNow(lock_c);
             } else {
-                m_send_event = min_amount - 1;
+                m_send_event = BoundedModuloDec(min_amount);
                 m_send_queued_event.unset(lock_c);
             }
         });
@@ -215,8 +217,8 @@ public:
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(m_send_lock, c, lock_c, {
-            m_send_event = send_buffer_mod - 1;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            m_send_event = SendSizeType::maxValue();
             m_send_queued_event.unset(lock_c, true);
         });
     }
@@ -224,12 +226,11 @@ public:
     void sendBlock (Context c, SendSizeType min_amount)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(min_amount > 0)
-        AMBRO_ASSERT(min_amount <= SendBufferSize)
+        AMBRO_ASSERT(min_amount > SendSizeType::import(0))
         
         bool ok;
         do {
-            AMBRO_LOCK_T(m_send_lock, c, lock_c, {
+            AMBRO_LOCK_T(m_lock, c, lock_c, {
                 ok = (send_avail(m_send_start, m_send_end) >= min_amount);
             });
         } while (!ok);
@@ -237,15 +238,17 @@ public:
     
     void rx_isr (AvrInterruptContext<Context> c)
     {
-        uint8_t byte = UDR0;
-        if (!m_recv_overrun) {
-            RecvSizeType new_end = (RecvSizeType)(m_recv_end + 1) % recv_buffer_mod;
-            if (new_end != m_recv_start) {
-                m_recv_buffer[m_recv_end] = byte;
-                m_recv_end = new_end;
-            } else {
-                m_recv_overrun = true;
-            }
+        AMBRO_ASSERT(!m_recv_overrun)
+        
+        RecvSizeType new_end = BoundedModuloInc(m_recv_end);
+        if (new_end != m_recv_start) {
+            char ch = UDR0;
+            m_recv_buffer[m_recv_end.value()] = ch;
+            m_recv_buffer[m_recv_end.value() + (sizeof(m_recv_buffer) / 2)] = ch;
+            m_recv_end = new_end;
+        } else {
+            m_recv_overrun = true;
+            UCSR0B &= ~(1 << RXCIE0);
         }
         
         m_recv_queued_event.appendNow(c);
@@ -255,31 +258,28 @@ public:
     {
         AMBRO_ASSERT(m_send_start != m_send_end)
         
-        UDR0 = m_send_buffer[m_send_start];
-        m_send_start = (SendSizeType)(m_send_start + 1) % send_buffer_mod;
+        UDR0 = m_send_buffer[m_send_start.value()];
+        m_send_start = BoundedModuloInc(m_send_start);
         
         if (m_send_start == m_send_end) {
             UCSR0B &= ~(1 << UDRIE0);
         }
         
         if (send_avail(m_send_start, m_send_end) > m_send_event) {
-            m_send_event = send_buffer_mod - 1;
+            m_send_event = SendSizeType::maxValue();
             m_send_queued_event.appendNow(c);
         }
     }
     
 private:
-    static const size_t recv_buffer_mod = (size_t)RecvBufferSize + 1;
-    static const size_t send_buffer_mod = (size_t)SendBufferSize + 1;
-    
     RecvSizeType recv_avail (RecvSizeType start, RecvSizeType end)
     {
-        return ((RecvSizeType)(end - start) % recv_buffer_mod);
+        return BoundedModuloSubtract(end, start);
     }
     
     SendSizeType send_avail (SendSizeType start, SendSizeType end)
     {
-        return (SendSizeType)((SendSizeType)(start - 1) - end) % send_buffer_mod;
+        return BoundedModuloDec(BoundedModuloSubtract(start, end));
     }
     
     void recv_queued_event_handler (Context c)
@@ -296,19 +296,19 @@ private:
         SendHandler::call(this, c);
     }
     
+    AvrLock<Context> m_lock;
+    
     typename Loop::QueuedEvent m_recv_queued_event;
     RecvSizeType m_recv_start;
     RecvSizeType m_recv_end;
     bool m_recv_overrun;
-    char m_recv_buffer[(size_t)RecvBufferSize + 1];
-    AvrLock<Context> m_recv_lock;
+    char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
     
     typename Loop::QueuedEvent m_send_queued_event;
     SendSizeType m_send_start;
     SendSizeType m_send_end;
     SendSizeType m_send_event;
-    char m_send_buffer[(size_t)SendBufferSize + 1];
-    AvrLock<Context> m_send_lock;
+    char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
 };
 
 #define AMBRO_AVR_SERIAL_ISRS(avrserial, context) \
