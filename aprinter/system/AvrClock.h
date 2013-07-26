@@ -59,6 +59,7 @@ public:
         (Prescale == 5) ? 1024 : 0;
     
     static constexpr double time_unit = (double)prescale_divide / F_CPU;
+    static constexpr double time_freq = 1.0 / time_unit;
     
     void init (Context c)
     {
