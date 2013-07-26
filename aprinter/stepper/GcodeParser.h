@@ -214,21 +214,27 @@ private:
     {
         AMBRO_ASSERT(m_command.num_parts >= 0)
         AMBRO_ASSERT(m_state == STATE_INSIDE)
+        AMBRO_ASSERT(is_code(m_buffer[m_temp]))
         
         if (m_command.num_parts == Params::MaxParts) {
             m_command.num_parts = ERROR_TOO_MANY_PARTS;
             return;
         }
         
+        char code = m_buffer[m_temp];
+        if (code >= 'a') {
+            code -= 32;
+        }
+        
         m_buffer[m_command.length] = '\0';
         
-        if (!m_command.have_line_number && m_command.num_parts == 0 && m_buffer[m_temp] == 'N') {
+        if (!m_command.have_line_number && m_command.num_parts == 0 && code == 'N') {
             m_command.have_line_number = true;
             m_command.line_number = strtoul(m_buffer + (m_temp + 1), NULL, 10);
             return;
         }
         
-        m_command.parts[m_command.num_parts].code = m_buffer[m_temp];
+        m_command.parts[m_command.num_parts].code = code;
         m_command.parts[m_command.num_parts].data = m_buffer + (m_temp + 1);
         m_command.parts[m_command.num_parts].length = m_command.length - (m_temp + 1);
         m_command.num_parts++;
