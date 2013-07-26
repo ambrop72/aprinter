@@ -40,7 +40,6 @@ template <int NumBits1, bool Signed1, int NumBits2, bool Signed2, int LeftShift,
 class IntDivide {
 public:
     static_assert(LeftShift >= 0, "LeftShift must be non-negative");
-    static_assert(ResSatBits <= NumBits1 + LeftShift, "ResSatBits is needlessly large");
     
     typedef typename ChooseInt<NumBits1, Signed1>::Type Op1Type;
     typedef typename ChooseInt<NumBits2, Signed2>::Type Op2Type;
