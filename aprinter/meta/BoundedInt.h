@@ -87,7 +87,7 @@ public:
     }
     
     template <int NewNumBits, bool NewSigned>
-    BoundedInt<NewNumBits, NewSigned> convert () const
+    operator BoundedInt<NewNumBits, NewSigned> () const
     {
         static_assert(NewNumBits >= NumBits, "");
         static_assert(!Signed || NewSigned, "");
