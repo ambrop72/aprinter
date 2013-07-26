@@ -150,7 +150,7 @@ public:
         this->debugAccess(c);
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
-            if (m_recv_start != m_recv_end && !m_recv_queued_event.isSet(lock_c)) {
+            if (!m_recv_queued_event.isSet(lock_c)) {
                 m_recv_queued_event.appendNow(lock_c);
             }
         });
