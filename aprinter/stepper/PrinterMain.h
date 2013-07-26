@@ -47,6 +47,7 @@
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/OffsetCallback.h>
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/stepper/Steppers.h>
@@ -57,12 +58,13 @@
 #include <aprinter/BeginNamespace.h>
 
 template <
-    typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TAxesList
+    typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime, typename TAxesList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
     using LedPin = TLedPin;
     using LedBlinkInterval = TLedBlinkInterval;
+    using DefaultInactiveTime = TDefaultInactiveTime;
     using AxesList = TAxesList;
 };
 
@@ -125,6 +127,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_homing, start_homing)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_update_homing_mask, update_homing_mask)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_enable_stepper, enable_stepper)
     
     struct SerialRecvHandler;
     struct SerialSendHandler;
@@ -133,7 +136,9 @@ private:
     static const int serial_send_buffer_bits = 8;
     static const int reply_buffer_size = 128;
     
+    using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
+    using TimeType = typename Clock::TimeType;
     using AxesList = typename Params::AxesList;
     static const int num_axes = TypeListLength<AxesList>::value;
     using AxisMaskType = typename ChooseInt<num_axes, false>::Type;
@@ -311,6 +316,11 @@ private:
             }
         }
         
+        void enable_stepper (Context c, bool enable)
+        {
+            stepper()->enable(c, enable);
+        }
+        
         Stepper * stepper ()
         {
             return parent()->m_steppers.template getStepper<AxisIndex>();
@@ -328,7 +338,6 @@ private:
     
     using AxesTuple = IndexElemTuple<AxesList, Axis>;
     
-    
 public:
     void init (Context c)
     {
@@ -337,6 +346,8 @@ public:
         TupleForEachForward(&m_axes, Foreach_init(), c);
         m_serial.init(c, Params::Serial::baud);
         m_gcode_parser.init(c);
+        m_disable_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&PrinterMain::m_disable_timer, &PrinterMain::disable_timer_handler));
+        m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
         m_recv_next_error = 0;
         m_line_number = 0;
         m_reply_length = 0;
@@ -352,6 +363,7 @@ public:
     {
         this->debugDeinit(c);
         
+        m_disable_timer.deinit(c);
         m_gcode_parser.deinit(c);
         m_serial.deinit(c);
         TupleForEachReverse(&m_axes, Foreach_deinit(), c);
@@ -375,6 +387,11 @@ private:
         STATE_IDLE,
         STATE_HOMING
     };
+    
+    static TimeType time_from_real (double t)
+    {
+        return (FixedPoint<30, false, 0>::importDoubleSaturated(t * Clock::time_freq)).bitsValue();
+    }
     
     void serial_recv_handler (Context c)
     {
@@ -442,14 +459,36 @@ private:
         
         switch (cmd_code) {
             case 'M': switch (cmd_num) {
-                case 110:
-                    goto reply;
-                default:
+                default: 
                     goto unknown_command;
+                case 110: // set line number
+                    goto reply;
+                
+                case 17: {
+                    TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, true);
+                    now_inactive(c);
+                } break;
+                
+                case 18: // disable steppers or set timeout
+                case 84: {
+                    double inactive_time;
+                    if (find_command_param_double(cmd, 'S', &inactive_time)) {
+                        m_inactive_time = time_from_real(inactive_time);
+                        if (m_disable_timer.isSet(c)) {
+                            m_disable_timer.appendAt(c, m_last_active_time + m_inactive_time);
+                        }
+                    } else {
+                        TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, false);
+                        m_disable_timer.unset(c);
+                    }
+                } break;
             } break;
             
             case 'G': switch (cmd_num) {
-                case 28: {
+                default:
+                    goto unknown_command;
+                
+                case 28: { // home axes
                     AxisMaskType mask = 0;
                     for (GcodePartsSizeType i = 1; i < cmd->num_parts; i++) {
                         TupleForEachForward(&m_axes, Foreach_update_homing_mask(), &mask, &cmd->parts[i]);
@@ -462,12 +501,11 @@ private:
                     TupleForEachForward(&m_axes, Foreach_start_homing(), c, mask);
                     if (m_homing.rem_axes > 0) {
                         m_state = STATE_HOMING;
+                        now_active(c);
                         goto wait;
                     }
                     goto reply;
                 } break;
-                default:
-                    goto unknown_command;
             } break;
             
             unknown_command:
@@ -502,6 +540,20 @@ private:
         reply_append_str(c, "ok\n");
         reply_send(c);
         finish_delayed_command(c);
+        now_inactive(c);
+    }
+    
+    void now_inactive (Context c)
+    {
+        AMBRO_ASSERT(m_state == STATE_IDLE)
+        
+        m_last_active_time = c.clock()->getTime(c);
+        m_disable_timer.appendAt(c, m_last_active_time + m_inactive_time);
+    }
+    
+    void now_active (Context c)
+    {
+        m_disable_timer.unset(c);
     }
     
     static GcodeParserCommandPart * find_command_param (GcodeParserCommand *cmd, char code)
@@ -524,6 +576,25 @@ private:
             return default_value;
         }
         return strtoul(part->data, NULL, 10);
+    }
+    
+    static double get_command_param_double (GcodeParserCommand *cmd, char code, double default_value)
+    {
+        GcodeParserCommandPart *part = find_command_param(cmd, code);
+        if (!part) {
+            return default_value;
+        }
+        return strtod(part->data, NULL);
+    }
+    
+    static bool find_command_param_double (GcodeParserCommand *cmd, char code, double *out)
+    {
+        GcodeParserCommandPart *part = find_command_param(cmd, code);
+        if (!part) {
+            return false;
+        }
+        *out = strtod(part->data, NULL);
+        return true;
     }
     
     template <typename... Args>
@@ -570,11 +641,22 @@ private:
         this->debugAccess(c);
     }
     
+    void disable_timer_handler (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_IDLE)
+        
+        TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, false);
+    }
+    
     TheBlinker m_blinker;
     TheSteppers m_steppers;
     AxesTuple m_axes;
     TheSerial m_serial;
     TheGcodeParser m_gcode_parser;
+    typename Loop::QueuedEvent m_disable_timer;
+    TimeType m_inactive_time;
+    TimeType m_last_active_time;
     int8_t m_recv_next_error;
     uint32_t m_line_number;
     char m_reply_buf[reply_buffer_size];
