@@ -75,8 +75,8 @@ using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
 using ZDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(100.0);
 using ZDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(0.8);
 using ZDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(1.2);
-using ZDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(3.0);
-using ZDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(3.0);
+using ZDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(2.0);
+using ZDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
 
 using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);

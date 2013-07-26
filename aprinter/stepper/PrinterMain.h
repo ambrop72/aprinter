@@ -45,6 +45,7 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/BitsInInt.h>
+#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -54,6 +55,7 @@
 #include <aprinter/stepper/AxisSharer.h>
 #include <aprinter/stepper/AxisHomer.h>
 #include <aprinter/stepper/GcodeParser.h>
+#include <aprinter/stepper/MotionPlanner.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -128,9 +130,16 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_homing, start_homing)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_update_homing_mask, update_homing_mask)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_enable_stepper, enable_stepper)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init_sharers_tuple, init_sharers_tuple)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_update_req_pos, update_req_pos)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_planner_command, write_planner_command)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_position, append_position)
     
     struct SerialRecvHandler;
     struct SerialSendHandler;
+    struct PlannerPullCmdHandler;
+    struct PlannerBufferFullHandler;
+    struct PlannerBufferEmptyHandler;
     
     static const int serial_recv_buffer_bits = 6;
     static const int serial_send_buffer_bits = 8;
@@ -241,6 +250,8 @@ private:
                 AMBRO_ASSERT(o->m_homing.rem_axes > 0)
                 
                 m_homer.deinit(c);
+                axis->m_end_pos = StepFixedType::importBits(0);
+                axis->m_req_pos = StepFixedType::importBits(0);
                 axis->m_state = AXIS_STATE_IDLE;
                 o->m_homing.rem_axes--;
                 if (!success) {
@@ -296,6 +307,8 @@ private:
             m_max_speed = AxisSpec::DefaultMaxSpeed::value();
             m_max_accel = AxisSpec::DefaultMaxAccel::value();
             m_homing_feature.init(c);
+            m_end_pos = StepFixedType::importBits(0);
+            m_req_pos = StepFixedType::importBits(0);
         }
         
         void deinit (Context c)
@@ -326,30 +339,88 @@ private:
             return parent()->m_steppers.template getStepper<AxisIndex>();
         }
         
+        template <typename SharersTuple>
+        void init_sharers_tuple (SharersTuple *sharers)
+        {
+            *TupleGetElem<AxisIndex>(sharers) = &m_sharer;
+        }
+        
+        void update_req_pos (Context c, GcodeParserCommandPart *part, bool *changed)
+        {
+            if (part->code == axis_name) {
+                double req = strtod(part->data, NULL);
+                StepFixedType new_req_pos = dist_from_real(req);
+                if (new_req_pos != m_req_pos) {
+                    m_req_pos = new_req_pos;
+                    *changed = true;
+                    enable_stepper(c, true);
+                }
+            }
+        }
+        
+        template <typename PlannerCmd>
+        void write_planner_command (PlannerCmd *cmd)
+        {
+            auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
+            if (m_req_pos >= m_end_pos) {
+                mycmd->dir = true;
+                mycmd->x = StepFixedType::importBits(m_req_pos.bitsValue() - m_end_pos.bitsValue());
+            } else {
+                mycmd->dir = false;
+                mycmd->x = StepFixedType::importBits(m_end_pos.bitsValue() - m_req_pos.bitsValue());
+            }
+            mycmd->max_v = speed_from_real(m_max_speed);
+            mycmd->max_a = accel_from_real(m_max_accel);
+            m_end_pos = m_req_pos;
+        }
+        
+        void append_position (Context c)
+        {
+            parent()->reply_append_fmt(c, "%c:%f", axis_name, m_req_pos.bitsValue() / m_steps_per_unit);
+        }
+        
         Sharer m_sharer;
         uint8_t m_state;
         float m_steps_per_unit;
         float m_max_speed;
         float m_max_accel;
         HomingFeature m_homing_feature;
+        StepFixedType m_end_pos;
+        StepFixedType m_req_pos;
         
         struct SharerGetStepperHandler : public AMBRO_WCALLBACK_TD(&Axis::stepper, &Axis::m_sharer) {};
     };
     
+    template <typename TheAxis>
+    using MakePlannerAxisSpec = MotionPlannerAxisSpec<
+        typename TheAxis::Sharer,
+        typename TheAxis::AbsVelFixedType,
+        typename TheAxis::AbsAccFixedType
+    >;
+    
+    using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
+    using ThePlanner = MotionPlanner<Context, MotionPlannerAxes, PlannerPullCmdHandler, PlannerBufferFullHandler, PlannerBufferEmptyHandler>;
+    using PlannerSharersTuple = typename ThePlanner::SharersTuple;
+    using PlannerInputCommand = typename ThePlanner::InputCommand;
     using AxesTuple = IndexElemTuple<AxesList, Axis>;
     
 public:
     void init (Context c)
     {
+        PlannerSharersTuple sharers;
+        TupleForEachForward(&m_axes, Foreach_init_sharers_tuple(), &sharers);
+        
         m_blinker.init(c, Params::LedBlinkInterval::value() * Clock::time_freq);
         m_steppers.init(c);
         TupleForEachForward(&m_axes, Foreach_init(), c);
         m_serial.init(c, Params::Serial::baud);
         m_gcode_parser.init(c);
         m_disable_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&PrinterMain::m_disable_timer, &PrinterMain::disable_timer_handler));
+        m_planner.init(c, sharers);
         m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
         m_recv_next_error = 0;
         m_line_number = 0;
+        m_cmd = NULL;
         m_reply_length = 0;
         m_state = STATE_IDLE;
         
@@ -363,6 +434,10 @@ public:
     {
         this->debugDeinit(c);
         
+        if (m_state == STATE_PLANNING) {
+            m_planner.stop(c);
+        }
+        m_planner.deinit(c);
         m_disable_timer.deinit(c);
         m_gcode_parser.deinit(c);
         m_serial.deinit(c);
@@ -385,7 +460,8 @@ public:
 private:
     enum {
         STATE_IDLE,
-        STATE_HOMING
+        STATE_HOMING,
+        STATE_PLANNING
     };
     
     static TimeType time_from_real (double t)
@@ -397,7 +473,7 @@ private:
     {
         this->debugAccess(c);
         
-        if (m_state != STATE_IDLE) {
+        if (m_cmd) {
             return;
         }
         if (!m_gcode_parser.haveCommand(c)) {
@@ -406,10 +482,9 @@ private:
         }
         bool overrun;
         RecvSizeType avail = m_serial.recvQuery(c, &overrun);
-        GcodeParserCommand *cmd = m_gcode_parser.extendCommand(c, avail.value());
-        if (cmd) {
-            m_serial.recvConsume(c, RecvSizeType::import(cmd->length));
-            return process_received_command(c, cmd);
+        m_cmd = m_gcode_parser.extendCommand(c, avail.value());
+        if (m_cmd) {
+            return process_received_command(c);
         }
         if (overrun) {
             m_serial.recvConsume(c, avail);
@@ -419,17 +494,19 @@ private:
         }
     }
     
-    void process_received_command (Context c, GcodeParserCommand *cmd)
+    void process_received_command (Context c)
     {
-        AMBRO_ASSERT(m_state == STATE_IDLE)
+        AMBRO_ASSERT(m_cmd)
+        AMBRO_ASSERT(m_state == STATE_IDLE || m_state == STATE_PLANNING)
+        AMBRO_ASSERT(m_state != STATE_PLANNING || !m_planning.req_pending)
         
         char cmd_code;
         int cmd_num;
         bool is_m110;
         
-        if (cmd->num_parts <= 0) {
+        if (m_cmd->num_parts <= 0) {
             char const *err = "unknown error";
-            switch (cmd->num_parts) {
+            switch (m_cmd->num_parts) {
                 case 0: err = "empty command"; break;
                 case TheGcodeParser::ERROR_TOO_MANY_PARTS: err = "too many parts"; break;
                 case TheGcodeParser::ERROR_INVALID_PART: err = "invalid part"; break;
@@ -440,20 +517,20 @@ private:
             goto reply;
         }
         
-        cmd_code = cmd->parts[0].code;
-        cmd_num = atoi(cmd->parts[0].data);
+        cmd_code = m_cmd->parts[0].code;
+        cmd_num = atoi(m_cmd->parts[0].data);
         
         is_m110 = (cmd_code == 'M' && cmd_num == 110);
         if (is_m110) {
-            m_line_number = get_command_param_uint32(cmd, 'L', -1);
+            m_line_number = get_command_param_uint32(m_cmd, 'L', -1);
         }
-        if (cmd->have_line_number) {
-            if (cmd->line_number != m_line_number) {
+        if (m_cmd->have_line_number) {
+            if (m_cmd->line_number != m_line_number) {
                 reply_append_fmt(c, "Error:Line Number is not Last Line Number+1, Last Line:%" PRIu32 "\n", (uint32_t)(m_line_number - 1));
                 goto reply;
             }
         }
-        if (cmd->have_line_number || is_m110) {
+        if (m_cmd->have_line_number || is_m110) {
             m_line_number++;
         }
         
@@ -462,17 +539,23 @@ private:
                 default: 
                     goto unknown_command;
                 case 110: // set line number
-                    goto reply;
+                    break;
                 
                 case 17: {
+                    if (m_state == STATE_PLANNING) {
+                        return;
+                    }
                     TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, true);
                     now_inactive(c);
                 } break;
                 
                 case 18: // disable steppers or set timeout
                 case 84: {
+                    if (m_state == STATE_PLANNING) {
+                        return;
+                    }
                     double inactive_time;
-                    if (find_command_param_double(cmd, 'S', &inactive_time)) {
+                    if (find_command_param_double(m_cmd, 'S', &inactive_time)) {
                         m_inactive_time = time_from_real(inactive_time);
                         if (m_disable_timer.isSet(c)) {
                             m_disable_timer.appendAt(c, m_last_active_time + m_inactive_time);
@@ -482,16 +565,45 @@ private:
                         m_disable_timer.unset(c);
                     }
                 } break;
+                
+                case 114: {
+                    TupleForEachForward(&m_axes, Foreach_append_position(), c);
+                    reply_append_str(c, "\n");
+                } break;
             } break;
             
             case 'G': switch (cmd_num) {
                 default:
                     goto unknown_command;
                 
+                case 1: { // buffered move
+                    bool changed = false;
+                    for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
+                        TupleForEachForward(&m_axes, Foreach_update_req_pos(), c, &m_cmd->parts[i], &changed);
+                    }
+                    if (changed) {
+                        if (m_state != STATE_PLANNING) {
+                            m_planner.start(c, c.clock()->getTime(c));
+                            m_planner.startStepping(c);
+                            m_state = STATE_PLANNING;
+                            m_planning.pull_pending = false;
+                            now_active(c);
+                        }
+                        m_planning.req_pending = true;
+                        if (m_planning.pull_pending) {
+                            send_req_to_planner(c);
+                        }
+                        return;
+                    }
+                } break;
+                
                 case 28: { // home axes
+                    if (m_state == STATE_PLANNING) {
+                        return;
+                    }
                     AxisMaskType mask = 0;
-                    for (GcodePartsSizeType i = 1; i < cmd->num_parts; i++) {
-                        TupleForEachForward(&m_axes, Foreach_update_homing_mask(), &mask, &cmd->parts[i]);
+                    for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
+                        TupleForEachForward(&m_axes, Foreach_update_homing_mask(), &mask, &m_cmd->parts[i]);
                     }
                     if (mask == 0) {
                         mask = -1;
@@ -502,9 +614,8 @@ private:
                     if (m_homing.rem_axes > 0) {
                         m_state = STATE_HOMING;
                         now_active(c);
-                        goto wait;
+                        return;
                     }
-                    goto reply;
                 } break;
             } break;
             
@@ -515,17 +626,18 @@ private:
         }
         
     reply:
-        reply_append_str(c, "ok\n");
-        reply_send(c);
-        m_serial.recvForceEvent(c);
-    wait:;
+        finish_command(c);
     }
     
-    void finish_delayed_command (Context c)
+    void finish_command (Context c)
     {
-        AMBRO_ASSERT(m_state != STATE_IDLE)
+        AMBRO_ASSERT(m_cmd)
         
-        m_state = STATE_IDLE;
+        reply_append_str(c, "ok\n");
+        reply_send(c);
+        
+        m_serial.recvConsume(c, RecvSizeType::import(m_cmd->length));
+        m_cmd = 0;
         m_serial.recvForceEvent(c);
     }
     
@@ -537,9 +649,8 @@ private:
         if (m_homing.failed) {
             reply_append_str(c, "Error:Homing failed\n");
         }
-        reply_append_str(c, "ok\n");
-        reply_send(c);
-        finish_delayed_command(c);
+        m_state = STATE_IDLE;
+        finish_command(c);
         now_inactive(c);
     }
     
@@ -636,6 +747,21 @@ private:
         m_reply_length = 0;
     }
     
+    void send_req_to_planner (Context c)
+    {
+        AMBRO_ASSERT(m_state == STATE_PLANNING)
+        AMBRO_ASSERT(m_planning.req_pending)
+        AMBRO_ASSERT(m_cmd)
+        AMBRO_ASSERT(m_planning.pull_pending)
+        
+        PlannerInputCommand cmd;
+        TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd);
+        m_planner.commandDone(c, cmd);
+        m_planning.req_pending = false;
+        m_planning.pull_pending = false;
+        finish_command(c);
+    }
+    
     void serial_send_handler (Context c)
     {
         this->debugAccess(c);
@@ -649,16 +775,51 @@ private:
         TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, false);
     }
     
+    void planner_pull_cmd_handler (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_PLANNING)
+        AMBRO_ASSERT(!m_planning.pull_pending)
+        
+        m_planning.pull_pending = true;
+        if (m_planning.req_pending) {
+            send_req_to_planner(c);
+        }
+    }
+    
+    void planner_buffer_full_handler (Context c)
+    {
+        this->debugAccess(c);
+    }
+    
+    void planner_buffer_empty_handler (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_PLANNING)
+        AMBRO_ASSERT(m_planning.pull_pending)
+        AMBRO_ASSERT(!m_planning.req_pending)
+        
+        m_planner.stop(c);
+        m_state = STATE_IDLE;
+        now_inactive(c);
+        
+        if (m_cmd) {
+            process_received_command(c);
+        }
+    }
+    
     TheBlinker m_blinker;
     TheSteppers m_steppers;
     AxesTuple m_axes;
     TheSerial m_serial;
     TheGcodeParser m_gcode_parser;
     typename Loop::QueuedEvent m_disable_timer;
+    ThePlanner m_planner;
     TimeType m_inactive_time;
     TimeType m_last_active_time;
     int8_t m_recv_next_error;
     uint32_t m_line_number;
+    GcodeParserCommand *m_cmd;
     char m_reply_buf[reply_buffer_size];
     ReplyBufferSizeType m_reply_length;
     uint8_t m_state;
@@ -667,10 +828,17 @@ private:
             AxisCountType rem_axes;
             bool failed;
         } m_homing;
+        struct {
+            bool req_pending;
+            bool pull_pending;
+        } m_planning;
     };
     
     struct SerialRecvHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::serial_recv_handler, &PrinterMain::m_serial) {};
     struct SerialSendHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::serial_send_handler, &PrinterMain::m_serial) {};
+    struct PlannerPullCmdHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_pull_cmd_handler, &PrinterMain::m_planner) {};
+    struct PlannerBufferFullHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_buffer_full_handler, &PrinterMain::m_planner) {};
+    struct PlannerBufferEmptyHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_buffer_empty_handler, &PrinterMain::m_planner) {};
 };
 
 #include <aprinter/EndNamespace.h>
