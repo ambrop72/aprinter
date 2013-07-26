@@ -50,7 +50,7 @@ using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(15.0);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
-using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(100.0);
+using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(500.0);
 using XDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(280.0);
 using XDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
@@ -60,7 +60,7 @@ using XDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
-using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(100.0);
+using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(80.0);
 using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(500.0);
 using YDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(280.0);
 using YDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
@@ -70,7 +70,7 @@ using YDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using YDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(4000.0);
-using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
+using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
 using ZDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(100.0);
 using ZDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(0.8);
@@ -78,6 +78,10 @@ using ZDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(1.2);
 using ZDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(3.0);
 using ZDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(3.0);
 using ZDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
+
+using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);
+using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(10.0);
+using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 
 using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
@@ -168,6 +172,23 @@ using PrinterParams = PrinterMainParams<
                 ZDefaultHomeRetractSpeed,
                 ZDefaultHomeSlowSpeed
             >
+        >,
+        PrinterMainAxisParams<
+            'E', // axis name
+            AvrPin<AvrPortB, 0>, // dir pin
+            AvrPin<AvrPortB, 1>, // step pin
+            AvrPin<AvrPortD, 6>, // enable pin
+            false, // invert dir
+            AxisStepperParams<
+                stepper_command_buffer_size_exp,
+                AvrClockInterruptTimer_TC3_OCB // stepper timer
+            >,
+            StepVelType, // velocity type
+            StepAccType, // acceleration type
+            EDefaultStepsPerUnit, // default steps per unit
+            EDefaultMaxSpeed, // default max speed
+            EDefaultMaxAccel, // default max acceleration
+            PrinterMainNoHomingParams
         >
     >
 >;
@@ -220,6 +241,7 @@ AMBRO_AVR_SERIAL_ISRS(*myprinter.getSerial(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*myprinter.template getSharer<0>()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*myprinter.template getSharer<1>()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*myprinter.template getSharer<2>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*myprinter.template getSharer<3>()->getTimer(), MyContext())
 
 FILE uart_output;
 
