@@ -51,8 +51,8 @@ public:
     using MyAxisStepper = AxisStepper<Context, TheAxisStepperParams, MyStepper, MyGetStepper, StepperPullCmdHandler, StepperBufferFullHandler, StepperBufferEmptyHandler>;
     
 private:
-    static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 4;
-    static const int time_bits = MyAxisStepper::TimeFixedType::num_bits + 6;
+    static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 6;
+    static const int time_bits = MyAxisStepper::TimeFixedType::num_bits + 9;
     static const int gt_frac_square_bits = step_bits + 1;
     
 public:
