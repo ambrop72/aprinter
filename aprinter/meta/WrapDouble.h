@@ -25,6 +25,6 @@
 #ifndef AMBROLIB_WRAP_DOUBLE_H
 #define AMBROLIB_WRAP_DOUBLE_H
 
-#define AMBRO_WRAP_DOUBLE(x) (struct { static constexpr double value () { return (x); } })
+#define AMBRO_WRAP_DOUBLE(x) struct { static constexpr double value () { return (x); } }
 
 #endif
