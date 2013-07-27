@@ -321,9 +321,6 @@ private:
             m_end_pos = StepFixedType::importBits(0);
             m_req_pos = -m_offset;
             m_req_step_pos = StepFixedType::importBits(0);
-            if (AxisSpec::enable_cartesian_speed_limit) {
-                m_req_delta = 0.0;
-            }
             m_relative_positioning = false;
         }
         
@@ -369,8 +366,8 @@ private:
                 if (m_req_step_pos != m_end_pos) {
                     *changed = true;
                     if (AxisSpec::enable_cartesian_speed_limit) {
-                        m_req_delta = ((double)m_req_step_pos.bitsValue() - (double)m_end_pos.bitsValue()) / m_steps_per_unit;
-                        parent()->m_planning.distance += m_req_delta * m_req_delta;
+                        double delta = ((double)m_req_step_pos.bitsValue() - (double)m_end_pos.bitsValue()) / m_steps_per_unit;
+                        parent()->m_planning.distance += delta * delta;
                     }
                     enable_stepper(c, true);
                 }
@@ -380,8 +377,6 @@ private:
         template <typename PlannerCmd>
         void write_planner_command (PlannerCmd *cmd)
         {
-            PrinterMain *o = parent();
-            
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
             if (m_req_step_pos >= m_end_pos) {
                 mycmd->dir = true;
@@ -391,15 +386,6 @@ private:
                 mycmd->x = StepFixedType::importBits(m_end_pos.bitsValue() - m_req_step_pos.bitsValue());
             }
             mycmd->max_v = speed_from_real(m_max_speed);
-            if (m_req_step_pos != m_end_pos && AxisSpec::enable_cartesian_speed_limit) {
-                if (o->m_planning.distance > 0.0) {
-                    AbsVelFixedType limit = speed_from_real(o->m_planning.max_cart_speed * (fabs(m_req_delta) / o->m_planning.distance));
-                    if (limit.bitsValue() > 0 && mycmd->max_v > limit) {
-                        mycmd->max_v = limit;
-                    }
-                }
-                m_req_delta = 0.0;
-            }
             mycmd->max_a = accel_from_real(m_max_accel);
             m_end_pos = m_req_step_pos;
         }
@@ -463,7 +449,6 @@ private:
         StepFixedType m_end_pos;
         float m_req_pos;
         StepFixedType m_req_step_pos;
-        float m_req_delta;
         bool m_relative_positioning;
         
         struct SharerGetStepperHandler : public AMBRO_WCALLBACK_TD(&Axis::stepper, &Axis::m_sharer) {};
@@ -863,7 +848,10 @@ private:
         AMBRO_ASSERT(m_planning.pull_pending)
         
         PlannerInputCommand cmd;
-        cmd.rel_max_v = ThePlanner::RelSpeedType::maxValue();
+        cmd.rel_max_v = ThePlanner::RelSpeedType::importDoubleSaturated((m_planning.max_cart_speed / m_planning.distance) / Clock::time_freq);
+        if (cmd.rel_max_v.bitsValue() == 0) {
+            cmd.rel_max_v = ThePlanner::RelSpeedType::importBits(1);
+        }
         TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd);
         m_planner.commandDone(c, cmd);
         m_planning.req_pending = false;

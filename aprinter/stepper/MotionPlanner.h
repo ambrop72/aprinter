@@ -213,6 +213,7 @@ public:
         AMBRO_ASSERT(m_pulling)
         AMBRO_ASSERT(m_all_command_state == ALL_CMD_END)
         AMBRO_ASSERT(!m_stepping || m_all_full == 0)
+        AMBRO_ASSERT(icmd.rel_max_v.bitsValue() > 0)
         TupleForEachForward(&m_axes, Foreach_commandDone_assert(), c, icmd);
         
         RelSpeedType norm_v = TupleForEachForwardAccRes(&m_axes, FixedIdentity(), Foreach_commandDone_compute_vel(), c, icmd);
