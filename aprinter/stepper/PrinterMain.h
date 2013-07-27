@@ -136,6 +136,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_update_req_pos, update_req_pos)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_planner_command, write_planner_command)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_position, append_position)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_relative_positioning, set_relative_positioning)
     
     struct SerialRecvHandler;
     struct SerialSendHandler;
@@ -315,6 +316,7 @@ private:
             m_end_pos = StepFixedType::importBits(0);
             m_req_pos = -m_offset;
             m_req_step_pos = StepFixedType::importBits(0);
+            m_relative_positioning = false;
         }
         
         void deinit (Context c)
@@ -386,11 +388,19 @@ private:
         
         void compute_req (float req_pos)
         {
+            if (m_relative_positioning) {
+                req_pos += m_req_pos;
+            }
             m_req_pos = req_pos;
             if (req_pos > m_limit) {
                 req_pos = m_limit;
             }
             m_req_step_pos = dist_from_real(m_offset + req_pos);
+        }
+        
+        void set_relative_positioning (bool relative)
+        {
+            m_relative_positioning = relative;
         }
         
         Sharer m_sharer;
@@ -404,6 +414,7 @@ private:
         StepFixedType m_end_pos;
         float m_req_pos;
         StepFixedType m_req_step_pos;
+        bool m_relative_positioning;
         
         struct SharerGetStepperHandler : public AMBRO_WCALLBACK_TD(&Axis::stepper, &Axis::m_sharer) {};
     };
@@ -633,6 +644,14 @@ private:
                         now_active(c);
                         return;
                     }
+                } break;
+                
+                case 90: { // absolute positioning
+                    TupleForEachForward(&m_axes, Foreach_set_relative_positioning(), false);
+                } break;
+                
+                case 91: { // relative positioning
+                    TupleForEachForward(&m_axes, Foreach_set_relative_positioning(), true);
                 } break;
             } break;
             
