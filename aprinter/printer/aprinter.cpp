@@ -38,7 +38,7 @@
 #include <aprinter/system/AvrPins.h>
 #include <aprinter/system/AvrPinWatcher.h>
 #include <aprinter/system/AvrLock.h>
-#include <aprinter/stepper/PrinterMain.h>
+#include <aprinter/printer/PrinterMain.h>
 
 using namespace APrinter;
 

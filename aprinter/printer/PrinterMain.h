@@ -53,9 +53,9 @@
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/stepper/Steppers.h>
 #include <aprinter/stepper/AxisSharer.h>
-#include <aprinter/stepper/AxisHomer.h>
-#include <aprinter/stepper/GcodeParser.h>
-#include <aprinter/stepper/MotionPlanner.h>
+#include <aprinter/printer/AxisHomer.h>
+#include <aprinter/printer/GcodeParser.h>
+#include <aprinter/printer/MotionPlanner.h>
 
 #include <aprinter/BeginNamespace.h>
 

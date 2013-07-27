@@ -33,7 +33,7 @@
 #include <aprinter/meta/ForwardHandler.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/stepper/MotionPlanner.h>
+#include <aprinter/printer/MotionPlanner.h>
 
 #include <aprinter/BeginNamespace.h>
 
