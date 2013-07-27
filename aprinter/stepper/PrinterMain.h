@@ -253,7 +253,8 @@ private:
                 
                 m_homer.deinit(c);
                 axis->m_end_pos = StepFixedType::importBits(0);
-                axis->m_req_pos = StepFixedType::importBits(0);
+                axis->m_req_pos = -axis->m_offset;
+                axis->m_req_step_pos = StepFixedType::importBits(0);
                 axis->m_state = AXIS_STATE_IDLE;
                 o->m_homing.rem_axes--;
                 if (!success) {
@@ -312,7 +313,8 @@ private:
             m_limit = AxisSpec::DefaultLimit::value();
             m_homing_feature.init(c);
             m_end_pos = StepFixedType::importBits(0);
-            m_req_pos = StepFixedType::importBits(0);
+            m_req_pos = -m_offset;
+            m_req_step_pos = StepFixedType::importBits(0);
         }
         
         void deinit (Context c)
@@ -352,13 +354,9 @@ private:
         void update_req_pos (Context c, GcodeParserCommandPart *part, bool *changed)
         {
             if (part->code == axis_name) {
-                double req = strtod(part->data, NULL);
-                if (req > m_limit) {
-                    req = m_limit;
-                }
-                StepFixedType new_req_pos = dist_from_real(m_offset + req);
-                if (new_req_pos != m_req_pos) {
-                    m_req_pos = new_req_pos;
+                double req_pos = strtod(part->data, NULL);
+                compute_req(req_pos);
+                if (m_req_step_pos != m_end_pos) {
                     *changed = true;
                     enable_stepper(c, true);
                 }
@@ -369,22 +367,30 @@ private:
         void write_planner_command (PlannerCmd *cmd)
         {
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
-            if (m_req_pos >= m_end_pos) {
+            if (m_req_step_pos >= m_end_pos) {
                 mycmd->dir = true;
-                mycmd->x = StepFixedType::importBits(m_req_pos.bitsValue() - m_end_pos.bitsValue());
+                mycmd->x = StepFixedType::importBits(m_req_step_pos.bitsValue() - m_end_pos.bitsValue());
             } else {
                 mycmd->dir = false;
-                mycmd->x = StepFixedType::importBits(m_end_pos.bitsValue() - m_req_pos.bitsValue());
+                mycmd->x = StepFixedType::importBits(m_end_pos.bitsValue() - m_req_step_pos.bitsValue());
             }
             mycmd->max_v = speed_from_real(m_max_speed);
             mycmd->max_a = accel_from_real(m_max_accel);
-            m_end_pos = m_req_pos;
+            m_end_pos = m_req_step_pos;
         }
         
         void append_position (Context c)
         {
-            double position = (m_req_pos.bitsValue() / m_steps_per_unit) - m_offset;
-            parent()->reply_append_fmt(c, "%c:%f", axis_name, position);
+            parent()->reply_append_fmt(c, "%c:%f", axis_name, m_req_pos);
+        }
+        
+        void compute_req (float req_pos)
+        {
+            m_req_pos = req_pos;
+            if (req_pos > m_limit) {
+                req_pos = m_limit;
+            }
+            m_req_step_pos = dist_from_real(m_offset + req_pos);
         }
         
         Sharer m_sharer;
@@ -396,7 +402,8 @@ private:
         float m_limit;
         HomingFeature m_homing_feature;
         StepFixedType m_end_pos;
-        StepFixedType m_req_pos;
+        float m_req_pos;
+        StepFixedType m_req_step_pos;
         
         struct SharerGetStepperHandler : public AMBRO_WCALLBACK_TD(&Axis::stepper, &Axis::m_sharer) {};
     };
