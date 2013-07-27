@@ -139,6 +139,7 @@ private:
         }
         
         PlannerCommand cmd;
+        cmd.rel_max_v = Planner::RelSpeedType::maxValue();
         switch (m_state) {
             case STATE_FAST: {
                 cmd.axes.elem.dir = HomeDir;

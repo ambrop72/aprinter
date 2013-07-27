@@ -33,6 +33,7 @@
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/TypeListLength.h>
+#include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
@@ -88,6 +89,8 @@ private:
     using MinTimeTypeHelper = FixedIntersectTypes<typename TheAxisSpec::Sharer::Axis::TimeFixedType, AccumType>;
     template <typename TheAxisSpec, typename AccumType>
     using MaxStepTypeHelper = FixedUnionTypes<typename TheAxisSpec::Sharer::Axis::StepFixedType, AccumType>;
+    template <typename TheAxisSpec, typename AccumType>
+    using RelSpeedTypeHelper = decltype(FixedMin(FixedDivide<true>(typename TheAxisSpec::AbsVelFixedType(), typename TheAxisSpec::Sharer::Axis::StepFixedType()), AccumType()));
     
     using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
     using MaxStepType = TypeListFold<AxesList, FixedIdentity, MaxStepTypeHelper>;
@@ -95,6 +98,7 @@ private:
 public:
     using TimeType = typename Context::Clock::TimeType;
     using SharersTuple = MapElemTuple<AxesList, ComposeFunctions<PointerFunc, GetFunc_Sharer>>;
+    using RelSpeedType = TypeListFold<AxesList, FixedIdentity, RelSpeedTypeHelper>;
     
     struct InputCommand;
     
@@ -198,6 +202,7 @@ public:
     };
     
     struct InputCommand {
+        RelSpeedType rel_max_v;
         IndexElemTuple<AxesList, AxisInputCommand> axes;
     };
     
@@ -210,7 +215,11 @@ public:
         AMBRO_ASSERT(!m_stepping || m_all_full == 0)
         TupleForEachForward(&m_axes, Foreach_commandDone_assert(), c, icmd);
         
-        auto norm_v = TupleForEachForwardAccRes(&m_axes, FixedIdentity(), Foreach_commandDone_compute_vel(), c, icmd);
+        RelSpeedType norm_v = TupleForEachForwardAccRes(&m_axes, FixedIdentity(), Foreach_commandDone_compute_vel(), c, icmd);
+        if (norm_v > icmd.rel_max_v) {
+            norm_v = icmd.rel_max_v;
+        }
+        
         auto norm_a = TupleForEachForwardAccRes(&m_axes, FixedIdentity(), Foreach_commandDone_compute_acc(), c, icmd);
         
         auto norm_try_x = FixedResDivide<-MaxStepType::num_bits, MaxStepType::num_bits, false>(norm_v * norm_v, norm_a.template shift<1>());

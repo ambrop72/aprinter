@@ -863,6 +863,7 @@ private:
         AMBRO_ASSERT(m_planning.pull_pending)
         
         PlannerInputCommand cmd;
+        cmd.rel_max_v = ThePlanner::RelSpeedType::maxValue();
         TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd);
         m_planner.commandDone(c, cmd);
         m_planning.req_pending = false;
