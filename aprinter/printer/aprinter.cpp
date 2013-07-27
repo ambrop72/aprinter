@@ -48,7 +48,7 @@ using StepAccType = FixedPoint<11, false, -11-24>;
 static const int stepper_command_buffer_size_exp = 3;
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
-using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(15.0);
+using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(80.0);
