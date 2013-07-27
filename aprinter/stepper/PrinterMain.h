@@ -316,7 +316,7 @@ private:
             m_max_speed = AxisSpec::DefaultMaxSpeed::value();
             m_max_accel = AxisSpec::DefaultMaxAccel::value();
             m_offset = AxisSpec::DefaultOffset::value();
-            m_limit = AxisSpec::DefaultLimit::value();
+            m_limit = limit_limit(AxisSpec::DefaultLimit::value());
             m_homing_feature.init(c);
             m_end_pos = StepFixedType::importBits(0);
             m_req_pos = -m_offset;
@@ -436,6 +436,19 @@ private:
                 m_req_step_pos = m_end_pos;
                 m_req_pos = req_pos;
             }
+        }
+        
+        double limit_limit (double limit)
+        {
+            if (limit < -m_offset) {
+                limit = -m_offset;
+            } else {
+                double max = (StepFixedType::maxValue().doubleValue() / m_steps_per_unit) - m_offset;
+                if (limit > max) {
+                    limit = max;
+                }
+            }
+            return limit;
         }
         
         Sharer m_sharer;
