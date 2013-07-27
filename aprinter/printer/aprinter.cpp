@@ -49,6 +49,7 @@ static const int stepper_command_buffer_size_exp = 3;
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
+using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(80.0);
@@ -100,6 +101,7 @@ using PrinterParams = PrinterMainParams<
     AvrPin<AvrPortA, 4>, // LED pin
     LedBlinkInterval,
     DefaultInactiveTime,
+    SpeedLimitMultiply,
     MakeTypeList<
         PrinterMainAxisParams<
             'X', // axis name
@@ -118,6 +120,7 @@ using PrinterParams = PrinterMainParams<
             XDefaultMaxAccel, // default max acceleration
             XDefaultOffset,
             XDefaultLimit,
+            true, // enable cartesian speed limit
             PrinterMainHomingParams<
                 AvrPin<AvrPortC, 2>, // endstop pin
                 false, // invert endstop value
@@ -147,6 +150,7 @@ using PrinterParams = PrinterMainParams<
             YDefaultMaxAccel, // default max acceleration
             YDefaultOffset,
             YDefaultLimit,
+            true, // enable cartesian speed limit
             PrinterMainHomingParams<
                 AvrPin<AvrPortC, 3>, // endstop pin
                 false, // invert endstop value
@@ -176,6 +180,7 @@ using PrinterParams = PrinterMainParams<
             ZDefaultMaxAccel, // default max acceleration
             ZDefaultOffset,
             ZDefaultLimit,
+            true, // enable cartesian speed limit
             PrinterMainHomingParams<
                 AvrPin<AvrPortC, 4>, // endstop pin
                 false, // invert endstop value
@@ -205,6 +210,7 @@ using PrinterParams = PrinterMainParams<
             EDefaultMaxAccel, // default max acceleration
             EDefaultOffset,
             EDefaultLimit,
+            false, // enable cartesian speed limit
             PrinterMainNoHomingParams
         >
     >

@@ -60,13 +60,15 @@
 #include <aprinter/BeginNamespace.h>
 
 template <
-    typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime, typename TAxesList
+    typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
+    typename TSpeedLimitMultiply, typename TAxesList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
     using LedPin = TLedPin;
     using LedBlinkInterval = TLedBlinkInterval;
     using DefaultInactiveTime = TDefaultInactiveTime;
+    using SpeedLimitMultiply = TSpeedLimitMultiply;
     using AxesList = TAxesList;
 };
 
@@ -81,7 +83,8 @@ template <
     typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir,
     typename TTheAxisStepperParams, typename TAbsVelFixedType, typename TAbsAccFixedType,
     typename TDefaultStepsPerUnit, typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
-    typename TDefaultOffset, typename TDefaultLimit, typename THoming
+    typename TDefaultOffset, typename TDefaultLimit, bool tenable_cartesian_speed_limit,
+    typename THoming
 >
 struct PrinterMainAxisParams {
     static const char name = tname;
@@ -97,6 +100,7 @@ struct PrinterMainAxisParams {
     using DefaultMaxAccel = TDefaultMaxAccel;
     using DefaultOffset = TDefaultOffset;
     using DefaultLimit = TDefaultLimit;
+    static const bool enable_cartesian_speed_limit = tenable_cartesian_speed_limit;
     using Homing = THoming;
 };
 
@@ -317,6 +321,9 @@ private:
             m_end_pos = StepFixedType::importBits(0);
             m_req_pos = -m_offset;
             m_req_step_pos = StepFixedType::importBits(0);
+            if (AxisSpec::enable_cartesian_speed_limit) {
+                m_req_delta = 0.0;
+            }
             m_relative_positioning = false;
         }
         
@@ -361,6 +368,10 @@ private:
                 compute_req(req_pos);
                 if (m_req_step_pos != m_end_pos) {
                     *changed = true;
+                    if (AxisSpec::enable_cartesian_speed_limit) {
+                        m_req_delta = ((double)m_req_step_pos.bitsValue() - (double)m_end_pos.bitsValue()) / m_steps_per_unit;
+                        parent()->m_planning.distance += m_req_delta * m_req_delta;
+                    }
                     enable_stepper(c, true);
                 }
             }
@@ -369,6 +380,8 @@ private:
         template <typename PlannerCmd>
         void write_planner_command (PlannerCmd *cmd)
         {
+            PrinterMain *o = parent();
+            
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
             if (m_req_step_pos >= m_end_pos) {
                 mycmd->dir = true;
@@ -378,6 +391,15 @@ private:
                 mycmd->x = StepFixedType::importBits(m_end_pos.bitsValue() - m_req_step_pos.bitsValue());
             }
             mycmd->max_v = speed_from_real(m_max_speed);
+            if (m_req_step_pos != m_end_pos && AxisSpec::enable_cartesian_speed_limit) {
+                if (o->m_planning.distance > 0.0) {
+                    AbsVelFixedType limit = speed_from_real(o->m_planning.max_cart_speed * (fabs(m_req_delta) / o->m_planning.distance));
+                    if (limit.bitsValue() > 0 && mycmd->max_v > limit) {
+                        mycmd->max_v = limit;
+                    }
+                }
+                m_req_delta = 0.0;
+            }
             mycmd->max_a = accel_from_real(m_max_accel);
             m_end_pos = m_req_step_pos;
         }
@@ -441,6 +463,7 @@ private:
         StepFixedType m_end_pos;
         float m_req_pos;
         StepFixedType m_req_step_pos;
+        float m_req_delta;
         bool m_relative_positioning;
         
         struct SharerGetStepperHandler : public AMBRO_WCALLBACK_TD(&Axis::stepper, &Axis::m_sharer) {};
@@ -633,8 +656,14 @@ private:
                 
                 case 1: { // buffered move
                     bool changed = false;
+                    m_planning.distance = 0.0;
+                    m_planning.max_cart_speed = INFINITY;
                     for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
-                        TupleForEachForward(&m_axes, Foreach_update_req_pos(), c, &m_cmd->parts[i], &changed);
+                        GcodeParserCommandPart *part = &m_cmd->parts[i];
+                        TupleForEachForward(&m_axes, Foreach_update_req_pos(), c, part, &changed);
+                        if (part->code == 'F') {
+                            m_planning.max_cart_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
+                        }
                     }
                     if (changed) {
                         if (m_state != STATE_PLANNING) {
@@ -645,6 +674,7 @@ private:
                             now_active(c);
                         }
                         m_planning.req_pending = true;
+                        m_planning.distance = sqrt(m_planning.distance);
                         if (m_planning.pull_pending) {
                             send_req_to_planner(c);
                         }
@@ -904,6 +934,8 @@ private:
         struct {
             bool req_pending;
             bool pull_pending;
+            double distance;
+            double max_cart_speed;
         } m_planning;
     };
     
