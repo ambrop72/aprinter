@@ -137,6 +137,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_planner_command, write_planner_command)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_position, append_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_relative_positioning, set_relative_positioning)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
     
     struct SerialRecvHandler;
     struct SerialSendHandler;
@@ -391,16 +392,42 @@ private:
             if (m_relative_positioning) {
                 req_pos += m_req_pos;
             }
-            m_req_pos = req_pos;
-            if (req_pos > m_limit) {
+            if (req_pos < -m_offset) {
+                req_pos = -m_offset;
+            } else if (req_pos > m_limit) {
                 req_pos = m_limit;
             }
+            m_req_pos = req_pos;
             m_req_step_pos = dist_from_real(m_offset + req_pos);
         }
         
         void set_relative_positioning (bool relative)
         {
             m_relative_positioning = relative;
+        }
+        
+        void set_position (Context c, GcodeParserCommandPart *part, bool *found_axes)
+        {
+            AMBRO_ASSERT(m_end_pos == m_req_step_pos)
+            
+            if (part->code == axis_name) {
+                *found_axes = true;
+                if (AxisSpec::Homing::enabled) {
+                    parent()->reply_append_str(c, "Error:G92 on homable axis\n");
+                    return;
+                }
+                double req_pos = strtod(part->data, NULL);
+                if (req_pos < -m_offset) {
+                    req_pos = -m_offset;
+                } else if (req_pos > m_limit) {
+                    req_pos = m_limit;
+                }
+                double delta_steps = (req_pos - m_req_pos) * m_steps_per_unit;
+                double new_steps = (double)m_end_pos.bitsValue() + delta_steps;
+                m_end_pos = StepFixedType::importDoubleSaturated(new_steps);
+                m_req_step_pos = m_end_pos;
+                m_req_pos = req_pos;
+            }
         }
         
         Sharer m_sharer;
@@ -652,6 +679,16 @@ private:
                 
                 case 91: { // relative positioning
                     TupleForEachForward(&m_axes, Foreach_set_relative_positioning(), true);
+                } break;
+                
+                case 92: { // set position
+                    bool found_axes = false;
+                    for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
+                        TupleForEachForward(&m_axes, Foreach_set_position(), c, &m_cmd->parts[i], &found_axes);
+                    }
+                    if (!found_axes) {
+                        reply_append_str(c, "Error:not supported\n");
+                    }
                 } break;
             } break;
             
