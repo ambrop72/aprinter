@@ -616,6 +616,7 @@ private:
             case 'M': switch (cmd_num) {
                 default: 
                     goto unknown_command;
+                
                 case 110: // set line number
                     break;
                 
@@ -654,6 +655,7 @@ private:
                 default:
                     goto unknown_command;
                 
+                case 0:
                 case 1: { // buffered move
                     bool changed = false;
                     m_planning.distance = 0.0;
@@ -681,6 +683,9 @@ private:
                         return;
                     }
                 } break;
+                
+                case 21: // set units to millimeters
+                    break;
                 
                 case 28: { // home axes
                     if (m_state == STATE_PLANNING) {
