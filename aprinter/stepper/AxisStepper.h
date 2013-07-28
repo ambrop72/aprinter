@@ -195,16 +195,16 @@ public:
         AMBRO_ASSERT(a >= -x)
         AMBRO_ASSERT(a <= x)
         
-        Command cmd;
-        cmd.x = x;
-        cmd.discriminant = AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a);
-        cmd.a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
-        cmd.v0 = AXIS_STEPPER_V0_EXPR(x, t, a);
-        cmd.t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
-        cmd.dir = dir;
-        cmd.clock_offset = m_commands[buffer_last(m_end).value()].clock_offset + t.bitsValue();
-        
-        m_commands[m_end.value()] = cmd;
+        // keep the order of the computation consistent with the dependencies between
+        // these macros, to make it easier for the compiler to optimize
+        Command *cmd = &m_commands[m_end.value()];
+        cmd->x = x;
+        cmd->v0 = AXIS_STEPPER_V0_EXPR(x, t, a);
+        cmd->a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
+        cmd->discriminant = AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a);
+        cmd->t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
+        cmd->clock_offset = m_commands[buffer_last(m_end).value()].clock_offset + t.bitsValue();
+        cmd->dir = dir;
         
         bool was_empty;
         bool is_full;
