@@ -201,9 +201,8 @@ public:
         cmd.a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
         cmd.v0 = AXIS_STEPPER_V0_EXPR(x, t, a);
         cmd.t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
-        cmd.t_plain = t.bitsValue();
         cmd.dir = dir;
-        cmd.clock_offset = m_commands[buffer_last(m_end).value()].clock_offset + cmd.t_plain;
+        cmd.clock_offset = m_commands[buffer_last(m_end).value()].clock_offset + t.bitsValue();
         
         m_commands[m_end.value()] = cmd;
         
@@ -292,7 +291,6 @@ private:
     };
     
     struct Command : public CurrentCommand {
-        TimeType t_plain;
         bool dir;
     };
     
@@ -335,7 +333,7 @@ private:
         Command *cmd = &m_commands[m_start.value()];
         stepper(this)->setDir(c, cmd->dir);
         m_current_command = *cmd;
-        TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : (m_current_command.clock_offset - cmd->t_plain);
+        TimeType timer_t = (m_current_command.x.bitsValue() == 0) ? m_current_command.clock_offset : m_commands[BoundedModuloDec(m_start).value()].clock_offset;
         m_timer.set(c, timer_t);
     }
     
