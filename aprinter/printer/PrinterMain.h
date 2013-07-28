@@ -561,7 +561,7 @@ private:
         RecvSizeType avail = m_serial.recvQuery(c, &overrun);
         m_cmd = m_gcode_parser.extendCommand(c, avail.value());
         if (m_cmd) {
-            return process_received_command(c);
+            return process_received_command(c, false);
         }
         if (overrun) {
             m_serial.recvConsume(c, avail);
@@ -571,7 +571,7 @@ private:
         }
     }
     
-    void process_received_command (Context c)
+    void process_received_command (Context c, bool already_seen)
     {
         AMBRO_ASSERT(m_cmd)
         AMBRO_ASSERT(m_state == STATE_IDLE || m_state == STATE_PLANNING)
@@ -579,7 +579,6 @@ private:
         
         char cmd_code;
         int cmd_num;
-        bool is_m110;
         
         if (m_cmd->num_parts <= 0) {
             char const *err = "unknown error";
@@ -597,18 +596,20 @@ private:
         cmd_code = m_cmd->parts[0].code;
         cmd_num = atoi(m_cmd->parts[0].data);
         
-        is_m110 = (cmd_code == 'M' && cmd_num == 110);
-        if (is_m110) {
-            m_line_number = get_command_param_uint32(m_cmd, 'L', -1);
-        }
-        if (m_cmd->have_line_number) {
-            if (m_cmd->line_number != m_line_number) {
-                reply_append_fmt(c, "Error:Line Number is not Last Line Number+1, Last Line:%" PRIu32 "\n", (uint32_t)(m_line_number - 1));
-                goto reply;
+        if (!already_seen) {
+            bool is_m110 = (cmd_code == 'M' && cmd_num == 110);
+            if (is_m110) {
+                m_line_number = get_command_param_uint32(m_cmd, 'L', -1);
             }
-        }
-        if (m_cmd->have_line_number || is_m110) {
-            m_line_number++;
+            if (m_cmd->have_line_number) {
+                if (m_cmd->line_number != m_line_number) {
+                    reply_append_fmt(c, "Error:Line Number is not Last Line Number+1, Last Line:%" PRIu32 "\n", (uint32_t)(m_line_number - 1));
+                    goto reply;
+                }
+            }
+            if (m_cmd->have_line_number || is_m110) {
+                m_line_number++;
+            }
         }
         
         switch (cmd_code) {
@@ -914,7 +915,7 @@ private:
         now_inactive(c);
         
         if (m_cmd) {
-            process_received_command(c);
+            process_received_command(c, true);
         }
     }
     
