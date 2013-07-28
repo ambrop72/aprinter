@@ -90,9 +90,8 @@ public:
     
     void init (Context c)
     {
-        m_pull_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisStepper::m_pull_event, &AxisStepper::pull_event_handler));
+        m_pull_empty_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisStepper::m_pull_empty_event, &AxisStepper::pull_empty_event_handler));
         m_full_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisStepper::m_full_event, &AxisStepper::full_event_handler));
-        m_empty_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AxisStepper::m_empty_event, &AxisStepper::empty_event_handler));
         m_lock.init(c);
         m_timer.init(c);
         m_running = false;
@@ -106,9 +105,8 @@ public:
         
         m_timer.deinit(c);
         m_lock.deinit(c);
-        m_empty_event.deinit(c);
         m_full_event.deinit(c);
-        m_pull_event.deinit(c);
+        m_pull_empty_event.deinit(c);
     }
     
     void start (Context c, TimeType start_time)
@@ -122,7 +120,7 @@ public:
         m_start = BufferSizeType::import(0);
         m_end = BufferSizeType::import(0);
         m_commands[BoundedModuloDec(m_start).value()].clock_offset = start_time;
-        m_pull_event.prependNowNotAlready(c);
+        m_pull_empty_event.prependNowNotAlready(c);
     }
     
     void stop (Context c)
@@ -131,9 +129,8 @@ public:
         AMBRO_ASSERT(m_running)
         
         m_timer.unset(c);
-        m_empty_event.unset(c);
         m_full_event.unset(c);
-        m_pull_event.unset(c);
+        m_pull_empty_event.unset(c);
         m_running = false;
     }
     
@@ -161,7 +158,7 @@ public:
         if (m_start != m_end) {
             start_first_command(c);
         } else if (m_pulling) {
-            m_empty_event.prependNowNotAlready(c);
+            m_pull_empty_event.prependNowNotAlready(c);
         }
     }
     
@@ -172,7 +169,9 @@ public:
         AMBRO_ASSERT(m_stepping)
         
         m_timer.unset(c);
-        m_empty_event.unset(c);
+        if (m_pulling) {
+            m_pull_empty_event.unset(c);
+        }
         m_stepping = false;
         
         if (m_start != m_end) {
@@ -190,7 +189,6 @@ public:
         AMBRO_ASSERT(m_running)
         AMBRO_ASSERT(m_pulling)
         AMBRO_ASSERT(!buffer_is_full(c))
-        AMBRO_ASSERT(!m_pull_event.isSet(c))
         AMBRO_ASSERT(!m_full_event.isSet(c))
         AMBRO_ASSERT(a >= -x)
         AMBRO_ASSERT(a <= x)
@@ -210,14 +208,14 @@ public:
         bool is_full;
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             m_pulling = false;
-            m_empty_event.unset(lock_c);
+            m_pull_empty_event.unset(lock_c);
             was_empty = buffer_is_empty(lock_c);
             m_end = BoundedModuloInc(m_end);
             is_full = buffer_is_full(lock_c);
         });
         
         if (!is_full) {
-            m_pull_event.prependNowNotAlready(c);
+            m_pull_empty_event.prependNowNotAlready(c);
         } else if (!m_stepping) {
             m_full_event.prependNowNotAlready(c);
         }
@@ -348,11 +346,11 @@ private:
             bool run_out;
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 if (buffer_is_full(lock_c)) {
-                    m_pull_event.appendNowNotAlready(lock_c);
+                    m_pull_empty_event.appendNowNotAlready(lock_c);
                 }
                 m_start = BoundedModuloInc(m_start);
                 if (m_pulling && buffer_is_empty(lock_c)) {
-                    m_empty_event.appendNowNotAlready(lock_c);
+                    m_pull_empty_event.appendNowNotAlready(lock_c);
                 }
                 run_out = (m_start == m_end);
             });
@@ -390,23 +388,29 @@ private:
         return true;
     }
     
-    void pull_event_handler (Context c)
+    void pull_empty_event_handler (Context c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_running)
-        AMBRO_ASSERT(!m_pulling)
-        AMBRO_ASSERT(!buffer_is_full(c))
-        AMBRO_ASSERT(!m_full_event.isSet(c))
-        AMBRO_ASSERT(!m_empty_event.isSet(c))
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
-            m_pulling = true;
-            if (m_stepping && buffer_is_empty(lock_c)) {
-                m_empty_event.prependNowNotAlready(lock_c);
-            }
-        });
-        
-        return PullCmdHandler::call(this, c);
+        if (m_pulling) {
+            AMBRO_ASSERT(m_stepping)
+            AMBRO_ASSERT(buffer_is_empty(c))
+            
+            return BufferEmptyHandler::call(this, c);
+        } else {
+            AMBRO_ASSERT(!buffer_is_full(c))
+            AMBRO_ASSERT(!m_full_event.isSet(c))
+            
+            AMBRO_LOCK_T(m_lock, c, lock_c, {
+                m_pulling = true;
+                if (m_stepping && buffer_is_empty(lock_c)) {
+                    m_pull_empty_event.prependNowNotAlready(lock_c);
+                }
+            });
+            
+            return PullCmdHandler::call(this, c);
+        }
     }
     
     void full_event_handler (Context c)
@@ -419,20 +423,8 @@ private:
         return BufferFullHandler::call(this, c);
     }
     
-    void empty_event_handler (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_running)
-        AMBRO_ASSERT(m_stepping)
-        AMBRO_ASSERT(m_pulling)
-        AMBRO_ASSERT(buffer_is_empty(c))
-        
-        return BufferEmptyHandler::call(this, c);
-    }
-    
-    typename Loop::QueuedEvent m_pull_event;
+    typename Loop::QueuedEvent m_pull_empty_event;
     typename Loop::QueuedEvent m_full_event;
-    typename Loop::QueuedEvent m_empty_event;
     Lock m_lock;
     TimerInstance m_timer;
     Command m_commands[(size_t)BufferSizeType::maxIntValue() + 1];
