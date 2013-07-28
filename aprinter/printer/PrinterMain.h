@@ -498,6 +498,7 @@ public:
         m_line_number = 0;
         m_cmd = NULL;
         m_reply_length = 0;
+        m_max_cart_speed = INFINITY;
         m_state = STATE_IDLE;
         
         reply_append_str(c, "APrinter\n");
@@ -657,12 +658,11 @@ private:
                 case 1: { // buffered move
                     bool changed = false;
                     m_planning.distance = 0.0;
-                    m_planning.max_cart_speed = INFINITY;
                     for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
                         GcodeParserCommandPart *part = &m_cmd->parts[i];
                         TupleForEachForward(&m_axes, Foreach_update_req_pos(), c, part, &changed);
                         if (part->code == 'F') {
-                            m_planning.max_cart_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
+                            m_max_cart_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
                         }
                     }
                     if (changed) {
@@ -861,7 +861,7 @@ private:
         AMBRO_ASSERT(m_planning.pull_pending)
         
         PlannerInputCommand cmd;
-        cmd.rel_max_v = ThePlanner::RelSpeedType::importDoubleSaturated((m_planning.max_cart_speed / m_planning.distance) / Clock::time_freq);
+        cmd.rel_max_v = ThePlanner::RelSpeedType::importDoubleSaturated((m_max_cart_speed / m_planning.distance) / Clock::time_freq);
         if (cmd.rel_max_v.bitsValue() == 0) {
             cmd.rel_max_v = ThePlanner::RelSpeedType::importBits(1);
         }
@@ -932,6 +932,7 @@ private:
     GcodeParserCommand *m_cmd;
     char m_reply_buf[reply_buffer_size];
     ReplyBufferSizeType m_reply_length;
+    double m_max_cart_speed;
     uint8_t m_state;
     union {
         struct {
@@ -942,7 +943,6 @@ private:
             bool req_pending;
             bool pull_pending;
             double distance;
-            double max_cart_speed;
         } m_planning;
     };
     
