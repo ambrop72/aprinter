@@ -198,7 +198,7 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortB, 0>, // dir pin
             AvrPin<AvrPortB, 1>, // step pin
             AvrPin<AvrPortD, 6>, // enable pin
-            false, // invert dir
+            true, // invert dir
             AxisStepperParams<
                 stepper_command_buffer_size_exp,
                 AvrClockInterruptTimer_TC3_OCB // stepper timer
