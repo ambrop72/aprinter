@@ -226,7 +226,7 @@ private:
             {
                 Axis *axis = parent();
                 PrinterMain *o = axis->parent();
-                AMBRO_ASSERT(axis->m_state == AXIS_STATE_IDLE)
+                AMBRO_ASSERT(axis->m_state == AXIS_STATE_OTHER)
                 
                 if (!(mask & ((AxisMaskType)1 << AxisIndex))) {
                     return;
@@ -259,7 +259,7 @@ private:
                 m_homer.deinit(c);
                 axis->m_end_pos = axis->m_min;
                 axis->m_req_pos = axis->m_min;
-                axis->m_state = AXIS_STATE_IDLE;
+                axis->m_state = AXIS_STATE_OTHER;
                 o->m_homing.rem_axes--;
                 if (!success) {
                     o->m_homing.failed = true;
@@ -284,7 +284,7 @@ private:
             void start_homing (Context c, AxisMaskType mask) {}
         };
         
-        enum {AXIS_STATE_IDLE, AXIS_STATE_HOMING, AXIS_SPACE_RUNNING};
+        enum {AXIS_STATE_OTHER, AXIS_STATE_HOMING};
         
         PrinterMain * parent ()
         {
@@ -320,7 +320,7 @@ private:
         void init (Context c)
         {
             m_sharer.init(c);
-            m_state = AXIS_STATE_IDLE;
+            m_state = AXIS_STATE_OTHER;
             m_steps_per_unit = AxisSpec::DefaultStepsPerUnit::value();
             m_max_speed = speed_from_real(AxisSpec::DefaultMaxSpeed::value());
             m_max_accel = accel_from_real(AxisSpec::DefaultMaxAccel::value());
