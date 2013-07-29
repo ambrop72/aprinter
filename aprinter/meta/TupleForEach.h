@@ -107,6 +107,12 @@ void TupleForEachReverse (TupleType *tuple, Func func, Args... args)
     return TupleForEach<TupleType>::call_reverse(tuple, func, args...);
 }
 
+template <typename TupleType, typename Func, typename... Args>
+bool TupleForEachForwardInterruptible (TupleType *tuple, Func func, Args... args)
+{
+    return TupleForEach<TupleType>::call_forward_interruptible(tuple, func, args...);
+}
+
 template <typename TupleType, typename InitialAccRes, typename Func, typename... Args>
 auto TupleForEachForwardAccRes (TupleType *tuple, InitialAccRes initial_acc_res, Func func, Args... args) -> decltype(TupleForEach<TupleType>::call_forward_accres(tuple, initial_acc_res, func, args...))
 {
