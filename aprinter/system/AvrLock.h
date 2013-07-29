@@ -52,28 +52,17 @@ public:
     static const bool value = HasAvrInterruptContextTag::Call<Context>::Type::value;
 };
 
-template <typename Context>
-class AvrLock {
+class AvrLockImpl {
 private:
     template <typename ThisContext, bool InInterruptContext, typename Dummy = void>
     struct LockHelper;
     
 public:
     template <typename ThisContext>
-    void init (ThisContext c)
-    {
-    }
-    
-    template <typename ThisContext>
-    void deinit (ThisContext c)
-    {
-    }
-    
-    template <typename ThisContext>
     using EnterContext = typename LockHelper<ThisContext, IsAvrInterruptContext<ThisContext>::value>::EnterContext;
     
     template <typename ThisContext, typename Func>
-    void enter (ThisContext c, Func f)
+    __attribute__((always_inline)) inline static void enter (ThisContext c, Func f)
     {
         LockHelper<ThisContext, IsAvrInterruptContext<ThisContext>::value>::call(c, f);
     }
@@ -84,7 +73,7 @@ private:
         typedef AvrInterruptContext<ThisContext> EnterContext;
         
         template <typename Func>
-        static void call (ThisContext c, Func f)
+        __attribute__((always_inline)) inline static void call (ThisContext c, Func f)
         {
             cli();
             f(MakeAvrInterruptContext(c));
@@ -97,12 +86,41 @@ private:
         typedef ThisContext EnterContext;
         
         template <typename Func>
-        static void call (ThisContext c, Func f)
+        __attribute__((always_inline)) inline static void call (ThisContext c, Func f)
         {
             f(c);
         }
     };
 };
+
+template <typename Context>
+class AvrLock {
+private:
+public:
+    template <typename ThisContext>
+    void init (ThisContext c)
+    {
+    }
+    
+    template <typename ThisContext>
+    void deinit (ThisContext c)
+    {
+    }
+    
+    template <typename ThisContext>
+    using EnterContext = typename AvrLockImpl::template EnterContext<ThisContext>;
+    
+    template <typename ThisContext, typename Func>
+    __attribute__((always_inline)) inline void enter (ThisContext c, Func f)
+    {
+        AvrLockImpl::enter(c, f);
+    }
+};
+
+AvrLockImpl AvrTempLock ()
+{
+    return AvrLockImpl();
+}
 
 #include <aprinter/EndNamespace.h>
 
