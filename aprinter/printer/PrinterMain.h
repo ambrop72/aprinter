@@ -269,12 +269,12 @@ private:
             }
             
             Homer m_homer;
-            float m_fast_max_dist;
-            float m_retract_dist;
-            float m_slow_max_dist;
-            float m_fast_speed;
-            float m_retract_speed;
-            float m_slow_speed;
+            double m_fast_max_dist;
+            double m_retract_dist;
+            double m_slow_max_dist;
+            double m_fast_speed;
+            double m_retract_speed;
+            double m_slow_speed;
             
             struct HomerFinishedHandler : public AMBRO_WCALLBACK_TD(&HomingFeature::homer_finished_handler, &HomingFeature::m_homer) {};
         } AMBRO_STRUCT_ELSE(HomingFeature) {
@@ -290,7 +290,7 @@ private:
             return AMBRO_WMEMB_TD(&PrinterMain::m_axes)::container(TupleGetTuple<AxisIndex, AxesTuple>(this));
         }
         
-        StepFixedType dist_from_real (float x)
+        StepFixedType dist_from_real (double x)
         {
             return StepFixedType::importDoubleSaturated(x * m_steps_per_unit);
         }
@@ -392,7 +392,7 @@ private:
             parent()->reply_append_fmt(c, "%c:%f", axis_name, m_req_pos);
         }
         
-        void compute_req (float req_pos)
+        void compute_req (double req_pos)
         {
             if (m_relative_positioning) {
                 req_pos += m_req_pos;
@@ -450,14 +450,14 @@ private:
         
         Sharer m_sharer;
         uint8_t m_state;
-        float m_steps_per_unit;
-        float m_max_speed;
-        float m_max_accel;
-        float m_offset;
-        float m_limit;
+        double m_steps_per_unit;
+        double m_max_speed;
+        double m_max_accel;
+        double m_offset;
+        double m_limit;
         HomingFeature m_homing_feature;
         StepFixedType m_end_pos;
-        float m_req_pos;
+        double m_req_pos;
         StepFixedType m_req_step_pos;
         bool m_relative_positioning;
         
