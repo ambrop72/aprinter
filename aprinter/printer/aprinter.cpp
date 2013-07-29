@@ -43,8 +43,6 @@
 using namespace APrinter;
 
 static const int clock_timer_prescaler = 2;
-using StepVelType = FixedPoint<11, false, -11-4>;
-using StepAccType = FixedPoint<11, false, -11-24>;
 static const int stepper_command_buffer_size_exp = 3;
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
@@ -113,8 +111,6 @@ using PrinterParams = PrinterMainParams<
                 stepper_command_buffer_size_exp,
                 AvrClockInterruptTimer_TC1_OCA // stepper timer
             >,
-            StepVelType, // velocity type
-            StepAccType, // acceleration type
             XDefaultStepsPerUnit, // default steps per unit
             XDefaultMaxSpeed, // default max speed
             XDefaultMaxAccel, // default max acceleration
@@ -143,8 +139,6 @@ using PrinterParams = PrinterMainParams<
                 stepper_command_buffer_size_exp,
                 AvrClockInterruptTimer_TC1_OCB // stepper timer
             >,
-            StepVelType, // velocity type
-            StepAccType, // acceleration type
             YDefaultStepsPerUnit, // default steps per unit
             YDefaultMaxSpeed, // default max speed
             YDefaultMaxAccel, // default max acceleration
@@ -173,8 +167,6 @@ using PrinterParams = PrinterMainParams<
                 stepper_command_buffer_size_exp,
                 AvrClockInterruptTimer_TC3_OCA // stepper timer
             >,
-            StepVelType, // velocity type
-            StepAccType, // acceleration type
             ZDefaultStepsPerUnit, // default steps per unit
             ZDefaultMaxSpeed, // default max speed
             ZDefaultMaxAccel, // default max acceleration
@@ -203,8 +195,6 @@ using PrinterParams = PrinterMainParams<
                 stepper_command_buffer_size_exp,
                 AvrClockInterruptTimer_TC3_OCB // stepper timer
             >,
-            StepVelType, // velocity type
-            StepAccType, // acceleration type
             EDefaultStepsPerUnit, // default steps per unit
             EDefaultMaxSpeed, // default max speed
             EDefaultMaxAccel, // default max acceleration

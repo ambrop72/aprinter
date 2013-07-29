@@ -26,6 +26,7 @@
 #define AMBROLIB_AXIS_HOMER_H
 
 #include <stdint.h>
+#include <math.h>
 
 #include <aprinter/meta/WrapCallback.h>
 #include <aprinter/meta/MakeTypeList.h>
@@ -33,11 +34,12 @@
 #include <aprinter/meta/ForwardHandler.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/MotionPlanner.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename Sharer, typename AbsVelFixedType, typename AbsAccFixedType, typename SwitchPin, bool SwitchInvert, bool HomeDir, typename FinishedHandler>
+template <typename Context, typename Sharer, typename SwitchPin, bool SwitchInvert, bool HomeDir, typename FinishedHandler>
 class AxisHomer
 : private DebugObject<Context, void>
 {
@@ -47,9 +49,7 @@ private:
     struct PlannerBufferEmptyHandler;
     struct PinWatcherHandler;
     
-    using PlannerAxes = MakeTypeList<
-        MotionPlannerAxisSpec<Sharer, AbsVelFixedType, AbsAccFixedType>
-    >;
+    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<Sharer>>;
     
     using Planner = MotionPlanner<Context, PlannerAxes, PlannerPullCmdHandler, PlannerBufferFullHandler, PlannerBufferEmptyHandler>;
     
@@ -60,10 +60,10 @@ public:
         StepFixedType fast_max_dist;
         StepFixedType retract_dist;
         StepFixedType slow_max_dist;
-        AbsVelFixedType fast_speed;
-        AbsVelFixedType retract_speed;
-        AbsVelFixedType slow_speed;
-        AbsAccFixedType max_accel;
+        double fast_speed;
+        double retract_speed;
+        double slow_speed;
+        double max_accel;
     };
     
     void init (Context c, Sharer *sharer)
@@ -91,10 +91,10 @@ public:
         AMBRO_ASSERT(params.fast_max_dist.bitsValue() > 0)
         AMBRO_ASSERT(params.retract_dist.bitsValue() > 0)
         AMBRO_ASSERT(params.slow_max_dist.bitsValue() > 0)
-        AMBRO_ASSERT(params.fast_speed.bitsValue() > 0)
-        AMBRO_ASSERT(params.retract_speed.bitsValue() > 0)
-        AMBRO_ASSERT(params.slow_speed.bitsValue() > 0)
-        AMBRO_ASSERT(params.max_accel.bitsValue() > 0)
+        AMBRO_ASSERT(FloatIsPosOrPosZero(params.fast_speed))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(params.retract_speed))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(params.slow_speed))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(params.max_accel))
         
         m_planner.start(c, 0);
         m_state = STATE_FAST;
@@ -139,7 +139,7 @@ private:
         }
         
         PlannerCommand cmd;
-        cmd.rel_max_v = Planner::RelSpeedType::maxValue();
+        cmd.rel_max_v = INFINITY;
         switch (m_state) {
             case STATE_FAST: {
                 cmd.axes.elem.dir = HomeDir;

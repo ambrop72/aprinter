@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 #include <limits.h>
+#include <math.h>
 
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Tuple.h>
@@ -44,14 +45,13 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
+#include <aprinter/math/FloatTools.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TSharer, typename TAbsVelFixedType, typename TAbsAccFixedType>
+template <typename TSharer>
 struct MotionPlannerAxisSpec {
     using Sharer = TSharer;
-    using AbsVelFixedType = TAbsVelFixedType;
-    using AbsAccFixedType = TAbsAccFixedType;
 };
 
 template <typename Context, typename AxesList, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler, int AxisIndex>
@@ -87,18 +87,12 @@ private:
     
     template <typename TheAxisSpec, typename AccumType>
     using MinTimeTypeHelper = FixedIntersectTypes<typename TheAxisSpec::Sharer::Axis::TimeFixedType, AccumType>;
-    template <typename TheAxisSpec, typename AccumType>
-    using MaxStepTypeHelper = FixedUnionTypes<typename TheAxisSpec::Sharer::Axis::StepFixedType, AccumType>;
-    template <typename TheAxisSpec, typename AccumType>
-    using RelSpeedTypeHelper = decltype(FixedMin(FixedDivide<true>(typename TheAxisSpec::AbsVelFixedType(), typename TheAxisSpec::Sharer::Axis::StepFixedType()), AccumType()));
     
     using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
-    using MaxStepType = TypeListFold<AxesList, FixedIdentity, MaxStepTypeHelper>;
     
 public:
     using TimeType = typename Context::Clock::TimeType;
     using SharersTuple = MapElemTuple<AxesList, ComposeFunctions<PointerFunc, GetFunc_Sharer>>;
-    using RelSpeedType = TypeListFold<AxesList, FixedIdentity, RelSpeedTypeHelper>;
     
     struct InputCommand;
     
@@ -197,12 +191,12 @@ public:
         using TheAxis = Axis<AxisIndex>;
         bool dir;
         typename TheAxis::StepFixedType x;
-        typename TheAxis::AbsVelFixedType max_v;
-        typename TheAxis::AbsAccFixedType max_a;
+        double max_v;
+        double max_a;
     };
     
     struct InputCommand {
-        RelSpeedType rel_max_v;
+        double rel_max_v;
         IndexElemTuple<AxesList, AxisInputCommand> axes;
     };
     
@@ -213,36 +207,23 @@ public:
         AMBRO_ASSERT(m_pulling)
         AMBRO_ASSERT(m_all_command_state == ALL_CMD_END)
         AMBRO_ASSERT(!m_stepping || m_all_full == 0)
-        AMBRO_ASSERT(icmd.rel_max_v.bitsValue() > 0)
+        AMBRO_ASSERT(FloatIsPosOrPosZero(icmd.rel_max_v))
         TupleForEachForward(&m_axes, Foreach_commandDone_assert(), c, icmd);
         
-        RelSpeedType norm_v = TupleForEachForwardAccRes(&m_axes, FixedIdentity(), Foreach_commandDone_compute_vel(), c, icmd);
-        if (norm_v > icmd.rel_max_v) {
-            norm_v = icmd.rel_max_v;
-        }
+        double norm_v = TupleForEachForwardAccRes(&m_axes, icmd.rel_max_v, Foreach_commandDone_compute_vel(), c, icmd);
+        double norm_a = TupleForEachForwardAccRes(&m_axes, INFINITY, Foreach_commandDone_compute_acc(), c, icmd);
+        double norm_acc_x = fmin(0.5, (norm_v * norm_v) / (2 * norm_a));
+        double norm_con_x = 1.0 - (2 * norm_acc_x);
         
-        auto norm_a = TupleForEachForwardAccRes(&m_axes, FixedIdentity(), Foreach_commandDone_compute_acc(), c, icmd);
-        
-        auto norm_try_x = FixedResDivide<-MaxStepType::num_bits, MaxStepType::num_bits, false>(norm_v * norm_v, norm_a.template shift<1>());
-        auto norm_half_x = decltype(norm_try_x)::importBits(decltype(norm_try_x)::maxValue().bitsValue() / 2);
-        
-        if (norm_try_x > norm_half_x) {
-            norm_try_x = norm_half_x;
-        }
-        
-        auto norm_rem_x = decltype(norm_try_x)::importBits(
-            decltype(norm_try_x)::maxValue().bitsValue() - norm_try_x.bitsValue() - norm_try_x.bitsValue()
-        );
-        
-        MinTimeType t02 = FixedSquareRoot(FixedResDivide<0, (2 * MinTimeType::num_bits), false>(norm_try_x.template shift<1>(), norm_a));
-        MinTimeType t1 = FixedResDivide<0, MinTimeType::num_bits, false>(norm_rem_x, norm_v);
+        MinTimeType t02 = MinTimeType::importDoubleSaturated(sqrt((2 * norm_acc_x) / norm_a));
+        MinTimeType t1 = MinTimeType::importDoubleSaturated(norm_con_x / norm_v);
         
         m_pulling = false;
         m_all_command_state = 0;
         m_all_empty = 0;
         m_empty_event.unset(c);
         
-        TupleForEachForward(&m_axes, Foreach_commandDone_compute(), c, icmd, norm_try_x, t02, t1);
+        TupleForEachForward(&m_axes, Foreach_commandDone_compute(), c, icmd, norm_acc_x, t02, t1);
         
         if (m_all_full == NUM_AXES) {
             m_full_event.prependNow(c);
@@ -333,11 +314,6 @@ public:
     using StepFixedType = typename Sharer::Axis::StepFixedType;
     using TimeFixedType = typename Sharer::Axis::TimeFixedType;
     using AccelFixedType = typename Sharer::Axis::AccelFixedType;
-    using AbsVelFixedType = typename AxisSpec::AbsVelFixedType;
-    using AbsAccFixedType = typename AxisSpec::AbsAccFixedType;
-    
-    static_assert(!AbsVelFixedType::is_signed, "");
-    static_assert(!AbsAccFixedType::is_signed, "");
     
 private:
     friend TheMotionPlanner;
@@ -401,33 +377,31 @@ private:
     {
         TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
         AMBRO_ASSERT(m_command_state == CMD_END)
-        AMBRO_ASSERT(axis_icmd->max_v.bitsValue() > 0)
-        AMBRO_ASSERT(axis_icmd->max_a.bitsValue() > 0)
+        AMBRO_ASSERT(FloatIsPosOrPosZero(axis_icmd->max_v))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(axis_icmd->max_a))
     }
     
-    template <typename AccumVel>
-    auto commandDone_compute_vel (AccumVel accum_vel, Context c, InputCommand icmd)
+    double commandDone_compute_vel (double accum_vel, Context c, InputCommand icmd)
     {
         TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
-        auto norm_v = FixedDivide<true>(axis_icmd->max_v, axis_icmd->x);
-        return FixedMin(norm_v, accum_vel);
+        return fmin(accum_vel, axis_icmd->max_v / axis_icmd->x.doubleValue());
     }
     
-    template <typename AccumAcc>
-    auto commandDone_compute_acc (AccumAcc accum_acc, Context c, InputCommand icmd)
+    double commandDone_compute_acc (double accum_acc, Context c, InputCommand icmd)
     {
         TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
-        auto norm_a = FixedDivide<true>(axis_icmd->max_a, axis_icmd->x);
-        return FixedMin(norm_a, accum_acc);
+        return fmin(accum_acc, axis_icmd->max_a / axis_icmd->x.doubleValue());
     }
     
-    template <typename NormTryX>
-    void commandDone_compute (Context c, InputCommand icmd, NormTryX norm_try_x, MinTimeType t02, MinTimeType t1)
+    void commandDone_compute (Context c, InputCommand icmd, double norm_acc_x, MinTimeType t02, MinTimeType t1)
     {
         TheMotionPlanner *o = parent();
         TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
         
-        StepFixedType x = FixedResMultiply(axis_icmd->x, norm_try_x);
+        StepFixedType x = StepFixedType::importDoubleSaturated(axis_icmd->x.doubleValue() * norm_acc_x);
+        if (x.m_bits.m_int > axis_icmd->x.bitsValue() / 2) {
+            x.m_bits.m_int = axis_icmd->x.bitsValue() / 2;
+        }
         
         m_command.dir = axis_icmd->dir;
         m_command.x[0] = x;

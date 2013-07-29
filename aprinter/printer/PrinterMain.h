@@ -49,6 +49,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
+#include <aprinter/math/FloatTools.h>
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/stepper/Steppers.h>
@@ -81,7 +82,7 @@ struct PrinterMainSerialParams {
 template <
     char tname,
     typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir,
-    typename TTheAxisStepperParams, typename TAbsVelFixedType, typename TAbsAccFixedType,
+    typename TTheAxisStepperParams,
     typename TDefaultStepsPerUnit, typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultOffset, typename TDefaultLimit, bool tenable_cartesian_speed_limit,
     typename THoming
@@ -93,8 +94,6 @@ struct PrinterMainAxisParams {
     using EnablePin = TEnablePin;
     static const bool InvertDir = TInvertDir;
     using TheAxisStepperParams = TTheAxisStepperParams;
-    using AbsVelFixedType = TAbsVelFixedType;
-    using AbsAccFixedType = TAbsAccFixedType;
     using DefaultStepsPerUnit = TDefaultStepsPerUnit;
     using DefaultMaxSpeed = TDefaultMaxSpeed;
     using DefaultMaxAccel = TDefaultMaxAccel;
@@ -191,13 +190,11 @@ private:
         using Stepper = SteppersStepper<Context, StepperDefsList, AxisIndex>;
         using Sharer = AxisSharer<Context, typename AxisSpec::TheAxisStepperParams, Stepper, SharerGetStepperHandler>;
         using StepFixedType = typename Sharer::Axis::StepFixedType;
-        using AbsVelFixedType = typename AxisSpec::AbsVelFixedType;
-        using AbsAccFixedType = typename AxisSpec::AbsAccFixedType;
         static const char axis_name = AxisSpec::name;
         
         AMBRO_STRUCT_IF(HomingFeature, AxisSpec::Homing::enabled) {
             struct HomerFinishedHandler;
-            using Homer = AxisHomer<Context, Sharer, AbsVelFixedType, AbsAccFixedType, typename AxisSpec::Homing::EndPin, AxisSpec::Homing::end_invert, AxisSpec::Homing::home_dir, HomerFinishedHandler>;
+            using Homer = AxisHomer<Context, Sharer, typename AxisSpec::Homing::EndPin, AxisSpec::Homing::end_invert, AxisSpec::Homing::home_dir, HomerFinishedHandler>;
             
             Axis * parent ()
             {
@@ -298,14 +295,14 @@ private:
             return StepFixedType::importDoubleSaturated(x * m_steps_per_unit);
         }
         
-        AbsVelFixedType speed_from_real (float v)
+        double speed_from_real (double v)
         {
-            return AbsVelFixedType::importDoubleSaturated(v * (m_steps_per_unit / Clock::time_freq));
+            return (v * (m_steps_per_unit / Clock::time_freq));
         }
         
-        AbsAccFixedType accel_from_real (float a)
+        double accel_from_real (double a)
         {
-            return AbsAccFixedType::importDoubleSaturated(a * (m_steps_per_unit / (Clock::time_freq * Clock::time_freq)));
+            return (a * (m_steps_per_unit / (Clock::time_freq * Clock::time_freq)));
         }
         
         void init (Context c)
@@ -468,11 +465,7 @@ private:
     };
     
     template <typename TheAxis>
-    using MakePlannerAxisSpec = MotionPlannerAxisSpec<
-        typename TheAxis::Sharer,
-        typename TheAxis::AbsVelFixedType,
-        typename TheAxis::AbsAccFixedType
-    >;
+    using MakePlannerAxisSpec = MotionPlannerAxisSpec<typename TheAxis::Sharer>;
     
     using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
     using ThePlanner = MotionPlanner<Context, MotionPlannerAxes, PlannerPullCmdHandler, PlannerBufferFullHandler, PlannerBufferEmptyHandler>;
@@ -862,10 +855,7 @@ private:
         AMBRO_ASSERT(m_planning.pull_pending)
         
         PlannerInputCommand cmd;
-        cmd.rel_max_v = ThePlanner::RelSpeedType::importDoubleSaturated((m_max_cart_speed / m_planning.distance) / Clock::time_freq);
-        if (cmd.rel_max_v.bitsValue() == 0) {
-            cmd.rel_max_v = ThePlanner::RelSpeedType::importBits(1);
-        }
+        cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / m_planning.distance) / Clock::time_freq);
         TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd);
         m_planner.commandDone(c, cmd);
         m_planning.req_pending = false;
