@@ -26,6 +26,9 @@
 #define AMBROLIB_FLOAT_TOOLS_H
 
 #include <math.h>
+#include <float.h>
+
+#include <aprinter/meta/TypesAreEqual.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -42,6 +45,22 @@ T FloatMakePosOrPosZero (T x)
         x = 0.0;
     }
     return x;
+}
+
+template <typename T>
+T FloatPositiveIntegerRange ()
+{
+    static_assert(TypesAreEqual<T, float>::value || TypesAreEqual<T, double>::value, "");
+    
+    return ldexp(1.0, (TypesAreEqual<T, float>::value ? FLT_MANT_DIG : DBL_MANT_DIG));
+}
+
+template <typename T>
+T FloatSignedIntegerRange ()
+{
+    static_assert(TypesAreEqual<T, float>::value || TypesAreEqual<T, double>::value, "");
+    
+    return ldexp(1.0, (TypesAreEqual<T, float>::value ? FLT_MANT_DIG : DBL_MANT_DIG) - 1);
 }
 
 #include <aprinter/EndNamespace.h>
