@@ -235,13 +235,13 @@ BoundedInt<(NumBits1 + NumBits2), (Signed1 || Signed2)> operator* (BoundedInt<Nu
     return BoundedMultiply<0>(op1, op2);
 }
 
-template <int LeftShift, int ResSatBits, bool SupportZero, int NumBits1, bool Signed1, int NumBits2, bool Signed2>
-BoundedInt<ResSatBits, (Signed1 || Signed2)> BoundedDivide (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+template <int LeftShift, int ResSatBits, bool SupportZero, int NumBits1, bool Signed1, int NumBits2, bool Signed2, typename Option = int>
+__attribute__((always_inline)) inline BoundedInt<ResSatBits, (Signed1 || Signed2)> BoundedDivide (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2, Option opt = 0)
 {
     AMBRO_ASSERT(!!SupportZero || op2.value() != 0)
     
     return BoundedInt<ResSatBits, (Signed1 || Signed2)>::import(
-        IntDivide<NumBits1, Signed1, NumBits2, Signed2, LeftShift, ResSatBits, SupportZero>::call(op1.value(), op2.value())
+        IntDivide<NumBits1, Signed1, NumBits2, Signed2, LeftShift, ResSatBits, SupportZero>::call(op1.value(), op2.value(), opt)
     );
 }
 
@@ -251,12 +251,12 @@ BoundedInt<NumBits1, (Signed1 || Signed2)> operator/ (BoundedInt<NumBits1, Signe
     return BoundedDivide<0, NumBits1, false>(op1, op2);
 }
 
-template <int NumBits, bool Signed>
-BoundedInt<((NumBits + 1) / 2), false> BoundedSquareRoot (BoundedInt<NumBits, Signed> op1)
+template <int NumBits, bool Signed, typename Option = int>
+__attribute__((always_inline)) inline BoundedInt<((NumBits + 1) / 2), false> BoundedSquareRoot (BoundedInt<NumBits, Signed> op1, Option opt = 0)
 {
     AMBRO_ASSERT(op1.value() >= 0)
     
-    return BoundedInt<((NumBits + 1) / 2), false>::import(IntSqrt<NumBits>::call(op1.value()));
+    return BoundedInt<((NumBits + 1) / 2), false>::import(IntSqrt<NumBits>::call(op1.value(), opt));
 }
 
 template <int NumBits>

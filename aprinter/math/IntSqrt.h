@@ -43,11 +43,12 @@ public:
     typedef typename ChooseInt<NumBits, false>::Type OpType;
     typedef typename ChooseInt<((NumBits + 1) / 2), false>::Type ResType;
     
-    static ResType call (OpType op)
+    template <typename Option = int>
+    __attribute__((always_inline)) inline static ResType call (OpType op, Option opt = 0)
     {
         return
 #ifdef AMBROLIB_AVR
-            (NumBits <= 29) ? sqrt_29_large(op) :
+            (NumBits <= 29) ? sqrt_29_large(op, opt) :
 #endif
             default_sqrt(op);
     }

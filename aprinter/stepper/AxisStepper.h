@@ -32,6 +32,7 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/WrapCallback.h>
 #include <aprinter/meta/CopyUnrolled.h>
+#include <aprinter/meta/Options.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -377,9 +378,9 @@ private:
         m_current_command.discriminant.m_bits.m_int -= m_current_command.a_mul.m_bits.m_int;
         AMBRO_ASSERT(m_current_command.discriminant.bitsValue() >= 0)
         
-        auto q = (m_current_command.v0 + FixedSquareRoot(m_current_command.discriminant)).template shift<-1>();
+        auto q = (m_current_command.v0 + FixedSquareRoot(m_current_command.discriminant, OptionForceInline())).template shift<-1>();
         
-        auto t_frac = FixedFracDivide(m_current_command.x, q);
+        auto t_frac = FixedFracDivide(m_current_command.x, q, OptionForceInline());
         
         TimeFixedType t = FixedResMultiply(m_current_command.t_mul, t_frac);
         

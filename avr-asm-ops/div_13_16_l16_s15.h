@@ -27,6 +27,10 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/Options.h>
+
+#include <aprinter/BeginNamespace.h>
+
 #define DIVIDE_13_16_L16_S15_ITER_17_18(i) \
 "    lsl %A[n]\n" \
 "    rol %B[n]\n" \
@@ -89,7 +93,7 @@
  * Cycles in worst case: 174
  * = 5 + (2 * 8) + (5 * 11) + (3 * 11) + (4 * 14) + 9
  */
-static inline uint16_t div_13_16_l16_s15 (uint16_t n, uint16_t d)
+__attribute__((always_inline)) inline static uint16_t div_13_16_l16_s15 (uint16_t n, uint16_t d, OptionForceInline opt)
 {
     uint16_t q;
     uint8_t t;
@@ -133,5 +137,13 @@ static inline uint16_t div_13_16_l16_s15 (uint16_t n, uint16_t d)
     
     return q;
 }
+
+template <typename Option = int>
+static uint16_t div_13_16_l16_s15 (uint16_t n, uint16_t d, Option opt = 0)
+{
+    return div_13_16_l16_s15(n, d, OptionForceInline());
+}
+
+#include <aprinter/EndNamespace.h>
 
 #endif

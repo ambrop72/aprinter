@@ -45,11 +45,12 @@ public:
     typedef typename ChooseInt<NumBits2, Signed2>::Type Op2Type;
     typedef typename ChooseInt<ResSatBits, (Signed1 || Signed2)>::Type ResType;
     
-    static ResType call (Op1Type op1, Op2Type op2)
+    template <typename Option = int>
+    __attribute__((always_inline)) inline static ResType call (Op1Type op1, Op2Type op2, Option opt = 0)
     {
         return
 #ifdef AMBROLIB_AVR
-            (LeftShift == 16 && ResSatBits == 15 && !Signed1 && NumBits1 > 8 && NumBits1 <= 13 && !Signed2 && NumBits2 <= 16) ? div_13_16_l16_s15(op1, op2) :
+            (LeftShift == 16 && ResSatBits == 15 && !Signed1 && NumBits1 > 8 && NumBits1 <= 13 && !Signed2 && NumBits2 <= 16) ? div_13_16_l16_s15(op1, op2, opt) :
 #endif
             default_divide(op1, op2);
     }

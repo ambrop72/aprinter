@@ -27,6 +27,10 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/Options.h>
+
+#include <aprinter/BeginNamespace.h>
+
 #define SQRT_29_ITER_1_4(i) \
 "    cp %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -127,7 +131,7 @@
  * Cycles in worst case: 143
  * = 2 + 4 * 8 + 8 + 10 + 2 * 10 + 4 * 10 + 15 + 11 + 5
  */
-static inline uint16_t sqrt_29_large (uint32_t x)
+__attribute__((always_inline)) inline static uint16_t sqrt_29_large (uint32_t x, OptionForceInline opt)
 {
     uint16_t goo;
     
@@ -162,5 +166,13 @@ static inline uint16_t sqrt_29_large (uint32_t x)
     
     return goo;
 }
+
+template <typename Option = int>
+static uint16_t sqrt_29_large (uint32_t x, Option opt = 0)
+{
+    return sqrt_29_large(x, OptionForceInline());
+}
+
+#include <aprinter/EndNamespace.h>
 
 #endif
