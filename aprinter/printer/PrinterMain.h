@@ -84,7 +84,7 @@ template <
     typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir,
     typename TTheAxisStepperParams,
     typename TDefaultStepsPerUnit, typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
-    typename TDefaultOffset, typename TDefaultLimit, bool tenable_cartesian_speed_limit,
+    typename TDefaultMin, typename TDefaultMax, bool tenable_cartesian_speed_limit,
     typename THoming
 >
 struct PrinterMainAxisParams {
@@ -97,8 +97,8 @@ struct PrinterMainAxisParams {
     using DefaultStepsPerUnit = TDefaultStepsPerUnit;
     using DefaultMaxSpeed = TDefaultMaxSpeed;
     using DefaultMaxAccel = TDefaultMaxAccel;
-    using DefaultOffset = TDefaultOffset;
-    using DefaultLimit = TDefaultLimit;
+    using DefaultMin = TDefaultMin;
+    using DefaultMax = TDefaultMax;
     static const bool enable_cartesian_speed_limit = tenable_cartesian_speed_limit;
     using Homing = THoming;
 };
@@ -203,12 +203,14 @@ private:
             
             void init (Context c)
             {
-                m_fast_max_dist = AxisSpec::Homing::DefaultFastMaxDist::value();
-                m_retract_dist = AxisSpec::Homing::DefaultRetractDist::value();
-                m_slow_max_dist = AxisSpec::Homing::DefaultSlowMaxDist::value();
-                m_fast_speed = AxisSpec::Homing::DefaultFastSpeed::value();
-                m_retract_speed = AxisSpec::Homing::DefaultRetractSpeed::value();
-                m_slow_speed = AxisSpec::Homing::DefaultSlowSpeed::value();
+                Axis *axis = parent();
+                
+                m_fast_max_dist = axis->dist_from_real(AxisSpec::Homing::DefaultFastMaxDist::value());
+                m_retract_dist = axis->dist_from_real(AxisSpec::Homing::DefaultRetractDist::value());
+                m_slow_max_dist = axis->dist_from_real(AxisSpec::Homing::DefaultSlowMaxDist::value());
+                m_fast_speed = axis->speed_from_real(AxisSpec::Homing::DefaultFastSpeed::value());
+                m_retract_speed = axis->speed_from_real(AxisSpec::Homing::DefaultRetractSpeed::value());
+                m_slow_speed = axis->speed_from_real(AxisSpec::Homing::DefaultSlowSpeed::value());
             }
             
             void deinit (Context c)
@@ -231,13 +233,13 @@ private:
                 }
                 
                 typename Homer::HomingParams params;
-                params.fast_max_dist = axis->dist_from_real(m_fast_max_dist);
-                params.retract_dist = axis->dist_from_real(m_retract_dist);
-                params.slow_max_dist = axis->dist_from_real(m_slow_max_dist);
-                params.fast_speed = axis->speed_from_real(m_fast_speed);
-                params.retract_speed = axis->speed_from_real(m_retract_speed);
-                params.slow_speed = axis->speed_from_real(m_slow_speed);
-                params.max_accel = axis->accel_from_real(axis->m_max_accel);
+                params.fast_max_dist = StepFixedType::importDoubleSaturated(m_fast_max_dist);
+                params.retract_dist = StepFixedType::importDoubleSaturated(m_retract_dist);
+                params.slow_max_dist = StepFixedType::importDoubleSaturated(m_slow_max_dist);
+                params.fast_speed = m_fast_speed;
+                params.retract_speed = m_retract_speed;
+                params.slow_speed = m_slow_speed;
+                params.max_accel = axis->m_max_accel;
                 
                 axis->stepper()->enable(c, true);
                 m_homer.init(c, &axis->m_sharer);
@@ -255,9 +257,8 @@ private:
                 AMBRO_ASSERT(o->m_homing.rem_axes > 0)
                 
                 m_homer.deinit(c);
-                axis->m_end_pos = StepFixedType::importBits(0);
-                axis->m_req_pos = -axis->m_offset;
-                axis->m_req_step_pos = StepFixedType::importBits(0);
+                axis->m_end_pos = axis->m_min;
+                axis->m_req_pos = axis->m_min;
                 axis->m_state = AXIS_STATE_IDLE;
                 o->m_homing.rem_axes--;
                 if (!success) {
@@ -269,12 +270,12 @@ private:
             }
             
             Homer m_homer;
-            double m_fast_max_dist;
-            double m_retract_dist;
-            double m_slow_max_dist;
-            double m_fast_speed;
-            double m_retract_speed;
-            double m_slow_speed;
+            double m_fast_max_dist; // steps
+            double m_retract_dist; // steps
+            double m_slow_max_dist; // steps
+            double m_fast_speed; // steps/tick
+            double m_retract_speed; // steps/tick
+            double m_slow_speed; // steps/tick
             
             struct HomerFinishedHandler : public AMBRO_WCALLBACK_TD(&HomingFeature::homer_finished_handler, &HomingFeature::m_homer) {};
         } AMBRO_STRUCT_ELSE(HomingFeature) {
@@ -290,9 +291,9 @@ private:
             return AMBRO_WMEMB_TD(&PrinterMain::m_axes)::container(TupleGetTuple<AxisIndex, AxesTuple>(this));
         }
         
-        StepFixedType dist_from_real (double x)
+        double dist_from_real (double x)
         {
-            return StepFixedType::importDoubleSaturated(x * m_steps_per_unit);
+            return (x * m_steps_per_unit);
         }
         
         double speed_from_real (double v)
@@ -305,19 +306,30 @@ private:
             return (a * (m_steps_per_unit / (Clock::time_freq * Clock::time_freq)));
         }
         
+        static double clamp_limit (double x)
+        {
+            double bound = fmin(FloatSignedIntegerRange<double>(), StepFixedType::maxValue().doubleValue() / 2);
+            return fmax(-bound, fmin(bound, round(x)));
+        }
+        
+        double clamp_pos (double pos)
+        {
+            return fmax(m_min, fmin(m_max, pos));
+        }
+        
         void init (Context c)
         {
             m_sharer.init(c);
             m_state = AXIS_STATE_IDLE;
             m_steps_per_unit = AxisSpec::DefaultStepsPerUnit::value();
-            m_max_speed = AxisSpec::DefaultMaxSpeed::value();
-            m_max_accel = AxisSpec::DefaultMaxAccel::value();
-            m_offset = AxisSpec::DefaultOffset::value();
-            m_limit = limit_limit(AxisSpec::DefaultLimit::value());
+            m_max_speed = speed_from_real(AxisSpec::DefaultMaxSpeed::value());
+            m_max_accel = accel_from_real(AxisSpec::DefaultMaxAccel::value());
+            m_min = clamp_limit(dist_from_real(AxisSpec::DefaultMin::value()));
+            m_max = clamp_limit(dist_from_real(AxisSpec::DefaultMax::value()));
             m_homing_feature.init(c);
-            m_end_pos = StepFixedType::importBits(0);
-            m_req_pos = -m_offset;
-            m_req_step_pos = StepFixedType::importBits(0);
+            m_end_pos = clamp_pos(0.0);
+            m_req_pos = clamp_pos(0.0);
+            m_move = 0.0;
             m_relative_positioning = false;
         }
         
@@ -358,12 +370,20 @@ private:
         void update_req_pos (Context c, GcodeParserCommandPart *part, bool *changed)
         {
             if (part->code == axis_name) {
-                double req_pos = strtod(part->data, NULL);
-                compute_req(req_pos);
-                if (m_req_step_pos != m_end_pos) {
+                double req = strtod(part->data, NULL);
+                if (isnan(req)) {
+                    req = 0.0;
+                }
+                req *= m_steps_per_unit;
+                if (m_relative_positioning) {
+                    req += m_req_pos;
+                }
+                m_req_pos = clamp_pos(req);
+                m_move = round(m_req_pos) - m_end_pos;
+                if (m_move != 0.0) {
                     *changed = true;
                     if (AxisSpec::enable_cartesian_speed_limit) {
-                        double delta = ((double)m_req_step_pos.bitsValue() - (double)m_end_pos.bitsValue()) / m_steps_per_unit;
+                        double delta = m_move / m_steps_per_unit;
                         parent()->m_planning.distance += delta * delta;
                     }
                     enable_stepper(c, true);
@@ -375,35 +395,22 @@ private:
         void write_planner_command (PlannerCmd *cmd)
         {
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
-            if (m_req_step_pos >= m_end_pos) {
+            if (m_move >= 0.0) {
                 mycmd->dir = true;
-                mycmd->x = StepFixedType::importBits(m_req_step_pos.bitsValue() - m_end_pos.bitsValue());
+                mycmd->x = StepFixedType::importBits(m_move);
             } else {
                 mycmd->dir = false;
-                mycmd->x = StepFixedType::importBits(m_end_pos.bitsValue() - m_req_step_pos.bitsValue());
+                mycmd->x = StepFixedType::importBits(-m_move);
             }
-            mycmd->max_v = speed_from_real(m_max_speed);
-            mycmd->max_a = accel_from_real(m_max_accel);
-            m_end_pos = m_req_step_pos;
+            mycmd->max_v = m_max_speed;
+            mycmd->max_a = m_max_accel;
+            m_end_pos += m_move;
+            m_move = 0.0;
         }
         
         void append_position (Context c)
         {
-            parent()->reply_append_fmt(c, "%c:%f", axis_name, m_req_pos);
-        }
-        
-        void compute_req (double req_pos)
-        {
-            if (m_relative_positioning) {
-                req_pos += m_req_pos;
-            }
-            if (req_pos < -m_offset) {
-                req_pos = -m_offset;
-            } else if (req_pos > m_limit) {
-                req_pos = m_limit;
-            }
-            m_req_pos = req_pos;
-            m_req_step_pos = dist_from_real(m_offset + req_pos);
+            parent()->reply_append_fmt(c, "%c:%f", axis_name, m_req_pos / m_steps_per_unit);
         }
         
         void set_relative_positioning (bool relative)
@@ -413,52 +420,33 @@ private:
         
         void set_position (Context c, GcodeParserCommandPart *part, bool *found_axes)
         {
-            AMBRO_ASSERT(m_end_pos == m_req_step_pos)
-            
             if (part->code == axis_name) {
                 *found_axes = true;
                 if (AxisSpec::Homing::enabled) {
                     parent()->reply_append_str(c, "Error:G92 on homable axis\n");
                     return;
                 }
-                double req_pos = strtod(part->data, NULL);
-                if (req_pos < -m_offset) {
-                    req_pos = -m_offset;
-                } else if (req_pos > m_limit) {
-                    req_pos = m_limit;
+                double req = strtod(part->data, NULL);
+                if (isnan(req)) {
+                    req = 0.0;
                 }
-                double delta_steps = (req_pos - m_req_pos) * m_steps_per_unit;
-                double new_steps = (double)m_end_pos.bitsValue() + delta_steps;
-                m_end_pos = StepFixedType::importDoubleSaturated(new_steps);
-                m_req_step_pos = m_end_pos;
-                m_req_pos = req_pos;
+                m_end_pos = round(clamp_pos(req * m_steps_per_unit));
+                m_req_pos = m_end_pos;
+                m_move = 0.0;
             }
-        }
-        
-        double limit_limit (double limit)
-        {
-            if (limit < -m_offset) {
-                limit = -m_offset;
-            } else {
-                double max = (StepFixedType::maxValue().doubleValue() / m_steps_per_unit) - m_offset;
-                if (limit > max) {
-                    limit = max;
-                }
-            }
-            return limit;
         }
         
         Sharer m_sharer;
         uint8_t m_state;
         double m_steps_per_unit;
-        double m_max_speed;
-        double m_max_accel;
-        double m_offset;
-        double m_limit;
+        double m_max_speed; // steps/tick
+        double m_max_accel; // steps/tick^2
+        double m_min; // steps, integer
+        double m_max; // steps, integer
         HomingFeature m_homing_feature;
-        StepFixedType m_end_pos;
-        double m_req_pos;
-        StepFixedType m_req_step_pos;
+        double m_end_pos; // steps, integer
+        double m_req_pos; // steps
+        double m_move; // steps, integer, =round(m_req_pos)-m_end_pos
         bool m_relative_positioning;
         
         struct SharerGetStepperHandler : public AMBRO_WCALLBACK_TD(&Axis::stepper, &Axis::m_sharer) {};
