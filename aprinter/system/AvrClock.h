@@ -149,9 +149,9 @@ public:
     volatile uint16_t m_offset;
 };
 
-template <typename Context, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg, uint32_t tifr_reg, uint8_t ocf_bit>
+template <typename Context, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg, uint8_t ocf_bit>
 class AvrClockInterruptTimer
-: private DebugObject<Context, AvrClockInterruptTimer<Context, Handler, timsk_reg, ocie_bit, ocr_reg, tifr_reg, ocf_bit>>
+: private DebugObject<Context, void>
 {
 public:
     typedef typename Context::Clock Clock;
@@ -315,17 +315,17 @@ private:
 };
 
 template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC1_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1A, _SFR_IO_ADDR(OCR1A), _SFR_IO_ADDR(TIFR1), OCF1A>;
+using AvrClockInterruptTimer_TC1_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1A, _SFR_IO_ADDR(OCR1A), OCF1A>;
 
 template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC1_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1B, _SFR_IO_ADDR(OCR1B), _SFR_IO_ADDR(TIFR1), OCF1B>;
+using AvrClockInterruptTimer_TC1_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1B, _SFR_IO_ADDR(OCR1B), OCF1B>;
 
 #ifdef TCNT3
 template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC3_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3A, _SFR_IO_ADDR(OCR3A), _SFR_IO_ADDR(TIFR3), OCF3A>;
+using AvrClockInterruptTimer_TC3_OCA = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3A, _SFR_IO_ADDR(OCR3A), OCF3A>;
 
 template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC3_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3B, _SFR_IO_ADDR(OCR3B), _SFR_IO_ADDR(TIFR3), OCF3B>;
+using AvrClockInterruptTimer_TC3_OCB = AvrClockInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3B, _SFR_IO_ADDR(OCR3B), OCF3B>;
 #endif
 
 #define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \
