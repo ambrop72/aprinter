@@ -147,11 +147,10 @@ private:
         bool handle_isr (AvrInterruptContext<Context> c)
         {
             if (parent()->m_current_pin == PinIndex) {
-                uint8_t low = ADCL;
-                uint8_t high = ADCH;
+                uint16_t adc = ADC;
                 ADMUX = (AdcRefSel << REFS0) | AdcPin<NextPinIndex>::Pin::port_pin;
                 ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE) | (AdcPrescaler << ADPS0);
-                m_value = ((uint16_t)high << 8) | low;
+                m_value = adc;
                 parent()->m_current_pin = NextPinIndex;
                 if (PinIndex == NumPins - 1) {
                     parent()->m_finished = true;
