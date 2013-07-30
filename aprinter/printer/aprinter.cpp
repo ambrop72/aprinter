@@ -38,10 +38,14 @@
 #include <aprinter/system/AvrPins.h>
 #include <aprinter/system/AvrPinWatcher.h>
 #include <aprinter/system/AvrLock.h>
+#include <aprinter/system/AvrAdc.h>
+#include <aprinter/devices/ThermistorFormula.h>
 #include <aprinter/printer/PrinterMain.h>
 
 using namespace APrinter;
 
+static const int AdcRefSel = 1;
+static const int AdcPrescaler = 7;
 static const int clock_timer_prescaler = 2;
 static const int stepper_command_buffer_size_exp = 3;
 
@@ -90,6 +94,16 @@ using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(10.0);
 using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultMin = AMBRO_WRAP_DOUBLE(-10000.0);
 using EDefaultMax = AMBRO_WRAP_DOUBLE(10000.0);
+
+using TSensorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
+using TSensorThermistorR0 = AMBRO_WRAP_DOUBLE(100000.0);
+using TSensorThermistorBeta = AMBRO_WRAP_DOUBLE(3960.0);
+using TSensorFormula = ThermistorFormula<TSensorResistorR, TSensorThermistorR0, TSensorThermistorBeta>;
+
+using BSensorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
+using BSensorThermistorR0 = AMBRO_WRAP_DOUBLE(10000.0);
+using BSensorThermistorBeta = AMBRO_WRAP_DOUBLE(3480.0);
+using BSensorFormula = ThermistorFormula<BSensorResistorR, BSensorThermistorR0, BSensorThermistorBeta>;
 
 using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
@@ -203,7 +217,25 @@ using PrinterParams = PrinterMainParams<
             false, // enable cartesian speed limit
             PrinterMainNoHomingParams
         >
+    >,
+    MakeTypeList<
+        PrinterMainSensorParams<
+            'T', // sensor name
+            AvrPin<AvrPortA, 7>, // analog input pin
+            TSensorFormula
+        >,
+        PrinterMainSensorParams<
+            'B', // sensor name
+            AvrPin<AvrPortA, 6>, // analog input pin
+            BSensorFormula
+        >
     >
+>;
+
+// need to list all used ADC pins here
+using AdcPins = MakeTypeList<
+    AvrPin<AvrPortA, 6>,
+    AvrPin<AvrPortA, 7>
 >;
 
 struct MyContext;
@@ -214,6 +246,7 @@ using MyClock = AvrClock<MyContext, clock_timer_prescaler>;
 using MyLoop = AvrEventLoop<EventLoopParams>;
 using MyPins = AvrPins<MyContext>;
 using MyPinWatcherService = AvrPinWatcherService<MyContext>;
+using MyAdc = AvrAdc<MyContext, AdcPins, AdcRefSel, AdcPrescaler>;
 using MyPrinter = PrinterMain<MyContext, PrinterParams>;
 
 struct MyContext {
@@ -223,12 +256,14 @@ struct MyContext {
     using EventLoop = MyLoop;
     using Pins = MyPins;
     using PinWatcherService = MyPinWatcherService;
+    using Adc = MyAdc;
     
     MyDebugObjectGroup * debugGroup () const;
     MyClock * clock () const;
     MyLoop * eventLoop () const;
     MyPins * pins () const;
     MyPinWatcherService * pinWatcherService () const;
+    MyAdc * adc () const;
 };
 
 struct EventLoopParams {
@@ -240,6 +275,7 @@ static MyClock myclock;
 static MyLoop myloop;
 static MyPins mypins;
 static MyPinWatcherService mypinwatcherservice;
+static MyAdc myadc;
 static MyPrinter myprinter;
 
 MyDebugObjectGroup * MyContext::debugGroup () const { return &d_group; }
@@ -247,9 +283,11 @@ MyClock * MyContext::clock () const { return &myclock; }
 MyLoop * MyContext::eventLoop () const { return &myloop; }
 MyPins * MyContext::pins () const { return &mypins; }
 MyPinWatcherService * MyContext::pinWatcherService () const { return &mypinwatcherservice; }
+MyAdc * MyContext::adc () const { return &myadc; }
 
 AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
+AMBRO_AVR_ADC_ISRS(myadc, MyContext())
 AMBRO_AVR_SERIAL_ISRS(*myprinter.getSerial(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*myprinter.template getSharer<0>()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*myprinter.template getSharer<1>()->getTimer(), MyContext())
@@ -275,6 +313,7 @@ static void setup_uart_stdio ()
 
 int main ()
 {
+    sei();
     setup_uart_stdio();
     
     MyContext c;
@@ -287,6 +326,7 @@ int main ()
     myloop.init(c);
     mypins.init(c);
     mypinwatcherservice.init(c);
+    myadc.init(c);
     myprinter.init(c);
     
     myloop.run(c);

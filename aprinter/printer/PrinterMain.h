@@ -62,7 +62,7 @@
 
 template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
-    typename TSpeedLimitMultiply, typename TAxesList
+    typename TSpeedLimitMultiply, typename TAxesList, typename TSensorsList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
@@ -71,6 +71,7 @@ struct PrinterMainParams {
     using DefaultInactiveTime = TDefaultInactiveTime;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using AxesList = TAxesList;
+    using SensorsList = TSensorsList;
 };
 
 template <uint32_t tbaud, typename TTheGcodeParserParams>
@@ -125,6 +126,13 @@ struct PrinterMainHomingParams {
     using DefaultSlowSpeed = TDefaultSlowSpeed;
 };
 
+template <char TName, typename TAdcPin, typename TFormula>
+struct PrinterMainSensorParams {
+    static const char Name = TName;
+    using AdcPin = TAdcPin;
+    using Formula = TFormula;
+};
+
 template <typename Context, typename Params>
 class PrinterMain
 : private DebugObject<Context, void>
@@ -141,6 +149,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_position, append_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_value, append_value)
     
     struct SerialRecvHandler;
     struct SerialSendHandler;
@@ -156,6 +165,7 @@ private:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using AxesList = typename Params::AxesList;
+    using SensorsList = typename Params::SensorsList;
     static const int num_axes = TypeListLength<AxesList>::value;
     using AxisMaskType = typename ChooseInt<num_axes, false>::Type;
     using AxisCountType = typename ChooseInt<BitsInInt<num_axes>::value, false>::Type;
@@ -461,6 +471,24 @@ private:
     using PlannerInputCommand = typename ThePlanner::InputCommand;
     using AxesTuple = IndexElemTuple<AxesList, Axis>;
     
+    template <int SensorIndex>
+    struct Sensor {
+        using SensorSpec = TypeListGet<SensorsList, SensorIndex>;
+        
+        double get_value (Context c)
+        {
+            return SensorSpec::Formula::call(c.adc()->template getFracValue<typename SensorSpec::AdcPin>(c));
+        }
+        
+        void append_value (PrinterMain *o, Context c)
+        {
+            double value = get_value(c);
+            o->reply_append_fmt(c, " %c:%f", SensorSpec::Name, value);
+        }
+    };
+    
+    using SensorsTuple = IndexElemTuple<SensorsList, Sensor>;
+    
 public:
     void init (Context c)
     {
@@ -558,6 +586,7 @@ private:
         AMBRO_ASSERT(m_state == STATE_IDLE || m_state == STATE_PLANNING)
         AMBRO_ASSERT(m_state != STATE_PLANNING || !m_planning.req_pending)
         
+        bool no_ok = false;
         char cmd_code;
         int cmd_num;
         
@@ -624,6 +653,14 @@ private:
                         TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, false);
                         m_disable_timer.unset(c);
                     }
+                } break;
+                
+                case 105: {
+                    reply_append_str(c, "ok");
+                    SensorsTuple sensors;
+                    TupleForEachForward(&sensors, Foreach_append_value(), this, c);
+                    reply_append_str(c, "\n");
+                    no_ok = true;
                 } break;
                 
                 case 114: {
@@ -714,14 +751,16 @@ private:
         }
         
     reply:
-        finish_command(c);
+        finish_command(c, no_ok);
     }
     
-    void finish_command (Context c)
+    void finish_command (Context c, bool no_ok)
     {
         AMBRO_ASSERT(m_cmd)
         
-        reply_append_str(c, "ok\n");
+        if (!no_ok) {
+            reply_append_str(c, "ok\n");
+        }
         reply_send(c);
         
         m_serial.recvConsume(c, RecvSizeType::import(m_cmd->length));
@@ -738,7 +777,7 @@ private:
             reply_append_str(c, "Error:Homing failed\n");
         }
         m_state = STATE_IDLE;
-        finish_command(c);
+        finish_command(c, false);
         now_inactive(c);
     }
     
@@ -848,7 +887,7 @@ private:
         m_planner.commandDone(c, cmd);
         m_planning.req_pending = false;
         m_planning.pull_pending = false;
-        finish_command(c);
+        finish_command(c, false);
     }
     
     void serial_send_handler (Context c)
