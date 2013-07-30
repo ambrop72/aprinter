@@ -121,7 +121,7 @@ public:
         TIMSK3 = 0;
         TCCR3A = 0;
         TCCR3B = (uint16_t)Prescale;
-        TCNT3 = TCNT1 + sync_clearance; // TODO
+        TCNT3 = TCNT1 - 1;
     }
     
     void deinitTC3 (Context c)
@@ -137,9 +137,6 @@ public:
     {
         m_offset++;
     }
-    
-private:
-    static const TimeType sync_clearance = 16 / prescale_divide;
     
 public:
     volatile uint16_t m_offset;
