@@ -134,12 +134,7 @@ public:
 #endif
 
 #ifdef TCNT0
-    static const int TC0Prescale =
-        (Prescale == 1) ? 1 :
-        (Prescale == 2) ? 2 :
-        (Prescale == 3) ? 4 :
-        (Prescale == 4) ? 6 :
-        (Prescale == 5) ? 7 : 0;
+    static const int TC0Prescale = Prescale;
     
     void initTC0 (Context c)
     {
