@@ -83,36 +83,32 @@ public:
     {
         this->debugAccess(c);
         
-        if (!IsAvrInterruptContext<ThisContext>::value) {
-            cli();
-        }
-        
-        uint16_t now_high = m_offset;
+        uint16_t now_high;
         uint16_t now_low;
-        uint8_t tmp;
-        asm volatile (
-            "    lds %A[now_low],%[tcnt1]+0\n"
-            "    lds %B[now_low],%[tcnt1]+1\n"
-            "    in %[tmp],%[tifr1]\n"
-            "    andi %[tmp],1<<%[tov1]\n"
-            "    breq no_overflow_%=\n"
-            "    subi %A[now_high],-1\n"
-            "    sbci %B[now_high],-1\n"
-            "    lds %A[now_low],%[tcnt1]+0\n"
-            "    lds %B[now_low],%[tcnt1]+1\n"
-            "no_overflow_%=:\n"
-        : [now_low] "=&r" (now_low),
-          [now_high] "=&d" (now_high),
-          [tmp] "=&d" (tmp)
-        : "[now_high]" (now_high),
-          [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
-          [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
-          [tov1] "n" (TOV1)
-        );
         
-        if (!IsAvrInterruptContext<ThisContext>::value) {
-            sei();
-        }
+        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+            now_high = m_offset;
+            uint8_t tmp;
+            asm volatile (
+                "    lds %A[now_low],%[tcnt1]+0\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
+                "    in %[tmp],%[tifr1]\n"
+                "    andi %[tmp],1<<%[tov1]\n"
+                "    breq no_overflow_%=\n"
+                "    subi %A[now_high],-1\n"
+                "    sbci %B[now_high],-1\n"
+                "    lds %A[now_low],%[tcnt1]+0\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
+                "no_overflow_%=:\n"
+            : [now_low] "=&r" (now_low),
+            [now_high] "=&d" (now_high),
+            [tmp] "=&d" (tmp)
+            : "[now_high]" (now_high),
+            [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
+            [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
+            [tov1] "n" (TOV1)
+            );
+        });
         
         return ((uint32_t)now_high << 16) | now_low;
     }
