@@ -46,7 +46,7 @@ using namespace APrinter;
 
 static const int AdcRefSel = 1;
 static const int AdcPrescaler = 7;
-static const int clock_timer_prescaler = 2;
+static const int clock_timer_prescaler = 3;
 static const int stepper_command_buffer_size_exp = 3;
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
