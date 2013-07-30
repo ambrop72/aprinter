@@ -320,9 +320,7 @@ int main ()
     
     d_group.init(c);
     myclock.init(c);
-#ifdef TCNT3
     myclock.initTC3(c);
-#endif
     myloop.init(c);
     mypins.init(c);
     mypinwatcherservice.init(c);
