@@ -162,7 +162,6 @@ public:
     {
         this->debugInit(c);
         
-        m_lock.init(c);
 #ifdef AMBROLIB_ASSERTIONS
         m_running = false;
 #endif
@@ -172,10 +171,9 @@ public:
     {
         this->debugDeinit(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
         });
-        m_lock.deinit(c);
     }
     
     template <typename ThisContext>
@@ -186,7 +184,7 @@ public:
         
         static const TimeType minus_clearance = -clearance;
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
             uint16_t now_high = lock_c.clock()->m_offset;
             uint16_t now_low;
             uint8_t tmp;
@@ -251,7 +249,7 @@ public:
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
             m_running = false;
@@ -308,7 +306,6 @@ private:
     static const TimeType clearance = (35 / Clock::prescale_divide) + 2;
     
     TimeType m_time;
-    AvrLock<Context> m_lock;
 #ifdef AMBROLIB_ASSERTIONS
     bool m_running;
 #endif
