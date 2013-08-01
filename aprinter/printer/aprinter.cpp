@@ -100,10 +100,10 @@ using EDefaultMax = AMBRO_WRAP_DOUBLE(10000.0);
 
 using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.5);
 using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
-using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.005);
+using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.001);
 using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.18);
 using ExtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
-using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.5);
+using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.2);
 
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
 
