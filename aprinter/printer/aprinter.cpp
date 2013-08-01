@@ -39,8 +39,11 @@
 #include <aprinter/system/AvrPinWatcher.h>
 #include <aprinter/system/AvrLock.h>
 #include <aprinter/system/AvrAdc.h>
-#include <aprinter/devices/ThermistorFormula.h>
+#include <aprinter/devices/PidControl.h>
+#include <aprinter/devices/BinaryControl.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <generated/AvrThermistorTable_Extruder.h>
+#include <generated/AvrThermistorTable_Bed.h>
 
 using namespace APrinter;
 
@@ -95,15 +98,14 @@ using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultMin = AMBRO_WRAP_DOUBLE(-10000.0);
 using EDefaultMax = AMBRO_WRAP_DOUBLE(10000.0);
 
-using TSensorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
-using TSensorThermistorR0 = AMBRO_WRAP_DOUBLE(100000.0);
-using TSensorThermistorBeta = AMBRO_WRAP_DOUBLE(3960.0);
-using TSensorFormula = ThermistorFormula<TSensorResistorR, TSensorThermistorR0, TSensorThermistorBeta>;
+using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.5);
+using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
+using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.005);
+using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.18);
+using ExtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
+using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.5);
 
-using BSensorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
-using BSensorThermistorR0 = AMBRO_WRAP_DOUBLE(10000.0);
-using BSensorThermistorBeta = AMBRO_WRAP_DOUBLE(3480.0);
-using BSensorFormula = ThermistorFormula<BSensorResistorR, BSensorThermistorR0, BSensorThermistorBeta>;
+using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
 
 using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
@@ -219,15 +221,33 @@ using PrinterParams = PrinterMainParams<
         >
     >,
     MakeTypeList<
-        PrinterMainSensorParams<
-            'T', // sensor name
-            AvrPin<AvrPortA, 7>, // analog input pin
-            TSensorFormula
+        PrinterMainHeaterParams<
+            'T', // controlee name
+            104, // set M command
+            AvrPin<AvrPortA, 7>, // analog sensor pin
+            AvrThermistorTable_Extruder, // sensor interpretation formula
+            AvrPin<AvrPortD, 5>, // output pin
+            ExtruderHeaterPulseInterval,
+            PidControl,
+            PidControlParams<
+                ExtruderHeaterPidP,
+                ExtruderHeaterPidI,
+                ExtruderHeaterPidD,
+                ExtruderHeaterPidIStateMin,
+                ExtruderHeaterPidIStateMax
+            >,
+            AvrClockInterruptTimer_TC0_OCA
         >,
-        PrinterMainSensorParams<
-            'B', // sensor name
-            AvrPin<AvrPortA, 6>, // analog input pin
-            BSensorFormula
+        PrinterMainHeaterParams<
+            'B', // controlee name
+            140, // set M command
+            AvrPin<AvrPortA, 6>, // analog sensor pin
+            AvrThermistorTable_Bed, // sensor interpretation formula
+            AvrPin<AvrPortD, 4>, // output pin
+            BedHeaterPulseInterval,
+            BinaryControl,
+            BinaryControlParams,
+            AvrClockInterruptTimer_TC0_OCB
         >
     >
 >;
@@ -293,6 +313,8 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*myprinter.template getSharer<0>()-
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*myprinter.template getSharer<1>()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*myprinter.template getSharer<2>()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*myprinter.template getSharer<3>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(*myprinter.template getHeaterTimer<0>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(*myprinter.template getHeaterTimer<1>(), MyContext())
 
 FILE uart_output;
 
@@ -321,6 +343,7 @@ int main ()
     d_group.init(c);
     myclock.init(c);
     myclock.initTC3(c);
+    myclock.initTC0(c);
     myloop.init(c);
     mypins.init(c);
     mypinwatcherservice.init(c);

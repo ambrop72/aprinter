@@ -49,9 +49,11 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
+#include <aprinter/base/Lock.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/devices/Blinker.h>
+#include <aprinter/devices/SoftPwm.h>
 #include <aprinter/stepper/Steppers.h>
 #include <aprinter/stepper/AxisSharer.h>
 #include <aprinter/printer/AxisHomer.h>
@@ -62,7 +64,7 @@
 
 template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
-    typename TSpeedLimitMultiply, typename TAxesList, typename TSensorsList
+    typename TSpeedLimitMultiply, typename TAxesList, typename THeatersList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
@@ -71,7 +73,7 @@ struct PrinterMainParams {
     using DefaultInactiveTime = TDefaultInactiveTime;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using AxesList = TAxesList;
-    using SensorsList = TSensorsList;
+    using HeatersList = THeatersList;
 };
 
 template <uint32_t tbaud, typename TTheGcodeParserParams>
@@ -126,11 +128,24 @@ struct PrinterMainHomingParams {
     using DefaultSlowSpeed = TDefaultSlowSpeed;
 };
 
-template <char TName, typename TAdcPin, typename TFormula>
-struct PrinterMainSensorParams {
+template <
+    char TName, int TSetMCommand,
+    typename TAdcPin, typename TFormula,
+    typename TOutputPin, typename TPulseInterval,
+    template<typename, typename> class TControl,
+    typename TControlParams,
+    template<typename, typename> class TTimerTemplate
+>
+struct PrinterMainHeaterParams {
     static const char Name = TName;
+    static const int SetMCommand = TSetMCommand;
     using AdcPin = TAdcPin;
     using Formula = TFormula;
+    using OutputPin = TOutputPin;
+    using PulseInterval = TPulseInterval;
+    template <typename X, typename Y> using Control = TControl<X, Y>;
+    using ControlParams = TControlParams;
+    template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
 };
 
 template <typename Context, typename Params>
@@ -150,6 +165,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_value, append_value)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_command, check_command)
     
     struct SerialRecvHandler;
     struct SerialSendHandler;
@@ -165,7 +181,7 @@ private:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using AxesList = typename Params::AxesList;
-    using SensorsList = typename Params::SensorsList;
+    using HeatersList = typename Params::HeatersList;
     static const int num_axes = TypeListLength<AxesList>::value;
     using AxisMaskType = typename ChooseInt<num_axes, false>::Type;
     using AxisCountType = typename ChooseInt<BitsInInt<num_axes>::value, false>::Type;
@@ -471,23 +487,91 @@ private:
     using PlannerInputCommand = typename ThePlanner::InputCommand;
     using AxesTuple = IndexElemTuple<AxesList, Axis>;
     
-    template <int SensorIndex>
-    struct Sensor {
-        using SensorSpec = TypeListGet<SensorsList, SensorIndex>;
+    template <int HeaterIndex>
+    struct Heater {
+        using HeaterSpec = TypeListGet<HeatersList, HeaterIndex>;
+        using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, typename HeaterSpec::PulseInterval>;
+        struct SoftPwmTimerHandler;
+        using TheSoftPwm = SoftPwm<Context, typename HeaterSpec::OutputPin, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
         
-        double get_value (Context c)
+        PrinterMain * parent ()
         {
-            return SensorSpec::Formula::call(c.adc()->template getFracValue<typename SensorSpec::AdcPin>(c));
+            return AMBRO_WMEMB_TD(&PrinterMain::m_heaters)::container(TupleGetTuple<HeaterIndex, HeatersTuple>(this));
+        }
+        
+        void init (Context c)
+        {
+            m_lock.init(c);
+            m_enabled = false;
+            m_softpwm.init(c, c.clock()->getTime(c));
+        }
+        
+        void deinit (Context c)
+        {
+            m_softpwm.deinit(c);
+            m_lock.deinit(c);
+        }
+        
+        template <typename ThisContext>
+        double get_value (ThisContext c)
+        {
+            return HeaterSpec::Formula::call(c.adc()->template getValue<typename HeaterSpec::AdcPin>(c));
         }
         
         void append_value (PrinterMain *o, Context c)
         {
             double value = get_value(c);
-            o->reply_append_fmt(c, " %c:%f", SensorSpec::Name, value);
+            o->reply_append_fmt(c, " %c:%f", HeaterSpec::Name, value);
         }
+        
+        bool check_command (Context c, int cmd_num)
+        {
+            PrinterMain *o = parent();
+            
+            if (cmd_num == HeaterSpec::SetMCommand) {
+                double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
+                if (target > 0.0 && target <= 300.0) {
+                    if (!m_enabled) {
+                        m_control.init(target);
+                        AMBRO_LOCK_T(m_lock, c, lock_c, {
+                            m_enabled = true;
+                        });
+                    } else {
+                        AMBRO_LOCK_T(m_lock, c, lock_c, {
+                            m_control.setTarget(target);
+                        });
+                    }
+                } else {
+                    if (m_enabled) {
+                        AMBRO_LOCK_T(m_lock, c, lock_c, {
+                            m_enabled = false;
+                        });
+                    }
+                }
+                return false;
+            }
+            return true;
+        }
+        
+        double softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
+        {
+            if (!m_enabled) {
+                return 0.0;
+            }
+            double sensor_value = get_value(c);
+            double control_value = m_control.addMeasurement(sensor_value);
+            return fmax(0.0, fmin(1.0, control_value));
+        }
+        
+        typename Context::Lock m_lock;
+        bool m_enabled;
+        TheControl m_control;
+        TheSoftPwm m_softpwm;
+        
+        struct SoftPwmTimerHandler : public AMBRO_WCALLBACK_TD(&Heater::softpwm_timer_handler, &Heater::m_softpwm) {};
     };
     
-    using SensorsTuple = IndexElemTuple<SensorsList, Sensor>;
+    using HeatersTuple = IndexElemTuple<HeatersList, Heater>;
     
 public:
     void init (Context c)
@@ -502,6 +586,7 @@ public:
         m_gcode_parser.init(c);
         m_disable_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&PrinterMain::m_disable_timer, &PrinterMain::disable_timer_handler));
         m_planner.init(c, sharers);
+        TupleForEachForward(&m_heaters, Foreach_init(), c);
         m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
         m_recv_next_error = 0;
         m_line_number = 0;
@@ -520,6 +605,7 @@ public:
     {
         this->debugDeinit(c);
         
+        TupleForEachReverse(&m_heaters, Foreach_deinit(), c);
         if (m_state == STATE_PLANNING) {
             m_planner.stop(c);
         }
@@ -541,6 +627,12 @@ public:
     typename Axis<AxisIndex>::Sharer * getSharer ()
     {
         return &TupleGetElem<AxisIndex>(&m_axes)->m_sharer;
+    }
+    
+    template <int HeaterIndex>
+    typename Heater<HeaterIndex>::TheSoftPwm::TimerInstance * getHeaterTimer ()
+    {
+        return TupleGetElem<HeaterIndex>(&m_heaters)->m_softpwm.getTimer();
     }
     
 private:
@@ -624,7 +716,10 @@ private:
         
         switch (cmd_code) {
             case 'M': switch (cmd_num) {
-                default: 
+                default:
+                    if (!TupleForEachForwardInterruptible(&m_heaters, Foreach_check_command(), c, cmd_num)) {
+                        goto reply;
+                    }
                     goto unknown_command;
                 
                 case 110: // set line number
@@ -657,8 +752,7 @@ private:
                 
                 case 105: {
                     reply_append_str(c, "ok");
-                    SensorsTuple sensors;
-                    TupleForEachForward(&sensors, Foreach_append_value(), this, c);
+                    TupleForEachForward(&m_heaters, Foreach_append_value(), this, c);
                     reply_append_str(c, "\n");
                     no_ok = true;
                 } break;
@@ -943,6 +1037,7 @@ private:
     TheGcodeParser m_gcode_parser;
     typename Loop::QueuedEvent m_disable_timer;
     ThePlanner m_planner;
+    HeatersTuple m_heaters;
     TimeType m_inactive_time;
     TimeType m_last_active_time;
     int8_t m_recv_next_error;

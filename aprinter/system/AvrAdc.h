@@ -68,8 +68,8 @@ public:
         AdcMaybe<NumPins>::deinit(this, c);
     }
     
-    template <typename Pin>
-    uint16_t getValue (Context c)
+    template <typename Pin, typename ThisContext>
+    uint16_t getValue (ThisContext c)
     {
         this->debugAccess(c);
         
@@ -81,12 +81,6 @@ public:
         });
         
         return value;
-    }
-    
-    template <typename Pin>
-    double getFracValue (Context c)
-    {
-        return (getValue<Pin>(c) / 1024.0);
     }
     
     void adc_isr (AvrInterruptContext<Context> c)

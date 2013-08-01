@@ -25,30 +25,34 @@
 #ifndef AMBROLIB_SOFT_PWM_H
 #define AMBROLIB_SOFT_PWM_H
 
-#include <stdint.h>
-
-#include <aprinter/base/OffsetCallback.h>
+#include <aprinter/meta/WrapCallback.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Lock.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename Pin, uint32_t PulseInterval>
+template <typename Context, typename Pin, typename PulseInterval, typename TimerCallback, template<typename, typename> class TimerTemplate>
 class SoftPwm
-: private DebugObject<Context, SoftPwm<Context, Pin, PulseInterval>>
+: private DebugObject<Context, void>
 {
-public:
-    typedef typename Context::Clock Clock;
-    typedef typename Clock::TimeType TimeType;
-    typedef typename Context::EventLoop Loop;
+private:
+    struct TimerHandler;
     
-    void init (Context c)
+public:
+    using Clock = typename Context::Clock;
+    using TimeType = typename Clock::TimeType;
+    using TimerInstance = TimerTemplate<Context, TimerHandler>;
+    
+    void init (Context c, TimeType start_time)
     {
-#ifdef AMBROLIB_ASSERTIONS
-        m_enabled = false;
-#endif
-        m_on_time = 0;
-        m_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&SoftPwm::m_timer, &SoftPwm::timer_handler));
+        m_lock.init(c);
+        m_timer.init(c);
+        m_state = false;
+        m_start_time = start_time;
+        c.pins()->template set<Pin>(c, false);
+        c.pins()->template setOutput<Pin>(c);
+        m_timer.set(c, start_time);
         
         this->debugInit(c);
     }
@@ -58,67 +62,55 @@ public:
         this->debugDeinit(c);
         
         m_timer.deinit(c);
-    }
-    
-    void enable (Context c, TimeType start_time)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(!m_enabled)
-        
-#ifdef AMBROLIB_ASSERTIONS
-        m_enabled = true;
-#endif
-        m_start_time = start_time;
-        m_timer.appendAt(c, m_start_time, false);
-        c.pins()->template setOutput<Pin>(c);
-    }
-    
-    void disable (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_enabled)
-        
-#ifdef AMBROLIB_ASSERTIONS
-        m_enabled = false;
-#endif
-        m_timer.unset(c);
         c.pins()->template set<Pin>(c, false);
+        m_lock.deinit(c);
     }
     
-    void setOnTime (Context c, TimeType on_time)
+    TimerInstance * getTimer ()
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(on_time != 0)
-        
-        m_on_time = on_time;
+        return &m_timer;
     }
     
 private:
-    void timer_handler (Context c)
+    bool timer_handler (typename TimerInstance::HandlerContext c)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(m_on_time != 0)
-        AMBRO_ASSERT(m_enabled)
         
         TimeType next_time;
-        if (m_start_time == m_timer.getSetTime(c)) {
-            next_time = m_start_time + m_on_time;
-            c.pins()->template set<Pin>(c, true);
+        if (!m_state) {
+            double frac = TimerCallback::call(this, c);
+            bool go_to_end = true;
+            if (frac > 0.0) {
+                c.pins()->template set<Pin>(c, true);
+                if (frac < 1.0) {
+                    go_to_end = false;
+                }
+            } else {
+                c.pins()->template set<Pin>(c, false);
+            }
+            if (go_to_end) {
+                m_start_time += (TimeType)(PulseInterval::value() / Clock::time_unit);
+                next_time = m_start_time;
+            } else {
+                next_time = m_start_time + (TimeType)(frac * (PulseInterval::value() / Clock::time_unit));
+                m_state = true;
+            }
         } else {
-            m_start_time += (TimeType)((double)PulseInterval * 0.000001 / Clock::time_unit);
-            next_time = m_start_time;
             c.pins()->template set<Pin>(c, false);
+            m_start_time += (TimeType)(PulseInterval::value() / Clock::time_unit);
+            next_time = m_start_time;
+            m_state = false;
         }
-        
-        m_timer.appendAt(c, next_time);
+        m_timer.set(c, next_time);
+        return true;
     }
     
-#ifdef AMBROLIB_ASSERTIONS
-    bool m_enabled;
-#endif
-    TimeType m_on_time;
+    typename Context::Lock m_lock;
+    TimerInstance m_timer;
+    bool m_state;
     TimeType m_start_time;
-    typename Loop::QueuedEvent m_timer;
+    
+    struct TimerHandler : public AMBRO_WCALLBACK_TD(&SoftPwm::timer_handler, &SoftPwm::m_timer) {};
 };
 
 #include <aprinter/EndNamespace.h>

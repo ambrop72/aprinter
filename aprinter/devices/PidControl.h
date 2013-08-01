@@ -22,22 +22,56 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_THERMISTOR_FORMULA_H
-#define AMBROLIB_THERMISTOR_FORMULA_H
+#ifndef AMBROLIB_PID_CONTROL_H
+#define AMBROLIB_PID_CONTROL_H
 
 #include <math.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename ResistorR, typename ThermistorR0, typename ThermistorBeta>
-struct ThermistorFormula {
-    static double call (double voltage_frac)
+template <typename TP, typename TI, typename TD, typename TIStateMin, typename TIStateMax>
+struct PidControlParams {
+    using P = TP;
+    using I = TI;
+    using D = TD;
+    using IStateMin = TIStateMin;
+    using IStateMax = TIStateMax;
+};
+
+template <typename Params, typename MeasurementInterval>
+class PidControl {
+public:
+    void init (double target)
     {
-        double r_thermistor = ResistorR::value() * (voltage_frac / (1.0 - voltage_frac));
-        double r_inf = ThermistorR0::value() * exp(-ThermistorBeta::value() / 298.15);
-        double t = ThermistorBeta::value() / log(r_thermistor / r_inf);
-        return (t - 273.15);
+        m_first = true;
+        m_target = target;
+        m_integral = 0.0;
     }
+    
+    void setTarget (double target)
+    {
+        m_target = target;
+    }
+    
+    double addMeasurement (double value)
+    {
+        double err = value - m_target;
+        double derivative = 0.0;
+        if (!m_first) {
+            m_integral -= MeasurementInterval::value() * err;
+            m_integral = fmax(Params::IStateMin::value() / Params::I::value(), fmin(Params::IStateMax::value() / Params::I::value(), m_integral));
+            derivative = (value - m_last) / MeasurementInterval::value();
+        }
+        m_first = false;
+        m_last = value;
+        return -(Params::P::value() * err) + (Params::I::value() * m_integral) - (Params::D::value() * derivative);
+    }
+    
+private:
+    bool m_first;
+    double m_target;
+    double m_last;
+    double m_integral;
 };
 
 #include <aprinter/EndNamespace.h>
