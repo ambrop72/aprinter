@@ -564,7 +564,7 @@ private:
             }
             double sensor_value = get_value(c);
             double control_value = m_control.addMeasurement(sensor_value);
-            return fmax(0.0, fmin(1.0, control_value));
+            return control_value;
         }
         
         typename Context::Lock m_lock;
