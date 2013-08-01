@@ -38,7 +38,7 @@ ThermistorBeta = float(sys.argv[4])
 StartTemp = float(sys.argv[5])
 EndTemp = float(sys.argv[6])
 
-ScaleFactor = 128
+ScaleFactorExp = 7
 
 table_data = []
 starting = True
@@ -62,7 +62,7 @@ for i in range(1024):
         stopped = True
         table_end = i
         break
-    value = int(t * ScaleFactor)
+    value = int(t * 2**ScaleFactorExp)
     assert value >= 0
     assert value < 2**16
     table_data.append("UINT16_C(%s), " % (value))
@@ -117,6 +117,7 @@ print("""/*
 #define AMBROLIB_AVR_THERMISTOR_%(Name)s_H
 
 #include <stdint.h>
+#include <math.h>
 #include <avr/pgmspace.h>
 
 class AvrThermistorTable_%(Name)s {
@@ -127,7 +128,7 @@ public:
             (adc_value < %(TableOffset)s) ? 0 :
             (adc_value > %(TableEnd)s - 1) ? (%(TableSize)s - 1) :
             (adc_value - %(TableOffset)s);
-        return ((double)pgm_read_word(&table[entry]) / %(ScaleFactor)s);
+        return ldexp(pgm_read_word(&table[entry]), -%(ScaleFactorExp)s);
     }
     
 private:
@@ -142,5 +143,5 @@ uint16_t const AvrThermistorTable_%(Name)s::table[%(TableSize)s] PROGMEM = {
 % {
     'Name':Name, 'TableData':''.join(table_data), 'TableSize':table_size, 'TableOffset':table_offset,
     'TableEnd':table_end, 'ResistorR':ResistorR, 'ThermistorBeta':ThermistorBeta,
-    'ThermistorR0':ThermistorR0, 'StartTemp':StartTemp, 'EndTemp':EndTemp, 'ScaleFactor':ScaleFactor
+    'ThermistorR0':ThermistorR0, 'StartTemp':StartTemp, 'EndTemp':EndTemp, 'ScaleFactorExp':ScaleFactorExp
 })

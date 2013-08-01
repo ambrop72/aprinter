@@ -42,6 +42,7 @@
 #define AMBROLIB_AVR_THERMISTOR_Bed_H
 
 #include <stdint.h>
+#include <math.h>
 #include <avr/pgmspace.h>
 
 class AvrThermistorTable_Bed {
@@ -52,7 +53,7 @@ public:
             (adc_value < 79) ? 0 :
             (adc_value > 740 - 1) ? (661 - 1) :
             (adc_value - 79);
-        return ((double)pgm_read_word(&table[entry]) / 128);
+        return ldexp(pgm_read_word(&table[entry]), -7);
     }
     
 private:

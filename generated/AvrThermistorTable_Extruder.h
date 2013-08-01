@@ -42,6 +42,7 @@
 #define AMBROLIB_AVR_THERMISTOR_Extruder_H
 
 #include <stdint.h>
+#include <math.h>
 #include <avr/pgmspace.h>
 
 class AvrThermistorTable_Extruder {
@@ -52,7 +53,7 @@ public:
             (adc_value < 36) ? 0 :
             (adc_value > 988 - 1) ? (952 - 1) :
             (adc_value - 36);
-        return ((double)pgm_read_word(&table[entry]) / 128);
+        return ldexp(pgm_read_word(&table[entry]), -7);
     }
     
 private:
