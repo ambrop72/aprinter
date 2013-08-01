@@ -334,7 +334,7 @@ private:
         
         static double clamp_limit (double x)
         {
-            double bound = fmin(FloatSignedIntegerRange<double>(), StepFixedType::maxValue().doubleValue() / 2);
+            double bound = FloatSignedIntegerRange<double>();
             return fmax(-bound, fmin(bound, round(x)));
         }
         
@@ -407,6 +407,10 @@ private:
                 m_req_pos = clamp_pos(req);
                 m_move = round(m_req_pos) - m_end_pos;
                 if (m_move != 0.0) {
+                    if (fabs(m_move) > StepFixedType::maxValue().doubleValue()) {
+                        m_move = ((m_move < 0.0) ? -1.0 : 1.0) * StepFixedType::maxValue().doubleValue();
+                        m_req_pos = m_end_pos + m_move;
+                    }
                     *changed = true;
                     if (AxisSpec::enable_cartesian_speed_limit) {
                         double delta = m_move / m_steps_per_unit;
