@@ -98,12 +98,19 @@ using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultMin = AMBRO_WRAP_DOUBLE(-10000.0);
 using EDefaultMax = AMBRO_WRAP_DOUBLE(10000.0);
 
-using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.5);
+/*
+ * NOTE: The natural semantic of ExtruderHeaterPidDHistory
+ * is sensitive to changes in ExtruderHeaterPulseInterval.
+ * When you change ExtruderHeaterPulseInterval as if by multiplication with
+ * 'a', raise ExtruderHeaterPidDHistory to the power of 'a'.
+ */
+using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
 using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
 using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.001);
-using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.18);
+using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.1);
 using ExtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
-using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.2);
+using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.12);
+using ExtruderHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.7);
 
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
 
@@ -234,7 +241,8 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterPidI,
                 ExtruderHeaterPidD,
                 ExtruderHeaterPidIStateMin,
-                ExtruderHeaterPidIStateMax
+                ExtruderHeaterPidIStateMax,
+                ExtruderHeaterPidDHistory
             >,
             AvrClockInterruptTimer_TC0_OCA
         >,

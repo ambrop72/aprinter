@@ -29,13 +29,17 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TP, typename TI, typename TD, typename TIStateMin, typename TIStateMax>
+template <
+    typename TP, typename TI, typename TD, typename TIStateMin, typename TIStateMax,
+    typename TDHistory
+>
 struct PidControlParams {
     using P = TP;
     using I = TI;
     using D = TD;
     using IStateMin = TIStateMin;
     using IStateMax = TIStateMax;
+    using DHistory = TDHistory;
 };
 
 template <typename Params, typename MeasurementInterval>
@@ -46,6 +50,7 @@ public:
         m_first = true;
         m_target = target;
         m_integral = 0.0;
+        m_derivative = 0.0;
     }
     
     void setTarget (double target)
@@ -56,15 +61,14 @@ public:
     double addMeasurement (double value)
     {
         double err = value - m_target;
-        double derivative = 0.0;
         if (!m_first) {
-            m_integral -= MeasurementInterval::value() * err;
-            m_integral = fmax(Params::IStateMin::value() / Params::I::value(), fmin(Params::IStateMax::value() / Params::I::value(), m_integral));
-            derivative = (value - m_last) / MeasurementInterval::value();
+            m_integral -= (MeasurementInterval::value() * Params::I::value()) * err;
+            m_integral = fmax(Params::IStateMin::value(), fmin(Params::IStateMax::value(), m_integral));
+            m_derivative = (Params::DHistory::value() * m_derivative) + (((1.0 - Params::DHistory::value()) * Params::D::value() / MeasurementInterval::value()) * (value - m_last));
         }
         m_first = false;
         m_last = value;
-        return -(Params::P::value() * err) + (Params::I::value() * m_integral) - (Params::D::value() * derivative);
+        return -(Params::P::value() * err) + m_integral - m_derivative;
     }
     
 private:
@@ -72,6 +76,7 @@ private:
     double m_target;
     double m_last;
     double m_integral;
+    double m_derivative;
 };
 
 #include <aprinter/EndNamespace.h>
