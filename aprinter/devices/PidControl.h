@@ -27,6 +27,8 @@
 
 #include <math.h>
 
+#include <aprinter/base/Likely.h>
+
 #include <aprinter/BeginNamespace.h>
 
 template <
@@ -60,15 +62,15 @@ public:
     
     double addMeasurement (double value)
     {
-        double err = value - m_target;
-        if (!m_first) {
-            m_integral -= (MeasurementInterval::value() * Params::I::value()) * err;
+        double err = m_target - value;
+        if (AMBRO_LIKELY(!m_first)) {
+            m_integral += (MeasurementInterval::value() * Params::I::value()) * err;
             m_integral = fmax(Params::IStateMin::value(), fmin(Params::IStateMax::value(), m_integral));
-            m_derivative = (Params::DHistory::value() * m_derivative) + (((1.0 - Params::DHistory::value()) * Params::D::value() / MeasurementInterval::value()) * (value - m_last));
+            m_derivative = (Params::DHistory::value() * m_derivative) + (((1.0 - Params::DHistory::value()) * Params::D::value() / MeasurementInterval::value()) * (m_last - value));
         }
         m_first = false;
         m_last = value;
-        return -(Params::P::value() * err) + m_integral - m_derivative;
+        return (Params::P::value() * err) + m_integral + m_derivative;
     }
     
 private:
