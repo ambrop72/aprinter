@@ -575,33 +575,38 @@ private:
             o->reply_append_fmt(c, " %c:%f", HeaterSpec::Name, value);
         }
         
-        bool check_command (Context c, int cmd_num)
+        bool check_command (Context c, int cmd_num, int *out_result)
         {
             PrinterMain *o = parent();
             
-            if (cmd_num == HeaterSpec::SetMCommand) {
-                double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
-                if (target > 0.0 && target <= 300.0) {
-                    if (!m_enabled) {
-                        m_control.init(target);
-                        AMBRO_LOCK_T(m_lock, c, lock_c, {
-                            m_enabled = true;
-                        });
-                    } else {
-                        AMBRO_LOCK_T(m_lock, c, lock_c, {
-                            m_control.setTarget(target);
-                        });
-                    }
-                } else {
-                    if (m_enabled) {
-                        AMBRO_LOCK_T(m_lock, c, lock_c, {
-                            m_enabled = false;
-                        });
-                    }
-                }
+            if (cmd_num != HeaterSpec::SetMCommand) {
+                return true;
+            }
+            if (o->m_state == STATE_PLANNING) {
+                *out_result = CMD_WAIT_PLANNER;
                 return false;
             }
-            return true;
+            double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
+            if (target > 0.0 && target <= 300.0) {
+                if (!m_enabled) {
+                    m_control.init(target);
+                    AMBRO_LOCK_T(m_lock, c, lock_c, {
+                        m_enabled = true;
+                    });
+                } else {
+                    AMBRO_LOCK_T(m_lock, c, lock_c, {
+                        m_control.setTarget(target);
+                    });
+                }
+            } else {
+                if (m_enabled) {
+                    AMBRO_LOCK_T(m_lock, c, lock_c, {
+                        m_enabled = false;
+                    });
+                }
+            }
+            *out_result = CMD_REPLY;
+            return false;
         }
         
         double softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
@@ -682,11 +687,8 @@ public:
     }
     
 private:
-    enum {
-        STATE_IDLE,
-        STATE_HOMING,
-        STATE_PLANNING
-    };
+    enum {STATE_IDLE, STATE_HOMING, STATE_PLANNING};
+    enum {CMD_REPLY, CMD_WAIT_PLANNER};
     
     static TimeType time_from_real (double t)
     {
@@ -763,8 +765,14 @@ private:
         switch (cmd_code) {
             case 'M': switch (cmd_num) {
                 default:
-                    if (!TupleForEachForwardInterruptible(&m_heaters, Foreach_check_command(), c, cmd_num)) {
-                        goto reply;
+                    int result;
+                    if (!TupleForEachForwardInterruptible(&m_heaters, Foreach_check_command(), c, cmd_num, &result)) {
+                        if (result == CMD_REPLY) {
+                            goto reply;
+                        } else if (result == CMD_WAIT_PLANNER) {
+                            goto wait_planner;
+                        }
+                        AMBRO_ASSERT(0);
                     }
                     goto unknown_command;
                 
