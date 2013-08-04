@@ -32,6 +32,7 @@
 #define AMBROLIB_ABORT_ACTION { cli(); while (1); }
 
 #include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/AvrEventLoop.h>
 #include <aprinter/system/AvrClock.h>
@@ -50,7 +51,6 @@ using namespace APrinter;
 static const int AdcRefSel = 1;
 static const int AdcPrescaler = 7;
 static const int clock_timer_prescaler = 3;
-static const int stepper_command_buffer_size_exp = 3;
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
@@ -73,7 +73,7 @@ using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(80.0);
 using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(500.0);
 using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using YDefaultMax = AMBRO_WRAP_DOUBLE(170.0);
-using YDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(280.0);
+using YDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(200.0);
 using YDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
 using YDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
 using YDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
@@ -85,7 +85,7 @@ using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
 using ZDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using ZDefaultMax = AMBRO_WRAP_DOUBLE(100.0);
-using ZDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(100.0);
+using ZDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(101.0);
 using ZDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(0.8);
 using ZDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(1.2);
 using ZDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(2.0);
@@ -116,7 +116,7 @@ using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
 
 using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
-        UINT32_C(115200), // baud rate
+        UINT32_C(57600), // baud rate
         GcodeParserParams<8> // receive buffer size exponent
     >,
     AvrPin<AvrPortA, 4>, // LED pin
@@ -130,8 +130,8 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortD, 7>, // step pin
             AvrPin<AvrPortD, 6>, // enable pin
             true, // invert dir
+            3, // buffer size exponent
             AxisStepperParams<
-                stepper_command_buffer_size_exp,
                 AvrClockInterruptTimer_TC1_OCA // stepper timer
             >,
             XDefaultStepsPerUnit, // default steps per unit
@@ -158,8 +158,8 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortC, 6>, // step pin
             AvrPin<AvrPortD, 6>, // enable pin
             true, // invert dir
+            3, // buffer size exponent
             AxisStepperParams<
-                stepper_command_buffer_size_exp,
                 AvrClockInterruptTimer_TC1_OCB // stepper timer
             >,
             YDefaultStepsPerUnit, // default steps per unit
@@ -186,8 +186,8 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortB, 3>, // step pin
             AvrPin<AvrPortA, 5>, // enable pin
             false, // invert dir
+            6, // buffer size exponent
             AxisStepperParams<
-                stepper_command_buffer_size_exp,
                 AvrClockInterruptTimer_TC3_OCA // stepper timer
             >,
             ZDefaultStepsPerUnit, // default steps per unit
@@ -214,8 +214,8 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortB, 1>, // step pin
             AvrPin<AvrPortD, 6>, // enable pin
             true, // invert dir
+            6, // buffer size exponent
             AxisStepperParams<
-                stepper_command_buffer_size_exp,
                 AvrClockInterruptTimer_TC3_OCB // stepper timer
             >,
             EDefaultStepsPerUnit, // default steps per unit
@@ -268,6 +268,7 @@ using AdcPins = MakeTypeList<
 
 struct MyContext;
 struct EventLoopParams;
+struct PrinterPosition;
 
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
 using MyClock = AvrClock<MyContext, clock_timer_prescaler>;
@@ -275,7 +276,7 @@ using MyLoop = AvrEventLoop<EventLoopParams>;
 using MyPins = AvrPins<MyContext>;
 using MyPinWatcherService = AvrPinWatcherService<MyContext>;
 using MyAdc = AvrAdc<MyContext, AdcPins, AdcRefSel, AdcPrescaler>;
-using MyPrinter = PrinterMain<MyContext, PrinterParams>;
+using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
@@ -298,6 +299,8 @@ struct EventLoopParams {
     typedef MyContext Context;
 };
 
+struct PrinterPosition : public RootPosition<MyPrinter> {};
+
 static MyDebugObjectGroup d_group;
 static MyClock myclock;
 static MyLoop myloop;
@@ -317,10 +320,10 @@ AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
 AMBRO_AVR_ADC_ISRS(myadc, MyContext())
 AMBRO_AVR_SERIAL_ISRS(*myprinter.getSerial(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*myprinter.template getSharer<0>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*myprinter.template getSharer<1>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*myprinter.template getSharer<2>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*myprinter.template getSharer<3>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*myprinter.template getAxisStepper<0>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*myprinter.template getAxisStepper<1>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*myprinter.template getAxisStepper<2>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*myprinter.template getAxisStepper<3>()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(*myprinter.template getHeaterTimer<0>(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(*myprinter.template getHeaterTimer<1>(), MyContext())
 

@@ -28,45 +28,26 @@
 #include <stdint.h>
 
 #include <aprinter/meta/FixedPoint.h>
-#include <aprinter/meta/WrapCallback.h>
-#include <aprinter/meta/ForwardHandler.h>
-#include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/stepper/AxisStepper.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename TheAxisStepperParams, typename MyStepper, typename GetStepper, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler>
-class AxisSplitter
-: private DebugObject<Context, void> {
+template <typename TheAxisStepper>
+class AxisSplitter {
 private:
-    using Loop = typename Context::EventLoop;
-    
-    struct MyGetStepper;
-    struct StepperPullCmdHandler;
-    struct StepperBufferFullHandler;
-    struct StepperBufferEmptyHandler;
-    
-public:
-    using MyAxisStepper = AxisStepper<Context, TheAxisStepperParams, MyStepper, MyGetStepper, StepperPullCmdHandler, StepperBufferFullHandler, StepperBufferEmptyHandler>;
-    
-private:
-    static const int step_bits = MyAxisStepper::StepFixedType::num_bits + 6;
-    static const int time_bits = MyAxisStepper::TimeFixedType::num_bits + 9;
+    static const int step_bits = TheAxisStepper::StepFixedType::num_bits + 6;
+    static const int time_bits = TheAxisStepper::TimeFixedType::num_bits + 9;
     static const int gt_frac_square_bits = step_bits + 1;
     
 public:
-    using Clock = typename Context::Clock;
-    using TimeType = typename Clock::TimeType;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
     using TimeFixedType = FixedPoint<time_bits, false, 0>;
-    using TimerInstance = typename MyAxisStepper::TimerInstance;
     
 private:
-    using StepperStepType = typename MyAxisStepper::StepFixedType;
-    using StepperAccelType = typename MyAxisStepper::AccelFixedType;
-    using StepperTimeType = typename MyAxisStepper::TimeFixedType;
+    using StepperStepType = typename TheAxisStepper::StepFixedType;
+    using StepperAccelType = typename TheAxisStepper::AccelFixedType;
+    using StepperTimeType = typename TheAxisStepper::TimeFixedType;
     using VelocityType = FixedPoint<step_bits + 1, false, 0>;
     using Velocity2Type = FixedPoint<(2 * (step_bits + 1)), false, 0>;
     
@@ -81,70 +62,8 @@ private:
     };
     
 public:
-    void init (Context c)
+    void setInput (bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
     {
-        m_axis_stepper.init(c);
-        
-        this->debugInit(c);
-    }
-    
-    void deinit (Context c)
-    {
-        this->debugDeinit(c);
-        
-        m_axis_stepper.deinit(c);
-    }
-    
-    void start (Context c, TimeType start_time)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(!m_axis_stepper.isRunning(c))
-        
-        m_axis_stepper.start(c, start_time);
-        m_have_command = false;
-    }
-    
-    void stop (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        
-        m_axis_stepper.stop(c);
-    }
-    
-    void addTime (Context c, TimeType time_add)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(!m_axis_stepper.isStepping(c))
-        
-        m_axis_stepper.addTime(c, time_add);
-    }
-    
-    void startStepping (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(!m_axis_stepper.isStepping(c))
-        
-        m_axis_stepper.startStepping(c);
-    }
-    
-    void stopStepping (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(m_axis_stepper.isStepping(c))
-        
-        m_axis_stepper.stopStepping(c);
-    }
-    
-    void commandDone (Context c, bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(m_axis_stepper.isPulling(c))
-        AMBRO_ASSERT(!m_have_command)
         AMBRO_ASSERT(a >= -x)
         AMBRO_ASSERT(a <= x)
         
@@ -156,52 +75,10 @@ public:
         cmd->all_t = t;
         cmd->x = x;
         cmd->t = t;
-        
-        m_have_command = true;
-        send_stepper_command(c);
     }
     
-    void commandDoneTest (Context c, bool dir, float x, float t, float a)
+    void getOutput (typename TheAxisStepper::Command *out_cmd, bool *out_is_last)
     {
-        float step_length = 0.0125;
-        commandDone(c, dir, StepFixedType::importDouble(x / step_length), TimeFixedType::importDouble(t / Clock::time_unit), AccelFixedType::importDouble(a / step_length));
-    }
-    
-    bool isRunning (Context c)
-    {
-        this->debugAccess(c);
-        
-        return m_axis_stepper.isRunning(c);
-    }
-    
-    bool isStepping (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        
-        return m_axis_stepper.isStepping(c);
-    }
-    
-    bool isPulling (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        
-        return m_axis_stepper.isPulling(c);
-    }
-    
-    TimerInstance * getTimer ()
-    {
-        return m_axis_stepper.getTimer();
-    }
-    
-private:
-    void send_stepper_command (Context c)
-    {
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(m_axis_stepper.isPulling(c))
-        AMBRO_ASSERT(m_have_command)
-        
         Command *cmd = &m_command;
         
         StepFixedType new_x;
@@ -324,58 +201,18 @@ private:
         AMBRO_ASSERT(!(new_x == cmd->x) || (new_t < cmd->t || (new_x.bitsValue() == 0 && new_t.bitsValue() == 0)))
         
         // send a stepper command
-        m_axis_stepper.commandDone(c, cmd->dir, rel_x, rel_t, rel_a);
+        TheAxisStepper::generate_command(cmd->dir, rel_x, rel_t, rel_a, out_cmd);
         
         // update our command
         cmd->x = new_x;
         cmd->t = new_t;
         
-        // possibly complete our command 
-        if (cmd->x.bitsValue() == 0 && cmd->t.bitsValue() == 0) {
-            m_have_command = false;
-        }
+        // possibly complete our command
+        *out_is_last = (cmd->x.bitsValue() == 0 && cmd->t.bitsValue() == 0);
     }
     
-    void stepper_pull_cmd_handler (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(m_axis_stepper.isPulling(c))
-        
-        if (!m_have_command) {
-            return PullCmdHandler::call(this, c);
-        }
-        
-        send_stepper_command(c);
-    }
-    
-    void stepper_buffer_full_handler (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(!m_axis_stepper.isStepping(c))
-        
-        return BufferFullHandler::call(this, c);
-    }
-    
-    void stepper_buffer_empty_handler (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_axis_stepper.isRunning(c))
-        AMBRO_ASSERT(m_axis_stepper.isStepping(c))
-        AMBRO_ASSERT(m_axis_stepper.isPulling(c))
-        
-        return BufferEmptyHandler::call(this, c);
-    }
-    
-    MyAxisStepper m_axis_stepper;
-    bool m_have_command;
+public:
     Command m_command;
-    
-    struct MyGetStepper : public AMBRO_FHANDLER_TD(&AxisSplitter::m_axis_stepper, GetStepper) {};
-    struct StepperPullCmdHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::stepper_pull_cmd_handler, &AxisSplitter::m_axis_stepper) {};
-    struct StepperBufferFullHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::stepper_buffer_full_handler, &AxisSplitter::m_axis_stepper) {};
-    struct StepperBufferEmptyHandler : public AMBRO_WCALLBACK_TD(&AxisSplitter::stepper_buffer_empty_handler, &AxisSplitter::m_axis_stepper) {};
 };
 
 #include <aprinter/EndNamespace.h>

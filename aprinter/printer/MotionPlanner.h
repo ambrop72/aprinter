@@ -26,6 +26,7 @@
 #define AMBROLIB_MOTION_PLANNER_H
 
 #include <stdint.h>
+#include <stddef.h>
 #include <limits.h>
 #include <math.h>
 
@@ -37,11 +38,12 @@
 #include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/TupleGet.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
-#include <aprinter/meta/MapElemTuple.h>
-#include <aprinter/meta/PointerFunc.h>
-#include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/TypeListFold.h>
+#include <aprinter/meta/BoundedInt.h>
+#include <aprinter/meta/CopyUnrolled.h>
+#include <aprinter/meta/WrapMethod.h>
+#include <aprinter/meta/Position.h>
+#include <aprinter/meta/TuplePosition.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -49,148 +51,57 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TSharer>
+template <
+    typename TTheAxisStepper,
+    typename TGetAxisStepper,
+    template<typename> class TSplitter,
+    int TStepperBufferSizeExp
+>
 struct MotionPlannerAxisSpec {
-    using Sharer = TSharer;
+    using TheAxisStepper = TTheAxisStepper;
+    using GetAxisStepper = TGetAxisStepper;
+    template <typename X> using Splitter = TSplitter<X>;
+    static const int StepperBufferSizeExp = TStepperBufferSizeExp;
 };
 
-template <typename Context, typename AxesList, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler, int AxisIndex>
-class MotionPlannerAxis;
-
-template <typename Context, typename AxesList, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler>
+template <typename Position, typename Context, typename AxesList, typename PullHandler, typename FinishedHandler>
 class MotionPlanner
 : private DebugObject<Context, void>
 {
 private:
-    template <typename, typename, typename, typename, typename, int>
-    friend class MotionPlannerAxis;
+    template <int AxisIndex> struct AxisPosition;
     
     using Loop = typename Context::EventLoop;
+    using TimeType = typename Context::Clock::TimeType;
+    static const int NumAxes = TypeListLength<AxesList>::value;
+    enum {ALL_CMD_END = 3 * NumAxes};
+    static_assert(ALL_CMD_END <= UINT8_MAX, "");
+    template <typename AxisSpec, typename AccumType>
+    using MinTimeTypeHelper = FixedIntersectTypes<typename AxisSpec::template Splitter<typename AxisSpec::TheAxisStepper>::TimeFixedType, AccumType>;
+    using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
     
-    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetFunc_Sharer, Sharer)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start, start)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_stop, stop)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_addTime, addTime)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_startStepping, startStepping)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_stopStepping, stopStepping)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commandDone_assert, commandDone_assert)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commandDone_compute_vel, commandDone_compute_vel)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commandDone_compute_acc, commandDone_compute_acc)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commandDone_compute, commandDone_compute)
-    
-    enum {NUM_AXES = TypeListLength<AxesList>::value};
-    enum {ALL_CMD_END = 3 * NUM_AXES};
-    
-    static_assert(ALL_CMD_END <= UINT8_MAX, "");
-    
-    template <typename TheAxisSpec, typename AccumType>
-    using MinTimeTypeHelper = FixedIntersectTypes<typename TheAxisSpec::Sharer::Axis::TimeFixedType, AccumType>;
-    
-    using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_work_command, work_command)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_generated_ready, set_generated_ready)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_stepper_ready, set_stepper_ready)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_stepping, start_stepping)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_finished, is_finished)
     
 public:
-    using TimeType = typename Context::Clock::TimeType;
-    using SharersTuple = MapElemTuple<AxesList, ComposeFunctions<PointerFunc, GetFunc_Sharer>>;
-    
-    struct InputCommand;
-    
-    template <int AxisIndex>
-    using Axis = MotionPlannerAxis<Context, AxesList, PullCmdHandler, BufferFullHandler, BufferEmptyHandler, AxisIndex>;
-    
-private:
-    using AxesTuple = IndexElemTuple<AxesList, Axis>;
-    
-public:
-    void init (Context c, SharersTuple sharers)
-    {
-        m_pull_event.init(c, AMBRO_OFFSET_CALLBACK_T(&MotionPlanner::m_pull_event, &MotionPlanner::pull_event_handler));
-        m_full_event.init(c, AMBRO_OFFSET_CALLBACK_T(&MotionPlanner::m_full_event, &MotionPlanner::full_event_handler));
-        m_empty_event.init(c, AMBRO_OFFSET_CALLBACK_T(&MotionPlanner::m_empty_event, &MotionPlanner::empty_event_handler));
-        TupleForEachForward(&m_axes, Foreach_init(), c, sharers);
-        m_running = false;
-        
-        this->debugInit(c);
-    }
-    
-    void deinit (Context c)
-    {
-        this->debugDeinit(c);
-        AMBRO_ASSERT(!m_running)
-        
-        TupleForEachReverse(&m_axes, Foreach_deinit(), c);
-        m_empty_event.deinit(c);
-        m_full_event.deinit(c);
-        m_pull_event.deinit(c);
-    }
-    
-    void start (Context c, TimeType start_time)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(!m_running)
-        
-        TupleForEachForward(&m_axes, Foreach_start(), c, start_time);
-        m_running = true;
-        m_stepping = false;
-        m_pulling = false;
-        m_all_command_state = ALL_CMD_END;
-        m_all_full = 0;
-        m_all_empty = 0;
-    }
-    
-    void stop (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_running)
-        
-        TupleForEachReverse(&m_axes, Foreach_stop(), c);
-        m_running = false;
-        m_pull_event.unset(c);
-        m_full_event.unset(c);
-        m_empty_event.unset(c);
-    }
-    
-    void addTime (Context c, TimeType time_add)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_running)
-        AMBRO_ASSERT(!m_stepping)
-        
-        TupleForEachForward(&m_axes, Foreach_addTime(), c, time_add);
-    }
-    
-    void startStepping (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_running)
-        AMBRO_ASSERT(!m_stepping)
-        AMBRO_ASSERT(m_all_empty == 0)
-        
-        TupleForEachForward(&m_axes, Foreach_startStepping(), c);
-        m_stepping = true;
-        m_all_full = 0;
-        m_full_event.unset(c);
-    }
-    
-    void stopStepping (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_running)
-        AMBRO_ASSERT(m_stepping)
-        AMBRO_ASSERT(m_all_full == 0)
-        
-        TupleForEachForward(&m_axes, Foreach_stopStepping(), c);
-        m_stepping = false;
-        m_all_empty = 0;
-        m_empty_event.unset(c);
-    }
-    
     template <int AxisIndex>
     struct AxisInputCommand {
-        using TheAxis = Axis<AxisIndex>;
+        using AxisSpec = TypeListGet<AxesList, AxisIndex>;
+        using TheAxisStepper = typename AxisSpec::TheAxisStepper;
+        using TheSplitter = typename AxisSpec::template Splitter<TheAxisStepper>;
+        using StepFixedType = typename TheSplitter::StepFixedType;
+        
         bool dir;
-        typename TheAxis::StepFixedType x;
+        StepFixedType x;
         double max_v;
         double max_a;
     };
@@ -200,13 +111,252 @@ public:
         IndexElemTuple<AxesList, AxisInputCommand> axes;
     };
     
+public:
+    template <int AxisIndex>
+    class Axis {
+    public:
+        using AxisSpec = TypeListGet<AxesList, AxisIndex>;
+        using TheAxisStepper = typename AxisSpec::TheAxisStepper;
+        using TheSplitter = typename AxisSpec::template Splitter<TheAxisStepper>;
+        using StepFixedType = typename TheSplitter::StepFixedType;
+        using TimeFixedType = typename TheSplitter::TimeFixedType;
+        using AccelFixedType = typename TheSplitter::AccelFixedType;
+        using TheAxisInputCommand = AxisInputCommand<AxisIndex>;
+        
+    private:
+        friend MotionPlanner;
+        
+        using StepperBufferSizeType = BoundedInt<AxisSpec::StepperBufferSizeExp, false>;
+        using StepperCommand = typename TheAxisStepper::Command;
+        using StepperCommandCallbackContext = typename TheAxisStepper::CommandCallbackContext;
+        enum {CMD_END = 3};
+        
+        MotionPlanner * parent ()
+        {
+            return AMBRO_WMEMB_TD(&MotionPlanner::m_axes)::container(TupleGetTuple<AxisIndex, AxesTuple>(this));
+        }
+        
+        TheAxisStepper * stepper ()
+        {
+            return AxisSpec::GetAxisStepper::call(parent());
+        }
+        
+        void init (Context c)
+        {
+            m_stepper_event.init(c, AMBRO_OFFSET_CALLBACK_T(&Axis::m_stepper_event, &Axis::stepper_event_handler));
+            m_sbuf_start = StepperBufferSizeType::import(0);
+            m_sbuf_stepper_ready_end = StepperBufferSizeType::import(0);
+            m_sbuf_generated_ready_end = StepperBufferSizeType::import(0);
+            m_sbuf_end = StepperBufferSizeType::import(0);
+            m_command_pos = CMD_END;
+#ifdef AMBROLIB_ASSERTIONS
+            m_stepping = false;
+#endif
+        }
+        
+        void deinit (Context c)
+        {
+            stepper()->stop(c);
+            m_stepper_event.deinit(c);
+        }
+        
+        void commandDone_assert (Context c, InputCommand icmd)
+        {
+            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
+            AMBRO_ASSERT(m_command_pos == CMD_END)
+            AMBRO_ASSERT(FloatIsPosOrPosZero(axis_icmd->max_v))
+            AMBRO_ASSERT(FloatIsPosOrPosZero(axis_icmd->max_a))
+        }
+        
+        double commandDone_compute_vel (double accum_vel, Context c, InputCommand icmd)
+        {
+            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
+            return fmin(accum_vel, axis_icmd->max_v / axis_icmd->x.doubleValue());
+        }
+        
+        double commandDone_compute_acc (double accum_acc, Context c, InputCommand icmd)
+        {
+            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
+            return fmin(accum_acc, axis_icmd->max_a / axis_icmd->x.doubleValue());
+        }
+        
+        void commandDone_compute (Context c, InputCommand icmd, double norm_acc_x, MinTimeType t02, MinTimeType t1)
+        {
+            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
+            
+            StepFixedType x = StepFixedType::importDoubleSaturated(axis_icmd->x.doubleValue() * norm_acc_x);
+            if (x.m_bits.m_int > axis_icmd->x.bitsValue() / 2) {
+                x.m_bits.m_int = axis_icmd->x.bitsValue() / 2;
+            }
+            
+            m_x[1] = x;
+            m_x[0] = StepFixedType::importBits(axis_icmd->x.bitsValue() - x.bitsValue() - x.bitsValue());
+            m_t[1] = t02;
+            m_t[0] = t1;
+            m_a[1] = -x;
+            m_a[0] = AccelFixedType::importBits(0);
+            
+            m_command_pos = 0;
+            m_splitter.setInput(axis_icmd->dir, x, t02, x.toSigned());
+        }
+        
+        void work_command (Context c)
+        {
+            MotionPlanner *o = parent();
+            AMBRO_ASSERT(m_command_pos < CMD_END)
+            AMBRO_ASSERT(o->m_all_command_pos < ALL_CMD_END)
+            
+            while (1) {
+                StepperBufferSizeType start;
+                AMBRO_LOCK_T(o->m_lock, c, lock_c, {
+                    start = m_sbuf_start;
+                });
+                if (BoundedModuloSubtract(start, m_sbuf_end).value() == 1) {
+                    return;
+                }
+                bool part_finished;
+                m_splitter.getOutput(&m_sbuf[m_sbuf_end.value()], &part_finished);
+                m_sbuf_end = BoundedModuloInc(m_sbuf_end);
+                if (part_finished) {
+                    m_command_pos++;
+                    o->m_all_command_pos++;
+                    if (m_command_pos == CMD_END) {
+                        return;
+                    }
+                    m_splitter.setInput(m_splitter.m_command.dir, m_x[m_command_pos - 1], m_t[m_command_pos - 1], m_a[m_command_pos - 1]);
+                }
+            }
+        }
+        
+        void set_generated_ready ()
+        {
+            m_sbuf_generated_ready_end = m_sbuf_end;
+        }
+        
+        void set_stepper_ready ()
+        {
+            m_sbuf_stepper_ready_end = m_sbuf_generated_ready_end;
+        }
+        
+        void is_finished (bool *out)
+        {
+            *out &= (m_sbuf_start == m_sbuf_end);
+        }
+        
+        void start_stepping (Context c, TimeType start_time)
+        {
+            MotionPlanner *o = parent();
+            AMBRO_ASSERT(!m_stepping)
+            AMBRO_ASSERT(m_sbuf_start != m_sbuf_generated_ready_end)
+            AMBRO_ASSERT(o->m_num_stepping == NumAxes)
+            AMBRO_ASSERT(!o->m_continue)
+            
+            m_sbuf_stepper_ready_end = m_sbuf_generated_ready_end;
+#ifdef AMBROLIB_ASSERTIONS
+            m_stepping = true;
+#endif
+            stepper()->template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time);
+        }
+        
+        void stepper_event_handler (Context c)
+        {
+            MotionPlanner *o = parent();
+            
+            if (m_command_pos < CMD_END) {
+                work_command(c);
+                if (o->m_all_command_pos == ALL_CMD_END) {
+                    return o->command_completed(c);
+                }
+            }
+            
+            uint8_t num_stepping;
+            AMBRO_LOCK_T(o->m_lock, c, lock_c, {
+                num_stepping = o->m_num_stepping;
+            });
+            if (num_stepping == 0) {
+                if (o->m_continue) {
+                    o->start_stepping(c);
+                } else if (o->m_waiting) {
+                    o->m_pull_finished_event.appendNow(c);
+                }
+            }
+        }
+        
+        bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand *out)
+        {
+            MotionPlanner *o = parent();
+            AMBRO_ASSERT(m_stepping)
+            
+            bool ran_out;
+            AMBRO_LOCK_T(o->m_lock, c, lock_c, {
+                ran_out = (m_sbuf_start == m_sbuf_stepper_ready_end);
+                if (ran_out) {
+#ifdef AMBROLIB_ASSERTIONS
+                    m_stepping = false;
+#endif
+                    o->m_num_stepping--;
+                } else {
+                    CopyUnrolled<sizeof(StepperCommand)>(out, &m_sbuf[m_sbuf_start.value()]);
+                    m_sbuf_start = BoundedModuloInc(m_sbuf_start);
+                }
+                if (!m_stepper_event.isSet(lock_c)) {
+                    m_stepper_event.appendNow(lock_c);
+                }
+            });
+            
+            return !ran_out;
+        }
+        
+        typename Loop::QueuedEvent m_stepper_event;
+        StepperBufferSizeType m_sbuf_start;
+        StepperBufferSizeType m_sbuf_stepper_ready_end;
+        StepperBufferSizeType m_sbuf_generated_ready_end;
+        StepperBufferSizeType m_sbuf_end;
+        uint8_t m_command_pos;
+        StepFixedType m_x[2];
+        TimeFixedType m_t[2];
+        AccelFixedType m_a[2];
+        TheSplitter m_splitter;
+        StepperCommand m_sbuf[(size_t)StepperBufferSizeType::maxIntValue() + 1];
+#ifdef AMBROLIB_ASSERTIONS
+        bool m_stepping;
+#endif
+    };
+    
+private:
+    using AxesTuple = IndexElemTuple<AxesList, Axis>;
+    
+public:
+    void init (Context c)
+    {
+        m_lock.init(c);
+        m_pull_finished_event.init(c, AMBRO_OFFSET_CALLBACK_T(&MotionPlanner::m_pull_finished_event, &MotionPlanner::pull_finished_event_handler));
+        m_all_command_pos = ALL_CMD_END;
+        m_num_stepping = 0;
+        m_waiting = false;
+#ifdef AMBROLIB_ASSERTIONS
+        m_pulling = false;
+#endif
+        TupleForEachForward(&m_axes, Foreach_init(), c);
+        m_pull_finished_event.prependNowNotAlready(c);
+        
+        this->debugInit(c);
+    }
+    
+    void deinit (Context c)
+    {
+        this->debugDeinit(c);
+        
+        TupleForEachForward(&m_axes, Foreach_deinit(), c);
+        m_pull_finished_event.deinit(c);
+        m_lock.deinit(c);
+    }
+    
     void commandDone (Context c, InputCommand icmd)
     {
         this->debugAccess(c);
-        AMBRO_ASSERT(m_running)
         AMBRO_ASSERT(m_pulling)
-        AMBRO_ASSERT(m_all_command_state == ALL_CMD_END)
-        AMBRO_ASSERT(!m_stepping || m_all_full == 0)
+        AMBRO_ASSERT(m_all_command_pos == ALL_CMD_END)
         AMBRO_ASSERT(FloatIsPosOrPosZero(icmd.rel_max_v))
         TupleForEachForward(&m_axes, Foreach_commandDone_assert(), c, icmd);
         
@@ -214,288 +364,120 @@ public:
         double norm_a = TupleForEachForwardAccRes(&m_axes, INFINITY, Foreach_commandDone_compute_acc(), c, icmd);
         double norm_acc_x = fmin(0.5, (norm_v * norm_v) / (2 * norm_a));
         double norm_con_x = 1.0 - (2 * norm_acc_x);
-        
         MinTimeType t02 = MinTimeType::importDoubleSaturated(sqrt((2 * norm_acc_x) / norm_a));
         MinTimeType t1 = MinTimeType::importDoubleSaturated(norm_con_x / norm_v);
-        
-        m_pulling = false;
-        m_all_command_state = 0;
-        m_all_empty = 0;
-        m_empty_event.unset(c);
-        
         TupleForEachForward(&m_axes, Foreach_commandDone_compute(), c, icmd, norm_acc_x, t02, t1);
         
-        if (m_all_full == NUM_AXES) {
-            m_full_event.prependNow(c);
+        m_pull_finished_event.unset(c);
+        m_waiting = false;
+#ifdef AMBROLIB_ASSERTIONS
+        m_pulling = false;
+#endif
+        m_all_command_pos = 0;
+        TupleForEachForward(&m_axes, Foreach_work_command(), c);
+        if (m_all_command_pos == ALL_CMD_END) {
+            command_completed(c);
         }
     }
     
-    bool isRunning (Context c)
+    void waitFinished (Context c)
     {
         this->debugAccess(c);
-        
-        return m_running;
-    }
-    
-    bool isStepping (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_running)
-        
-        return m_stepping;
-    }
-    
-    bool isPulling (Context c)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_running)
-        
-        return m_pulling;
-    }
-    
-private:
-    void pull_event_handler (Context c)
-    {
-        AMBRO_ASSERT(m_running)
-        AMBRO_ASSERT(!m_pulling)
-        AMBRO_ASSERT(m_all_command_state == ALL_CMD_END)
-        AMBRO_ASSERT(m_stepping || m_all_empty == 0)
-        
-        m_pulling = true;
-        
-        if (m_all_empty == NUM_AXES) {
-            m_empty_event.prependNow(c);
-        }
-        
-        return PullCmdHandler::call(this, c);
-    }
-    
-    void full_event_handler (Context c)
-    {
-        AMBRO_ASSERT(m_running)
-        AMBRO_ASSERT(!m_stepping)
-        AMBRO_ASSERT(m_all_full == NUM_AXES)
-        AMBRO_ASSERT(m_all_command_state != ALL_CMD_END)
-        
-        return BufferFullHandler::call(this, c);
-    }
-    
-    void empty_event_handler (Context c)
-    {
-        AMBRO_ASSERT(m_running)
-        AMBRO_ASSERT(m_stepping)
-        AMBRO_ASSERT(m_all_empty == NUM_AXES)
-        AMBRO_ASSERT(m_all_command_state == ALL_CMD_END)
         AMBRO_ASSERT(m_pulling)
+        AMBRO_ASSERT(!m_waiting)
         
-        return BufferEmptyHandler::call(this, c);
+        m_waiting = true;
+        if (is_finished(c)) {
+            m_pull_finished_event.appendNowNotAlready(c);
+        }
     }
     
-    typename Loop::QueuedEvent m_pull_event;
-    typename Loop::QueuedEvent m_full_event;
-    typename Loop::QueuedEvent m_empty_event;
-    AxesTuple m_axes;
-    bool m_running;
-    bool m_stepping;
-    bool m_pulling;
-    uint8_t m_all_command_state;
-    uint8_t m_all_full;
-    uint8_t m_all_empty;
-};
-
-template <typename Context, typename AxesList, typename PullCmdHandler, typename BufferFullHandler, typename BufferEmptyHandler, int AxisIndex>
-class MotionPlannerAxis {
-public:
-    using TheMotionPlanner = MotionPlanner<Context, AxesList, PullCmdHandler, BufferFullHandler, BufferEmptyHandler>;
-    using TheAxisInputCommand = typename TheMotionPlanner::template AxisInputCommand<AxisIndex>;
-    using TimeType = typename TheMotionPlanner::TimeType;
-    using AxisSpec = TypeListGet<AxesList, AxisIndex>;
-    using Sharer = typename AxisSpec::Sharer;
-    using StepFixedType = typename Sharer::Axis::StepFixedType;
-    using TimeFixedType = typename Sharer::Axis::TimeFixedType;
-    using AccelFixedType = typename Sharer::Axis::AccelFixedType;
+    template <int AxisIndex>
+    using TheAxisStepperConsumer = AxisStepperConsumer<
+        AxisPosition<AxisIndex>,
+        AMBRO_WMETHOD_T(&Axis<AxisIndex>::stepper_command_callback)
+    >;
     
 private:
-    friend TheMotionPlanner;
-    
-    using AxesTuple = typename TheMotionPlanner::AxesTuple;
-    using SharersTuple = typename TheMotionPlanner::SharersTuple;
-    using InputCommand = typename TheMotionPlanner::InputCommand;
-    using MinTimeType = typename TheMotionPlanner::MinTimeType;
-    enum {NUM_AXES = TheMotionPlanner::NUM_AXES};
-    enum {ALL_CMD_END = TheMotionPlanner::ALL_CMD_END};
-    
-    TheMotionPlanner * parent ()
+    void command_completed (Context c)
     {
-        return AMBRO_WMEMB_TD(&TheMotionPlanner::m_axes)::container(TupleGetTuple<AxisIndex, AxesTuple>(this));
-    }
-    
-    void init (Context c, SharersTuple sharers)
-    {
-        m_user.init(c, *TupleGetElem<AxisIndex>(&sharers),
-            AMBRO_OFFSET_CALLBACK_T(&MotionPlannerAxis::m_user, &MotionPlannerAxis::sharer_pull_cmd_handler),
-            AMBRO_OFFSET_CALLBACK_T(&MotionPlannerAxis::m_user, &MotionPlannerAxis::sharer_buffer_full_handler),
-            AMBRO_OFFSET_CALLBACK_T(&MotionPlannerAxis::m_user, &MotionPlannerAxis::sharer_buffer_empty_handler)
-        );
-    }
-    
-    void deinit (Context c)
-    {
-        m_user.deinit(c);
-    }
-    
-    void start (Context c, TimeType start_time)
-    {
-        m_user.activate(c);
-        m_user.getAxis(c)->start(c, start_time);
-        m_user_pulling = false;
-        m_command_state = CMD_END;
-    }
-    
-    void stop (Context c)
-    {
-        m_user.getAxis(c)->stop(c);
-        m_user.deactivate(c);
-    }
-    
-    void addTime (Context c, TimeType time_add)
-    {
-        m_user.getAxis(c)->addTime(c, time_add);
-    }
-    
-    void startStepping (Context c)
-    {
-        m_user.getAxis(c)->startStepping(c);
-    }
-    
-    void stopStepping (Context c)
-    {
-        m_user.getAxis(c)->stopStepping(c);
-    }
-    
-    void commandDone_assert (Context c, InputCommand icmd)
-    {
-        TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
-        AMBRO_ASSERT(m_command_state == CMD_END)
-        AMBRO_ASSERT(FloatIsPosOrPosZero(axis_icmd->max_v))
-        AMBRO_ASSERT(FloatIsPosOrPosZero(axis_icmd->max_a))
-    }
-    
-    double commandDone_compute_vel (double accum_vel, Context c, InputCommand icmd)
-    {
-        TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
-        return fmin(accum_vel, axis_icmd->max_v / axis_icmd->x.doubleValue());
-    }
-    
-    double commandDone_compute_acc (double accum_acc, Context c, InputCommand icmd)
-    {
-        TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
-        return fmin(accum_acc, axis_icmd->max_a / axis_icmd->x.doubleValue());
-    }
-    
-    void commandDone_compute (Context c, InputCommand icmd, double norm_acc_x, MinTimeType t02, MinTimeType t1)
-    {
-        TheMotionPlanner *o = parent();
-        TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
+        AMBRO_ASSERT(m_all_command_pos == ALL_CMD_END)
         
-        StepFixedType x = StepFixedType::importDoubleSaturated(axis_icmd->x.doubleValue() * norm_acc_x);
-        if (x.m_bits.m_int > axis_icmd->x.bitsValue() / 2) {
-            x.m_bits.m_int = axis_icmd->x.bitsValue() / 2;
-        }
-        
-        m_command.dir = axis_icmd->dir;
-        m_command.x[0] = x;
-        m_command.x[2] = x;
-        m_command.x[1] = StepFixedType::importBits(axis_icmd->x.bitsValue() - x.bitsValue() - x.bitsValue());
-        m_command.t[0] = t02;
-        m_command.t[2] = t02;
-        m_command.t[1] = t1;
-        m_command.a[0] = m_command.x[0].toSigned();
-        m_command.a[2] = -m_command.x[2];
-        m_command.a[1] = AccelFixedType::importBits(0);
-        
-        m_command_state = 0;
-        
-        if (m_user_pulling) {
-            m_user.getAxis(c)->commandDone(c, m_command.dir, m_command.x[m_command_state], m_command.t[m_command_state], m_command.a[m_command_state]);
-            m_command_state++;
-            o->m_all_command_state++;
-            m_user_pulling = false;
-        }
-    }
-    
-    void sharer_pull_cmd_handler (Context c)
-    {
-        TheMotionPlanner *o = parent();
-        o->debugAccess(c);
-        AMBRO_ASSERT(o->m_running)
-        AMBRO_ASSERT(!m_user_pulling)
-        AMBRO_ASSERT(o->m_all_full < NUM_AXES)
-        
-        bool returning_command = (m_command_state < CMD_END);
-        if (returning_command) {
-            o->m_all_command_state++;
-        } else {
-            m_user_pulling = true;
-        }
-        
-        if (o->m_all_command_state == ALL_CMD_END) {
-            if (!o->m_pulling) {
-                o->m_pull_event.prependNow(c);
+        TupleForEachForward(&m_axes, Foreach_set_generated_ready());
+        uint8_t num_stepping;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            num_stepping = m_num_stepping;
+            if (num_stepping == NumAxes) {
+                TupleForEachForward(&m_axes, Foreach_set_stepper_ready());
+            }
+        });
+        if (num_stepping != NumAxes) {
+            m_continue = true;
+            if (num_stepping == 0) {
+                start_stepping(c);
             }
         }
-        
-        if (returning_command) {
-            m_user.getAxis(c)->commandDone(c, m_command.dir, m_command.x[m_command_state], m_command.t[m_command_state], m_command.a[m_command_state]);
-            m_command_state++;
-        }
+        m_pull_finished_event.prependNowNotAlready(c);
     }
     
-    void sharer_buffer_full_handler (Context c)
+    void start_stepping (Context c)
     {
-        TheMotionPlanner *o = parent();
-        o->debugAccess(c);
-        AMBRO_ASSERT(o->m_running)
-        AMBRO_ASSERT(!o->m_stepping)
-        AMBRO_ASSERT(!m_user_pulling)
-        AMBRO_ASSERT(o->m_all_full < NUM_AXES)
+        AMBRO_ASSERT(m_num_stepping == 0)
+        AMBRO_ASSERT(m_continue)
         
-        o->m_all_full++;
-        
-        if (o->m_all_full == NUM_AXES && o->m_all_command_state != ALL_CMD_END) {
-            o->m_full_event.prependNow(c);
-        }
+        m_num_stepping = NumAxes;
+        m_continue = false;
+        TimeType start_time = c.clock()->getTime(c);
+        TupleForEachForward(&m_axes, Foreach_start_stepping(), c, start_time);
     }
     
-    void sharer_buffer_empty_handler (Context c)
+    void pull_finished_event_handler (Context c)
     {
-        TheMotionPlanner *o = parent();
-        o->debugAccess(c);
-        AMBRO_ASSERT(o->m_running)
-        AMBRO_ASSERT(o->m_stepping)
-        AMBRO_ASSERT(m_user_pulling)
-        AMBRO_ASSERT(o->m_all_empty < NUM_AXES)
+        this->debugAccess(c);
         
-        o->m_all_empty++;
-        
-        if (o->m_all_empty == NUM_AXES && o->m_pulling) {
-            o->m_empty_event.prependNow(c);
+        if (m_waiting) {
+            AMBRO_ASSERT(m_pulling)
+            AMBRO_ASSERT(is_finished(c))
+            
+            m_waiting = false;
+            return FinishedHandler::call(this, c);
+        } else {
+            AMBRO_ASSERT(!m_pulling)
+            AMBRO_ASSERT(m_all_command_pos == ALL_CMD_END)
+            
+#ifdef AMBROLIB_ASSERTIONS
+            m_pulling = true;
+#endif
+            return PullHandler::call(this, c);
         }
     }
     
-    enum {CMD_END = 3};
+    bool is_finished (Context c)
+    {
+        AMBRO_ASSERT(m_waiting)
+        AMBRO_ASSERT(m_pulling)
+        AMBRO_ASSERT(m_all_command_pos == ALL_CMD_END)
+        
+        bool finished = true;
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            TupleForEachForward(&m_axes, Foreach_is_finished(), &finished);
+        });
+        
+        return finished;
+    }
     
-    struct Command {
-        bool dir;
-        StepFixedType x[3];
-        TimeFixedType t[3];
-        AccelFixedType a[3];
-    };
+    typename Context::Lock m_lock;
+    typename Loop::QueuedEvent m_pull_finished_event;
+    uint8_t m_all_command_pos;
+    uint8_t m_num_stepping;
+    bool m_continue;
+    bool m_waiting;
+#ifdef AMBROLIB_ASSERTIONS
+    bool m_pulling;
+#endif
+    AxesTuple m_axes;
     
-    typename Sharer::User m_user;
-    bool m_user_pulling;
-    uint8_t m_command_state;
-    Command m_command;
+    template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &MotionPlanner::m_axes, AxisIndex> {};
 };
 
 #include <aprinter/EndNamespace.h>

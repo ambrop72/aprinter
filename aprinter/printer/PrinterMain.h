@@ -36,16 +36,18 @@
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/WrapCallback.h>
 #include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/WrapMember.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/StructIf.h>
-#include <aprinter/meta/ForwardHandler.h>
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/IndexElemList.h>
+#include <aprinter/meta/Position.h>
+#include <aprinter/meta/TuplePosition.h>
+#include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -55,7 +57,8 @@
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/devices/SoftPwm.h>
 #include <aprinter/stepper/Steppers.h>
-#include <aprinter/stepper/AxisSharer.h>
+#include <aprinter/stepper/AxisStepper.h>
+#include <aprinter/stepper/AxisSplitter.h>
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/MotionPlanner.h>
@@ -85,7 +88,7 @@ struct PrinterMainSerialParams {
 template <
     char tname,
     typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir,
-    typename TTheAxisStepperParams,
+    int TBufferSizeExp, typename TTheAxisStepperParams,
     typename TDefaultStepsPerUnit, typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultMin, typename TDefaultMax, bool tenable_cartesian_speed_limit,
     typename THoming
@@ -96,6 +99,7 @@ struct PrinterMainAxisParams {
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
     static const bool InvertDir = TInvertDir;
+    static const int BufferSizeExp = TBufferSizeExp;
     using TheAxisStepperParams = TTheAxisStepperParams;
     using DefaultStepsPerUnit = TDefaultStepsPerUnit;
     using DefaultMaxSpeed = TDefaultMaxSpeed;
@@ -148,7 +152,7 @@ struct PrinterMainHeaterParams {
     template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
 };
 
-template <typename Context, typename Params>
+template <typename Position, typename Context, typename Params>
 class PrinterMain
 : private DebugObject<Context, void>
 {
@@ -158,7 +162,6 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_homing, start_homing)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_update_homing_mask, update_homing_mask)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_enable_stepper, enable_stepper)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init_sharers_tuple, init_sharers_tuple)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_update_req_pos, update_req_pos)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_planner_command, write_planner_command)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_position, append_position)
@@ -167,11 +170,18 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_value, append_value)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_command, check_command)
     
+    template <int AxisIndex> struct AxisPosition;
+    template <int AxisIndex> struct HomingFeaturePosition;
+    template <int AxisIndex> struct HomingStatePosition;
+    struct PlannerPosition;
+    template <int HeaterIndex> struct HeaterPosition;
+    
     struct SerialRecvHandler;
     struct SerialSendHandler;
-    struct PlannerPullCmdHandler;
-    struct PlannerBufferFullHandler;
-    struct PlannerBufferEmptyHandler;
+    template <int AxisIndex> struct PlannerGetAxisStepper;
+    struct PlannerPullHandler;
+    struct PlannerFinishedHandler;
+    template <int AxisIndex> struct AxisStepperConsumersList;
     
     static const int serial_recv_buffer_bits = 6;
     static const int serial_send_buffer_bits = 8;
@@ -206,25 +216,82 @@ private:
     using GcodeParserCommandPart = typename TheGcodeParser::CommandPart;
     using GcodePartsSizeType = typename TheGcodeParser::PartsSizeType;
     
-    template <int AxisIndex>
+    template <int TAxisIndex>
     struct Axis {
+        static const int AxisIndex = TAxisIndex;
         friend PrinterMain;
         
-        struct SharerGetStepperHandler;
+        struct AxisStepperPosition;
+        struct AxisStepperGetStepperHandler;
         
         using AxisSpec = TypeListGet<AxesList, AxisIndex>;
         using Stepper = SteppersStepper<Context, StepperDefsList, AxisIndex>;
-        using Sharer = AxisSharer<Context, typename AxisSpec::TheAxisStepperParams, Stepper, SharerGetStepperHandler>;
-        using StepFixedType = typename Sharer::Axis::StepFixedType;
+        using TheAxisStepper = AxisStepper<AxisStepperPosition, Context, typename AxisSpec::TheAxisStepperParams, Stepper, AxisStepperGetStepperHandler, AxisStepperConsumersList<AxisIndex>>;
+        template <typename X> using SplitterTemplate = AxisSplitter<X>;
+        using TheSplitter = SplitterTemplate<TheAxisStepper>;
+        using StepFixedType = typename TheSplitter::StepFixedType;
         static const char axis_name = AxisSpec::name;
         
         AMBRO_STRUCT_IF(HomingFeature, AxisSpec::Homing::enabled) {
-            struct HomerFinishedHandler;
-            using Homer = AxisHomer<Context, Sharer, typename AxisSpec::Homing::EndPin, AxisSpec::Homing::end_invert, AxisSpec::Homing::home_dir, HomerFinishedHandler>;
+            struct HomingState {
+                struct HomerPosition;
+                struct HomerGetAxisStepper;
+                struct HomerFinishedHandler;
+                
+                using Homer = AxisHomer<
+                    HomerPosition, Context, TheAxisStepper, SplitterTemplate, AxisSpec::BufferSizeExp, typename AxisSpec::Homing::EndPin,
+                    AxisSpec::Homing::end_invert, AxisSpec::Homing::home_dir, HomerGetAxisStepper, HomerFinishedHandler
+                >;
+                
+                Axis * get_axis ()
+                {
+                    return PositionTraverse<HomingStatePosition<AxisIndex>, AxisPosition<AxisIndex>>(this);
+                }
+                
+                TheAxisStepper * homer_get_axis_stepper ()
+                {
+                    return &get_axis()->m_axis_stepper;
+                }
+                
+                void homer_finished_handler (Context c, bool success)
+                {
+                    Axis *axis = get_axis();
+                    PrinterMain *o = PositionTraverse<HomingStatePosition<AxisIndex>, Position>(this);
+                    AMBRO_ASSERT(axis->m_state == AXIS_STATE_HOMING)
+                    AMBRO_ASSERT(o->m_state == STATE_HOMING)
+                    AMBRO_ASSERT(o->m_homing_rem_axes > 0)
+                    
+                    m_homer.deinit(c);
+                    axis->m_end_pos = axis->m_min;
+                    axis->m_req_pos = axis->m_min;
+                    axis->m_state = AXIS_STATE_OTHER;
+                    o->m_homing_rem_axes--;
+                    if (!success) {
+                        o->m_homing_failed = true;
+                    }
+                    if (o->m_homing_rem_axes == 0) {
+                        o->homing_finished(c);
+                    }
+                }
+                
+                Homer m_homer;
+                
+                struct HomerPosition : public MemberPosition<HomingStatePosition<AxisIndex>, Homer, &HomingState::m_homer> {};
+                struct HomerGetAxisStepper : public AMBRO_WCALLBACK_TD(&HomingState::homer_get_axis_stepper, &HomingState::m_homer) {};
+                struct HomerFinishedHandler : public AMBRO_WCALLBACK_TD(&HomingState::homer_finished_handler, &HomingState::m_homer) {};
+            };
+            
+            template <typename TheHomingFeature>
+            using MakeAxisStepperConsumersList = MakeTypeList<typename TheHomingFeature::HomingState::Homer::TheAxisStepperConsumer>;
             
             Axis * parent ()
             {
-                return AMBRO_WMEMB_TD(&Axis::m_homing_feature)::container(this);
+                return PositionTraverse<HomingFeaturePosition<AxisIndex>, AxisPosition<AxisIndex>>(this);
+            }
+            
+            HomingState * homing_state ()
+            {
+                return PositionTraverse<HomingFeaturePosition<AxisIndex>, HomingStatePosition<AxisIndex>>(this);
             }
             
             void init (Context c)
@@ -243,8 +310,7 @@ private:
             {
                 Axis *axis = parent();
                 if (axis->m_state == AXIS_STATE_HOMING) {
-                    m_homer.stop(c);
-                    m_homer.deinit(c);
+                    homing_state()->m_homer.deinit(c);
                 }
             }
             
@@ -258,7 +324,7 @@ private:
                     return;
                 }
                 
-                typename Homer::HomingParams params;
+                typename HomingState::Homer::HomingParams params;
                 params.fast_max_dist = StepFixedType::importDoubleSaturated(m_fast_max_dist);
                 params.retract_dist = StepFixedType::importDoubleSaturated(m_retract_dist);
                 params.slow_max_dist = StepFixedType::importDoubleSaturated(m_slow_max_dist);
@@ -268,43 +334,21 @@ private:
                 params.max_accel = axis->m_max_accel;
                 
                 axis->stepper()->enable(c, true);
-                m_homer.init(c, &axis->m_sharer);
-                m_homer.start(c, params);
+                homing_state()->m_homer.init(c, params);
                 axis->m_state = AXIS_STATE_HOMING;
-                o->m_homing.rem_axes++;
+                o->m_homing_rem_axes++;
             }
             
-            void homer_finished_handler (Context c, bool success)
-            {
-                Axis *axis = parent();
-                PrinterMain *o = axis->parent();
-                AMBRO_ASSERT(axis->m_state == AXIS_STATE_HOMING)
-                AMBRO_ASSERT(o->m_state == STATE_HOMING)
-                AMBRO_ASSERT(o->m_homing.rem_axes > 0)
-                
-                m_homer.deinit(c);
-                axis->m_end_pos = axis->m_min;
-                axis->m_req_pos = axis->m_min;
-                axis->m_state = AXIS_STATE_OTHER;
-                o->m_homing.rem_axes--;
-                if (!success) {
-                    o->m_homing.failed = true;
-                }
-                if (o->m_homing.rem_axes == 0) {
-                    o->homing_finished(c);
-                }
-            }
-            
-            Homer m_homer;
             double m_fast_max_dist; // steps
             double m_retract_dist; // steps
             double m_slow_max_dist; // steps
             double m_fast_speed; // steps/tick
             double m_retract_speed; // steps/tick
             double m_slow_speed; // steps/tick
-            
-            struct HomerFinishedHandler : public AMBRO_WCALLBACK_TD(&HomingFeature::homer_finished_handler, &HomingFeature::m_homer) {};
         } AMBRO_STRUCT_ELSE(HomingFeature) {
+            struct HomingState {};
+            template <typename TheHomingFeature>
+            using MakeAxisStepperConsumersList = MakeTypeList<>;
             void init (Context c) {}
             void deinit (Context c) {}
             void start_homing (Context c, AxisMaskType mask) {}
@@ -314,7 +358,7 @@ private:
         
         PrinterMain * parent ()
         {
-            return AMBRO_WMEMB_TD(&PrinterMain::m_axes)::container(TupleGetTuple<AxisIndex, AxesTuple>(this));
+            return PositionTraverse<AxisPosition<AxisIndex>, Position>(this);
         }
         
         double dist_from_real (double x)
@@ -345,7 +389,7 @@ private:
         
         void init (Context c)
         {
-            m_sharer.init(c);
+            m_axis_stepper.init(c);
             m_state = AXIS_STATE_OTHER;
             m_steps_per_unit = AxisSpec::DefaultStepsPerUnit::value();
             m_max_speed = speed_from_real(AxisSpec::DefaultMaxSpeed::value());
@@ -362,7 +406,7 @@ private:
         void deinit (Context c)
         {
             m_homing_feature.deinit(c);
-            m_sharer.deinit(c);
+            m_axis_stepper.deinit(c);
         }
         
         void start_homing (Context c, AxisMaskType mask)
@@ -387,12 +431,6 @@ private:
             return parent()->m_steppers.template getStepper<AxisIndex>();
         }
         
-        template <typename SharersTuple>
-        void init_sharers_tuple (SharersTuple *sharers)
-        {
-            *TupleGetElem<AxisIndex>(sharers) = &m_sharer;
-        }
-        
         void update_req_pos (Context c, GcodeParserCommandPart *part, bool *changed)
         {
             if (part->code == axis_name) {
@@ -414,7 +452,7 @@ private:
                     *changed = true;
                     if (AxisSpec::enable_cartesian_speed_limit) {
                         double delta = m_move / m_steps_per_unit;
-                        parent()->m_planning.distance += delta * delta;
+                        parent()->m_planning_distance += delta * delta;
                     }
                     enable_stepper(c, true);
                 }
@@ -466,7 +504,7 @@ private:
             }
         }
         
-        Sharer m_sharer;
+        TheAxisStepper m_axis_stepper;
         uint8_t m_state;
         double m_steps_per_unit;
         double m_max_speed; // steps/tick
@@ -479,17 +517,26 @@ private:
         double m_move; // steps, integer, =round(m_req_pos)-m_end_pos
         bool m_relative_positioning;
         
-        struct SharerGetStepperHandler : public AMBRO_WCALLBACK_TD(&Axis::stepper, &Axis::m_sharer) {};
+        struct AxisStepperPosition : public MemberPosition<AxisPosition<AxisIndex>, TheAxisStepper, &Axis::m_axis_stepper> {};
+        struct AxisStepperGetStepperHandler : public AMBRO_WCALLBACK_TD(&Axis::stepper, &Axis::m_axis_stepper) {};
     };
     
     template <typename TheAxis>
-    using MakePlannerAxisSpec = MotionPlannerAxisSpec<typename TheAxis::Sharer>;
+    using MakePlannerAxisSpec = MotionPlannerAxisSpec<
+        typename TheAxis::TheAxisStepper,
+        PlannerGetAxisStepper<TheAxis::AxisIndex>,
+        TheAxis::template SplitterTemplate,
+        TheAxis::AxisSpec::BufferSizeExp
+    >;
     
     using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
-    using ThePlanner = MotionPlanner<Context, MotionPlannerAxes, PlannerPullCmdHandler, PlannerBufferFullHandler, PlannerBufferEmptyHandler>;
-    using PlannerSharersTuple = typename ThePlanner::SharersTuple;
+    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, PlannerPullHandler, PlannerFinishedHandler>;
     using PlannerInputCommand = typename ThePlanner::InputCommand;
     using AxesTuple = IndexElemTuple<AxesList, Axis>;
+    
+    template <int AxisIndex>
+    using HomingStateTupleHelper = typename Axis<AxisIndex>::HomingFeature::HomingState;
+    using HomingStateTuple = IndexElemTuple<AxesList, HomingStateTupleHelper>;
     
     template <int HeaterIndex>
     struct Heater {
@@ -500,7 +547,7 @@ private:
         
         PrinterMain * parent ()
         {
-            return AMBRO_WMEMB_TD(&PrinterMain::m_heaters)::container(TupleGetTuple<HeaterIndex, HeatersTuple>(this));
+            return PositionTraverse<HeaterPosition<HeaterIndex>, Position>(this);
         }
         
         void init (Context c)
@@ -580,16 +627,12 @@ private:
 public:
     void init (Context c)
     {
-        PlannerSharersTuple sharers;
-        TupleForEachForward(&m_axes, Foreach_init_sharers_tuple(), &sharers);
-        
         m_blinker.init(c, Params::LedBlinkInterval::value() * Clock::time_freq);
         m_steppers.init(c);
         TupleForEachForward(&m_axes, Foreach_init(), c);
         m_serial.init(c, Params::Serial::baud);
         m_gcode_parser.init(c);
         m_disable_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&PrinterMain::m_disable_timer, &PrinterMain::disable_timer_handler));
-        m_planner.init(c, sharers);
         TupleForEachForward(&m_heaters, Foreach_init(), c);
         m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
         m_recv_next_error = 0;
@@ -611,9 +654,8 @@ public:
         
         TupleForEachReverse(&m_heaters, Foreach_deinit(), c);
         if (m_state == STATE_PLANNING) {
-            m_planner.stop(c);
+            m_planner.deinit(c);
         }
-        m_planner.deinit(c);
         m_disable_timer.deinit(c);
         m_gcode_parser.deinit(c);
         m_serial.deinit(c);
@@ -628,15 +670,15 @@ public:
     }
     
     template <int AxisIndex>
-    typename Axis<AxisIndex>::Sharer * getSharer ()
+    typename Axis<AxisIndex>::TheAxisStepper * getAxisStepper ()
     {
-        return &TupleGetElem<AxisIndex>(&m_axes)->m_sharer;
+        return &PositionTraverse<Position, AxisPosition<AxisIndex>>(this)->m_axis_stepper;
     }
     
     template <int HeaterIndex>
     typename Heater<HeaterIndex>::TheSoftPwm::TimerInstance * getHeaterTimer ()
     {
-        return TupleGetElem<HeaterIndex>(&m_heaters)->m_softpwm.getTimer();
+        return PositionTraverse<Position, HeaterPosition<HeaterIndex>>(this)->m_softpwm.getTimer();
     }
     
 private:
@@ -680,7 +722,7 @@ private:
     {
         AMBRO_ASSERT(m_cmd)
         AMBRO_ASSERT(m_state == STATE_IDLE || m_state == STATE_PLANNING)
-        AMBRO_ASSERT(m_state != STATE_PLANNING || !m_planning.req_pending)
+        AMBRO_ASSERT(m_state != STATE_PLANNING || !m_planning_req_pending)
         
         bool no_ok = false;
         char cmd_code;
@@ -731,7 +773,7 @@ private:
                 
                 case 17: {
                     if (m_state == STATE_PLANNING) {
-                        return;
+                        goto wait_planner;
                     }
                     TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, true);
                     now_inactive(c);
@@ -740,7 +782,7 @@ private:
                 case 18: // disable steppers or set timeout
                 case 84: {
                     if (m_state == STATE_PLANNING) {
-                        return;
+                        goto wait_planner;
                     }
                     double inactive_time;
                     if (find_command_param_double(m_cmd, 'S', &inactive_time)) {
@@ -774,7 +816,7 @@ private:
                 case 0:
                 case 1: { // buffered move
                     bool changed = false;
-                    m_planning.distance = 0.0;
+                    m_planning_distance = 0.0;
                     for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
                         GcodeParserCommandPart *part = &m_cmd->parts[i];
                         TupleForEachForward(&m_axes, Foreach_update_req_pos(), c, part, &changed);
@@ -784,15 +826,14 @@ private:
                     }
                     if (changed) {
                         if (m_state != STATE_PLANNING) {
-                            m_planner.start(c, c.clock()->getTime(c));
-                            m_planner.startStepping(c);
+                            m_planner.init(c);
                             m_state = STATE_PLANNING;
-                            m_planning.pull_pending = false;
+                            m_planning_pull_pending = false;
                             now_active(c);
                         }
-                        m_planning.req_pending = true;
-                        m_planning.distance = sqrt(m_planning.distance);
-                        if (m_planning.pull_pending) {
+                        m_planning_req_pending = true;
+                        m_planning_distance = sqrt(m_planning_distance);
+                        if (m_planning_pull_pending) {
                             send_req_to_planner(c);
                         }
                         return;
@@ -804,7 +845,7 @@ private:
                 
                 case 28: { // home axes
                     if (m_state == STATE_PLANNING) {
-                        return;
+                        goto wait_planner;
                     }
                     AxisMaskType mask = 0;
                     for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
@@ -813,10 +854,10 @@ private:
                     if (mask == 0) {
                         mask = -1;
                     }
-                    m_homing.rem_axes = 0;
-                    m_homing.failed = false;
+                    m_homing_rem_axes = 0;
+                    m_homing_failed = false;
                     TupleForEachForward(&m_axes, Foreach_start_homing(), c, mask);
-                    if (m_homing.rem_axes > 0) {
+                    if (m_homing_rem_axes > 0) {
                         m_state = STATE_HOMING;
                         now_active(c);
                         return;
@@ -850,6 +891,14 @@ private:
         
     reply:
         finish_command(c, no_ok);
+        return;
+        
+    wait_planner:
+        AMBRO_ASSERT(m_state == STATE_PLANNING)
+        AMBRO_ASSERT(!m_planning_req_pending)
+        if (m_planning_pull_pending) {
+            m_planner.waitFinished(c);
+        }
     }
     
     void finish_command (Context c, bool no_ok)
@@ -869,9 +918,9 @@ private:
     void homing_finished (Context c)
     {
         AMBRO_ASSERT(m_state == STATE_HOMING)
-        AMBRO_ASSERT(m_homing.rem_axes == 0)
+        AMBRO_ASSERT(m_homing_rem_axes == 0)
         
-        if (m_homing.failed) {
+        if (m_homing_failed) {
             reply_append_str(c, "Error:Homing failed\n");
         }
         m_state = STATE_IDLE;
@@ -975,16 +1024,16 @@ private:
     void send_req_to_planner (Context c)
     {
         AMBRO_ASSERT(m_state == STATE_PLANNING)
-        AMBRO_ASSERT(m_planning.req_pending)
+        AMBRO_ASSERT(m_planning_req_pending)
         AMBRO_ASSERT(m_cmd)
-        AMBRO_ASSERT(m_planning.pull_pending)
+        AMBRO_ASSERT(m_planning_pull_pending)
         
         PlannerInputCommand cmd;
-        cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / m_planning.distance) / Clock::time_freq);
+        cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / m_planning_distance) / Clock::time_freq);
         TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd);
         m_planner.commandDone(c, cmd);
-        m_planning.req_pending = false;
-        m_planning.pull_pending = false;
+        m_planning_req_pending = false;
+        m_planning_pull_pending = false;
         finish_command(c, false);
     }
     
@@ -1001,31 +1050,29 @@ private:
         TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, false);
     }
     
-    void planner_pull_cmd_handler (Context c)
+    void planner_pull_handler (Context c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_state == STATE_PLANNING)
-        AMBRO_ASSERT(!m_planning.pull_pending)
+        AMBRO_ASSERT(!m_planning_pull_pending)
         
-        m_planning.pull_pending = true;
-        if (m_planning.req_pending) {
+        m_planning_pull_pending = true;
+        if (m_planning_req_pending) {
             send_req_to_planner(c);
+        } else if (m_cmd) {
+            m_planner.waitFinished(c);
         }
     }
     
-    void planner_buffer_full_handler (Context c)
-    {
-        this->debugAccess(c);
-    }
-    
-    void planner_buffer_empty_handler (Context c)
+    void planner_finished_handler (Context c)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_state == STATE_PLANNING)
-        AMBRO_ASSERT(m_planning.pull_pending)
-        AMBRO_ASSERT(!m_planning.req_pending)
+        AMBRO_ASSERT(m_planning_pull_pending)
+        AMBRO_ASSERT(!m_planning_req_pending)
+        AMBRO_ASSERT(m_cmd)
         
-        m_planner.stop(c);
+        m_planner.deinit(c);
         m_state = STATE_IDLE;
         now_inactive(c);
         
@@ -1040,7 +1087,6 @@ private:
     TheSerial m_serial;
     TheGcodeParser m_gcode_parser;
     typename Loop::QueuedEvent m_disable_timer;
-    ThePlanner m_planner;
     HeatersTuple m_heaters;
     TimeType m_inactive_time;
     TimeType m_last_active_time;
@@ -1053,24 +1099,37 @@ private:
     uint8_t m_state;
     union {
         struct {
-            AxisCountType rem_axes;
-            bool failed;
-        } m_homing;
+            HomingStateTuple m_homers;
+            AxisCountType m_homing_rem_axes;
+            bool m_homing_failed;
+        };
         struct {
-            bool req_pending;
-            bool pull_pending;
-            double distance;
-        } m_planning;
+            ThePlanner m_planner;
+            bool m_planning_req_pending;
+            bool m_planning_pull_pending;
+            double m_planning_distance;
+        };
     };
+    
+    template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &PrinterMain::m_axes, AxisIndex> {};
+    template <int AxisIndex> struct HomingFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, typename Axis<AxisIndex>::HomingFeature, &Axis<AxisIndex>::m_homing_feature> {};
+    template <int AxisIndex> struct HomingStatePosition : public TuplePosition<Position, HomingStateTuple, &PrinterMain::m_homers, AxisIndex> {};
+    struct PlannerPosition : public MemberPosition<Position, ThePlanner, &PrinterMain::m_planner> {};
+    template <int HeaterIndex> struct HeaterPosition : public TuplePosition<Position, HeatersTuple, &PrinterMain::m_heaters, HeaterIndex> {};
     
     struct SerialRecvHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::serial_recv_handler, &PrinterMain::m_serial) {};
     struct SerialSendHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::serial_send_handler, &PrinterMain::m_serial) {};
-    struct PlannerPullCmdHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_pull_cmd_handler, &PrinterMain::m_planner) {};
-    struct PlannerBufferFullHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_buffer_full_handler, &PrinterMain::m_planner) {};
-    struct PlannerBufferEmptyHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_buffer_empty_handler, &PrinterMain::m_planner) {};
+    template <int AxisIndex> struct PlannerGetAxisStepper : public AMBRO_WCALLBACK_TD(&PrinterMain::template getAxisStepper<AxisIndex>, &PrinterMain::m_planner) {};
+    struct PlannerPullHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_pull_handler, &PrinterMain::m_planner) {};
+    struct PlannerFinishedHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_finished_handler, &PrinterMain::m_planner) {};
+    template <int AxisIndex> struct AxisStepperConsumersList {
+        using List = JoinTypeLists<
+            MakeTypeList<typename ThePlanner::template TheAxisStepperConsumer<AxisIndex>>,
+            typename Axis<AxisIndex>::HomingFeature::template MakeAxisStepperConsumersList<typename Axis<AxisIndex>::HomingFeature>
+        >;
+    };
 };
 
 #include <aprinter/EndNamespace.h>
 
 #endif
-
