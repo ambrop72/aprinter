@@ -33,7 +33,7 @@ struct A {
     void callAB ()
     {
         // I can call AB from here!
-        auto *ab = PositionTraverse<Position, ABPosition>::call(this);
+        auto *ab = PositionTraverse<Position, ABPosition>(this);
         ab->speak();
     }
     
@@ -48,7 +48,7 @@ struct B {
     void callA ()
     {
         // I can call A from here!
-        auto *a = PositionTraverse<Position, APosition>::call(this);
+        auto *a = PositionTraverse<Position, APosition>(this);
         a->speak();
     }
     

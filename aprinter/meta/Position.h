@@ -140,19 +140,14 @@ struct MemberPosition {
 };
 
 template <typename Position1, typename Position2>
-struct PositionTraverse {
+typename Position2::ObjectType * PositionTraverse (typename Position1::ObjectType *x)
+{
     using Path1 = PositionPrivate::BuildPath<Position1>;
     using Path2 = PositionPrivate::BuildPath<Position2>;
     using RootPosition = typename PositionPrivate::GetCommonHead<Path1, Path2>::Type;
     
-    using ObjectType1 = typename Position1::ObjectType;
-    using ObjectType2 = typename Position2::ObjectType;
-    
-    static ObjectType2 * call (ObjectType1 *x)
-    {
-        return PositionPrivate::GoDownHelper<Path2>::call(PositionPrivate::GoUpHelper<TypeListReverse<Path1>>::call(x));
-    }
-};
+    return PositionPrivate::GoDownHelper<Path2>::call(PositionPrivate::GoUpHelper<TypeListReverse<Path1>>::call(x));
+}
 
 #include <aprinter/EndNamespace.h>
 
