@@ -255,7 +255,7 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
             m_stepping = true;
 #endif
-            stepper()->template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time);
+            stepper()->template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, &m_sbuf[m_sbuf_start.value()]);
         }
         
         void stepper_event_handler (Context c)
@@ -282,29 +282,33 @@ public:
             }
         }
         
-        bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand *out)
+        StepperCommand * stepper_command_callback (StepperCommandCallbackContext c)
         {
             MotionPlanner *o = parent();
             AMBRO_ASSERT(m_stepping)
             
-            bool ran_out;
+            StepperCommand *result;
+            
             AMBRO_LOCK_T(o->m_lock, c, lock_c, {
-                ran_out = (m_sbuf_start == m_sbuf_stepper_ready_end);
-                if (ran_out) {
+                AMBRO_ASSERT(m_sbuf_start != m_sbuf_stepper_ready_end)
+                
+                m_sbuf_start = BoundedModuloInc(m_sbuf_start);
+                if (m_sbuf_start == m_sbuf_stepper_ready_end) {
+                    result = NULL;
 #ifdef AMBROLIB_ASSERTIONS
                     m_stepping = false;
 #endif
                     o->m_num_stepping--;
                 } else {
-                    CopyUnrolled<sizeof(StepperCommand)>(out, &m_sbuf[m_sbuf_start.value()]);
-                    m_sbuf_start = BoundedModuloInc(m_sbuf_start);
+                    result = &m_sbuf[m_sbuf_start.value()];
                 }
+                
                 if (!m_stepper_event.isSet(lock_c)) {
                     m_stepper_event.appendNow(lock_c);
                 }
             });
             
-            return !ran_out;
+            return result;
         }
         
         typename Loop::QueuedEvent m_stepper_event;

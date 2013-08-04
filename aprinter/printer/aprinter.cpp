@@ -116,7 +116,7 @@ using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
 
 using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
-        UINT32_C(57600), // baud rate
+        UINT32_C(115200), // baud rate
         GcodeParserParams<8> // receive buffer size exponent
     >,
     AvrPin<AvrPortA, 4>, // LED pin

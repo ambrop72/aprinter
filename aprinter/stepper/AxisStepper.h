@@ -138,18 +138,21 @@ public:
     }
     
     template <typename TheConsumer>
-    void start (Context c, TimeType start_time)
+    void start (Context c, TimeType start_time, Command *first_command)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
+        AMBRO_ASSERT(first_command)
         
 #ifdef AMBROLIB_ASSERTIONS
         m_running = true;
 #endif
         m_consumer_id = TypeListIndex<typename ConsumersList::List, IsEqualFunc<TheConsumer>>::value;
-        m_current_command.x = StepFixedType::importBits(0);
-        m_current_command.clock_offset = start_time;
-        m_timer.set(c, start_time);
+        m_current_command = first_command;
+        m_current_command->clock_offset += start_time;
+        stepper(this)->setDir(c, m_current_command->dir);
+        TimeType timer_t = (m_current_command->x.bitsValue() == 0) ? m_current_command->clock_offset : start_time;
+        m_timer.set(c, timer_t);
     }
     
     void stop (Context c)
@@ -200,23 +203,22 @@ private:
     {
         AMBRO_ASSERT(m_running)
         
-        if (m_current_command.x.bitsValue() == 0) {
-            TimeType time = m_current_command.clock_offset;
-            bool ret;
+        if (m_current_command->x.bitsValue() == 0) {
+            TimeType time = m_current_command->clock_offset;
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
-            TupleForEachForward(&dummy, Foreach_maybe_call_handler(), this, m_consumer_id, &ret, c, &m_current_command);
-            if (!ret) {
+            TupleForEachForward(&dummy, Foreach_maybe_call_handler(), this, m_consumer_id, &m_current_command, c);
+            if (!m_current_command) {
 #ifdef AMBROLIB_ASSERTIONS
                 m_running = false;
 #endif
                 return false;
             }
             
-            m_current_command.clock_offset += time;
-            stepper(this)->setDir(c, m_current_command.dir);
+            m_current_command->clock_offset += time;
+            stepper(this)->setDir(c, m_current_command->dir);
             
-            if (m_current_command.x.bitsValue() == 0) {
-                TimeType timer_t = m_current_command.clock_offset;
+            if (m_current_command->x.bitsValue() == 0) {
+                TimeType timer_t = m_current_command->clock_offset;
                 m_timer.set(c, timer_t);
                 return true;
             }
@@ -224,18 +226,18 @@ private:
         
         stepper(this)->step(c);
         
-        m_current_command.x.m_bits.m_int--;
+        m_current_command->x.m_bits.m_int--;
         
-        m_current_command.discriminant.m_bits.m_int -= m_current_command.a_mul.m_bits.m_int;
-        AMBRO_ASSERT(m_current_command.discriminant.bitsValue() >= 0)
+        m_current_command->discriminant.m_bits.m_int -= m_current_command->a_mul.m_bits.m_int;
+        AMBRO_ASSERT(m_current_command->discriminant.bitsValue() >= 0)
         
-        auto q = (m_current_command.v0 + FixedSquareRoot(m_current_command.discriminant, OptionForceInline())).template shift<-1>();
+        auto q = (m_current_command->v0 + FixedSquareRoot(m_current_command->discriminant, OptionForceInline())).template shift<-1>();
         
-        auto t_frac = FixedFracDivide(m_current_command.x, q, OptionForceInline());
+        auto t_frac = FixedFracDivide(m_current_command->x, q, OptionForceInline());
         
-        TimeFixedType t = FixedResMultiply(m_current_command.t_mul, t_frac);
+        TimeFixedType t = FixedResMultiply(m_current_command->t_mul, t_frac);
         
-        TimeType timer_t = m_current_command.clock_offset - t.bitsValue();
+        TimeType timer_t = m_current_command->clock_offset - t.bitsValue();
         m_timer.set(c, timer_t);
         return true;
     }
@@ -245,7 +247,7 @@ private:
     bool m_running;
 #endif
     uint8_t m_consumer_id;
-    Command m_current_command;
+    Command *m_current_command;
     
     struct TimerHandler : public AMBRO_WCALLBACK_TD(&AxisStepper::timer_handler, &AxisStepper::m_timer) {};
 };
