@@ -138,7 +138,7 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortD, 7>, // step pin
             AvrPin<AvrPortD, 6>, // enable pin
             true, // invert dir
-            3, // buffer size exponent
+            6, // buffer size exponent
             AxisStepperParams<
                 AvrClockInterruptTimer_TC1_OCA // stepper timer
             >,
@@ -166,7 +166,7 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortC, 6>, // step pin
             AvrPin<AvrPortD, 6>, // enable pin
             true, // invert dir
-            3, // buffer size exponent
+            6, // buffer size exponent
             AxisStepperParams<
                 AvrClockInterruptTimer_TC1_OCB // stepper timer
             >,
