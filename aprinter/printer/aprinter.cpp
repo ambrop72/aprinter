@@ -111,8 +111,14 @@ using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.1);
 using ExtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
 using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.12);
 using ExtruderHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.7);
+using ExtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
+using ExtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
+using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
+using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
+using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
+using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
 using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
@@ -231,6 +237,7 @@ using PrinterParams = PrinterMainParams<
         PrinterMainHeaterParams<
             'T', // controlee name
             104, // set M command
+            109, // wait M command
             AvrPin<AvrPortA, 7>, // analog sensor pin
             AvrThermistorTable_Extruder, // sensor interpretation formula
             AvrPin<AvrPortD, 5>, // output pin
@@ -244,18 +251,29 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterPidIStateMax,
                 ExtruderHeaterPidDHistory
             >,
-            AvrClockInterruptTimer_TC0_OCA
+            AvrClockInterruptTimer_TC0_OCA,
+            TemperatureObserverParams<
+                ExtruderHeaterObserverInterval,
+                ExtruderHeaterObserverTolerance,
+                ExtruderHeaterObserverMinTime
+            >
         >,
         PrinterMainHeaterParams<
             'B', // controlee name
             140, // set M command
+            190, // wait M command
             AvrPin<AvrPortA, 6>, // analog sensor pin
             AvrThermistorTable_Bed, // sensor interpretation formula
             AvrPin<AvrPortD, 4>, // output pin
             BedHeaterPulseInterval,
             BinaryControl,
             BinaryControlParams,
-            AvrClockInterruptTimer_TC0_OCB
+            AvrClockInterruptTimer_TC0_OCB,
+            TemperatureObserverParams<
+                BedHeaterObserverInterval,
+                BedHeaterObserverTolerance,
+                BedHeaterObserverMinTime
+            >
         >
     >
 >;

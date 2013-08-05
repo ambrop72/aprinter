@@ -63,6 +63,7 @@
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/MotionPlanner.h>
+#include <aprinter/printer/TemperatureObserver.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -134,16 +135,18 @@ struct PrinterMainHomingParams {
 };
 
 template <
-    char TName, int TSetMCommand,
+    char TName, int TSetMCommand, int TWaitMCommand,
     typename TAdcPin, typename TFormula,
     typename TOutputPin, typename TPulseInterval,
     template<typename, typename> class TControl,
     typename TControlParams,
-    template<typename, typename> class TTimerTemplate
+    template<typename, typename> class TTimerTemplate,
+    typename TTheTemperatureObserverParams
 >
 struct PrinterMainHeaterParams {
     static const char Name = TName;
     static const int SetMCommand = TSetMCommand;
+    static const int WaitMCommand = TWaitMCommand;
     using AdcPin = TAdcPin;
     using Formula = TFormula;
     using OutputPin = TOutputPin;
@@ -151,6 +154,7 @@ struct PrinterMainHeaterParams {
     template <typename X, typename Y> using Control = TControl<X, Y>;
     using ControlParams = TControlParams;
     template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
+    using TheTemperatureObserverParams = TTheTemperatureObserverParams;
 };
 
 template <typename Position, typename Context, typename Params>
@@ -541,10 +545,14 @@ private:
     
     template <int HeaterIndex>
     struct Heater {
+        struct SoftPwmTimerHandler;
+        struct ObserverGetValueCallback;
+        struct ObserverHandler;
+        
         using HeaterSpec = TypeListGet<HeatersList, HeaterIndex>;
         using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, typename HeaterSpec::PulseInterval>;
-        struct SoftPwmTimerHandler;
         using TheSoftPwm = SoftPwm<Context, typename HeaterSpec::OutputPin, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
+        using TheObserver = TemperatureObserver<Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         
         PrinterMain * parent ()
         {
@@ -556,10 +564,14 @@ private:
             m_lock.init(c);
             m_enabled = false;
             m_softpwm.init(c, c.clock()->getTime(c));
+            m_observing = false;
         }
         
         void deinit (Context c)
         {
+            if (m_observing) {
+                m_observer.deinit(c);
+            }
             m_softpwm.deinit(c);
             m_lock.deinit(c);
         }
@@ -580,7 +592,7 @@ private:
         {
             PrinterMain *o = parent();
             
-            if (cmd_num != HeaterSpec::SetMCommand) {
+            if (cmd_num != HeaterSpec::SetMCommand && cmd_num != HeaterSpec::WaitMCommand) {
                 return true;
             }
             if (o->m_state == STATE_PLANNING) {
@@ -606,7 +618,16 @@ private:
                     });
                 }
             }
-            *out_result = CMD_REPLY;
+            if (cmd_num == HeaterSpec::WaitMCommand) {
+                AMBRO_ASSERT(!m_observing)
+                m_observer.init(c, target);
+                m_observing = true;
+                o->m_state = STATE_WAITING_TEMP;
+                o->now_active(c);
+                *out_result = CMD_DELAY;
+            } else {
+                *out_result = CMD_REPLY;
+            }
             return false;
         }
         
@@ -620,12 +641,37 @@ private:
             return control_value;
         }
         
+        double observer_get_value_callback (Context c)
+        {
+            return get_value(c);
+        }
+        
+        void observer_handler (Context c, bool state)
+        {
+            PrinterMain *o = parent();
+            AMBRO_ASSERT(m_observing)
+            AMBRO_ASSERT(o->m_state == STATE_WAITING_TEMP)
+            
+            if (!state) {
+                return;
+            }
+            m_observer.deinit(c);
+            m_observing = false;
+            o->m_state = STATE_IDLE;
+            o->finish_command(c, false);
+            o->now_inactive(c);
+        }
+        
         typename Context::Lock m_lock;
         bool m_enabled;
         TheControl m_control;
         TheSoftPwm m_softpwm;
+        TheObserver m_observer;
+        bool m_observing;
         
         struct SoftPwmTimerHandler : public AMBRO_WCALLBACK_TD(&Heater::softpwm_timer_handler, &Heater::m_softpwm) {};
+        struct ObserverGetValueCallback : public AMBRO_WCALLBACK_TD(&Heater::observer_get_value_callback, &Heater::m_observer) {};
+        struct ObserverHandler : public AMBRO_WCALLBACK_TD(&Heater::observer_handler, &Heater::m_observer) {};
     };
     
     using HeatersTuple = IndexElemTuple<HeatersList, Heater>;
@@ -688,8 +734,8 @@ public:
     }
     
 private:
-    enum {STATE_IDLE, STATE_HOMING, STATE_PLANNING};
-    enum {CMD_REPLY, CMD_WAIT_PLANNER};
+    enum {STATE_IDLE, STATE_HOMING, STATE_PLANNING, STATE_WAITING_TEMP};
+    enum {CMD_REPLY, CMD_WAIT_PLANNER, CMD_DELAY};
     
     static TimeType time_from_real (double t)
     {
@@ -772,6 +818,8 @@ private:
                             goto reply;
                         } else if (result == CMD_WAIT_PLANNER) {
                             goto wait_planner;
+                        } else if (result == CMD_DELAY) {
+                            return;
                         }
                         AMBRO_ASSERT(0);
                     }
