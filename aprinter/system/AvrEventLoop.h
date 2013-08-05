@@ -201,12 +201,14 @@ public:
         Loop *l = c.eventLoop();
         
         AMBRO_LOCK_T(l->m_lock, c, lock_c, {
-            if (AMBRO_LIKELY(Loop::QueuedEventList::isRemoved(this))) {
+            if (Loop::QueuedEventList::isRemoved(this)) {
                 l->m_queued_event_list.append(this);
                 m_time = l->m_now;
             }
         });
     }
+    
+    inline void appendNowIfNotAlready (AvrInterruptContext<Context> c) __attribute__((always_inline));
     
     template <typename ThisContext>
     void prependAt (ThisContext c, TimeType time)
@@ -286,6 +288,18 @@ private:
     TimeType m_time;
     DoubleEndedListNode<AvrEventLoopQueuedEvent> m_list_node;
 };
+
+template <typename Loop>
+inline void AvrEventLoopQueuedEvent<Loop>::appendNowIfNotAlready (AvrInterruptContext<Context> c)
+{
+    this->debugAccess(c);
+    Loop *l = c.eventLoop();
+    
+    if (AMBRO_LIKELY(Loop::QueuedEventList::isRemoved(this))) {
+        l->m_queued_event_list.appendInline(this);
+        m_time = l->m_now;
+    }
+}
 
 template <typename Context, typename Handler>
 class AvrEventLoopTimer {

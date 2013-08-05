@@ -149,9 +149,9 @@ public:
 #endif
         m_consumer_id = TypeListIndex<typename ConsumersList::List, IsEqualFunc<TheConsumer>>::value;
         m_current_command = first_command;
-        m_current_command->clock_offset += start_time;
+        m_time = m_current_command->clock_offset + start_time;
         stepper(this)->setDir(c, m_current_command->dir);
-        TimeType timer_t = (m_current_command->x.bitsValue() == 0) ? m_current_command->clock_offset : start_time;
+        TimeType timer_t = (m_current_command->x.bitsValue() == 0) ? m_time : start_time;
         m_timer.set(c, timer_t);
     }
     
@@ -203,22 +203,21 @@ private:
     {
         AMBRO_ASSERT(m_running)
         
-        if (m_current_command->x.bitsValue() == 0) {
-            TimeType time = m_current_command->clock_offset;
+        if (AMBRO_LIKELY(m_current_command->x.bitsValue() == 0)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
             TupleForEachForward(&dummy, Foreach_maybe_call_handler(), this, m_consumer_id, &m_current_command, c);
-            if (!m_current_command) {
+            if (AMBRO_UNLIKELY(!m_current_command)) {
 #ifdef AMBROLIB_ASSERTIONS
                 m_running = false;
 #endif
                 return false;
             }
             
-            m_current_command->clock_offset += time;
+            m_time += m_current_command->clock_offset;
             stepper(this)->setDir(c, m_current_command->dir);
             
-            if (m_current_command->x.bitsValue() == 0) {
-                TimeType timer_t = m_current_command->clock_offset;
+            if (AMBRO_UNLIKELY(m_current_command->x.bitsValue() == 0)) {
+                TimeType timer_t = m_time;
                 m_timer.set(c, timer_t);
                 return true;
             }
@@ -237,7 +236,7 @@ private:
         
         TimeFixedType t = FixedResMultiply(m_current_command->t_mul, t_frac);
         
-        TimeType timer_t = m_current_command->clock_offset - t.bitsValue();
+        TimeType timer_t = m_time - t.bitsValue();
         m_timer.set(c, timer_t);
         return true;
     }
@@ -248,6 +247,7 @@ private:
 #endif
     uint8_t m_consumer_id;
     Command *m_current_command;
+    TimeType m_time;
     
     struct TimerHandler : public AMBRO_WCALLBACK_TD(&AxisStepper::timer_handler, &AxisStepper::m_timer) {};
 };

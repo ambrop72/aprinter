@@ -51,6 +51,7 @@ public:
     Entry * next (Entry *e) const;
     void prepend (Entry *e);
     void append (Entry *e);
+    inline void appendInline (Entry *e) __attribute__((always_inline));
     void remove (Entry *e);
     void removeFirst ();
     static void markRemoved (Entry *e);
@@ -119,6 +120,19 @@ void DoubleEndedListWithAccessor<Entry, Accessor>::prepend (Entry *e)
 
 template <class Entry, class Accessor>
 void DoubleEndedListWithAccessor<Entry, Accessor>::append (Entry *e)
+{
+    ac(e)->next = NULL;
+    if (m_first) {
+        ac(e)->prev = m_last;
+        ac(m_last)->next = e;
+    } else {
+        m_first = e;
+    }
+    m_last = e;
+}
+
+template <class Entry, class Accessor>
+inline void DoubleEndedListWithAccessor<Entry, Accessor>::appendInline (Entry *e)
 {
     ac(e)->next = NULL;
     if (m_first) {
