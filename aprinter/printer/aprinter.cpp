@@ -55,11 +55,11 @@ static const int clock_timer_prescaler = 3;
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
-using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00128);
+using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00137);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
-using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(500.0);
+using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(800.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
 using XDefaultMax = AMBRO_WRAP_DOUBLE(210.0);
 using XDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(280.0);
@@ -71,7 +71,7 @@ using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
-using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(500.0);
+using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(600.0);
 using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using YDefaultMax = AMBRO_WRAP_DOUBLE(170.0);
 using YDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(200.0);
