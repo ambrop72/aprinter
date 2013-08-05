@@ -52,6 +52,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Lock.h>
+#include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/devices/Blinker.h>
@@ -611,7 +612,7 @@ private:
         
         double softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
         {
-            if (!m_enabled) {
+            if (AMBRO_UNLIKELY(!m_enabled)) {
                 return 0.0;
             }
             double sensor_value = get_value(c);
