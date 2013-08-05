@@ -29,6 +29,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
+#include <aprinter/base/Likely.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -77,23 +78,15 @@ private:
         this->debugAccess(c);
         
         TimeType next_time;
-        if (!m_state) {
+        if (AMBRO_LIKELY(!m_state)) {
             double frac = TimerCallback::call(this, c);
-            bool go_to_end = true;
-            if (frac > 0.0) {
-                c.pins()->template set<Pin>(c, true);
-                if (frac < 1.0) {
-                    go_to_end = false;
-                }
-            } else {
-                c.pins()->template set<Pin>(c, false);
-            }
-            if (go_to_end) {
-                m_start_time += (TimeType)(PulseInterval::value() / Clock::time_unit);
-                next_time = m_start_time;
-            } else {
+            c.pins()->template set<Pin>(c, (frac > 0.0));
+            if (frac > 0.0 && frac < 1.0) {
                 next_time = m_start_time + (TimeType)(frac * (PulseInterval::value() / Clock::time_unit));
                 m_state = true;
+            } else {
+                m_start_time += (TimeType)(PulseInterval::value() / Clock::time_unit);
+                next_time = m_start_time;
             }
         } else {
             c.pins()->template set<Pin>(c, false);
