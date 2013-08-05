@@ -340,12 +340,12 @@ AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
 AMBRO_AVR_ADC_ISRS(myadc, MyContext())
 AMBRO_AVR_SERIAL_ISRS(*myprinter.getSerial(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*myprinter.template getAxisStepper<0>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*myprinter.template getAxisStepper<1>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*myprinter.template getAxisStepper<2>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*myprinter.template getAxisStepper<3>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(*myprinter.template getHeaterTimer<0>(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(*myprinter.template getHeaterTimer<1>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*myprinter.getAxisStepper<0>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*myprinter.getAxisStepper<1>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*myprinter.getAxisStepper<2>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*myprinter.getAxisStepper<3>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(*myprinter.getHeaterTimer<0>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(*myprinter.getHeaterTimer<1>(), MyContext())
 
 FILE uart_output;
 
