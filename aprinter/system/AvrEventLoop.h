@@ -181,6 +181,16 @@ public:
         });
     }
     
+    void mainOnlyAppendAfterPrevious (Context c, TimeType after_time)
+    {
+        this->debugAccess(c);
+        Loop *l = c.eventLoop();
+        AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
+        
+        l->m_queued_event_list.append(this);
+        m_time += after_time;
+    }
+    
     template <typename ThisContext>
     void appendNowNotAlready (ThisContext c)
     {
