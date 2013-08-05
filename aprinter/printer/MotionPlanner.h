@@ -277,7 +277,7 @@ public:
                 if (o->m_continue) {
                     o->start_stepping(c);
                 } else if (o->m_waiting) {
-                    o->m_pull_finished_event.appendNow(c);
+                    o->m_pull_finished_event.appendNowIfNotAlready(c);
                 }
             }
         }
@@ -303,9 +303,7 @@ public:
                     result = &m_sbuf[m_sbuf_start.value()];
                 }
                 
-                if (!m_stepper_event.isSet(lock_c)) {
-                    m_stepper_event.appendNow(lock_c);
-                }
+                m_stepper_event.appendNowIfNotAlready(lock_c);
             });
             
             return result;

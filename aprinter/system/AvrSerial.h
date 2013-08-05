@@ -150,9 +150,7 @@ public:
         this->debugAccess(c);
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
-            if (!m_recv_queued_event.isSet(lock_c)) {
-                m_recv_queued_event.appendNow(lock_c);
-            }
+            m_recv_queued_event.appendNowIfNotAlready(lock_c);
         });
     }
     
@@ -206,7 +204,7 @@ public:
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             if (send_avail(m_send_start, m_send_end) >= min_amount) {
                 m_send_event = BoundedModuloInc(m_send_end);
-                m_send_queued_event.appendNow(lock_c);
+                m_send_queued_event.appendNowIfNotAlready(lock_c);
             } else {
                 m_send_event = BoundedModuloAdd(BoundedModuloInc(m_send_end), min_amount);;
                 m_send_queued_event.unset(lock_c);
@@ -252,7 +250,7 @@ public:
             UCSR0B &= ~(1 << RXCIE0);
         }
         
-        m_recv_queued_event.appendNow(c);
+        m_recv_queued_event.appendNowIfNotAlready(c);
     }
     
     void udre_isr (AvrInterruptContext<Context> c)
@@ -268,7 +266,7 @@ public:
         
         if (m_send_start == m_send_event) {
             m_send_event = BoundedModuloInc(m_send_end);
-            m_send_queued_event.appendNow(c);
+            m_send_queued_event.appendNowIfNotAlready(c);
         }
     }
     

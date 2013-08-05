@@ -77,7 +77,7 @@ public:
     void pcint_isr (AvrInterruptContext<Context> c)
     {
         PortState<Port> *ps = getPortState<Port>();
-        ps->queued_event.appendNow(c);
+        ps->queued_event.appendNowIfNotAlready(c);
     }
     
     template <typename Pin, typename Handler>

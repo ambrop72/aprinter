@@ -35,6 +35,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/OffsetCallback.h>
+#include <aprinter/base/Likely.h>
 #include <aprinter/system/AvrLock.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -190,6 +191,20 @@ public:
             AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
             l->m_queued_event_list.append(this);
             m_time = l->m_now;
+        });
+    }
+    
+    template <typename ThisContext>
+    void appendNowIfNotAlready (ThisContext c)
+    {
+        this->debugAccess(c);
+        Loop *l = c.eventLoop();
+        
+        AMBRO_LOCK_T(l->m_lock, c, lock_c, {
+            if (AMBRO_LIKELY(Loop::QueuedEventList::isRemoved(this))) {
+                l->m_queued_event_list.append(this);
+                m_time = l->m_now;
+            }
         });
     }
     
