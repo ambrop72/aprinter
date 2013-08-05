@@ -139,6 +139,11 @@ public:
         c.pins()->template set<StepPin>(c, false);
     }
     
+    static void emergency ()
+    {
+        Context::Pins::template emergencySet<EnablePin>(true);
+    }
+    
 private:
     template <typename, typename>
     friend class Steppers;

@@ -40,6 +40,7 @@
 #define AMBRO_ASSERT_FORCE(e) \
     { \
         if (!(e)) { \
+            AMBROLIB_EMERGENCY_ACTION \
             AMBRO_ASSERT_ABORT_ACTION \
         } \
     }
@@ -47,6 +48,7 @@
 #define AMBRO_ASSERT_FORCE(e) \
     { \
         if (!(e)) { \
+            AMBROLIB_EMERGENCY_ACTION \
             puts("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__) "\n"); \
             AMBRO_ASSERT_ABORT_ACTION \
         } \

@@ -29,7 +29,10 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#define AMBROLIB_ABORT_ACTION { cli(); while (1); }
+static void emergency (void);
+
+#define AMBROLIB_EMERGENCY_ACTION { cli(); emergency(); }
+#define AMBROLIB_ABORT_ACTION { while (1); }
 
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Position.h>
@@ -362,6 +365,11 @@ static void setup_uart_stdio ()
     uart_output.flags = _FDEV_SETUP_WRITE;
     stdout = &uart_output;
     stderr = &uart_output;
+}
+
+static void emergency (void)
+{
+    MyPrinter::emergency();
 }
 
 int main ()

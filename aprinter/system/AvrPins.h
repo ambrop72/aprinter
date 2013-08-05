@@ -177,6 +177,16 @@ public:
             asm("cbi %0,%1" :: "i" (Pin::Port::port_io_addr), "i" (Pin::port_pin));
         }
     }
+    
+    template <typename Pin>
+    static void emergencySet (bool x)
+    {
+        if (x) {
+            asm("sbi %0,%1" :: "i" (Pin::Port::port_io_addr), "i" (Pin::port_pin));
+        } else {
+            asm("cbi %0,%1" :: "i" (Pin::Port::port_io_addr), "i" (Pin::port_pin));
+        }
+    }
 };
 
 #include <aprinter/EndNamespace.h>

@@ -175,6 +175,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_value, append_value)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_command, check_command)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_emergency, emergency)
     
     template <int AxisIndex> struct AxisPosition;
     template <int AxisIndex> struct HomingFeaturePosition;
@@ -512,6 +513,11 @@ private:
             }
         }
         
+        static void emergency ()
+        {
+            Stepper::emergency();
+        }
+        
         TheAxisStepper m_axis_stepper;
         uint8_t m_state;
         double m_steps_per_unit;
@@ -665,6 +671,11 @@ private:
             o->now_inactive(c);
         }
         
+        static void emergency ()
+        {
+            Context::Pins::template emergencySet<typename HeaterSpec::OutputPin>(false);
+        }
+        
         typename Context::Lock m_lock;
         bool m_enabled;
         TheControl m_control;
@@ -734,6 +745,14 @@ public:
     typename Heater<HeaterIndex>::TheSoftPwm::TimerInstance * getHeaterTimer ()
     {
         return PositionTraverse<Position, HeaterPosition<HeaterIndex>>(this)->m_softpwm.getTimer();
+    }
+    
+    static void emergency ()
+    {
+        AxesTuple dummy_axes;
+        TupleForEachForward(&dummy_axes, Foreach_emergency());
+        HeatersTuple dummy_heaters;
+        TupleForEachForward(&dummy_heaters, Foreach_emergency());
     }
     
 private:
