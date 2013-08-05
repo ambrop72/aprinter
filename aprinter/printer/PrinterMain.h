@@ -69,7 +69,7 @@
 
 template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
-    typename TSpeedLimitMultiply, typename TAxesList, typename THeatersList
+    typename TSpeedLimitMultiply, typename TMaxStepsPerCycle, typename TAxesList, typename THeatersList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
@@ -77,6 +77,7 @@ struct PrinterMainParams {
     using LedBlinkInterval = TLedBlinkInterval;
     using DefaultInactiveTime = TDefaultInactiveTime;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
+    using MaxStepsPerCycle = TMaxStepsPerCycle;
     using AxesList = TAxesList;
     using HeatersList = THeatersList;
 };
@@ -465,15 +466,17 @@ private:
         }
         
         template <typename PlannerCmd>
-        void write_planner_command (PlannerCmd *cmd)
+        void write_planner_command (PlannerCmd *cmd, double *total_steps)
         {
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
             if (m_move >= 0.0) {
                 mycmd->dir = true;
                 mycmd->x = StepFixedType::importBits(m_move);
+                *total_steps += m_move;
             } else {
                 mycmd->dir = false;
                 mycmd->x = StepFixedType::importBits(-m_move);
+                *total_steps -= m_move;
             }
             mycmd->max_v = m_max_speed;
             mycmd->max_a = m_max_accel;
@@ -1087,7 +1090,9 @@ private:
         
         PlannerInputCommand cmd;
         cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / m_planning_distance) / Clock::time_freq);
-        TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd);
+        double total_steps = 0.0;
+        TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd, &total_steps);
+        cmd.rel_max_v = fmin(cmd.rel_max_v, (Params::MaxStepsPerCycle::value() * (F_CPU / Clock::time_freq)) / total_steps);
         m_planner.commandDone(c, cmd);
         m_planning_req_pending = false;
         m_planning_pull_pending = false;

@@ -55,9 +55,10 @@ static const int clock_timer_prescaler = 3;
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
+using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00128);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
-using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(80.0);
+using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
 using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(500.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
 using XDefaultMax = AMBRO_WRAP_DOUBLE(210.0);
@@ -69,7 +70,7 @@ using XDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
-using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(80.0);
+using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
 using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(500.0);
 using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using YDefaultMax = AMBRO_WRAP_DOUBLE(170.0);
@@ -81,7 +82,7 @@ using YDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using YDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(4000.0);
-using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(2.0);
+using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
 using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
 using ZDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using ZDefaultMax = AMBRO_WRAP_DOUBLE(100.0);
@@ -93,7 +94,7 @@ using ZDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
 
 using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);
-using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(10.0);
+using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultMin = AMBRO_WRAP_DOUBLE(-10000.0);
 using EDefaultMax = AMBRO_WRAP_DOUBLE(10000.0);
@@ -129,6 +130,7 @@ using PrinterParams = PrinterMainParams<
     LedBlinkInterval,
     DefaultInactiveTime,
     SpeedLimitMultiply,
+    MaxStepsPerCycle,
     MakeTypeList<
         PrinterMainAxisParams<
             'X', // axis name
