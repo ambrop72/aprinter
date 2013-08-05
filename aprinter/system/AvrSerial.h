@@ -64,7 +64,7 @@ public:
         m_send_queued_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AvrSerial::m_send_queued_event, &AvrSerial::send_queued_event_handler));
         m_send_start = SendSizeType::import(0);
         m_send_end = SendSizeType::import(0);;
-        m_send_event = SendSizeType::maxValue();
+        m_send_event = BoundedModuloInc(m_send_end);
         
         uint16_t ubrr = (((2 * (uint32_t)F_CPU) + (16 * baud)) / (2 * 16 * baud)) - 1;
         
@@ -193,6 +193,7 @@ public:
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             AMBRO_ASSERT(amount <= send_avail(m_send_start, m_send_end))
             m_send_end = BoundedModuloAdd(m_send_end, amount);
+            m_send_event = BoundedModuloAdd(m_send_event, amount);
             UCSR0B |= (1 << UDRIE0);
         });
     }
@@ -204,10 +205,10 @@ public:
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             if (send_avail(m_send_start, m_send_end) >= min_amount) {
-                m_send_event = SendSizeType::maxValue();
+                m_send_event = BoundedModuloInc(m_send_end);
                 m_send_queued_event.appendNow(lock_c);
             } else {
-                m_send_event = BoundedModuloDec(min_amount);
+                m_send_event = BoundedModuloAdd(BoundedModuloInc(m_send_end), min_amount);;
                 m_send_queued_event.unset(lock_c);
             }
         });
@@ -218,7 +219,7 @@ public:
         this->debugAccess(c);
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
-            m_send_event = SendSizeType::maxValue();
+            m_send_event = BoundedModuloInc(m_send_end);
             m_send_queued_event.unset(lock_c, true);
         });
     }
@@ -265,8 +266,8 @@ public:
             UCSR0B &= ~(1 << UDRIE0);
         }
         
-        if (send_avail(m_send_start, m_send_end) > m_send_event) {
-            m_send_event = SendSizeType::maxValue();
+        if (m_send_start == m_send_event) {
+            m_send_event = BoundedModuloInc(m_send_end);
             m_send_queued_event.appendNow(c);
         }
     }
