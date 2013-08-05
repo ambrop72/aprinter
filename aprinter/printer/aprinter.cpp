@@ -126,7 +126,7 @@ using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
 using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
-        UINT32_C(115200), // baud rate
+        UINT32_C(57600), // baud rate. Don't increase, or serial will fail randomly.
         GcodeParserParams<8> // receive buffer size exponent
     >,
     AvrPin<AvrPortA, 4>, // LED pin
