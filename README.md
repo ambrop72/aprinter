@@ -74,6 +74,6 @@ Anything earlier will be even more useless, including the ancient compilers that
   * Connect to the printer with Pronterface, and make sure you use baud rate 57600.
   * Try homing and some basic motion.
   * Check the current temperatures (M105).
-    Don't try turning on the heaters until you've verified that they are reported currectly.
+  * Only try turning on the heaters once you've verified that the temperatures are being reported currectly.
     Be aware that if you entered the wrong beta value, the room teperature would be reported correctly,
-    out other ones will be incorrect (possibly lower, and you risk burning the heaters in that case).
+    out other ones will be incorrect (possibly lower, and you risk burning the heater in that case).
