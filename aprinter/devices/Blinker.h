@@ -33,7 +33,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename Pin>
+template <typename Context, typename Pin, typename Handler>
 class Blinker
 : private DebugObject<Context, void>
 {
@@ -79,6 +79,8 @@ private:
         c.pins()->template set<Pin>(c, m_state);
         m_next_time += m_interval;
         m_timer.appendAt(c, m_next_time);
+        
+        return Handler::call(this, c);
     }
     
     TimeType m_interval;

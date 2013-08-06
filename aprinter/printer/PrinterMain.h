@@ -69,7 +69,9 @@
 
 template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
-    typename TSpeedLimitMultiply, typename TMaxStepsPerCycle, typename TAxesList, typename THeatersList
+    typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
+    template <typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
+    typename TAxesList, typename THeatersList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
@@ -78,6 +80,8 @@ struct PrinterMainParams {
     using DefaultInactiveTime = TDefaultInactiveTime;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using MaxStepsPerCycle = TMaxStepsPerCycle;
+    template <typename X, typename Y> using WatchdogTemplate = TWatchdogTemplate<X, Y>;
+    using WatchdogParams = TWatchdogParams;
     using AxesList = TAxesList;
     using HeatersList = THeatersList;
 };
@@ -183,6 +187,7 @@ private:
     struct PlannerPosition;
     template <int HeaterIndex> struct HeaterPosition;
     
+    struct BlinkerHandler;
     struct SerialRecvHandler;
     struct SerialSendHandler;
     template <int AxisIndex> struct PlannerGetAxisStepper;
@@ -212,7 +217,8 @@ private:
         TheAxis::InvertDir
     >;
     
-    using TheBlinker = Blinker<Context, typename Params::LedPin>;
+    using TheWatchdog = typename Params::template WatchdogTemplate<Context, typename Params::WatchdogParams>;
+    using TheBlinker = Blinker<Context, typename Params::LedPin, BlinkerHandler>;
     using StepperDefsList = MapTypeList<AxesList, TemplateFunc<MakeStepperDef>>;
     using TheSteppers = Steppers<Context, StepperDefsList>;
     using TheSerial = AvrSerial<Context, serial_recv_buffer_bits, serial_send_buffer_bits, SerialRecvHandler, SerialSendHandler>;
@@ -222,6 +228,8 @@ private:
     using GcodeParserCommand = typename TheGcodeParser::Command;
     using GcodeParserCommandPart = typename TheGcodeParser::CommandPart;
     using GcodePartsSizeType = typename TheGcodeParser::PartsSizeType;
+    
+    static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
     template <int TAxisIndex>
     struct Axis {
@@ -693,6 +701,7 @@ private:
 public:
     void init (Context c)
     {
+        m_watchdog.init(c);
         m_blinker.init(c, Params::LedBlinkInterval::value() * Clock::time_freq);
         m_steppers.init(c);
         TupleForEachForward(&m_axes, Foreach_init(), c);
@@ -728,6 +737,7 @@ public:
         TupleForEachReverse(&m_axes, Foreach_deinit(), c);
         m_steppers.deinit(c);
         m_blinker.deinit(c);
+        m_watchdog.deinit(c);
     }
     
     TheSerial * getSerial ()
@@ -762,6 +772,13 @@ private:
     static TimeType time_from_real (double t)
     {
         return (FixedPoint<30, false, 0>::importDoubleSaturated(t * Clock::time_freq)).bitsValue();
+    }
+    
+    void blinker_handler (Context c)
+    {
+        this->debugAccess(c);
+        
+        m_watchdog.reset(c);
     }
     
     void serial_recv_handler (Context c)
@@ -1162,6 +1179,7 @@ private:
         }
     }
     
+    TheWatchdog m_watchdog;
     TheBlinker m_blinker;
     TheSteppers m_steppers;
     AxesTuple m_axes;
@@ -1198,6 +1216,7 @@ private:
     struct PlannerPosition : public MemberPosition<Position, ThePlanner, &PrinterMain::m_planner> {};
     template <int HeaterIndex> struct HeaterPosition : public TuplePosition<Position, HeatersTuple, &PrinterMain::m_heaters, HeaterIndex> {};
     
+    struct BlinkerHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::blinker_handler, &PrinterMain::m_blinker) {};
     struct SerialRecvHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::serial_recv_handler, &PrinterMain::m_serial) {};
     struct SerialSendHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::serial_send_handler, &PrinterMain::m_serial) {};
     template <int AxisIndex> struct PlannerGetAxisStepper : public AMBRO_WCALLBACK_TD(&PrinterMain::template getAxisStepper<AxisIndex>, &PrinterMain::m_planner) {};

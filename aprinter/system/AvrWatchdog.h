@@ -22,48 +22,62 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_POWER_OF_TWO_H
-#define AMBROLIB_POWER_OF_TWO_H
+#ifndef AMBROLIB_AVR_WATCHDOG_H
+#define AMBROLIB_AVR_WATCHDOG_H
+
+#include <avr/io.h>
+#include <avr/wdt.h>
+
+#include <aprinter/meta/PowerOfTwo.h>
+#include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename T, int E>
-struct PowerOfTwo {
-    static const T value = 2 * PowerOfTwo<T, E - 1>::value;
+template <int TWatchdogPrescaler>
+struct AvrWatchdogParams {
+    static const int WatchdogPrescaler = TWatchdogPrescaler;
 };
 
-template <typename T>
-struct PowerOfTwo<T, 0> {
-    static const T value = 1;
-};
-
-template <typename T, int E>
-struct PowerOfTwoMinusOne {
-    static const T value = 2 * PowerOfTwoMinusOne<T, E - 1>::value + 1;
-};
-
-template <typename T>
-struct PowerOfTwoMinusOne<T, 0> {
-    static const T value = 0;
-};
-
-template <typename T, int E>
-struct MinusPowerOfTwo {
-    static const T value = 2 * MinusPowerOfTwo<T, E - 1>::value;
-};
-
-template <typename T>
-struct MinusPowerOfTwo<T, 0> {
-    static const T value = -1;
-};
-
-template <typename T>
-constexpr T PowerOfTwoFunc (int e)
+template <typename Context, typename Params>
+class AvrWatchdog : private DebugObject<Context, void>
 {
-    return (e == 0) ? 1 : 2 * PowerOfTwoFunc<T>(e - 1);
+    static_assert(Params::WatchdogPrescaler >= 0, "");
+    static_assert(Params::WatchdogPrescaler < 10, "");
+    
+public:
+    static constexpr double WatchdogTime = PowerOfTwoFunc<double>(11 + Params::WatchdogPrescaler) / 131072.0;
+    
+    void init (Context c)
+    {
+        wdt_enable(Params::WatchdogPrescaler);
+        
+        this->debugInit(c);
+    }
+    
+    void deinit (Context c)
+    {
+        this->debugDeinit(c);
+        
+        wdt_disable();
+    }
+    
+    template <typename ThisContext>
+    void reset (ThisContext c)
+    {
+        this->debugAccess(c);
+        
+        wdt_reset();
+    }
+};
+
+#define AMBRO_AVR_WATCHDOG_GLOBAL \
+void clear_mcusr () __attribute__((naked)) __attribute__((section("init3"))); \
+void clear_mcusr () \
+{ \
+    MCUSR = 0; \
+    wdt_disable(); \
 }
 
 #include <aprinter/EndNamespace.h>
 
 #endif
-

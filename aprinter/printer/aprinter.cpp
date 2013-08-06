@@ -43,6 +43,7 @@ static void emergency (void);
 #include <aprinter/system/AvrPinWatcher.h>
 #include <aprinter/system/AvrLock.h>
 #include <aprinter/system/AvrAdc.h>
+#include <aprinter/system/AvrWatchdog.h>
 #include <aprinter/devices/PidControl.h>
 #include <aprinter/devices/BinaryControl.h>
 #include <aprinter/printer/PrinterMain.h>
@@ -134,6 +135,10 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime,
     SpeedLimitMultiply,
     MaxStepsPerCycle,
+    AvrWatchdog,
+    AvrWatchdogParams<
+        WDTO_2S // watchdot timeout
+    >,
     MakeTypeList<
         PrinterMainAxisParams<
             'X', // axis name
@@ -349,6 +354,7 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*myprinter.getAxisStepper<2>()->get
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*myprinter.getAxisStepper<3>()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(*myprinter.getHeaterTimer<0>(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(*myprinter.getHeaterTimer<1>(), MyContext())
+AMBRO_AVR_WATCHDOG_GLOBAL
 
 FILE uart_output;
 
