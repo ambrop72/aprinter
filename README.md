@@ -3,7 +3,7 @@ aprinter
 
 APrinter is a currently experimantal firmware for RepRap 3D printers and is under heavy development.
 
-# Implemented features (possibly with bugs)
+## Implemented features (possibly with bugs)
 
   * Serial communication using the defacto RepRap protocol. Baud rate above 57600 will not work, for now.
   * Homing, including homing of multiple axes at the same time. Either min- or max- endstops can be used.
@@ -18,14 +18,14 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
     (if assertions are enabled with -DAMBROLIB_ASSERTIONS).
   * Non-drifting heartbeat LED. Is period is exactly 1 second, subject to the precision of your oscillator.
 
-# Planned features (in the approximate order of priority):
+## Planned features (in the approximate order of priority):
 
   * Look-ahead in the planning code.
   * Fan control.
   * Runtime configurability and settings in EEPROM.
   * SD-card printing.
 
-# Hardware requirements
+## Hardware requirements
 
 I'm developing this software using my Melzi board (atmega1284p),
 which has been manually clocked to 20MHz from the default 16MHz.
@@ -37,13 +37,13 @@ possibly requiring minor adjustments in the code:
   * 128kB of flash,
   * 3 timers (any one of these can be either 8- or 16-bit).
 
-# Software requirements
+## Software requirements
 
 You need a recent development version of GCC 4.9 targeting AVR.
 Version 4.8.1 is known not to work, likely due to a bug in the compiler.
 Anything earlier will be even more useless, including the ancient compilers that come with Arduino.
 
-# Coding style
+## Coding style
 
   * Extreme attention to detail and bugless code. Lots of assertions (the proven kind, not guesses).
   * The software is written in C++11.
