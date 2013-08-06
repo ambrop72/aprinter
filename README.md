@@ -48,7 +48,17 @@ Anything earlier will be even more useless, including the ancient compilers that
   * Extreme attention to detail and bugless code. Lots of assertions (the proven kind, not guesses).
   * The software is written in C++11.
   * Extensive use of abstractions for hardware access and program structuring.
+    It should be possible to port the software to non-AVR platforms with little work.
   * Template metaprogramming is used to implement the abstractions efficiently.
     No, I do not care if the average C hacker can't read my code.
   * Hardcoding is avoided where that makes sense, with the help of template metaprogramming.
     For example, the configuration specified a list of heaters, and it is trivial to add new heaters.
+
+## Using it
+
+  * Make sure you have (a dev version of) avr-g++ 4.9. I can't tell you how to get or build one.
+    I build it using an Gentoo ebuild in the "toolchain" overlay.
+  * Edit compile.sh and adjust MCU and F_CPU (or pass them as environment variables, but you'll forget it next time).
+  * Open aprinter/printer/aprinter.cpp and adjust the configuration.
+    If you don't know what something means, you probably don't need to change it.
+    All units are based on millimeters and seconds.
