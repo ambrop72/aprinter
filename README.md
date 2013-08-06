@@ -53,12 +53,27 @@ Anything earlier will be even more useless, including the ancient compilers that
     No, I do not care if the average C hacker can't read my code.
   * Hardcoding is avoided where that makes sense, with the help of template metaprogramming.
     For example, the configuration specified a list of heaters, and it is trivial to add new heaters.
+  * Pure avr-gcc code, no reliance on inefficient libraries.
 
-## Using it
+## Building it
 
   * Make sure you have (a dev version of) avr-g++ 4.9. I can't tell you how to get or build one.
-    I build it using an Gentoo ebuild in the "toolchain" overlay.
+    I build it using a Gentoo ebuild in the "toolchain" overlay.
   * Edit compile.sh and adjust MCU and F_CPU (or pass them as environment variables, but you'll forget it next time).
   * Open aprinter/printer/aprinter.cpp and adjust the configuration.
     If you don't know what something means, you probably don't need to change it.
     All units are based on millimeters and seconds.
+  * Regenerate the thermistor tables inside the generated/ folder to match your thermistor and resistor types.
+    You can find the generation command inside the files themselves.
+    The python script mentioned prints the code to stdout, you need to pipe it into the appropriate file.
+  * Run compile.sh to compile the code.
+  * Upload the code to your MCU, however you do that; see flash.sh for an example.
+
+## Testing it
+
+  * Connect to the printer with Pronterface, and make sure you use baud rate 57600.
+  * Try homing and some basic motion.
+  * Check the current temperatures (M105).
+    Don't try turning on the heaters until you've verified that they are reported currectly.
+    Be aware that if you entered the wrong beta value, the room teperature would be reported correctly,
+    out other ones will be incorrect (possibly lower, and you risk burning the heaters in that case).
