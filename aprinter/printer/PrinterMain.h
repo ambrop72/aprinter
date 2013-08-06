@@ -269,8 +269,8 @@ private:
                     AMBRO_ASSERT(o->m_homing_rem_axes > 0)
                     
                     m_homer.deinit(c);
-                    axis->m_end_pos = axis->m_min;
-                    axis->m_req_pos = axis->m_min;
+                    axis->m_end_pos = (AxisSpec::Homing::home_dir ? axis->m_max : axis->m_min);
+                    axis->m_req_pos = axis->m_end_pos;
                     axis->m_state = AXIS_STATE_OTHER;
                     o->m_homing_rem_axes--;
                     if (!success) {
