@@ -143,6 +143,7 @@ template <
     char TName, int TSetMCommand, int TWaitMCommand,
     typename TAdcPin, typename TFormula,
     typename TOutputPin, typename TPulseInterval,
+    typename TMinSafeTemp, typename TMaxSafeTemp,
     template<typename, typename> class TControl,
     typename TControlParams,
     template<typename, typename> class TTimerTemplate,
@@ -156,6 +157,8 @@ struct PrinterMainHeaterParams {
     using Formula = TFormula;
     using OutputPin = TOutputPin;
     using PulseInterval = TPulseInterval;
+    using MinSafeTemp = TMinSafeTemp;
+    using MaxSafeTemp = TMaxSafeTemp;
     template <typename X, typename Y> using Control = TControl<X, Y>;
     using ControlParams = TControlParams;
     template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
@@ -618,22 +621,20 @@ private:
             }
             double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
             if (target > 0.0 && target <= 300.0) {
-                if (!m_enabled) {
-                    m_control.init(target);
-                    AMBRO_LOCK_T(m_lock, c, lock_c, {
+                AMBRO_LOCK_T(m_lock, c, lock_c, {
+                    if (!m_enabled) {
+                        m_control.init(target);
                         m_enabled = true;
-                    });
-                } else {
-                    AMBRO_LOCK_T(m_lock, c, lock_c, {
+                    } else {
                         m_control.setTarget(target);
-                    });
-                }
+                    }
+                });
             } else {
-                if (m_enabled) {
-                    AMBRO_LOCK_T(m_lock, c, lock_c, {
+                AMBRO_LOCK_T(m_lock, c, lock_c, {
+                    if (m_enabled) {
                         m_enabled = false;
-                    });
-                }
+                    }
+                });
             }
             if (cmd_num == HeaterSpec::WaitMCommand) {
                 AMBRO_ASSERT(!m_observing)
@@ -650,11 +651,17 @@ private:
         
         double softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
         {
-            if (AMBRO_UNLIKELY(!m_enabled)) {
-                return 0.0;
-            }
-            double sensor_value = get_value(c);
-            double control_value = m_control.addMeasurement(sensor_value);
+            double control_value = 0.0;
+            AMBRO_LOCK_T(m_lock, c, lock_c, {
+                if (m_enabled) {
+                    double sensor_value = get_value(lock_c);
+                    if (sensor_value < HeaterSpec::MinSafeTemp::value() || sensor_value > HeaterSpec::MaxSafeTemp::value()) {
+                        m_enabled = false;
+                    } else {
+                        control_value = m_control.addMeasurement(sensor_value);
+                    }
+                }
+            });
             return control_value;
         }
         

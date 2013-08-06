@@ -120,15 +120,19 @@ print("""/*
 #include <math.h>
 #include <avr/pgmspace.h>
 
+#include <aprinter/base/Likely.h>
+
 class AvrThermistorTable_%(Name)s {
 public:
     static double call (uint16_t adc_value)
     {
-        uint16_t entry =
-            (adc_value < %(TableOffset)s) ? 0 :
-            (adc_value > %(TableEnd)s - 1) ? (%(TableSize)s - 1) :
-            (adc_value - %(TableOffset)s);
-        return ldexp(pgm_read_word(&table[entry]), -%(ScaleFactorExp)s);
+        if (AMBRO_UNLIKELY(adc_value < %(TableOffset)s)) {
+            return INFINITY;
+        }
+        if (AMBRO_UNLIKELY(adc_value > %(TableEnd)s - 1)) {
+            return -INFINITY;
+        }
+        return ldexp(pgm_read_word(&table[(adc_value - %(TableOffset)s)]), -%(ScaleFactorExp)s);
     }
     
 private:

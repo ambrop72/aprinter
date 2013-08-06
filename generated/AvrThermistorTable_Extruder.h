@@ -45,15 +45,19 @@
 #include <math.h>
 #include <avr/pgmspace.h>
 
+#include <aprinter/base/Likely.h>
+
 class AvrThermistorTable_Extruder {
 public:
     static double call (uint16_t adc_value)
     {
-        uint16_t entry =
-            (adc_value < 36) ? 0 :
-            (adc_value > 988 - 1) ? (952 - 1) :
-            (adc_value - 36);
-        return ldexp(pgm_read_word(&table[entry]), -7);
+        if (AMBRO_UNLIKELY(adc_value < 36)) {
+            return INFINITY;
+        }
+        if (AMBRO_UNLIKELY(adc_value > 988 - 1)) {
+            return -INFINITY;
+        }
+        return ldexp(pgm_read_word(&table[(adc_value - 36)]), -7);
     }
     
 private:

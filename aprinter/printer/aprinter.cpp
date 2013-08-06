@@ -110,6 +110,8 @@ using EDefaultMax = AMBRO_WRAP_DOUBLE(10000.0);
  * 'a', raise ExtruderHeaterPidDHistory to the power of 'a'.
  */
 using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
+using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
+using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
 using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
 using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
 using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.1);
@@ -121,6 +123,8 @@ using ExtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
 using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
+using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
+using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
 using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
 using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
@@ -252,6 +256,8 @@ using PrinterParams = PrinterMainParams<
             AvrThermistorTable_Extruder, // sensor interpretation formula
             AvrPin<AvrPortD, 5>, // output pin
             ExtruderHeaterPulseInterval,
+            ExtruderHeaterMinSafeTemp,
+            ExtruderHeaterMaxSafeTemp,
             PidControl,
             PidControlParams<
                 ExtruderHeaterPidP,
@@ -276,6 +282,8 @@ using PrinterParams = PrinterMainParams<
             AvrThermistorTable_Bed, // sensor interpretation formula
             AvrPin<AvrPortD, 4>, // output pin
             BedHeaterPulseInterval,
+            BedHeaterMinSafeTemp,
+            BedHeaterMaxSafeTemp,
             BinaryControl,
             BinaryControlParams,
             AvrClockInterruptTimer_TC0_OCB,
