@@ -325,7 +325,7 @@ public:
         }
         
         template <typename SegmentResult>
-        void gen_segment_stepper_commands (Context c, Segment *entry, SegmentResult result, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1)
+        void gen_segment_stepper_commands (Context c, Segment *entry, SegmentResult result, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
             StepperStepFixedType x1 = axis_entry->x;
@@ -333,11 +333,11 @@ public:
             x1.m_bits.m_int -= x0.bitsValue();
             StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::importDoubleSaturated(frac_x2 * axis_entry->x.doubleValue()));
             x1.m_bits.m_int -= x2.bitsValue();
-            StepperAccelFixedType a0 = StepperAccelFixedType::importDoubleSaturated(axis_entry->half_accel * (t0.doubleValue() * t0.doubleValue()));
+            StepperAccelFixedType a0 = StepperAccelFixedType::importDoubleSaturated(axis_entry->half_accel * t0_squared);
             if (a0.bitsValue() > x0.bitsValue()) {
                 a0.m_bits.m_int = x0.bitsValue();
             }
-            StepperAccelFixedType a2 = StepperAccelFixedType::importDoubleSaturated(axis_entry->half_accel * (t2.doubleValue() * t2.doubleValue()));
+            StepperAccelFixedType a2 = StepperAccelFixedType::importDoubleSaturated(axis_entry->half_accel * t2_squared);
             if (a2.bitsValue() > x2.bitsValue()) {
                 a2.m_bits.m_int = x2.bitsValue();
             }
@@ -663,10 +663,17 @@ private:
         double v_start = sqrt(result->start_v);
         double v_end = sqrt(result->end_v);
         double v_const = sqrt(result->const_v);
-        MinTimeType t0 = MinTimeType::importDoubleSaturated((v_const - v_start) * entry->max_accel_rec);
-        MinTimeType t2 = MinTimeType::importDoubleSaturated((v_const - v_end) * entry->max_accel_rec);
-        MinTimeType t1 = MinTimeType::importDoubleSaturated(((1.0 - result->const_start - result->const_end) * entry->distance) * entry->max_v_rec);
-        TupleForEachForward(&m_axes, Foreach_gen_segment_stepper_commands(), c, entry, result, result->const_start, result->const_end, t0, t2, t1);
+        double t0_double = (v_const - v_start) * entry->max_accel_rec;
+        double t2_double = (v_const - v_end) * entry->max_accel_rec;
+        double t1_double = ((1.0 - result->const_start - result->const_end) * entry->distance) * entry->max_v_rec;
+        double t0_squared = t0_double * t0_double;
+        double t2_squared = t2_double * t2_double;
+        MinTimeType t0 = MinTimeType::importDoubleSaturated(t0_double);
+        MinTimeType t2 = MinTimeType::importDoubleSaturated(t2_double);
+        MinTimeType t1 = MinTimeType::importDoubleSaturated(t1_double);
+        TupleForEachForward(&m_axes, Foreach_gen_segment_stepper_commands(), c, entry, result,
+                            result->const_start, result->const_end, t0, t2, t1,
+                            t0_squared, t2_squared);
         entry->end_speed_squared = result->end_v;
         *i = BoundedModuloInc(*i);
     }
