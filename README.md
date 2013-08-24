@@ -52,7 +52,7 @@ Anything earlier will be even more useless, including the ancient compilers that
   * Template metaprogramming is used to implement the abstractions efficiently.
     No, I do not care if the average C hacker can't read my code.
   * Hardcoding is avoided where that makes sense, with the help of template metaprogramming.
-    For example, the configuration specified a list of heaters, and it is trivial to add new heaters.
+    For example, the configuration specifies a list of heaters, and it is trivial to add new heaters.
   * Pure avr-gcc code, no reliance on inefficient libraries.
 
 ## Building it
@@ -74,6 +74,9 @@ Anything earlier will be even more useless, including the ancient compilers that
   * Connect to the printer with Pronterface, and make sure you use baud rate 57600.
   * Try homing and some basic motion.
   * Check the current temperatures (M105).
-  * Only try turning on the heaters once you've verified that the temperatures are being reported currectly.
-    Be aware that if you entered the wrong beta value, the room teperature would be reported correctly,
-    out other ones will be incorrect (possibly lower, and you risk burning the heater in that case).
+  * Only try turning on the heaters once you've verified that the temperatures are being reported correctly.
+    Be aware that if you generate a thermistor table with the wrong beta value,
+    the room teperature will be reported correctly, but other temperatures will be incorrect
+    (possibly lower, and you risk burning the heater in that case).
+    Obviously, take safety precausions here. I'm not responsible if your house burns down as a result of
+    using my software, or for any other damage.
