@@ -64,6 +64,8 @@ using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00137);
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
 using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(800.0);
+using XDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
+using XDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
 using XDefaultMax = AMBRO_WRAP_DOUBLE(210.0);
 using XDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(280.0);
@@ -76,6 +78,8 @@ using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
 using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(600.0);
+using YDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
+using YDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
 using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using YDefaultMax = AMBRO_WRAP_DOUBLE(170.0);
 using YDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(200.0);
@@ -88,6 +92,8 @@ using YDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(4000.0);
 using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
 using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
+using ZDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
+using ZDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
 using ZDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using ZDefaultMax = AMBRO_WRAP_DOUBLE(100.0);
 using ZDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(101.0);
@@ -100,6 +106,8 @@ using ZDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
 using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);
 using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
+using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
+using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
 using EDefaultMin = AMBRO_WRAP_DOUBLE(-10000.0);
 using EDefaultMax = AMBRO_WRAP_DOUBLE(10000.0);
 
@@ -139,6 +147,8 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime,
     SpeedLimitMultiply,
     MaxStepsPerCycle,
+    16, // stepper segment buffer size
+    2, // lookahead buffer size exponent
     AvrWatchdog,
     AvrWatchdogParams<
         WDTO_2S // watchdot timeout
@@ -150,13 +160,15 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortD, 7>, // step pin
             AvrPin<AvrPortD, 6>, // enable pin
             true, // invert dir
-            6, // buffer size exponent
+            24, // step bits
             AxisStepperParams<
                 AvrClockInterruptTimer_TC1_OCA // stepper timer
             >,
             XDefaultStepsPerUnit, // default steps per unit
             XDefaultMaxSpeed, // default max speed
             XDefaultMaxAccel, // default max acceleration
+            XDefaultDistanceFactor,
+            XDefaultCorneringDistance,
             XDefaultMin,
             XDefaultMax,
             true, // enable cartesian speed limit
@@ -178,13 +190,15 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortC, 6>, // step pin
             AvrPin<AvrPortD, 6>, // enable pin
             true, // invert dir
-            6, // buffer size exponent
+            24, // step bits
             AxisStepperParams<
                 AvrClockInterruptTimer_TC1_OCB // stepper timer
             >,
             YDefaultStepsPerUnit, // default steps per unit
             YDefaultMaxSpeed, // default max speed
             YDefaultMaxAccel, // default max acceleration
+            YDefaultDistanceFactor,
+            YDefaultCorneringDistance,
             YDefaultMin,
             YDefaultMax,
             true, // enable cartesian speed limit
@@ -206,13 +220,15 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortB, 3>, // step pin
             AvrPin<AvrPortA, 5>, // enable pin
             false, // invert dir
-            6, // buffer size exponent
+            24, // step bits
             AxisStepperParams<
                 AvrClockInterruptTimer_TC3_OCA // stepper timer
             >,
             ZDefaultStepsPerUnit, // default steps per unit
             ZDefaultMaxSpeed, // default max speed
             ZDefaultMaxAccel, // default max acceleration
+            ZDefaultDistanceFactor,
+            ZDefaultCorneringDistance,
             ZDefaultMin,
             ZDefaultMax,
             true, // enable cartesian speed limit
@@ -234,13 +250,15 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortB, 1>, // step pin
             AvrPin<AvrPortD, 6>, // enable pin
             true, // invert dir
-            6, // buffer size exponent
+            24, // step bits
             AxisStepperParams<
                 AvrClockInterruptTimer_TC3_OCB // stepper timer
             >,
             EDefaultStepsPerUnit, // default steps per unit
             EDefaultMaxSpeed, // default max speed
             EDefaultMaxAccel, // default max acceleration
+            EDefaultDistanceFactor,
+            EDefaultCorneringDistance,
             EDefaultMin,
             EDefaultMax,
             false, // enable cartesian speed limit

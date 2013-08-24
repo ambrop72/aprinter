@@ -48,6 +48,7 @@
 #include <aprinter/meta/TuplePosition.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/JoinTypeLists.h>
+#include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -59,7 +60,6 @@
 #include <aprinter/devices/SoftPwm.h>
 #include <aprinter/stepper/Steppers.h>
 #include <aprinter/stepper/AxisStepper.h>
-#include <aprinter/stepper/AxisSplitter.h>
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/MotionPlanner.h>
@@ -70,6 +70,7 @@
 template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
+    int TStepperSegmentBufferSize, int TLookaheadBufferSizeExp,
     template <typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
     typename TAxesList, typename THeatersList
 >
@@ -80,6 +81,8 @@ struct PrinterMainParams {
     using DefaultInactiveTime = TDefaultInactiveTime;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using MaxStepsPerCycle = TMaxStepsPerCycle;
+    static const int StepperSegmentBufferSize = TStepperSegmentBufferSize;
+    static const int LookaheadBufferSizeExp = TLookaheadBufferSizeExp;
     template <typename X, typename Y> using WatchdogTemplate = TWatchdogTemplate<X, Y>;
     using WatchdogParams = TWatchdogParams;
     using AxesList = TAxesList;
@@ -95,8 +98,10 @@ struct PrinterMainSerialParams {
 template <
     char tname,
     typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir,
-    int TBufferSizeExp, typename TTheAxisStepperParams,
+    int TStepBits,
+    typename TTheAxisStepperParams,
     typename TDefaultStepsPerUnit, typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
+    typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
     typename TDefaultMin, typename TDefaultMax, bool tenable_cartesian_speed_limit,
     typename THoming
 >
@@ -106,11 +111,13 @@ struct PrinterMainAxisParams {
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
     static const bool InvertDir = TInvertDir;
-    static const int BufferSizeExp = TBufferSizeExp;
+    static const int StepBits = TStepBits;
     using TheAxisStepperParams = TTheAxisStepperParams;
     using DefaultStepsPerUnit = TDefaultStepsPerUnit;
     using DefaultMaxSpeed = TDefaultMaxSpeed;
     using DefaultMaxAccel = TDefaultMaxAccel;
+    using DefaultDistanceFactor = TDefaultDistanceFactor;
+    using DefaultCorneringDistance = TDefaultCorneringDistance;
     using DefaultMin = TDefaultMin;
     using DefaultMax = TDefaultMax;
     static const bool enable_cartesian_speed_limit = tenable_cartesian_speed_limit;
@@ -245,9 +252,7 @@ private:
         using AxisSpec = TypeListGet<AxesList, AxisIndex>;
         using Stepper = SteppersStepper<Context, StepperDefsList, AxisIndex>;
         using TheAxisStepper = AxisStepper<AxisStepperPosition, Context, typename AxisSpec::TheAxisStepperParams, Stepper, AxisStepperGetStepperHandler, AxisStepperConsumersList<AxisIndex>>;
-        template <typename X> using SplitterTemplate = AxisSplitter<X>;
-        using TheSplitter = SplitterTemplate<TheAxisStepper>;
-        using StepFixedType = typename TheSplitter::StepFixedType;
+        using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         static const char axis_name = AxisSpec::name;
         
         AMBRO_STRUCT_IF(HomingFeature, AxisSpec::Homing::enabled) {
@@ -257,7 +262,9 @@ private:
                 struct HomerFinishedHandler;
                 
                 using Homer = AxisHomer<
-                    HomerPosition, Context, TheAxisStepper, SplitterTemplate, AxisSpec::BufferSizeExp, typename AxisSpec::Homing::EndPin,
+                    HomerPosition, Context, TheAxisStepper, AxisSpec::StepBits,
+                    typename AxisSpec::DefaultDistanceFactor, typename AxisSpec::DefaultCorneringDistance,
+                    Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, typename AxisSpec::Homing::EndPin,
                     AxisSpec::Homing::end_invert, AxisSpec::Homing::home_dir, HomerGetAxisStepper, HomerFinishedHandler
                 >;
                 
@@ -550,12 +557,13 @@ private:
     using MakePlannerAxisSpec = MotionPlannerAxisSpec<
         typename TheAxis::TheAxisStepper,
         PlannerGetAxisStepper<TheAxis::AxisIndex>,
-        TheAxis::template SplitterTemplate,
-        TheAxis::AxisSpec::BufferSizeExp
+        TheAxis::AxisSpec::StepBits,
+        typename TheAxis::AxisSpec::DefaultDistanceFactor,
+        typename TheAxis::AxisSpec::DefaultCorneringDistance
     >;
     
     using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
-    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, PlannerPullHandler, PlannerFinishedHandler>;
+    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler>;
     using PlannerInputCommand = typename ThePlanner::InputCommand;
     using AxesTuple = IndexElemTuple<AxesList, Axis>;
     

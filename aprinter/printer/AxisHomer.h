@@ -40,8 +40,11 @@
 #include <aprinter/BeginNamespace.h>
 
 template <
-    typename Position, typename Context, typename TheAxisStepper, template<typename> class SplitterTemplate,
-    int PlannerBufferSizeExp, typename SwitchPin, bool SwitchInvert, bool HomeDir,
+    typename Position, typename Context, typename TheAxisStepper,
+    int PlannerStepBits,
+    typename PlannerDistanceFactor, typename PlannerCorneringDistance,
+    int PlannerStepperSegmentBufferSize, int PlannerSegmentBufferSizeExp,
+    typename SwitchPin, bool SwitchInvert, bool HomeDir,
     typename GetAxisStepper, typename FinishedHandler
 >
 class AxisHomer
@@ -54,8 +57,8 @@ private:
     struct PlannerFinishedHandler;
     struct PinWatcherHandler;
     
-    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, PlannerGetAxisStepper, SplitterTemplate, PlannerBufferSizeExp>>;
-    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerPullHandler, PlannerFinishedHandler>;
+    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, PlannerGetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance>>;
+    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler>;
     using PlannerCommand = typename Planner::InputCommand;
     using PinWatcherService = typename Context::PinWatcherService;
     using ThePinWatcher = typename PinWatcherService::template PinWatcher<SwitchPin, PinWatcherHandler>;
