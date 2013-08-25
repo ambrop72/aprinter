@@ -49,6 +49,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
+#include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/LinearPlanner.h>
 
@@ -107,7 +108,8 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_cold, swap_staging_cold)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_hot, swap_staging_hot)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_stepping, start_stepping)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_num_empty, num_empty)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_empty, is_empty)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_not_empty, not_empty)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_underrun, is_underrun)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_stopped_stepping, stopped_stepping)
     
@@ -437,9 +439,14 @@ public:
             stepper()->template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, &m_first->scmd);
         }
         
-        uint8_t num_empty (uint8_t accum)
+        bool is_empty (bool accum)
         {
-            return (accum + (m_first == NULL));
+            return (accum && (m_first == NULL));
+        }
+        
+        bool not_empty (bool accum)
+        {
+            return (accum && (m_first != NULL));
         }
         
         bool is_underrun (bool accum)
@@ -542,7 +549,12 @@ public:
         m_pulling = false;
 #endif
         
-        work(c);
+        if (AMBRO_UNLIKELY(TupleForEachForwardAccRes(&m_axes, true, Foreach_check_split_finished()))) {
+            m_have_split_buffer = false;
+            m_pull_finished_event.prependNowNotAlready(c);
+        } else {
+            work(c);
+        }
     }
     
     void waitFinished (Context c)
@@ -569,17 +581,12 @@ private:
     {
         AMBRO_ASSERT(m_have_split_buffer)
         AMBRO_ASSERT(!m_pulling)
+        AMBRO_ASSERT(!TupleForEachForwardAccRes(&m_axes, true, Foreach_check_split_finished()))
         
         while (1) {
-            while (1) {
-                if (TupleForEachForwardAccRes(&m_axes, true, Foreach_check_split_finished())) {
-                    m_have_split_buffer = false;
-                    break;
-                }
+            do {
                 if (BoundedModuloSubtract(m_segments_start, m_segments_end).value() == 1) {
-                    if (!m_stepping) {
-                        m_underrun = false;
-                    }
+                    m_underrun = m_underrun && m_stepping;
                     break;
                 }
                 Segment *entry = &m_segments[m_segments_end.value()];
@@ -603,9 +610,10 @@ private:
                 }
                 m_split_buffer.split_pos++;
                 m_segments_end = BoundedModuloInc(m_segments_end);
-            }
+                m_have_split_buffer = !TupleForEachForwardAccRes(&m_axes, true, Foreach_check_split_finished());
+            } while (m_have_split_buffer);
             
-            if (!m_underrun && m_segments_staging_end != m_segments_end) {
+            if (AMBRO_LIKELY(!m_underrun && m_segments_staging_end != m_segments_end)) {
                 plan(c);
             }
             
@@ -617,7 +625,7 @@ private:
             }
             
             Segment *entry = &m_segments[m_segments_start.value()];
-            if (!m_stepping) {
+            if (AMBRO_UNLIKELY(!m_stepping)) {
                 if (!TupleForEachForwardAccRes(&m_axes, true, Foreach_have_commit_space())) {
                     start_stepping(c);
                     return;
@@ -687,7 +695,7 @@ private:
         LinearPlannerSegmentData *last_segment = &m_segments[i.value()].lp_seg;
         TheLinearPlanner::plan(last_segment, 0.0, this, c, &i);
         
-        if (!m_stepping) {
+        if (AMBRO_UNLIKELY(!m_stepping)) {
             TupleForEachForward(&m_axes, Foreach_swap_staging_cold());
             m_segments_staging_end = m_segments_end;
         } else {
@@ -698,7 +706,7 @@ private:
                 }
             });
             TupleForEachForward(&m_axes, Foreach_dispose_new(), c);
-            if (!m_underrun) {
+            if (AMBRO_LIKELY(!m_underrun)) {
                 m_segments_staging_end = m_segments_end;
             }
         }
@@ -708,7 +716,7 @@ private:
     {
         AMBRO_ASSERT(!m_stepping)
         AMBRO_ASSERT(!m_underrun)
-        AMBRO_ASSERT(num_empty() == 0)
+        AMBRO_ASSERT(not_empty())
         AMBRO_ASSERT(m_segments_staging_end == m_segments_end)
         
         m_stepping = true;
@@ -736,11 +744,11 @@ private:
     {
         this->debugAccess(c);
         
-        if (m_waiting) {
+        if (AMBRO_UNLIKELY(m_waiting)) {
             AMBRO_ASSERT(m_pulling)
             AMBRO_ASSERT(!m_stepping)
             AMBRO_ASSERT(m_segments_start == m_segments_end)
-            AMBRO_ASSERT(num_empty() == NumAxes)
+            AMBRO_ASSERT(is_empty())
             
             m_waiting = false;
             return FinishedHandler::call(this, c);
@@ -755,9 +763,14 @@ private:
         }
     }
     
-    uint8_t num_empty ()
+    bool is_empty ()
     {
-        return TupleForEachForwardAccRes(&m_axes, 0, Foreach_num_empty());
+        return TupleForEachForwardAccRes(&m_axes, true, Foreach_is_empty());
+    }
+    
+    bool not_empty ()
+    {
+        return TupleForEachForwardAccRes(&m_axes, true, Foreach_not_empty());
     }
     
     uint8_t is_underrun ()
@@ -769,13 +782,13 @@ private:
     {
         AMBRO_ASSERT(m_stepping)
         
-        uint8_t the_num_empty;
+        bool empty;
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             m_underrun = is_underrun();
-            the_num_empty = num_empty();
+            empty = is_empty();
         });
         
-        if (the_num_empty == NumAxes) {
+        if (AMBRO_UNLIKELY(empty)) {
             AMBRO_ASSERT(m_underrun)
             m_stepping = false;
             m_segments_start = m_segments_staging_end;
