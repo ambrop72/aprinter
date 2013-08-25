@@ -177,7 +177,7 @@ private:
         double distance;
         LinearPlannerSegmentData lp_seg;
         double max_accel_rec;
-        double max_v_rec;
+        double rel_max_speed_rec;
         double end_speed_squared;
         IndexElemTuple<AxesList, AxisSegment> axes;
     };
@@ -599,7 +599,7 @@ private:
                 entry->lp_seg.a_x_rec = 1.0 / entry->lp_seg.a_x;
                 entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
                 entry->max_accel_rec = 1.0 / max_accel;
-                entry->max_v_rec = 1.0 / (rel_max_speed * entry->distance);
+                entry->rel_max_speed_rec = 1.0 / rel_max_speed;
                 TupleForEachForward(&m_axes, Foreach_write_segment_buffer_entry_accel(), entry, rel_max_accel);
                 if (m_split_buffer.split_pos == 1 && m_segments_start != m_segments_end) {
                     Segment *prev_entry = &m_segments[BoundedModuloDec(m_segments_end).value()];
@@ -665,7 +665,7 @@ private:
         double v_const = sqrt(result->const_v);
         double t0_double = (v_const - v_start) * entry->max_accel_rec;
         double t2_double = (v_const - v_end) * entry->max_accel_rec;
-        double t1_double = ((1.0 - result->const_start - result->const_end) * entry->distance) * entry->max_v_rec;
+        double t1_double = (1.0 - result->const_start - result->const_end) * entry->rel_max_speed_rec;
         double t0_squared = t0_double * t0_double;
         double t2_squared = t2_double * t2_double;
         MinTimeType t0 = MinTimeType::importDoubleSaturated(t0_double);
