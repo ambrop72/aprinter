@@ -499,7 +499,7 @@ public:
         m_segments_start_v_squared = 0.0;
         m_have_split_buffer = false;
         m_stepping = false;
-        m_underrun = false;
+        m_underrun = true;
         m_waiting = false;
 #ifdef AMBROLIB_ASSERTIONS
         m_pulling = false;
@@ -554,14 +554,7 @@ public:
         
         m_waiting = true;
         if (!m_stepping) {
-            if (m_segments_start == m_segments_end) {
-                m_pull_finished_event.prependNowNotAlready(c);
-            } else {
-                if (m_segments_staging_end != m_segments_end) {
-                    plan(c);
-                }
-                start_stepping(c);
-            }
+            continue_wait(c);
         }
     }
     
@@ -584,6 +577,9 @@ private:
                     break;
                 }
                 if (BoundedModuloSubtract(m_segments_start, m_segments_end).value() == 1) {
+                    if (!m_stepping) {
+                        m_underrun = false;
+                    }
                     break;
                 }
                 Segment *entry = &m_segments[m_segments_end.value()];
@@ -686,7 +682,6 @@ private:
     void plan (Context c)
     {
         AMBRO_ASSERT(m_segments_staging_end != m_segments_end)
-        AMBRO_ASSERT(m_stepping || !m_underrun)
         
         SegmentBufferSizeType i = BoundedModuloDec(m_segments_end);
         LinearPlannerSegmentData *last_segment = &m_segments[i.value()].lp_seg;
@@ -694,6 +689,7 @@ private:
         
         if (!m_stepping) {
             TupleForEachForward(&m_axes, Foreach_swap_staging_cold());
+            m_segments_staging_end = m_segments_end;
         } else {
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 m_underrun = is_underrun();
@@ -702,21 +698,38 @@ private:
                 }
             });
             TupleForEachForward(&m_axes, Foreach_dispose_new(), c);
-        }
-        if (!m_underrun) {
-            m_segments_staging_end = m_segments_end;
+            if (!m_underrun) {
+                m_segments_staging_end = m_segments_end;
+            }
         }
     }
     
     void start_stepping (Context c)
     {
         AMBRO_ASSERT(!m_stepping)
+        AMBRO_ASSERT(!m_underrun)
         AMBRO_ASSERT(num_empty() == 0)
         AMBRO_ASSERT(m_segments_staging_end == m_segments_end)
         
         m_stepping = true;
         TimeType start_time = c.clock()->getTime(c);
         TupleForEachForward(&m_axes, Foreach_start_stepping(), c, start_time);
+    }
+    
+    void continue_wait (Context c)
+    {
+        AMBRO_ASSERT(!m_stepping)
+        AMBRO_ASSERT(m_waiting)
+        
+        if (m_segments_start == m_segments_end) {
+            m_pull_finished_event.prependNowNotAlready(c);
+        } else {
+            m_underrun = false;
+            if (m_segments_staging_end != m_segments_end) {
+                plan(c);
+            }
+            start_stepping(c);
+        }
     }
     
     void pull_finished_event_handler (Context c)
@@ -763,20 +776,12 @@ private:
         });
         
         if (the_num_empty == NumAxes) {
+            AMBRO_ASSERT(m_underrun)
             m_stepping = false;
-            m_underrun = false;
             m_segments_start = m_segments_staging_end;
             TupleForEachForward(&m_axes, Foreach_stopped_stepping(), c);
-            
             if (m_waiting) {
-                if (m_segments_start == m_segments_end) {
-                    m_pull_finished_event.prependNowNotAlready(c);
-                } else {
-                    if (m_segments_staging_end != m_segments_end) {
-                        plan(c);
-                    }
-                    start_stepping(c);
-                }
+                continue_wait(c);
             }
         }
         
