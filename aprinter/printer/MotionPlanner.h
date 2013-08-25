@@ -561,12 +561,13 @@ public:
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_pulling)
-        AMBRO_ASSERT(!m_waiting)
         AMBRO_ASSERT(!m_have_split_buffer)
         
-        m_waiting = true;
-        if (!m_stepping) {
-            continue_wait(c);
+        if (!m_waiting) {
+            m_waiting = true;
+            if (!m_stepping) {
+                continue_wait(c);
+            }
         }
     }
     

@@ -60,6 +60,7 @@ using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00137);
+using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
@@ -149,6 +150,7 @@ using PrinterParams = PrinterMainParams<
     MaxStepsPerCycle,
     16, // stepper segment buffer size
     2, // lookahead buffer size exponent
+    ForceTimeout,
     AvrWatchdog,
     AvrWatchdogParams<
         WDTO_2S // watchdot timeout

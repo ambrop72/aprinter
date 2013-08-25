@@ -70,7 +70,7 @@
 template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
-    int TStepperSegmentBufferSize, int TLookaheadBufferSizeExp,
+    int TStepperSegmentBufferSize, int TLookaheadBufferSizeExp, typename TForceTimeout,
     template <typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
     typename TAxesList, typename THeatersList
 >
@@ -83,6 +83,7 @@ struct PrinterMainParams {
     using MaxStepsPerCycle = TMaxStepsPerCycle;
     static const int StepperSegmentBufferSize = TStepperSegmentBufferSize;
     static const int LookaheadBufferSizeExp = TLookaheadBufferSizeExp;
+    using ForceTimeout = TForceTimeout;
     template <typename X, typename Y> using WatchdogTemplate = TWatchdogTemplate<X, Y>;
     using WatchdogParams = TWatchdogParams;
     using AxesList = TAxesList;
@@ -723,6 +724,7 @@ public:
         m_serial.init(c, Params::Serial::baud);
         m_gcode_parser.init(c);
         m_disable_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&PrinterMain::m_disable_timer, &PrinterMain::disable_timer_handler));
+        m_force_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&PrinterMain::m_force_timer, &PrinterMain::force_timer_handler));
         TupleForEachForward(&m_heaters, Foreach_init(), c);
         m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
         m_recv_next_error = 0;
@@ -746,6 +748,7 @@ public:
         if (m_state == STATE_PLANNING) {
             m_planner.deinit(c);
         }
+        m_force_timer.deinit(c);
         m_disable_timer.deinit(c);
         m_gcode_parser.deinit(c);
         m_serial.deinit(c);
@@ -1147,6 +1150,7 @@ private:
         m_planner.commandDone(c, cmd);
         m_planning_req_pending = false;
         m_planning_pull_pending = false;
+        m_force_timer.unset(c);
         finish_command(c, false);
     }
     
@@ -1163,6 +1167,16 @@ private:
         TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, false);
     }
     
+    void force_timer_handler (Context c)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_PLANNING)
+        AMBRO_ASSERT(m_planning_pull_pending)
+        AMBRO_ASSERT(!m_planning_req_pending)
+        
+        m_planner.waitFinished(c);
+    }
+    
     void planner_pull_handler (Context c)
     {
         this->debugAccess(c);
@@ -1174,6 +1188,9 @@ private:
             send_req_to_planner(c);
         } else if (m_cmd) {
             m_planner.waitFinished(c);
+        } else {
+            TimeType force_time = c.clock()->getTime(c) + (TimeType)(Params::ForceTimeout::value() * Clock::time_freq);
+            m_force_timer.appendAt(c, force_time);
         }
     }
     
@@ -1183,9 +1200,13 @@ private:
         AMBRO_ASSERT(m_state == STATE_PLANNING)
         AMBRO_ASSERT(m_planning_pull_pending)
         AMBRO_ASSERT(!m_planning_req_pending)
-        AMBRO_ASSERT(m_cmd)
+        
+        if (!m_cmd) {
+            return;
+        }
         
         m_planner.deinit(c);
+        m_force_timer.unset(c);
         m_state = STATE_IDLE;
         now_inactive(c);
         
@@ -1201,6 +1222,7 @@ private:
     TheSerial m_serial;
     TheGcodeParser m_gcode_parser;
     typename Loop::QueuedEvent m_disable_timer;
+    typename Loop::QueuedEvent m_force_timer;
     HeatersTuple m_heaters;
     TimeType m_inactive_time;
     TimeType m_last_active_time;
