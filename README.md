@@ -60,7 +60,7 @@ Anything earlier will be even more useless, including the ancient compilers that
 
 ## Building it
 
-  * Make sure you have (a dev version of) avr-g++ 4.9. I can't tell you how to get or build one.
+  * Make sure you have avr-g++ 4.8.1 or newer. I can't tell you how to get or build one.
     I build it using a Gentoo ebuild in the "toolchain" overlay.
   * Edit compile.sh and adjust MCU and F_CPU (or pass them as environment variables, but you'll forget it next time).
   * Open aprinter/printer/aprinter.cpp and adjust the configuration.
