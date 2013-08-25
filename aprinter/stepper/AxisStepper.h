@@ -99,7 +99,6 @@ public:
         decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) a_mul;
         decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) v0;
         decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) t_mul;
-        TimeType clock_offset;
         bool dir;
     };
     
@@ -115,7 +114,6 @@ public:
         cmd->a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
         cmd->discriminant = AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a);
         cmd->t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
-        cmd->clock_offset = t.bitsValue();
         cmd->dir = dir;
     }
     
@@ -149,7 +147,7 @@ public:
 #endif
         m_consumer_id = TypeListIndex<typename ConsumersList::List, IsEqualFunc<TheConsumer>>::value;
         m_current_command = first_command;
-        m_time = m_current_command->clock_offset + start_time;
+        m_time = m_current_command->t_mul.template bitsTo<time_bits>().bitsValue() + start_time;
         stepper(this)->setDir(c, m_current_command->dir);
         TimeType timer_t = (m_current_command->x.bitsValue() == 0) ? m_time : start_time;
         m_timer.set(c, timer_t);
@@ -213,7 +211,7 @@ private:
                 return false;
             }
             
-            m_time += m_current_command->clock_offset;
+            m_time += m_current_command->t_mul.template bitsTo<time_bits>().bitsValue();
             stepper(this)->setDir(c, m_current_command->dir);
             
             if (AMBRO_UNLIKELY(m_current_command->x.bitsValue() == 0)) {
