@@ -95,6 +95,34 @@ struct TupleForEach<Tuple<EmptyTypeList>> {
     }
 };
 
+template <typename TupleType, int Offset, typename Ret>
+struct TupleForOneHelper;
+
+template <typename Head, typename Tail, int Offset, typename Ret>
+struct TupleForOneHelper<Tuple<ConsTypeList<Head, Tail>>, Offset, Ret> {
+    using TupleType = Tuple<ConsTypeList<Head, Tail>>;
+    using TailTupleType = typename TupleType::TailTupleType;
+    
+    template <typename Func, typename... Args>
+    static Ret call (int index, TupleType *tuple, Func func, Args... args)
+    {
+        if (index == Offset) {
+            return func(&tuple->elem, args...);
+        }
+        return TupleForOneHelper<TailTupleType, Offset + 1, Ret>::call(index, tuple->getTail(), func, args...);
+    }
+};
+
+template <int Offset, typename Ret>
+struct TupleForOneHelper<Tuple<EmptyTypeList>, Offset, Ret> {
+    using TupleType = Tuple<EmptyTypeList>;
+    
+    template <typename Func, typename... Args>
+    static Ret call (int index, TupleType *tuple, Func func, Args... args)
+    {
+    }
+};
+
 template <typename TupleType, typename Func, typename... Args>
 void TupleForEachForward (TupleType *tuple, Func func, Args... args)
 {
@@ -117,6 +145,18 @@ template <typename TupleType, typename InitialAccRes, typename Func, typename...
 auto TupleForEachForwardAccRes (TupleType *tuple, InitialAccRes initial_acc_res, Func func, Args... args) -> decltype(TupleForEach<TupleType>::call_forward_accres(tuple, initial_acc_res, func, args...))
 {
     return TupleForEach<TupleType>::call_forward_accres(tuple, initial_acc_res, func, args...);
+}
+
+template <typename Ret = void, typename TupleType, typename Func, typename... Args>
+Ret TupleForOne (int index, TupleType *tuple, Func func, Args... args)
+{
+    return TupleForOneHelper<TupleType, 0, Ret>::call(index, tuple, func, args...);
+}
+
+template <int Offset, typename Ret = void, typename TupleType, typename Func, typename... Args>
+Ret TupleForOneOffset (int index, TupleType *tuple, Func func, Args... args)
+{
+    return TupleForOneHelper<TupleType, Offset, Ret>::call(index, tuple, func, args...);
 }
 
 #define AMBRO_DECLARE_TUPLE_FOREACH_HELPER(helper_name, func_name) \

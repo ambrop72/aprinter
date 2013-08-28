@@ -49,6 +49,9 @@
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/Union.h>
+#include <aprinter/meta/UnionGet.h>
+#include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -72,7 +75,8 @@ template <
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
     int TStepperSegmentBufferSize, int TLookaheadBufferSizeExp, typename TForceTimeout,
     template <typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
-    typename TAxesList, typename THeatersList
+    int TEventChannelBufferSize, template <typename, typename> class TEventChannelTimer,
+    typename TAxesList, typename THeatersList, typename TFansList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
@@ -86,8 +90,11 @@ struct PrinterMainParams {
     using ForceTimeout = TForceTimeout;
     template <typename X, typename Y> using WatchdogTemplate = TWatchdogTemplate<X, Y>;
     using WatchdogParams = TWatchdogParams;
+    static const int EventChannelBufferSize = TEventChannelBufferSize;
+    template <typename X, typename Y> using EventChannelTimer = TEventChannelTimer<X, Y>;
     using AxesList = TAxesList;
     using HeatersList = THeatersList;
+    using FansList = TFansList;
 };
 
 template <uint32_t tbaud, typename TTheGcodeParserParams>
@@ -173,6 +180,20 @@ struct PrinterMainHeaterParams {
     using TheTemperatureObserverParams = TTheTemperatureObserverParams;
 };
 
+template <
+    int TSetMCommand, int TOffMCommand, typename TSpeedMultiply,
+    typename TOutputPin, typename TPulseInterval,
+    template<typename, typename> class TTimerTemplate
+>
+struct PrinterMainFanParams {
+    static const int SetMCommand = TSetMCommand;
+    static const int OffMCommand = TOffMCommand;
+    using SpeedMultiply = TSpeedMultiply;
+    using OutputPin = TOutputPin;
+    using PulseInterval = TPulseInterval;
+    template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
+};
+
 template <typename Position, typename Context, typename Params>
 class PrinterMain
 : private DebugObject<Context, void>
@@ -191,12 +212,15 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_value, append_value)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_command, check_command)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_emergency, emergency)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_channel_callback, channel_callback)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     
     template <int AxisIndex> struct AxisPosition;
     template <int AxisIndex> struct HomingFeaturePosition;
     template <int AxisIndex> struct HomingStatePosition;
     struct PlannerPosition;
     template <int HeaterIndex> struct HeaterPosition;
+    template <int FanIndex> struct FanPosition;
     
     struct BlinkerHandler;
     struct SerialRecvHandler;
@@ -204,6 +228,7 @@ private:
     template <int AxisIndex> struct PlannerGetAxisStepper;
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
+    struct PlannerChannelCallback;
     template <int AxisIndex> struct AxisStepperConsumersList;
     
     static const int serial_recv_buffer_bits = 6;
@@ -215,6 +240,7 @@ private:
     using TimeType = typename Clock::TimeType;
     using AxesList = typename Params::AxesList;
     using HeatersList = typename Params::HeatersList;
+    using FansList = typename Params::FansList;
     static const int num_axes = TypeListLength<AxesList>::value;
     using AxisMaskType = typename ChooseInt<num_axes, false>::Type;
     using AxisCountType = typename ChooseInt<BitsInInt<num_axes>::value, false>::Type;
@@ -457,7 +483,7 @@ private:
             return parent()->m_steppers.template getStepper<AxisIndex>();
         }
         
-        void update_req_pos (Context c, GcodeParserCommandPart *part, bool *changed)
+        void update_req_pos (Context c, GcodeParserCommandPart *part)
         {
             if (part->code == axis_name) {
                 double req = strtod(part->data, NULL);
@@ -475,7 +501,6 @@ private:
                         m_move = ((m_move < 0.0) ? -1.0 : 1.0) * StepFixedType::maxValue().doubleValue();
                         m_req_pos = m_end_pos + m_move;
                     }
-                    *changed = true;
                     if (AxisSpec::enable_cartesian_speed_limit) {
                         double delta = m_move / m_steps_per_unit;
                         parent()->m_planning_distance += delta * delta;
@@ -563,15 +588,6 @@ private:
         typename TheAxis::AxisSpec::DefaultCorneringDistance
     >;
     
-    using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
-    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler>;
-    using PlannerInputCommand = typename ThePlanner::InputCommand;
-    using AxesTuple = IndexElemTuple<AxesList, Axis>;
-    
-    template <int AxisIndex>
-    using HomingStateTupleHelper = typename Axis<AxisIndex>::HomingFeature::HomingState;
-    using HomingStateTuple = IndexElemTuple<AxesList, HomingStateTupleHelper>;
-    
     template <int HeaterIndex>
     struct Heater {
         struct SoftPwmTimerHandler;
@@ -582,6 +598,10 @@ private:
         using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, typename HeaterSpec::PulseInterval>;
         using TheSoftPwm = SoftPwm<Context, typename HeaterSpec::OutputPin, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
         using TheObserver = TemperatureObserver<Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
+        
+        struct ChannelPayload {
+            double target;
+        };
         
         PrinterMain * parent ()
         {
@@ -617,45 +637,69 @@ private:
             o->reply_append_fmt(c, " %c:%f", HeaterSpec::Name, value);
         }
         
+        template <typename ThisContext>
+        void set (ThisContext c, double target)
+        {
+            AMBRO_LOCK_T(m_lock, c, lock_c, {
+                if (!m_enabled) {
+                    m_control.init(target);
+                    m_enabled = true;
+                } else {
+                    m_control.setTarget(target);
+                }
+            });
+        }
+        
+        template <typename ThisContext>
+        void unset (ThisContext c)
+        {
+            AMBRO_LOCK_T(m_lock, c, lock_c, {
+                m_enabled = false;
+            });
+        }
+        
         bool check_command (Context c, int cmd_num, int *out_result)
         {
             PrinterMain *o = parent();
             
-            if (cmd_num != HeaterSpec::SetMCommand && cmd_num != HeaterSpec::WaitMCommand) {
-                return true;
-            }
-            if (o->m_state == STATE_PLANNING) {
-                *out_result = CMD_WAIT_PLANNER;
-                return false;
-            }
-            double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
-            if (target > 0.0 && target <= 300.0) {
-                AMBRO_LOCK_T(m_lock, c, lock_c, {
-                    if (!m_enabled) {
-                        m_control.init(target);
-                        m_enabled = true;
-                    } else {
-                        m_control.setTarget(target);
-                    }
-                });
-            } else {
-                AMBRO_LOCK_T(m_lock, c, lock_c, {
-                    if (m_enabled) {
-                        m_enabled = false;
-                    }
-                });
-            }
             if (cmd_num == HeaterSpec::WaitMCommand) {
+                if (o->m_state == STATE_PLANNING) {
+                    *out_result = CMD_WAIT_PLANNER;
+                    return false;
+                }
+                double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
+                if (target > 0.0 && target <= 300.0) {
+                    set(c, target);
+                } else {
+                    unset(c);
+                }
                 AMBRO_ASSERT(!m_observing)
                 m_observer.init(c, target);
                 m_observing = true;
                 o->m_state = STATE_WAITING_TEMP;
                 o->now_active(c);
                 *out_result = CMD_DELAY;
-            } else {
-                *out_result = CMD_REPLY;
+                return false;
             }
-            return false;
+            if (cmd_num == HeaterSpec::SetMCommand) {
+                if (!o->try_buffered_command(c)) {
+                    *out_result = CMD_DELAY;
+                    return false;
+                }
+                double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
+                if (!(target > 0.0 && target <= 300.0)) {
+                    target = 0.0;
+                }
+                PlannerInputCommand cmd;
+                cmd.type = 1;
+                PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
+                payload->type = HeaterIndex;
+                UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
+                o->finish_buffered_command(c, cmd);
+                *out_result = CMD_DELAY;
+                return false;
+            }
+            return true;
         }
         
         double softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
@@ -700,6 +744,17 @@ private:
             Context::Pins::template emergencySet<typename HeaterSpec::OutputPin>(false);
         }
         
+        template <typename ThisContext, typename TheChannelPayloadUnion>
+        void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
+        {
+            ChannelPayload *payload = UnionGetElem<HeaterIndex>(payload_union);
+            if (payload->target != 0.0) {
+                set(c, payload->target);
+            } else {
+                unset(c);
+            }
+        }
+        
         typename Context::Lock m_lock;
         bool m_enabled;
         TheControl m_control;
@@ -712,7 +767,116 @@ private:
         struct ObserverHandler : public AMBRO_WCALLBACK_TD(&Heater::observer_handler, &Heater::m_observer) {};
     };
     
+    template <int FanIndex>
+    struct Fan {
+        struct SoftPwmTimerHandler;
+        
+        using FanSpec = TypeListGet<FansList, FanIndex>;
+        using TheSoftPwm = SoftPwm<Context, typename FanSpec::OutputPin, typename FanSpec::PulseInterval, SoftPwmTimerHandler, FanSpec::template TimerTemplate>;
+        
+        struct ChannelPayload {
+            double target;
+        };
+        
+        PrinterMain * parent ()
+        {
+            return PositionTraverse<FanPosition<FanIndex>, Position>(this);
+        }
+        
+        void init (Context c)
+        {
+            m_lock.init(c);
+            m_target = 0.0;
+            m_softpwm.init(c, c.clock()->getTime(c));
+        }
+        
+        void deinit (Context c)
+        {
+            m_softpwm.deinit(c);
+            m_lock.deinit(c);
+        }
+        
+        bool check_command (Context c, int cmd_num, int *out_result)
+        {
+            PrinterMain *o = parent();
+            
+            if (cmd_num == FanSpec::SetMCommand || cmd_num == FanSpec::OffMCommand) {
+                if (!o->try_buffered_command(c)) {
+                    *out_result = CMD_DELAY;
+                    return false;
+                }
+                double target = 0.0;
+                if (cmd_num == FanSpec::SetMCommand) {
+                    target = 1.0;
+                    if (o->find_command_param_double(o->m_cmd, 'S', &target)) {
+                        target *= FanSpec::SpeedMultiply::value();
+                    }
+                }
+                PlannerInputCommand cmd;
+                cmd.type = 1;
+                PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
+                payload->type = TypeListLength<HeatersList>::value + FanIndex;
+                UnionGetElem<FanIndex>(&payload->fans)->target = target;
+                o->finish_buffered_command(c, cmd);
+                *out_result = CMD_DELAY;
+                return false;
+            }
+            return true;
+        }
+        
+        double softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
+        {
+            double control_value;
+            AMBRO_LOCK_T(m_lock, c, lock_c, {
+                control_value = m_target;
+            });
+            return control_value;
+        }
+        
+        static void emergency ()
+        {
+            Context::Pins::template emergencySet<typename FanSpec::OutputPin>(false);
+        }
+        
+        template <typename ThisContext, typename TheChannelPayloadUnion>
+        void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
+        {
+            ChannelPayload *payload = UnionGetElem<FanIndex>(payload_union);
+            AMBRO_LOCK_T(m_lock, c, lock_c, {
+                m_target = payload->target;
+            });
+        }
+        
+        typename Context::Lock m_lock;
+        double m_target;
+        TheSoftPwm m_softpwm;
+        
+        struct SoftPwmTimerHandler : public AMBRO_WCALLBACK_TD(&Fan::softpwm_timer_handler, &Fan::m_softpwm) {};
+    };
+    
     using HeatersTuple = IndexElemTuple<HeatersList, Heater>;
+    using FansTuple = IndexElemTuple<FansList, Fan>;
+    
+    using HeatersChannelPayloadUnion = Union<MapTypeList<typename HeatersTuple::ElemTypes, GetMemberType_ChannelPayload>>;
+    using FansChannelPayloadUnion = Union<MapTypeList<typename FansTuple::ElemTypes, GetMemberType_ChannelPayload>>;
+    
+    struct PlannerChannelPayload {
+        uint8_t type;
+        union {
+            HeatersChannelPayloadUnion heaters;
+            FansChannelPayloadUnion fans;
+        };
+    };
+    
+    using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, Params::template EventChannelTimer>>;
+    using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
+    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler, MotionPlannerChannels>;
+    using PlannerInputCommand = typename ThePlanner::InputCommand;
+    using AxesTuple = IndexElemTuple<AxesList, Axis>;
+    
+    template <int AxisIndex>
+    using HomingStateTupleHelper = typename Axis<AxisIndex>::HomingFeature::HomingState;
+    using HomingStateTuple = IndexElemTuple<AxesList, HomingStateTupleHelper>;
     
 public:
     void init (Context c)
@@ -726,6 +890,7 @@ public:
         m_disable_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&PrinterMain::m_disable_timer, &PrinterMain::disable_timer_handler));
         m_force_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&PrinterMain::m_force_timer, &PrinterMain::force_timer_handler));
         TupleForEachForward(&m_heaters, Foreach_init(), c);
+        TupleForEachForward(&m_fans, Foreach_init(), c);
         m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
         m_recv_next_error = 0;
         m_line_number = 0;
@@ -744,10 +909,11 @@ public:
     {
         this->debugDeinit(c);
         
-        TupleForEachReverse(&m_heaters, Foreach_deinit(), c);
         if (m_state == STATE_PLANNING) {
             m_planner.deinit(c);
         }
+        TupleForEachReverse(&m_fans, Foreach_deinit(), c);
+        TupleForEachReverse(&m_heaters, Foreach_deinit(), c);
         m_force_timer.deinit(c);
         m_disable_timer.deinit(c);
         m_gcode_parser.deinit(c);
@@ -775,12 +941,25 @@ public:
         return PositionTraverse<Position, HeaterPosition<HeaterIndex>>(this)->m_softpwm.getTimer();
     }
     
+    template <int FanIndex>
+    typename Fan<FanIndex>::TheSoftPwm::TimerInstance * getFanTimer ()
+    {
+        return PositionTraverse<Position, FanPosition<FanIndex>>(this)->m_softpwm.getTimer();
+    }
+    
+    typename ThePlanner::template Channel<0>::TheTimer * getEventChannelTimer ()
+    {
+        return m_planner.template getChannelTimer<0>();
+    }
+    
     static void emergency ()
     {
         AxesTuple dummy_axes;
         TupleForEachForward(&dummy_axes, Foreach_emergency());
         HeatersTuple dummy_heaters;
         TupleForEachForward(&dummy_heaters, Foreach_emergency());
+        FansTuple dummy_fans;
+        TupleForEachForward(&dummy_fans, Foreach_emergency());
     }
     
 private:
@@ -828,7 +1007,6 @@ private:
     {
         AMBRO_ASSERT(m_cmd)
         AMBRO_ASSERT(m_state == STATE_IDLE || m_state == STATE_PLANNING)
-        AMBRO_ASSERT(m_state != STATE_PLANNING || !m_planning_req_pending)
         
         bool no_ok = false;
         char cmd_code;
@@ -870,7 +1048,9 @@ private:
             case 'M': switch (cmd_num) {
                 default:
                     int result;
-                    if (!TupleForEachForwardInterruptible(&m_heaters, Foreach_check_command(), c, cmd_num, &result)) {
+                    if (!TupleForEachForwardInterruptible(&m_heaters, Foreach_check_command(), c, cmd_num, &result) ||
+                        !TupleForEachForwardInterruptible(&m_fans, Foreach_check_command(), c, cmd_num, &result)
+                    ) {
                         if (result == CMD_REPLY) {
                             goto reply;
                         } else if (result == CMD_WAIT_PLANNER) {
@@ -929,29 +1109,26 @@ private:
                 
                 case 0:
                 case 1: { // buffered move
-                    bool changed = false;
+                    if (!try_buffered_command(c)) {
+                        return;
+                    }
                     m_planning_distance = 0.0;
                     for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
                         GcodeParserCommandPart *part = &m_cmd->parts[i];
-                        TupleForEachForward(&m_axes, Foreach_update_req_pos(), c, part, &changed);
+                        TupleForEachForward(&m_axes, Foreach_update_req_pos(), c, part);
                         if (part->code == 'F') {
                             m_max_cart_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
                         }
                     }
-                    if (changed) {
-                        if (m_state != STATE_PLANNING) {
-                            m_planner.init(c);
-                            m_state = STATE_PLANNING;
-                            m_planning_pull_pending = false;
-                            now_active(c);
-                        }
-                        m_planning_req_pending = true;
-                        m_planning_distance = sqrt(m_planning_distance);
-                        if (m_planning_pull_pending) {
-                            send_req_to_planner(c);
-                        }
-                        return;
-                    }
+                    m_planning_distance = sqrt(m_planning_distance);
+                    PlannerInputCommand cmd;
+                    cmd.type = 0;
+                    cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / m_planning_distance) / Clock::time_freq);
+                    double total_steps = 0.0;
+                    TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd, &total_steps);
+                    cmd.rel_max_v = fmin(cmd.rel_max_v, (Params::MaxStepsPerCycle::value() * (F_CPU / Clock::time_freq)) / total_steps);
+                    finish_buffered_command(c, cmd);
+                    return;
                 } break;
                 
                 case 21: // set units to millimeters
@@ -1135,18 +1312,28 @@ private:
         m_reply_length = 0;
     }
     
-    void send_req_to_planner (Context c)
+    bool try_buffered_command (Context c)
+    {
+        AMBRO_ASSERT(m_cmd)
+        AMBRO_ASSERT(m_state == STATE_IDLE || m_state == STATE_PLANNING)
+        
+        if (m_state != STATE_PLANNING) {
+            m_planner.init(c);
+            m_state = STATE_PLANNING;
+            m_planning_pull_pending = false;
+            now_active(c);
+        }
+        m_planning_req_pending = true;
+        return m_planning_pull_pending;
+    }
+    
+    void finish_buffered_command (Context c, PlannerInputCommand cmd)
     {
         AMBRO_ASSERT(m_state == STATE_PLANNING)
         AMBRO_ASSERT(m_planning_req_pending)
         AMBRO_ASSERT(m_cmd)
         AMBRO_ASSERT(m_planning_pull_pending)
         
-        PlannerInputCommand cmd;
-        cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / m_planning_distance) / Clock::time_freq);
-        double total_steps = 0.0;
-        TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd, &total_steps);
-        cmd.rel_max_v = fmin(cmd.rel_max_v, (Params::MaxStepsPerCycle::value() * (F_CPU / Clock::time_freq)) / total_steps);
         m_planner.commandDone(c, cmd);
         m_planning_req_pending = false;
         m_planning_pull_pending = false;
@@ -1182,10 +1369,11 @@ private:
         this->debugAccess(c);
         AMBRO_ASSERT(m_state == STATE_PLANNING)
         AMBRO_ASSERT(!m_planning_pull_pending)
+        AMBRO_ASSERT(!m_planning_req_pending || m_cmd)
         
         m_planning_pull_pending = true;
         if (m_planning_req_pending) {
-            send_req_to_planner(c);
+            process_received_command(c, true);
         } else if (m_cmd) {
             m_planner.waitFinished(c);
         } else {
@@ -1215,6 +1403,15 @@ private:
         }
     }
     
+    void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)
+    {
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_PLANNING)
+        
+        TupleForOneOffset<0>(payload->type, &m_heaters, Foreach_channel_callback(), c, &payload->heaters);
+        TupleForOneOffset<TypeListLength<HeatersList>::value>(payload->type, &m_fans, Foreach_channel_callback(), c, &payload->fans);
+    }
+    
     TheWatchdog m_watchdog;
     TheBlinker m_blinker;
     TheSteppers m_steppers;
@@ -1224,6 +1421,7 @@ private:
     typename Loop::QueuedEvent m_disable_timer;
     typename Loop::QueuedEvent m_force_timer;
     HeatersTuple m_heaters;
+    FansTuple m_fans;
     TimeType m_inactive_time;
     TimeType m_last_active_time;
     int8_t m_recv_next_error;
@@ -1252,6 +1450,7 @@ private:
     template <int AxisIndex> struct HomingStatePosition : public TuplePosition<Position, HomingStateTuple, &PrinterMain::m_homers, AxisIndex> {};
     struct PlannerPosition : public MemberPosition<Position, ThePlanner, &PrinterMain::m_planner> {};
     template <int HeaterIndex> struct HeaterPosition : public TuplePosition<Position, HeatersTuple, &PrinterMain::m_heaters, HeaterIndex> {};
+    template <int FanIndex> struct FanPosition : public TuplePosition<Position, FansTuple, &PrinterMain::m_fans, FanIndex> {};
     
     struct BlinkerHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::blinker_handler, &PrinterMain::m_blinker) {};
     struct SerialRecvHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::serial_recv_handler, &PrinterMain::m_serial) {};
@@ -1259,6 +1458,7 @@ private:
     template <int AxisIndex> struct PlannerGetAxisStepper : public AMBRO_WCALLBACK_TD(&PrinterMain::template getAxisStepper<AxisIndex>, &PrinterMain::m_planner) {};
     struct PlannerPullHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_pull_handler, &PrinterMain::m_planner) {};
     struct PlannerFinishedHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_finished_handler, &PrinterMain::m_planner) {};
+    struct PlannerChannelCallback : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_channel_callback, &PrinterMain::m_planner) {};
     template <int AxisIndex> struct AxisStepperConsumersList {
         using List = JoinTypeLists<
             MakeTypeList<typename ThePlanner::template TheAxisStepperConsumer<AxisIndex>>,

@@ -122,6 +122,7 @@ private:
         }
         
         PlannerCommand cmd;
+        cmd.type = 0;
         cmd.rel_max_v = INFINITY;
         switch (m_state) {
             case STATE_FAST: {

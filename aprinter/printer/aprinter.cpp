@@ -138,6 +138,9 @@ using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
 using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
+using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
+using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
+
 using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
         UINT32_C(57600), // baud rate. Don't increase, or serial will fail randomly.
@@ -155,6 +158,8 @@ using PrinterParams = PrinterMainParams<
     AvrWatchdogParams<
         WDTO_2S // watchdot timeout
     >,
+    16, // event channel buffer size
+    AvrClockInterruptTimer_TC2_OCA,
     MakeTypeList<
         PrinterMainAxisParams<
             'X', // axis name
@@ -313,6 +318,16 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverMinTime
             >
         >
+    >,
+    MakeTypeList<
+        PrinterMainFanParams<
+            106, // set M command
+            107, // off M command
+            FanSpeedMultiply,
+            AvrPin<AvrPortB, 4>,
+            FanPulseInterval,
+            AvrClockInterruptTimer_TC2_OCB
+        >
     >
 >;
 
@@ -382,6 +397,8 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*myprinter.getAxisStepper<2>()->get
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*myprinter.getAxisStepper<3>()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(*myprinter.getHeaterTimer<0>(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(*myprinter.getHeaterTimer<1>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCA_ISRS(*myprinter.getEventChannelTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCB_ISRS(*myprinter.getFanTimer<0>(), MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
 
 FILE uart_output;
@@ -417,6 +434,7 @@ int main ()
     myclock.init(c);
     myclock.initTC3(c);
     myclock.initTC0(c);
+    myclock.initTC2(c);
     myloop.init(c);
     mypins.init(c);
     mypinwatcherservice.init(c);
