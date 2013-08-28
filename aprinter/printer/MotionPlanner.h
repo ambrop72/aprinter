@@ -285,7 +285,6 @@ public:
         
         void init (Context c)
         {
-            m_stepper_event.init(c, AMBRO_OFFSET_CALLBACK_T(&Axis::m_stepper_event, &Axis::stepper_event_handler));
             m_first = NULL;
             m_free_first = NULL;
             m_new_first = NULL;
@@ -299,7 +298,6 @@ public:
         void deinit (Context c)
         {
             stepper()->stop(c);
-            m_stepper_event.deinit(c);
         }
         
         void commandDone_assert (InputCommand icmd)
@@ -524,13 +522,6 @@ public:
         void stopped_stepping (Context c)
         {
             m_num_committed = 0;
-            m_stepper_event.unset(c);
-        }
-        
-        void stepper_event_handler (Context c)
-        {
-            MotionPlanner *o = parent();
-            o->stepper_event_handler(c);
         }
         
         StepperCommand * stepper_command_callback (StepperCommandCallbackContext c)
@@ -544,11 +535,10 @@ public:
             old->next = m_free_first;
             m_free_first = old;
             m_num_committed--;
-            m_stepper_event.appendNowIfNotAlready(c);
+            o->m_stepper_event.appendNowIfNotAlready(c);
             return (m_first ? &m_first->scmd : NULL);
         }
         
-        typename Loop::QueuedEvent m_stepper_event;
         TheAxisStepperCommand *m_first;
         TheAxisStepperCommand *m_last_committed;
         TheAxisStepperCommand *m_last;
@@ -585,7 +575,6 @@ public:
         
         void init (Context c)
         {
-            m_stepper_event.init(c, AMBRO_OFFSET_CALLBACK_T(&Channel::m_stepper_event, &Channel::stepper_event_handler));
             m_first = NULL;
             m_free_first = NULL;
             m_new_first = NULL;
@@ -600,7 +589,6 @@ public:
         void deinit (Context c)
         {
             m_timer.deinit(c);
-            m_stepper_event.deinit(c);
         }
         
         void write_segment (Segment *entry)
@@ -744,13 +732,6 @@ public:
         void stopped_stepping (Context c)
         {
             m_num_committed = 0;
-            m_stepper_event.unset(c);
-        }
-        
-        void stepper_event_handler (Context c)
-        {
-            MotionPlanner *o = parent();
-            o->stepper_event_handler(c);
         }
         
         bool timer_handler (typename TheTimer::HandlerContext c)
@@ -766,7 +747,7 @@ public:
             old->next = m_free_first;
             m_free_first = old;
             m_num_committed--;
-            m_stepper_event.appendNowIfNotAlready(c);
+            o->m_stepper_event.appendNowIfNotAlready(c);
             if (!m_first) {
                 return false;
             }
@@ -774,7 +755,6 @@ public:
             return true;
         }
         
-        typename Loop::QueuedEvent m_stepper_event;
         TheChannelCommand *m_first;
         TheChannelCommand *m_last_committed;
         TheChannelCommand *m_last;
@@ -797,6 +777,7 @@ public:
     {
         m_lock.init(c);
         m_pull_finished_event.init(c, AMBRO_OFFSET_CALLBACK_T(&MotionPlanner::m_pull_finished_event, &MotionPlanner::pull_finished_event_handler));
+        m_stepper_event.init(c, AMBRO_OFFSET_CALLBACK_T(&MotionPlanner::m_stepper_event, &MotionPlanner::stepper_event_handler));
         m_segments_start = SegmentBufferSizeType::import(0);
         m_segments_staging_end = SegmentBufferSizeType::import(0);
         m_segments_end = SegmentBufferSizeType::import(0);
@@ -822,6 +803,7 @@ public:
         
         TupleForEachForward(&m_channels, Foreach_deinit(), c);
         TupleForEachForward(&m_axes, Foreach_deinit(), c);
+        m_stepper_event.deinit(c);
         m_pull_finished_event.deinit(c);
         m_lock.deinit(c);
     }
@@ -1152,6 +1134,7 @@ private:
             m_stepping = false;
             m_segments_start = m_segments_staging_end;
             m_staging_time = 0;
+            m_stepper_event.unset(c);
             TupleForEachForward(&m_axes, Foreach_stopped_stepping(), c);
             TupleForEachForward(&m_channels, Foreach_stopped_stepping(), c);
             if (m_waiting) {
@@ -1166,6 +1149,7 @@ private:
     
     typename Context::Lock m_lock;
     typename Loop::QueuedEvent m_pull_finished_event;
+    typename Loop::QueuedEvent m_stepper_event;
     SegmentBufferSizeType m_segments_start;
     SegmentBufferSizeType m_segments_staging_end;
     SegmentBufferSizeType m_segments_end;
