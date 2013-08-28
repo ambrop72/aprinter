@@ -300,17 +300,17 @@ public:
             stepper()->stop(c);
         }
         
-        void commandDone_assert (InputCommand icmd)
+        void commandDone_assert (InputCommand *icmd)
         {
-            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
+            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd->axes);
             AMBRO_ASSERT(FloatIsPosOrPosZero(axis_icmd->max_v))
             AMBRO_ASSERT(FloatIsPosOrPosZero(axis_icmd->max_a))
         }
         
-        void write_splitbuf (InputCommand icmd)
+        void write_splitbuf (InputCommand *icmd)
         {
             MotionPlanner *o = parent();
-            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd.axes);
+            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd->axes);
             TheAxisSplitBuffer *axis_split = TupleGetElem<AxisIndex>(&o->m_split_buffer.axes);
             axis_split->dir = axis_icmd->dir;
             axis_split->x = axis_icmd->x;
@@ -808,27 +808,27 @@ public:
         m_lock.deinit(c);
     }
     
-    void commandDone (Context c, InputCommand icmd)
+    void commandDone (Context c, InputCommand *icmd)
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_pulling)
         AMBRO_ASSERT(!m_have_split_buffer)
-        if (icmd.type == 0) {
-            AMBRO_ASSERT(FloatIsPosOrPosZero(icmd.rel_max_v))
+        if (icmd->type == 0) {
+            AMBRO_ASSERT(FloatIsPosOrPosZero(icmd->rel_max_v))
             TupleForEachForward(&m_axes, Foreach_commandDone_assert(), icmd);
         }
         
-        m_split_buffer.type = icmd.type;
+        m_split_buffer.type = icmd->type;
         if (m_split_buffer.type == 0) {
             TupleForEachForward(&m_axes, Foreach_write_splitbuf(), icmd);
             double split_count_comp = TupleForEachForwardAccRes(&m_axes, 0.0, Foreach_compute_split_count());
             double split_count = ceil(split_count_comp + 0.1);
-            m_split_buffer.base_max_v = icmd.rel_max_v * split_count;
+            m_split_buffer.base_max_v = icmd->rel_max_v * split_count;
             m_split_buffer.split_frac = 1.0 / split_count;
             m_split_buffer.split_count = split_count;
             m_split_buffer.split_pos = 1;
         } else {
-            m_split_buffer.channel_payload = icmd.channel_payload;
+            m_split_buffer.channel_payload = icmd->channel_payload;
         }
         
         m_pull_finished_event.unset(c);

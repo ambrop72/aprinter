@@ -695,7 +695,7 @@ private:
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = HeaterIndex;
                 UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
-                o->finish_buffered_command(c, cmd);
+                o->finish_buffered_command(c, &cmd);
                 *out_result = CMD_DELAY;
                 return false;
             }
@@ -817,7 +817,7 @@ private:
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
                 UnionGetElem<FanIndex>(&payload->fans)->target = target;
-                o->finish_buffered_command(c, cmd);
+                o->finish_buffered_command(c, &cmd);
                 *out_result = CMD_DELAY;
                 return false;
             }
@@ -1127,7 +1127,7 @@ private:
                     double total_steps = 0.0;
                     TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd, &total_steps);
                     cmd.rel_max_v = fmin(cmd.rel_max_v, (Params::MaxStepsPerCycle::value() * (F_CPU / Clock::time_freq)) / total_steps);
-                    finish_buffered_command(c, cmd);
+                    finish_buffered_command(c, &cmd);
                     return;
                 } break;
                 
@@ -1327,7 +1327,7 @@ private:
         return m_planning_pull_pending;
     }
     
-    void finish_buffered_command (Context c, PlannerInputCommand cmd)
+    void finish_buffered_command (Context c, PlannerInputCommand *cmd)
     {
         AMBRO_ASSERT(m_state == STATE_PLANNING)
         AMBRO_ASSERT(m_planning_req_pending)

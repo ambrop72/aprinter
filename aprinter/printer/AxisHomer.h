@@ -145,7 +145,7 @@ private:
             } break;
         }
         
-        m_planner.commandDone(c, cmd);
+        m_planner.commandDone(c, &cmd);
         m_command_sent = true;
     }
     
