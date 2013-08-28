@@ -25,8 +25,6 @@
 #ifndef AMBROLIB_TUPLE_H
 #define AMBROLIB_TUPLE_H
 
-#include <stddef.h>
-
 #include <aprinter/meta/TypeList.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -36,18 +34,18 @@ struct Tuple;
 
 template <>
 struct Tuple<EmptyTypeList> {
-    typedef EmptyTypeList ElemTypes;
+    using ElemTypes = EmptyTypeList;
 };
 
 template <typename TElemType, typename TTailTypes>
 struct Tuple<ConsTypeList<TElemType, TTailTypes>>
 : public Tuple<TTailTypes>
 {
-    typedef ConsTypeList<TElemType, TTailTypes> ElemTypes;
+    using ElemTypes = ConsTypeList<TElemType, TTailTypes>;
     
-    typedef TElemType ElemType;
-    typedef TTailTypes TailTypes;
-    typedef Tuple<TTailTypes> TailTupleType;
+    using ElemType = TElemType;
+    using TailTypes = TTailTypes;
+    using TailTupleType = Tuple<TTailTypes>;
     
     TailTupleType * getTail ()
     {
@@ -71,6 +69,7 @@ struct Tuple<ConsTypeList<TElemType, TTailTypes>>
     
     ElemType elem;
 };
+
 #include <aprinter/EndNamespace.h>
 
 #endif
