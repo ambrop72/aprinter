@@ -506,7 +506,7 @@ private:
                     new_pos[AxisIndex] = m_end_pos + move;
                 }
                 if (AxisSpec::enable_cartesian_speed_limit) {
-                    double delta = move / AxisSpec::DefaultStepsPerUnit::value();
+                    double delta = move * (1.0 / AxisSpec::DefaultStepsPerUnit::value());
                     *distance_squared += delta * delta;
                 }
                 *total_steps += move_abs;
@@ -1112,7 +1112,7 @@ private:
                     TupleForEachForward(&m_axes, Foreach_process_new_pos(), c, new_pos, &distance, &total_steps, &cmd);
                     distance = sqrt(distance);
                     cmd.type = 0;
-                    cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / distance) / Clock::time_freq);
+                    cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / distance) * Clock::time_unit);
                     cmd.rel_max_v = fmin(cmd.rel_max_v, (Params::MaxStepsPerCycle::value() * (F_CPU / Clock::time_freq)) / total_steps);
                     finish_buffered_command(c, &cmd);
                     return;

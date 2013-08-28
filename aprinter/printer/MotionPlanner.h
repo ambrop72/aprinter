@@ -323,7 +323,7 @@ public:
         {
             MotionPlanner *o = parent();
             TheAxisSplitBuffer *axis_split = TupleGetElem<AxisIndex>(&o->m_split_buffer.axes);
-            return fmax(accum, axis_split->x.doubleValue() / StepperStepFixedType::maxValue().doubleValue());
+            return fmax(accum, axis_split->x.doubleValue() * (1.0 / StepperStepFixedType::maxValue().doubleValue()));
         }
         
         bool check_split_finished (bool accum)
@@ -374,7 +374,7 @@ public:
         double write_segment_buffer_entry_accel (Segment *entry, double rel_max_accel)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            axis_entry->half_accel = rel_max_accel * axis_entry->x.doubleValue() / 2;
+            axis_entry->half_accel = 0.5 * rel_max_accel * axis_entry->x.doubleValue();
         }
         
         double compute_segment_buffer_cornering_speed (double accum, Segment *entry, Segment *prev_entry)
