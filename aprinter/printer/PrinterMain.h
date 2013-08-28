@@ -204,8 +204,8 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_homing, start_homing)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_update_homing_mask, update_homing_mask)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_enable_stepper, enable_stepper)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_update_req_pos, update_req_pos)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_planner_command, write_planner_command)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_collect_new_pos, collect_new_pos)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_process_new_pos, process_new_pos)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_position, append_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
@@ -316,6 +316,7 @@ private:
                     m_homer.deinit(c);
                     axis->m_end_pos = (AxisSpec::Homing::home_dir ? axis->m_max : axis->m_min);
                     axis->m_req_pos = axis->m_end_pos;
+                    axis->m_new_pos = axis->m_req_pos;
                     axis->m_state = AXIS_STATE_OTHER;
                     o->m_homing_rem_axes--;
                     if (!success) {
@@ -451,7 +452,7 @@ private:
             m_homing_feature.init(c);
             m_end_pos = clamp_pos(0.0);
             m_req_pos = clamp_pos(0.0);
-            m_move = 0.0;
+            m_new_pos = m_req_pos;
             m_relative_positioning = false;
         }
         
@@ -483,7 +484,7 @@ private:
             return parent()->m_steppers.template getStepper<AxisIndex>();
         }
         
-        void update_req_pos (Context c, GcodeParserCommandPart *part)
+        void collect_new_pos (GcodeParserCommandPart *part)
         {
             if (part->code == axis_name) {
                 double req = strtod(part->data, NULL);
@@ -494,39 +495,40 @@ private:
                 if (m_relative_positioning) {
                     req += m_req_pos;
                 }
-                m_req_pos = clamp_pos(req);
-                m_move = round(m_req_pos) - m_end_pos;
-                if (m_move != 0.0) {
-                    if (fabs(m_move) > StepFixedType::maxValue().doubleValue()) {
-                        m_move = ((m_move < 0.0) ? -1.0 : 1.0) * StepFixedType::maxValue().doubleValue();
-                        m_req_pos = m_end_pos + m_move;
-                    }
-                    if (AxisSpec::enable_cartesian_speed_limit) {
-                        double delta = m_move / m_steps_per_unit;
-                        parent()->m_planning_distance += delta * delta;
-                    }
-                    enable_stepper(c, true);
-                }
+                req = clamp_pos(req);
+                m_new_pos = req;
             }
         }
         
         template <typename PlannerCmd>
-        void write_planner_command (PlannerCmd *cmd, double *total_steps)
+        void process_new_pos (Context c, double *distance_squared, double *total_steps, PlannerCmd *cmd)
         {
+            double move = round(m_new_pos) - m_end_pos;
+            if (move != 0.0) {
+                if (fabs(move) > StepFixedType::maxValue().doubleValue()) {
+                    move = ((move < 0.0) ? -1.0 : 1.0) * StepFixedType::maxValue().doubleValue();
+                    m_new_pos = m_end_pos + move;
+                }
+                if (AxisSpec::enable_cartesian_speed_limit) {
+                    double delta = move / m_steps_per_unit;
+                    *distance_squared += delta * delta;
+                }
+                enable_stepper(c, true);
+            }
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
-            if (m_move >= 0.0) {
+            if (move >= 0.0) {
                 mycmd->dir = true;
-                mycmd->x = StepFixedType::importBits(m_move);
-                *total_steps += m_move;
+                mycmd->x = StepFixedType::importBits(move);
+                *total_steps += move;
             } else {
                 mycmd->dir = false;
-                mycmd->x = StepFixedType::importBits(-m_move);
-                *total_steps -= m_move;
+                mycmd->x = StepFixedType::importBits(-move);
+                *total_steps -= move;
             }
             mycmd->max_v = m_max_speed;
             mycmd->max_a = m_max_accel;
-            m_end_pos += m_move;
-            m_move = 0.0;
+            m_end_pos += move;
+            m_req_pos = m_new_pos;
         }
         
         void append_position (Context c)
@@ -553,7 +555,7 @@ private:
                 }
                 m_end_pos = round(clamp_pos(req * m_steps_per_unit));
                 m_req_pos = m_end_pos;
-                m_move = 0.0;
+                m_new_pos = m_req_pos;
             }
         }
         
@@ -572,7 +574,7 @@ private:
         HomingFeature m_homing_feature;
         double m_end_pos; // steps, integer
         double m_req_pos; // steps
-        double m_move; // steps, integer, =round(m_req_pos)-m_end_pos
+        double m_new_pos; // steps
         bool m_relative_positioning;
         
         struct AxisStepperPosition : public MemberPosition<AxisPosition<AxisIndex>, TheAxisStepper, &Axis::m_axis_stepper> {};
@@ -1112,20 +1114,20 @@ private:
                     if (!try_buffered_command(c)) {
                         return;
                     }
-                    m_planning_distance = 0.0;
                     for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
                         GcodeParserCommandPart *part = &m_cmd->parts[i];
-                        TupleForEachForward(&m_axes, Foreach_update_req_pos(), c, part);
+                        TupleForEachForward(&m_axes, Foreach_collect_new_pos(), part);
                         if (part->code == 'F') {
                             m_max_cart_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
                         }
                     }
-                    m_planning_distance = sqrt(m_planning_distance);
                     PlannerInputCommand cmd;
-                    cmd.type = 0;
-                    cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / m_planning_distance) / Clock::time_freq);
+                    double distance = 0.0;
                     double total_steps = 0.0;
-                    TupleForEachForward(&m_axes, Foreach_write_planner_command(), &cmd, &total_steps);
+                    TupleForEachForward(&m_axes, Foreach_process_new_pos(), c, &distance, &total_steps, &cmd);
+                    distance = sqrt(distance);
+                    cmd.type = 0;
+                    cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / distance) / Clock::time_freq);
                     cmd.rel_max_v = fmin(cmd.rel_max_v, (Params::MaxStepsPerCycle::value() * (F_CPU / Clock::time_freq)) / total_steps);
                     finish_buffered_command(c, &cmd);
                     return;
@@ -1441,7 +1443,6 @@ private:
             ThePlanner m_planner;
             bool m_planning_req_pending;
             bool m_planning_pull_pending;
-            double m_planning_distance;
         };
     };
     
