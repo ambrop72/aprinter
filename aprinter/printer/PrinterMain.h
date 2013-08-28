@@ -315,7 +315,7 @@ private:
                     AMBRO_ASSERT(o->m_homing_rem_axes > 0)
                     
                     m_homer.deinit(c);
-                    axis->m_end_pos = (AxisSpec::Homing::home_dir ? axis->m_max : axis->m_min);
+                    axis->m_end_pos = (AxisSpec::Homing::home_dir ? axis->max_pos() : axis->min_pos());
                     axis->m_req_pos = axis->m_end_pos;
                     axis->m_state = AXIS_STATE_OTHER;
                     o->m_homing_rem_axes--;
@@ -349,14 +349,6 @@ private:
             
             void init (Context c)
             {
-                Axis *axis = parent();
-                
-                m_fast_max_dist = axis->dist_from_real(AxisSpec::Homing::DefaultFastMaxDist::value());
-                m_retract_dist = axis->dist_from_real(AxisSpec::Homing::DefaultRetractDist::value());
-                m_slow_max_dist = axis->dist_from_real(AxisSpec::Homing::DefaultSlowMaxDist::value());
-                m_fast_speed = axis->speed_from_real(AxisSpec::Homing::DefaultFastSpeed::value());
-                m_retract_speed = axis->speed_from_real(AxisSpec::Homing::DefaultRetractSpeed::value());
-                m_slow_speed = axis->speed_from_real(AxisSpec::Homing::DefaultSlowSpeed::value());
             }
             
             void deinit (Context c)
@@ -378,26 +370,19 @@ private:
                 }
                 
                 typename HomingState::Homer::HomingParams params;
-                params.fast_max_dist = StepFixedType::importDoubleSaturated(m_fast_max_dist);
-                params.retract_dist = StepFixedType::importDoubleSaturated(m_retract_dist);
-                params.slow_max_dist = StepFixedType::importDoubleSaturated(m_slow_max_dist);
-                params.fast_speed = m_fast_speed;
-                params.retract_speed = m_retract_speed;
-                params.slow_speed = m_slow_speed;
-                params.max_accel = axis->m_max_accel;
+                params.fast_max_dist = StepFixedType::importDoubleSaturated(axis->dist_from_real(AxisSpec::Homing::DefaultFastMaxDist::value()));
+                params.retract_dist = StepFixedType::importDoubleSaturated(axis->dist_from_real(AxisSpec::Homing::DefaultRetractDist::value()));
+                params.slow_max_dist = StepFixedType::importDoubleSaturated(axis->dist_from_real(AxisSpec::Homing::DefaultSlowMaxDist::value()));
+                params.fast_speed = axis->speed_from_real(AxisSpec::Homing::DefaultFastSpeed::value());
+                params.retract_speed = axis->speed_from_real(AxisSpec::Homing::DefaultRetractSpeed::value());;
+                params.slow_speed = axis->speed_from_real(AxisSpec::Homing::DefaultSlowSpeed::value());
+                params.max_accel = axis->accel_from_real(AxisSpec::DefaultMaxAccel::value());
                 
                 axis->stepper()->enable(c, true);
                 homing_state()->m_homer.init(c, params);
                 axis->m_state = AXIS_STATE_HOMING;
                 o->m_homing_rem_axes++;
             }
-            
-            double m_fast_max_dist; // steps
-            double m_retract_dist; // steps
-            double m_slow_max_dist; // steps
-            double m_fast_speed; // steps/tick
-            double m_retract_speed; // steps/tick
-            double m_slow_speed; // steps/tick
         } AMBRO_STRUCT_ELSE(HomingFeature) {
             struct HomingState {};
             template <typename TheHomingFeature>
@@ -416,17 +401,17 @@ private:
         
         double dist_from_real (double x)
         {
-            return (x * m_steps_per_unit);
+            return (x * AxisSpec::DefaultStepsPerUnit::value());
         }
         
         double speed_from_real (double v)
         {
-            return (v * (m_steps_per_unit / Clock::time_freq));
+            return (v * (AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq));
         }
         
         double accel_from_real (double a)
         {
-            return (a * (m_steps_per_unit / (Clock::time_freq * Clock::time_freq)));
+            return (a * (AxisSpec::DefaultStepsPerUnit::value() / (Clock::time_freq * Clock::time_freq)));
         }
         
         static double clamp_limit (double x)
@@ -437,18 +422,23 @@ private:
         
         double clamp_pos (double pos)
         {
-            return fmax(m_min, fmin(m_max, pos));
+            return fmax(min_pos(), fmin(max_pos(), pos));
+        }
+        
+        double min_pos ()
+        {
+            return clamp_limit(dist_from_real(AxisSpec::DefaultMin::value()));
+        }
+        
+        double max_pos ()
+        {
+            return clamp_limit(dist_from_real(AxisSpec::DefaultMax::value()));
         }
         
         void init (Context c)
         {
             m_axis_stepper.init(c);
             m_state = AXIS_STATE_OTHER;
-            m_steps_per_unit = AxisSpec::DefaultStepsPerUnit::value();
-            m_max_speed = speed_from_real(AxisSpec::DefaultMaxSpeed::value());
-            m_max_accel = accel_from_real(AxisSpec::DefaultMaxAccel::value());
-            m_min = clamp_limit(dist_from_real(AxisSpec::DefaultMin::value()));
-            m_max = clamp_limit(dist_from_real(AxisSpec::DefaultMax::value()));
             m_homing_feature.init(c);
             m_end_pos = clamp_pos(0.0);
             m_req_pos = clamp_pos(0.0);
@@ -495,7 +485,7 @@ private:
                 if (isnan(req)) {
                     req = 0.0;
                 }
-                req *= m_steps_per_unit;
+                req *= AxisSpec::DefaultStepsPerUnit::value();
                 if (m_relative_positioning) {
                     req += m_req_pos;
                 }
@@ -516,7 +506,7 @@ private:
                     new_pos[AxisIndex] = m_end_pos + move;
                 }
                 if (AxisSpec::enable_cartesian_speed_limit) {
-                    double delta = move / m_steps_per_unit;
+                    double delta = move / AxisSpec::DefaultStepsPerUnit::value();
                     *distance_squared += delta * delta;
                 }
                 *total_steps += move_abs;
@@ -525,15 +515,15 @@ private:
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
             mycmd->dir = (move >= 0.0);
             mycmd->x = StepFixedType::importBits(move_abs);
-            mycmd->max_v = m_max_speed;
-            mycmd->max_a = m_max_accel;
+            mycmd->max_v = speed_from_real(AxisSpec::DefaultMaxSpeed::value());
+            mycmd->max_a = accel_from_real(AxisSpec::DefaultMaxAccel::value());
             m_end_pos += move;
             m_req_pos = new_pos[AxisIndex];
         }
         
         void append_position (Context c)
         {
-            parent()->reply_append_fmt(c, "%c:%f", axis_name, m_req_pos / m_steps_per_unit);
+            parent()->reply_append_fmt(c, "%c:%f", axis_name, m_req_pos / AxisSpec::DefaultStepsPerUnit::value());
         }
         
         void set_relative_positioning (bool relative)
@@ -553,7 +543,7 @@ private:
                 if (isnan(req)) {
                     req = 0.0;
                 }
-                m_end_pos = round(clamp_pos(req * m_steps_per_unit));
+                m_end_pos = round(clamp_pos(req * AxisSpec::DefaultStepsPerUnit::value()));
                 m_req_pos = m_end_pos;
             }
         }
@@ -565,11 +555,6 @@ private:
         
         TheAxisStepper m_axis_stepper;
         uint8_t m_state;
-        double m_steps_per_unit;
-        double m_max_speed; // steps/tick
-        double m_max_accel; // steps/tick^2
-        double m_min; // steps, integer
-        double m_max; // steps, integer
         HomingFeature m_homing_feature;
         double m_end_pos; // steps, integer
         double m_req_pos; // steps
