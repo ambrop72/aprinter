@@ -39,6 +39,12 @@ constexpr T max (T op1, T op2)
     return (op1 > op2) ? op1 : op2;
 }
 
+template <typename T>
+constexpr T absolute (T op)
+{
+    return (op > 0) ? op : -op;
+}
+
 #include <aprinter/EndNamespace.h>
 
 #endif
