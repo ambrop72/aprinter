@@ -680,6 +680,7 @@ private:
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = HeaterIndex;
                 UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
+                o->finish_command(c, false);
                 o->finish_buffered_command(c, &cmd);
                 *out_result = CMD_DELAY;
                 return false;
@@ -802,6 +803,7 @@ private:
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
                 UnionGetElem<FanIndex>(&payload->fans)->target = target;
+                o->finish_command(c, false);
                 o->finish_buffered_command(c, &cmd);
                 *out_result = CMD_DELAY;
                 return false;
@@ -1106,6 +1108,7 @@ private:
                             m_max_cart_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
                         }
                     }
+                    finish_command(c, false);
                     PlannerInputCommand cmd;
                     double distance = 0.0;
                     double total_steps = 0.0;
@@ -1318,14 +1321,13 @@ private:
     {
         AMBRO_ASSERT(m_state == STATE_PLANNING)
         AMBRO_ASSERT(m_planning_req_pending)
-        AMBRO_ASSERT(m_cmd)
+        AMBRO_ASSERT(!m_cmd)
         AMBRO_ASSERT(m_planning_pull_pending)
         
         m_planner.commandDone(c, cmd);
         m_planning_req_pending = false;
         m_planning_pull_pending = false;
         m_force_timer.unset(c);
-        finish_command(c, false);
     }
     
     void serial_send_handler (Context c)
