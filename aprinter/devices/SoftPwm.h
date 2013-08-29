@@ -26,6 +26,7 @@
 #define AMBROLIB_SOFT_PWM_H
 
 #include <aprinter/meta/WrapCallback.h>
+#include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -44,6 +45,7 @@ public:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using TimerInstance = TimerTemplate<Context, TimerHandler>;
+    using FixedFracType = FixedPoint<16, false, -16>;
     
     void init (Context c, TimeType start_time)
     {
@@ -73,24 +75,27 @@ public:
     }
     
 private:
+    static const TimeType interval = PulseInterval::value() / Clock::time_unit;
+    
     bool timer_handler (typename TimerInstance::HandlerContext c)
     {
         this->debugAccess(c);
         
         TimeType next_time;
         if (AMBRO_LIKELY(!m_state)) {
-            double frac = TimerCallback::call(this, c);
-            c.pins()->template set<Pin>(c, (frac > 0.0));
-            if (frac > 0.0 && frac < 1.0) {
-                next_time = m_start_time + (TimeType)(frac * (PulseInterval::value() / Clock::time_unit));
+            FixedFracType frac = TimerCallback::call(this, c);
+            c.pins()->template set<Pin>(c, (frac.bitsValue() > 0));
+            if (frac.bitsValue() > 0 && frac < FixedFracType::maxValue()) {
+                auto res = FixedResMultiply(FixedPoint<32, false, 0>::importBits(interval), frac);
+                next_time = m_start_time + (TimeType)res.bitsValue();
                 m_state = true;
             } else {
-                m_start_time += (TimeType)(PulseInterval::value() / Clock::time_unit);
+                m_start_time += interval;
                 next_time = m_start_time;
             }
         } else {
             c.pins()->template set<Pin>(c, false);
-            m_start_time += (TimeType)(PulseInterval::value() / Clock::time_unit);
+            m_start_time += interval;
             next_time = m_start_time;
             m_state = false;
         }
