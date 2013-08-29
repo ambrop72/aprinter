@@ -438,13 +438,29 @@ template <typename T1, typename T2>
 using FixedUnionTypes = typename FixedUnionTypesHelper<T1, T2>::Type;
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
-auto FixedMax (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2) -> FixedUnionTypes<decltype(op1), decltype(op2)>
-{
-    if (op1 > op2) {
-        return op1;
-    } else {
-        return op2;
+struct FixedMaxHelper {
+    static const int exp_result = min(Exp1, Exp2);
+    static const bool signed_result = (Signed1 && Signed2);
+    static const int numbits_result = max(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result;
+    static const int shift1 = Exp1 - exp_result;
+    static const int shift2 = Exp2 - exp_result;
+    
+    using ResultType = FixedPoint<numbits_result, signed_result, exp_result>;
+    
+    static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+    {
+        if (op1 > op2) {
+            return ResultType::importBits(op1.bitsBoundedValue().template shiftLeft<shift1>().value());
+        } else {
+            return ResultType::importBits(op2.bitsBoundedValue().template shiftLeft<shift2>().value());
+        }
     }
+};
+
+template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
+auto FixedMax (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2) -> typename FixedMaxHelper<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ResultType
+{
+    return FixedMaxHelper<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::call(op1, op2);
 }
 
 template <int NumBits, bool Signed, int Exp>
