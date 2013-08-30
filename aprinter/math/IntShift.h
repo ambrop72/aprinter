@@ -22,50 +22,53 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_INT_MULTIPLY_H
-#define AMBROLIB_INT_MULTIPLY_H
+#ifndef AMBROLIB_INT_SHIFT_H
+#define AMBROLIB_INT_SHIFT_H
 
 #include <stdint.h>
 
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/PowerOfTwo.h>
-#include <aprinter/math/IntShift.h>
 
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/mul_24_16_r16.h>
-#include <avr-asm-ops/mul_32_16_r16.h>
-#include <avr-asm-ops/mul_s16_16.h>
+#include <avr-asm-ops/shift.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
 
-template <int NumBits1, bool Signed1, int NumBits2, bool Signed2, int RightShift>
-class IntMultiply {
+template <int NumBits, bool Signed, int ShiftCount>
+class IntShiftRight {
 public:
-    static_assert(RightShift >= 0, "RightShift must be non-negative");
-    static_assert(RightShift < NumBits1 + NumBits2, "RightShift must be less than multiplication result width");
+    static_assert(ShiftCount >= 0, "");
+    typedef typename ChooseInt<NumBits, Signed>::Type OpType;
+    typedef typename ChooseInt<NumBits - ShiftCount, Signed>::Type ResType;
     
-    typedef typename ChooseInt<NumBits1, Signed1>::Type Op1Type;
-    typedef typename ChooseInt<NumBits2, Signed2>::Type Op2Type;
-    typedef typename ChooseInt<(NumBits1 + NumBits2 - RightShift), (Signed1 || Signed2)>::Type ResType;
-    
-    static ResType call (Op1Type op1, Op2Type op2)
+    template <typename Option = int>
+    __attribute__((always_inline)) inline static ResType call (OpType op)
     {
         return
 #ifdef AMBROLIB_AVR
-            (RightShift == 16 && !Signed1 && NumBits1 > 16 && NumBits1 <= 24 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_24_16_r16(op1, op2) :
-            (RightShift == 16 && !Signed1 && NumBits1 > 24 && NumBits1 <= 32 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_32_16_r16(op1, op2) :
-            (RightShift == 0 && Signed1 && NumBits1 > 7 && NumBits1 <= 15 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_s16_16(op1, op2) :
+            (Signed && NumBits <= 31 && ShiftCount == 7) ? shift_s32_r7(op) :
 #endif
-            default_multiply(op1, op2);
+            (op / PowerOfTwo<OpType, ShiftCount>::value);
     }
+};
+
+template <int NumBits, bool Signed, int ShiftCount>
+class IntShiftLeft {
+public:
+    static_assert(ShiftCount >= 0, "");
+    typedef typename ChooseInt<NumBits, Signed>::Type OpType;
+    typedef typename ChooseInt<NumBits + ShiftCount, Signed>::Type ResType;
     
-private:
-    typedef typename ChooseInt<(NumBits1 + NumBits2), (Signed1 || Signed2)>::Type TempResType;
-    
-    static ResType default_multiply (Op1Type op1, Op2Type op2)
+    template <typename Option = int>
+    __attribute__((always_inline)) inline static ResType call (OpType op)
     {
-        return IntShiftRight<(NumBits1 + NumBits2), (Signed1 || Signed2), RightShift>::call((TempResType)op1 * (TempResType)op2);
+        return
+#ifdef AMBROLIB_AVR
+            (Signed && NumBits <= 31 && ShiftCount == 11) ? shift_s32_l11(op) :
+#endif
+            (op * PowerOfTwo<ResType, ShiftCount>::value);
     }
 };
 

@@ -35,6 +35,7 @@
 #include <aprinter/math/IntSqrt.h>
 #include <aprinter/math/IntMultiply.h>
 #include <aprinter/math/IntDivide.h>
+#include <aprinter/math/IntShift.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -112,7 +113,7 @@ public:
     {
         static_assert(ShiftExp >= 0, "");
         
-        return BoundedInt<NumBits - ShiftExp, Signed>::import(value() / PowerOfTwo<IntType, ShiftExp>::value);
+        return BoundedInt<NumBits - ShiftExp, Signed>::import(IntShiftRight<NumBits, Signed, ShiftExp>::call(value()));
     }
     
     template <int ShiftExp>
@@ -120,7 +121,7 @@ public:
     {
         static_assert(ShiftExp >= 0, "");
         
-        return BoundedInt<NumBits + ShiftExp, Signed>::import(value() * PowerOfTwo<typename BoundedInt<NumBits + ShiftExp, Signed>::IntType, ShiftExp>::value);
+        return BoundedInt<NumBits + ShiftExp, Signed>::import(IntShiftLeft<NumBits, Signed, ShiftExp>::call(value()));
     }
     
     template <int ShiftExp>
