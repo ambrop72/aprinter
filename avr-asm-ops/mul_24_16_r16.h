@@ -29,7 +29,7 @@
 
 static inline __uint24 mul_24_16_r16 (__uint24 op1, uint16_t op2)
 {
-    uint16_t low;
+    uint8_t low;
     __uint24 res;
     uint8_t zero;
     
@@ -37,7 +37,7 @@ static inline __uint24 mul_24_16_r16 (__uint24 op1, uint16_t op2)
         "clr %[zero]\n"
         
         "mul %A[op1],%A[op2]\n"
-        "movw %A[low],r0\n"
+        "mov %A[low],r1\n"
         
         "mul %B[op1],%B[op2]\n"
         "movw %A[res],r0\n"
@@ -45,13 +45,13 @@ static inline __uint24 mul_24_16_r16 (__uint24 op1, uint16_t op2)
         "clr %C[res]\n"
         
         "mul %A[op1],%B[op2]\n"
-        "add %B[low],r0\n"
+        "add %A[low],r0\n"
         "adc %A[res],r1\n"
         "adc %B[res],%[zero]\n"
         "adc %C[res],%[zero]\n"
         
         "mul %B[op1],%A[op2]\n"
-        "add %B[low],r0\n"
+        "add %A[low],r0\n"
         "adc %A[res],r1\n"
         "adc %B[res],%[zero]\n"
         "adc %C[res],%[zero]\n"

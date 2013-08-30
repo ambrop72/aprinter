@@ -29,7 +29,7 @@
 
 static inline uint32_t mul_32_16_r16 (uint32_t op1, uint16_t op2)
 {
-    uint16_t low;
+    uint8_t low;
     uint32_t res;
     uint8_t zero;
     
@@ -37,7 +37,7 @@ static inline uint32_t mul_32_16_r16 (uint32_t op1, uint16_t op2)
         "clr %[zero]\n"
         
         "mul %A[op1],%A[op2]\n"
-        "movw %A[low],r0\n"
+        "mov %A[low],r1\n"
         
         "mul %B[op1],%B[op2]\n"
         "movw %A[res],r0\n"
@@ -46,14 +46,14 @@ static inline uint32_t mul_32_16_r16 (uint32_t op1, uint16_t op2)
         "movw %C[res],r0\n"
         
         "mul %A[op1],%B[op2]\n"
-        "add %B[low],r0\n"
+        "add %A[low],r0\n"
         "adc %A[res],r1\n"
         "adc %B[res],%[zero]\n"
         "adc %C[res],%[zero]\n"
         "adc %D[res],%[zero]\n"
         
         "mul %B[op1],%A[op2]\n"
-        "add %B[low],r0\n"
+        "add %A[low],r0\n"
         "adc %A[res],r1\n"
         "adc %B[res],%[zero]\n"
         "adc %C[res],%[zero]\n"
