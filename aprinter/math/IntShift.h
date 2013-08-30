@@ -66,6 +66,7 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
+            (Signed && NumBits <= 31 && ShiftCount == 10) ? shift_s32_l10(op) :
             (Signed && NumBits <= 31 && ShiftCount == 11) ? shift_s32_l11(op) :
 #endif
             (op * PowerOfTwo<ResType, ShiftCount>::value);

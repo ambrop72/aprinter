@@ -67,4 +67,23 @@ static inline int32_t shift_s32_l11 (int32_t op)
     return op;
 }
 
+static inline int32_t shift_s32_l10 (int32_t op)
+{
+    asm(
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "mov %D[op],%C[op]\n"
+        "mov %C[op],%B[op]\n"
+        "mov %B[op],%A[op]\n"
+        "clr %A[op]\n"
+        : [op] "=&r" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
 #endif
