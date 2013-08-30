@@ -159,7 +159,7 @@ template <
     typename TAdcPin, typename TFormula,
     typename TOutputPin, typename TPulseInterval,
     typename TMinSafeTemp, typename TMaxSafeTemp,
-    template<typename, typename> class TControl,
+    template<typename, typename, typename> class TControl,
     typename TControlParams,
     template<typename, typename> class TTimerTemplate,
     typename TTheTemperatureObserverParams
@@ -174,7 +174,7 @@ struct PrinterMainHeaterParams {
     using PulseInterval = TPulseInterval;
     using MinSafeTemp = TMinSafeTemp;
     using MaxSafeTemp = TMaxSafeTemp;
-    template <typename X, typename Y> using Control = TControl<X, Y>;
+    template <typename X, typename Y, typename Z> using Control = TControl<X, Y, Z>;
     using ControlParams = TControlParams;
     template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
     using TheTemperatureObserverParams = TTheTemperatureObserverParams;
@@ -580,14 +580,25 @@ private:
         struct ObserverHandler;
         
         using HeaterSpec = TypeListGet<HeatersList, HeaterIndex>;
-        using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, typename HeaterSpec::PulseInterval>;
+        using ValueFixedType = typename HeaterSpec::Formula::ValueFixedType;
+        using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, typename HeaterSpec::PulseInterval, ValueFixedType>;
         using TheSoftPwm = SoftPwm<Context, typename HeaterSpec::OutputPin, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
         using TheObserver = TemperatureObserver<Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using FixedFracType = typename TheSoftPwm::FixedFracType;
         
         struct ChannelPayload {
-            double target;
+            ValueFixedType target;
         };
+        
+        static ValueFixedType min_safe_temp ()
+        {
+            return ValueFixedType::importDoubleSaturatedInline(HeaterSpec::MinSafeTemp::value());
+        }
+        
+        static ValueFixedType max_safe_temp ()
+        {
+            return ValueFixedType::importDoubleSaturatedInline(HeaterSpec::MaxSafeTemp::value());
+        }
         
         PrinterMain * parent ()
         {
@@ -612,20 +623,23 @@ private:
         }
         
         template <typename ThisContext>
-        double get_value (ThisContext c)
+        ValueFixedType get_value (ThisContext c)
         {
             return HeaterSpec::Formula::call(c.adc()->template getValue<typename HeaterSpec::AdcPin>(c));
         }
         
         void append_value (PrinterMain *o, Context c)
         {
-            double value = get_value(c);
+            double value = get_value(c).doubleValue();
             o->reply_append_fmt(c, " %c:%f", HeaterSpec::Name, value);
         }
         
         template <typename ThisContext>
-        void set (ThisContext c, double target)
+        void set (ThisContext c, ValueFixedType target)
         {
+            AMBRO_ASSERT(target > min_safe_temp())
+            AMBRO_ASSERT(target < max_safe_temp())
+            
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 if (!m_enabled) {
                     m_control.init(target);
@@ -654,8 +668,9 @@ private:
                     return false;
                 }
                 double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
-                if (target > 0.0 && target <= 300.0) {
-                    set(c, target);
+                ValueFixedType fixed_target = ValueFixedType::importDoubleSaturated(target);
+                if (fixed_target > min_safe_temp() && fixed_target < max_safe_temp()) {
+                    set(c, fixed_target);
                 } else {
                     unset(c);
                 }
@@ -673,14 +688,15 @@ private:
                     return false;
                 }
                 double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
-                if (!(target > 0.0 && target <= 300.0)) {
-                    target = 0.0;
+                ValueFixedType fixed_target = ValueFixedType::importDoubleSaturated(target);
+                if (!(fixed_target > min_safe_temp() && fixed_target < max_safe_temp())) {
+                    fixed_target = ValueFixedType::minValue();
                 }
                 PlannerInputCommand cmd;
                 cmd.type = 1;
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = HeaterIndex;
-                UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
+                UnionGetElem<HeaterIndex>(&payload->heaters)->target = fixed_target;
                 o->finish_command(c, false);
                 o->finish_buffered_command(c, &cmd);
                 *out_result = CMD_DELAY;
@@ -691,15 +707,18 @@ private:
         
         FixedFracType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
         {
-            FixedFracType control_value = FixedFracType::importBits(0);
+            FixedFracType control_value;
             AMBRO_LOCK_T(m_lock, c, lock_c, {
-                if (m_enabled) {
-                    double sensor_value = get_value(lock_c);
-                    if (sensor_value < HeaterSpec::MinSafeTemp::value() || sensor_value > HeaterSpec::MaxSafeTemp::value()) {
-                        m_enabled = false;
+                if (AMBRO_LIKELY(m_enabled)) {
+                    ValueFixedType sensor_value = get_value(lock_c);
+                    if (AMBRO_LIKELY(sensor_value > min_safe_temp() && sensor_value < max_safe_temp())) {
+                        control_value = m_control.addMeasurement(sensor_value);
                     } else {
-                        control_value = FixedFracType::importDoubleSaturated(m_control.addMeasurement(sensor_value));
+                        control_value = FixedFracType::importBits(0);
+                        m_enabled = false;
                     }
+                } else {
+                    control_value = FixedFracType::importBits(0);
                 }
             });
             return control_value;
@@ -707,7 +726,7 @@ private:
         
         double observer_get_value_callback (Context c)
         {
-            return get_value(c);
+            return get_value(c).doubleValue();
         }
         
         void observer_handler (Context c, bool state)
@@ -735,7 +754,7 @@ private:
         void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
         {
             ChannelPayload *payload = UnionGetElem<HeaterIndex>(payload_union);
-            if (payload->target != 0.0) {
+            if (AMBRO_LIKELY(payload->target != ValueFixedType::minValue())) {
                 set(c, payload->target);
             } else {
                 unset(c);

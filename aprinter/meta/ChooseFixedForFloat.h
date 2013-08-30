@@ -22,38 +22,20 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_BINARY_CONTROL_H
-#define AMBROLIB_BINARY_CONTROL_H
+#ifndef AMBROLIB_CHOOSE_FIXED_FOR_FLOAT_H
+#define AMBROLIB_CHOOSE_FIXED_FOR_FLOAT_H
 
+#include <aprinter/meta/BitsInFloat.h>
 #include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/MinMax.h>
 
 #include <aprinter/BeginNamespace.h>
 
-struct BinaryControlParams {};
+template <int Bits, typename FloatValue1>
+using ChooseFixedForFloat = FixedPoint<Bits, (FloatValue1::value() < 0), (BitsInFloat(absolute(FloatValue1::value())) - Bits)>;
 
-template <typename Params, typename MeasurementInterval, typename ValueFixedType>
-class BinaryControl {
-public:
-    using OutputFixedType = FixedPoint<16, false, -16>;
-    
-    void init (ValueFixedType target)
-    {
-        m_target = target;
-    }
-    
-    void setTarget (ValueFixedType target)
-    {
-        m_target = target;
-    }
-    
-    OutputFixedType addMeasurement (ValueFixedType value)
-    {
-        return (value < m_target) ? OutputFixedType::maxValue() : OutputFixedType::minValue();
-    }
-    
-private:
-    ValueFixedType m_target;
-};
+template <int Bits, typename FloatValue1, typename FloatValue2>
+using ChooseFixedForFloatTwo = FixedPoint<Bits, (FloatValue1::value() < 0 || FloatValue2::value() < 0), (BitsInFloat(max(absolute(FloatValue1::value()), absolute(FloatValue2::value()))) - Bits)>;
 
 #include <aprinter/EndNamespace.h>
 

@@ -42,22 +42,26 @@
 #define AMBROLIB_AVR_THERMISTOR_Bed_H
 
 #include <stdint.h>
-#include <math.h>
 #include <avr/pgmspace.h>
 
+#include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/Likely.h>
+
+#include <aprinter/BeginNamespace.h>
 
 class AvrThermistorTable_Bed {
 public:
-    static double call (uint16_t adc_value)
+    using ValueFixedType = FixedPoint<16, false, -7>;
+    
+    static ValueFixedType call (uint16_t adc_value)
     {
         if (AMBRO_UNLIKELY(adc_value < 79)) {
-            return INFINITY;
+            return ValueFixedType::maxValue();
         }
         if (AMBRO_UNLIKELY(adc_value > 740 - 1)) {
-            return -INFINITY;
+            return ValueFixedType::minValue();
         }
-        return ldexp(pgm_read_word(&table[(adc_value - 79)]), -7);
+        return ValueFixedType::importBits(pgm_read_word(&table[(adc_value - 79)]));
     }
     
 private:
@@ -150,5 +154,7 @@ UINT16_C(2837), UINT16_C(2822), UINT16_C(2807), UINT16_C(2792), UINT16_C(2777), 
 UINT16_C(2716), UINT16_C(2701), UINT16_C(2686), UINT16_C(2671), UINT16_C(2655), UINT16_C(2640), UINT16_C(2625), UINT16_C(2610), 
 UINT16_C(2594), UINT16_C(2579), UINT16_C(2564), 
 };
+
+#include <aprinter/EndNamespace.h>
 
 #endif 

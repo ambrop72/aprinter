@@ -117,22 +117,26 @@ print("""/*
 #define AMBROLIB_AVR_THERMISTOR_%(Name)s_H
 
 #include <stdint.h>
-#include <math.h>
 #include <avr/pgmspace.h>
 
+#include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/Likely.h>
+
+#include <aprinter/BeginNamespace.h>
 
 class AvrThermistorTable_%(Name)s {
 public:
-    static double call (uint16_t adc_value)
+    using ValueFixedType = FixedPoint<16, false, -%(ScaleFactorExp)s>;
+    
+    static ValueFixedType call (uint16_t adc_value)
     {
         if (AMBRO_UNLIKELY(adc_value < %(TableOffset)s)) {
-            return INFINITY;
+            return ValueFixedType::maxValue();
         }
         if (AMBRO_UNLIKELY(adc_value > %(TableEnd)s - 1)) {
-            return -INFINITY;
+            return ValueFixedType::minValue();
         }
-        return ldexp(pgm_read_word(&table[(adc_value - %(TableOffset)s)]), -%(ScaleFactorExp)s);
+        return ValueFixedType::importBits(pgm_read_word(&table[(adc_value - %(TableOffset)s)]));
     }
     
 private:
@@ -142,6 +146,8 @@ private:
 uint16_t const AvrThermistorTable_%(Name)s::table[%(TableSize)s] PROGMEM = {
 %(TableData)s
 };
+
+#include <aprinter/EndNamespace.h>
 
 #endif """
 % {

@@ -35,6 +35,7 @@
 #include <avr-asm-ops/mul_24_16_r16.h>
 #include <avr-asm-ops/mul_32_16_r16.h>
 #include <avr-asm-ops/mul_s16_16.h>
+#include <avr-asm-ops/mul.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
@@ -53,6 +54,9 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
+            (RightShift == 8 && Signed1 && NumBits1 > 15 && NumBits1 <= 23 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_s24_16_r8(op1, op2) :
+            (RightShift == 16 && Signed1 && NumBits1 > 7 && NumBits1 <= 15 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_s16_16_r16(op1, op2) :
+            (RightShift == 16 && Signed1 && NumBits1 > 15 && NumBits1 <= 23 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_s24_16_r16(op1, op2) :
             (RightShift == 16 && !Signed1 && NumBits1 > 16 && NumBits1 <= 24 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_24_16_r16(op1, op2) :
             (RightShift == 16 && !Signed1 && NumBits1 > 24 && NumBits1 <= 32 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_32_16_r16(op1, op2) :
             (RightShift == 0 && Signed1 && NumBits1 > 7 && NumBits1 <= 15 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ? mul_s16_16(op1, op2) :

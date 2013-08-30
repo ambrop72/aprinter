@@ -27,6 +27,9 @@
 
 #include <math.h>
 
+#include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/ChooseFixedForFloat.h>
+#include <aprinter/meta/WrapDouble.h>
 #include <aprinter/base/Likely.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -44,41 +47,81 @@ struct PidControlParams {
     using DHistory = TDHistory;
 };
 
-template <typename Params, typename MeasurementInterval>
+template <typename Params, typename MeasurementInterval, typename ValueFixedType>
 class PidControl {
 public:
-    void init (double target)
+    using OutputFixedType = FixedPoint<16, false, -16>;
+    
+private:
+    static const int PBits = 14;
+    static const int IntervalIBits = 14;
+    static const int IntegralBits = 15;
+    static const int DHistoryBits = 16;
+    static const int DNewBits = 14;
+    static const int DerivativeBits = 15;
+    
+    using IntervalI = AMBRO_WRAP_DOUBLE(MeasurementInterval::value() * Params::I::value());
+    using DNew = AMBRO_WRAP_DOUBLE((1.0 - Params::DHistory::value()) * Params::D::value() / MeasurementInterval::value());
+    
+    using PFixedType = ChooseFixedForFloat<PBits, typename Params::P>;
+    using IntervalIFixedType = ChooseFixedForFloat<IntervalIBits, IntervalI>;
+    using IntegralFixedType = ChooseFixedForFloatTwo<IntegralBits, typename Params::IStateMin, typename Params::IStateMax>;
+    using DHistoryFixedType = ChooseFixedForFloat<DHistoryBits, typename Params::DHistory>;
+    using DNewFixedType = ChooseFixedForFloat<DNewBits, DNew>;
+    using DerivativeFixedType = decltype((DNewFixedType() * (ValueFixedType() - ValueFixedType())).template bitsDown<DerivativeBits>());
+    
+public:
+    void init (ValueFixedType target)
     {
         m_first = true;
         m_target = target;
-        m_integral = 0.0;
-        m_derivative = 0.0;
+        m_integral = IntegralFixedType::importBits(0);
+        m_derivative = DerivativeFixedType::importBits(0);
     }
     
-    void setTarget (double target)
+    void setTarget (ValueFixedType target)
     {
         m_target = target;
     }
     
-    double addMeasurement (double value)
+    OutputFixedType addMeasurement (ValueFixedType value)
     {
-        double err = m_target - value;
+        auto err = m_target - value;
+        static_assert(sizeof(typename decltype(err)::IntType) <= 4, "");
         if (AMBRO_LIKELY(!m_first)) {
-            m_integral += (MeasurementInterval::value() * Params::I::value()) * err;
-            m_integral = fmax(Params::IStateMin::value(), fmin(Params::IStateMax::value(), m_integral));
-            m_derivative = (Params::DHistory::value() * m_derivative) + (((1.0 - Params::DHistory::value()) * Params::D::value() / MeasurementInterval::value()) * (m_last - value));
+            static_assert(sizeof(typename decltype(err * IntervalIFixedType())::IntType) <= 4, "");
+            auto integral_add = FixedResMultiply<IntegralFixedType::exp>(err, IntervalIFixedType::importDoubleSaturated(IntervalI::value()));
+            auto integral_new = (m_integral + integral_add);
+            static_assert(sizeof(typename decltype(integral_new)::IntType) <= 4, "");
+            m_integral = FixedMin(IntegralFixedType::importDoubleSaturated(Params::IStateMax::value()), FixedMax(IntegralFixedType::importDoubleSaturated(Params::IStateMin::value()), integral_new));
+            static_assert(sizeof(typename decltype(m_derivative * DHistoryFixedType())::IntType) <= 4, "");
+            auto d_old_part = FixedResMultiply<DerivativeFixedType::exp>(m_derivative, DHistoryFixedType::importDoubleSaturated(Params::DHistory::value()));
+            static_assert(sizeof(d_old_part)==2, "");
+            auto d_delta = m_last - value;
+            static_assert(sizeof(typename decltype(d_delta * DNewFixedType())::IntType) <= 4, "");
+            auto d_new_part = FixedResMultiply<DerivativeFixedType::exp>(d_delta, DNewFixedType::importDoubleSaturated(DNew::value())); 
+            auto derivative_new = d_old_part + d_new_part;
+            static_assert(sizeof(typename decltype(derivative_new)::IntType) <= 4, "");
+            m_derivative = derivative_new.template dropBitsSaturated<DerivativeFixedType::num_bits>();
         }
         m_first = false;
         m_last = value;
-        return (Params::P::value() * err) + m_integral + m_derivative;
+        static_assert(sizeof(typename decltype(err * PFixedType())::IntType) <= 4, "");
+        static const int SumExp = OutputFixedType::exp - 1;
+        auto p_part = FixedResMultiply<SumExp>(err, PFixedType::importDoubleSaturated(Params::P::value()));
+        auto i_part = m_integral.template shiftBits<SumExp - IntegralFixedType::exp>();
+        auto d_part = m_derivative.template shiftBits<SumExp - DerivativeFixedType::exp>();
+        auto result = p_part + i_part + d_part;
+        static_assert(sizeof(typename decltype(result)::IntType) <= 4, "");
+        return result.template shiftBits<OutputFixedType::exp - SumExp>().template dropBitsSaturated<OutputFixedType::num_bits, OutputFixedType::is_signed>();
     }
     
 private:
     bool m_first;
-    double m_target;
-    double m_last;
-    double m_integral;
-    double m_derivative;
+    ValueFixedType m_target;
+    ValueFixedType m_last;
+    IntegralFixedType m_integral;
+    DerivativeFixedType m_derivative;
 };
 
 #include <aprinter/EndNamespace.h>

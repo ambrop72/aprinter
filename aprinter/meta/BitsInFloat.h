@@ -22,38 +22,28 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_BINARY_CONTROL_H
-#define AMBROLIB_BINARY_CONTROL_H
-
-#include <aprinter/meta/FixedPoint.h>
+#ifndef AMBROLIB_BITS_IN_FLOAT_H
+#define AMBROLIB_BITS_IN_FLOAT_H
 
 #include <aprinter/BeginNamespace.h>
 
-struct BinaryControlParams {};
+template <typename T>
+static constexpr int BitsInFloatHelper1 (T x)
+{
+    return (x < 1.0) ? 0 : (1 + BitsInFloatHelper1(x / 2));
+}
 
-template <typename Params, typename MeasurementInterval, typename ValueFixedType>
-class BinaryControl {
-public:
-    using OutputFixedType = FixedPoint<16, false, -16>;
-    
-    void init (ValueFixedType target)
-    {
-        m_target = target;
-    }
-    
-    void setTarget (ValueFixedType target)
-    {
-        m_target = target;
-    }
-    
-    OutputFixedType addMeasurement (ValueFixedType value)
-    {
-        return (value < m_target) ? OutputFixedType::maxValue() : OutputFixedType::minValue();
-    }
-    
-private:
-    ValueFixedType m_target;
-};
+template <typename T>
+static constexpr int BitsInFloatHelper2 (T x)
+{
+    return (x > 0.5) ? 0 : (BitsInFloatHelper2(x * 2) - 1);
+}
+
+template <typename T>
+static constexpr int BitsInFloat (T x)
+{
+    return (x >= 0.5) ? BitsInFloatHelper1(x) : BitsInFloatHelper2(x);
+}
 
 #include <aprinter/EndNamespace.h>
 
