@@ -32,9 +32,6 @@
 #include <aprinter/math/IntShift.h>
 
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/mul_24_16_r16.h>
-#include <avr-asm-ops/mul_32_16_r16.h>
-#include <avr-asm-ops/mul_s16_16.h>
 #include <avr-asm-ops/mul.h>
 #endif
 

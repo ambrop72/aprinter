@@ -169,4 +169,145 @@ static inline int16_t mul_s16_16_r16 (int16_t op1, uint16_t op2)
     return res;
 }
 
+static inline __uint24 mul_24_16_r16 (__uint24 op1, uint16_t op2)
+{
+    uint8_t low;
+    __uint24 res;
+    uint8_t zero;
+    
+    asm(
+        "clr %[zero]\n"
+        
+        "mul %A[op1],%A[op2]\n"
+        "mov %A[low],r1\n"
+        
+        "mul %B[op1],%B[op2]\n"
+        "movw %A[res],r0\n"
+        
+        "clr %C[res]\n"
+        
+        "mul %A[op1],%B[op2]\n"
+        "add %A[low],r0\n"
+        "adc %A[res],r1\n"
+        "adc %B[res],%[zero]\n"
+        "adc %C[res],%[zero]\n"
+        
+        "mul %B[op1],%A[op2]\n"
+        "add %A[low],r0\n"
+        "adc %A[res],r1\n"
+        "adc %B[res],%[zero]\n"
+        "adc %C[res],%[zero]\n"
+        
+        "mul %C[op1],%A[op2]\n"
+        "add %A[res],r0\n"
+        "adc %B[res],r1\n"
+        "adc %C[res],%[zero]\n"
+        
+        "mul %C[op1],%B[op2]\n"
+        "add %B[res],r0\n"
+        "adc %C[res],r1\n"
+
+        "clr __zero_reg__\n"
+        
+        : [res] "=&d" (res),
+          [zero] "=&r" (zero),
+          [low] "=&r" (low)
+        : [op1] "r" (op1),
+          [op2] "r" (op2)
+    );
+    
+    return res;
+}
+
+static inline uint32_t mul_32_16_r16 (uint32_t op1, uint16_t op2)
+{
+    uint8_t low;
+    uint32_t res;
+    uint8_t zero;
+    
+    asm(
+        "clr %[zero]\n"
+        
+        "mul %A[op1],%A[op2]\n"
+        "mov %A[low],r1\n"
+        
+        "mul %B[op1],%B[op2]\n"
+        "movw %A[res],r0\n"
+        
+        "mul %D[op1],%B[op2]\n"
+        "movw %C[res],r0\n"
+        
+        "mul %A[op1],%B[op2]\n"
+        "add %A[low],r0\n"
+        "adc %A[res],r1\n"
+        "adc %B[res],%[zero]\n"
+        "adc %C[res],%[zero]\n"
+        "adc %D[res],%[zero]\n"
+        
+        "mul %B[op1],%A[op2]\n"
+        "add %A[low],r0\n"
+        "adc %A[res],r1\n"
+        "adc %B[res],%[zero]\n"
+        "adc %C[res],%[zero]\n"
+        "adc %D[res],%[zero]\n"
+        
+        "mul %C[op1],%A[op2]\n"
+        "add %A[res],r0\n"
+        "adc %B[res],r1\n"
+        "adc %C[res],%[zero]\n"
+        "adc %D[res],%[zero]\n"
+        
+        "mul %C[op1],%B[op2]\n"
+        "add %B[res],r0\n"
+        "adc %C[res],r1\n"
+        "adc %D[res],%[zero]\n"
+
+        "mul %D[op1],%A[op2]\n"
+        "add %B[res],r0\n"
+        "adc %C[res],r1\n"
+        "adc %D[res],%[zero]\n"
+        
+        "clr __zero_reg__\n"
+        
+        : [res] "=&d" (res),
+          [zero] "=&r" (zero),
+          [low] "=&r" (low)
+        : [op1] "r" (op1),
+          [op2] "r" (op2)
+    );
+    
+    return res;
+}
+
+static inline int32_t mul_s16_16 (int16_t op1, uint16_t op2)
+{
+    int32_t res;
+    uint8_t zero;
+    
+    asm(
+        "clr %[zero]\n"
+        "mul %A[op1], %A[op2]\n"
+        "movw %A[res], r0\n"
+        "mulsu %B[op1], %B[op2]\n"
+        "movw %C[res], r0\n"
+        "mul %B[op2], %A[op1]\n"
+        "add %B[res], r0\n"
+        "adc %C[res], r1\n"
+        "adc %D[res], %[zero]\n"
+        "mulsu %B[op1], %A[op2]\n"
+        "sbc %D[res], %[zero]\n"
+        "add %B[res], r0\n"
+        "adc %C[res], r1\n"
+        "adc %D[res], %[zero]\n"
+        "clr __zero_reg__\n"
+        
+        : [res] "=&r" (res),
+          [zero] "=&r" (zero)
+        : [op1] "a" (op1),
+          [op2] "a" (op2)
+    );
+    
+    return res;
+}
+
 #endif
