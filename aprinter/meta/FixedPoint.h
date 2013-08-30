@@ -99,6 +99,11 @@ public:
     
     static FixedPoint importDoubleSaturated (double op)
     {
+        return importDoubleSaturatedInline(op);
+    }
+    
+    __attribute__((always_inline)) inline static FixedPoint importDoubleSaturatedInline (double op)
+    {
         double a = trunc(ldexp(op, -Exp));
         if (Signed) {
             if (a <= -ldexp(1.0, NumBits)) {
