@@ -16,6 +16,7 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
     Look-ahead is very memory-hungry in its current state.
   * Heater control using PID or on-off control. The thermistor tables need to be generated with a Python script.
   * Safe temperature range. A heater is turned off in case its temperature goes beyound the safe range.
+  * Fan control.
   * Starting and feeding of the watchdog timer.
   * Emergency shutdown of motors and heaters in case of an assertion failure
     (if assertions are enabled with -DAMBROLIB_ASSERTIONS).
@@ -23,7 +24,6 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
 
 ## Planned features (in the approximate order of priority):
 
-  * Fan control.
   * Optimization of the planning and stepping code, both for speed and memory usage.
   * Runtime configurability and settings in EEPROM.
   * SD-card printing.
