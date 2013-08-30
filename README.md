@@ -64,6 +64,8 @@ Anything earlier will be even more useless, including the ancient compilers that
     Since it's not that easy to build or get that, I provide a
     (hopefully) portable build for Linux: https://docs.google.com/file/d/0Bx9devQE0OqbWTh4VUFvOWhlNEU/edit?usp=sharing
     Sorry about the giant file size, there were some problems with stripping the binaries.
+    To use the toolchain, extract it somewhere and modify your PATH as follows:
+    export PATH=/path/to/toolchain/bin:$PATH
   * Edit compile.sh and adjust MCU and F_CPU (or pass them as environment variables, but you'll forget it next time).
   * Open aprinter/printer/aprinter.cpp and adjust the configuration.
     If you don't know what something means, you probably don't need to change it.
