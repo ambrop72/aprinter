@@ -89,11 +89,6 @@ public:
         auto err = m_target - value;
         static_assert(sizeof(typename decltype(err)::IntType) <= 4, "");
         if (AMBRO_LIKELY(!m_first)) {
-            static_assert(sizeof(typename decltype(err * IntervalIFixedType())::IntType) <= 4, "");
-            auto integral_add = FixedResMultiply<IntegralFixedType::exp>(err, IntervalIFixedType::importDoubleSaturated(IntervalI::value()));
-            auto integral_new = (m_integral + integral_add);
-            static_assert(sizeof(typename decltype(integral_new)::IntType) <= 4, "");
-            m_integral = FixedMin(IntegralFixedType::importDoubleSaturated(Params::IStateMax::value()), FixedMax(IntegralFixedType::importDoubleSaturated(Params::IStateMin::value()), integral_new));
             static_assert(sizeof(typename decltype(m_derivative * DHistoryFixedType())::IntType) <= 4, "");
             auto d_old_part = FixedResMultiply<DerivativeFixedType::exp>(m_derivative, DHistoryFixedType::importDoubleSaturated(Params::DHistory::value()));
             static_assert(sizeof(d_old_part)==2, "");
@@ -103,6 +98,11 @@ public:
             auto derivative_new = d_old_part + d_new_part;
             static_assert(sizeof(typename decltype(derivative_new)::IntType) <= 4, "");
             m_derivative = derivative_new.template dropBitsSaturated<DerivativeFixedType::num_bits>();
+            static_assert(sizeof(typename decltype(err * IntervalIFixedType())::IntType) <= 4, "");
+            auto integral_add = FixedResMultiply<IntegralFixedType::exp>(err, IntervalIFixedType::importDoubleSaturated(IntervalI::value()));
+            auto integral_new = (m_integral + integral_add);
+            static_assert(sizeof(typename decltype(integral_new)::IntType) <= 4, "");
+            m_integral = FixedMin(IntegralFixedType::importDoubleSaturated(Params::IStateMax::value()), FixedMax(IntegralFixedType::importDoubleSaturated(Params::IStateMin::value()), integral_new));
         }
         m_first = false;
         m_last = value;

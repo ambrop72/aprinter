@@ -707,18 +707,15 @@ private:
         
         FixedFracType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
         {
-            FixedFracType control_value;
+            FixedFracType control_value = FixedFracType::importBits(0);
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 if (AMBRO_LIKELY(m_enabled)) {
                     ValueFixedType sensor_value = get_value(lock_c);
                     if (AMBRO_LIKELY(sensor_value > min_safe_temp() && sensor_value < max_safe_temp())) {
                         control_value = m_control.addMeasurement(sensor_value);
                     } else {
-                        control_value = FixedFracType::importBits(0);
                         m_enabled = false;
                     }
-                } else {
-                    control_value = FixedFracType::importBits(0);
                 }
             });
             return control_value;
