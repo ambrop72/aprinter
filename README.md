@@ -40,12 +40,6 @@ possibly requiring minor adjustments in the code:
   * 128kB of flash,
   * 3 timers (any one of these can be either 8- or 16-bit).
 
-## Software requirements
-
-You need a recent development version of GCC 4.9 targeting AVR.
-Version 4.8.1 is known not to work, likely due to a bug in the compiler.
-Anything earlier will be even more useless, including the ancient compilers that come with Arduino.
-
 ## Coding style
 
   * Extreme attention to detail and bugless code. Lots of assertions (the proven kind, not guesses).
