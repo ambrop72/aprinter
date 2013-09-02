@@ -107,6 +107,8 @@ private:
     using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
     using SegmentBufferSizeType = BoundedInt<LookaheadBufferSizeExp, false>;
     static const size_t SegmentBufferSize = PowerOfTwo<size_t, LookaheadBufferSizeExp>::value;
+    static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * SegmentBufferSize);
+    using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
@@ -197,17 +199,19 @@ private:
         using StepperCommand = typename TheAxisStepper::Command;
         
         StepperCommand scmd;
-        AxisStepperCommand *next;
+        StepperCommandSizeType next;
     };
     
     template <int ChannelIndex>
     struct ChannelCommand {
         using ChannelSpec = TypeListGet<ChannelsList, ChannelIndex>;
         using Payload = typename ChannelSpec::Payload;
+        static const size_t NumChannelCommands = ChannelSpec::BufferSize + 2 * SegmentBufferSize;
+        using ChannelCommandSizeType = typename ChooseInt<BitsInInt<NumChannelCommands>::value, true>::Type;
         
         Payload payload;
         TimeType time;
-        ChannelCommand *next;
+        ChannelCommandSizeType next;
     };
     
     template <int AxisIndex>
@@ -215,13 +219,12 @@ private:
         using AxisSpec = TypeListGet<AxesList, AxisIndex>;
         using TheAxisStepper = typename AxisSpec::TheAxisStepper;
         using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
-        using TheAxisStepperCommand = AxisStepperCommand<AxisIndex>;
         
         bool dir;
         uint8_t num_stepper_entries;
         StepperStepFixedType x;
         double half_accel;
-        TheAxisStepperCommand *last_stepper_entry;
+        StepperCommandSizeType last_stepper_entry;
     };
     
     template <int ChannelIndex>
@@ -231,7 +234,7 @@ private:
         using TheChannelCommand = ChannelCommand<ChannelIndex>;
         
         Payload payload;
-        TheChannelCommand *command;
+        typename TheChannelCommand::ChannelCommandSizeType command;
     };
     
     struct Segment {
@@ -270,8 +273,6 @@ public:
         using TheAxisSegment = AxisSegment<AxisIndex>;
         using TheAxisStepperCommand = AxisStepperCommand<AxisIndex>;
         using StepperCommandCallbackContext = typename TheAxisStepper::CommandCallbackContext;
-        static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * SegmentBufferSize);
-        using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
         
         MotionPlanner * parent ()
         {
@@ -285,13 +286,13 @@ public:
         
         void init (Context c)
         {
-            m_first = NULL;
-            m_free_first = NULL;
-            m_new_first = NULL;
+            m_first = -1;
+            m_free_first = -1;
+            m_new_first = -1;
             m_num_committed = 0;
             for (size_t i = 0; i < NumStepperCommands; i++) {
                 m_stepper_entries[i].next = m_free_first;
-                m_free_first = &m_stepper_entries[i];
+                m_free_first = i;
             }
         }
         
@@ -446,15 +447,15 @@ public:
         {
             MotionPlanner *o = parent();
             
-            TheAxisStepperCommand *entry;
+            StepperCommandSizeType entry;
             AMBRO_LOCK_T(o->m_lock, c, lock_c, {
                 entry = m_free_first;
-                m_free_first = m_free_first->next;
+                m_free_first = m_stepper_entries[entry].next;
             });
-            TheAxisStepper::generate_command(axis_entry->dir, x, t, a, &entry->scmd);
-            entry->next = NULL;
-            if (m_new_first) {
-                m_new_last->next = entry;
+            TheAxisStepper::generate_command(axis_entry->dir, x, t, a, &m_stepper_entries[entry].scmd);
+            m_stepper_entries[entry].next = -1;
+            if (m_new_first >= 0) {
+                m_stepper_entries[m_new_last].next = entry;
             } else {
                 m_new_first = entry;
             }
@@ -484,47 +485,47 @@ public:
         void dispose_new (Context c)
         {
             MotionPlanner *o = parent();
-            if (m_new_first) {
+            if (m_new_first >= 0) {
                 AMBRO_LOCK_T(o->m_lock, c, lock_c, {
-                    m_new_last->next = m_free_first;
+                    m_stepper_entries[m_new_last].next = m_free_first;
                     m_free_first = m_new_first;
                 });
-                m_new_first = NULL;
+                m_new_first = -1;
             }
         }
         
         void swap_staging_cold ()
         {
-            if (!m_new_first) {
+            if (!(m_new_first >= 0)) {
                 return;
             }
             if (m_num_committed == 0) {
-                if (m_first) {
-                    m_last->next = m_free_first;
+                if (m_first >= 0) {
+                    m_stepper_entries[m_last].next = m_free_first;
                     m_free_first = m_first;
                 }
                 m_first = m_new_first;
             } else {
-                if (m_last_committed->next) {
-                    m_last->next = m_free_first;
-                    m_free_first = m_last_committed->next;
+                if (m_stepper_entries[m_last_committed].next >= 0) {
+                    m_stepper_entries[m_last].next = m_free_first;
+                    m_free_first = m_stepper_entries[m_last_committed].next;
                 }
-                m_last_committed->next = m_new_first;
+                m_stepper_entries[m_last_committed].next = m_new_first;
             }
             m_last = m_new_last;
-            m_new_first = NULL;
+            m_new_first = -1;
         }
         
         void swap_staging_hot ()
         {
             AMBRO_ASSERT(m_num_committed > 0)
             
-            if (!m_new_first) {
+            if (!(m_new_first >= 0)) {
                 return;
             }
-            TheAxisStepperCommand *old_first = m_last_committed->next;
-            TheAxisStepperCommand *old_last = m_last;
-            m_last_committed->next = m_new_first;
+            StepperCommandSizeType old_first = m_stepper_entries[m_last_committed].next;
+            StepperCommandSizeType old_last = m_last;
+            m_stepper_entries[m_last_committed].next = m_new_first;
             m_last = m_new_last;
             m_new_first = old_first;
             m_new_last = old_last;
@@ -532,15 +533,15 @@ public:
         
         void start_stepping (Context c, TimeType start_time)
         {
-            if (!m_first) {
+            if (!(m_first >= 0)) {
                 return;
             }
-            stepper()->template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, &m_first->scmd);
+            stepper()->template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, &m_stepper_entries[m_first].scmd);
         }
         
         bool is_empty (bool accum)
         {
-            return (accum && (m_first == NULL));
+            return (accum && !(m_first >= 0));
         }
         
         bool is_underrun (bool accum)
@@ -556,24 +557,24 @@ public:
         StepperCommand * stepper_command_callback (StepperCommandCallbackContext c)
         {
             MotionPlanner *o = parent();
-            AMBRO_ASSERT(m_first)
+            AMBRO_ASSERT(m_first >= 0)
             AMBRO_ASSERT(o->m_stepping)
             
-            TheAxisStepperCommand *old = m_first;
-            m_first = m_first->next;
-            old->next = m_free_first;
+            StepperCommandSizeType old = m_first;
+            m_first = m_stepper_entries[m_first].next;
+            m_stepper_entries[old].next = m_free_first;
             m_free_first = old;
             m_num_committed--;
             o->m_stepper_event.appendNowIfNotAlready(c);
-            return (m_first ? &m_first->scmd : NULL);
+            return (m_first >= 0 ? &m_stepper_entries[m_first].scmd : NULL);
         }
         
-        TheAxisStepperCommand *m_first;
-        TheAxisStepperCommand *m_last_committed;
-        TheAxisStepperCommand *m_last;
-        TheAxisStepperCommand *m_new_first;
-        TheAxisStepperCommand *m_new_last;
-        TheAxisStepperCommand *m_free_first;
+        StepperCommandSizeType m_first;
+        StepperCommandSizeType m_last_committed;
+        StepperCommandSizeType m_last;
+        StepperCommandSizeType m_new_first;
+        StepperCommandSizeType m_new_last;
+        StepperCommandSizeType m_free_first;
         StepperCommandSizeType m_num_committed;
         TheAxisStepperCommand m_stepper_entries[NumStepperCommands];
     };
@@ -594,8 +595,8 @@ public:
         
     private:
         static_assert(ChannelSpec::BufferSize > 0, "");
-        static const size_t NumChannelCommands = ChannelSpec::BufferSize + 2 * SegmentBufferSize;
-        using ChannelCommandSizeType = typename ChooseInt<BitsInInt<NumChannelCommands>::value, true>::Type;
+        static const size_t NumChannelCommands = TheChannelCommand::NumChannelCommands;
+        using ChannelCommandSizeType = typename TheChannelCommand::ChannelCommandSizeType;
         
         MotionPlanner * parent ()
         {
@@ -604,13 +605,13 @@ public:
         
         void init (Context c)
         {
-            m_first = NULL;
-            m_free_first = NULL;
-            m_new_first = NULL;
+            m_first = -1;
+            m_free_first = -1;
+            m_new_first = -1;
             m_num_committed = 0;
             for (size_t i = 0; i < NumChannelCommands; i++) {
                 m_channel_commands[i].next = m_free_first;
-                m_free_first = &m_channel_commands[i];
+                m_free_first = i;
             }
             m_timer.init(c);
         }
@@ -632,16 +633,16 @@ public:
             MotionPlanner *o = parent();
             TheChannelSegment *channel_entry = UnionGetElem<ChannelIndex>(&entry->channels);
             
-            TheChannelCommand *cmd;
+            ChannelCommandSizeType cmd;
             AMBRO_LOCK_T(o->m_lock, c, lock_c, {
                 cmd = m_free_first;
-                m_free_first = m_free_first->next;
+                m_free_first = m_channel_commands[m_free_first].next;
             });
-            cmd->payload = channel_entry->payload;
-            cmd->time = time;
-            cmd->next = NULL;
-            if (m_new_first) {
-                m_new_last->next = cmd;
+            m_channel_commands[cmd].payload = channel_entry->payload;
+            m_channel_commands[cmd].time = time;
+            m_channel_commands[cmd].next = -1;
+            if (m_new_first >= 0) {
+                m_channel_commands[m_new_last].next = cmd;
             } else {
                 m_new_first = cmd;
             }
@@ -652,35 +653,35 @@ public:
         void dispose_new (Context c)
         {
             MotionPlanner *o = parent();
-            if (m_new_first) {
+            if (m_new_first >= 0) {
                 AMBRO_LOCK_T(o->m_lock, c, lock_c, {
-                    m_new_last->next = m_free_first;
+                    m_channel_commands[m_new_last].next = m_free_first;
                     m_free_first = m_new_first;
                 });
-                m_new_first = NULL;
+                m_new_first = -1;
             }
         }
         
         void swap_staging_cold ()
         {
-            if (!m_new_first) {
+            if (!(m_new_first >= 0)) {
                 return;
             }
             if (m_num_committed == 0) {
-                if (m_first) {
-                    m_last->next = m_free_first;
+                if (m_first >= 0) {
+                    m_channel_commands[m_last].next = m_free_first;
                     m_free_first = m_first;
                 }
                 m_first = m_new_first;
             } else {
-                if (m_last_committed->next) {
-                    m_last->next = m_free_first;
-                    m_free_first = m_last_committed->next;
+                if (m_channel_commands[m_last_committed].next >= 0) {
+                    m_channel_commands[m_last].next = m_free_first;
+                    m_free_first = m_channel_commands[m_last_committed].next;
                 }
-                m_last_committed->next = m_new_first;
+                m_channel_commands[m_last_committed].next = m_new_first;
             }
             m_last = m_new_last;
-            m_new_first = NULL;
+            m_new_first = -1;
         }
         
         template <typename LockContext>
@@ -688,37 +689,37 @@ public:
         {
             AMBRO_ASSERT(m_num_committed >= 0)
             
-            if (!m_new_first) {
+            if (!(m_new_first >= 0)) {
                 return;
             }
             if (m_num_committed > 0) {
-                TheChannelCommand *old_first = m_last_committed->next;
-                TheChannelCommand *old_last = m_last;
-                m_last_committed->next = m_new_first;
+                ChannelCommandSizeType old_first = m_channel_commands[m_last_committed].next;
+                ChannelCommandSizeType old_last = m_last;
+                m_channel_commands[m_last_committed].next = m_new_first;
                 m_last = m_new_last;
                 m_new_first = old_first;
                 m_new_last = old_last;
             } else {
-                TheChannelCommand *old_first = m_first;
-                TheChannelCommand *old_last = m_last;
+                ChannelCommandSizeType old_first = m_first;
+                ChannelCommandSizeType old_last = m_last;
                 m_first = m_new_first;
                 m_last = m_new_last;
                 m_new_first = old_first;
                 m_new_last = old_last;
                 m_timer.unset(c);
-                m_timer.set(c, m_first->time);
+                m_timer.set(c, m_channel_commands[m_first].time);
             }
         }
         
         void start_stepping (Context c, TimeType start_time)
         {
-            if (!m_first) {
+            if (!(m_first >= 0)) {
                 return;
             }
-            for (TheChannelCommand *cmd = m_first; cmd; cmd = cmd->next) {
-                cmd->time += start_time;
+            for (ChannelCommandSizeType cmd = m_first; cmd >= 0; cmd = m_channel_commands[cmd].next) {
+                m_channel_commands[cmd].time += start_time;
             }
-            m_timer.set(c, m_first->time);
+            m_timer.set(c, m_channel_commands[m_first].time);
         }
         
         bool commit_segment (Context c, Segment *entry)
@@ -750,7 +751,7 @@ public:
         
         bool is_empty (bool accum)
         {
-            return (accum && (m_first == NULL));
+            return (accum && !(m_first >= 0));
         }
         
         bool is_underrun (bool accum)
@@ -766,30 +767,30 @@ public:
         bool timer_handler (typename TheTimer::HandlerContext c)
         {
             MotionPlanner *o = parent();
-            AMBRO_ASSERT(m_first)
+            AMBRO_ASSERT(m_first >= 0)
             AMBRO_ASSERT(o->m_stepping)
             
-            ChannelSpec::Callback::call(o, c, &m_first->payload);
+            ChannelSpec::Callback::call(o, c, &m_channel_commands[m_first].payload);
             
-            TheChannelCommand *old = m_first;
-            m_first = m_first->next;
-            old->next = m_free_first;
+            ChannelCommandSizeType old = m_first;
+            m_first = m_channel_commands[m_first].next;
+            m_channel_commands[old].next = m_free_first;
             m_free_first = old;
             m_num_committed--;
             o->m_stepper_event.appendNowIfNotAlready(c);
-            if (!m_first) {
+            if (!(m_first >= 0)) {
                 return false;
             }
-            m_timer.set(c, m_first->time);
+            m_timer.set(c, m_channel_commands[m_first].time);
             return true;
         }
         
-        TheChannelCommand *m_first;
-        TheChannelCommand *m_last_committed;
-        TheChannelCommand *m_last;
-        TheChannelCommand *m_new_first;
-        TheChannelCommand *m_new_last;
-        TheChannelCommand *m_free_first;
+        ChannelCommandSizeType m_first;
+        ChannelCommandSizeType m_last_committed;
+        ChannelCommandSizeType m_last;
+        ChannelCommandSizeType m_new_first;
+        ChannelCommandSizeType m_new_last;
+        ChannelCommandSizeType m_free_first;
         ChannelCommandSizeType m_num_committed;
         TheTimer m_timer;
         TheChannelCommand m_channel_commands[NumChannelCommands];
