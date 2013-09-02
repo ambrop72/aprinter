@@ -120,6 +120,29 @@ public:
         return importBits(a);
     }
     
+    static FixedPoint importDoubleSaturatedRound (double op)
+    {
+        return importDoubleSaturatedRoundInline(op);
+    }
+    
+    __attribute__((always_inline)) inline static FixedPoint importDoubleSaturatedRoundInline (double op)
+    {
+        double a = round(ldexp(op, -Exp));
+        if (Signed) {
+            if (a <= -ldexp(1.0, NumBits)) {
+                return minValue();
+            }
+        } else {
+            if (a < 0.0) {
+                return minValue();
+            }
+        }
+        if (a >= ldexp(1.0, NumBits)) {
+            return maxValue();
+        }
+        return importBits(a);
+    }
+    
     double doubleValue () const
     {
         if (Exp == 0) {

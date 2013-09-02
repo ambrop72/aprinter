@@ -118,7 +118,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_entry_distance, compute_segment_buffer_entry_distance)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_entry_speed, compute_segment_buffer_entry_speed)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_entry_accel, compute_segment_buffer_entry_accel)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment_buffer_entry_accel, write_segment_buffer_entry_accel)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment_buffer_entry_extra, write_segment_buffer_entry_extra)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_cornering_speed, compute_segment_buffer_cornering_speed)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_gen_segment_stepper_commands, gen_segment_stepper_commands)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_have_commit_space, have_commit_space)
@@ -371,7 +371,7 @@ public:
             return fmin(accum, axis_split->max_a / axis_entry->x.doubleValue());
         }
         
-        double write_segment_buffer_entry_accel (Segment *entry, double rel_max_accel)
+        double write_segment_buffer_entry_extra (Segment *entry, double rel_max_accel)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
             axis_entry->half_accel = 0.5 * rel_max_accel * axis_entry->x.doubleValue();
@@ -390,27 +390,56 @@ public:
             return fmin(accum, axis_split->max_a * (AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / dm);
         }
         
-        template <typename SegmentResult>
-        void gen_segment_stepper_commands (Context c, Segment *entry, SegmentResult result, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared)
+        void gen_segment_stepper_commands (Context c, Segment *entry, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            
             StepperStepFixedType x1 = axis_entry->x;
-            StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::importDoubleSaturated(frac_x0 * axis_entry->x.doubleValue()));
+            StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::importDoubleSaturatedRound(frac_x0 * axis_entry->x.doubleValue()));
             x1.m_bits.m_int -= x0.bitsValue();
-            StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::importDoubleSaturated(frac_x2 * axis_entry->x.doubleValue()));
+            StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::importDoubleSaturatedRound(frac_x2 * axis_entry->x.doubleValue()));
             x1.m_bits.m_int -= x2.bitsValue();
-            StepperAccelFixedType a0 = StepperAccelFixedType::importDoubleSaturated(axis_entry->half_accel * t0_squared);
-            if (a0.bitsValue() > x0.bitsValue()) {
-                a0.m_bits.m_int = x0.bitsValue();
+            
+            StepperAccelFixedType a0;
+            StepperAccelFixedType a2;
+            
+            if (x0.bitsValue() != 0) {
+                a0 = StepperAccelFixedType::importDoubleSaturated(axis_entry->half_accel * t0_squared);
+                if (a0.bitsValue() > x0.bitsValue()) {
+                    a0.m_bits.m_int = x0.bitsValue();
+                }
+            } else {
+                t1.m_bits.m_int += t0.bitsValue();
             }
-            StepperAccelFixedType a2 = StepperAccelFixedType::importDoubleSaturated(axis_entry->half_accel * t2_squared);
-            if (a2.bitsValue() > x2.bitsValue()) {
-                a2.m_bits.m_int = x2.bitsValue();
+            if (x2.bitsValue() != 0) {
+                a2 = StepperAccelFixedType::importDoubleSaturated(axis_entry->half_accel * t2_squared);
+                if (a2.bitsValue() > x2.bitsValue()) {
+                    a2.m_bits.m_int = x2.bitsValue();
+                }
+            } else {
+                t1.m_bits.m_int += t2.bitsValue();
             }
+            
+            bool gen1 = true;
+            if (x1.bitsValue() == 0 && (x0.bitsValue() != 0 || x2.bitsValue() != 0)) {
+                gen1 = false;
+                if (x0.bitsValue() != 0) {
+                    t0.m_bits.m_int += t1.bitsValue();
+                } else {
+                    t2.m_bits.m_int += t1.bitsValue();
+                }
+            }
+            
             axis_entry->num_stepper_entries = 0;
-            gen_stepper_command(c, axis_entry, x0, t0, a0);
-            gen_stepper_command(c, axis_entry, x1, t1, StepperAccelFixedType::importBits(0));
-            gen_stepper_command(c, axis_entry, x2, t2, -a2);
+            if (x0.bitsValue() != 0) {
+                gen_stepper_command(c, axis_entry, x0, t0, a0);
+            }
+            if (gen1) {
+                gen_stepper_command(c, axis_entry, x1, t1, StepperAccelFixedType::importBits(0));
+            }
+            if (x2.bitsValue() != 0) {
+                gen_stepper_command(c, axis_entry, x2, t2, -a2);
+            }
         }
         
         void gen_stepper_command (Context c, TheAxisSegment *axis_entry, StepperStepFixedType x, StepperTimeFixedType t, StepperAccelFixedType a)
@@ -895,13 +924,12 @@ private:
                     entry->distance = sqrt(distance_squared);
                     entry->lp_seg.max_v = (rel_max_speed * rel_max_speed) * distance_squared;
                     entry->lp_seg.max_start_v = entry->lp_seg.max_v;
-                    double max_accel = rel_max_accel * entry->distance;
                     entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
                     entry->lp_seg.a_x_rec = 1.0 / entry->lp_seg.a_x;
                     entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
-                    entry->max_accel_rec = 1.0 / max_accel;
+                    entry->max_accel_rec = 1.0 / (rel_max_accel * entry->distance);
                     entry->rel_max_speed_rec = 1.0 / rel_max_speed;
-                    TupleForEachForward(&m_axes, Foreach_write_segment_buffer_entry_accel(), entry, rel_max_accel);
+                    TupleForEachForward(&m_axes, Foreach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
                     if (m_split_buffer.split_pos == 1) {
                         for (SegmentBufferSizeType i = m_segments_end; i != m_segments_start; i = BoundedModuloDec(i)) {
                             Segment *prev_entry = &m_segments[BoundedModuloDec(i).value()];
@@ -1002,15 +1030,16 @@ private:
             double t1_double = (1.0 - result->const_start - result->const_end) * entry->rel_max_speed_rec;
             double t0_squared = t0_double * t0_double;
             double t2_squared = t2_double * t2_double;
-            MinTimeType t0 = MinTimeType::importDoubleSaturated(t0_double);
-            MinTimeType t2 = MinTimeType::importDoubleSaturated(t2_double);
-            MinTimeType t1 = MinTimeType::importDoubleSaturated(t1_double);
-            TupleForEachForward(&m_axes, Foreach_gen_segment_stepper_commands(), c, entry, result,
+            double t_double = t0_double + t2_double + t1_double;
+            MinTimeType t1 = MinTimeType::importDoubleSaturated(t_double);
+            entry->time_duration += t1.bitsValue();
+            MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturated(t0_double));
+            t1.m_bits.m_int -= t0.bitsValue();
+            MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturated(t2_double));
+            t1.m_bits.m_int -= t2.bitsValue();
+            TupleForEachForward(&m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
                                 result->const_start, result->const_end, t0, t2, t1,
                                 t0_squared, t2_squared);
-            entry->time_duration += t0.bitsValue();
-            entry->time_duration += t2.bitsValue();
-            entry->time_duration += t1.bitsValue();
         } else {
             TupleForOneOffset<1>(entry->type, &m_channels, Foreach_gen_command(), c, entry, s->time);
         }
