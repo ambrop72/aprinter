@@ -1009,30 +1009,27 @@ private:
         LinearPlannerSegmentState state[SegmentBufferSize - 1];
         
         SegmentBufferSizeType i = BoundedUnsafeDec(count);
-        state[i.value()].end_v = 0.0;
+        double v = 0.0;
         while (1) {
             Segment *entry = &m_segments[BoundedModuloAdd(m_segments_start, i).value()];
-            LinearPlannerSegmentState *s = &state[i.value()];
-            LinearPlannerPush(&entry->lp_seg, s);
+            v = LinearPlannerPush(&entry->lp_seg, &state[i.value()], v);
             if (AMBRO_UNLIKELY(i.value() == 0)) {
                 break;
             }
             i = BoundedUnsafeDec(i);
-            state[i.value()].end_v = s->start_v;
         }
         
         i = SegmentBufferSizeType::import(0);
-        state[i.value()].start_v = m_segments_start_v_squared;
+        v = m_segments_start_v_squared;
         double v_start = sqrt(m_segments_start_v_squared);
         TimeType time = m_staging_time;
-        while (1) {
+        do {
             Segment *entry = &m_segments[BoundedModuloAdd(m_segments_start, i).value()];
-            LinearPlannerSegmentState *s = &state[i.value()];
             LinearPlannerSegmentResult result;
-            LinearPlannerPull(&entry->lp_seg, s, &result);
-            entry->end_speed_squared = s->end_v;
+            v = LinearPlannerPull(&entry->lp_seg, &state[i.value()], v, &result);
+            entry->end_speed_squared = v;
             if (entry->type == 0) {
-                double v_end = sqrt(s->end_v);
+                double v_end = sqrt(v);
                 double v_const = sqrt(result.const_v);
                 double t0_double = (v_const - v_start) * entry->max_accel_rec;
                 double t2_double = (v_const - v_end) * entry->max_accel_rec;
@@ -1056,11 +1053,7 @@ private:
                 TupleForOneOffset<1>(entry->type, &m_channels, Foreach_gen_command(), c, entry, time);
             }
             i = BoundedUnsafeInc(i);
-            if (i == count) {
-                break;
-            }
-            state[i.value()].start_v = s->end_v;
-        }
+        } while (i != count);
         
         if (AMBRO_UNLIKELY(!m_stepping)) {
             TupleForEachForward(&m_axes, Foreach_swap_staging_cold());

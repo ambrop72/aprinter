@@ -41,7 +41,6 @@ struct LinearPlannerSegmentData {
 };
 
 struct LinearPlannerSegmentState {
-    double start_v;
     double end_v;
 };
 
@@ -51,41 +50,45 @@ struct LinearPlannerSegmentResult {
     double const_v;
 };
 
-static void LinearPlannerPush (LinearPlannerSegmentData *segment, LinearPlannerSegmentState *s)
+static double LinearPlannerPush (LinearPlannerSegmentData *segment, LinearPlannerSegmentState *s, double end_v)
 {
     AMBRO_ASSERT(segment)
     AMBRO_ASSERT(FloatIsPosOrPosZero(segment->a_x))
     AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_v))
     AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_start_v))
     AMBRO_ASSERT(segment->max_start_v <= segment->max_v)
-    AMBRO_ASSERT(FloatIsPosOrPosZero(s->end_v))
+    AMBRO_ASSERT(FloatIsPosOrPosZero(end_v))
     
-    s->end_v = fmin(segment->max_v, s->end_v);
-    s->start_v = fmin(segment->max_start_v, s->end_v + segment->a_x);
+    s->end_v = fmin(segment->max_v, end_v);
+    return fmin(segment->max_start_v, s->end_v + segment->a_x);
 }
 
-static void LinearPlannerPull (LinearPlannerSegmentData *segment, LinearPlannerSegmentState *s, LinearPlannerSegmentResult *result)
+static double LinearPlannerPull (LinearPlannerSegmentData *segment, LinearPlannerSegmentState *s, double start_v, LinearPlannerSegmentResult *result)
 {
-    if (s->end_v > s->start_v + segment->a_x) {
-        s->end_v = s->start_v + segment->a_x;
+    double end_v = s->end_v;
+    
+    if (end_v > start_v + segment->a_x) {
+        end_v = start_v + segment->a_x;
         result->const_start = 1.0;
         result->const_end = 0.0;
-        result->const_v = s->end_v;
+        result->const_v = end_v;
     } else {
-        if (s->start_v + s->end_v > segment->two_max_v_minus_a_x) {
-            result->const_start = (segment->max_v - s->start_v) * segment->a_x_rec;
-            result->const_end = (segment->max_v - s->end_v) * segment->a_x_rec;
+        if (start_v + end_v > segment->two_max_v_minus_a_x) {
+            result->const_start = (segment->max_v - start_v) * segment->a_x_rec;
+            result->const_end = (segment->max_v - end_v) * segment->a_x_rec;
             result->const_v = segment->max_v;
         } else {
-            result->const_start = ((s->end_v + segment->a_x) - s->start_v) * segment->a_x_rec / 2;
+            result->const_start = ((end_v + segment->a_x) - start_v) * segment->a_x_rec / 2;
             result->const_end = 1.0 - result->const_start;
-            result->const_v = (s->start_v + s->end_v + segment->a_x) / 2;
+            result->const_v = (start_v + end_v + segment->a_x) / 2;
         }
     }
     
-    AMBRO_ASSERT(FloatIsPosOrPosZero(s->start_v))
-    AMBRO_ASSERT(FloatIsPosOrPosZero(s->end_v))
+    AMBRO_ASSERT(FloatIsPosOrPosZero(start_v))
+    AMBRO_ASSERT(FloatIsPosOrPosZero(end_v))
     AMBRO_ASSERT(FloatIsPosOrPosZero(result->const_v))
+    
+    return end_v;
 }
 
 #include <aprinter/EndNamespace.h>
