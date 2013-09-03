@@ -405,6 +405,7 @@ FILE uart_output;
 
 static int uart_putchar (char ch, FILE *stream)
 {
+    myprinter.getSerial()->sendWaitFinished();
     while (!(UCSR0A & (1 << UDRE0)));
     UDR0 = ch;
     return 1;

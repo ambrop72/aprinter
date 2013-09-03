@@ -27,6 +27,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <util/atomic.h>
 
 #include <stdint.h>
 #include <stddef.h>
@@ -233,6 +234,16 @@ public:
                 ok = (send_avail(m_send_start, m_send_end) >= min_amount);
             });
         } while (!ok);
+    }
+    
+    void sendWaitFinished ()
+    {
+        bool not_finished;
+        do {
+            ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+                not_finished = (m_send_start != m_send_end);
+            }
+        } while (not_finished);
     }
     
     void rx_isr (AvrInterruptContext<Context> c)
