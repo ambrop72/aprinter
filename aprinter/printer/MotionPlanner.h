@@ -1001,67 +1001,66 @@ private:
         }
     }
     
-    struct PlanState {
-        SegmentBufferSizeType i;
-        TimeType time;
-    };
-    
-    LinearPlannerSegmentData * lp_get (Context c, PlanState *s, double *start_v)
-    {
-        if (s->i == m_segments_start) {
-            *start_v = m_segments_start_v_squared;
-            return NULL;
-        }
-        s->i = BoundedModuloDec(s->i);
-        Segment *entry = &m_segments[s->i.value()];
-        return &entry->lp_seg;
-    }
-    
-    void lp_result (Context c, PlanState *s, LinearPlannerSegmentResult *result)
-    {
-        Segment *entry = &m_segments[s->i.value()];
-        entry->end_speed_squared = result->end_v;
-        entry->time_duration = 0;
-        if (entry->type == 0) {
-            double v_start = sqrt(result->start_v);
-            double v_end = sqrt(result->end_v);
-            double v_const = sqrt(result->const_v);
-            double t0_double = (v_const - v_start) * entry->max_accel_rec;
-            double t2_double = (v_const - v_end) * entry->max_accel_rec;
-            double t1_double = (1.0 - result->const_start - result->const_end) * entry->rel_max_speed_rec;
-            double t0_squared = t0_double * t0_double;
-            double t2_squared = t2_double * t2_double;
-            double t_double = t0_double + t2_double + t1_double;
-            MinTimeType t1 = MinTimeType::importDoubleSaturated(t_double);
-            entry->time_duration += t1.bitsValue();
-            MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturated(t0_double));
-            t1.m_bits.m_int -= t0.bitsValue();
-            MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturated(t2_double));
-            t1.m_bits.m_int -= t2.bitsValue();
-            TupleForEachForward(&m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
-                                result->const_start, result->const_end, t0, t2, t1,
-                                t0_squared, t2_squared);
-        } else {
-            TupleForOneOffset<1>(entry->type, &m_channels, Foreach_gen_command(), c, entry, s->time);
-        }
-        s->i = BoundedModuloInc(s->i);
-        s->time += entry->time_duration;
-    }
-    
-    using TheLinearPlanner = LinearPlanner<
-        AMBRO_WMETHOD_T(&MotionPlanner::lp_get),
-        AMBRO_WMETHOD_T(&MotionPlanner::lp_result)
-    >;
-    
     void plan (Context c)
     {
         AMBRO_ASSERT(m_segments_staging_end != m_segments_end)
         
-        PlanState s;
-        s.i = BoundedModuloDec(m_segments_end);
-        s.time = m_staging_time;
-        LinearPlannerSegmentData *last_segment = &m_segments[s.i.value()].lp_seg;
-        TheLinearPlanner::plan(last_segment, 0.0, this, c, &s);
+        SegmentBufferSizeType count = BoundedModuloSubtract(m_segments_end, m_segments_start);
+        LinearPlannerSegmentState state[SegmentBufferSize - 1];
+        
+        SegmentBufferSizeType i = BoundedUnsafeDec(count);
+        state[i.value()].end_v = 0.0;
+        while (1) {
+            Segment *entry = &m_segments[BoundedModuloAdd(m_segments_start, i).value()];
+            LinearPlannerSegmentState *s = &state[i.value()];
+            LinearPlannerPush(&entry->lp_seg, s);
+            if (AMBRO_UNLIKELY(i.value() == 0)) {
+                break;
+            }
+            i = BoundedUnsafeDec(i);
+            state[i.value()].end_v = s->start_v;
+        }
+        
+        i = SegmentBufferSizeType::import(0);
+        state[i.value()].start_v = m_segments_start_v_squared;
+        double v_start = sqrt(m_segments_start_v_squared);
+        TimeType time = m_staging_time;
+        while (1) {
+            Segment *entry = &m_segments[BoundedModuloAdd(m_segments_start, i).value()];
+            LinearPlannerSegmentState *s = &state[i.value()];
+            LinearPlannerSegmentResult result;
+            LinearPlannerPull(&entry->lp_seg, s, &result);
+            entry->end_speed_squared = s->end_v;
+            if (entry->type == 0) {
+                double v_end = sqrt(s->end_v);
+                double v_const = sqrt(result.const_v);
+                double t0_double = (v_const - v_start) * entry->max_accel_rec;
+                double t2_double = (v_const - v_end) * entry->max_accel_rec;
+                double t1_double = (1.0 - result.const_start - result.const_end) * entry->rel_max_speed_rec;
+                double t0_squared = t0_double * t0_double;
+                double t2_squared = t2_double * t2_double;
+                double t_double = t0_double + t2_double + t1_double;
+                MinTimeType t1 = MinTimeType::importDoubleSaturated(t_double);
+                entry->time_duration = t1.bitsValue();
+                time += t1.bitsValue();;
+                MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturated(t0_double));
+                t1.m_bits.m_int -= t0.bitsValue();
+                MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturated(t2_double));
+                t1.m_bits.m_int -= t2.bitsValue();
+                TupleForEachForward(&m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
+                                    result.const_start, result.const_end, t0, t2, t1,
+                                    t0_squared, t2_squared);
+                v_start = v_end;
+            } else {
+                entry->time_duration = 0;
+                TupleForOneOffset<1>(entry->type, &m_channels, Foreach_gen_command(), c, entry, time);
+            }
+            i = BoundedUnsafeInc(i);
+            if (i == count) {
+                break;
+            }
+            state[i.value()].start_v = s->end_v;
+        }
         
         if (AMBRO_UNLIKELY(!m_stepping)) {
             TupleForEachForward(&m_axes, Foreach_swap_staging_cold());
