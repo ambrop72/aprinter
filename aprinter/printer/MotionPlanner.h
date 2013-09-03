@@ -107,7 +107,7 @@ private:
     using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
     using SegmentBufferSizeType = BoundedInt<LookaheadBufferSizeExp, false>;
     static const size_t SegmentBufferSize = PowerOfTwo<size_t, LookaheadBufferSizeExp>::value;
-    static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * SegmentBufferSize);
+    static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * (SegmentBufferSize - 1));
     using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
@@ -206,7 +206,7 @@ private:
     struct ChannelCommand {
         using ChannelSpec = TypeListGet<ChannelsList, ChannelIndex>;
         using Payload = typename ChannelSpec::Payload;
-        static const size_t NumChannelCommands = ChannelSpec::BufferSize + 2 * SegmentBufferSize;
+        static const size_t NumChannelCommands = ChannelSpec::BufferSize + 2 * (SegmentBufferSize - 1);
         using ChannelCommandSizeType = typename ChooseInt<BitsInInt<NumChannelCommands>::value, true>::Type;
         
         Payload payload;
