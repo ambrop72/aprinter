@@ -373,14 +373,14 @@ public:
             axis_entry->half_accel = 0.5 * rel_max_accel * axis_entry->x.doubleValue();
         }
         
-        double compute_segment_buffer_cornering_speed (double accum, Segment *entry, double entry_distance, Segment *prev_entry)
+        double compute_segment_buffer_cornering_speed (double accum, Segment *entry, double entry_distance_rec, Segment *prev_entry)
         {
             MotionPlanner *o = parent();
             TheAxisSplitBuffer *axis_split = TupleGetElem<AxisIndex>(&o->m_split_buffer.axes);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
             TheAxisSegment *prev_axis_entry = TupleGetElem<AxisIndex>(&prev_entry->axes);
-            double m1 = axis_entry->x.doubleValue() / entry_distance;
-            double m2 = prev_axis_entry->x.doubleValue() / o->m_last_distance;
+            double m1 = axis_entry->x.doubleValue() * entry_distance_rec;
+            double m2 = prev_axis_entry->x.doubleValue() * o->m_last_distance_rec;
             bool dir_changed = axis_entry->dir != prev_axis_entry->dir;
             double dm = (dir_changed ? (m1 + m2) : fabs(m1 - m2));
             return fmin(accum, axis_split->max_a * (AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / dm);
@@ -934,16 +934,17 @@ private:
                     entry->max_accel_rec = 1.0 / (rel_max_accel * distance);
                     entry->rel_max_speed_rec = 1.0 / rel_max_speed;
                     TupleForEachForward(&m_axes, Foreach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
+                    double distance_rec = 1.0 / distance;
                     if (m_split_buffer.split_pos == 1) {
                         for (SegmentBufferSizeType i = m_segments_end; i != m_segments_start; i = BoundedModuloDec(i)) {
                             Segment *prev_entry = &m_segments[BoundedModuloDec(i).value()];
                             if (prev_entry->type == 0) {
-                                entry->lp_seg.max_start_v = TupleForEachForwardAccRes(&m_axes, entry->lp_seg.max_start_v, Foreach_compute_segment_buffer_cornering_speed(), entry, distance, prev_entry);
+                                entry->lp_seg.max_start_v = TupleForEachForwardAccRes(&m_axes, entry->lp_seg.max_start_v, Foreach_compute_segment_buffer_cornering_speed(), entry, distance_rec, prev_entry);
                                 break;
                             }
                         }
                     }
-                    m_last_distance = distance;
+                    m_last_distance_rec = distance_rec;
                     m_split_buffer.split_pos++;
                     m_have_split_buffer = !TupleForEachForwardAccRes(&m_axes, true, Foreach_check_split_finished());
                 } else {
@@ -1186,7 +1187,7 @@ private:
     double m_segments_start_v_squared;
     double m_first_segment_end_speed_squared;
     TimeType m_first_segment_time_duration;
-    double m_last_distance;
+    double m_last_distance_rec;
     bool m_have_split_buffer;
     bool m_stepping;
     bool m_underrun;
