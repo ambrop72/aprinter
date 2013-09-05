@@ -234,7 +234,6 @@ private:
     
     static const int serial_recv_buffer_bits = 6;
     static const int serial_send_buffer_bits = 8;
-    static const int reply_buffer_size = 128;
     
     using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
@@ -245,7 +244,6 @@ private:
     static const int num_axes = TypeListLength<AxesList>::value;
     using AxisMaskType = typename ChooseInt<num_axes, false>::Type;
     using AxisCountType = typename ChooseInt<BitsInInt<num_axes>::value, false>::Type;
-    using ReplyBufferSizeType = typename ChooseInt<BitsInInt<reply_buffer_size>::value, false>::Type;
     
     template <typename TheAxis>
     using MakeStepperDef = StepperDef<
@@ -523,7 +521,10 @@ private:
         
         void append_position (Context c)
         {
-            parent()->reply_append_fmt(c, "%c:%f", axis_name, m_req_pos / AxisSpec::DefaultStepsPerUnit::value());
+            PrinterMain *o = parent();
+            o->reply_append_ch(c, axis_name);
+            o->reply_append_ch(c, ':');
+            o->reply_append_double(c, m_req_pos / AxisSpec::DefaultStepsPerUnit::value());
         }
         
         void set_relative_positioning (bool relative)
@@ -631,7 +632,10 @@ private:
         void append_value (PrinterMain *o, Context c)
         {
             double value = get_value(c).doubleValue();
-            o->reply_append_fmt(c, " %c:%f", HeaterSpec::Name, value);
+            o->reply_append_ch(c, ' ');
+            o->reply_append_ch(c, HeaterSpec::Name);
+            o->reply_append_ch(c, ':');
+            o->reply_append_double(c, value);
         }
         
         template <typename ThisContext>
@@ -900,12 +904,10 @@ public:
         m_recv_next_error = 0;
         m_line_number = 0;
         m_cmd = NULL;
-        m_reply_length = 0;
         m_max_cart_speed = INFINITY;
         m_state = STATE_IDLE;
         
         reply_append_str(c, "APrinter\n");
-        reply_send(c);
         
         this->debugInit(c);
     }
@@ -1026,7 +1028,9 @@ private:
                 case TheGcodeParser::ERROR_CHECKSUM: err = "incorrect checksum"; break;
                 case TheGcodeParser::ERROR_RECV_OVERRUN: err = "receive buffer overrun"; break;
             }
-            reply_append_fmt(c, "Error:%s\n", err);
+            reply_append_str(c, "Error:");
+            reply_append_str(c, err);
+            reply_append_ch(c, '\n');
             goto reply;
         }
         
@@ -1040,7 +1044,9 @@ private:
             }
             if (m_cmd->have_line_number) {
                 if (m_cmd->line_number != m_line_number) {
-                    reply_append_fmt(c, "Error:Line Number is not Last Line Number+1, Last Line:%" PRIu32 "\n", (uint32_t)(m_line_number - 1));
+                    reply_append_str(c, "Error:Line Number is not Last Line Number+1, Last Line:");
+                    reply_append_uint32(c, (uint32_t)(m_line_number - 1));
+                    reply_append_ch(c, '\n');
                     goto reply;
                 }
             }
@@ -1098,13 +1104,13 @@ private:
                 case 105: {
                     reply_append_str(c, "ok");
                     TupleForEachForward(&m_heaters, Foreach_append_value(), this, c);
-                    reply_append_str(c, "\n");
+                    reply_append_ch(c, '\n');
                     no_ok = true;
                 } break;
                 
                 case 114: {
                     TupleForEachForward(&m_axes, Foreach_append_position(), c);
-                    reply_append_str(c, "\n");
+                    reply_append_ch(c, '\n');
                 } break;
             } break;
             
@@ -1184,7 +1190,9 @@ private:
             
             unknown_command:
             default: {
-                reply_append_fmt(c, "Error:Unknown command %s\n", (m_cmd->parts[0].data - 1));
+                reply_append_str(c, "Error:Unknown command ");
+                reply_append_str(c, (m_cmd->parts[0].data - 1));
+                reply_append_ch(c, '\n');
             } break;
         }
         
@@ -1207,7 +1215,6 @@ private:
         if (!no_ok) {
             reply_append_str(c, "ok\n");
         }
-        reply_send(c);
         
         m_serial.recvConsume(c, RecvSizeType::import(m_cmd->length));
         m_cmd = 0;
@@ -1281,43 +1288,47 @@ private:
         return true;
     }
     
-    template <typename... Args>
-    void reply_append_fmt (Context c, char const *fmt, Args... args)
+    void reply_append (Context c, char const *str, uint8_t length)
     {
-        int len = snprintf(m_reply_buf + m_reply_length, sizeof(m_reply_buf) - m_reply_length, fmt, args...);
-        if (len > sizeof(m_reply_buf) - 1 - m_reply_length) {
-            len = sizeof(m_reply_buf) - 1 - m_reply_length;
-        }
-        m_reply_length += len;
-    }
-    
-    void reply_append_str (Context c, char const *str)
-    {
-        size_t len = strlen(str);
-        if (len > sizeof(m_reply_buf) - 1 - m_reply_length) {
-            len = sizeof(m_reply_buf) - 1 - m_reply_length;
-        }
-        memcpy(m_reply_buf + m_reply_length, str, len);
-        m_reply_length += len;
-    }
-    
-    void reply_send (Context c)
-    {
-        char *src = m_reply_buf;
-        ReplyBufferSizeType length = m_reply_length;
         SendSizeType avail = m_serial.sendQuery(c);
         if (length > avail.value()) {
             length = avail.value();
         }
         while (length > 0) {
             char *chunk_data = m_serial.sendGetChunkPtr(c);
-            SendSizeType chunk_length = m_serial.sendGetChunkLen(c, SendSizeType::import(length));
-            memcpy(chunk_data, src, chunk_length.value());
-            m_serial.sendProvide(c, chunk_length);
-            src += chunk_length.value();
-            length -= chunk_length.value();
+            uint8_t chunk_length = m_serial.sendGetChunkLen(c, SendSizeType::import(length)).value();
+            memcpy(chunk_data, str, chunk_length);
+            m_serial.sendProvide(c, SendSizeType::import(chunk_length));
+            str += chunk_length;
+            length -= chunk_length;
         }
-        m_reply_length = 0;
+    }
+    
+    void reply_append_str (Context c, char const *str)
+    {
+        reply_append(c, str, strlen(str));
+    }
+    
+    void reply_append_ch (Context c, char ch)
+    {
+        if (m_serial.sendQuery(c).value() > 0) {
+            *m_serial.sendGetChunkPtr(c) = ch;
+            m_serial.sendProvide(c, SendSizeType::import(1));
+        }
+    }
+    
+    void reply_append_double (Context c, double x)
+    {
+        char buf[30];
+        snprintf(buf, sizeof(buf), "%f", x);
+        reply_append_str(c, buf);
+    }
+    
+    void reply_append_uint32 (Context c, uint32_t x)
+    {
+        char buf[11];
+        uint8_t len = sprintf(buf, "%" PRIu32, x);
+        reply_append(c, buf, len);
     }
     
     bool try_buffered_command (Context c)
@@ -1434,8 +1445,6 @@ private:
     int8_t m_recv_next_error;
     uint32_t m_line_number;
     GcodeParserCommand *m_cmd;
-    char m_reply_buf[reply_buffer_size];
-    ReplyBufferSizeType m_reply_length;
     double m_max_cart_speed;
     uint8_t m_state;
     union {
