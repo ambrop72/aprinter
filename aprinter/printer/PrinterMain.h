@@ -1320,8 +1320,8 @@ private:
     void reply_append_double (Context c, double x)
     {
         char buf[30];
-        snprintf(buf, sizeof(buf), "%f", x);
-        reply_append_str(c, buf);
+        uint8_t len = sprintf(buf, "%g", x);
+        reply_append(c, buf, len);
     }
     
     void reply_append_uint32 (Context c, uint32_t x)
