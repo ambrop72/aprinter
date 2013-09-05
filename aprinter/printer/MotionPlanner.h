@@ -221,10 +221,8 @@ private:
         using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
         
         bool dir;
-        uint8_t num_stepper_entries;
         StepperStepFixedType x;
         double half_accel;
-        StepperCommandSizeType last_stepper_entry;
     };
     
     template <int ChannelIndex>
@@ -240,8 +238,6 @@ private:
     struct Segment {
         uint8_t type;
         LinearPlannerSegmentData lp_seg;
-        double end_speed_squared;
-        TimeType time_duration;
         union {
             struct {
                 double distance;
@@ -391,7 +387,7 @@ public:
             return fmin(accum, axis_split->max_a * (AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / dm);
         }
         
-        void gen_segment_stepper_commands (Context c, Segment *entry, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared)
+        void gen_segment_stepper_commands (Context c, Segment *entry, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared, bool is_first)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
             
@@ -431,15 +427,23 @@ public:
                 }
             }
             
-            axis_entry->num_stepper_entries = 0;
+            uint8_t num_stepper_entries = 0;
             if (x0.bitsValue() != 0) {
+                num_stepper_entries++;
                 gen_stepper_command(c, axis_entry, x0, t0, a0);
             }
             if (gen1) {
+                num_stepper_entries++;
                 gen_stepper_command(c, axis_entry, x1, t1, StepperAccelFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
+                num_stepper_entries++;
                 gen_stepper_command(c, axis_entry, x2, t2, -a2);
+            }
+            
+            if (AMBRO_UNLIKELY(is_first)) {
+                m_first_segment_num_stepper_entries = num_stepper_entries;
+                m_first_segment_last_stepper_entry = m_new_last;
             }
         }
         
@@ -460,8 +464,6 @@ public:
                 m_new_first = entry;
             }
             m_new_last = entry;
-            axis_entry->last_stepper_entry = entry;
-            axis_entry->num_stepper_entries++;
         }
         
         bool have_commit_space (bool accum)
@@ -472,14 +474,14 @@ public:
         void commit_segment_hot (Segment *entry)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            AMBRO_ASSERT(m_num_committed <= 3 * StepperSegmentBufferSize - axis_entry->num_stepper_entries)
-            m_num_committed += axis_entry->num_stepper_entries;
+            AMBRO_ASSERT(m_num_committed <= 3 * StepperSegmentBufferSize - m_first_segment_num_stepper_entries)
+            m_num_committed += m_first_segment_num_stepper_entries;
         }
         
         void commit_segment_finish (Segment *entry)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            m_last_committed = axis_entry->last_stepper_entry;
+            m_last_committed = m_first_segment_last_stepper_entry;
         }
         
         void dispose_new (Context c)
@@ -576,6 +578,8 @@ public:
         StepperCommandSizeType m_new_last;
         StepperCommandSizeType m_free_first;
         StepperCommandSizeType m_num_committed;
+        uint8_t m_first_segment_num_stepper_entries;
+        StepperCommandSizeType m_first_segment_last_stepper_entry;
         TheAxisStepperCommand m_stepper_entries[NumStepperCommands];
     };
     
@@ -996,8 +1000,8 @@ private:
                 }
             }
             m_segments_start = BoundedModuloInc(m_segments_start);
-            m_segments_start_v_squared = entry->end_speed_squared;
-            m_staging_time += entry->time_duration;
+            m_segments_start_v_squared = m_first_segment_end_speed_squared;
+            m_staging_time += m_first_segment_time_duration;
         }
     }
     
@@ -1027,7 +1031,7 @@ private:
             Segment *entry = &m_segments[BoundedModuloAdd(m_segments_start, i).value()];
             LinearPlannerSegmentResult result;
             v = LinearPlannerPull(&entry->lp_seg, &state[i.value()], v, &result);
-            entry->end_speed_squared = v;
+            TimeType time_duration;
             if (entry->type == 0) {
                 double v_end = sqrt(v);
                 double v_const = sqrt(result.const_v);
@@ -1038,7 +1042,7 @@ private:
                 double t2_squared = t2_double * t2_double;
                 double t_double = t0_double + t2_double + t1_double;
                 MinTimeType t1 = MinTimeType::importDoubleSaturated(t_double);
-                entry->time_duration = t1.bitsValue();
+                time_duration = t1.bitsValue();
                 time += t1.bitsValue();;
                 MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturated(t0_double));
                 t1.m_bits.m_int -= t0.bitsValue();
@@ -1046,11 +1050,15 @@ private:
                 t1.m_bits.m_int -= t2.bitsValue();
                 TupleForEachForward(&m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
-                                    t0_squared, t2_squared);
+                                    t0_squared, t2_squared, i == SegmentBufferSizeType::import(0));
                 v_start = v_end;
             } else {
-                entry->time_duration = 0;
+                time_duration = 0;
                 TupleForOneOffset<1>(entry->type, &m_channels, Foreach_gen_command(), c, entry, time);
+            }
+            if (AMBRO_UNLIKELY(i == SegmentBufferSizeType::import(0))) {
+                m_first_segment_end_speed_squared = v;
+                m_first_segment_time_duration = time_duration;
             }
             i = BoundedUnsafeInc(i);
         } while (i != count);
@@ -1176,6 +1184,8 @@ private:
     SegmentBufferSizeType m_segments_staging_end;
     SegmentBufferSizeType m_segments_end;
     double m_segments_start_v_squared;
+    double m_first_segment_end_speed_squared;
+    TimeType m_first_segment_time_duration;
     bool m_have_split_buffer;
     bool m_stepping;
     bool m_underrun;
