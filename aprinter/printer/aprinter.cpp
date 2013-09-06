@@ -109,8 +109,8 @@ using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
-using EDefaultMin = AMBRO_WRAP_DOUBLE(-10000.0);
-using EDefaultMax = AMBRO_WRAP_DOUBLE(10000.0);
+using EDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
+using EDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
 
 /*
  * NOTE: The natural semantic of ExtruderHeaterPidDHistory
@@ -257,7 +257,7 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortB, 1>, // step pin
             AvrPin<AvrPortD, 6>, // enable pin
             true, // invert dir
-            24, // step bits
+            32, // step bits
             AxisStepperParams<
                 AvrClockInterruptTimer_TC3_OCB // stepper timer
             >,
