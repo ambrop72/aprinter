@@ -1040,7 +1040,7 @@ private:
         if (!already_seen) {
             bool is_m110 = (cmd_code == 'M' && cmd_num == 110);
             if (is_m110) {
-                m_line_number = get_command_param_uint32(m_cmd, 'L', -1);
+                m_line_number = get_command_param_uint32(m_cmd, 'L', (m_cmd->have_line_number ? m_cmd->line_number : -1));
             }
             if (m_cmd->have_line_number) {
                 if (m_cmd->line_number != m_line_number) {

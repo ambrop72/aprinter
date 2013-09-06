@@ -185,6 +185,10 @@ private:
     
     static bool compare_checksum (uint8_t expected, char const *received, BufferSizeType received_len)
     {
+        while (received_len > 0 && is_space(received[received_len - 1])) {
+            received_len--;
+        }
+        
         do {
             char ch = '0' + (expected % 10);
             if (received_len == 0 || received[received_len - 1] != ch) {
