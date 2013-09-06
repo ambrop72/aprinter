@@ -279,6 +279,7 @@ private:
         using Stepper = SteppersStepper<Context, StepperDefsList, AxisIndex>;
         using TheAxisStepper = AxisStepper<AxisStepperPosition, Context, typename AxisSpec::TheAxisStepperParams, Stepper, AxisStepperGetStepperHandler, AxisStepperConsumersList<AxisIndex>>;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
+        using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
         static const char axis_name = AxisSpec::name;
         
         AMBRO_STRUCT_IF(HomingFeature, AxisSpec::Homing::enabled) {
@@ -313,8 +314,8 @@ private:
                     AMBRO_ASSERT(o->m_homing_rem_axes > 0)
                     
                     m_homer.deinit(c);
-                    axis->m_end_pos = (AxisSpec::Homing::home_dir ? axis->max_pos() : axis->min_pos());
-                    axis->m_req_pos = axis->m_end_pos;
+                    axis->m_req_pos = (AxisSpec::Homing::home_dir ? axis->max_req_pos() : axis->min_req_pos());
+                    axis->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(axis->dist_from_real(axis->m_req_pos));
                     axis->m_state = AXIS_STATE_OTHER;
                     o->m_homing_rem_axes--;
                     if (!success) {
@@ -402,6 +403,11 @@ private:
             return (x * AxisSpec::DefaultStepsPerUnit::value());
         }
         
+        double dist_to_real (double x)
+        {
+            return (x * (1.0 / AxisSpec::DefaultStepsPerUnit::value()));
+        }
+        
         double speed_from_real (double v)
         {
             return (v * (AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq));
@@ -412,25 +418,19 @@ private:
             return (a * (AxisSpec::DefaultStepsPerUnit::value() / (Clock::time_freq * Clock::time_freq)));
         }
         
-        static double clamp_limit (double x)
+        double clamp_req_pos (double req)
         {
-            double bound = FloatSignedIntegerRange<double>();
-            return fmax(-bound, fmin(bound, round(x)));
+            return fmax(min_req_pos(), fmin(max_req_pos(), req));
         }
         
-        double clamp_pos (double pos)
+        double min_req_pos ()
         {
-            return fmax(min_pos(), fmin(max_pos(), pos));
+            return fmax(AxisSpec::DefaultMin::value(), dist_to_real(AbsStepFixedType::minValue().doubleValue()));
         }
         
-        double min_pos ()
+        double max_req_pos ()
         {
-            return clamp_limit(dist_from_real(AxisSpec::DefaultMin::value()));
-        }
-        
-        double max_pos ()
-        {
-            return clamp_limit(dist_from_real(AxisSpec::DefaultMax::value()));
+            return fmin(AxisSpec::DefaultMax::value(), dist_to_real(AbsStepFixedType::maxValue().doubleValue()));
         }
         
         void init (Context c)
@@ -438,8 +438,8 @@ private:
             m_axis_stepper.init(c);
             m_state = AXIS_STATE_OTHER;
             m_homing_feature.init(c);
-            m_end_pos = clamp_pos(0.0);
-            m_req_pos = clamp_pos(0.0);
+            m_req_pos = clamp_req_pos(0.0);
+            m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(m_req_pos));
             m_relative_positioning = false;
         }
         
@@ -483,11 +483,10 @@ private:
                 if (isnan(req)) {
                     req = 0.0;
                 }
-                req *= AxisSpec::DefaultStepsPerUnit::value();
                 if (m_relative_positioning) {
                     req += m_req_pos;
                 }
-                req = clamp_pos(req);
+                req = clamp_req_pos(req);
                 new_pos[AxisIndex] = req;
             }
         }
@@ -495,27 +494,26 @@ private:
         template <typename PlannerCmd>
         void process_new_pos (Context c, double *new_pos, double *distance_squared, double *total_steps, PlannerCmd *cmd)
         {
-            double move = round(new_pos[AxisIndex]) - m_end_pos;
-            double move_abs = fabs(move);
-            if (AMBRO_UNLIKELY(move != 0.0)) {
-                if (move_abs > StepFixedType::maxValue().doubleValue()) {
-                    move_abs = StepFixedType::maxValue().doubleValue();
-                    move = (move < 0.0) ? -move_abs : move_abs;
-                    new_pos[AxisIndex] = m_end_pos + move;
-                }
+            AbsStepFixedType new_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(new_pos[AxisIndex]));
+            bool dir = (new_end_pos >= m_end_pos);
+            StepFixedType move = StepFixedType::importBits(dir ? 
+                ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)m_end_pos.bitsValue()) :
+                ((typename StepFixedType::IntType)m_end_pos.bitsValue() - (typename StepFixedType::IntType)new_end_pos.bitsValue())
+            );
+            if (AMBRO_UNLIKELY(move.bitsValue() != 0)) {
                 if (AxisSpec::enable_cartesian_speed_limit) {
-                    double delta = move * (1.0 / AxisSpec::DefaultStepsPerUnit::value());
+                    double delta = dist_to_real(move.doubleValue());
                     *distance_squared += delta * delta;
                 }
-                *total_steps += move_abs;
+                *total_steps += move.doubleValue();
                 enable_stepper(c, true);
             }
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
-            mycmd->dir = (move >= 0.0);
-            mycmd->x = StepFixedType::importBits(move_abs);
+            mycmd->dir = dir;
+            mycmd->x = move;
             mycmd->max_v = speed_from_real(AxisSpec::DefaultMaxSpeed::value());
             mycmd->max_a = accel_from_real(AxisSpec::DefaultMaxAccel::value());
-            m_end_pos += move;
+            m_end_pos = new_end_pos;
             m_req_pos = new_pos[AxisIndex];
         }
         
@@ -524,7 +522,7 @@ private:
             PrinterMain *o = parent();
             o->reply_append_ch(c, axis_name);
             o->reply_append_ch(c, ':');
-            o->reply_append_double(c, m_req_pos / AxisSpec::DefaultStepsPerUnit::value());
+            o->reply_append_double(c, m_req_pos);
         }
         
         void set_relative_positioning (bool relative)
@@ -544,8 +542,8 @@ private:
                 if (isnan(req)) {
                     req = 0.0;
                 }
-                m_end_pos = round(clamp_pos(req * AxisSpec::DefaultStepsPerUnit::value()));
-                m_req_pos = m_end_pos;
+                m_req_pos = clamp_req_pos(req);
+                m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(m_req_pos));
             }
         }
         
@@ -557,8 +555,8 @@ private:
         TheAxisStepper m_axis_stepper;
         uint8_t m_state;
         HomingFeature m_homing_feature;
-        double m_end_pos; // steps, integer
-        double m_req_pos; // steps
+        AbsStepFixedType m_end_pos;
+        double m_req_pos;
         bool m_relative_positioning;
         
         struct AxisStepperPosition : public MemberPosition<AxisPosition<AxisIndex>, TheAxisStepper, &Axis::m_axis_stepper> {};
