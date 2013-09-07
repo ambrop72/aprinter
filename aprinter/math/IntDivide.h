@@ -31,7 +31,6 @@
 #include <aprinter/meta/PowerOfTwo.h>
 
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/div_13_16_l16_s15.h>
 #include <avr-asm-ops/div_12_16_l15_s14.h>
 #endif
 
@@ -51,7 +50,6 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
-            (LeftShift == 16 && ResSatBits == 15 && !Signed1 && NumBits1 > 8 && NumBits1 <= 13 && !Signed2 && NumBits2 <= 16) ? div_13_16_l16_s15(op1, op2, opt) :
             (LeftShift == 15 && ResSatBits == 14 && !Signed1 && NumBits1 > 8 && NumBits1 <= 12 && !Signed2 && NumBits2 <= 16) ? div_12_16_l15_s14(op1, op2, opt) :
 #endif
             default_divide(op1, op2);
