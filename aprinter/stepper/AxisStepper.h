@@ -77,10 +77,10 @@ private:
     // DON'T TOUCH!
     // These were chosen carefully for speed, and some operations
     // were written in assembly specifically for use here.
-    static const int step_bits = 13;
+    static const int step_bits = 12;
     static const int time_bits = 22;
     static const int q_div_shift = 16;
-    static const int time_mul_bits = 23;
+    static const int time_mul_bits = 24;
     
     struct TimerHandler;
     
