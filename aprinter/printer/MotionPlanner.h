@@ -88,7 +88,7 @@ struct MotionPlannerChannelSpec {
 };
 
 template <
-    typename Position, typename Context, typename AxesList, int StepperSegmentBufferSize, int LookaheadBufferSizeExp,
+    typename Position, typename Context, typename AxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
     typename PullHandler, typename FinishedHandler, typename ChannelsList = EmptyTypeList
 >
 class MotionPlanner
@@ -98,16 +98,15 @@ private:
     template <int AxisIndex> struct AxisPosition;
     
     static_assert(StepperSegmentBufferSize >= 6, "");
-    static_assert(LookaheadBufferSizeExp >= 1, "");
+    static_assert(LookaheadBufferSize >= 2, "");
     using Loop = typename Context::EventLoop;
     using TimeType = typename Context::Clock::TimeType;
     static const int NumAxes = TypeListLength<AxesList>::value;
     template <typename AxisSpec, typename AccumType>
     using MinTimeTypeHelper = FixedIntersectTypes<typename AxisSpec::TheAxisStepper::TimeFixedType, AccumType>;
     using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
-    using SegmentBufferSizeType = BoundedInt<LookaheadBufferSizeExp, false>;
-    static const size_t SegmentBufferSize = PowerOfTwo<size_t, LookaheadBufferSizeExp>::value;
-    static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * (SegmentBufferSize - 1));
+    using SegmentBufferSizeType = BoundedInt<BitsInInt<LookaheadBufferSize>::value, false>;
+    static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * LookaheadBufferSize);
     using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
@@ -206,7 +205,7 @@ private:
     struct ChannelCommand {
         using ChannelSpec = TypeListGet<ChannelsList, ChannelIndex>;
         using Payload = typename ChannelSpec::Payload;
-        static const size_t NumChannelCommands = ChannelSpec::BufferSize + 2 * (SegmentBufferSize - 1);
+        static const size_t NumChannelCommands = ChannelSpec::BufferSize + 2 * LookaheadBufferSize;
         using ChannelCommandSizeType = typename ChooseInt<BitsInInt<NumChannelCommands>::value, true>::Type;
         
         Payload payload;
@@ -914,7 +913,7 @@ private:
         
         while (1) {
             do {
-                if (BoundedModuloSubtract(m_segments_start, m_segments_end).value() == 1) {
+                if (BoundedModuloSubtract(m_segments_end, m_segments_start).value() == LookaheadBufferSize) {
                     m_underrun = m_underrun && m_stepping;
                     break;
                 }
@@ -1011,7 +1010,7 @@ private:
         AMBRO_ASSERT(m_segments_staging_end != m_segments_end)
         
         SegmentBufferSizeType count = BoundedModuloSubtract(m_segments_end, m_segments_start);
-        LinearPlannerSegmentState state[SegmentBufferSize - 1];
+        LinearPlannerSegmentState state[LookaheadBufferSize];
         
         SegmentBufferSizeType i = BoundedUnsafeDec(count);
         double v = 0.0;
@@ -1197,7 +1196,7 @@ private:
 #endif
     SplitBuffer m_split_buffer;
     TimeType m_staging_time;
-    Segment m_segments[SegmentBufferSize];
+    Segment m_segments[(size_t)SegmentBufferSizeType::maxIntValue() + 1];
     AxesTuple m_axes;
     ChannelsTuple m_channels;
     

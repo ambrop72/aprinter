@@ -152,7 +152,7 @@ using PrinterParams = PrinterMainParams<
     SpeedLimitMultiply,
     MaxStepsPerCycle,
     16, // stepper segment buffer size
-    2, // lookahead buffer size exponent
+    3, // lookahead buffer size (including the new segment - to look 2 steps ahead, enter 3)
     ForceTimeout,
     AvrWatchdog,
     AvrWatchdogParams<
