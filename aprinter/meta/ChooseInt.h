@@ -47,10 +47,10 @@ public:
         If<(Signed && NumBits < 32), int32_t,
         If<(Signed && NumBits < 64), int64_t,
         If<(!Signed && NumBits <= 8), uint8_t,
+        If<(!Signed && NumBits <= 16), uint16_t,
 #ifdef AMBROLIB_AVR
 //        If<(!Signed && NumBits <= 24), __uint24,
 #endif
-        If<(!Signed && NumBits <= 16), uint16_t,
         If<(!Signed && NumBits <= 32), uint32_t,
         If<(!Signed && NumBits <= 64), uint64_t,
         void>>>>>>>>
