@@ -122,6 +122,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment_buffer_entry_extra, write_segment_buffer_entry_extra)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_cornering_speed, compute_segment_buffer_cornering_speed)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_gen_segment_stepper_commands, gen_segment_stepper_commands)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_complete_new, complete_new)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_have_commit_space, have_commit_space)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commit_segment_hot, commit_segment_hot)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commit_segment_finish, commit_segment_finish)
@@ -453,13 +454,17 @@ public:
             StepperCommandSizeType entry = m_free_first;
             m_free_first = m_stepper_entries[m_free_first].next;
             TheAxisStepper::generate_command(axis_entry->dir, x, t, a, &m_stepper_entries[entry].scmd);
-            m_stepper_entries[entry].next = -1;
-            if (m_new_first >= 0) {
-                m_stepper_entries[m_new_last].next = entry;
-            } else {
+            if (!(m_new_first >= 0)) {
                 m_new_first = entry;
             }
             m_new_last = entry;
+        }
+        
+        void complete_new ()
+        {
+            if (m_new_first >= 0) {
+                m_stepper_entries[m_new_last].next = -1;
+            }
         }
         
         bool have_commit_space (bool accum)
@@ -1051,6 +1056,7 @@ private:
             i = BoundedUnsafeInc(i);
         } while (i != count);
         
+        TupleForEachForward(&m_axes, Foreach_complete_new());
         if (AMBRO_UNLIKELY(!m_stepping)) {
             TupleForEachForward(&m_axes, Foreach_swap_staging_cold());
             TupleForEachForward(&m_channels, Foreach_swap_staging_cold());
