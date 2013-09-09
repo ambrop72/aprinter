@@ -128,7 +128,6 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_dispose_new, dispose_new)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_cold, swap_staging_cold)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_hot, swap_staging_hot)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_prepare_stepping, prepare_stepping)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_stepping, start_stepping)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_empty, is_empty)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_underrun, is_underrun)
@@ -285,6 +284,7 @@ public:
             m_free_first = -1;
             m_new_first = -1;
             m_num_committed = 0;
+            m_last_committed = 0;
             for (size_t i = 0; i < NumStepperCommands; i++) {
                 m_stepper_entries[i].next = m_free_first;
                 m_free_first = i;
@@ -495,18 +495,13 @@ public:
             if (!(m_new_first >= 0)) {
                 return;
             }
+            if (m_stepper_entries[m_last_committed].next >= 0) {
+                m_stepper_entries[m_last].next = m_free_first;
+                m_free_first = m_stepper_entries[m_last_committed].next;
+            }
+            m_stepper_entries[m_last_committed].next = m_new_first;
             if (m_num_committed == 0) {
-                if (m_first >= 0) {
-                    m_stepper_entries[m_last].next = m_free_first;
-                    m_free_first = m_first;
-                }
                 m_first = m_new_first;
-            } else {
-                if (m_stepper_entries[m_last_committed].next >= 0) {
-                    m_stepper_entries[m_last].next = m_free_first;
-                    m_free_first = m_stepper_entries[m_last_committed].next;
-                }
-                m_stepper_entries[m_last_committed].next = m_new_first;
             }
             m_last = m_new_last;
             m_new_first = -1;
@@ -525,17 +520,6 @@ public:
             m_last = m_new_last;
             m_new_first = old_first;
             m_new_last = old_last;
-        }
-        
-        void prepare_stepping (Context c)
-        {
-            AMBRO_ASSERT(m_free_first >= 0)
-            
-            StepperCommandSizeType i = m_free_first;
-            while (m_stepper_entries[i].next >= 0) {
-                i = m_stepper_entries[i].next;
-            }
-            m_stepper_entries[i].next = m_first;
         }
         
         void start_stepping (Context c, TimeType start_time)
@@ -1093,7 +1077,6 @@ private:
         AMBRO_ASSERT(!m_underrun)
         AMBRO_ASSERT(m_segments_staging_end == m_segments_end)
         
-        TupleForEachForward(&m_axes, Foreach_prepare_stepping(), c);
         m_stepping = true;
         TimeType start_time = c.clock()->getTime(c);
         m_staging_time += start_time;
