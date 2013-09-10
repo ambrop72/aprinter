@@ -114,6 +114,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commandDone_assert, commandDone_assert)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_splitbuf, write_splitbuf)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_split_count, compute_split_count)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_icmd_zero, check_icmd_zero)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_split_finished, check_split_finished)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment_buffer_entry, write_segment_buffer_entry)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_entry_distance, compute_segment_buffer_entry_distance)
@@ -321,6 +322,12 @@ public:
             MotionPlanner *o = parent();
             TheAxisSplitBuffer *axis_split = TupleGetElem<AxisIndex>(&o->m_split_buffer.axes);
             return fmax(accum, axis_split->x.doubleValue() * (1.0 / StepperStepFixedType::maxValue().doubleValue()));
+        }
+        
+        bool check_icmd_zero (bool accum, InputCommand *icmd)
+        {
+            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd->axes);
+            return (accum && axis_icmd->x.bitsValue() == 0);
         }
         
         bool check_split_finished (bool accum)
@@ -830,8 +837,20 @@ public:
             TupleForEachForward(&m_axes, Foreach_commandDone_assert(), icmd);
         }
         
+        m_pull_finished_event.unset(c);
+        m_waiting = false;
+        m_have_split_buffer = true;
+#ifdef AMBROLIB_ASSERTIONS
+        m_pulling = false;
+#endif
+        
         m_split_buffer.type = icmd->type;
         if (m_split_buffer.type == 0) {
+            if (TupleForEachForwardAccRes(&m_axes, true, Foreach_check_icmd_zero(), icmd)) {
+                m_have_split_buffer = false;
+                m_pull_finished_event.prependNowNotAlready(c);
+                return;
+            }
             TupleForEachForward(&m_axes, Foreach_write_splitbuf(), icmd);
             double split_count_comp = TupleForEachForwardAccRes(&m_axes, 0.0, Foreach_compute_split_count());
             double split_count = ceil(split_count_comp + 0.1);
@@ -843,19 +862,7 @@ public:
             m_split_buffer.channel_payload = icmd->channel_payload;
         }
         
-        m_pull_finished_event.unset(c);
-        m_waiting = false;
-        m_have_split_buffer = true;
-#ifdef AMBROLIB_ASSERTIONS
-        m_pulling = false;
-#endif
-        
-        if (AMBRO_UNLIKELY(m_split_buffer.type == 0 && TupleForEachForwardAccRes(&m_axes, true, Foreach_check_split_finished()))) {
-            m_have_split_buffer = false;
-            m_pull_finished_event.prependNowNotAlready(c);
-        } else {
-            work(c);
-        }
+        work(c);
     }
     
     void waitFinished (Context c)
@@ -1009,7 +1016,7 @@ private:
             LinearPlannerSegmentResult result;
             v = LinearPlannerPull(&entry->lp_seg, &state[i.value()], v, &result);
             TimeType time_duration;
-            if (entry->type == 0) {
+            if (AMBRO_LIKELY(entry->type == 0)) {
                 double v_end = sqrt(v);
                 double v_const = sqrt(result.const_v);
                 double t0_double = (v_const - v_start) * entry->max_accel_rec;
@@ -1020,7 +1027,7 @@ private:
                 double t_double = t0_double + t2_double + t1_double;
                 MinTimeType t1 = MinTimeType::importDoubleSaturated(t_double);
                 time_duration = t1.bitsValue();
-                time += t1.bitsValue();;
+                time += t1.bitsValue();
                 MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturated(t0_double));
                 t1.m_bits.m_int -= t0.bitsValue();
                 MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturated(t2_double));
