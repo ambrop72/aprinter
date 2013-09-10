@@ -792,7 +792,8 @@ public:
         m_segments_start = SegmentBufferSizeType::import(0);
         m_segments_staging_end = SegmentBufferSizeType::import(0);
         m_segments_end = SegmentBufferSizeType::import(0);
-        m_segments_start_v_squared = 0.0;
+        m_staging_time = 0;
+        m_staging_v_squared = 0.0;
         m_have_split_buffer = false;
         m_stepping = false;
         m_underrun = true;
@@ -800,7 +801,6 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         m_pulling = false;
 #endif
-        m_staging_time = 0;
         TupleForEachForward(&m_axes, Foreach_init(), c);
         TupleForEachForward(&m_channels, Foreach_init(), c);
         m_pull_finished_event.prependNowNotAlready(c);
@@ -979,8 +979,8 @@ private:
                 }
             }
             m_segments_start = BoundedModuloInc(m_segments_start);
-            m_segments_start_v_squared = m_first_segment_end_speed_squared;
             m_staging_time += m_first_segment_time_duration;
+            m_staging_v_squared = m_first_segment_end_speed_squared;
         }
     }
     
@@ -1003,8 +1003,8 @@ private:
         }
         
         i = SegmentBufferSizeType::import(0);
-        v = m_segments_start_v_squared;
-        double v_start = sqrt(m_segments_start_v_squared);
+        v = m_staging_v_squared;
+        double v_start = sqrt(m_staging_v_squared);
         TimeType time = m_staging_time;
         do {
             Segment *entry = &m_segments[BoundedModuloAdd(m_segments_start, i).value()];
@@ -1144,8 +1144,8 @@ private:
             AMBRO_ASSERT(m_underrun)
             m_stepping = false;
             m_segments_start = m_segments_staging_end;
-            m_segments_start_v_squared = 0.0;
             m_staging_time = 0;
+            m_staging_v_squared = 0.0;
             m_stepper_event.unset(c);
             TupleForEachForward(&m_axes, Foreach_stopped_stepping(), c);
             TupleForEachForward(&m_channels, Foreach_stopped_stepping(), c);
@@ -1165,7 +1165,8 @@ private:
     SegmentBufferSizeType m_segments_start;
     SegmentBufferSizeType m_segments_staging_end;
     SegmentBufferSizeType m_segments_end;
-    double m_segments_start_v_squared;
+    TimeType m_staging_time;
+    double m_staging_v_squared;
     double m_first_segment_end_speed_squared;
     TimeType m_first_segment_time_duration;
     double m_last_distance_rec;
@@ -1177,7 +1178,6 @@ private:
     bool m_pulling;
 #endif
     SplitBuffer m_split_buffer;
-    TimeType m_staging_time;
     Segment m_segments[(size_t)SegmentBufferSizeType::maxIntValue() + 1];
     AxesTuple m_axes;
     ChannelsTuple m_channels;
