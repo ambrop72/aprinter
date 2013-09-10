@@ -1144,6 +1144,7 @@ private:
             AMBRO_ASSERT(m_underrun)
             m_stepping = false;
             m_segments_start = m_segments_staging_end;
+            m_segments_start_v_squared = 0.0;
             m_staging_time = 0;
             m_stepper_event.unset(c);
             TupleForEachForward(&m_axes, Foreach_stopped_stepping(), c);
