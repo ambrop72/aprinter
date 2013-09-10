@@ -604,6 +604,7 @@ public:
             m_free_first = -1;
             m_new_first = -1;
             m_num_committed = 0;
+            m_last_committed = 0;
             for (size_t i = 0; i < NumChannelCommands; i++) {
                 m_channel_commands[i].next = m_free_first;
                 m_free_first = i;
@@ -628,31 +629,30 @@ public:
             MotionPlanner *o = parent();
             TheChannelSegment *channel_entry = UnionGetElem<ChannelIndex>(&entry->channels);
             
-            ChannelCommandSizeType cmd;
-            AMBRO_LOCK_T(o->m_lock, c, lock_c, {
-                cmd = m_free_first;
-                m_free_first = m_channel_commands[m_free_first].next;
-            });
+            ChannelCommandSizeType cmd = m_free_first;
+            m_free_first = m_channel_commands[m_free_first].next;
             m_channel_commands[cmd].payload = channel_entry->payload;
             m_channel_commands[cmd].time = time;
-            m_channel_commands[cmd].next = -1;
-            if (m_new_first >= 0) {
-                m_channel_commands[m_new_last].next = cmd;
-            } else {
+            if (!(m_new_first >= 0)) {
                 m_new_first = cmd;
             }
             m_new_last = cmd;
             channel_entry->command = cmd;
         }
         
+        void complete_new ()
+        {
+            if (m_new_first >= 0) {
+                m_channel_commands[m_new_last].next = -1;
+            }
+        }
+        
         void dispose_new (Context c)
         {
             MotionPlanner *o = parent();
             if (m_new_first >= 0) {
-                AMBRO_LOCK_T(o->m_lock, c, lock_c, {
-                    m_channel_commands[m_new_last].next = m_free_first;
-                    m_free_first = m_new_first;
-                });
+                m_channel_commands[m_new_last].next = m_free_first;
+                m_free_first = m_new_first;
                 m_new_first = -1;
             }
         }
@@ -662,18 +662,13 @@ public:
             if (!(m_new_first >= 0)) {
                 return;
             }
+            if (m_channel_commands[m_last_committed].next >= 0) {
+                m_channel_commands[m_last].next = m_free_first;
+                m_free_first = m_channel_commands[m_last_committed].next;
+            }
+            m_channel_commands[m_last_committed].next = m_new_first;
             if (m_num_committed == 0) {
-                if (m_first >= 0) {
-                    m_channel_commands[m_last].next = m_free_first;
-                    m_free_first = m_first;
-                }
                 m_first = m_new_first;
-            } else {
-                if (m_channel_commands[m_last_committed].next >= 0) {
-                    m_channel_commands[m_last].next = m_free_first;
-                    m_free_first = m_channel_commands[m_last_committed].next;
-                }
-                m_channel_commands[m_last_committed].next = m_new_first;
             }
             m_last = m_new_last;
             m_new_first = -1;
@@ -687,23 +682,17 @@ public:
             if (!(m_new_first >= 0)) {
                 return;
             }
-            if (m_num_committed > 0) {
-                ChannelCommandSizeType old_first = m_channel_commands[m_last_committed].next;
-                ChannelCommandSizeType old_last = m_last;
-                m_channel_commands[m_last_committed].next = m_new_first;
-                m_last = m_new_last;
-                m_new_first = old_first;
-                m_new_last = old_last;
-            } else {
-                ChannelCommandSizeType old_first = m_first;
-                ChannelCommandSizeType old_last = m_last;
+            ChannelCommandSizeType old_first = m_channel_commands[m_last_committed].next;
+            ChannelCommandSizeType old_last = m_last;
+            m_channel_commands[m_last_committed].next = m_new_first;
+            if (m_num_committed == 0) {
                 m_first = m_new_first;
-                m_last = m_new_last;
-                m_new_first = old_first;
-                m_new_last = old_last;
                 m_timer.unset(c);
                 m_timer.set(c, m_channel_commands[m_first].time);
             }
+            m_last = m_new_last;
+            m_new_first = old_first;
+            m_new_last = old_last;
         }
         
         void start_stepping (Context c, TimeType start_time)
@@ -767,12 +756,9 @@ public:
             
             ChannelSpec::Callback::call(o, c, &m_channel_commands[m_first].payload);
             
-            ChannelCommandSizeType old = m_first;
-            m_first = m_channel_commands[m_first].next;
-            m_channel_commands[old].next = m_free_first;
-            m_free_first = old;
-            m_num_committed--;
             o->m_stepper_event.appendNowIfNotAlready(c);
+            m_num_committed--;
+            m_first = m_channel_commands[m_first].next;
             if (!(m_first >= 0)) {
                 return false;
             }
@@ -1057,6 +1043,7 @@ private:
         } while (i != count);
         
         TupleForEachForward(&m_axes, Foreach_complete_new());
+        TupleForEachForward(&m_channels, Foreach_complete_new());
         if (AMBRO_UNLIKELY(!m_stepping)) {
             TupleForEachForward(&m_axes, Foreach_swap_staging_cold());
             TupleForEachForward(&m_channels, Foreach_swap_staging_cold());
