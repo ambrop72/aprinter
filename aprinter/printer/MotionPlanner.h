@@ -713,6 +713,7 @@ public:
             
             if (!o->m_stepping) {
                 if (m_num_committed == ChannelSpec::BufferSize) {
+                    o->start_stepping(c);
                     return false;
                 }
                 m_num_committed++;
@@ -972,9 +973,6 @@ private:
                 TupleForEachForward(&m_axes, Foreach_commit_segment_finish(), entry);
             } else {
                 if (!TupleForOneOffset<1, bool>(entry->type, &m_channels, Foreach_commit_segment(), c, entry)) {
-                    if (!m_stepping) {
-                        start_stepping(c);
-                    }
                     return;
                 }
             }
