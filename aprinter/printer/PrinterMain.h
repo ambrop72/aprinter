@@ -511,8 +511,8 @@ private:
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
             mycmd->dir = dir;
             mycmd->x = move;
-            mycmd->max_v = speed_from_real(AxisSpec::DefaultMaxSpeed::value());
-            mycmd->max_a = accel_from_real(AxisSpec::DefaultMaxAccel::value());
+            mycmd->max_v_rec = 1.0 / speed_from_real(AxisSpec::DefaultMaxSpeed::value());
+            mycmd->max_a_rec = 1.0 / accel_from_real(AxisSpec::DefaultMaxAccel::value());
             m_end_pos = new_end_pos;
             m_req_pos = new_pos[AxisIndex];
         }
@@ -1137,8 +1137,8 @@ private:
                     TupleForEachForward(&m_axes, Foreach_process_new_pos(), c, new_pos, &distance, &total_steps, &cmd);
                     distance = sqrt(distance);
                     cmd.type = 0;
-                    cmd.rel_max_v = FloatMakePosOrPosZero((m_max_cart_speed / distance) * Clock::time_unit);
-                    cmd.rel_max_v = fmin(cmd.rel_max_v, (Params::MaxStepsPerCycle::value() * (F_CPU / Clock::time_freq)) / total_steps);
+                    cmd.rel_max_v_rec = FloatMakePosOrPosZero(distance / (m_max_cart_speed * Clock::time_unit));
+                    cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
                     finish_buffered_command(c, &cmd);
                     return;
                 } break;

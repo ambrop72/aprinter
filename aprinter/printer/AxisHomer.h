@@ -123,25 +123,25 @@ private:
         
         PlannerCommand cmd;
         cmd.type = 0;
-        cmd.rel_max_v = INFINITY;
+        cmd.rel_max_v_rec = 0.0;
         switch (m_state) {
             case STATE_FAST: {
                 cmd.axes.elem.dir = HomeDir;
                 cmd.axes.elem.x = m_params.fast_max_dist;
-                cmd.axes.elem.max_v = m_params.fast_speed;
-                cmd.axes.elem.max_a = m_params.max_accel;
+                cmd.axes.elem.max_v_rec = 1.0 / m_params.fast_speed;
+                cmd.axes.elem.max_a_rec = 1.0 / m_params.max_accel;
             } break;
             case STATE_RETRACT: {
                 cmd.axes.elem.dir = !HomeDir;
                 cmd.axes.elem.x = m_params.retract_dist;
-                cmd.axes.elem.max_v = m_params.retract_speed;
-                cmd.axes.elem.max_a = m_params.max_accel;
+                cmd.axes.elem.max_v_rec = 1.0 / m_params.retract_speed;
+                cmd.axes.elem.max_a_rec = 1.0 / m_params.max_accel;
             } break;
             case STATE_SLOW: {
                 cmd.axes.elem.dir = HomeDir;
                 cmd.axes.elem.x = m_params.slow_max_dist;
-                cmd.axes.elem.max_v = m_params.slow_speed;
-                cmd.axes.elem.max_a = m_params.max_accel;
+                cmd.axes.elem.max_v_rec = 1.0 / m_params.slow_speed;
+                cmd.axes.elem.max_a_rec = 1.0 / m_params.max_accel;
             } break;
         }
         
