@@ -949,10 +949,11 @@ private:
                 plan(c);
             }
             
-            if (m_underrun || !m_have_split_buffer) {
-                if (!m_have_split_buffer) {
-                    m_pull_finished_event.prependNowNotAlready(c);
-                }
+            if (!m_have_split_buffer) {
+                m_pull_finished_event.prependNowNotAlready(c);
+                return;
+            }
+            if (AMBRO_UNLIKELY(m_underrun)) {
                 return;
             }
             
