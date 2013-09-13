@@ -151,14 +151,14 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime,
     SpeedLimitMultiply,
     MaxStepsPerCycle,
-    16, // stepper segment buffer size
-    3, // lookahead buffer size (including the new segment - to look 2 steps ahead, enter 3)
+    20, // stepper segment buffer size
+    4, // lookahead buffer size (including the new segment - to look 2 steps ahead, enter 3)
     ForceTimeout,
     AvrWatchdog,
     AvrWatchdogParams<
         WDTO_2S // watchdot timeout
     >,
-    16, // event channel buffer size
+    20, // event channel buffer size
     AvrClockInterruptTimer_TC2_OCA,
     MakeTypeList<
         PrinterMainAxisParams<
