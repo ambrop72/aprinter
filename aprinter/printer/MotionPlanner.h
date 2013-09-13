@@ -113,6 +113,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commandDone_assert, commandDone_assert)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_splitbuf, write_splitbuf)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_splitbuf_fits, splitbuf_fits)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_split_count, compute_split_count)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_icmd_zero, check_icmd_zero)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment_buffer_entry, write_segment_buffer_entry)
@@ -314,6 +315,13 @@ public:
             axis_split->max_v_rec = axis_icmd->max_v_rec;
             axis_split->max_a_rec = axis_icmd->max_a_rec;
             axis_split->x_pos = StepFixedType::importBits(0);
+        }
+        
+        bool splitbuf_fits (bool accum)
+        {
+            MotionPlanner *o = parent();
+            TheAxisSplitBuffer *axis_split = TupleGetElem<AxisIndex>(&o->m_split_buffer.axes);
+            return (accum && axis_split->x <= StepperStepFixedType::maxValue());
         }
         
         double compute_split_count (double accum)
@@ -844,11 +852,16 @@ public:
                 return;
             }
             TupleForEachForward(&m_axes, Foreach_write_splitbuf(), icmd);
-            double split_count_comp = TupleForEachForwardAccRes(&m_axes, 0.0, Foreach_compute_split_count());
-            double split_count = ceil(split_count_comp + 0.1);
-            m_split_buffer.split_frac = 1.0 / split_count;
-            m_split_buffer.base_max_v_rec = icmd->rel_max_v_rec * m_split_buffer.split_frac;
-            m_split_buffer.split_count = split_count;
+            if (AMBRO_LIKELY(TupleForEachForwardAccRes(&m_axes, true, Foreach_splitbuf_fits()))) {
+                m_split_buffer.base_max_v_rec = icmd->rel_max_v_rec;
+                m_split_buffer.split_count = 1;
+            } else {
+                double split_count_comp = TupleForEachForwardAccRes(&m_axes, 0.0, Foreach_compute_split_count());
+                double split_count = ceil(split_count_comp + 0.1);
+                m_split_buffer.split_frac = 1.0 / split_count;
+                m_split_buffer.base_max_v_rec = icmd->rel_max_v_rec * m_split_buffer.split_frac;
+                m_split_buffer.split_count = split_count;
+            }
             m_split_buffer.split_pos = 0;
         } else {
             m_split_buffer.channel_payload = icmd->channel_payload;
@@ -905,9 +918,8 @@ private:
                     double rel_max_speed_rec = TupleForEachForwardAccRes(&m_axes, m_split_buffer.base_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), entry);
                     double rel_max_accel_rec = TupleForEachForwardAccRes(&m_axes, 0.0, Foreach_compute_segment_buffer_entry_accel(), entry);
                     double distance = sqrt(distance_squared);
-                    double rel_max_speed = 1.0 / rel_max_speed_rec;
                     double rel_max_accel = 1.0 / rel_max_accel_rec;
-                    entry->lp_seg.max_v = (rel_max_speed * rel_max_speed) * distance_squared;
+                    entry->lp_seg.max_v = distance_squared / (rel_max_speed_rec * rel_max_speed_rec);
                     entry->lp_seg.max_start_v = entry->lp_seg.max_v;
                     entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
                     entry->lp_seg.a_x_rec = 1.0 / entry->lp_seg.a_x;
