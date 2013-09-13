@@ -115,7 +115,6 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_splitbuf, write_splitbuf)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_split_count, compute_split_count)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_icmd_zero, check_icmd_zero)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_split_finished, check_split_finished)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment_buffer_entry, write_segment_buffer_entry)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_entry_distance, compute_segment_buffer_entry_distance)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_entry_speed, compute_segment_buffer_entry_speed)
@@ -328,13 +327,6 @@ public:
         {
             TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd->axes);
             return (accum && axis_icmd->x.bitsValue() == 0);
-        }
-        
-        bool check_split_finished (bool accum)
-        {
-            MotionPlanner *o = parent();
-            TheAxisSplitBuffer *axis_split = TupleGetElem<AxisIndex>(&o->m_split_buffer.axes);
-            return (accum && axis_split->x_pos == axis_split->x);
         }
         
         void write_segment_buffer_entry (Segment *entry)
@@ -857,7 +849,7 @@ public:
             m_split_buffer.split_frac = 1.0 / split_count;
             m_split_buffer.base_max_v_rec = icmd->rel_max_v_rec * m_split_buffer.split_frac;
             m_split_buffer.split_count = split_count;
-            m_split_buffer.split_pos = 1;
+            m_split_buffer.split_pos = 0;
         } else {
             m_split_buffer.channel_payload = icmd->channel_payload;
         }
@@ -896,7 +888,7 @@ private:
     {
         AMBRO_ASSERT(m_have_split_buffer)
         AMBRO_ASSERT(!m_pulling)
-        AMBRO_ASSERT(m_split_buffer.type != 0 || !TupleForEachForwardAccRes(&m_axes, true, Foreach_check_split_finished()))
+        AMBRO_ASSERT(m_split_buffer.type != 0 || m_split_buffer.split_pos < m_split_buffer.split_count)
         
         while (1) {
             do {
@@ -907,6 +899,7 @@ private:
                 Segment *entry = &m_segments[m_segments_end.value()];
                 entry->type = m_split_buffer.type;
                 if (entry->type == 0) {
+                    m_split_buffer.split_pos++;
                     TupleForEachForward(&m_axes, Foreach_write_segment_buffer_entry(), entry);
                     double distance_squared = TupleForEachForwardAccRes(&m_axes, 0.0, Foreach_compute_segment_buffer_entry_distance(), entry);
                     double rel_max_speed_rec = TupleForEachForwardAccRes(&m_axes, m_split_buffer.base_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), entry);
@@ -923,18 +916,15 @@ private:
                     entry->rel_max_speed_rec = rel_max_speed_rec;
                     TupleForEachForward(&m_axes, Foreach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
                     double distance_rec = 1.0 / distance;
-                    if (m_split_buffer.split_pos == 1) {
-                        for (SegmentBufferSizeType i = m_segments_end; i != m_segments_start; i = BoundedModuloDec(i)) {
-                            Segment *prev_entry = &m_segments[BoundedModuloDec(i).value()];
-                            if (prev_entry->type == 0) {
-                                entry->lp_seg.max_start_v = TupleForEachForwardAccRes(&m_axes, entry->lp_seg.max_start_v, Foreach_compute_segment_buffer_cornering_speed(), entry, distance_rec, prev_entry);
-                                break;
-                            }
+                    for (SegmentBufferSizeType i = m_segments_end; i != m_segments_start; i = BoundedModuloDec(i)) {
+                        Segment *prev_entry = &m_segments[BoundedModuloDec(i).value()];
+                        if (prev_entry->type == 0) {
+                            entry->lp_seg.max_start_v = TupleForEachForwardAccRes(&m_axes, entry->lp_seg.max_start_v, Foreach_compute_segment_buffer_cornering_speed(), entry, distance_rec, prev_entry);
+                            break;
                         }
                     }
                     m_last_distance_rec = distance_rec;
-                    m_split_buffer.split_pos++;
-                    m_have_split_buffer = !TupleForEachForwardAccRes(&m_axes, true, Foreach_check_split_finished());
+                    m_have_split_buffer = (m_split_buffer.split_pos < m_split_buffer.split_count);
                 } else {
                     entry->lp_seg.a_x = 0.0;
                     entry->lp_seg.max_v = INFINITY;
