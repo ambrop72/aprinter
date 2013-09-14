@@ -346,7 +346,7 @@ public:
             if (o->m_split_buffer.split_pos == o->m_split_buffer.split_count) {
                 new_x = axis_split->x;
             } else {
-                new_x = FixedMin(axis_split->x, StepFixedType::importDoubleSaturated(o->m_split_buffer.split_pos * o->m_split_buffer.split_frac * axis_split->x.doubleValue()));
+                new_x = FixedMin(axis_split->x, StepFixedType::importDoubleSaturatedRound(o->m_split_buffer.split_pos * o->m_split_buffer.split_frac * axis_split->x.doubleValue()));
             }
             axis_entry->dir = axis_split->dir;
             axis_entry->x = StepperStepFixedType::importBits(new_x.bitsValue() - axis_split->x_pos.bitsValue());
@@ -408,7 +408,7 @@ public:
             StepperAccelFixedType a2;
             
             if (x0.bitsValue() != 0) {
-                a0 = StepperAccelFixedType::importDoubleSaturated(axis_entry->half_accel * t0_squared);
+                a0 = StepperAccelFixedType::importDoubleSaturatedRound(axis_entry->half_accel * t0_squared);
                 if (a0.bitsValue() > x0.bitsValue()) {
                     a0.m_bits.m_int = x0.bitsValue();
                 }
@@ -416,7 +416,7 @@ public:
                 t1.m_bits.m_int += t0.bitsValue();
             }
             if (x2.bitsValue() != 0) {
-                a2 = StepperAccelFixedType::importDoubleSaturated(axis_entry->half_accel * t2_squared);
+                a2 = StepperAccelFixedType::importDoubleSaturatedRound(axis_entry->half_accel * t2_squared);
                 if (a2.bitsValue() > x2.bitsValue()) {
                     a2.m_bits.m_int = x2.bitsValue();
                 }
@@ -1030,12 +1030,12 @@ private:
                 double t0_squared = t0_double * t0_double;
                 double t2_squared = t2_double * t2_double;
                 double t_double = t0_double + t2_double + t1_double;
-                MinTimeType t1 = MinTimeType::importDoubleSaturated(t_double);
+                MinTimeType t1 = MinTimeType::importDoubleSaturatedRound(t_double);
                 time_duration = t1.bitsValue();
                 time += t1.bitsValue();
-                MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturated(t0_double));
+                MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t0_double));
                 t1.m_bits.m_int -= t0.bitsValue();
-                MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturated(t2_double));
+                MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t2_double));
                 t1.m_bits.m_int -= t2.bitsValue();
                 TupleForEachForward(&m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
