@@ -47,13 +47,7 @@ public:
     
     static FixedPoint importBoundedBits (BoundedIntType op)
     {
-#if 0
-        FixedPoint res;
-        res.m_bits = op;
-        return res;
-#else
         return FixedPoint{op};
-#endif
     }
     
     static FixedPoint importBits (IntType op)
@@ -105,14 +99,8 @@ public:
     __attribute__((always_inline)) inline static FixedPoint importDoubleSaturatedInline (double op)
     {
         double a = trunc(ldexp(op, -Exp));
-        if (Signed) {
-            if (a <= -ldexp(1.0, NumBits)) {
-                return minValue();
-            }
-        } else {
-            if (a < 0.0) {
-                return minValue();
-            }
+        if (a <= (Signed ? -ldexp(1.0, NumBits) : 0.0)) {
+            return minValue();
         }
         if (a >= ldexp(1.0, NumBits)) {
             return maxValue();
@@ -128,14 +116,8 @@ public:
     __attribute__((always_inline)) inline static FixedPoint importDoubleSaturatedRoundInline (double op)
     {
         double a = round(ldexp(op, -Exp));
-        if (Signed) {
-            if (a <= -ldexp(1.0, NumBits)) {
-                return minValue();
-            }
-        } else {
-            if (a < 0.0) {
-                return minValue();
-            }
+        if (a <= (Signed ? -ldexp(1.0, NumBits) : 0.0)) {
+            return minValue();
         }
         if (a >= ldexp(1.0, NumBits)) {
             return maxValue();
@@ -213,17 +195,6 @@ public:
             res = FixedPoint<NewBits, NewSigned, Exp>::importBits(m_bits.value());
         }
         return res;
-        /*
-        IntType bits_value = m_bits.value();
-        if (bits_value < BoundedInt<NewBits, NewSigned>::minIntValue()) {
-            bits_value = BoundedInt<NewBits, NewSigned>::minIntValue();
-        }
-        else if (bits_value > BoundedInt<NewBits, NewSigned>::maxIntValue()) {
-            bits_value = BoundedInt<NewBits, NewSigned>::maxIntValue();
-        }
-        
-        return FixedPoint<NewBits, Signed, Exp>::importBits(bits_value);
-        */
     }
     
     template <int PowerExp>
