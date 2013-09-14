@@ -39,8 +39,7 @@ static inline int32_t mul_s24_16_r8 (__int24 op1, uint16_t op2)
         "mov %A[res],r1\n"
         
         "mulsu %C[op1],%B[op2]\n"
-        "mov %C[res],r0\n"
-        "mov %D[res],r1\n"
+        "movw %C[res],r0\n"
         
         "clr %B[res]\n"
         
