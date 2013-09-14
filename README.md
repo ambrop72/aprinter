@@ -10,8 +10,8 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
   * Line motion with acceleration control and cartesian speed limit (F parameter).
     Speed limit in case of E-only motion is not implemented.
     The speed is automatically limited to not overload the MCU with interrupts.
-  * Look-ahead to preserve some speed on corners. By default, planning takes the last 3 moves into account
-    (the most recent one plus two older moves). This can be increased in the configuration, but this
+  * Look-ahead to preserve some speed on corners. By default, planning takes the previous 3 moves into account.
+    This can be increased in the configuration, but this
     also increases the chance of buffer underruns , which cause the print to temporarily pause while the buffer refills.
     Look-ahead is very memory-hungry in its current state.
   * Heater control using PID or on-off control. The thermistor tables need to be generated with a Python script.
@@ -24,7 +24,7 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
 
 ## Planned features (in the approximate order of priority):
 
-  * Optimization of the planning and stepping code, both for speed and memory usage.
+  * Further optimization of the planning and stepping code, both for speed and memory usage.
   * Runtime configurability and settings in EEPROM.
   * SD-card printing.
 
@@ -38,7 +38,12 @@ possibly requiring minor adjustments in the code:
 
   * 8kB of SRAM,
   * 128kB of flash,
-  * 3 timers (any one of these can be either 8- or 16-bit).
+  * 4 timers (any one of these can be either 8- or 16-bit).
+
+In particular, this means that:
+
+  * These should work: 1280, 1281, 1284p, 2560, 2561
+  * These will not work: 1284, 644*
 
 ## Coding style
 
