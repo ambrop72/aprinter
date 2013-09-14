@@ -802,7 +802,7 @@ public:
         m_segments_end = SegmentBufferSizeType::import(0);
         m_staging_time = 0;
         m_staging_v_squared = 0.0;
-        m_have_split_buffer = false;
+        m_split_buffer.type = 0xFF;
         m_stepping = false;
         m_underrun = true;
         m_waiting = false;
@@ -831,7 +831,7 @@ public:
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_pulling)
-        AMBRO_ASSERT(!m_have_split_buffer)
+        AMBRO_ASSERT(m_split_buffer.type == 0xFF)
         if (icmd->type == 0) {
             AMBRO_ASSERT(FloatIsPosOrPosZero(icmd->rel_max_v_rec))
             TupleForEachForward(&m_axes, Foreach_commandDone_assert(), icmd);
@@ -839,7 +839,6 @@ public:
         
         m_pull_finished_event.unset(c);
         m_waiting = false;
-        m_have_split_buffer = true;
 #ifdef AMBROLIB_ASSERTIONS
         m_pulling = false;
 #endif
@@ -847,7 +846,7 @@ public:
         m_split_buffer.type = icmd->type;
         if (m_split_buffer.type == 0) {
             if (TupleForEachForwardAccRes(&m_axes, true, Foreach_check_icmd_zero(), icmd)) {
-                m_have_split_buffer = false;
+                m_split_buffer.type = 0xFF;
                 m_pull_finished_event.prependNowNotAlready(c);
                 return;
             }
@@ -874,7 +873,7 @@ public:
     {
         this->debugAccess(c);
         AMBRO_ASSERT(m_pulling)
-        AMBRO_ASSERT(!m_have_split_buffer)
+        AMBRO_ASSERT(m_split_buffer.type == 0xFF)
         
         if (!m_waiting) {
             m_waiting = true;
@@ -899,7 +898,7 @@ public:
 private:
     void work (Context c)
     {
-        AMBRO_ASSERT(m_have_split_buffer)
+        AMBRO_ASSERT(m_split_buffer.type != 0xFF)
         AMBRO_ASSERT(!m_pulling)
         AMBRO_ASSERT(m_split_buffer.type != 0 || m_split_buffer.split_pos < m_split_buffer.split_count)
         
@@ -935,7 +934,9 @@ private:
                         }
                     }
                     m_last_distance_rec = distance_rec;
-                    m_have_split_buffer = (m_split_buffer.split_pos < m_split_buffer.split_count);
+                    if (!(m_split_buffer.split_pos < m_split_buffer.split_count)) {
+                        m_split_buffer.type = 0xFF;
+                    }
                 } else {
                     entry->lp_seg.a_x = 0.0;
                     entry->lp_seg.max_v = INFINITY;
@@ -943,16 +944,16 @@ private:
                     entry->lp_seg.a_x_rec = INFINITY;
                     entry->lp_seg.two_max_v_minus_a_x = INFINITY;
                     TupleForOneOffset<1>(entry->type, &m_channels, Foreach_write_segment(), entry);
-                    m_have_split_buffer = false;
+                    m_split_buffer.type = 0xFF;
                 }
                 m_segments_end = BoundedModuloInc(m_segments_end);
-            } while (m_have_split_buffer);
+            } while (m_split_buffer.type != 0xFF);
             
             if (AMBRO_LIKELY(!m_underrun && m_segments_staging_end != m_segments_end)) {
                 plan(c);
             }
             
-            if (!m_have_split_buffer) {
+            if (m_split_buffer.type == 0xFF) {
                 m_pull_finished_event.prependNowNotAlready(c);
                 return;
             }
@@ -1116,7 +1117,7 @@ private:
             return FinishedHandler::call(this, c);
         } else {
             AMBRO_ASSERT(!m_pulling)
-            AMBRO_ASSERT(!m_have_split_buffer)
+            AMBRO_ASSERT(m_split_buffer.type == 0xFF)
             
 #ifdef AMBROLIB_ASSERTIONS
             m_pulling = true;
@@ -1163,7 +1164,7 @@ private:
             }
         }
         
-        if (m_have_split_buffer) {
+        if (m_split_buffer.type != 0xFF) {
             work(c);
         }
     }
@@ -1179,7 +1180,6 @@ private:
     double m_first_segment_end_speed_squared;
     TimeType m_first_segment_time_duration;
     double m_last_distance_rec;
-    bool m_have_split_buffer;
     bool m_stepping;
     bool m_underrun;
     bool m_waiting;
