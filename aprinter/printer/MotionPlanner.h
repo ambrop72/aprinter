@@ -915,22 +915,21 @@ private:
                     m_split_buffer.split_pos++;
                     TupleForEachForward(&m_axes, Foreach_write_segment_buffer_entry(), entry);
                     double distance_squared = TupleForEachForwardAccRes(&m_axes, 0.0, Foreach_compute_segment_buffer_entry_distance(), entry);
-                    double rel_max_speed_rec = TupleForEachForwardAccRes(&m_axes, m_split_buffer.base_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), entry);
+                    entry->rel_max_speed_rec = TupleForEachForwardAccRes(&m_axes, m_split_buffer.base_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), entry);
                     double rel_max_accel_rec = TupleForEachForwardAccRes(&m_axes, 0.0, Foreach_compute_segment_buffer_entry_accel(), entry);
                     double distance = sqrt(distance_squared);
                     double rel_max_accel = 1.0 / rel_max_accel_rec;
-                    entry->lp_seg.max_v = distance_squared / (rel_max_speed_rec * rel_max_speed_rec);
+                    entry->lp_seg.max_v = distance_squared / (entry->rel_max_speed_rec * entry->rel_max_speed_rec);
                     entry->lp_seg.max_start_v = entry->lp_seg.max_v;
                     entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
                     entry->lp_seg.a_x_rec = 1.0 / entry->lp_seg.a_x;
                     entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
                     entry->max_accel_rec = rel_max_accel_rec / distance;
-                    entry->rel_max_speed_rec = rel_max_speed_rec;
                     TupleForEachForward(&m_axes, Foreach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
                     double distance_rec = 1.0 / distance;
                     for (SegmentBufferSizeType i = m_segments_end; i != m_segments_start; i = BoundedModuloDec(i)) {
                         Segment *prev_entry = &m_segments[BoundedModuloDec(i).value()];
-                        if (prev_entry->type == 0) {
+                        if (AMBRO_LIKELY(prev_entry->type == 0)) {
                             entry->lp_seg.max_start_v = TupleForEachForwardAccRes(&m_axes, entry->lp_seg.max_start_v, Foreach_compute_segment_buffer_cornering_speed(), entry, distance_rec, prev_entry);
                             break;
                         }
