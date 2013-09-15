@@ -423,4 +423,52 @@ static inline int32_t mul_s16_16 (int16_t op1, uint16_t op2)
     return res;
 }
 
+static inline __int24 mul_s16_16_r8 (int16_t op1, uint16_t op2)
+{
+    uint8_t low;
+    __int24 res;
+    uint8_t zero;
+    
+    asm(
+        "clr %[zero]\n"
+        
+        "mul %A[op1],%A[op2]\n"
+        "mov %A[low],r0\n"
+        "mov %A[res],r1\n"
+        
+        "mulsu %B[op1],%B[op2]\n"
+        "mov %B[res],r0\n"
+        "mov %C[res],r1\n"
+        
+        "mul %A[op1],%B[op2]\n"
+        "add %A[res],r0\n"
+        "adc %B[res],r1\n"
+        "adc %C[res],%[zero]\n"
+        
+        "mulsu %B[op1],%A[op2]\n"
+        "sbc %C[res],%[zero]\n"
+        "add %A[res],r0\n"
+        "adc %B[res],r1\n"
+        "adc %C[res],%[zero]\n"
+        
+        "clr __zero_reg__\n"
+        
+        "tst %C[res]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[low],1\n"
+        "sbci %A[res],-1\n"
+        "sbci %B[res],-1\n"
+        "sbci %C[res],-1\n"
+        "not_negative_%=:\n"
+        
+        : [res] "=&d" (res),
+          [zero] "=&r" (zero),
+          [low] "=&d" (low)
+        : [op1] "a" (op1),
+          [op2] "a" (op2)
+    );
+    
+    return res;
+}
+
 #endif
