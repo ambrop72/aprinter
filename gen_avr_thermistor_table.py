@@ -27,8 +27,8 @@
 import sys
 import math
 
-if len(sys.argv) != 7:
-    print("Usage: <Name> <ResistorR> <ThermistorR0> <ThermistorBeta> <StartTemp> <EndTemp>")
+if len(sys.argv) != 9:
+    print("Usage: <Name> <ResistorR> <ThermistorR0> <ThermistorBeta> <StartTemp> <EndTemp> <NumBits> <ScaleFactorExp>")
     exit(1)
 
 Name = sys.argv[1]
@@ -37,8 +37,11 @@ ThermistorR0 = float(sys.argv[3])
 ThermistorBeta = float(sys.argv[4])
 StartTemp = float(sys.argv[5])
 EndTemp = float(sys.argv[6])
+NumBits = int(sys.argv[7])
+ScaleFactorExp = int(sys.argv[8])
 
-ScaleFactorExp = 7
+assert NumBits >= 1
+assert NumBits <= 16
 
 table_data = []
 starting = True
@@ -64,7 +67,7 @@ for i in range(1024):
         break
     value = int(t * 2**ScaleFactorExp)
     assert value >= 0
-    assert value < 2**16
+    assert value < 2**NumBits
     table_data.append("UINT16_C(%s), " % (value))
     if i % 8 == 0:
         table_data.append("\n")
@@ -107,10 +110,12 @@ print("""/*
  * ThermistorBeta = %(ThermistorBeta)s
  * StartTemp = %(StartTemp)s
  * EndTemp = %(EndTemp)s
+ * NumBits = %(NumBits)s
+ * ScaleFactorExp = %(ScaleFactorExp)s
  * 
  * The file can be regenerated with the following command:
  * 
- * python gen_avr_thermistor_table.py "%(Name)s" %(ResistorR)s %(ThermistorR0)s %(ThermistorBeta)s %(StartTemp)s %(EndTemp)s
+ * python gen_avr_thermistor_table.py "%(Name)s" %(ResistorR)s %(ThermistorR0)s %(ThermistorBeta)s %(StartTemp)s %(EndTemp)s %(NumBits)s %(ScaleFactorExp)s
  */
 
 #ifndef AMBROLIB_AVR_THERMISTOR_%(Name)s_H
@@ -126,7 +131,7 @@ print("""/*
 
 class AvrThermistorTable_%(Name)s {
 public:
-    using ValueFixedType = FixedPoint<16, false, -%(ScaleFactorExp)s>;
+    using ValueFixedType = FixedPoint<%(NumBits)s, false, -%(ScaleFactorExp)s>;
     
     static ValueFixedType call (uint16_t adc_value)
     {
@@ -153,5 +158,6 @@ uint16_t const AvrThermistorTable_%(Name)s::table[%(TableSize)s] PROGMEM = {
 % {
     'Name':Name, 'TableData':''.join(table_data), 'TableSize':table_size, 'TableOffset':table_offset,
     'TableEnd':table_end, 'ResistorR':ResistorR, 'ThermistorBeta':ThermistorBeta,
-    'ThermistorR0':ThermistorR0, 'StartTemp':StartTemp, 'EndTemp':EndTemp, 'ScaleFactorExp':ScaleFactorExp
+    'ThermistorR0':ThermistorR0, 'StartTemp':StartTemp, 'EndTemp':EndTemp, 'ScaleFactorExp':ScaleFactorExp,
+    'NumBits':NumBits
 })
