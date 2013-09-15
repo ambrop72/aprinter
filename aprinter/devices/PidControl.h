@@ -50,14 +50,14 @@ struct PidControlParams {
 template <typename Params, typename MeasurementInterval, typename ValueFixedType>
 class PidControl {
 public:
-    using OutputFixedType = FixedPoint<16, false, -16>;
+    using OutputFixedType = FixedPoint<8, false, -8>;
     
 private:
     static const int PBits = 14;
-    static const int IntervalIBits = 14;
+    static const int IntervalIBits = 16;
     static const int IntegralBits = 15;
     static const int DHistoryBits = 16;
-    static const int DNewBits = 14;
+    static const int DNewBits = 16;
     static const int DerivativeBits = 15;
     
     using IntervalI = AMBRO_WRAP_DOUBLE(MeasurementInterval::value() * Params::I::value());
@@ -87,32 +87,23 @@ public:
     OutputFixedType addMeasurement (ValueFixedType value)
     {
         auto err = m_target - value;
-        static_assert(sizeof(typename decltype(err)::IntType) <= 4, "");
         if (AMBRO_LIKELY(!m_first)) {
-            static_assert(sizeof(typename decltype(m_derivative * DHistoryFixedType())::IntType) <= 4, "");
             auto d_old_part = FixedResMultiply<DerivativeFixedType::exp>(m_derivative, DHistoryFixedType::importDoubleSaturated(Params::DHistory::value()));
-            static_assert(sizeof(d_old_part)==2, "");
             auto d_delta = m_last - value;
-            static_assert(sizeof(typename decltype(d_delta * DNewFixedType())::IntType) <= 4, "");
             auto d_new_part = FixedResMultiply<DerivativeFixedType::exp>(d_delta, DNewFixedType::importDoubleSaturated(DNew::value())); 
             auto derivative_new = d_old_part + d_new_part;
-            static_assert(sizeof(typename decltype(derivative_new)::IntType) <= 4, "");
             m_derivative = derivative_new.template dropBitsSaturated<DerivativeFixedType::num_bits>();
-            static_assert(sizeof(typename decltype(err * IntervalIFixedType())::IntType) <= 4, "");
             auto integral_add = FixedResMultiply<IntegralFixedType::exp>(err, IntervalIFixedType::importDoubleSaturated(IntervalI::value()));
             auto integral_new = (m_integral + integral_add);
-            static_assert(sizeof(typename decltype(integral_new)::IntType) <= 4, "");
             m_integral = FixedMin(IntegralFixedType::importDoubleSaturated(Params::IStateMax::value()), FixedMax(IntegralFixedType::importDoubleSaturated(Params::IStateMin::value()), integral_new));
         }
         m_first = false;
         m_last = value;
-        static_assert(sizeof(typename decltype(err * PFixedType())::IntType) <= 4, "");
-        static const int SumExp = OutputFixedType::exp - 1;
+        static const int SumExp = OutputFixedType::exp - 2;
         auto p_part = FixedResMultiply<SumExp>(err, PFixedType::importDoubleSaturated(Params::P::value()));
         auto i_part = m_integral.template shiftBits<SumExp - IntegralFixedType::exp>();
         auto d_part = m_derivative.template shiftBits<SumExp - DerivativeFixedType::exp>();
         auto result = p_part + i_part + d_part;
-        static_assert(sizeof(typename decltype(result)::IntType) <= 4, "");
         return result.template shiftBits<OutputFixedType::exp - SumExp>().template dropBitsSaturated<OutputFixedType::num_bits, OutputFixedType::is_signed>();
     }
     
