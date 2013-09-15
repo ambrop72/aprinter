@@ -55,10 +55,12 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
+#if 0
             (RightShift >= 16 && Signed1 && NumBits1 > 7 && NumBits1 <= 15 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
                 IntShiftRight<max(1, TempBits - 16), Signed, max(0, RightShift - 16)>::call(mul_s16_16_r16(op1, op2)) :
             (RightShift >= 8 && Signed1 && NumBits1 > 7 && NumBits1 <= 15 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
                 IntShiftRight<max(1, TempBits - 8), Signed, max(0, RightShift - 8)>::call(mul_s16_16_r8(op1, op2)) :
+#endif
             (RightShift >= 0 && Signed1 && NumBits1 > 7 && NumBits1 <= 15 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
                 IntShiftRight<max(1, TempBits - 0), Signed, max(0, RightShift - 0)>::call(mul_s16_16(op1, op2)) :
             (RightShift >= 16 && Signed1 && NumBits1 > 15 && NumBits1 <= 23 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
