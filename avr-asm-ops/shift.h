@@ -606,6 +606,131 @@ static inline int32_t shift_s32_r15 (int32_t op)
     return op;
 }
 
+static inline int32_t shift_s32_l1 (int32_t op)
+{
+    asm(
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol %D[op]\n"
+        : [op] "=&r" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l2 (int32_t op)
+{
+    asm(
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol %D[op]\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol %D[op]\n"
+        : [op] "=&r" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l3 (int32_t op)
+{
+    asm(
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol %D[op]\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol %D[op]\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol %D[op]\n"
+        : [op] "=&r" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l4 (int32_t op)
+{
+    asm(
+        "swap %A[op]\n"
+        "swap %B[op]\n"
+        "swap %C[op]\n"
+        "swap %D[op]\n"
+        "andi %D[op],0xF0\n"
+        "add %D[op],%C[op]\n"
+        "andi %C[op],0xF0\n"
+        "sub %D[op],%C[op]\n"
+        "add %C[op],%B[op]\n"
+        "andi %B[op],0xF0\n"
+        "sub %C[op],%B[op]\n"
+        "add %B[op],%A[op]\n"
+        "andi %A[op],0xF0\n"
+        "sub %B[op],%A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l5 (int32_t op)
+{
+    asm(
+        "swap %A[op]\n"
+        "swap %B[op]\n"
+        "swap %C[op]\n"
+        "swap %D[op]\n"
+        "andi %D[op],0xF0\n"
+        "add %D[op],%C[op]\n"
+        "andi %C[op],0xF0\n"
+        "sub %D[op],%C[op]\n"
+        "add %C[op],%B[op]\n"
+        "andi %B[op],0xF0\n"
+        "sub %C[op],%B[op]\n"
+        "add %B[op],%A[op]\n"
+        "andi %A[op],0xF0\n"
+        "sub %B[op],%A[op]\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol %D[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l6 (int32_t op)
+{
+    asm(
+        "clr __tmp_reg__\n"
+        "lsr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "ror __tmp_reg__\n"
+        "lsr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "ror __tmp_reg__\n"
+        "mov %D[op],%C[op]\n"
+        "mov %C[op],%B[op]\n"
+        "mov %B[op],%A[op]\n"
+        "mov %A[op],__tmp_reg__\n"
+        : [op] "=&r" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
 static inline int32_t shift_s32_l7 (int32_t op)
 {
     asm(

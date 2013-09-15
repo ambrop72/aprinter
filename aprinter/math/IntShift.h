@@ -89,6 +89,12 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
+            (Signed && ResBits > 23 && ResBits <= 31 && ShiftCount == 1) ? shift_s32_l1(op) :
+            (Signed && ResBits > 23 && ResBits <= 31 && ShiftCount == 2) ? shift_s32_l2(op) :
+            (Signed && ResBits > 23 && ResBits <= 31 && ShiftCount == 3) ? shift_s32_l3(op) :
+            (Signed && ResBits > 23 && ResBits <= 31 && ShiftCount == 4) ? shift_s32_l4(op) :
+            (Signed && ResBits > 23 && ResBits <= 31 && ShiftCount == 5) ? shift_s32_l5(op) :
+            (Signed && ResBits > 23 && ResBits <= 31 && ShiftCount == 6) ? shift_s32_l6(op) :
             (Signed && ResBits > 23 && ResBits <= 31 && ShiftCount == 7) ? shift_s32_l7(op) :
             (Signed && ResBits > 23 && ResBits <= 31 && ShiftCount == 9) ? shift_s32_l9(op) :
             (Signed && ResBits > 23 && ResBits <= 31 && ShiftCount == 10) ? shift_s32_l10(op) :
