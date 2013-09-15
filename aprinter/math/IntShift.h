@@ -55,6 +55,13 @@ public:
             (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 3) ? shift_s24_r3(op) :
             (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 2) ? shift_s24_r2(op) :
             (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 1) ? shift_s24_r1(op) :
+            (Signed && NumBits > 23 && NumBits <= 31 && ShiftCount == 15) ? shift_s32_r15(op) :
+            (Signed && NumBits > 23 && NumBits <= 31 && ShiftCount == 14) ? shift_s32_r14(op) :
+            (Signed && NumBits > 23 && NumBits <= 31 && ShiftCount == 13) ? shift_s32_r13(op) :
+            (Signed && NumBits > 23 && NumBits <= 31 && ShiftCount == 12) ? shift_s32_r12(op) :
+            (Signed && NumBits > 23 && NumBits <= 31 && ShiftCount == 11) ? shift_s32_r11(op) :
+            (Signed && NumBits > 23 && NumBits <= 31 && ShiftCount == 10) ? shift_s32_r10(op) :
+            (Signed && NumBits > 23 && NumBits <= 31 && ShiftCount == 9) ? shift_s32_r9(op) :
             (Signed && NumBits > 23 && NumBits <= 31 && ShiftCount == 7) ? shift_s32_r7(op) :
             (Signed && NumBits > 23 && NumBits <= 31 && ShiftCount == 6) ? shift_s32_r6(op) :
             (Signed && NumBits > 23 && NumBits <= 31 && ShiftCount == 5) ? shift_s32_r5(op) :
