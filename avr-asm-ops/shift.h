@@ -27,9 +27,360 @@
 
 #include <stdint.h>
 
+static inline __int24 shift_s24_r1 (__int24 op)
+{
+    asm(
+        "tst %C[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-1\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "not_negative_%=:\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline __int24 shift_s24_r2 (__int24 op)
+{
+    asm(
+        "tst %C[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-3\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "not_negative_%=:\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline __int24 shift_s24_r3 (__int24 op)
+{
+    asm(
+        "tst %C[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-7\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "not_negative_%=:\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline __int24 shift_s24_r4 (__int24 op)
+{
+    asm(
+        "tst %C[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-15\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "not_negative_%=:\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline __int24 shift_s24_r5 (__int24 op)
+{
+    asm(
+        "tst %C[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-31\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "not_negative_%=:\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline __int24 shift_s24_r6 (__int24 op)
+{
+    asm(
+        "tst %C[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-63\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "not_negative_%=:\n"
+        "clr __tmp_reg__\n"
+        "sbrc %C[op],7\n"
+        "com __tmp_reg__\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol __tmp_reg__\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol __tmp_reg__\n"
+        "mov %A[op],%B[op]\n"
+        "mov %B[op],%C[op]\n"
+        "mov %C[op],__tmp_reg__\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline __int24 shift_s24_r7 (__int24 op)
+{
+    asm(
+        "tst %C[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-127\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "not_negative_%=:\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "mov %A[op],%B[op]\n"
+        "mov %B[op],%C[op]\n"
+        "clr %C[op]\n"
+        "sbc %C[op],__zero_reg__\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_r1 (int32_t op)
+{
+    asm(
+        "tst %D[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-1\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "sbci %D[op],-1\n"
+        "not_negative_%=:\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_r2 (int32_t op)
+{
+    asm(
+        "tst %D[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-3\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "sbci %D[op],-1\n"
+        "not_negative_%=:\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_r3 (int32_t op)
+{
+    asm(
+        "tst %D[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-7\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "sbci %D[op],-1\n"
+        "not_negative_%=:\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_r4 (int32_t op)
+{
+    asm(
+        "tst %D[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-15\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "sbci %D[op],-1\n"
+        "not_negative_%=:\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_r5 (int32_t op)
+{
+    asm(
+        "tst %D[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-31\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "sbci %D[op],-1\n"
+        "not_negative_%=:\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "asr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_r6 (int32_t op)
+{
+    asm(
+        "tst %D[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-63\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "sbci %D[op],-1\n"
+        "not_negative_%=:\n"
+        "clr __tmp_reg__\n"
+        "sbrc %D[op],7\n"
+        "com __tmp_reg__\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol %D[op]\n"
+        "rol __tmp_reg__\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "rol %D[op]\n"
+        "rol __tmp_reg__\n"
+        "mov %A[op],%B[op]\n"
+        "mov %B[op],%C[op]\n"
+        "mov %C[op],%D[op]\n"
+        "mov %D[op],__tmp_reg__\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
 static inline int32_t shift_s32_r7 (int32_t op)
 {
     asm(
+        "tst %D[op]\n"
+        "brpl not_negative_%=\n"
+        "subi %A[op],-127\n"
+        "sbci %B[op],-1\n"
+        "sbci %C[op],-1\n"
+        "sbci %D[op],-1\n"
+        "not_negative_%=:\n"
         "lsl %A[op]\n"
         "rol %B[op]\n"
         "rol %C[op]\n"
@@ -39,6 +390,59 @@ static inline int32_t shift_s32_r7 (int32_t op)
         "mov %C[op],%D[op]\n"
         "clr %D[op]\n"
         "sbc %D[op],__zero_reg__\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l7 (int32_t op)
+{
+    asm(
+        "lsr %D[op]\n"
+        "mov %D[op],%C[op]\n"
+        "mov %C[op],%B[op]\n"
+        "mov %B[op],%A[op]\n"
+        "clr %A[op]\n"
+        "ror %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&r" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l9 (int32_t op)
+{
+    asm(
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "mov %D[op],%C[op]\n"
+        "mov %C[op],%B[op]\n"
+        "mov %B[op],%A[op]\n"
+        "clr %A[op]\n"
+        : [op] "=&r" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l10 (int32_t op)
+{
+    asm(
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "mov %D[op],%C[op]\n"
+        "mov %C[op],%B[op]\n"
+        "mov %B[op],%A[op]\n"
+        "clr %A[op]\n"
         : [op] "=&r" (op)
         : "[op]" (op)
     );
@@ -67,9 +471,15 @@ static inline int32_t shift_s32_l11 (int32_t op)
     return op;
 }
 
-static inline int32_t shift_s32_l10 (int32_t op)
+static inline int32_t shift_s32_l12 (int32_t op)
 {
     asm(
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
+        "lsl %A[op]\n"
+        "rol %B[op]\n"
+        "rol %C[op]\n"
         "lsl %A[op]\n"
         "rol %B[op]\n"
         "rol %C[op]\n"
@@ -80,6 +490,69 @@ static inline int32_t shift_s32_l10 (int32_t op)
         "mov %C[op],%B[op]\n"
         "mov %B[op],%A[op]\n"
         "clr %A[op]\n"
+        : [op] "=&r" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l13 (int32_t op)
+{
+    asm(
+        "mov __tmp_reg__,%C[op]\n"
+        "movw %C[op],%A[op]\n"
+        "clr %A[op]\n"
+        "clr %B[op]\n"
+        "lsr __tmp_reg__\n"
+        "ror %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "lsr __tmp_reg__\n"
+        "ror %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "lsr __tmp_reg__\n"
+        "ror %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        : [op] "=&r" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l14 (int32_t op)
+{
+    asm(
+        "mov __tmp_reg__,%C[op]\n"
+        "movw %C[op],%A[op]\n"
+        "clr %A[op]\n"
+        "clr %B[op]\n"
+        "lsr __tmp_reg__\n"
+        "ror %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "lsr __tmp_reg__\n"
+        "ror %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        : [op] "=&r" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
+static inline int32_t shift_s32_l15 (int32_t op)
+{
+    asm(
+        "mov __tmp_reg__,%C[op]\n"
+        "movw %C[op],%A[op]\n"
+        "clr %A[op]\n"
+        "clr %B[op]\n"
+        "lsr __tmp_reg__\n"
+        "ror %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
         : [op] "=&r" (op)
         : "[op]" (op)
     );
