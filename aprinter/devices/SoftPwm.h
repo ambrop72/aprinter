@@ -45,7 +45,6 @@ public:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using TimerInstance = TimerTemplate<Context, TimerHandler>;
-    using FixedFracType = FixedPoint<16, false, -16>;
     
     void init (Context c, TimeType start_time)
     {
@@ -83,9 +82,9 @@ private:
         
         TimeType next_time;
         if (AMBRO_LIKELY(!m_state)) {
-            FixedFracType frac = TimerCallback::call(this, c);
+            auto frac = TimerCallback::call(this, c);
             c.pins()->template set<Pin>(c, (frac.bitsValue() > 0));
-            if (AMBRO_LIKELY(frac.bitsValue() > 0 && frac < FixedFracType::maxValue())) {
+            if (AMBRO_LIKELY(frac.bitsValue() > 0 && frac < decltype(frac)::maxValue())) {
                 auto res = FixedResMultiply(FixedPoint<32, false, 0>::importBits(interval), frac);
                 next_time = m_start_time + (TimeType)res.bitsValue();
                 m_state = true;

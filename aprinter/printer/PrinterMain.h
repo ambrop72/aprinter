@@ -583,7 +583,7 @@ private:
         using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, typename HeaterSpec::PulseInterval, ValueFixedType>;
         using TheSoftPwm = SoftPwm<Context, typename HeaterSpec::OutputPin, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
         using TheObserver = TemperatureObserver<Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
-        using FixedFracType = typename TheSoftPwm::FixedFracType;
+        using OutputFixedType = typename TheControl::OutputFixedType;
         
         struct ChannelPayload {
             ValueFixedType target;
@@ -707,9 +707,9 @@ private:
             return true;
         }
         
-        FixedFracType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
+        OutputFixedType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
         {
-            FixedFracType control_value = FixedFracType::importBits(0);
+            OutputFixedType control_value = OutputFixedType::importBits(0);
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 if (AMBRO_LIKELY(m_enabled)) {
                     ValueFixedType sensor_value = get_value(lock_c);
@@ -778,10 +778,10 @@ private:
         
         using FanSpec = TypeListGet<FansList, FanIndex>;
         using TheSoftPwm = SoftPwm<Context, typename FanSpec::OutputPin, typename FanSpec::PulseInterval, SoftPwmTimerHandler, FanSpec::template TimerTemplate>;
-        using FixedFracType = typename TheSoftPwm::FixedFracType;
+        using OutputFixedType = FixedPoint<16, false, -16>;
         
         struct ChannelPayload {
-            FixedFracType target;
+            OutputFixedType target;
         };
         
         PrinterMain * parent ()
@@ -792,7 +792,7 @@ private:
         void init (Context c)
         {
             m_lock.init(c);
-            m_target = FixedFracType::importBits(0);
+            m_target = OutputFixedType::importBits(0);
             m_softpwm.init(c, c.clock()->getTime(c));
         }
         
@@ -822,7 +822,7 @@ private:
                 cmd.type = 1;
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
-                UnionGetElem<FanIndex>(&payload->fans)->target = FixedFracType::importDoubleSaturated(target);
+                UnionGetElem<FanIndex>(&payload->fans)->target = OutputFixedType::importDoubleSaturated(target);
                 o->finish_command(c, false);
                 o->finish_buffered_command(c, &cmd);
                 *out_result = CMD_DELAY;
@@ -831,9 +831,9 @@ private:
             return true;
         }
         
-        FixedFracType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
+        OutputFixedType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
         {
-            FixedFracType control_value;
+            OutputFixedType control_value;
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 control_value = m_target;
             });
@@ -855,7 +855,7 @@ private:
         }
         
         typename Context::Lock m_lock;
-        FixedFracType m_target;
+        OutputFixedType m_target;
         TheSoftPwm m_softpwm;
         
         struct SoftPwmTimerHandler : public AMBRO_WCALLBACK_TD(&Fan::softpwm_timer_handler, &Fan::m_softpwm) {};
