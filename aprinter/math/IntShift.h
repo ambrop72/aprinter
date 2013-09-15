@@ -79,14 +79,14 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
-            (Signed && NumBits <= 31 && ShiftCount == 7) ? shift_s32_l7(op) :
-            (Signed && NumBits <= 31 && ShiftCount == 9) ? shift_s32_l9(op) :
-            (Signed && NumBits <= 31 && ShiftCount == 10) ? shift_s32_l10(op) :
-            (Signed && NumBits <= 31 && ShiftCount == 11) ? shift_s32_l11(op) :
-            (Signed && NumBits <= 31 && ShiftCount == 12) ? shift_s32_l12(op) :
-            (Signed && NumBits <= 31 && ShiftCount == 13) ? shift_s32_l13(op) :
-            (Signed && NumBits <= 31 && ShiftCount == 14) ? shift_s32_l14(op) :
-            (Signed && NumBits <= 31 && ShiftCount == 15) ? shift_s32_l15(op) :
+            (Signed && NumBits <= 31 - 7 && ShiftCount == 7) ? shift_s32_l7(op) :
+            (Signed && NumBits <= 31 - 9 && ShiftCount == 9) ? shift_s32_l9(op) :
+            (Signed && NumBits <= 31 - 10 && ShiftCount == 10) ? shift_s32_l10(op) :
+            (Signed && NumBits <= 31 - 11 && ShiftCount == 11) ? shift_s32_l11(op) :
+            (Signed && NumBits <= 31 - 12 && ShiftCount == 12) ? shift_s32_l12(op) :
+            (Signed && NumBits <= 31 - 13 && ShiftCount == 13) ? shift_s32_l13(op) :
+            (Signed && NumBits <= 31 - 14 && ShiftCount == 14) ? shift_s32_l14(op) :
+            (Signed && NumBits <= 31 - 15 && ShiftCount == 15) ? shift_s32_l15(op) :
 #endif
             (op * PowerOfTwo<ResType, ShiftCount>::value);
     }
