@@ -181,14 +181,16 @@ static inline __int24 mul_s24_16_r16 (__int24 op1, uint16_t op2)
         
         "tst %C[res]\n"
         "brpl not_negative_%=\n"
+        "clr __tmp_reg__\n"
+        "dec __tmp_reg__\n"
         "subi %A[low],1\n"
         "sbc %B[low],__zero_reg__\n"
-        "sbci %A[res],-1\n"
-        "sbci %B[res],-1\n"
-        "sbci %C[res],-1\n"
+        "sbc %A[res],__tmp_reg__\n"
+        "sbc %B[res],__tmp_reg__\n"
+        "sbc %C[res],__tmp_reg__\n"
         "not_negative_%=:\n"
         
-        : [res] "=&d" (res),
+        : [res] "=&r" (res),
           [zero] "=&r" (zero),
           [low] "=&d" (low)
         : [op1] "a" (op1),
