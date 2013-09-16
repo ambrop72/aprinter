@@ -129,7 +129,9 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commit_segment_finish, commit_segment_finish)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_dispose_new, dispose_new)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_cold, swap_staging_cold)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_prepare, swap_staging_prepare)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_hot, swap_staging_hot)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_finish, swap_staging_finish)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_stepping, start_stepping)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_empty, is_empty)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_underrun, is_underrun)
@@ -248,6 +250,11 @@ private:
             IndexElemUnion<ChannelsList, ChannelSegment> channels;
         };
     };
+    
+    template <int ChannelIndex>
+    using ChannelCommandSizeTypeAlias = typename ChannelCommand<ChannelIndex>::ChannelCommandSizeType;
+    
+    using ChannelCommandSizeTypeTuple = IndexElemTuple<ChannelsList, ChannelCommandSizeTypeAlias>;
     
 public:
     template <int AxisIndex>
@@ -519,19 +526,28 @@ public:
             m_new_first = -1;
         }
         
-        void swap_staging_hot ()
+        void swap_staging_prepare (StepperCommandSizeType *old_first)
         {
             AMBRO_ASSERT(m_num_committed > 0)
             
-            if (!(m_new_first >= 0)) {
-                return;
+            old_first[AxisIndex] = m_stepper_entries[m_last_committed].next;
+        }
+        
+        void swap_staging_hot ()
+        {
+            if (AMBRO_LIKELY(m_new_first >= 0)) {
+                m_stepper_entries[m_last_committed].next = m_new_first;
             }
-            StepperCommandSizeType old_first = m_stepper_entries[m_last_committed].next;
-            StepperCommandSizeType old_last = m_last;
-            m_stepper_entries[m_last_committed].next = m_new_first;
-            m_last = m_new_last;
-            m_new_first = old_first;
-            m_new_last = old_last;
+        }
+        
+        void swap_staging_finish (StepperCommandSizeType *old_first)
+        {
+            if (m_new_first >= 0) {
+                StepperCommandSizeType old_last = m_last;
+                m_last = m_new_last;
+                m_new_first = old_first[AxisIndex];
+                m_new_last = old_last;
+            }
         }
         
         void start_stepping (Context c, TimeType start_time)
@@ -681,25 +697,34 @@ public:
             m_new_first = -1;
         }
         
-        template <typename LockContext>
-        void swap_staging_hot (LockContext c)
+        void swap_staging_prepare (ChannelCommandSizeTypeTuple *old_first_tuple)
         {
             AMBRO_ASSERT(m_num_committed >= 0)
             
-            if (!(m_new_first >= 0)) {
-                return;
+            *TupleGetElem<ChannelIndex>(old_first_tuple) = m_channel_commands[m_last_committed].next;
+        }
+        
+        template <typename LockContext>
+        void swap_staging_hot (LockContext c)
+        {
+            if (AMBRO_LIKELY(m_new_first >= 0)) {
+                m_channel_commands[m_last_committed].next = m_new_first;
+                if (AMBRO_LIKELY(m_num_committed == 0)) {
+                    m_first = m_new_first;
+                    m_timer.unset(c);
+                    m_timer.set(c, m_channel_commands[m_first].time);
+                }
             }
-            ChannelCommandSizeType old_first = m_channel_commands[m_last_committed].next;
-            ChannelCommandSizeType old_last = m_last;
-            m_channel_commands[m_last_committed].next = m_new_first;
-            if (m_num_committed == 0) {
-                m_first = m_new_first;
-                m_timer.unset(c);
-                m_timer.set(c, m_channel_commands[m_first].time);
+        }
+        
+        void swap_staging_finish (ChannelCommandSizeTypeTuple *old_first_tuple)
+        {
+            if (m_new_first >= 0) {
+                ChannelCommandSizeType old_last = m_last;
+                m_last = m_new_last;
+                m_new_first = *TupleGetElem<ChannelIndex>(old_first_tuple);
+                m_new_last = old_last;
             }
-            m_last = m_new_last;
-            m_new_first = old_first;
-            m_new_last = old_last;
         }
         
         void start_stepping (Context c, TimeType start_time)
@@ -1059,18 +1084,24 @@ private:
             TupleForEachForward(&m_channels, Foreach_swap_staging_cold());
             m_segments_staging_end = m_segments_end;
         } else {
+            StepperCommandSizeType axes_old_first[NumAxes];
+            ChannelCommandSizeTypeTuple channels_old_first;
+            TupleForEachForward(&m_axes, Foreach_swap_staging_prepare(), axes_old_first);
+            TupleForEachForward(&m_channels, Foreach_swap_staging_prepare(), &channels_old_first);
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 m_underrun = is_underrun();
-                if (!m_underrun) {
+                if (AMBRO_LIKELY(!m_underrun)) {
                     TupleForEachForward(&m_axes, Foreach_swap_staging_hot());
                     TupleForEachForward(&m_channels, Foreach_swap_staging_hot(), lock_c);
                 }
             });
-            TupleForEachForward(&m_axes, Foreach_dispose_new(), c);
-            TupleForEachForward(&m_channels, Foreach_dispose_new(), c);
             if (AMBRO_LIKELY(!m_underrun)) {
+                TupleForEachForward(&m_axes, Foreach_swap_staging_finish(), axes_old_first);
+                TupleForEachForward(&m_channels, Foreach_swap_staging_finish(), &channels_old_first);
                 m_segments_staging_end = m_segments_end;
             }
+            TupleForEachForward(&m_axes, Foreach_dispose_new(), c);
+            TupleForEachForward(&m_channels, Foreach_dispose_new(), c);
         }
     }
     
@@ -1133,7 +1164,7 @@ private:
             TupleForEachForwardAccRes(&m_channels, true, Foreach_is_empty());
     }
     
-    uint8_t is_underrun ()
+    __attribute__((always_inline)) inline uint8_t is_underrun ()
     {
         return
             TupleForEachForwardAccRes(&m_axes, false, Foreach_is_underrun()) ||
