@@ -67,12 +67,12 @@ public:
         m_send_end = SendSizeType::import(0);;
         m_send_event = BoundedModuloInc(m_send_end);
         
-        uint16_t ubrr = (((2 * (uint32_t)F_CPU) + (16 * baud)) / (2 * 16 * baud)) - 1;
+        uint32_t ubrr = (((2 * (uint32_t)F_CPU) + (8 * baud)) / (2 * 8 * baud)) - 1;
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             UBRR0H = (ubrr >> 8);
             UBRR0L = ubrr;
-            UCSR0A = 0;
+            UCSR0A = (1 << U2X0);
             UCSR0B = (1 << RXCIE0) | (1 << RXEN0) | (1 << TXEN0);
             UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
         });
