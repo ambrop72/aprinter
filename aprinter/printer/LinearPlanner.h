@@ -78,9 +78,10 @@ static double LinearPlannerPull (LinearPlannerSegmentData *segment, LinearPlanne
             result->const_end = (segment->max_v - end_v) * segment->a_x_rec;
             result->const_v = segment->max_v;
         } else {
-            result->const_start = ((end_v + segment->a_x) - start_v) * segment->a_x_rec / 2;
+            double q = end_v + segment->a_x;
+            result->const_start = (q - start_v) * segment->a_x_rec / 2;
             result->const_end = 1.0 - result->const_start;
-            result->const_v = (start_v + end_v + segment->a_x) / 2;
+            result->const_v = (q + start_v) / 2;
         }
     }
     
