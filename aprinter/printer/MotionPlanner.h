@@ -1053,6 +1053,8 @@ private:
                 double t2_double = (v_const - v_end) * entry->max_accel_rec;
                 double t1_double = (1.0 - result.const_start - result.const_end) * entry->rel_max_speed_rec;
                 MinTimeType t1 = MinTimeType::importDoubleSaturatedRound(t0_double + t2_double + t1_double);
+                time_duration = t1.bitsValue();
+                time += t1.bitsValue();
                 MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t0_double));
                 t1.m_bits.m_int -= t0.bitsValue();
                 MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t2_double));
@@ -1060,8 +1062,6 @@ private:
                 TupleForEachForward(&m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
                                     t0_double * t0_double, t2_double * t2_double, i == SegmentBufferSizeType::import(0));
-                time_duration = t1.bitsValue();
-                time += t1.bitsValue();
                 v_start = v_end;
             } else {
                 time_duration = 0;
