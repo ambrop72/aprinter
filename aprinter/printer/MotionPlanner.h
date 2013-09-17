@@ -837,6 +837,11 @@ public:
         TupleForEachForward(&m_axes, Foreach_init(), c);
         TupleForEachForward(&m_channels, Foreach_init(), c);
         m_pull_finished_event.prependNowNotAlready(c);
+#ifdef MOTIONPLANNER_BENCHMARK
+        if (NumAxes > 1) {
+            m_bench_time = 0;
+        }
+#endif
         
         this->debugInit(c);
     }
@@ -1023,6 +1028,13 @@ private:
     {
         AMBRO_ASSERT(m_segments_staging_end != m_segments_end)
         
+#ifdef MOTIONPLANNER_BENCHMARK
+        TimeType bench_start;
+        if (NumAxes > 1) {
+            bench_start = c.clock()->getTime(c);
+        }
+#endif
+        
         SegmentBufferSizeType count = BoundedModuloSubtract(m_segments_end, m_segments_start);
         LinearPlannerSegmentState state[LookaheadBufferSize];
         
@@ -1100,6 +1112,12 @@ private:
             TupleForEachForward(&m_axes, Foreach_dispose_new(), c);
             TupleForEachForward(&m_channels, Foreach_dispose_new(), c);
         }
+        
+#ifdef MOTIONPLANNER_BENCHMARK
+        if (NumAxes > 1) {
+            m_bench_time += (TimeType)(c.clock()->getTime(c) - bench_start);
+        }
+#endif
     }
     
     void start_stepping (Context c)
@@ -1107,6 +1125,12 @@ private:
         AMBRO_ASSERT(!m_stepping)
         AMBRO_ASSERT(!m_underrun)
         AMBRO_ASSERT(m_segments_staging_end == m_segments_end)
+        
+#ifdef MOTIONPLANNER_BENCHMARK
+        if (NumAxes > 1) {
+            printf("elapsed %" PRIu32 "\n", m_bench_time);
+        }
+#endif
         
         m_stepping = true;
         TimeType start_time = c.clock()->getTime(c);
@@ -1218,6 +1242,9 @@ private:
     Segment m_segments[(size_t)SegmentBufferSizeType::maxIntValue() + 1];
     AxesTuple m_axes;
     ChannelsTuple m_channels;
+#ifdef MOTIONPLANNER_BENCHMARK
+    TimeType m_bench_time;
+#endif
     
     template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &MotionPlanner::m_axes, AxisIndex> {};
 };
