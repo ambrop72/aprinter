@@ -1212,7 +1212,7 @@ private:
             TupleForEachForward(&m_axes, Foreach_stopped_stepping(), c);
             TupleForEachForward(&m_channels, Foreach_stopped_stepping(), c);
             if (m_waiting) {
-                continue_wait(c);
+                return continue_wait(c);
             }
         }
         
