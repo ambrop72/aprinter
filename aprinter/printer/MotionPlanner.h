@@ -862,8 +862,8 @@ public:
             TupleForEachForward(&m_axes, Foreach_commandDone_assert(), icmd);
         }
         
-        m_pull_finished_event.unset(c);
         m_waiting = false;
+        m_pull_finished_event.unset(c);
 #ifdef AMBROLIB_ASSERTIONS
         m_pulling = false;
 #endif
@@ -876,6 +876,7 @@ public:
                 return;
             }
             TupleForEachForward(&m_axes, Foreach_write_splitbuf(), icmd);
+            m_split_buffer.split_pos = 0;
             if (AMBRO_LIKELY(TupleForEachForwardAccRes(&m_axes, true, Foreach_splitbuf_fits()))) {
                 m_split_buffer.base_max_v_rec = icmd->rel_max_v_rec;
                 m_split_buffer.split_count = 1;
@@ -886,7 +887,6 @@ public:
                 m_split_buffer.base_max_v_rec = icmd->rel_max_v_rec * m_split_buffer.split_frac;
                 m_split_buffer.split_count = split_count;
             }
-            m_split_buffer.split_pos = 0;
         } else {
             m_split_buffer.channel_payload = icmd->channel_payload;
         }
@@ -1046,25 +1046,22 @@ private:
             LinearPlannerSegmentResult result;
             v = LinearPlannerPull(&entry->lp_seg, &state[i.value()], v, &result);
             TimeType time_duration;
-            if (AMBRO_LIKELY(entry->type == 0)) {
+            if (entry->type == 0) {
                 double v_end = sqrt(v);
                 double v_const = sqrt(result.const_v);
                 double t0_double = (v_const - v_start) * entry->max_accel_rec;
                 double t2_double = (v_const - v_end) * entry->max_accel_rec;
                 double t1_double = (1.0 - result.const_start - result.const_end) * entry->rel_max_speed_rec;
-                double t0_squared = t0_double * t0_double;
-                double t2_squared = t2_double * t2_double;
-                double t_double = t0_double + t2_double + t1_double;
-                MinTimeType t1 = MinTimeType::importDoubleSaturatedRound(t_double);
-                time_duration = t1.bitsValue();
-                time += t1.bitsValue();
+                MinTimeType t1 = MinTimeType::importDoubleSaturatedRound(t0_double + t2_double + t1_double);
                 MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t0_double));
                 t1.m_bits.m_int -= t0.bitsValue();
                 MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t2_double));
                 t1.m_bits.m_int -= t2.bitsValue();
                 TupleForEachForward(&m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
-                                    t0_squared, t2_squared, i == SegmentBufferSizeType::import(0));
+                                    t0_double * t0_double, t2_double * t2_double, i == SegmentBufferSizeType::import(0));
+                time_duration = t1.bitsValue();
+                time += t1.bitsValue();
                 v_start = v_end;
             } else {
                 time_duration = 0;
