@@ -52,15 +52,145 @@ static void emergency (void);
 
 using namespace APrinter;
 
-static const int AdcRefSel = 1;
-static const int AdcPrescaler = 7;
-static const int clock_timer_prescaler = 3;
+/*
+ * Configuration values are in units based on millimeters, seconds and kelvins,
+ * unless otherwise specified. If you don't know what some configuration option does,
+ * you probably don't need to change it.
+ * 
+ * Floating point configuration values need to be specified outside of the primary
+ * configuration expression by using the AMBRO_WRAP_DOUBLE macro, due to a limitation of
+ * of C++ templates (inability to use floating point template arguments).
+ */
+
+/*
+ * Explanation of common parameters.
+ * 
+ * BaudRate
+ * The baud rate for the serial port. Do not use more than 57600, as that may result in
+ * received bytes being dropped due to pending interrupts.
+ * 
+ * ReceiveBufferSizeExp
+ * Size of the serial receive buffer, used for parsing commands as well as holding subsequent
+ * commands while a command is being processed.
+ * 
+ * LedPin, LedBlinkInterval
+ * The pin of the heartbeat LED, and the time it takes to toggle the state of the LED.
+ * Be careful when raising this - the heartbeat LED code feeds the watchdog timer, which has
+ * a timeout of two seconds by default,
+ * 
+ * DefaultInactiveTime
+ * The default time the printer needs to be idle before the steppers are shut down.
+ * This time can be adjusted at runtime using the M18 or M84 g-code commands.
+ * 
+ * SpeedLimitMultiply
+ * The euclidean speed limit specified with motion g-codes (F parameter in G0 and G1)
+ * is multiplied by this value before being interpreted as a speed in mm/s. You probably
+ * want SpeedLimitMultiply=1.0/60.0 so that the F values are interpreted as mm/min.
+ * 
+ * MaxStepsPerCycle
+ * This parameter affects the maximum stepping frequency, which is computed as
+ * F_CPU*MaxStepsPerCycle. If this parameter is too high, the printer will malfunction
+ * when trying to drive axes at high speeds. Even if stepping works reliably, may still
+ * be too high, as there needs to be enough processor time left for tasks other
+ * than stepping.
+ * 
+ * StepperSegmentBufferSize, EventChannelBufferSize
+ * The maximum size of the "committed" portions of the buffers, in numbers of segments.
+ * These need to be high enough to prevent unwanted underruns.
+ * 
+ * LookaheadBufferSize
+ * The size of the planning buffer. To make the planner look N steps ahead, use
+ * LookaheadBufferSize=N+1. A higher value means that the printer will take more previous
+ * segments into account when computing the maximum speed at a segment junction.
+ * The time complexity of planning increases linearly with this, so don't go too high.
+ * If this is too high, you'll see unexpected buffer underruns, which manifest themselves
+ * as the printer pausing for a moment and continuing shortly thereafter.
+ * 
+ * ForceTimeout
+ * How much time we wait after a buffered g-code command is received before forcing the
+ * planner to begin execution, in case the planner is waiting for the buffer to fill up.
+ * This forcing mechanism exists so that the printer responds to user-generated commands
+ * in a reasonable amount of time; it is not necessary for actual printing.
+ * 
+ * EventChannelTimer
+ * The interrupt-timer used to implement auxiliary buffered commands, such as
+ * set-heater-temperature and set-fan-speed.
+ */
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
-using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00137);
+using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00137); // max stepping frequency relative to F_CPU
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
+
+/*
+ * Explanation of axis-specific parameters.
+ * 
+ * Name
+ * A character identifying the heater; must be upper-case. This is used, among other uses,
+ * in the G1 (linear-move) command and in the M114 (get-position) command.
+ * 
+ * DirPin, StepPin, EnablePin, InvertDir
+ * The pins connected to the stepper driver chip which controls this axis.
+ * InvertDir defines the relation between the state of DirPin and the logical direction
+ * of motion; when InvertDir=false, negative motion corresponds to a low state on DirPin.
+ * 
+ * StepBits
+ * The number of bits used to represent the absolute position of axis as a number of steps.
+ * This limits the permitted logical position of the axis. Don't go beyond StepBits=32.
+ * 
+ * StepperTimer
+ * The interrupt-timer to use for stepping this axis.
+ * 
+ * StepsPerUnit
+ * Defines the conversion ratio between the step position and the logical position,
+ * in units of step/mm.
+ * 
+ * MaxSpeed, MaxAccel
+ * Maximum speed and maximum acceleration, in units of mm/s and mm/s^2. Note that
+ * acceleration will exceed MaxAccel at segment junctions, as controlled by CorneringDistance.
+ * 
+ * DistanceFactor
+ * The segment coordinate differences are multiplied with this before they are used in the
+ * planner to compute the cartesian length of a segment. This effectively defines what
+ * it means to preserve the speed at a segment junction. Note that this does not effect
+ * the semantics of the euclidean speed limit (F parameter in g-codes).
+ * 
+ * CorneringDistance
+ * This parameter affects the calculation of the maximum speed at segment junctions;
+ * its semantic is similar to that of the "jerk" setting in some other firmwares.
+ * Increase this to allow higher speeds at junctions. Note that the maximum acceleration
+ * also affects this calculation, so this parameter should generally be adjusted
+ * independently of maximum acceleration. The value is in units of steps; it should probably
+ * be in the order of magnitude of the number of (micro)steps corresponding to a full step.
+ * 
+ * Min, Max
+ * The permitted logical position range, in units of mm. If the axis supports homing,
+ * when it is homed, the Min or Max position will be assumed, if HomeDir=false or HomeDir=true,
+ * respectively. For example, if you use a min-endstop for the X axis, and after you home the
+ * X axis, the nozzle is 50mm away from the left end of the bed, you can choose Min=-50 and
+ * Max=BedWidth; that will result in the logical position 0 corresponding to the left end
+ * of the bed.
+ * 
+ * EnableCartesianSpeedLimit
+ * If this is true, this axis will participate in the speed limit based on euclidean distance,
+ * that is, the F parameter to g-code motion commands. You probably want
+ * EnableCartesianSpeedLimit=true for X, Y and Z, and EnableCartesianSpeedLimit=false for E.
+ * Speed limit for E-only motion is not implemented.
+ * 
+ * HomeEndPin, HomeEndInvert, HomeDir
+ * HomeEndPin specifies the pin connected to the endstop switch. HomeEndInvert specifies how to
+ * interpret the value on the pin; with HomeEndInvert=false, high value on HomeEndPin means
+ * the switch is pressed. HomeDir specifies the location ofthe endstop switch; use
+ * HomeDir=false for a min-endstop and HomeDir=true for a max-endstop.
+ * 
+ * HomeFastMaxDist, HomeRetractDist, HomeSlowMaxDist,
+ * HomeFastSpeed, HomeRetractSpeed, HomeSlowSpeed
+ * Homing is split into three portions: the Fast part, where the axis moves toward the endstop,
+ * the Retract part, where the axis moves a bit in reverse, and the final Slow part, where
+ * the axis again moves toward the endstop to obtain a final position.
+ * The Dist parameters specify the maximum travel distance of the respective homing portions.
+ */
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
@@ -113,11 +243,106 @@ using EDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
 using EDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
 
 /*
- * NOTE: The natural semantic of ExtruderHeaterPidDHistory
- * is sensitive to changes in ExtruderHeaterPulseInterval.
- * When you change ExtruderHeaterPulseInterval as if by multiplication with
- * 'a', raise ExtruderHeaterPidDHistory to the power of 'a'.
+ * Explanation of heater-specific parameters.
+ * 
+ * WARNING: It is advised not to change the parameters involved in PID calculation
+ * too much. It's probably safe adjust any specific value to something within the
+ * range from about 2^-4 to 2^4 times the default value. This is because the
+ * PID calculations, happening in an ISR, use fixed point arithmetic to be fast
+ * enough, and the scaling factors are computed at compile time based on parameter
+ * values. Since the computation relies on optimized assembly routines for bit
+ * shifts, changing values too much could mean an optimized shifting routing is no
+ * longer available for the desired shift amount. In the worst case, th
+ * degradation of ISR performance will result in dropping received bytes on the
+ * serial port (and messing up a print).
+ * 
+ * Name
+ * A character identifying the heater; this affects the output of the M105
+ * g-code command (get-heater-temperature).
+ * 
+ * SetMCommand, WaitMCommand
+ * The M-numbers for the set-heater-temperature and wait-heater-temperature g-code
+ * commands. For the extruder heater, you want SetMCommand=104, WaitMCommand=109,
+ * and for the bed heater, you want SetMCommand=140, WaitMCommand=190.
+ * 
+ * AdcPin
+ * The pin where the temperature is read; this must be a pin supported by the
+ * AD converter of your chip. You will also need to list this pin in AdcPins below,
+ * so that the ADC driver will actually sample this pin.
+ * 
+ * Formula
+ * The class which is used to convert ADC readings to temperatures.
+ * Assuming you use a thermistor table generated by gen_avr_thermistor_table.py,
+ * enter the name of the class in the resulting file (and be sure to #include that
+ * file).
+ * 
+ * OutputPin
+ * The pin where the PWM signal is to be generated. This can be any pin,
+ * since the PWM is performed in software.
+ * 
+ * PulseInterval
+ * The interval for the PWM signal to the heater. Because PID calculations
+ * are performed at the beginning of each pulse, the warning above applies -
+ * don't change this too much. Additionally, don't make this too small,
+ * as that will reduce the precision of integral computation. If you change
+ * this for a heater which uses PID control, you will also want to change
+ * PidDHistory exponentially proportionally (see below).
+ * 
+ * MinSafeTemp, MaxSafeTemp
+ * The safe temerature range for the heater, in degrees Celsius. When the
+ * temperature goes outside of this range, or if the heater is commanded to a
+ * temperature outside of this range, the heater is turned off.
+ * Note that the temperature range for the thermistor tables is defined
+ * during table generation; if the temperature goes beyond the range supported
+ * by the thermistor table, it is assumed to be outside of the safe range,
+ * and the heater is turned off.
+ * 
+ * Control
+ * The name of the template class which implements the control algorithm.
+ * Possible choices are PidControl and BinaryControl.
+ * 
+ * PidP, PidI, PidD
+ * The parameters for PID control of the heater.
+ * PidP: the proportional term, in units of 1/K.
+ * PidI: the integral term, in units of 1/(Ks).
+ * PidD: the derivative term, in units of s/K.
+ * Note that all three parameters are in natural units and are independent; that is,
+ * the I and D parameters are not relative to P. There is no magic unit changes
+ * or anything else happening - the heater power is calculated as:
+ *   PidP * error_in_K + PidI * integral_error_in_Ks + PidD * derivative_error_in_K/s
+ * and this is interpreted as a fraction which determines the relative pulse time,
+ * 0 meaning the heater is off, and 1 meaning it fully powered.
+ * 
+ * PidIStateMin, PidIStateMax
+ * These define the limits of the internal integral state, such that the
+ * integral term will always be within this range. As such, these parameters
+ * are in units of 1. Keep PidIStateMin non-negative.
+ * 
+ * PidDHistory
+ * This is the "history factor" for derivative approximation.
+ * The derivative approximation works like this:
+ *   D_0 = 0
+ *   D_i = PidDHistory * D_{i-1} + (1 - PidDHistory) * (T_i - T_{i-1}) / PulseInterval
+ *     (for i > 0)
+ * Hence, greater PidDHistory means greater inertia of derivative approximation.
+ * Be aware that the natural semantic of PidDHistory depends on PulseInterval.
+ * To approximately preserve the behavior of derivative approximation when changing
+ * the PulseInterval as if by multiplication with 'a', raise PidDHistory to the power
+ * of 'a'. Unfortunately we can't take care of that automatically due to the
+ * difficulty of implementing a constexpr pow().
+ * The usual warning applies here - don't change this too much.
+ * 
+ * TimerTemplate
+ * The interrupt-timer to use for PWM generation.
+ * 
+ * ObserverInterval, ObserverTolerance, ObserverMinTime
+ * These parameters affect the behavior of wait-heater-temperature g-code commands.
+ * Upon reception of such a command, the temerature will be observed in samples
+ * ObserverInterval seconds apart and the command will complete once the temerature has
+ * been within ObserverTolerance kelvins of the target temerature for at least
+ * ObserverMinTime seconds.
  */
+
 using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
 using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
@@ -138,195 +363,235 @@ using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
 using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
+/*
+ * Explanation of fan-specific parameters.
+ * 
+ * SetMCommand, OffMCommand
+ * The M-numbers for the set-fan-speed and turn-off-fan g-code commands.
+ * For a single fan, you want SetMCommand=106 and OffMCommand=107.
+ * 
+ * SpeedMultiply
+ * This defines the semantic of the control value in the set-fan-speed
+ * g-code command; the value in the command is multiplied by this, then
+ * interpreted as relative pulse width.
+ * 
+ * OutputPin
+ * The pin where the PWM signal is to be generated. This can be any pin,
+ * since the PWM is performed in software.
+ * 
+ * PulseInterval
+ * The pulse interval, in seconds, for the PWM signal to the fan. Fell free to adjust
+ * this to the value where the PWM noise from the fan annoys you the least,
+ * but don't make it too small, since PWM is performed in software.
+ * 
+ * TimerTemplate
+ * The interrupt-timer to use for PWM generation.
+ */
+
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
 using PrinterParams = PrinterMainParams<
+    /*
+     * Common parameters.
+     */
     PrinterMainSerialParams<
-        UINT32_C(57600), // baud rate. Don't increase, or serial will fail randomly.
-        GcodeParserParams<8> // receive buffer size exponent
+        UINT32_C(57600), // BaudRate
+        GcodeParserParams<8> // ReceiveBufferSizeExp
     >,
-    AvrPin<AvrPortA, 4>, // LED pin
-    LedBlinkInterval,
-    DefaultInactiveTime,
-    SpeedLimitMultiply,
-    MaxStepsPerCycle,
-    20, // stepper segment buffer size
-    4, // lookahead buffer size (including the new segment - to look 2 steps ahead, enter 3)
-    ForceTimeout,
+    AvrPin<AvrPortA, 4>, // LedPin
+    LedBlinkInterval, // LedBlinkInterval
+    DefaultInactiveTime, // DefaultInactiveTime
+    SpeedLimitMultiply, // SpeedLimitMultiply
+    MaxStepsPerCycle, // MaxStepsPerCycle
+    20, // StepperSegmentBufferSize
+    4, // LookaheadBufferSize
+    ForceTimeout, // ForceTimeout
     AvrWatchdog,
     AvrWatchdogParams<
-        WDTO_2S // watchdot timeout
+        WDTO_2S
     >,
-    20, // event channel buffer size
-    AvrClockInterruptTimer_TC2_OCA,
+    20, // EventChannelBufferSize
+    AvrClockInterruptTimer_TC2_OCA, // EventChannelTimer
+    
+    /*
+     * Axes.
+     */
     MakeTypeList<
         PrinterMainAxisParams<
-            'X', // axis name
-            AvrPin<AvrPortC, 5>, // dir pin
-            AvrPin<AvrPortD, 7>, // step pin
-            AvrPin<AvrPortD, 6>, // enable pin
-            true, // invert dir
-            24, // step bits
+            'X', // Name
+            AvrPin<AvrPortC, 5>, // DirPin
+            AvrPin<AvrPortD, 7>, // StepPin
+            AvrPin<AvrPortD, 6>, // EnablePin
+            true, // InvertDir
+            24, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC1_OCA // stepper timer
+                AvrClockInterruptTimer_TC1_OCA // StepperTimer
             >,
-            XDefaultStepsPerUnit, // default steps per unit
-            XDefaultMaxSpeed, // default max speed
-            XDefaultMaxAccel, // default max acceleration
-            XDefaultDistanceFactor,
-            XDefaultCorneringDistance,
-            XDefaultMin,
-            XDefaultMax,
-            true, // enable cartesian speed limit
+            XDefaultStepsPerUnit, // StepsPerUnit
+            XDefaultMaxSpeed, // MaxSpeed
+            XDefaultMaxAccel, // MaxAccel
+            XDefaultDistanceFactor, // DistanceFactor
+            XDefaultCorneringDistance, // CorneringDistance
+            XDefaultMin, // Min
+            XDefaultMax, // Max
+            true, // EnableCartesianSpeedLimit
             PrinterMainHomingParams<
-                AvrPin<AvrPortC, 2>, // endstop pin
-                false, // invert endstop value
-                false, // home direction (false=negative)
-                XDefaultHomeFastMaxDist,
-                XDefaultHomeRetractDist,
-                XDefaultHomeSlowMaxDist,
-                XDefaultHomeFastSpeed,
-                XDefaultHomeRetractSpeed,
-                XDefaultHomeSlowSpeed
+                AvrPin<AvrPortC, 2>, // HomeEndPin
+                false, // HomeEndInvert
+                false, // HomeDir
+                XDefaultHomeFastMaxDist, // HomeFastMaxDist
+                XDefaultHomeRetractDist, // HomeRetractDist
+                XDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                XDefaultHomeFastSpeed, // HomeFastSpeed
+                XDefaultHomeRetractSpeed, // HomeRetractSpeed
+                XDefaultHomeSlowSpeed // HomeSlowSpeed
             >
         >,
         PrinterMainAxisParams<
-            'Y', // axis name
-            AvrPin<AvrPortC, 7>, // dir pin
-            AvrPin<AvrPortC, 6>, // step pin
-            AvrPin<AvrPortD, 6>, // enable pin
-            true, // invert dir
-            24, // step bits
+            'Y', // Name
+            AvrPin<AvrPortC, 7>, // DirPin
+            AvrPin<AvrPortC, 6>, // StepPin
+            AvrPin<AvrPortD, 6>, // EnablePin
+            true, // InvertDir
+            24, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC1_OCB // stepper timer
+                AvrClockInterruptTimer_TC1_OCB // StepperTimer
             >,
-            YDefaultStepsPerUnit, // default steps per unit
-            YDefaultMaxSpeed, // default max speed
-            YDefaultMaxAccel, // default max acceleration
-            YDefaultDistanceFactor,
-            YDefaultCorneringDistance,
-            YDefaultMin,
-            YDefaultMax,
-            true, // enable cartesian speed limit
+            YDefaultStepsPerUnit, // StepsPerUnit
+            YDefaultMaxSpeed, // MaxSpeed
+            YDefaultMaxAccel, // MaxAccel
+            YDefaultDistanceFactor, // DistanceFactor
+            YDefaultCorneringDistance, // CorneringDistance
+            YDefaultMin, // Min
+            YDefaultMax, // Max
+            true, // EnableCartesianSpeedLimit
             PrinterMainHomingParams<
-                AvrPin<AvrPortC, 3>, // endstop pin
-                false, // invert endstop value
-                false, // home direction (false=negative)
-                YDefaultHomeFastMaxDist,
-                YDefaultHomeRetractDist,
-                YDefaultHomeSlowMaxDist,
-                YDefaultHomeFastSpeed,
-                YDefaultHomeRetractSpeed,
-                YDefaultHomeSlowSpeed
+                AvrPin<AvrPortC, 3>, // HomeEndPin
+                false, // HomeEndInvert
+                false, // HomeDir
+                YDefaultHomeFastMaxDist, // HomeFastMaxDist
+                YDefaultHomeRetractDist, // HomeRetractDist
+                YDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                YDefaultHomeFastSpeed, // HomeFastSpeed
+                YDefaultHomeRetractSpeed, // HomeRetractSpeed
+                YDefaultHomeSlowSpeed // HomeSlowSpeed
             >
         >,
         PrinterMainAxisParams<
-            'Z', // axis name
-            AvrPin<AvrPortB, 2>, // dir pin
-            AvrPin<AvrPortB, 3>, // step pin
-            AvrPin<AvrPortA, 5>, // enable pin
-            false, // invert dir
-            24, // step bits
+            'Z', // Name
+            AvrPin<AvrPortB, 2>, // DirPin
+            AvrPin<AvrPortB, 3>, // StepPin
+            AvrPin<AvrPortA, 5>, // EnablePin
+            false, // InvertDir
+            24, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCA // stepper timer
+                AvrClockInterruptTimer_TC3_OCA // StepperTimer
             >,
-            ZDefaultStepsPerUnit, // default steps per unit
-            ZDefaultMaxSpeed, // default max speed
-            ZDefaultMaxAccel, // default max acceleration
-            ZDefaultDistanceFactor,
-            ZDefaultCorneringDistance,
-            ZDefaultMin,
-            ZDefaultMax,
-            true, // enable cartesian speed limit
+            ZDefaultStepsPerUnit, // StepsPerUnit
+            ZDefaultMaxSpeed, // MaxSpeed
+            ZDefaultMaxAccel, // MaxAccel
+            ZDefaultDistanceFactor, // DistanceFactor
+            ZDefaultCorneringDistance, // CorneringDistance
+            ZDefaultMin, // Min
+            ZDefaultMax, // Max
+            true, // EnableCartesianSpeedLimit
             PrinterMainHomingParams<
-                AvrPin<AvrPortC, 4>, // endstop pin
-                false, // invert endstop value
-                false, // home direction (false=negative)
-                ZDefaultHomeFastMaxDist,
-                ZDefaultHomeRetractDist,
-                ZDefaultHomeSlowMaxDist,
-                ZDefaultHomeFastSpeed,
-                ZDefaultHomeRetractSpeed,
-                ZDefaultHomeSlowSpeed
+                AvrPin<AvrPortC, 4>, // HomeEndPin
+                false, // HomeEndInvert
+                false, // HomeDir
+                ZDefaultHomeFastMaxDist, // HomeFastMaxDist
+                ZDefaultHomeRetractDist, // HomeRetractDist
+                ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                ZDefaultHomeFastSpeed, // HomeFastSpeed
+                ZDefaultHomeRetractSpeed, // HomeRetractSpeed
+                ZDefaultHomeSlowSpeed // HomeSlowSpeed
             >
         >,
         PrinterMainAxisParams<
-            'E', // axis name
-            AvrPin<AvrPortB, 0>, // dir pin
-            AvrPin<AvrPortB, 1>, // step pin
-            AvrPin<AvrPortD, 6>, // enable pin
-            true, // invert dir
-            32, // step bits
+            'E', // Name
+            AvrPin<AvrPortB, 0>, // DirPin
+            AvrPin<AvrPortB, 1>, // StepPin
+            AvrPin<AvrPortD, 6>, // EnablePin
+            true, // InvertDir
+            32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCB // stepper timer
+                AvrClockInterruptTimer_TC3_OCB // StepperTimer
             >,
-            EDefaultStepsPerUnit, // default steps per unit
-            EDefaultMaxSpeed, // default max speed
-            EDefaultMaxAccel, // default max acceleration
-            EDefaultDistanceFactor,
-            EDefaultCorneringDistance,
-            EDefaultMin,
-            EDefaultMax,
-            false, // enable cartesian speed limit
+            EDefaultStepsPerUnit, // StepsPerUnit
+            EDefaultMaxSpeed, // MaxSpeed
+            EDefaultMaxAccel, // MaxAccel
+            EDefaultDistanceFactor, // DistanceFactor
+            EDefaultCorneringDistance, // CorneringDistance
+            EDefaultMin, // Min
+            EDefaultMax, // Max
+            false, // EnableCartesianSpeedLimit
             PrinterMainNoHomingParams
         >
     >,
+    
+    /*
+     * Heaters.
+     */
     MakeTypeList<
         PrinterMainHeaterParams<
-            'T', // controlee name
-            104, // set M command
-            109, // wait M command
-            AvrPin<AvrPortA, 7>, // analog sensor pin
-            AvrThermistorTable_Extruder, // sensor interpretation formula
-            AvrPin<AvrPortD, 5>, // output pin
-            ExtruderHeaterPulseInterval,
-            ExtruderHeaterMinSafeTemp,
-            ExtruderHeaterMaxSafeTemp,
-            PidControl,
+            'T', // Name
+            104, // SetMCommand
+            109, // WaitMCommand
+            AvrPin<AvrPortA, 7>, // AdcPin
+            AvrThermistorTable_Extruder, // Formula
+            AvrPin<AvrPortD, 5>, // OutputPin
+            ExtruderHeaterPulseInterval, // PulseInterval
+            ExtruderHeaterMinSafeTemp, // MinSafeTemp
+            ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
+            PidControl, // Control
             PidControlParams<
-                ExtruderHeaterPidP,
-                ExtruderHeaterPidI,
-                ExtruderHeaterPidD,
-                ExtruderHeaterPidIStateMin,
-                ExtruderHeaterPidIStateMax,
-                ExtruderHeaterPidDHistory
+                ExtruderHeaterPidP, // PidP
+                ExtruderHeaterPidI, // PidI
+                ExtruderHeaterPidD, // PidD
+                ExtruderHeaterPidIStateMin, // PidIStateMin
+                ExtruderHeaterPidIStateMax, // PidIStateMax
+                ExtruderHeaterPidDHistory // PidDHistory
             >,
-            AvrClockInterruptTimer_TC0_OCA,
+            AvrClockInterruptTimer_TC0_OCA, // TimerTemplate
             TemperatureObserverParams<
-                ExtruderHeaterObserverInterval,
-                ExtruderHeaterObserverTolerance,
-                ExtruderHeaterObserverMinTime
+                ExtruderHeaterObserverInterval, // ObserverInterval
+                ExtruderHeaterObserverTolerance, // ObserverTolerance
+                ExtruderHeaterObserverMinTime // ObserverMinTime
             >
         >,
         PrinterMainHeaterParams<
-            'B', // controlee name
-            140, // set M command
-            190, // wait M command
-            AvrPin<AvrPortA, 6>, // analog sensor pin
-            AvrThermistorTable_Bed, // sensor interpretation formula
-            AvrPin<AvrPortD, 4>, // output pin
-            BedHeaterPulseInterval,
-            BedHeaterMinSafeTemp,
-            BedHeaterMaxSafeTemp,
-            BinaryControl,
+            'B', // Name
+            140, // SetMCommand
+            190, // WaitMCommand
+            AvrPin<AvrPortA, 6>, // AdcPin
+            AvrThermistorTable_Bed, // Formula
+            AvrPin<AvrPortD, 4>, // OutputPin
+            BedHeaterPulseInterval, // PulseInterval
+            BedHeaterMinSafeTemp, // MinSafeTemp
+            BedHeaterMaxSafeTemp, // MaxSafeTemp
+            BinaryControl, // Control
             BinaryControlParams,
-            AvrClockInterruptTimer_TC0_OCB,
+            AvrClockInterruptTimer_TC0_OCB, // TimerTemplate
             TemperatureObserverParams<
-                BedHeaterObserverInterval,
-                BedHeaterObserverTolerance,
-                BedHeaterObserverMinTime
+                BedHeaterObserverInterval, // ObserverInterval
+                BedHeaterObserverTolerance, // ObserverTolerance
+                BedHeaterObserverMinTime // ObserverMinTime
             >
         >
     >,
+    
+    /*
+     * Fans.
+     */
     MakeTypeList<
         PrinterMainFanParams<
-            106, // set M command
-            107, // off M command
-            FanSpeedMultiply,
-            AvrPin<AvrPortB, 4>,
-            FanPulseInterval,
-            AvrClockInterruptTimer_TC2_OCB
+            106, // SetMCommand
+            107, // OffMCommand
+            FanSpeedMultiply, // SpeedMultiply
+            AvrPin<AvrPortB, 4>, // OutputPin
+            FanPulseInterval, // PulseInterval
+            AvrClockInterruptTimer_TC2_OCB // TimerTemplate
         >
     >
 >;
@@ -336,6 +601,10 @@ using AdcPins = MakeTypeList<
     AvrPin<AvrPortA, 6>,
     AvrPin<AvrPortA, 7>
 >;
+
+static const int AdcRefSel = 1;
+static const int AdcPrescaler = 7;
+static const int clock_timer_prescaler = 3;
 
 struct MyContext;
 struct EventLoopParams;
