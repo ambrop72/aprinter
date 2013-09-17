@@ -711,13 +711,12 @@ private:
         {
             OutputFixedType control_value = OutputFixedType::importBits(0);
             AMBRO_LOCK_T(m_lock, c, lock_c, {
+                ValueFixedType sensor_value = get_value(lock_c);
+                if (AMBRO_UNLIKELY(sensor_value <= min_safe_temp() || sensor_value >= max_safe_temp())) {
+                    m_enabled = false;
+                }
                 if (AMBRO_LIKELY(m_enabled)) {
-                    ValueFixedType sensor_value = get_value(lock_c);
-                    if (AMBRO_LIKELY(sensor_value > min_safe_temp() && sensor_value < max_safe_temp())) {
-                        control_value = m_control.addMeasurement(sensor_value);
-                    } else {
-                        m_enabled = false;
-                    }
+                    control_value = m_control.addMeasurement(sensor_value);
                 }
             });
             return control_value;
