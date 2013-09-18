@@ -49,21 +49,38 @@ struct ClassName { \
 #ifdef PORTA
 AMBRO_DEFINE_AVR_PORT(AvrPortA, PORTA, PINA, DDRA)
 #endif
-
 #ifdef PORTB
 AMBRO_DEFINE_AVR_PORT(AvrPortB, PORTB, PINB, DDRB)
 #endif
-
 #ifdef PORTC
 AMBRO_DEFINE_AVR_PORT(AvrPortC, PORTC, PINC, DDRC)
 #endif
-
 #ifdef PORTD
 AMBRO_DEFINE_AVR_PORT(AvrPortD, PORTD, PIND, DDRD)
 #endif
-
 #ifdef PORTE
 AMBRO_DEFINE_AVR_PORT(AvrPortE, PORTE, PINE, DDRE)
+#endif
+#ifdef PORTF
+AMBRO_DEFINE_AVR_PORT(AvrPortF, PORTF, PINF, DDRF)
+#endif
+#ifdef PORTG
+AMBRO_DEFINE_AVR_PORT(AvrPortG, PORTG, PING, DDRG)
+#endif
+#ifdef PORTH
+AMBRO_DEFINE_AVR_PORT(AvrPortH, PORTH, PINH, DDRH)
+#endif
+#ifdef PORTI
+AMBRO_DEFINE_AVR_PORT(AvrPortI, PORTI, PINI, DDRI)
+#endif
+#ifdef PORTJ
+AMBRO_DEFINE_AVR_PORT(AvrPortJ, PORTJ, PINJ, DDRJ)
+#endif
+#ifdef PORTK
+AMBRO_DEFINE_AVR_PORT(AvrPortK, PORTK, PINK, DDRK)
+#endif
+#ifdef PORTL
+AMBRO_DEFINE_AVR_PORT(AvrPortL, PORTL, PINL, DDRL)
 #endif
 
 using AvrPorts = FilterTypeList<
@@ -82,6 +99,27 @@ using AvrPorts = FilterTypeList<
 #endif
 #ifdef PORTE
         AvrPortE,
+#endif
+#ifdef PORTF
+        AvrPortF,
+#endif
+#ifdef PORTG
+        AvrPortG,
+#endif
+#ifdef PORTH
+        AvrPortH,
+#endif
+#ifdef PORTI
+        AvrPortI,
+#endif
+#ifdef PORTJ
+        AvrPortJ,
+#endif
+#ifdef PORTK
+        AvrPortK,
+#endif
+#ifdef PORTL
+        AvrPortL,
 #endif
         void
     >,
