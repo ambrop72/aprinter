@@ -40,7 +40,6 @@ static void emergency (void);
 #include <aprinter/system/AvrEventLoop.h>
 #include <aprinter/system/AvrClock.h>
 #include <aprinter/system/AvrPins.h>
-#include <aprinter/system/AvrPinWatcher.h>
 #include <aprinter/system/AvrLock.h>
 #include <aprinter/system/AvrAdc.h>
 #include <aprinter/system/AvrWatchdog.h>
@@ -614,7 +613,6 @@ using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
 using MyClock = AvrClock<MyContext, clock_timer_prescaler>;
 using MyLoop = AvrEventLoop<EventLoopParams>;
 using MyPins = AvrPins<MyContext>;
-using MyPinWatcherService = AvrPinWatcherService<MyContext>;
 using MyAdc = AvrAdc<MyContext, AdcPins, AdcRefSel, AdcPrescaler>;
 using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
@@ -624,14 +622,12 @@ struct MyContext {
     using Clock = MyClock;
     using EventLoop = MyLoop;
     using Pins = MyPins;
-    using PinWatcherService = MyPinWatcherService;
     using Adc = MyAdc;
     
     MyDebugObjectGroup * debugGroup () const;
     MyClock * clock () const;
     MyLoop * eventLoop () const;
     MyPins * pins () const;
-    MyPinWatcherService * pinWatcherService () const;
     MyAdc * adc () const;
 };
 
@@ -645,7 +641,6 @@ static MyDebugObjectGroup d_group;
 static MyClock myclock;
 static MyLoop myloop;
 static MyPins mypins;
-static MyPinWatcherService mypinwatcherservice;
 static MyAdc myadc;
 static MyPrinter myprinter;
 
@@ -653,11 +648,9 @@ MyDebugObjectGroup * MyContext::debugGroup () const { return &d_group; }
 MyClock * MyContext::clock () const { return &myclock; }
 MyLoop * MyContext::eventLoop () const { return &myloop; }
 MyPins * MyContext::pins () const { return &mypins; }
-MyPinWatcherService * MyContext::pinWatcherService () const { return &mypinwatcherservice; }
 MyAdc * MyContext::adc () const { return &myadc; }
 
 AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
-AMBRO_AVR_PIN_WATCHER_ISRS(mypinwatcherservice, MyContext())
 AMBRO_AVR_ADC_ISRS(myadc, MyContext())
 AMBRO_AVR_SERIAL_ISRS(*myprinter.getSerial(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*myprinter.getAxisStepper<0>()->getTimer(), MyContext())
@@ -707,7 +700,6 @@ int main ()
     myclock.initTC2(c);
     myloop.init(c);
     mypins.init(c);
-    mypinwatcherservice.init(c);
     myadc.init(c);
     myprinter.init(c);
     
