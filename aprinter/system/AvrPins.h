@@ -39,17 +39,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define AMBRO_DEFINE_AVR_PORT(ClassName, PortReg, PinReg, DdrReg, PcMskReg, PcIeBit) \
-struct ClassName { \
-    static uint8_t getPin () { return PinReg; } \
-    static const uint32_t port_io_addr = _SFR_IO_ADDR(PortReg); \
-    static const uint32_t ddr_io_addr = _SFR_IO_ADDR(DdrReg); \
-    using PinChangeTag = void; \
-    static const uint32_t pcmsk_io_addr = _SFR_IO_ADDR(PcMskReg); \
-    static const uint8_t pcie_bit = PcIeBit; \
-};
-
-#define AMBRO_DEFINE_AVR_PORT_NOPCI(ClassName, PortReg, PinReg, DdrReg) \
+#define AMBRO_DEFINE_AVR_PORT(ClassName, PortReg, PinReg, DdrReg) \
 struct ClassName { \
     static uint8_t getPin () { return PinReg; } \
     static const uint32_t port_io_addr = _SFR_IO_ADDR(PortReg); \
@@ -57,43 +47,23 @@ struct ClassName { \
 };
 
 #ifdef PORTA
-#ifdef PCMSK0
-AMBRO_DEFINE_AVR_PORT(AvrPortA, PORTA, PINA, DDRA, PCMSK0, PCIE0)
-#else
-AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortA, PORTA, PINA, DDRA)
-#endif
+AMBRO_DEFINE_AVR_PORT(AvrPortA, PORTA, PINA, DDRA)
 #endif
 
 #ifdef PORTB
-#ifdef PCMSK1
-AMBRO_DEFINE_AVR_PORT(AvrPortB, PORTB, PINB, DDRB, PCMSK1, PCIE1)
-#else
-AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortB, PORTB, PINB, DDRB)
-#endif
+AMBRO_DEFINE_AVR_PORT(AvrPortB, PORTB, PINB, DDRB)
 #endif
 
 #ifdef PORTC
-#ifdef PCMSK2
-AMBRO_DEFINE_AVR_PORT(AvrPortC, PORTC, PINC, DDRC, PCMSK2, PCIE2)
-#else
-AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortC, PORTC, PINC, DDRC)
-#endif
+AMBRO_DEFINE_AVR_PORT(AvrPortC, PORTC, PINC, DDRC)
 #endif
 
 #ifdef PORTD
-#ifdef PCMSK3
-AMBRO_DEFINE_AVR_PORT(AvrPortD, PORTD, PIND, DDRD, PCMSK3, PCIE3)
-#else
-AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortD, PORTD, PIND, DDRD)
-#endif
+AMBRO_DEFINE_AVR_PORT(AvrPortD, PORTD, PIND, DDRD)
 #endif
 
 #ifdef PORTE
-#ifdef PCMSK4
-AMBRO_DEFINE_AVR_PORT(AvrPortE, PORTE, PINE, DDRE, PCMSK4, PCIE4)
-#else
-AMBRO_DEFINE_AVR_PORT_NOPCI(AvrPortE, PORTE, PINE, DDRE)
-#endif
+AMBRO_DEFINE_AVR_PORT(AvrPortE, PORTE, PINE, DDRE)
 #endif
 
 using AvrPorts = FilterTypeList<
