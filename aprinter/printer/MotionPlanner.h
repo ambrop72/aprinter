@@ -138,6 +138,8 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_stepping, start_stepping)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_empty, is_empty)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_underrun, is_underrun)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_aborted, is_aborted)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_reset_aborted, reset_aborted)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_stopped_stepping, stopped_stepping)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment, write_segment)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_gen_command, gen_command)
@@ -573,6 +575,16 @@ public:
             return (accum || (m_num_committed <= 0));
         }
         
+        bool is_aborted (bool accum)
+        {
+            return (accum || (PrestepCallbackEnabled && m_first == -2));
+        }
+        
+        void reset_aborted ()
+        {
+            m_first = -1;
+        }
+        
         void stopped_stepping (Context c)
         {
             m_num_committed = 0;
@@ -608,11 +620,12 @@ public:
             static bool call (Axis *axis, StepperCommandCallbackContext c)
             {
                 MotionPlanner *o = axis->parent();
+                
                 bool res = AxisSpec::PrestepCallback::call(o, c);
                 if (AMBRO_UNLIKELY(res)) {
                     o->m_stepper_event.appendNowIfNotAlready(c);
                     axis->m_num_committed = 0;
-                    axis->m_first = -1;
+                    axis->m_first = -2;
                 }
                 return res;
             }
@@ -1192,6 +1205,7 @@ private:
     void pull_finished_event_handler (Context c)
     {
         this->debugAccess(c);
+        AMBRO_ASSERT(m_split_buffer.type == 0xFF)
         
         if (AMBRO_UNLIKELY(m_waiting)) {
             AMBRO_ASSERT(m_pulling)
@@ -1203,7 +1217,6 @@ private:
             return FinishedHandler::call(this, c);
         } else {
             AMBRO_ASSERT(!m_pulling)
-            AMBRO_ASSERT(m_split_buffer.type == 0xFF)
             
 #ifdef AMBROLIB_ASSERTIONS
             m_pulling = true;
@@ -1238,6 +1251,14 @@ private:
         
         if (AMBRO_UNLIKELY(empty)) {
             AMBRO_ASSERT(m_underrun)
+            if (TupleForEachForwardAccRes(&m_axes, false, Foreach_is_aborted())) {
+                TupleForEachForward(&m_axes, Foreach_reset_aborted());
+                m_segments_staging_end = m_segments_end;
+                if (AMBRO_LIKELY(m_split_buffer.type != 0xFF)) {
+                    m_split_buffer.type = 0xFF;
+                    m_pull_finished_event.prependNowNotAlready(c);
+                }
+            }
             m_stepping = false;
             m_segments_start = m_segments_staging_end;
             m_staging_time = 0;
