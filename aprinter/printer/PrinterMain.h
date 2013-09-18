@@ -569,7 +569,8 @@ private:
         PlannerGetAxisStepper<TheAxis::AxisIndex>,
         TheAxis::AxisSpec::StepBits,
         typename TheAxis::AxisSpec::DefaultDistanceFactor,
-        typename TheAxis::AxisSpec::DefaultCorneringDistance
+        typename TheAxis::AxisSpec::DefaultCorneringDistance,
+        void
     >;
     
     template <int HeaterIndex>
@@ -1334,7 +1335,7 @@ private:
         AMBRO_ASSERT(m_state == STATE_IDLE || m_state == STATE_PLANNING)
         
         if (m_state != STATE_PLANNING) {
-            m_planner.init(c);
+            m_planner.init(c, false);
             m_state = STATE_PLANNING;
             m_planning_pull_pending = false;
             now_active(c);

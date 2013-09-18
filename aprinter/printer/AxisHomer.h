@@ -55,13 +55,11 @@ private:
     struct PlannerGetAxisStepper;
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
-    struct PinWatcherHandler;
+    struct PlannerPrestepCallback;
     
-    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, PlannerGetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance>>;
+    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, PlannerGetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
     using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler>;
     using PlannerCommand = typename Planner::InputCommand;
-    using PinWatcherService = typename Context::PinWatcherService;
-    using ThePinWatcher = typename PinWatcherService::template PinWatcher<SwitchPin, PinWatcherHandler>;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
     
 public:
@@ -87,8 +85,7 @@ public:
         AMBRO_ASSERT(FloatIsPosOrPosZero(params.slow_speed))
         AMBRO_ASSERT(FloatIsPosOrPosZero(params.max_accel))
         
-        m_planner.init(c);
-        m_pinwatcher.init(c);
+        m_planner.init(c, true);
         m_state = STATE_FAST;
         m_command_sent = false;
         m_params = params;
@@ -100,9 +97,6 @@ public:
     {
         this->debugDeinit(c);
         
-        if (m_state == STATE_FAST || m_state == STATE_SLOW) {
-            m_pinwatcher.deinit(c);
-        }
         if (m_state != STATE_END) {
             m_planner.deinit(c);
         }
@@ -156,45 +150,22 @@ private:
         AMBRO_ASSERT(m_command_sent)
         
         m_planner.deinit(c);
-        
-        if (m_state != STATE_RETRACT) {
-            m_pinwatcher.deinit(c);
-            m_state = STATE_END;
-            return FinishedHandler::call(this, c, false);
-        }
-        
-        m_state++;
-        m_planner.init(c);
-        m_pinwatcher.init(c);
-        m_command_sent = false;
-    }
-    
-    void pin_watcher_handler (Context c, bool state)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state == STATE_FAST || m_state == STATE_SLOW)
-        
-        if (state == SwitchInvert) {
-            return;
-        }
-        
-        m_planner.deinit(c);
-        m_pinwatcher.deinit(c);
         m_state++;
         
         if (m_state == STATE_END) {
             return FinishedHandler::call(this, c, true);
         }
         
-        m_planner.init(c);
-        if (m_state != STATE_RETRACT) {
-            m_pinwatcher.init(c);
-        }
+        m_planner.init(c, m_state != STATE_RETRACT);
         m_command_sent = false;
     }
     
+    bool planner_prestep_callback (typename Planner::template Axis<0>::StepperCommandCallbackContext c)
+    {
+        return (c.pins()->template get<SwitchPin>(c) != SwitchInvert);
+    }
+    
     Planner m_planner;
-    ThePinWatcher m_pinwatcher;
     uint8_t m_state;
     bool m_command_sent;
     HomingParams m_params;
@@ -203,7 +174,7 @@ private:
     struct PlannerGetAxisStepper : public AMBRO_FHANDLER_TD(&AxisHomer::m_planner, GetAxisStepper) {};
     struct PlannerPullHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_pull_handler, &AxisHomer::m_planner) {};
     struct PlannerFinishedHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_finished_handler, &AxisHomer::m_planner) {};
-    struct PinWatcherHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::pin_watcher_handler, &AxisHomer::m_pinwatcher) {};
+    struct PlannerPrestepCallback : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_prestep_callback, &AxisHomer::m_planner) {};
 };
 
 #include <aprinter/EndNamespace.h>

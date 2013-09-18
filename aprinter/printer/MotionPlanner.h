@@ -50,6 +50,7 @@
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/IndexElemUnion.h>
 #include <aprinter/meta/WrapCallback.h>
+#include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -64,7 +65,8 @@ template <
     typename TGetAxisStepper,
     int TStepBits,
     typename TDistanceFactor,
-    typename TCorneringDistance
+    typename TCorneringDistance,
+    typename TPrestepCallback
 >
 struct MotionPlannerAxisSpec {
     using TheAxisStepper = TTheAxisStepper;
@@ -72,6 +74,7 @@ struct MotionPlannerAxisSpec {
     static const int StepBits = TStepBits;
     using DistanceFactor = TDistanceFactor;
     using CorneringDistance = TCorneringDistance;
+    using PrestepCallback = TPrestepCallback;
 };
 
 template <
@@ -264,6 +267,7 @@ public:
         using TheAxisStepper = typename AxisSpec::TheAxisStepper;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using TheAxisInputCommand = AxisInputCommand<AxisIndex>;
+        using StepperCommandCallbackContext = typename TheAxisStepper::CommandCallbackContext;
         
     private:
         friend MotionPlanner;
@@ -275,7 +279,7 @@ public:
         using TheAxisSplitBuffer = AxisSplitBuffer<AxisIndex>;
         using TheAxisSegment = AxisSegment<AxisIndex>;
         using TheAxisStepperCommand = AxisStepperCommand<AxisIndex>;
-        using StepperCommandCallbackContext = typename TheAxisStepper::CommandCallbackContext;
+        static const bool PrestepCallbackEnabled = !TypesAreEqual<typename AxisSpec::PrestepCallback, void>::value;
         
         MotionPlanner * parent ()
         {
@@ -287,7 +291,7 @@ public:
             return AxisSpec::GetAxisStepper::call(parent());
         }
         
-        void init (Context c)
+        void init (Context c, bool prestep_callback_enabled)
         {
             m_first = -1;
             m_free_first = -1;
@@ -298,6 +302,7 @@ public:
                 m_stepper_entries[i].next = m_free_first;
                 m_free_first = i;
             }
+            stepper()->setPrestepCallbackEnabled(c, prestep_callback_enabled);
         }
         
         void deinit (Context c)
@@ -585,6 +590,34 @@ public:
             return (m_first >= 0 ? &m_stepper_entries[m_first].scmd : NULL);
         }
         
+        bool stepper_prestep_callback (StepperCommandCallbackContext c)
+        {
+            return PrestepCallbackHelper<PrestepCallbackEnabled>::call(this, c);
+        }
+        
+        template <bool Enabled, typename Dummy = void>
+        struct PrestepCallbackHelper {
+            static bool call (Axis *axis, StepperCommandCallbackContext c)
+            {
+                return false;
+            }
+        };
+        
+        template <typename Dummy>
+        struct PrestepCallbackHelper<true, Dummy> {
+            static bool call (Axis *axis, StepperCommandCallbackContext c)
+            {
+                MotionPlanner *o = axis->parent();
+                bool res = AxisSpec::PrestepCallback::call(o, c);
+                if (AMBRO_UNLIKELY(res)) {
+                    o->m_stepper_event.appendNowIfNotAlready(c);
+                    axis->m_num_committed = 0;
+                    axis->m_first = -1;
+                }
+                return res;
+            }
+        };
+        
         StepperCommandSizeType m_first;
         StepperCommandSizeType m_last_committed;
         StepperCommandSizeType m_last;
@@ -817,7 +850,7 @@ private:
     using ChannelsTuple = IndexElemTuple<ChannelsList, Channel>;
     
 public:
-    void init (Context c)
+    void init (Context c, bool prestep_callback_enabled)
     {
         m_lock.init(c);
         m_pull_finished_event.init(c, AMBRO_OFFSET_CALLBACK_T(&MotionPlanner::m_pull_finished_event, &MotionPlanner::pull_finished_event_handler));
@@ -834,7 +867,7 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         m_pulling = false;
 #endif
-        TupleForEachForward(&m_axes, Foreach_init(), c);
+        TupleForEachForward(&m_axes, Foreach_init(), c, prestep_callback_enabled);
         TupleForEachForward(&m_channels, Foreach_init(), c);
         m_pull_finished_event.prependNowNotAlready(c);
 #ifdef MOTIONPLANNER_BENCHMARK
@@ -922,7 +955,8 @@ public:
     template <int AxisIndex>
     using TheAxisStepperConsumer = AxisStepperConsumer<
         AxisPosition<AxisIndex>,
-        AMBRO_WMETHOD_T(&Axis<AxisIndex>::stepper_command_callback)
+        AMBRO_WMETHOD_T(&Axis<AxisIndex>::stepper_command_callback),
+        AMBRO_WMETHOD_T(&Axis<AxisIndex>::stepper_prestep_callback)
     >;
     
 private:

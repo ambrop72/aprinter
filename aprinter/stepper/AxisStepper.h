@@ -61,10 +61,11 @@ struct AxisStepperParams {
     template<typename X, typename Y> using Timer = TTimer<X, Y>;
 };
 
-template <typename TPosition, typename TCommandCallback>
+template <typename TPosition, typename TCommandCallback, typename TPrestepCallback>
 struct AxisStepperConsumer {
     using Position = TPosition;
     using CommandCallback = TCommandCallback;
+    using PrestepCallback = TPrestepCallback;
 };
 
 template <typename Position, typename Context, typename Params, typename Stepper, typename GetStepper, typename ConsumersList>
@@ -72,7 +73,8 @@ class AxisStepper
 : private DebugObject<Context, void>
 {
 private:
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_maybe_call_handler, maybe_call_handler)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_maybe_call_command_callback, maybe_call_command_callback)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_maybe_call_prestep_callback, maybe_call_prestep_callback)
     
     // DON'T TOUCH!
     // These were chosen carefully for speed, and some operations
@@ -135,6 +137,14 @@ public:
         m_timer.deinit(c);
     }
     
+    void setPrestepCallbackEnabled (Context c, bool enabled)
+    {
+        this->debugDeinit(c);
+        AMBRO_ASSERT(!m_running)
+        
+        m_prestep_callback_enabled = enabled;
+    }
+    
     template <typename TheConsumer>
     void start (Context c, TimeType start_time, Command *first_command)
     {
@@ -189,10 +199,18 @@ private:
         using ConsumerPosition = typename TheConsumer::Position;
         
         template <typename Ret, typename... Args>
-        void maybe_call_handler (AxisStepper *o, uint8_t consumer_id, Ret *ret, Args... args)
+        void maybe_call_command_callback (AxisStepper *o, uint8_t consumer_id, Ret *ret, Args... args)
         {
             if (consumer_id == ConsumerIndex) {
                 *ret = TheConsumer::CommandCallback::call(PositionTraverse<Position, ConsumerPosition>(o), args...);
+            }
+        }
+        
+        template <typename Ret, typename... Args>
+        void maybe_call_prestep_callback (AxisStepper *o, uint8_t consumer_id, Ret *ret, Args... args)
+        {
+            if (consumer_id == ConsumerIndex) {
+                *ret = TheConsumer::PrestepCallback::call(PositionTraverse<Position, ConsumerPosition>(o), args...);
             }
         }
     };
@@ -203,7 +221,7 @@ private:
         
         if (AMBRO_LIKELY(m_current_command->x.bitsValue() == 0)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
-            TupleForEachForward(&dummy, Foreach_maybe_call_handler(), this, m_consumer_id, &m_current_command, c);
+            TupleForEachForward(&dummy, Foreach_maybe_call_command_callback(), this, m_consumer_id, &m_current_command, c);
             if (AMBRO_UNLIKELY(!m_current_command)) {
 #ifdef AMBROLIB_ASSERTIONS
                 m_running = false;
@@ -221,9 +239,21 @@ private:
             }
         }
         
-        stepper(this)->step(c);
-        
         m_current_command->x.m_bits.m_int--;
+        
+        if (AMBRO_UNLIKELY(m_prestep_callback_enabled)) {
+            IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
+            bool res;
+            TupleForEachForward(&dummy, Foreach_maybe_call_prestep_callback(), this, m_consumer_id, &res, c);
+            if (AMBRO_UNLIKELY(res)) {
+#ifdef AMBROLIB_ASSERTIONS
+                m_running = false;
+#endif
+                return false;
+            }
+        }
+        
+        stepper(this)->step(c);
         
         m_current_command->discriminant.m_bits.m_int -= m_current_command->a_mul.m_bits.m_int;
         AMBRO_ASSERT(m_current_command->discriminant.bitsValue() >= 0)
@@ -246,6 +276,7 @@ private:
     uint8_t m_consumer_id;
     Command *m_current_command;
     TimeType m_time;
+    bool m_prestep_callback_enabled;
     
     struct TimerHandler : public AMBRO_WCALLBACK_TD(&AxisStepper::timer_handler, &AxisStepper::m_timer) {};
 };
