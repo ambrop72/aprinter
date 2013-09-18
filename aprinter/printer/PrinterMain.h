@@ -73,9 +73,9 @@
 template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
-    int TStepperSegmentBufferSize, int TLookaheadBufferSizeExp, typename TForceTimeout,
+    int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSizeExp,
+    typename TForceTimeout, template <typename, typename> class TEventChannelTimer,
     template <typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
-    int TEventChannelBufferSize, template <typename, typename> class TEventChannelTimer,
     typename TAxesList, typename THeatersList, typename TFansList
 >
 struct PrinterMainParams {
@@ -86,12 +86,12 @@ struct PrinterMainParams {
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using MaxStepsPerCycle = TMaxStepsPerCycle;
     static const int StepperSegmentBufferSize = TStepperSegmentBufferSize;
+    static const int EventChannelBufferSize = TEventChannelBufferSize;
     static const int LookaheadBufferSizeExp = TLookaheadBufferSizeExp;
     using ForceTimeout = TForceTimeout;
+    template <typename X, typename Y> using EventChannelTimer = TEventChannelTimer<X, Y>;
     template <typename X, typename Y> using WatchdogTemplate = TWatchdogTemplate<X, Y>;
     using WatchdogParams = TWatchdogParams;
-    static const int EventChannelBufferSize = TEventChannelBufferSize;
-    template <typename X, typename Y> using EventChannelTimer = TEventChannelTimer<X, Y>;
     using AxesList = TAxesList;
     using HeatersList = THeatersList;
     using FansList = TFansList;
@@ -106,12 +106,11 @@ struct PrinterMainSerialParams {
 template <
     char tname,
     typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir,
-    int TStepBits,
-    typename TTheAxisStepperParams,
-    typename TDefaultStepsPerUnit, typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
+    typename TDefaultStepsPerUnit, typename TDefaultMin, typename TDefaultMax,
+    typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
-    typename TDefaultMin, typename TDefaultMax, bool tenable_cartesian_speed_limit,
-    typename THoming
+    typename THoming, bool tenable_cartesian_speed_limit, int TStepBits,
+    typename TTheAxisStepperParams
 >
 struct PrinterMainAxisParams {
     static const char name = tname;
@@ -119,17 +118,17 @@ struct PrinterMainAxisParams {
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
     static const bool InvertDir = TInvertDir;
-    static const int StepBits = TStepBits;
-    using TheAxisStepperParams = TTheAxisStepperParams;
     using DefaultStepsPerUnit = TDefaultStepsPerUnit;
+    using DefaultMin = TDefaultMin;
+    using DefaultMax = TDefaultMax;
     using DefaultMaxSpeed = TDefaultMaxSpeed;
     using DefaultMaxAccel = TDefaultMaxAccel;
     using DefaultDistanceFactor = TDefaultDistanceFactor;
     using DefaultCorneringDistance = TDefaultCorneringDistance;
-    using DefaultMin = TDefaultMin;
-    using DefaultMax = TDefaultMax;
-    static const bool enable_cartesian_speed_limit = tenable_cartesian_speed_limit;
     using Homing = THoming;
+    static const bool enable_cartesian_speed_limit = tenable_cartesian_speed_limit;
+    static const int StepBits = TStepBits;
+    using TheAxisStepperParams = TTheAxisStepperParams;
 };
 
 struct PrinterMainNoHomingParams {
@@ -156,41 +155,42 @@ struct PrinterMainHomingParams {
 
 template <
     char TName, int TSetMCommand, int TWaitMCommand,
-    typename TAdcPin, typename TFormula,
-    typename TOutputPin, typename TPulseInterval,
+    typename TAdcPin, typename TOutputPin,
+    typename TFormula,
     typename TMinSafeTemp, typename TMaxSafeTemp,
+    typename TPulseInterval,
     template<typename, typename, typename> class TControl,
     typename TControlParams,
-    template<typename, typename> class TTimerTemplate,
-    typename TTheTemperatureObserverParams
+    typename TTheTemperatureObserverParams,
+    template<typename, typename> class TTimerTemplate
 >
 struct PrinterMainHeaterParams {
     static const char Name = TName;
     static const int SetMCommand = TSetMCommand;
     static const int WaitMCommand = TWaitMCommand;
     using AdcPin = TAdcPin;
-    using Formula = TFormula;
     using OutputPin = TOutputPin;
-    using PulseInterval = TPulseInterval;
+    using Formula = TFormula;
     using MinSafeTemp = TMinSafeTemp;
     using MaxSafeTemp = TMaxSafeTemp;
+    using PulseInterval = TPulseInterval;
     template <typename X, typename Y, typename Z> using Control = TControl<X, Y, Z>;
     using ControlParams = TControlParams;
-    template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
     using TheTemperatureObserverParams = TTheTemperatureObserverParams;
+    template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
 };
 
 template <
-    int TSetMCommand, int TOffMCommand, typename TSpeedMultiply,
-    typename TOutputPin, typename TPulseInterval,
+    int TSetMCommand, int TOffMCommand,
+    typename TOutputPin, typename TPulseInterval, typename TSpeedMultiply,
     template<typename, typename> class TTimerTemplate
 >
 struct PrinterMainFanParams {
     static const int SetMCommand = TSetMCommand;
     static const int OffMCommand = TOffMCommand;
-    using SpeedMultiply = TSpeedMultiply;
     using OutputPin = TOutputPin;
     using PulseInterval = TPulseInterval;
+    using SpeedMultiply = TSpeedMultiply;
     template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
 };
 
