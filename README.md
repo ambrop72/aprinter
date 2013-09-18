@@ -24,8 +24,6 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
 
 ## Planned features (in the approximate order of priority):
 
-  * During homing, stop moving immediately when an endstop is triggered. Currently there's a measurable delay;
-    in particular, Z will be homed too low due to this delay.
   * Further optimization of the planning and stepping code, both for speed and memory usage.
   * Runtime configurability and settings in EEPROM.
   * SD-card printing.
