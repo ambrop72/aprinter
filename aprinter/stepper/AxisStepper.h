@@ -139,7 +139,7 @@ public:
     
     void setPrestepCallbackEnabled (Context c, bool enabled)
     {
-        this->debugDeinit(c);
+        this->debugAccess(c);
         AMBRO_ASSERT(!m_running)
         
         m_prestep_callback_enabled = enabled;
