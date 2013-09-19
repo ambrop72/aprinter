@@ -130,6 +130,46 @@ public:
     }
 #endif
 
+#ifdef TCNT4
+    void initTC4 (Context c)
+    {
+        this->debugAccess(c);
+        
+        TIMSK4 = 0;
+        TCCR4A = 0;
+        TCCR4B = (uint16_t)Prescale;
+        TCNT4 = TCNT1 - 1;
+    }
+    
+    void deinitTC4 (Context c)
+    {
+        this->debugAccess(c);
+        
+        TIMSK4 = 0;
+        TCCR4B = 0;
+    }
+#endif
+
+#ifdef TCNT5
+    void initTC5 (Context c)
+    {
+        this->debugAccess(c);
+        
+        TIMSK5 = 0;
+        TCCR5A = 0;
+        TCCR5B = (uint16_t)Prescale;
+        TCNT5 = TCNT1 - 1;
+    }
+    
+    void deinitTC5 (Context c)
+    {
+        this->debugAccess(c);
+        
+        TIMSK5 = 0;
+        TCCR5B = 0;
+    }
+#endif
+
 #ifdef TCNT0
     static const int TC0Prescale = Prescale;
     
@@ -508,6 +548,22 @@ template <typename Context, typename Handler>
 using AvrClockInterruptTimer_TC3_OCB = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3B, _SFR_IO_ADDR(OCR3B), OCF3B>;
 #endif
 
+#ifdef TCNT4
+template <typename Context, typename Handler>
+using AvrClockInterruptTimer_TC4_OCA = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK4), OCIE4A, _SFR_IO_ADDR(OCR4A), OCF4A>;
+
+template <typename Context, typename Handler>
+using AvrClockInterruptTimer_TC4_OCB = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK4), OCIE4B, _SFR_IO_ADDR(OCR4B), OCF4B>;
+#endif
+
+#ifdef TCNT5
+template <typename Context, typename Handler>
+using AvrClockInterruptTimer_TC5_OCA = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK5), OCIE5A, _SFR_IO_ADDR(OCR5A), OCF5A>;
+
+template <typename Context, typename Handler>
+using AvrClockInterruptTimer_TC5_OCB = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK5), OCIE5B, _SFR_IO_ADDR(OCR5B), OCF5B>;
+#endif
+
 #ifdef TCNT0
 template <typename Context, typename Handler>
 using AvrClockInterruptTimer_TC0_OCA = AvrClock8BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK0), OCIE0A, _SFR_IO_ADDR(OCR0A), OCF0A>;
@@ -552,6 +608,30 @@ ISR(TIMER3_COMPA_vect) \
 ISR(TIMER3_COMPB_vect) \
 { \
     (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR3B)>(MakeAvrInterruptContext((context))); \
+}
+
+#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(avrclockinterrupttimer, context) \
+ISR(TIMER4_COMPA_vect) \
+{ \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR4A)>(MakeAvrInterruptContext((context))); \
+}
+
+#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCB_ISRS(avrclockinterrupttimer, context) \
+ISR(TIMER4_COMPB_vect) \
+{ \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR4B)>(MakeAvrInterruptContext((context))); \
+}
+
+#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCA_ISRS(avrclockinterrupttimer, context) \
+ISR(TIMER5_COMPA_vect) \
+{ \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR5A)>(MakeAvrInterruptContext((context))); \
+}
+
+#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCB_ISRS(avrclockinterrupttimer, context) \
+ISR(TIMER5_COMPB_vect) \
+{ \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR5B)>(MakeAvrInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(avrclockinterrupttimer, context) \
