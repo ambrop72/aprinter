@@ -30,20 +30,16 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
 
 ## Hardware requirements
 
-I'm developing this software using my Melzi board (atmega1284p),
-which has been manually clocked to 20MHz from the default 16MHz.
-I expect the software to work with 16MHz as well, but the software will limit the maximum stepping speed
-proportionally. Generally, any AVR satisfying the following should work,
-possibly requiring minor adjustments in the code:
+Ports have been completed for the following boards:
+
+  * Melzi (atmega1284p only),
+  * RAMPS 1.0, 1.1/1.2 or 1.3/1.4 (both atmega1280 and atmega2560) (untested, plese test).
+
+However, any AVR satisfying the following should work, possibly requiring minor adjustments in the code:
 
   * 8kB of SRAM,
   * 128kB of flash,
   * 4 timers (any one of these can be either 8- or 16-bit).
-
-In particular, this means that:
-
-  * These should work: 1280, 1281, 1284p, 2560, 2561
-  * These will not work: 1284, 644*
 
 ## Coding style
 
