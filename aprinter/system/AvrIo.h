@@ -26,10 +26,76 @@
 #define AMBROLIB_AVR_IO_H
 
 #include <avr/sfr_defs.h>
+#include <util/atomic.h>
 
 #include <stdint.h>
 
+#include <aprinter/base/Lock.h>
+#include <aprinter/system/AvrLock.h>
+
 #include <aprinter/BeginNamespace.h>
+
+template <bool UseBitInstrs>
+struct AvrIoBitRegHelper {
+    template <uint32_t IoAddr, int Bit, typename ThisContext>
+    static void set_bit (ThisContext c)
+    {
+        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+            _SFR_IO8(IoAddr) |= (1 << Bit);
+        });
+    }
+    
+    template <uint32_t IoAddr, int Bit, typename ThisContext>
+    static void clear_bit (ThisContext c)
+    {
+        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+            _SFR_IO8(IoAddr) &= ~(1 << Bit);
+        });
+    }
+    
+    template <uint32_t IoAddr, int Bit>
+    static void unknown_set_bit ()
+    {
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+            _SFR_IO8(IoAddr) |= (1 << Bit);
+        }
+    }
+    
+    template <uint32_t IoAddr, int Bit>
+    static void unknown_clear_bit ()
+    {
+        ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
+            _SFR_IO8(IoAddr) &= ~(1 << Bit);
+        }
+    }
+};
+
+template <>
+struct AvrIoBitRegHelper<true> {
+    template <uint32_t IoAddr, int Bit, typename ThisContext>
+    static void set_bit (ThisContext c)
+    {
+        asm("sbi %0,%1\n" :: "i" (IoAddr), "i" (Bit));
+    }
+    
+    template <uint32_t IoAddr, int Bit, typename ThisContext>
+    static void clear_bit (ThisContext c)
+    {
+        asm("cbi %0,%1\n" :: "i" (IoAddr), "i" (Bit));
+    }
+    
+    template <uint32_t IoAddr, int Bit>
+    static void unknown_set_bit ()
+    {
+        asm("sbi %0,%1\n" :: "i" (IoAddr), "i" (Bit));
+    }
+    
+    template <uint32_t IoAddr, int Bit>
+    static void unknown_clear_bit ()
+    {
+        asm("cbi %0,%1\n" :: "i" (IoAddr), "i" (Bit));
+    }
+};
 
 template <uint32_t IoAddr>
 void avrSetReg (uint8_t value)
@@ -55,16 +121,28 @@ uint16_t avrGetReg16 ()
     return _SFR_IO16(IoAddr);
 }
 
-template <uint32_t IoAddr>
-void avrSetBitReg (uint8_t bit)
+template <uint32_t IoAddr, int Bit, typename ThisContext>
+void avrSetBitReg (ThisContext c)
 {
-    asm("sbi %0,%1" :: "i" (IoAddr), "i" (bit));
+    AvrIoBitRegHelper<(IoAddr < 0x20)>::template set_bit<IoAddr, Bit>(c);
 }
 
-template <uint32_t IoAddr>
-void avrClearBitReg (uint8_t bit)
+template <uint32_t IoAddr, int Bit, typename ThisContext>
+void avrClearBitReg (ThisContext c)
 {
-    asm("cbi %0,%1" :: "i" (IoAddr), "i" (bit));
+    AvrIoBitRegHelper<(IoAddr < 0x20)>::template clear_bit<IoAddr, Bit>(c);
+}
+
+template <uint32_t IoAddr, int Bit>
+void avrUnknownSetBitReg ()
+{
+    AvrIoBitRegHelper<(IoAddr < 0x20)>::template unknown_set_bit<IoAddr, Bit>();
+}
+
+template <uint32_t IoAddr, int Bit>
+void avrUnknownClearBitReg ()
+{
+    AvrIoBitRegHelper<(IoAddr < 0x20)>::template unknown_clear_bit<IoAddr, Bit>();
 }
 
 template <uint32_t IoAddr>

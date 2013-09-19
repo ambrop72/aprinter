@@ -36,6 +36,7 @@
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/system/AvrIo.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -155,7 +156,7 @@ public:
     {
         this->debugAccess(c);
         
-        asm("cbi %0,%1" :: "i" (Pin::Port::ddr_io_addr), "i" (Pin::port_pin));
+        avrClearBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
     }
     
     template <typename Pin, typename ThisContext>
@@ -163,7 +164,7 @@ public:
     {
         this->debugAccess(c);
         
-        asm("sbi %0,%1" :: "i" (Pin::Port::ddr_io_addr), "i" (Pin::port_pin));
+        avrSetBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
     }
     
     template <typename Pin, typename ThisContext>
@@ -180,9 +181,9 @@ public:
         this->debugAccess(c);
         
         if (x) {
-            asm("sbi %0,%1" :: "i" (Pin::Port::port_io_addr), "i" (Pin::port_pin));
+            avrSetBitReg<Pin::Port::port_io_addr, Pin::port_pin>(c);
         } else {
-            asm("cbi %0,%1" :: "i" (Pin::Port::port_io_addr), "i" (Pin::port_pin));
+            avrClearBitReg<Pin::Port::port_io_addr, Pin::port_pin>(c);
         }
     }
     
@@ -190,9 +191,9 @@ public:
     static void emergencySet (bool x)
     {
         if (x) {
-            asm("sbi %0,%1" :: "i" (Pin::Port::port_io_addr), "i" (Pin::port_pin));
+            avrUnknownSetBitReg<Pin::Port::port_io_addr, Pin::port_pin>();
         } else {
-            asm("cbi %0,%1" :: "i" (Pin::Port::port_io_addr), "i" (Pin::port_pin));
+            avrUnknownClearBitReg<Pin::Port::port_io_addr, Pin::port_pin>();
         }
     }
 };
