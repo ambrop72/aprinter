@@ -22,61 +22,59 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_AVR_LOCK_H
-#define AMBROLIB_AVR_LOCK_H
-
-#include <avr/interrupt.h>
+#ifndef AMBROLIB_INTERRUPT_LOCK_H
+#define AMBROLIB_INTERRUPT_LOCK_H
 
 #include <aprinter/meta/HasMemberTypeFunc.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context>
-struct AvrInterruptContext : public Context {
-    explicit AvrInterruptContext (Context c) : Context(c) {}
-    typedef void AvrInterruptContextTag;
+struct InterruptContext : public Context {
+    explicit InterruptContext (Context c) : Context(c) {}
+    typedef void InterruptContextTag;
 };
 
 template <typename Context>
-AvrInterruptContext<Context> MakeAvrInterruptContext (Context c)
+InterruptContext<Context> MakeInterruptContext (Context c)
 {
-    return AvrInterruptContext<Context>(c);
+    return InterruptContext<Context>(c);
 }
 
 template <typename Context>
-class IsAvrInterruptContext {
+class IsInterruptContext {
 private:
-    AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(HasAvrInterruptContextTag, AvrInterruptContextTag)
+    AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(HasInterruptContextTag, InterruptContextTag)
     
 public:
-    static const bool value = HasAvrInterruptContextTag::Call<Context>::Type::value;
+    static const bool value = HasInterruptContextTag::Call<Context>::Type::value;
 };
 
-class AvrLockImpl {
+class InterruptLockImpl {
 private:
     template <typename ThisContext, bool InInterruptContext, typename Dummy = void>
     struct LockHelper;
     
 public:
     template <typename ThisContext>
-    using EnterContext = typename LockHelper<ThisContext, IsAvrInterruptContext<ThisContext>::value>::EnterContext;
+    using EnterContext = typename LockHelper<ThisContext, IsInterruptContext<ThisContext>::value>::EnterContext;
     
     template <typename ThisContext, typename Func>
     __attribute__((always_inline)) inline static void enter (ThisContext c, Func f)
     {
-        LockHelper<ThisContext, IsAvrInterruptContext<ThisContext>::value>::call(c, f);
+        LockHelper<ThisContext, IsInterruptContext<ThisContext>::value>::call(c, f);
     }
     
 private:
     template <typename ThisContext, typename Dummy>
     struct LockHelper<ThisContext, false, Dummy> {
-        typedef AvrInterruptContext<ThisContext> EnterContext;
+        typedef InterruptContext<ThisContext> EnterContext;
         
         template <typename Func>
         __attribute__((always_inline)) inline static void call (ThisContext c, Func f)
         {
             cli();
-            f(MakeAvrInterruptContext(c));
+            f(MakeInterruptContext(c));
             sei();
         }
     };
@@ -94,7 +92,7 @@ private:
 };
 
 template <typename Context>
-class AvrLock {
+class InterruptLock {
 private:
 public:
     template <typename ThisContext>
@@ -108,18 +106,18 @@ public:
     }
     
     template <typename ThisContext>
-    using EnterContext = typename AvrLockImpl::template EnterContext<ThisContext>;
+    using EnterContext = typename InterruptLockImpl::template EnterContext<ThisContext>;
     
     template <typename ThisContext, typename Func>
     __attribute__((always_inline)) inline void enter (ThisContext c, Func f)
     {
-        AvrLockImpl::enter(c, f);
+        InterruptLockImpl::enter(c, f);
     }
 };
 
-AvrLockImpl AvrTempLock ()
+InterruptLockImpl InterruptTempLock ()
 {
-    return AvrLockImpl();
+    return InterruptLockImpl();
 }
 
 #include <aprinter/EndNamespace.h>

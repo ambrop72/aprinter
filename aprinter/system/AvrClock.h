@@ -35,7 +35,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
-#include <aprinter/system/AvrLock.h>
+#include <aprinter/system/InterruptLock.h>
 #include <aprinter/system/AvrIo.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -86,7 +86,7 @@ public:
         uint16_t now_high;
         uint16_t now_low;
         
-        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
             now_high = m_offset;
             asm volatile (
                 "    lds %A[now_low],%[tcnt1]+0\n"
@@ -219,7 +219,7 @@ public:
     }
 #endif
     
-    void timer1_ovf_isr (AvrInterruptContext<Context> c)
+    void timer1_ovf_isr (InterruptContext<Context> c)
     {
         m_offset++;
     }
@@ -235,7 +235,7 @@ class AvrClock16BitInterruptTimer
 public:
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
-    typedef AvrInterruptContext<Context> HandlerContext;
+    typedef InterruptContext<Context> HandlerContext;
     
     void init (Context c)
     {
@@ -250,7 +250,7 @@ public:
     {
         this->debugDeinit(c);
         
-        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
         });
     }
@@ -268,7 +268,7 @@ public:
         m_running = true;
 #endif
         
-        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
             uint16_t now_high = lock_c.clock()->m_offset;
             uint16_t now_low;
             
@@ -323,7 +323,7 @@ public:
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
             m_running = false;
@@ -332,7 +332,7 @@ public:
     }
     
     template <uint32_t check_ocr_reg>
-    void timer_comp_isr (AvrInterruptContext<Context> c)
+    void timer_comp_isr (InterruptContext<Context> c)
     {
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         AMBRO_ASSERT(m_running)
@@ -389,7 +389,7 @@ class AvrClock8BitInterruptTimer
 public:
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
-    typedef AvrInterruptContext<Context> HandlerContext;
+    typedef InterruptContext<Context> HandlerContext;
     
     void init (Context c)
     {
@@ -404,7 +404,7 @@ public:
     {
         this->debugDeinit(c);
         
-        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
         });
     }
@@ -422,7 +422,7 @@ public:
         m_running = true;
 #endif
         
-        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
             uint16_t now_high = lock_c.clock()->m_offset;
             uint16_t now_low;
             
@@ -475,7 +475,7 @@ public:
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
             m_running = false;
@@ -484,7 +484,7 @@ public:
     }
     
     template <uint32_t check_ocr_reg>
-    void timer_comp_isr (AvrInterruptContext<Context> c)
+    void timer_comp_isr (InterruptContext<Context> c)
     {
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         AMBRO_ASSERT(m_running)
@@ -583,79 +583,79 @@ using AvrClockInterruptTimer_TC2_OCB = AvrClock8BitInterruptTimer<Context, Handl
 #define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \
 ISR(TIMER1_OVF_vect) \
 { \
-    (avrclock).timer1_ovf_isr(MakeAvrInterruptContext((context))); \
+    (avrclock).timer1_ovf_isr(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER1_COMPA_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR1A)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR1A)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER1_COMPB_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR1B)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR1B)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER3_COMPA_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR3A)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR3A)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER3_COMPB_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR3B)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR3B)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER4_COMPA_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR4A)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR4A)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER4_COMPB_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR4B)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR4B)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER5_COMPA_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR5A)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR5A)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER5_COMPB_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR5B)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR5B)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER0_COMPA_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR0A)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR0A)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER0_COMPB_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR0B)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR0B)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER2_COMPA_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR2A)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR2A)>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER2_COMPB_vect) \
 { \
-    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR2B)>(MakeAvrInterruptContext((context))); \
+    (avrclockinterrupttimer).timer_comp_isr<_SFR_IO_ADDR(OCR2B)>(MakeInterruptContext((context))); \
 }
 
 #include <aprinter/EndNamespace.h>

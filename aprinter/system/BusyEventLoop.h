@@ -22,13 +22,11 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_AVR_EVENT_LOOP_H
-#define AMBROLIB_AVR_EVENT_LOOP_H
+#ifndef AMBROLIB_BUSY_EVENT_LOOP_H
+#define AMBROLIB_BUSY_EVENT_LOOP_H
 
 #include <stdint.h>
 #include <stddef.h>
-
-#include <avr/interrupt.h>
 
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/base/DebugObject.h>
@@ -36,22 +34,22 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Likely.h>
-#include <aprinter/system/AvrLock.h>
+#include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename>
-class AvrEventLoopQueuedEvent;
+class BusyEventLoopQueuedEvent;
 
 template <typename Params>
-class AvrEventLoop
-: private DebugObject<typename Params::Context, AvrEventLoop<Params>>
+class BusyEventLoop
+: private DebugObject<typename Params::Context, BusyEventLoop<Params>>
 {
 public:
     typedef typename Params::Context Context;
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
-    typedef AvrEventLoopQueuedEvent<AvrEventLoop> QueuedEvent;
+    typedef BusyEventLoopQueuedEvent<BusyEventLoop> QueuedEvent;
     
     void init (Context c)
     {
@@ -109,7 +107,7 @@ public:
     
 private:
     template <typename>
-    friend class AvrEventLoopQueuedEvent;
+    friend class BusyEventLoopQueuedEvent;
     
     typedef DoubleEndedList<QueuedEvent, &QueuedEvent::m_list_node> QueuedEventList;
     
@@ -118,17 +116,17 @@ private:
 #endif
     TimeType m_now;
     QueuedEventList m_queued_event_list;
-    AvrLock<Context> m_lock;
+    InterruptLock<Context> m_lock;
 };
 
 template <typename Loop>
-class AvrEventLoopQueuedEvent
-: private DebugObject<typename Loop::Context, AvrEventLoopQueuedEvent<Loop>>
+class BusyEventLoopQueuedEvent
+: private DebugObject<typename Loop::Context, BusyEventLoopQueuedEvent<Loop>>
 {
 public:
     typedef typename Loop::Context Context;
     typedef typename Loop::TimeType TimeType;
-    typedef void (*HandlerType) (AvrEventLoopQueuedEvent *, Context);
+    typedef void (*HandlerType) (BusyEventLoopQueuedEvent *, Context);
     
     void init (Context c, HandlerType handler)
     {
@@ -218,7 +216,7 @@ public:
         });
     }
     
-    inline void appendNowIfNotAlready (AvrInterruptContext<Context> c) __attribute__((always_inline));
+    inline void appendNowIfNotAlready (InterruptContext<Context> c) __attribute__((always_inline));
     
     template <typename ThisContext>
     void prependAt (ThisContext c, TimeType time)
@@ -296,11 +294,11 @@ private:
     
     HandlerType m_handler;
     TimeType m_time;
-    DoubleEndedListNode<AvrEventLoopQueuedEvent> m_list_node;
+    DoubleEndedListNode<BusyEventLoopQueuedEvent> m_list_node;
 };
 
 template <typename Loop>
-inline void AvrEventLoopQueuedEvent<Loop>::appendNowIfNotAlready (AvrInterruptContext<Context> c)
+inline void BusyEventLoopQueuedEvent<Loop>::appendNowIfNotAlready (InterruptContext<Context> c)
 {
     this->debugAccess(c);
     Loop *l = c.eventLoop();
@@ -312,7 +310,7 @@ inline void AvrEventLoopQueuedEvent<Loop>::appendNowIfNotAlready (AvrInterruptCo
 }
 
 template <typename Context, typename Handler>
-class AvrEventLoopTimer {
+class BusyEventLoopTimer {
 public:
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
@@ -320,7 +318,7 @@ public:
     
     void init (Context c)
     {
-        m_queued_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AvrEventLoopTimer::m_queued_event, &AvrEventLoopTimer::queued_event_handler));
+        m_queued_event.init(c, AMBRO_OFFSET_CALLBACK_T(&BusyEventLoopTimer::m_queued_event, &BusyEventLoopTimer::queued_event_handler));
     }
     
     void deinit (Context c)
@@ -346,7 +344,7 @@ private:
         return Handler::call(this, c);
     }
     
-    AvrEventLoopQueuedEvent<typename Context::EventLoop> m_queued_event;
+    BusyEventLoopQueuedEvent<typename Context::EventLoop> m_queued_event;
 };
 
 #include <aprinter/EndNamespace.h>

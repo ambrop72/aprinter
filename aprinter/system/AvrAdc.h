@@ -42,7 +42,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/AvrPins.h>
-#include <aprinter/system/AvrLock.h>
+#include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -221,14 +221,14 @@ public:
         static const int PinIndex = TypeListIndex<PinsList, IsEqualFunc<Pin>>::value;
         
         uint16_t value;
-        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
             value = TupleGetElem<PinIndex>(&m_pins)->m_value;
         });
         
         return value;
     }
     
-    void adc_isr (AvrInterruptContext<Context> c)
+    void adc_isr (InterruptContext<Context> c)
     {
         TupleForEachForwardInterruptible(&m_pins, Foreach_handle_isr(), c);
     }
@@ -292,7 +292,7 @@ private:
             return (accum | AdcPinMask<Pin>::value);
         }
         
-        bool handle_isr (AvrInterruptContext<Context> c)
+        bool handle_isr (InterruptContext<Context> c)
         {
             if (parent()->m_current_pin != PinIndex) {
                 return true;
@@ -325,7 +325,7 @@ private:
 #define AMBRO_AVR_ADC_ISRS(adc, context) \
 ISR(ADC_vect) \
 { \
-    (adc).adc_isr(MakeAvrInterruptContext(context)); \
+    (adc).adc_isr(MakeInterruptContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>

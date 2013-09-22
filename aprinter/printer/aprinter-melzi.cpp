@@ -37,10 +37,10 @@ static void emergency (void);
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/system/AvrEventLoop.h>
+#include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/AvrClock.h>
 #include <aprinter/system/AvrPins.h>
-#include <aprinter/system/AvrLock.h>
+#include <aprinter/system/InterruptLock.h>
 #include <aprinter/system/AvrAdc.h>
 #include <aprinter/system/AvrWatchdog.h>
 #include <aprinter/devices/PidControl.h>
@@ -611,14 +611,14 @@ struct PrinterPosition;
 
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
 using MyClock = AvrClock<MyContext, clock_timer_prescaler>;
-using MyLoop = AvrEventLoop<EventLoopParams>;
+using MyLoop = BusyEventLoop<EventLoopParams>;
 using MyPins = AvrPins<MyContext>;
 using MyAdc = AvrAdc<MyContext, AdcPins, AdcRefSel, AdcPrescaler>;
 using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
-    using Lock = AvrLock<MyContext>;
+    using Lock = InterruptLock<MyContext>;
     using Clock = MyClock;
     using EventLoop = MyLoop;
     using Pins = MyPins;

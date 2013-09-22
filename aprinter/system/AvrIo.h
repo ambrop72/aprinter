@@ -31,7 +31,7 @@
 #include <stdint.h>
 
 #include <aprinter/base/Lock.h>
-#include <aprinter/system/AvrLock.h>
+#include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -40,7 +40,7 @@ struct AvrIoBitRegHelper {
     template <uint32_t IoAddr, int Bit, typename ThisContext>
     static void set_bit (ThisContext c)
     {
-        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
             _SFR_IO8(IoAddr) |= (1 << Bit);
         });
     }
@@ -48,7 +48,7 @@ struct AvrIoBitRegHelper {
     template <uint32_t IoAddr, int Bit, typename ThisContext>
     static void clear_bit (ThisContext c)
     {
-        AMBRO_LOCK_T(AvrTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
             _SFR_IO8(IoAddr) &= ~(1 << Bit);
         });
     }

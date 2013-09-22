@@ -38,7 +38,7 @@
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
-#include <aprinter/system/AvrLock.h>
+#include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -246,7 +246,7 @@ public:
         } while (not_finished);
     }
     
-    void rx_isr (AvrInterruptContext<Context> c)
+    void rx_isr (InterruptContext<Context> c)
     {
         AMBRO_ASSERT(!m_recv_overrun)
         
@@ -264,7 +264,7 @@ public:
         m_recv_queued_event.appendNowIfNotAlready(c);
     }
     
-    void udre_isr (AvrInterruptContext<Context> c)
+    void udre_isr (InterruptContext<Context> c)
     {
         AMBRO_ASSERT(m_send_start != m_send_end)
         
@@ -306,7 +306,7 @@ private:
         SendHandler::call(this, c);
     }
     
-    AvrLock<Context> m_lock;
+    InterruptLock<Context> m_lock;
     
     typename Loop::QueuedEvent m_recv_queued_event;
     RecvSizeType m_recv_start;
@@ -324,11 +324,11 @@ private:
 #define AMBRO_AVR_SERIAL_ISRS(avrserial, context) \
 ISR(USART0_RX_vect) \
 { \
-    (avrserial).rx_isr(MakeAvrInterruptContext(context)); \
+    (avrserial).rx_isr(MakeInterruptContext(context)); \
 } \
 ISR(USART0_UDRE_vect) \
 { \
-    (avrserial).udre_isr(MakeAvrInterruptContext(context)); \
+    (avrserial).udre_isr(MakeInterruptContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>
