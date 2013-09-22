@@ -58,7 +58,6 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
-#include <aprinter/system/AvrSerial.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/devices/SoftPwm.h>
 #include <aprinter/stepper/Steppers.h>
@@ -97,10 +96,14 @@ struct PrinterMainParams {
     using FansList = TFansList;
 };
 
-template <uint32_t tbaud, typename TTheGcodeParserParams>
+template <
+    uint32_t tbaud, typename TTheGcodeParserParams,
+    template <typename, int, int, typename, typename> class TSerialTemplate
+>
 struct PrinterMainSerialParams {
     static const uint32_t baud = tbaud;
     using TheGcodeParserParams = TTheGcodeParserParams;
+    template <typename X, int Y, int Z, typename W, typename Q> using SerialTemplate = TSerialTemplate<X, Y, Z, W, Q>;
 };
 
 template <
@@ -257,7 +260,7 @@ private:
     using TheBlinker = Blinker<Context, typename Params::LedPin, BlinkerHandler>;
     using StepperDefsList = MapTypeList<AxesList, TemplateFunc<MakeStepperDef>>;
     using TheSteppers = Steppers<Context, StepperDefsList>;
-    using TheSerial = AvrSerial<Context, serial_recv_buffer_bits, serial_send_buffer_bits, SerialRecvHandler, SerialSendHandler>;
+    using TheSerial = typename Params::Serial::template SerialTemplate<Context, serial_recv_buffer_bits, serial_send_buffer_bits, SerialRecvHandler, SerialSendHandler>;
     using RecvSizeType = typename TheSerial::RecvSizeType;
     using SendSizeType = typename TheSerial::SendSizeType;
     using TheGcodeParser = GcodeParser<Context, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType>;

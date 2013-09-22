@@ -43,6 +43,7 @@ static void emergency (void);
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/system/AvrAdc.h>
 #include <aprinter/system/AvrWatchdog.h>
+#include <aprinter/system/AvrSerial.h>
 #include <aprinter/devices/PidControl.h>
 #include <aprinter/devices/BinaryControl.h>
 #include <aprinter/printer/PrinterMain.h>
@@ -137,7 +138,8 @@ using PrinterParams = PrinterMainParams<
      */
     PrinterMainSerialParams<
         UINT32_C(57600), // BaudRate
-        GcodeParserParams<8> // ReceiveBufferSizeExp
+        GcodeParserParams<8>, // ReceiveBufferSizeExp
+        AvrSerial
     >,
     MegaPin13, // LedPin
     LedBlinkInterval, // LedBlinkInterval
