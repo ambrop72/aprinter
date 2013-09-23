@@ -30,6 +30,7 @@
 #include "plat.h"
 
 #define F_MCK ((((float)F_CRYSTAL * F_MUL) / F_DIV) / 2)
+#define F_CPU F_MCK
 
 static void at91sam7s_pmc_enable_periph (int id)
 {
