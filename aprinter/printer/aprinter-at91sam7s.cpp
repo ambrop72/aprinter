@@ -190,7 +190,7 @@ using PrinterParams = PrinterMainParams<
             'Y', // Name
             At91Sam7sPin<8>, // DirPin
             At91Sam7sPin<7>, // StepPin
-            At91Sam7sPin<6>, // EnablePin
+            At91Sam7sPin<1>, // EnablePin
             true, // InvertDir
             YDefaultStepsPerUnit, // StepsPerUnit
             YDefaultMin, // Min
@@ -200,7 +200,7 @@ using PrinterParams = PrinterMainParams<
             YDefaultDistanceFactor, // DistanceFactor
             YDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                At91Sam7sPin<5>, // HomeEndPin
+                At91Sam7sPin<0>, // HomeEndPin
                 false, // HomeEndInvert
                 false, // HomeDir
                 YDefaultHomeFastMaxDist, // HomeFastMaxDist
