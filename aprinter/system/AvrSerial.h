@@ -223,19 +223,6 @@ public:
         });
     }
     
-    void sendBlock (Context c, SendSizeType min_amount)
-    {
-        this->debugAccess(c);
-        AMBRO_ASSERT(min_amount > SendSizeType::import(0))
-        
-        bool ok;
-        do {
-            AMBRO_LOCK_T(m_lock, c, lock_c, {
-                ok = (send_avail(m_send_start, m_send_end) >= min_amount);
-            });
-        } while (!ok);
-    }
-    
     void sendWaitFinished ()
     {
         bool not_finished;
