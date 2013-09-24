@@ -407,6 +407,51 @@ AMBRO_AT91SAM7S_CLOCK_INTERRUPT_TIMER_TC2B_GLOBAL(*myprinter.getFanTimer<0>(), M
 AMBRO_AT91SAM7S_CLOCK_INTERRUPT_TIMER_TC2C_UNUSED_GLOBAL
 //AMBRO_AVR_WATCHDOG_GLOBAL
 
+extern "C" {
+
+__attribute__((used))
+int _read (int file, char *ptr, int len)
+{
+    return -1;
+}
+
+__attribute__((used))
+int _write (int file, char *ptr, int len)
+{
+    myprinter.getSerial()->sendWaitFinished();
+    for (int i = 0; i < len; i++) {
+        while (!(AT91C_BASE_US0->US_CSR & AT91C_US_TXRDY));
+        AT91C_BASE_US0->US_THR = *(uint8_t *)&ptr[i];
+    }
+    return len;
+}
+
+__attribute__((used))
+int _close (int file)
+{
+    return -1;
+}
+
+__attribute__((used))
+int _fstat (int file, struct stat * st)
+{
+    return -1;
+}
+
+__attribute__((used))
+int _isatty (int fd)
+{
+    return 1;
+}
+
+__attribute__((used))
+int _lseek (int file, int ptr, int dir)
+{
+    return -1;
+}
+
+}
+
 static void emergency (void)
 {
     MyPrinter::emergency();
