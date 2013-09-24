@@ -220,6 +220,21 @@ public:
         });
     }
     
+    void sendWaitFinished ()
+    {
+        bool not_finished;
+        do {
+            bool ie = interrupts_enabled();
+            if (ie) {
+                cli();
+            }
+            not_finished = (m_send_start != m_send_end);
+            if (ie) {
+                sei();
+            }
+        } while (not_finished);
+    }
+    
     void usart_irq (InterruptContext<Context> c)
     {
         uint32_t status = AT91C_BASE_US0->US_CSR;
