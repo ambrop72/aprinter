@@ -86,4 +86,16 @@ inline static void cli (void)
     );
 }
 
+inline static bool interrupts_enabled (void)
+{
+    uint32_t cpsr;
+    __asm__ volatile (
+        "mrs %[cpsr],cpsr\n"
+        : [cpsr] "=&r" (cpsr)
+        :
+        : "cc"
+    );
+    return !(cpsr & 0x80);
+}
+
 #endif
