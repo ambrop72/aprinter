@@ -1325,7 +1325,7 @@ private:
         uint8_t len = sprintf(buf, "%g", x);
         reply_append(c, buf, len);
 #else        
-        FloatToStrSoft(x, buf, 6);
+        FloatToStrSoft(x, buf);
         reply_append(c, buf, strlen(buf));
 #endif
     }

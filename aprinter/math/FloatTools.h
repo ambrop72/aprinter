@@ -65,7 +65,7 @@ T FloatSignedIntegerRange ()
     return ldexp(1.0, (TypesAreEqual<T, float>::value ? FLT_MANT_DIG : DBL_MANT_DIG) - 1);
 }
 
-static void FloatToStrSoft (double x, char *s, int prec_approx)
+static void FloatToStrSoft (double x, char *s, int prec_approx = 6, bool pretty = true)
 {
     if (isnan(x)) {
         strcpy(s, "nan");
@@ -94,14 +94,31 @@ static void FloatToStrSoft (double x, char *s, int prec_approx)
         ep--;
         n = m * pow(10.0, ff - ep);
     }
-    s += PrintNonnegativeIntDecimal<uint64_t>(n, s);
-    *s++ = 'e';
+    uint64_t n_int = n;
+    int n_len = PrintNonnegativeIntDecimal<uint64_t>(n_int, s);
+    s += n_len;
     int e10 = fi + ep;
-    if (e10 < 0) {
-        e10 = -e10;
-        *s++ = '-';
+    if (pretty) {
+        char *dot = s;
+        while (e10 != 0 && n_len > 1) {
+            *dot = *(dot - 1);
+            dot--;
+            e10++;
+            n_len--;
+        }
+        if (dot != s) {
+            *dot = '.';
+            s++;
+        }
     }
-    s += PrintNonnegativeIntDecimal<int>(e10, s);
+    if (!pretty || (e10 != 0 && n_int != 0)) {
+        *s++ = 'e';
+        if (e10 < 0) {
+            e10 = -e10;
+            *s++ = '-';
+        }
+        s += PrintNonnegativeIntDecimal<int>(e10, s);
+    }
     *s = '\0';
 }
 
