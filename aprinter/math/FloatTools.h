@@ -91,8 +91,8 @@ static void FloatToStrSoft (double x, char *s, int prec_approx)
     int ep = 1 - prec_approx;
     double n = m * pow(10.0, ff - ep);
     if (n < pow(10.0, prec_approx - 1)) {
-        n *= 10;
         ep--;
+        n = m * pow(10.0, ff - ep);
     }
     s += PrintNonnegativeIntDecimal<uint64_t>(n, s);
     *s++ = 'e';
