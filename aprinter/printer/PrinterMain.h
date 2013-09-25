@@ -1333,7 +1333,11 @@ private:
     void reply_append_uint32 (Context c, uint32_t x)
     {
         char buf[11];
+#if defined(AMBROLIB_AVR)
         uint8_t len = sprintf(buf, "%" PRIu32, x);
+#else
+        uint8_t len = PrintNonnegativeIntDecimal<uint32_t>(x, buf);
+#endif
         reply_append(c, buf, len);
     }
     
