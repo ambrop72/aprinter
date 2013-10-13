@@ -132,6 +132,11 @@ using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
+/*
+ * NOTE: If you need internal pull-ups for endstops, enable these
+ * in main() below.
+ */
+
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
@@ -281,7 +286,7 @@ using PrinterParams = PrinterMainParams<
             104, // SetMCommand
             109, // WaitMCommand
             MegaPinA13, // AdcPin
-            MegaPin8, // OutputPin
+            MegaPin10, // OutputPin
             AvrThermistorTable_Extruder, // Formula
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
@@ -307,7 +312,7 @@ using PrinterParams = PrinterMainParams<
             140, // SetMCommand
             190, // WaitMCommand
             MegaPinA14, // AdcPin
-            MegaPin10, // OutputPin
+            MegaPin8, // OutputPin
             AvrThermistorTable_Bed, // Formula
             BedHeaterMinSafeTemp, // MinSafeTemp
             BedHeaterMaxSafeTemp, // MaxSafeTemp
@@ -445,6 +450,11 @@ int main ()
     mypins.init(c);
     myadc.init(c);
     myprinter.init(c);
+    
+    // enable internal pull-ups
+    mypins.set<MegaPin3>(c, true);
+    mypins.set<MegaPin14>(c, true);
+    mypins.set<MegaPin18>(c, true);
     
     myloop.run(c);
 }
