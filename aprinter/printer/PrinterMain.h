@@ -1419,10 +1419,6 @@ private:
         AMBRO_ASSERT(m_planning_pull_pending)
         AMBRO_ASSERT(!m_planning_req_pending)
         
-        if (!m_cmd) {
-            return;
-        }
-        
         m_planner.deinit(c);
         m_force_timer.unset(c);
         m_state = STATE_IDLE;
