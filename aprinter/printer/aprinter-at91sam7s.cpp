@@ -137,7 +137,8 @@ using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
         UINT32_C(115200), // BaudRate
         GcodeParserParams<8>, // ReceiveBufferSizeExp
-        At91Sam7sSerial
+        At91Sam7sSerial,
+        At91Sam7sSerialParams
     >,
     At91Sam7sPin<31>, // LedPin
     LedBlinkInterval, // LedBlinkInterval

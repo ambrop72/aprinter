@@ -40,7 +40,9 @@ void At91Sam7sSerial_Irq (void);
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler>
+struct At91Sam7sSerialParams {};
+
+template <typename Context, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
 class At91Sam7sSerial
 : private DebugObject<Context, void>
 {

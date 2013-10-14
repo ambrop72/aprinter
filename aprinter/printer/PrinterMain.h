@@ -98,12 +98,14 @@ struct PrinterMainParams {
 
 template <
     uint32_t tbaud, typename TTheGcodeParserParams,
-    template <typename, int, int, typename, typename> class TSerialTemplate
+    template <typename, int, int, typename, typename, typename> class TSerialTemplate,
+    typename TSerialParams
 >
 struct PrinterMainSerialParams {
     static const uint32_t baud = tbaud;
     using TheGcodeParserParams = TTheGcodeParserParams;
-    template <typename X, int Y, int Z, typename W, typename Q> using SerialTemplate = TSerialTemplate<X, Y, Z, W, Q>;
+    template <typename X, int Y, int Z, typename W, typename Q, typename R> using SerialTemplate = TSerialTemplate<X, Y, Z, W, Q, R>;
+    using SerialParams = TSerialParams;
 };
 
 template <
@@ -260,7 +262,7 @@ private:
     using TheBlinker = Blinker<Context, typename Params::LedPin, BlinkerHandler>;
     using StepperDefsList = MapTypeList<AxesList, TemplateFunc<MakeStepperDef>>;
     using TheSteppers = Steppers<Context, StepperDefsList>;
-    using TheSerial = typename Params::Serial::template SerialTemplate<Context, serial_recv_buffer_bits, serial_send_buffer_bits, SerialRecvHandler, SerialSendHandler>;
+    using TheSerial = typename Params::Serial::template SerialTemplate<Context, serial_recv_buffer_bits, serial_send_buffer_bits, typename Params::Serial::SerialParams, SerialRecvHandler, SerialSendHandler>;
     using RecvSizeType = typename TheSerial::RecvSizeType;
     using SendSizeType = typename TheSerial::SendSizeType;
     using TheGcodeParser = GcodeParser<Context, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType>;
