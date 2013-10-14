@@ -145,7 +145,7 @@ using PrinterParams = PrinterMainParams<
         UINT32_C(57600), // BaudRate
         GcodeParserParams<8>, // ReceiveBufferSizeExp
         AvrSerial,
-        AvrSerialParams<true>
+        AvrSerialParams<false>
     >,
     MegaPin13, // LedPin
     LedBlinkInterval, // LedBlinkInterval
