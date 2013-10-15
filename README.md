@@ -33,7 +33,7 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
 Ports have been completed for the following boards:
 
   * Melzi (atmega1284p only),
-  * RAMPS 1.0, 1.1/1.2 or 1.3/1.4 (both atmega1280 and atmega2560) (untested, plese test).
+  * RAMPS 1.0, 1.1/1.2 or 1.3/1.4 (only RAMPS 1.4 with atmega2560 is tested).
 
 However, any AVR satisfying the following should work, possibly requiring minor adjustments in the code:
 
