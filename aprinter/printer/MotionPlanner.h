@@ -933,7 +933,7 @@ public:
                 m_split_buffer.split_count = 1;
             } else {
                 double split_count_comp = TupleForEachForwardAccRes(&m_axes, 0.0, Foreach_compute_split_count());
-                double split_count = ceil(split_count_comp + 0.1);
+                double split_count = ceil(split_count_comp + 0.5);
                 m_split_buffer.split_frac = 1.0 / split_count;
                 m_split_buffer.base_max_v_rec = icmd->rel_max_v_rec * m_split_buffer.split_frac;
                 m_split_buffer.split_count = split_count;
