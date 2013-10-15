@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBRO_AVR_ASM_SQRT_27_LARGE_H
-#define AMBRO_AVR_ASM_SQRT_27_LARGE_H
+#ifndef AMBRO_AVR_ASM_SQRT_25_LARGE_H
+#define AMBRO_AVR_ASM_SQRT_25_LARGE_H
 
 #include <stdint.h>
 
@@ -31,7 +31,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define SQRT_27_ITER_2_4(i) \
+#define SQRT_25_ITER_3_4(i) \
 "    cp %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %D[x],%B[goo]\n" \
@@ -42,7 +42,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_27_ITER_5_5(i) \
+#define SQRT_25_ITER_5_5(i) \
 "    cp %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %D[x],%B[goo]\n" \
@@ -53,7 +53,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_27_ITER_6_6(i) \
+#define SQRT_25_ITER_6_6(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -66,7 +66,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_27_ITER_7_8(i) \
+#define SQRT_25_ITER_7_8(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -79,7 +79,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_27_ITER_9_12(i) \
+#define SQRT_25_ITER_9_12(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -92,7 +92,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_27_ITER_13_13(i) \
+#define SQRT_25_ITER_13_13(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -110,7 +110,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_27_ITER_14_14(i) \
+#define SQRT_25_ITER_14_14(i) \
 "    brcs one_bit_" #i "_%=\n" \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
@@ -126,34 +126,36 @@
 "    rol %D[x]\n"
 
 /*
- * Square root 27-bit.
+ * Square root 25-bit.
  * 
- * Cycles in worst case: 138
- * = 5 + 3 * 8 + 8 + 10 + 2 * 10 + 4 * 10 + 15 + 11 + 5
+ * Cycles in worst case: 133
+ * = 8 + 2 * 8 + 8 + 10 + 2 * 10 + 4 * 10 + 15 + 11 + 5
  */
-__attribute__((always_inline)) inline static uint16_t sqrt_27_large (uint32_t x, OptionForceInline opt)
+__attribute__((always_inline)) inline static uint16_t sqrt_25_large (uint32_t x, OptionForceInline opt)
 {
     uint16_t goo;
     
     asm(
         "    ldi %A[goo],0x80\n"
-        "    ldi %B[goo],0x08\n"
+        "    ldi %B[goo],0x04\n"
         "    lsl %B[x]\n"
         "    rol %C[x]\n"
         "    rol %D[x]\n"
-        SQRT_27_ITER_2_4(2)
-        SQRT_27_ITER_2_4(3)
-        SQRT_27_ITER_2_4(4)
-        SQRT_27_ITER_5_5(5)
-        SQRT_27_ITER_6_6(6)
-        SQRT_27_ITER_7_8(7)
-        SQRT_27_ITER_7_8(8)
-        SQRT_27_ITER_9_12(9)
-        SQRT_27_ITER_9_12(10)
-        SQRT_27_ITER_9_12(11)
-        SQRT_27_ITER_9_12(12)
-        SQRT_27_ITER_13_13(13)
-        SQRT_27_ITER_14_14(14)
+        "    lsl %B[x]\n" \
+        "    rol %C[x]\n" \
+        "    rol %D[x]\n"
+        SQRT_25_ITER_3_4(3)
+        SQRT_25_ITER_3_4(4)
+        SQRT_25_ITER_5_5(5)
+        SQRT_25_ITER_6_6(6)
+        SQRT_25_ITER_7_8(7)
+        SQRT_25_ITER_7_8(8)
+        SQRT_25_ITER_9_12(9)
+        SQRT_25_ITER_9_12(10)
+        SQRT_25_ITER_9_12(11)
+        SQRT_25_ITER_9_12(12)
+        SQRT_25_ITER_13_13(13)
+        SQRT_25_ITER_14_14(14)
         "    brcs end_inc%=\n"
         "    lsl %A[x]\n"
         "    cpc %A[goo],%C[x]\n"
@@ -170,9 +172,9 @@ __attribute__((always_inline)) inline static uint16_t sqrt_27_large (uint32_t x,
 }
 
 template <typename Option = int>
-static uint16_t sqrt_27_large (uint32_t x, Option opt = 0)
+static uint16_t sqrt_25_large (uint32_t x, Option opt = 0)
 {
-    return sqrt_27_large(x, OptionForceInline());
+    return sqrt_25_large(x, OptionForceInline());
 }
 
 #include <aprinter/EndNamespace.h>

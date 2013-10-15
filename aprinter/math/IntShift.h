@@ -57,6 +57,7 @@ public:
             (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 2) ? shift_s24_r2(op) :
             (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 1) ? shift_s24_r1(op) :
 #endif
+            (!Signed && NumBits > 16 && NumBits <= 32 && ShiftCount == 3) ? shift_32_r3(op) :
             (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 15) ? shift_s32_r15(op) :
             (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 14) ? shift_s32_r14(op) :
             (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 13) ? shift_s32_r13(op) :

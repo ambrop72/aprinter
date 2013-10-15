@@ -32,7 +32,7 @@
 #include <aprinter/meta/Modulo.h>
 
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/sqrt_27_large.h>
+#include <avr-asm-ops/sqrt_25_large.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
@@ -48,7 +48,7 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
-            (NumBits <= 27) ? sqrt_27_large(op, opt) :
+            (NumBits <= 25) ? sqrt_25_large(op, opt) :
 #endif
             default_sqrt(op);
     }

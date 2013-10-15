@@ -27,6 +27,27 @@
 
 #include <stdint.h>
 
+static inline uint32_t shift_32_r3 (uint32_t op)
+{
+    asm(
+        "lsr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "lsr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        "lsr %D[op]\n"
+        "ror %C[op]\n"
+        "ror %B[op]\n"
+        "ror %A[op]\n"
+        : [op] "=&d" (op)
+        : "[op]" (op)
+    );
+    return op;
+}
+
 static inline __int24 shift_s24_r1 (__int24 op)
 {
     asm(

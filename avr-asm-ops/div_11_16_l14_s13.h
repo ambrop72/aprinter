@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBRO_AVR_ASM_DIV_12_16_L15_S14_H
-#define AMBRO_AVR_ASM_DIV_12_16_L15_S14_H
+#ifndef AMBRO_AVR_ASM_DIV_11_16_L14_S13_H
+#define AMBRO_AVR_ASM_DIV_11_16_L14_S13_H
 
 #include <stdint.h>
 
@@ -31,7 +31,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define DIVIDE_12_16_L15_S14_ITER_17_19(i) \
+#define DIVIDE_11_16_L14_S13_ITER_17_20(i) \
 "    lsl %A[n]\n" \
 "    rol %B[n]\n" \
 "    cp %A[n],%A[d]\n" \
@@ -39,10 +39,10 @@
 "    brcs zero_bit_" #i "__%=\n" \
 "    sub %A[n],%A[d]\n" \
 "    sbc %B[n],%B[d]\n" \
-"    ori %B[q],1<<(22-" #i ")\n" \
+"    ori %B[q],1<<(21-" #i ")\n" \
 "zero_bit_" #i "__%=:\n"
 
-#define DIVIDE_12_16_L15_S14_ITER_20_22(i) \
+#define DIVIDE_11_16_L14_S13_ITER_21_21(i) \
 "    lsl %A[n]\n" \
 "    rol %B[n]\n" \
 "    rol __tmp_reg__\n" \
@@ -53,10 +53,10 @@
 "    sub %A[n],%A[d]\n" \
 "    sbc %B[n],%B[d]\n" \
 "    sbc __tmp_reg__,__zero_reg__\n" \
-"    ori %B[q],1<<(22-" #i ")\n" \
+"    ori %B[q],1<<(21-" #i ")\n" \
 "zero_bit_" #i "__%=:\n"
 
-#define DIVIDE_12_16_L15_S14_ITER_23_27(i) \
+#define DIVIDE_11_16_L14_S13_ITER_22_28(i) \
 "    lsl %A[n]\n" \
 "    rol %B[n]\n" \
 "    rol __tmp_reg__\n" \
@@ -67,33 +67,16 @@
 "    sub %A[n],%A[d]\n" \
 "    sbc %B[n],%B[d]\n" \
 "    sbc __tmp_reg__,__zero_reg__\n" \
-"    ori %A[q],1<<(30-" #i ")\n" \
-"zero_bit_" #i "__%=:\n"
-
-#define DIVIDE_12_16_L15_S14_ITER_28_29(i) \
-"    lsl %A[n]\n" \
-"    rol %B[n]\n" \
-"    rol __tmp_reg__\n" \
-"    rol %[t]\n" \
-"    cp %A[n],%A[d]\n" \
-"    cpc %B[n],%B[d]\n" \
-"    cpc __tmp_reg__,__zero_reg__\n" \
-"    cpc %[t],__zero_reg__\n" \
-"    brcs zero_bit_" #i "__%=\n" \
-"    sub %A[n],%A[d]\n" \
-"    sbc %B[n],%B[d]\n" \
-"    sbc __tmp_reg__,__zero_reg__\n" \
-"    sbc %[t],__zero_reg__\n" \
-"    ori %A[q],1<<(30-" #i ")\n" \
+"    ori %A[q],1<<(29-" #i ")\n" \
 "zero_bit_" #i "__%=:\n"
 
 /**
- * Division 2^15*(12bit/16bit), saturated to 14 bits.
+ * Division 2^14*(11bit/16bit), saturated to 13 bits.
  * 
- * Cycles in worst case: 154
- * = 5 + (3 * 8) + (3 * 11) + (5 * 11) + (2 * 14) + 9
+ * Cycles in worst case: 134
+ * = 5 + (4 * 8) + (1 * 11) + (7 * 11) + 9
  */
-__attribute__((always_inline)) inline static uint16_t div_12_16_l15_s14 (uint16_t n, uint16_t d, OptionForceInline opt)
+__attribute__((always_inline)) inline static uint16_t div_11_16_l14_s13 (uint16_t n, uint16_t d, OptionForceInline opt)
 {
     uint16_t q;
     uint8_t t;
@@ -104,19 +87,18 @@ __attribute__((always_inline)) inline static uint16_t div_12_16_l15_s14 (uint16_
         "    clr %[t]\n"
         "    lsl %A[n]\n"
         "    rol %B[n]\n"
-        DIVIDE_12_16_L15_S14_ITER_17_19(17)
-        DIVIDE_12_16_L15_S14_ITER_17_19(18)
-        DIVIDE_12_16_L15_S14_ITER_17_19(19)
-        DIVIDE_12_16_L15_S14_ITER_20_22(20)
-        DIVIDE_12_16_L15_S14_ITER_20_22(21)
-        DIVIDE_12_16_L15_S14_ITER_20_22(22)
-        DIVIDE_12_16_L15_S14_ITER_23_27(23)
-        DIVIDE_12_16_L15_S14_ITER_23_27(24)
-        DIVIDE_12_16_L15_S14_ITER_23_27(25)
-        DIVIDE_12_16_L15_S14_ITER_23_27(26)
-        DIVIDE_12_16_L15_S14_ITER_23_27(27)
-        DIVIDE_12_16_L15_S14_ITER_28_29(28)
-        DIVIDE_12_16_L15_S14_ITER_28_29(29)
+        DIVIDE_11_16_L14_S13_ITER_17_20(17)
+        DIVIDE_11_16_L14_S13_ITER_17_20(18)
+        DIVIDE_11_16_L14_S13_ITER_17_20(19)
+        DIVIDE_11_16_L14_S13_ITER_17_20(20)
+        DIVIDE_11_16_L14_S13_ITER_21_21(21)
+        DIVIDE_11_16_L14_S13_ITER_22_28(22)
+        DIVIDE_11_16_L14_S13_ITER_22_28(23)
+        DIVIDE_11_16_L14_S13_ITER_22_28(24)
+        DIVIDE_11_16_L14_S13_ITER_22_28(25)
+        DIVIDE_11_16_L14_S13_ITER_22_28(26)
+        DIVIDE_11_16_L14_S13_ITER_22_28(27)
+        DIVIDE_11_16_L14_S13_ITER_22_28(28)
         "    lsl %A[n]\n"
         "    rol %B[n]\n"
         "    rol __tmp_reg__\n"
@@ -138,9 +120,9 @@ __attribute__((always_inline)) inline static uint16_t div_12_16_l15_s14 (uint16_
 }
 
 template <typename Option = int>
-static uint16_t div_12_16_l15_s14 (uint16_t n, uint16_t d, Option opt = 0)
+static uint16_t div_11_16_l14_s13 (uint16_t n, uint16_t d, Option opt = 0)
 {
-    return div_12_16_l15_s14(n, d, OptionForceInline());
+    return div_11_16_l14_s13(n, d, OptionForceInline());
 }
 
 #include <aprinter/EndNamespace.h>
