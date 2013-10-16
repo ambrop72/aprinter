@@ -79,12 +79,10 @@
 __attribute__((always_inline)) inline static uint16_t div_11_16_l14_s13 (uint16_t n, uint16_t d, OptionForceInline opt)
 {
     uint16_t q;
-    uint8_t t;
     
     asm(
         "    clr __tmp_reg__\n"
         "    movw %A[q],__tmp_reg__\n"
-        "    clr %[t]\n"
         "    lsl %A[n]\n"
         "    rol %B[n]\n"
         DIVIDE_11_16_L14_S13_ITER_17_20(17)
@@ -102,16 +100,16 @@ __attribute__((always_inline)) inline static uint16_t div_11_16_l14_s13 (uint16_
         "    lsl %A[n]\n"
         "    rol %B[n]\n"
         "    rol __tmp_reg__\n"
-        "    rol %[t]\n"
+        "    brcc no_carry_%=\n"
+        "    ror __tmp_reg__\n"
+        "no_carry_%=:\n"
         "    cp %A[n],%A[d]\n"
         "    cpc %B[n],%B[d]\n"
         "    cpc __tmp_reg__,__zero_reg__\n"
-        "    cpc %[t],__zero_reg__\n"
         "    sbci %A[q],-1\n"
         
         : [q] "=&d" (q),
-          [n] "=&r" (n),
-          [t] "=&r" (t)
+          [n] "=&r" (n)
         : "[n]" (n),
           [d] "r" (d)
     );
