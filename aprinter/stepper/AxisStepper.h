@@ -234,8 +234,7 @@ private:
             m_current_command->x.m_bits.m_int &= ((typename DirStepFixedType::IntType)1 << step_bits) - 1;
             
             if (AMBRO_UNLIKELY(m_current_command->x.bitsValue() == 0)) {
-                TimeType timer_t = m_time;
-                m_timer.set(c, timer_t);
+                m_timer.set(c, m_time);
                 return true;
             }
         }
@@ -265,8 +264,7 @@ private:
         
         TimeFixedType t = FixedResMultiply(m_current_command->t_mul, t_frac);
         
-        TimeType timer_t = m_time - t.bitsValue();
-        m_timer.set(c, timer_t);
+        m_timer.set(c, (TimeType)(m_time - t.bitsValue()));
         return true;
     }
     
