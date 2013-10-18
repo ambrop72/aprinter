@@ -352,12 +352,14 @@ struct MyContext {
     using EventLoop = MyLoop;
     using Pins = MyPins;
     using Adc = MyAdc;
+    using TheRootPosition = PrinterPosition;
     
     MyDebugObjectGroup * debugGroup () const;
     MyClock * clock () const;
     MyLoop * eventLoop () const;
     MyPins * pins () const;
     MyAdc * adc () const;
+    MyPrinter * root () const;
 };
 
 struct EventLoopParams {
@@ -378,6 +380,7 @@ MyClock * MyContext::clock () const { return &myclock; }
 MyLoop * MyContext::eventLoop () const { return &myloop; }
 MyPins * MyContext::pins () const { return &mypins; }
 MyAdc * MyContext::adc () const { return &myadc; }
+MyPrinter * MyContext::root () const { return &myprinter; }
 
 AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
 AMBRO_AVR_ADC_ISRS(myadc, MyContext())
