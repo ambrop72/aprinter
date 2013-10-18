@@ -590,7 +590,7 @@ public:
             m_num_committed = 0;
         }
         
-        StepperCommand * stepper_command_callback (StepperCommandCallbackContext c)
+        bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand **out_cmd)
         {
             MotionPlanner *o = parent();
             AMBRO_ASSERT(m_first >= 0)
@@ -599,7 +599,11 @@ public:
             o->m_stepper_event.appendNowIfNotAlready(c);
             m_num_committed--;
             m_first = m_stepper_entries[m_first].next;
-            return (m_first >= 0 ? &m_stepper_entries[m_first].scmd : NULL);
+            if (!(m_first >= 0)) {
+                return false;
+            }
+            *out_cmd = &m_stepper_entries[m_first].scmd;
+            return true;
         }
         
         bool stepper_prestep_callback (StepperCommandCallbackContext c)

@@ -225,8 +225,9 @@ private:
         
         if (AMBRO_LIKELY(m_current_command->x.bitsValue() == 0)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
-            TupleForEachForwardInterruptible(&dummy, Foreach_maybe_call_command_callback(), this, m_consumer_id, &m_current_command, c);
-            if (AMBRO_UNLIKELY(!m_current_command)) {
+            bool res;
+            TupleForEachForwardInterruptible(&dummy, Foreach_maybe_call_command_callback(), this, m_consumer_id, &res, c, &m_current_command);
+            if (AMBRO_UNLIKELY(!res)) {
 #ifdef AMBROLIB_ASSERTIONS
                 m_running = false;
 #endif
