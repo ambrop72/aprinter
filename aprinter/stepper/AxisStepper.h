@@ -91,17 +91,17 @@ public:
     using TimeType = typename Clock::TimeType;
     using TimerInstance = typename Params::template Timer<Context, TimerHandler>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
+    using DirStepFixedType = FixedPoint<step_bits + 1, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
     using TimeFixedType = FixedPoint<time_bits, false, 0>;
     using CommandCallbackContext = typename TimerInstance::HandlerContext;
     
     struct Command {
-        StepFixedType x;
+        DirStepFixedType x;
         decltype(AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) discriminant;
         decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) a_mul;
         decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) v0;
         decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) t_mul;
-        bool dir;
     };
     
     static void generate_command (bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a, Command *cmd)
@@ -111,12 +111,11 @@ public:
         
         // keep the order of the computation consistent with the dependencies between
         // these macros, to make it easier for the compiler to optimize
-        cmd->x = x;
+        cmd->x = DirStepFixedType::importBits(x.bitsValue() | ((typename DirStepFixedType::IntType)dir << step_bits));
         cmd->v0 = AXIS_STEPPER_V0_EXPR(x, t, a);
         cmd->a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
         cmd->discriminant = AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a);
         cmd->t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
-        cmd->dir = dir;
     }
     
     void init (Context c)
@@ -158,7 +157,8 @@ public:
         m_consumer_id = TypeListIndex<typename ConsumersList::List, IsEqualFunc<TheConsumer>>::value;
         m_current_command = first_command;
         m_time = m_current_command->t_mul.template bitsTo<time_bits>().bitsValue() + start_time;
-        stepper(this)->setDir(c, m_current_command->dir);
+        stepper(this)->setDir(c, m_current_command->x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
+        m_current_command->x.m_bits.m_int &= ((typename DirStepFixedType::IntType)1 << step_bits) - 1;
         TimeType timer_t = (m_current_command->x.bitsValue() == 0) ? m_time : start_time;
         m_timer.set(c, timer_t);
     }
@@ -230,7 +230,8 @@ private:
             }
             
             m_time += m_current_command->t_mul.template bitsTo<time_bits>().bitsValue();
-            stepper(this)->setDir(c, m_current_command->dir);
+            stepper(this)->setDir(c, m_current_command->x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
+            m_current_command->x.m_bits.m_int &= ((typename DirStepFixedType::IntType)1 << step_bits) - 1;
             
             if (AMBRO_UNLIKELY(m_current_command->x.bitsValue() == 0)) {
                 TimeType timer_t = m_time;
@@ -260,7 +261,7 @@ private:
         
         auto q = (m_current_command->v0 + FixedSquareRoot(m_current_command->discriminant, OptionForceInline())).template shift<-1>();
         
-        auto t_frac = FixedFracDivide(m_current_command->x, q, OptionForceInline());
+        auto t_frac = FixedFracDivide(StepFixedType::importBits(m_current_command->x.bitsValue()), q, OptionForceInline());
         
         TimeFixedType t = FixedResMultiply(m_current_command->t_mul, t_frac);
         
