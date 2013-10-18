@@ -55,6 +55,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/LinearPlanner.h>
 
@@ -1231,14 +1232,14 @@ private:
         }
     }
     
-    bool is_empty ()
+    AMBRO_ALWAYS_INLINE bool is_empty ()
     {
         return
             TupleForEachForwardAccRes(&m_axes, true, Foreach_is_empty()) &&
             TupleForEachForwardAccRes(&m_channels, true, Foreach_is_empty());
     }
     
-    __attribute__((always_inline)) inline uint8_t is_underrun ()
+    AMBRO_ALWAYS_INLINE uint8_t is_underrun ()
     {
         return
             TupleForEachForwardAccRes(&m_axes, false, Foreach_is_underrun()) ||
