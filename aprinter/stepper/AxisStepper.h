@@ -199,19 +199,23 @@ private:
         using ConsumerPosition = typename TheConsumer::Position;
         
         template <typename Ret, typename... Args>
-        void maybe_call_command_callback (AxisStepper *o, uint8_t consumer_id, Ret *ret, Args... args)
+        bool maybe_call_command_callback (AxisStepper *o, uint8_t consumer_id, Ret *ret, Args... args)
         {
-            if (consumer_id == ConsumerIndex) {
+            if (AMBRO_LIKELY(consumer_id == ConsumerIndex || ConsumerIndex == TypeListLength<typename ConsumersList::List>::value - 1)) {
                 *ret = TheConsumer::CommandCallback::call(PositionTraverse<Position, ConsumerPosition>(o), args...);
+                return false;
             }
+            return true;
         }
         
         template <typename Ret, typename... Args>
-        void maybe_call_prestep_callback (AxisStepper *o, uint8_t consumer_id, Ret *ret, Args... args)
+        bool maybe_call_prestep_callback (AxisStepper *o, uint8_t consumer_id, Ret *ret, Args... args)
         {
-            if (consumer_id == ConsumerIndex) {
+            if (AMBRO_LIKELY(consumer_id == ConsumerIndex || ConsumerIndex == TypeListLength<typename ConsumersList::List>::value - 1)) {
                 *ret = TheConsumer::PrestepCallback::call(PositionTraverse<Position, ConsumerPosition>(o), args...);
+                return false;
             }
+            return true;
         }
     };
     
@@ -221,7 +225,7 @@ private:
         
         if (AMBRO_LIKELY(m_current_command->x.bitsValue() == 0)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
-            TupleForEachForward(&dummy, Foreach_maybe_call_command_callback(), this, m_consumer_id, &m_current_command, c);
+            TupleForEachForwardInterruptible(&dummy, Foreach_maybe_call_command_callback(), this, m_consumer_id, &m_current_command, c);
             if (AMBRO_UNLIKELY(!m_current_command)) {
 #ifdef AMBROLIB_ASSERTIONS
                 m_running = false;
@@ -244,7 +248,7 @@ private:
         if (AMBRO_UNLIKELY(m_prestep_callback_enabled)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
             bool res;
-            TupleForEachForward(&dummy, Foreach_maybe_call_prestep_callback(), this, m_consumer_id, &res, c);
+            TupleForEachForwardInterruptible(&dummy, Foreach_maybe_call_prestep_callback(), this, m_consumer_id, &res, c);
             if (AMBRO_UNLIKELY(res)) {
 #ifdef AMBROLIB_ASSERTIONS
                 m_running = false;
