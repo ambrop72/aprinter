@@ -51,6 +51,7 @@
 #include <aprinter/meta/IndexElemUnion.h>
 #include <aprinter/meta/WrapCallback.h>
 #include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -112,6 +113,7 @@ private:
     using SegmentBufferSizeType = BoundedInt<BitsInInt<LookaheadBufferSize>::value, false>;
     static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * LookaheadBufferSize);
     using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
+    using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
@@ -597,7 +599,7 @@ public:
             AMBRO_ASSERT(m_first >= 0)
             AMBRO_ASSERT(o->m_stepping)
             
-            o->m_stepper_event.appendNowIfNotAlready(c);
+            c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
             m_num_committed--;
             m_first = m_stepper_entries[m_first].next;
             if (!(m_first >= 0)) {
@@ -628,7 +630,7 @@ public:
                 
                 bool res = AxisSpec::PrestepCallback::call(o, c);
                 if (AMBRO_UNLIKELY(res)) {
-                    o->m_stepper_event.appendNowIfNotAlready(c);
+                    c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
                     axis->m_num_committed = 0;
                     axis->m_first = -2;
                 }
@@ -840,7 +842,7 @@ public:
             
             ChannelSpec::Callback::call(o, c, &m_channel_commands[m_first].payload);
             
-            o->m_stepper_event.appendNowIfNotAlready(c);
+            c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
             m_num_committed--;
             m_first = m_channel_commands[m_first].next;
             if (!(m_first >= 0)) {
@@ -872,7 +874,7 @@ public:
     {
         m_lock.init(c);
         m_pull_finished_event.init(c, AMBRO_OFFSET_CALLBACK_T(&MotionPlanner::m_pull_finished_event, &MotionPlanner::pull_finished_event_handler));
-        m_stepper_event.init(c, MotionPlanner::stepper_event_handler);
+        c.eventLoop()->template initFastEvent<StepperFastEvent>(c, MotionPlanner::stepper_event_handler);
         m_segments_start = SegmentBufferSizeType::import(0);
         m_segments_staging_end = SegmentBufferSizeType::import(0);
         m_segments_end = SegmentBufferSizeType::import(0);
@@ -903,7 +905,7 @@ public:
         
         TupleForEachForward(&m_channels, Foreach_deinit(), c);
         TupleForEachForward(&m_axes, Foreach_deinit(), c);
-        m_stepper_event.deinit(c);
+        c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
         m_pull_finished_event.deinit(c);
         m_lock.deinit(c);
     }
@@ -976,6 +978,8 @@ public:
         AMBRO_WMETHOD_T(&Axis<AxisIndex>::stepper_command_callback),
         AMBRO_WMETHOD_T(&Axis<AxisIndex>::stepper_prestep_callback)
     >;
+    
+    using EventLoopFastEvents = MakeTypeList<StepperFastEvent>;
     
 private:
     static void work (Context c)
@@ -1246,7 +1250,7 @@ private:
             TupleForEachForwardAccRes(&m_channels, false, Foreach_is_underrun());
     }
     
-    static void stepper_event_handler (typename Loop::QueuedEvent *event, Context c)
+    static void stepper_event_handler (Context c)
     {
         MotionPlanner *o = PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
         AMBRO_ASSERT(o->m_stepping)
@@ -1271,7 +1275,7 @@ private:
             o->m_segments_start = o->m_segments_staging_end;
             o->m_staging_time = 0;
             o->m_staging_v_squared = 0.0;
-            o->m_stepper_event.unset(c);
+            c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
             TupleForEachForward(&o->m_axes, Foreach_stopped_stepping(), c);
             TupleForEachForward(&o->m_channels, Foreach_stopped_stepping(), c);
             if (o->m_waiting) {
@@ -1286,7 +1290,6 @@ private:
     
     typename Context::Lock m_lock;
     typename Loop::QueuedEvent m_pull_finished_event;
-    typename Loop::QueuedEvent m_stepper_event;
     SegmentBufferSizeType m_segments_start;
     SegmentBufferSizeType m_segments_staging_end;
     SegmentBufferSizeType m_segments_end;

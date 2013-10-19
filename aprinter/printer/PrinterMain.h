@@ -31,6 +31,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 
+#include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/TypeListGet.h>
@@ -52,6 +53,7 @@
 #include <aprinter/meta/Union.h>
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/TypeListFold.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -220,6 +222,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_emergency, emergency)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_channel_callback, channel_callback)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
     
     template <int AxisIndex> struct AxisPosition;
     template <int AxisIndex> struct HomingFeaturePosition;
@@ -341,6 +344,8 @@ private:
             template <typename TheHomingFeature>
             using MakeAxisStepperConsumersList = MakeTypeList<typename TheHomingFeature::HomingState::Homer::TheAxisStepperConsumer>;
             
+            using EventLoopFastEvents = typename HomingState::Homer::EventLoopFastEvents;
+            
             Axis * parent ()
             {
                 return PositionTraverse<HomingFeaturePosition<AxisIndex>, AxisPosition<AxisIndex>>(this);
@@ -391,6 +396,7 @@ private:
             struct HomingState {};
             template <typename TheHomingFeature>
             using MakeAxisStepperConsumersList = MakeTypeList<>;
+            using EventLoopFastEvents = EmptyTypeList;
             void init (Context c) {}
             void deinit (Context c) {}
             void start_homing (Context c, AxisMaskType mask) {}
@@ -556,6 +562,8 @@ private:
         {
             Stepper::emergency();
         }
+        
+        using EventLoopFastEvents = typename HomingFeature::EventLoopFastEvents;
         
         TheAxisStepper m_axis_stepper;
         uint8_t m_state;
@@ -971,6 +979,15 @@ public:
         FansTuple dummy_fans;
         TupleForEachForward(&dummy_fans, Foreach_emergency());
     }
+    
+    using EventLoopFastEvents = JoinTypeLists<
+        typename ThePlanner::EventLoopFastEvents,
+        TypeListFold<
+            MapTypeList<typename AxesTuple::ElemTypes, GetMemberType_EventLoopFastEvents>,
+            EmptyTypeList,
+            JoinTypeLists
+        >
+    >;
     
 private:
     enum {STATE_IDLE, STATE_HOMING, STATE_PLANNING, STATE_WAITING_TEMP};

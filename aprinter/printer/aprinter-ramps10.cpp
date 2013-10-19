@@ -335,11 +335,16 @@ static const int AdcPrescaler = 7;
 static const int clock_timer_prescaler = 3;
 
 struct MyContext;
+struct MyLoopExtra;
+struct Program;
+struct LoopPosition;
 struct PrinterPosition;
+struct LoopExtraPosition;
 
+using ProgramPosition = RootPosition<Program>;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
 using MyClock = AvrClock<MyContext, clock_timer_prescaler>;
-using MyLoop = BusyEventLoop<MyContext>;
+using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
 using MyPins = AvrPins<MyContext>;
 using MyAdc = AvrAdc<MyContext, AdcPins, AdcRefSel, AdcPrescaler>;
 using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
@@ -351,49 +356,58 @@ struct MyContext {
     using EventLoop = MyLoop;
     using Pins = MyPins;
     using Adc = MyAdc;
-    using TheRootPosition = PrinterPosition;
+    using TheRootPosition = ProgramPosition;
     
     MyDebugObjectGroup * debugGroup () const;
     MyClock * clock () const;
     MyLoop * eventLoop () const;
     MyPins * pins () const;
     MyAdc * adc () const;
-    MyPrinter * root () const;
+    Program * root () const;
 };
 
-struct PrinterPosition : public RootPosition<MyPrinter> {};
+struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, typename MyPrinter::EventLoopFastEvents> {};
 
-static MyDebugObjectGroup d_group;
-static MyClock myclock;
-static MyLoop myloop;
-static MyPins mypins;
-static MyAdc myadc;
-static MyPrinter myprinter;
+struct Program {
+    MyDebugObjectGroup d_group;
+    MyClock myclock;
+    MyLoop myloop;
+    MyPins mypins;
+    MyAdc myadc;
+    MyPrinter myprinter;
+    MyLoopExtra myloopextra;
+};
 
-MyDebugObjectGroup * MyContext::debugGroup () const { return &d_group; }
-MyClock * MyContext::clock () const { return &myclock; }
-MyLoop * MyContext::eventLoop () const { return &myloop; }
-MyPins * MyContext::pins () const { return &mypins; }
-MyAdc * MyContext::adc () const { return &myadc; }
-MyPrinter * MyContext::root () const { return &myprinter; }
+struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
+struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
+struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
 
-AMBRO_AVR_CLOCK_ISRS(myclock, MyContext())
-AMBRO_AVR_ADC_ISRS(myadc, MyContext())
-AMBRO_AVR_SERIAL_ISRS(*myprinter.getSerial(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*myprinter.getAxisStepper<0>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*myprinter.getAxisStepper<1>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*myprinter.getAxisStepper<2>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*myprinter.getAxisStepper<3>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(*myprinter.getHeaterTimer<0>(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCA_ISRS(*myprinter.getEventChannelTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCB_ISRS(*myprinter.getFanTimer<0>(), MyContext())
+Program p;
+
+MyDebugObjectGroup * MyContext::debugGroup () const { return &p.d_group; }
+MyClock * MyContext::clock () const { return &p.myclock; }
+MyLoop * MyContext::eventLoop () const { return &p.myloop; }
+MyPins * MyContext::pins () const { return &p.mypins; }
+MyAdc * MyContext::adc () const { return &p.myadc; }
+Program * MyContext::root () const { return &p; }
+
+AMBRO_AVR_CLOCK_ISRS(p.myclock, MyContext())
+AMBRO_AVR_ADC_ISRS(p.myadc, MyContext())
+AMBRO_AVR_SERIAL_ISRS(*p.myprinter.getSerial(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*p.myprinter.getAxisStepper<1>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*p.myprinter.getAxisStepper<2>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(*p.myprinter.getHeaterTimer<0>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCA_ISRS(*p.myprinter.getEventChannelTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCB_ISRS(*p.myprinter.getFanTimer<0>(), MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
 
 FILE uart_output;
 
 static int uart_putchar (char ch, FILE *stream)
 {
-    myprinter.getSerial()->sendWaitFinished();
+    p.myprinter.getSerial()->sendWaitFinished();
     while (!(UCSR0A & (1 << UDRE0)));
     UDR0 = ch;
     return 1;
@@ -419,20 +433,20 @@ int main ()
     
     MyContext c;
     
-    d_group.init(c);
-    myclock.init(c);
-    myclock.initTC3(c);
-    myclock.initTC4(c);
-    myclock.initTC5(c);
-    myloop.init(c);
-    mypins.init(c);
-    myadc.init(c);
-    myprinter.init(c);
+    p.d_group.init(c);
+    p.myclock.init(c);
+    p.myclock.initTC3(c);
+    p.myclock.initTC4(c);
+    p.myclock.initTC5(c);
+    p.myloop.init(c);
+    p.mypins.init(c);
+    p.myadc.init(c);
+    p.myprinter.init(c);
     
     // enable internal pull-ups
-    mypins.set<MegaPin3>(c, true);
-    mypins.set<MegaPin16>(c, true);
-    mypins.set<MegaPin18>(c, true);
+    p.mypins.set<MegaPin3>(c, true);
+    p.mypins.set<MegaPin16>(c, true);
+    p.mypins.set<MegaPin18>(c, true);
     
-    myloop.run(c);
+    p.myloop.run(c);
 }

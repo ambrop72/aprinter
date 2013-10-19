@@ -28,6 +28,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <aprinter/meta/TypeList.h>
+#include <aprinter/meta/TypeListLength.h>
+#include <aprinter/meta/TypeListIndex.h>
+#include <aprinter/meta/IsEqualFunc.h>
+#include <aprinter/meta/Position.h>
+#include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/BitsInInt.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -38,10 +45,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
+template <typename, typename, typename>
+class BusyEventLoopExtra;
+
 template <typename>
 class BusyEventLoopQueuedEvent;
 
-template <typename TContext>
+template <typename Position, typename ExtraPosition, typename TContext, typename Extra>
 class BusyEventLoop
 : private DebugObject<TContext, void>
 {
@@ -50,6 +60,7 @@ public:
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
     typedef BusyEventLoopQueuedEvent<BusyEventLoop> QueuedEvent;
+    using FastHandlerType = void (*) (Context);
     
     void init (Context c)
     {
@@ -58,6 +69,10 @@ public:
 #endif
         m_now = c.clock()->getTime(c);
         m_queued_event_list.init();
+        extra()->m_fast_event_pos = 0;
+        for (typename Extra::FastEventSizeType i = 0; i < Extra::NumFastEvents; i++) {
+            extra()->m_fast_events[i].triggered = false;
+        }
         m_lock.init(c);
         
         this->debugInit(c);
@@ -75,6 +90,21 @@ public:
         this->debugAccess(c);
         
         while (1) {
+            for (typename Extra::FastEventSizeType i = 0; i < Extra::NumFastEvents; i++) {
+                extra()->m_fast_event_pos++;
+                if (AMBRO_UNLIKELY(extra()->m_fast_event_pos == Extra::NumFastEvents)) {
+                    extra()->m_fast_event_pos = 0;
+                }
+                cli();
+                if (extra()->m_fast_events[extra()->m_fast_event_pos].triggered) {
+                    extra()->m_fast_events[extra()->m_fast_event_pos].triggered = false;
+                    sei();
+                    extra()->m_fast_events[extra()->m_fast_event_pos].handler(c);
+                    break;
+                }
+                sei();
+            }
+            
             TimeType now = c.clock()->getTime(c);
             
             cli();
@@ -105,11 +135,45 @@ public:
     }
 #endif
     
+    template <typename Id>
+    struct FastEventSpec {};
+    
+    template <typename EventSpec>
+    void initFastEvent (Context c, FastHandlerType handler)
+    {
+        this->debugAccess(c);
+        
+        extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].handler = handler;
+    }
+    
+    template <typename EventSpec>
+    void resetFastEvent (Context c)
+    {
+        this->debugAccess(c);
+        
+        extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].triggered = false;
+    }
+    
+    template <typename EventSpec, typename ThisContext>
+    void triggerFastEvent (ThisContext c)
+    {
+        this->debugAccess(c);
+        
+        AMBRO_LOCK_T(m_lock, c, lock_c, {
+            extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].triggered = true;
+        });
+    }
+    
 private:
     template <typename>
     friend class BusyEventLoopQueuedEvent;
     
     typedef DoubleEndedList<QueuedEvent, &QueuedEvent::m_list_node> QueuedEventList;
+    
+    Extra * extra ()
+    {
+        return PositionTraverse<Position, ExtraPosition>(this);
+    }
     
 #ifdef AMBROLIB_SUPPORT_QUIT
     bool m_quitting;
@@ -117,6 +181,28 @@ private:
     TimeType m_now;
     QueuedEventList m_queued_event_list;
     InterruptLock<Context> m_lock;
+};
+
+template <typename Position, typename Loop, typename FastEventList>
+class BusyEventLoopExtra {
+    friend Loop;
+    
+    static const int NumFastEvents = TypeListLength<FastEventList>::value;
+    using FastEventSizeType = typename ChooseInt<BitsInInt<NumFastEvents>::value, false>::Type;
+    
+    struct FastEventState {
+        bool triggered;
+        typename Loop::FastHandlerType handler;
+    };
+    
+    template <typename EventSpec>
+    static constexpr FastEventSizeType get_event_index ()
+    {
+        return TypeListIndex<FastEventList, IsEqualFunc<EventSpec>>::value;
+    }
+    
+    FastEventSizeType m_fast_event_pos;
+    FastEventState m_fast_events[NumFastEvents];
 };
 
 template <typename Loop>

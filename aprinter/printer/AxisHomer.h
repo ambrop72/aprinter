@@ -103,6 +103,7 @@ public:
     }
     
     using TheAxisStepperConsumer = typename Planner::template TheAxisStepperConsumer<0>;
+    using EventLoopFastEvents = typename Planner::EventLoopFastEvents;
     
 private:
     void planner_pull_handler (Context c)
