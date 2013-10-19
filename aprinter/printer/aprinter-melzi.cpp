@@ -609,12 +609,11 @@ static const int AdcPrescaler = 7;
 static const int clock_timer_prescaler = 3;
 
 struct MyContext;
-struct EventLoopParams;
 struct PrinterPosition;
 
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
 using MyClock = AvrClock<MyContext, clock_timer_prescaler>;
-using MyLoop = BusyEventLoop<EventLoopParams>;
+using MyLoop = BusyEventLoop<MyContext>;
 using MyPins = AvrPins<MyContext>;
 using MyAdc = AvrAdc<MyContext, AdcPins, AdcRefSel, AdcPrescaler>;
 using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
@@ -634,10 +633,6 @@ struct MyContext {
     MyPins * pins () const;
     MyAdc * adc () const;
     MyPrinter * root () const;
-};
-
-struct EventLoopParams {
-    typedef MyContext Context;
 };
 
 struct PrinterPosition : public RootPosition<MyPrinter> {};

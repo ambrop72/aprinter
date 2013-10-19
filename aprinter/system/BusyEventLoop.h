@@ -41,12 +41,12 @@
 template <typename>
 class BusyEventLoopQueuedEvent;
 
-template <typename Params>
+template <typename TContext>
 class BusyEventLoop
-: private DebugObject<typename Params::Context, BusyEventLoop<Params>>
+: private DebugObject<TContext, void>
 {
 public:
-    typedef typename Params::Context Context;
+    using Context = TContext;
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
     typedef BusyEventLoopQueuedEvent<BusyEventLoop> QueuedEvent;
