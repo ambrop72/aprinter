@@ -258,7 +258,7 @@ private:
             }
         }
         
-        stepper(this)->step(c);
+        stepper(this)->stepOn(c);
         
         m_current_command->discriminant.m_bits.m_int -= m_current_command->a_mul.m_bits.m_int;
         AMBRO_ASSERT(m_current_command->discriminant.bitsValue() >= 0)
@@ -268,6 +268,8 @@ private:
         auto t_frac = FixedFracDivide(StepFixedType::importBits(m_current_command->x.bitsValue()), q, OptionForceInline());
         
         TimeFixedType t = FixedResMultiply(m_current_command->t_mul, t_frac);
+        
+        stepper(this)->stepOff(c);
         
         m_timer.set(c, (TimeType)(m_time - t.bitsValue()));
         return true;

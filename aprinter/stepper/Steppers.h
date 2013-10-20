@@ -132,10 +132,16 @@ public:
     }
     
     template <typename ThisContext>
-    void step (ThisContext c)
+    void stepOn (ThisContext c)
     {
         parent()->debugAccess(c);
         c.pins()->template set<StepPin>(c, true);
+    }
+    
+    template <typename ThisContext>
+    void stepOff (ThisContext c)
+    {
+        parent()->debugAccess(c);
         c.pins()->template set<StepPin>(c, false);
     }
     
