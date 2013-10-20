@@ -82,7 +82,7 @@ private:
     static const int step_bits = 11;
     static const int time_bits = 22;
     static const int q_div_shift = 16;
-    static const int time_mul_bits = 25;
+    static const int time_mul_bits = 24;
     
     struct TimerHandler;
     

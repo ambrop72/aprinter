@@ -71,6 +71,8 @@ public:
                 IntShiftRight<max(1, TempBits - 0), Signed, max(0, RightShift - 0)>::call(mul_s24_16_trunc32(op1, op2)) :
             (RightShift >= 16 && !Signed1 && NumBits1 > 16 && NumBits1 <= 24 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
                 IntShiftRight<max(1, TempBits - 16), Signed, max(0, RightShift - 16)>::call(mul_24_16_r16(op1, op2)) :
+            (RightShift >= 15 && !Signed1 && NumBits1 > 16 && NumBits1 <= 24 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
+                IntShiftRight<max(1, TempBits - 15), Signed, max(0, RightShift - 15)>::call(mul_24_16_r15(op1, op2)) :
             (RightShift >= 8 && !Signed1 && NumBits1 > 24 && NumBits1 <= 32 && !Signed2 && NumBits2 > 0 && NumBits2 <= 8) ?
                 IntShiftRight<max(1, TempBits - 8), Signed, max(0, RightShift - 8)>::call(mul_32_8_r8(op1, op2)) :
             (RightShift >= 16 && !Signed1 && NumBits1 > 24 && NumBits1 <= 32 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
