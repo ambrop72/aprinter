@@ -71,7 +71,7 @@ public:
         m_queued_event_list.init();
         extra()->m_fast_event_pos = 0;
         for (typename Extra::FastEventSizeType i = 0; i < Extra::NumFastEvents; i++) {
-            extra()->m_fast_events[i].triggered = false;
+            extra()->m_fast_events[i].not_triggered = true;
         }
         m_lock.init(c);
         
@@ -96,8 +96,8 @@ public:
                     extra()->m_fast_event_pos = 0;
                 }
                 cli();
-                if (extra()->m_fast_events[extra()->m_fast_event_pos].triggered) {
-                    extra()->m_fast_events[extra()->m_fast_event_pos].triggered = false;
+                if (!extra()->m_fast_events[extra()->m_fast_event_pos].not_triggered) {
+                    extra()->m_fast_events[extra()->m_fast_event_pos].not_triggered = true;
                     sei();
                     extra()->m_fast_events[extra()->m_fast_event_pos].handler(c);
                     break;
@@ -151,7 +151,7 @@ public:
     {
         this->debugAccess(c);
         
-        extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].triggered = false;
+        extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].not_triggered = true;
     }
     
     template <typename EventSpec, typename ThisContext>
@@ -160,7 +160,7 @@ public:
         this->debugAccess(c);
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
-            extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].triggered = true;
+            extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].not_triggered = false;
         });
     }
     
@@ -191,7 +191,7 @@ class BusyEventLoopExtra {
     using FastEventSizeType = typename ChooseInt<BitsInInt<NumFastEvents>::value, false>::Type;
     
     struct FastEventState {
-        bool triggered;
+        bool not_triggered;
         typename Loop::FastHandlerType handler;
     };
     
