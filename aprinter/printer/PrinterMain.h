@@ -100,13 +100,13 @@ struct PrinterMainParams {
 
 template <
     uint32_t tbaud, typename TTheGcodeParserParams,
-    template <typename, int, int, typename, typename, typename> class TSerialTemplate,
+    template <typename, typename, int, int, typename, typename, typename> class TSerialTemplate,
     typename TSerialParams
 >
 struct PrinterMainSerialParams {
     static const uint32_t baud = tbaud;
     using TheGcodeParserParams = TTheGcodeParserParams;
-    template <typename X, int Y, int Z, typename W, typename Q, typename R> using SerialTemplate = TSerialTemplate<X, Y, Z, W, Q, R>;
+    template <typename S, typename X, int Y, int Z, typename W, typename Q, typename R> using SerialTemplate = TSerialTemplate<S, X, Y, Z, W, Q, R>;
     using SerialParams = TSerialParams;
 };
 
@@ -227,6 +227,7 @@ private:
     template <int AxisIndex> struct AxisPosition;
     template <int AxisIndex> struct HomingFeaturePosition;
     template <int AxisIndex> struct HomingStatePosition;
+    struct SerialPosition;
     struct PlannerPosition;
     template <int HeaterIndex> struct HeaterPosition;
     template <int FanIndex> struct FanPosition;
@@ -265,7 +266,7 @@ private:
     using TheBlinker = Blinker<Context, typename Params::LedPin, BlinkerHandler>;
     using StepperDefsList = MapTypeList<AxesList, TemplateFunc<MakeStepperDef>>;
     using TheSteppers = Steppers<Context, StepperDefsList>;
-    using TheSerial = typename Params::Serial::template SerialTemplate<Context, serial_recv_buffer_bits, serial_send_buffer_bits, typename Params::Serial::SerialParams, SerialRecvHandler, SerialSendHandler>;
+    using TheSerial = typename Params::Serial::template SerialTemplate<SerialPosition, Context, serial_recv_buffer_bits, serial_send_buffer_bits, typename Params::Serial::SerialParams, SerialRecvHandler, SerialSendHandler>;
     using RecvSizeType = typename TheSerial::RecvSizeType;
     using SendSizeType = typename TheSerial::SendSizeType;
     using TheGcodeParser = GcodeParser<Context, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType>;
@@ -981,11 +982,14 @@ public:
     }
     
     using EventLoopFastEvents = JoinTypeLists<
-        typename ThePlanner::EventLoopFastEvents,
-        TypeListFold<
-            MapTypeList<typename AxesTuple::ElemTypes, GetMemberType_EventLoopFastEvents>,
-            EmptyTypeList,
-            JoinTypeLists
+        typename TheSerial::EventLoopFastEvents,
+        JoinTypeLists<
+            typename ThePlanner::EventLoopFastEvents,
+            TypeListFold<
+                MapTypeList<typename AxesTuple::ElemTypes, GetMemberType_EventLoopFastEvents>,
+                EmptyTypeList,
+                JoinTypeLists
+            >
         >
     >;
     
@@ -1488,6 +1492,7 @@ private:
     template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &PrinterMain::m_axes, AxisIndex> {};
     template <int AxisIndex> struct HomingFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, typename Axis<AxisIndex>::HomingFeature, &Axis<AxisIndex>::m_homing_feature> {};
     template <int AxisIndex> struct HomingStatePosition : public TuplePosition<Position, HomingStateTuple, &PrinterMain::m_homers, AxisIndex> {};
+    struct SerialPosition : public MemberPosition<Position, TheSerial, &PrinterMain::m_serial> {};
     struct PlannerPosition : public MemberPosition<Position, ThePlanner, &PrinterMain::m_planner> {};
     template <int HeaterIndex> struct HeaterPosition : public TuplePosition<Position, HeatersTuple, &PrinterMain::m_heaters, HeaterIndex> {};
     template <int FanIndex> struct FanPosition : public TuplePosition<Position, FansTuple, &PrinterMain::m_fans, FanIndex> {};

@@ -34,8 +34,8 @@
 
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/BoundedInt.h>
+#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
@@ -47,12 +47,13 @@ struct AvrSerialParams {
     static const bool DoubleSpeed = TDoubleSpeed;
 };
 
-template <typename Context, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
+template <typename Position, typename Context, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
 class AvrSerial
 : private DebugObject<Context, void>
 {
 private:
-    typedef typename Context::EventLoop Loop;
+    using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<AvrSerial>;
+    using SendFastEvent = typename Context::EventLoop::template FastEventSpec<RecvFastEvent>;
     
 public:
     using RecvSizeType = BoundedInt<RecvBufferBits, false>;
@@ -62,12 +63,12 @@ public:
     {
         m_lock.init(c);
         
-        m_recv_queued_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AvrSerial::m_recv_queued_event, &AvrSerial::recv_queued_event_handler));
+        c.eventLoop()->template initFastEvent<RecvFastEvent>(c, AvrSerial::recv_event_handler);
         m_recv_start = RecvSizeType::import(0);
         m_recv_end = RecvSizeType::import(0);
         m_recv_overrun = false;
         
-        m_send_queued_event.init(c, AMBRO_OFFSET_CALLBACK_T(&AvrSerial::m_send_queued_event, &AvrSerial::send_queued_event_handler));
+        c.eventLoop()->template initFastEvent<SendFastEvent>(c, AvrSerial::send_event_handler);
         m_send_start = SendSizeType::import(0);
         m_send_end = SendSizeType::import(0);;
         m_send_event = BoundedModuloInc(m_send_end);
@@ -98,8 +99,8 @@ public:
             UBRR0H = 0;
         });
         
-        m_send_queued_event.deinit(c);
-        m_recv_queued_event.deinit(c);
+        c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
+        c.eventLoop()->template resetFastEvent<RecvFastEvent>(c);
         m_lock.deinit(c);
     }
     
@@ -156,9 +157,7 @@ public:
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
-            m_recv_queued_event.appendNowIfNotAlready(lock_c);
-        });
+        c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
     }
     
     SendSizeType sendQuery (Context c)
@@ -211,10 +210,10 @@ public:
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             if (send_avail(m_send_start, m_send_end) >= min_amount) {
                 m_send_event = BoundedModuloInc(m_send_end);
-                m_send_queued_event.appendNowIfNotAlready(lock_c);
+                c.eventLoop()->template triggerFastEvent<SendFastEvent>(lock_c);
             } else {
-                m_send_event = BoundedModuloAdd(BoundedModuloInc(m_send_end), min_amount);;
-                m_send_queued_event.unset(lock_c);
+                m_send_event = BoundedModuloAdd(BoundedModuloInc(m_send_end), min_amount);
+                c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
             }
         });
     }
@@ -225,7 +224,7 @@ public:
         
         AMBRO_LOCK_T(m_lock, c, lock_c, {
             m_send_event = BoundedModuloInc(m_send_end);
-            m_send_queued_event.unset(lock_c, true);
+            c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
         });
     }
     
@@ -254,7 +253,7 @@ public:
             UCSR0B &= ~(1 << RXCIE0);
         }
         
-        m_recv_queued_event.appendNowIfNotAlready(c);
+        c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
     }
     
     void udre_isr (InterruptContext<Context> c)
@@ -270,9 +269,11 @@ public:
         
         if (m_send_start == m_send_event) {
             m_send_event = BoundedModuloInc(m_send_end);
-            m_send_queued_event.appendNowIfNotAlready(c);
+            c.eventLoop()->template triggerFastEvent<SendFastEvent>(c);
         }
     }
+    
+    using EventLoopFastEvents = MakeTypeList<RecvFastEvent, SendFastEvent>;
     
 private:
     RecvSizeType recv_avail (RecvSizeType start, RecvSizeType end)
@@ -285,29 +286,29 @@ private:
         return BoundedModuloDec(BoundedModuloSubtract(start, end));
     }
     
-    void recv_queued_event_handler (Context c)
+    static void recv_event_handler (Context c)
     {
-        this->debugAccess(c);
+        AvrSerial *o = PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+        o->debugAccess(c);
         
-        RecvHandler::call(this, c);
+        RecvHandler::call(o, c);
     }
     
-    void send_queued_event_handler (Context c)
+    static void send_event_handler (Context c)
     {
-        this->debugAccess(c);
+        AvrSerial *o = PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+        o->debugAccess(c);
         
-        SendHandler::call(this, c);
+        SendHandler::call(o, c);
     }
     
     InterruptLock<Context> m_lock;
     
-    typename Loop::QueuedEvent m_recv_queued_event;
     RecvSizeType m_recv_start;
     RecvSizeType m_recv_end;
     bool m_recv_overrun;
     char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
     
-    typename Loop::QueuedEvent m_send_queued_event;
     SendSizeType m_send_start;
     SendSizeType m_send_end;
     SendSizeType m_send_event;
