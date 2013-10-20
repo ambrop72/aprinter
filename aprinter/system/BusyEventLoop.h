@@ -39,7 +39,6 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
-#include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/system/InterruptLock.h>
 
@@ -394,44 +393,6 @@ inline void BusyEventLoopQueuedEvent<Loop>::appendNowIfNotAlready (InterruptCont
         m_time = l->m_now;
     }
 }
-
-template <typename Context, typename Handler>
-class BusyEventLoopTimer {
-public:
-    typedef typename Context::Clock Clock;
-    typedef typename Clock::TimeType TimeType;
-    typedef Context HandlerContext;
-    
-    void init (Context c)
-    {
-        m_queued_event.init(c, AMBRO_OFFSET_CALLBACK_T(&BusyEventLoopTimer::m_queued_event, &BusyEventLoopTimer::queued_event_handler));
-    }
-    
-    void deinit (Context c)
-    {
-        m_queued_event.deinit(c);
-    }
-    
-    template <typename ThisContext>
-    void set (ThisContext c, TimeType time)
-    {
-        m_queued_event.appendAt(c, time);
-    }
-    
-    template <typename ThisContext>
-    void unset (ThisContext c)
-    {
-        m_queued_event.unset(c);
-    }
-    
-private:
-    void queued_event_handler (Context c)
-    {
-        return Handler::call(this, c);
-    }
-    
-    BusyEventLoopQueuedEvent<typename Context::EventLoop> m_queued_event;
-};
 
 #include <aprinter/EndNamespace.h>
 
