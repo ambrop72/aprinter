@@ -1,7 +1,8 @@
 #Name: DeTool
-#Info: Convert tool commands into independent axes
+#Info: Postprocessor for APrinter firmware
 #Depend: GCode
 #Type: postprocess
+#Param: toolTravelSpeed(float:0) Tool change travel speed (mm/s)
 #Param: t0extruder(string:0) T0 PhysicalExtruder (empty=none)
 #Param: t1extruder(string:1) T1 PhysicalExtruder (empty=none)
 #Param: t2extruder(string:2) T2 PhysicalExtruder (empty=none)
@@ -44,81 +45,222 @@
 
 __copyright__ = "Copyright (C) 2013 Ambroz Bizjak - Released under the BSD 2-clause license"
 
-with open(filename, "r") as f:
-    lines = f.readlines()
+def replace_multi(subject, match, replace):
+    assert sum([len(m) == 0 for m in match]) == 0
+    assert len(replace) == len(match)
+    pos = 0
+    result = []
+    while True:
+        nearest_pos = len(subject)
+        for i in range(len(match)):
+            match_pos = subject.find(match[i], pos)
+            if match_pos >= 0 and match_pos < nearest_pos:
+                nearest_pos = match_pos
+                nearest_match = i
+        result.append(subject[pos:nearest_pos])
+        if nearest_pos == len(subject):
+            break
+        result.append(replace[nearest_match])
+        pos = nearest_pos + len(match[nearest_match])
+    return ''.join(result)
 
 physicalExtruders = {}
-physicalExtruders[0] = {'name':axis0, 'offsets':{'X':offset0X, 'Y':offset0Y, 'Z':offset0Z}}
-physicalExtruders[1] = {'name':axis1, 'offsets':{'X':offset1X, 'Y':offset1Y, 'Z':offset1Z}}
-physicalExtruders[2] = {'name':axis2, 'offsets':{'X':offset2X, 'Y':offset2Y, 'Z':offset2Z}}
-
 tools = {}
-if t0extruder:
-    tools[0] = physicalExtruders[int(t0extruder)]
-if t1extruder:
-    tools[1] = physicalExtruders[int(t1extruder)]
-if t2extruder:
-    tools[2] = physicalExtruders[int(t2extruder)]
 
-currentTool = 0
+if 'filename' in locals():
+    physicalExtruders[0] = {'name':axis0, 'offsets':{'X':offset0X, 'Y':offset0Y, 'Z':offset0Z}}
+    physicalExtruders[1] = {'name':axis1, 'offsets':{'X':offset1X, 'Y':offset1Y, 'Z':offset1Z}}
+    physicalExtruders[2] = {'name':axis2, 'offsets':{'X':offset2X, 'Y':offset2Y, 'Z':offset2Z}}
+    
+    if t0extruder:
+        tools[0] = physicalExtruders[int(t0extruder)]
+    if t1extruder:
+        tools[1] = physicalExtruders[int(t1extruder)]
+    if t2extruder:
+        tools[2] = physicalExtruders[int(t2extruder)]
+    
+    inputFileName = filename
+    outputFileName = filename
+    
+else:
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='GCode post-processor for APrinter firmware.')
+    parser.add_argument('--input', dest='input', metavar='InputFile', required=True)
+    parser.add_argument('--output', dest='output', metavar='OutputFile', required=True)
+    parser.add_argument('--tool-travel-speed', dest='tool_travel_speed', metavar='Speedmm/s', required=True)
+    parser.add_argument('--physical', dest='physical', action='append', nargs=4, metavar=('AxisName', 'OffsetX', 'OffsetY', 'OffsetZ'), required=True)
+    parser.add_argument('--tool', dest='tool', action='append', nargs=2, metavar=('ToolIndex', 'PhysicalIndexFrom0'), required=True)
+    
+    args = parser.parse_args()
+    inputFileName = args.input
+    outputFileName = args.output
+    toolTravelSpeed = float(args.tool_travel_speed)
+    for p in args.physical:
+        physicalExtruders[len(physicalExtruders)] = {'name':p[0], 'offsets':{'X':float(p[1]), 'Y':float(p[2]), 'Z':float(p[3])}}
+    for t in args.tool:
+        if not t[0].isdigit():
+            raise Exception('Tool index is invalid')
+        if not (t[1].isdigit() and int(t[1]) in physicalExtruders):
+            raise Exception('Tool physical index is invalid')
+        tools[int(t[0])] = physicalExtruders[int(t[1])]
+
+with open(inputFileName, "r") as f:
+    lines = f.readlines()
+
+currentTool = min(tools.keys())
 currentRelative = False
-currentPos = {'X':0.0, 'Y':0.0, 'Z':0.0, 'E':0.0}
-currentF = 0.0
+currentPhysPos = {'X':0.0, 'Y':0.0, 'Z':0.0}
+currentReqPos = {'X':0.0, 'Y':0.0, 'Z':0.0, 'E':0.0}
+currentKnown = {'X':False, 'Y':False, 'Z':False}
+currentPending = {'X':False, 'Y':False, 'Z':False}
+currentF = 999999.0
+currentIgnore = False
 
-with open(filename, "w") as f:
+subst_match = ['{T%sAxis}' % (i) for i in tools] + ['?T%sAxis?' % (i) for i in tools]
+subst_replace = [tools[i]['name'] for i in tools] + [tools[i]['name'] for i in tools]
+
+with open(outputFileName, "w") as f:
     f.write(';DeTool init\n')
     f.write('G90\n')
-    f.write('G0 F0\n')
-    for tool in tools:
-        f.write('G92 %s0\n' % (tools[tool]['name']))
+    f.write('G92 %s%.5f\n' % (tools[currentTool]['name'], currentReqPos['E']))
+    f.write('G0 F%.1f\n' % (currentF))
+    f.write(';DeTool init end\n')
+    
     for line in lines:
+        line = replace_multi(line, subst_match, subst_replace)
+        commentPos = line.find(';')
+        if commentPos < 0:
+            commentPos = len(line)
+        dataLine = line[:commentPos]
+        commentLine = line[commentPos:]
+        oldIgnore = currentIgnore
+        if commentLine.find('DeToolIgnoreSection') >= 0:
+            currentIgnore = True
+        elif commentLine.find('DeToolEndIgnoreSection') >= 0:
+            currentIgnore = False
+        comps = dataLine.split()
+        if len(comps) == 0 or oldIgnore or commentLine.find('DeToolKeep') >= 0:
+            f.write(line)
+            continue
         newLine = line
-        comps = line.split()
-        if len(comps) > 0 and comps[0].startswith('T'):
-            currentTool = int(comps[0][1:])
-            toolName = tools[currentTool]['name']
-            newLine = \
-                ';DeTool switch to tool %s (%s), Pos=%s, F=%f, relative=%s\n' % (currentTool, toolName, repr(currentPos), currentF, currentRelative) + \
-                'G92 %s%.5f\n' % (toolName, currentPos['E'])
-            if not 'S' in comps:
-                newLine = newLine + \
-                'G0 %s F999999\n' % ' '.join(['%s%.5f' % (coord, currentPos[coord] + tools[currentTool]['offsets'][coord]) for coord in currentPos if coord != 'E']) + \
-                'G0 F%f\n' % (currentF)
-        elif len(comps) > 0 and comps[0].startswith('G90'):
+        
+        if comps[0].startswith('T'):
+            newLine = ''
+            toolStr = comps[0][1:]
+            if not (toolStr.isdigit() and int(toolStr) in tools):
+                raise Exception('Invalid tool in T command')
+            newTool = int(toolStr)
+            if newTool != currentTool:
+                toolName = tools[newTool]['name']
+                newLine += ';DeTool switch to tool %s (%s)\n' % (newTool, toolName)
+                newLine += 'G92 %s%.5f\n' % (toolName, currentReqPos['E'])
+                for axisName in currentPhysPos:
+                    if not currentKnown[axisName]:
+                        raise Exception('Got tool change while position is unknown')
+                    currentPending[axisName] = True
+                newLine += ';DeTool switch end\n'
+                currentTool = newTool
+            
+        elif comps[0] == 'G28':
+            homeAxes = []
+            for i in range(1, len(comps)):
+                axisName = comps[i][0]
+                if not axisName in currentPhysPos:
+                    raise Exception('Got G28 with unknown axis')
+                homeAxes.append(axisName)
+            if len(homeAxes) == 0:
+                homeAxes = currentPhysPos.keys()
+            for axisName in homeAxes:
+                currentKnown[axisName] = False
+                currentPending[axisName] = False
+            
+        elif comps[0] == 'G90':
             currentRelative = False
-        elif len(comps) > 0 and comps[0].startswith('G91'):
+            newLine = ';DeTool absolute\n'
+            
+        elif comps[0] == 'G91':
             currentRelative = True
-        elif len(comps) > 0 and comps[0].startswith('G92'):
+            newLine = ';DeTool relative\n'
+            
+        elif comps[0] == 'G92':
             newComps = [comps[0]]
             for i in range(1, len(comps)):
                 comp = comps[i]
-                if len(comp) > 0 and comp[0] in currentPos:
-                    value = float(comp[1:])
-                    currentPos[comp[0]] = value
-                    if comp[0] == 'E':
-                        comp = '%s%s' % (tools[currentTool]['name'], comp[1:])
-                    elif comp[0] in tools[currentTool]['offsets']:
-                        value = float(comp[1:]) + tools[currentTool]['offsets'][comp[0]]
-                        comp = '%s%.5f' % (comp[0], value)
-                newComps.append(comp)
-            newLine = '%s\n' % (' '.join(newComps))
-        elif len(comps) > 0 and (comps[0].startswith('G0') or comps[0].startswith('G1')):
-            newComps = [comps[0]]
-            for i in range(1, len(comps)):
-                comp = comps[i]
-                if len(comp) > 0 and comp[0] in currentPos:
-                    value = float(comp[1:])
-                    if currentRelative:
-                        currentPos[comp[0]] += value
+                if len(comp) == 0 or not comp[0] in currentReqPos:
+                    raise Exception('Got G92 with unknown axis')
+                axisName = comp[0]
+                value = float(comp[1:])
+                if axisName == 'E':
+                    comp = '%s%.5f' % (tools[currentTool]['name'], value)
+                else:
+                    if currentKnown[axisName]:
+                        currentPhysPos[axisName] += value - currentReqPos[axisName]
                     else:
-                        currentPos[comp[0]] = value
-                    if comp[0] == 'E':
-                        comp = '%s%s' % (tools[currentTool]['name'], comp[1:])
-                    elif comp[0] in tools[currentTool]['offsets']:
-                        value = float(comp[1:]) + tools[currentTool]['offsets'][comp[0]]
-                        comp = '%s%.5f' % (comp[0], value)
-                elif len(comp) > 0 and comp[0] == 'F':
-                    currentF = float(comp[1:])
+                        currentPhysPos[axisName] = value + tools[currentTool]['offsets'][axisName]
+                        currentKnown[axisName] = True
+                    comp = '%s%.5f' % (axisName, currentPhysPos[axisName])
+                currentReqPos[axisName] = value
                 newComps.append(comp)
             newLine = '%s\n' % (' '.join(newComps))
+        
+        elif comps[0] == 'G0' or comps[0] == 'G1':
+            newLine = ''
+            if comps[0] == 'G1':
+                pendingAxes = []
+                for axisName in currentPhysPos:
+                    if currentPending[axisName]:
+                        assert currentKnown[axisName]
+                        pendingAxes.append(axisName)
+                        currentPhysPos[axisName] = currentReqPos[axisName] + tools[currentTool]['offsets'][axisName]
+                        currentPending[axisName] = False
+                if len(pendingAxes) > 0:
+                    newLine += \
+                        ';DeTool travel after tool change\n' \
+                        'G0 %s F%.1f\n' % (' '.join(['%s%.5f' % (axisName, currentPhysPos[axisName]) for axisName in pendingAxes]), toolTravelSpeed * 60.0) + \
+                        'G0 F%.1f\n' % (currentF) + \
+                        ';DeTool travel after tool change end\n'
+                newF = currentF
+            elif sum(currentPending.values()) > 0:
+                newLine += ';DeTool merging tool change with G0\n'
+            newReqPos = currentReqPos.copy()
+            seenAxes = []
+            for i in range(1, len(comps)):
+                comp = comps[i]
+                if len(comp) > 0 and comp[0] == 'F':
+                    newF = float(comp[1:])
+                elif len(comp) > 0 and comp[0] in currentReqPos:
+                    if currentRelative:
+                        if comp[0] != 'E' and not currentKnown[comp[0]]:
+                            raise Exception('Got relative move with axis whose position is unknown')
+                        newReqPos[comp[0]] += float(comp[1:])
+                    else:
+                        newReqPos[comp[0]] = float(comp[1:])
+                        seenAxes.append(comp[0])
+                else:
+                    raise Exception('Unknown axis in G0 or G1')
+            newLine += comps[0]
+            if newF != currentF:
+                newLine += ' F%.1f' % (newF)
+            for axisName in currentReqPos:
+                if axisName in seenAxes or (axisName != 'E' and currentPending[axisName]):
+                    axisCurrentPhysPos = currentPhysPos[axisName] if axisName != 'E' else currentReqPos[axisName]
+                    axisReqPhysPos = newReqPos[axisName]
+                    if axisName != 'E':
+                        axisReqPhysPos += tools[currentTool]['offsets'][axisName]
+                    if (axisName != 'E' and not currentKnown[axisName]) or axisCurrentPhysPos != axisReqPhysPos:
+                        realAxisName = axisName if axisName != 'E' else tools[currentTool]['name']
+                        newLine += ' %s%.5f' % (realAxisName, axisReqPhysPos)
+                        if axisName != 'E':
+                            currentPhysPos[axisName] = axisReqPhysPos
+                    if axisName != 'E':
+                        currentPending[axisName] = False
+            for axisName in seenAxes:
+                currentKnown[axisName] = True
+            currentF = newF
+            currentReqPos = newReqPos
+            newLine += '\n'
+        
         f.write(newLine)
+        
+    f.write(';DeTool end\n')
