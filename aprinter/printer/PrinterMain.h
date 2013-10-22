@@ -1455,8 +1455,8 @@ private:
         this->debugAccess(c);
         AMBRO_ASSERT(m_state == STATE_PLANNING)
         
-        TupleForOneOffset<0>(payload->type, &m_heaters, Foreach_channel_callback(), c, &payload->heaters);
-        TupleForOneOffset<TypeListLength<HeatersList>::value>(payload->type, &m_fans, Foreach_channel_callback(), c, &payload->fans);
+        TupleForOneBoolOffset<0>(payload->type, &m_heaters, Foreach_channel_callback(), c, &payload->heaters) ||
+        TupleForOneBoolOffset<TypeListLength<HeatersList>::value>(payload->type, &m_fans, Foreach_channel_callback(), c, &payload->fans);
     }
     
     TheWatchdog m_watchdog;
