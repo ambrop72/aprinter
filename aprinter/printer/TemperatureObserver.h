@@ -78,7 +78,7 @@ private:
     {
         this->debugAccess(c);
         
-        m_event.mainOnlyAppendAfterPrevious(c, IntervalTicks);
+        m_event.appendAfterPrevious(c, IntervalTicks);
         
         double value = GetValueCallback::call(this, c);
         bool in_range = fabs(value - m_target) < Params::ValueTolerance::value();
