@@ -10,14 +10,20 @@
 #Param: offset0X(float:0) X offset (mm)
 #Param: offset0Y(float:0) Y offset (mm)
 #Param: offset0Z(float:0) Z offset (mm)
+#Param: fan0(string:M106) Fan command
+#Param: fan_multiplier0(float:1.0) Fan speed multiplier
 #Param: axis1(string:U) PhysicalExtruder1 axis
 #Param: offset1X(float:0) X offset (mm)
 #Param: offset1Y(float:0) Y offset (mm)
 #Param: offset1Z(float:0) Z offset (mm)
+#Param: fan1(string:M406) Fan command
+#Param: fan_multiplier1(float:1.0) Fan speed multiplier
 #Param: axis2(string:V) PhysicalExtruder2 axis
 #Param: offset2X(float:0) X offset (mm)
 #Param: offset2Y(float:0) Y offset (mm)
 #Param: offset2Z(float:0) Z offset (mm)
+#Param: fan2(string:M506) Fan command
+#Param: fan_multiplier2(float:1.0) Fan speed multiplier
 
 """
  * Copyright (c) 2013 Ambroz Bizjak
@@ -68,9 +74,9 @@ physicalExtruders = {}
 tools = {}
 
 if 'filename' in locals():
-    physicalExtruders[0] = {'name':axis0, 'offsets':{'X':offset0X, 'Y':offset0Y, 'Z':offset0Z}}
-    physicalExtruders[1] = {'name':axis1, 'offsets':{'X':offset1X, 'Y':offset1Y, 'Z':offset1Z}}
-    physicalExtruders[2] = {'name':axis2, 'offsets':{'X':offset2X, 'Y':offset2Y, 'Z':offset2Z}}
+    physicalExtruders[0] = {'name':axis0, 'offsets':{'X':offset0X, 'Y':offset0Y, 'Z':offset0Z}, 'fan':fan0, 'fan_multiplier':fan_multiplier0}
+    physicalExtruders[1] = {'name':axis1, 'offsets':{'X':offset1X, 'Y':offset1Y, 'Z':offset1Z}, 'fan':fan1, 'fan_multiplier':fan_multiplier1}
+    physicalExtruders[2] = {'name':axis2, 'offsets':{'X':offset2X, 'Y':offset2Y, 'Z':offset2Z}, 'fan':fan2, 'fan_multiplier':fan_multiplier2}
     
     if t0extruder:
         tools[0] = physicalExtruders[int(t0extruder)]
@@ -91,19 +97,26 @@ else:
     parser.add_argument('--tool-travel-speed', dest='tool_travel_speed', metavar='Speedmm/s', required=True)
     parser.add_argument('--physical', dest='physical', action='append', nargs=4, metavar=('AxisName', 'OffsetX', 'OffsetY', 'OffsetZ'), required=True)
     parser.add_argument('--tool', dest='tool', action='append', nargs=2, metavar=('ToolIndex', 'PhysicalIndexFrom0'), required=True)
+    parser.add_argument('--fan', dest='fan', action='append', nargs=3, metavar=('FanSpeedCmd', 'PhysicalIndexFrom0', 'SpeedMultiplier'))
     
     args = parser.parse_args()
     inputFileName = args.input
     outputFileName = args.output
     toolTravelSpeed = float(args.tool_travel_speed)
     for p in args.physical:
-        physicalExtruders[len(physicalExtruders)] = {'name':p[0], 'offsets':{'X':float(p[1]), 'Y':float(p[2]), 'Z':float(p[3])}}
+        physicalExtruders[len(physicalExtruders)] = {'name':p[0], 'offsets':{'X':float(p[1]), 'Y':float(p[2]), 'Z':float(p[3])}, 'fan':''}
     for t in args.tool:
         if not t[0].isdigit():
             raise Exception('Tool index is invalid')
         if not (t[1].isdigit() and int(t[1]) in physicalExtruders):
             raise Exception('Tool physical index is invalid')
         tools[int(t[0])] = physicalExtruders[int(t[1])]
+    if args.fan:
+        for f in args.fan:
+            if not (f[1].isdigit() and int(f[1]) in physicalExtruders):
+                raise Exception('Fan physical index is invalid')
+            physicalExtruders[int(f[1])]['fan'] = f[0]
+            physicalExtruders[int(f[1])]['fan_multiplier'] = float(f[2])
 
 with open(inputFileName, "r") as f:
     lines = f.readlines()
@@ -115,6 +128,7 @@ currentReqPos = {'X':0.0, 'Y':0.0, 'Z':0.0, 'E':0.0}
 currentKnown = {'X':False, 'Y':False, 'Z':False}
 currentPending = {'X':False, 'Y':False, 'Z':False}
 currentF = 999999.0
+currentFanSpeed = 0.0
 currentIgnore = False
 
 subst_match = ['{T%sAxis}' % (i) for i in tools] + ['?T%sAxis?' % (i) for i in tools]
@@ -125,6 +139,8 @@ with open(outputFileName, "w") as f:
     f.write('G90\n')
     f.write('G92 %s%.5f\n' % (tools[currentTool]['name'], currentReqPos['E']))
     f.write('G0 F%.1f\n' % (currentF))
+    if tools[currentTool]['fan']:
+        f.write('%s S%.2f\n' % (tools[currentTool]['fan'], currentFanSpeed * tools[currentTool]['fan_multiplier']))
     f.write(';DeTool init end\n')
     
     for line in lines:
@@ -159,6 +175,10 @@ with open(outputFileName, "w") as f:
                     if not currentKnown[axisName]:
                         raise Exception('Got tool change while position is unknown')
                     currentPending[axisName] = True
+                if tools[currentTool]['fan']:
+                    newLine += '%s S0\n' % (tools[currentTool]['fan'])
+                if tools[newTool]['fan']:
+                    newLine += '%s S%.2f\n' % (tools[newTool]['fan'], currentFanSpeed * tools[newTool]['fan_multiplier'])
                 newLine += ';DeTool switch end\n'
                 currentTool = newTool
             
@@ -203,6 +223,19 @@ with open(outputFileName, "w") as f:
                 currentReqPos[axisName] = value
                 newComps.append(comp)
             newLine = '%s\n' % (' '.join(newComps))
+        
+        elif comps[0] == 'M106' or comps[0] == 'M107':
+            for i in range(1, len(comps)):
+                comp = comps[i]
+                if comps[0] == 'M106' and len(comp) > 0 and comp[0] == 'S':
+                    currentFanSpeed = float(comp[1:])
+                else:
+                    raise Exception('Got unknown parameter in M106 or M107')
+            if comps[0] == 'M107':
+                currentFanSpeed = 0.0
+            newLine = ''
+            if tools[currentTool]['fan']:
+                newLine = '%s S%.2f\n' % (tools[currentTool]['fan'], currentFanSpeed * tools[currentTool]['fan_multiplier'])
         
         elif comps[0] == 'G0' or comps[0] == 'G1':
             newLine = ''
