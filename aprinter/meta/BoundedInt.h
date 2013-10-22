@@ -32,6 +32,7 @@
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/math/IntSqrt.h>
 #include <aprinter/math/IntMultiply.h>
 #include <aprinter/math/IntDivide.h>
@@ -223,7 +224,7 @@ BoundedInt<(max(NumBits1, NumBits2) + 1), true> operator- (BoundedInt<NumBits1, 
 }
 
 template <int RightShift, int NumBits1, bool Signed1, int NumBits2, bool Signed2>
-BoundedInt<(NumBits1 + NumBits2 - RightShift), (Signed1 || Signed2)> BoundedMultiply (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+AMBRO_ALWAYS_INLINE BoundedInt<(NumBits1 + NumBits2 - RightShift), (Signed1 || Signed2)> BoundedMultiply (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
     return BoundedInt<(NumBits1 + NumBits2 - RightShift), (Signed1 || Signed2)>::import(
         IntMultiply<NumBits1, Signed1, NumBits2, Signed2, RightShift>::call(op1.value(), op2.value())

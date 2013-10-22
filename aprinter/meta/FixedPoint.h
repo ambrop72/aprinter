@@ -31,6 +31,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Inline.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -266,20 +267,20 @@ struct FixedPointAdd {
     
     using ResultType = FixedPoint<numbits_result, (Signed1 || Signed2), exp_result>;
     
-    static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+    AMBRO_ALWAYS_INLINE static ResultType call (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
     {
         return ResultType::importBoundedBits(op1.bitsBoundedValue().template shift<shift_op1>() + op2.bitsBoundedValue().template shift<shift_op2>());
     }
 };
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
-typename FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ResultType operator+ (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+AMBRO_ALWAYS_INLINE typename FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ResultType operator+ (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
     return FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::call(op1, op2);
 }
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
-typename FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, true, Exp2>::ResultType operator- (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
+AMBRO_ALWAYS_INLINE typename FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, true, Exp2>::ResultType operator- (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
 {
     return FixedPointAdd<NumBits1, Signed1, Exp1, NumBits2, true, Exp2>::call(op1, -op2);
 }

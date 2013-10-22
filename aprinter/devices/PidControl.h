@@ -31,6 +31,7 @@
 #include <aprinter/meta/ChooseFixedForFloat.h>
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/base/Inline.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -84,7 +85,7 @@ public:
         m_target = target;
     }
     
-    OutputFixedType addMeasurement (ValueFixedType value)
+    AMBRO_ALWAYS_INLINE OutputFixedType addMeasurement (ValueFixedType value)
     {
         auto err = m_target - value;
         if (AMBRO_LIKELY(!m_first)) {
