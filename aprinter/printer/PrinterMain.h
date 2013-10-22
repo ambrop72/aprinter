@@ -792,7 +792,7 @@ private:
         
         using FanSpec = TypeListGet<FansList, FanIndex>;
         using TheSoftPwm = SoftPwm<Context, typename FanSpec::OutputPin, typename FanSpec::PulseInterval, SoftPwmTimerHandler, FanSpec::template TimerTemplate>;
-        using OutputFixedType = FixedPoint<16, false, -16>;
+        using OutputFixedType = FixedPoint<8, false, -8>;
         
         struct ChannelPayload {
             OutputFixedType target;
