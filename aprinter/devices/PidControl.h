@@ -72,22 +72,16 @@ private:
     using DerivativeFixedType = decltype((DNewFixedType() * (ValueFixedType() - ValueFixedType())).template bitsDown<DerivativeBits>());
     
 public:
-    void init (ValueFixedType target)
+    void init ()
     {
         m_first = true;
-        m_target = target;
         m_integral = IntegralFixedType::importBits(0);
         m_derivative = DerivativeFixedType::importBits(0);
     }
     
-    void setTarget (ValueFixedType target)
+    AMBRO_ALWAYS_INLINE OutputFixedType addMeasurement (ValueFixedType value, ValueFixedType target)
     {
-        m_target = target;
-    }
-    
-    AMBRO_ALWAYS_INLINE OutputFixedType addMeasurement (ValueFixedType value)
-    {
-        auto err = m_target - value;
+        auto err = target - value;
         if (AMBRO_LIKELY(!m_first)) {
             auto d_old_part = FixedResMultiply<DerivativeFixedType::exp>(m_derivative, DHistoryFixedType::importDoubleSaturated(Params::DHistory::value()));
             auto d_delta = m_last - value;
@@ -110,7 +104,6 @@ public:
     
 private:
     bool m_first;
-    ValueFixedType m_target;
     ValueFixedType m_last;
     IntegralFixedType m_integral;
     DerivativeFixedType m_derivative;

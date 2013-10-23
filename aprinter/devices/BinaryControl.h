@@ -36,23 +36,14 @@ class BinaryControl {
 public:
     using OutputFixedType = FixedPoint<16, false, -16>;
     
-    void init (ValueFixedType target)
+    void init ()
     {
-        m_target = target;
     }
     
-    void setTarget (ValueFixedType target)
+    OutputFixedType addMeasurement (ValueFixedType value, ValueFixedType target)
     {
-        m_target = target;
+        return (value < target) ? OutputFixedType::maxValue() : OutputFixedType::minValue();
     }
-    
-    OutputFixedType addMeasurement (ValueFixedType value)
-    {
-        return (value < m_target) ? OutputFixedType::maxValue() : OutputFixedType::minValue();
-    }
-    
-private:
-    ValueFixedType m_target;
 };
 
 #include <aprinter/EndNamespace.h>

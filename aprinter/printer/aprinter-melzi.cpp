@@ -297,6 +297,17 @@ using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
  * this for a heater which uses PID control, you will also want to change
  * PidDHistory exponentially proportionally (see below).
  * 
+ * ControlInterval
+ * The interval for control calculations. If this is non-zero, control calculations
+ * will happen within the main loop, and the PWM interrupt will just pick up the
+ * last computed control value. In this case, you probably want to use the same
+ * value as PulseInterval, unless PulseInterval is too small.
+ * If however ControlInterval is zero, then control calculations will happen as
+ * part of the PWM interrupt, and the calculation interval will effectively be
+ * PulseInterval.
+ * WARNING: you may only use zero here when using BinaryControl or another
+ * fast control algorithm. PidControl is too slow to work in interrupt context.
+ * 
  * Control
  * The name of the template class which implements the control algorithm.
  * Possible choices are PidControl and BinaryControl.
@@ -346,6 +357,7 @@ using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
 using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
 using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
+using ExtruderHeaterControlInterval = ExtruderHeaterPulseInterval;
 using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
 using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
 using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
@@ -359,6 +371,7 @@ using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
+using BedHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.0);
 using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
 using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
@@ -546,6 +559,7 @@ using PrinterParams = PrinterMainParams<
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
             ExtruderHeaterPulseInterval, // PulseInterval
+            ExtruderHeaterControlInterval, // ControlInterval
             PidControl, // Control
             PidControlParams<
                 ExtruderHeaterPidP, // PidP
@@ -572,6 +586,7 @@ using PrinterParams = PrinterMainParams<
             BedHeaterMinSafeTemp, // MinSafeTemp
             BedHeaterMaxSafeTemp, // MaxSafeTemp
             BedHeaterPulseInterval, // PulseInterval
+            BedHeaterControlInterval, // ControlInterval
             BinaryControl, // Control
             BinaryControlParams,
             TemperatureObserverParams<

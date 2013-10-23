@@ -112,6 +112,7 @@ using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
 using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
 using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
+using ExtruderHeaterControlInterval = ExtruderHeaterPulseInterval;
 using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
 using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
 using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
@@ -125,6 +126,7 @@ using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
+using BedHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.0);
 using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
 using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
@@ -292,6 +294,7 @@ using PrinterParams = PrinterMainParams<
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
             ExtruderHeaterPulseInterval, // PulseInterval
+            ExtruderHeaterControlInterval, // ControlInterval
             PidControl, // Control
             PidControlParams<
                 ExtruderHeaterPidP, // PidP
