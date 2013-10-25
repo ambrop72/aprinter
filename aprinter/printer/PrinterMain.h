@@ -669,10 +669,8 @@ private:
             
             AMBRO_LOCK_T(m_lock, c, lock_c, {
                 m_target = target;
-                if (!m_enabled) {
-                    m_control.init();
-                    m_enabled = true;
-                }
+                m_main_control.set();
+                m_enabled = true;
             });
         }
         
@@ -777,11 +775,14 @@ private:
         AMBRO_STRUCT_IF(MainControl, MainControlEnabled) {
             static const TimeType ControlIntervalTicks = HeaterSpec::ControlInterval::value() / Clock::time_unit;
             
+            void set () {}
+            
             void init (Context c, TimeType time)
             {
                 m_output = OutputFixedType::importBits(0);
                 m_control_event.init(c, AMBRO_OFFSET_CALLBACK_T(&MainControl::m_control_event, &MainControl::control_event_handler));
                 m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
+                m_was_not_unset = false;
             }
             
             void deinit (Context c)
@@ -791,7 +792,7 @@ private:
             
             AMBRO_ALWAYS_INLINE void unset ()
             {
-                m_was_unset = true;
+                m_was_not_unset = false;
                 m_output = OutputFixedType::importBits(0);
             }
             
@@ -813,23 +814,27 @@ private:
             
             void control_event_handler (Context c)
             {
-                m_control_event.appendAfterPrevious(c, ControlIntervalTicks);
+                MainControl *o = PositionTraverse<typename Context::TheRootPosition, MainControlPosition<HeaterIndex>>(c.root());
+                
+                o->m_control_event.appendAfterPrevious(c, ControlIntervalTicks);
                 bool enabled;
-                TheControl control;
                 ValueFixedType target;
-                AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c, {
-                    enabled = hfmc(this)->m_enabled;
-                    control = hfmc(this)->m_control;
-                    target = hfmc(this)->m_target;
-                    m_was_unset = false;
+                bool was_not_unset;
+                AMBRO_LOCK_T(hfmc(o)->m_lock, c, lock_c, {
+                    enabled = hfmc(o)->m_enabled;
+                    target = hfmc(o)->m_target;
+                    was_not_unset = o->m_was_not_unset;
+                    o->m_was_not_unset = enabled;
                 });
                 if (AMBRO_LIKELY(enabled)) {
-                    ValueFixedType sensor_value = hfmc(this)->get_value(c);
-                    OutputFixedType output = control.addMeasurement(sensor_value, target);
-                    AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c, {
-                        if (!m_was_unset) {
-                            m_output = output;
-                            hfmc(this)->m_control = control;
+                    if (!was_not_unset) {
+                        hfmc(o)->m_control.init();
+                    }
+                    ValueFixedType sensor_value = hfmc(o)->get_value(c);
+                    OutputFixedType output = hfmc(o)->m_control.addMeasurement(sensor_value, target);
+                    AMBRO_LOCK_T(hfmc(o)->m_lock, c, lock_c, {
+                        if (o->m_was_not_unset) {
+                            o->m_output = output;
                         }
                     });
                 }
@@ -837,11 +842,18 @@ private:
             
             OutputFixedType m_output;
             typename Loop::QueuedEvent m_control_event;
-            bool m_was_unset;
+            bool m_was_not_unset;
         } AMBRO_STRUCT_ELSE(MainControl) {
             void init (Context c, TimeType time) {}
             void deinit (Context c) {}
             void unset () {}
+            
+            AMBRO_ALWAYS_INLINE void set ()
+            {
+                if (!hfmc(this)->m_enabled) {
+                    hfmc(this)->m_control.init();
+                }
+            }
             
             OutputFixedType get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c)
             {

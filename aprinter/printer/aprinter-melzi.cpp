@@ -245,17 +245,6 @@ using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
 /*
  * Explanation of heater-specific parameters.
  * 
- * WARNING: It is advised not to change the parameters involved in PID calculation
- * too much. It's probably safe adjust any specific value to something within the
- * range from about 2^-4 to 2^4 times the default value. This is because the
- * PID calculations, happening in an ISR, use fixed point arithmetic to be fast
- * enough, and the scaling factors are computed at compile time based on parameter
- * values. Since the computation relies on optimized assembly routines for bit
- * shifts, changing values too much could mean an optimized shifting routing is no
- * longer available for the desired shift amount. In the worst case, th
- * degradation of ISR performance will result in dropping received bytes on the
- * serial port (and messing up a print).
- * 
  * Name
  * A character identifying the heater; this affects the output of the M105
  * g-code command (get-heater-temperature).
@@ -290,9 +279,7 @@ using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
  * and the heater is turned off.
  * 
  * PulseInterval
- * The interval for the PWM signal to the heater. Because PID calculations
- * are performed at the beginning of each pulse, the warning above applies -
- * don't change this too much. Additionally, don't make this too small,
+ * The interval for the PWM signal to the heater. Don't make this too small,
  * as that will reduce the precision of integral computation. If you change
  * this for a heater which uses PID control, you will also want to change
  * PidDHistory exponentially proportionally (see below).
@@ -341,7 +328,6 @@ using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
  * the PulseInterval as if by multiplication with 'a', raise PidDHistory to the power
  * of 'a'. Unfortunately we can't take care of that automatically due to the
  * difficulty of implementing a constexpr pow().
- * The usual warning applies here - don't change this too much.
  * 
  * ObserverInterval, ObserverTolerance, ObserverMinTime
  * These parameters affect the behavior of wait-heater-temperature g-code commands.
