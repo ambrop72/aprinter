@@ -288,6 +288,7 @@ using PrinterParams = PrinterMainParams<
             'T', // Name
             104, // SetMCommand
             109, // WaitMCommand
+            301, // SetConfigMCommand
             MegaPinA2, // AdcPin
             MegaPin12, // OutputPin
             AvrThermistorTable_Extruder, // Formula

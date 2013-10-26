@@ -163,7 +163,7 @@ struct PrinterMainHomingParams {
 };
 
 template <
-    char TName, int TSetMCommand, int TWaitMCommand,
+    char TName, int TSetMCommand, int TWaitMCommand, int TSetConfigMCommand,
     typename TAdcPin, typename TOutputPin,
     typename TFormula,
     typename TMinSafeTemp, typename TMaxSafeTemp,
@@ -178,6 +178,7 @@ struct PrinterMainHeaterParams {
     static const char Name = TName;
     static const int SetMCommand = TSetMCommand;
     static const int WaitMCommand = TWaitMCommand;
+    static const int SetConfigMCommand = TSetConfigMCommand;
     using AdcPin = TAdcPin;
     using OutputPin = TOutputPin;
     using Formula = TFormula;
@@ -225,6 +226,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_command, check_command)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_emergency, emergency)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_channel_callback, channel_callback)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_print_config, print_config)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
     
@@ -603,11 +605,13 @@ private:
         using ValueFixedType = typename HeaterSpec::Formula::ValueFixedType;
         using MeasurementInterval = If<MainControlEnabled, typename HeaterSpec::ControlInterval, typename HeaterSpec::PulseInterval>;
         using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, MeasurementInterval, ValueFixedType>;
+        using ControlConfig = typename TheControl::Config;
         using TheSoftPwm = SoftPwm<Context, typename HeaterSpec::OutputPin, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
         using TheObserver = TemperatureObserver<Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using OutputFixedType = typename TheControl::OutputFixedType;
         
         static_assert(MainControlEnabled || TheControl::InterruptContextAllowed, "Chosen heater control algorithm is not allowed in interrupt context.");
+        static_assert(!TheControl::SupportsConfig || MainControlEnabled, "Configurable heater control algorithms not allowed in interrupt context.");
         
         struct ChannelPayload {
             ValueFixedType target;
@@ -632,6 +636,7 @@ private:
         {
             m_lock.init(c);
             m_enabled = false;
+            m_control_config = TheControl::makeDefaultConfig();
             TimeType time = c.clock()->getTime(c);
             m_main_control.init(c, time);
             m_softpwm.init(c, time);
@@ -694,7 +699,7 @@ private:
                     *out_result = CMD_WAIT_PLANNER;
                     return false;
                 }
-                double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
+                double target = o->get_command_param_double('S', 0.0);
                 ValueFixedType fixed_target = ValueFixedType::importDoubleSaturated(target);
                 if (fixed_target > min_safe_temp() && fixed_target < max_safe_temp()) {
                     set(c, fixed_target);
@@ -714,7 +719,7 @@ private:
                     *out_result = CMD_DELAY;
                     return false;
                 }
-                double target = o->get_command_param_double(o->m_cmd, 'S', 0.0);
+                double target = o->get_command_param_double('S', 0.0);
                 ValueFixedType fixed_target = ValueFixedType::importDoubleSaturated(target);
                 if (!(fixed_target > min_safe_temp() && fixed_target < max_safe_temp())) {
                     fixed_target = ValueFixedType::minValue();
@@ -729,7 +734,27 @@ private:
                 *out_result = CMD_DELAY;
                 return false;
             }
+            if (cmd_num == HeaterSpec::SetConfigMCommand && TheControl::SupportsConfig) {
+                if (o->m_state == STATE_PLANNING) {
+                    *out_result = CMD_WAIT_PLANNER;
+                    return false;
+                }
+                TheControl::setConfigCommand(c, o, &m_control_config);
+                *out_result = CMD_REPLY;
+                return false;
+            }
             return true;
+        }
+        
+        void print_config (PrinterMain *o, Context c)
+        {
+            if (TheControl::SupportsConfig) {
+                o->reply_append_ch(c, HeaterSpec::Name);
+                o->reply_append_str(c, ": M" );
+                o->reply_append_uint32(c, HeaterSpec::SetConfigMCommand);
+                TheControl::printConfig(c, o, &m_control_config);
+                o->reply_append_ch(c, '\n');
+            }
         }
         
         OutputFixedType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
@@ -833,7 +858,7 @@ private:
                         hfmc(o)->m_control.init();
                     }
                     ValueFixedType sensor_value = hfmc(o)->get_value(c);
-                    OutputFixedType output = hfmc(o)->m_control.addMeasurement(sensor_value, target);
+                    OutputFixedType output = hfmc(o)->m_control.addMeasurement(sensor_value, target, &hfmc(this)->m_control_config);
                     AMBRO_LOCK_T(hfmc(o)->m_lock, c, lock_c, {
                         if (o->m_was_not_unset) {
                             o->m_output = output;
@@ -866,7 +891,7 @@ private:
                         hfmc(this)->m_enabled = false;
                     }
                     if (AMBRO_LIKELY(hfmc(this)->m_enabled)) {
-                        control_value = hfmc(this)->m_control.addMeasurement(sensor_value, hfmc(this)->m_target);
+                        control_value = hfmc(this)->m_control.addMeasurement(sensor_value, hfmc(this)->m_target, &hfmc(this)->m_control_config);
                     }
                 });
                 return control_value;
@@ -881,6 +906,7 @@ private:
         typename Context::Lock m_lock;
         bool m_enabled;
         TheControl m_control;
+        ControlConfig m_control_config;
         ValueFixedType m_target;
         TheSoftPwm m_softpwm;
         TheObserver m_observer;
@@ -934,7 +960,7 @@ private:
                 double target = 0.0;
                 if (cmd_num == FanSpec::SetMCommand) {
                     target = 1.0;
-                    if (o->find_command_param_double(o->m_cmd, 'S', &target)) {
+                    if (o->find_command_param_double('S', &target)) {
                         target *= FanSpec::SpeedMultiply::value();
                     }
                 }
@@ -1170,7 +1196,7 @@ private:
         if (!already_seen) {
             bool is_m110 = (cmd_code == 'M' && cmd_num == 110);
             if (is_m110) {
-                m_line_number = get_command_param_uint32(m_cmd, 'L', (m_cmd->have_line_number ? m_cmd->line_number : -1));
+                m_line_number = get_command_param_uint32('L', (m_cmd->have_line_number ? m_cmd->line_number : -1));
             }
             if (m_cmd->have_line_number) {
                 if (m_cmd->line_number != m_line_number) {
@@ -1220,7 +1246,7 @@ private:
                         goto wait_planner;
                     }
                     double inactive_time;
-                    if (find_command_param_double(m_cmd, 'S', &inactive_time)) {
+                    if (find_command_param_double('S', &inactive_time)) {
                         m_inactive_time = time_from_real(inactive_time);
                         if (m_disable_timer.isSet(c)) {
                             m_disable_timer.appendAt(c, m_last_active_time + m_inactive_time);
@@ -1241,6 +1267,10 @@ private:
                 case 114: {
                     TupleForEachForward(&m_axes, Foreach_append_position(), c);
                     reply_append_ch(c, '\n');
+                } break;
+                
+                case 136: { // print heater config
+                    TupleForEachForward(&m_heaters, Foreach_print_config(), this, c);
                 } break;
             } break;
             
@@ -1377,40 +1407,41 @@ private:
         m_disable_timer.unset(c);
     }
     
-    static GcodeParserCommandPart * find_command_param (GcodeParserCommand *cmd, char code)
+public:
+    GcodeParserCommandPart * find_command_param (char code)
     {
         AMBRO_ASSERT(code >= 'A')
         AMBRO_ASSERT(code <= 'Z')
         
-        for (GcodePartsSizeType i = 1; i < cmd->num_parts; i++) {
-            if (cmd->parts[i].code == code) {
-                return &cmd->parts[i];
+        for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
+            if (m_cmd->parts[i].code == code) {
+                return &m_cmd->parts[i];
             }
         }
         return NULL;
     }
     
-    static uint32_t get_command_param_uint32 (GcodeParserCommand *cmd, char code, uint32_t default_value)
+    uint32_t get_command_param_uint32 (char code, uint32_t default_value)
     {
-        GcodeParserCommandPart *part = find_command_param(cmd, code);
+        GcodeParserCommandPart *part = find_command_param(code);
         if (!part) {
             return default_value;
         }
         return strtoul(part->data, NULL, 10);
     }
     
-    static double get_command_param_double (GcodeParserCommand *cmd, char code, double default_value)
+    double get_command_param_double (char code, double default_value)
     {
-        GcodeParserCommandPart *part = find_command_param(cmd, code);
+        GcodeParserCommandPart *part = find_command_param(code);
         if (!part) {
             return default_value;
         }
         return strtod(part->data, NULL);
     }
     
-    static bool find_command_param_double (GcodeParserCommand *cmd, char code, double *out)
+    bool find_command_param_double (char code, double *out)
     {
-        GcodeParserCommandPart *part = find_command_param(cmd, code);
+        GcodeParserCommandPart *part = find_command_param(code);
         if (!part) {
             return false;
         }
@@ -1470,6 +1501,7 @@ private:
         reply_append(c, buf, len);
     }
     
+private:
     bool try_buffered_command (Context c)
     {
         AMBRO_ASSERT(m_cmd)

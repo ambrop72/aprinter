@@ -539,6 +539,7 @@ using PrinterParams = PrinterMainParams<
             'T', // Name
             104, // SetMCommand
             109, // WaitMCommand
+            301, // SetConfigMCommand
             AvrPin<AvrPortA, 7>, // AdcPin
             AvrPin<AvrPortD, 5>, // OutputPin
             AvrThermistorTable_Extruder, // Formula
@@ -566,6 +567,7 @@ using PrinterParams = PrinterMainParams<
             'B', // Name
             140, // SetMCommand
             190, // WaitMCommand
+            304, // SetConfigMCommand
             AvrPin<AvrPortA, 6>, // AdcPin
             AvrPin<AvrPortD, 4>, // OutputPin
             AvrThermistorTable_Bed, // Formula

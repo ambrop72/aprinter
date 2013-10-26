@@ -36,12 +36,30 @@ class BinaryControl {
 public:
     using OutputFixedType = FixedPoint<16, false, -16>;
     static const bool InterruptContextAllowed = true;
+    static const bool SupportsConfig = false;
+    
+    struct Config {};
+    
+    static Config makeDefaultConfig ()
+    {
+        return Config();
+    }
+    
+    template <typename Context, typename Main>
+    static void setConfigCommand (Context c, Main *m, Config *config)
+    {
+    }
+    
+    template <typename Context, typename Main>
+    static void printConfig (Context c, Main *m, Config const *config)
+    {
+    }
     
     void init ()
     {
     }
     
-    OutputFixedType addMeasurement (ValueFixedType value, ValueFixedType target)
+    OutputFixedType addMeasurement (ValueFixedType value, ValueFixedType target, Config const *config)
     {
         return (value < target) ? OutputFixedType::maxValue() : OutputFixedType::minValue();
     }
