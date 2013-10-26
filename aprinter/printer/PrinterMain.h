@@ -607,6 +607,8 @@ private:
         using TheObserver = TemperatureObserver<Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using OutputFixedType = typename TheControl::OutputFixedType;
         
+        static_assert(MainControlEnabled || TheControl::InterruptContextAllowed, "Chosen heater control algorithm is not allowed in interrupt context.");
+        
         struct ChannelPayload {
             ValueFixedType target;
         };

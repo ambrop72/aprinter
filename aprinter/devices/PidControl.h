@@ -50,6 +50,7 @@ template <typename Params, typename MeasurementInterval, typename ValueFixedType
 class PidControl {
 public:
     using OutputFixedType = FixedPoint<8, false, -8>;
+    static const bool InterruptContextAllowed = false;
     
 public:
     void init ()

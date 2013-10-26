@@ -35,6 +35,7 @@ template <typename Params, typename MeasurementInterval, typename ValueFixedType
 class BinaryControl {
 public:
     using OutputFixedType = FixedPoint<16, false, -16>;
+    static const bool InterruptContextAllowed = true;
     
     void init ()
     {
