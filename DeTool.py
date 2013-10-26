@@ -137,7 +137,8 @@ subst_replace = [tools[i]['name'] for i in tools] + [tools[i]['name'] for i in t
 with open(outputFileName, "w") as f:
     f.write(';DeTool init\n')
     f.write('G90\n')
-    f.write('G92 %s%.5f\n' % (tools[currentTool]['name'], currentReqPos['E']))
+    for tool in tools:
+        f.write('G92 %s%.5f\n' % (tools[tool]['name'], currentReqPos['E']))
     f.write('G0 F%.1f\n' % (currentF))
     if tools[currentTool]['fan']:
         f.write('%s S%.2f\n' % (tools[currentTool]['fan'], currentFanSpeed * tools[currentTool]['fan_multiplier']))
