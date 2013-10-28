@@ -154,9 +154,9 @@ public:
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c) {
             extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].not_triggered = false;
-        });
+        }
     }
     
 private:

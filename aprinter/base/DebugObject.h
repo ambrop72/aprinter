@@ -93,9 +93,9 @@ void DebugObject<Context, Ident>::debugInit (ThisContext c)
 #ifdef AMBROLIB_ASSERTIONS
     DebugObjectGroup<Context> *g = c.debugGroup();
     m_magic = getMagic();
-    AMBRO_LOCK_T(g->m_lock, c, lock_c, {
+    AMBRO_LOCK_T(g->m_lock, c, lock_c) {
         g->m_count++;
-    });
+    }
 #endif
 }
 
@@ -107,9 +107,9 @@ void DebugObject<Context, Ident>::debugDeinit (ThisContext c)
     DebugObjectGroup<Context> *g = c.debugGroup();
     AMBRO_ASSERT(m_magic == getMagic())
     m_magic = 0;
-    AMBRO_LOCK_T(g->m_lock, c, lock_c, {
+    AMBRO_LOCK_T(g->m_lock, c, lock_c) {
         g->m_count--;
-    });
+    }
 #endif
 }
 

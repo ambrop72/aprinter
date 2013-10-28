@@ -76,13 +76,13 @@ public:
         uint32_t d = (Params::DoubleSpeed ? 8 : 16) * baud;
         uint32_t ubrr = (((2 * (uint32_t)F_CPU) + d) / (2 * d)) - 1;
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c) {
             UBRR0H = (ubrr >> 8);
             UBRR0L = ubrr;
             UCSR0A = ((int)Params::DoubleSpeed << U2X0);
             UCSR0B = (1 << RXCIE0) | (1 << RXEN0) | (1 << TXEN0);
             UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
-        });
+        }
         
         this->debugInit(c);
     }
@@ -91,13 +91,13 @@ public:
     {
         this->debugDeinit(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c) {
             UCSR0C = 0;
             UCSR0B = 0;
             UCSR0A = 0;
             UBRR0L = 0;
             UBRR0H = 0;
-        });
+        }
         
         c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
         c.eventLoop()->template resetFastEvent<RecvFastEvent>(c);
@@ -111,10 +111,10 @@ public:
         
         RecvSizeType end;
         bool overrun;
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c) {
             end = m_recv_end;
             overrun = m_recv_overrun;
-        });
+        }
         
         *out_overrun = overrun;
         return recv_avail(m_recv_start, end);
@@ -131,10 +131,10 @@ public:
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c) {
             AMBRO_ASSERT(amount <= recv_avail(m_recv_start, m_recv_end))
             m_recv_start = BoundedModuloAdd(m_recv_start, amount);
-        });
+        }
     }
     
     void recvClearOverrun (Context c)
@@ -148,9 +148,9 @@ public:
             (void)UDR0;
         }
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c) {
             UCSR0B |= (1 << RXCIE0);
-        });
+        }
     }
     
     void recvForceEvent (Context c)
@@ -165,9 +165,9 @@ public:
         this->debugAccess(c);
         
         SendSizeType start;
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c) {
             start = m_send_start;
-        });
+        }
         
         return send_avail(start, m_send_end);
     }
@@ -194,12 +194,12 @@ public:
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c) {
             AMBRO_ASSERT(amount <= send_avail(m_send_start, m_send_end))
             m_send_end = BoundedModuloAdd(m_send_end, amount);
             m_send_event = BoundedModuloAdd(m_send_event, amount);
             UCSR0B |= (1 << UDRIE0);
-        });
+        }
     }
     
     void sendRequestEvent (Context c, SendSizeType min_amount)
@@ -207,7 +207,7 @@ public:
         this->debugAccess(c);
         AMBRO_ASSERT(min_amount > SendSizeType::import(0))
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c) {
             if (send_avail(m_send_start, m_send_end) >= min_amount) {
                 m_send_event = BoundedModuloInc(m_send_end);
                 c.eventLoop()->template triggerFastEvent<SendFastEvent>(lock_c);
@@ -215,17 +215,17 @@ public:
                 m_send_event = BoundedModuloAdd(BoundedModuloInc(m_send_end), min_amount);
                 c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
             }
-        });
+        }
     }
     
     void sendCancelEvent (Context c)
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c, {
+        AMBRO_LOCK_T(m_lock, c, lock_c) {
             m_send_event = BoundedModuloInc(m_send_end);
             c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
-        });
+        }
     }
     
     void sendWaitFinished ()

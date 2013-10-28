@@ -221,9 +221,9 @@ public:
         static const int PinIndex = TypeListIndex<PinsList, IsEqualFunc<Pin>>::value;
         
         uint16_t value;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             value = TupleGetElem<PinIndex>(&m_pins)->m_value;
-        });
+        }
         
         return value;
     }

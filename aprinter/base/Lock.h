@@ -25,6 +25,12 @@
 #ifndef AMBROLIB_LOCK_H
 #define AMBROLIB_LOCK_H
 
-#define AMBRO_LOCK_T(lock, this_context, lock_context, body) (lock).enter((this_context), [&](typename decltype(lock)::template EnterContext<decltype(this_context)> lock_context) body)
+#define AMBRO_LOCK(lock, this_context, lock_context) \
+    for (bool AmbroLib__LockRun = (((lock).enterLock((this_context))), true); AmbroLib__LockRun; (lock).exitLock((this_context))) \
+    for (decltype(lock)::template EnterContext<decltype(this_context)> lock_context = (lock).makeContext((this_context)); AmbroLib__LockRun; AmbroLib__LockRun = false)
+
+#define AMBRO_LOCK_T(lock, this_context, lock_context) \
+    for (bool AmbroLib__LockRun = (((lock).enterLock((this_context))), true); AmbroLib__LockRun; (lock).exitLock((this_context))) \
+    for (typename decltype(lock)::template EnterContext<decltype(this_context)> lock_context = (lock).makeContext((this_context)); AmbroLib__LockRun; AmbroLib__LockRun = false)
 
 #endif

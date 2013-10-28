@@ -86,7 +86,7 @@ public:
         uint16_t now_high;
         uint16_t now_low;
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             now_high = m_offset;
             asm volatile (
                 "    lds %A[now_low],%[tcnt1]+0\n"
@@ -105,7 +105,7 @@ public:
             [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
             [tov1] "n" (TOV1)
             );
-        });
+        }
         
         return ((uint32_t)now_high << 16) | now_low;
     }
@@ -250,9 +250,9 @@ public:
     {
         this->debugDeinit(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
-        });
+        }
     }
     
     template <typename ThisContext>
@@ -268,7 +268,7 @@ public:
         m_running = true;
 #endif
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             uint16_t now_high = lock_c.clock()->m_offset;
             uint16_t now_low;
             
@@ -315,7 +315,7 @@ public:
                   [timsk] "n" (timsk_reg + __SFR_OFFSET),
                   [ocie_bit] "n" (ocie_bit)
             );
-        });
+        }
     }
     
     template <typename ThisContext>
@@ -323,12 +323,12 @@ public:
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
             m_running = false;
 #endif
-        });
+        }
     }
     
     template <uint32_t check_ocr_reg>
@@ -404,9 +404,9 @@ public:
     {
         this->debugDeinit(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
-        });
+        }
     }
     
     template <typename ThisContext>
@@ -422,7 +422,7 @@ public:
         m_running = true;
 #endif
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             uint16_t now_high = lock_c.clock()->m_offset;
             uint16_t now_low;
             
@@ -467,7 +467,7 @@ public:
                   [timsk] "n" (timsk_reg + __SFR_OFFSET),
                   [ocie_bit] "n" (ocie_bit)
             );
-        });
+        }
     }
     
     template <typename ThisContext>
@@ -475,12 +475,12 @@ public:
     {
         this->debugAccess(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
             m_running = false;
 #endif
-        });
+        }
     }
     
     template <uint32_t check_ocr_reg>

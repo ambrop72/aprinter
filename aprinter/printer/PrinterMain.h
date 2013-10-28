@@ -674,20 +674,20 @@ private:
             AMBRO_ASSERT(target > min_safe_temp())
             AMBRO_ASSERT(target < max_safe_temp())
             
-            AMBRO_LOCK_T(m_lock, c, lock_c, {
+            AMBRO_LOCK_T(m_lock, c, lock_c) {
                 m_target = target;
                 m_main_control.set();
                 m_enabled = true;
-            });
+            }
         }
         
         template <typename ThisContext>
         void unset (ThisContext c)
         {
-            AMBRO_LOCK_T(m_lock, c, lock_c, {
+            AMBRO_LOCK_T(m_lock, c, lock_c) {
                 m_enabled = false;
                 m_main_control.unset();
-            });
+            }
         }
         
         bool check_command (Context c, int cmd_num, int *out_result)
@@ -827,15 +827,15 @@ private:
             {
                 ValueFixedType sensor_value = hfmc(this)->get_value(c);
                 if (AMBRO_LIKELY(sensor_value <= min_safe_temp() || sensor_value >= max_safe_temp())) {
-                    AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c, {
+                    AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c) {
                         hfmc(this)->m_enabled = false;
                         unset();
-                    });
+                    }
                 }
                 OutputFixedType output;
-                AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c, {
+                AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c) {
                     output = m_output;
-                });
+                }
                 return output;
             }
             
@@ -847,23 +847,23 @@ private:
                 bool enabled;
                 ValueFixedType target;
                 bool was_not_unset;
-                AMBRO_LOCK_T(hfmc(o)->m_lock, c, lock_c, {
+                AMBRO_LOCK_T(hfmc(o)->m_lock, c, lock_c) {
                     enabled = hfmc(o)->m_enabled;
                     target = hfmc(o)->m_target;
                     was_not_unset = o->m_was_not_unset;
                     o->m_was_not_unset = enabled;
-                });
+                }
                 if (AMBRO_LIKELY(enabled)) {
                     if (!was_not_unset) {
                         hfmc(o)->m_control.init();
                     }
                     ValueFixedType sensor_value = hfmc(o)->get_value(c);
                     OutputFixedType output = hfmc(o)->m_control.addMeasurement(sensor_value, target, &hfmc(this)->m_control_config);
-                    AMBRO_LOCK_T(hfmc(o)->m_lock, c, lock_c, {
+                    AMBRO_LOCK_T(hfmc(o)->m_lock, c, lock_c) {
                         if (o->m_was_not_unset) {
                             o->m_output = output;
                         }
-                    });
+                    }
                 }
             }
             
@@ -885,7 +885,7 @@ private:
             OutputFixedType get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c)
             {
                 OutputFixedType control_value = OutputFixedType::importBits(0);
-                AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c, {
+                AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c) {
                     ValueFixedType sensor_value = hfmc(this)->get_value(lock_c);
                     if (AMBRO_UNLIKELY(sensor_value <= min_safe_temp() || sensor_value >= max_safe_temp())) {
                         hfmc(this)->m_enabled = false;
@@ -893,7 +893,7 @@ private:
                     if (AMBRO_LIKELY(hfmc(this)->m_enabled)) {
                         control_value = hfmc(this)->m_control.addMeasurement(sensor_value, hfmc(this)->m_target, &hfmc(this)->m_control_config);
                     }
-                });
+                }
                 return control_value;
             }
         };
@@ -980,9 +980,9 @@ private:
         OutputFixedType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
         {
             OutputFixedType control_value;
-            AMBRO_LOCK_T(m_lock, c, lock_c, {
+            AMBRO_LOCK_T(m_lock, c, lock_c) {
                 control_value = m_target;
-            });
+            }
             return control_value;
         }
         
@@ -995,9 +995,9 @@ private:
         void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
         {
             ChannelPayload *payload = UnionGetElem<FanIndex>(payload_union);
-            AMBRO_LOCK_T(m_lock, c, lock_c, {
+            AMBRO_LOCK_T(m_lock, c, lock_c) {
                 m_target = payload->target;
-            });
+            }
         }
         
         typename Context::Lock m_lock;

@@ -804,13 +804,13 @@ public:
                 m_num_committed++;
             } else {
                 bool cleared = false;
-                AMBRO_LOCK_T(o->m_lock, c, lock_c, {
+                AMBRO_LOCK_T(o->m_lock, c, lock_c) {
                     o->m_underrun = o->is_underrun();
                     if (!o->m_underrun && m_num_committed != ChannelSpec::BufferSize) {
                         m_num_committed++;
                         cleared = true;
                     }
-                });
+                }
                 if (!cleared) {
                     return false;
                 }
@@ -1058,13 +1058,13 @@ private:
                     TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), entry);
                 } else {
                     bool cleared = false;
-                    AMBRO_LOCK_T(o->m_lock, c, lock_c, {
+                    AMBRO_LOCK_T(o->m_lock, c, lock_c) {
                         o->m_underrun = o->is_underrun();
                         if (!o->m_underrun && TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space())) {
                             TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), entry);
                             cleared = true;
                         }
-                    });
+                    }
                     if (!cleared) {
                         return;
                     }
@@ -1155,13 +1155,13 @@ private:
             ChannelCommandSizeTypeTuple channels_old_first;
             TupleForEachForward(&o->m_axes, Foreach_swap_staging_prepare(), axes_old_first);
             TupleForEachForward(&o->m_channels, Foreach_swap_staging_prepare(), &channels_old_first);
-            AMBRO_LOCK_T(o->m_lock, c, lock_c, {
+            AMBRO_LOCK_T(o->m_lock, c, lock_c) {
                 o->m_underrun = o->is_underrun();
                 if (AMBRO_LIKELY(!o->m_underrun)) {
                     TupleForEachForward(&o->m_axes, Foreach_swap_staging_hot());
                     TupleForEachForward(&o->m_channels, Foreach_swap_staging_hot(), lock_c);
                 }
-            });
+            }
             if (AMBRO_LIKELY(!o->m_underrun)) {
                 TupleForEachForward(&o->m_axes, Foreach_swap_staging_finish(), axes_old_first);
                 TupleForEachForward(&o->m_channels, Foreach_swap_staging_finish(), &channels_old_first);
@@ -1256,10 +1256,10 @@ private:
         AMBRO_ASSERT(o->m_stepping)
         
         bool empty;
-        AMBRO_LOCK_T(o->m_lock, c, lock_c, {
+        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
             o->m_underrun = o->is_underrun();
             empty = o->is_empty();
-        });
+        }
         
         if (AMBRO_UNLIKELY(empty)) {
             AMBRO_ASSERT(o->m_underrun)

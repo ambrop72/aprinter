@@ -59,10 +59,22 @@ public:
     template <typename ThisContext>
     using EnterContext = typename LockHelper<ThisContext, IsInterruptContext<ThisContext>::value>::EnterContext;
     
-    template <typename ThisContext, typename Func>
-    __attribute__((always_inline)) inline static void enter (ThisContext c, Func f)
+    template <typename ThisContext>
+    inline static EnterContext<ThisContext> makeContext (ThisContext c)
     {
-        LockHelper<ThisContext, IsInterruptContext<ThisContext>::value>::call(c, f);
+        return LockHelper<ThisContext, IsInterruptContext<ThisContext>::value>::makeContext(c);
+    }
+    
+    template <typename ThisContext>
+    inline static void enterLock (ThisContext c)
+    {
+        return LockHelper<ThisContext, IsInterruptContext<ThisContext>::value>::enterLock(c);
+    }
+    
+    template <typename ThisContext>
+    inline static void exitLock (ThisContext c)
+    {
+        return LockHelper<ThisContext, IsInterruptContext<ThisContext>::value>::exitLock(c);
     }
     
 private:
@@ -70,11 +82,18 @@ private:
     struct LockHelper<ThisContext, false, Dummy> {
         typedef InterruptContext<ThisContext> EnterContext;
         
-        template <typename Func>
-        __attribute__((always_inline)) inline static void call (ThisContext c, Func f)
+        inline static EnterContext makeContext (ThisContext c)
+        {
+            return MakeInterruptContext(c);
+        }
+        
+        inline static void enterLock (ThisContext c)
         {
             cli();
-            f(MakeInterruptContext(c));
+        }
+        
+        inline static void exitLock (ThisContext c)
+        {
             sei();
         }
     };
@@ -83,10 +102,17 @@ private:
     struct LockHelper<ThisContext, true, Dummy> {
         typedef ThisContext EnterContext;
         
-        template <typename Func>
-        __attribute__((always_inline)) inline static void call (ThisContext c, Func f)
+        inline static EnterContext makeContext (ThisContext c)
         {
-            f(c);
+            return c;
+        }
+        
+        inline static void enterLock (ThisContext c)
+        {
+        }
+        
+        inline static void exitLock (ThisContext c)
+        {
         }
     };
 };
@@ -108,10 +134,22 @@ public:
     template <typename ThisContext>
     using EnterContext = typename InterruptLockImpl::template EnterContext<ThisContext>;
     
-    template <typename ThisContext, typename Func>
-    __attribute__((always_inline)) inline void enter (ThisContext c, Func f)
+    template <typename ThisContext>
+    inline static EnterContext<ThisContext> makeContext (ThisContext c)
     {
-        InterruptLockImpl::enter(c, f);
+        return InterruptLockImpl::makeContext(c);
+    }
+    
+    template <typename ThisContext>
+    inline static void enterLock (ThisContext c)
+    {
+        return InterruptLockImpl::enterLock(c);
+    }
+    
+    template <typename ThisContext>
+    inline static void exitLock (ThisContext c)
+    {
+        return InterruptLockImpl::exitLock(c);
     }
 };
 

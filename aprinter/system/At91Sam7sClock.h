@@ -145,13 +145,13 @@ public:
         
         TimeType now;
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             now = m_offset + tc()->TC_CV;
             m_status[0] |= tc()->TC_SR;
             if ((m_status[0] & AT91C_TC_COVFS)) {
                 now = (TimeType)(m_offset + tc()->TC_CV) + UINT32_C(0x00010000);
             }
-        });
+        }
         
         return now;
     }
@@ -222,9 +222,9 @@ public:
         this->debugDeinit(c);
         
         my_tc()->TC_IDR = cp_mask;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             clock->m_mask[tc_num] &= ~cp_mask;
-        });
+        }
     }
     
     template <typename ThisContext>
@@ -239,7 +239,7 @@ public:
         m_running = true;
 #endif
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = clock->m_offset + Clock::tc()->TC_CV;
             clock->m_status[0] |= Clock::tc()->TC_SR;
             if ((clock->m_status[0] & AT91C_TC_COVFS)) {
@@ -255,7 +255,7 @@ public:
             my_tc()->TC_IER = cp_mask;
             clock->m_status[tc_num] &= ~cp_mask;
             clock->m_mask[tc_num] |= cp_mask;
-        });
+        }
     }
     
     template <typename ThisContext>
@@ -265,9 +265,9 @@ public:
         this->debugAccess(c);
         
         my_tc()->TC_IDR = cp_mask;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c, {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             clock->m_mask[tc_num] &= ~cp_mask;
-        });
+        }
         
 #ifdef AMBROLIB_ASSERTIONS
         m_running = false;
