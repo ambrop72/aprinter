@@ -30,6 +30,7 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListReverse.h>
 #include <aprinter/meta/HasMemberTypeFunc.h>
+#include <aprinter/base/GetContainer.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -130,12 +131,7 @@ struct MemberPosition {
     
     static ParentType * up (ObjectType *x)
     {
-        union Dummy {
-            ParentType p;
-            int d;
-        } dummy;
-        ptrdiff_t offest = reinterpret_cast<char *>(&((dummy.p).*TMemberPtr)) - reinterpret_cast<char *>(&dummy.p);
-        return reinterpret_cast<ParentType *>(reinterpret_cast<char *>(x) - offest);
+        return GetContainer(x, TMemberPtr);
     }
 };
 
