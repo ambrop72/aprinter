@@ -29,6 +29,7 @@
 
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/OffsetCallback.h>
 
@@ -45,26 +46,34 @@ struct TemperatureObserverParams {
     using MinTime = TMinTime;
 };
 
-template <typename Context, typename Params, typename GetValueCallback, typename Handler>
+template <typename Position, typename Context, typename Params, typename GetValueCallback, typename Handler>
 class TemperatureObserver
 : private DebugObject<Context, void>
 {
-public:
-    void init (Context c, double target)
+    static TemperatureObserver * self (Context c)
     {
-        m_event.init(c, AMBRO_OFFSET_CALLBACK_T(&TemperatureObserver::m_event, &TemperatureObserver::event_handler));
-        m_target = target;
-        m_intervals = 0;
-        m_event.appendNowNotAlready(c);
-        
-        this->debugInit(c);
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
     }
     
-    void deinit (Context c)
+public:
+    static void init (Context c, double target)
     {
-        this->debugDeinit(c);
+        TemperatureObserver *o = self(c);
         
-        m_event.deinit(c);
+        o->m_event.init(c, &TemperatureObserver::event_handler);
+        o->m_target = target;
+        o->m_intervals = 0;
+        o->m_event.appendNowNotAlready(c);
+        
+        o->debugInit(c);
+    }
+    
+    static void deinit (Context c)
+    {
+        TemperatureObserver *o = self(c);
+        o->debugDeinit(c);
+        
+        o->m_event.deinit(c);
     }
     
 private:
@@ -74,22 +83,23 @@ private:
     static const int MinIntervals = (Params::MinTime::value() / Params::SampleInterval::value()) + 2.0;
     using IntervalsType = typename ChooseInt<BitsInInt<MinIntervals>::value, false>::Type;
     
-    void event_handler (Context c)
+    static void event_handler (typename Context::EventLoop::QueuedEvent *, Context c)
     {
-        this->debugAccess(c);
+        TemperatureObserver *o = self(c);
+        o->debugAccess(c);
         
-        m_event.appendAfterPrevious(c, IntervalTicks);
+        o->m_event.appendAfterPrevious(c, IntervalTicks);
         
-        double value = GetValueCallback::call(this, c);
-        bool in_range = fabs(value - m_target) < Params::ValueTolerance::value();
+        double value = GetValueCallback::call(c);
+        bool in_range = fabs(value - o->m_target) < Params::ValueTolerance::value();
         
         if (!in_range) {
-            m_intervals = 0;
-        } else if (m_intervals != MinIntervals) {
-            m_intervals++;
+            o->m_intervals = 0;
+        } else if (o->m_intervals != MinIntervals) {
+            o->m_intervals++;
         }
         
-        return Handler::call(this, c, m_intervals == MinIntervals);
+        return Handler::call(c, o->m_intervals == MinIntervals);
     }
     
     typename Context::EventLoop::QueuedEvent m_event;

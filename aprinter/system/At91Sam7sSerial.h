@@ -50,23 +50,30 @@ private:
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<At91Sam7sSerial>;
     using SendFastEvent = typename Context::EventLoop::template FastEventSpec<RecvFastEvent>;
     
+    static At91Sam7sSerial * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
+    
 public:
     using RecvSizeType = BoundedInt<RecvBufferBits, false>;
     using SendSizeType = BoundedInt<SendBufferBits, false>;
     
-    void init (Context c, uint32_t baud)
+    static void init (Context c, uint32_t baud)
     {
-        m_lock.init(c);
+        At91Sam7sSerial *o = self(c);
+        
+        o->m_lock.init(c);
         
         c.eventLoop()->template initFastEvent<RecvFastEvent>(c, At91Sam7sSerial::recv_event_handler);
-        m_recv_start = RecvSizeType::import(0);
-        m_recv_end = RecvSizeType::import(0);
-        m_recv_overrun = false;
+        o->m_recv_start = RecvSizeType::import(0);
+        o->m_recv_end = RecvSizeType::import(0);
+        o->m_recv_overrun = false;
         
         c.eventLoop()->template initFastEvent<SendFastEvent>(c, At91Sam7sSerial::send_event_handler);
-        m_send_start = SendSizeType::import(0);
-        m_send_end = SendSizeType::import(0);;
-        m_send_event = BoundedModuloInc(m_send_end);
+        o->m_send_start = SendSizeType::import(0);
+        o->m_send_end = SendSizeType::import(0);;
+        o->m_send_event = BoundedModuloInc(o->m_send_end);
         
         at91sam7s_pmc_enable_periph(AT91C_ID_US0);
         AT91C_BASE_US0->US_CR = AT91C_US_RSTTX | AT91C_US_RSTRX;
@@ -83,12 +90,13 @@ public:
         AT91C_BASE_US0->US_IER = AT91C_US_RXRDY;
         AT91C_BASE_US0->US_CR = AT91C_US_TXEN | AT91C_US_RXEN;
         
-        this->debugInit(c);
+        o->debugInit(c);
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugDeinit(c);
         
         at91sam7s_aic_disable_irq(AT91C_ID_US0);
         AT91C_BASE_US0->US_CR = AT91C_US_RSTTX | AT91C_US_RSTRX;
@@ -96,48 +104,52 @@ public:
         
         c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
         c.eventLoop()->template resetFastEvent<RecvFastEvent>(c);
-        m_lock.deinit(c);
+        o->m_lock.deinit(c);
     }
     
-    RecvSizeType recvQuery (Context c, bool *out_overrun)
+    static RecvSizeType recvQuery (Context c, bool *out_overrun)
     {
-        this->debugAccess(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
         AMBRO_ASSERT(out_overrun)
         
         RecvSizeType end;
         bool overrun;
-        AMBRO_LOCK_T(m_lock, c, lock_c) {
-            end = m_recv_end;
-            overrun = m_recv_overrun;
+        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            end = o->m_recv_end;
+            overrun = o->m_recv_overrun;
         }
         
         *out_overrun = overrun;
-        return recv_avail(m_recv_start, end);
+        return recv_avail(o->m_recv_start, end);
     }
     
-    char * recvGetChunkPtr (Context c)
+    static char * recvGetChunkPtr (Context c)
     {
-        this->debugAccess(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
         
-        return (m_recv_buffer + m_recv_start.value());
+        return (o->m_recv_buffer + o->m_recv_start.value());
     }
     
-    void recvConsume (Context c, RecvSizeType amount)
+    static void recvConsume (Context c, RecvSizeType amount)
     {
-        this->debugAccess(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c) {
-            AMBRO_ASSERT(amount <= recv_avail(m_recv_start, m_recv_end))
-            m_recv_start = BoundedModuloAdd(m_recv_start, amount);
+        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            AMBRO_ASSERT(amount <= recv_avail(o->m_recv_start, o->m_recv_end))
+            o->m_recv_start = BoundedModuloAdd(o->m_recv_start, amount);
         }
     }
     
-    void recvClearOverrun (Context c)
+    static void recvClearOverrun (Context c)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_recv_overrun)
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_recv_overrun)
         
-        m_recv_overrun = false;
+        o->m_recv_overrun = false;
         
         while ((AT91C_BASE_US0->US_CSR & AT91C_US_RXRDY)) {
             (void)AT91C_BASE_US0->US_RHR;
@@ -146,125 +158,134 @@ public:
         AT91C_BASE_US0->US_IER = AT91C_US_RXRDY;
     }
     
-    void recvForceEvent (Context c)
+    static void recvForceEvent (Context c)
     {
-        this->debugAccess(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
         
         c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
     }
     
-    SendSizeType sendQuery (Context c)
+    static SendSizeType sendQuery (Context c)
     {
-        this->debugAccess(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
         
         SendSizeType start;
-        AMBRO_LOCK_T(m_lock, c, lock_c) {
-            start = m_send_start;
+        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            start = o->m_send_start;
         }
         
-        return send_avail(start, m_send_end);
+        return send_avail(start, o->m_send_end);
     }
     
-    SendSizeType sendGetChunkLen (Context c, SendSizeType rem_length)
+    static SendSizeType sendGetChunkLen (Context c, SendSizeType rem_length)
     {
-        this->debugAccess(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
         
-        if (m_send_end.value() > 0 && rem_length > BoundedModuloNegative(m_send_end)) {
-            rem_length = BoundedModuloNegative(m_send_end);
+        if (o->m_send_end.value() > 0 && rem_length > BoundedModuloNegative(o->m_send_end)) {
+            rem_length = BoundedModuloNegative(o->m_send_end);
         }
         
         return rem_length;
     }
     
-    char * sendGetChunkPtr (Context c)
+    static char * sendGetChunkPtr (Context c)
     {
-        this->debugAccess(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
         
-        return (m_send_buffer + m_send_end.value());
+        return (o->m_send_buffer + o->m_send_end.value());
     }
     
-    void sendProvide (Context c, SendSizeType amount)
+    static void sendProvide (Context c, SendSizeType amount)
     {
-        this->debugAccess(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c) {
-            AMBRO_ASSERT(amount <= send_avail(m_send_start, m_send_end))
-            m_send_end = BoundedModuloAdd(m_send_end, amount);
-            m_send_event = BoundedModuloAdd(m_send_event, amount);
+        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            AMBRO_ASSERT(amount <= send_avail(o->m_send_start, o->m_send_end))
+            o->m_send_end = BoundedModuloAdd(o->m_send_end, amount);
+            o->m_send_event = BoundedModuloAdd(o->m_send_event, amount);
             AT91C_BASE_US0->US_IER = AT91C_US_TXRDY;
         }
     }
     
-    void sendRequestEvent (Context c, SendSizeType min_amount)
+    static void sendRequestEvent (Context c, SendSizeType min_amount)
     {
-        this->debugAccess(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
         AMBRO_ASSERT(min_amount > SendSizeType::import(0))
         
-        AMBRO_LOCK_T(m_lock, c, lock_c) {
-            if (send_avail(m_send_start, m_send_end) >= min_amount) {
-                m_send_event = BoundedModuloInc(m_send_end);
+        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            if (send_avail(o->m_send_start, o->m_send_end) >= min_amount) {
+                o->m_send_event = BoundedModuloInc(o->m_send_end);
                 c.eventLoop()->template triggerFastEvent<SendFastEvent>(lock_c);
             } else {
-                m_send_event = BoundedModuloAdd(BoundedModuloInc(m_send_end), min_amount);
+                o->m_send_event = BoundedModuloAdd(BoundedModuloInc(o->m_send_end), min_amount);
                 c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
             }
         }
     }
     
-    void sendCancelEvent (Context c)
+    static void sendCancelEvent (Context c)
     {
-        this->debugAccess(c);
+        At91Sam7sSerial *o = self(c);
+        o->debugAccess(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c) {
-            m_send_event = BoundedModuloInc(m_send_end);
+        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            o->m_send_event = BoundedModuloInc(o->m_send_end);
             c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
         }
     }
     
-    void sendWaitFinished ()
+    static void sendWaitFinished (Context c)
     {
+        At91Sam7sSerial *o = self(c);
         bool not_finished;
         do {
             bool ie = interrupts_enabled();
             if (ie) {
                 cli();
             }
-            not_finished = (m_send_start != m_send_end);
+            not_finished = (o->m_send_start != o->m_send_end);
             if (ie) {
                 sei();
             }
         } while (not_finished);
     }
     
-    void usart_irq (InterruptContext<Context> c)
+    static void usart_irq (InterruptContext<Context> c)
     {
+        At91Sam7sSerial *o = self(c);
         uint32_t status = AT91C_BASE_US0->US_CSR;
         
-        if (!m_recv_overrun && (status & AT91C_US_RXRDY)) {
-            RecvSizeType new_end = BoundedModuloInc(m_recv_end);
-            if (new_end != m_recv_start) {
+        if (!o->m_recv_overrun && (status & AT91C_US_RXRDY)) {
+            RecvSizeType new_end = BoundedModuloInc(o->m_recv_end);
+            if (new_end != o->m_recv_start) {
                 uint8_t ch = AT91C_BASE_US0->US_RHR;
-                m_recv_buffer[m_recv_end.value()] = *(char *)&ch;
-                m_recv_buffer[m_recv_end.value() + (sizeof(m_recv_buffer) / 2)] = *(char *)&ch;
-                m_recv_end = new_end;
+                o->m_recv_buffer[o->m_recv_end.value()] = *(char *)&ch;
+                o->m_recv_buffer[o->m_recv_end.value() + (sizeof(o->m_recv_buffer) / 2)] = *(char *)&ch;
+                o->m_recv_end = new_end;
             } else {
-                m_recv_overrun = true;
+                o->m_recv_overrun = true;
                 AT91C_BASE_US0->US_IDR = AT91C_US_RXRDY;
             }
             
             c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
         }
         
-        if (m_send_start != m_send_end && (status & AT91C_US_TXRDY)) {
-            AT91C_BASE_US0->US_THR = *(uint8_t *)&m_send_buffer[m_send_start.value()];
-            m_send_start = BoundedModuloInc(m_send_start);
+        if (o->m_send_start != o->m_send_end && (status & AT91C_US_TXRDY)) {
+            AT91C_BASE_US0->US_THR = *(uint8_t *)&o->m_send_buffer[o->m_send_start.value()];
+            o->m_send_start = BoundedModuloInc(o->m_send_start);
             
-            if (m_send_start == m_send_end) {
+            if (o->m_send_start == o->m_send_end) {
                 AT91C_BASE_US0->US_IDR = AT91C_US_TXRDY;
             }
             
-            if (m_send_start == m_send_event) {
-                m_send_event = BoundedModuloInc(m_send_end);
+            if (o->m_send_start == o->m_send_event) {
+                o->m_send_event = BoundedModuloInc(o->m_send_end);
                 c.eventLoop()->template triggerFastEvent<SendFastEvent>(c);
             }
         }
@@ -273,19 +294,19 @@ public:
     using EventLoopFastEvents = MakeTypeList<RecvFastEvent, SendFastEvent>;
     
 private:
-    RecvSizeType recv_avail (RecvSizeType start, RecvSizeType end)
+    static RecvSizeType recv_avail (RecvSizeType start, RecvSizeType end)
     {
         return BoundedModuloSubtract(end, start);
     }
     
-    SendSizeType send_avail (SendSizeType start, SendSizeType end)
+    static SendSizeType send_avail (SendSizeType start, SendSizeType end)
     {
         return BoundedModuloDec(BoundedModuloSubtract(start, end));
     }
     
     static void recv_event_handler (Context c)
     {
-        At91Sam7sSerial *o = PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+        At91Sam7sSerial *o = self(c);
         o->debugAccess(c);
         
         RecvHandler::call(o, c);
@@ -293,7 +314,7 @@ private:
     
     static void send_event_handler (Context c)
     {
-        At91Sam7sSerial *o = PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+        At91Sam7sSerial *o = self(c);
         o->debugAccess(c);
         
         SendHandler::call(o, c);

@@ -31,6 +31,7 @@
 #include <avr/interrupt.h>
 #include <avr/sfr_defs.h>
 
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -40,12 +41,17 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, int Prescale>
+template <typename Position, typename Context, int Prescale>
 class AvrClock
-: private DebugObject<Context, AvrClock<Context, Prescale>>
+: private DebugObject<Context, void>
 {
     static_assert(Prescale >= 1, "Prescale must be >=1");
     static_assert(Prescale <= 5, "Prescale must be <=5");
+    
+    static AvrClock * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
     
 public:
     typedef uint32_t TimeType;
@@ -61,33 +67,36 @@ public:
     static constexpr double time_unit = (double)prescale_divide / F_CPU;
     static constexpr double time_freq = 1.0 / time_unit;
     
-    void init (Context c)
+    static void init (Context c)
     {
-        m_offset = 0;
+        AvrClock *o = self(c);
+        o->m_offset = 0;
         TIMSK1 = 0;
         TCCR1A = 0;
         TCCR1B = (uint16_t)Prescale;
         TIMSK1 = (1 << TOIE1);
-        this->debugInit(c);
+        o->debugInit(c);
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        AvrClock *o = self(c);
+        o->debugDeinit(c);
         TIMSK1 = 0;
         TCCR1B = 0;
     }
     
     template <typename ThisContext>
-    TimeType getTime (ThisContext c)
+    static TimeType getTime (ThisContext c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         uint16_t now_high;
         uint16_t now_low;
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            now_high = m_offset;
+            now_high = o->m_offset;
             asm volatile (
                 "    lds %A[now_low],%[tcnt1]+0\n"
                 "    lds %B[now_low],%[tcnt1]+1\n"
@@ -111,9 +120,10 @@ public:
     }
     
 #ifdef TCNT3
-    void initTC3 (Context c)
+    static void initTC3 (Context c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         TIMSK3 = 0;
         TCCR3A = 0;
@@ -121,9 +131,10 @@ public:
         TCNT3 = TCNT1 - 1;
     }
     
-    void deinitTC3 (Context c)
+    static void deinitTC3 (Context c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         TIMSK3 = 0;
         TCCR3B = 0;
@@ -131,9 +142,10 @@ public:
 #endif
 
 #ifdef TCNT4
-    void initTC4 (Context c)
+    static void initTC4 (Context c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         TIMSK4 = 0;
         TCCR4A = 0;
@@ -141,9 +153,10 @@ public:
         TCNT4 = TCNT1 - 1;
     }
     
-    void deinitTC4 (Context c)
+    static void deinitTC4 (Context c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         TIMSK4 = 0;
         TCCR4B = 0;
@@ -151,9 +164,10 @@ public:
 #endif
 
 #ifdef TCNT5
-    void initTC5 (Context c)
+    static void initTC5 (Context c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         TIMSK5 = 0;
         TCCR5A = 0;
@@ -161,9 +175,10 @@ public:
         TCNT5 = TCNT1 - 1;
     }
     
-    void deinitTC5 (Context c)
+    static void deinitTC5 (Context c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         TIMSK5 = 0;
         TCCR5B = 0;
@@ -173,9 +188,10 @@ public:
 #ifdef TCNT0
     static const int TC0Prescale = Prescale;
     
-    void initTC0 (Context c)
+    static void initTC0 (Context c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         TIMSK0 = 0;
         TCCR0A = 0;
@@ -183,9 +199,10 @@ public:
         TCNT0 = TCNT1 - 1;
     }
     
-    void deinitTC0 (Context c)
+    static void deinitTC0 (Context c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         TIMSK0 = 0;
         TCCR0B = 0;
@@ -200,9 +217,10 @@ public:
         (Prescale == 4) ? 6 :
         (Prescale == 5) ? 7 : 0;
     
-    void initTC2 (Context c)
+    static void initTC2 (Context c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         TIMSK2 = 0;
         TCCR2A = 0;
@@ -210,45 +228,54 @@ public:
         TCNT2 = TCNT1 - 1;
     }
     
-    void deinitTC2 (Context c)
+    static void deinitTC2 (Context c)
     {
-        this->debugAccess(c);
+        AvrClock *o = self(c);
+        o->debugAccess(c);
         
         TIMSK2 = 0;
         TCCR2B = 0;
     }
 #endif
     
-    void timer1_ovf_isr (InterruptContext<Context> c)
+    static void timer1_ovf_isr (InterruptContext<Context> c)
     {
-        m_offset++;
+        AvrClock *o = self(c);
+        o->m_offset++;
     }
     
 public:
     volatile uint16_t m_offset;
 };
 
-template <typename Context, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg, uint8_t ocf_bit>
+template <typename Position, typename Context, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg, uint8_t ocf_bit>
 class AvrClock16BitInterruptTimer
 : private DebugObject<Context, void>
 {
+    static AvrClock16BitInterruptTimer * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
+    
 public:
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
     typedef InterruptContext<Context> HandlerContext;
     
-    void init (Context c)
+    static void init (Context c)
     {
-        this->debugInit(c);
+        AvrClock16BitInterruptTimer *o = self(c);
+        o->debugInit(c);
         
 #ifdef AMBROLIB_ASSERTIONS
-        m_running = false;
+        o->m_running = false;
 #endif
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        AvrClock16BitInterruptTimer *o = self(c);
+        o->debugDeinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
@@ -256,16 +283,17 @@ public:
     }
     
     template <typename ThisContext>
-    void set (ThisContext c, TimeType time)
+    static void set (ThisContext c, TimeType time)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(!m_running)
+        AvrClock16BitInterruptTimer *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(!o->m_running)
         
         static const TimeType minus_clearance = -clearance;
         
-        m_time = time;
+        o->m_time = time;
 #ifdef AMBROLIB_ASSERTIONS
-        m_running = true;
+        o->m_running = true;
 #endif
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -319,23 +347,25 @@ public:
     }
     
     template <typename ThisContext>
-    void unset (ThisContext c)
+    static void unset (ThisContext c)
     {
-        this->debugAccess(c);
+        AvrClock16BitInterruptTimer *o = self(c);
+        o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
-            m_running = false;
+            o->m_running = false;
 #endif
         }
     }
     
     template <uint32_t check_ocr_reg>
-    void timer_comp_isr (InterruptContext<Context> c)
+    static void timer_comp_isr (InterruptContext<Context> c)
     {
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
-        AMBRO_ASSERT(m_running)
+        AvrClock16BitInterruptTimer *o = self(c);
+        AMBRO_ASSERT(o->m_running)
         
         uint16_t now_low;
         uint16_t now_high = c.clock()->m_offset;
@@ -357,7 +387,7 @@ public:
             : [now_low] "=&r" (now_low),
               [now_high] "=&d" (now_high)
             : "[now_high]" (now_high),
-              [time] "r" (m_time),
+              [time] "r" (o->m_time),
               [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
               [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
               [tov1] "n" (TOV1)
@@ -365,9 +395,9 @@ public:
         
         if (now_high < UINT16_C(0x8000)) {
 #ifdef AMBROLIB_ASSERTIONS
-            m_running = false;
+            o->m_running = false;
 #endif
-            if (!Handler::call(this, c)) {
+            if (!Handler::call(o, c)) {
                 avrSoftClearBitReg<timsk_reg>(ocie_bit);
             }
         }
@@ -382,27 +412,34 @@ private:
 #endif
 };
 
-template <typename Context, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg, uint8_t ocf_bit>
+template <typename Position, typename Context, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg, uint8_t ocf_bit>
 class AvrClock8BitInterruptTimer
 : private DebugObject<Context, void>
 {
+    static AvrClock8BitInterruptTimer * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
+    
 public:
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
     typedef InterruptContext<Context> HandlerContext;
     
-    void init (Context c)
+    static void init (Context c)
     {
-        this->debugInit(c);
+        AvrClock8BitInterruptTimer *o = self(c);
+        o->debugInit(c);
         
 #ifdef AMBROLIB_ASSERTIONS
-        m_running = false;
+        o->m_running = false;
 #endif
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        AvrClock8BitInterruptTimer *o = self(c);
+        o->debugDeinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
@@ -410,16 +447,17 @@ public:
     }
     
     template <typename ThisContext>
-    void set (ThisContext c, TimeType time)
+    static void set (ThisContext c, TimeType time)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(!m_running)
+        AvrClock8BitInterruptTimer *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(!o->m_running)
         
         static const TimeType minus_clearance = -clearance;
         
-        m_time = time;
+        o->m_time = time;
 #ifdef AMBROLIB_ASSERTIONS
-        m_running = true;
+        o->m_running = true;
 #endif
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -471,23 +509,25 @@ public:
     }
     
     template <typename ThisContext>
-    void unset (ThisContext c)
+    static void unset (ThisContext c)
     {
-        this->debugAccess(c);
+        AvrClock8BitInterruptTimer *o = self(c);
+        o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             avrSoftClearBitReg<timsk_reg>(ocie_bit);
 #ifdef AMBROLIB_ASSERTIONS
-            m_running = false;
+            o->m_running = false;
 #endif
         }
     }
     
     template <uint32_t check_ocr_reg>
-    void timer_comp_isr (InterruptContext<Context> c)
+    static void timer_comp_isr (InterruptContext<Context> c)
     {
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
-        AMBRO_ASSERT(m_running)
+        AvrClock8BitInterruptTimer *o = self(c);
+        AMBRO_ASSERT(o->m_running)
         
         uint16_t now_low;
         uint16_t now_high = c.clock()->m_offset;
@@ -509,7 +549,7 @@ public:
             : [now_low] "=&r" (now_low),
               [now_high] "=&d" (now_high)
             : "[now_high]" (now_high),
-              [time] "r" (m_time),
+              [time] "r" (o->m_time),
               [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
               [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
               [tov1] "n" (TOV1)
@@ -517,9 +557,9 @@ public:
         
         if (now_high < UINT16_C(0x8000)) {
 #ifdef AMBROLIB_ASSERTIONS
-            m_running = false;
+            o->m_running = false;
 #endif
-            if (!Handler::call(this, c)) {
+            if (!Handler::call(o, c)) {
                 avrSoftClearBitReg<timsk_reg>(ocie_bit);
             }
         }
@@ -534,50 +574,50 @@ private:
 #endif
 };
 
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC1_OCA = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1A, _SFR_IO_ADDR(OCR1A), OCF1A>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC1_OCA = AvrClock16BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1A, _SFR_IO_ADDR(OCR1A), OCF1A>;
 
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC1_OCB = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1B, _SFR_IO_ADDR(OCR1B), OCF1B>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC1_OCB = AvrClock16BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK1), OCIE1B, _SFR_IO_ADDR(OCR1B), OCF1B>;
 
 #ifdef TCNT3
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC3_OCA = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3A, _SFR_IO_ADDR(OCR3A), OCF3A>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC3_OCA = AvrClock16BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3A, _SFR_IO_ADDR(OCR3A), OCF3A>;
 
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC3_OCB = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3B, _SFR_IO_ADDR(OCR3B), OCF3B>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC3_OCB = AvrClock16BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK3), OCIE3B, _SFR_IO_ADDR(OCR3B), OCF3B>;
 #endif
 
 #ifdef TCNT4
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC4_OCA = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK4), OCIE4A, _SFR_IO_ADDR(OCR4A), OCF4A>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC4_OCA = AvrClock16BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK4), OCIE4A, _SFR_IO_ADDR(OCR4A), OCF4A>;
 
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC4_OCB = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK4), OCIE4B, _SFR_IO_ADDR(OCR4B), OCF4B>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC4_OCB = AvrClock16BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK4), OCIE4B, _SFR_IO_ADDR(OCR4B), OCF4B>;
 #endif
 
 #ifdef TCNT5
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC5_OCA = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK5), OCIE5A, _SFR_IO_ADDR(OCR5A), OCF5A>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC5_OCA = AvrClock16BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK5), OCIE5A, _SFR_IO_ADDR(OCR5A), OCF5A>;
 
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC5_OCB = AvrClock16BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK5), OCIE5B, _SFR_IO_ADDR(OCR5B), OCF5B>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC5_OCB = AvrClock16BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK5), OCIE5B, _SFR_IO_ADDR(OCR5B), OCF5B>;
 #endif
 
 #ifdef TCNT0
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC0_OCA = AvrClock8BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK0), OCIE0A, _SFR_IO_ADDR(OCR0A), OCF0A>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC0_OCA = AvrClock8BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK0), OCIE0A, _SFR_IO_ADDR(OCR0A), OCF0A>;
 
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC0_OCB = AvrClock8BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK0), OCIE0B, _SFR_IO_ADDR(OCR0B), OCF0B>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC0_OCB = AvrClock8BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK0), OCIE0B, _SFR_IO_ADDR(OCR0B), OCF0B>;
 #endif
 
 #ifdef TCNT2
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC2_OCA = AvrClock8BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK2), OCIE2A, _SFR_IO_ADDR(OCR2A), OCF2A>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC2_OCA = AvrClock8BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK2), OCIE2A, _SFR_IO_ADDR(OCR2A), OCF2A>;
 
-template <typename Context, typename Handler>
-using AvrClockInterruptTimer_TC2_OCB = AvrClock8BitInterruptTimer<Context, Handler, _SFR_IO_ADDR(TIMSK2), OCIE2B, _SFR_IO_ADDR(OCR2B), OCF2B>;
+template <typename Position, typename Context, typename Handler>
+using AvrClockInterruptTimer_TC2_OCB = AvrClock8BitInterruptTimer<Position, Context, Handler, _SFR_IO_ADDR(TIMSK2), OCIE2B, _SFR_IO_ADDR(OCR2B), OCF2B>;
 #endif
 
 #define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \

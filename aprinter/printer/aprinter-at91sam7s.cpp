@@ -356,15 +356,17 @@ static const int clock_timer_prescaler = 4;
 struct MyContext;
 struct MyLoopExtra;
 struct Program;
+struct ClockPosition;
 struct LoopPosition;
+struct PinsPosition;
 struct PrinterPosition;
 struct LoopExtraPosition;
 
 using ProgramPosition = RootPosition<Program>;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
-using MyClock = At91Sam7sClock<MyContext, clock_timer_prescaler>;
+using MyClock = At91Sam7sClock<ClockPosition, MyContext, clock_timer_prescaler>;
 using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
-using MyPins = At91Sam7sPins<MyContext>;
+using MyPins = At91Sam7sPins<PinsPosition, MyContext>;
 //using MyAdc = AvrAdc<MyContext, AdcPins, AdcRefSel, AdcPrescaler>;
 using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
@@ -397,7 +399,9 @@ struct Program {
     MyLoopExtra myloopextra;
 };
 
+struct ClockPosition : public MemberPosition<ProgramPosition, MyClock, &Program::myclock> {};
 struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
+struct PinsPosition : public MemberPosition<ProgramPosition, MyPins, &Program::mypins> {};
 struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
 struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
 
@@ -437,7 +441,7 @@ int _read (int file, char *ptr, int len)
 __attribute__((used))
 int _write (int file, char *ptr, int len)
 {
-    p.myprinter.getSerial()->sendWaitFinished();
+    p.myprinter.getSerial()->sendWaitFinished(MyContext());
     for (int i = 0; i < len; i++) {
         while (!(AT91C_BASE_US0->US_CSR & AT91C_US_TXRDY));
         AT91C_BASE_US0->US_THR = *(uint8_t *)&ptr[i];

@@ -72,12 +72,12 @@ public:
     static void setConfigCommand (Context c, Main *m, Config *config)
     {
         *config = makeConfig(
-            m->get_command_param_double('P', config->p),
-            m->get_command_param_double('I', config->i),
-            m->get_command_param_double('D', config->d),
-            m->get_command_param_double('M', config->istatemin),
-            m->get_command_param_double('A', config->istatemax),
-            m->get_command_param_double('H', config->dhistory)
+            m->get_command_param_double(c, 'P', config->p),
+            m->get_command_param_double(c, 'I', config->i),
+            m->get_command_param_double(c, 'D', config->d),
+            m->get_command_param_double(c, 'M', config->istatemin),
+            m->get_command_param_double(c, 'A', config->istatemax),
+            m->get_command_param_double(c, 'H', config->dhistory)
         );
     }
     

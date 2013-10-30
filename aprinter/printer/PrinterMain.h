@@ -35,7 +35,6 @@
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/TypeListGet.h>
-#include <aprinter/meta/WrapCallback.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/TupleForEach.h>
@@ -56,6 +55,7 @@
 #include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/If.h>
+#include <aprinter/meta/WrapFunction.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -77,8 +77,8 @@ template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
     int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSizeExp,
-    typename TForceTimeout, template <typename, typename> class TEventChannelTimer,
-    template <typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
+    typename TForceTimeout, template <typename, typename, typename> class TEventChannelTimer,
+    template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
     typename TAxesList, typename THeatersList, typename TFansList
 >
 struct PrinterMainParams {
@@ -92,8 +92,8 @@ struct PrinterMainParams {
     static const int EventChannelBufferSize = TEventChannelBufferSize;
     static const int LookaheadBufferSizeExp = TLookaheadBufferSizeExp;
     using ForceTimeout = TForceTimeout;
-    template <typename X, typename Y> using EventChannelTimer = TEventChannelTimer<X, Y>;
-    template <typename X, typename Y> using WatchdogTemplate = TWatchdogTemplate<X, Y>;
+    template <typename X, typename Y, typename Z> using EventChannelTimer = TEventChannelTimer<X, Y, Z>;
+    template <typename X, typename Y, typename Z> using WatchdogTemplate = TWatchdogTemplate<X, Y, Z>;
     using WatchdogParams = TWatchdogParams;
     using AxesList = TAxesList;
     using HeatersList = THeatersList;
@@ -172,7 +172,7 @@ template <
     template<typename, typename, typename> class TControl,
     typename TControlParams,
     typename TTheTemperatureObserverParams,
-    template<typename, typename> class TTimerTemplate
+    template<typename, typename, typename> class TTimerTemplate
 >
 struct PrinterMainHeaterParams {
     static const char Name = TName;
@@ -189,13 +189,13 @@ struct PrinterMainHeaterParams {
     template <typename X, typename Y, typename Z> using Control = TControl<X, Y, Z>;
     using ControlParams = TControlParams;
     using TheTemperatureObserverParams = TTheTemperatureObserverParams;
-    template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
+    template <typename X, typename Y, typename Z> using TimerTemplate = TTimerTemplate<X, Y, Z>;
 };
 
 template <
     int TSetMCommand, int TOffMCommand,
     typename TOutputPin, typename TPulseInterval, typename TSpeedMultiply,
-    template<typename, typename> class TTimerTemplate
+    template<typename, typename, typename> class TTimerTemplate
 >
 struct PrinterMainFanParams {
     static const int SetMCommand = TSetMCommand;
@@ -203,7 +203,7 @@ struct PrinterMainFanParams {
     using OutputPin = TOutputPin;
     using PulseInterval = TPulseInterval;
     using SpeedMultiply = TSpeedMultiply;
-    template <typename X, typename Y> using TimerTemplate = TTimerTemplate<X, Y>;
+    template <typename X, typename Y, typename Z> using TimerTemplate = TTimerTemplate<X, Y, Z>;
 };
 
 template <typename Position, typename Context, typename Params>
@@ -230,10 +230,13 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
     
+    struct WatchdogPosition;
+    struct BlinkerPosition;
     template <int AxisIndex> struct AxisPosition;
     template <int AxisIndex> struct HomingFeaturePosition;
     template <int AxisIndex> struct HomingStatePosition;
     struct SerialPosition;
+    struct GcodeParserPosition;
     struct PlannerPosition;
     template <int HeaterIndex> struct HeaterPosition;
     template <int HeaterIndex> struct MainControlPosition;
@@ -269,14 +272,14 @@ private:
         TheAxis::InvertDir
     >;
     
-    using TheWatchdog = typename Params::template WatchdogTemplate<Context, typename Params::WatchdogParams>;
-    using TheBlinker = Blinker<Context, typename Params::LedPin, BlinkerHandler>;
+    using TheWatchdog = typename Params::template WatchdogTemplate<WatchdogPosition, Context, typename Params::WatchdogParams>;
+    using TheBlinker = Blinker<BlinkerPosition, Context, typename Params::LedPin, BlinkerHandler>;
     using StepperDefsList = MapTypeList<AxesList, TemplateFunc<MakeStepperDef>>;
     using TheSteppers = Steppers<Context, StepperDefsList>;
     using TheSerial = typename Params::Serial::template SerialTemplate<SerialPosition, Context, serial_recv_buffer_bits, serial_send_buffer_bits, typename Params::Serial::SerialParams, SerialRecvHandler, SerialSendHandler>;
     using RecvSizeType = typename TheSerial::RecvSizeType;
     using SendSizeType = typename TheSerial::SendSizeType;
-    using TheGcodeParser = GcodeParser<Context, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType>;
+    using TheGcodeParser = GcodeParser<GcodeParserPosition, Context, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType>;
     using GcodeParserCommand = typename TheGcodeParser::Command;
     using GcodeParserCommandPart = typename TheGcodeParser::CommandPart;
     using GcodePartsSizeType = typename TheGcodeParser::PartsSizeType;
@@ -289,11 +292,11 @@ private:
         friend PrinterMain;
         
         struct AxisStepperPosition;
-        struct AxisStepperGetStepperHandler;
+        struct AxisStepperGetStepper;
         
         using AxisSpec = TypeListGet<AxesList, AxisIndex>;
         using Stepper = SteppersStepper<Context, StepperDefsList, AxisIndex>;
-        using TheAxisStepper = AxisStepper<AxisStepperPosition, Context, typename AxisSpec::TheAxisStepperParams, Stepper, AxisStepperGetStepperHandler, AxisStepperConsumersList<AxisIndex>>;
+        using TheAxisStepper = AxisStepper<AxisStepperPosition, Context, typename AxisSpec::TheAxisStepperParams, Stepper, AxisStepperGetStepper, AxisStepperConsumersList<AxisIndex>>;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
         static const char axis_name = AxisSpec::name;
@@ -311,42 +314,43 @@ private:
                     AxisSpec::Homing::end_invert, AxisSpec::Homing::home_dir, HomerGetAxisStepper, HomerFinishedHandler
                 >;
                 
-                Axis * get_axis ()
+                static HomingState * self (Context c)
                 {
-                    return PositionTraverse<HomingStatePosition<AxisIndex>, AxisPosition<AxisIndex>>(this);
+                    return PositionTraverse<typename Context::TheRootPosition, HomingStatePosition<AxisIndex>>(c.root());
                 }
                 
-                TheAxisStepper * homer_get_axis_stepper ()
+                static TheAxisStepper * homer_get_axis_stepper (Context c)
                 {
-                    return &get_axis()->m_axis_stepper;
+                    return &Axis::self(c)->m_axis_stepper;
                 }
                 
-                void homer_finished_handler (Context c, bool success)
+                static void homer_finished_handler (Context c, bool success)
                 {
-                    Axis *axis = get_axis();
-                    PrinterMain *o = PositionTraverse<HomingStatePosition<AxisIndex>, Position>(this);
+                    HomingState *o = self(c);
+                    Axis *axis = Axis::self(c);
+                    PrinterMain *m = PrinterMain::self(c);
                     AMBRO_ASSERT(axis->m_state == AXIS_STATE_HOMING)
-                    AMBRO_ASSERT(o->m_state == STATE_HOMING)
-                    AMBRO_ASSERT(o->m_homing_rem_axes > 0)
+                    AMBRO_ASSERT(m->m_state == STATE_HOMING)
+                    AMBRO_ASSERT(m->m_homing_rem_axes > 0)
                     
-                    m_homer.deinit(c);
+                    o->m_homer.deinit(c);
                     axis->m_req_pos = (AxisSpec::Homing::home_dir ? axis->max_req_pos() : axis->min_req_pos());
                     axis->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(axis->dist_from_real(axis->m_req_pos));
                     axis->m_state = AXIS_STATE_OTHER;
-                    o->m_homing_rem_axes--;
+                    m->m_homing_rem_axes--;
                     if (!success) {
-                        o->m_homing_failed = true;
+                        m->m_homing_failed = true;
                     }
-                    if (o->m_homing_rem_axes == 0) {
-                        o->homing_finished(c);
+                    if (m->m_homing_rem_axes == 0) {
+                        homing_finished(c);
                     }
                 }
                 
                 Homer m_homer;
                 
                 struct HomerPosition : public MemberPosition<HomingStatePosition<AxisIndex>, Homer, &HomingState::m_homer> {};
-                struct HomerGetAxisStepper : public AMBRO_WCALLBACK_TD(&HomingState::homer_get_axis_stepper, &HomingState::m_homer) {};
-                struct HomerFinishedHandler : public AMBRO_WCALLBACK_TD(&HomingState::homer_finished_handler, &HomingState::m_homer) {};
+                struct HomerGetAxisStepper : public AMBRO_WFUNC_TD(&HomingState::homer_get_axis_stepper) {};
+                struct HomerFinishedHandler : public AMBRO_WFUNC_TD(&HomingState::homer_finished_handler) {};
             };
             
             template <typename TheHomingFeature>
@@ -354,32 +358,24 @@ private:
             
             using EventLoopFastEvents = typename HomingState::Homer::EventLoopFastEvents;
             
-            Axis * parent ()
-            {
-                return PositionTraverse<HomingFeaturePosition<AxisIndex>, AxisPosition<AxisIndex>>(this);
-            }
-            
-            HomingState * homing_state ()
-            {
-                return PositionTraverse<HomingFeaturePosition<AxisIndex>, HomingStatePosition<AxisIndex>>(this);
-            }
-            
-            void init (Context c)
+            static void init (Context c)
             {
             }
             
-            void deinit (Context c)
+            static void deinit (Context c)
             {
-                Axis *axis = parent();
+                Axis *axis = Axis::self(c);
+                HomingState *hs = HomingState::self(c);
                 if (axis->m_state == AXIS_STATE_HOMING) {
-                    homing_state()->m_homer.deinit(c);
+                    hs->m_homer.deinit(c);
                 }
             }
             
-            void start_homing (Context c, AxisMaskType mask)
+            static void start_homing (Context c, AxisMaskType mask)
             {
-                Axis *axis = parent();
-                PrinterMain *o = axis->parent();
+                Axis *axis = Axis::self(c);
+                PrinterMain *m = PrinterMain::self(c);
+                HomingState *hs = HomingState::self(c);
                 AMBRO_ASSERT(axis->m_state == AXIS_STATE_OTHER)
                 
                 if (!(mask & ((AxisMaskType)1 << AxisIndex))) {
@@ -387,123 +383,129 @@ private:
                 }
                 
                 typename HomingState::Homer::HomingParams params;
-                params.fast_max_dist = StepFixedType::importDoubleSaturated(axis->dist_from_real(AxisSpec::Homing::DefaultFastMaxDist::value()));
-                params.retract_dist = StepFixedType::importDoubleSaturated(axis->dist_from_real(AxisSpec::Homing::DefaultRetractDist::value()));
-                params.slow_max_dist = StepFixedType::importDoubleSaturated(axis->dist_from_real(AxisSpec::Homing::DefaultSlowMaxDist::value()));
-                params.fast_speed = axis->speed_from_real(AxisSpec::Homing::DefaultFastSpeed::value());
-                params.retract_speed = axis->speed_from_real(AxisSpec::Homing::DefaultRetractSpeed::value());;
-                params.slow_speed = axis->speed_from_real(AxisSpec::Homing::DefaultSlowSpeed::value());
-                params.max_accel = axis->accel_from_real(AxisSpec::DefaultMaxAccel::value());
+                params.fast_max_dist = StepFixedType::importDoubleSaturated(dist_from_real(AxisSpec::Homing::DefaultFastMaxDist::value()));
+                params.retract_dist = StepFixedType::importDoubleSaturated(dist_from_real(AxisSpec::Homing::DefaultRetractDist::value()));
+                params.slow_max_dist = StepFixedType::importDoubleSaturated(dist_from_real(AxisSpec::Homing::DefaultSlowMaxDist::value()));
+                params.fast_speed = speed_from_real(AxisSpec::Homing::DefaultFastSpeed::value());
+                params.retract_speed = speed_from_real(AxisSpec::Homing::DefaultRetractSpeed::value());;
+                params.slow_speed = speed_from_real(AxisSpec::Homing::DefaultSlowSpeed::value());
+                params.max_accel = accel_from_real(AxisSpec::DefaultMaxAccel::value());
                 
-                axis->stepper()->enable(c, true);
-                homing_state()->m_homer.init(c, params);
+                stepper(c)->enable(c, true);
+                hs->m_homer.init(c, params);
                 axis->m_state = AXIS_STATE_HOMING;
-                o->m_homing_rem_axes++;
+                m->m_homing_rem_axes++;
             }
         } AMBRO_STRUCT_ELSE(HomingFeature) {
             struct HomingState {};
             template <typename TheHomingFeature>
             using MakeAxisStepperConsumersList = MakeTypeList<>;
             using EventLoopFastEvents = EmptyTypeList;
-            void init (Context c) {}
-            void deinit (Context c) {}
-            void start_homing (Context c, AxisMaskType mask) {}
+            static void init (Context c) {}
+            static void deinit (Context c) {}
+            static void start_homing (Context c, AxisMaskType mask) {}
         };
         
         enum {AXIS_STATE_OTHER, AXIS_STATE_HOMING};
         
-        PrinterMain * parent ()
+        static Axis * self (Context c)
         {
-            return PositionTraverse<AxisPosition<AxisIndex>, Position>(this);
+            return PositionTraverse<typename Context::TheRootPosition, AxisPosition<AxisIndex>>(c.root());
         }
         
-        double dist_from_real (double x)
+        static double dist_from_real (double x)
         {
             return (x * AxisSpec::DefaultStepsPerUnit::value());
         }
         
-        double dist_to_real (double x)
+        static double dist_to_real (double x)
         {
             return (x * (1.0 / AxisSpec::DefaultStepsPerUnit::value()));
         }
         
-        double speed_from_real (double v)
+        static double speed_from_real (double v)
         {
             return (v * (AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq));
         }
         
-        double accel_from_real (double a)
+        static double accel_from_real (double a)
         {
             return (a * (AxisSpec::DefaultStepsPerUnit::value() / (Clock::time_freq * Clock::time_freq)));
         }
         
-        double clamp_req_pos (double req)
+        static double clamp_req_pos (double req)
         {
             return fmax(min_req_pos(), fmin(max_req_pos(), req));
         }
         
-        double min_req_pos ()
+        static double min_req_pos ()
         {
             return fmax(AxisSpec::DefaultMin::value(), dist_to_real(AbsStepFixedType::minValue().doubleValue()));
         }
         
-        double max_req_pos ()
+        static double max_req_pos ()
         {
             return fmin(AxisSpec::DefaultMax::value(), dist_to_real(AbsStepFixedType::maxValue().doubleValue()));
         }
         
-        void init (Context c)
+        static void init (Context c)
         {
-            m_axis_stepper.init(c);
-            m_state = AXIS_STATE_OTHER;
-            m_homing_feature.init(c);
-            m_req_pos = clamp_req_pos(0.0);
-            m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(m_req_pos));
-            m_relative_positioning = false;
+            Axis *o = self(c);
+            o->m_axis_stepper.init(c);
+            o->m_state = AXIS_STATE_OTHER;
+            o->m_homing_feature.init(c);
+            o->m_req_pos = clamp_req_pos(0.0);
+            o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(o->m_req_pos));
+            o->m_relative_positioning = false;
         }
         
-        void deinit (Context c)
+        static void deinit (Context c)
         {
-            m_homing_feature.deinit(c);
-            m_axis_stepper.deinit(c);
+            Axis *o = self(c);
+            o->m_homing_feature.deinit(c);
+            o->m_axis_stepper.deinit(c);
         }
         
-        void start_homing (Context c, AxisMaskType mask)
+        static void start_homing (Context c, AxisMaskType mask)
         {
-            return m_homing_feature.start_homing(c, mask);
+            Axis *o = self(c);
+            return o->m_homing_feature.start_homing(c, mask);
         }
         
-        void update_homing_mask (AxisMaskType *mask, GcodeParserCommandPart *part)
+        static void update_homing_mask (AxisMaskType *mask, GcodeParserCommandPart *part)
         {
             if (AxisSpec::Homing::enabled && part->code == axis_name) {
                 *mask |= (AxisMaskType)1 << AxisIndex;
             }
         }
         
-        void enable_stepper (Context c, bool enable)
+        static void enable_stepper (Context c, bool enable)
         {
-            stepper()->enable(c, enable);
+            Axis *o = self(c);
+            stepper(c)->enable(c, enable);
         }
         
-        Stepper * stepper ()
+        static Stepper * stepper (Context c)
         {
-            return parent()->m_steppers.template getStepper<AxisIndex>();
+            return PrinterMain::self(c)->m_steppers.template getStepper<AxisIndex>();
         }
         
-        void init_new_pos (double *new_pos)
+        static void init_new_pos (Context c, double *new_pos)
         {
-            new_pos[AxisIndex] = m_req_pos;
+            Axis *o = self(c);
+            new_pos[AxisIndex] = o->m_req_pos;
         }
         
-        void collect_new_pos (double *new_pos, GcodeParserCommandPart *part)
+        static void collect_new_pos (Context c, double *new_pos, GcodeParserCommandPart *part)
         {
+            Axis *o = self(c);
             if (AMBRO_UNLIKELY(part->code == axis_name)) {
                 double req = strtod(part->data, NULL);
                 if (isnan(req)) {
                     req = 0.0;
                 }
-                if (m_relative_positioning) {
-                    req += m_req_pos;
+                if (o->m_relative_positioning) {
+                    req += o->m_req_pos;
                 }
                 req = clamp_req_pos(req);
                 new_pos[AxisIndex] = req;
@@ -511,13 +513,14 @@ private:
         }
         
         template <typename PlannerCmd>
-        void process_new_pos (Context c, double *new_pos, double *distance_squared, double *total_steps, PlannerCmd *cmd)
+        static void process_new_pos (Context c, double *new_pos, double *distance_squared, double *total_steps, PlannerCmd *cmd)
         {
+            Axis *o = self(c);
             AbsStepFixedType new_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(new_pos[AxisIndex]));
-            bool dir = (new_end_pos >= m_end_pos);
+            bool dir = (new_end_pos >= o->m_end_pos);
             StepFixedType move = StepFixedType::importBits(dir ? 
-                ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)m_end_pos.bitsValue()) :
-                ((typename StepFixedType::IntType)m_end_pos.bitsValue() - (typename StepFixedType::IntType)new_end_pos.bitsValue())
+                ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)o->m_end_pos.bitsValue()) :
+                ((typename StepFixedType::IntType)o->m_end_pos.bitsValue() - (typename StepFixedType::IntType)new_end_pos.bitsValue())
             );
             if (AMBRO_UNLIKELY(move.bitsValue() != 0)) {
                 if (AxisSpec::enable_cartesian_speed_limit) {
@@ -532,43 +535,50 @@ private:
             mycmd->x = move;
             mycmd->max_v_rec = 1.0 / speed_from_real(AxisSpec::DefaultMaxSpeed::value());
             mycmd->max_a_rec = 1.0 / accel_from_real(AxisSpec::DefaultMaxAccel::value());
-            m_end_pos = new_end_pos;
-            m_req_pos = new_pos[AxisIndex];
+            o->m_end_pos = new_end_pos;
+            o->m_req_pos = new_pos[AxisIndex];
         }
         
-        void append_position (Context c)
+        static void append_position (Context c)
         {
-            PrinterMain *o = parent();
-            o->reply_append_ch(c, axis_name);
-            o->reply_append_ch(c, ':');
-            o->reply_append_double(c, m_req_pos);
+            Axis *o = self(c);
+            reply_append_ch(c, axis_name);
+            reply_append_ch(c, ':');
+            reply_append_double(c, o->m_req_pos);
         }
         
-        void set_relative_positioning (bool relative)
+        static void set_relative_positioning (Context c, bool relative)
         {
-            m_relative_positioning = relative;
+            Axis *o = self(c);
+            o->m_relative_positioning = relative;
         }
         
-        void set_position (Context c, GcodeParserCommandPart *part, bool *found_axes)
+        static void set_position (Context c, GcodeParserCommandPart *part, bool *found_axes)
         {
+            Axis *o = self(c);
             if (part->code == axis_name) {
                 *found_axes = true;
                 if (AxisSpec::Homing::enabled) {
-                    parent()->reply_append_str(c, "Error:G92 on homable axis\n");
+                    reply_append_str(c, "Error:G92 on homable axis\n");
                     return;
                 }
                 double req = strtod(part->data, NULL);
                 if (isnan(req)) {
                     req = 0.0;
                 }
-                m_req_pos = clamp_req_pos(req);
-                m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(m_req_pos));
+                o->m_req_pos = clamp_req_pos(req);
+                o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(o->m_req_pos));
             }
         }
         
         static void emergency ()
         {
             Stepper::emergency();
+        }
+        
+        static Stepper * axis_get_stepper (Context c)
+        {
+            return stepper(c);
         }
         
         using EventLoopFastEvents = typename HomingFeature::EventLoopFastEvents;
@@ -581,7 +591,7 @@ private:
         bool m_relative_positioning;
         
         struct AxisStepperPosition : public MemberPosition<AxisPosition<AxisIndex>, TheAxisStepper, &Axis::m_axis_stepper> {};
-        struct AxisStepperGetStepperHandler : public AMBRO_WCALLBACK_TD(&Axis::stepper, &Axis::m_axis_stepper) {};
+        struct AxisStepperGetStepper : public AMBRO_WFUNC_TD(&Axis::axis_get_stepper) {};
     };
     
     template <typename TheAxis>
@@ -599,6 +609,8 @@ private:
         struct SoftPwmTimerHandler;
         struct ObserverGetValueCallback;
         struct ObserverHandler;
+        struct SoftPwmPosition;
+        struct ObserverPosition;
         
         using HeaterSpec = TypeListGet<HeatersList, HeaterIndex>;
         static const bool MainControlEnabled = (HeaterSpec::ControlInterval::value() != 0.0);
@@ -606,8 +618,8 @@ private:
         using MeasurementInterval = If<MainControlEnabled, typename HeaterSpec::ControlInterval, typename HeaterSpec::PulseInterval>;
         using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, MeasurementInterval, ValueFixedType>;
         using ControlConfig = typename TheControl::Config;
-        using TheSoftPwm = SoftPwm<Context, typename HeaterSpec::OutputPin, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
-        using TheObserver = TemperatureObserver<Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
+        using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename HeaterSpec::OutputPin, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
+        using TheObserver = TemperatureObserver<ObserverPosition, Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using OutputFixedType = typename TheControl::OutputFixedType;
         
         static_assert(MainControlEnabled || TheControl::InterruptContextAllowed, "Chosen heater control algorithm is not allowed in interrupt context.");
@@ -627,99 +639,104 @@ private:
             return ValueFixedType::importDoubleSaturatedInline(HeaterSpec::MaxSafeTemp::value());
         }
         
-        PrinterMain * parent ()
+        static Heater * self (Context c)
         {
-            return PositionTraverse<HeaterPosition<HeaterIndex>, Position>(this);
+            return PositionTraverse<typename Context::TheRootPosition, HeaterPosition<HeaterIndex>>(c.root());
         }
         
-        void init (Context c)
+        static void init (Context c)
         {
-            m_lock.init(c);
-            m_enabled = false;
-            m_control_config = TheControl::makeDefaultConfig();
+            Heater *o = self(c);
+            o->m_lock.init(c);
+            o->m_enabled = false;
+            o->m_control_config = TheControl::makeDefaultConfig();
             TimeType time = c.clock()->getTime(c);
-            m_main_control.init(c, time);
-            m_softpwm.init(c, time);
-            m_observing = false;
+            o->m_main_control.init(c, time);
+            o->m_softpwm.init(c, time);
+            o->m_observing = false;
         }
         
-        void deinit (Context c)
+        static void deinit (Context c)
         {
-            if (m_observing) {
-                m_observer.deinit(c);
+            Heater *o = self(c);
+            if (o->m_observing) {
+                o->m_observer.deinit(c);
             }
-            m_softpwm.deinit(c);
-            m_main_control.deinit(c);
-            m_lock.deinit(c);
+            o->m_softpwm.deinit(c);
+            o->m_main_control.deinit(c);
+            o->m_lock.deinit(c);
         }
         
         template <typename ThisContext>
-        ValueFixedType get_value (ThisContext c)
+        static ValueFixedType get_value (ThisContext c)
         {
             return HeaterSpec::Formula::call(c.adc()->template getValue<typename HeaterSpec::AdcPin>(c));
         }
         
-        void append_value (PrinterMain *o, Context c)
+        static void append_value (PrinterMain *o, Context c)
         {
             double value = get_value(c).doubleValue();
-            o->reply_append_ch(c, ' ');
-            o->reply_append_ch(c, HeaterSpec::Name);
-            o->reply_append_ch(c, ':');
-            o->reply_append_double(c, value);
+            reply_append_ch(c, ' ');
+            reply_append_ch(c, HeaterSpec::Name);
+            reply_append_ch(c, ':');
+            reply_append_double(c, value);
         }
         
         template <typename ThisContext>
-        void set (ThisContext c, ValueFixedType target)
+        static void set (ThisContext c, ValueFixedType target)
         {
+            Heater *o = self(c);
             AMBRO_ASSERT(target > min_safe_temp())
             AMBRO_ASSERT(target < max_safe_temp())
             
-            AMBRO_LOCK_T(m_lock, c, lock_c) {
-                m_target = target;
-                m_main_control.set();
-                m_enabled = true;
+            AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+                o->m_target = target;
+                o->m_main_control.set(lock_c);
+                o->m_enabled = true;
             }
         }
         
         template <typename ThisContext>
-        void unset (ThisContext c)
+        static void unset (ThisContext c)
         {
-            AMBRO_LOCK_T(m_lock, c, lock_c) {
-                m_enabled = false;
-                m_main_control.unset();
+            Heater *o = self(c);
+            AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+                o->m_enabled = false;
+                o->m_main_control.unset(lock_c);
             }
         }
         
-        bool check_command (Context c, int cmd_num, int *out_result)
+        static bool check_command (Context c, int cmd_num, int *out_result)
         {
-            PrinterMain *o = parent();
+            Heater *o = self(c);
+            PrinterMain *m = PrinterMain::self(c);
             
             if (cmd_num == HeaterSpec::WaitMCommand) {
-                if (o->m_state == STATE_PLANNING) {
+                if (m->m_state == STATE_PLANNING) {
                     *out_result = CMD_WAIT_PLANNER;
                     return false;
                 }
-                double target = o->get_command_param_double('S', 0.0);
+                double target = get_command_param_double(c, 'S', 0.0);
                 ValueFixedType fixed_target = ValueFixedType::importDoubleSaturated(target);
                 if (fixed_target > min_safe_temp() && fixed_target < max_safe_temp()) {
                     set(c, fixed_target);
                 } else {
                     unset(c);
                 }
-                AMBRO_ASSERT(!m_observing)
-                m_observer.init(c, target);
-                m_observing = true;
-                o->m_state = STATE_WAITING_TEMP;
-                o->now_active(c);
+                AMBRO_ASSERT(!o->m_observing)
+                o->m_observer.init(c, target);
+                o->m_observing = true;
+                m->m_state = STATE_WAITING_TEMP;
+                now_active(c);
                 *out_result = CMD_DELAY;
                 return false;
             }
             if (cmd_num == HeaterSpec::SetMCommand) {
-                if (!o->try_buffered_command(c)) {
+                if (!try_buffered_command(c)) {
                     *out_result = CMD_DELAY;
                     return false;
                 }
-                double target = o->get_command_param_double('S', 0.0);
+                double target = get_command_param_double(c, 'S', 0.0);
                 ValueFixedType fixed_target = ValueFixedType::importDoubleSaturated(target);
                 if (!(fixed_target > min_safe_temp() && fixed_target < max_safe_temp())) {
                     fixed_target = ValueFixedType::minValue();
@@ -729,58 +746,64 @@ private:
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = HeaterIndex;
                 UnionGetElem<HeaterIndex>(&payload->heaters)->target = fixed_target;
-                o->finish_command(c, false);
-                o->finish_buffered_command(c, &cmd);
+                finish_command(c, false);
+                finish_buffered_command(c, &cmd);
                 *out_result = CMD_DELAY;
                 return false;
             }
             if (cmd_num == HeaterSpec::SetConfigMCommand && TheControl::SupportsConfig) {
-                if (o->m_state == STATE_PLANNING) {
+                if (m->m_state == STATE_PLANNING) {
                     *out_result = CMD_WAIT_PLANNER;
                     return false;
                 }
-                TheControl::setConfigCommand(c, o, &m_control_config);
+                TheControl::setConfigCommand(c, m, &o->m_control_config);
                 *out_result = CMD_REPLY;
                 return false;
             }
             return true;
         }
         
-        void print_config (PrinterMain *o, Context c)
+        static void print_config (Context c)
         {
+            Heater *o = self(c);
+            PrinterMain *m = PrinterMain::self(c);
+            
             if (TheControl::SupportsConfig) {
-                o->reply_append_ch(c, HeaterSpec::Name);
-                o->reply_append_str(c, ": M" );
-                o->reply_append_uint32(c, HeaterSpec::SetConfigMCommand);
-                TheControl::printConfig(c, o, &m_control_config);
-                o->reply_append_ch(c, '\n');
+                reply_append_ch(c, HeaterSpec::Name);
+                reply_append_str(c, ": M" );
+                reply_append_uint32(c, HeaterSpec::SetConfigMCommand);
+                TheControl::printConfig(c, m, &o->m_control_config);
+                reply_append_ch(c, '\n');
             }
         }
         
-        OutputFixedType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
+        static OutputFixedType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
         {
-            return m_main_control.get_output_for_pwm(c);
+            Heater *o = self(c);
+            return o->m_main_control.get_output_for_pwm(c);
         }
         
-        double observer_get_value_callback (Context c)
+        static double observer_get_value_callback (Context c)
         {
-            return get_value(c).doubleValue();
+            Heater *o = self(c);
+            return o->get_value(c).doubleValue();
         }
         
-        void observer_handler (Context c, bool state)
+        static void observer_handler (Context c, bool state)
         {
-            PrinterMain *o = parent();
-            AMBRO_ASSERT(m_observing)
-            AMBRO_ASSERT(o->m_state == STATE_WAITING_TEMP)
+            Heater *o = self(c);
+            PrinterMain *m = PrinterMain::self(c);
+            AMBRO_ASSERT(o->m_observing)
+            AMBRO_ASSERT(m->m_state == STATE_WAITING_TEMP)
             
             if (!state) {
                 return;
             }
-            m_observer.deinit(c);
-            m_observing = false;
-            o->m_state = STATE_IDLE;
-            o->finish_command(c, false);
-            o->now_inactive(c);
+            o->m_observer.deinit(c);
+            o->m_observing = false;
+            m->m_state = STATE_IDLE;
+            finish_command(c, false);
+            now_inactive(c);
         }
         
         static void emergency ()
@@ -789,7 +812,7 @@ private:
         }
         
         template <typename ThisContext, typename TheChannelPayloadUnion>
-        void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
+        static void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
         {
             ChannelPayload *payload = UnionGetElem<HeaterIndex>(payload_union);
             if (AMBRO_LIKELY(payload->target != ValueFixedType::minValue())) {
@@ -802,64 +825,75 @@ private:
         AMBRO_STRUCT_IF(MainControl, MainControlEnabled) {
             static const TimeType ControlIntervalTicks = HeaterSpec::ControlInterval::value() / Clock::time_unit;
             
-            void set () {}
-            
-            void init (Context c, TimeType time)
+            static MainControl * self (Context c)
             {
-                m_output = OutputFixedType::importBits(0);
-                m_control_event.init(c, AMBRO_OFFSET_CALLBACK_T(&MainControl::m_control_event, &MainControl::control_event_handler));
-                m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
-                m_was_not_unset = false;
+                return PositionTraverse<typename Context::TheRootPosition, MainControlPosition<HeaterIndex>>(c.root());
             }
             
-            void deinit (Context c)
+            static void set (Context c) {}
+            
+            static void init (Context c, TimeType time)
             {
-                m_control_event.deinit(c);
+                MainControl *o = self(c);
+                o->m_output = OutputFixedType::importBits(0);
+                o->m_control_event.init(c, MainControl::control_event_handler);
+                o->m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
+                o->m_was_not_unset = false;
             }
             
-            AMBRO_ALWAYS_INLINE void unset ()
+            static void deinit (Context c)
             {
-                m_was_not_unset = false;
-                m_output = OutputFixedType::importBits(0);
+                MainControl *o = self(c);
+                o->m_control_event.deinit(c);
             }
             
-            OutputFixedType get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c)
+            AMBRO_ALWAYS_INLINE static void unset (Context c)
             {
-                ValueFixedType sensor_value = hfmc(this)->get_value(c);
+                MainControl *o = self(c);
+                o->m_was_not_unset = false;
+                o->m_output = OutputFixedType::importBits(0);
+            }
+            
+            static OutputFixedType get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c)
+            {
+                MainControl *o = self(c);
+                Heater *h = Heater::self(c);
+                ValueFixedType sensor_value = h->get_value(c);
                 if (AMBRO_LIKELY(sensor_value <= min_safe_temp() || sensor_value >= max_safe_temp())) {
-                    AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c) {
-                        hfmc(this)->m_enabled = false;
-                        unset();
+                    AMBRO_LOCK_T(h->m_lock, c, lock_c) {
+                        h->m_enabled = false;
+                        unset(c);
                     }
                 }
                 OutputFixedType output;
-                AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c) {
-                    output = m_output;
+                AMBRO_LOCK_T(h->m_lock, c, lock_c) {
+                    output = o->m_output;
                 }
                 return output;
             }
             
-            void control_event_handler (Context c)
+            static void control_event_handler (typename Loop::QueuedEvent *, Context c)
             {
-                MainControl *o = PositionTraverse<typename Context::TheRootPosition, MainControlPosition<HeaterIndex>>(c.root());
+                MainControl *o = self(c);
+                Heater *h = Heater::self(c);
                 
                 o->m_control_event.appendAfterPrevious(c, ControlIntervalTicks);
                 bool enabled;
                 ValueFixedType target;
                 bool was_not_unset;
-                AMBRO_LOCK_T(hfmc(o)->m_lock, c, lock_c) {
-                    enabled = hfmc(o)->m_enabled;
-                    target = hfmc(o)->m_target;
+                AMBRO_LOCK_T(h->m_lock, c, lock_c) {
+                    enabled = h->m_enabled;
+                    target = h->m_target;
                     was_not_unset = o->m_was_not_unset;
                     o->m_was_not_unset = enabled;
                 }
                 if (AMBRO_LIKELY(enabled)) {
                     if (!was_not_unset) {
-                        hfmc(o)->m_control.init();
+                        h->m_control.init();
                     }
-                    ValueFixedType sensor_value = hfmc(o)->get_value(c);
-                    OutputFixedType output = hfmc(o)->m_control.addMeasurement(sensor_value, target, &hfmc(this)->m_control_config);
-                    AMBRO_LOCK_T(hfmc(o)->m_lock, c, lock_c) {
+                    ValueFixedType sensor_value = h->get_value(c);
+                    OutputFixedType output = h->m_control.addMeasurement(sensor_value, target, &h->m_control_config);
+                    AMBRO_LOCK_T(h->m_lock, c, lock_c) {
                         if (o->m_was_not_unset) {
                             o->m_output = output;
                         }
@@ -871,37 +905,34 @@ private:
             typename Loop::QueuedEvent m_control_event;
             bool m_was_not_unset;
         } AMBRO_STRUCT_ELSE(MainControl) {
-            void init (Context c, TimeType time) {}
-            void deinit (Context c) {}
-            void unset () {}
+            static void init (Context c, TimeType time) {}
+            static void deinit (Context c) {}
+            static void unset (Context c) {}
             
-            AMBRO_ALWAYS_INLINE void set ()
+            AMBRO_ALWAYS_INLINE static void set (Context c)
             {
-                if (!hfmc(this)->m_enabled) {
-                    hfmc(this)->m_control.init();
+                Heater *h = Heater::self(c);
+                if (!h->m_enabled) {
+                    h->m_control.init();
                 }
             }
             
-            OutputFixedType get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c)
+            static OutputFixedType get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c)
             {
+                Heater *h = Heater::self(c);
                 OutputFixedType control_value = OutputFixedType::importBits(0);
-                AMBRO_LOCK_T(hfmc(this)->m_lock, c, lock_c) {
-                    ValueFixedType sensor_value = hfmc(this)->get_value(lock_c);
+                AMBRO_LOCK_T(h->m_lock, c, lock_c) {
+                    ValueFixedType sensor_value = get_value(lock_c);
                     if (AMBRO_UNLIKELY(sensor_value <= min_safe_temp() || sensor_value >= max_safe_temp())) {
-                        hfmc(this)->m_enabled = false;
+                        h->m_enabled = false;
                     }
-                    if (AMBRO_LIKELY(hfmc(this)->m_enabled)) {
-                        control_value = hfmc(this)->m_control.addMeasurement(sensor_value, hfmc(this)->m_target, &hfmc(this)->m_control_config);
+                    if (AMBRO_LIKELY(h->m_enabled)) {
+                        control_value = h->m_control.addMeasurement(sensor_value, h->m_target, &h->m_control_config);
                     }
                 }
                 return control_value;
             }
         };
-        
-        static Heater * hfmc (MainControl *o)
-        {
-            return PositionTraverse<MainControlPosition<HeaterIndex>, HeaterPosition<HeaterIndex>>(o);
-        }
         
         typename Context::Lock m_lock;
         bool m_enabled;
@@ -913,54 +944,57 @@ private:
         bool m_observing;
         MainControl m_main_control;
         
-        struct SoftPwmTimerHandler : public AMBRO_WCALLBACK_TD(&Heater::softpwm_timer_handler, &Heater::m_softpwm) {};
-        struct ObserverGetValueCallback : public AMBRO_WCALLBACK_TD(&Heater::observer_get_value_callback, &Heater::m_observer) {};
-        struct ObserverHandler : public AMBRO_WCALLBACK_TD(&Heater::observer_handler, &Heater::m_observer) {};
+        struct SoftPwmTimerHandler : public AMBRO_WFUNC_TD(&Heater::softpwm_timer_handler) {};
+        struct ObserverGetValueCallback : public AMBRO_WFUNC_TD(&Heater::observer_get_value_callback) {};
+        struct ObserverHandler : public AMBRO_WFUNC_TD(&Heater::observer_handler) {};
+        struct SoftPwmPosition : public MemberPosition<HeaterPosition<HeaterIndex>, TheSoftPwm, &Heater::m_softpwm> {};
+        struct ObserverPosition : public MemberPosition<HeaterPosition<HeaterIndex>, TheObserver, &Heater::m_observer> {};
     };
     
     template <int FanIndex>
     struct Fan {
         struct SoftPwmTimerHandler;
+        struct SoftPwmPosition;
         
         using FanSpec = TypeListGet<FansList, FanIndex>;
-        using TheSoftPwm = SoftPwm<Context, typename FanSpec::OutputPin, typename FanSpec::PulseInterval, SoftPwmTimerHandler, FanSpec::template TimerTemplate>;
+        using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename FanSpec::OutputPin, typename FanSpec::PulseInterval, SoftPwmTimerHandler, FanSpec::template TimerTemplate>;
         using OutputFixedType = FixedPoint<8, false, -8>;
         
         struct ChannelPayload {
             OutputFixedType target;
         };
         
-        PrinterMain * parent ()
+        static Fan * self (Context c)
         {
-            return PositionTraverse<FanPosition<FanIndex>, Position>(this);
+            return PositionTraverse<typename Context::TheRootPosition, FanPosition<FanIndex>>(c.root());
         }
         
-        void init (Context c)
+        static void init (Context c)
         {
-            m_lock.init(c);
-            m_target = OutputFixedType::importBits(0);
-            m_softpwm.init(c, c.clock()->getTime(c));
+            Fan *o = self(c);
+            o->m_lock.init(c);
+            o->m_target = OutputFixedType::importBits(0);
+            o->m_softpwm.init(c, c.clock()->getTime(c));
         }
         
-        void deinit (Context c)
+        static void deinit (Context c)
         {
-            m_softpwm.deinit(c);
-            m_lock.deinit(c);
+            Fan *o = self(c);
+            o->m_softpwm.deinit(c);
+            o->m_lock.deinit(c);
         }
         
-        bool check_command (Context c, int cmd_num, int *out_result)
+        static bool check_command (Context c, int cmd_num, int *out_result)
         {
-            PrinterMain *o = parent();
-            
             if (cmd_num == FanSpec::SetMCommand || cmd_num == FanSpec::OffMCommand) {
-                if (!o->try_buffered_command(c)) {
+                if (!try_buffered_command(c)) {
                     *out_result = CMD_DELAY;
                     return false;
                 }
                 double target = 0.0;
                 if (cmd_num == FanSpec::SetMCommand) {
                     target = 1.0;
-                    if (o->find_command_param_double('S', &target)) {
+                    if (find_command_param_double(c, 'S', &target)) {
                         target *= FanSpec::SpeedMultiply::value();
                     }
                 }
@@ -969,19 +1003,20 @@ private:
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
                 UnionGetElem<FanIndex>(&payload->fans)->target = OutputFixedType::importDoubleSaturated(target);
-                o->finish_command(c, false);
-                o->finish_buffered_command(c, &cmd);
+                finish_command(c, false);
+                finish_buffered_command(c, &cmd);
                 *out_result = CMD_DELAY;
                 return false;
             }
             return true;
         }
         
-        OutputFixedType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
+        static OutputFixedType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
         {
+            Fan *o = self(c);
             OutputFixedType control_value;
-            AMBRO_LOCK_T(m_lock, c, lock_c) {
-                control_value = m_target;
+            AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+                control_value = o->m_target;
             }
             return control_value;
         }
@@ -992,11 +1027,12 @@ private:
         }
         
         template <typename ThisContext, typename TheChannelPayloadUnion>
-        void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
+        static void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
         {
+            Fan *o = self(c);
             ChannelPayload *payload = UnionGetElem<FanIndex>(payload_union);
-            AMBRO_LOCK_T(m_lock, c, lock_c) {
-                m_target = payload->target;
+            AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+                o->m_target = payload->target;
             }
         }
         
@@ -1004,7 +1040,8 @@ private:
         OutputFixedType m_target;
         TheSoftPwm m_softpwm;
         
-        struct SoftPwmTimerHandler : public AMBRO_WCALLBACK_TD(&Fan::softpwm_timer_handler, &Fan::m_softpwm) {};
+        struct SoftPwmTimerHandler : public AMBRO_WFUNC_TD(&Fan::softpwm_timer_handler) {};
+        struct SoftPwmPosition : public MemberPosition<FanPosition<FanIndex>, TheSoftPwm, &Fan::m_softpwm> {};
     };
     
     using HeatersTuple = IndexElemTuple<HeatersList, Heater>;
@@ -1032,47 +1069,50 @@ private:
     using HomingStateTuple = IndexElemTuple<AxesList, HomingStateTupleHelper>;
     
 public:
-    void init (Context c)
+    static void init (Context c)
     {
-        m_watchdog.init(c);
-        m_blinker.init(c, Params::LedBlinkInterval::value() * Clock::time_freq);
-        m_steppers.init(c);
-        TupleForEachForward(&m_axes, Foreach_init(), c);
-        m_serial.init(c, Params::Serial::baud);
-        m_gcode_parser.init(c);
-        m_disable_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&PrinterMain::m_disable_timer, &PrinterMain::disable_timer_handler));
-        m_force_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&PrinterMain::m_force_timer, &PrinterMain::force_timer_handler));
-        TupleForEachForward(&m_heaters, Foreach_init(), c);
-        TupleForEachForward(&m_fans, Foreach_init(), c);
-        m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
-        m_recv_next_error = 0;
-        m_line_number = 0;
-        m_cmd = NULL;
-        m_max_cart_speed = INFINITY;
-        m_state = STATE_IDLE;
+        PrinterMain *o = self(c);
+        
+        o->m_watchdog.init(c);
+        o->m_blinker.init(c, Params::LedBlinkInterval::value() * Clock::time_freq);
+        o->m_steppers.init(c);
+        TupleForEachForward(&o->m_axes, Foreach_init(), c);
+        o->m_serial.init(c, Params::Serial::baud);
+        o->m_gcode_parser.init(c);
+        o->m_disable_timer.init(c, PrinterMain::disable_timer_handler);
+        o->m_force_timer.init(c, PrinterMain::force_timer_handler);
+        TupleForEachForward(&o->m_heaters, Foreach_init(), c);
+        TupleForEachForward(&o->m_fans, Foreach_init(), c);
+        o->m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
+        o->m_recv_next_error = 0;
+        o->m_line_number = 0;
+        o->m_cmd = NULL;
+        o->m_max_cart_speed = INFINITY;
+        o->m_state = STATE_IDLE;
         
         reply_append_str(c, "APrinter\n");
         
-        this->debugInit(c);
+        o->debugInit(c);
     }
 
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        PrinterMain *o = self(c);
+        o->debugDeinit(c);
         
-        if (m_state == STATE_PLANNING) {
-            m_planner.deinit(c);
+        if (o->m_state == STATE_PLANNING) {
+            o->m_planner.deinit(c);
         }
-        TupleForEachReverse(&m_fans, Foreach_deinit(), c);
-        TupleForEachReverse(&m_heaters, Foreach_deinit(), c);
-        m_force_timer.deinit(c);
-        m_disable_timer.deinit(c);
-        m_gcode_parser.deinit(c);
-        m_serial.deinit(c);
-        TupleForEachReverse(&m_axes, Foreach_deinit(), c);
-        m_steppers.deinit(c);
-        m_blinker.deinit(c);
-        m_watchdog.deinit(c);
+        TupleForEachReverse(&o->m_fans, Foreach_deinit(), c);
+        TupleForEachReverse(&o->m_heaters, Foreach_deinit(), c);
+        o->m_force_timer.deinit(c);
+        o->m_disable_timer.deinit(c);
+        o->m_gcode_parser.deinit(c);
+        o->m_serial.deinit(c);
+        TupleForEachReverse(&o->m_axes, Foreach_deinit(), c);
+        o->m_steppers.deinit(c);
+        o->m_blinker.deinit(c);
+        o->m_watchdog.deinit(c);
     }
     
     TheSerial * getSerial ()
@@ -1129,55 +1169,63 @@ private:
     enum {STATE_IDLE, STATE_HOMING, STATE_PLANNING, STATE_WAITING_TEMP};
     enum {CMD_REPLY, CMD_WAIT_PLANNER, CMD_DELAY};
     
+    static PrinterMain * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
+    
     static TimeType time_from_real (double t)
     {
         return (FixedPoint<30, false, 0>::importDoubleSaturated(t * Clock::time_freq)).bitsValue();
     }
     
-    void blinker_handler (Context c)
+    static void blinker_handler (Context c)
     {
-        this->debugAccess(c);
+        PrinterMain *o = self(c);
+        o->debugAccess(c);
         
-        m_watchdog.reset(c);
+        o->m_watchdog.reset(c);
     }
     
-    void serial_recv_handler (Context c)
+    static void serial_recv_handler (TheSerial *, Context c)
     {
-        this->debugAccess(c);
+        PrinterMain *o = self(c);
+        o->debugAccess(c);
         
-        if (m_cmd) {
+        if (o->m_cmd) {
             return;
         }
-        if (!m_gcode_parser.haveCommand(c)) {
-            m_gcode_parser.startCommand(c, m_serial.recvGetChunkPtr(c), m_recv_next_error);
-            m_recv_next_error = 0;
+        if (!o->m_gcode_parser.haveCommand(c)) {
+            o->m_gcode_parser.startCommand(c, o->m_serial.recvGetChunkPtr(c), o->m_recv_next_error);
+            o->m_recv_next_error = 0;
         }
         bool overrun;
-        RecvSizeType avail = m_serial.recvQuery(c, &overrun);
-        m_cmd = m_gcode_parser.extendCommand(c, avail.value());
-        if (m_cmd) {
+        RecvSizeType avail = o->m_serial.recvQuery(c, &overrun);
+        o->m_cmd = o->m_gcode_parser.extendCommand(c, avail.value());
+        if (o->m_cmd) {
             return process_received_command(c, false);
         }
         if (overrun) {
-            m_serial.recvConsume(c, avail);
-            m_serial.recvClearOverrun(c);
-            m_gcode_parser.resetCommand(c);
-            m_recv_next_error = TheGcodeParser::ERROR_RECV_OVERRUN;
+            o->m_serial.recvConsume(c, avail);
+            o->m_serial.recvClearOverrun(c);
+            o->m_gcode_parser.resetCommand(c);
+            o->m_recv_next_error = TheGcodeParser::ERROR_RECV_OVERRUN;
         }
     }
     
-    void process_received_command (Context c, bool already_seen)
+    static void process_received_command (Context c, bool already_seen)
     {
-        AMBRO_ASSERT(m_cmd)
-        AMBRO_ASSERT(m_state == STATE_IDLE || m_state == STATE_PLANNING)
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_cmd)
+        AMBRO_ASSERT(o->m_state == STATE_IDLE || o->m_state == STATE_PLANNING)
         
         bool no_ok = false;
         char cmd_code;
         int cmd_num;
         
-        if (m_cmd->num_parts <= 0) {
+        if (o->m_cmd->num_parts <= 0) {
             char const *err = "unknown error";
-            switch (m_cmd->num_parts) {
+            switch (o->m_cmd->num_parts) {
                 case 0: err = "empty command"; break;
                 case TheGcodeParser::ERROR_TOO_MANY_PARTS: err = "too many parts"; break;
                 case TheGcodeParser::ERROR_INVALID_PART: err = "invalid part"; break;
@@ -1190,24 +1238,24 @@ private:
             goto reply;
         }
         
-        cmd_code = m_cmd->parts[0].code;
-        cmd_num = atoi(m_cmd->parts[0].data);
+        cmd_code = o->m_cmd->parts[0].code;
+        cmd_num = atoi(o->m_cmd->parts[0].data);
         
         if (!already_seen) {
             bool is_m110 = (cmd_code == 'M' && cmd_num == 110);
             if (is_m110) {
-                m_line_number = get_command_param_uint32('L', (m_cmd->have_line_number ? m_cmd->line_number : -1));
+                o->m_line_number = get_command_param_uint32(c, 'L', (o->m_cmd->have_line_number ? o->m_cmd->line_number : -1));
             }
-            if (m_cmd->have_line_number) {
-                if (m_cmd->line_number != m_line_number) {
+            if (o->m_cmd->have_line_number) {
+                if (o->m_cmd->line_number != o->m_line_number) {
                     reply_append_str(c, "Error:Line Number is not Last Line Number+1, Last Line:");
-                    reply_append_uint32(c, (uint32_t)(m_line_number - 1));
+                    reply_append_uint32(c, (uint32_t)(o->m_line_number - 1));
                     reply_append_ch(c, '\n');
                     goto reply;
                 }
             }
-            if (m_cmd->have_line_number || is_m110) {
-                m_line_number++;
+            if (o->m_cmd->have_line_number || is_m110) {
+                o->m_line_number++;
             }
         }
         
@@ -1215,8 +1263,8 @@ private:
             case 'M': switch (cmd_num) {
                 default:
                     int result;
-                    if (!TupleForEachForwardInterruptible(&m_heaters, Foreach_check_command(), c, cmd_num, &result) ||
-                        !TupleForEachForwardInterruptible(&m_fans, Foreach_check_command(), c, cmd_num, &result)
+                    if (!TupleForEachForwardInterruptible(&o->m_heaters, Foreach_check_command(), c, cmd_num, &result) ||
+                        !TupleForEachForwardInterruptible(&o->m_fans, Foreach_check_command(), c, cmd_num, &result)
                     ) {
                         if (result == CMD_REPLY) {
                             goto reply;
@@ -1233,44 +1281,44 @@ private:
                     break;
                 
                 case 17: {
-                    if (m_state == STATE_PLANNING) {
+                    if (o->m_state == STATE_PLANNING) {
                         goto wait_planner;
                     }
-                    TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, true);
+                    TupleForEachForward(&o->m_axes, Foreach_enable_stepper(), c, true);
                     now_inactive(c);
                 } break;
                 
                 case 18: // disable steppers or set timeout
                 case 84: {
-                    if (m_state == STATE_PLANNING) {
+                    if (o->m_state == STATE_PLANNING) {
                         goto wait_planner;
                     }
                     double inactive_time;
-                    if (find_command_param_double('S', &inactive_time)) {
-                        m_inactive_time = time_from_real(inactive_time);
-                        if (m_disable_timer.isSet(c)) {
-                            m_disable_timer.appendAt(c, m_last_active_time + m_inactive_time);
+                    if (find_command_param_double(c, 'S', &inactive_time)) {
+                        o->m_inactive_time = time_from_real(inactive_time);
+                        if (o->m_disable_timer.isSet(c)) {
+                            o->m_disable_timer.appendAt(c, o->m_last_active_time + o->m_inactive_time);
                         }
                     } else {
-                        TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, false);
-                        m_disable_timer.unset(c);
+                        TupleForEachForward(&o->m_axes, Foreach_enable_stepper(), c, false);
+                        o->m_disable_timer.unset(c);
                     }
                 } break;
                 
                 case 105: {
                     reply_append_str(c, "ok");
-                    TupleForEachForward(&m_heaters, Foreach_append_value(), this, c);
+                    TupleForEachForward(&o->m_heaters, Foreach_append_value(), o, c);
                     reply_append_ch(c, '\n');
                     no_ok = true;
                 } break;
                 
                 case 114: {
-                    TupleForEachForward(&m_axes, Foreach_append_position(), c);
+                    TupleForEachForward(&o->m_axes, Foreach_append_position(), c);
                     reply_append_ch(c, '\n');
                 } break;
                 
                 case 136: { // print heater config
-                    TupleForEachForward(&m_heaters, Foreach_print_config(), this, c);
+                    TupleForEachForward(&o->m_heaters, Foreach_print_config(), c);
                 } break;
             } break;
             
@@ -1284,22 +1332,22 @@ private:
                         return;
                     }
                     double new_pos[num_axes];
-                    TupleForEachForward(&m_axes, Foreach_init_new_pos(), new_pos);
-                    for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
-                        GcodeParserCommandPart *part = &m_cmd->parts[i];
-                        TupleForEachForward(&m_axes, Foreach_collect_new_pos(), new_pos, part);
+                    TupleForEachForward(&o->m_axes, Foreach_init_new_pos(), c, new_pos);
+                    for (GcodePartsSizeType i = 1; i < o->m_cmd->num_parts; i++) {
+                        GcodeParserCommandPart *part = &o->m_cmd->parts[i];
+                        TupleForEachForward(&o->m_axes, Foreach_collect_new_pos(), c, new_pos, part);
                         if (part->code == 'F') {
-                            m_max_cart_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
+                            o->m_max_cart_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
                         }
                     }
                     finish_command(c, false);
                     PlannerInputCommand cmd;
                     double distance = 0.0;
                     double total_steps = 0.0;
-                    TupleForEachForward(&m_axes, Foreach_process_new_pos(), c, new_pos, &distance, &total_steps, &cmd);
+                    TupleForEachForward(&o->m_axes, Foreach_process_new_pos(), c, new_pos, &distance, &total_steps, &cmd);
                     distance = sqrt(distance);
                     cmd.type = 0;
-                    cmd.rel_max_v_rec = FloatMakePosOrPosZero(distance / (m_max_cart_speed * Clock::time_unit));
+                    cmd.rel_max_v_rec = FloatMakePosOrPosZero(distance / (o->m_max_cart_speed * Clock::time_unit));
                     cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
                     finish_buffered_command(c, &cmd);
                     return;
@@ -1309,38 +1357,38 @@ private:
                     break;
                 
                 case 28: { // home axes
-                    if (m_state == STATE_PLANNING) {
+                    if (o->m_state == STATE_PLANNING) {
                         goto wait_planner;
                     }
                     AxisMaskType mask = 0;
-                    for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
-                        TupleForEachForward(&m_axes, Foreach_update_homing_mask(), &mask, &m_cmd->parts[i]);
+                    for (GcodePartsSizeType i = 1; i < o->m_cmd->num_parts; i++) {
+                        TupleForEachForward(&o->m_axes, Foreach_update_homing_mask(), &mask, &o->m_cmd->parts[i]);
                     }
                     if (mask == 0) {
                         mask = -1;
                     }
-                    m_homing_rem_axes = 0;
-                    m_homing_failed = false;
-                    TupleForEachForward(&m_axes, Foreach_start_homing(), c, mask);
-                    if (m_homing_rem_axes > 0) {
-                        m_state = STATE_HOMING;
+                    o->m_homing_rem_axes = 0;
+                    o->m_homing_failed = false;
+                    TupleForEachForward(&o->m_axes, Foreach_start_homing(), c, mask);
+                    if (o->m_homing_rem_axes > 0) {
+                        o->m_state = STATE_HOMING;
                         now_active(c);
                         return;
                     }
                 } break;
                 
                 case 90: { // absolute positioning
-                    TupleForEachForward(&m_axes, Foreach_set_relative_positioning(), false);
+                    TupleForEachForward(&o->m_axes, Foreach_set_relative_positioning(), c, false);
                 } break;
                 
                 case 91: { // relative positioning
-                    TupleForEachForward(&m_axes, Foreach_set_relative_positioning(), true);
+                    TupleForEachForward(&o->m_axes, Foreach_set_relative_positioning(), c, true);
                 } break;
                 
                 case 92: { // set position
                     bool found_axes = false;
-                    for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
-                        TupleForEachForward(&m_axes, Foreach_set_position(), c, &m_cmd->parts[i], &found_axes);
+                    for (GcodePartsSizeType i = 1; i < o->m_cmd->num_parts; i++) {
+                        TupleForEachForward(&o->m_axes, Foreach_set_position(), c, &o->m_cmd->parts[i], &found_axes);
                     }
                     if (!found_axes) {
                         reply_append_str(c, "Error:not supported\n");
@@ -1351,7 +1399,7 @@ private:
             unknown_command:
             default: {
                 reply_append_str(c, "Error:Unknown command ");
-                reply_append_str(c, (m_cmd->parts[0].data - 1));
+                reply_append_str(c, (o->m_cmd->parts[0].data - 1));
                 reply_append_ch(c, '\n');
             } break;
         }
@@ -1361,87 +1409,92 @@ private:
         return;
         
     wait_planner:
-        AMBRO_ASSERT(m_state == STATE_PLANNING)
-        AMBRO_ASSERT(!m_planning_req_pending)
-        if (m_planning_pull_pending) {
-            m_planner.waitFinished(c);
+        AMBRO_ASSERT(o->m_state == STATE_PLANNING)
+        AMBRO_ASSERT(!o->m_planning_req_pending)
+        if (o->m_planning_pull_pending) {
+            o->m_planner.waitFinished(c);
         }
     }
     
-    void finish_command (Context c, bool no_ok)
+    static void finish_command (Context c, bool no_ok)
     {
-        AMBRO_ASSERT(m_cmd)
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_cmd)
         
         if (!no_ok) {
             reply_append_str(c, "ok\n");
         }
         
-        m_serial.recvConsume(c, RecvSizeType::import(m_cmd->length));
-        m_cmd = 0;
-        m_serial.recvForceEvent(c);
+        o->m_serial.recvConsume(c, RecvSizeType::import(o->m_cmd->length));
+        o->m_cmd = 0;
+        o->m_serial.recvForceEvent(c);
     }
     
-    void homing_finished (Context c)
+    static void homing_finished (Context c)
     {
-        AMBRO_ASSERT(m_state == STATE_HOMING)
-        AMBRO_ASSERT(m_homing_rem_axes == 0)
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_state == STATE_HOMING)
+        AMBRO_ASSERT(o->m_homing_rem_axes == 0)
         
-        if (m_homing_failed) {
+        if (o->m_homing_failed) {
             reply_append_str(c, "Error:Homing failed\n");
         }
-        m_state = STATE_IDLE;
+        o->m_state = STATE_IDLE;
         finish_command(c, false);
         now_inactive(c);
     }
     
-    void now_inactive (Context c)
+    static void now_inactive (Context c)
     {
-        AMBRO_ASSERT(m_state == STATE_IDLE)
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_state == STATE_IDLE)
         
-        m_last_active_time = c.clock()->getTime(c);
-        m_disable_timer.appendAt(c, m_last_active_time + m_inactive_time);
+        o->m_last_active_time = c.clock()->getTime(c);
+        o->m_disable_timer.appendAt(c, o->m_last_active_time + o->m_inactive_time);
     }
     
-    void now_active (Context c)
+    static void now_active (Context c)
     {
-        m_disable_timer.unset(c);
+        PrinterMain *o = self(c);
+        o->m_disable_timer.unset(c);
     }
     
 public:
-    GcodeParserCommandPart * find_command_param (char code)
+    static GcodeParserCommandPart * find_command_param (Context c, char code)
     {
+        PrinterMain *o = self(c);
         AMBRO_ASSERT(code >= 'A')
         AMBRO_ASSERT(code <= 'Z')
         
-        for (GcodePartsSizeType i = 1; i < m_cmd->num_parts; i++) {
-            if (m_cmd->parts[i].code == code) {
-                return &m_cmd->parts[i];
+        for (GcodePartsSizeType i = 1; i < o->m_cmd->num_parts; i++) {
+            if (o->m_cmd->parts[i].code == code) {
+                return &o->m_cmd->parts[i];
             }
         }
         return NULL;
     }
     
-    uint32_t get_command_param_uint32 (char code, uint32_t default_value)
+    static uint32_t get_command_param_uint32 (Context c, char code, uint32_t default_value)
     {
-        GcodeParserCommandPart *part = find_command_param(code);
+        GcodeParserCommandPart *part = find_command_param(c, code);
         if (!part) {
             return default_value;
         }
         return strtoul(part->data, NULL, 10);
     }
     
-    double get_command_param_double (char code, double default_value)
+    static double get_command_param_double (Context c, char code, double default_value)
     {
-        GcodeParserCommandPart *part = find_command_param(code);
+        GcodeParserCommandPart *part = find_command_param(c, code);
         if (!part) {
             return default_value;
         }
         return strtod(part->data, NULL);
     }
     
-    bool find_command_param_double (char code, double *out)
+    static bool find_command_param_double (Context c, char code, double *out)
     {
-        GcodeParserCommandPart *part = find_command_param(code);
+        GcodeParserCommandPart *part = find_command_param(c, code);
         if (!part) {
             return false;
         }
@@ -1449,36 +1502,40 @@ public:
         return true;
     }
     
-    void reply_append (Context c, char const *str, uint8_t length)
+    static void reply_append (Context c, char const *str, uint8_t length)
     {
-        SendSizeType avail = m_serial.sendQuery(c);
+        PrinterMain *o = self(c);
+        
+        SendSizeType avail = o->m_serial.sendQuery(c);
         if (length > avail.value()) {
             length = avail.value();
         }
         while (length > 0) {
-            char *chunk_data = m_serial.sendGetChunkPtr(c);
-            uint8_t chunk_length = m_serial.sendGetChunkLen(c, SendSizeType::import(length)).value();
+            char *chunk_data = o->m_serial.sendGetChunkPtr(c);
+            uint8_t chunk_length = o->m_serial.sendGetChunkLen(c, SendSizeType::import(length)).value();
             memcpy(chunk_data, str, chunk_length);
-            m_serial.sendProvide(c, SendSizeType::import(chunk_length));
+            o->m_serial.sendProvide(c, SendSizeType::import(chunk_length));
             str += chunk_length;
             length -= chunk_length;
         }
     }
     
-    void reply_append_str (Context c, char const *str)
+    static void reply_append_str (Context c, char const *str)
     {
         reply_append(c, str, strlen(str));
     }
     
-    void reply_append_ch (Context c, char ch)
+    static void reply_append_ch (Context c, char ch)
     {
-        if (m_serial.sendQuery(c).value() > 0) {
-            *m_serial.sendGetChunkPtr(c) = ch;
-            m_serial.sendProvide(c, SendSizeType::import(1));
+        PrinterMain *o = self(c);
+        
+        if (o->m_serial.sendQuery(c).value() > 0) {
+            *o->m_serial.sendGetChunkPtr(c) = ch;
+            o->m_serial.sendProvide(c, SendSizeType::import(1));
         }
     }
     
-    void reply_append_double (Context c, double x)
+    static void reply_append_double (Context c, double x)
     {
         char buf[30];
 #if defined(AMBROLIB_AVR)
@@ -1490,7 +1547,7 @@ public:
 #endif
     }
     
-    void reply_append_uint32 (Context c, uint32_t x)
+    static void reply_append_uint32 (Context c, uint32_t x)
     {
         char buf[11];
 #if defined(AMBROLIB_AVR)
@@ -1502,99 +1559,113 @@ public:
     }
     
 private:
-    bool try_buffered_command (Context c)
+    static bool try_buffered_command (Context c)
     {
-        AMBRO_ASSERT(m_cmd)
-        AMBRO_ASSERT(m_state == STATE_IDLE || m_state == STATE_PLANNING)
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_cmd)
+        AMBRO_ASSERT(o->m_state == STATE_IDLE || o->m_state == STATE_PLANNING)
         
-        if (m_state != STATE_PLANNING) {
-            m_planner.init(c, false);
-            m_state = STATE_PLANNING;
-            m_planning_pull_pending = false;
+        if (o->m_state != STATE_PLANNING) {
+            o->m_planner.init(c, false);
+            o->m_state = STATE_PLANNING;
+            o->m_planning_pull_pending = false;
             now_active(c);
         }
-        m_planning_req_pending = true;
-        return m_planning_pull_pending;
+        o->m_planning_req_pending = true;
+        return o->m_planning_pull_pending;
     }
     
-    void finish_buffered_command (Context c, PlannerInputCommand *cmd)
+    static void finish_buffered_command (Context c, PlannerInputCommand *cmd)
     {
-        AMBRO_ASSERT(m_state == STATE_PLANNING)
-        AMBRO_ASSERT(m_planning_req_pending)
-        AMBRO_ASSERT(!m_cmd)
-        AMBRO_ASSERT(m_planning_pull_pending)
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_state == STATE_PLANNING)
+        AMBRO_ASSERT(o->m_planning_req_pending)
+        AMBRO_ASSERT(!o->m_cmd)
+        AMBRO_ASSERT(o->m_planning_pull_pending)
         
-        m_planner.commandDone(c, cmd);
-        m_planning_req_pending = false;
-        m_planning_pull_pending = false;
-        m_force_timer.unset(c);
+        o->m_planner.commandDone(c, cmd);
+        o->m_planning_req_pending = false;
+        o->m_planning_pull_pending = false;
+        o->m_force_timer.unset(c);
     }
     
-    void serial_send_handler (Context c)
+    static void serial_send_handler (TheSerial *, Context c)
     {
-        this->debugAccess(c);
+        PrinterMain *o = self(c);
+        o->debugAccess(c);
     }
     
-    void disable_timer_handler (Context c)
+    static void disable_timer_handler (typename Loop::QueuedEvent *, Context c)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state == STATE_IDLE)
+        PrinterMain *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_IDLE)
         
-        TupleForEachForward(&m_axes, Foreach_enable_stepper(), c, false);
+        TupleForEachForward(&o->m_axes, Foreach_enable_stepper(), c, false);
     }
     
-    void force_timer_handler (Context c)
+    static void force_timer_handler (typename Loop::QueuedEvent *, Context c)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state == STATE_PLANNING)
-        AMBRO_ASSERT(m_planning_pull_pending)
-        AMBRO_ASSERT(!m_planning_req_pending)
+        PrinterMain *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_PLANNING)
+        AMBRO_ASSERT(o->m_planning_pull_pending)
+        AMBRO_ASSERT(!o->m_planning_req_pending)
         
-        m_planner.waitFinished(c);
+        o->m_planner.waitFinished(c);
     }
     
-    void planner_pull_handler (Context c)
+    template <int AxisIndex>
+    static typename Axis<AxisIndex>::TheAxisStepper * planner_get_axis_stepper (Context c)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state == STATE_PLANNING)
-        AMBRO_ASSERT(!m_planning_pull_pending)
-        AMBRO_ASSERT(!m_planning_req_pending || m_cmd)
+        return &Axis<AxisIndex>::self(c)->m_axis_stepper;
+    }
+    
+    static void planner_pull_handler (Context c)
+    {
+        PrinterMain *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_PLANNING)
+        AMBRO_ASSERT(!o->m_planning_pull_pending)
+        AMBRO_ASSERT(!o->m_planning_req_pending || o->m_cmd)
         
-        m_planning_pull_pending = true;
-        if (m_planning_req_pending) {
+        o->m_planning_pull_pending = true;
+        if (o->m_planning_req_pending) {
             process_received_command(c, true);
-        } else if (m_cmd) {
-            m_planner.waitFinished(c);
+        } else if (o->m_cmd) {
+            o->m_planner.waitFinished(c);
         } else {
             TimeType force_time = c.clock()->getTime(c) + (TimeType)(Params::ForceTimeout::value() * Clock::time_freq);
-            m_force_timer.appendAt(c, force_time);
+            o->m_force_timer.appendAt(c, force_time);
         }
     }
     
-    void planner_finished_handler (Context c)
+    static void planner_finished_handler (Context c)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state == STATE_PLANNING)
-        AMBRO_ASSERT(m_planning_pull_pending)
-        AMBRO_ASSERT(!m_planning_req_pending)
+        PrinterMain *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_PLANNING)
+        AMBRO_ASSERT(o->m_planning_pull_pending)
+        AMBRO_ASSERT(!o->m_planning_req_pending)
         
-        m_planner.deinit(c);
-        m_force_timer.unset(c);
-        m_state = STATE_IDLE;
+        o->m_planner.deinit(c);
+        o->m_force_timer.unset(c);
+        o->m_state = STATE_IDLE;
         now_inactive(c);
         
-        if (m_cmd) {
+        if (o->m_cmd) {
             process_received_command(c, true);
         }
     }
     
-    void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)
+    static void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state == STATE_PLANNING)
+        PrinterMain *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_PLANNING)
         
-        TupleForOneBoolOffset<0>(payload->type, &m_heaters, Foreach_channel_callback(), c, &payload->heaters) ||
-        TupleForOneBoolOffset<TypeListLength<HeatersList>::value>(payload->type, &m_fans, Foreach_channel_callback(), c, &payload->fans);
+        TupleForOneBoolOffset<0>(payload->type, &o->m_heaters, Foreach_channel_callback(), c, &payload->heaters) ||
+        TupleForOneBoolOffset<TypeListLength<HeatersList>::value>(payload->type, &o->m_fans, Foreach_channel_callback(), c, &payload->fans);
     }
     
     TheWatchdog m_watchdog;
@@ -1627,22 +1698,25 @@ private:
         };
     };
     
+    struct WatchdogPosition : public MemberPosition<Position, TheWatchdog, &PrinterMain::m_watchdog> {};
+    struct BlinkerPosition : public MemberPosition<Position, TheBlinker, &PrinterMain::m_blinker> {};
     template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &PrinterMain::m_axes, AxisIndex> {};
     template <int AxisIndex> struct HomingFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, typename Axis<AxisIndex>::HomingFeature, &Axis<AxisIndex>::m_homing_feature> {};
     template <int AxisIndex> struct HomingStatePosition : public TuplePosition<Position, HomingStateTuple, &PrinterMain::m_homers, AxisIndex> {};
     struct SerialPosition : public MemberPosition<Position, TheSerial, &PrinterMain::m_serial> {};
+    struct GcodeParserPosition : public MemberPosition<Position, TheGcodeParser, &PrinterMain::m_gcode_parser> {};
     struct PlannerPosition : public MemberPosition<Position, ThePlanner, &PrinterMain::m_planner> {};
     template <int HeaterIndex> struct HeaterPosition : public TuplePosition<Position, HeatersTuple, &PrinterMain::m_heaters, HeaterIndex> {};
     template <int HeaterIndex> struct MainControlPosition : public MemberPosition<HeaterPosition<HeaterIndex>, typename Heater<HeaterIndex>::MainControl, &Heater<HeaterIndex>::m_main_control> {};
     template <int FanIndex> struct FanPosition : public TuplePosition<Position, FansTuple, &PrinterMain::m_fans, FanIndex> {};
     
-    struct BlinkerHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::blinker_handler, &PrinterMain::m_blinker) {};
-    struct SerialRecvHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::serial_recv_handler, &PrinterMain::m_serial) {};
-    struct SerialSendHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::serial_send_handler, &PrinterMain::m_serial) {};
-    template <int AxisIndex> struct PlannerGetAxisStepper : public AMBRO_WCALLBACK_TD(&PrinterMain::template getAxisStepper<AxisIndex>, &PrinterMain::m_planner) {};
-    struct PlannerPullHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_pull_handler, &PrinterMain::m_planner) {};
-    struct PlannerFinishedHandler : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_finished_handler, &PrinterMain::m_planner) {};
-    struct PlannerChannelCallback : public AMBRO_WCALLBACK_TD(&PrinterMain::planner_channel_callback, &PrinterMain::m_planner) {};
+    struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
+    struct SerialRecvHandler : public AMBRO_WFUNC_TD(&PrinterMain::serial_recv_handler) {};
+    struct SerialSendHandler : public AMBRO_WFUNC_TD(&PrinterMain::serial_send_handler) {};
+    template <int AxisIndex> struct PlannerGetAxisStepper : public AMBRO_WFUNC_TD(&PrinterMain::template planner_get_axis_stepper<AxisIndex>) {};
+    struct PlannerPullHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_pull_handler) {};
+    struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_finished_handler) {};
+    struct PlannerChannelCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_channel_callback) {};
     template <int AxisIndex> struct AxisStepperConsumersList {
         using List = JoinTypeLists<
             MakeTypeList<typename ThePlanner::template TheAxisStepperConsumer<AxisIndex>>,

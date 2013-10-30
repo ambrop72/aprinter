@@ -33,26 +33,34 @@
 
 struct At91Sam7sWatchdogParams {};
 
-template <typename Context, typename Params>
+template <typename Position, typename Context, typename Params>
 class At91Sam7sWatchdog : private DebugObject<Context, void>
 {
+    static At91Sam7sWatchdog * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
+    
 public:
     static constexpr double WatchdogTime = INFINITY;
     
-    void init (Context c)
+    static void init (Context c)
     {
-        this->debugInit(c);
+        At91Sam7sWatchdog *o = self(c);
+        o->debugInit(c);
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        At91Sam7sWatchdog *o = self(c);
+        o->debugDeinit(c);
     }
     
     template <typename ThisContext>
-    void reset (ThisContext c)
+    static void reset (ThisContext c)
     {
-        this->debugAccess(c);
+        At91Sam7sWatchdog *o = self(c);
+        o->debugAccess(c);
     }
 };
 

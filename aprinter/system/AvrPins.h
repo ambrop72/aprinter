@@ -35,6 +35,7 @@
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/AvrIo.h>
 
@@ -136,49 +137,60 @@ struct AvrPin {
     static const int port_pin = PortPin;
 };
 
-template <typename Context>
+template <typename Position, typename Context>
 class AvrPins
-: private DebugObject<Context, AvrPins<Context>>
+: private DebugObject<Context, void>
 {
-public:
-    void init (Context c)
+    static AvrPins * self (Context c)
     {
-        this->debugInit(c);
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
     }
     
-    void deinit (Context c)
+public:
+    static void init (Context c)
     {
-        this->debugDeinit(c);
+        AvrPins *o = self(c);
+        o->debugInit(c);
+    }
+    
+    static void deinit (Context c)
+    {
+        AvrPins *o = self(c);
+        o->debugDeinit(c);
     }
     
     template <typename Pin, typename ThisContext>
-    void setInput (ThisContext c)
+    static void setInput (ThisContext c)
     {
-        this->debugAccess(c);
+        AvrPins *o = self(c);
+        o->debugAccess(c);
         
         avrClearBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
     }
     
     template <typename Pin, typename ThisContext>
-    void setOutput (ThisContext c)
+    static void setOutput (ThisContext c)
     {
-        this->debugAccess(c);
+        AvrPins *o = self(c);
+        o->debugAccess(c);
         
         avrSetBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
     }
     
     template <typename Pin, typename ThisContext>
-    bool get (ThisContext c)
+    static bool get (ThisContext c)
     {
-        this->debugAccess(c);
+        AvrPins *o = self(c);
+        o->debugAccess(c);
         
         return (Pin::Port::getPin() & (1 << Pin::port_pin));
     }
     
     template <typename Pin, typename ThisContext>
-    void set (ThisContext c, bool x)
+    static void set (ThisContext c, bool x)
     {
-        this->debugAccess(c);
+        AvrPins *o = self(c);
+        o->debugAccess(c);
         
         if (x) {
             avrSetBitReg<Pin::Port::port_io_addr, Pin::port_pin>(c);

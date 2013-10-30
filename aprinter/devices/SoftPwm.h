@@ -25,8 +25,9 @@
 #ifndef AMBROLIB_SOFT_PWM_H
 #define AMBROLIB_SOFT_PWM_H
 
-#include <aprinter/meta/WrapCallback.h>
+#include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -34,38 +35,46 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename Pin, typename PulseInterval, typename TimerCallback, template<typename, typename> class TimerTemplate>
+template <typename Position, typename Context, typename Pin, typename PulseInterval, typename TimerCallback, template<typename, typename, typename> class TimerTemplate>
 class SoftPwm
 : private DebugObject<Context, void>
 {
 private:
     struct TimerHandler;
+    struct TimerPosition;
+    
+    static SoftPwm * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
     
 public:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    using TimerInstance = TimerTemplate<Context, TimerHandler>;
+    using TimerInstance = TimerTemplate<TimerPosition, Context, TimerHandler>;
     
-    void init (Context c, TimeType start_time)
+    static void init (Context c, TimeType start_time)
     {
-        m_lock.init(c);
-        m_timer.init(c);
-        m_state = false;
-        m_start_time = start_time;
+        SoftPwm *o = self(c);
+        o->m_lock.init(c);
+        o->m_timer.init(c);
+        o->m_state = false;
+        o->m_start_time = start_time;
         c.pins()->template set<Pin>(c, false);
         c.pins()->template setOutput<Pin>(c);
-        m_timer.set(c, start_time);
+        o->m_timer.set(c, start_time);
         
-        this->debugInit(c);
+        o->debugInit(c);
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        SoftPwm *o = self(c);
+        o->debugDeinit(c);
         
-        m_timer.deinit(c);
+        o->m_timer.deinit(c);
         c.pins()->template set<Pin>(c, false);
-        m_lock.deinit(c);
+        o->m_lock.deinit(c);
     }
     
     TimerInstance * getTimer ()
@@ -76,29 +85,30 @@ public:
 private:
     static const TimeType interval = PulseInterval::value() / Clock::time_unit;
     
-    bool timer_handler (typename TimerInstance::HandlerContext c)
+    static bool timer_handler (TimerInstance *, typename TimerInstance::HandlerContext c)
     {
-        this->debugAccess(c);
+        SoftPwm *o = self(c);
+        o->debugAccess(c);
         
         TimeType next_time;
-        if (AMBRO_LIKELY(!m_state)) {
-            auto frac = TimerCallback::call(this, c);
+        if (AMBRO_LIKELY(!o->m_state)) {
+            auto frac = TimerCallback::call(c);
             c.pins()->template set<Pin>(c, (frac.bitsValue() > 0));
             if (AMBRO_LIKELY(frac.bitsValue() > 0 && frac < decltype(frac)::maxValue())) {
                 auto res = FixedResMultiply(FixedPoint<32, false, 0>::importBits(interval), frac);
-                next_time = m_start_time + (TimeType)res.bitsValue();
-                m_state = true;
+                next_time = o->m_start_time + (TimeType)res.bitsValue();
+                o->m_state = true;
             } else {
-                m_start_time += interval;
-                next_time = m_start_time;
+                o->m_start_time += interval;
+                next_time = o->m_start_time;
             }
         } else {
             c.pins()->template set<Pin>(c, false);
-            m_start_time += interval;
-            next_time = m_start_time;
-            m_state = false;
+            o->m_start_time += interval;
+            next_time = o->m_start_time;
+            o->m_state = false;
         }
-        m_timer.set(c, next_time);
+        o->m_timer.set(c, next_time);
         return true;
     }
     
@@ -107,7 +117,8 @@ private:
     bool m_state;
     TimeType m_start_time;
     
-    struct TimerHandler : public AMBRO_WCALLBACK_TD(&SoftPwm::timer_handler, &SoftPwm::m_timer) {};
+    struct TimerHandler : public AMBRO_WFUNC_TD(&SoftPwm::timer_handler) {};
+    struct TimerPosition : public MemberPosition<Position, TimerInstance, &SoftPwm::m_timer> {};
 };
 
 #include <aprinter/EndNamespace.h>

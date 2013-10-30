@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -36,55 +37,64 @@ struct At91Sam7sPin {
     static const int PinIndex = TPinIndex;
 };
 
-template <typename Context>
+template <typename Position, typename Context>
 class At91Sam7sPins
 : private DebugObject<Context, void>
 {
-public:
-    void init (Context c)
+    static At91Sam7sPins * self (Context c)
     {
-        this->debugInit(c);
-        
-        at91sam7s_pmc_enable_periph(AT91C_ID_PIOA);
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
     }
     
-    void deinit (Context c)
+public:
+    static void init (Context c)
     {
+        At91Sam7sPins *o = self(c);
+        at91sam7s_pmc_enable_periph(AT91C_ID_PIOA);
+        o->debugInit(c);
+    }
+    
+    static void deinit (Context c)
+    {
+        At91Sam7sPins *o = self(c);
+        o->debugDeinit(c);
         at91sam7s_pmc_disable_periph(AT91C_ID_PIOA);
-        
-        this->debugDeinit(c);
     }
     
     template <typename Pin, typename ThisContext>
-    void setInput (ThisContext c)
+    static void setInput (ThisContext c)
     {
-        this->debugAccess(c);
+        At91Sam7sPins *o = self(c);
+        o->debugAccess(c);
         
         AT91C_BASE_PIOA->PIO_ODR = (UINT32_C(1) << Pin::PinIndex);
         AT91C_BASE_PIOA->PIO_PER = (UINT32_C(1) << Pin::PinIndex);;
     }
     
     template <typename Pin, typename ThisContext>
-    void setOutput (ThisContext c)
+    static void setOutput (ThisContext c)
     {
-        this->debugAccess(c);
+        At91Sam7sPins *o = self(c);
+        o->debugAccess(c);
         
         AT91C_BASE_PIOA->PIO_OER = (UINT32_C(1) << Pin::PinIndex);
         AT91C_BASE_PIOA->PIO_PER = (UINT32_C(1) << Pin::PinIndex);
     }
     
     template <typename Pin, typename ThisContext>
-    bool get (ThisContext c)
+    static bool get (ThisContext c)
     {
-        this->debugAccess(c);
+        At91Sam7sPins *o = self(c);
+        o->debugAccess(c);
         
         return (AT91C_BASE_PIOA->PIO_PDSR & (UINT32_C(1) << Pin::PinIndex));
     }
     
     template <typename Pin, typename ThisContext>
-    void set (ThisContext c, bool x)
+    static void set (ThisContext c, bool x)
     {
-        this->debugAccess(c);
+        At91Sam7sPins *o = self(c);
+        o->debugAccess(c);
         
         if (x) {
             AT91C_BASE_PIOA->PIO_SODR = (UINT32_C(1) << Pin::PinIndex);

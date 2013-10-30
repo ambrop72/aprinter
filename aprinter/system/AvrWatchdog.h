@@ -29,6 +29,7 @@
 #include <avr/wdt.h>
 
 #include <aprinter/meta/PowerOfTwo.h>
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -38,33 +39,42 @@ struct AvrWatchdogParams {
     static const int WatchdogPrescaler = TWatchdogPrescaler;
 };
 
-template <typename Context, typename Params>
+template <typename Position, typename Context, typename Params>
 class AvrWatchdog : private DebugObject<Context, void>
 {
     static_assert(Params::WatchdogPrescaler >= 0, "");
     static_assert(Params::WatchdogPrescaler < 10, "");
     
+    static AvrWatchdog * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
+    
 public:
     static constexpr double WatchdogTime = PowerOfTwoFunc<double>(11 + Params::WatchdogPrescaler) / 131072.0;
     
-    void init (Context c)
+    static void init (Context c)
     {
+        AvrWatchdog *o = self(c);
+        
         wdt_enable(Params::WatchdogPrescaler);
         
-        this->debugInit(c);
+        o->debugInit(c);
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        AvrWatchdog *o = self(c);
+        o->debugDeinit(c);
         
         wdt_disable();
     }
     
     template <typename ThisContext>
-    void reset (ThisContext c)
+    static void reset (ThisContext c)
     {
-        this->debugAccess(c);
+        AvrWatchdog *o = self(c);
+        o->debugAccess(c);
         
         wdt_reset();
     }

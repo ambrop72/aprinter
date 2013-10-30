@@ -31,6 +31,7 @@
 
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 
@@ -41,11 +42,16 @@ struct GcodeParserParams {
     static const int MaxParts = TMaxParts;
 };
 
-template <typename Context, typename Params, typename TBufferSizeType>
+template <typename Position, typename Context, typename Params, typename TBufferSizeType>
 class GcodeParser
 : private DebugObject<Context, void>
 {
     static_assert(Params::MaxParts > 0, "");
+    
+    static GcodeParser * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
     
 public:
     using BufferSizeType = TBufferSizeType;
@@ -72,89 +78,94 @@ public:
         CommandPart parts[Params::MaxParts];
     };
     
-    void init (Context c)
+    static void init (Context c)
     {
-        m_state = STATE_NOCMD;
+        GcodeParser *o = self(c);
+        o->m_state = STATE_NOCMD;
         
-        this->debugInit(c);
+        o->debugInit(c);
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        GcodeParser *o = self(c);
+        o->debugDeinit(c);
     }
     
-    bool haveCommand (Context c)
+    static bool haveCommand (Context c)
     {
-        this->debugAccess(c);
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
         
-        return (m_state != STATE_NOCMD);
+        return (o->m_state != STATE_NOCMD);
     }
     
-    void startCommand (Context c, char *buffer, int8_t assume_error)
+    static void startCommand (Context c, char *buffer, int8_t assume_error)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state == STATE_NOCMD)
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(buffer)
         AMBRO_ASSERT(assume_error <= 0)
         
-        m_state = STATE_OUTSIDE;
-        m_buffer = buffer;
-        m_checksum = 0;
-        m_command.length = 0;
-        m_command.have_line_number = false;
-        m_command.num_parts = assume_error;
+        o->m_state = STATE_OUTSIDE;
+        o->m_buffer = buffer;
+        o->m_checksum = 0;
+        o->m_command.length = 0;
+        o->m_command.have_line_number = false;
+        o->m_command.num_parts = assume_error;
     }
     
-    Command * extendCommand (Context c, BufferSizeType avail)
+    static Command * extendCommand (Context c, BufferSizeType avail)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state != STATE_NOCMD)
-        AMBRO_ASSERT(avail >= m_command.length)
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state != STATE_NOCMD)
+        AMBRO_ASSERT(avail >= o->m_command.length)
         
-        for (; m_command.length < avail; m_command.length++) {
-            char ch = m_buffer[m_command.length];
+        for (; o->m_command.length < avail; o->m_command.length++) {
+            char ch = o->m_buffer[o->m_command.length];
             
             if (ch == '\n') {
-                if (m_command.num_parts >= 0) {
-                    if (m_state == STATE_INSIDE) {
-                        finish_part();
-                    } else if (m_state == STATE_CHECKSUM) {
-                        check_checksum();
+                if (o->m_command.num_parts >= 0) {
+                    if (o->m_state == STATE_INSIDE) {
+                        finish_part(c);
+                    } else if (o->m_state == STATE_CHECKSUM) {
+                        check_checksum(c);
                     }
                 }
-                m_command.length++;
-                m_state = STATE_NOCMD;
-                return &m_command;
+                o->m_command.length++;
+                o->m_state = STATE_NOCMD;
+                return &o->m_command;
             }
             
-            if (m_command.num_parts < 0 || m_state == STATE_CHECKSUM) {
+            if (o->m_command.num_parts < 0 || o->m_state == STATE_CHECKSUM) {
                 continue;
             }
             
             if (ch == '*') {
-                if (m_state == STATE_INSIDE) {
-                    finish_part();
+                if (o->m_state == STATE_INSIDE) {
+                    finish_part(c);
                 }
-                m_temp = m_command.length;
-                m_state = STATE_CHECKSUM;
+                o->m_temp = o->m_command.length;
+                o->m_state = STATE_CHECKSUM;
                 continue;
             }
             
-            m_checksum ^= (unsigned char)ch;
+            o->m_checksum ^= (unsigned char)ch;
             
-            if (m_state == STATE_OUTSIDE) {
+            if (o->m_state == STATE_OUTSIDE) {
                 if (!is_space(ch)) {
                     if (!is_code(ch)) {
-                        m_command.num_parts = ERROR_INVALID_PART;
+                        o->m_command.num_parts = ERROR_INVALID_PART;
                     }
-                    m_temp = m_command.length;
-                    m_state = STATE_INSIDE;
+                    o->m_temp = o->m_command.length;
+                    o->m_state = STATE_INSIDE;
                 }
             } else {
                 if (is_space(ch)) {
-                    finish_part();
-                    m_state = STATE_OUTSIDE;
+                    finish_part(c);
+                    o->m_state = STATE_OUTSIDE;
                 }
             }
         }
@@ -162,12 +173,13 @@ public:
         return NULL;
     }
     
-    void resetCommand (Context c)
+    static void resetCommand (Context c)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state != STATE_NOCMD)
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state != STATE_NOCMD)
         
-        m_state = STATE_NOCMD;
+        o->m_state = STATE_NOCMD;
     }
     
 private:
@@ -201,47 +213,49 @@ private:
         return (received_len == 0);
     }
     
-    void check_checksum ()
+    static void check_checksum (Context c)
     {
-        AMBRO_ASSERT(m_command.num_parts >= 0)
-        AMBRO_ASSERT(m_state == STATE_CHECKSUM)
+        GcodeParser *o = self(c);
+        AMBRO_ASSERT(o->m_command.num_parts >= 0)
+        AMBRO_ASSERT(o->m_state == STATE_CHECKSUM)
         
-        char *received = m_buffer + (m_temp + 1);
-        BufferSizeType received_len = m_command.length - (m_temp + 1);
+        char *received = o->m_buffer + (o->m_temp + 1);
+        BufferSizeType received_len = o->m_command.length - (o->m_temp + 1);
         
-        if (!compare_checksum(m_checksum, received, received_len)) {
-            m_command.num_parts = ERROR_CHECKSUM;
+        if (!compare_checksum(o->m_checksum, received, received_len)) {
+            o->m_command.num_parts = ERROR_CHECKSUM;
         }
     }
     
-    void finish_part ()
+    static void finish_part (Context c)
     {
-        AMBRO_ASSERT(m_command.num_parts >= 0)
-        AMBRO_ASSERT(m_state == STATE_INSIDE)
-        AMBRO_ASSERT(is_code(m_buffer[m_temp]))
+        GcodeParser *o = self(c);
+        AMBRO_ASSERT(o->m_command.num_parts >= 0)
+        AMBRO_ASSERT(o->m_state == STATE_INSIDE)
+        AMBRO_ASSERT(is_code(o->m_buffer[o->m_temp]))
         
-        if (m_command.num_parts == Params::MaxParts) {
-            m_command.num_parts = ERROR_TOO_MANY_PARTS;
+        if (o->m_command.num_parts == Params::MaxParts) {
+            o->m_command.num_parts = ERROR_TOO_MANY_PARTS;
             return;
         }
         
-        char code = m_buffer[m_temp];
+        char code = o->m_buffer[o->m_temp];
         if (code >= 'a') {
             code -= 32;
         }
         
-        m_buffer[m_command.length] = '\0';
+        o->m_buffer[o->m_command.length] = '\0';
         
-        if (!m_command.have_line_number && m_command.num_parts == 0 && code == 'N') {
-            m_command.have_line_number = true;
-            m_command.line_number = strtoul(m_buffer + (m_temp + 1), NULL, 10);
+        if (!o->m_command.have_line_number && o->m_command.num_parts == 0 && code == 'N') {
+            o->m_command.have_line_number = true;
+            o->m_command.line_number = strtoul(o->m_buffer + (o->m_temp + 1), NULL, 10);
             return;
         }
         
-        m_command.parts[m_command.num_parts].code = code;
-        m_command.parts[m_command.num_parts].data = m_buffer + (m_temp + 1);
-        m_command.parts[m_command.num_parts].length = m_command.length - (m_temp + 1);
-        m_command.num_parts++;
+        o->m_command.parts[o->m_command.num_parts].code = code;
+        o->m_command.parts[o->m_command.num_parts].data = o->m_buffer + (o->m_temp + 1);
+        o->m_command.parts[o->m_command.num_parts].length = o->m_command.length - (o->m_temp + 1);
+        o->m_command.num_parts++;
     }
     
     uint8_t m_state;

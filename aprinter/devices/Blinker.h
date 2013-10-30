@@ -27,60 +27,69 @@
 
 #include <stdint.h>
 
-#include <aprinter/base/OffsetCallback.h>
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename Pin, typename Handler>
+template <typename Position, typename Context, typename Pin, typename Handler>
 class Blinker
 : private DebugObject<Context, void>
 {
+    static Blinker * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
+    
 public:
     using TimeType = typename Context::Clock::TimeType;
     
-    void init (Context c, TimeType interval)
+    static void init (Context c, TimeType interval)
     {
-        m_interval = interval;
-        m_next_time = c.clock()->getTime(c);
-        m_state = false;
-        m_timer.init(c, AMBRO_OFFSET_CALLBACK_T(&Blinker::m_timer, &Blinker::timer_handler));
-        m_timer.appendAt(c, m_next_time);
+        Blinker *o = self(c);
+        o->m_interval = interval;
+        o->m_next_time = c.clock()->getTime(c);
+        o->m_state = false;
+        o->m_timer.init(c, Blinker::timer_handler);
+        o->m_timer.appendAt(c, o->m_next_time);
         
-        c.pins()->template set<Pin>(c, m_state);
+        c.pins()->template set<Pin>(c, o->m_state);
         c.pins()->template setOutput<Pin>(c);
         
-        this->debugInit(c);
+        o->debugInit(c);
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        Blinker *o = self(c);
+        o->debugDeinit(c);
         
-        m_timer.deinit(c);
+        o->m_timer.deinit(c);
     }
     
-    void setInterval (Context c, TimeType interval)
+    static void setInterval (Context c, TimeType interval)
     {
-        this->debugAccess(c);
+        Blinker *o = self(c);
+        o->debugAccess(c);
         
-        m_interval = interval;
+        o->m_interval = interval;
     }
     
 private:
     using Loop = typename Context::EventLoop;
     
-    void timer_handler (Context c)
+    static void timer_handler (typename Loop::QueuedEvent *, Context c)
     {
-        this->debugAccess(c);
+        Blinker *o = self(c);
+        o->debugAccess(c);
         
-        m_state = !m_state;
-        c.pins()->template set<Pin>(c, m_state);
-        m_next_time += m_interval;
-        m_timer.appendAt(c, m_next_time);
+        o->m_state = !o->m_state;
+        c.pins()->template set<Pin>(c, o->m_state);
+        o->m_next_time += o->m_interval;
+        o->m_timer.appendAt(c, o->m_next_time);
         
-        return Handler::call(this, c);
+        return Handler::call(c);
     }
     
     TimeType m_interval;

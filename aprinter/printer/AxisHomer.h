@@ -28,9 +28,8 @@
 #include <stdint.h>
 #include <math.h>
 
-#include <aprinter/meta/WrapCallback.h>
+#include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/ForwardHandler.h>
 #include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -52,15 +51,19 @@ class AxisHomer
 {
 private:
     struct PlannerPosition;
-    struct PlannerGetAxisStepper;
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
     struct PlannerPrestepCallback;
     
-    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, PlannerGetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
+    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, GetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
     using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler>;
     using PlannerCommand = typename Planner::InputCommand;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
+    
+    static AxisHomer * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
     
 public:
     using StepFixedType = typename Planner::template Axis<0>::StepFixedType;
@@ -75,8 +78,9 @@ public:
         double max_accel;
     };
     
-    void init (Context c, HomingParams params)
+    static void init (Context c, HomingParams params)
     {
+        AxisHomer *o = self(c);
         AMBRO_ASSERT(params.fast_max_dist.bitsValue() > 0)
         AMBRO_ASSERT(params.retract_dist.bitsValue() > 0)
         AMBRO_ASSERT(params.slow_max_dist.bitsValue() > 0)
@@ -85,20 +89,21 @@ public:
         AMBRO_ASSERT(FloatIsPosOrPosZero(params.slow_speed))
         AMBRO_ASSERT(FloatIsPosOrPosZero(params.max_accel))
         
-        m_planner.init(c, true);
-        m_state = STATE_FAST;
-        m_command_sent = false;
-        m_params = params;
+        o->m_planner.init(c, true);
+        o->m_state = STATE_FAST;
+        o->m_command_sent = false;
+        o->m_params = params;
         
-        this->debugInit(c);
+        o->debugInit(c);
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
+        AxisHomer *o = self(c);
+        o->debugDeinit(c);
         
-        if (m_state != STATE_END) {
-            m_planner.deinit(c);
+        if (o->m_state != STATE_END) {
+            o->m_planner.deinit(c);
         }
     }
     
@@ -106,62 +111,64 @@ public:
     using EventLoopFastEvents = typename Planner::EventLoopFastEvents;
     
 private:
-    void planner_pull_handler (Context c)
+    static void planner_pull_handler (Context c)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state != STATE_END)
+        AxisHomer *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state != STATE_END)
         
-        if (m_command_sent) {
-            m_planner.waitFinished(c);
+        if (o->m_command_sent) {
+            o->m_planner.waitFinished(c);
             return;
         }
         
         PlannerCommand cmd;
         cmd.type = 0;
         cmd.rel_max_v_rec = 0.0;
-        switch (m_state) {
+        switch (o->m_state) {
             case STATE_FAST: {
                 cmd.axes.elem.dir = HomeDir;
-                cmd.axes.elem.x = m_params.fast_max_dist;
-                cmd.axes.elem.max_v_rec = 1.0 / m_params.fast_speed;
-                cmd.axes.elem.max_a_rec = 1.0 / m_params.max_accel;
+                cmd.axes.elem.x = o->m_params.fast_max_dist;
+                cmd.axes.elem.max_v_rec = 1.0 / o->m_params.fast_speed;
+                cmd.axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
             } break;
             case STATE_RETRACT: {
                 cmd.axes.elem.dir = !HomeDir;
-                cmd.axes.elem.x = m_params.retract_dist;
-                cmd.axes.elem.max_v_rec = 1.0 / m_params.retract_speed;
-                cmd.axes.elem.max_a_rec = 1.0 / m_params.max_accel;
+                cmd.axes.elem.x = o->m_params.retract_dist;
+                cmd.axes.elem.max_v_rec = 1.0 / o->m_params.retract_speed;
+                cmd.axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
             } break;
             case STATE_SLOW: {
                 cmd.axes.elem.dir = HomeDir;
-                cmd.axes.elem.x = m_params.slow_max_dist;
-                cmd.axes.elem.max_v_rec = 1.0 / m_params.slow_speed;
-                cmd.axes.elem.max_a_rec = 1.0 / m_params.max_accel;
+                cmd.axes.elem.x = o->m_params.slow_max_dist;
+                cmd.axes.elem.max_v_rec = 1.0 / o->m_params.slow_speed;
+                cmd.axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
             } break;
         }
         
-        m_planner.commandDone(c, &cmd);
-        m_command_sent = true;
+        o->m_planner.commandDone(c, &cmd);
+        o->m_command_sent = true;
     }
     
-    void planner_finished_handler (Context c)
+    static void planner_finished_handler (Context c)
     {
-        this->debugAccess(c);
-        AMBRO_ASSERT(m_state != STATE_END)
-        AMBRO_ASSERT(m_command_sent)
+        AxisHomer *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state != STATE_END)
+        AMBRO_ASSERT(o->m_command_sent)
         
-        m_planner.deinit(c);
-        m_state++;
+        o->m_planner.deinit(c);
+        o->m_state++;
         
-        if (m_state == STATE_END) {
-            return FinishedHandler::call(this, c, true);
+        if (o->m_state == STATE_END) {
+            return FinishedHandler::call(c, true);
         }
         
-        m_planner.init(c, m_state != STATE_RETRACT);
-        m_command_sent = false;
+        o->m_planner.init(c, o->m_state != STATE_RETRACT);
+        o->m_command_sent = false;
     }
     
-    bool planner_prestep_callback (typename Planner::template Axis<0>::StepperCommandCallbackContext c)
+    static bool planner_prestep_callback (typename Planner::template Axis<0>::StepperCommandCallbackContext c)
     {
         return (c.pins()->template get<SwitchPin>(c) != SwitchInvert);
     }
@@ -172,10 +179,9 @@ private:
     HomingParams m_params;
     
     struct PlannerPosition : public MemberPosition<Position, Planner, &AxisHomer::m_planner> {};
-    struct PlannerGetAxisStepper : public AMBRO_FHANDLER_TD(&AxisHomer::m_planner, GetAxisStepper) {};
-    struct PlannerPullHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_pull_handler, &AxisHomer::m_planner) {};
-    struct PlannerFinishedHandler : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_finished_handler, &AxisHomer::m_planner) {};
-    struct PlannerPrestepCallback : public AMBRO_WCALLBACK_TD(&AxisHomer::planner_prestep_callback, &AxisHomer::m_planner) {};
+    struct PlannerPullHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_pull_handler) {};
+    struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_finished_handler) {};
+    struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_prestep_callback) {};
 };
 
 #include <aprinter/EndNamespace.h>

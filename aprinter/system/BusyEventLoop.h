@@ -61,59 +61,69 @@ public:
     typedef BusyEventLoopQueuedEvent<BusyEventLoop> QueuedEvent;
     using FastHandlerType = void (*) (Context);
     
-    void init (Context c)
+private:
+    static BusyEventLoop * self (Context c)
     {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
+    
+public:
+    static void init (Context c)
+    {
+        BusyEventLoop *o = self(c);
 #ifdef AMBROLIB_SUPPORT_QUIT
-        m_quitting = false;
+        o->m_quitting = false;
 #endif
-        m_now = c.clock()->getTime(c);
-        m_queued_event_list.init();
-        extra()->m_fast_event_pos = 0;
+        o->m_now = c.clock()->getTime(c);
+        o->m_queued_event_list.init();
+        extra(c)->m_fast_event_pos = 0;
         for (typename Extra::FastEventSizeType i = 0; i < Extra::NumFastEvents; i++) {
-            extra()->m_fast_events[i].not_triggered = true;
+            extra(c)->m_fast_events[i].not_triggered = true;
         }
-        m_lock.init(c);
+        o->m_lock.init(c);
         
-        this->debugInit(c);
+        o->debugInit(c);
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
-        this->debugDeinit(c);
-        m_lock.deinit(c);
-        AMBRO_ASSERT(m_queued_event_list.isEmpty())
+        BusyEventLoop *o = self(c);
+        o->debugDeinit(c);
+        o->m_lock.deinit(c);
+        AMBRO_ASSERT(o->m_queued_event_list.isEmpty())
     }
     
-    void run (Context c)
+    static void run (Context c)
     {
-        this->debugAccess(c);
+        BusyEventLoop *o = self(c);
+        o->debugAccess(c);
         
         while (1) {
             for (typename Extra::FastEventSizeType i = 0; i < Extra::NumFastEvents; i++) {
-                extra()->m_fast_event_pos++;
-                if (AMBRO_UNLIKELY(extra()->m_fast_event_pos == Extra::NumFastEvents)) {
-                    extra()->m_fast_event_pos = 0;
+                extra(c)->m_fast_event_pos++;
+                if (AMBRO_UNLIKELY(extra(c)->m_fast_event_pos == Extra::NumFastEvents)) {
+                    extra(c)->m_fast_event_pos = 0;
                 }
                 cli();
-                if (!extra()->m_fast_events[extra()->m_fast_event_pos].not_triggered) {
-                    extra()->m_fast_events[extra()->m_fast_event_pos].not_triggered = true;
+                if (!extra(c)->m_fast_events[extra(c)->m_fast_event_pos].not_triggered) {
+                    extra(c)->m_fast_events[extra(c)->m_fast_event_pos].not_triggered = true;
                     sei();
-                    extra()->m_fast_events[extra()->m_fast_event_pos].handler(c);
+                    extra(c)->m_fast_events[extra(c)->m_fast_event_pos].handler(c);
                     break;
                 }
                 sei();
             }
             
             TimeType now = c.clock()->getTime(c);
-            m_now = now;
-            for (QueuedEvent *ev = m_queued_event_list.first(); ev; ev = m_queued_event_list.next(ev)) {
+            o->m_now = now;
+            for (QueuedEvent *ev = o->m_queued_event_list.first(); ev; ev = o->m_queued_event_list.next(ev)) {
                 AMBRO_ASSERT(!QueuedEventList::isRemoved(ev))
                 if ((TimeType)(now - ev->m_time) < UINT32_C(0x80000000)) {
-                    m_queued_event_list.remove(ev);
+                    o->m_queued_event_list.remove(ev);
                     QueuedEventList::markRemoved(ev);
                     ev->m_handler(ev, c);
 #ifdef AMBROLIB_SUPPORT_QUIT
-                    if (m_quitting) {
+                    if (o->m_quitting) {
                         return;
                     }
 #endif
@@ -124,9 +134,10 @@ public:
     }
     
 #ifdef AMBROLIB_SUPPORT_QUIT
-    void quit (Context c)
+    static void quit (Context c)
     {
-        m_quitting = true;
+        BusyEventLoop *o = self(c);
+        o->m_quitting = true;
     }
 #endif
     
@@ -134,28 +145,31 @@ public:
     struct FastEventSpec {};
     
     template <typename EventSpec>
-    void initFastEvent (Context c, FastHandlerType handler)
+    static void initFastEvent (Context c, FastHandlerType handler)
     {
-        this->debugAccess(c);
+        BusyEventLoop *o = self(c);
+        o->debugAccess(c);
         
-        extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].handler = handler;
+        extra(c)->m_fast_events[Extra::template get_event_index<EventSpec>()].handler = handler;
     }
     
     template <typename EventSpec>
-    void resetFastEvent (Context c)
+    static void resetFastEvent (Context c)
     {
-        this->debugAccess(c);
+        BusyEventLoop *o = self(c);
+        o->debugAccess(c);
         
-        extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].not_triggered = true;
+        extra(c)->m_fast_events[Extra::template get_event_index<EventSpec>()].not_triggered = true;
     }
     
     template <typename EventSpec, typename ThisContext>
-    void triggerFastEvent (ThisContext c)
+    static void triggerFastEvent (ThisContext c)
     {
-        this->debugAccess(c);
+        BusyEventLoop *o = self(c);
+        o->debugAccess(c);
         
-        AMBRO_LOCK_T(m_lock, c, lock_c) {
-            extra()->m_fast_events[Extra::template get_event_index<EventSpec>()].not_triggered = false;
+        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            extra(c)->m_fast_events[Extra::template get_event_index<EventSpec>()].not_triggered = false;
         }
     }
     
@@ -165,9 +179,9 @@ private:
     
     typedef DoubleEndedList<QueuedEvent, &QueuedEvent::m_list_node> QueuedEventList;
     
-    Extra * extra ()
+    static Extra * extra (Context c)
     {
-        return PositionTraverse<Position, ExtraPosition>(this);
+        return PositionTraverse<typename Context::TheRootPosition, ExtraPosition>(c.root());
     }
     
 #ifdef AMBROLIB_SUPPORT_QUIT

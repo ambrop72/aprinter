@@ -614,16 +614,19 @@ static const int clock_timer_prescaler = 3;
 struct MyContext;
 struct MyLoopExtra;
 struct Program;
+struct ClockPosition;
 struct LoopPosition;
+struct PinsPosition;
+struct AdcPosition;
 struct PrinterPosition;
 struct LoopExtraPosition;
 
 using ProgramPosition = RootPosition<Program>;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
-using MyClock = AvrClock<MyContext, clock_timer_prescaler>;
+using MyClock = AvrClock<ClockPosition, MyContext, clock_timer_prescaler>;
 using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
-using MyPins = AvrPins<MyContext>;
-using MyAdc = AvrAdc<MyContext, AdcPins, AdcRefSel, AdcPrescaler>;
+using MyPins = AvrPins<PinsPosition, MyContext>;
+using MyAdc = AvrAdc<AdcPosition, MyContext, AdcPins, AdcRefSel, AdcPrescaler>;
 using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
 struct MyContext {
@@ -655,7 +658,10 @@ struct Program {
     MyLoopExtra myloopextra;
 };
 
+struct ClockPosition : public MemberPosition<ProgramPosition, MyClock, &Program::myclock> {};
 struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
+struct PinsPosition : public MemberPosition<ProgramPosition, MyPins, &Program::mypins> {};
+struct AdcPosition : public MemberPosition<ProgramPosition, MyAdc, &Program::myadc> {};
 struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
 struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
 
@@ -685,7 +691,7 @@ FILE uart_output;
 
 static int uart_putchar (char ch, FILE *stream)
 {
-    p.myprinter.getSerial()->sendWaitFinished();
+    p.myprinter.getSerial()->sendWaitFinished(MyContext());
     while (!(UCSR0A & (1 << UDRE0)));
     UDR0 = ch;
     return 1;

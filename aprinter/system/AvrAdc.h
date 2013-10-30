@@ -37,8 +37,9 @@
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/TupleForEach.h>
-#include <aprinter/meta/WrapMember.h>
 #include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/Position.h>
+#include <aprinter/meta/TuplePosition.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/AvrPins.h>
@@ -52,11 +53,13 @@ struct AvrAdcDifferentialInput {};
 struct AvrAdcVbgPin {};
 struct AvrAdcGndPin {};
 
-template <typename Context, typename PinsList, int AdcRefSel, int AdcPrescaler>
+template <typename Position, typename Context, typename PinsList, int AdcRefSel, int AdcPrescaler>
 class AvrAdc
 : private DebugObject<Context, void>
 {
 private:
+    template <int PinIndex> struct PinPosition;
+    
     static const int NumPins = TypeListLength<PinsList>::value;
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_make_pin_mask, make_pin_mask)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_handle_isr, handle_isr)
@@ -200,44 +203,55 @@ private:
 #error Your device is not supported by AvrAdc
 #endif
     
-public:
-    void init (Context c)
+    static AvrAdc * self (Context c)
     {
-        AdcMaybe<NumPins>::init(this, c);
-        this->debugInit(c);
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
     }
     
-    void deinit (Context c)
+public:
+    static void init (Context c)
     {
-        this->debugDeinit(c);
-        AdcMaybe<NumPins>::deinit(this, c);
+        AvrAdc *o = self(c);
+        AdcMaybe<NumPins>::init(c);
+        o->debugInit(c);
+    }
+    
+    static void deinit (Context c)
+    {
+        AvrAdc *o = self(c);
+        o->debugDeinit(c);
+        AdcMaybe<NumPins>::deinit(c);
     }
     
     template <typename Pin, typename ThisContext>
-    uint16_t getValue (ThisContext c)
+    static uint16_t getValue (ThisContext c)
     {
-        this->debugAccess(c);
+        AvrAdc *o = self(c);
+        o->debugAccess(c);
         
         static const int PinIndex = TypeListIndex<PinsList, IsEqualFunc<Pin>>::value;
         
         uint16_t value;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            value = TupleGetElem<PinIndex>(&m_pins)->m_value;
+            value = TupleGetElem<PinIndex>(&o->m_pins)->m_value;
         }
         
         return value;
     }
     
-    void adc_isr (InterruptContext<Context> c)
+    static void adc_isr (InterruptContext<Context> c)
     {
-        TupleForEachForwardInterruptible(&m_pins, Foreach_handle_isr(), c);
+        AvrAdc *o = self(c);
+        TupleForEachForwardInterruptible(&o->m_pins, Foreach_handle_isr(), c);
     }
     
 private:
     template <int NumPins, typename Dummy = void>
     struct AdcMaybe {
-        static void init (AvrAdc *o, Context c)
+        static void init (Context c)
         {
+            AvrAdc *o = self(c);
+            
             o->m_current_pin = 0;
             o->m_finished = false;
             
@@ -258,7 +272,7 @@ private:
             while (!*(volatile bool *)&o->m_finished);
         }
         
-        static void deinit (AvrAdc *o, Context c)
+        static void deinit (Context c)
         {
             ADCSRA = 0;
             ADCSRB = 0;
@@ -282,22 +296,25 @@ private:
         static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
         static const int NextPinIndex = (PinIndex + 1) % NumPins;
         
-        AvrAdc * parent ()
+        static AdcPin * self (Context c)
         {
-            return AMBRO_WMEMB_TD(&AvrAdc::m_pins)::container(TupleGetTuple<PinIndex, PinsTuple>(this));
+            return PositionTraverse<typename Context::TheRootPosition, PinPosition<PinIndex>>(c.root());
         }
         
-        MaskType make_pin_mask (MaskType accum)
+        static MaskType make_pin_mask (MaskType accum)
         {
             return (accum | AdcPinMask<Pin>::value);
         }
         
-        bool handle_isr (InterruptContext<Context> c)
+        static bool handle_isr (InterruptContext<Context> c)
         {
-            if (parent()->m_current_pin != PinIndex) {
+            AdcPin *o = self(c);
+            AvrAdc *a = AvrAdc::self(c);
+            
+            if (a->m_current_pin != PinIndex) {
                 return true;
             }
-            m_value = ADC;
+            o->m_value = ADC;
 #ifdef MUX5
             ADMUX = (AdcRefSel << REFS0) | (AdcPin<NextPinIndex>::AdcIndex & 0x1F);
             ADCSRB = (AdcPin<NextPinIndex>::AdcIndex >> 5) << MUX5;
@@ -305,9 +322,9 @@ private:
             ADMUX = (AdcRefSel << REFS0) | AdcPin<NextPinIndex>::AdcIndex;
 #endif
             ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE) | (AdcPrescaler << ADPS0);
-            parent()->m_current_pin = NextPinIndex;
+            a->m_current_pin = NextPinIndex;
             if (PinIndex == NumPins - 1) {
-                parent()->m_finished = true;
+                a->m_finished = true;
             }
             return false;
         }
@@ -320,6 +337,8 @@ private:
     PinsTuple m_pins;
     uint8_t m_current_pin;
     bool m_finished;
+    
+    template <int PinIndex> struct PinPosition : public TuplePosition<Position, PinsTuple, &AvrAdc::m_pins, PinIndex> {};
 };
 
 #define AMBRO_AVR_ADC_ISRS(adc, context) \

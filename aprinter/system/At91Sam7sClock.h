@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -49,12 +50,17 @@ void At91Sam7SClock_IrqHandlerTC2C (uint32_t status);
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, int Prescale>
+template <typename Position, typename Context, int Prescale>
 class At91Sam7sClock
 : private DebugObject<Context, void>
 {
     static_assert(Prescale >= 1, "Prescale must be >=1");
     static_assert(Prescale <= 5, "Prescale must be <=5");
+    
+    static At91Sam7sClock * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
     
 public:
     typedef uint32_t TimeType;
@@ -70,15 +76,17 @@ public:
     static constexpr double time_unit = (double)prescale_divide / F_MCK;
     static constexpr double time_freq = 1.0 / time_unit;
     
-    void init (Context c, bool need_tc1, bool need_tc2)
+    static void init (Context c, bool need_tc1, bool need_tc2)
     {
-        m_offset = 0;
-        m_status[0] = 0;
-        m_status[1] = 0;
-        m_status[2] = 0;
-        m_mask[0] = AT91C_TC_COVFS;
-        m_mask[1] = 0;
-        m_mask[2] = 0;
+        At91Sam7sClock *o = self(c);
+        
+        o->m_offset = 0;
+        o->m_status[0] = 0;
+        o->m_status[1] = 0;
+        o->m_status[2] = 0;
+        o->m_mask[0] = AT91C_TC_COVFS;
+        o->m_mask[1] = 0;
+        o->m_mask[2] = 0;
         
         at91sam7s_pmc_enable_periph(AT91C_ID_TC0);
         AT91C_BASE_TCB->TCB_TC0.TC_CMR = (Prescale - 1) | AT91C_TC_WAVE | AT91C_TC_EEVT_XC0;
@@ -111,12 +119,13 @@ public:
             AT91C_BASE_TCB->TCB_TC2.TC_CCR = AT91C_TC_CLKEN | AT91C_TC_SWTRG;
         }
         
-        this->debugInit(c);
+        o->debugInit(c);
     }
     
-    void deinit (Context c, bool need_tc1, bool need_tc2)
+    static void deinit (Context c, bool need_tc1, bool need_tc2)
     {
-        this->debugDeinit(c);
+        At91Sam7sClock *o = self(c);
+        o->debugDeinit(c);
         
         if (need_tc2) {
             at91sam7s_aic_disable_irq(AT91C_ID_TC2);
@@ -139,48 +148,52 @@ public:
     }
     
     template <typename ThisContext>
-    TimeType getTime (ThisContext c)
+    static TimeType getTime (ThisContext c)
     {
-        this->debugAccess(c);
+        At91Sam7sClock *o = self(c);
+        o->debugAccess(c);
         
         TimeType now;
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            now = m_offset + tc()->TC_CV;
-            m_status[0] |= tc()->TC_SR;
-            if ((m_status[0] & AT91C_TC_COVFS)) {
-                now = (TimeType)(m_offset + tc()->TC_CV) + UINT32_C(0x00010000);
+            now = o->m_offset + tc()->TC_CV;
+            o->m_status[0] |= tc()->TC_SR;
+            if ((o->m_status[0] & AT91C_TC_COVFS)) {
+                now = (TimeType)(o->m_offset + tc()->TC_CV) + UINT32_C(0x00010000);
             }
         }
         
         return now;
     }
     
-    void tc0_irq (InterruptContext<Context> c)
+    static void tc0_irq (InterruptContext<Context> c)
     {
-        uint32_t status = (m_status[0] | AT91C_BASE_TCB->TCB_TC0.TC_SR) & m_mask[0];
+        At91Sam7sClock *o = self(c);
+        uint32_t status = (o->m_status[0] | AT91C_BASE_TCB->TCB_TC0.TC_SR) & o->m_mask[0];
         if ((status & AT91C_TC_COVFS)) {
-            m_offset += UINT32_C(0x00010000);
+            o->m_offset += UINT32_C(0x00010000);
         }
-        m_status[0] = 0;
+        o->m_status[0] = 0;
         At91Sam7SClock_IrqHandlerTC0A(status);
         At91Sam7SClock_IrqHandlerTC0B(status);
         At91Sam7SClock_IrqHandlerTC0C(status);
     }
     
-    void tc1_irq (InterruptContext<Context> c)
+    static void tc1_irq (InterruptContext<Context> c)
     {
-        uint32_t status = (m_status[1] | AT91C_BASE_TCB->TCB_TC1.TC_SR) & m_mask[1];
-        m_status[1] = 0;
+        At91Sam7sClock *o = self(c);
+        uint32_t status = (o->m_status[1] | AT91C_BASE_TCB->TCB_TC1.TC_SR) & o->m_mask[1];
+        o->m_status[1] = 0;
         At91Sam7SClock_IrqHandlerTC1A(status);
         At91Sam7SClock_IrqHandlerTC1B(status);
         At91Sam7SClock_IrqHandlerTC1C(status);
     }
     
-    void tc2_irq (InterruptContext<Context> c)
+    static void tc2_irq (InterruptContext<Context> c)
     {
-        uint32_t status = (m_status[2] | AT91C_BASE_TCB->TCB_TC2.TC_SR) & m_mask[2];
-        m_status[2] = 0;
+        At91Sam7sClock *o = self(c);
+        uint32_t status = (o->m_status[2] | AT91C_BASE_TCB->TCB_TC2.TC_SR) & o->m_mask[2];
+        o->m_status[2] = 0;
         At91Sam7SClock_IrqHandlerTC2A(status);
         At91Sam7SClock_IrqHandlerTC2B(status);
         At91Sam7SClock_IrqHandlerTC2C(status);
@@ -198,28 +211,35 @@ public:
     uint32_t m_mask[3];
 };
 
-template <typename Context, typename Handler, uint32_t tc_addr, uint32_t cp_reg_offset, uint32_t cp_mask, int tc_num>
+template <typename Position, typename Context, typename Handler, uint32_t tc_addr, uint32_t cp_reg_offset, uint32_t cp_mask, int tc_num>
 class At91Sam7sClockInterruptTimer
 : private DebugObject<Context, void>
 {
+    static At91Sam7sClockInterruptTimer * self (Context c)
+    {
+        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+    }
+    
 public:
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
     typedef InterruptContext<Context> HandlerContext;
     
-    void init (Context c)
+    static void init (Context c)
     {
-        this->debugInit(c);
+        At91Sam7sClockInterruptTimer *o = self(c);
+        o->debugInit(c);
         
 #ifdef AMBROLIB_ASSERTIONS
-        m_running = false;
+        o->m_running = false;
 #endif
     }
     
-    void deinit (Context c)
+    static void deinit (Context c)
     {
+        At91Sam7sClockInterruptTimer *o = self(c);
         Clock *clock = c.clock();
-        this->debugDeinit(c);
+        o->debugDeinit(c);
         
         my_tc()->TC_IDR = cp_mask;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -228,15 +248,16 @@ public:
     }
     
     template <typename ThisContext>
-    void set (ThisContext c, TimeType time)
+    static void set (ThisContext c, TimeType time)
     {
+        At91Sam7sClockInterruptTimer *o = self(c);
         Clock *clock = c.clock();
-        this->debugAccess(c);
-        AMBRO_ASSERT(!m_running)
+        o->debugAccess(c);
+        AMBRO_ASSERT(!o->m_running)
         
-        m_time = time;
+        o->m_time = time;
 #ifdef AMBROLIB_ASSERTIONS
-        m_running = true;
+        o->m_running = true;
 #endif
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -259,10 +280,11 @@ public:
     }
     
     template <typename ThisContext>
-    void unset (ThisContext c)
+    static void unset (ThisContext c)
     {
+        At91Sam7sClockInterruptTimer *o = self(c);
         Clock *clock = c.clock();
-        this->debugAccess(c);
+        o->debugAccess(c);
         
         my_tc()->TC_IDR = cp_mask;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -270,13 +292,14 @@ public:
         }
         
 #ifdef AMBROLIB_ASSERTIONS
-        m_running = false;
+        o->m_running = false;
 #endif
     }
     
     template <uint32_t check_tc_addr, int check_cp_mask>
-    void irq_handler (InterruptContext<Context> c, uint32_t status)
+    static void irq_handler (InterruptContext<Context> c, uint32_t status)
     {
+        At91Sam7sClockInterruptTimer *o = self(c);
         static_assert(check_tc_addr == tc_addr && check_cp_mask == cp_mask, "incorrect GLOBAL macro used");
         Clock *clock = c.clock();
         
@@ -284,20 +307,20 @@ public:
             return;
         }
         
-        AMBRO_ASSERT(m_running)
+        AMBRO_ASSERT(o->m_running)
         
         TimeType now = clock->m_offset + Clock::tc()->TC_CV;
         clock->m_status[0] |= Clock::tc()->TC_SR;
         if ((clock->m_status[0] & AT91C_TC_COVFS)) {
             now = (TimeType)(clock->m_offset + Clock::tc()->TC_CV) + UINT32_C(0x00010000);
         }
-        now -= m_time;
+        now -= o->m_time;
         
         if (now < UINT32_C(0x80000000)) {
 #ifdef AMBROLIB_ASSERTIONS
-            m_running = false;
+            o->m_running = false;
 #endif
-            if (!Handler::call(this, c)) {
+            if (!Handler::call(o, c)) {
                 my_tc()->TC_IDR = cp_mask;
                 clock->m_mask[tc_num] &= ~cp_mask;
             }
@@ -328,32 +351,32 @@ private:
 // 24 = offsetof(AT91S_TC, TC_RB)
 // 28 = offsetof(AT91S_TC, TC_RC)
 
-template <typename Context, typename Handler>
-using At91Sam7sClockInterruptTimer_TC0A = At91Sam7sClockInterruptTimer<Context, Handler, (uint32_t)AT91C_BASE_TC0, 20, AT91C_TC_CPAS, 0>;
+template <typename Position, typename Context, typename Handler>
+using At91Sam7sClockInterruptTimer_TC0A = At91Sam7sClockInterruptTimer<Position, Context, Handler, (uint32_t)AT91C_BASE_TC0, 20, AT91C_TC_CPAS, 0>;
 
-template <typename Context, typename Handler>
-using At91Sam7sClockInterruptTimer_TC0B = At91Sam7sClockInterruptTimer<Context, Handler, (uint32_t)AT91C_BASE_TC0, 24, AT91C_TC_CPBS, 0>;
+template <typename Position, typename Context, typename Handler>
+using At91Sam7sClockInterruptTimer_TC0B = At91Sam7sClockInterruptTimer<Position, Context, Handler, (uint32_t)AT91C_BASE_TC0, 24, AT91C_TC_CPBS, 0>;
 
-template <typename Context, typename Handler>
-using At91Sam7sClockInterruptTimer_TC0C = At91Sam7sClockInterruptTimer<Context, Handler, (uint32_t)AT91C_BASE_TC0, 28, AT91C_TC_CPCS, 0>;
+template <typename Position, typename Context, typename Handler>
+using At91Sam7sClockInterruptTimer_TC0C = At91Sam7sClockInterruptTimer<Position, Context, Handler, (uint32_t)AT91C_BASE_TC0, 28, AT91C_TC_CPCS, 0>;
 
-template <typename Context, typename Handler>
-using At91Sam7sClockInterruptTimer_TC1A = At91Sam7sClockInterruptTimer<Context, Handler, (uint32_t)AT91C_BASE_TC1, 20, AT91C_TC_CPAS, 1>;
+template <typename Position, typename Context, typename Handler>
+using At91Sam7sClockInterruptTimer_TC1A = At91Sam7sClockInterruptTimer<Position, Context, Handler, (uint32_t)AT91C_BASE_TC1, 20, AT91C_TC_CPAS, 1>;
 
-template <typename Context, typename Handler>
-using At91Sam7sClockInterruptTimer_TC1B = At91Sam7sClockInterruptTimer<Context, Handler, (uint32_t)AT91C_BASE_TC1, 24, AT91C_TC_CPBS, 1>;
+template <typename Position, typename Context, typename Handler>
+using At91Sam7sClockInterruptTimer_TC1B = At91Sam7sClockInterruptTimer<Position, Context, Handler, (uint32_t)AT91C_BASE_TC1, 24, AT91C_TC_CPBS, 1>;
 
-template <typename Context, typename Handler>
-using At91Sam7sClockInterruptTimer_TC1C = At91Sam7sClockInterruptTimer<Context, Handler, (uint32_t)AT91C_BASE_TC1, 28, AT91C_TC_CPCS, 1>;
+template <typename Position, typename Context, typename Handler>
+using At91Sam7sClockInterruptTimer_TC1C = At91Sam7sClockInterruptTimer<Position, Context, Handler, (uint32_t)AT91C_BASE_TC1, 28, AT91C_TC_CPCS, 1>;
 
-template <typename Context, typename Handler>
-using At91Sam7sClockInterruptTimer_TC2A = At91Sam7sClockInterruptTimer<Context, Handler, (uint32_t)AT91C_BASE_TC2, 20, AT91C_TC_CPAS, 2>;
+template <typename Position, typename Context, typename Handler>
+using At91Sam7sClockInterruptTimer_TC2A = At91Sam7sClockInterruptTimer<Position, Context, Handler, (uint32_t)AT91C_BASE_TC2, 20, AT91C_TC_CPAS, 2>;
 
-template <typename Context, typename Handler>
-using At91Sam7sClockInterruptTimer_TC2B = At91Sam7sClockInterruptTimer<Context, Handler, (uint32_t)AT91C_BASE_TC2, 24, AT91C_TC_CPBS, 2>;
+template <typename Position, typename Context, typename Handler>
+using At91Sam7sClockInterruptTimer_TC2B = At91Sam7sClockInterruptTimer<Position, Context, Handler, (uint32_t)AT91C_BASE_TC2, 24, AT91C_TC_CPBS, 2>;
 
-template <typename Context, typename Handler>
-using At91Sam7sClockInterruptTimer_TC2C = At91Sam7sClockInterruptTimer<Context, Handler, (uint32_t)AT91C_BASE_TC2, 28, AT91C_TC_CPCS, 2>;
+template <typename Position, typename Context, typename Handler>
+using At91Sam7sClockInterruptTimer_TC2C = At91Sam7sClockInterruptTimer<Position, Context, Handler, (uint32_t)AT91C_BASE_TC2, 28, AT91C_TC_CPCS, 2>;
 
 #define AMBRO_AT91SAM7S_CLOCK_GLOBAL(the_clock, context) \
 void At91Sam7sClock_TC0_Irq (void) \
