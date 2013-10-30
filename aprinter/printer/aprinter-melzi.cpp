@@ -66,7 +66,7 @@ using namespace APrinter;
  * Explanation of common parameters.
  * 
  * BaudRate
- * The baud rate for the serial port. Do not use more than 57600, as that may result in
+ * The baud rate for the serial port. Do not use more than 115200, as that may result in
  * received bytes being dropped due to pending interrupts.
  * 
  * ReceiveBufferSizeExp
@@ -395,7 +395,7 @@ using PrinterParams = PrinterMainParams<
      * Common parameters.
      */
     PrinterMainSerialParams<
-        UINT32_C(57600), // BaudRate
+        UINT32_C(115200), // BaudRate
         GcodeParserParams<8>, // ReceiveBufferSizeExp
         AvrSerial,
         AvrSerialParams<true>
