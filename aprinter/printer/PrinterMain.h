@@ -232,6 +232,7 @@ private:
     
     struct WatchdogPosition;
     struct BlinkerPosition;
+    struct SteppersPosition;
     template <int AxisIndex> struct AxisPosition;
     template <int AxisIndex> struct HomingFeaturePosition;
     template <int AxisIndex> struct HomingStatePosition;
@@ -275,7 +276,7 @@ private:
     using TheWatchdog = typename Params::template WatchdogTemplate<WatchdogPosition, Context, typename Params::WatchdogParams>;
     using TheBlinker = Blinker<BlinkerPosition, Context, typename Params::LedPin, BlinkerHandler>;
     using StepperDefsList = MapTypeList<AxesList, TemplateFunc<MakeStepperDef>>;
-    using TheSteppers = Steppers<Context, StepperDefsList>;
+    using TheSteppers = Steppers<SteppersPosition, Context, StepperDefsList>;
     using TheSerial = typename Params::Serial::template SerialTemplate<SerialPosition, Context, serial_recv_buffer_bits, serial_send_buffer_bits, typename Params::Serial::SerialParams, SerialRecvHandler, SerialSendHandler>;
     using RecvSizeType = typename TheSerial::RecvSizeType;
     using SendSizeType = typename TheSerial::SendSizeType;
@@ -295,7 +296,7 @@ private:
         struct AxisStepperGetStepper;
         
         using AxisSpec = TypeListGet<AxesList, AxisIndex>;
-        using Stepper = SteppersStepper<Context, StepperDefsList, AxisIndex>;
+        using Stepper = typename TheSteppers::template Stepper<AxisIndex>;
         using TheAxisStepper = AxisStepper<AxisStepperPosition, Context, typename AxisSpec::TheAxisStepperParams, Stepper, AxisStepperGetStepper, AxisStepperConsumersList<AxisIndex>>;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
@@ -487,7 +488,7 @@ private:
         
         static Stepper * stepper (Context c)
         {
-            return PrinterMain::self(c)->m_steppers.template getStepper<AxisIndex>();
+            return PrinterMain::self(c)->m_steppers.template getStepper<AxisIndex>(c);
         }
         
         static void init_new_pos (Context c, double *new_pos)
@@ -1700,6 +1701,7 @@ private:
     
     struct WatchdogPosition : public MemberPosition<Position, TheWatchdog, &PrinterMain::m_watchdog> {};
     struct BlinkerPosition : public MemberPosition<Position, TheBlinker, &PrinterMain::m_blinker> {};
+    struct SteppersPosition : public MemberPosition<Position, TheSteppers, &PrinterMain::m_steppers> {};
     template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &PrinterMain::m_axes, AxisIndex> {};
     template <int AxisIndex> struct HomingFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, typename Axis<AxisIndex>::HomingFeature, &Axis<AxisIndex>::m_homing_feature> {};
     template <int AxisIndex> struct HomingStatePosition : public TuplePosition<Position, HomingStateTuple, &PrinterMain::m_homers, AxisIndex> {};
