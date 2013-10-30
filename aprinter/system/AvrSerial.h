@@ -32,7 +32,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>
