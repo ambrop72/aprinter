@@ -80,7 +80,6 @@ public:
         for (typename Extra::FastEventSizeType i = 0; i < Extra::NumFastEvents; i++) {
             extra(c)->m_fast_events[i].not_triggered = true;
         }
-        o->m_lock.init(c);
         
         o->debugInit(c);
     }
@@ -89,7 +88,6 @@ public:
     {
         BusyEventLoop *o = self(c);
         o->debugDeinit(c);
-        o->m_lock.deinit(c);
         AMBRO_ASSERT(o->m_queued_event_list.isEmpty())
     }
     
@@ -168,7 +166,7 @@ public:
         BusyEventLoop *o = self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             extra(c)->m_fast_events[Extra::template get_event_index<EventSpec>()].not_triggered = false;
         }
     }
@@ -189,7 +187,6 @@ private:
 #endif
     TimeType m_now;
     QueuedEventList m_queued_event_list;
-    InterruptLock<Context> m_lock;
 };
 
 template <typename Position, typename Loop, typename FastEventList>

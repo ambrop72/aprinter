@@ -29,6 +29,7 @@
 
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
+#include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -41,7 +42,6 @@ public:
 private:
 #ifdef AMBROLIB_ASSERTIONS
     uint32_t m_count;
-    typename Context::Lock m_lock;
 #endif
     
     template <typename TContext, typename Ident>
@@ -73,7 +73,6 @@ void DebugObjectGroup<Context>::init (Context c)
 {
 #ifdef AMBROLIB_ASSERTIONS
     m_count = 0;
-    m_lock.init(c);
 #endif
 }
 
@@ -82,7 +81,6 @@ void DebugObjectGroup<Context>::deinit (Context c)
 {
 #ifdef AMBROLIB_ASSERTIONS
     AMBRO_ASSERT(m_count == 0)
-    m_lock.deinit(c);
 #endif
 }
 
@@ -93,7 +91,7 @@ void DebugObject<Context, Ident>::debugInit (ThisContext c)
 #ifdef AMBROLIB_ASSERTIONS
     DebugObjectGroup<Context> *g = c.debugGroup();
     m_magic = getMagic();
-    AMBRO_LOCK_T(g->m_lock, c, lock_c) {
+    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
         g->m_count++;
     }
 #endif
@@ -107,7 +105,7 @@ void DebugObject<Context, Ident>::debugDeinit (ThisContext c)
     DebugObjectGroup<Context> *g = c.debugGroup();
     AMBRO_ASSERT(m_magic == getMagic())
     m_magic = 0;
-    AMBRO_LOCK_T(g->m_lock, c, lock_c) {
+    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
         g->m_count--;
     }
 #endif

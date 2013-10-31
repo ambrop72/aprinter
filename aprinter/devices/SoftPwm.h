@@ -56,7 +56,6 @@ public:
     static void init (Context c, TimeType start_time)
     {
         SoftPwm *o = self(c);
-        o->m_lock.init(c);
         o->m_timer.init(c);
         o->m_state = false;
         o->m_start_time = start_time;
@@ -74,7 +73,6 @@ public:
         
         o->m_timer.deinit(c);
         c.pins()->template set<Pin>(c, false);
-        o->m_lock.deinit(c);
     }
     
     TimerInstance * getTimer ()
@@ -112,7 +110,6 @@ private:
         return true;
     }
     
-    typename Context::Lock m_lock;
     TimerInstance m_timer;
     bool m_state;
     TimeType m_start_time;

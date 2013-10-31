@@ -62,8 +62,6 @@ public:
     {
         At91Sam7sSerial *o = self(c);
         
-        o->m_lock.init(c);
-        
         c.eventLoop()->template initFastEvent<RecvFastEvent>(c, At91Sam7sSerial::recv_event_handler);
         o->m_recv_start = RecvSizeType::import(0);
         o->m_recv_end = RecvSizeType::import(0);
@@ -103,7 +101,6 @@ public:
         
         c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
         c.eventLoop()->template resetFastEvent<RecvFastEvent>(c);
-        o->m_lock.deinit(c);
     }
     
     static RecvSizeType recvQuery (Context c, bool *out_overrun)
@@ -114,7 +111,7 @@ public:
         
         RecvSizeType end;
         bool overrun;
-        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             end = o->m_recv_end;
             overrun = o->m_recv_overrun;
         }
@@ -136,7 +133,7 @@ public:
         At91Sam7sSerial *o = self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             AMBRO_ASSERT(amount <= recv_avail(o->m_recv_start, o->m_recv_end))
             o->m_recv_start = BoundedModuloAdd(o->m_recv_start, amount);
         }
@@ -171,7 +168,7 @@ public:
         o->debugAccess(c);
         
         SendSizeType start;
-        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             start = o->m_send_start;
         }
         
@@ -203,7 +200,7 @@ public:
         At91Sam7sSerial *o = self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             AMBRO_ASSERT(amount <= send_avail(o->m_send_start, o->m_send_end))
             o->m_send_end = BoundedModuloAdd(o->m_send_end, amount);
             o->m_send_event = BoundedModuloAdd(o->m_send_event, amount);
@@ -217,7 +214,7 @@ public:
         o->debugAccess(c);
         AMBRO_ASSERT(min_amount > SendSizeType::import(0))
         
-        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             if (send_avail(o->m_send_start, o->m_send_end) >= min_amount) {
                 o->m_send_event = BoundedModuloInc(o->m_send_end);
                 c.eventLoop()->template triggerFastEvent<SendFastEvent>(lock_c);
@@ -233,7 +230,7 @@ public:
         At91Sam7sSerial *o = self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             o->m_send_event = BoundedModuloInc(o->m_send_end);
             c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
         }
@@ -318,8 +315,6 @@ private:
         
         SendHandler::call(o, c);
     }
-    
-    InterruptLock<Context> m_lock;
     
     RecvSizeType m_recv_start;
     RecvSizeType m_recv_end;

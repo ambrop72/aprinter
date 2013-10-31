@@ -56,6 +56,7 @@
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
+#include <aprinter/system/InterruptLock.h>
 #include <aprinter/printer/LinearPlanner.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -828,7 +829,7 @@ public:
                 o->m_num_committed++;
             } else {
                 bool cleared = false;
-                AMBRO_LOCK_T(m->m_lock, c, lock_c) {
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                     m->m_underrun = planner_is_underrun(c);
                     if (!m->m_underrun && o->m_num_committed != ChannelSpec::BufferSize) {
                         o->m_num_committed++;
@@ -903,7 +904,6 @@ public:
     {
         MotionPlanner *o = self(c);
         
-        o->m_lock.init(c);
         o->m_pull_finished_event.init(c, MotionPlanner::pull_finished_event_handler);
         c.eventLoop()->template initFastEvent<StepperFastEvent>(c, MotionPlanner::stepper_event_handler);
         o->m_segments_start = SegmentBufferSizeType::import(0);
@@ -936,7 +936,6 @@ public:
         TupleForEachForward(&o->m_axes, Foreach_deinit(), c);
         c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
         o->m_pull_finished_event.deinit(c);
-        o->m_lock.deinit(c);
     }
     
     static void commandDone (Context c, InputCommand *icmd)
@@ -1090,7 +1089,7 @@ private:
                     TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c, entry);
                 } else {
                     bool cleared = false;
-                    AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+                    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                         o->m_underrun = planner_is_underrun(c);
                         if (!o->m_underrun && TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c)) {
                             TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c, entry);
@@ -1187,7 +1186,7 @@ private:
             ChannelCommandSizeTypeTuple channels_old_first;
             TupleForEachForward(&o->m_axes, Foreach_swap_staging_prepare(), c, axes_old_first);
             TupleForEachForward(&o->m_channels, Foreach_swap_staging_prepare(), c, &channels_old_first);
-            AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 o->m_underrun = planner_is_underrun(c);
                 if (AMBRO_LIKELY(!o->m_underrun)) {
                     TupleForEachForward(&o->m_axes, Foreach_swap_staging_hot(), c);
@@ -1292,7 +1291,7 @@ private:
         AMBRO_ASSERT(o->m_stepping)
         
         bool empty;
-        AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             o->m_underrun = planner_is_underrun(c);
             empty = planner_is_empty(c);
         }
@@ -1324,7 +1323,6 @@ private:
         }
     }
     
-    typename Context::Lock m_lock;
     typename Loop::QueuedEvent m_pull_finished_event;
     SegmentBufferSizeType m_segments_start;
     SegmentBufferSizeType m_segments_staging_end;

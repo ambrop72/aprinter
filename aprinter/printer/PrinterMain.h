@@ -61,6 +61,7 @@
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/devices/SoftPwm.h>
@@ -648,7 +649,6 @@ private:
         static void init (Context c)
         {
             Heater *o = self(c);
-            o->m_lock.init(c);
             o->m_enabled = false;
             o->m_control_config = TheControl::makeDefaultConfig();
             TimeType time = c.clock()->getTime(c);
@@ -665,7 +665,6 @@ private:
             }
             o->m_softpwm.deinit(c);
             o->m_main_control.deinit(c);
-            o->m_lock.deinit(c);
         }
         
         template <typename ThisContext>
@@ -690,7 +689,7 @@ private:
             AMBRO_ASSERT(target > min_safe_temp())
             AMBRO_ASSERT(target < max_safe_temp())
             
-            AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 o->m_target = target;
                 o->m_main_control.set(lock_c);
                 o->m_enabled = true;
@@ -701,7 +700,7 @@ private:
         static void unset (ThisContext c)
         {
             Heater *o = self(c);
-            AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 o->m_enabled = false;
                 o->m_main_control.unset(lock_c);
             }
@@ -861,13 +860,13 @@ private:
                 Heater *h = Heater::self(c);
                 ValueFixedType sensor_value = h->get_value(c);
                 if (AMBRO_LIKELY(sensor_value <= min_safe_temp() || sensor_value >= max_safe_temp())) {
-                    AMBRO_LOCK_T(h->m_lock, c, lock_c) {
+                    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                         h->m_enabled = false;
                         unset(c);
                     }
                 }
                 OutputFixedType output;
-                AMBRO_LOCK_T(h->m_lock, c, lock_c) {
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                     output = o->m_output;
                 }
                 return output;
@@ -882,7 +881,7 @@ private:
                 bool enabled;
                 ValueFixedType target;
                 bool was_not_unset;
-                AMBRO_LOCK_T(h->m_lock, c, lock_c) {
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                     enabled = h->m_enabled;
                     target = h->m_target;
                     was_not_unset = o->m_was_not_unset;
@@ -894,7 +893,7 @@ private:
                     }
                     ValueFixedType sensor_value = h->get_value(c);
                     OutputFixedType output = h->m_control.addMeasurement(sensor_value, target, &h->m_control_config);
-                    AMBRO_LOCK_T(h->m_lock, c, lock_c) {
+                    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                         if (o->m_was_not_unset) {
                             o->m_output = output;
                         }
@@ -922,7 +921,7 @@ private:
             {
                 Heater *h = Heater::self(c);
                 OutputFixedType control_value = OutputFixedType::importBits(0);
-                AMBRO_LOCK_T(h->m_lock, c, lock_c) {
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                     ValueFixedType sensor_value = get_value(lock_c);
                     if (AMBRO_UNLIKELY(sensor_value <= min_safe_temp() || sensor_value >= max_safe_temp())) {
                         h->m_enabled = false;
@@ -935,7 +934,6 @@ private:
             }
         };
         
-        typename Context::Lock m_lock;
         bool m_enabled;
         TheControl m_control;
         ControlConfig m_control_config;
@@ -973,7 +971,6 @@ private:
         static void init (Context c)
         {
             Fan *o = self(c);
-            o->m_lock.init(c);
             o->m_target = OutputFixedType::importBits(0);
             o->m_softpwm.init(c, c.clock()->getTime(c));
         }
@@ -982,7 +979,6 @@ private:
         {
             Fan *o = self(c);
             o->m_softpwm.deinit(c);
-            o->m_lock.deinit(c);
         }
         
         static bool check_command (Context c, int cmd_num, int *out_result)
@@ -1016,7 +1012,7 @@ private:
         {
             Fan *o = self(c);
             OutputFixedType control_value;
-            AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 control_value = o->m_target;
             }
             return control_value;
@@ -1032,12 +1028,11 @@ private:
         {
             Fan *o = self(c);
             ChannelPayload *payload = UnionGetElem<FanIndex>(payload_union);
-            AMBRO_LOCK_T(o->m_lock, c, lock_c) {
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 o->m_target = payload->target;
             }
         }
         
-        typename Context::Lock m_lock;
         OutputFixedType m_target;
         TheSoftPwm m_softpwm;
         

@@ -117,42 +117,6 @@ private:
     };
 };
 
-template <typename Context>
-class InterruptLock {
-private:
-public:
-    template <typename ThisContext>
-    void init (ThisContext c)
-    {
-    }
-    
-    template <typename ThisContext>
-    void deinit (ThisContext c)
-    {
-    }
-    
-    template <typename ThisContext>
-    using EnterContext = typename InterruptLockImpl::template EnterContext<ThisContext>;
-    
-    template <typename ThisContext>
-    inline static EnterContext<ThisContext> makeContext (ThisContext c)
-    {
-        return InterruptLockImpl::makeContext(c);
-    }
-    
-    template <typename ThisContext>
-    inline static void enterLock (ThisContext c)
-    {
-        return InterruptLockImpl::enterLock(c);
-    }
-    
-    template <typename ThisContext>
-    inline static void exitLock (ThisContext c)
-    {
-        return InterruptLockImpl::exitLock(c);
-    }
-};
-
 InterruptLockImpl InterruptTempLock ()
 {
     return InterruptLockImpl();

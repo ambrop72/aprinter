@@ -380,7 +380,6 @@ using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
-    using Lock = InterruptLock<MyContext>;
     using Clock = MyClock;
     using EventLoop = MyLoop;
     using Pins = MyPins;
