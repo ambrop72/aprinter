@@ -27,6 +27,7 @@
 
 #include <math.h>
 
+#include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
