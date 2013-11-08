@@ -207,6 +207,14 @@ public:
         return (start == o->m_end);
     }
     
+    static void unsetEvent (Context c)
+    {
+        AvrSpi *o = self(c);
+        o->debugAccess(c);
+        
+        c.eventLoop()->template resetFastEvent<FastEvent>(c);
+    }
+    
     static void spi_stc_isr (InterruptContext<Context> c)
     {
         AvrSpi *o = self(c);
