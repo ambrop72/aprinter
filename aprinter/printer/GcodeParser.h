@@ -182,6 +182,15 @@ public:
         o->m_state = STATE_NOCMD;
     }
     
+    static char * getBuffer (Context c)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state != STATE_NOCMD)
+        
+        return o->m_buffer;
+    }
+    
 private:
     enum {STATE_NOCMD, STATE_OUTSIDE, STATE_INSIDE, STATE_CHECKSUM};
     
