@@ -91,7 +91,6 @@ public:
         c.eventLoop()->template initFastEvent<FastEvent>(c, AvrSpi::event_handler);
         o->m_start = CommandSizeType::import(0);
         o->m_end = CommandSizeType::import(0);
-        o->m_completed = CommandSizeType::import(0);
         
         c.pins()->template set<SckPin>(c, false);
         c.pins()->template set<MosiPin>(c, false);
@@ -99,6 +98,7 @@ public:
         c.pins()->template setOutput<SckPin>(c);
         c.pins()->template setOutput<MosiPin>(c);
         c.pins()->template setInput<MisoPin>(c);
+        
         SPCR = (1 << SPIE) | (1 << SPE) | (1 << MSTR) | (1 << SPR1) | (1 << SPR0);
         SPSR = 0;
         
@@ -147,17 +147,16 @@ public:
         write_command(c);
     }
     
-    static void cmdWriteBuffer (Context c, uint8_t const *data, size_t length)
+    static void cmdWriteBuffer (Context c, uint8_t first_byte, uint8_t const *data, size_t length)
     {
         AvrSpi *o = self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
-        AMBRO_ASSERT(length > 0)
         
         Command *cmd = &o->m_buffer[o->m_end.value()];
         cmd->type = COMMAND_WRITE_BUFFER;
-        cmd->byte = *data;
-        cmd->u.write_buffer.cur = data + 1;
+        cmd->byte = first_byte;
+        cmd->u.write_buffer.cur = data;
         cmd->u.write_buffer.end = data + length;
         write_command(c);
     }
@@ -176,48 +175,42 @@ public:
         write_command(c);
     }
     
-    static CommandSizeType completedQuery (Context c)
+    static CommandSizeType getEndIndex (Context c)
     {
         AvrSpi *o = self(c);
         o->debugAccess(c);
         
-        return completed_query(c);
+        return o->m_end;
     }
     
-    static bool completedEverything (Context c)
+    static bool indexReached (Context c, CommandSizeType index)
     {
         AvrSpi *o = self(c);
         o->debugAccess(c);
         
-        CommandSizeType completed;
+        CommandSizeType start;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            completed = o->m_completed;
+            start = o->m_start;
         }
-        return (completed == o->m_end);
+        return (BoundedModuloSubtract(o->m_end, start) <= BoundedModuloSubtract(o->m_end, index));
     }
     
-    Command * completedGet (Context c, CommandSizeType i)
+    static bool endReached (Context c)
     {
         AvrSpi *o = self(c);
         o->debugAccess(c);
-        AMBRO_ASSERT(i < completed_query(c))
         
-        return &o->m_buffer[BoundedModuloAdd(o->m_start, i).value()];
-    }
-    
-    static void completedConsume (Context c, CommandSizeType i)
-    {
-        AvrSpi *o = self(c);
-        o->debugAccess(c);
-        AMBRO_ASSERT(i <= completed_query(c))
-        
-        o->m_start = BoundedModuloAdd(o->m_start, i);
+        CommandSizeType start;
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            start = o->m_start;
+        }
+        return (start == o->m_end);
     }
     
     static void spi_stc_isr (InterruptContext<Context> c)
     {
         AvrSpi *o = self(c);
-        AMBRO_ASSERT(o->m_completed != o->m_end)
+        AMBRO_ASSERT(o->m_start != o->m_end)
         
         Command *cmd = o->m_current;
         switch (cmd->type) {
@@ -258,9 +251,9 @@ public:
             } break;
         }
         c.eventLoop()->template triggerFastEvent<FastEvent>(c);
-        o->m_completed = BoundedModuloInc(o->m_completed);
-        if (AMBRO_LIKELY(o->m_completed != o->m_end)) {
-            o->m_current = &o->m_buffer[o->m_completed.value()];
+        o->m_start = BoundedModuloInc(o->m_start);
+        if (AMBRO_LIKELY(o->m_start != o->m_end)) {
+            o->m_current = &o->m_buffer[o->m_start.value()];
             SPDR = o->m_current->byte;
         }
     }
@@ -298,7 +291,11 @@ private:
     static bool is_full (Context c)
     {
         AvrSpi *o = self(c);
-        return (BoundedModuloSubtract(o->m_end, o->m_start) == CommandSizeType::maxValue());
+        CommandSizeType start;
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            start = o->m_start;
+        }
+        return (BoundedModuloSubtract(o->m_end, start) == CommandSizeType::maxValue());
     }
     
     static void write_command (Context c)
@@ -308,30 +305,19 @@ private:
         
         bool was_idle;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            was_idle = (o->m_completed == o->m_end);
+            was_idle = (o->m_start == o->m_end);
             o->m_end = BoundedModuloInc(o->m_end);
         }
         if (was_idle) {
-            o->m_current = &o->m_buffer[o->m_completed.value()];
+            o->m_current = &o->m_buffer[o->m_start.value()];
             SPDR = o->m_current->byte;
         }
     }
     
-    static CommandSizeType completed_query (Context c)
-    {
-        AvrSpi *o = self(c);
-        CommandSizeType completed;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            completed = o->m_completed;
-        }
-        return BoundedModuloSubtract(completed, o->m_start);
-    }
-    
-    Command m_buffer[(size_t)CommandSizeType::maxIntValue() + 1];
     CommandSizeType m_start;
     CommandSizeType m_end;
-    CommandSizeType m_completed;
     Command *m_current;
+    Command m_buffer[(size_t)CommandSizeType::maxIntValue() + 1];
 };
 
 #define AMBRO_AVR_SPI_ISRS(avrspi, context) \
