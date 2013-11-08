@@ -2,6 +2,7 @@
 #Info: Postprocessor for APrinter firmware
 #Depend: GCode
 #Type: postprocess
+#Param: sdcard_param(float:0) Compress for SD card printing
 #Param: toolTravelSpeed(float:0) Tool change travel speed (mm/s)
 #Param: t0extruder(string:0) T0 PhysicalExtruder (empty=none)
 #Param: t1extruder(string:1) T1 PhysicalExtruder (empty=none)
@@ -87,6 +88,7 @@ if 'filename' in locals():
     
     inputFileName = filename
     outputFileName = filename
+    sdcard = (sdcard_param != 0.0)
     
 else:
     import argparse
@@ -98,6 +100,7 @@ else:
     parser.add_argument('--physical', dest='physical', action='append', nargs=4, metavar=('AxisName', 'OffsetX', 'OffsetY', 'OffsetZ'), required=True)
     parser.add_argument('--tool', dest='tool', action='append', nargs=2, metavar=('ToolIndex', 'PhysicalIndexFrom0'), required=True)
     parser.add_argument('--fan', dest='fan', action='append', nargs=3, metavar=('FanSpeedCmd', 'PhysicalIndexFrom0', 'SpeedMultiplier'))
+    parser.add_argument('--sdcard', dest='sdcard', action='store_true')
     
     args = parser.parse_args()
     inputFileName = args.input
@@ -117,6 +120,7 @@ else:
                 raise Exception('Fan physical index is invalid')
             physicalExtruders[int(f[1])]['fan'] = f[0]
             physicalExtruders[int(f[1])]['fan_multiplier'] = float(f[2])
+    sdcard = bool(args.sdcard)
 
 with open(inputFileName, "r") as f:
     lines = f.readlines()
@@ -135,16 +139,19 @@ subst_match = ['{T%sAxis}' % (i) for i in tools] + ['?T%sAxis?' % (i) for i in t
 subst_replace = [tools[i]['name'] for i in tools] + [tools[i]['name'] for i in tools]
 
 with open(outputFileName, "w") as f:
-    f.write(';DeTool init\n')
+    if not sdcard:
+        f.write(';DeTool init\n')
     f.write('G90\n')
     for tool in tools:
         f.write('G92 %s%.5f\n' % (tools[tool]['name'], currentReqPos['E']))
     f.write('G0 F%.1f\n' % (currentF))
     if tools[currentTool]['fan']:
         f.write('%s S%.2f\n' % (tools[currentTool]['fan'], currentFanSpeed * tools[currentTool]['fan_multiplier']))
-    f.write(';DeTool init end\n')
+    if not sdcard:
+        f.write(';DeTool init end\n')
     
     for line in lines:
+        line = line.strip()
         line = replace_multi(line, subst_match, subst_replace)
         commentPos = line.find(';')
         if commentPos < 0:
@@ -157,10 +164,11 @@ with open(outputFileName, "w") as f:
         elif commentLine.find('DeToolEndIgnoreSection') >= 0:
             currentIgnore = False
         comps = dataLine.split()
+        newLine = (dataLine if sdcard else line) + '\n'
         if len(comps) == 0 or oldIgnore or commentLine.find('DeToolKeep') >= 0:
-            f.write(line)
+            if not sdcard or len(comps) != 0:
+                f.write(newLine)
             continue
-        newLine = line
         
         if comps[0].startswith('T'):
             newLine = ''
@@ -297,4 +305,7 @@ with open(outputFileName, "w") as f:
         
         f.write(newLine)
         
-    f.write(';DeTool end\n')
+    if not sdcard:
+        f.write(';DeTool end\n')
+    if sdcard:
+        f.write('EOF\n')
