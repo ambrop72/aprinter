@@ -112,6 +112,7 @@ public:
                 sei();
             }
             
+        again:;
             TimeType now = c.clock()->getTime(c);
             o->m_now = now;
             for (QueuedEvent *ev = o->m_queued_event_list.first(); ev; ev = o->m_queued_event_list.next(ev)) {
@@ -125,7 +126,7 @@ public:
                         return;
                     }
 #endif
-                    break;
+                    goto again;
                 }
             }
         }
