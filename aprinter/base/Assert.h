@@ -27,6 +27,9 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef AMBROLIB_AVR
+#include <avr/pgmspace.h>
+#endif
 
 #include <aprinter/base/Stringify.h>
 
@@ -36,24 +39,22 @@
 #define AMBRO_ASSERT_ABORT_ACTION { abort(); }
 #endif
 
-#ifdef AMBROLIB_NO_PRINT
-#define AMBRO_ASSERT_FORCE(e) \
-    { \
-        if (!(e)) { \
-            AMBROLIB_EMERGENCY_ACTION \
-            AMBRO_ASSERT_ABORT_ACTION \
-        } \
-    }
+#if defined(AMBROLIB_NO_PRINT)
+#define AMBRO_ASSERT_PRINT_ACTION
+#elif defined(AMBROLIB_AVR)
+#define AMBRO_ASSERT_PRINT_ACTION puts_P(PSTR("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__) "\n"));
 #else
+#define AMBRO_ASSERT_PRINT_ACTION puts("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__) "\n");
+#endif
+
 #define AMBRO_ASSERT_FORCE(e) \
     { \
         if (!(e)) { \
             AMBROLIB_EMERGENCY_ACTION \
-            puts("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__) "\n"); \
+            AMBRO_ASSERT_PRINT_ACTION \
             AMBRO_ASSERT_ABORT_ACTION \
         } \
     }
-#endif
 
 #ifdef AMBROLIB_ASSERTIONS
 #define AMBRO_ASSERT(e) AMBRO_ASSERT_FORCE(e)
