@@ -86,7 +86,6 @@ private:
     static bool timer_handler (TimerInstance *, typename TimerInstance::HandlerContext c)
     {
         SoftPwm *o = self(c);
-        o->debugAccess(c);
         
         TimeType next_time;
         if (AMBRO_LIKELY(!o->m_state)) {
