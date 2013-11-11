@@ -51,7 +51,6 @@ class AvrSpi : public DebugObject<Context, void> {
         return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
     }
     
-public:
     enum {
         COMMAND_READ_BUFFER,
         COMMAND_READ_UNTIL_DIFFERENT,
@@ -82,6 +81,7 @@ public:
         } u;
     };
     
+public:
     using CommandSizeType = BoundedInt<CommandBufferBits, false>;
     
     static void init (Context c)
@@ -131,19 +131,18 @@ public:
         write_command(c);
     }
     
-    static void cmdReadUntilDifferent (Context c, uint8_t target_byte, uint8_t max_length, uint8_t send_byte, uint8_t *data)
+    static void cmdReadUntilDifferent (Context c, uint8_t target_byte, uint8_t max_extra_length, uint8_t send_byte, uint8_t *data)
     {
         AvrSpi *o = self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
-        AMBRO_ASSERT(max_length > 0)
         
         Command *cmd = &o->m_buffer[o->m_end.value()];
         cmd->type = COMMAND_READ_UNTIL_DIFFERENT;
         cmd->byte = send_byte;
         cmd->u.read_until_different.data = data;
         cmd->u.read_until_different.target_byte = target_byte;
-        cmd->u.read_until_different.remain = max_length - 1;
+        cmd->u.read_until_different.remain = max_extra_length;
         write_command(c);
     }
     
@@ -161,17 +160,16 @@ public:
         write_command(c);
     }
     
-    static void cmdWriteByte (Context c, uint8_t byte, size_t count)
+    static void cmdWriteByte (Context c, uint8_t byte, size_t extra_count)
     {
         AvrSpi *o = self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
-        AMBRO_ASSERT(count > 0)
         
         Command *cmd = &o->m_buffer[o->m_end.value()];
         cmd->type = COMMAND_WRITE_BYTE;
         cmd->byte = byte;
-        cmd->u.write_byte.count = count - 1;
+        cmd->u.write_byte.count = extra_count;
         write_command(c);
     }
     
@@ -188,10 +186,7 @@ public:
         AvrSpi *o = self(c);
         o->debugAccess(c);
         
-        CommandSizeType start;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            start = o->m_start;
-        }
+        CommandSizeType start = get_start(c);
         return (BoundedModuloSubtract(o->m_end, start) <= BoundedModuloSubtract(o->m_end, index));
     }
     
@@ -200,10 +195,7 @@ public:
         AvrSpi *o = self(c);
         o->debugAccess(c);
         
-        CommandSizeType start;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            start = o->m_start;
-        }
+        CommandSizeType start = get_start(c);
         return (start == o->m_end);
     }
     
@@ -296,13 +288,20 @@ private:
         return Handler::call(c);
     }
     
-    static bool is_full (Context c)
+    static CommandSizeType get_start (Context c)
     {
         AvrSpi *o = self(c);
         CommandSizeType start;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             start = o->m_start;
         }
+        return start;
+    }
+    
+    static bool is_full (Context c)
+    {
+        AvrSpi *o = self(c);
+        CommandSizeType start = get_start(c);
         return (BoundedModuloSubtract(o->m_end, start) == CommandSizeType::maxValue());
     }
     

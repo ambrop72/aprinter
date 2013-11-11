@@ -104,7 +104,7 @@ public:
         AMBRO_ASSERT(o->m_state == STATE_INACTIVE)
         
         o->m_spi.init(c);
-        o->m_spi.cmdWriteByte(c, 0xff, 128);
+        o->m_spi.cmdWriteByte(c, 0xff, 128 - 1);
         o->m_state = STATE_INIT1;
     }
     
@@ -145,7 +145,7 @@ public:
         sd_command(c, CMD_READ_SINGLE_BLOCK, addr, true, state->buf, state->buf);
         o->m_spi.cmdReadUntilDifferent(c, 0xff, 255, 0xff, state->buf + 1);
         o->m_spi.cmdReadBuffer(c, data, 512, 0xff);
-        o->m_spi.cmdWriteByte(c, 0xff, 2);
+        o->m_spi.cmdWriteByte(c, 0xff, 2 - 1);
         state->spi_end_index = o->m_spi.getEndIndex(c);
     }
     
@@ -243,9 +243,9 @@ private:
         SpiSdCard *o = self(c);
         sd_command(c, CMD_SEND_CSD, 0, true, o->m_buf1, o->m_buf1);
         o->m_spi.cmdReadUntilDifferent(c, 0xff, 255, 0xff, o->m_buf1 + 1);
-        o->m_spi.cmdWriteByte(c, 0xff, 5);
+        o->m_spi.cmdWriteByte(c, 0xff, 5 - 1);
         o->m_spi.cmdReadBuffer(c, o->m_buf2, 6, 0xff);
-        o->m_spi.cmdWriteByte(c, 0xff, 7);
+        o->m_spi.cmdWriteByte(c, 0xff, 7 - 1);
     }
     
     static void spi_handler (Context c)
