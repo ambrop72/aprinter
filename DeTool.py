@@ -178,7 +178,8 @@ with open(outputFileName, "w") as f:
             newTool = int(toolStr)
             if newTool != currentTool:
                 toolName = tools[newTool]['name']
-                newLine += ';DeTool switch to tool %s (%s)\n' % (newTool, toolName)
+                if not sdcard:
+                    newLine += ';DeTool switch to tool %s (%s)\n' % (newTool, toolName)
                 newLine += 'G92 %s%.5f\n' % (toolName, currentReqPos['E'])
                 for axisName in currentPhysPos:
                     if not currentKnown[axisName]:
@@ -188,7 +189,8 @@ with open(outputFileName, "w") as f:
                     newLine += '%s S0\n' % (tools[currentTool]['fan'])
                 if tools[newTool]['fan']:
                     newLine += '%s S%.2f\n' % (tools[newTool]['fan'], currentFanSpeed * tools[newTool]['fan_multiplier'])
-                newLine += ';DeTool switch end\n'
+                if not sdcard:
+                    newLine += ';DeTool switch end\n'
                 currentTool = newTool
             
         elif comps[0] == 'G28':
@@ -206,11 +208,15 @@ with open(outputFileName, "w") as f:
             
         elif comps[0] == 'G90':
             currentRelative = False
-            newLine = ';DeTool absolute\n'
+            newLine = ''
+            if not sdcard:
+                newLine = ';DeTool absolute\n'
             
         elif comps[0] == 'G91':
             currentRelative = True
-            newLine = ';DeTool relative\n'
+            newLine = ''
+            if not sdcard:
+                newLine = ';DeTool relative\n'
             
         elif comps[0] == 'G92':
             newComps = [comps[0]]
@@ -257,14 +263,17 @@ with open(outputFileName, "w") as f:
                         currentPhysPos[axisName] = currentReqPos[axisName] + tools[currentTool]['offsets'][axisName]
                         currentPending[axisName] = False
                 if len(pendingAxes) > 0:
+                    if not sdcard:
+                        newLine += ';DeTool travel after tool change\n'
                     newLine += \
-                        ';DeTool travel after tool change\n' \
                         'G0 %s F%.1f\n' % (' '.join(['%s%.5f' % (axisName, currentPhysPos[axisName]) for axisName in pendingAxes]), toolTravelSpeed * 60.0) + \
-                        'G0 F%.1f\n' % (currentF) + \
-                        ';DeTool travel after tool change end\n'
+                        'G0 F%.1f\n' % (currentF)
+                    if not sdcard:
+                        newLine += ';DeTool travel after tool change end\n'
                 newF = currentF
             elif sum(currentPending.values()) > 0:
-                newLine += ';DeTool merging tool change with G0\n'
+                if not sdcard:
+                    newLine += ';DeTool merging tool change with G0\n'
             newReqPos = currentReqPos.copy()
             seenAxes = []
             for i in range(1, len(comps)):
