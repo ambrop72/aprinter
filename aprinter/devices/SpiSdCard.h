@@ -31,6 +31,7 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInInt.h>
+#include <aprinter/base/Likely.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 
@@ -61,8 +62,9 @@ class SpiSdCard : public DebugObject<Context, void> {
     }
     
 public:
-    struct ReadState {
-        uint8_t buf[7];
+    class ReadState {
+        friend SpiSdCard;
+        uint8_t buf[6];
         SpiCommandSizeType spi_end_index;
     };
     
@@ -71,7 +73,6 @@ public:
         SpiSdCard *o = self(c);
         
         o->m_state = STATE_INACTIVE;
-        
         c.pins()->template set<SsPin>(c, true);
         c.pins()->template setOutput<SsPin>(c);
         
@@ -83,18 +84,10 @@ public:
         SpiSdCard *o = self(c);
         o->debugDeinit(c);
         
+        c.pins()->template set<SsPin>(c, true);
         if (o->m_state != STATE_INACTIVE) {
-            c.pins()->template set<SsPin>(c, true);
             o->m_spi.deinit(c);
         }
-    }
-    
-    static bool isActive (Context c)
-    {
-        SpiSdCard *o = self(c);
-        o->debugAccess(c);
-        
-        return (o->m_state != STATE_INACTIVE);
     }
     
     static void activate (Context c)
@@ -115,14 +108,6 @@ public:
         AMBRO_ASSERT(o->m_state != STATE_INACTIVE)
         
         deactivate_common(c);
-    }
-    
-    static void isInited (Context c)
-    {
-        SpiSdCard *o = self(c);
-        o->debugAccess(c);
-        
-        return (o->m_state == STATE_RUNNING);
     }
     
     static uint32_t getCapacityBlocks (Context c)
@@ -182,7 +167,6 @@ private:
     using SsPin = typename Params::SsPin;
     
     enum {
-        STATE_RUNNING,
         STATE_INACTIVE,
         STATE_INIT1,
         STATE_INIT2,
@@ -191,7 +175,8 @@ private:
         STATE_INIT5,
         STATE_INIT6,
         STATE_INIT7,
-        STATE_INIT8
+        STATE_INIT8,
+        STATE_RUNNING
     };
     
     static const uint8_t CMD_GO_IDLE_STATE = 0;
@@ -354,6 +339,7 @@ private:
     static void deactivate_common (Context c)
     {
         SpiSdCard *o = self(c);
+        
         c.pins()->template set<SsPin>(c, true);
         o->m_spi.deinit(c);
         o->m_state = STATE_INACTIVE;
@@ -367,12 +353,14 @@ private:
     
     TheSpi m_spi;
     uint8_t m_state;
-    bool m_sdhc;
+    union {
+        uint8_t m_count;
+        bool m_sdhc;
+    };
     union {
         struct {
             uint8_t m_buf1[6];
             uint8_t m_buf2[6];
-            uint8_t m_count;
         };
         uint32_t m_capacity_blocks;
     };
