@@ -68,34 +68,34 @@ public:
         return makeConfig(Params::P::value(), Params::I::value(), Params::D::value(), Params::IStateMin::value(), Params::IStateMax::value(), Params::DHistory::value());
     }
     
-    template <typename Context, typename Main>
-    static void setConfigCommand (Context c, Main *m, Config *config)
+    template <typename Context, typename TheChannelCommon>
+    static void setConfigCommand (Context c, TheChannelCommon *cc, Config *config)
     {
         *config = makeConfig(
-            m->get_command_param_double(c, 'P', config->p),
-            m->get_command_param_double(c, 'I', config->i),
-            m->get_command_param_double(c, 'D', config->d),
-            m->get_command_param_double(c, 'M', config->istatemin),
-            m->get_command_param_double(c, 'A', config->istatemax),
-            m->get_command_param_double(c, 'H', config->dhistory)
+            cc->get_command_param_double(c, 'P', config->p),
+            cc->get_command_param_double(c, 'I', config->i),
+            cc->get_command_param_double(c, 'D', config->d),
+            cc->get_command_param_double(c, 'M', config->istatemin),
+            cc->get_command_param_double(c, 'A', config->istatemax),
+            cc->get_command_param_double(c, 'H', config->dhistory)
         );
     }
     
-    template <typename Context, typename Main>
-    static void printConfig (Context c, Main *m, Config const *config)
+    template <typename Context, typename TheChannelCommon>
+    static void printConfig (Context c, TheChannelCommon *cc, Config const *config)
     {
-        m->reply_append_str(c, " P");
-        m->reply_append_double(c, config->p);
-        m->reply_append_str(c, " I");
-        m->reply_append_double(c, config->i);
-        m->reply_append_str(c, " D");
-        m->reply_append_double(c, config->d);
-        m->reply_append_str(c, " M");
-        m->reply_append_double(c, config->istatemin);
-        m->reply_append_str(c, " A");
-        m->reply_append_double(c, config->istatemax);
-        m->reply_append_str(c, " H");
-        m->reply_append_double(c, config->dhistory);
+        cc->reply_append_str(c, " P");
+        cc->reply_append_double(c, config->p);
+        cc->reply_append_str(c, " I");
+        cc->reply_append_double(c, config->i);
+        cc->reply_append_str(c, " D");
+        cc->reply_append_double(c, config->d);
+        cc->reply_append_str(c, " M");
+        cc->reply_append_double(c, config->istatemin);
+        cc->reply_append_str(c, " A");
+        cc->reply_append_double(c, config->istatemax);
+        cc->reply_append_str(c, " H");
+        cc->reply_append_double(c, config->dhistory);
     }
     
     void init ()

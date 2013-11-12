@@ -45,13 +45,13 @@ public:
         return Config();
     }
     
-    template <typename Context, typename Main>
-    static void setConfigCommand (Context c, Main *m, Config *config)
+    template <typename Context, typename TheChannelCommon>
+    static void setConfigCommand (Context c, TheChannelCommon *cc, Config *config)
     {
     }
     
-    template <typename Context, typename Main>
-    static void printConfig (Context c, Main *m, Config const *config)
+    template <typename Context, typename TheChannelCommon>
+    static void printConfig (Context c, TheChannelCommon *cc, Config const *config)
     {
     }
     
