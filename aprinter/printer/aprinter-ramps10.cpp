@@ -163,6 +163,7 @@ using PrinterParams = PrinterMainParams<
     AvrWatchdogParams<
         WDTO_2S
     >,
+    PrinterMainNoSdCardParams,
     
     /*
      * Axes.

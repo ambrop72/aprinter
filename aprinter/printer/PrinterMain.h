@@ -80,6 +80,7 @@ template <
     int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSizeExp,
     typename TForceTimeout, template <typename, typename, typename> class TEventChannelTimer,
     template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
+    typename TSdCardParams,
     typename TAxesList, typename THeatersList, typename TFansList
 >
 struct PrinterMainParams {
@@ -96,6 +97,7 @@ struct PrinterMainParams {
     template <typename X, typename Y, typename Z> using EventChannelTimer = TEventChannelTimer<X, Y, Z>;
     template <typename X, typename Y, typename Z> using WatchdogTemplate = TWatchdogTemplate<X, Y, Z>;
     using WatchdogParams = TWatchdogParams;
+    using SdCardParams = TSdCardParams;
     using AxesList = TAxesList;
     using HeatersList = THeatersList;
     using FansList = TFansList;
@@ -207,6 +209,24 @@ struct PrinterMainFanParams {
     template <typename X, typename Y, typename Z> using TimerTemplate = TTimerTemplate<X, Y, Z>;
 };
 
+struct PrinterMainNoSdCardParams {
+    static const bool enabled = false;
+};
+
+template <
+    template<typename, typename, typename, int, typename, typename> class TSdCard,
+    typename TSdCardParams, typename TTheGcodeParserParams, int TReadBufferBlocks,
+    int TMaxCommandSize
+>
+struct PrinterMainSdCardParams {
+    static const bool enabled = true;
+    template <typename X, typename Y, typename Z, int R, typename W, typename Q> using SdCard = TSdCard<X, Y, Z, R, W, Q>;
+    using SdCardParams = TSdCardParams;
+    using TheGcodeParserParams = TTheGcodeParserParams;
+    static const int ReadBufferBlocks = TReadBufferBlocks;
+    static const int MaxCommandSize = TMaxCommandSize;
+};
+
 template <typename Position, typename Context, typename Params>
 class PrinterMain
 : private DebugObject<Context, void>
@@ -244,6 +264,7 @@ private:
     template <int AxisIndex> struct HomingFeaturePosition;
     template <int AxisIndex> struct HomingStatePosition;
     struct SerialFeaturePosition;
+    struct SdCardFeaturePosition;
     struct PlannerPosition;
     template <int HeaterIndex> struct HeaterPosition;
     template <int HeaterIndex> struct MainControlPosition;
@@ -680,7 +701,321 @@ private:
         struct SerialSendHandler : public AMBRO_WFUNC_TD(&SerialFeature::serial_send_handler) {};
     };
     
-    using ChannelCommonList = MakeTypeList<typename SerialFeature::TheChannelCommon>;
+    AMBRO_STRUCT_IF(SdCardFeature, Params::SdCardParams::enabled) {
+        struct SdCardPosition;
+        struct GcodeParserPosition;
+        struct ChannelCommonPosition;
+        struct SdCardInitHandler;
+        struct SdCardCommandHandler;
+        
+        static const int ReadBufferBlocks = Params::SdCardParams::ReadBufferBlocks;
+        static const int MaxCommandSize = Params::SdCardParams::MaxCommandSize;
+        static const size_t BlockSize = 512;
+        static_assert(ReadBufferBlocks >= 2, "");
+        static_assert(MaxCommandSize >= 64, "");
+        static_assert(MaxCommandSize < BlockSize, "");
+        static const size_t BufferBaseSize = ReadBufferBlocks * BlockSize;
+        using ParserSizeType = typename ChooseInt<BitsInInt<MaxCommandSize>::value, false>::Type;
+        using TheSdCard = typename Params::SdCardParams::template SdCard<SdCardPosition, Context, typename Params::SdCardParams::SdCardParams, 1, SdCardInitHandler, SdCardCommandHandler>;
+        using TheGcodeParser = GcodeParser<GcodeParserPosition, Context, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
+        using SdCardReadState = typename TheSdCard::ReadState;
+        using SdCardChannelCommon = ChannelCommon<ChannelCommonPosition, SdCardFeature>;
+        enum {SDCARD_NONE, SDCARD_INITING, SDCARD_INITED, SDCARD_RUNNING, SDCARD_PAUSING};
+        
+        static SdCardFeature * self (Context c)
+        {
+            return PositionTraverse<typename Context::TheRootPosition, SdCardFeaturePosition>(c.root());
+        }
+        
+        static void init (Context c)
+        {
+            SdCardFeature *o = self(c);
+            o->m_sdcard.init(c);
+            o->m_channel_common.init(c);
+            o->m_next_event.init(c, SdCardFeature::next_handler);
+            o->m_state = SDCARD_NONE;
+        }
+        
+        static void deinit (Context c)
+        {
+            SdCardFeature *o = self(c);
+            if (o->m_state != SDCARD_NONE && o->m_state != SDCARD_INITING) {
+                o->m_gcode_parser.init(c);
+            }
+            o->m_next_event.deinit(c);
+            o->m_gcode_parser.deinit(c);
+            o->m_sdcard.deinit(c);
+        }
+        
+        template <typename TheChannelCommon>
+        static void finish_init (Context c, TheChannelCommon *cc, uint8_t error_code)
+        {
+            SdCardFeature *o = self(c);
+            
+            if (error_code) {
+                cc->reply_append_str(c, "SD error\n");
+            } else {
+                cc->reply_append_str(c, "SD blocks ");
+                cc->reply_append_uint32(c, o->m_sdcard.getCapacityBlocks(c));
+                cc->reply_append_ch(c, '\n');
+            }
+            cc->finishCommand(c);
+        }
+        
+        static void sd_card_init_handler (Context c, uint8_t error_code)
+        {
+            SdCardFeature *o = self(c);
+            AMBRO_ASSERT(o->m_state == SDCARD_INITING)
+            
+            if (error_code) {
+                o->m_state = SDCARD_NONE;
+            } else {
+                o->m_channel_common.m_line_number = 0;
+                o->m_gcode_parser.init(c);
+                o->m_start = 0;
+                o->m_length = 0;
+                o->m_cmd_offset = 0;
+                o->m_sd_block = 0;
+                o->m_state = SDCARD_INITED;
+            }
+            Tuple<ChannelCommonList> dummy;
+            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_finish_init(), error_code);
+        }
+        
+        static void sd_card_command_handler (Context c)
+        {
+            SdCardFeature *o = self(c);
+            AMBRO_ASSERT(o->m_state == SDCARD_RUNNING || o->m_state == SDCARD_PAUSING)
+            AMBRO_ASSERT(o->m_length < BufferBaseSize)
+            AMBRO_ASSERT(o->m_sd_block < o->m_sdcard.getCapacityBlocks(c))
+            
+            bool error;
+            if (!o->m_sdcard.checkReadBlock(c, &o->m_read_state, &error)) {
+                return;
+            }
+            o->m_sdcard.unsetEvent(c);
+            if (o->m_state == SDCARD_PAUSING) {
+                o->m_state = SDCARD_INITED;
+                return finish_locked(c);
+            }
+            if (error) {
+                SerialFeature::TheChannelCommon::self(c)->reply_append_str(c, "//SdRdEr\n");
+                start_read(c);
+                return;
+            }
+            o->m_sd_block++;
+            if (o->m_length == BufferBaseSize - o->m_start) {
+                memcpy(o->m_buffer + BufferBaseSize, o->m_buffer, MaxCommandSize - 1);
+            }
+            o->m_length += BlockSize;
+            if (o->m_length < BufferBaseSize && o->m_sd_block < o->m_sdcard.getCapacityBlocks(c)) {
+                start_read(c);
+            }
+            if (!o->m_channel_common.m_cmd && !o->m_eof) {
+                o->m_next_event.prependNowNotAlready(c);
+            }
+        }
+        
+        static void next_handler (typename Loop::QueuedEvent *, Context c)
+        {
+            SdCardFeature *o = self(c);
+            AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
+            AMBRO_ASSERT(!o->m_channel_common.m_cmd)
+            AMBRO_ASSERT(!o->m_eof)
+            
+            char const *eof_str;
+            typename TheGcodeParser::Command *cmd;
+            if (!o->m_gcode_parser.haveCommand(c)) {
+                o->m_gcode_parser.startCommand(c, (char *)buf_get(c, o->m_start, o->m_cmd_offset), 0);
+            }
+            ParserSizeType avail = (o->m_length - o->m_cmd_offset > MaxCommandSize) ? MaxCommandSize : (o->m_length - o->m_cmd_offset);
+            if (avail >= 1 && *o->m_gcode_parser.getBuffer(c) == 'E') {
+                eof_str = "//SdEof\n";
+                goto eof;
+            }
+            cmd = o->m_gcode_parser.extendCommand(c, avail);
+            if (cmd) {
+                return o->m_channel_common.startCommand(c, cmd);
+            }
+            if (avail == MaxCommandSize) {
+                eof_str = "//SdLnEr\n";
+                goto eof;
+            }
+            if (o->m_sd_block == o->m_sdcard.getCapacityBlocks(c)) {
+                eof_str = "//SdEnd\n";
+                goto eof;
+            }
+            return;
+        eof:
+            SerialFeature::TheChannelCommon::self(c)->reply_append_str(c, eof_str);
+            o->m_eof = true;
+        }
+        
+        template <typename TheChannelCommon>
+        static bool check_command (Context c, TheChannelCommon *cc)
+        {
+            SdCardFeature *o = self(c);
+            PrinterMain *m = PrinterMain::self(c);
+            
+            if (TypesAreEqual<TheChannelCommon, SdCardChannelCommon>::value) {
+                return true;
+            }
+            if (cc->m_cmd_num == 21) {
+                if (!cc->tryUnplannedCommand(c)) {
+                    return false;
+                }
+                if (o->m_state != SDCARD_NONE) {
+                    cc->finishCommand(c);
+                    return false;
+                }
+                o->m_sdcard.activate(c);
+                o->m_state = SDCARD_INITING;
+                return false;
+            }
+            if (cc->m_cmd_num == 22) {
+                if (!cc->tryUnplannedCommand(c)) {
+                    return false;
+                }
+                cc->finishCommand(c);
+                AMBRO_ASSERT(o->m_state != SDCARD_INITING)
+                AMBRO_ASSERT(o->m_state != SDCARD_PAUSING)
+                if (o->m_state == SDCARD_NONE) {
+                    return false;
+                }
+                o->m_gcode_parser.deinit(c);
+                o->m_sdcard.deactivate(c);
+                o->m_next_event.unset(c);
+                o->m_state = SDCARD_NONE;
+                AMBRO_ASSERT(o->m_channel_common.m_state != COMMAND_LOCKED)
+                o->m_channel_common.m_state = COMMAND_IDLE;
+                o->m_channel_common.m_cmd = NULL;
+                return false;
+            }
+            if (cc->m_cmd_num == 24) {
+                if (!cc->tryUnplannedCommand(c)) {
+                    return false;
+                }
+                cc->finishCommand(c);
+                if (o->m_state != SDCARD_INITED) {
+                    return false;
+                }
+                o->m_state = SDCARD_RUNNING;
+                o->m_eof = false;
+                if (o->m_length < BufferBaseSize && o->m_sd_block < o->m_sdcard.getCapacityBlocks(c)) {
+                    start_read(c);
+                }
+                if (!o->m_channel_common.maybeResumeLockingCommand(c)) {
+                    o->m_next_event.prependNowNotAlready(c);
+                }
+                return false;
+            }
+            if (cc->m_cmd_num == 25) {
+                if (!cc->tryUnplannedCommand(c)) {
+                    return false;
+                }
+                if (o->m_state != SDCARD_RUNNING) {
+                    cc->finishCommand(c);
+                    return false;
+                }
+                o->m_next_event.unset(c);
+                o->m_channel_common.maybePauseLockingCommand(c);
+                if (!(o->m_length < BufferBaseSize && o->m_sd_block < o->m_sdcard.getCapacityBlocks(c))) {
+                    cc->finishCommand(c);
+                    o->m_state = SDCARD_INITED;
+                } else {
+                    o->m_state = SDCARD_PAUSING;
+                }
+                return false;
+            }
+            return true;
+        }
+        
+        static void finish_command_impl (Context c, bool no_ok)
+        {
+            SdCardFeature *o = self(c);
+            AMBRO_ASSERT(o->m_channel_common.m_cmd)
+            AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
+            AMBRO_ASSERT(!o->m_eof)
+            AMBRO_ASSERT(o->m_channel_common.m_cmd->length <= o->m_length - o->m_cmd_offset)
+            
+            o->m_next_event.prependNowNotAlready(c);
+            o->m_cmd_offset += o->m_channel_common.m_cmd->length;
+            if (o->m_cmd_offset >= BlockSize) {
+                o->m_start += BlockSize;
+                if (o->m_start == BufferBaseSize) {
+                    o->m_start = 0;
+                }
+                o->m_length -= BlockSize;
+                o->m_cmd_offset -= BlockSize;
+                if (o->m_length == BufferBaseSize - BlockSize && o->m_sd_block < o->m_sdcard.getCapacityBlocks(c)) {
+                    start_read(c);
+                }
+            }
+        }
+        
+        static void reply_append_buffer_impl (Context c, char const *str, uint8_t length)
+        {
+        }
+        
+        static void reply_append_ch_impl (Context c, char ch)
+        {
+        }
+        
+        static uint8_t * buf_get (Context c, size_t start, size_t count)
+        {
+            SdCardFeature *o = self(c);
+            
+            static_assert(BufferBaseSize <= SIZE_MAX / 2, "");
+            size_t x = start + count;
+            if (x >= BufferBaseSize) {
+                x -= BufferBaseSize;
+            }
+            return o->m_buffer + x;
+        }
+        
+        static void start_read (Context c)
+        {
+            SdCardFeature *o = self(c);
+            AMBRO_ASSERT(o->m_length < BufferBaseSize)
+            AMBRO_ASSERT(o->m_sd_block < o->m_sdcard.getCapacityBlocks(c))
+            
+            o->m_sdcard.queueReadBlock(c, o->m_sd_block, buf_get(c, o->m_start, o->m_length), &o->m_read_state);
+        }
+        
+        TheSdCard m_sdcard;
+        TheGcodeParser m_gcode_parser;
+        SdCardChannelCommon m_channel_common;
+        typename Loop::QueuedEvent m_next_event;
+        SdCardReadState m_read_state;
+        size_t m_start;
+        size_t m_length;
+        size_t m_cmd_offset;
+        bool m_eof;
+        uint32_t m_sd_block;
+        uint8_t m_state;
+        uint8_t m_buffer[BufferBaseSize + (MaxCommandSize - 1)];
+        
+        struct SdCardPosition : public MemberPosition<SdCardFeaturePosition, TheSdCard, &SdCardFeature::m_sdcard> {};
+        struct GcodeParserPosition : public MemberPosition<SdCardFeaturePosition, TheGcodeParser, &SdCardFeature::m_gcode_parser> {};
+        struct ChannelCommonPosition : public MemberPosition<SdCardFeaturePosition, SdCardChannelCommon, &SdCardFeature::m_channel_common> {};
+        struct SdCardInitHandler : public AMBRO_WFUNC_TD(&SdCardFeature::sd_card_init_handler) {};
+        struct SdCardCommandHandler : public AMBRO_WFUNC_TD(&SdCardFeature::sd_card_command_handler) {};
+        
+        using EventLoopFastEvents = typename TheSdCard::EventLoopFastEvents;
+        using SdChannelCommonList = MakeTypeList<SdCardChannelCommon>;
+    } AMBRO_STRUCT_ELSE(SdCardFeature) {
+        static void init (Context c) {}
+        static void deinit (Context c) {}
+        template <typename TheChannelCommon>
+        static bool check_command (Context c, TheChannelCommon *cc) { return true; }
+        using EventLoopFastEvents = EmptyTypeList;
+        using SdChannelCommonList = EmptyTypeList;
+    };
+    
+    using ChannelCommonList = JoinTypeLists<
+        MakeTypeList<typename SerialFeature::TheChannelCommon>,
+        typename SdCardFeature::SdChannelCommonList
+    >;
     using ChannelCommonTuple = Tuple<ChannelCommonList>;
     
     template <int TAxisIndex>
@@ -1463,6 +1798,7 @@ public:
         o->m_steppers.init(c);
         TupleForEachForward(&o->m_axes, Foreach_init(), c);
         o->m_serial_feature.init(c);
+        o->m_sdcard_feature.init(c);
         o->m_unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
         o->m_disable_timer.init(c, PrinterMain::disable_timer_handler);
         o->m_force_timer.init(c, PrinterMain::force_timer_handler);
@@ -1491,6 +1827,7 @@ public:
         o->m_force_timer.deinit(c);
         o->m_disable_timer.deinit(c);
         o->m_unlocked_timer.deinit(c);
+        o->m_sdcard_feature.deinit(c);
         o->m_serial_feature.deinit(c);
         TupleForEachReverse(&o->m_axes, Foreach_deinit(), c);
         o->m_steppers.deinit(c);
@@ -1526,6 +1863,12 @@ public:
         return m_planner.template getChannelTimer<0>();
     }
     
+    template <typename TSdCardFeatue = SdCardFeature>
+    typename TSdCardFeatue::TheSdCard * getSdCard ()
+    {
+        return &m_sdcard_feature.m_sdcard;
+    }
+    
     static void emergency ()
     {
         AxesTuple dummy_axes;
@@ -1537,13 +1880,16 @@ public:
     }
     
     using EventLoopFastEvents = JoinTypeLists<
-        typename SerialFeature::TheSerial::EventLoopFastEvents,
+        typename SdCardFeature::EventLoopFastEvents,
         JoinTypeLists<
-            typename ThePlanner::EventLoopFastEvents,
-            TypeListFold<
-                MapTypeList<typename AxesTuple::ElemTypes, GetMemberType_EventLoopFastEvents>,
-                EmptyTypeList,
-                JoinTypeLists
+            typename SerialFeature::TheSerial::EventLoopFastEvents,
+            JoinTypeLists<
+                typename ThePlanner::EventLoopFastEvents,
+                TypeListFold<
+                    MapTypeList<typename AxesTuple::ElemTypes, GetMemberType_EventLoopFastEvents>,
+                    EmptyTypeList,
+                    JoinTypeLists
+                >
             >
         >
     >;
@@ -1579,7 +1925,8 @@ private:
                 default:
                     if (
                         TupleForEachForwardInterruptible(&o->m_heaters, Foreach_check_command(), c, cc) &&
-                        TupleForEachForwardInterruptible(&o->m_fans, Foreach_check_command(), c, cc)
+                        TupleForEachForwardInterruptible(&o->m_fans, Foreach_check_command(), c, cc) &&
+                        o->m_sdcard_feature.check_command(c, cc)
                     ) {
                         goto unknown_command;
                     }
@@ -1887,6 +2234,7 @@ private:
     typename Loop::QueuedEvent m_disable_timer;
     typename Loop::QueuedEvent m_force_timer;
     SerialFeature m_serial_feature;
+    SdCardFeature m_sdcard_feature;
     HeatersTuple m_heaters;
     FansTuple m_fans;
     TimeType m_inactive_time;
@@ -1913,6 +2261,7 @@ private:
     template <int AxisIndex> struct HomingFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, typename Axis<AxisIndex>::HomingFeature, &Axis<AxisIndex>::m_homing_feature> {};
     template <int AxisIndex> struct HomingStatePosition : public TuplePosition<Position, HomingStateTuple, &PrinterMain::m_homers, AxisIndex> {};
     struct SerialFeaturePosition : public MemberPosition<Position, SerialFeature, &PrinterMain::m_serial_feature> {};
+    struct SdCardFeaturePosition : public MemberPosition<Position, SdCardFeature, &PrinterMain::m_sdcard_feature> {};
     struct PlannerPosition : public MemberPosition<Position, ThePlanner, &PrinterMain::m_planner> {};
     template <int HeaterIndex> struct HeaterPosition : public TuplePosition<Position, HeatersTuple, &PrinterMain::m_heaters, HeaterIndex> {};
     template <int HeaterIndex> struct MainControlPosition : public MemberPosition<HeaterPosition<HeaterIndex>, typename Heater<HeaterIndex>::MainControl, &Heater<HeaterIndex>::m_main_control> {};

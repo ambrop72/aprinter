@@ -154,6 +154,7 @@ using PrinterParams = PrinterMainParams<
     At91Sam7sClockInterruptTimer_TC2A, // EventChannelTimer
     At91Sam7sWatchdog,
     At91Sam7sWatchdogParams,
+    PrinterMainNoSdCardParams,
     
     /*
      * Axes.
