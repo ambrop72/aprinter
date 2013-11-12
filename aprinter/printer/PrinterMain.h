@@ -61,6 +61,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/base/ProgramMemory.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/devices/Blinker.h>
@@ -335,16 +336,16 @@ private:
             
             o->m_cmd = cmd;
             if (o->m_cmd->num_parts <= 0) {
-                char const *err = "unknown error";
+                AMBRO_PGM_P err = AMBRO_PSTR("unknown error");
                 switch (o->m_cmd->num_parts) {
-                    case 0: err = "empty command"; break;
-                    case TheGcodeParser::ERROR_TOO_MANY_PARTS: err = "too many parts"; break;
-                    case TheGcodeParser::ERROR_INVALID_PART: err = "invalid part"; break;
-                    case TheGcodeParser::ERROR_CHECKSUM: err = "incorrect checksum"; break;
-                    case TheGcodeParser::ERROR_RECV_OVERRUN: err = "receive buffer overrun"; break;
+                    case 0: err = AMBRO_PSTR("empty command"); break;
+                    case TheGcodeParser::ERROR_TOO_MANY_PARTS: err = AMBRO_PSTR("too many parts"); break;
+                    case TheGcodeParser::ERROR_INVALID_PART: err = AMBRO_PSTR("invalid part"); break;
+                    case TheGcodeParser::ERROR_CHECKSUM: err = AMBRO_PSTR("incorrect checksum"); break;
+                    case TheGcodeParser::ERROR_RECV_OVERRUN: err = AMBRO_PSTR("receive buffer overrun"); break;
                 }
-                reply_append_str(c, "Error:");
-                reply_append_str(c, err);
+                reply_append_pstr(c, AMBRO_PSTR("Error:"));
+                reply_append_pstr(c, err);
                 reply_append_ch(c, '\n');
                 return finishCommand(c);
             }
@@ -356,7 +357,7 @@ private:
             }
             if (o->m_cmd->have_line_number) {
                 if (o->m_cmd->line_number != o->m_line_number) {
-                    reply_append_str(c, "Error:Line Number is not Last Line Number+1, Last Line:");
+                    reply_append_pstr(c, AMBRO_PSTR("Error:Line Number is not Last Line Number+1, Last Line:"));
                     reply_append_uint32(c, (uint32_t)(o->m_line_number - 1));
                     reply_append_ch(c, '\n');
                     return finishCommand(c);
@@ -536,6 +537,11 @@ private:
             Channel::reply_append_buffer_impl(c, str, strlen(str));
         }
         
+        static void reply_append_pstr (Context c, AMBRO_PGM_P pstr)
+        {
+            Channel::reply_append_pbuffer_impl(c, pstr, AMBRO_PGM_STRLEN(pstr));
+        }
+        
         static void reply_append_ch (Context c, char ch)
         {
             Channel::reply_append_ch_impl(c, ch);
@@ -545,7 +551,7 @@ private:
         {
             char buf[30];
 #if defined(AMBROLIB_AVR)
-            uint8_t len = sprintf(buf, "%g", x);
+            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%g"), x);
             Channel::reply_append_buffer_impl(c, buf, len);
 #else        
             FloatToStrSoft(x, buf);
@@ -557,7 +563,7 @@ private:
         {
             char buf[11];
 #if defined(AMBROLIB_AVR)
-            uint8_t len = sprintf(buf, "%" PRIu32, x);
+            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu32), x);
 #else
             uint8_t len = PrintNonnegativeIntDecimal<uint32_t>(x, buf);
 #endif
@@ -657,7 +663,7 @@ private:
             AMBRO_ASSERT(o->m_channel_common.m_cmd)
             
             if (!no_ok) {
-                o->m_channel_common.reply_append_str(c, "ok\n");
+                o->m_channel_common.reply_append_pstr(c, AMBRO_PSTR("ok\n"));
             }
             o->m_serial.recvConsume(c, RecvSizeType::import(o->m_channel_common.m_cmd->length));
             o->m_serial.recvForceEvent(c);
@@ -676,6 +682,23 @@ private:
                 memcpy(chunk_data, str, chunk_length);
                 o->m_serial.sendProvide(c, SendSizeType::import(chunk_length));
                 str += chunk_length;
+                length -= chunk_length;
+            }
+        }
+        
+        static void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, uint8_t length)
+        {
+            SerialFeature *o = self(c);
+            SendSizeType avail = o->m_serial.sendQuery(c);
+            if (length > avail.value()) {
+                length = avail.value();
+            }
+            while (length > 0) {
+                char *chunk_data = o->m_serial.sendGetChunkPtr(c);
+                uint8_t chunk_length = o->m_serial.sendGetChunkLen(c, SendSizeType::import(length)).value();
+                AMBRO_PGM_MEMCPY(chunk_data, pstr, chunk_length);
+                o->m_serial.sendProvide(c, SendSizeType::import(chunk_length));
+                pstr += chunk_length;
                 length -= chunk_length;
             }
         }
@@ -753,9 +776,9 @@ private:
             SdCardFeature *o = self(c);
             
             if (error_code) {
-                cc->reply_append_str(c, "SD error\n");
+                cc->reply_append_pstr(c, AMBRO_PSTR("SD error\n"));
             } else {
-                cc->reply_append_str(c, "SD blocks ");
+                cc->reply_append_pstr(c, AMBRO_PSTR("SD blocks "));
                 cc->reply_append_uint32(c, o->m_sdcard.getCapacityBlocks(c));
                 cc->reply_append_ch(c, '\n');
             }
@@ -799,7 +822,7 @@ private:
                 return finish_locked(c);
             }
             if (error) {
-                SerialFeature::TheChannelCommon::self(c)->reply_append_str(c, "//SdRdEr\n");
+                SerialFeature::TheChannelCommon::self(c)->reply_append_pstr(c, AMBRO_PSTR("//SdRdEr\n"));
                 start_read(c);
                 return;
             }
@@ -823,14 +846,14 @@ private:
             AMBRO_ASSERT(!o->m_channel_common.m_cmd)
             AMBRO_ASSERT(!o->m_eof)
             
-            char const *eof_str;
+            AMBRO_PGM_P eof_str;
             typename TheGcodeParser::Command *cmd;
             if (!o->m_gcode_parser.haveCommand(c)) {
                 o->m_gcode_parser.startCommand(c, (char *)buf_get(c, o->m_start, o->m_cmd_offset), 0);
             }
             ParserSizeType avail = (o->m_length - o->m_cmd_offset > MaxCommandSize) ? MaxCommandSize : (o->m_length - o->m_cmd_offset);
             if (avail >= 1 && *o->m_gcode_parser.getBuffer(c) == 'E') {
-                eof_str = "//SdEof\n";
+                eof_str = AMBRO_PSTR("//SdEof\n");
                 goto eof;
             }
             cmd = o->m_gcode_parser.extendCommand(c, avail);
@@ -838,16 +861,16 @@ private:
                 return o->m_channel_common.startCommand(c, cmd);
             }
             if (avail == MaxCommandSize) {
-                eof_str = "//SdLnEr\n";
+                eof_str = AMBRO_PSTR("//SdLnEr\n");
                 goto eof;
             }
             if (o->m_sd_block == o->m_sdcard.getCapacityBlocks(c)) {
-                eof_str = "//SdEnd\n";
+                eof_str = AMBRO_PSTR("//SdEnd\n");
                 goto eof;
             }
             return;
         eof:
-            SerialFeature::TheChannelCommon::self(c)->reply_append_str(c, eof_str);
+            SerialFeature::TheChannelCommon::self(c)->reply_append_pstr(c, eof_str);
             o->m_eof = true;
         }
         
@@ -954,6 +977,10 @@ private:
         }
         
         static void reply_append_buffer_impl (Context c, char const *str, uint8_t length)
+        {
+        }
+        
+        static void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, uint8_t length)
         {
         }
         
@@ -1292,7 +1319,7 @@ private:
             if (part->code == axis_name) {
                 *found_axes = true;
                 if (AxisSpec::Homing::enabled) {
-                    cc->reply_append_str(c, "Error:G92 on homable axis\n");
+                    cc->reply_append_pstr(c, AMBRO_PSTR("Error:G92 on homable axis\n"));
                     return;
                 }
                 double req = strtod(part->data, NULL);
@@ -1496,7 +1523,7 @@ private:
             
             if (TheControl::SupportsConfig) {
                 cc->reply_append_ch(c, HeaterSpec::Name);
-                cc->reply_append_str(c, ": M" );
+                cc->reply_append_pstr(c, AMBRO_PSTR(": M" ));
                 cc->reply_append_uint32(c, HeaterSpec::SetConfigMCommand);
                 TheControl::printConfig(c, cc, &o->m_control_config);
                 cc->reply_append_ch(c, '\n');
@@ -1809,7 +1836,7 @@ public:
         o->m_locked = false;
         o->m_planning = false;
         
-        o->m_serial_feature.m_channel_common.reply_append_str(c, "APrinter\n");
+        o->m_serial_feature.m_channel_common.reply_append_pstr(c, AMBRO_PSTR("APrinter\n"));
         
         o->debugInit(c);
     }
@@ -1963,7 +1990,7 @@ private:
                 } break;
                 
                 case 105: {
-                    cc->reply_append_str(c, "ok");
+                    cc->reply_append_pstr(c, AMBRO_PSTR("ok"));
                     TupleForEachForward(&o->m_heaters, Foreach_append_value(), c, cc);
                     cc->reply_append_ch(c, '\n');
                     return cc->finishCommand(c, true);
@@ -2049,7 +2076,7 @@ private:
                         TupleForEachForward(&o->m_axes, Foreach_set_position(), c, cc, &cc->m_cmd->parts[i], &found_axes);
                     }
                     if (!found_axes) {
-                        cc->reply_append_str(c, "Error:not supported\n");
+                        cc->reply_append_pstr(c, AMBRO_PSTR("Error:not supported\n"));
                     }
                     return cc->finishCommand(c);
                 } break;
@@ -2057,7 +2084,7 @@ private:
             
             unknown_command:
             default: {
-                cc->reply_append_str(c, "Error:Unknown command ");
+                cc->reply_append_pstr(c, AMBRO_PSTR("Error:Unknown command "));
                 cc->reply_append_str(c, (cc->m_cmd->parts[0].data - 1));
                 cc->reply_append_ch(c, '\n');
                 return cc->finishCommand(c);

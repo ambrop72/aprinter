@@ -30,6 +30,7 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/Inline.h>
+#include <aprinter/base/ProgramMemory.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -84,17 +85,17 @@ public:
     template <typename Context, typename TheChannelCommon>
     static void printConfig (Context c, TheChannelCommon *cc, Config const *config)
     {
-        cc->reply_append_str(c, " P");
+        cc->reply_append_pstr(c, AMBRO_PSTR(" P"));
         cc->reply_append_double(c, config->p);
-        cc->reply_append_str(c, " I");
+        cc->reply_append_pstr(c, AMBRO_PSTR(" I"));
         cc->reply_append_double(c, config->i);
-        cc->reply_append_str(c, " D");
+        cc->reply_append_pstr(c, AMBRO_PSTR(" D"));
         cc->reply_append_double(c, config->d);
-        cc->reply_append_str(c, " M");
+        cc->reply_append_pstr(c, AMBRO_PSTR(" M"));
         cc->reply_append_double(c, config->istatemin);
-        cc->reply_append_str(c, " A");
+        cc->reply_append_pstr(c, AMBRO_PSTR(" A"));
         cc->reply_append_double(c, config->istatemax);
-        cc->reply_append_str(c, " H");
+        cc->reply_append_pstr(c, AMBRO_PSTR(" H"));
         cc->reply_append_double(c, config->dhistory);
     }
     
