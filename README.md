@@ -5,6 +5,7 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
 
 ## Implemented features (possibly with bugs)
 
+  * SD card printing (reading of sequential blocks only, no filesystem or partition support).
   * Serial communication using the defacto RepRap protocol. Baud rate above 57600 will not work, for now.
   * Homing, including homing of multiple axes at the same time. Either min- or max- endstops can be used.
   * Line motion with acceleration control and cartesian speed limit (F parameter).
@@ -26,7 +27,7 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
 
   * Further optimization of the planning and stepping code, both for speed and memory usage.
   * Runtime configurability and settings in EEPROM.
-  * SD-card printing.
+  * SD card FAT32 support and write support.
 
 ## Hardware requirements
 
@@ -85,3 +86,48 @@ However, any AVR satisfying the following should work, possibly requiring minor 
     (possibly lower, and you risk burning the heater in that case).
     Obviously, take safety precausions here. I'm not responsible if your house burns down as a result of
     using my software, or for any other damage.
+
+## SD card support
+
+The firmware supports reading G-code from an SD card. However, the G-code needs to be written directly to the SD card in sequential blocks, starting with the first block.
+
+To enable SD card support, some changes need to be done in your main file:
+```
+...
+// add these includes
+#include <aprinter/devices/SpiSdCard.h>
+#include <aprinter/system/AvrSpi.h>
+...
+    // remove "PrinterMainNoSdCardParams," and replace it with this (don't forget the trailing comma):
+    // The SsPin below is for RAMPS1.4. For Melzi, use AvrPin<AvrPortB, 4>.
+    PrinterMainSdCardParams<
+        SpiSdCard,
+        SpiSdCardParams<
+            AvrPin<AvrPortB, 0>, // SsPin
+            AvrSpi
+        >,
+        GcodeParserParams<8>,
+        2, // BufferBlocks
+        100 // MaxCommandSize
+    >,
+...
+// add this to where the other ISR macros are
+AMBRO_AVR_SPI_ISRS(*p.myprinter.getSdCard()->getSpi(), MyContext())
+...
+```
+
+**Additionally**, you will need to reduce your buffer sizes to accomodate the RAM requirements of the SD code. Lowering `StepperSegmentBufferSize` and `EventChannelBufferSize` to 10 should do the trick.
+
+Once you've flashed firmware wirh these changes, you will have the following commands available:
+
+- M21 - Initializes the SD card.
+- M22 - Deinitializes the SD card.
+- M24 - Starts/resumes SD printing. If this is after M21, g-code is read from the first block, otherwise from where it was paused.
+- M25 - Pauses SD printing.
+
+To write a g-code file to the SD card, simply pipe it to the SD card device (not partition). Obviously, this will destroy any existing data on your card.
+
+For the moment, the g-code on the SD card needs to be void of comments and empty lines.
+If you're using the `DeTool.py` postprocessor which is necessary for multi-extruder printing (TODO document this),
+you can check its option to clean up the gcode for you.
+Otherwise, you're on your own with that for now.
