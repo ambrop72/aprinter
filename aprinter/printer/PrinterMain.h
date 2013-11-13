@@ -394,6 +394,15 @@ private:
             return true;
         }
         
+        static void maybeCancelLockingCommand (Context c)
+        {
+            ChannelCommon *o = self(c);
+            AMBRO_ASSERT(o->m_state != COMMAND_LOCKED)
+            
+            o->m_state = COMMAND_IDLE;
+            o->m_cmd = NULL;
+        }
+        
         static void finishCommand (Context c, bool no_ok = false)
         {
             ChannelCommon *o = self(c);
@@ -566,6 +575,17 @@ private:
             uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu32), x);
 #else
             uint8_t len = PrintNonnegativeIntDecimal<uint32_t>(x, buf);
+#endif
+            Channel::reply_append_buffer_impl(c, buf, len);
+        }
+        
+        static void reply_append_uint8 (Context c, uint8_t x)
+        {
+            char buf[4];
+#if defined(AMBROLIB_AVR)
+            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu8), x);
+#else
+            uint8_t len = PrintNonnegativeIntDecimal<uint8_t>(x, buf);
 #endif
             Channel::reply_append_buffer_impl(c, buf, len);
         }
@@ -755,7 +775,7 @@ private:
             SdCardFeature *o = self(c);
             o->m_sdcard.init(c);
             o->m_channel_common.init(c);
-            o->m_next_event.init(c, SdCardFeature::next_handler);
+            o->m_next_event.init(c, SdCardFeature::next_event_handler);
             o->m_state = SDCARD_NONE;
         }
         
@@ -776,12 +796,13 @@ private:
             SdCardFeature *o = self(c);
             
             if (error_code) {
-                cc->reply_append_pstr(c, AMBRO_PSTR("SD error\n"));
+                cc->reply_append_pstr(c, AMBRO_PSTR("SD error "));
+                cc->reply_append_uint8(c, error_code);
             } else {
                 cc->reply_append_pstr(c, AMBRO_PSTR("SD blocks "));
                 cc->reply_append_uint32(c, o->m_sdcard.getCapacityBlocks(c));
-                cc->reply_append_ch(c, '\n');
             }
+            cc->reply_append_ch(c, '\n');
             cc->finishCommand(c);
         }
         
@@ -794,12 +815,12 @@ private:
                 o->m_state = SDCARD_NONE;
             } else {
                 o->m_channel_common.m_line_number = 0;
+                o->m_state = SDCARD_INITED;
                 o->m_gcode_parser.init(c);
                 o->m_start = 0;
                 o->m_length = 0;
                 o->m_cmd_offset = 0;
                 o->m_sd_block = 0;
-                o->m_state = SDCARD_INITED;
             }
             Tuple<ChannelCommonList> dummy;
             TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_finish_init(), error_code);
@@ -823,8 +844,7 @@ private:
             }
             if (error) {
                 SerialFeature::TheChannelCommon::self(c)->reply_append_pstr(c, AMBRO_PSTR("//SdRdEr\n"));
-                start_read(c);
-                return;
+                return start_read(c);
             }
             o->m_sd_block++;
             if (o->m_length == BufferBaseSize - o->m_start) {
@@ -839,7 +859,7 @@ private:
             }
         }
         
-        static void next_handler (typename Loop::QueuedEvent *, Context c)
+        static void next_event_handler (typename Loop::QueuedEvent *, Context c)
         {
             SdCardFeature *o = self(c);
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
@@ -906,12 +926,10 @@ private:
                     return false;
                 }
                 o->m_gcode_parser.deinit(c);
-                o->m_sdcard.deactivate(c);
-                o->m_next_event.unset(c);
                 o->m_state = SDCARD_NONE;
-                AMBRO_ASSERT(o->m_channel_common.m_state != COMMAND_LOCKED)
-                o->m_channel_common.m_state = COMMAND_IDLE;
-                o->m_channel_common.m_cmd = NULL;
+                o->m_next_event.unset(c);
+                o->m_channel_common.maybeCancelLockingCommand(c);
+                o->m_sdcard.deactivate(c);
                 return false;
             }
             if (cc->m_cmd_num == 24) {
@@ -942,11 +960,11 @@ private:
                 }
                 o->m_next_event.unset(c);
                 o->m_channel_common.maybePauseLockingCommand(c);
-                if (!(o->m_length < BufferBaseSize && o->m_sd_block < o->m_sdcard.getCapacityBlocks(c))) {
-                    cc->finishCommand(c);
-                    o->m_state = SDCARD_INITED;
-                } else {
+                if (o->m_length < BufferBaseSize && o->m_sd_block < o->m_sdcard.getCapacityBlocks(c)) {
                     o->m_state = SDCARD_PAUSING;
+                } else {
+                    o->m_state = SDCARD_INITED;
+                    cc->finishCommand(c);
                 }
                 return false;
             }
@@ -1010,16 +1028,16 @@ private:
         }
         
         TheSdCard m_sdcard;
-        TheGcodeParser m_gcode_parser;
         SdCardChannelCommon m_channel_common;
         typename Loop::QueuedEvent m_next_event;
+        uint8_t m_state;
+        TheGcodeParser m_gcode_parser;
         SdCardReadState m_read_state;
         size_t m_start;
         size_t m_length;
         size_t m_cmd_offset;
         bool m_eof;
         uint32_t m_sd_block;
-        uint8_t m_state;
         uint8_t m_buffer[BufferBaseSize + (MaxCommandSize - 1)];
         
         struct SdCardPosition : public MemberPosition<SdCardFeaturePosition, TheSdCard, &SdCardFeature::m_sdcard> {};
@@ -1820,15 +1838,15 @@ public:
     {
         PrinterMain *o = self(c);
         
-        o->m_watchdog.init(c);
-        o->m_blinker.init(c, Params::LedBlinkInterval::value() * Clock::time_freq);
-        o->m_steppers.init(c);
-        TupleForEachForward(&o->m_axes, Foreach_init(), c);
-        o->m_serial_feature.init(c);
-        o->m_sdcard_feature.init(c);
         o->m_unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
         o->m_disable_timer.init(c, PrinterMain::disable_timer_handler);
         o->m_force_timer.init(c, PrinterMain::force_timer_handler);
+        o->m_watchdog.init(c);
+        o->m_blinker.init(c, Params::LedBlinkInterval::value() * Clock::time_freq);
+        o->m_steppers.init(c);
+        o->m_serial_feature.init(c);
+        o->m_sdcard_feature.init(c);
+        TupleForEachForward(&o->m_axes, Foreach_init(), c);
         TupleForEachForward(&o->m_heaters, Foreach_init(), c);
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
         o->m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
@@ -1851,15 +1869,15 @@ public:
         }
         TupleForEachReverse(&o->m_fans, Foreach_deinit(), c);
         TupleForEachReverse(&o->m_heaters, Foreach_deinit(), c);
-        o->m_force_timer.deinit(c);
-        o->m_disable_timer.deinit(c);
-        o->m_unlocked_timer.deinit(c);
+        TupleForEachReverse(&o->m_axes, Foreach_deinit(), c);
         o->m_sdcard_feature.deinit(c);
         o->m_serial_feature.deinit(c);
-        TupleForEachReverse(&o->m_axes, Foreach_deinit(), c);
         o->m_steppers.deinit(c);
         o->m_blinker.deinit(c);
         o->m_watchdog.deinit(c);
+        o->m_force_timer.deinit(c);
+        o->m_disable_timer.deinit(c);
+        o->m_unlocked_timer.deinit(c);
     }
     
     typename SerialFeature::TheSerial * getSerial ()
@@ -2253,15 +2271,15 @@ private:
         TupleForOneBoolOffset<TypeListLength<HeatersList>::value>(payload->type, &o->m_fans, Foreach_channel_callback(), c, &payload->fans);
     }
     
-    TheWatchdog m_watchdog;
-    TheBlinker m_blinker;
-    TheSteppers m_steppers;
-    AxesTuple m_axes;
     typename Loop::QueuedEvent m_unlocked_timer;
     typename Loop::QueuedEvent m_disable_timer;
     typename Loop::QueuedEvent m_force_timer;
+    TheWatchdog m_watchdog;
+    TheBlinker m_blinker;
+    TheSteppers m_steppers;
     SerialFeature m_serial_feature;
     SdCardFeature m_sdcard_feature;
+    AxesTuple m_axes;
     HeatersTuple m_heaters;
     FansTuple m_fans;
     TimeType m_inactive_time;
