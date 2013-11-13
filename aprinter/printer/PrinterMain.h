@@ -1854,7 +1854,7 @@ public:
         o->m_locked = false;
         o->m_planning = false;
         
-        o->m_serial_feature.m_channel_common.reply_append_pstr(c, AMBRO_PSTR("APrinter\n"));
+        o->m_serial_feature.m_channel_common.reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
         
         o->debugInit(c);
     }
