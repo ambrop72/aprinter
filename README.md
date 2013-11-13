@@ -125,9 +125,8 @@ Once you've flashed firmware wirh these changes, you will have the following com
 - M24 - Starts/resumes SD printing. If this is after M21, g-code is read from the first block, otherwise from where it was paused.
 - M25 - Pauses SD printing.
 
-To write a g-code file to the SD card, simply pipe it to the SD card device (not partition). Obviously, this will destroy any existing data on your card.
+To print from SD card, you need to:
 
-For the moment, the g-code on the SD card needs to be void of comments and empty lines.
-If you're using the `DeTool.py` postprocessor which is necessary for multi-extruder printing (TODO document this),
-you can check its option to clean up the gcode for you.
-Otherwise, you're on your own with that for now.
+- Prepare your g-code file, by removing all empty lines and comments, and adding an `EOF` line. If you're using the `DeTool.py` postprocessor (TODO document this), it is sufficient to enable the SD card option there.
+- Pipe this file to the SD card device node (not partition). Obviously, this will destroy any existing data on your card.
+- Insert the card into the printer, then issue M21 to initialize the card, and M24 to begin printing.
