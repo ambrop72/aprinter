@@ -323,7 +323,7 @@ private:
         {
             ChannelCommon *o = self(c);
             o->m_state = COMMAND_IDLE;
-            o->m_line_number = 0;
+            o->m_line_number = 1;
             o->m_cmd = NULL;
         }
         
@@ -814,7 +814,7 @@ private:
             if (error_code) {
                 o->m_state = SDCARD_NONE;
             } else {
-                o->m_channel_common.m_line_number = 0;
+                o->m_channel_common.m_line_number = 1;
                 o->m_state = SDCARD_INITED;
                 o->m_gcode_parser.init(c);
                 o->m_start = 0;
