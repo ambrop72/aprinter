@@ -21,7 +21,7 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
   * Starting and feeding of the watchdog timer.
   * Emergency shutdown of motors and heaters in case of an assertion failure
     (if assertions are enabled with -DAMBROLIB_ASSERTIONS).
-  * Non-drifting heartbeat LED. Is period is exactly 1 second, subject to the precision of your oscillator.
+  * Non-drifting heartbeat LED. Its period is exactly 1 second, subject to the precision of your oscillator.
 
 ## Planned features (in the approximate order of priority):
 
@@ -62,18 +62,19 @@ However, any AVR satisfying the following should work, possibly requiring minor 
     Sorry about the giant file size, there were some problems with stripping the binaries.
     To use the toolchain, extract it somewhere and modify your PATH as follows:
     export PATH=/path/to/toolchain/bin:$PATH
-  * Edit compile.sh and adjust MCU and F_CPU (or pass them as environment variables, but you'll forget it next time).
-  * Open aprinter/printer/aprinter-<your_board>.cpp and adjust the configuration.
+  * Edit compile.sh and adjust MCU, F_CPU and MAIN to reflect your board.
+    If your compiler is not available as avr-g++, adjust CROSS appropriately.
+  * Open aprinter/printer/aprinter-YourBoard.cpp and adjust the configuration.
     If you don't know what something means, you probably don't need to change it.
     All units are based on millimeters and seconds.
     NOTE: documentation of configuration parameters is present in aprinter-melzi.cpp only.
   * Regenerate the thermistor tables inside the generated/ folder to match your thermistor and resistor types.
-    You can find the generation command inside the files themselves.
+    You can find the regeneration command inside the files themselves.
     The python script mentioned prints the code to stdout, you need to pipe it into the appropriate file.
-  * Modify compile.sh to select the MCU, the frequency, and the main file for your board.
-    If your compiler is not available as avr-g++, adjust CROSS appropriately.
   * Run compile.sh to compile the code.
-  * Upload the code to your MCU, however you do that; see flash.sh for an example.
+  * Upload the code to your MCU, however you normally do that; see flash.sh for an example.
+    If you're only used to uploading with the Arduino IDE, you can enable the verbose upload option in its preferences,
+    and it will print out the avrdude command when you try to upload a sketch.
 
 ## Testing it
 
