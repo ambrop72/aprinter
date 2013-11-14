@@ -166,6 +166,19 @@ public:
             
             TheTypeHelper::checksum_add_hook(c, ch);
             
+            if (TheTypeHelper::CommentsEnabled) {
+                if (o->m_state == STATE_COMMENT) {
+                    continue;
+                }
+                if (ch == ';') {
+                    if (o->m_state == STATE_INSIDE) {
+                        finish_part(c);
+                    }
+                    o->m_state = STATE_COMMENT;
+                    continue;
+                }
+            }
+            
             if (o->m_state == STATE_OUTSIDE) {
                 if (!is_space(ch)) {
                     if (!is_code(ch)) {
@@ -204,7 +217,7 @@ public:
     }
     
 private:
-    enum {STATE_NOCMD, STATE_OUTSIDE, STATE_INSIDE, STATE_CHECKSUM};
+    enum {STATE_NOCMD, STATE_OUTSIDE, STATE_INSIDE, STATE_COMMENT, STATE_CHECKSUM};
     
     template <typename TheParserType, typename Dummy = void>
     struct TypeHelper;
@@ -212,6 +225,7 @@ private:
     template <typename Dummy>
     struct TypeHelper<GcodeParserTypeSerial, Dummy> {
         static const bool ChecksumEnabled = true;
+        static const bool CommentsEnabled = false;
         
         static void init_command_hook (Context c)
         {
@@ -255,6 +269,7 @@ private:
     template <typename Dummy>
     struct TypeHelper<GcodeParserTypeFile, Dummy> {
         static const bool ChecksumEnabled = false;
+        static const bool CommentsEnabled = true;
         
         static void init_command_hook (Context c)
         {
