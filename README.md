@@ -128,6 +128,59 @@ Once you've flashed firmware wirh these changes, you will have the following com
 
 To print from SD card, you need to:
 
-- Prepare your g-code file, by removing all empty lines and comments, and adding an `EOF` line. If you're using the `DeTool.py` postprocessor (TODO document this), it is sufficient to enable the SD card option there.
-- Pipe this file to the SD card device node (not partition). Obviously, this will destroy any existing data on your card.
+- Add an `EOF` line to the end of the g-code. This will allow the printer to know where the g-code ends.
+- Make sure there aren't any excessively long lines in the g-code. In particular, Cura's `CURA_PROFILE_STRING` is a problem.
+  You can fix that by putting the `EOF` in the "end gcode", so it ends up before the `CURA_PROFILE_STRING`.
+- Write the prepared g-code to the SD card device node (not partition). Obviously, this will destroy any existing data on your card.
 - Insert the card into the printer, then issue M21 to initialize the card, and M24 to begin printing.
+
+The `DeTool.py` postprocessor can also prepare the g-code for SD card printing; more about this in the next section.
+
+## Multi-extruder printing
+
+While the firmware allows any number of axes, heaters and fans, it does not, by design, implement tool change commands.
+All axes, heaters and fans are independent, and the firmware does not know anything about their physical association:
+
+- Extra extruder axes are independently controlled through their identification letter. Recommened letters for extra extruders are U and V.
+- Extra heaters also need an identification letter, which is sent when the printer reports temperatures to the host.
+  Additionally, each heater needs three M-codes, for `set-heater-temperature`, `wait-heater-temperature` and `set-config`.
+  The recommended choices for the second extruder heater are U,M404,M409,M402, and for the third extruder heater V,M414,M419,M412, respectively.
+- Extra fans need their `set-fan-speed` and `turn-fan-off` M-codes.
+  The recommended choices for the second extruder fan are M406,M407, and for the third extruder fan M416,M417, respectively.
+
+The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands.
+This script can either be called from command line, or used as a plugin from `Cura`.
+In the latter case, you can install it by copying (or linking) it into `Cura/plugins` in the Cura installation folder.
+
+To use the script, you will need to provide it with a list of physical extruders, which includes the names of their axes,
+as understood by your firmware, as well as the offset added to the coordinates.
+Futher, you will need to define a mapping from tool indices to physical extruders.
+The command line syntax of the script is as follows.
+
+```
+usage: DeTool.py [-h] --input InputFile --output OutputFile
+                 --tool-travel-speed Speedmm/s --physical AxisName OffsetX
+                 OffsetY OffsetZ --tool ToolIndex PhysicalIndexFrom0
+                 [--fan FanSpeedCmd PhysicalIndexFrom0 SpeedMultiplier]
+                 [--sdcard]
+```
+
+For example, if you have two extruder axes, E and U, the U nozzle being offset 10mm to the right, and you want to map the T0 tool to U, and T1 to E,
+you can pass this to the script (assuming you're using the command-line interface):
+
+```
+--physical E 0.0 0.0 0.0 --physical U -10.0 0.0 0.0 --tool 0 1 --tool 1 0
+```
+
+The argument `--tool 0 1` means to associate T0 to the second physical extruder (with the letter E, in this case).\
+Note that the offset in `--physical` is what the script adds to the position in the source file, that is, the negative of the nozzle offset.
+
+The script also processes fan control commands (M106 and M107) to appropriate fans based on the selected tool.
+For example, if your first fan (M106) blows under the first extruder, and the second fan (M406) under the second extruder,
+you will want to pass:
+
+```
+--fan M106 0 1.0 --fan M406 1 1.0
+```
+
+If the fans are not equally powerful, you can adjust the `SpeedMultiplier` to scale the speed of specific fans.
