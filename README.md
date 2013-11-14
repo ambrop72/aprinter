@@ -136,7 +136,7 @@ To print from SD card, you need to:
 
 The `DeTool.py` postprocessor can also prepare the g-code for SD card printing; more about this in the next section.
 
-## Multi-extruder printing
+## Multi-extruder configuration
 
 While the firmware allows any number of axes, heaters and fans, it does not, by design, implement tool change commands.
 All axes, heaters and fans are independent, and the firmware does not know anything about their physical association:
@@ -148,11 +148,104 @@ All axes, heaters and fans are independent, and the firmware does not know anyth
 - Extra fans need their `set-fan-speed` and `turn-fan-off` M-codes.
   The recommended choices for the second extruder fan are M406,M407, and for the third extruder fan M416,M417, respectively.
 
-The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands.
-This script can either be called from command line, or used as a plugin from `Cura`.
+The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands, but more about that will be explained later.
+First, you need to configure you firmware for multiple extruders in the first place.
+
+Open your main file and add the new axes, heaters and fans. In particular, if you're adding a second extruder to a Ramps1.3/1.4 board, use the following:
+
+```
+...
+        // Add this to the list of axes, and don't forget a comma above.
+        PrinterMainAxisParams<
+            'U', // Name
+            MegaPin34, // DirPin
+            MegaPin36, // StepPin
+            MegaPin30, // EnablePin
+            true, // InvertDir
+            UDefaultStepsPerUnit, // StepsPerUnit
+            UDefaultMin, // Min
+            UDefaultMax, // Max
+            UDefaultMaxSpeed, // MaxSpeed
+            UDefaultMaxAccel, // MaxAccel
+            UDefaultDistanceFactor, // DistanceFactor
+            UDefaultCorneringDistance, // CorneringDistance
+            PrinterMainNoHomingParams,
+            false, // EnableCartesianSpeedLimit
+            32, // StepBits
+            AxisStepperParams<
+                AvrClockInterruptTimer_TC0_OCB // StepperTimer
+            >
+        >
+...
+        // Add this to the list of heaters, and don't forget a comma above.
+        PrinterMainHeaterParams<
+            'U', // Name
+            404, // SetMCommand
+            409, // WaitMCommand
+            402, // SetConfigMCommand
+            MegaPinA15, // AdcPin
+            MegaPin9, // OutputPin
+            AvrThermistorTable_Extruder, // Formula
+            ExtruderHeaterMinSafeTemp, // MinSafeTemp
+            ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
+            ExtruderHeaterPulseInterval, // PulseInterval
+            ExtruderHeaterControlInterval, // ControlInterval
+            PidControl, // Control
+            PidControlParams<
+                ExtruderHeaterPidP, // PidP
+                ExtruderHeaterPidI, // PidI
+                ExtruderHeaterPidD, // PidD
+                ExtruderHeaterPidIStateMin, // PidIStateMin
+                ExtruderHeaterPidIStateMax, // PidIStateMax
+                ExtruderHeaterPidDHistory // PidDHistory
+            >,
+            TemperatureObserverParams<
+                ExtruderHeaterObserverInterval, // ObserverInterval
+                ExtruderHeaterObserverTolerance, // ObserverTolerance
+                ExtruderHeaterObserverMinTime // ObserverMinTime
+            >,
+            AvrClockInterruptTimer_TC0_OCA // TimerTemplate
+        >
+...
+        // If you have a separate fan for the second extruder, add this to the list of fans.
+        // Again, don't forget a comma above.
+        PrinterMainFanParams<
+            406, // SetMCommand
+            407, // OffMCommand
+            MegaPin5, // OutputPin
+            FanPulseInterval, // PulseInterval
+            FanSpeedMultiply, // SpeedMultiply
+            AvrClockInterruptTimer_TC2_OCA // TimerTemplate
+        >
+...
+// Add this to the list of ISRs.
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(*p.myprinter.getAxisStepper<4>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(*p.myprinter.getHeaterTimer<2>(), MyContext())
+// If you added a fan above, also this:
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCA_ISRS(*p.myprinter.getFanTimer<1>(), MyContext())
+...
+    // add this to main where the extra TC's are inited
+    p.myclock.initTC0(c);
+    p.myclock.initTC2(c); // if you added the fan
+...
+```
+
+As you can see, each axis, heater and fan requires the assignment of a Timer/Counter (TC) output compare (OC) unit.
+The OC unit is used to step an axis, or generate a PWM signal for a heater or fan.
+In the default configuration for Ramps, both of the two output compare units (OCA and OCB) on TC1, TC3, TC4 and TC5 are already assigned.
+Here, we used TC0/OCA and TC0/OCB for the new axis and heater, and TC2/OCA for the new fan.
+
+**NOTE:** on boards based on atmega1284p, all available output compare units are already assined.
+As such, it is not possible to add any extra axes/heaters/fans.
+However, it would be easy to implement multiplexing so that one hardware OC units would act as two or more virtual OC units,
+at the cost of some overhead in the ISRs.
+
+## The DeTool g-code postprocessor
+
+The `DeTool.py` script can either be called from command line, or used as a plugin from `Cura`.
 In the latter case, you can install it by copying (or linking) it into `Cura/plugins` in the Cura installation folder.
 
-To use the script, you will need to provide it with a list of physical extruders, which includes the names of their axes,
+To run the script, you will need to provide it with a list of physical extruders, which includes the names of their axes,
 as understood by your firmware, as well as the offset added to the coordinates.
 Futher, you will need to define a mapping from tool indices to physical extruders.
 The command line syntax of the script is as follows.
@@ -166,7 +259,7 @@ usage: DeTool.py [-h] --input InputFile --output OutputFile
 ```
 
 For example, if you have two extruder axes, E and U, the U nozzle being offset 10mm to the right, and you want to map the T0 tool to U, and T1 to E,
-you can pass this to the script (assuming you're using the command-line interface):
+you can pass this to the script:
 
 ```
 --physical E 0.0 0.0 0.0 --physical U -10.0 0.0 0.0 --tool 0 1 --tool 1 0
