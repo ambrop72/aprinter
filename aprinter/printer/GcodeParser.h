@@ -42,9 +42,15 @@ struct GcodeParserParams {
     static const int MaxParts = TMaxParts;
 };
 
-template <typename Position, typename Context, typename Params, typename TBufferSizeType>
+struct GcodeParserTypeSerial {};
+struct GcodeParserTypeFile {};
+
+template <typename ParserType>
+struct GcodeParserExtraMembers {};
+
+template <typename Position, typename Context, typename Params, typename TBufferSizeType, typename ParserType>
 class GcodeParser
-: private DebugObject<Context, void>
+: private DebugObject<Context, void>, private GcodeParserExtraMembers<ParserType>
 {
     static_assert(Params::MaxParts > 0, "");
     
@@ -64,18 +70,25 @@ public:
         ERROR_RECV_OVERRUN = -4
     };
     
+    template <typename TheParserType, typename Dummy = void>
+    struct CommandExtra {};
+    
     struct CommandPart {
         char code;
         char *data;
         BufferSizeType length;
     };
     
-    struct Command {
+    struct Command : public CommandExtra<ParserType> {
         BufferSizeType length;
-        bool have_line_number;
-        uint32_t line_number;
         PartsSizeType num_parts;
         CommandPart parts[Params::MaxParts];
+    };
+    
+    template <typename Dummy>
+    struct CommandExtra<GcodeParserTypeSerial, Dummy> {
+        bool have_line_number;
+        uint32_t line_number;
     };
     
     static void init (Context c)
@@ -110,10 +123,9 @@ public:
         
         o->m_state = STATE_OUTSIDE;
         o->m_buffer = buffer;
-        o->m_checksum = 0;
         o->m_command.length = 0;
-        o->m_command.have_line_number = false;
         o->m_command.num_parts = assume_error;
+        TheTypeHelper::init_command_hook(c);
     }
     
     static Command * extendCommand (Context c, BufferSizeType avail)
@@ -130,8 +142,8 @@ public:
                 if (o->m_command.num_parts >= 0) {
                     if (o->m_state == STATE_INSIDE) {
                         finish_part(c);
-                    } else if (o->m_state == STATE_CHECKSUM) {
-                        check_checksum(c);
+                    } else if (TheTypeHelper::ChecksumEnabled && o->m_state == STATE_CHECKSUM) {
+                        TheTypeHelper::checksum_check_hook(c);
                     }
                 }
                 o->m_command.length++;
@@ -139,11 +151,11 @@ public:
                 return &o->m_command;
             }
             
-            if (o->m_command.num_parts < 0 || o->m_state == STATE_CHECKSUM) {
+            if (o->m_command.num_parts < 0 || (TheTypeHelper::ChecksumEnabled && o->m_state == STATE_CHECKSUM)) {
                 continue;
             }
             
-            if (ch == '*') {
+            if (TheTypeHelper::ChecksumEnabled && ch == '*') {
                 if (o->m_state == STATE_INSIDE) {
                     finish_part(c);
                 }
@@ -152,7 +164,7 @@ public:
                 continue;
             }
             
-            o->m_checksum ^= (unsigned char)ch;
+            TheTypeHelper::checksum_add_hook(c, ch);
             
             if (o->m_state == STATE_OUTSIDE) {
                 if (!is_space(ch)) {
@@ -194,6 +206,76 @@ public:
 private:
     enum {STATE_NOCMD, STATE_OUTSIDE, STATE_INSIDE, STATE_CHECKSUM};
     
+    template <typename TheParserType, typename Dummy = void>
+    struct TypeHelper;
+    
+    template <typename Dummy>
+    struct TypeHelper<GcodeParserTypeSerial, Dummy> {
+        static const bool ChecksumEnabled = true;
+        
+        static void init_command_hook (Context c)
+        {
+            GcodeParser *o = self(c);
+            o->m_checksum = 0;
+            o->m_command.have_line_number = false;
+        }
+        
+        static bool finish_part_hook (Context c, char code)
+        {
+            GcodeParser *o = self(c);
+            if (!o->m_command.have_line_number && o->m_command.num_parts == 0 && code == 'N') {
+                o->m_command.have_line_number = true;
+                o->m_command.line_number = strtoul(o->m_buffer + (o->m_temp + 1), NULL, 10);
+                return true;
+            }
+            return false;
+        }
+        
+        static void checksum_add_hook (Context c, char ch)
+        {
+            GcodeParser *o = self(c);
+            o->m_checksum ^= (unsigned char)ch;
+        }
+        
+        static void checksum_check_hook (Context c)
+        {
+            GcodeParser *o = self(c);
+            AMBRO_ASSERT(o->m_command.num_parts >= 0)
+            AMBRO_ASSERT(o->m_state == STATE_CHECKSUM)
+            
+            char *received = o->m_buffer + (o->m_temp + 1);
+            BufferSizeType received_len = o->m_command.length - (o->m_temp + 1);
+            
+            if (!compare_checksum(o->m_checksum, received, received_len)) {
+                o->m_command.num_parts = ERROR_CHECKSUM;
+            }
+        }
+    };
+    
+    template <typename Dummy>
+    struct TypeHelper<GcodeParserTypeFile, Dummy> {
+        static const bool ChecksumEnabled = false;
+        
+        static void init_command_hook (Context c)
+        {
+        }
+        
+        static bool finish_part_hook (Context c, char code)
+        {
+            return false;
+        }
+        
+        static void checksum_add_hook (Context c, char ch)
+        {
+        }
+        
+        static void checksum_check_hook (Context c)
+        {
+        }
+    };
+    
+    using TheTypeHelper = TypeHelper<ParserType>;
+    
     static bool is_code (char ch)
     {
         return ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'));
@@ -222,20 +304,6 @@ private:
         return (received_len == 0);
     }
     
-    static void check_checksum (Context c)
-    {
-        GcodeParser *o = self(c);
-        AMBRO_ASSERT(o->m_command.num_parts >= 0)
-        AMBRO_ASSERT(o->m_state == STATE_CHECKSUM)
-        
-        char *received = o->m_buffer + (o->m_temp + 1);
-        BufferSizeType received_len = o->m_command.length - (o->m_temp + 1);
-        
-        if (!compare_checksum(o->m_checksum, received, received_len)) {
-            o->m_command.num_parts = ERROR_CHECKSUM;
-        }
-    }
-    
     static void finish_part (Context c)
     {
         GcodeParser *o = self(c);
@@ -255,9 +323,7 @@ private:
         
         o->m_buffer[o->m_command.length] = '\0';
         
-        if (!o->m_command.have_line_number && o->m_command.num_parts == 0 && code == 'N') {
-            o->m_command.have_line_number = true;
-            o->m_command.line_number = strtoul(o->m_buffer + (o->m_temp + 1), NULL, 10);
+        if (TheTypeHelper::finish_part_hook(c, code)) {
             return;
         }
         
@@ -269,9 +335,13 @@ private:
     
     uint8_t m_state;
     char *m_buffer;
-    uint8_t m_checksum;
     BufferSizeType m_temp;
     Command m_command;
+};
+
+template <>
+struct GcodeParserExtraMembers<GcodeParserTypeSerial> {
+    uint8_t m_checksum;
 };
 
 #include <aprinter/EndNamespace.h>

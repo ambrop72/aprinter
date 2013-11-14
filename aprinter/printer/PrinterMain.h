@@ -323,7 +323,6 @@ private:
         {
             ChannelCommon *o = self(c);
             o->m_state = COMMAND_IDLE;
-            o->m_line_number = 1;
             o->m_cmd = NULL;
         }
         
@@ -351,20 +350,8 @@ private:
             }
             o->m_cmd_code = o->m_cmd->parts[0].code;
             o->m_cmd_num = atoi(o->m_cmd->parts[0].data);
-            bool is_m110 = (o->m_cmd_code == 'M' && o->m_cmd_num == 110);
-            if (is_m110) {
-                o->m_line_number = get_command_param_uint32(c, 'L', (o->m_cmd->have_line_number ? o->m_cmd->line_number : -1));
-            }
-            if (o->m_cmd->have_line_number) {
-                if (o->m_cmd->line_number != o->m_line_number) {
-                    reply_append_pstr(c, AMBRO_PSTR("Error:Line Number is not Last Line Number+1, Last Line:"));
-                    reply_append_uint32(c, (uint32_t)(o->m_line_number - 1));
-                    reply_append_ch(c, '\n');
-                    return finishCommand(c);
-                }
-            }
-            if (o->m_cmd->have_line_number || is_m110) {
-                o->m_line_number++;
+            if (!Channel::start_command_impl(c)) {
+                return finishCommand(c);
             }
             work_command<ChannelCommon>(c);
         }
@@ -606,7 +593,6 @@ private:
         }
         
         uint8_t m_state;
-        uint32_t m_line_number;
         GcodeParserCommand *m_cmd;
         char m_cmd_code;
         int m_cmd_num;
@@ -624,7 +610,7 @@ private:
         using TheSerial = typename Params::Serial::template SerialTemplate<SerialPosition, Context, serial_recv_buffer_bits, serial_send_buffer_bits, typename Params::Serial::SerialParams, SerialRecvHandler, SerialSendHandler>;
         using RecvSizeType = typename TheSerial::RecvSizeType;
         using SendSizeType = typename TheSerial::SendSizeType;
-        using TheGcodeParser = GcodeParser<GcodeParserPosition, Context, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType>;
+        using TheGcodeParser = GcodeParser<GcodeParserPosition, Context, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType, GcodeParserTypeSerial>;
         using TheChannelCommon = ChannelCommon<ChannelCommonPosition, SerialFeature>;
         
         static SerialFeature * self (Context c)
@@ -639,6 +625,7 @@ private:
             o->m_gcode_parser.init(c);
             o->m_channel_common.init(c);
             o->m_recv_next_error = 0;
+            o->m_line_number = 1;
         }
         
         static void deinit (Context c)
@@ -675,6 +662,29 @@ private:
         
         static void serial_send_handler (TheSerial *, Context c)
         {
+        }
+        
+        static bool start_command_impl (Context c)
+        {
+            SerialFeature *o = self(c);
+            AMBRO_ASSERT(o->m_channel_common.m_cmd)
+            
+            bool is_m110 = (o->m_channel_common.m_cmd_code == 'M' && o->m_channel_common.m_cmd_num == 110);
+            if (is_m110) {
+                o->m_line_number = o->m_channel_common.get_command_param_uint32(c, 'L', (o->m_channel_common.m_cmd->have_line_number ? o->m_channel_common.m_cmd->line_number : -1));
+            }
+            if (o->m_channel_common.m_cmd->have_line_number) {
+                if (o->m_channel_common.m_cmd->line_number != o->m_line_number) {
+                    o->m_channel_common.reply_append_pstr(c, AMBRO_PSTR("Error:Line Number is not Last Line Number+1, Last Line:"));
+                    o->m_channel_common.reply_append_uint32(c, (uint32_t)(o->m_line_number - 1));
+                    o->m_channel_common.reply_append_ch(c, '\n');
+                    return false;
+                }
+            }
+            if (o->m_channel_common.m_cmd->have_line_number || is_m110) {
+                o->m_line_number++;
+            }
+            return true;
         }
         
         static void finish_command_impl (Context c, bool no_ok)
@@ -736,6 +746,7 @@ private:
         TheGcodeParser m_gcode_parser;
         TheChannelCommon m_channel_common;
         int8_t m_recv_next_error;
+        uint32_t m_line_number;
         
         struct SerialPosition : public MemberPosition<SerialFeaturePosition, TheSerial, &SerialFeature::m_serial> {};
         struct GcodeParserPosition : public MemberPosition<SerialFeaturePosition, TheGcodeParser, &SerialFeature::m_gcode_parser> {};
@@ -760,7 +771,7 @@ private:
         static const size_t BufferBaseSize = ReadBufferBlocks * BlockSize;
         using ParserSizeType = typename ChooseInt<BitsInInt<MaxCommandSize>::value, false>::Type;
         using TheSdCard = typename Params::SdCardParams::template SdCard<SdCardPosition, Context, typename Params::SdCardParams::SdCardParams, 1, SdCardInitHandler, SdCardCommandHandler>;
-        using TheGcodeParser = GcodeParser<GcodeParserPosition, Context, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
+        using TheGcodeParser = GcodeParser<GcodeParserPosition, Context, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType, GcodeParserTypeFile>;
         using SdCardReadState = typename TheSdCard::ReadState;
         using SdCardChannelCommon = ChannelCommon<ChannelCommonPosition, SdCardFeature>;
         enum {SDCARD_NONE, SDCARD_INITING, SDCARD_INITED, SDCARD_RUNNING, SDCARD_PAUSING};
@@ -814,7 +825,6 @@ private:
             if (error_code) {
                 o->m_state = SDCARD_NONE;
             } else {
-                o->m_channel_common.m_line_number = 1;
                 o->m_state = SDCARD_INITED;
                 o->m_gcode_parser.init(c);
                 o->m_start = 0;
@@ -968,6 +978,11 @@ private:
                 }
                 return false;
             }
+            return true;
+        }
+        
+        static bool start_command_impl (Context c)
+        {
             return true;
         }
         
