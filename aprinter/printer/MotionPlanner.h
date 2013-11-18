@@ -30,7 +30,6 @@
 #include <limits.h>
 #include <math.h>
 
-#include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/TupleForEach.h>
@@ -110,7 +109,7 @@ private:
     template <typename AxisSpec, typename AccumType>
     using MinTimeTypeHelper = FixedIntersectTypes<typename AxisSpec::TheAxisStepper::TimeFixedType, AccumType>;
     using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
-    using SegmentBufferSizeType = BoundedInt<BitsInInt<LookaheadBufferSize>::value, false>;
+    using SegmentBufferSizeType = typename ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>::Type;
     static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * LookaheadBufferSize);
     using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
@@ -906,9 +905,9 @@ public:
         
         o->m_pull_finished_event.init(c, MotionPlanner::pull_finished_event_handler);
         c.eventLoop()->template initFastEvent<StepperFastEvent>(c, MotionPlanner::stepper_event_handler);
-        o->m_segments_start = SegmentBufferSizeType::import(0);
-        o->m_segments_staging_end = SegmentBufferSizeType::import(0);
-        o->m_segments_end = SegmentBufferSizeType::import(0);
+        o->m_segments_start = 0;
+        o->m_segments_staging_length = 0;
+        o->m_segments_length = 0;
         o->m_staging_time = 0;
         o->m_staging_v_squared = 0.0;
         o->m_split_buffer.type = 0xFF;
@@ -1022,11 +1021,11 @@ private:
         
         while (1) {
             do {
-                if (BoundedModuloSubtract(o->m_segments_end, o->m_segments_start).value() == LookaheadBufferSize) {
+                if (o->m_segments_length == LookaheadBufferSize) {
                     o->m_underrun = o->m_underrun && o->m_stepping;
                     break;
                 }
-                Segment *entry = &o->m_segments[o->m_segments_end.value()];
+                Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
                 entry->type = o->m_split_buffer.type;
                 if (entry->type == 0) {
                     o->m_split_buffer.split_pos++;
@@ -1044,8 +1043,8 @@ private:
                     entry->max_accel_rec = rel_max_accel_rec / distance;
                     TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
                     double distance_rec = 1.0 / distance;
-                    for (SegmentBufferSizeType i = o->m_segments_end; i != o->m_segments_start; i = BoundedModuloDec(i)) {
-                        Segment *prev_entry = &o->m_segments[BoundedModuloDec(i).value()];
+                    for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
+                        Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
                         if (AMBRO_LIKELY(prev_entry->type == 0)) {
                             entry->lp_seg.max_start_v = TupleForEachForwardAccRes(&o->m_axes, entry->lp_seg.max_start_v, Foreach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
                             break;
@@ -1064,10 +1063,10 @@ private:
                     TupleForOneOffset<1>(entry->type, &o->m_channels, Foreach_write_segment(), c, entry);
                     o->m_split_buffer.type = 0xFF;
                 }
-                o->m_segments_end = BoundedModuloInc(o->m_segments_end);
+                o->m_segments_length++;
             } while (o->m_split_buffer.type != 0xFF);
             
-            if (AMBRO_LIKELY(!o->m_underrun && o->m_segments_staging_end != o->m_segments_end)) {
+            if (AMBRO_LIKELY(!o->m_underrun && o->m_segments_staging_length != o->m_segments_length)) {
                 plan(c);
             }
             
@@ -1079,7 +1078,7 @@ private:
                 return;
             }
             
-            Segment *entry = &o->m_segments[o->m_segments_start.value()];
+            Segment *entry = &o->m_segments[o->m_segments_start];
             if (entry->type == 0) {
                 if (AMBRO_UNLIKELY(!o->m_stepping)) {
                     if (!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c)) {
@@ -1106,7 +1105,9 @@ private:
                     return;
                 }
             }
-            o->m_segments_start = BoundedModuloInc(o->m_segments_start);
+            o->m_segments_start = segments_inc(o->m_segments_start);
+            o->m_segments_length--;
+            o->m_segments_staging_length--;
             o->m_staging_time += o->m_first_segment_time_duration;
             o->m_staging_v_squared = o->m_first_segment_end_speed_squared;
         }
@@ -1115,7 +1116,7 @@ private:
     static void plan (Context c)
     {
         MotionPlanner *o = self(c);
-        AMBRO_ASSERT(o->m_segments_staging_end != o->m_segments_end)
+        AMBRO_ASSERT(o->m_segments_staging_length != o->m_segments_length)
         
 #ifdef MOTIONPLANNER_BENCHMARK
         TimeType bench_start;
@@ -1124,28 +1125,27 @@ private:
         }
 #endif
         
-        SegmentBufferSizeType count = BoundedModuloSubtract(o->m_segments_end, o->m_segments_start);
         LinearPlannerSegmentState state[LookaheadBufferSize];
         
-        SegmentBufferSizeType i = BoundedUnsafeDec(count);
+        SegmentBufferSizeType i = o->m_segments_length - 1;
         double v = 0.0;
         while (1) {
-            Segment *entry = &o->m_segments[BoundedModuloAdd(o->m_segments_start, i).value()];
-            v = LinearPlannerPush(&entry->lp_seg, &state[i.value()], v);
-            if (AMBRO_UNLIKELY(i.value() == 0)) {
+            Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
+            v = LinearPlannerPush(&entry->lp_seg, &state[i], v);
+            if (AMBRO_UNLIKELY(i == 0)) {
                 break;
             }
-            i = BoundedUnsafeDec(i);
+            i--;
         }
         
-        i = SegmentBufferSizeType::import(0);
+        i = 0;
         v = o->m_staging_v_squared;
         double v_start = sqrt(o->m_staging_v_squared);
         TimeType time = o->m_staging_time;
         do {
-            Segment *entry = &o->m_segments[BoundedModuloAdd(o->m_segments_start, i).value()];
+            Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
             LinearPlannerSegmentResult result;
-            v = LinearPlannerPull(&entry->lp_seg, &state[i.value()], v, &result);
+            v = LinearPlannerPull(&entry->lp_seg, &state[i], v, &result);
             TimeType time_duration;
             if (entry->type == 0) {
                 double v_end = sqrt(v);
@@ -1162,25 +1162,25 @@ private:
                 t1.m_bits.m_int -= t2.bitsValue();
                 TupleForEachForward(&o->m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
-                                    t0_double * t0_double, t2_double * t2_double, i == SegmentBufferSizeType::import(0));
+                                    t0_double * t0_double, t2_double * t2_double, i == 0);
                 v_start = v_end;
             } else {
                 time_duration = 0;
                 TupleForOneOffset<1>(entry->type, &o->m_channels, Foreach_gen_command(), c, entry, time);
             }
-            if (AMBRO_UNLIKELY(i == SegmentBufferSizeType::import(0))) {
+            if (AMBRO_UNLIKELY(i == 0)) {
                 o->m_first_segment_end_speed_squared = v;
                 o->m_first_segment_time_duration = time_duration;
             }
-            i = BoundedUnsafeInc(i);
-        } while (i != count);
+            i++;
+        } while (i != o->m_segments_length);
         
         TupleForEachForward(&o->m_axes, Foreach_complete_new(), c);
         TupleForEachForward(&o->m_channels, Foreach_complete_new(), c);
         if (AMBRO_UNLIKELY(!o->m_stepping)) {
             TupleForEachForward(&o->m_axes, Foreach_swap_staging_cold(), c);
             TupleForEachForward(&o->m_channels, Foreach_swap_staging_cold(), c);
-            o->m_segments_staging_end = o->m_segments_end;
+            o->m_segments_staging_length = o->m_segments_length;
         } else {
             StepperCommandSizeType axes_old_first[NumAxes];
             ChannelCommandSizeTypeTuple channels_old_first;
@@ -1196,7 +1196,7 @@ private:
             if (AMBRO_LIKELY(!o->m_underrun)) {
                 TupleForEachForward(&o->m_axes, Foreach_swap_staging_finish(), c, axes_old_first);
                 TupleForEachForward(&o->m_channels, Foreach_swap_staging_finish(), c, &channels_old_first);
-                o->m_segments_staging_end = o->m_segments_end;
+                o->m_segments_staging_length = o->m_segments_length;
             }
             TupleForEachForward(&o->m_axes, Foreach_dispose_new(), c);
             TupleForEachForward(&o->m_channels, Foreach_dispose_new(), c);
@@ -1214,7 +1214,7 @@ private:
         MotionPlanner *o = self(c);
         AMBRO_ASSERT(!o->m_stepping)
         AMBRO_ASSERT(!o->m_underrun)
-        AMBRO_ASSERT(o->m_segments_staging_end == o->m_segments_end)
+        AMBRO_ASSERT(o->m_segments_staging_length == o->m_segments_length)
         
 #ifdef MOTIONPLANNER_BENCHMARK
         if (NumAxes > 1) {
@@ -1235,11 +1235,11 @@ private:
         AMBRO_ASSERT(!o->m_stepping)
         AMBRO_ASSERT(o->m_waiting)
         
-        if (o->m_segments_start == o->m_segments_end) {
+        if (o->m_segments_length == 0) {
             o->m_pull_finished_event.prependNowNotAlready(c);
         } else {
             o->m_underrun = false;
-            if (o->m_segments_staging_end != o->m_segments_end) {
+            if (o->m_segments_staging_length != o->m_segments_length) {
                 plan(c);
             }
             planner_start_stepping(c);
@@ -1254,7 +1254,7 @@ private:
         if (AMBRO_UNLIKELY(o->m_waiting)) {
             AMBRO_ASSERT(o->m_pulling)
             AMBRO_ASSERT(!o->m_stepping)
-            AMBRO_ASSERT(o->m_segments_start == o->m_segments_end)
+            AMBRO_ASSERT(o->m_segments_length == 0)
             AMBRO_ASSERT(planner_is_empty(c))
             
             o->m_waiting = false;
@@ -1300,14 +1300,16 @@ private:
             AMBRO_ASSERT(o->m_underrun)
             if (TupleForEachForwardAccRes(&o->m_axes, false, Foreach_is_aborted(), c)) {
                 TupleForEachForward(&o->m_axes, Foreach_reset_aborted(), c);
-                o->m_segments_staging_end = o->m_segments_end;
+                o->m_segments_staging_length = o->m_segments_length;
                 if (AMBRO_LIKELY(o->m_split_buffer.type != 0xFF)) {
                     o->m_split_buffer.type = 0xFF;
                     o->m_pull_finished_event.prependNowNotAlready(c);
                 }
             }
             o->m_stepping = false;
-            o->m_segments_start = o->m_segments_staging_end;
+            o->m_segments_start = segments_add(o->m_segments_start, o->m_segments_staging_length);
+            o->m_segments_length -= o->m_segments_staging_length;
+            o->m_segments_staging_length = 0;
             o->m_staging_time = 0;
             o->m_staging_v_squared = 0.0;
             c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
@@ -1323,10 +1325,20 @@ private:
         }
     }
     
+    static SegmentBufferSizeType segments_inc (SegmentBufferSizeType i)
+    {
+        return (i == LookaheadBufferSize - 1) ? 0 : (i + 1);
+    }
+    
+    static SegmentBufferSizeType segments_add (SegmentBufferSizeType i, SegmentBufferSizeType j)
+    {
+        return (j >= LookaheadBufferSize - i) ? (j - (LookaheadBufferSize - i)) : (i + j);
+    }    
+    
     typename Loop::QueuedEvent m_pull_finished_event;
     SegmentBufferSizeType m_segments_start;
-    SegmentBufferSizeType m_segments_staging_end;
-    SegmentBufferSizeType m_segments_end;
+    SegmentBufferSizeType m_segments_staging_length;
+    SegmentBufferSizeType m_segments_length;
     TimeType m_staging_time;
     double m_staging_v_squared;
     double m_first_segment_end_speed_squared;
@@ -1339,7 +1351,7 @@ private:
     bool m_pulling;
 #endif
     SplitBuffer m_split_buffer;
-    Segment m_segments[(size_t)SegmentBufferSizeType::maxIntValue() + 1];
+    Segment m_segments[LookaheadBufferSize];
     AxesTuple m_axes;
     ChannelsTuple m_channels;
 #ifdef MOTIONPLANNER_BENCHMARK
