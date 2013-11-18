@@ -151,6 +151,14 @@ public:
         return FixedPoint<NumBits - ShiftExp, Signed, Exp + ShiftExp>::importBoundedBits(bitsBoundedValue().template shift<ShiftExp>());
     }
     
+    template <int ShiftExp>
+    FixedPoint<NumBits - ShiftExp, Signed, Exp + ShiftExp> undoShiftBitsLeft () const
+    {
+        static_assert(ShiftExp >= 0, "");
+        
+        return FixedPoint<NumBits - ShiftExp, Signed, Exp + ShiftExp>::importBoundedBits(bitsBoundedValue().template undoShiftLeft<ShiftExp>());
+    }
+    
     template <int NewBits>
     FixedPoint<NewBits, Signed, Exp - (NewBits - NumBits)> bitsTo () const
     {

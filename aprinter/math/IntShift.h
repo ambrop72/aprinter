@@ -109,6 +109,22 @@ public:
     }
 };
 
+template <int NumBits, bool Signed, int ShiftCount>
+class IntUndoShiftLeft {
+public:
+    static_assert(ShiftCount >= 0, "");
+    typedef typename ChooseInt<NumBits, Signed>::Type OpType;
+    typedef typename ChooseInt<NumBits - ShiftCount, Signed>::Type ResType;
+    
+    template <typename Option = int>
+    __attribute__((always_inline)) inline static ResType call (OpType op)
+    {
+        // WARNING relying on implementation defined semantics
+        // of right-shifting negative integers
+        return (op >> ShiftCount);
+    }
+};
+
 #include <aprinter/EndNamespace.h>
 
 #endif

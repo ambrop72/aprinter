@@ -131,6 +131,14 @@ public:
         return ShiftHelper<ShiftExp, (ShiftExp < 0)>::call(*this);
     }
     
+    template <int ShiftExp>
+    BoundedInt<NumBits - ShiftExp, Signed> undoShiftLeft () const
+    {
+        static_assert(ShiftExp >= 0, "");
+        
+        return BoundedInt<NumBits - ShiftExp, Signed>::import(IntUndoShiftLeft<NumBits, Signed, ShiftExp>::call(value()));
+    }
+    
     BoundedInt<NumBits, false> absVal () const
     {
         return BoundedInt<NumBits, false>::import((value() >= 0) ? value() : -value());
