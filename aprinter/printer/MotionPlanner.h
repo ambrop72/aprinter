@@ -544,7 +544,6 @@ public:
         static void swap_staging_prepare (Context c, StepperCommandSizeType *old_first)
         {
             Axis *o = self(c);
-            AMBRO_ASSERT(o->m_num_committed > 0)
             
             old_first[AxisIndex] = o->m_stepper_entries[o->m_last_committed].next;
         }
@@ -772,7 +771,6 @@ public:
         static void swap_staging_prepare (Context c, ChannelCommandSizeTypeTuple *old_first_tuple)
         {
             Channel *o = self(c);
-            AMBRO_ASSERT(o->m_num_committed >= 0)
             
             *TupleGetElem<ChannelIndex>(old_first_tuple) = o->m_channel_commands[o->m_last_committed].next;
         }
