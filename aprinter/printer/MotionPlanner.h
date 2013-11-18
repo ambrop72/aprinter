@@ -53,7 +53,6 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Likely.h>
-#include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/printer/LinearPlanner.h>
@@ -112,6 +111,7 @@ private:
     using SegmentBufferSizeType = typename ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>::Type;
     static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * LookaheadBufferSize);
     using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
+    using UnsignedStepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, false>::Type;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
@@ -304,7 +304,7 @@ public:
             o->m_num_committed = 0;
             o->m_last_committed = 0;
             for (size_t i = 0; i < NumStepperCommands; i++) {
-                o->m_stepper_entries[i].next = o->m_free_first;
+                index_command(c, i)->next = o->m_free_first;
                 o->m_free_first = i;
             }
             stepper(c)->setPrestepCallbackEnabled(c, prestep_callback_enabled);
@@ -476,8 +476,8 @@ public:
         {
             Axis *o = self(c);
             StepperCommandSizeType entry = o->m_free_first;
-            o->m_free_first = o->m_stepper_entries[o->m_free_first].next;
-            TheAxisStepper::generate_command(axis_entry->dir, x, t, a, &o->m_stepper_entries[entry].scmd);
+            o->m_free_first = index_command(c, o->m_free_first)->next;
+            TheAxisStepper::generate_command(axis_entry->dir, x, t, a, &index_command(c, entry)->scmd);
             if (!(o->m_new_first >= 0)) {
                 o->m_new_first = entry;
             }
@@ -488,7 +488,7 @@ public:
         {
             Axis *o = self(c);
             if (o->m_new_first >= 0) {
-                o->m_stepper_entries[o->m_new_last].next = -1;
+                index_command(c, o->m_new_last)->next = -1;
             }
         }
         
@@ -517,7 +517,7 @@ public:
         {
             Axis *o = self(c);
             if (o->m_new_first >= 0) {
-                o->m_stepper_entries[o->m_new_last].next = o->m_free_first;
+                index_command(c, o->m_new_last)->next = o->m_free_first;
                 o->m_free_first = o->m_new_first;
                 o->m_new_first = -1;
             }
@@ -529,11 +529,11 @@ public:
             if (!(o->m_new_first >= 0)) {
                 return;
             }
-            if (o->m_stepper_entries[o->m_last_committed].next >= 0) {
-                o->m_stepper_entries[o->m_last].next = o->m_free_first;
-                o->m_free_first = o->m_stepper_entries[o->m_last_committed].next;
+            if (index_command(c, o->m_last_committed)->next >= 0) {
+                index_command(c, o->m_last)->next = o->m_free_first;
+                o->m_free_first = index_command(c, o->m_last_committed)->next;
             }
-            o->m_stepper_entries[o->m_last_committed].next = o->m_new_first;
+            index_command(c, o->m_last_committed)->next = o->m_new_first;
             if (o->m_num_committed == 0) {
                 o->m_first = o->m_new_first;
             }
@@ -545,14 +545,14 @@ public:
         {
             Axis *o = self(c);
             
-            old_first[AxisIndex] = o->m_stepper_entries[o->m_last_committed].next;
+            old_first[AxisIndex] = index_command(c, o->m_last_committed)->next;
         }
         
         static void swap_staging_hot (Context c)
         {
             Axis *o = self(c);
             if (AMBRO_LIKELY(o->m_new_first >= 0)) {
-                o->m_stepper_entries[o->m_last_committed].next = o->m_new_first;
+                index_command(c, o->m_last_committed)->next = o->m_new_first;
             }
         }
         
@@ -573,7 +573,7 @@ public:
             if (!(o->m_first >= 0)) {
                 return;
             }
-            stepper(c)->template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, &o->m_stepper_entries[o->m_first].scmd);
+            stepper(c)->template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, &index_command(c, o->m_first)->scmd);
         }
         
         static bool is_empty (bool accum, Context c)
@@ -615,17 +615,23 @@ public:
             
             c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
             o->m_num_committed--;
-            o->m_first = o->m_stepper_entries[o->m_first].next;
+            o->m_first = index_command(c, o->m_first)->next;
             if (!(o->m_first >= 0)) {
                 return false;
             }
-            *out_cmd = &o->m_stepper_entries[o->m_first].scmd;
+            *out_cmd = &index_command(c, o->m_first)->scmd;
             return true;
         }
         
         static bool stepper_prestep_callback (StepperCommandCallbackContext c)
         {
             return PrestepCallbackHelper<PrestepCallbackEnabled>::call(c);
+        }
+        
+        AMBRO_ALWAYS_INLINE static TheAxisStepperCommand * index_command (Context c, UnsignedStepperCommandSizeType i)
+        {
+            Axis *o = self(c);
+            return (TheAxisStepperCommand *)((char *)o->m_stepper_entries + i * sizeof(TheAxisStepperCommand));
         }
         
         template <bool Enabled, typename Dummy = void>
@@ -1219,7 +1225,6 @@ private:
             printf("elapsed %" PRIu32 "\n", o->m_bench_time);
         }
 #endif
-        
         o->m_stepping = true;
         TimeType start_time = c.clock()->getTime(c);
         o->m_staging_time += start_time;
