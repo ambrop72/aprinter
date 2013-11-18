@@ -51,7 +51,8 @@ public:
     static const bool Signed = Signed1 || Signed2;
     static const int TempBits = NumBits1 + NumBits2;
     
-    static ResType call (Op1Type op1, Op2Type op2)
+    template <typename Option = int>
+    __attribute__((always_inline)) inline static ResType call (Op1Type op1, Op2Type op2, Option opt = 0)
     {
         return
 #ifdef AMBROLIB_AVR
