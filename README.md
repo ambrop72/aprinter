@@ -6,7 +6,7 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
 ## Implemented features (possibly with bugs)
 
   * SD card printing (reading of sequential blocks only, no filesystem or partition support).
-  * Serial communication using the defacto RepRap protocol. Baud rate above 57600 will not work, for now.
+  * Serial communication using the defacto RepRap protocol. Maximum baud rate is 115200.
   * Homing, including homing of multiple axes at the same time. Either min- or max- endstops can be used.
   * Line motion with acceleration control and cartesian speed limit (F parameter).
     Speed limit in case of E-only motion is not implemented.
@@ -117,7 +117,13 @@ AMBRO_AVR_SPI_ISRS(*p.myprinter.getSdCard()->getSpi(), MyContext())
 ...
 ```
 
-**Additionally**, you will need to reduce your buffer sizes to accomodate the RAM requirements of the SD code. Lowering `StepperSegmentBufferSize` and `EventChannelBufferSize` to 10 should do the trick.
+**Additionally**, you may need to reduce your buffer sizes to accomodate the RAM requirements of the SD code.
+To check, compile the firmware, then run `avr-size aprinter.elf`.
+The `bss` number tells you how much data memory is used.
+Also consider that there should be about 900 bytes left for the stack.
+Therefore, on atmega2560, which has 8KiB of SRAM, your `bss` should not be higher than 7300.
+You can reduce your RAM usage by lowering `StepperSegmentBufferSize` and `EventChannelBufferSize` (preferably keeping them equal),
+as well as lowering `LookaheadBufferSize`.
 
 Once you've flashed firmware wirh these changes, you will have the following commands available:
 
@@ -239,6 +245,8 @@ Here, we used TC0/OCA and TC0/OCB for the new axis and heater, and TC2/OCA for t
 As such, it is not possible to add any extra axes/heaters/fans.
 However, it would be easy to implement multiplexing so that one hardware OC units would act as two or more virtual OC units,
 at the cost of some overhead in the ISRs.
+
+**NOTE:** keep track of your RAM usage. See the SD card section to check how to check and reduce RAM usage.
 
 ## The DeTool g-code postprocessor
 
