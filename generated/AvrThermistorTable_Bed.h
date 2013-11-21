@@ -44,7 +44,9 @@
 #define AMBROLIB_AVR_THERMISTOR_Bed_H
 
 #include <stdint.h>
+#ifdef AMBROLIB_AVR
 #include <avr/pgmspace.h>
+#endif
 
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/Likely.h>
@@ -63,14 +65,26 @@ public:
         if (AMBRO_UNLIKELY(adc_value > 740 - 1)) {
             return ValueFixedType::minValue();
         }
+#ifdef AMBROLIB_AVR
         return ValueFixedType::importBits(pgm_read_word(&table[(adc_value - 79)]));
+#else
+        return ValueFixedType::importBits(table[(adc_value - 79)]);
+#endif
     }
     
 private:
+#ifdef AMBROLIB_AVR
     static uint16_t const table[661] PROGMEM;
+#else
+    static uint16_t const table[661];
+#endif
 };
 
+#ifdef AMBROLIB_AVR
 uint16_t const AvrThermistorTable_Bed::table[661] PROGMEM = {
+#else
+uint16_t const AvrThermistorTable_Bed::table[661] = {
+#endif
 UINT16_C(4460), UINT16_C(4439), 
 UINT16_C(4418), UINT16_C(4397), UINT16_C(4377), UINT16_C(4357), UINT16_C(4337), UINT16_C(4318), UINT16_C(4298), UINT16_C(4279), 
 UINT16_C(4260), UINT16_C(4242), UINT16_C(4224), UINT16_C(4205), UINT16_C(4188), UINT16_C(4170), UINT16_C(4152), UINT16_C(4135), 
