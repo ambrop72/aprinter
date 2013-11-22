@@ -35,6 +35,7 @@
 #include <aprinter/meta/Position.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -195,7 +196,7 @@ class BusyEventLoopExtra {
     friend Loop;
     
     static const int NumFastEvents = TypeListLength<FastEventList>::value;
-    using FastEventSizeType = typename ChooseInt<BitsInInt<NumFastEvents>::value, false>::Type;
+    using FastEventSizeType = typename ChooseInt<max(1, BitsInInt<NumFastEvents>::value), false>::Type;
     
     struct FastEventState {
         bool not_triggered;
