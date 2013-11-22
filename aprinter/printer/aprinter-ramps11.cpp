@@ -145,6 +145,8 @@ using PrinterParams = PrinterMainParams<
      */
     PrinterMainSerialParams<
         UINT32_C(115200), // BaudRate
+        6, // RecvBufferSizeExp
+        8, // SendBufferSizeExp
         GcodeParserParams<8>, // ReceiveBufferSizeExp
         AvrSerial,
         AvrSerialParams<true>

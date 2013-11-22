@@ -105,12 +105,16 @@ struct PrinterMainParams {
 };
 
 template <
-    uint32_t tbaud, typename TTheGcodeParserParams,
+    uint32_t tbaud,
+    int TRecvBufferSizeExp, int TSendBufferSizeExp,
+    typename TTheGcodeParserParams,
     template <typename, typename, int, int, typename, typename, typename> class TSerialTemplate,
     typename TSerialParams
 >
 struct PrinterMainSerialParams {
     static const uint32_t baud = tbaud;
+    static const int RecvBufferSizeExp = TRecvBufferSizeExp;
+    static const int SendBufferSizeExp = TSendBufferSizeExp;
     using TheGcodeParserParams = TTheGcodeParserParams;
     template <typename S, typename X, int Y, int Z, typename W, typename Q, typename R> using SerialTemplate = TSerialTemplate<S, X, Y, Z, W, Q, R>;
     using SerialParams = TSerialParams;
@@ -605,9 +609,7 @@ private:
         struct SerialRecvHandler;
         struct SerialSendHandler;
         
-        static const int serial_recv_buffer_bits = 6;
-        static const int serial_send_buffer_bits = 8;
-        using TheSerial = typename Params::Serial::template SerialTemplate<SerialPosition, Context, serial_recv_buffer_bits, serial_send_buffer_bits, typename Params::Serial::SerialParams, SerialRecvHandler, SerialSendHandler>;
+        using TheSerial = typename Params::Serial::template SerialTemplate<SerialPosition, Context, Params::Serial::RecvBufferSizeExp, Params::Serial::SendBufferSizeExp, typename Params::Serial::SerialParams, SerialRecvHandler, SerialSendHandler>;
         using RecvSizeType = typename TheSerial::RecvSizeType;
         using SendSizeType = typename TheSerial::SendSizeType;
         using TheGcodeParser = GcodeParser<GcodeParserPosition, Context, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType, GcodeParserTypeSerial>;
