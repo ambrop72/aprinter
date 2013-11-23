@@ -57,7 +57,7 @@ using namespace APrinter;
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
-using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.001);
+using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
