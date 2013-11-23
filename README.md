@@ -2,16 +2,17 @@ aprinter
 ========
 
 APrinter is a currently experimantal firmware for RepRap 3D printers and is under heavy development.
+It supports many controller boards based on AVR, as well as Arduino Due.
 
 ## Implemented features (possibly with bugs)
 
   * SD card printing (reading of sequential blocks only, no filesystem or partition support).
-  * Serial communication using the defacto RepRap protocol. Maximum baud rate is 115200.
+  * Serial communication using the defacto RepRap protocol. Maximum baud rate on AVR is 115200.
   * Homing, including homing of multiple axes at the same time. Either min- or max- endstops can be used.
   * Line motion with acceleration control and cartesian speed limit (F parameter).
     Speed limit in case of E-only motion is not implemented.
     The speed is automatically limited to not overload the MCU with interrupts.
-  * Look-ahead to preserve some speed on corners. By default, planning takes the previous 3 moves into account.
+  * Look-ahead to preserve some speed on corners. By default, on AVR, planning takes the previous 3 moves into account.
     This can be increased in the configuration, but this
     also increases the chance of buffer underruns , which cause the print to temporarily pause while the buffer refills.
     Look-ahead is very memory-hungry in its current state.
@@ -34,7 +35,8 @@ APrinter is a currently experimantal firmware for RepRap 3D printers and is unde
 Ports have been completed for the following boards:
 
   * Melzi (atmega1284p only),
-  * RAMPS 1.0, 1.1/1.2 or 1.3/1.4 (only RAMPS 1.4 with atmega2560 is tested).
+  * RAMPS 1.0, 1.1/1.2 or 1.3/1.4 (only RAMPS 1.4 with atmega2560 is tested),
+  * RAMPS-FD or other setup based on Arduino Due.
 
 However, any AVR satisfying the following should work, possibly requiring minor adjustments in the code:
 
@@ -47,14 +49,15 @@ However, any AVR satisfying the following should work, possibly requiring minor 
   * Extreme attention to detail and bugless code. Lots of assertions (the proven kind, not guesses).
   * The software is written in C++11.
   * Extensive use of abstractions for hardware access and program structuring.
-    It should be possible to port the software to non-AVR platforms with little work.
+    It should be possible to port the software on new platforms with little work.
+    In fact, the firmware already works on Arduino Due, which is based on an Atmel ARM microcontroller.
   * Template metaprogramming is used to implement the abstractions efficiently.
     No, I do not care if the average C hacker can't read my code.
   * Hardcoding is avoided where that makes sense, with the help of template metaprogramming.
     For example, the configuration specifies a list of heaters, and it is trivial to add new heaters.
-  * Pure avr-gcc code, no reliance on inefficient libraries.
+  * No reliance on inefficient libraries such as Arduino.
 
-## Building it
+## Building it (AVR)
 
   * Make sure you have avr-g++ 4.8.1 or newer.
     Since it's not that easy to build or get that, I provide a
@@ -76,9 +79,20 @@ However, any AVR satisfying the following should work, possibly requiring minor 
     If you're only used to uploading with the Arduino IDE, you can enable the verbose upload option in its preferences,
     and it will print out the avrdude command when you try to upload a sketch.
 
+## Building it (Due)
+
+  * Obtain a gcc toolchain for ARM Cortex M3, including a C++ compiler. You need at least gcc version 4.8.1.
+    If you're on Gentoo, the following command should do the trick: `USE="-fortran -openmp" crossdev -s4  --genv 'EXTRA_ECONF="--disable-libstdcxx-time"' armv7m-softfloat-eabi`
+  * Download the [Atmel Software Framework](http://www.atmel.com/tools/AVRSOFTWAREFRAMEWORK.aspx).
+  * Edit `compile-rampsfd.sh` and adjust `CROSS` and `ASF_DIR` appropriately.
+  * Run `compile-rampsfd.sh` to build the firmware.
+  * Download Arduino 1.5 then edit `flash-rampsfd.sh` to point it to the location of the `bossac` program.
+  * Connect your Due board via the programming port.
+  * Press the erase button, then the reset button, and finally run `flash-rampsfd.sh` to upload the firmware to your board.
+
 ## Testing it
 
-  * Connect to the printer with Pronterface, and make sure you use baud rate 57600.
+  * Connect to the printer with Pronterface, and make sure you use baud rate 115200 (for AVR) or 250000 (for Due).
   * Try homing and some basic motion.
   * Check the current temperatures (M105).
   * Only try turning on the heaters once you've verified that the temperatures are being reported correctly.
@@ -91,6 +105,8 @@ However, any AVR satisfying the following should work, possibly requiring minor 
 ## SD card support
 
 The firmware supports reading G-code from an SD card. However, the G-code needs to be written directly to the SD card in sequential blocks, starting with the first block.
+
+**NOTE**: SD card is not implemented on Due yet.
 
 To enable SD card support, some changes need to be done in your main file:
 ```
