@@ -81,9 +81,13 @@ However, any AVR satisfying the following should work, possibly requiring minor 
 
 ## Building it (Due)
 
-  * Obtain a gcc toolchain for ARM Cortex M3, including a C++ compiler. You need at least gcc version 4.8.1.
-    If you're on Gentoo, the following command should do the trick: `USE="-fortran -openmp" crossdev -s4  --genv 'EXTRA_ECONF="--disable-libstdcxx-time"' armv7m-softfloat-eabi`
+  * Obtain a gcc toolchain for ARM Cortex M3, including a C++ compiler.
+  * Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
+    Version 4_7-2013q3-20130916-linux has been tested.
+    Alternatively, if you're on Gentoo, you can easily build the toolchain yourself:
+    `USE="-fortran -openmp" crossdev -s4  --genv 'EXTRA_ECONF="--disable-libstdcxx-time"' armv7m-softfloat-eabi`
   * Download the [Atmel Software Framework](http://www.atmel.com/tools/AVRSOFTWAREFRAMEWORK.aspx).
+    Version 3.12.1 has been tested.
   * Edit `compile-rampsfd.sh` and adjust `CROSS` and `ASF_DIR` appropriately.
   * Run `compile-rampsfd.sh` to build the firmware.
   * Download Arduino 1.5 then edit `flash-rampsfd.sh` to point it to the location of the `bossac` program.
