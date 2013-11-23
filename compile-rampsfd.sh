@@ -3,7 +3,8 @@
 set -e
 set -x
 
-CROSS=armv7m-softfloat-eabi-
+CROSS=/home/ambro/gcc-arm-none-eabi-4_7-2013q3/bin/arm-none-eabi-
+#CROSS=armv7m-softfloat-eabi-
 CC=${CC:-${CROSS}gcc}
 ASF_DIR=/home/ambro/asf-3.12.1
 MAIN=aprinter/printer/aprinter-rampsfd.cpp
@@ -13,7 +14,7 @@ TEMPLATES_DIR=${CMSIS_DIR}/source/templates
 LINKER_SCRIPT=${ASF_DIR}/sam/utils/linker_scripts/sam3x/sam3x8/gcc/flash.ld
 
 FLAGS_C_CXX_LD=(
-    -mcpu=cortex-m3 -O2 -g
+    -mcpu=cortex-m3 -mthumb -O2 -g
 )
 FLAGS_CXX_LD=(
     -fno-rtti -fno-exceptions

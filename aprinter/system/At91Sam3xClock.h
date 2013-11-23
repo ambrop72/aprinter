@@ -219,7 +219,7 @@ private:
 __attribute__((used)) \
 void TC##tcnum##_Handler (void) \
 { \
-    (clock).template tc_irq_handler<At91Sam3xClockTC##tcnum>(MakeInterruptContext((context))); \
+    (clock).tc_irq_handler<At91Sam3xClockTC##tcnum>(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AT91SAM3X_CLOCK_TC0_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(0, (clock), (context))

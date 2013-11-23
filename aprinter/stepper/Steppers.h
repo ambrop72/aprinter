@@ -111,7 +111,7 @@ public:
             Context::Pins::template emergencySet<typename ThisDef::EnablePin>(true);
         }
         
-    private:
+    public: // private, workaround gcc bug
         friend Steppers;
         
         AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EnablePin, EnablePin)

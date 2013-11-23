@@ -273,7 +273,7 @@ public:
         using TheAxisInputCommand = AxisInputCommand<AxisIndex>;
         using StepperCommandCallbackContext = typename TheAxisStepper::CommandCallbackContext;
         
-    private:
+    public: // private, workaround gcc bug
         friend MotionPlanner;
         
         using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
@@ -671,7 +671,7 @@ public:
     
     template <int ChannelIndex>
     class Channel {
-    private:
+    public: // private, workaround gcc bug
         friend MotionPlanner;
         struct TimerHandler;
         struct TimerPosition;
@@ -684,7 +684,7 @@ public:
         using TheTimer = typename ChannelSpec::template Timer<TimerPosition, Context, TimerHandler>;
         using CallbackContext = typename TheTimer::HandlerContext;
         
-    private:
+    public: // private, workaround gcc bug
         static_assert(ChannelSpec::BufferSize > 0, "");
         static const size_t NumChannelCommands = TheChannelCommand::NumChannelCommands;
         using ChannelCommandSizeType = typename TheChannelCommand::ChannelCommandSizeType;
