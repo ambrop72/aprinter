@@ -30,6 +30,7 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/Modulo.h>
+#include <aprinter/meta/IntTypeInfo.h>
 
 #ifdef AMBROLIB_AVR
 #include <avr-asm-ops/sqrt_25_large.h>
@@ -40,6 +41,7 @@
 template <int NumBits>
 class IntSqrt {
 public:
+    static_assert(NumBits >= 3, "");
     typedef typename ChooseInt<NumBits, false>::Type OpType;
     typedef typename ChooseInt<((NumBits + 1) / 2), false>::Type ResType;
     
@@ -50,15 +52,12 @@ public:
 #ifdef AMBROLIB_AVR
             (NumBits <= 25) ? sqrt_25_large(op, opt) :
 #endif
-            default_sqrt(op);
+            DefaultSqrt<OverflowPossible>::call(op);
     }
     
-private:
-    static ResType default_sqrt (OpType op_arg)
+    // small implementation is always here for testing others against
+    static ResType good_sqrt (OpType op_arg)
     {
-        static const int TempBits = NumBits + Modulo(NumBits, 2);
-        using TempType = typename ChooseInt<TempBits, false>::Type;
-        
         TempType op = op_arg;
         TempType res = 0;
         TempType one = PowerOfTwo<TempType, (TempBits - 2)>::value;
@@ -69,15 +68,92 @@ private:
         
         while (one != 0) {
             if (op >= res + one) {
-                op = op - (res + one);
-                res = res + 2 * one;
+                op -= res + one;
+                res = (res >> 1) + one;
+            } else {
+                res >>= 1;
             }
-            res >>= 1;
             one >>= 2;
         }
         
         return res;
     }
+
+private:
+    static const int TempBits = NumBits + Modulo(NumBits, 2);
+    using TempType = typename ChooseInt<TempBits, false>::Type;
+    static const bool OverflowPossible = (TempBits == IntTypeInfo<TempType>::NumBits);
+    
+    template <bool TheOverflowPossible, typename Dummy0 = void>
+    struct DefaultSqrt {
+        static ResType call (OpType op_arg)
+        {
+            return Work<0>::call(op_arg, 0);
+        }
+        
+        template <int I, typename Dummy = void>
+        struct Work {
+            static ResType call (TempType op, TempType res)
+            {
+                TempType one = PowerOfTwo<TempType, (TempBits - 2 - (2 * I))>::value;
+                if (op >= res + one) {
+                    op -= res + one;
+                    res = (res >> 1) + one;
+                } else {
+                    res >>= 1;
+                }
+                return Work<(I + 1)>::call(op, res);
+            }
+        };
+        
+        template <typename Dummy>
+        struct Work<(TempBits / 2), Dummy> {
+            static ResType call (TempType op, TempType res)
+            {
+                return res;
+            }
+        };
+    };
+    
+    template <typename Dummy0>
+    struct DefaultSqrt<false, Dummy0> {
+        static ResType call (OpType op_arg)
+        {
+            return Work<0>::call(op_arg, PowerOfTwo<TempType, TempBits - 2>::value);
+        }
+        
+        template <int I, typename Dummy = void>
+        struct Work {
+            static ResType call (TempType op, TempType res)
+            {
+                static const TempType one = PowerOfTwo<TempType, TempBits - 2 - I>::value;
+                static const TempType prev_one = one << 1;
+                static const TempType next_one = one >> 1;
+                static const TempType res_add_nobit = (TempType)(next_one - one);
+                static const TempType res_add_bit = (TempType)(res_add_nobit + prev_one);
+                if (op >= res) {
+                    op -= res;
+                    res += res_add_bit;
+                } else {
+                    res += res_add_nobit;
+                }
+                op <<= 1;
+                return Work<(I + 1)>::call(op, res);
+            }
+        };
+        
+        template <typename Dummy>
+        struct Work<((TempBits / 2) - 1), Dummy> {
+            static ResType call (TempType op, TempType res)
+            {
+                if (op >= res) {
+                    res += PowerOfTwo<TempType, (TempBits / 2)>::value;
+                }
+                return res >> (TempBits / 2);
+            }
+        };
+    };
+    
 };
 
 #include <aprinter/EndNamespace.h>
