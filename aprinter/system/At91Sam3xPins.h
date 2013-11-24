@@ -118,6 +118,26 @@ public:
         }
     }
     
+    template <typename Pin>
+    static void setPeripheralOutputA (Context c)
+    {
+        At91Sam3xPins *o = self(c);
+        o->debugAccess(c);
+        
+        pio<typename Pin::Pio>()->PIO_ABSR &= ~(UINT32_C(1) << Pin::PinIndex);
+        pio<typename Pin::Pio>()->PIO_PDR = (UINT32_C(1) << Pin::PinIndex);
+    }
+    
+    template <typename Pin>
+    static void setPeripheralOutputB (Context c)
+    {
+        At91Sam3xPins *o = self(c);
+        o->debugAccess(c);
+        
+        pio<typename Pin::Pio>()->PIO_ABSR |= (UINT32_C(1) << Pin::PinIndex);
+        pio<typename Pin::Pio>()->PIO_PDR = (UINT32_C(1) << Pin::PinIndex);
+    }
+    
     template <typename Pin, typename ThisContext>
     static bool get (ThisContext c)
     {
