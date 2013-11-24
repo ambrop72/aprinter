@@ -82,7 +82,7 @@ However, any AVR satisfying the following should work, possibly requiring minor 
 ## Building it (Due)
 
   * Obtain a gcc toolchain for ARM Cortex M3, including a C++ compiler.
-  * Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
+    Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
     Version 4_7-2013q3-20130916-linux has been tested.
     Alternatively, if you're on Gentoo, you can easily build the toolchain yourself:
     `USE="-fortran -openmp" crossdev -s4  --genv 'EXTRA_ECONF="--disable-libstdcxx-time"' armv7m-softfloat-eabi`
