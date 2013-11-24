@@ -43,8 +43,10 @@ static void emergency (void);
 #include <aprinter/system/At91Sam3xAdc.h>
 #include <aprinter/system/At91Sam3xWatchdog.h>
 #include <aprinter/system/At91Sam3xSerial.h>
+#include <aprinter/system/At91Sam3xSpi.h>
 #include <aprinter/devices/PidControl.h>
 #include <aprinter/devices/BinaryControl.h>
+#include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/arduino_due_pins.h>
 #include <generated/AvrThermistorTable_Extruder.h>
@@ -176,7 +178,16 @@ using PrinterParams = PrinterMainParams<
     At91Sam3xClockInterruptTimer_TC0A, // EventChannelTimer
     At91Sam3xWatchdog,
     At91Sam3xWatchdogParams<260>,
-    PrinterMainNoSdCardParams,
+    PrinterMainSdCardParams<
+        SpiSdCard,
+        SpiSdCardParams<
+            DuePin4, // SsPin
+            At91Sam3xSpi
+        >,
+        GcodeParserParams<8>,
+        2, // BufferBlocks
+        256 // MaxCommandSize
+    >,
     
     /*
      * Axes.
@@ -535,6 +546,7 @@ AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6B_GLOBAL(*p.myprinter.getFanTimer<0>(),
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7A_GLOBAL(*p.myprinter.getFanTimer<1>(), MyContext())
 
 AMBRO_AT91SAM3X_SERIAL_GLOBAL(*p.myprinter.getSerial(), MyContext())
+AMBRO_AT91SAM3X_SPI_GLOBAL(*p.myprinter.getSdCard()->getSpi(), MyContext())
 
 static void emergency (void)
 {
