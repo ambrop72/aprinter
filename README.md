@@ -112,7 +112,8 @@ The firmware supports reading G-code from an SD card. However, the G-code needs 
 
 **NOTE**: SD card is not implemented on Due yet.
 
-To enable SD card support, some changes need to be done in your main file:
+On Due/RAMPS-FD, SD card support is enabled by default.
+On the other hand, to enable SD card for AVR based boards, some changes need to be done in your main file:
 ```
 ...
 // add these includes
