@@ -38,19 +38,20 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <int NumBits>
+template <int NumBits, bool Round>
 class IntSqrt {
 public:
     static_assert(NumBits >= 3, "");
     typedef typename ChooseInt<NumBits, false>::Type OpType;
-    typedef typename ChooseInt<((NumBits + 1) / 2), false>::Type ResType;
+    typedef typename ChooseInt<((NumBits + 1 + Round) / 2), false>::Type ResType;
     
     template <typename Option = int>
     __attribute__((always_inline)) inline static ResType call (OpType op, Option opt = 0)
     {
         return
 #ifdef AMBROLIB_AVR
-            (NumBits <= 25) ? sqrt_25_large(op, opt) :
+            (NumBits <= 25 && !Round) ? sqrt_25_large(op, opt) :
+            (NumBits <= 25 && Round) ? sqrt_25_large_round(op, opt) :
 #endif
             DefaultSqrt<OverflowPossible>::call(op);
     }
@@ -74,6 +75,10 @@ public:
                 res >>= 1;
             }
             one >>= 2;
+        }
+        
+        if (Round && op > res) {
+            res++;
         }
         
         return res;
@@ -110,6 +115,9 @@ private:
         struct Work<(TempBits / 2), Dummy> {
             static ResType call (TempType op, TempType res)
             {
+                if (Round && op > res) {
+                    res++;
+                }
                 return res;
             }
         };
@@ -147,7 +155,16 @@ private:
             static ResType call (TempType op, TempType res)
             {
                 if (op >= res) {
+                    if (Round) {
+                        op -= res;
+                    }
                     res += PowerOfTwo<TempType, (TempBits / 2)>::value;
+                }
+                if (Round) {
+                    op <<= 1;
+                    if (op > res) {
+                        res += PowerOfTwo<TempType, (TempBits / 2)>::value;
+                    }
                 }
                 return res >> (TempBits / 2);
             }

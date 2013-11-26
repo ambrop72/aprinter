@@ -401,10 +401,10 @@ bool operator>= (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, S
     return FixedPointCompare<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2>::ge(op1, op2);
 }
 
-template <int NumBits, bool Signed, int Exp, typename Option = int>
-__attribute__((always_inline)) inline FixedPoint<((NumBits + Modulo(Exp, 2) + 1) / 2), false, ((Exp - Modulo(Exp, 2)) / 2)> FixedSquareRoot (FixedPoint<NumBits, Signed, Exp> op, Option opt = 0)
+template <bool Round, int NumBits, bool Signed, int Exp, typename Option = int>
+__attribute__((always_inline)) inline FixedPoint<((NumBits + Modulo(Exp, 2) + 1 + Round) / 2), false, ((Exp - Modulo(Exp, 2)) / 2)> FixedSquareRoot (FixedPoint<NumBits, Signed, Exp> op, Option opt = 0)
 {
-    return FixedPoint<((NumBits + Modulo(Exp, 2) + 1) / 2), false, ((Exp - Modulo(Exp, 2)) / 2)>::importBoundedBits(BoundedSquareRoot(op.bitsBoundedValue().template shiftLeft<Modulo(Exp, 2)>(), opt));
+    return FixedPoint<((NumBits + Modulo(Exp, 2) + 1 + Round) / 2), false, ((Exp - Modulo(Exp, 2)) / 2)>::importBoundedBits(BoundedSquareRoot<Round>(op.bitsBoundedValue().template shiftLeft<Modulo(Exp, 2)>(), opt));
 }
 
 template <typename T1, typename T2>

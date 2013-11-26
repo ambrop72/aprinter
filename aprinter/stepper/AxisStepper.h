@@ -281,7 +281,7 @@ private:
         o->m_current_command->discriminant.m_bits.m_int += o->m_current_command->a_mul.m_bits.m_int;
         AMBRO_ASSERT(o->m_current_command->discriminant.bitsValue() >= 0)
         
-        auto q = (o->m_v0 + FixedSquareRoot(o->m_current_command->discriminant, OptionForceInline())).template shift<-1>();
+        auto q = (o->m_v0 + FixedSquareRoot<true>(o->m_current_command->discriminant, OptionForceInline())).template shift<-1>();
         
         auto t_frac = FixedFracDivide(StepFixedType::importBits(o->m_current_command->x.bitsValue()), q, OptionForceInline());
         

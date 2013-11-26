@@ -126,8 +126,8 @@
 /*
  * Square root 25-bit.
  * 
- * Cycles in worst case: 133
- * = 8 + 2 * 8 + 8 + 10 + 2 * 10 + 4 * 10 + 15 + 11 + 5
+ * Cycles in worst case: 131
+ * = 8 + 2 * 8 + 8 + 10 + 2 * 10 + 4 * 10 + 15 + 10 + 4
  */
 __attribute__((always_inline)) inline static uint16_t sqrt_25_large (uint32_t x, OptionForceInline opt)
 {
@@ -157,11 +157,66 @@ __attribute__((always_inline)) inline static uint16_t sqrt_25_large (uint32_t x,
         "    lsl %A[x]\n"
         "    cpc %A[goo],%C[x]\n"
         "    cpc %B[goo],%D[x]\n"
-        "end_inc%=:\n"
         "    adc %A[goo],__zero_reg__\n"
         
         : [goo] "=&d" (goo),
           [x] "=&r" (x)
+        : "[x]" (x)
+    );
+    
+    return goo;
+}
+
+/*
+ * Square root 25-bit with rounding.
+ * 
+ * Cycles in worst case: 142
+ * = 8 + 2 * 8 + 8 + 10 + 2 * 10 + 4 * 10 + 15 + 10 + 15
+ */
+__attribute__((always_inline)) inline static uint16_t sqrt_25_large_round (uint32_t x, OptionForceInline opt)
+{
+    uint16_t goo;
+    
+    asm(
+        "    ldi %A[goo],0x80\n"
+        "    ldi %B[goo],0x04\n"
+        "    lsl %B[x]\n"
+        "    rol %C[x]\n"
+        "    rol %D[x]\n"
+        "    lsl %B[x]\n" \
+        "    rol %C[x]\n" \
+        "    rol %D[x]\n"
+        SQRT_25_ITER_3_4(3)
+        SQRT_25_ITER_3_4(4)
+        SQRT_25_ITER_5_5(5)
+        SQRT_25_ITER_6_6(6)
+        SQRT_25_ITER_7_8(7)
+        SQRT_25_ITER_7_8(8)
+        SQRT_25_ITER_9_12(9)
+        SQRT_25_ITER_9_12(10)
+        SQRT_25_ITER_9_12(11)
+        SQRT_25_ITER_9_12(12)
+        SQRT_25_ITER_13_13(13)
+        SQRT_25_ITER_14_14(14)
+        "    cpi %A[x],0x80\n"
+        "    cpc %C[x],%A[goo]\n"
+        "    cpc %D[x],%B[goo]\n"
+        "    brcs zero_bit_end_%=\n"
+        "    subi %A[x],0x80\n"
+        "    sbc %C[x],%A[goo]\n"
+        "    sbc %D[x],%B[goo]\n"
+        "    inc %A[goo]\n"
+        "zero_bit_end_%=:"
+        "    lsl %A[x]\n"
+        "    rol %C[x]\n"
+        "    rol %D[x]\n"
+        "    cp %A[goo],%C[x]\n"
+        "    cpc %B[goo],%D[x]\n"
+        "    adc %A[goo],__zero_reg__\n"
+        "    adc %B[goo],__zero_reg__\n"
+        
+        : [goo] "=&d" (goo),
+          [x] "=&d" (x)
         : "[x]" (x)
     );
     
@@ -173,6 +228,13 @@ static uint16_t sqrt_25_large (uint32_t x, Option opt = 0)
 {
     return sqrt_25_large(x, OptionForceInline());
 }
+
+template <typename Option = int>
+static uint16_t sqrt_25_large_round (uint32_t x, Option opt = 0)
+{
+    return sqrt_25_large_round(x, OptionForceInline());
+}
+
 
 #include <aprinter/EndNamespace.h>
 

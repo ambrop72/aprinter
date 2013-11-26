@@ -261,12 +261,12 @@ BoundedInt<NumBits1, (Signed1 || Signed2)> operator/ (BoundedInt<NumBits1, Signe
     return BoundedDivide<0, NumBits1, false>(op1, op2);
 }
 
-template <int NumBits, bool Signed, typename Option = int>
-__attribute__((always_inline)) inline BoundedInt<((NumBits + 1) / 2), false> BoundedSquareRoot (BoundedInt<NumBits, Signed> op1, Option opt = 0)
+template <bool Round, int NumBits, bool Signed, typename Option = int>
+__attribute__((always_inline)) inline BoundedInt<((NumBits + 1 + Round) / 2), false> BoundedSquareRoot (BoundedInt<NumBits, Signed> op1, Option opt = 0)
 {
     AMBRO_ASSERT(op1.value() >= 0)
     
-    return BoundedInt<((NumBits + 1) / 2), false>::import(IntSqrt<NumBits>::call(op1.value(), opt));
+    return BoundedInt<((NumBits + 1 + Round) / 2), false>::import(IntSqrt<NumBits, Round>::call(op1.value(), opt));
 }
 
 template <int NumBits>
