@@ -1226,7 +1226,7 @@ private:
         }
 #endif
         o->m_stepping = true;
-        TimeType start_time = c.clock()->getTime(c);
+        TimeType start_time = c.clock()->getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
         o->m_staging_time += start_time;
         TupleForEachForward(&o->m_axes, Foreach_start_stepping(), c, start_time);
         TupleForEachForward(&o->m_channels, Foreach_start_stepping(), c, start_time);
