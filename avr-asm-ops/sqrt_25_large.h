@@ -111,11 +111,9 @@
 "    rol %D[x]\n"
 
 #define SQRT_25_ITER_14_14(i) \
-"    brcs one_bit_" #i "_%=\n" \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
-"one_bit_" #i "_%=:\n" \
 "    sub %C[x],%A[goo]\n" \
 "    sbc %D[x],%B[goo]\n" \
 "    ori %A[goo],1<<(15-" #i ")\n" \
@@ -156,7 +154,6 @@ __attribute__((always_inline)) inline static uint16_t sqrt_25_large (uint32_t x,
         SQRT_25_ITER_9_12(12)
         SQRT_25_ITER_13_13(13)
         SQRT_25_ITER_14_14(14)
-        "    brcs end_inc%=\n"
         "    lsl %A[x]\n"
         "    cpc %A[goo],%C[x]\n"
         "    cpc %B[goo],%D[x]\n"
