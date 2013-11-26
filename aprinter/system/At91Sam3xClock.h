@@ -155,7 +155,7 @@ private:
         static void irq_handler (InterruptContext<Context> c)
         {
             MyTc *o = self(c);
-            uint32_t status = (o->m_status | ch()->TC_SR) & o->m_mask;
+            uint32_t status = o->m_status | ch()->TC_SR;
             o->m_status = 0;
             At91Sam3xClock__IrqCompHelper<TcSpec, At91Sam3xClock__CompA>::call(status);
             At91Sam3xClock__IrqCompHelper<TcSpec, At91Sam3xClock__CompB>::call(status);
@@ -324,7 +324,7 @@ public:
         At91Sam3xClockInterruptTimer *o = self(c);
         TheMyTc *mtc = TheMyTc::self(c);
         
-        if (!(status & CpMask)) {
+        if (!(mtc->m_mask & status & CpMask)) {
             return;
         }
         
