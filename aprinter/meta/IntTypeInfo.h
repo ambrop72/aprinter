@@ -55,6 +55,13 @@ struct IntTypeInfo<int32_t> : public IntTypeInfoHelper<32, true> {};
 template <>
 struct IntTypeInfo<int64_t> : public IntTypeInfoHelper<64, true> {};
 
+#ifdef AMBROLIB_AVR
+template <>
+struct IntTypeInfo<__uint24> : public IntTypeInfoHelper<24, false> {};
+template <>
+struct IntTypeInfo<__int24> : public IntTypeInfoHelper<24, true> {};
+#endif
+
 #include <aprinter/EndNamespace.h>
 
 #endif
