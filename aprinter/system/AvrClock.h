@@ -99,14 +99,13 @@ public:
             now_high = o->m_offset;
             asm volatile (
                 "    lds %A[now_low],%[tcnt1]+0\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
                 "    sbis %[tifr1],%[tov1]\n"
                 "    rjmp no_overflow_%=\n"
+                "    lds %A[now_low],%[tcnt1]+0\n"
                 "    subi %A[now_high],-1\n"
                 "    sbci %B[now_high],-1\n"
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
                 "no_overflow_%=:\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
             : [now_low] "=&r" (now_low),
             [now_high] "=&d" (now_high)
             : "[now_high]" (now_high),
@@ -302,14 +301,13 @@ public:
             
             asm volatile (
                 "    lds %A[now_low],%[tcnt1]+0\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
                 "    sbis %[tifr1],%[tov1]\n"
                 "    rjmp no_overflow_%=\n"
+                "    lds %A[now_low],%[tcnt1]+0\n"
                 "    subi %A[now_high],-1\n"
                 "    sbci %B[now_high],-1\n"
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
                 "no_overflow_%=:\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
                 "    sub %A[now_low],%A[time]\n"
                 "    sbc %B[now_low],%B[time]\n"
                 "    sbc %A[now_high],%C[time]\n"
@@ -372,14 +370,13 @@ public:
         
         asm volatile (
                 "    lds %A[now_low],%[tcnt1]+0\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
                 "    sbis %[tifr1],%[tov1]\n"
                 "    rjmp no_overflow_%=\n"
+                "    lds %A[now_low],%[tcnt1]+0\n"
                 "    subi %A[now_high],-1\n"
                 "    sbci %B[now_high],-1\n"
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
                 "no_overflow_%=:\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
                 "    sub %A[now_low],%A[time]\n"
                 "    sbc %B[now_low],%B[time]\n"
                 "    sbc %A[now_high],%C[time]\n"
@@ -466,14 +463,13 @@ public:
             
             asm volatile (
                 "    lds %A[now_low],%[tcnt1]+0\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
                 "    sbis %[tifr1],%[tov1]\n"
                 "    rjmp no_overflow_%=\n"
+                "    lds %A[now_low],%[tcnt1]+0\n"
                 "    subi %A[now_high],-1\n"
                 "    sbci %B[now_high],-1\n"
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
                 "no_overflow_%=:\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
                 "    sub %A[now_low],%A[time]\n"
                 "    sbc %B[now_low],%B[time]\n"
                 "    sbc %A[now_high],%C[time]\n"
@@ -534,14 +530,13 @@ public:
         
         asm volatile (
                 "    lds %A[now_low],%[tcnt1]+0\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
                 "    sbis %[tifr1],%[tov1]\n"
                 "    rjmp no_overflow_%=\n"
+                "    lds %A[now_low],%[tcnt1]+0\n"
                 "    subi %A[now_high],-1\n"
                 "    sbci %B[now_high],-1\n"
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
                 "no_overflow_%=:\n"
+                "    lds %B[now_low],%[tcnt1]+1\n"
                 "    sub %A[now_low],%A[time]\n"
                 "    sbc %B[now_low],%B[time]\n"
                 "    sbc %A[now_high],%C[time]\n"
