@@ -91,7 +91,7 @@ using YDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(4000.0);
 using ZDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using ZDefaultMax = AMBRO_WRAP_DOUBLE(100.0);
-using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(6.0);
+using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
 using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
 using ZDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using ZDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(55.0);
@@ -124,7 +124,7 @@ using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
 using ExtruderHeaterControlInterval = ExtruderHeaterPulseInterval;
 using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
 using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
-using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17*0.8);
+using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
 using ExtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
 using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.2);
 using ExtruderHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.7);
@@ -171,9 +171,9 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    64, // StepperSegmentBufferSize
-    64, // EventChannelBufferSize
-    16, // LookaheadBufferSize
+    32, // StepperSegmentBufferSize
+    32, // EventChannelBufferSize
+    8, // LookaheadBufferSize
     ForceTimeout, // ForceTimeout
     At91Sam3xClockInterruptTimer_TC0A, // EventChannelTimer
     At91Sam3xWatchdog,
@@ -445,7 +445,6 @@ using AdcPins = MakeTypeList<
     DuePinA2
 >;
 
-// At91Sam3xAdcParams<TAdcFreq, TAdcStartup, TAdcSettling, TAdcTracking, TAdcTransfer>
 using AdcFreq = AMBRO_WRAP_DOUBLE(1000000.0);
 using AdcParams = At91Sam3xAdcParams<AdcFreq, 8, 3, 0, 1>;
 static const int clock_timer_prescaler = 3;
