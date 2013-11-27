@@ -316,7 +316,6 @@ static inline uint32_t mul_24_16_r15 (__uint24 op1, uint16_t op2)
         "add %A[low],r0\n"
         "adc %A[res],r1\n"
         "adc %B[res],%D[res]\n"
-        "adc %C[res],%D[res]\n"
         
         "mul %B[op1],%A[op2]\n"
         "add %A[low],r0\n"
@@ -427,8 +426,6 @@ static inline uint32_t mul_32_8_r8 (uint32_t op1, uint8_t op2)
         "mul %A[op1],%A[op2]\n"
         "add %A[res],r1\n"
         "adc %B[res],%[zero]\n"
-        "adc %C[res],%[zero]\n"
-        "adc %D[res],%[zero]\n"
         
         "mul %C[op1],%A[op2]\n"
         "add %B[res],r0\n"
