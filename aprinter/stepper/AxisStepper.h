@@ -173,7 +173,7 @@ public:
         o->m_current_command->x = SignedStepFixedType::importBits(o->m_current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
         o->m_v0 = (o->m_current_command->a_mul.template undoShiftBitsLeft<2>() + o->m_current_command->x).toUnsignedUnsafe();
         TimeType timer_t = (o->m_current_command->x.bitsValue() == 0) ? o->m_time : start_time;
-        o->m_timer.set(c, timer_t);
+        o->m_timer.setFirst(c, timer_t);
     }
     
     static void stop (Context c)
@@ -257,7 +257,7 @@ private:
             
             if (AMBRO_UNLIKELY(x.bitsValue() == 0)) {
                 o->m_current_command->x = SignedStepFixedType::importBits(0);
-                o->m_timer.set(c, o->m_time);
+                o->m_timer.setNext(c, o->m_time);
                 return true;
             }
         }
@@ -289,7 +289,7 @@ private:
         
         stepper(c)->stepOff(c);
         
-        o->m_timer.set(c, (TimeType)(o->m_time - t.bitsValue()));
+        o->m_timer.setNext(c, (TimeType)(o->m_time - t.bitsValue()));
         return true;
     }
     

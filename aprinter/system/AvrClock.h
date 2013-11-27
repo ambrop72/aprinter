@@ -282,13 +282,12 @@ public:
     }
     
     template <typename ThisContext>
-    static void set (ThisContext c, TimeType time)
+    static void setFirst (ThisContext c, TimeType time)
     {
         AvrClock16BitInterruptTimer *o = self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
-        
-        static const TimeType minus_clearance = -clearance;
+        AMBRO_ASSERT(!(avrGetBitReg<timsk_reg, ocie_bit>()))
         
         o->m_time = time;
 #ifdef AMBROLIB_ASSERTIONS
@@ -344,6 +343,57 @@ public:
         }
     }
     
+    static void setNext (HandlerContext c, TimeType time)
+    {
+        AvrClock16BitInterruptTimer *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_running)
+        AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
+        
+        o->m_time = time;
+        
+        uint16_t now_high = c.clock()->m_offset;
+        uint16_t now_low;
+        
+        asm volatile (
+            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    sbis %[tifr1],%[tov1]\n"
+            "    rjmp no_overflow_%=\n"
+            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    subi %A[now_high],-1\n"
+            "    sbci %B[now_high],-1\n"
+            "no_overflow_%=:\n"
+            "    lds %B[now_low],%[tcnt1]+1\n"
+            "    sub %A[now_low],%A[time]\n"
+            "    sbc %B[now_low],%B[time]\n"
+            "    sbc %A[now_high],%C[time]\n"
+            "    sbc %B[now_high],%D[time]\n"
+            "    subi %A[now_low],%[mcA]\n"
+            "    sbci %B[now_low],%[mcB]\n"
+            "    sbci %A[now_high],%[mcC]\n"
+            "    sbci %B[now_high],%[mcD]\n"
+            "    brmi no_saturation_%=\n"
+            "    add %A[time],%A[now_low]\n"
+            "    adc %B[time],%B[now_low]\n"
+            "no_saturation_%=:\n"
+            "    sts %[ocr]+1,%B[time]\n"
+            "    sts %[ocr]+0,%A[time]\n"
+            : [now_low] "=&d" (now_low),
+              [now_high] "=&d" (now_high),
+              [time] "=&r" (time)
+            : "[now_high]" (now_high),
+              "[time]" (time),
+              [mcA] "n" ((minus_clearance >> 0) & 0xFF),
+              [mcB] "n" ((minus_clearance >> 8) & 0xFF),
+              [mcC] "n" ((minus_clearance >> 16) & 0xFF),
+              [mcD] "n" ((minus_clearance >> 24) & 0xFF),
+              [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
+              [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
+              [tov1] "n" (TOV1),
+              [ocr] "n" (ocr_reg + __SFR_OFFSET)
+        );
+    }
+    
     template <typename ThisContext>
     static void unset (ThisContext c)
     {
@@ -364,23 +414,24 @@ public:
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         AvrClock16BitInterruptTimer *o = self(c);
         AMBRO_ASSERT(o->m_running)
+        AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
         
         uint16_t now_low;
         uint16_t now_high = c.clock()->m_offset;
         
         asm volatile (
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    sbis %[tifr1],%[tov1]\n"
-                "    rjmp no_overflow_%=\n"
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    subi %A[now_high],-1\n"
-                "    sbci %B[now_high],-1\n"
-                "no_overflow_%=:\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
-                "    sub %A[now_low],%A[time]\n"
-                "    sbc %B[now_low],%B[time]\n"
-                "    sbc %A[now_high],%C[time]\n"
-                "    sbc %B[now_high],%D[time]\n"
+            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    sbis %[tifr1],%[tov1]\n"
+            "    rjmp no_overflow_%=\n"
+            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    subi %A[now_high],-1\n"
+            "    sbci %B[now_high],-1\n"
+            "no_overflow_%=:\n"
+            "    lds %B[now_low],%[tcnt1]+1\n"
+            "    sub %A[now_low],%A[time]\n"
+            "    sbc %B[now_low],%B[time]\n"
+            "    sbc %A[now_high],%C[time]\n"
+            "    sbc %B[now_high],%D[time]\n"
             : [now_low] "=&r" (now_low),
               [now_high] "=&d" (now_high)
             : "[now_high]" (now_high),
@@ -391,10 +442,10 @@ public:
         );
         
         if (now_high < UINT16_C(0x8000)) {
-#ifdef AMBROLIB_ASSERTIONS
-            o->m_running = false;
-#endif
             if (!Handler::call(o, c)) {
+#ifdef AMBROLIB_ASSERTIONS
+                o->m_running = false;
+#endif
                 avrSoftClearBitReg<timsk_reg>(ocie_bit);
             }
         }
@@ -402,6 +453,7 @@ public:
     
 private:
     static const TimeType clearance = (35 / Clock::prescale_divide) + 2;
+    static const TimeType minus_clearance = -clearance;
     
     TimeType m_time;
 #ifdef AMBROLIB_ASSERTIONS
@@ -444,13 +496,12 @@ public:
     }
     
     template <typename ThisContext>
-    static void set (ThisContext c, TimeType time)
+    static void setFirst (ThisContext c, TimeType time)
     {
         AvrClock8BitInterruptTimer *o = self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
-        
-        static const TimeType minus_clearance = -clearance;
+        AMBRO_ASSERT(!(avrGetBitReg<timsk_reg, ocie_bit>()))
         
         o->m_time = time;
 #ifdef AMBROLIB_ASSERTIONS
@@ -504,6 +555,55 @@ public:
         }
     }
     
+    static void setNext (HandlerContext c, TimeType time)
+    {
+        AvrClock8BitInterruptTimer *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_running)
+        AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
+        
+        o->m_time = time;
+    
+        uint16_t now_high = c.clock()->m_offset;
+        uint16_t now_low;
+        
+        asm volatile (
+            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    sbis %[tifr1],%[tov1]\n"
+            "    rjmp no_overflow_%=\n"
+            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    subi %A[now_high],-1\n"
+            "    sbci %B[now_high],-1\n"
+            "no_overflow_%=:\n"
+            "    lds %B[now_low],%[tcnt1]+1\n"
+            "    sub %A[now_low],%A[time]\n"
+            "    sbc %B[now_low],%B[time]\n"
+            "    sbc %A[now_high],%C[time]\n"
+            "    sbc %B[now_high],%D[time]\n"
+            "    subi %A[now_low],%[mcA]\n"
+            "    sbci %B[now_low],%[mcB]\n"
+            "    sbci %A[now_high],%[mcC]\n"
+            "    sbci %B[now_high],%[mcD]\n"
+            "    brmi no_saturation_%=\n"
+            "    add %A[time],%A[now_low]\n"
+            "no_saturation_%=:\n"
+            "    sts %[ocr],%A[time]\n"
+            : [now_low] "=&d" (now_low),
+              [now_high] "=&d" (now_high),
+              [time] "=&r" (time)
+            : "[now_high]" (now_high),
+              "[time]" (time),
+              [mcA] "n" ((minus_clearance >> 0) & 0xFF),
+              [mcB] "n" ((minus_clearance >> 8) & 0xFF),
+              [mcC] "n" ((minus_clearance >> 16) & 0xFF),
+              [mcD] "n" ((minus_clearance >> 24) & 0xFF),
+              [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
+              [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
+              [tov1] "n" (TOV1),
+              [ocr] "n" (ocr_reg + __SFR_OFFSET)
+        );
+    }
+    
     template <typename ThisContext>
     static void unset (ThisContext c)
     {
@@ -524,23 +624,24 @@ public:
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         AvrClock8BitInterruptTimer *o = self(c);
         AMBRO_ASSERT(o->m_running)
+        AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
         
         uint16_t now_low;
         uint16_t now_high = c.clock()->m_offset;
         
         asm volatile (
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    sbis %[tifr1],%[tov1]\n"
-                "    rjmp no_overflow_%=\n"
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    subi %A[now_high],-1\n"
-                "    sbci %B[now_high],-1\n"
-                "no_overflow_%=:\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
-                "    sub %A[now_low],%A[time]\n"
-                "    sbc %B[now_low],%B[time]\n"
-                "    sbc %A[now_high],%C[time]\n"
-                "    sbc %B[now_high],%D[time]\n"
+            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    sbis %[tifr1],%[tov1]\n"
+            "    rjmp no_overflow_%=\n"
+            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    subi %A[now_high],-1\n"
+            "    sbci %B[now_high],-1\n"
+            "no_overflow_%=:\n"
+            "    lds %B[now_low],%[tcnt1]+1\n"
+            "    sub %A[now_low],%A[time]\n"
+            "    sbc %B[now_low],%B[time]\n"
+            "    sbc %A[now_high],%C[time]\n"
+            "    sbc %B[now_high],%D[time]\n"
             : [now_low] "=&r" (now_low),
               [now_high] "=&d" (now_high)
             : "[now_high]" (now_high),
@@ -551,10 +652,10 @@ public:
         );
         
         if (now_high < UINT16_C(0x8000)) {
-#ifdef AMBROLIB_ASSERTIONS
-            o->m_running = false;
-#endif
             if (!Handler::call(o, c)) {
+#ifdef AMBROLIB_ASSERTIONS
+                o->m_running = false;
+#endif
                 avrSoftClearBitReg<timsk_reg>(ocie_bit);
             }
         }
@@ -562,6 +663,7 @@ public:
     
 private:
     static const TimeType clearance = (35 / Clock::prescale_divide) + 2;
+    static const TimeType minus_clearance = -clearance;
     
     TimeType m_time;
 #ifdef AMBROLIB_ASSERTIONS

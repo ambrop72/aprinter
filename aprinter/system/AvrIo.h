@@ -134,6 +134,12 @@ void avrClearBitReg (ThisContext c)
 }
 
 template <uint32_t IoAddr, int Bit>
+bool avrGetBitReg ()
+{
+    return (_SFR_IO8(IoAddr) & (1 << Bit));
+}
+
+template <uint32_t IoAddr, int Bit>
 void avrUnknownSetBitReg ()
 {
     AvrIoBitRegHelper<(IoAddr < 0x20)>::template unknown_set_bit<IoAddr, Bit>();

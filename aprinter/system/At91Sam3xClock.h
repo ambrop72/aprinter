@@ -132,7 +132,6 @@ private:
         {
             MyTc *o = self(c);
             o->m_status = 0;
-            o->m_mask = 0;
             pmc_enable_periph_clk(TcSpec::Id);
             ch()->TC_CMR = (Prescale - 1) | TC_CMR_WAVE | TC_CMR_EEVT_XC0;
             ch()->TC_IDR = UINT32_MAX;
@@ -168,7 +167,6 @@ private:
         }
         
         uint32_t m_status;
-        uint32_t m_mask;
     };
     
     using MyTcsTuple = IndexElemTuple<TcsList, MyTc>;
@@ -271,17 +269,17 @@ public:
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             ch()->TC_IDR = CpMask;
-            mtc->m_mask &= ~CpMask;
         }
     }
     
     template <typename ThisContext>
-    static void set (ThisContext c, TimeType time)
+    static void setFirst (ThisContext c, TimeType time)
     {
         At91Sam3xClockInterruptTimer *o = self(c);
         TheMyTc *mtc = TheMyTc::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
+        AMBRO_ASSERT(!(ch()->TC_IMR & CpMask))
         
         o->m_time = time;
 #ifdef AMBROLIB_ASSERTIONS
@@ -297,9 +295,26 @@ public:
             }
             *my_cp_reg() = time;
             mtc->m_status = (ch()->TC_SR | mtc->m_status) & ~CpMask;
-            mtc->m_mask |= CpMask;
             ch()->TC_IER = CpMask;
         }
+    }
+    
+    static void setNext (HandlerContext c, TimeType time)
+    {
+        At91Sam3xClockInterruptTimer *o = self(c);
+        TheMyTc *mtc = TheMyTc::self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_running)
+        AMBRO_ASSERT((ch()->TC_IMR & CpMask))
+        
+        o->m_time = time;
+        TimeType now = Clock::template MyTc<0>::ch()->TC_CV;
+        now -= time;
+        now += clearance;
+        if (now < UINT32_C(0x80000000)) {
+            time += now;
+        }
+        *my_cp_reg() = time;
     }
     
     template <typename ThisContext>
@@ -311,7 +326,6 @@ public:
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             ch()->TC_IDR = CpMask;
-            mtc->m_mask &= ~CpMask;
         }
         
 #ifdef AMBROLIB_ASSERTIONS
@@ -322,24 +336,23 @@ public:
     static void irq_handler (InterruptContext<Context> c, uint32_t status)
     {
         At91Sam3xClockInterruptTimer *o = self(c);
-        TheMyTc *mtc = TheMyTc::self(c);
         
-        if (!(mtc->m_mask & status & CpMask)) {
+        if (!(ch()->TC_IMR & status & CpMask)) {
             return;
         }
         
         AMBRO_ASSERT(o->m_running)
+        AMBRO_ASSERT((ch()->TC_IMR & CpMask))
         
         TimeType now = Clock::template MyTc<0>::ch()->TC_CV;
         now -= o->m_time;
         
         if (now < UINT32_C(0x80000000)) {
-#ifdef AMBROLIB_ASSERTIONS
-            o->m_running = false;
-#endif
             if (!Handler::call(o, c)) {
+#ifdef AMBROLIB_ASSERTIONS
+                o->m_running = false;
+#endif
                 ch()->TC_IDR = CpMask;
-                mtc->m_mask &= ~CpMask;
             }
         }
     }

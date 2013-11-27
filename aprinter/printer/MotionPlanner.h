@@ -790,7 +790,7 @@ public:
                 if (AMBRO_LIKELY(o->m_num_committed == 0)) {
                     o->m_first = o->m_new_first;
                     o->m_timer.unset(c);
-                    o->m_timer.set(c, o->m_channel_commands[o->m_first].time);
+                    o->m_timer.setFirst(c, o->m_channel_commands[o->m_first].time);
                 }
             }
         }
@@ -815,7 +815,7 @@ public:
             for (ChannelCommandSizeType cmd = o->m_first; cmd >= 0; cmd = o->m_channel_commands[cmd].next) {
                 o->m_channel_commands[cmd].time += start_time;
             }
-            o->m_timer.set(c, o->m_channel_commands[o->m_first].time);
+            o->m_timer.setFirst(c, o->m_channel_commands[o->m_first].time);
         }
         
         static bool commit_segment (Context c, Segment *entry)
@@ -880,7 +880,7 @@ public:
             if (!(o->m_first >= 0)) {
                 return false;
             }
-            o->m_timer.set(c, o->m_channel_commands[o->m_first].time);
+            o->m_timer.setNext(c, o->m_channel_commands[o->m_first].time);
             return true;
         }
         

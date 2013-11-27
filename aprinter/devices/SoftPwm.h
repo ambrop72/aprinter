@@ -61,7 +61,7 @@ public:
         o->m_start_time = start_time;
         c.pins()->template set<Pin>(c, false);
         c.pins()->template setOutput<Pin>(c);
-        o->m_timer.set(c, start_time);
+        o->m_timer.setFirst(c, start_time);
         
         o->debugInit(c);
     }
@@ -105,7 +105,7 @@ private:
             next_time = o->m_start_time;
             o->m_state = false;
         }
-        o->m_timer.set(c, next_time);
+        o->m_timer.setNext(c, next_time);
         return true;
     }
     
