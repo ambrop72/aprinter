@@ -9,9 +9,11 @@ It supports many controller boards based on AVR, as well as Arduino Due.
   * SD card printing (reading of sequential blocks only, no filesystem or partition support).
   * Serial communication using the defacto RepRap protocol. Maximum baud rate on AVR is 115200.
   * Homing, including homing of multiple axes at the same time. Either min- or max- endstops can be used.
-  * Line motion with acceleration control and cartesian speed limit (F parameter).
-    Speed limit in case of E-only motion is not implemented.
+    Endstops are only used during homing and not for detecting collisions.
+  * Line motion with acceleration control and speed limit (F parameter to G0/G1).
     The speed is automatically limited to not overload the MCU with interrupts.
+    However the semantic of F differs somehow from other firmwares; the speed limit is interpreted as
+    euclidean if G1/G0 specifies at least one of X/Y/Z, and as extruder speed limit otherwise.
   * Look-ahead to preserve some speed on corners. By default, on AVR, planning takes the previous 3 moves into account.
     This can be increased in the configuration, but this
     also increases the chance of buffer underruns , which cause the print to temporarily pause while the buffer refills.
@@ -57,7 +59,7 @@ However, any AVR satisfying the following should work, possibly requiring minor 
     For example, the configuration specifies a list of heaters, and it is trivial to add new heaters.
   * No reliance on inefficient libraries such as Arduino.
 
-## Building it (AVR)
+## Building (AVR)
 
   * Make sure you have avr-g++ 4.8.1 or newer.
     Since it's not that easy to build or get that, I provide a
@@ -65,21 +67,17 @@ However, any AVR satisfying the following should work, possibly requiring minor 
     Sorry about the giant file size, there were some problems with stripping the binaries.
     To use the toolchain, extract it somewhere and modify your PATH as follows:
     export PATH=/path/to/toolchain/bin:$PATH
-  * Edit compile.sh and adjust MCU, F_CPU and MAIN to reflect your board.
+  * Find a main file for your board. The main files for supported boards can be
+    found at aprinter/printer/aprinter-<board>.cpp.
+  * Find a compile script for your board, named compile-<board>.sh. If one isn't avaailable (such as for ramps1.0-1.2),
+    create it based on one of the existing scripts. Most importantly, adjust MCU, F_CPU and MAIN appropriately.
     If your compiler is not available as avr-g++, adjust CROSS appropriately.
-  * Open aprinter/printer/aprinter-YourBoard.cpp and adjust the configuration.
-    If you don't know what something means, you probably don't need to change it.
-    All units are based on millimeters and seconds.
-    NOTE: documentation of configuration parameters is present in aprinter-melzi.cpp only.
-  * Regenerate the thermistor tables inside the generated/ folder to match your thermistor and resistor types.
-    You can find the regeneration command inside the files themselves.
-    The python script mentioned prints the code to stdout, you need to pipe it into the appropriate file.
-  * Run compile.sh to compile the code.
-  * Upload the code to your MCU, however you normally do that; see flash.sh for an example.
-    If you're only used to uploading with the Arduino IDE, you can enable the verbose upload option in its preferences,
-    and it will print out the avrdude command when you try to upload a sketch.
+  * Also find or create your flash script, flash-<board>.sh, and adjust the serial port.
+  * Run your chosen compile script to compile the code. Make sure to do it from within the source folder.
+    Example: ./compile-ramps13.sh
+  * Run your chosen flash script to upload the code to your MCU.
 
-## Building it (Due)
+## Building (Due)
 
   * Obtain a gcc toolchain for ARM Cortex M3, including a C++ compiler.
     Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
@@ -90,9 +88,20 @@ However, any AVR satisfying the following should work, possibly requiring minor 
     Version 3.12.1 has been tested.
   * Edit `compile-rampsfd.sh` and adjust `CROSS` and `ASF_DIR` appropriately.
   * Run `compile-rampsfd.sh` to build the firmware.
-  * Download Arduino 1.5 then edit `flash-rampsfd.sh` to point it to the location of the `bossac` program.
-  * Connect your Due board via the programming port.
-  * Press the erase button, then the reset button, and finally run `flash-rampsfd.sh` to upload the firmware to your board.
+  * Download Arduino 1.5 in order to get the `bossac` program. Note that the vanilla `bossac` will not work.
+  * Edit `flash-rampsfd.sh` to set the location of the `bossac` program and the serial port corresponding
+    to the programming port of the Due.
+  * With the board connected using the programming port, press the erase button, then the reset button, and finally run `flash-rampsfd.sh` to upload the firmware to your board.
+
+## Configuration
+
+Most configuration is specified in the main file of the firmware. There is no support for EEPROM or other forms of runtime configuration (except for PID parameters, try M136). After chaning any configuration, you need to recompile and reflash the firmware.
+
+However, thermistors are configured by generating the appropriate thermistor tables, as opposed to in the main file.
+To configure thermistors, regenerate the thermistor tables in the generated/ folder using the Python script
+`gen_avr_thermistor_table.py`. The generated thermistor table files include the command that can be used to regenerate them, so you can use this as a starting point.
+
+For information about specific types of configuration, see the sections about SD cards and multiple extruders.
 
 ## Testing it
 
