@@ -287,7 +287,7 @@ with open(outputFileName, "w") as f:
                         newReqPos[comp[0]] += float(comp[1:])
                     else:
                         newReqPos[comp[0]] = float(comp[1:])
-                        seenAxes.append(comp[0])
+                    seenAxes.append(comp[0])
                 else:
                     raise Exception('Unknown axis in G0 or G1')
             newLine += comps[0]
@@ -306,8 +306,7 @@ with open(outputFileName, "w") as f:
                             currentPhysPos[axisName] = axisReqPhysPos
                     if axisName != 'E':
                         currentPending[axisName] = False
-            for axisName in seenAxes:
-                currentKnown[axisName] = True
+                        currentKnown[axisName] = True
             currentF = newF
             currentReqPos = newReqPos
             newLine += '\n'
