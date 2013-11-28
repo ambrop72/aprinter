@@ -1291,7 +1291,7 @@ private:
         }
         
         template <typename TheChannelCommon>
-        static void collect_new_pos (Context c, TheChannelCommon *cc, double *new_pos, typename TheChannelCommon::GcodeParserCommandPart *part)
+        static void collect_new_pos (Context c, TheChannelCommon *cc, double *new_pos, bool *seen_cartesian, typename TheChannelCommon::GcodeParserCommandPart *part)
         {
             Axis *o = self(c);
             if (AMBRO_UNLIKELY(part->code == axis_name)) {
@@ -1304,13 +1304,17 @@ private:
                 }
                 req = clamp_req_pos(req);
                 new_pos[AxisIndex] = req;
+                if (AxisSpec::enable_cartesian_speed_limit) {
+                    *seen_cartesian = true;
+                }
             }
         }
         
         template <typename PlannerCmd>
-        static void process_new_pos (Context c, double *new_pos, double *distance_squared, double *total_steps, PlannerCmd *cmd)
+        static void process_new_pos (Context c, double *new_pos, bool seen_cartesian, double *distance_squared, double *total_steps, PlannerCmd *cmd)
         {
             Axis *o = self(c);
+            PrinterMain *m = PrinterMain::self(c);
             AbsStepFixedType new_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(new_pos[AxisIndex]));
             bool dir = (new_end_pos >= o->m_end_pos);
             StepFixedType move = StepFixedType::importBits(dir ? 
@@ -1329,6 +1333,9 @@ private:
             mycmd->dir = dir;
             mycmd->x = move;
             mycmd->max_v_rec = 1.0 / speed_from_real(AxisSpec::DefaultMaxSpeed::value());
+            if (!seen_cartesian) {
+                mycmd->max_v_rec = fmax(mycmd->max_v_rec, FloatMakePosOrPosZero(1.0 / speed_from_real(m->m_max_speed)));
+            }
             mycmd->max_a_rec = 1.0 / accel_from_real(AxisSpec::DefaultMaxAccel::value());
             o->m_end_pos = new_end_pos;
             o->m_req_pos = new_pos[AxisIndex];
@@ -1869,7 +1876,7 @@ public:
         TupleForEachForward(&o->m_heaters, Foreach_init(), c);
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
         o->m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
-        o->m_max_cart_speed = INFINITY;
+        o->m_max_speed = INFINITY;
         o->m_locked = false;
         o->m_planning = false;
         
@@ -2055,22 +2062,23 @@ private:
                         return;
                     }
                     double new_pos[num_axes];
+                    bool seen_cartesian = false;
                     TupleForEachForward(&o->m_axes, Foreach_init_new_pos(), c, new_pos);
                     for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->m_cmd->num_parts; i++) {
                         typename TheChannelCommon::GcodeParserCommandPart *part = &cc->m_cmd->parts[i];
-                        TupleForEachForward(&o->m_axes, Foreach_collect_new_pos(), c, cc, new_pos, part);
+                        TupleForEachForward(&o->m_axes, Foreach_collect_new_pos(), c, cc, new_pos, &seen_cartesian, part);
                         if (part->code == 'F') {
-                            o->m_max_cart_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
+                            o->m_max_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
                         }
                     }
                     cc->finishCommand(c);
                     PlannerInputCommand cmd;
                     double distance = 0.0;
                     double total_steps = 0.0;
-                    TupleForEachForward(&o->m_axes, Foreach_process_new_pos(), c, new_pos, &distance, &total_steps, &cmd);
+                    TupleForEachForward(&o->m_axes, Foreach_process_new_pos(), c, new_pos, seen_cartesian, &distance, &total_steps, &cmd);
                     distance = sqrt(distance);
                     cmd.type = 0;
-                    cmd.rel_max_v_rec = FloatMakePosOrPosZero(distance / (o->m_max_cart_speed * Clock::time_unit));
+                    cmd.rel_max_v_rec = FloatMakePosOrPosZero(distance / (o->m_max_speed * Clock::time_unit));
                     cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
                     return cc->submitPlannedCommand(c, &cmd);
                 } break;
@@ -2303,7 +2311,7 @@ private:
     FansTuple m_fans;
     TimeType m_inactive_time;
     TimeType m_last_active_time;
-    double m_max_cart_speed;
+    double m_max_speed;
     bool m_locked;
     bool m_planning;
     union {
