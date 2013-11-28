@@ -96,8 +96,6 @@ class At91Sam3xClock
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     
-    template <int TcIndex> struct TcPosition;
-    
     static At91Sam3xClock * self (Context c)
     {
         return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
@@ -120,14 +118,8 @@ private:
     struct MyTc {
         using TcSpec = TypeListGet<TcsList, TcIndex>;
         
-        static MyTc * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, TcPosition<TcIndex>>(c.root());
-        }
-        
         static void init (Context c)
         {
-            MyTc *o = self(c);
             pmc_enable_periph_clk(TcSpec::Id);
             ch()->TC_CMR = (Prescale - 1) | TC_CMR_WAVE | TC_CMR_EEVT_XC0;
             ch()->TC_IDR = UINT32_MAX;
@@ -139,7 +131,6 @@ private:
         
         static void deinit (Context c)
         {
-            MyTc *o = self(c);
             NVIC_DisableIRQ(TcSpec::Irq);
             ch()->TC_CCR = TC_CCR_CLKDIS;
             (void)ch()->TC_SR;
@@ -149,7 +140,6 @@ private:
         
         static void irq_handler (InterruptContext<Context> c)
         {
-            MyTc *o = self(c);
             (void)ch()->TC_SR;
             At91Sam3xClock__IrqCompHelper<TcSpec, At91Sam3xClock__CompA>::call();
             At91Sam3xClock__IrqCompHelper<TcSpec, At91Sam3xClock__CompB>::call();
@@ -172,7 +162,8 @@ public:
     {
         At91Sam3xClock *o = self(c);
         
-        TupleForEachForward(&o->m_tcs, Foreach_init(), c);
+        MyTcsTuple dummy;
+        TupleForEachForward(&dummy, Foreach_init(), c);
         
         o->debugInit(c);
     }
@@ -182,7 +173,8 @@ public:
         At91Sam3xClock *o = self(c);
         o->debugDeinit(c);
         
-        TupleForEachReverse(&o->m_tcs, Foreach_deinit(), c);
+        MyTcsTuple dummy;
+        TupleForEachReverse(&dummy, Foreach_deinit(), c);
     }
     
     template <typename ThisContext>
@@ -199,11 +191,6 @@ public:
     {
         FindTc<TcSpec>::irq_handler(c);
     }
-    
-private:
-    MyTcsTuple m_tcs;
-    
-    template <int TcIndex> struct TcPosition : public TuplePosition<Position, MyTcsTuple, &At91Sam3xClock::m_tcs, TcIndex> {};
 };
 
 #define AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(tcnum, clock, context) \
@@ -257,7 +244,6 @@ public:
     static void deinit (Context c)
     {
         At91Sam3xClockInterruptTimer *o = self(c);
-        TheMyTc *mtc = TheMyTc::self(c);
         o->debugDeinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -269,7 +255,6 @@ public:
     static void setFirst (ThisContext c, TimeType time)
     {
         At91Sam3xClockInterruptTimer *o = self(c);
-        TheMyTc *mtc = TheMyTc::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(!(ch()->TC_IMR & CpMask))
@@ -295,7 +280,6 @@ public:
     static void setNext (HandlerContext c, TimeType time)
     {
         At91Sam3xClockInterruptTimer *o = self(c);
-        TheMyTc *mtc = TheMyTc::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_running)
         AMBRO_ASSERT((ch()->TC_IMR & CpMask))
@@ -314,7 +298,6 @@ public:
     static void unset (ThisContext c)
     {
         At91Sam3xClockInterruptTimer *o = self(c);
-        TheMyTc *mtc = TheMyTc::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
