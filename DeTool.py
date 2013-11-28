@@ -270,10 +270,10 @@ with open(outputFileName, "w") as f:
                         'G0 F%.1f\n' % (currentF)
                     if not sdcard:
                         newLine += ';DeTool travel after tool change end\n'
-                newF = currentF
             elif sum(currentPending.values()) > 0:
                 if not sdcard:
                     newLine += ';DeTool merging tool change with G0\n'
+            newF = currentF
             newReqPos = currentReqPos.copy()
             seenAxes = []
             for i in range(1, len(comps)):
