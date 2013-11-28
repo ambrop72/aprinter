@@ -48,7 +48,7 @@
 
 template <typename TcSpec, typename Comp>
 struct At91Sam3xClock__IrqCompHelper {
-    static void call (uint32_t status) {}
+    static void call () {}
 };
 
 #include <aprinter/BeginNamespace.h>
@@ -70,18 +70,15 @@ using At91Sam3xClockTC6 = At91Sam3xClockTC<(uint32_t)(&TC2->TC_CHANNEL[0]), ID_T
 using At91Sam3xClockTC7 = At91Sam3xClockTC<(uint32_t)(&TC2->TC_CHANNEL[1]), ID_TC7, TC7_IRQn>;
 using At91Sam3xClockTC8 = At91Sam3xClockTC<(uint32_t)(&TC2->TC_CHANNEL[2]), ID_TC8, TC8_IRQn>;
 
-struct At91Sam3xClock__CompA {
-    static const size_t CpRegOffset = 20;
-    static const uint32_t CpMask = TC_SR_CPAS;
+template <size_t TCpRegOffset, uint32_t TCpMask>
+struct At91Sam3xClock__Comp {
+    static const size_t CpRegOffset = TCpRegOffset;
+    static const uint32_t CpMask = TCpMask;
 };
-struct At91Sam3xClock__CompB {
-    static const size_t CpRegOffset = 24;
-    static const uint32_t CpMask = TC_SR_CPBS;
-};
-struct At91Sam3xClock__CompC {
-    static const size_t CpRegOffset = 28;
-    static const uint32_t CpMask = TC_SR_CPCS;
-};
+
+using At91Sam3xClock__CompA = At91Sam3xClock__Comp<20, TC_SR_CPAS>;
+using At91Sam3xClock__CompB = At91Sam3xClock__Comp<24, TC_SR_CPBS>;
+using At91Sam3xClock__CompC = At91Sam3xClock__Comp<28, TC_SR_CPCS>;
 
 template <typename, typename, typename, typename, typename>
 class At91Sam3xClockInterruptTimer;
@@ -91,7 +88,7 @@ class At91Sam3xClock
 : private DebugObject<Context, void>
 {
     static_assert(Prescale >= 1, "Prescale must be >=1");
-    static_assert(Prescale <= 4, "Prescale must be <=5");
+    static_assert(Prescale <= 4, "Prescale must be <=4");
     
     template <typename, typename, typename, typename, typename>
     friend class At91Sam3xClockInterruptTimer;
@@ -131,7 +128,6 @@ private:
         static void init (Context c)
         {
             MyTc *o = self(c);
-            o->m_status = 0;
             pmc_enable_periph_clk(TcSpec::Id);
             ch()->TC_CMR = (Prescale - 1) | TC_CMR_WAVE | TC_CMR_EEVT_XC0;
             ch()->TC_IDR = UINT32_MAX;
@@ -154,19 +150,16 @@ private:
         static void irq_handler (InterruptContext<Context> c)
         {
             MyTc *o = self(c);
-            uint32_t status = o->m_status | ch()->TC_SR;
-            o->m_status = 0;
-            At91Sam3xClock__IrqCompHelper<TcSpec, At91Sam3xClock__CompA>::call(status);
-            At91Sam3xClock__IrqCompHelper<TcSpec, At91Sam3xClock__CompB>::call(status);
-            At91Sam3xClock__IrqCompHelper<TcSpec, At91Sam3xClock__CompC>::call(status);
+            (void)ch()->TC_SR;
+            At91Sam3xClock__IrqCompHelper<TcSpec, At91Sam3xClock__CompA>::call();
+            At91Sam3xClock__IrqCompHelper<TcSpec, At91Sam3xClock__CompB>::call();
+            At91Sam3xClock__IrqCompHelper<TcSpec, At91Sam3xClock__CompC>::call();
         }
         
         static TcChannel volatile * ch ()
         {
             return (TcChannel volatile *)TcSpec::Addr;
         }
-        
-        uint32_t m_status;
     };
     
     using MyTcsTuple = IndexElemTuple<TcsList, MyTc>;
@@ -294,7 +287,7 @@ public:
                 time += now;
             }
             *my_cp_reg() = time;
-            mtc->m_status = (ch()->TC_SR | mtc->m_status) & ~CpMask;
+            (void)ch()->TC_SR;
             ch()->TC_IER = CpMask;
         }
     }
@@ -333,16 +326,15 @@ public:
 #endif
     }
     
-    static void irq_handler (InterruptContext<Context> c, uint32_t status)
+    static void irq_handler (InterruptContext<Context> c)
     {
         At91Sam3xClockInterruptTimer *o = self(c);
         
-        if (!(ch()->TC_IMR & status & CpMask)) {
+        if (!(ch()->TC_IMR & CpMask)) {
             return;
         }
         
         AMBRO_ASSERT(o->m_running)
-        AMBRO_ASSERT((ch()->TC_IMR & CpMask))
         
         TimeType now = Clock::template MyTc<0>::ch()->TC_CV;
         now -= o->m_time;
@@ -447,9 +439,9 @@ static_assert( \
 ); \
 template <> \
 struct At91Sam3xClock__IrqCompHelper<tcspec, comp> { \
-    static void call (uint32_t status) \
+    static void call () \
     { \
-        (timer).irq_handler(MakeInterruptContext((context)), status); \
+        (timer).irq_handler(MakeInterruptContext((context))); \
     } \
 };
 
