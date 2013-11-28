@@ -116,9 +116,7 @@ For information about specific types of configuration, see the sections about SD
 
 ## SD card support
 
-The firmware supports reading G-code from an SD card. However, the G-code needs to be written directly to the SD card in sequential blocks, starting with the first block.
-
-**NOTE**: SD card is not implemented on Due yet.
+The firmware supports reading G-code from an SD card. However, the G-code needs to be written directly to the SD card in sequential blocks, starting with the first block (where the partition table would normally reside).
 
 On Due/RAMPS-FD, SD card support is enabled by default.
 On the other hand, to enable SD card for AVR based boards, some changes need to be done in your main file:
@@ -269,6 +267,11 @@ As you can see, each axis, heater and fan requires the assignment of a Timer/Cou
 The OC unit is used to step an axis, or generate a PWM signal for a heater or fan.
 In the default configuration for Ramps, both of the two output compare units (OCA and OCB) on TC1, TC3, TC4 and TC5 are already assigned.
 Here, we used TC0/OCA and TC0/OCB for the new axis and heater, and TC2/OCA for the new fan.
+
+If you're building for Due, the compare units different - you have 27 units available, named `TC{0-8}{A-C}`.
+In the default configuration, all the A units are used, and you can start with the B units (`TC0B`, `TC1B`, `TC2B`...).
+To assign a compare unit to an axis/heater/fan, set it in its `TimerTemplate` parameter, and also add the appropriate `GLOBAL` macro to where the existing macros for TC units are (the ones starting with `AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_`).
+Don't forget to adjust the index of the axis/heater/fan here.
 
 **NOTE:** on boards based on atmega1284p, all available output compare units are already assined.
 As such, it is not possible to add any extra axes/heaters/fans.
