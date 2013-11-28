@@ -66,16 +66,15 @@ However, any AVR satisfying the following should work, possibly requiring minor 
     (hopefully) portable build for Linux: https://docs.google.com/file/d/0Bx9devQE0OqbWTh4VUFvOWhlNEU/edit?usp=sharing
     Sorry about the giant file size, there were some problems with stripping the binaries.
     To use the toolchain, extract it somewhere and modify your PATH as follows:
-    export PATH=/path/to/toolchain/bin:$PATH
-  * Find a main file for your board. The main files for supported boards can be
-    found at aprinter/printer/aprinter-<board>.cpp.
-  * Find a compile script for your board, named compile-<board>.sh. If one isn't avaailable (such as for ramps1.0-1.2),
-    create it based on one of the existing scripts. Most importantly, adjust MCU, F_CPU and MAIN appropriately.
-    If your compiler is not available as avr-g++, adjust CROSS appropriately.
-  * Also find or create your flash script, flash-<board>.sh, and adjust the serial port.
-  * Run your chosen compile script to compile the code. Make sure to do it from within the source folder.
-    Example: ./compile-ramps13.sh
-  * Run your chosen flash script to upload the code to your MCU.
+    `export PATH=/path/to/toolchain/bin:$PATH`
+  * Find or create a main file for your board. The main files for supported boards can be
+    found at `aprinter/printer/aprinter-BoardName.cpp`.
+  * Find or create a compile script for your board, named `compile-BoardName.sh`.
+  * Also find or create your flash script, `flash-BoardName.sh`, and set the correct the serial port.
+  * Run your compile script to compile the code. This needs to be run from within the source directory.
+  * Run your flash script to upload the code to your MCU.
+    If you're using Melzi, you will have to set the Debug jumper and play with the reset button
+    to get the upload going.
 
 ## Building (Due)
 
@@ -87,7 +86,7 @@ However, any AVR satisfying the following should work, possibly requiring minor 
   * Download the [Atmel Software Framework](http://www.atmel.com/tools/AVRSOFTWAREFRAMEWORK.aspx).
     Version 3.12.1 has been tested.
   * Edit `compile-rampsfd.sh` and adjust `CROSS` and `ASF_DIR` appropriately.
-  * Run `compile-rampsfd.sh` to build the firmware.
+  * Run `compile-rampsfd.sh` to build the firmware. This needs to be run from within the source directory.
   * Download Arduino 1.5 in order to get the `bossac` program. Note that the vanilla `bossac` will not work.
   * Edit `flash-rampsfd.sh` to set the location of the `bossac` program and the serial port corresponding
     to the programming port of the Due.
