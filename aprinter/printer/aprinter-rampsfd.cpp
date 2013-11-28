@@ -336,7 +336,7 @@ using PrinterParams = PrinterMainParams<
             301, // SetConfigMCommand
             DuePinA1, // AdcPin
             DuePin9, // OutputPin
-            false, // OutputInvert
+            true, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
@@ -365,7 +365,7 @@ using PrinterParams = PrinterMainParams<
             304, // SetConfigMCommand
             DuePinA0, // AdcPin
             DuePin8, // OutputPin
-            false, // OutputInvert
+            true, // OutputInvert
             AvrThermistorTable_Bed, // Formula
             BedHeaterMinSafeTemp, // MinSafeTemp
             BedHeaterMaxSafeTemp, // MaxSafeTemp
@@ -394,7 +394,7 @@ using PrinterParams = PrinterMainParams<
             402, // SetConfigMCommand
             DuePinA2, // AdcPin
             DuePin10, // OutputPin
-            false, // OutputInvert
+            true, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
@@ -425,7 +425,7 @@ using PrinterParams = PrinterMainParams<
         PrinterMainFanParams<
             106, // SetMCommand
             107, // OffMCommand
-            DuePin11, // OutputPin
+            DuePin12, // OutputPin
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
@@ -434,7 +434,7 @@ using PrinterParams = PrinterMainParams<
         PrinterMainFanParams<
             406, // SetMCommand
             407, // OffMCommand
-            DuePin12, // OutputPin
+            DuePin2, // OutputPin
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
