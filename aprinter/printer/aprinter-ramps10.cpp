@@ -294,6 +294,7 @@ using PrinterParams = PrinterMainParams<
             301, // SetConfigMCommand
             MegaPinA2, // AdcPin
             MegaPin12, // OutputPin
+            false, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
@@ -325,6 +326,7 @@ using PrinterParams = PrinterMainParams<
             106, // SetMCommand
             107, // OffMCommand
             MegaPin11, // OutputPin
+            false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
             AvrClockInterruptTimer_TC5_OCB // TimerTemplate

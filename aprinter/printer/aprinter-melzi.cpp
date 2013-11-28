@@ -545,6 +545,7 @@ using PrinterParams = PrinterMainParams<
             301, // SetConfigMCommand
             AvrPin<AvrPortA, 7>, // AdcPin
             AvrPin<AvrPortD, 5>, // OutputPin
+            false, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
@@ -573,6 +574,7 @@ using PrinterParams = PrinterMainParams<
             304, // SetConfigMCommand
             AvrPin<AvrPortA, 6>, // AdcPin
             AvrPin<AvrPortD, 4>, // OutputPin
+            false, // OutputInvert
             AvrThermistorTable_Bed, // Formula
             BedHeaterMinSafeTemp, // MinSafeTemp
             BedHeaterMaxSafeTemp, // MaxSafeTemp
@@ -597,6 +599,7 @@ using PrinterParams = PrinterMainParams<
             106, // SetMCommand
             107, // OffMCommand
             AvrPin<AvrPortB, 4>, // OutputPin
+            false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
             AvrClockInterruptTimer_TC2_OCB // TimerTemplate

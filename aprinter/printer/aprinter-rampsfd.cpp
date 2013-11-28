@@ -336,6 +336,7 @@ using PrinterParams = PrinterMainParams<
             301, // SetConfigMCommand
             DuePinA1, // AdcPin
             DuePin9, // OutputPin
+            false, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
@@ -364,6 +365,7 @@ using PrinterParams = PrinterMainParams<
             304, // SetConfigMCommand
             DuePinA0, // AdcPin
             DuePin8, // OutputPin
+            false, // OutputInvert
             AvrThermistorTable_Bed, // Formula
             BedHeaterMinSafeTemp, // MinSafeTemp
             BedHeaterMaxSafeTemp, // MaxSafeTemp
@@ -392,6 +394,7 @@ using PrinterParams = PrinterMainParams<
             402, // SetConfigMCommand
             DuePinA2, // AdcPin
             DuePin10, // OutputPin
+            false, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
@@ -423,6 +426,7 @@ using PrinterParams = PrinterMainParams<
             106, // SetMCommand
             107, // OffMCommand
             DuePin11, // OutputPin
+            false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
             At91Sam3xClockInterruptTimer_TC6B // TimerTemplate
@@ -431,6 +435,7 @@ using PrinterParams = PrinterMainParams<
             406, // SetMCommand
             407, // OffMCommand
             DuePin12, // OutputPin
+            false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
             At91Sam3xClockInterruptTimer_TC7A // TimerTemplate

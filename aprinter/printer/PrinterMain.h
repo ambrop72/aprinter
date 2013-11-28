@@ -172,7 +172,7 @@ struct PrinterMainHomingParams {
 
 template <
     char TName, int TSetMCommand, int TWaitMCommand, int TSetConfigMCommand,
-    typename TAdcPin, typename TOutputPin,
+    typename TAdcPin, typename TOutputPin, bool TOutputInvert,
     typename TFormula,
     typename TMinSafeTemp, typename TMaxSafeTemp,
     typename TPulseInterval,
@@ -189,6 +189,7 @@ struct PrinterMainHeaterParams {
     static const int SetConfigMCommand = TSetConfigMCommand;
     using AdcPin = TAdcPin;
     using OutputPin = TOutputPin;
+    static const bool OutputInvert = TOutputInvert;
     using Formula = TFormula;
     using MinSafeTemp = TMinSafeTemp;
     using MaxSafeTemp = TMaxSafeTemp;
@@ -202,13 +203,14 @@ struct PrinterMainHeaterParams {
 
 template <
     int TSetMCommand, int TOffMCommand,
-    typename TOutputPin, typename TPulseInterval, typename TSpeedMultiply,
+    typename TOutputPin, bool TOutputInvert, typename TPulseInterval, typename TSpeedMultiply,
     template<typename, typename, typename> class TTimerTemplate
 >
 struct PrinterMainFanParams {
     static const int SetMCommand = TSetMCommand;
     static const int OffMCommand = TOffMCommand;
     using OutputPin = TOutputPin;
+    static const bool OutputInvert = TOutputInvert;
     using PulseInterval = TPulseInterval;
     using SpeedMultiply = TSpeedMultiply;
     template <typename X, typename Y, typename Z> using TimerTemplate = TTimerTemplate<X, Y, Z>;
@@ -1413,7 +1415,7 @@ private:
         using MeasurementInterval = If<MainControlEnabled, typename HeaterSpec::ControlInterval, typename HeaterSpec::PulseInterval>;
         using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, MeasurementInterval, ValueFixedType>;
         using ControlConfig = typename TheControl::Config;
-        using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename HeaterSpec::OutputPin, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
+        using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename HeaterSpec::OutputPin, HeaterSpec::OutputInvert, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
         using TheObserver = TemperatureObserver<ObserverPosition, Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using OutputFixedType = typename TheControl::OutputFixedType;
         
@@ -1743,7 +1745,7 @@ private:
         struct SoftPwmPosition;
         
         using FanSpec = TypeListGet<FansList, FanIndex>;
-        using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename FanSpec::OutputPin, typename FanSpec::PulseInterval, SoftPwmTimerHandler, FanSpec::template TimerTemplate>;
+        using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename FanSpec::OutputPin, FanSpec::OutputInvert, typename FanSpec::PulseInterval, SoftPwmTimerHandler, FanSpec::template TimerTemplate>;
         using OutputFixedType = FixedPoint<8, false, -8>;
         
         struct ChannelPayload {

@@ -35,7 +35,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Position, typename Context, typename Pin, typename PulseInterval, typename TimerCallback, template<typename, typename, typename> class TimerTemplate>
+template <typename Position, typename Context, typename Pin, bool Invert, typename PulseInterval, typename TimerCallback, template<typename, typename, typename> class TimerTemplate>
 class SoftPwm
 : private DebugObject<Context, void>
 {
@@ -59,7 +59,7 @@ public:
         o->m_timer.init(c);
         o->m_state = false;
         o->m_start_time = start_time;
-        c.pins()->template set<Pin>(c, false);
+        c.pins()->template set<Pin>(c, Invert);
         c.pins()->template setOutput<Pin>(c);
         o->m_timer.setFirst(c, start_time);
         
@@ -72,7 +72,7 @@ public:
         o->debugDeinit(c);
         
         o->m_timer.deinit(c);
-        c.pins()->template set<Pin>(c, false);
+        c.pins()->template set<Pin>(c, Invert);
     }
     
     TimerInstance * getTimer ()
@@ -90,7 +90,7 @@ private:
         TimeType next_time;
         if (AMBRO_LIKELY(!o->m_state)) {
             auto frac = TimerCallback::call(c);
-            c.pins()->template set<Pin>(c, (frac.bitsValue() > 0));
+            c.pins()->template set<Pin>(c, (frac.bitsValue() > 0) != Invert);
             if (AMBRO_LIKELY(frac.bitsValue() > 0 && frac < decltype(frac)::maxValue())) {
                 auto res = FixedResMultiply(FixedPoint<32, false, 0>::importBits(interval), frac);
                 next_time = o->m_start_time + (TimeType)res.bitsValue();
@@ -100,7 +100,7 @@ private:
                 next_time = o->m_start_time;
             }
         } else {
-            c.pins()->template set<Pin>(c, false);
+            c.pins()->template set<Pin>(c, Invert);
             o->m_start_time += interval;
             next_time = o->m_start_time;
             o->m_state = false;
