@@ -254,7 +254,24 @@ with open(outputFileName, "w") as f:
         
         elif comps[0] == 'G0' or comps[0] == 'G1':
             newLine = ''
-            if comps[0] == 'G1':
+            newF = currentF
+            newReqPos = currentReqPos.copy()
+            seenAxes = []
+            for i in range(1, len(comps)):
+                comp = comps[i]
+                if len(comp) > 0 and comp[0] == 'F':
+                    newF = float(comp[1:])
+                elif len(comp) > 0 and comp[0] in currentReqPos:
+                    if currentRelative:
+                        if comp[0] != 'E' and not currentKnown[comp[0]]:
+                            raise Exception('Got relative move with axis whose position is unknown')
+                        newReqPos[comp[0]] += float(comp[1:])
+                    else:
+                        newReqPos[comp[0]] = float(comp[1:])
+                    seenAxes.append(comp[0])
+                else:
+                    raise Exception('Unknown axis in G0 or G1')
+            if comps[0] == 'G1' or len([axisName for axisName in seenAxes if axisName in currentPhysPos]) == 0:
                 pendingAxes = []
                 for axisName in currentPhysPos:
                     if currentPending[axisName]:
@@ -273,23 +290,6 @@ with open(outputFileName, "w") as f:
             elif sum(currentPending.values()) > 0:
                 if not sdcard:
                     newLine += ';DeTool merging tool change with G0\n'
-            newF = currentF
-            newReqPos = currentReqPos.copy()
-            seenAxes = []
-            for i in range(1, len(comps)):
-                comp = comps[i]
-                if len(comp) > 0 and comp[0] == 'F':
-                    newF = float(comp[1:])
-                elif len(comp) > 0 and comp[0] in currentReqPos:
-                    if currentRelative:
-                        if comp[0] != 'E' and not currentKnown[comp[0]]:
-                            raise Exception('Got relative move with axis whose position is unknown')
-                        newReqPos[comp[0]] += float(comp[1:])
-                    else:
-                        newReqPos[comp[0]] = float(comp[1:])
-                    seenAxes.append(comp[0])
-                else:
-                    raise Exception('Unknown axis in G0 or G1')
             newLine += comps[0]
             if newF != currentF:
                 newLine += ' F%.1f' % (newF)
@@ -299,12 +299,10 @@ with open(outputFileName, "w") as f:
                     axisReqPhysPos = newReqPos[axisName]
                     if axisName != 'E':
                         axisReqPhysPos += tools[currentTool]['offsets'][axisName]
-                    if (axisName != 'E' and not currentKnown[axisName]) or axisCurrentPhysPos != axisReqPhysPos:
-                        realAxisName = axisName if axisName != 'E' else tools[currentTool]['name']
-                        newLine += ' %s%.5f' % (realAxisName, axisReqPhysPos)
-                        if axisName != 'E':
-                            currentPhysPos[axisName] = axisReqPhysPos
+                    realAxisName = axisName if axisName != 'E' else tools[currentTool]['name']
+                    newLine += ' %s%.5f' % (realAxisName, axisReqPhysPos)
                     if axisName != 'E':
+                        currentPhysPos[axisName] = axisReqPhysPos
                         currentPending[axisName] = False
                         currentKnown[axisName] = True
             currentF = newF
