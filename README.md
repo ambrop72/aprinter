@@ -144,13 +144,8 @@ AMBRO_AVR_SPI_ISRS(*p.myprinter.getSdCard()->getSpi(), MyContext())
 ...
 ```
 
-**Additionally**, you may need to reduce your buffer sizes to accomodate the RAM requirements of the SD code.
-To check, compile the firmware, then run `avr-size aprinter.elf`.
-The `bss` number tells you how much data memory is used.
-Also consider that there should be about 900 bytes left for the stack.
-Therefore, on atmega2560, which has 8KiB of SRAM, your `bss` should not be higher than 7300.
-You can reduce your RAM usage by lowering `StepperSegmentBufferSize` and `EventChannelBufferSize` (preferably keeping them equal),
-as well as lowering `LookaheadBufferSize`.
+**WARNING.** After you have added the new features, you should [check your RAM usage](README.md#ram-usage).
+If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters causiung a fire).
 
 Once you've flashed firmware wirh these changes, you will have the following commands available:
 
@@ -187,6 +182,16 @@ First, you need to configure you firmware for multiple extruders in the first pl
 Open your main file and add the new axes, heaters and fans. In particular, if you're adding a second extruder to a Ramps1.3/1.4 board, use the following:
 
 ```
+...
+// Add these floating point constants for the second extuder axis,
+// after the section for the first extruder (EDefault...).
+using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);
+using UDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
+using UDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
+using UDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
+using UDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
+using UDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
+using UDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
 ...
         // Add this to the list of axes, and don't forget a comma above.
         PrinterMainAxisParams<
@@ -263,22 +268,10 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCA_ISRS(*p.myprinter.getFanTimer<1>(), MyCo
 ...
 ```
 
-As you can see, each axis, heater and fan requires the assignment of a Timer/Counter (TC) output compare (OC) unit.
-The OC unit is used to step an axis, or generate a PWM signal for a heater or fan.
-In the default configuration for Ramps, both of the two output compare units (OCA and OCB) on TC1, TC3, TC4 and TC5 are already assigned.
-Here, we used TC0/OCA and TC0/OCB for the new axis and heater, and TC2/OCA for the new fan.
+As you can see, each axis, heater and fan requires the assignment of a Timer/Counter (TC) output compare (OC) unit. For more information, consult the [OC units section](README.md#output-compare-units).
 
-If you're building for Due, the compare units different - you have 27 units available, named `TC{0-8}{A-C}`.
-In the default configuration, all the A units are used, and you can start with the B units (`TC0B`, `TC1B`, `TC2B`...).
-To assign a compare unit to an axis/heater/fan, set it in its `TimerTemplate` parameter, and also add the appropriate `GLOBAL` macro to where the existing macros for TC units are (the ones starting with `AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_`).
-Don't forget to adjust the index of the axis/heater/fan here.
-
-**NOTE:** on boards based on atmega1284p, all available output compare units are already assined.
-As such, it is not possible to add any extra axes/heaters/fans.
-However, it would be easy to implement multiplexing so that one hardware OC units would act as two or more virtual OC units,
-at the cost of some overhead in the ISRs.
-
-**NOTE:** keep track of your RAM usage. See the SD card section to check how to check and reduce RAM usage.
+**WARNING.** After you have enabled SD card support, you should [check your RAM usage](README.md#ram-usage).
+If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters causiung a fire).
 
 ## The DeTool g-code postprocessor
 
@@ -317,3 +310,58 @@ you will want to pass:
 ```
 
 If the fans are not equally powerful, you can adjust the `SpeedMultiplier` to scale the speed of specific fans.
+
+## Output compare units
+
+Various features of the firmware, in particular, each axis, heater and fan,
+require the allocation of a timer output compare unit of the microcontroller.
+The output compare units are are internally used to raise interrupts at programmed times, which, for example,
+send step signals to a stepper motor driver, or toggle a pin to perform software PWM control of a heater or fan.
+
+The firmware is designed in a way that makes it very easy to assign OC units to features that require them.
+Each feature has a parameter in its configuration expression, called `TimerTemplate`,
+which specifies the OC unit to be used. The available OC units depend on the particular microcontroller.
+For example:
+
+- On atmega1284p (Melzi), there's 8 OC units available, named `AvrClockInterruptTimer_TC[0-3]_OC[A-B]`.
+- On atmega2560 (RAMPS), there's 12 OC units available, named `AvrClockInterruptTimer_TC[0-5]_OC[A-B]`.
+- On AT91SAM3X8E (Due), there's 27 OC units available, named `At91Sam3xClockInterruptTimer_TC[0-8][A-C]`.
+
+In addition to specifying the OC unit in the `TimerTemplate` parameter, a corresponding `ISRS` or `GLOBAL` macro needs the be invoked in order to set up the interrupt handler. For example, if `AvrClockInterruptTimer_TC3_OCB` is used
+for the axis at index 3 (indices start from zero), the corresponding `ISRS` macro invocation is:
+
+```
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
+```
+
+For heaters and fans, as wellas for Due as opposed to AVR, consult the existing assignments in your main file. 
+
+For AVR based boards, if you have used an OC unit of a previously unused TC (e.g. you used `TC0_OCA`, and `TC0_OCB` was not already assigned), you will need to initialize this TC in the `main` function, by adding this line after the existing similar lines:
+
+```
+    p.myclock.initTC0(c);
+```
+
+On AT91SAM3XE (Due), something similar is generally needed,
+but since all the TCs are already used in the default configuration, you don't need to do anything.
+
+**NOTE:** on boards based on atmega1284p, all available output compare units are already assined.
+As such, it is not possible to add any extra axes/heaters/fans.
+However, it would be easy to implement multiplexing so that one hardware OC units would act as two or more virtual OC units,
+at the cost of some overhead in the ISRs.
+
+## RAM usage
+
+If you add new functionality to your configuration,
+it is a good idea to check if your microcontroller still has enough RAM.
+This is mostly a problem on atmega2560, with only 8KiB RAM; the atmega1284p has 16KiB, and AT91SAM3X8E has 96KiB.
+In any case, the RAM usage can be checked using the `size` program of your cross compilation toolchain. For example:
+
+```
+$ avr-size aprinter.elf 
+   text	   data	    bss	    dec	    hex	filename
+ 108890	     10	   7285	 116185	  1c5d9	aprinter.elf
+```
+
+The number we're interested in here is the sum of `data` and `bss`. You should also reserve around 900 bytes for the stack. So, on atmega2560, your data+bss shoudln't exceed 7300 bytes. If you fall short, you can reduce your RAM usage by lowering `StepperSegmentBufferSize` and `EventChannelBufferSize` (preferably keeping them equal),
+as well as lowering `LookaheadBufferSize`. Alternatively, port your printer to Due/RAMPS-FD ;)
