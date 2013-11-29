@@ -145,7 +145,7 @@ AMBRO_AVR_SPI_ISRS(*p.myprinter.getSdCard()->getSpi(), MyContext())
 ```
 
 **WARNING.** After you have added the new features, you should [check your RAM usage](README.md#ram-usage).
-If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters causiung a fire).
+If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters starting fires).
 
 Once you've flashed firmware wirh these changes, you will have the following commands available:
 
@@ -271,7 +271,7 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCA_ISRS(*p.myprinter.getFanTimer<1>(), MyCo
 As you can see, each axis, heater and fan requires the assignment of a Timer/Counter (TC) output compare (OC) unit. For more information, consult the [OC units section](README.md#output-compare-units).
 
 **WARNING.** After you have enabled SD card support, you should [check your RAM usage](README.md#ram-usage).
-If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters causiung a fire).
+If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters starting fires).
 
 ## The DeTool g-code postprocessor
 
