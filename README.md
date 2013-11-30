@@ -90,7 +90,11 @@ However, any AVR satisfying the following should work, possibly requiring minor 
   * Download Arduino 1.5 in order to get the `bossac` program. Note that the vanilla `bossac` will not work.
   * Edit `flash-rampsfd.sh` to set the location of the `bossac` program and the serial port corresponding
     to the programming port of the Due.
-  * With the board connected using the programming port, press the erase button, then the reset button, and finally run `flash-rampsfd.sh` to upload the firmware to your board.
+  * With the board connected using the programming port, run `flash-rampsfd.sh` to upload the firmware to your board.
+    Note that this script will first put the serial port into 1200 baud, which will cause the usb-to-serial
+    microcontroller on the Due to erase the AT91SAM3X8E and put it into bootloader mode.
+  * If after successful flashing the firmware does not start (LED stays on instead of blinking),
+    press the reset button.
 
 ## Configuration
 
