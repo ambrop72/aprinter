@@ -65,14 +65,40 @@ public:
         if (AMBRO_UNLIKELY(adc_value > 740 - 1)) {
             return ValueFixedType::minValue();
         }
-#ifdef AMBROLIB_AVR
-        return ValueFixedType::importBits(pgm_read_word(&table[(adc_value - 79)]));
-#else
-        return ValueFixedType::importBits(table[(adc_value - 79)]);
-#endif
+        return ValueFixedType::importBits(lookup(adc_value - 79));
+    }
+    
+    static uint16_t invert (ValueFixedType temp_value, bool round_up)
+    {
+        uint16_t a = 0;
+        uint16_t b = 661 - 1;
+        if (temp_value > ValueFixedType::importBits(lookup(a))) {
+            return 79 + a;
+        }
+        if (temp_value <= ValueFixedType::importBits(lookup(b))) {
+            return 79 + b;
+        }
+        while (b - a > 1) {
+            uint16_t c = a + (b - a) / 2;
+            if (temp_value > ValueFixedType::importBits(lookup(c))) {
+                b = c;
+            } else {
+                a = c;
+            }
+        }
+        return 79 + ((temp_value == ValueFixedType::importBits(lookup(a)) || round_up) ? a : b);
     }
     
 private:
+    inline static uint16_t lookup (uint16_t i)
+    {
+#ifdef AMBROLIB_AVR
+        return pgm_read_word(&table[i]);
+#else
+        return table[i];
+#endif
+    }
+
 #ifdef AMBROLIB_AVR
     static uint16_t const table[661] PROGMEM;
 #else

@@ -1455,6 +1455,8 @@ private:
             o->m_control_config = TheControl::makeDefaultConfig();
             TimeType time = c.clock()->getTime(c);
             o->m_main_control.init(c, time);
+            o->m_adc_min = HeaterSpec::Formula::invert(max_safe_temp(), true);
+            o->m_adc_max = HeaterSpec::Formula::invert(min_safe_temp(), false);
             o->m_softpwm.init(c, time);
             o->m_observing = false;
         }
@@ -1654,8 +1656,8 @@ private:
             {
                 MainControl *o = self(c);
                 Heater *h = Heater::self(c);
-                ValueFixedType sensor_value = h->get_value(c);
-                if (AMBRO_LIKELY(sensor_value <= min_safe_temp() || sensor_value >= max_safe_temp())) {
+                uint16_t adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
+                if (AMBRO_LIKELY(adc_value <= h->m_adc_min || adc_value >= h->m_adc_max)) {
                     AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                         h->m_enabled = false;
                         unset(c);
@@ -1718,8 +1720,9 @@ private:
                 Heater *h = Heater::self(c);
                 OutputFixedType control_value = OutputFixedType::importBits(0);
                 AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    ValueFixedType sensor_value = get_value(lock_c);
-                    if (AMBRO_UNLIKELY(sensor_value <= min_safe_temp() || sensor_value >= max_safe_temp())) {
+                    uint16_t adc_value = lock_c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
+                    ValueFixedType sensor_value = HeaterSpec::Formula::call(adc_value);
+                    if (AMBRO_UNLIKELY(adc_value <= h->m_adc_min || adc_value >= h->m_adc_max)) {
                         h->m_enabled = false;
                     }
                     if (AMBRO_LIKELY(h->m_enabled)) {
@@ -1734,6 +1737,8 @@ private:
         TheControl m_control;
         ControlConfig m_control_config;
         ValueFixedType m_target;
+        uint16_t m_adc_min;
+        uint16_t m_adc_max;
         TheSoftPwm m_softpwm;
         TheObserver m_observer;
         bool m_observing;

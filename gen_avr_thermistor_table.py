@@ -143,14 +143,40 @@ public:
         if (AMBRO_UNLIKELY(adc_value > %(TableEnd)s - 1)) {
             return ValueFixedType::minValue();
         }
-#ifdef AMBROLIB_AVR
-        return ValueFixedType::importBits(pgm_read_word(&table[(adc_value - %(TableOffset)s)]));
-#else
-        return ValueFixedType::importBits(table[(adc_value - %(TableOffset)s)]);
-#endif
+        return ValueFixedType::importBits(lookup(adc_value - %(TableOffset)s));
+    }
+    
+    static uint16_t invert (ValueFixedType temp_value, bool round_up)
+    {
+        uint16_t a = 0;
+        uint16_t b = %(TableSize)s - 1;
+        if (temp_value > ValueFixedType::importBits(lookup(a))) {
+            return %(TableOffset)s + a;
+        }
+        if (temp_value <= ValueFixedType::importBits(lookup(b))) {
+            return %(TableOffset)s + b;
+        }
+        while (b - a > 1) {
+            uint16_t c = a + (b - a) / 2;
+            if (temp_value > ValueFixedType::importBits(lookup(c))) {
+                b = c;
+            } else {
+                a = c;
+            }
+        }
+        return %(TableOffset)s + ((temp_value == ValueFixedType::importBits(lookup(a)) || round_up) ? a : b);
     }
     
 private:
+    inline static uint16_t lookup (uint16_t i)
+    {
+#ifdef AMBROLIB_AVR
+        return pgm_read_word(&table[i]);
+#else
+        return table[i];
+#endif
+    }
+
 #ifdef AMBROLIB_AVR
     static uint16_t const table[%(TableSize)s] PROGMEM;
 #else
