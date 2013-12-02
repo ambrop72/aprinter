@@ -33,7 +33,7 @@
 #include <aprinter/meta/IntTypeInfo.h>
 
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/sqrt_25_large.h>
+#include <avr-asm-ops/sqrt_26_large.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
@@ -50,8 +50,8 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
-            (NumBits <= 25 && !Round) ? sqrt_25_large(op, opt) :
-            (NumBits <= 25 && Round) ? sqrt_25_large_round(op, opt) :
+            (NumBits <= 26 && !Round) ? sqrt_26_large(op, opt) :
+            (NumBits <= 26 && Round) ? sqrt_26_large_round(op, opt) :
 #endif
             DefaultSqrt<OverflowPossible>::call(op);
     }

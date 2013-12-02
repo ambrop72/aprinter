@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBRO_AVR_ASM_SQRT_25_LARGE_H
-#define AMBRO_AVR_ASM_SQRT_25_LARGE_H
+#ifndef AMBRO_AVR_ASM_SQRT_26_LARGE_H
+#define AMBRO_AVR_ASM_SQRT_26_LARGE_H
 
 #include <stdint.h>
 
@@ -31,7 +31,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define SQRT_25_ITER_3_5(i) \
+#define SQRT_26_ITER_3_5(i) \
 "    cp %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %D[x],%B[goo]\n" \
@@ -42,7 +42,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_25_ITER_6_6(i) \
+#define SQRT_26_ITER_6_6(i) \
 "    cp %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
 "    sub %D[x],%B[goo]\n" \
@@ -53,7 +53,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_25_ITER_7_7(i) \
+#define SQRT_26_ITER_7_7(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -66,7 +66,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_25_ITER_8_13(i) \
+#define SQRT_26_ITER_8_13(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -79,7 +79,7 @@
 "    rol %C[x]\n" \
 "    rol %D[x]\n"
 
-#define SQRT_25_ITER_14_14(i) \
+#define SQRT_26_ITER_14_14(i) \
 "    cp %C[x],%A[goo]\n" \
 "    cpc %D[x],%B[goo]\n" \
 "    brcs zero_bit_" #i "_%=\n" \
@@ -93,12 +93,12 @@
 "    rol %D[x]\n"
 
 /*
- * Square root 25-bit.
+ * Square root 26-bit.
  * 
  * Cycles in worst case: 127
  * = 11 + 3 * 8 + 8 + 10 + 6 * 10 + 10 + 4
  */
-__attribute__((always_inline)) inline static uint16_t sqrt_25_large (uint32_t x, OptionForceInline opt)
+__attribute__((always_inline)) inline static uint16_t sqrt_26_large (uint32_t x, OptionForceInline opt)
 {
     uint16_t goo;
     
@@ -114,18 +114,18 @@ __attribute__((always_inline)) inline static uint16_t sqrt_25_large (uint32_t x,
         "    lsl %B[x]\n"
         "    rol %C[x]\n"
         "    rol %D[x]\n"
-        SQRT_25_ITER_3_5(3)
-        SQRT_25_ITER_3_5(4)
-        SQRT_25_ITER_3_5(5)
-        SQRT_25_ITER_6_6(6)
-        SQRT_25_ITER_7_7(7)
-        SQRT_25_ITER_8_13(8)
-        SQRT_25_ITER_8_13(9)
-        SQRT_25_ITER_8_13(10)
-        SQRT_25_ITER_8_13(11)
-        SQRT_25_ITER_8_13(12)
-        SQRT_25_ITER_8_13(13)
-        SQRT_25_ITER_14_14(14)
+        SQRT_26_ITER_3_5(3)
+        SQRT_26_ITER_3_5(4)
+        SQRT_26_ITER_3_5(5)
+        SQRT_26_ITER_6_6(6)
+        SQRT_26_ITER_7_7(7)
+        SQRT_26_ITER_8_13(8)
+        SQRT_26_ITER_8_13(9)
+        SQRT_26_ITER_8_13(10)
+        SQRT_26_ITER_8_13(11)
+        SQRT_26_ITER_8_13(12)
+        SQRT_26_ITER_8_13(13)
+        SQRT_26_ITER_14_14(14)
         "    lsl %A[x]\n"
         "    cpc %A[goo],%C[x]\n"
         "    cpc %B[goo],%D[x]\n"
@@ -140,12 +140,12 @@ __attribute__((always_inline)) inline static uint16_t sqrt_25_large (uint32_t x,
 }
 
 /*
- * Square root 25-bit with rounding.
+ * Square root 26-bit with rounding.
  * 
  * Cycles in worst case: 138
  * = 11 + 3 * 8 + 8 + 10 + 6 * 10 + 10 + 15
  */
-__attribute__((always_inline)) inline static uint16_t sqrt_25_large_round (uint32_t x, OptionForceInline opt)
+__attribute__((always_inline)) inline static uint16_t sqrt_26_large_round (uint32_t x, OptionForceInline opt)
 {
     uint16_t goo;
     
@@ -161,18 +161,18 @@ __attribute__((always_inline)) inline static uint16_t sqrt_25_large_round (uint3
         "    lsl %B[x]\n"
         "    rol %C[x]\n"
         "    rol %D[x]\n"
-        SQRT_25_ITER_3_5(3)
-        SQRT_25_ITER_3_5(4)
-        SQRT_25_ITER_3_5(5)
-        SQRT_25_ITER_6_6(6)
-        SQRT_25_ITER_7_7(7)
-        SQRT_25_ITER_8_13(8)
-        SQRT_25_ITER_8_13(9)
-        SQRT_25_ITER_8_13(10)
-        SQRT_25_ITER_8_13(11)
-        SQRT_25_ITER_8_13(12)
-        SQRT_25_ITER_8_13(13)
-        SQRT_25_ITER_14_14(14)
+        SQRT_26_ITER_3_5(3)
+        SQRT_26_ITER_3_5(4)
+        SQRT_26_ITER_3_5(5)
+        SQRT_26_ITER_6_6(6)
+        SQRT_26_ITER_7_7(7)
+        SQRT_26_ITER_8_13(8)
+        SQRT_26_ITER_8_13(9)
+        SQRT_26_ITER_8_13(10)
+        SQRT_26_ITER_8_13(11)
+        SQRT_26_ITER_8_13(12)
+        SQRT_26_ITER_8_13(13)
+        SQRT_26_ITER_14_14(14)
         "    cpi %A[x],0x80\n"
         "    cpc %C[x],%A[goo]\n"
         "    cpc %D[x],%B[goo]\n"
@@ -199,15 +199,15 @@ __attribute__((always_inline)) inline static uint16_t sqrt_25_large_round (uint3
 }
 
 template <typename Option = int>
-static uint16_t sqrt_25_large (uint32_t x, Option opt = 0)
+static uint16_t sqrt_26_large (uint32_t x, Option opt = 0)
 {
-    return sqrt_25_large(x, OptionForceInline());
+    return sqrt_26_large(x, OptionForceInline());
 }
 
 template <typename Option = int>
-static uint16_t sqrt_25_large_round (uint32_t x, Option opt = 0)
+static uint16_t sqrt_26_large_round (uint32_t x, Option opt = 0)
 {
-    return sqrt_25_large_round(x, OptionForceInline());
+    return sqrt_26_large_round(x, OptionForceInline());
 }
 
 
