@@ -53,6 +53,11 @@ public:
     using TimeType = typename Clock::TimeType;
     using TimerInstance = TimerTemplate<TimerPosition, Context, TimerHandler>;
     
+    struct PowerData {
+        TimeType on_time;
+        uint8_t type;
+    };
+    
     static void init (Context c, TimeType start_time)
     {
         SoftPwm *o = self(c);
@@ -80,6 +85,21 @@ public:
         return &m_timer;
     }
     
+    template <typename FracFixedType>
+    static void computePowerData (FracFixedType frac, PowerData *pd)
+    {
+        if (frac.bitsValue() <= 0) {
+            pd->type = 0;
+        } else {
+            if (frac >= FracFixedType::maxValue()) {
+                pd->type = 2;
+            } else {
+                pd->type = 1;
+                pd->on_time = FixedResMultiply(FixedPoint<32, false, 0>::importBits(interval), frac).bitsValue();
+            }
+        }
+    }
+    
 private:
     static const TimeType interval = PulseInterval::value() / Clock::time_unit;
     
@@ -89,11 +109,11 @@ private:
         
         TimeType next_time;
         if (AMBRO_LIKELY(!o->m_state)) {
-            auto frac = TimerCallback::call(c);
-            c.pins()->template set<Pin>(c, (frac.bitsValue() > 0) != Invert);
-            if (AMBRO_LIKELY(frac.bitsValue() > 0 && frac < decltype(frac)::maxValue())) {
-                auto res = FixedResMultiply(FixedPoint<32, false, 0>::importBits(interval), frac);
-                next_time = o->m_start_time + (TimeType)res.bitsValue();
+            PowerData pd;
+            TimerCallback::call(c, &pd);
+            c.pins()->template set<Pin>(c, (pd.type != 0) != Invert);
+            if (AMBRO_LIKELY(pd.type == 1)) {
+                next_time = o->m_start_time + pd.on_time;
                 o->m_state = true;
             } else {
                 o->m_start_time += interval;

@@ -1425,6 +1425,7 @@ private:
         using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename HeaterSpec::OutputPin, HeaterSpec::OutputInvert, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
         using TheObserver = TemperatureObserver<ObserverPosition, Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using OutputFixedType = typename TheControl::OutputFixedType;
+        using PwmPowerData = typename TheSoftPwm::PowerData;
         
         static_assert(MainControlEnabled || TheControl::InterruptContextAllowed, "Chosen heater control algorithm is not allowed in interrupt context.");
         static_assert(!TheControl::SupportsConfig || MainControlEnabled, "Configurable heater control algorithms not allowed in interrupt context.");
@@ -1576,10 +1577,10 @@ private:
             }
         }
         
-        static OutputFixedType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
+        static void softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c, PwmPowerData *pd)
         {
             Heater *o = self(c);
-            return o->m_main_control.get_output_for_pwm(c);
+            o->m_main_control.get_output_for_pwm(c, pd);
         }
         
         static double observer_get_value_callback (Context c)
@@ -1633,7 +1634,7 @@ private:
             static void init (Context c, TimeType time)
             {
                 MainControl *o = self(c);
-                o->m_output = OutputFixedType::importBits(0);
+                TheSoftPwm::computePowerData(OutputFixedType::importBits(0), &o->m_output_pd);
                 o->m_control_event.init(c, MainControl::control_event_handler);
                 o->m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
                 o->m_was_not_unset = false;
@@ -1649,10 +1650,10 @@ private:
             {
                 MainControl *o = self(c);
                 o->m_was_not_unset = false;
-                o->m_output = OutputFixedType::importBits(0);
+                TheSoftPwm::computePowerData(OutputFixedType::importBits(0), &o->m_output_pd);
             }
             
-            static OutputFixedType get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c)
+            static void get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c, PwmPowerData *pd)
             {
                 MainControl *o = self(c);
                 Heater *h = Heater::self(c);
@@ -1663,11 +1664,9 @@ private:
                         unset(c);
                     }
                 }
-                OutputFixedType output;
                 AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    output = o->m_output;
+                    *pd = o->m_output_pd;
                 }
-                return output;
             }
             
             static void control_event_handler (typename Loop::QueuedEvent *, Context c)
@@ -1691,15 +1690,17 @@ private:
                     }
                     ValueFixedType sensor_value = h->get_value(c);
                     OutputFixedType output = h->m_control.addMeasurement(sensor_value, target, &h->m_control_config);
+                    PwmPowerData output_pd;
+                    TheSoftPwm::computePowerData(output, &output_pd);
                     AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                         if (o->m_was_not_unset) {
-                            o->m_output = output;
+                            o->m_output_pd = output_pd;
                         }
                     }
                 }
             }
             
-            OutputFixedType m_output;
+            PwmPowerData m_output_pd;
             typename Loop::QueuedEvent m_control_event;
             bool m_was_not_unset;
         } AMBRO_STRUCT_ELSE(MainControl) {
@@ -1715,7 +1716,7 @@ private:
                 }
             }
             
-            static OutputFixedType get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c)
+            static void get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c, PwmPowerData *pd)
             {
                 Heater *h = Heater::self(c);
                 OutputFixedType control_value = OutputFixedType::importBits(0);
@@ -1729,7 +1730,7 @@ private:
                         control_value = h->m_control.addMeasurement(sensor_value, h->m_target, &h->m_control_config);
                     }
                 }
-                return control_value;
+                TheSoftPwm::computePowerData(control_value, pd);
             }
         };
         
@@ -1759,9 +1760,10 @@ private:
         using FanSpec = TypeListGet<FansList, FanIndex>;
         using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename FanSpec::OutputPin, FanSpec::OutputInvert, typename FanSpec::PulseInterval, SoftPwmTimerHandler, FanSpec::template TimerTemplate>;
         using OutputFixedType = FixedPoint<8, false, -8>;
+        using PwmPowerData = typename TheSoftPwm::PowerData;
         
         struct ChannelPayload {
-            OutputFixedType target;
+            PwmPowerData target_pd;
         };
         
         static Fan * self (Context c)
@@ -1772,7 +1774,7 @@ private:
         static void init (Context c)
         {
             Fan *o = self(c);
-            o->m_target = OutputFixedType::importBits(0);
+            TheSoftPwm::computePowerData(OutputFixedType::importBits(0), &o->m_target_pd);
             o->m_softpwm.init(c, c.clock()->getTime(c));
         }
         
@@ -1801,21 +1803,19 @@ private:
                 cmd.type = 1;
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
-                UnionGetElem<FanIndex>(&payload->fans)->target = OutputFixedType::importDoubleSaturated(target);
+                TheSoftPwm::computePowerData(OutputFixedType::importDoubleSaturated(target), &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
                 cc->submitPlannedCommand(c, &cmd);
                 return false;
             }
             return true;
         }
         
-        static OutputFixedType softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c)
+        static void softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c, PwmPowerData *pd)
         {
             Fan *o = self(c);
-            OutputFixedType control_value;
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                control_value = o->m_target;
+                *pd = o->m_target_pd;
             }
-            return control_value;
         }
         
         static void emergency ()
@@ -1829,11 +1829,11 @@ private:
             Fan *o = self(c);
             ChannelPayload *payload = UnionGetElem<FanIndex>(payload_union);
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                o->m_target = payload->target;
+                o->m_target_pd = payload->target_pd;
             }
         }
         
-        OutputFixedType m_target;
+        PwmPowerData m_target_pd;
         TheSoftPwm m_softpwm;
         
         struct SoftPwmTimerHandler : public AMBRO_WFUNC_TD(&Fan::softpwm_timer_handler) {};
