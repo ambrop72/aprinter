@@ -122,36 +122,15 @@ For information about specific types of configuration, see the sections about SD
 
 The firmware supports reading G-code from an SD card. However, the G-code needs to be written directly to the SD card in sequential blocks, starting with the first block (where the partition table would normally reside).
 
-On Due/RAMPS-FD, SD card support is enabled by default.
-On the other hand, to enable SD card for AVR based boards, some changes need to be done in your main file:
-```
-...
-// add these includes
-#include <aprinter/devices/SpiSdCard.h>
-#include <aprinter/system/AvrSpi.h>
-...
-    // remove "PrinterMainNoSdCardParams," and replace it with this (don't forget the trailing comma):
-    // The SsPin below is for RAMPS1.4. For Melzi, use AvrPin<AvrPortB, 4>.
-    PrinterMainSdCardParams<
-        SpiSdCard,
-        SpiSdCardParams<
-            AvrPin<AvrPortB, 0>, // SsPin
-            AvrSpi
-        >,
-        GcodeParserParams<8>,
-        2, // BufferBlocks
-        100 // MaxCommandSize
-    >,
-...
-// add this to where the other ISR macros are
-AMBRO_AVR_SPI_ISRS(*p.myprinter.getSdCard()->getSpi(), MyContext())
-...
-```
+SD card support is working and enabled by default on RAMPS and RAMPS-FD. On Melzi, it is untested and not enabled,
+but if you need it, you can try enabling it yourself, based on how it's done in the RAMPS main file.
+But be careful, the SsPin is different.
 
-**WARNING.** After you have added the new features, you should [check your RAM usage](README.md#ram-usage).
+**WARNING.** If you have enabled SD card after it wasn't enabled in the default configuration,
+you should [check your RAM usage](README.md#ram-usage).
 If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters starting fires).
 
-Once you've flashed firmware wirh these changes, you will have the following commands available:
+Once you boot a firmware with SD support enabled, you will have the following commands available:
 
 - M21 - Initializes the SD card.
 - M22 - Deinitializes the SD card.
