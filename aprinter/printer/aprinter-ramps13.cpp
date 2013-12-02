@@ -160,7 +160,7 @@ using PrinterParams = PrinterMainParams<
      * Common parameters.
      */
     PrinterMainSerialParams<
-        UINT32_C(115200), // BaudRate
+        UINT32_C(250000), // BaudRate
         7, // RecvBufferSizeExp
         8, // SendBufferSizeExp
         GcodeParserParams<8>, // ReceiveBufferSizeExp
@@ -172,8 +172,8 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    14, // StepperSegmentBufferSize
-    14, // EventChannelBufferSize
+    15, // StepperSegmentBufferSize
+    15, // EventChannelBufferSize
     4, // LookaheadBufferSize
     ForceTimeout, // ForceTimeout
     AvrClockInterruptTimer_TC5_OCC, // EventChannelTimer
