@@ -44,8 +44,10 @@ static void emergency (void);
 #include <aprinter/system/AvrAdc.h>
 #include <aprinter/system/AvrWatchdog.h>
 #include <aprinter/system/AvrSerial.h>
+#include <aprinter/system/AvrSpi.h>
 #include <aprinter/devices/PidControl.h>
 #include <aprinter/devices/BinaryControl.h>
+#include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/arduino_mega_pins.h>
 #include <generated/AvrThermistorTable_Extruder.h>
@@ -63,9 +65,9 @@ using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
 using XDefaultMax = AMBRO_WRAP_DOUBLE(210.0);
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
-using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(800.0);
+using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
 using XDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using XDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
+using XDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 using XDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(280.0);
 using XDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
 using XDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
@@ -75,11 +77,11 @@ using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using YDefaultMax = AMBRO_WRAP_DOUBLE(170.0);
+using YDefaultMax = AMBRO_WRAP_DOUBLE(155.0);
 using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
-using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(600.0);
+using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(650.0);
 using YDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using YDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
+using YDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 using YDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(200.0);
 using YDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
 using YDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
@@ -93,7 +95,7 @@ using ZDefaultMax = AMBRO_WRAP_DOUBLE(100.0);
 using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
 using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
 using ZDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using ZDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
+using ZDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 using ZDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(101.0);
 using ZDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(0.8);
 using ZDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(1.2);
@@ -107,7 +109,15 @@ using EDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
 using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
+using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
+
+using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(660.0);
+using UDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
+using UDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
+using UDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
+using UDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
+using UDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
+using UDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(55.0);
 
 using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
@@ -117,7 +127,7 @@ using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
 using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
 using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
 using ExtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
-using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.12);
+using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.2);
 using ExtruderHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.7);
 using ExtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using ExtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
@@ -125,8 +135,14 @@ using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
 using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
-using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
-using BedHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.0);
+using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
+using BedHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.3);
+using BedHeaterPidP = AMBRO_WRAP_DOUBLE(1.0);
+using BedHeaterPidI = AMBRO_WRAP_DOUBLE(0.012);
+using BedHeaterPidD = AMBRO_WRAP_DOUBLE(2.5);
+using BedHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
+using BedHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(1.0);
+using BedHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.8);
 using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
 using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
@@ -156,16 +172,25 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    20, // StepperSegmentBufferSize
-    20, // EventChannelBufferSize
+    14, // StepperSegmentBufferSize
+    14, // EventChannelBufferSize
     4, // LookaheadBufferSize
     ForceTimeout, // ForceTimeout
-    AvrClockInterruptTimer_TC5_OCA, // EventChannelTimer
+    AvrClockInterruptTimer_TC5_OCC, // EventChannelTimer
     AvrWatchdog,
     AvrWatchdogParams<
         WDTO_2S
     >,
-    PrinterMainNoSdCardParams,
+    PrinterMainSdCardParams<
+        SpiSdCard,
+        SpiSdCardParams<
+            AvrPin<AvrPortB, 0>, // SsPin
+            AvrSpi
+        >,
+        GcodeParserParams<8>,
+        2, // BufferBlocks
+        100 // MaxCommandSize
+    >,
     
     /*
      * Axes.
@@ -196,9 +221,9 @@ using PrinterParams = PrinterMainParams<
                 XDefaultHomeSlowSpeed // HomeSlowSpeed
             >,
             true, // EnableCartesianSpeedLimit
-            24, // StepBits
+            32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC1_OCA // StepperTimer
+                AvrClockInterruptTimer_TC3_OCA // StepperTimer
             >
         >,
         PrinterMainAxisParams<
@@ -226,9 +251,9 @@ using PrinterParams = PrinterMainParams<
                 YDefaultHomeSlowSpeed // HomeSlowSpeed
             >,
             true, // EnableCartesianSpeedLimit
-            24, // StepBits
+            32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC1_OCB // StepperTimer
+                AvrClockInterruptTimer_TC3_OCB // StepperTimer
             >
         >,
         PrinterMainAxisParams<
@@ -256,9 +281,9 @@ using PrinterParams = PrinterMainParams<
                 ZDefaultHomeSlowSpeed // HomeSlowSpeed
             >,
             true, // EnableCartesianSpeedLimit
-            24, // StepBits
+            32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCA // StepperTimer
+                AvrClockInterruptTimer_TC3_OCC // StepperTimer
             >
         >,
         PrinterMainAxisParams<
@@ -278,7 +303,27 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCB // StepperTimer
+                AvrClockInterruptTimer_TC4_OCA // StepperTimer
+            >
+        >,
+        PrinterMainAxisParams<
+            'U', // Name
+            MegaPin34, // DirPin
+            MegaPin36, // StepPin
+            MegaPin30, // EnablePin
+            true, // InvertDir
+            UDefaultStepsPerUnit, // StepsPerUnit
+            UDefaultMin, // Min
+            UDefaultMax, // Max
+            UDefaultMaxSpeed, // MaxSpeed
+            UDefaultMaxAccel, // MaxAccel
+            UDefaultDistanceFactor, // DistanceFactor
+            UDefaultCorneringDistance, // CorneringDistance
+            PrinterMainNoHomingParams,
+            false, // EnableCartesianSpeedLimit
+            32, // StepBits
+            AxisStepperParams<
+                AvrClockInterruptTimer_TC4_OCB // StepperTimer
             >
         >
     >,
@@ -314,7 +359,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            AvrClockInterruptTimer_TC4_OCA // TimerTemplate
+            AvrClockInterruptTimer_TC4_OCC // TimerTemplate
         >,
         PrinterMainHeaterParams<
             'B', // Name
@@ -329,14 +374,50 @@ using PrinterParams = PrinterMainParams<
             BedHeaterMaxSafeTemp, // MaxSafeTemp
             BedHeaterPulseInterval, // PulseInterval
             BedHeaterControlInterval, // ControlInterval
-            BinaryControl, // Control
-            BinaryControlParams,
+            PidControl, // Control
+            PidControlParams<
+                BedHeaterPidP, // PidP
+                BedHeaterPidI, // PidI
+                BedHeaterPidD, // PidD
+                BedHeaterPidIStateMin, // PidIStateMin
+                BedHeaterPidIStateMax, // PidIStateMax
+                BedHeaterPidDHistory // PidDHistory
+            >,
             TemperatureObserverParams<
                 BedHeaterObserverInterval, // ObserverInterval
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            AvrClockInterruptTimer_TC4_OCB // TimerTemplate
+            AvrClockInterruptTimer_TC5_OCA // TimerTemplate
+        >,
+        PrinterMainHeaterParams<
+            'U', // Name
+            404, // SetMCommand
+            409, // WaitMCommand
+            402, // SetConfigMCommand
+            MegaPinA15, // AdcPin
+            MegaPin9, // OutputPin
+            false, // OutputInvert
+            AvrThermistorTable_Extruder, // Formula
+            ExtruderHeaterMinSafeTemp, // MinSafeTemp
+            ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
+            ExtruderHeaterPulseInterval, // PulseInterval
+            ExtruderHeaterControlInterval, // ControlInterval
+            PidControl, // Control
+            PidControlParams<
+                ExtruderHeaterPidP, // PidP
+                ExtruderHeaterPidI, // PidI
+                ExtruderHeaterPidD, // PidD
+                ExtruderHeaterPidIStateMin, // PidIStateMin
+                ExtruderHeaterPidIStateMax, // PidIStateMax
+                ExtruderHeaterPidDHistory // PidDHistory
+            >,
+            TemperatureObserverParams<
+                ExtruderHeaterObserverInterval, // ObserverInterval
+                ExtruderHeaterObserverTolerance, // ObserverTolerance
+                ExtruderHeaterObserverMinTime // ObserverMinTime
+            >,
+            AvrClockInterruptTimer_TC5_OCB // TimerTemplate
         >
     >,
     
@@ -347,11 +428,20 @@ using PrinterParams = PrinterMainParams<
         PrinterMainFanParams<
             106, // SetMCommand
             107, // OffMCommand
-            MegaPin9, // OutputPin
+            MegaPin4, // OutputPin
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            AvrClockInterruptTimer_TC5_OCB // TimerTemplate
+            AvrClockInterruptTimer_TC1_OCA // TimerTemplate
+        >,
+        PrinterMainFanParams<
+            406, // SetMCommand
+            407, // OffMCommand
+            MegaPin5, // OutputPin
+            false, // OutputInvert
+            FanPulseInterval, // PulseInterval
+            FanSpeedMultiply, // SpeedMultiply
+            AvrClockInterruptTimer_TC1_OCB // TimerTemplate
         >
     >
 >;
@@ -359,7 +449,8 @@ using PrinterParams = PrinterMainParams<
 // need to list all used ADC pins here
 using AdcPins = MakeTypeList<
     MegaPinA13,
-    MegaPinA14
+    MegaPinA14,
+    MegaPinA15
 >;
 
 static const int AdcRefSel = 1;
@@ -431,14 +522,18 @@ Program * MyContext::root () const { return &p; }
 AMBRO_AVR_CLOCK_ISRS(p.myclock, MyContext())
 AMBRO_AVR_ADC_ISRS(p.myadc, MyContext())
 AMBRO_AVR_SERIAL_ISRS(*p.myprinter.getSerial(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*p.myprinter.getAxisStepper<1>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*p.myprinter.getAxisStepper<2>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(*p.myprinter.getHeaterTimer<0>(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCB_ISRS(*p.myprinter.getHeaterTimer<1>(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCA_ISRS(*p.myprinter.getEventChannelTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCB_ISRS(*p.myprinter.getFanTimer<0>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*p.myprinter.getAxisStepper<1>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCC_ISRS(*p.myprinter.getAxisStepper<2>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCB_ISRS(*p.myprinter.getAxisStepper<4>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCC_ISRS(*p.myprinter.getHeaterTimer<0>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCA_ISRS(*p.myprinter.getHeaterTimer<1>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCB_ISRS(*p.myprinter.getHeaterTimer<2>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCC_ISRS(*p.myprinter.getEventChannelTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*p.myprinter.getFanTimer<0>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*p.myprinter.getFanTimer<1>(), MyContext())
+AMBRO_AVR_SPI_ISRS(*p.myprinter.getSdCard()->getSpi(), MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
 
 FILE uart_output;
