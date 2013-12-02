@@ -306,15 +306,15 @@ Each feature has a parameter in its configuration expression, called `TimerTempl
 which specifies the OC unit to be used. The available OC units depend on the particular microcontroller.
 For example:
 
-- On atmega1284p (Melzi), there's 8 OC units available, named `AvrClockInterruptTimer_TC[0-3]_OC[A-B]`.
-- On atmega2560 (RAMPS), there's 12 OC units available, named `AvrClockInterruptTimer_TC[0-5]_OC[A-B]`.
+- On atmega1284p (Melzi), there's 8 OC units available, named `AvrClockInterruptTimer_TC{0,1,2,3}_OC{A,B}`.
+- On atmega2560 (RAMPS), there's 16 OC units available, named `AvrClockInterruptTimer_TC{{0,2}_OC{A,B},{1,3,4,5}_OC{A,B,C}}`.
 - On AT91SAM3X8E (Due), there's 27 OC units available, named `At91Sam3xClockInterruptTimer_TC[0-8][A-C]`.
 
-In addition to specifying the OC unit in the `TimerTemplate` parameter, a corresponding `ISRS` or `GLOBAL` macro needs the be invoked in order to set up the interrupt handler. For example, if `AvrClockInterruptTimer_TC3_OCB` is used
+In addition to specifying the OC unit in the `TimerTemplate` parameter, a corresponding `ISRS` or `GLOBAL` macro needs the be invoked in order to set up the interrupt handler. For example, if `AvrClockInterruptTimer_TC4_OCA` is used
 for the axis at index 3 (indices start from zero), the corresponding `ISRS` macro invocation is:
 
 ```
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
 ```
 
 For heaters and fans, as wellas for Due as opposed to AVR, consult the existing assignments in your main file. 
@@ -328,7 +328,13 @@ For AVR based boards, if you have used an OC unit of a previously unused TC (e.g
 On AT91SAM3XE (Due), something similar is generally needed,
 but since all the TCs are already used in the default configuration, you don't need to do anything.
 
-**NOTE:** on boards based on atmega1284p, all available output compare units are already assined.
+**WARNING.** On AVR, it is imperative that the interrupt priorities of the OC ISRs are considered.
+Basically, you should avoid using TCs with higher priority than the USART RX ISR,
+or risk received bytes being randomly dropped, causing print failure when printing from USB.
+If that is not possible, at least use those TCs for simple tasks such as fan control, and perhaps heater control.
+On atmega2560, those higher-priority TCs are `TC0` and `TC2`.
+
+**NOTE.** On boards based on atmega1284p, all available output compare units are already assined.
 As such, it is not possible to add any extra axes/heaters/fans.
 However, it would be easy to implement multiplexing so that one hardware OC units would act as two or more virtual OC units,
 at the cost of some overhead in the ISRs.
