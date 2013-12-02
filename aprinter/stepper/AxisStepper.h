@@ -38,12 +38,13 @@
 #include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Inline.h>
 
 #include <aprinter/BeginNamespace.h>
 
 #define AXIS_STEPPER_AMUL_EXPR(x, t, a) ((a).template shiftBits<(-2)>())
 #define AXIS_STEPPER_V0_EXPR(x, t, a) ((x) + (a).absVal())
-#define AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a) (((x).toSigned() + (a)).toUnsignedUnsafe() * ((x).toSigned() + (a)).toUnsignedUnsafe() + ((-(a).template shiftBits<(-2)>() * (x)).template shift<2>()))
+#define AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a) (((x).toSigned() - (a)).toUnsignedUnsafe() * ((x).toSigned() - (a)).toUnsignedUnsafe())
 #define AXIS_STEPPER_TMUL_EXPR(x, t, a) ((t).template bitsTo<time_mul_bits>())
 
 #define AXIS_STEPPER_AMUL_EXPR_HELPER(args) AXIS_STEPPER_AMUL_EXPR(args)
@@ -110,22 +111,19 @@ public:
         decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) t_mul;
     };
     
-    static void generate_command (bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a, Command *cmd)
+    AMBRO_ALWAYS_INLINE static void generate_command (bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a, Command *cmd)
     {
         AMBRO_ASSERT(a >= -x)
         AMBRO_ASSERT(a <= x)
         
-        if (x.bitsValue() == 0) {
-            a = AccelFixedType::importBits(0);
-        }
+        cmd->a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
+        cmd->t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
         cmd->dir_x = DirStepFixedType::importBits(
             x.bitsValue() |
             ((typename DirStepFixedType::IntType)dir << step_bits) |
             ((typename DirStepFixedType::IntType)(a.bitsValue() >= 0) << (step_bits + 1))
         );
-        cmd->a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
         cmd->discriminant = AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a);
-        cmd->t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
     }
     
     static void init (Context c)
