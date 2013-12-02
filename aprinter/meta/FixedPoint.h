@@ -215,6 +215,11 @@ public:
         return FixedPoint::importBits(PowerOfTwo<IntType, PowerExp - Exp>::value);
     }
     
+    FixedPoint<NumBits, false, Exp> absVal () const
+    {
+        return FixedPoint<NumBits, false, Exp>::importBoundedBits(m_bits.absVal());
+    }
+    
     template <int NumBits2, bool Signed2, int Exp2>
     operator FixedPoint<NumBits2, Signed2, Exp2> () const
     {

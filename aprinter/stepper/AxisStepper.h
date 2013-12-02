@@ -42,9 +42,8 @@
 #include <aprinter/BeginNamespace.h>
 
 #define AXIS_STEPPER_AMUL_EXPR(x, t, a) ((a).template shiftBits<(-2)>())
-#define AXIS_STEPPER_V0_EXPR(x, t, a) (((x).toSigned() + (a)).toUnsignedUnsafe())
-#define AXIS_STEPPER_V02_EXPR(x, t, a) ((AXIS_STEPPER_V0_EXPR((x), (t), (a)) * AXIS_STEPPER_V0_EXPR((x), (t), (a)))).toSigned()
-#define AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a) (AXIS_STEPPER_V02_EXPR(x, t, a) + ((-AXIS_STEPPER_AMUL_EXPR(x, t, a) * (x)).template shift<2>()))
+#define AXIS_STEPPER_V0_EXPR(x, t, a) ((x) + (a).absVal())
+#define AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a) (((x).toSigned() + (a)).toUnsignedUnsafe() * ((x).toSigned() + (a)).toUnsignedUnsafe() + ((-(a).template shiftBits<(-2)>() * (x)).template shift<2>()))
 #define AXIS_STEPPER_TMUL_EXPR(x, t, a) ((t).template bitsTo<time_mul_bits>())
 
 #define AXIS_STEPPER_AMUL_EXPR_HELPER(args) AXIS_STEPPER_AMUL_EXPR(args)
@@ -96,8 +95,7 @@ public:
     using TimeType = typename Clock::TimeType;
     using TimerInstance = typename Params::template Timer<TimerPosition, Context, TimerHandler>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
-    using DirStepFixedType = FixedPoint<step_bits + 1, false, 0>;
-    using SignedStepFixedType = FixedPoint<step_bits, true, 0>;
+    using DirStepFixedType = FixedPoint<step_bits + 2, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
     using TimeFixedType = FixedPoint<time_bits, false, 0>;
     using CommandCallbackContext = typename TimerInstance::HandlerContext;
@@ -105,7 +103,7 @@ public:
     struct Command {
         union {
             DirStepFixedType dir_x;
-            SignedStepFixedType x;
+            StepFixedType x;
         };
         decltype(AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) discriminant;
         decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) a_mul;
@@ -117,9 +115,14 @@ public:
         AMBRO_ASSERT(a >= -x)
         AMBRO_ASSERT(a <= x)
         
-        // keep the order of the computation consistent with the dependencies between
-        // these macros, to make it easier for the compiler to optimize
-        cmd->dir_x = DirStepFixedType::importBits(x.bitsValue() | ((typename DirStepFixedType::IntType)dir << step_bits));
+        if (x.bitsValue() == 0) {
+            a = AccelFixedType::importBits(0);
+        }
+        cmd->dir_x = DirStepFixedType::importBits(
+            x.bitsValue() |
+            ((typename DirStepFixedType::IntType)dir << step_bits) |
+            ((typename DirStepFixedType::IntType)(a.bitsValue() >= 0) << (step_bits + 1))
+        );
         cmd->a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
         cmd->discriminant = AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a);
         cmd->t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
@@ -168,11 +171,27 @@ public:
 #endif
         o->m_consumer_id = TypeListIndex<typename ConsumersList::List, IsEqualFunc<TheConsumer>>::value;
         o->m_current_command = first_command;
-        o->m_time = o->m_current_command->t_mul.template bitsTo<time_bits>().bitsValue() + start_time;
         stepper(c)->setDir(c, o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
-        o->m_current_command->x = SignedStepFixedType::importBits(o->m_current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
-        o->m_v0 = (o->m_current_command->a_mul.template undoShiftBitsLeft<2>() + o->m_current_command->x).toUnsignedUnsafe();
-        TimeType timer_t = (o->m_current_command->x.bitsValue() == 0) ? o->m_time : start_time;
+        o->m_notdecel = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
+        o->m_current_command->x = StepFixedType::importBits(o->m_current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
+        o->m_notend = (o->m_current_command->x.bitsValue() != 0);
+        TimeType end_time = start_time + o->m_current_command->t_mul.template bitsTo<time_bits>().bitsValue();
+        TimeType timer_t;
+        if (!o->m_notend) {
+            timer_t = end_time;
+            o->m_time = end_time;
+        } else {
+            timer_t = start_time;
+            if (!o->m_notdecel) {
+                o->m_pos = StepFixedType::importBits(1);
+                o->m_time = start_time;
+                o->m_v0 = (o->m_current_command->x.toSigned() - o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe();
+            } else {
+                o->m_pos = StepFixedType::importBits(o->m_current_command->x.bitsValue() - 1);
+                o->m_time = end_time;
+                o->m_v0 = (o->m_current_command->x.toSigned() + o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe();
+            }
+        }
         o->m_timer.setFirst(c, timer_t);
     }
     
@@ -238,8 +257,7 @@ private:
         AxisStepper *o = self(c);
         AMBRO_ASSERT(o->m_running)
         
-        SignedStepFixedType x = o->m_current_command->x;
-        if (AMBRO_LIKELY(x.bitsValue() == 0)) {
+        if (AMBRO_LIKELY(!o->m_notend)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
             bool res;
             TupleForEachForwardInterruptible(&dummy, Foreach_maybe_call_command_callback(), o, o->m_consumer_id, &res, c, &o->m_current_command);
@@ -250,19 +268,25 @@ private:
                 return false;
             }
             
-            o->m_time += o->m_current_command->t_mul.template bitsTo<time_bits>().bitsValue();
             stepper(c)->setDir(c, o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
-            x = SignedStepFixedType::importBits(o->m_current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
-            o->m_v0 = (o->m_current_command->a_mul.template undoShiftBitsLeft<2>() + x).toUnsignedUnsafe();
-            
-            if (AMBRO_UNLIKELY(x.bitsValue() == 0)) {
-                o->m_current_command->x = SignedStepFixedType::importBits(0);
+            o->m_notdecel = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
+            StepFixedType x = StepFixedType::importBits(o->m_current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
+            o->m_notend = (x.bitsValue() != 0);
+            if (!o->m_notend) {
+                o->m_time += o->m_current_command->t_mul.template bitsTo<time_bits>().bitsValue();
                 o->m_timer.setNext(c, o->m_time);
                 return true;
             }
+            if (AMBRO_LIKELY(o->m_notdecel)) {
+                o->m_time += o->m_current_command->t_mul.template bitsTo<time_bits>().bitsValue();
+                o->m_v0 = (x.toSigned() + o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe();
+                o->m_pos = StepFixedType::importBits(x.bitsValue() - 1);
+            } else {
+                o->m_current_command->x = x;
+                o->m_v0 = (x.toSigned() - o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe();
+                o->m_pos = StepFixedType::importBits(1);
+            }
         }
-        
-        o->m_current_command->x = SignedStepFixedType::importBits(x.bitsValue() - 1);
         
         if (AMBRO_UNLIKELY(o->m_prestep_callback_enabled)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
@@ -283,13 +307,32 @@ private:
         
         auto q = (o->m_v0 + FixedSquareRoot<true>(o->m_current_command->discriminant, OptionForceInline())).template shift<-1>();
         
-        auto t_frac = FixedFracDivide(StepFixedType::importBits(o->m_current_command->x.bitsValue()), q, OptionForceInline());
+        auto t_frac = FixedFracDivide(o->m_pos, q, OptionForceInline());
         
-        TimeFixedType t = FixedResMultiply(o->m_current_command->t_mul, t_frac);
+        auto t_mul = o->m_current_command->t_mul;
+        TimeFixedType t = FixedResMultiply(t_mul, t_frac);
         
         stepper(c)->stepOff(c);
         
-        o->m_timer.setNext(c, (TimeType)(o->m_time - t.bitsValue()));
+        TimeType next_time;
+        if (AMBRO_LIKELY(!o->m_notdecel)) {
+            if (AMBRO_LIKELY(o->m_pos == o->m_current_command->x)) {
+                o->m_time += t_mul.template bitsTo<time_bits>().bitsValue();
+                o->m_notend = false;
+                next_time = o->m_time;
+            } else {
+                o->m_pos.m_bits.m_int++;
+                next_time = (o->m_time + t.bitsValue());
+            }
+        } else {
+            if (o->m_pos.bitsValue() == 0) {
+                o->m_notend = false;
+            }
+            o->m_pos.m_bits.m_int--;
+            next_time = (o->m_time - t.bitsValue());
+        }
+        
+        o->m_timer.setNext(c, next_time);
         return true;
     }
     
@@ -299,6 +342,9 @@ private:
 #endif
     uint8_t m_consumer_id;
     Command *m_current_command;
+    bool m_notend;
+    bool m_notdecel;
+    StepFixedType m_pos;
     TimeType m_time;
     decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) m_v0;
     bool m_prestep_callback_enabled;
