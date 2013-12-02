@@ -108,6 +108,7 @@ public:
                     extra(c)->m_fast_events[extra(c)->m_fast_event_pos].not_triggered = true;
                     sei();
                     extra(c)->m_fast_events[extra(c)->m_fast_event_pos].handler(c);
+                    c.check();
                     break;
                 }
                 sei();
@@ -122,6 +123,7 @@ public:
                     o->m_queued_event_list.remove(ev);
                     QueuedEventList::markRemoved(ev);
                     ev->m_handler(ev, c);
+                    c.check();
 #ifdef AMBROLIB_SUPPORT_QUIT
                     if (o->m_quitting) {
                         return;

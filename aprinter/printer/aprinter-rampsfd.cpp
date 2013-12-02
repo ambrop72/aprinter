@@ -497,6 +497,7 @@ struct MyContext {
     MyPins * pins () const;
     MyAdc * adc () const;
     Program * root () const;
+    void check () const;
 };
 
 struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, typename MyPrinter::EventLoopFastEvents> {};
@@ -526,6 +527,7 @@ MyLoop * MyContext::eventLoop () const { return &p.myloop; }
 MyPins * MyContext::pins () const { return &p.mypins; }
 MyAdc * MyContext::adc () const { return &p.myadc; }
 Program * MyContext::root () const { return &p; }
+void MyContext::check () const {}
 
 AMBRO_AT91SAM3X_CLOCK_TC0_GLOBAL(p.myclock, MyContext())
 AMBRO_AT91SAM3X_CLOCK_TC1_GLOBAL(p.myclock, MyContext())

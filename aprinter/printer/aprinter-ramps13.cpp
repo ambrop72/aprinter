@@ -36,6 +36,7 @@ static void emergency (void);
 
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Position.h>
+#include <aprinter/base/Assert.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/AvrClock.h>
@@ -489,6 +490,7 @@ struct MyContext {
     MyPins * pins () const;
     MyAdc * adc () const;
     Program * root () const;
+    void check () const;
 };
 
 struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, typename MyPrinter::EventLoopFastEvents> {};
@@ -501,6 +503,7 @@ struct Program {
     MyAdc myadc;
     MyPrinter myprinter;
     MyLoopExtra myloopextra;
+    uint16_t end;
 };
 
 struct ClockPosition : public MemberPosition<ProgramPosition, MyClock, &Program::myclock> {};
@@ -518,6 +521,7 @@ MyLoop * MyContext::eventLoop () const { return &p.myloop; }
 MyPins * MyContext::pins () const { return &p.mypins; }
 MyAdc * MyContext::adc () const { return &p.myadc; }
 Program * MyContext::root () const { return &p; }
+void MyContext::check () const { AMBRO_ASSERT_FORCE(p.end == UINT16_C(0x1234)) }
 
 AMBRO_AVR_CLOCK_ISRS(p.myclock, MyContext())
 AMBRO_AVR_ADC_ISRS(p.myadc, MyContext())
@@ -566,6 +570,7 @@ int main ()
     
     MyContext c;
     
+    p.end = UINT16_C(0x1234);
     p.d_group.init(c);
     p.myclock.init(c);
     p.myclock.initTC3(c);
