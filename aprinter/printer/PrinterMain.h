@@ -1454,7 +1454,7 @@ private:
             Heater *o = self(c);
             o->m_enabled = false;
             o->m_control_config = TheControl::makeDefaultConfig();
-            TimeType time = c.clock()->getTime(c);
+            TimeType time = c.clock()->getTime(c) + (TimeType)(0.05 * Clock::time_freq);
             o->m_main_control.init(c, time);
             o->m_adc_min = HeaterSpec::Formula::invert(max_safe_temp(), true);
             o->m_adc_max = HeaterSpec::Formula::invert(min_safe_temp(), false);
@@ -1775,7 +1775,8 @@ private:
         {
             Fan *o = self(c);
             TheSoftPwm::computePowerData(OutputFixedType::importBits(0), &o->m_target_pd);
-            o->m_softpwm.init(c, c.clock()->getTime(c));
+            TimeType time = c.clock()->getTime(c) + (TimeType)(0.05 * Clock::time_freq);
+            o->m_softpwm.init(c, time);
         }
         
         static void deinit (Context c)
