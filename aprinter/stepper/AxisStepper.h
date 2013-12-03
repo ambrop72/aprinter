@@ -43,7 +43,7 @@
 #include <aprinter/BeginNamespace.h>
 
 #define AXIS_STEPPER_AMUL_EXPR(x, t, a) ((a).template shiftBits<(-2)>())
-#define AXIS_STEPPER_V0_EXPR(x, t, a) ((x) + (a).absVal())
+#define AXIS_STEPPER_V0_EXPR(x, t, a) (((x) + (a).absVal()).template shiftBits<(-discriminant_prec)>())
 #define AXIS_STEPPER_DISCRIMINANT_EXPR(x, t, a) (((x).toSigned() - (a)).toUnsignedUnsafe() * ((x).toSigned() - (a)).toUnsignedUnsafe())
 #define AXIS_STEPPER_TMUL_EXPR(x, t, a) ((t).template bitsTo<time_mul_bits>())
 
@@ -82,6 +82,7 @@ private:
     static const int time_bits = 22;
     static const int q_div_shift = 16;
     static const int time_mul_bits = 24;
+    static const int discriminant_prec = 1;
     
     struct TimerHandler;
     struct TimerPosition;
@@ -183,11 +184,11 @@ public:
             if (!o->m_notdecel) {
                 o->m_pos = StepFixedType::importBits(1);
                 o->m_time = start_time;
-                o->m_v0 = (o->m_current_command->x.toSigned() - o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe();
+                o->m_v0 = (o->m_current_command->x.toSigned() - o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe().template shiftBits<(-discriminant_prec)>();
             } else {
                 o->m_pos = StepFixedType::importBits(o->m_current_command->x.bitsValue() - 1);
                 o->m_time = end_time;
-                o->m_v0 = (o->m_current_command->x.toSigned() + o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe();
+                o->m_v0 = (o->m_current_command->x.toSigned() + o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe().template shiftBits<(-discriminant_prec)>();
             }
         }
         o->m_timer.setFirst(c, timer_t);
@@ -277,11 +278,11 @@ private:
             }
             if (AMBRO_LIKELY(o->m_notdecel)) {
                 o->m_time += o->m_current_command->t_mul.template bitsTo<time_bits>().bitsValue();
-                o->m_v0 = (x.toSigned() + o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe();
+                o->m_v0 = (x.toSigned() + o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe().template shiftBits<(-discriminant_prec)>();
                 o->m_pos = StepFixedType::importBits(x.bitsValue() - 1);
             } else {
                 o->m_current_command->x = x;
-                o->m_v0 = (x.toSigned() - o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe();
+                o->m_v0 = (x.toSigned() - o->m_current_command->a_mul.template undoShiftBitsLeft<2>()).toUnsignedUnsafe().template shiftBits<(-discriminant_prec)>();
                 o->m_pos = StepFixedType::importBits(1);
             }
         }
@@ -303,7 +304,7 @@ private:
         o->m_current_command->discriminant.m_bits.m_int += o->m_current_command->a_mul.m_bits.m_int;
         AMBRO_ASSERT(o->m_current_command->discriminant.bitsValue() >= 0)
         
-        auto q = (o->m_v0 + FixedSquareRoot<true>(o->m_current_command->discriminant, OptionForceInline())).template shift<-1>();
+        auto q = (o->m_v0 + FixedSquareRoot<true>(o->m_current_command->discriminant.template shiftBits<(-2 * discriminant_prec)>(), OptionForceInline())).template shift<-1>();
         
         auto t_frac = FixedFracDivide(o->m_pos, q, OptionForceInline());
         
