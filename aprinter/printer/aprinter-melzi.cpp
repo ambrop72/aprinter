@@ -45,8 +45,10 @@ static void emergency (void);
 #include <aprinter/system/AvrAdc.h>
 #include <aprinter/system/AvrWatchdog.h>
 #include <aprinter/system/AvrSerial.h>
+#include <aprinter/system/AvrSpi.h>
 #include <aprinter/devices/PidControl.h>
 #include <aprinter/devices/BinaryControl.h>
+#include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <generated/AvrThermistorTable_Extruder.h>
 #include <generated/AvrThermistorTable_Bed.h>
@@ -408,8 +410,8 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    20, // StepperSegmentBufferSize
-    20, // EventChannelBufferSize
+    32, // StepperSegmentBufferSize
+    32, // EventChannelBufferSize
     4, // LookaheadBufferSize
     ForceTimeout, // ForceTimeout
     AvrClockInterruptTimer_TC2_OCA, // EventChannelTimer
@@ -417,7 +419,16 @@ using PrinterParams = PrinterMainParams<
     AvrWatchdogParams<
         WDTO_2S
     >,
-    PrinterMainNoSdCardParams,
+    PrinterMainSdCardParams<
+        SpiSdCard,
+        SpiSdCardParams<
+            AvrPin<AvrPortA, 0>, // SsPin
+            AvrSpi
+        >,
+        GcodeParserParams<8>,
+        2, // BufferBlocks
+        100 // MaxCommandSize
+    >,
     
     /*
      * Axes.
@@ -448,7 +459,7 @@ using PrinterParams = PrinterMainParams<
                 XDefaultHomeSlowSpeed // HomeSlowSpeed
             >,
             true, // EnableCartesianSpeedLimit
-            24, // StepBits
+            32, // StepBits
             AxisStepperParams<
                 AvrClockInterruptTimer_TC1_OCA // StepperTimer
             >
@@ -478,7 +489,7 @@ using PrinterParams = PrinterMainParams<
                 YDefaultHomeSlowSpeed // HomeSlowSpeed
             >,
             true, // EnableCartesianSpeedLimit
-            24, // StepBits
+            32, // StepBits
             AxisStepperParams<
                 AvrClockInterruptTimer_TC1_OCB // StepperTimer
             >
@@ -508,7 +519,7 @@ using PrinterParams = PrinterMainParams<
                 ZDefaultHomeSlowSpeed // HomeSlowSpeed
             >,
             true, // EnableCartesianSpeedLimit
-            24, // StepBits
+            32, // StepBits
             AxisStepperParams<
                 AvrClockInterruptTimer_TC3_OCA // StepperTimer
             >
@@ -694,6 +705,7 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(*p.myprinter.getHeaterTimer<0>(), M
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(*p.myprinter.getHeaterTimer<1>(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCA_ISRS(*p.myprinter.getEventChannelTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCB_ISRS(*p.myprinter.getFanTimer<0>(), MyContext())
+AMBRO_AVR_SPI_ISRS(*p.myprinter.getSdCard()->getSpi(), MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
 
 FILE uart_output;
