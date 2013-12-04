@@ -125,6 +125,7 @@ using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00137); // max stepping frequency relative to F_CPU
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
+using TheAxisStepperPrecisionParams = AxisStepperAvrPrecisionParams;
 
 /*
  * Explanation of axis-specific parameters.
@@ -461,7 +462,8 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC1_OCA // StepperTimer
+                AvrClockInterruptTimer_TC1_OCA, // StepperTimer
+                TheAxisStepperPrecisionParams // PrecisionParams
             >
         >,
         PrinterMainAxisParams<
@@ -491,7 +493,8 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC1_OCB // StepperTimer
+                AvrClockInterruptTimer_TC1_OCB, // StepperTimer
+                TheAxisStepperPrecisionParams // PrecisionParams
             >
         >,
         PrinterMainAxisParams<
@@ -521,7 +524,8 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCA // StepperTimer
+                AvrClockInterruptTimer_TC3_OCA, // StepperTimer
+                TheAxisStepperPrecisionParams // PrecisionParams
             >
         >,
         PrinterMainAxisParams<
@@ -541,7 +545,8 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCB // StepperTimer
+                AvrClockInterruptTimer_TC3_OCB, // StepperTimer
+                TheAxisStepperPrecisionParams // PrecisionParams
             >
         >
     >,

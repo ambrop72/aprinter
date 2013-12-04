@@ -61,6 +61,7 @@ using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00137); // max stepping frequency relative to F_CPU
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
+using TheAxisStepperPrecisionParams = AxisStepperAvrPrecisionParams;
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
@@ -224,7 +225,8 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCA // StepperTimer
+                AvrClockInterruptTimer_TC3_OCA, // StepperTimer
+                TheAxisStepperPrecisionParams // PrecisionParams
             >
         >,
         PrinterMainAxisParams<
@@ -254,7 +256,8 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCB // StepperTimer
+                AvrClockInterruptTimer_TC3_OCB, // StepperTimer
+                TheAxisStepperPrecisionParams // PrecisionParams
             >
         >,
         PrinterMainAxisParams<
@@ -284,7 +287,8 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCC // StepperTimer
+                AvrClockInterruptTimer_TC3_OCC, // StepperTimer
+                TheAxisStepperPrecisionParams // PrecisionParams
             >
         >,
         PrinterMainAxisParams<
@@ -304,7 +308,8 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC4_OCA // StepperTimer
+                AvrClockInterruptTimer_TC4_OCA, // StepperTimer
+                TheAxisStepperPrecisionParams // PrecisionParams
             >
         >,
         PrinterMainAxisParams<
@@ -324,7 +329,8 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC4_OCB // StepperTimer
+                AvrClockInterruptTimer_TC4_OCB, // StepperTimer
+                TheAxisStepperPrecisionParams // PrecisionParams
             >
         >
     >,

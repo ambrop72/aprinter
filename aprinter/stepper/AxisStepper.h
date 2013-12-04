@@ -55,10 +55,12 @@
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
 template <
-    template<typename, typename, typename> class TTimer
+    template<typename, typename, typename> class TTimer,
+    typename TPrecisionParams
 >
 struct AxisStepperParams {
     template<typename X, typename Y, typename Z> using Timer = TTimer<X, Y, Z>;
+    using PrecisionParams = TPrecisionParams;
 };
 
 template <typename TCommandCallback, typename TPrestepCallback>
@@ -66,6 +68,21 @@ struct AxisStepperConsumer {
     using CommandCallback = TCommandCallback;
     using PrestepCallback = TPrestepCallback;
 };
+
+template <
+    int tstep_bits, int ttime_bits, int tq_div_shift,
+    int ttime_mul_bits, int tdiscriminant_prec
+>
+struct AxisStepperPrecisionParams {
+    static const int step_bits = tstep_bits;
+    static const int time_bits = ttime_bits;
+    static const int q_div_shift = tq_div_shift;
+    static const int time_mul_bits = ttime_mul_bits;
+    static const int discriminant_prec = tdiscriminant_prec;
+};
+
+using AxisStepperAvrPrecisionParams = AxisStepperPrecisionParams<11, 22, 16, 24, 1>;
+using AxisStepperDuePrecisionParams = AxisStepperPrecisionParams<11, 26, 16, 26, 1>;
 
 template <typename Position, typename Context, typename Params, typename Stepper, typename GetStepper, typename ConsumersList>
 class AxisStepper
@@ -78,11 +95,11 @@ private:
     // DON'T TOUCH!
     // These were chosen carefully for speed, and some operations
     // were written in assembly specifically for use here.
-    static const int step_bits = 11;
-    static const int time_bits = 22;
-    static const int q_div_shift = 16;
-    static const int time_mul_bits = 24;
-    static const int discriminant_prec = 1;
+    static const int step_bits = Params::PrecisionParams::step_bits;
+    static const int time_bits = Params::PrecisionParams::time_bits;
+    static const int q_div_shift = Params::PrecisionParams::q_div_shift;
+    static const int time_mul_bits = Params::PrecisionParams::time_mul_bits;
+    static const int discriminant_prec = Params::PrecisionParams::discriminant_prec;
     
     struct TimerHandler;
     struct TimerPosition;
