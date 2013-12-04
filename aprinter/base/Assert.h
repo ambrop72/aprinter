@@ -42,9 +42,9 @@
 #if defined(AMBROLIB_NO_PRINT)
 #define AMBRO_ASSERT_PRINT_ACTION
 #elif defined(AMBROLIB_AVR)
-#define AMBRO_ASSERT_PRINT_ACTION puts_P(PSTR("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__) "\n"));
+#define AMBRO_ASSERT_PRINT_ACTION puts_P(PSTR("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)));
 #else
-#define AMBRO_ASSERT_PRINT_ACTION puts("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__) "\n");
+#define AMBRO_ASSERT_PRINT_ACTION puts("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__));
 #endif
 
 #define AMBRO_ASSERT_FORCE(e) \
