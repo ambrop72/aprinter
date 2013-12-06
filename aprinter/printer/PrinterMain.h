@@ -310,6 +310,9 @@ private:
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
+    enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING};
+    
+    struct MoveBuildState;
     
     template <typename ChannelCommonPosition, typename Channel>
     struct ChannelCommon {
@@ -417,15 +420,15 @@ private:
         
         // command interface
         
-        static bool tryUnplannedCommand (Context c)
+        static bool tryLockedCommand (Context c)
         {
             ChannelCommon *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
-            AMBRO_ASSERT(o->m_state == COMMAND_IDLE || o->m_state == COMMAND_LOCKED)
+            AMBRO_ASSERT(o->m_state != COMMAND_LOCKING || !m->m_locked)
+            AMBRO_ASSERT(o->m_state != COMMAND_LOCKED || m->m_locked)
             AMBRO_ASSERT(o->m_cmd)
             
             if (o->m_state == COMMAND_LOCKED) {
-                AMBRO_ASSERT(!m->m_planning)
                 return true;
             }
             if (m->m_locked) {
@@ -434,61 +437,47 @@ private:
             }
             o->m_state = COMMAND_LOCKED;
             m->m_locked = true;
-            if (m->m_planning) {
-                AMBRO_ASSERT(!m->m_planning_req_pending)
-                if (m->m_planning_pull_pending) {
-                    m->m_planner.waitFinished(c);
-                }
+            return true;
+        }
+        
+        static bool tryUnplannedCommand (Context c)
+        {
+            PrinterMain *m = PrinterMain::self(c);
+            
+            if (!tryLockedCommand(c)) {
                 return false;
             }
-            return true;
+            AMBRO_ASSERT(m->m_planner_state == PLANNER_NONE || m->m_planner_state == PLANNER_RUNNING)
+            if (m->m_planner_state == PLANNER_NONE) {
+                return true;
+            }
+            m->m_planner_state = PLANNER_STOPPING;
+            if (m->m_planning_pull_pending) {
+                m->m_planner.waitFinished(c);
+                m->m_force_timer.unset(c);
+            }
+            return false;
         }
         
         static bool tryPlannedCommand (Context c)
         {
-            ChannelCommon *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
-            AMBRO_ASSERT(o->m_state == COMMAND_IDLE || o->m_state == COMMAND_LOCKED)
-            AMBRO_ASSERT(o->m_cmd)
             
-            if (o->m_state == COMMAND_LOCKED) {
-                AMBRO_ASSERT(m->m_planning)
-                AMBRO_ASSERT(m->m_planning_req_pending)
-                AMBRO_ASSERT(m->m_planning_pull_pending)
-                return true;
-            }
-            if (m->m_locked) {
-                o->m_state = COMMAND_LOCKING;
+            if (!tryLockedCommand(c)) {
                 return false;
             }
-            o->m_state = COMMAND_LOCKED;
-            m->m_locked = true;
-            if (!m->m_planning) {
+            AMBRO_ASSERT(m->m_planner_state == PLANNER_NONE || m->m_planner_state == PLANNER_RUNNING)
+            if (m->m_planner_state == PLANNER_NONE) {
                 m->m_planner.init(c, false);
-                m->m_planning = true;
+                m->m_planner_state = PLANNER_RUNNING;
                 m->m_planning_pull_pending = false;
                 now_active(c);
             }
-            m->m_planning_req_pending = true;
-            return m->m_planning_pull_pending;
-        }
-        
-        template <typename ThePlannerInputCommand>
-        static void submitPlannedCommand (Context c, ThePlannerInputCommand *cmd)
-        {
-            ChannelCommon *o = self(c);
-            PrinterMain *m = PrinterMain::self(c);
-            AMBRO_ASSERT(o->m_state == COMMAND_IDLE)
-            AMBRO_ASSERT(!o->m_cmd)
-            AMBRO_ASSERT(!m->m_locked)
-            AMBRO_ASSERT(m->m_planning)
-            AMBRO_ASSERT(m->m_planning_req_pending)
-            AMBRO_ASSERT(m->m_planning_pull_pending)
-            
-            m->m_planner.commandDone(c, cmd);
-            m->m_planning_req_pending = false;
-            m->m_planning_pull_pending = false;
-            m->m_force_timer.unset(c);
+            if (m->m_planning_pull_pending) {
+                return true;
+            }
+            m->m_planner_state = PLANNER_WAITING;
+            return false;
         }
         
         static GcodeParserCommandPart * find_command_param (Context c, char code)
@@ -1284,14 +1273,24 @@ private:
             return PrinterMain::self(c)->m_steppers.template getStepper<AxisIndex>(c);
         }
         
-        static void init_new_pos (Context c, double *new_pos)
+        static void init_new_pos (Context c, MoveBuildState *s)
         {
             Axis *o = self(c);
-            new_pos[AxisIndex] = o->m_req_pos;
+            s->new_pos[AxisIndex] = o->m_req_pos;
+        }
+        
+        static void update_new_pos (Context c, MoveBuildState *s, double req)
+        {
+            Axis *o = self(c);
+            req = clamp_req_pos(req);
+            s->new_pos[AxisIndex] = req;
+            if (AxisSpec::enable_cartesian_speed_limit) {
+                s->seen_cartesian = true;
+            }
         }
         
         template <typename TheChannelCommon>
-        static void collect_new_pos (Context c, TheChannelCommon *cc, double *new_pos, bool *seen_cartesian, typename TheChannelCommon::GcodeParserCommandPart *part)
+        static void collect_new_pos (Context c, TheChannelCommon *cc, MoveBuildState *s, typename TheChannelCommon::GcodeParserCommandPart *part)
         {
             Axis *o = self(c);
             if (AMBRO_UNLIKELY(part->code == axis_name)) {
@@ -1302,20 +1301,15 @@ private:
                 if (o->m_relative_positioning) {
                     req += o->m_req_pos;
                 }
-                req = clamp_req_pos(req);
-                new_pos[AxisIndex] = req;
-                if (AxisSpec::enable_cartesian_speed_limit) {
-                    *seen_cartesian = true;
-                }
+                update_new_pos(c, s, req);
             }
         }
         
         template <typename PlannerCmd>
-        static void process_new_pos (Context c, double *new_pos, bool seen_cartesian, double *distance_squared, double *total_steps, PlannerCmd *cmd)
+        static void process_new_pos (Context c, MoveBuildState *s, double max_speed, double *distance_squared, double *total_steps, PlannerCmd *cmd)
         {
             Axis *o = self(c);
-            PrinterMain *m = PrinterMain::self(c);
-            AbsStepFixedType new_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(new_pos[AxisIndex]));
+            AbsStepFixedType new_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(s->new_pos[AxisIndex]));
             bool dir = (new_end_pos >= o->m_end_pos);
             StepFixedType move = StepFixedType::importBits(dir ? 
                 ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)o->m_end_pos.bitsValue()) :
@@ -1333,12 +1327,12 @@ private:
             mycmd->dir = dir;
             mycmd->x = move;
             mycmd->max_v_rec = 1.0 / speed_from_real(AxisSpec::DefaultMaxSpeed::value());
-            if (!seen_cartesian) {
-                mycmd->max_v_rec = fmax(mycmd->max_v_rec, FloatMakePosOrPosZero(1.0 / speed_from_real(m->m_max_speed)));
+            if (!s->seen_cartesian) {
+                mycmd->max_v_rec = fmax(mycmd->max_v_rec, FloatMakePosOrPosZero(1.0 / speed_from_real(max_speed)));
             }
             mycmd->max_a_rec = 1.0 / accel_from_real(AxisSpec::DefaultMaxAccel::value());
             o->m_end_pos = new_end_pos;
-            o->m_req_pos = new_pos[AxisIndex];
+            o->m_req_pos = s->new_pos[AxisIndex];
         }
         
         template <typename TheChannelCommon>
@@ -1549,7 +1543,7 @@ private:
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = HeaterIndex;
                 UnionGetElem<HeaterIndex>(&payload->heaters)->target = fixed_target;
-                cc->submitPlannedCommand(c, &cmd);
+                submit_planner_command(c, &cmd);
                 return false;
             }
             if (cc->m_cmd_num == HeaterSpec::SetConfigMCommand && TheControl::SupportsConfig) {
@@ -1805,7 +1799,7 @@ private:
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
                 TheSoftPwm::computePowerData(OutputFixedType::importDoubleSaturated(target), &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
-                cc->submitPlannedCommand(c, &cmd);
+                submit_planner_command(c, &cmd);
                 return false;
             }
             return true;
@@ -1884,7 +1878,7 @@ public:
         o->m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
         o->m_max_speed = INFINITY;
         o->m_locked = false;
-        o->m_planning = false;
+        o->m_planner_state = PLANNER_NONE;
         
         o->m_serial_feature.m_channel_common.reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
         
@@ -1896,7 +1890,7 @@ public:
         PrinterMain *o = self(c);
         o->debugDeinit(c);
         
-        if (o->m_planning) {
+        if (o->m_planner_state != PLANNER_NONE) {
             o->m_planner.deinit(c);
         }
         TupleForEachReverse(&o->m_fans, Foreach_deinit(), c);
@@ -2067,26 +2061,19 @@ private:
                     if (!cc->tryPlannedCommand(c)) {
                         return;
                     }
-                    double new_pos[num_axes];
-                    bool seen_cartesian = false;
-                    TupleForEachForward(&o->m_axes, Foreach_init_new_pos(), c, new_pos);
+                    MoveBuildState s;
+                    move_begin(c, &s);
                     for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->m_cmd->num_parts; i++) {
                         typename TheChannelCommon::GcodeParserCommandPart *part = &cc->m_cmd->parts[i];
-                        TupleForEachForward(&o->m_axes, Foreach_collect_new_pos(), c, cc, new_pos, &seen_cartesian, part);
+                        TupleForEachForward(&o->m_axes, Foreach_collect_new_pos(), c, cc, &s, part);
                         if (part->code == 'F') {
                             o->m_max_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
                         }
                     }
                     cc->finishCommand(c);
                     PlannerInputCommand cmd;
-                    double distance = 0.0;
-                    double total_steps = 0.0;
-                    TupleForEachForward(&o->m_axes, Foreach_process_new_pos(), c, new_pos, seen_cartesian, &distance, &total_steps, &cmd);
-                    distance = sqrt(distance);
-                    cmd.type = 0;
-                    cmd.rel_max_v_rec = FloatMakePosOrPosZero(distance / (o->m_max_speed * Clock::time_unit));
-                    cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
-                    return cc->submitPlannedCommand(c, &cmd);
+                    move_end(c, &s, o->m_max_speed, &cmd);
+                    submit_planner_command(c, &cmd);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -2190,7 +2177,6 @@ private:
         AMBRO_ASSERT(cc->m_cmd)
         AMBRO_ASSERT(cc->m_state == COMMAND_LOCKING)
         
-        cc->m_state = COMMAND_IDLE;
         work_command<TheChannelCommon>(c);
     }
     
@@ -2217,9 +2203,8 @@ private:
     {
         PrinterMain *o = self(c);
         o->debugAccess(c);
-        AMBRO_ASSERT(o->m_planning)
+        AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING)
         AMBRO_ASSERT(o->m_planning_pull_pending)
-        AMBRO_ASSERT(!o->m_planning_req_pending)
         
         o->m_planner.waitFinished(c);
     }
@@ -2235,8 +2220,7 @@ private:
     {
         PrinterMain *m = PrinterMain::self(c);
         AMBRO_ASSERT(m->m_locked)
-        AMBRO_ASSERT(m->m_planning)
-        AMBRO_ASSERT(m->m_planning_req_pending)
+        AMBRO_ASSERT(m->m_planner_state == PLANNER_RUNNING)
         AMBRO_ASSERT(m->m_planning_pull_pending)
         AMBRO_ASSERT(cc->m_state == COMMAND_LOCKED)
         AMBRO_ASSERT(cc->m_cmd)
@@ -2248,15 +2232,16 @@ private:
     {
         PrinterMain *o = self(c);
         o->debugAccess(c);
-        AMBRO_ASSERT(o->m_planning)
+        AMBRO_ASSERT(o->m_planner_state != PLANNER_NONE)
         AMBRO_ASSERT(!o->m_planning_pull_pending)
         
         o->m_planning_pull_pending = true;
-        if (o->m_planning_req_pending) {
+        if (o->m_planner_state == PLANNER_STOPPING) {
+            o->m_planner.waitFinished(c);
+        } else if (o->m_planner_state == PLANNER_WAITING) {
+            o->m_planner_state = PLANNER_RUNNING;
             ChannelCommonTuple dummy;
             TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_continue_planned_helper());
-        } else if (o->m_locked) {
-            o->m_planner.waitFinished(c);
         } else {
             TimeType force_time = c.clock()->getTime(c) + (TimeType)(Params::ForceTimeout::value() * Clock::time_freq);
             o->m_force_timer.appendAt(c, force_time);
@@ -2268,7 +2253,7 @@ private:
     {
         PrinterMain *m = PrinterMain::self(c);
         AMBRO_ASSERT(m->m_locked)
-        AMBRO_ASSERT(!m->m_planning)
+        AMBRO_ASSERT(m->m_planner_state == PLANNER_NONE)
         AMBRO_ASSERT(cc->m_state == COMMAND_LOCKED)
         AMBRO_ASSERT(cc->m_cmd)
         
@@ -2279,16 +2264,17 @@ private:
     {
         PrinterMain *o = self(c);
         o->debugAccess(c);
-        AMBRO_ASSERT(o->m_planning)
+        AMBRO_ASSERT(o->m_planner_state != PLANNER_NONE)
         AMBRO_ASSERT(o->m_planning_pull_pending)
-        AMBRO_ASSERT(!o->m_planning_req_pending)
+        AMBRO_ASSERT(o->m_planner_state != PLANNER_WAITING)
         
+        uint8_t old_state = o->m_planner_state;
         o->m_planner.deinit(c);
         o->m_force_timer.unset(c);
-        o->m_planning = false;
+        o->m_planner_state = PLANNER_NONE;
         now_inactive(c);
         
-        if (o->m_locked) {
+        if (old_state == PLANNER_STOPPING) {
             ChannelCommonTuple dummy;
             TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_continue_unplanned_helper());
         }
@@ -2298,10 +2284,53 @@ private:
     {
         PrinterMain *o = self(c);
         o->debugAccess(c);
-        AMBRO_ASSERT(o->m_planning)
         
         TupleForOneBoolOffset<0>(payload->type, &o->m_heaters, Foreach_channel_callback(), c, &payload->heaters) ||
         TupleForOneBoolOffset<TypeListLength<HeatersList>::value>(payload->type, &o->m_fans, Foreach_channel_callback(), c, &payload->fans);
+    }
+    
+    struct MoveBuildState {
+        double new_pos[num_axes];
+        bool seen_cartesian;
+    };
+    
+    static void move_begin (Context c, MoveBuildState *s)
+    {
+        AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING)
+        AMBRO_ASSERT(o->m_planning_pull_pending)
+        
+        PrinterMain *o = self(c);
+        TupleForEachForward(&o->m_axes, Foreach_init_new_pos(), c, s);
+        s->seen_cartesian = false;
+    }
+    
+    template <int AxisIndex>
+    static void move_add_axis (Context c, MoveBuildState *s, double value)
+    {
+        Axis<AxisIndex>::update_new_pos(c, s, value);
+    }
+    
+    static void move_end (Context c, MoveBuildState *s, double max_speed, PlannerInputCommand *out_cmd)
+    {
+        PrinterMain *o = self(c);
+        double distance = 0.0;
+        double total_steps = 0.0;
+        TupleForEachForward(&o->m_axes, Foreach_process_new_pos(), c, s, max_speed, &distance, &total_steps, out_cmd);
+        distance = sqrt(distance);
+        out_cmd->type = 0;
+        out_cmd->rel_max_v_rec = FloatMakePosOrPosZero(distance / (max_speed * Clock::time_unit));
+        out_cmd->rel_max_v_rec = fmax(out_cmd->rel_max_v_rec, total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
+    }
+    
+    static void submit_planner_command (Context c, PlannerInputCommand *cmd)
+    {
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING)
+        AMBRO_ASSERT(o->m_planning_pull_pending)
+        
+        o->m_planner.commandDone(c, cmd);
+        o->m_planning_pull_pending = false;
+        o->m_force_timer.unset(c);
     }
     
     typename Loop::QueuedEvent m_unlocked_timer;
@@ -2319,7 +2348,7 @@ private:
     TimeType m_last_active_time;
     double m_max_speed;
     bool m_locked;
-    bool m_planning;
+    uint8_t m_planner_state;
     union {
         struct {
             HomingStateTuple m_homers;
@@ -2327,7 +2356,6 @@ private:
         };
         struct {
             ThePlanner m_planner;
-            bool m_planning_req_pending;
             bool m_planning_pull_pending;
         };
     };
