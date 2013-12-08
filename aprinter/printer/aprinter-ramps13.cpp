@@ -190,8 +190,8 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    14, // StepperSegmentBufferSize
-    14, // EventChannelBufferSize
+    22, // StepperSegmentBufferSize
+    22, // EventChannelBufferSize
     4, // LookaheadBufferSize
     ForceTimeout, // ForceTimeout
     AvrClockInterruptTimer_TC5_OCC, // EventChannelTimer

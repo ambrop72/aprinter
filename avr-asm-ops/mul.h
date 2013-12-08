@@ -474,6 +474,36 @@ static inline int32_t mul_s16_16 (int16_t op1, uint16_t op2)
     return res;
 }
 
+static inline uint32_t mul_16_16 (uint16_t op1, uint16_t op2)
+{
+    uint32_t res;
+    uint8_t zero;
+    
+    asm(
+        "clr %[zero]\n"
+        "mul %A[op1], %A[op2]\n"
+        "movw %A[res], r0\n"
+        "mul %B[op1], %B[op2]\n"
+        "movw %C[res], r0\n"
+        "mul %B[op2], %A[op1]\n"
+        "add %B[res], r0\n"
+        "adc %C[res], r1\n"
+        "adc %D[res], %[zero]\n"
+        "mul %B[op1], %A[op2]\n"
+        "add %B[res], r0\n"
+        "adc %C[res], r1\n"
+        "adc %D[res], %[zero]\n"
+        "clr __zero_reg__\n"
+        
+        : [res] "=&r" (res),
+          [zero] "=&r" (zero)
+        : [op1] "r" (op1),
+          [op2] "r" (op2)
+    );
+    
+    return res;
+}
+
 static inline __int24 mul_s16_16_r8 (int16_t op1, uint16_t op2)
 {
     uint8_t low;
