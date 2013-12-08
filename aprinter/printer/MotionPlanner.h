@@ -91,7 +91,7 @@ struct MotionPlannerChannelSpec {
 
 template <
     typename Position, typename Context, typename AxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
-    typename PullHandler, typename FinishedHandler, typename ChannelsList = EmptyTypeList
+    typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename ChannelsList = EmptyTypeList
 >
 class MotionPlanner
 : private DebugObject<Context, void>
@@ -116,6 +116,7 @@ private:
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_abort, abort)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commandDone_assert, commandDone_assert)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_splitbuf, write_splitbuf)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_splitbuf_fits, splitbuf_fits)
@@ -263,6 +264,8 @@ private:
     
     using ChannelCommandSizeTypeTuple = IndexElemTuple<ChannelsList, ChannelCommandSizeTypeAlias>;
     
+    enum {STATE_BUFFERING, STATE_STEPPING, STATE_ABORTED};
+    
 public:
     template <int AxisIndex>
     class Axis {
@@ -311,6 +314,11 @@ public:
         }
         
         static void deinit (Context c)
+        {
+            stepper(c)->stop(c);
+        }
+        
+        static void abort (Context c)
         {
             stepper(c)->stop(c);
         }
@@ -591,7 +599,7 @@ public:
         static bool is_aborted (bool accum, Context c)
         {
             Axis *o = self(c);
-            return (accum || (PrestepCallbackEnabled && o->m_first == -2));
+            return (accum || (PrestepCallbackEnabled && o->m_first <= -2));
         }
         
         static void reset_aborted (Context c)
@@ -611,7 +619,7 @@ public:
             Axis *o = self(c);
             MotionPlanner *m = MotionPlanner::self(c);
             AMBRO_ASSERT(o->m_first >= 0)
-            AMBRO_ASSERT(m->m_stepping)
+            AMBRO_ASSERT(m->m_state == STATE_STEPPING)
             
             c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
             o->m_num_committed--;
@@ -651,11 +659,63 @@ public:
                 if (AMBRO_UNLIKELY(res)) {
                     c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
                     o->m_num_committed = 0;
-                    o->m_first = -2;
+                    o->m_first = -2 - o->m_first;
                 }
                 return res;
             }
         };
+        
+        template <typename StepsType>
+        static StepsType axis_count_aborted_rem_steps (Context c)
+        {
+            Axis *o = self(c);
+            MotionPlanner *m = MotionPlanner::self(c);
+            
+            StepsType steps = 0;
+            if (o->m_first != -1) {
+                bool dir;
+                StepperStepFixedType cmd_steps = stepper(c)->getAbortedCmdSteps(c, &dir);
+                if (dir) {
+                    steps += (StepsType)cmd_steps.bitsValue();
+                } else {
+                    steps -= (StepsType)cmd_steps.bitsValue();
+                }
+                StepperCommandSizeType first = o->m_first;
+                if (first < 0) {
+                    first = -(o->m_first + 2);
+                }
+                StepperCommandSizeType i = index_command(c, first)->next;
+                while (i != -1) {
+                    TheAxisStepperCommand *cmd = index_command(c, i);
+                    cmd_steps = stepper(c)->getPendingCmdSteps(c, &cmd->scmd, &dir);
+                    if (dir) {
+                        steps += (StepsType)cmd_steps.bitsValue();
+                    } else {
+                        steps -= (StepsType)cmd_steps.bitsValue();
+                    }
+                    i = cmd->next;
+                }
+            }
+            for (SegmentBufferSizeType i = m->m_segments_staging_length; i < m->m_segments_length; i++) {
+                Segment *seg = &m->m_segments[segments_add(m->m_segments_start, i)];
+                TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&seg->axes);
+                if (axis_entry->dir) {
+                    steps += (StepsType)axis_entry->x.bitsValue();
+                } else {
+                    steps -= (StepsType)axis_entry->x.bitsValue();
+                }
+            }
+            if (m->m_split_buffer.type == 0) {
+                TheAxisSplitBuffer *axis_split = TupleGetElem<AxisIndex>(&m->m_split_buffer.axes);
+                StepFixedType x = StepFixedType::importBits(axis_split->x.bitsValue() - axis_split->x_pos.bitsValue());
+                if (axis_split->dir) {
+                    steps += (StepsType)x.bitsValue();
+                } else {
+                    steps -= (StepsType)x.bitsValue();
+                }
+            }
+            return steps;
+        }
         
         StepperCommandSizeType m_first;
         StepperCommandSizeType m_last_committed;
@@ -713,6 +773,12 @@ public:
         {
             Channel *o = self(c);
             o->m_timer.deinit(c);
+        }
+        
+        static void abort (Context c)
+        {
+            Channel *o = self(c);
+            o->m_timer.unset(c);
         }
         
         static void write_segment (Context c, Segment *entry)
@@ -824,7 +890,7 @@ public:
             MotionPlanner *m = MotionPlanner::self(c);
             TheChannelSegment *channel_entry = UnionGetElem<ChannelIndex>(&entry->channels);
             
-            if (!m->m_stepping) {
+            if (m->m_state == STATE_BUFFERING) {
                 if (o->m_num_committed == ChannelSpec::BufferSize) {
                     planner_start_stepping(c);
                     return false;
@@ -859,6 +925,12 @@ public:
             return (accum || (o->m_num_committed < 0));
         }
         
+        static void reset_aborted (Context c)
+        {
+            Channel *o = self(c);
+            o->m_first = -1;
+        }
+        
         static void stopped_stepping (Context c)
         {
             Channel *o = self(c);
@@ -870,7 +942,7 @@ public:
             Channel *o = self(c);
             MotionPlanner *m = MotionPlanner::self(c);
             AMBRO_ASSERT(o->m_first >= 0)
-            AMBRO_ASSERT(m->m_stepping)
+            AMBRO_ASSERT(m->m_state == STATE_STEPPING)
             
             ChannelSpec::Callback::call(c, &o->m_channel_commands[o->m_first].payload);
             
@@ -915,7 +987,7 @@ public:
         o->m_staging_time = 0;
         o->m_staging_v_squared = 0.0;
         o->m_split_buffer.type = 0xFF;
-        o->m_stepping = false;
+        o->m_state = STATE_BUFFERING;
         o->m_underrun = true;
         o->m_waiting = false;
 #ifdef AMBROLIB_ASSERTIONS
@@ -944,6 +1016,7 @@ public:
     static void commandDone (Context c, InputCommand *icmd)
     {
         MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         AMBRO_ASSERT(o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
         if (icmd->type == 0) {
@@ -985,15 +1058,49 @@ public:
     static void waitFinished (Context c)
     {
         MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         AMBRO_ASSERT(o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
         
         if (!o->m_waiting) {
             o->m_waiting = true;
-            if (!o->m_stepping) {
+            if (o->m_state == STATE_BUFFERING) {
                 continue_wait(c);
             }
         }
+    }
+    
+    template <int AxisIndex, typename StepsType>
+    static StepsType countAbortedRemSteps (Context c)
+    {
+        MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state == STATE_ABORTED)
+        
+        return Axis<AxisIndex>::template axis_count_aborted_rem_steps<StepsType>(c);
+    }
+    
+    static void continueAfterAborted (Context c)
+    {
+        MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state == STATE_ABORTED)
+        AMBRO_ASSERT(o->m_underrun)
+        
+        o->m_segments_start = 0;
+        o->m_segments_staging_length = 0;
+        o->m_segments_length = 0;
+        o->m_staging_time = 0;
+        o->m_staging_v_squared = 0.0;
+        o->m_split_buffer.type = 0xFF;
+        o->m_state = STATE_BUFFERING;
+        o->m_waiting = false;
+#ifdef AMBROLIB_ASSERTIONS
+        o->m_pulling = false;
+#endif
+        TupleForEachForward(&o->m_axes, Foreach_reset_aborted(), c);
+        TupleForEachForward(&o->m_channels, Foreach_reset_aborted(), c);
+        TupleForEachForward(&o->m_axes, Foreach_stopped_stepping(), c);
+        TupleForEachForward(&o->m_channels, Foreach_stopped_stepping(), c);
+        o->m_pull_finished_event.prependNowNotAlready(c);
     }
     
     template <int ChannelIndex>
@@ -1019,6 +1126,7 @@ private:
     static void work (Context c)
     {
         MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         AMBRO_ASSERT(o->m_split_buffer.type != 0xFF)
         AMBRO_ASSERT(!o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type != 0 || o->m_split_buffer.split_pos < o->m_split_buffer.split_count)
@@ -1026,7 +1134,7 @@ private:
         while (1) {
             do {
                 if (o->m_segments_length == LookaheadBufferSize) {
-                    o->m_underrun = o->m_underrun && o->m_stepping;
+                    o->m_underrun = o->m_underrun && (o->m_state == STATE_STEPPING);
                     break;
                 }
                 Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
@@ -1084,7 +1192,7 @@ private:
             
             Segment *entry = &o->m_segments[o->m_segments_start];
             if (entry->type == 0) {
-                if (AMBRO_UNLIKELY(!o->m_stepping)) {
+                if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
                     if (!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c)) {
                         planner_start_stepping(c);
                         return;
@@ -1120,6 +1228,7 @@ private:
     static void plan (Context c)
     {
         MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         AMBRO_ASSERT(o->m_segments_staging_length != o->m_segments_length)
         
 #ifdef MOTIONPLANNER_BENCHMARK
@@ -1181,7 +1290,7 @@ private:
         
         TupleForEachForward(&o->m_axes, Foreach_complete_new(), c);
         TupleForEachForward(&o->m_channels, Foreach_complete_new(), c);
-        if (AMBRO_UNLIKELY(!o->m_stepping)) {
+        if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
             TupleForEachForward(&o->m_axes, Foreach_swap_staging_cold(), c);
             TupleForEachForward(&o->m_channels, Foreach_swap_staging_cold(), c);
             o->m_segments_staging_length = o->m_segments_length;
@@ -1216,7 +1325,7 @@ private:
     static void planner_start_stepping (Context c)
     {
         MotionPlanner *o = self(c);
-        AMBRO_ASSERT(!o->m_stepping)
+        AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
         AMBRO_ASSERT(!o->m_underrun)
         AMBRO_ASSERT(o->m_segments_staging_length == o->m_segments_length)
         
@@ -1225,7 +1334,7 @@ private:
             printf("elapsed %" PRIu32 "\n", o->m_bench_time);
         }
 #endif
-        o->m_stepping = true;
+        o->m_state = STATE_STEPPING;
         TimeType start_time = c.clock()->getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
         o->m_staging_time += start_time;
         TupleForEachForward(&o->m_axes, Foreach_start_stepping(), c, start_time);
@@ -1235,7 +1344,7 @@ private:
     static void continue_wait (Context c)
     {
         MotionPlanner *o = self(c);
-        AMBRO_ASSERT(!o->m_stepping)
+        AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
         AMBRO_ASSERT(o->m_waiting)
         
         if (o->m_segments_length == 0) {
@@ -1252,11 +1361,12 @@ private:
     static void pull_finished_event_handler (typename Loop::QueuedEvent *, Context c)
     {
         MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
         
         if (AMBRO_UNLIKELY(o->m_waiting)) {
             AMBRO_ASSERT(o->m_pulling)
-            AMBRO_ASSERT(!o->m_stepping)
+            AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
             AMBRO_ASSERT(o->m_segments_length == 0)
             AMBRO_ASSERT(planner_is_empty(c))
             
@@ -1291,25 +1401,29 @@ private:
     static void stepper_event_handler (Context c)
     {
         MotionPlanner *o = PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-        AMBRO_ASSERT(o->m_stepping)
+        AMBRO_ASSERT(o->m_state == STATE_STEPPING)
         
         bool empty;
+        bool aborted;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             o->m_underrun = planner_is_underrun(c);
             empty = planner_is_empty(c);
+            aborted = TupleForEachForwardAccRes(&o->m_axes, false, Foreach_is_aborted(), c);
+        }
+        
+        if (AMBRO_UNLIKELY(aborted)) {
+            AMBRO_ASSERT(o->m_underrun)
+            TupleForEachForward(&o->m_axes, Foreach_abort(), c);
+            TupleForEachForward(&o->m_channels, Foreach_abort(), c);
+            c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
+            o->m_state = STATE_ABORTED;
+            o->m_pull_finished_event.unset(c);
+            return AbortedHandler::call(c);
         }
         
         if (AMBRO_UNLIKELY(empty)) {
             AMBRO_ASSERT(o->m_underrun)
-            if (TupleForEachForwardAccRes(&o->m_axes, false, Foreach_is_aborted(), c)) {
-                TupleForEachForward(&o->m_axes, Foreach_reset_aborted(), c);
-                o->m_segments_staging_length = o->m_segments_length;
-                if (AMBRO_LIKELY(o->m_split_buffer.type != 0xFF)) {
-                    o->m_split_buffer.type = 0xFF;
-                    o->m_pull_finished_event.prependNowNotAlready(c);
-                }
-            }
-            o->m_stepping = false;
+            o->m_state = STATE_BUFFERING;
             o->m_segments_start = segments_add(o->m_segments_start, o->m_segments_staging_length);
             o->m_segments_length -= o->m_segments_staging_length;
             o->m_segments_staging_length = 0;
@@ -1347,7 +1461,7 @@ private:
     double m_first_segment_end_speed_squared;
     TimeType m_first_segment_time_duration;
     double m_last_distance_rec;
-    bool m_stepping;
+    uint8_t m_state;
     bool m_underrun;
     bool m_waiting;
 #ifdef AMBROLIB_ASSERTIONS

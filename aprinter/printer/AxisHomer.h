@@ -53,10 +53,11 @@ private:
     struct PlannerPosition;
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
+    struct PlannerAbortedHandler;
     struct PlannerPrestepCallback;
     
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, GetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
-    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler>;
+    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler>;
     using PlannerCommand = typename Planner::InputCommand;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
     
@@ -158,6 +159,24 @@ private:
         AMBRO_ASSERT(o->m_command_sent)
         
         o->m_planner.deinit(c);
+        
+        if (o->m_state != STATE_RETRACT) {
+            o->m_state = STATE_END;
+            return FinishedHandler::call(c, false);
+        }
+        
+        o->m_state++;
+        o->m_planner.init(c, true);
+        o->m_command_sent = false;
+    }
+    
+    static void planner_aborted_handler (Context c)
+    {
+        AxisHomer *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_FAST || o->m_state == STATE_SLOW)
+        
+        o->m_planner.deinit(c);
         o->m_state++;
         
         if (o->m_state == STATE_END) {
@@ -181,6 +200,7 @@ private:
     struct PlannerPosition : public MemberPosition<Position, Planner, &AxisHomer::m_planner> {};
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_pull_handler) {};
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_finished_handler) {};
+    struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_aborted_handler) {};
     struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_prestep_callback) {};
 };
 

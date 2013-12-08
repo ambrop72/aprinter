@@ -430,6 +430,7 @@ using PrinterParams = PrinterMainParams<
         2, // BufferBlocks
         100 // MaxCommandSize
     >,
+    PrinterMainNoProbeParams,
     
     /*
      * Axes.

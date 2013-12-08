@@ -150,6 +150,22 @@ using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
+using ProbeOffsetX = AMBRO_WRAP_DOUBLE(-18.0);
+using ProbeOffsetY = AMBRO_WRAP_DOUBLE(-31.0);
+using ProbeStartHeight = AMBRO_WRAP_DOUBLE(17.0);
+using ProbeLowHeight = AMBRO_WRAP_DOUBLE(5.0);
+using ProbeRetractDist = AMBRO_WRAP_DOUBLE(1.0);
+using ProbeMoveSpeed = AMBRO_WRAP_DOUBLE(120.0);
+using ProbeFastSpeed = AMBRO_WRAP_DOUBLE(2.0);
+using ProbeRetractSpeed = AMBRO_WRAP_DOUBLE(3.0);
+using ProbeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
+using ProbeP1X = AMBRO_WRAP_DOUBLE(0.0);
+using ProbeP1Y = AMBRO_WRAP_DOUBLE(31.0);
+using ProbeP2X = AMBRO_WRAP_DOUBLE(0.0);
+using ProbeP2Y = AMBRO_WRAP_DOUBLE(155.0);
+using ProbeP3X = AMBRO_WRAP_DOUBLE(205.0);
+using ProbeP3Y = AMBRO_WRAP_DOUBLE(83.0);
+
 /*
  * NOTE: If you need internal pull-ups for endstops, enable these
  * in main() below.
@@ -188,6 +204,25 @@ using PrinterParams = PrinterMainParams<
         GcodeParserParams<8>,
         2, // BufferBlocks
         256 // MaxCommandSize
+    >,
+    PrinterMainProbeParams<
+        MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
+        'Z', // ProbeAxis
+        DuePin34, // ProbePin,
+        false, // ProbeInvert,
+        MakeTypeList<ProbeOffsetX, ProbeOffsetY>, // ProbePlatformOffset
+        ProbeStartHeight,
+        ProbeLowHeight,
+        ProbeRetractDist,
+        ProbeMoveSpeed,
+        ProbeFastSpeed,
+        ProbeRetractSpeed,
+        ProbeSlowSpeed,
+        MakeTypeList< // ProbePoints
+            MakeTypeList<ProbeP1X, ProbeP1Y>,
+            MakeTypeList<ProbeP2X, ProbeP2Y>,
+            MakeTypeList<ProbeP3X, ProbeP3Y>
+        >
     >,
     
     /*

@@ -57,6 +57,10 @@
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/TypeListIndex.h>
+#include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -81,7 +85,7 @@ template <
     int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSizeExp,
     typename TForceTimeout, template <typename, typename, typename> class TEventChannelTimer,
     template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
-    typename TSdCardParams,
+    typename TSdCardParams, typename TProbeParams,
     typename TAxesList, typename THeatersList, typename TFansList
 >
 struct PrinterMainParams {
@@ -99,6 +103,7 @@ struct PrinterMainParams {
     template <typename X, typename Y, typename Z> using WatchdogTemplate = TWatchdogTemplate<X, Y, Z>;
     using WatchdogParams = TWatchdogParams;
     using SdCardParams = TSdCardParams;
+    using ProbeParams = TProbeParams;
     using AxesList = TAxesList;
     using HeatersList = THeatersList;
     using FansList = TFansList;
@@ -234,6 +239,42 @@ struct PrinterMainSdCardParams {
     static const int MaxCommandSize = TMaxCommandSize;
 };
 
+struct PrinterMainNoProbeParams {
+    static const bool enabled = false;
+};
+
+template <
+    typename TPlatformAxesList,
+    int TProbeAxis,
+    typename TProbePin,
+    bool TProbeInvert,
+    typename TProbePlatformOffset,
+    typename TProbeStartHeight,
+    typename TProbeLowHeight,
+    typename TProbeRetractDist,
+    typename TProbeMoveSpeed,
+    typename TProbeFastSpeed,
+    typename TProbeRetractSpeed,
+    typename TProbeSlowSpeed,
+    typename TProbePoints
+>
+struct PrinterMainProbeParams {
+    static const bool enabled = true;
+    using PlatformAxesList = TPlatformAxesList;
+    static const int ProbeAxis = TProbeAxis;
+    using ProbePin = TProbePin;
+    static const bool ProbeInvert = TProbeInvert;
+    using ProbePlatformOffset = TProbePlatformOffset;
+    using ProbeStartHeight = TProbeStartHeight;
+    using ProbeLowHeight = TProbeLowHeight;
+    using ProbeRetractDist = TProbeRetractDist;
+    using ProbeMoveSpeed = TProbeMoveSpeed;
+    using ProbeFastSpeed = TProbeFastSpeed;
+    using ProbeRetractSpeed = TProbeRetractSpeed;
+    using ProbeSlowSpeed = TProbeSlowSpeed;
+    using ProbePoints = TProbePoints;
+};
+
 template <typename Position, typename Context, typename Params>
 class PrinterMain
 : private DebugObject<Context, void>
@@ -247,6 +288,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init_new_pos, init_new_pos)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_collect_new_pos, collect_new_pos)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_process_new_pos, process_new_pos)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_fix_aborted_pos, fix_aborted_pos)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_position, append_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
@@ -261,8 +303,12 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_finish_locked_helper, finish_locked_helper)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_run_for_state_command, run_for_state_command)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_finish_init, finish_init)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_add_axis, add_axis)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_get_coord, get_coord)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_report_height, report_height)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     
     struct WatchdogPosition;
     struct BlinkerPosition;
@@ -276,12 +322,15 @@ private:
     template <int HeaterIndex> struct HeaterPosition;
     template <int HeaterIndex> struct MainControlPosition;
     template <int FanIndex> struct FanPosition;
+    struct ProbeFeaturePosition;
     
     struct BlinkerHandler;
     template <int AxisIndex> struct PlannerGetAxisStepper;
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
+    struct PlannerAbortedHandler;
     struct PlannerChannelCallback;
+    template <int AxisIndex> struct PlannerPrestepCallback;
     template <int AxisIndex> struct AxisStepperConsumersList;
     
     using Loop = typename Context::EventLoop;
@@ -310,7 +359,7 @@ private:
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
-    enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING};
+    enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_PROBE};
     
     struct MoveBuildState;
     
@@ -1085,6 +1134,7 @@ private:
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
         static const char axis_name = AxisSpec::name;
+        using WrappedAxisName = WrapInt<axis_name>;
         
         AMBRO_STRUCT_IF(HomingFeature, AxisSpec::Homing::enabled) {
             struct HomingState {
@@ -1335,6 +1385,15 @@ private:
             o->m_req_pos = s->new_pos[AxisIndex];
         }
         
+        static void fix_aborted_pos (Context c)
+        {
+            Axis *o = self(c);
+            PrinterMain *m = PrinterMain::self(c);
+            using RemStepsType = typename ChooseInt<AxisSpec::StepBits, true>::Type;
+            o->m_end_pos.m_bits.m_int -= m->m_planner.template countAbortedRemSteps<AxisIndex, RemStepsType>(c);
+            o->m_req_pos = dist_to_real(o->m_end_pos.doubleValue());
+        }
+        
         template <typename TheChannelCommon>
         static void append_position (Context c, TheChannelCommon *cc)
         {
@@ -1399,7 +1458,7 @@ private:
         TheAxis::AxisSpec::StepBits,
         typename TheAxis::AxisSpec::DefaultDistanceFactor,
         typename TheAxis::AxisSpec::DefaultCorneringDistance,
-        void
+        PlannerPrestepCallback<TheAxis::AxisIndex>
     >;
     
     template <int HeaterIndex>
@@ -1851,13 +1910,213 @@ private:
     
     using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, Params::template EventChannelTimer>>;
     using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
-    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler, MotionPlannerChannels>;
+    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, MotionPlannerChannels>;
     using PlannerInputCommand = typename ThePlanner::InputCommand;
     using AxesTuple = IndexElemTuple<AxesList, Axis>;
     
     template <int AxisIndex>
     using HomingStateTupleHelper = typename Axis<AxisIndex>::HomingFeature::HomingState;
     using HomingStateTuple = IndexElemTuple<AxesList, HomingStateTupleHelper>;
+    
+    template <int AxisName>
+    using FindAxis = TypeListIndex<
+        typename AxesTuple::ElemTypes,
+        ComposeFunctions<
+            IsEqualFunc<WrapInt<AxisName>>,
+            GetMemberType_WrappedAxisName
+        >
+    >;
+    
+    AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::enabled) {
+        using ProbeParams = typename Params::ProbeParams;
+        static const int NumPoints = TypeListLength<typename ProbeParams::ProbePoints>::value;
+        static const int ProbeAxisIndex = FindAxis<Params::ProbeParams::ProbeAxis>::value;
+        
+        static ProbeFeature * self (Context c)
+        {
+            return PositionTraverse<typename Context::TheRootPosition, ProbeFeaturePosition>(c.root());
+        }
+        
+        static void init (Context c)
+        {
+            ProbeFeature *o = self(c);
+            o->m_current_point = 0xff;
+        }
+        
+        static void deinit (Context c)
+        {
+            ProbeFeature *o = self(c);
+        }
+        
+        template <typename TheChannelCommon>
+        static bool check_command (Context c, TheChannelCommon *cc)
+        {
+            ProbeFeature *o = self(c);
+            if (cc->m_cmd_num == 32) {
+                if (!cc->tryUnplannedCommand(c)) {
+                    return false;
+                }
+                AMBRO_ASSERT(o->m_current_point == 0xff)
+                init_probe_planner(c, false);
+                o->m_current_point = 0;
+                o->m_point_state = 0;
+                o->m_command_sent = false;
+                return false;
+            }
+            return true;
+        }
+        
+        template <int PlatformAxisIndex>
+        struct AxisHelper {
+            using PlatformAxis = TypeListGet<typename ProbeParams::PlatformAxesList, PlatformAxisIndex>;
+            static const int AxisIndex = FindAxis<PlatformAxis::value>::value;
+            using AxisProbeOffset = TypeListGet<typename ProbeParams::ProbePlatformOffset, PlatformAxisIndex>;
+            
+            static void add_axis (Context c, MoveBuildState *s, uint8_t point_index)
+            {
+                PointHelperTuple dummy;
+                double coord = TupleForOne<double>(point_index, &dummy, Foreach_get_coord());
+                move_add_axis<AxisIndex>(c, s, coord + AxisProbeOffset::value());
+            }
+            
+            template <int PointIndex>
+            struct PointHelper {
+                using Point = TypeListGet<typename ProbeParams::ProbePoints, PointIndex>;
+                using PointCoord = TypeListGet<Point, PlatformAxisIndex>;
+                
+                static double get_coord ()
+                {
+                    return PointCoord::value();
+                }
+            };
+            
+            using PointHelperTuple = IndexElemTuple<typename ProbeParams::ProbePoints, PointHelper>;
+        };
+        
+        using AxisHelperTuple = IndexElemTuple<typename ProbeParams::PlatformAxesList, AxisHelper>;
+        
+        static void custom_pull_handler (Context c)
+        {
+            ProbeFeature *o = self(c);
+            AMBRO_ASSERT(o->m_current_point != 0xff)
+            AMBRO_ASSERT(o->m_point_state <= 4)
+            
+            if (o->m_command_sent) {
+                custom_planner_wait_finished(c);
+                return;
+            }
+            MoveBuildState s;
+            move_begin(c, &s);
+            double height;
+            double speed;
+            switch (o->m_point_state) {
+                case 0: {
+                    AxisHelperTuple dummy;
+                    TupleForEachForward(&dummy, Foreach_add_axis(), c, &s, o->m_current_point);
+                    height = ProbeParams::ProbeStartHeight::value();
+                    speed = ProbeParams::ProbeMoveSpeed::value();
+                } break;
+                case 1: {
+                    height = ProbeParams::ProbeLowHeight::value();
+                    speed = ProbeParams::ProbeFastSpeed::value();
+                } break;
+                case 2: {
+                    height = get_height(c) + ProbeParams::ProbeRetractDist::value();
+                    speed = ProbeParams::ProbeRetractSpeed::value();
+                } break;
+                case 3: {
+                    height = ProbeParams::ProbeLowHeight::value();
+                    speed = ProbeParams::ProbeSlowSpeed::value();
+                } break;
+                case 4: {
+                    height = ProbeParams::ProbeStartHeight::value();
+                    speed = ProbeParams::ProbeRetractSpeed::value();
+                } break;
+            }
+            move_add_axis<ProbeAxisIndex>(c, &s, height);
+            move_end(c, &s, speed);
+            o->m_command_sent = true;
+        }
+        
+        static void custom_finished_handler (Context c)
+        {
+            ProbeFeature *o = self(c);
+            AMBRO_ASSERT(o->m_current_point != 0xff)
+            AMBRO_ASSERT(o->m_command_sent)
+            
+            custom_planner_deinit(c);
+            o->m_command_sent = false;
+            if (o->m_point_state < 4) {
+                if (o->m_point_state == 3) {
+                    double height = get_height(c);
+                    o->m_samples[o->m_current_point] = height;
+                    Tuple<ChannelCommonList> dummy;
+                    TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_report_height(), height);
+                }
+                o->m_point_state++;
+                bool watch_probe = (o->m_point_state == 1 || o->m_point_state == 3);
+                init_probe_planner(c, watch_probe);
+            } else {
+                o->m_current_point++;
+                if (o->m_current_point == NumPoints) {
+                    o->m_current_point = 0xff;
+                    finish_locked(c);
+                    return;
+                }
+                init_probe_planner(c, false);
+                o->m_point_state = 0;
+            }
+        }
+        
+        static void custom_aborted_handler (Context c)
+        {
+            ProbeFeature *o = self(c);
+            AMBRO_ASSERT(o->m_current_point != 0xff)
+            AMBRO_ASSERT(o->m_command_sent)
+            AMBRO_ASSERT(o->m_point_state == 1 || o->m_point_state == 3)
+            
+            custom_finished_handler(c);
+        }
+        
+        template <typename CallbackContext>
+        static bool prestep_callback (CallbackContext c)
+        {
+            return (c.pins()->template get<typename ProbeParams::ProbePin>(c) != Params::ProbeParams::ProbeInvert);
+        }
+        
+        static void init_probe_planner (Context c, bool watch_probe)
+        {
+            custom_planner_init(c, PLANNER_PROBE, watch_probe);
+        }
+        
+        static double get_height (Context c)
+        {
+            return Axis<ProbeAxisIndex>::self(c)->m_req_pos;
+        }
+        
+        template <typename TheChannelCommon>
+        static void report_height (Context c, TheChannelCommon *cc, double height)
+        {
+            cc->reply_append_pstr(c, AMBRO_PSTR("//ProbeHeight "));
+            cc->reply_append_double(c, height);
+            cc->reply_append_ch(c, '\n');
+        }
+        
+        uint8_t m_current_point;
+        uint8_t m_point_state;
+        bool m_command_sent;
+        double m_samples[NumPoints];
+    } AMBRO_STRUCT_ELSE(ProbeFeature) {
+        static void init (Context c) {}
+        static void deinit (Context c) {}
+        template <typename TheChannelCommon>
+        static bool check_command (Context c, TheChannelCommon *cc) { return true; }
+        static void custom_pull_handler (Context c) {}
+        static void custom_finished_handler (Context c) {}
+        static void custom_aborted_handler (Context c) {}
+        template <typename CallbackContext>
+        static bool prestep_callback (CallbackContext c) { return false; }
+    };
     
 public:
     static void init (Context c)
@@ -1875,6 +2134,7 @@ public:
         TupleForEachForward(&o->m_axes, Foreach_init(), c);
         TupleForEachForward(&o->m_heaters, Foreach_init(), c);
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
+        o->m_probe_feature.init(c);
         o->m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
         o->m_max_speed = INFINITY;
         o->m_locked = false;
@@ -1893,6 +2153,7 @@ public:
         if (o->m_planner_state != PLANNER_NONE) {
             o->m_planner.deinit(c);
         }
+        o->m_probe_feature.deinit(c);
         TupleForEachReverse(&o->m_fans, Foreach_deinit(), c);
         TupleForEachReverse(&o->m_heaters, Foreach_deinit(), c);
         TupleForEachReverse(&o->m_axes, Foreach_deinit(), c);
@@ -1997,7 +2258,8 @@ private:
                     if (
                         TupleForEachForwardInterruptible(&o->m_heaters, Foreach_check_command(), c, cc) &&
                         TupleForEachForwardInterruptible(&o->m_fans, Foreach_check_command(), c, cc) &&
-                        o->m_sdcard_feature.check_command(c, cc)
+                        o->m_sdcard_feature.check_command(c, cc) &&
+                        o->m_probe_feature.check_command(c, cc) 
                     ) {
                         goto unknown_command;
                     }
@@ -2071,9 +2333,7 @@ private:
                         }
                     }
                     cc->finishCommand(c);
-                    PlannerInputCommand cmd;
-                    move_end(c, &s, o->m_max_speed, &cmd);
-                    submit_planner_command(c, &cmd);
+                    move_end(c, &s, o->m_max_speed);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -2242,9 +2502,12 @@ private:
             o->m_planner_state = PLANNER_RUNNING;
             ChannelCommonTuple dummy;
             TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_continue_planned_helper());
-        } else {
+        } else if (o->m_planner_state == PLANNER_RUNNING) {
             TimeType force_time = c.clock()->getTime(c) + (TimeType)(Params::ForceTimeout::value() * Clock::time_freq);
             o->m_force_timer.appendAt(c, force_time);
+        } else {
+            AMBRO_ASSERT(o->m_planner_state == PLANNER_PROBE)
+            o->m_probe_feature.custom_pull_handler(c);
         }
     }
     
@@ -2268,6 +2531,10 @@ private:
         AMBRO_ASSERT(o->m_planning_pull_pending)
         AMBRO_ASSERT(o->m_planner_state != PLANNER_WAITING)
         
+        if (o->m_planner_state == PLANNER_PROBE) {
+            return o->m_probe_feature.custom_finished_handler(c);
+        }
+        
         uint8_t old_state = o->m_planner_state;
         o->m_planner.deinit(c);
         o->m_force_timer.unset(c);
@@ -2280,6 +2547,16 @@ private:
         }
     }
     
+    static void planner_aborted_handler (Context c)
+    {
+        PrinterMain *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_planner_state == PLANNER_PROBE)
+        
+        TupleForEachForward(&o->m_axes, Foreach_fix_aborted_pos(), c);
+        o->m_probe_feature.custom_aborted_handler(c);
+    }
+    
     static void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)
     {
         PrinterMain *o = self(c);
@@ -2289,6 +2566,13 @@ private:
         TupleForOneBoolOffset<TypeListLength<HeatersList>::value>(payload->type, &o->m_fans, Foreach_channel_callback(), c, &payload->fans);
     }
     
+    template <int AxisIndex>
+    static bool planner_prestep_callback (typename ThePlanner::template Axis<AxisIndex>::StepperCommandCallbackContext c)
+    {
+        PrinterMain *o = self(c);
+        return o->m_probe_feature.prestep_callback(c);
+    }
+    
     struct MoveBuildState {
         double new_pos[num_axes];
         bool seen_cartesian;
@@ -2296,9 +2580,6 @@ private:
     
     static void move_begin (Context c, MoveBuildState *s)
     {
-        AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING)
-        AMBRO_ASSERT(o->m_planning_pull_pending)
-        
         PrinterMain *o = self(c);
         TupleForEachForward(&o->m_axes, Foreach_init_new_pos(), c, s);
         s->seen_cartesian = false;
@@ -2310,27 +2591,63 @@ private:
         Axis<AxisIndex>::update_new_pos(c, s, value);
     }
     
-    static void move_end (Context c, MoveBuildState *s, double max_speed, PlannerInputCommand *out_cmd)
+    static void move_end (Context c, MoveBuildState *s, double max_speed)
     {
         PrinterMain *o = self(c);
+        PlannerInputCommand cmd;
         double distance = 0.0;
         double total_steps = 0.0;
-        TupleForEachForward(&o->m_axes, Foreach_process_new_pos(), c, s, max_speed, &distance, &total_steps, out_cmd);
+        TupleForEachForward(&o->m_axes, Foreach_process_new_pos(), c, s, max_speed, &distance, &total_steps, &cmd);
         distance = sqrt(distance);
-        out_cmd->type = 0;
-        out_cmd->rel_max_v_rec = FloatMakePosOrPosZero(distance / (max_speed * Clock::time_unit));
-        out_cmd->rel_max_v_rec = fmax(out_cmd->rel_max_v_rec, total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
+        cmd.type = 0;
+        cmd.rel_max_v_rec = FloatMakePosOrPosZero(distance / (max_speed * Clock::time_unit));
+        cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
+        submit_planner_command(c, &cmd);
     }
     
     static void submit_planner_command (Context c, PlannerInputCommand *cmd)
     {
         PrinterMain *o = self(c);
-        AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING)
+        AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING || o->m_planner_state == PLANNER_PROBE)
         AMBRO_ASSERT(o->m_planning_pull_pending)
         
         o->m_planner.commandDone(c, cmd);
         o->m_planning_pull_pending = false;
         o->m_force_timer.unset(c);
+    }
+    
+    static void custom_planner_init (Context c, uint8_t type, bool enable_prestep_callback)
+    {
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_locked)
+        AMBRO_ASSERT(o->m_planner_state == PLANNER_NONE)
+        AMBRO_ASSERT(type == PLANNER_PROBE)
+        
+        o->m_planner_state = type;
+        o->m_planner.init(c, enable_prestep_callback);
+        o->m_planning_pull_pending = false;
+        now_active(c);
+    }
+    
+    static void custom_planner_deinit (Context c)
+    {
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_locked)
+        AMBRO_ASSERT(o->m_planner_state == PLANNER_PROBE)
+        
+        o->m_planner.deinit(c);
+        o->m_planner_state = PLANNER_NONE;
+        now_inactive(c);
+    }
+    
+    static void custom_planner_wait_finished (Context c)
+    {
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_locked)
+        AMBRO_ASSERT(o->m_planner_state == PLANNER_PROBE)
+        AMBRO_ASSERT(o->m_planning_pull_pending)
+        
+        o->m_planner.waitFinished(c);
     }
     
     typename Loop::QueuedEvent m_unlocked_timer;
@@ -2344,6 +2661,7 @@ private:
     AxesTuple m_axes;
     HeatersTuple m_heaters;
     FansTuple m_fans;
+    ProbeFeature m_probe_feature;
     TimeType m_inactive_time;
     TimeType m_last_active_time;
     double m_max_speed;
@@ -2372,12 +2690,15 @@ private:
     template <int HeaterIndex> struct HeaterPosition : public TuplePosition<Position, HeatersTuple, &PrinterMain::m_heaters, HeaterIndex> {};
     template <int HeaterIndex> struct MainControlPosition : public MemberPosition<HeaterPosition<HeaterIndex>, typename Heater<HeaterIndex>::MainControl, &Heater<HeaterIndex>::m_main_control> {};
     template <int FanIndex> struct FanPosition : public TuplePosition<Position, FansTuple, &PrinterMain::m_fans, FanIndex> {};
+    struct ProbeFeaturePosition : public MemberPosition<Position, ProbeFeature, &PrinterMain::m_probe_feature> {};
     
     struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
     template <int AxisIndex> struct PlannerGetAxisStepper : public AMBRO_WFUNC_TD(&PrinterMain::template planner_get_axis_stepper<AxisIndex>) {};
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_pull_handler) {};
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_finished_handler) {};
+    struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_aborted_handler) {};
     struct PlannerChannelCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_channel_callback) {};
+    template <int AxisIndex> struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&PrinterMain::template planner_prestep_callback<AxisIndex>) {};
     template <int AxisIndex> struct AxisStepperConsumersList {
         using List = JoinTypeLists<
             MakeTypeList<typename ThePlanner::template TheAxisStepperConsumer<AxisIndex>>,
