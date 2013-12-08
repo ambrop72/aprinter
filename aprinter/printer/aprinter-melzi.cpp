@@ -200,9 +200,9 @@ using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
 using XDefaultMax = AMBRO_WRAP_DOUBLE(210.0);
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
-using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(800.0);
+using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
 using XDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using XDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
+using XDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 using XDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(280.0);
 using XDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
 using XDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
@@ -212,11 +212,11 @@ using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using YDefaultMax = AMBRO_WRAP_DOUBLE(170.0);
+using YDefaultMax = AMBRO_WRAP_DOUBLE(155.0);
 using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
-using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(600.0);
+using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(650.0);
 using YDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using YDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
+using YDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 using YDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(200.0);
 using YDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
 using YDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
@@ -230,7 +230,7 @@ using ZDefaultMax = AMBRO_WRAP_DOUBLE(100.0);
 using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
 using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
 using ZDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using ZDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
+using ZDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 using ZDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(101.0);
 using ZDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(0.8);
 using ZDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(1.2);
@@ -244,7 +244,7 @@ using EDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
 using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
+using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 
 /*
  * Explanation of heater-specific parameters.
@@ -352,7 +352,7 @@ using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
 using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
 using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
 using ExtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
-using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.12);
+using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.2);
 using ExtruderHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.7);
 using ExtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using ExtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
@@ -360,8 +360,14 @@ using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
 using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
-using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(2.0);
-using BedHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.0);
+using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
+using BedHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.3);
+using BedHeaterPidP = AMBRO_WRAP_DOUBLE(1.0);
+using BedHeaterPidI = AMBRO_WRAP_DOUBLE(0.012);
+using BedHeaterPidD = AMBRO_WRAP_DOUBLE(2.5);
+using BedHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
+using BedHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(1.0);
+using BedHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.8);
 using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
 using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
@@ -598,8 +604,15 @@ using PrinterParams = PrinterMainParams<
             BedHeaterMaxSafeTemp, // MaxSafeTemp
             BedHeaterPulseInterval, // PulseInterval
             BedHeaterControlInterval, // ControlInterval
-            BinaryControl, // Control
-            BinaryControlParams,
+            PidControl, // Control
+            PidControlParams<
+                BedHeaterPidP, // PidP
+                BedHeaterPidI, // PidI
+                BedHeaterPidD, // PidD
+                BedHeaterPidIStateMin, // PidIStateMin
+                BedHeaterPidIStateMax, // PidIStateMax
+                BedHeaterPidDHistory // PidDHistory
+            >,
             TemperatureObserverParams<
                 BedHeaterObserverInterval, // ObserverInterval
                 BedHeaterObserverTolerance, // ObserverTolerance
