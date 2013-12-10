@@ -92,30 +92,27 @@ public:
         AvrClock *o = self(c);
         o->debugAccess(c);
         
-        uint16_t now_high;
-        uint16_t now_low;
-        
+        uint32_t now;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            now_high = o->m_offset;
+            uint16_t offset = o->m_offset;
             asm volatile (
-                "    lds %A[now_low],%[tcnt1]+0\n"
+                "    movw %C[now],%A[offset]\n"
+                "    lds %A[now],%[tcnt1]+0\n"
                 "    sbis %[tifr1],%[tov1]\n"
                 "    rjmp no_overflow_%=\n"
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    subi %A[now_high],-1\n"
-                "    sbci %B[now_high],-1\n"
+                "    lds %A[now],%[tcnt1]+0\n"
+                "    subi %C[now],-1\n"
+                "    sbci %D[now],-1\n"
                 "no_overflow_%=:\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
-            : [now_low] "=&r" (now_low),
-            [now_high] "=&d" (now_high)
-            : "[now_high]" (now_high),
+                "    lds %B[now],%[tcnt1]+1\n"
+            : [now] "=&d" (now)
+            : [offset] "r" (offset),
             [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
             [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
             [tov1] "n" (TOV1)
             );
         }
-        
-        return ((uint32_t)now_high << 16) | now_low;
+        return now;
     }
     
 #ifdef TCNT3
