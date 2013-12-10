@@ -53,6 +53,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/OffsetCallback.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/base/GetContainer.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/printer/LinearPlanner.h>
@@ -620,10 +621,12 @@ public:
             MotionPlanner *m = MotionPlanner::self(c);
             AMBRO_ASSERT(o->m_first >= 0)
             AMBRO_ASSERT(m->m_state == STATE_STEPPING)
+            AMBRO_ASSERT(*out_cmd == &index_command(c, o->m_first)->scmd)
             
+            TheAxisStepperCommand *cmd = GetContainer(*out_cmd, &TheAxisStepperCommand::scmd);
             c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
             o->m_num_committed--;
-            o->m_first = index_command(c, o->m_first)->next;
+            o->m_first = cmd->next;
             if (!(o->m_first >= 0)) {
                 return false;
             }
