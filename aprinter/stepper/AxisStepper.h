@@ -314,7 +314,6 @@ private:
             auto xs = x.toSigned().template shiftBits<(-discriminant_prec)>();
             auto a = current_command->a_mul.template undoShiftBitsLeft<(amul_shift-discriminant_prec)>();
             auto x_minus_a = (xs - a).toUnsignedUnsafe();
-            o->m_discriminant = x_minus_a * x_minus_a;
             if (AMBRO_LIKELY(o->m_notdecel)) {
                 o->m_v0 = (xs + a).toUnsignedUnsafe();
                 o->m_pos = StepFixedType::importBits(x.bitsValue() - 1);
@@ -324,6 +323,14 @@ private:
                 o->m_v0 = x_minus_a;
                 o->m_pos = StepFixedType::importBits(1);
             }
+            o->m_discriminant = x_minus_a * x_minus_a;
+#ifdef AMBROLIB_AVR
+            // Force gcc to load the parameters we computed here (m_x, m_v0, m_pos)
+            // when they're used below even though they could be kept in registers.
+            // If we don't do that, these optimizations may use lots more registers
+            // and we end up with slower code.
+            asm volatile ("" ::: "memory");
+#endif
         }
         
         if (AMBRO_UNLIKELY(o->m_prestep_callback_enabled)) {
