@@ -89,8 +89,8 @@ class AxisStepper
 : private DebugObject<Context, void>
 {
 private:
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_maybe_call_command_callback, maybe_call_command_callback)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_maybe_call_prestep_callback, maybe_call_prestep_callback)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_command_callback, call_command_callback)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_prestep_callback, call_prestep_callback)
     
     // DON'T TOUCH!
     // These were chosen carefully for speed, and some operations
@@ -272,24 +272,16 @@ private:
     struct CallbackHelper {
         using TheConsumer = TypeListGet<typename ConsumersList::List, ConsumerIndex>;
         
-        template <typename Ret, typename... Args>
-        static bool maybe_call_command_callback (AxisStepper *o, uint8_t consumer_id, Ret *ret, Args... args)
+        template <typename... Args>
+        static bool call_command_callback (Args... args)
         {
-            if (AMBRO_LIKELY(consumer_id == ConsumerIndex || ConsumerIndex == TypeListLength<typename ConsumersList::List>::value - 1)) {
-                *ret = TheConsumer::CommandCallback::call(args...);
-                return false;
-            }
-            return true;
+            return TheConsumer::CommandCallback::call(args...);
         }
         
-        template <typename Ret, typename... Args>
-        static bool maybe_call_prestep_callback (AxisStepper *o, uint8_t consumer_id, Ret *ret, Args... args)
+        template <typename... Args>
+        static bool call_prestep_callback (Args... args)
         {
-            if (AMBRO_LIKELY(consumer_id == ConsumerIndex || ConsumerIndex == TypeListLength<typename ConsumersList::List>::value - 1)) {
-                *ret = TheConsumer::PrestepCallback::call(args...);
-                return false;
-            }
-            return true;
+            return TheConsumer::PrestepCallback::call(args...);
         }
     };
     
@@ -298,11 +290,10 @@ private:
         AxisStepper *o = self(c);
         AMBRO_ASSERT(o->m_running)
         
+        Command *current_command = o->m_current_command;
         if (AMBRO_LIKELY(!o->m_notend)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
-            bool res;
-            Command *new_command;
-            TupleForEachForwardInterruptible(&dummy, Foreach_maybe_call_command_callback(), o, o->m_consumer_id, &res, c, o->m_current_command, &new_command);
+            bool res = TupleForOneAlways<bool>(o->m_consumer_id, &dummy, Foreach_call_command_callback(), c, current_command, &current_command);
             if (AMBRO_UNLIKELY(!res)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
@@ -310,24 +301,24 @@ private:
                 return false;
             }
             
-            o->m_current_command = new_command;
-            stepper(c)->setDir(c, o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
-            o->m_notdecel = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
-            StepFixedType x = StepFixedType::importBits(o->m_current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
+            o->m_current_command = current_command;
+            stepper(c)->setDir(c, current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
+            o->m_notdecel = (current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
+            StepFixedType x = StepFixedType::importBits(current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
             o->m_notend = (x.bitsValue() != 0);
             if (AMBRO_UNLIKELY(!o->m_notend)) {
-                o->m_time += o->m_current_command->t_mul.template bitsTo<time_bits>().bitsValue();
+                o->m_time += current_command->t_mul.template bitsTo<time_bits>().bitsValue();
                 o->m_timer.setNext(c, o->m_time);
                 return true;
             }
             auto xs = x.toSigned().template shiftBits<(-discriminant_prec)>();
-            auto a = o->m_current_command->a_mul.template undoShiftBitsLeft<(amul_shift-discriminant_prec)>();
+            auto a = current_command->a_mul.template undoShiftBitsLeft<(amul_shift-discriminant_prec)>();
             auto x_minus_a = (xs - a).toUnsignedUnsafe();
             o->m_discriminant = x_minus_a * x_minus_a;
             if (AMBRO_LIKELY(o->m_notdecel)) {
                 o->m_v0 = (xs + a).toUnsignedUnsafe();
                 o->m_pos = StepFixedType::importBits(x.bitsValue() - 1);
-                o->m_time += o->m_current_command->t_mul.template bitsTo<time_bits>().bitsValue();
+                o->m_time += current_command->t_mul.template bitsTo<time_bits>().bitsValue();
             } else {
                 o->m_x = x;
                 o->m_v0 = x_minus_a;
@@ -337,8 +328,7 @@ private:
         
         if (AMBRO_UNLIKELY(o->m_prestep_callback_enabled)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
-            bool res;
-            TupleForEachForwardInterruptible(&dummy, Foreach_maybe_call_prestep_callback(), o, o->m_consumer_id, &res, c);
+            bool res = TupleForOneAlways<bool>(o->m_consumer_id, &dummy, Foreach_call_prestep_callback(), c);
             if (AMBRO_UNLIKELY(res)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
@@ -349,14 +339,14 @@ private:
         
         stepper(c)->stepOn(c);
         
-        o->m_discriminant.m_bits.m_int += o->m_current_command->a_mul.m_bits.m_int;
+        o->m_discriminant.m_bits.m_int += current_command->a_mul.m_bits.m_int;
         AMBRO_ASSERT(o->m_discriminant.bitsValue() >= 0)
         
         auto q = (o->m_v0 + FixedSquareRoot<true>(o->m_discriminant, OptionForceInline())).template shift<-1>();
         
         auto t_frac = FixedFracDivide(o->m_pos, q, OptionForceInline());
         
-        auto t_mul = o->m_current_command->t_mul;
+        auto t_mul = current_command->t_mul;
         TimeFixedType t = FixedResMultiply(t_mul, t_frac);
         
         stepper(c)->stepOff(c);
