@@ -293,7 +293,7 @@ private:
         Command *current_command = o->m_current_command;
         if (AMBRO_LIKELY(!o->m_notend)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
-            bool res = TupleForOneAlways<bool>(o->m_consumer_id, &dummy, Foreach_call_command_callback(), c, current_command, &current_command);
+            bool res = TupleForOneAlways<bool>(o->m_consumer_id, &dummy, Foreach_call_command_callback(), c, &current_command);
             if (AMBRO_UNLIKELY(!res)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
