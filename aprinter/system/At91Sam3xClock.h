@@ -280,7 +280,6 @@ public:
     static void setNext (HandlerContext c, TimeType time)
     {
         At91Sam3xClockInterruptTimer *o = self(c);
-        o->debugAccess(c);
         AMBRO_ASSERT(o->m_running)
         AMBRO_ASSERT((ch()->TC_IMR & CpMask))
         

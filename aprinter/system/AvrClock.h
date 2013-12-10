@@ -343,7 +343,6 @@ public:
     static void setNext (HandlerContext c, TimeType time)
     {
         AvrClock16BitInterruptTimer *o = self(c);
-        o->debugAccess(c);
         AMBRO_ASSERT(o->m_running)
         AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
         
