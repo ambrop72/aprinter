@@ -615,15 +615,15 @@ public:
             o->m_num_committed = 0;
         }
         
-        static bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand **out_cmd)
+        static bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand *prev_cmd, StepperCommand **out_cmd)
         {
             Axis *o = self(c);
             MotionPlanner *m = MotionPlanner::self(c);
             AMBRO_ASSERT(o->m_first >= 0)
             AMBRO_ASSERT(m->m_state == STATE_STEPPING)
-            AMBRO_ASSERT(*out_cmd == &index_command(c, o->m_first)->scmd)
+            AMBRO_ASSERT(prev_cmd == &index_command(c, o->m_first)->scmd)
             
-            TheAxisStepperCommand *cmd = GetContainer(*out_cmd, &TheAxisStepperCommand::scmd);
+            TheAxisStepperCommand *cmd = GetContainer(prev_cmd, &TheAxisStepperCommand::scmd);
             c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
             o->m_num_committed--;
             o->m_first = cmd->next;

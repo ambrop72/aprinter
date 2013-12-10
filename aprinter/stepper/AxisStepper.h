@@ -301,7 +301,8 @@ private:
         if (AMBRO_LIKELY(!o->m_notend)) {
             IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
             bool res;
-            TupleForEachForwardInterruptible(&dummy, Foreach_maybe_call_command_callback(), o, o->m_consumer_id, &res, c, &o->m_current_command);
+            Command *new_command;
+            TupleForEachForwardInterruptible(&dummy, Foreach_maybe_call_command_callback(), o, o->m_consumer_id, &res, c, o->m_current_command, &new_command);
             if (AMBRO_UNLIKELY(!res)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
@@ -309,6 +310,7 @@ private:
                 return false;
             }
             
+            o->m_current_command = new_command;
             stepper(c)->setDir(c, o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
             o->m_notdecel = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
             StepFixedType x = StepFixedType::importBits(o->m_current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
