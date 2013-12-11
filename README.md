@@ -7,7 +7,8 @@ It supports many controller boards based on AVR, as well as Arduino Due.
 ## Implemented features (possibly with bugs)
 
   * SD card printing (reading of sequential blocks only, no filesystem or partition support).
-  * Serial communication using the defacto RepRap protocol. Maximum baud rate on AVR is 115200.
+  * Serial communication using the defacto RepRap protocol. Maximum baud rate is 250000 except on Melzi/atmega1284p
+    where only 115200 is supported due to unfavourable interrupt priorities.
   * Homing, including homing of multiple axes at the same time. Either min- or max- endstops can be used.
     Endstops are only used during homing and not for detecting collisions.
   * Line motion with acceleration control and speed limit (F parameter to G0/G1).
@@ -28,6 +29,7 @@ It supports many controller boards based on AVR, as well as Arduino Due.
 
 ## Planned features (in the approximate order of priority):
 
+  * Delta robots and other coordinate transformations (CoreXY, polar).
   * Further optimization of the planning and stepping code, both for speed and memory usage.
   * Runtime configurability and settings in EEPROM.
   * SD card FAT32 support and write support.
@@ -108,7 +110,7 @@ For information about specific types of configuration, see the sections about SD
 
 ## Testing it
 
-  * Connect to the printer with Pronterface, and make sure you use baud rate 115200 (for AVR) or 250000 (for Due).
+  * Connect to the printer with Pronterface, and make sure you use baud rate 250000, or 115200 for Melzi.
   * Try homing and some basic motion.
   * Check the current temperatures (M105).
   * Only try turning on the heaters once you've verified that the temperatures are being reported correctly.
@@ -122,11 +124,9 @@ For information about specific types of configuration, see the sections about SD
 
 The firmware supports reading G-code from an SD card. However, the G-code needs to be written directly to the SD card in sequential blocks, starting with the first block (where the partition table would normally reside).
 
-SD card support is working and enabled by default on RAMPS and RAMPS-FD. On Melzi, it is untested and not enabled,
-but if you need it, you can try enabling it yourself, based on how it's done in the RAMPS main file.
-But be careful, the SsPin is different.
+SD card support is working and enabled by default on all three supported boards (RAMPS1.4, Melzi, RAMPS-FD).
 
-**WARNING.** If you have enabled SD card after it wasn't enabled in the default configuration,
+**WARNING.** If you have enabled SD card after it wasn't enabled in the your configuration,
 you should [check your RAM usage](README.md#ram-usage).
 If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters starting fires).
 
@@ -160,101 +160,20 @@ All axes, heaters and fans are independent, and the firmware does not know anyth
   The recommended choices for the second extruder fan are M406,M407, and for the third extruder fan M416,M417, respectively.
 
 The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands, but more about that will be explained later.
+
+The default main files for RAMPS1.4 and RAMPS-FD already support two extruders.
+If you want more axes, heaters or fans, specify them the same way that the existing ones are specified.
+However, you will need to allocate a hardware `output compare unit` for each axis/heater/fan
+that you wish to add. For more information, consult the [OC units section](README.md#output-compare-units).
 First, you need to configure you firmware for multiple extruders in the first place.
 
-Open your main file and add the new axes, heaters and fans. In particular, if you're adding a second extruder to a Ramps1.3/1.4 board, use the following:
-
-```
-...
-// Add these floating point constants for the second extuder axis,
-// after the section for the first extruder (EDefault...).
-using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);
-using UDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
-using UDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
-using UDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
-using UDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
-using UDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using UDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(32.0);
-...
-        // Add this to the list of axes, and don't forget a comma above.
-        PrinterMainAxisParams<
-            'U', // Name
-            MegaPin34, // DirPin
-            MegaPin36, // StepPin
-            MegaPin30, // EnablePin
-            true, // InvertDir
-            UDefaultStepsPerUnit, // StepsPerUnit
-            UDefaultMin, // Min
-            UDefaultMax, // Max
-            UDefaultMaxSpeed, // MaxSpeed
-            UDefaultMaxAccel, // MaxAccel
-            UDefaultDistanceFactor, // DistanceFactor
-            UDefaultCorneringDistance, // CorneringDistance
-            PrinterMainNoHomingParams,
-            false, // EnableCartesianSpeedLimit
-            32, // StepBits
-            AxisStepperParams<
-                AvrClockInterruptTimer_TC0_OCB // StepperTimer
-            >
-        >
-...
-        // Add this to the list of heaters, and don't forget a comma above.
-        PrinterMainHeaterParams<
-            'U', // Name
-            404, // SetMCommand
-            409, // WaitMCommand
-            402, // SetConfigMCommand
-            MegaPinA15, // AdcPin
-            MegaPin9, // OutputPin
-            AvrThermistorTable_Extruder, // Formula
-            ExtruderHeaterMinSafeTemp, // MinSafeTemp
-            ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
-            ExtruderHeaterPulseInterval, // PulseInterval
-            ExtruderHeaterControlInterval, // ControlInterval
-            PidControl, // Control
-            PidControlParams<
-                ExtruderHeaterPidP, // PidP
-                ExtruderHeaterPidI, // PidI
-                ExtruderHeaterPidD, // PidD
-                ExtruderHeaterPidIStateMin, // PidIStateMin
-                ExtruderHeaterPidIStateMax, // PidIStateMax
-                ExtruderHeaterPidDHistory // PidDHistory
-            >,
-            TemperatureObserverParams<
-                ExtruderHeaterObserverInterval, // ObserverInterval
-                ExtruderHeaterObserverTolerance, // ObserverTolerance
-                ExtruderHeaterObserverMinTime // ObserverMinTime
-            >,
-            AvrClockInterruptTimer_TC0_OCA // TimerTemplate
-        >
-...
-        // If you have a separate fan for the second extruder, add this to the list of fans.
-        // Again, don't forget a comma above.
-        PrinterMainFanParams<
-            406, // SetMCommand
-            407, // OffMCommand
-            MegaPin5, // OutputPin
-            FanPulseInterval, // PulseInterval
-            FanSpeedMultiply, // SpeedMultiply
-            AvrClockInterruptTimer_TC2_OCA // TimerTemplate
-        >
-...
-// Add this to the list of ISRs.
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(*p.myprinter.getAxisStepper<4>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(*p.myprinter.getHeaterTimer<2>(), MyContext())
-// If you added a fan above, also this:
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCA_ISRS(*p.myprinter.getFanTimer<1>(), MyContext())
-...
-    // add this to main where the extra TC's are inited
-    p.myclock.initTC0(c);
-    p.myclock.initTC2(c); // if you added the fan
-...
-```
-
-As you can see, each axis, heater and fan requires the assignment of a Timer/Counter (TC) output compare (OC) unit. For more information, consult the [OC units section](README.md#output-compare-units).
-
-**WARNING.** After you have enabled SD card support, you should [check your RAM usage](README.md#ram-usage).
+**WARNING.** After you have enabled new axes or other features, you should [check your RAM usage](README.md#ram-usage).
 If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters starting fires).
+
+**NOTE.** If you do something wrong when modifying your main file,
+the result will most likely be an error message several megabytes long.
+Don't try to read it, and instead focus on the code.
+If you give up, [ask me for help](README.md#support).
 
 ## The DeTool g-code postprocessor
 
@@ -354,3 +273,7 @@ $ avr-size aprinter.elf
 
 The number we're interested in here is the sum of `data` and `bss`. You should also reserve around 900 bytes for the stack. So, on atmega2560, your data+bss shoudln't exceed 7300 bytes. If you fall short, you can reduce your RAM usage by lowering `StepperSegmentBufferSize` and `EventChannelBufferSize` (preferably keeping them equal),
 as well as lowering `LookaheadBufferSize`. Alternatively, port your printer to Due/RAMPS-FD ;)
+
+## Support
+
+If you need help or want to ask me a question, you can find me on Freenode IRC in #reprap (nick ambro718), or you can email me to ambrop7 at gmail dot com. If you have found a bug or have a feature request, you can use the issue tracker.
