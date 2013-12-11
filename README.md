@@ -85,8 +85,8 @@ However, any AVR satisfying the following should work, possibly requiring minor 
     Version 4_7-2013q3-20130916-linux has been tested.
     Alternatively, if you're on Gentoo, you can easily build the toolchain yourself:
     `USE="-fortran -openmp" crossdev -s4  --genv 'EXTRA_ECONF="--disable-libstdcxx-time"' armv7m-softfloat-eabi`
-  * Download the [Atmel Software Framework](http://www.atmel.com/tools/AVRSOFTWAREFRAMEWORK.aspx).
-    Version 3.12.1 has been tested.
+  * Download the Atmel Software Framework.
+    Version 3.12.1 has been tested, use this [download link](http://www.atmel.com/images/asf-standalone-archive-3.12.1.82.zip).
   * Edit `compile-rampsfd.sh` and adjust `CROSS` and `ASF_DIR` appropriately.
   * Run `compile-rampsfd.sh` to build the firmware. This needs to be run from within the source directory.
   * Download Arduino 1.5 in order to get the `bossac` program. Note that the vanilla `bossac` will not work.
