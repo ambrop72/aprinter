@@ -163,16 +163,16 @@ The included `DeTool.py` script can be used to convert tool-using g-code to a fo
 
 The default main files for RAMPS1.4 and RAMPS-FD already support two extruders.
 If you want more axes, heaters or fans, specify them the same way that the existing ones are specified.
-However, you will need to allocate a hardware `output compare unit` for each axis/heater/fan
+However, you will need to allocate a hardware *output compare unit* for each axis/heater/fan
 that you wish to add. For more information, consult the [OC units section](README.md#output-compare-units).
-First, you need to configure you firmware for multiple extruders in the first place.
 
 **WARNING.** After you have enabled new axes or other features, you should [check your RAM usage](README.md#ram-usage).
 If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters starting fires).
 
 **NOTE.** If you do something wrong when modifying your main file,
 the result will most likely be an error message several megabytes long.
-Don't try to read it, and instead focus on the code.
+Yes, that's the price of doing the kind of metaprogramming used in this code.
+Don't try to read the message, and instead focus on the code.
 If you give up, [ask me for help](README.md#support).
 
 ## The DeTool g-code postprocessor
