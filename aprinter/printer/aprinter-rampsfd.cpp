@@ -44,10 +44,10 @@ static void emergency (void);
 #include <aprinter/system/At91Sam3xWatchdog.h>
 #include <aprinter/system/At91Sam3xSerial.h>
 #include <aprinter/system/At91Sam3xSpi.h>
-#include <aprinter/devices/PidControl.h>
-#include <aprinter/devices/BinaryControl.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <aprinter/printer/PidControl.h>
+#include <aprinter/printer/BinaryControl.h>
 #include <aprinter/printer/arduino_due_pins.h>
 #include <generated/AvrThermistorTable_Extruder.h>
 #include <generated/AvrThermistorTable_Bed.h>

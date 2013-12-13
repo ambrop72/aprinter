@@ -46,10 +46,10 @@ static void emergency (void);
 #include <aprinter/system/AvrWatchdog.h>
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/system/AvrSpi.h>
-#include <aprinter/devices/PidControl.h>
-#include <aprinter/devices/BinaryControl.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <aprinter/printer/PidControl.h>
+#include <aprinter/printer/BinaryControl.h>
 #include <generated/AvrThermistorTable_Extruder.h>
 #include <generated/AvrThermistorTable_Bed.h>
 
