@@ -60,6 +60,8 @@ using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
+using AdcFreq = AMBRO_WRAP_DOUBLE(1000000.0);
+using AdcAvgInterval = AMBRO_WRAP_DOUBLE(0.0025);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
@@ -485,14 +487,25 @@ using PrinterParams = PrinterMainParams<
 >;
 
 // need to list all used ADC pins here
+static const uint16_t AdcSmoothing = 0.18 * 65536.0;
 using AdcPins = MakeTypeList<
-    DuePinA1,
-    DuePinA0,
-    DuePinA2
+    At91Sam3xAdcSmoothPin<DuePinA1, AdcSmoothing>,
+    At91Sam3xAdcSmoothPin<DuePinA0, AdcSmoothing>,
+    At91Sam3xAdcSmoothPin<DuePinA2, AdcSmoothing>
 >;
 
-using AdcFreq = AMBRO_WRAP_DOUBLE(1000000.0);
-using AdcParams = At91Sam3xAdcParams<AdcFreq, 8, 3, 0, 1>;
+using AdcParams = At91Sam3xAdcParams<
+    AdcFreq,
+    8, // AdcStartup
+    3, // AdcSettling
+    0, // AdcTracking
+    1, // AdcTransfer
+    At91Sam3xAdcAvgParams<
+        AdcAvgInterval,
+        At91Sam3xClockInterruptTimer_TC7B // TimerTemplate
+    >
+>;
+
 static const int clock_timer_prescaler = 3;
 using ClockTcsList = MakeTypeList<
     At91Sam3xClockTC0,
@@ -591,6 +604,7 @@ AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5B_GLOBAL(*p.myprinter.getHeaterTimer<1>
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6A_GLOBAL(*p.myprinter.getHeaterTimer<2>(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6B_GLOBAL(*p.myprinter.getFanTimer<0>(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7A_GLOBAL(*p.myprinter.getFanTimer<1>(), MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7B_GLOBAL(*p.myadc.getAvgTimer(), MyContext())
 
 AMBRO_AT91SAM3X_SERIAL_GLOBAL(*p.myprinter.getSerial(), MyContext())
 AMBRO_AT91SAM3X_SPI_GLOBAL(*p.myprinter.getSdCard()->getSpi(), MyContext())
