@@ -1534,11 +1534,18 @@ private:
         template <typename TheChannelCommon>
         static void append_value (Context c, TheChannelCommon *cc)
         {
-            double value = get_value(c).doubleValue();
+            auto adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
+            double value = HeaterSpec::Formula::call(adc_value).doubleValue();
             cc->reply_append_ch(c, ' ');
             cc->reply_append_ch(c, HeaterSpec::Name);
             cc->reply_append_ch(c, ':');
             cc->reply_append_double(c, value);
+#ifdef PRINTERMAIN_DEBUG_ADC
+            cc->reply_append_ch(c, ' ');
+            cc->reply_append_ch(c, HeaterSpec::Name);
+            cc->reply_append_ch(c, 'A');
+            cc->reply_append_uint32(c, adc_value);
+#endif
         }
         
         template <typename ThisContext>
