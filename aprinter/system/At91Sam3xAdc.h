@@ -295,21 +295,21 @@ private:
             static void handle_timer (ThisContext c)
             {
                 TheHelper *o = self(c);
-                o->m_state = (((uint32_t)(65536 - TheSmoothFactor) * ADC->ADC_CDR[AdcIndex]) + ((uint32_t)TheSmoothFactor * o->m_state)) >> 16;
+                o->m_state = (((uint64_t)(65536 - TheSmoothFactor) * ((uint32_t)ADC->ADC_CDR[AdcIndex] << 16)) + ((uint64_t)TheSmoothFactor * o->m_state)) >> 16;
             }
             
             template <typename ThisContext>
             static uint16_t get_value (ThisContext c)
             {
                 TheHelper *o = self(c);
-                uint16_t value;
+                uint32_t value;
                 AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                     value = o->m_state;
                 }
-                return value;
+                return ((value >> 16) + ((value >> 15) & 1));
             }
             
-            uint16_t m_state;
+            uint32_t m_state;
         };
         
         TheHelper m_helper;
