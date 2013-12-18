@@ -54,14 +54,16 @@ static void emergency (void);
 
 using namespace APrinter;
 
+using AdcFreq = AMBRO_WRAP_DOUBLE(1000000.0);
+using AdcAvgInterval = AMBRO_WRAP_DOUBLE(0.0025);
+static uint16_t const AdcSmoothing = 0.95 * 65536.0;
+
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
-using AdcFreq = AMBRO_WRAP_DOUBLE(1000000.0);
-using AdcAvgInterval = AMBRO_WRAP_DOUBLE(0.0025);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
@@ -487,7 +489,6 @@ using PrinterParams = PrinterMainParams<
 >;
 
 // need to list all used ADC pins here
-static const uint16_t AdcSmoothing = 0.18 * 65536.0;
 using AdcPins = MakeTypeList<
     At91Sam3xAdcSmoothPin<DuePinA1, AdcSmoothing>,
     At91Sam3xAdcSmoothPin<DuePinA0, AdcSmoothing>,
