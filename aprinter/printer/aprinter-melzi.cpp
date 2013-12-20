@@ -559,6 +559,11 @@ using PrinterParams = PrinterMainParams<
     >,
     
     /*
+     * Transform and virtual axes.
+     */
+    PrinterMainNoTransformParams,
+    
+    /*
      * Heaters.
      */
     MakeTypeList<

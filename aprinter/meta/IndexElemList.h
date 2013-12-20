@@ -32,11 +32,14 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename List, template<int> class ElemTemplate>
-using IndexElemList = MapTypeList<
-    SequenceList<TypeListLength<List>::value>,
+template <int Count, template<int> class ElemTemplate>
+using IndexElemListCount = MapTypeList<
+    SequenceList<Count>,
     ValueTemplateFunc<int, ElemTemplate>
 >;
+
+template <typename List, template<int> class ElemTemplate>
+using IndexElemList = IndexElemListCount<TypeListLength<List>::value, ElemTemplate>;
 
 #include <aprinter/EndNamespace.h>
 

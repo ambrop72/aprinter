@@ -22,37 +22,43 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_TYPE_LIST_INDEX_H
-#define AMBROLIB_TYPE_LIST_INDEX_H
-
-#include <aprinter/meta/TypeList.h>
+#ifndef AMBROLIB_IDENTITY_TRANSFORM_H
+#define AMBROLIB_IDENTITY_TRANSFORM_H
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename List, typename Predicate>
-struct TypeListIndex;
-
-template <typename Head, typename Tail, typename Predicate, bool Satisfies>
-struct TypeListIndexHelper;
-
-template <typename Head, typename Tail, typename Predicate>
-struct TypeListIndexHelper<Head, Tail, Predicate, true> {
-    static const int value = 0;
+template <int TNumAxes>
+struct IdentityTransformParams {
+    static int const NumAxes = TNumAxes;
 };
 
-template <typename Head, typename Tail, typename Predicate>
-struct TypeListIndexHelper<Head, Tail, Predicate, false> {
-    static const int value = 1 + TypeListIndex<Tail, Predicate>::value;
-};
-
-template <typename Head, typename Tail, typename Predicate>
-struct TypeListIndex<ConsTypeList<Head, Tail>, Predicate> {
-    static const int value = TypeListIndexHelper<Head, Tail, Predicate, Predicate::template Call<Head>::Type::value>::value;
-};
-
-template <typename Predicate>
-struct TypeListIndex<EmptyTypeList, Predicate> {
-    static const int value = -1;
+template <typename Params>
+class IdentityTransform {
+public:
+    static int const NumAxes = Params::NumAxes;
+    
+    static void virtToPhys (double const *virt, double *out_phys)
+    {
+        for (int i = 0; i < NumAxes; i++) {
+            out_phys[i] = virt[i];
+        }
+    }
+    
+    static void physToVirt (double const *phys, double *out_virt)
+    {
+        for (int i = 0; i < NumAxes; i++) {
+            out_virt[i] = phys[i];
+        }
+    }
+    
+    void startSplit (double const *virt)
+    {
+    }
+    
+    double pullSplit ()
+    {
+        return 1.0;  
+    }
 };
 
 #include <aprinter/EndNamespace.h>

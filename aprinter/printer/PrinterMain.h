@@ -86,7 +86,7 @@ template <
     typename TForceTimeout, template <typename, typename, typename> class TEventChannelTimer,
     template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
     typename TSdCardParams, typename TProbeParams,
-    typename TAxesList, typename THeatersList, typename TFansList
+    typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
@@ -105,6 +105,7 @@ struct PrinterMainParams {
     using SdCardParams = TSdCardParams;
     using ProbeParams = TProbeParams;
     using AxesList = TAxesList;
+    using TransformParams = TTransformParams;
     using HeatersList = THeatersList;
     using FansList = TFansList;
 };
@@ -173,6 +174,22 @@ struct PrinterMainHomingParams {
     using DefaultFastSpeed = TDefaultFastSpeed;
     using DefaultRetractSpeed = TDefaultRetractSpeed;
     using DefaultSlowSpeed = TDefaultSlowSpeed;
+};
+
+struct PrinterMainNoTransformParams {
+    static const bool Enabled = false;
+};
+
+template <
+    typename TVirtAxesList, typename TPhysAxesList,
+    template<typename> class TTransformAlg, typename TTransformAlgParams
+>
+struct PrinterMainTransformParams {
+    static bool const Enabled = true;
+    using VirtAxesList = TVirtAxesList;
+    using PhysAxesList = TPhysAxesList;
+    template <typename X> using TransformAlg = TTransformAlg<X>;
+    using TransformAlgParams = TTransformAlgParams;
 };
 
 template <
@@ -306,9 +323,14 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_add_axis, add_axis)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_get_coord, get_coord)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_report_height, report_height)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_read_phys_pos, read_phys_pos)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_virt_pos, write_virt_pos)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_move_phys, move_phys)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_add_virt_distance, add_virt_distance)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     
     struct WatchdogPosition;
     struct BlinkerPosition;
@@ -316,6 +338,7 @@ private:
     template <int AxisIndex> struct AxisPosition;
     template <int AxisIndex> struct HomingFeaturePosition;
     template <int AxisIndex> struct HomingStatePosition;
+    struct TransformFeaturePosition;
     struct SerialFeaturePosition;
     struct SdCardFeaturePosition;
     struct PlannerPosition;
@@ -337,6 +360,7 @@ private:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using AxesList = typename Params::AxesList;
+    using TransformParams = typename Params::TransformParams;
     using HeatersList = typename Params::HeatersList;
     using FansList = typename Params::FansList;
     static const int num_axes = TypeListLength<AxesList>::value;
@@ -1172,6 +1196,7 @@ private:
                     axis->m_req_pos = (AxisSpec::Homing::home_dir ? axis->max_req_pos() : axis->min_req_pos());
                     axis->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(axis->dist_from_real(axis->m_req_pos));
                     axis->m_state = AXIS_STATE_OTHER;
+                    m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
                     m->m_homing_rem_axes--;
                     if (m->m_homing_rem_axes == 0) {
                         homing_finished(c);
@@ -1323,36 +1348,14 @@ private:
             return PrinterMain::self(c)->m_steppers.template getStepper<AxisIndex>(c);
         }
         
-        static void init_new_pos (Context c, MoveBuildState *s)
-        {
-            Axis *o = self(c);
-            s->new_pos[AxisIndex] = o->m_req_pos;
-        }
-        
         static void update_new_pos (Context c, MoveBuildState *s, double req)
         {
-            Axis *o = self(c);
-            req = clamp_req_pos(req);
-            s->new_pos[AxisIndex] = req;
+            PrinterMain *m = PrinterMain::self(c);
+            s->new_pos[AxisIndex] = clamp_req_pos(req);
             if (AxisSpec::enable_cartesian_speed_limit) {
                 s->seen_cartesian = true;
             }
-        }
-        
-        template <typename TheChannelCommon>
-        static void collect_new_pos (Context c, TheChannelCommon *cc, MoveBuildState *s, typename TheChannelCommon::GcodeParserCommandPart *part)
-        {
-            Axis *o = self(c);
-            if (AMBRO_UNLIKELY(part->code == axis_name)) {
-                double req = strtod(part->data, NULL);
-                if (isnan(req)) {
-                    req = 0.0;
-                }
-                if (o->m_relative_positioning) {
-                    req += o->m_req_pos;
-                }
-                update_new_pos(c, s, req);
-            }
+            m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
         }
         
         template <typename PlannerCmd>
@@ -1390,23 +1393,12 @@ private:
             Axis *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
             using RemStepsType = typename ChooseInt<AxisSpec::StepBits, true>::Type;
-            o->m_end_pos.m_bits.m_int -= m->m_planner.template countAbortedRemSteps<AxisIndex, RemStepsType>(c);
-            o->m_req_pos = dist_to_real(o->m_end_pos.doubleValue());
-        }
-        
-        template <typename TheChannelCommon>
-        static void append_position (Context c, TheChannelCommon *cc)
-        {
-            Axis *o = self(c);
-            cc->reply_append_ch(c, axis_name);
-            cc->reply_append_ch(c, ':');
-            cc->reply_append_double(c, o->m_req_pos);
-        }
-        
-        static void set_relative_positioning (Context c, bool relative)
-        {
-            Axis *o = self(c);
-            o->m_relative_positioning = relative;
+            RemStepsType rem_steps = m->m_planner.template countAbortedRemSteps<AxisIndex, RemStepsType>(c);
+            if (rem_steps != 0) {
+                o->m_end_pos.m_bits.m_int -= rem_steps;
+                o->m_req_pos = dist_to_real(o->m_end_pos.doubleValue());
+                m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
+            }
         }
         
         template <typename TheChannelCommon>
@@ -1451,6 +1443,17 @@ private:
         struct AxisStepperGetStepper : public AMBRO_WFUNC_TD(&Axis::axis_get_stepper) {};
     };
     
+    using AxesTuple = IndexElemTuple<AxesList, Axis>;
+    
+    template <int AxisName>
+    using FindAxis = TypeListIndex<
+        typename AxesTuple::ElemTypes,
+        ComposeFunctions<
+            IsEqualFunc<WrapInt<AxisName>>,
+            GetMemberType_WrappedAxisName
+        >
+    >;
+    
     template <typename TheAxis>
     using MakePlannerAxisSpec = MotionPlannerAxisSpec<
         typename TheAxis::TheAxisStepper,
@@ -1459,6 +1462,248 @@ private:
         typename TheAxis::AxisSpec::DefaultDistanceFactor,
         typename TheAxis::AxisSpec::DefaultCorneringDistance,
         PlannerPrestepCallback<TheAxis::AxisIndex>
+    >;
+    
+    AMBRO_STRUCT_IF(TransformFeature, TransformParams::Enabled) {
+        template <int VirtAxisIndex> struct VirtAxisPosition;
+        
+        using VirtAxesList = typename TransformParams::VirtAxesList;
+        using PhysAxesList = typename TransformParams::PhysAxesList;
+        using TheTransformAlg = typename TransformParams::template TransformAlg<typename TransformParams::TransformAlgParams>;
+        static int const NumVirtAxes = TheTransformAlg::NumAxes;
+        static_assert(TypeListLength<VirtAxesList>::value == NumVirtAxes, "");
+        static_assert(TypeListLength<PhysAxesList>::value == NumVirtAxes, "");
+        
+        struct MoveStateExtra {
+            bool seen_virt;
+            double virt_old_pos[NumVirtAxes];
+        };
+        
+        static TransformFeature * self (Context c)
+        {
+            return PositionTraverse<typename Context::TheRootPosition, TransformFeaturePosition>(c.root());
+        }
+        
+        static void init (Context c)
+        {
+            TransformFeature *o = self(c);
+            TupleForEachForward(&o->m_virt_axes, Foreach_init(), c);
+            update_virt_from_phys(c);
+            o->m_virt_update_pending = false;
+        }
+        
+        static void update_virt_from_phys (Context c)
+        {
+            TransformFeature *o = self(c);
+            double phys_pos[NumVirtAxes];
+            TupleForEachForward(&o->m_virt_axes, Foreach_read_phys_pos(), c, phys_pos);
+            double virt_pos[NumVirtAxes];
+            TheTransformAlg::physToVirt(phys_pos, virt_pos);
+            TupleForEachForward(&o->m_virt_axes, Foreach_write_virt_pos(), c, virt_pos);
+        }
+        
+        static void init_move_state_extra (Context c, MoveBuildState *s)
+        {
+            s->seen_virt = false;
+        }
+        
+        static void resolve_virt (Context c, MoveBuildState *s)
+        {
+            TransformFeature *o = self(c);
+            if (s->seen_virt) {
+                double phys_pos[NumVirtAxes];
+                TheTransformAlg::virtToPhys(s->new_pos + num_axes, phys_pos);
+                o->m_virt_update_pending = false;
+                TupleForEachForward(&o->m_virt_axes, Foreach_move_phys(), c, s, phys_pos);
+            }
+        }
+        
+        static void resolve_virt_post (Context c, MoveBuildState *s, double *distance_squared)
+        {
+            TransformFeature *o = self(c);
+            if (s->seen_virt) {
+                TupleForEachForward(&o->m_virt_axes, Foreach_add_virt_distance(), c, s, distance_squared);
+            }
+        }
+        
+        template <int PhysAxisIndex>
+        static void mark_phys_moved (Context c)
+        {
+            TransformFeature *o = self(c);
+            if (IsPhysAxisTransformPhys<PhysAxisIndex>::value) {
+                o->m_virt_update_pending = true;
+            }
+        }
+        
+        static void do_pending_virt_update (Context c)
+        {
+            TransformFeature *o = self(c);
+            if (o->m_virt_update_pending) {
+                update_virt_from_phys(c);
+                o->m_virt_update_pending = false;
+            }
+        }
+        
+        template <int VirtAxisIndex>
+        struct VirtAxis {
+            static int const axis_name = TypeListGet<VirtAxesList, VirtAxisIndex>::value;
+            static int const PhysAxisIndex = FindAxis<TypeListGet<PhysAxesList, VirtAxisIndex>::value>::value;
+            using ThePhysAxis = Axis<PhysAxisIndex>;
+            static_assert(!ThePhysAxis::AxisSpec::enable_cartesian_speed_limit, "");
+            using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
+            
+            static VirtAxis * self (Context c)
+            {
+                return PositionTraverse<typename Context::TheRootPosition, VirtAxisPosition<VirtAxisIndex>>(c.root());
+            }
+            
+            static void init (Context c)
+            {
+                VirtAxis *o = self(c);
+                o->m_relative_positioning = false;
+            }
+            
+            static void update_new_pos (Context c, MoveBuildState *s, double req)
+            {
+                s->new_pos[num_axes + VirtAxisIndex] = req;
+                s->seen_cartesian = true;
+                s->seen_virt = true;
+            }
+            
+            static void read_phys_pos (Context c, double *out)
+            {
+                ThePhysAxis *axis = ThePhysAxis::self(c);
+                out[VirtAxisIndex] = axis->m_req_pos;
+            }
+            
+            static void write_virt_pos (Context c, double const *in)
+            {
+                VirtAxis *o = self(c);
+                o->m_req_pos = in[VirtAxisIndex];
+            }
+            
+            static void move_phys (Context c, MoveBuildState *s, double const *phys_pos)
+            {
+                VirtAxis *o = self(c);
+                s->virt_old_pos[VirtAxisIndex] = o->m_req_pos;
+                o->m_req_pos = s->new_pos[num_axes + VirtAxisIndex];
+                s->new_pos[PhysAxisIndex] = Axis<PhysAxisIndex>::clamp_req_pos(phys_pos[VirtAxisIndex]);
+                if (s->new_pos[PhysAxisIndex] != phys_pos[VirtAxisIndex]) {
+                    TransformFeature::self(c)->m_virt_update_pending = true;
+                }
+            }
+            
+            static void add_virt_distance (Context c, MoveBuildState *s, double *distance_squared)
+            {
+                VirtAxis *o = self(c);
+                double axis_distance = o->m_req_pos - s->virt_old_pos[VirtAxisIndex];
+                *distance_squared += axis_distance * axis_distance;
+            }
+            
+            double m_req_pos;
+            bool m_relative_positioning;
+        };
+        
+        using VirtAxesTuple = IndexElemTuple<VirtAxesList, VirtAxis>;
+        
+        template <int PhysAxisIndex>
+        using IsPhysAxisTransformPhys = WrapBool<(TypeListIndex<
+            typename VirtAxesTuple::ElemTypes,
+            ComposeFunctions<
+                IsEqualFunc<WrapInt<PhysAxisIndex>>,
+                GetMemberType_WrappedPhysAxisIndex
+            >
+        >::value >= 0)>;
+        
+        VirtAxesTuple m_virt_axes;
+        bool m_virt_update_pending;
+        
+        template <int VirtAxisIndex> struct VirtAxisPosition : public TuplePosition<TransformFeaturePosition, VirtAxesTuple, &TransformFeature::m_virt_axes, VirtAxisIndex> {};
+    } AMBRO_STRUCT_ELSE(TransformFeature) {
+        static int const NumVirtAxes = 0;
+        struct MoveStateExtra {};
+        static void init (Context c) {}
+        static void update_virt_from_phys (Context c) {}
+        static void init_move_state_extra (Context c, MoveBuildState *s) {}
+        static void resolve_virt (Context c, MoveBuildState *s) {}
+        static void resolve_virt_post (Context c, MoveBuildState *s, double *distance_squared) {}
+        template <int PhysAxisIndex>
+        static void mark_phys_moved (Context c) {}
+        static void do_pending_virt_update (Context c) {}
+    };
+    
+    static int const NumPhysVirtAxes = num_axes + TransformFeature::NumVirtAxes;
+    
+    template <bool IsVirt, int PhysVirtAxisIndex>
+    struct GetPhysVirtAxisHelper {
+        using Type = Axis<PhysVirtAxisIndex>;
+    };
+    
+    template <int PhysVirtAxisIndex>
+    struct GetPhysVirtAxisHelper<true, PhysVirtAxisIndex> {
+        using Type = typename TransformFeature::template VirtAxis<(PhysVirtAxisIndex - num_axes)>;
+    };
+    
+    template <int PhysVirtAxisIndex>
+    using GetPhysVirtAxis = typename GetPhysVirtAxisHelper<(PhysVirtAxisIndex >= num_axes), PhysVirtAxisIndex>::Type;
+    
+    template <int PhysVirtAxisIndex>
+    struct PhysVirtAxisHelper {
+        using TheAxis = GetPhysVirtAxis<PhysVirtAxisIndex>;
+        using WrappedAxisName = WrapInt<TheAxis::axis_name>;
+        
+        static void init_new_pos (Context c, MoveBuildState *s)
+        {
+            TheAxis *axis = TheAxis::self(c);
+            s->new_pos[PhysVirtAxisIndex] = axis->m_req_pos;
+        }
+        
+        static void update_new_pos (Context c, MoveBuildState *s, double req)
+        {
+            TheAxis::update_new_pos(c, s, req);
+        }
+        
+        template <typename TheChannelCommon>
+        static void collect_new_pos (Context c, TheChannelCommon *cc, MoveBuildState *s, typename TheChannelCommon::GcodeParserCommandPart *part)
+        {
+            TheAxis *axis = TheAxis::self(c);
+            if (AMBRO_UNLIKELY(part->code == TheAxis::axis_name)) {
+                double req = strtod(part->data, NULL);
+                if (isnan(req)) {
+                    req = 0.0;
+                }
+                if (axis->m_relative_positioning) {
+                    req += axis->m_req_pos;
+                }
+                update_new_pos(c, s, req);
+            }
+        }
+        
+        static void set_relative_positioning (Context c, bool relative)
+        {
+            TheAxis *axis = TheAxis::self(c);
+            axis->m_relative_positioning = relative;
+        }
+        
+        template <typename TheChannelCommon>
+        static void append_position (Context c, TheChannelCommon *cc)
+        {
+            TheAxis *axis = TheAxis::self(c);
+            cc->reply_append_ch(c, TheAxis::axis_name);
+            cc->reply_append_ch(c, ':');
+            cc->reply_append_double(c, axis->m_req_pos);
+        }
+    };
+    
+    using PhysVirtAxisHelperTuple = Tuple<IndexElemListCount<NumPhysVirtAxes, PhysVirtAxisHelper>>;
+    
+    template <int AxisName>
+    using FindPhysVirtAxis = TypeListIndex<
+        typename PhysVirtAxisHelperTuple::ElemTypes,
+        ComposeFunctions<
+            IsEqualFunc<WrapInt<AxisName>>,
+            GetMemberType_WrappedAxisName
+        >
     >;
     
     template <int HeaterIndex>
@@ -1919,25 +2164,15 @@ private:
     using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
     using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, MotionPlannerChannels>;
     using PlannerInputCommand = typename ThePlanner::InputCommand;
-    using AxesTuple = IndexElemTuple<AxesList, Axis>;
     
     template <int AxisIndex>
     using HomingStateTupleHelper = typename Axis<AxisIndex>::HomingFeature::HomingState;
     using HomingStateTuple = IndexElemTuple<AxesList, HomingStateTupleHelper>;
     
-    template <int AxisName>
-    using FindAxis = TypeListIndex<
-        typename AxesTuple::ElemTypes,
-        ComposeFunctions<
-            IsEqualFunc<WrapInt<AxisName>>,
-            GetMemberType_WrappedAxisName
-        >
-    >;
-    
     AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::enabled) {
         using ProbeParams = typename Params::ProbeParams;
         static const int NumPoints = TypeListLength<typename ProbeParams::ProbePoints>::value;
-        static const int ProbeAxisIndex = FindAxis<Params::ProbeParams::ProbeAxis>::value;
+        static const int ProbeAxisIndex = FindPhysVirtAxis<Params::ProbeParams::ProbeAxis>::value;
         
         static ProbeFeature * self (Context c)
         {
@@ -1976,7 +2211,7 @@ private:
         template <int PlatformAxisIndex>
         struct AxisHelper {
             using PlatformAxis = TypeListGet<typename ProbeParams::PlatformAxesList, PlatformAxisIndex>;
-            static const int AxisIndex = FindAxis<PlatformAxis::value>::value;
+            static const int AxisIndex = FindPhysVirtAxis<PlatformAxis::value>::value;
             using AxisProbeOffset = TypeListGet<typename ProbeParams::ProbePlatformOffset, PlatformAxisIndex>;
             
             static void add_axis (Context c, MoveBuildState *s, uint8_t point_index)
@@ -2098,7 +2333,7 @@ private:
         
         static double get_height (Context c)
         {
-            return Axis<ProbeAxisIndex>::self(c)->m_req_pos;
+            return GetPhysVirtAxis<ProbeAxisIndex>::self(c)->m_req_pos;
         }
         
         template <typename TheChannelCommon>
@@ -2139,6 +2374,7 @@ public:
         o->m_serial_feature.init(c);
         o->m_sdcard_feature.init(c);
         TupleForEachForward(&o->m_axes, Foreach_init(), c);
+        o->m_transform_feature.init(c);
         TupleForEachForward(&o->m_heaters, Foreach_init(), c);
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
         o->m_probe_feature.init(c);
@@ -2310,7 +2546,8 @@ private:
                 } break;
                 
                 case 114: {
-                    TupleForEachForward(&o->m_axes, Foreach_append_position(), c, cc);
+                    PhysVirtAxisHelperTuple dummy;
+                    TupleForEachForward(&dummy, Foreach_append_position(), c, cc);
                     cc->reply_append_ch(c, '\n');
                     return cc->finishCommand(c);
                 } break;
@@ -2334,7 +2571,8 @@ private:
                     move_begin(c, &s);
                     for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->m_cmd->num_parts; i++) {
                         typename TheChannelCommon::GcodeParserCommandPart *part = &cc->m_cmd->parts[i];
-                        TupleForEachForward(&o->m_axes, Foreach_collect_new_pos(), c, cc, &s, part);
+                        PhysVirtAxisHelperTuple dummy;
+                        TupleForEachForward(&dummy, Foreach_collect_new_pos(), c, cc, &s, part);
                         if (part->code == 'F') {
                             o->m_max_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
                         }
@@ -2366,12 +2604,14 @@ private:
                 } break;
                 
                 case 90: { // absolute positioning
-                    TupleForEachForward(&o->m_axes, Foreach_set_relative_positioning(), c, false);
+                    PhysVirtAxisHelperTuple dummy;
+                    TupleForEachForward(&dummy, Foreach_set_relative_positioning(), c, false);
                     return cc->finishCommand(c);
                 } break;
                 
                 case 91: { // relative positioning
-                    TupleForEachForward(&o->m_axes, Foreach_set_relative_positioning(), c, true);
+                    PhysVirtAxisHelperTuple dummy;
+                    TupleForEachForward(&dummy, Foreach_set_relative_positioning(), c, true);
                     return cc->finishCommand(c);
                 } break;
                 
@@ -2418,6 +2658,7 @@ private:
         AMBRO_ASSERT(o->m_locked)
         AMBRO_ASSERT(o->m_homing_rem_axes == 0)
         
+        o->m_transform_feature.do_pending_virt_update(c);
         now_inactive(c);
         finish_locked(c);
     }
@@ -2561,6 +2802,7 @@ private:
         AMBRO_ASSERT(o->m_planner_state == PLANNER_PROBE)
         
         TupleForEachForward(&o->m_axes, Foreach_fix_aborted_pos(), c);
+        o->m_transform_feature.do_pending_virt_update(c);
         o->m_probe_feature.custom_aborted_handler(c);
     }
     
@@ -2580,35 +2822,41 @@ private:
         return o->m_probe_feature.prestep_callback(c);
     }
     
-    struct MoveBuildState {
-        double new_pos[num_axes];
+    struct MoveBuildState : public TransformFeature::MoveStateExtra {
+        double new_pos[NumPhysVirtAxes];
         bool seen_cartesian;
     };
     
     static void move_begin (Context c, MoveBuildState *s)
     {
         PrinterMain *o = self(c);
-        TupleForEachForward(&o->m_axes, Foreach_init_new_pos(), c, s);
+        PhysVirtAxisHelperTuple dummy;
+        TupleForEachForward(&dummy, Foreach_init_new_pos(), c, s);
         s->seen_cartesian = false;
+        o->m_transform_feature.init_move_state_extra(c, s);
     }
     
-    template <int AxisIndex>
+    template <int PhysVirtAxisIndex>
     static void move_add_axis (Context c, MoveBuildState *s, double value)
     {
-        Axis<AxisIndex>::update_new_pos(c, s, value);
+        PhysVirtAxisHelper<PhysVirtAxisIndex>::update_new_pos(c, s, value);
     }
     
     static void move_end (Context c, MoveBuildState *s, double max_speed)
     {
         PrinterMain *o = self(c);
+        o->m_transform_feature.resolve_virt(c, s);
         PlannerInputCommand cmd;
-        double distance = 0.0;
+        double distance_squared = 0.0;
         double total_steps = 0.0;
-        TupleForEachForward(&o->m_axes, Foreach_process_new_pos(), c, s, max_speed, &distance, &total_steps, &cmd);
-        distance = sqrt(distance);
+        TupleForEachForward(&o->m_axes, Foreach_process_new_pos(), c, s, max_speed, &distance_squared, &total_steps, &cmd);
+        o->m_transform_feature.do_pending_virt_update(c);
+        o->m_transform_feature.resolve_virt_post(c, s, &distance_squared);
         cmd.type = 0;
-        cmd.rel_max_v_rec = FloatMakePosOrPosZero(distance / (max_speed * Clock::time_unit));
-        cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
+        cmd.rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
+        if (s->seen_cartesian) {
+            cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, FloatMakePosOrPosZero(sqrt(distance_squared) / (max_speed * Clock::time_unit)));
+        }
         submit_planner_command(c, &cmd);
     }
     
@@ -2666,6 +2914,7 @@ private:
     SerialFeature m_serial_feature;
     SdCardFeature m_sdcard_feature;
     AxesTuple m_axes;
+    TransformFeature m_transform_feature;
     HeatersTuple m_heaters;
     FansTuple m_fans;
     ProbeFeature m_probe_feature;
@@ -2691,6 +2940,7 @@ private:
     template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &PrinterMain::m_axes, AxisIndex> {};
     template <int AxisIndex> struct HomingFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, typename Axis<AxisIndex>::HomingFeature, &Axis<AxisIndex>::m_homing_feature> {};
     template <int AxisIndex> struct HomingStatePosition : public TuplePosition<Position, HomingStateTuple, &PrinterMain::m_homers, AxisIndex> {};
+    struct TransformFeaturePosition : public MemberPosition<Position, TransformFeature, &PrinterMain::m_transform_feature> {};
     struct SerialFeaturePosition : public MemberPosition<Position, SerialFeature, &PrinterMain::m_serial_feature> {};
     struct SdCardFeaturePosition : public MemberPosition<Position, SdCardFeature, &PrinterMain::m_sdcard_feature> {};
     struct PlannerPosition : public MemberPosition<Position, ThePlanner, &PrinterMain::m_planner> {};
