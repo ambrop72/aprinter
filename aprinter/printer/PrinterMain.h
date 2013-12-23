@@ -1788,7 +1788,7 @@ private:
 #ifdef PRINTERMAIN_DEBUG_ADC
             cc->reply_append_ch(c, ' ');
             cc->reply_append_ch(c, HeaterSpec::Name);
-            cc->reply_append_ch(c, 'A');
+            cc->reply_append_pstr(c, AMBRO_PSTR("A:"));
             cc->reply_append_uint32(c, adc_value);
 #endif
         }
