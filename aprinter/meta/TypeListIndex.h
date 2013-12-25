@@ -42,7 +42,8 @@ struct TypeListIndexHelper<Head, Tail, Predicate, true> {
 
 template <typename Head, typename Tail, typename Predicate>
 struct TypeListIndexHelper<Head, Tail, Predicate, false> {
-    static const int value = 1 + TypeListIndex<Tail, Predicate>::value;
+    static const int tail_index = TypeListIndex<Tail, Predicate>::value;
+    static const int value = (tail_index >= 0) + tail_index;
 };
 
 template <typename Head, typename Tail, typename Predicate>
