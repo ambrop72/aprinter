@@ -25,11 +25,14 @@
 #ifndef AMBROLIB_IDENTITY_TRANSFORM_H
 #define AMBROLIB_IDENTITY_TRANSFORM_H
 
+#include <math.h>
+
 #include <aprinter/BeginNamespace.h>
 
-template <int TNumAxes>
+template <int TNumAxes, uint32_t TSplit>
 struct IdentityTransformParams {
     static int const NumAxes = TNumAxes;
+    static uint32_t const Split = TSplit;
 };
 
 template <typename Params>
@@ -51,14 +54,34 @@ public:
         }
     }
     
-    void startSplit (double const *virt)
-    {
-    }
-    
-    double pullSplit ()
-    {
-        return 1.0;  
-    }
+    class Splitter {
+    public:
+        void start (double const *old_virt, double const *virt)
+        {
+            double d0 = fabs(old_virt[0] - virt[0]);
+            double d1 = fabs(old_virt[1] - virt[1]);
+            double d2 = fabs(old_virt[2] - virt[2]);
+            double dist = fmax(d0, fmax(d1, d2));
+            m_count = ceil(dist * (1.0 / (Params::Split / 1000.0)));
+            if (m_count == 0) {
+                m_count = 1;
+            }
+            m_pos = 1;
+        }
+        
+        bool pull (double *out_frac)
+        {
+            if (m_pos == m_count) {
+                return false;
+            }
+            *out_frac = (double)m_pos / m_count;
+            m_pos++;
+            return true;
+        }
+        
+        uint32_t m_count;
+        uint32_t m_pos;
+    };
 };
 
 #include <aprinter/EndNamespace.h>
