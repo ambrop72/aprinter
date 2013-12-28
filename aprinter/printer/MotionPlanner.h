@@ -151,7 +151,6 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_stopped_stepping, stopped_stepping)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment, write_segment)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_gen_command, gen_command)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commit_segment, commit_segment)
     
 public:
     template <int AxisIndex>
@@ -1078,6 +1077,8 @@ public:
             o->m_waiting = true;
             if (o->m_state == STATE_BUFFERING) {
                 continue_wait(c);
+            } else if (LookaheadCommitCount > 1 && o->m_segments_staging_length != o->m_segments_length) {
+                plan(c);
             }
         }
     }
@@ -1190,16 +1191,16 @@ private:
                 o->m_segments_length++;
             } while (o->m_split_buffer.type != 0xFF);
             
+            if (AMBRO_LIKELY(!o->m_underrun && o->m_segments_staging_length != o->m_segments_length && o->m_segments_length == LookaheadBufferSize)) {
+                plan(c);
+            }
+            
             if (o->m_split_buffer.type == 0xFF) {
                 o->m_pull_finished_event.prependNowNotAlready(c);
                 return;
             }
             if (AMBRO_UNLIKELY(o->m_underrun)) {
                 return;
-            }
-            
-            if (AMBRO_LIKELY(o->m_segments_staging_length != o->m_segments_length)) {
-                plan(c);
             }
             
             if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
@@ -1453,11 +1454,6 @@ private:
         if (o->m_split_buffer.type != 0xFF) {
             work(c);
         }
-    }
-    
-    static SegmentBufferSizeType segments_inc (SegmentBufferSizeType i)
-    {
-        return (i == LookaheadBufferSize - 1) ? 0 : (i + 1);
     }
     
     static SegmentBufferSizeType segments_add (SegmentBufferSizeType i, SegmentBufferSizeType j)
