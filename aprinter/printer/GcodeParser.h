@@ -332,9 +332,6 @@ private:
         }
         
         char code = o->m_buffer[o->m_temp];
-        if (code >= 'a') {
-            code -= 32;
-        }
         
         o->m_buffer[o->m_command.length] = '\0';
         
