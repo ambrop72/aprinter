@@ -43,6 +43,7 @@ template <
     int PlannerStepBits,
     typename PlannerDistanceFactor, typename PlannerCorneringDistance,
     int PlannerStepperSegmentBufferSize, int PlannerSegmentBufferSizeExp,
+    int PlannerLookaheadCommitCount,
     typename SwitchPin, bool SwitchInvert, bool HomeDir,
     typename GetAxisStepper, typename FinishedHandler
 >
@@ -57,7 +58,7 @@ private:
     struct PlannerPrestepCallback;
     
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, GetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
-    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler>;
+    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerLookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler>;
     using PlannerCommand = typename Planner::InputCommand;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
     

@@ -194,7 +194,8 @@ using PrinterParams = PrinterMainParams<
     MaxStepsPerCycle, // MaxStepsPerCycle
     32, // StepperSegmentBufferSize
     32, // EventChannelBufferSize
-    8, // LookaheadBufferSize
+    16, // LookaheadBufferSize
+    9, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     At91Sam3xClockInterruptTimer_TC0A, // EventChannelTimer
     At91Sam3xWatchdog,

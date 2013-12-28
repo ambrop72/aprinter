@@ -92,6 +92,7 @@ struct MotionPlannerChannelSpec {
 
 template <
     typename Position, typename Context, typename AxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
+    int LookaheadCommitCount,
     typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename ChannelsList = EmptyTypeList
 >
 class MotionPlanner
@@ -103,6 +104,8 @@ private:
     
     static_assert(StepperSegmentBufferSize >= 6, "");
     static_assert(LookaheadBufferSize >= 2, "");
+    static_assert(LookaheadCommitCount >= 1, "");
+    static_assert(LookaheadCommitCount <= LookaheadBufferSize, "");
     using Loop = typename Context::EventLoop;
     using TimeType = typename Context::Clock::TimeType;
     static const int NumAxes = TypeListLength<AxesList>::value;
@@ -129,6 +132,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_entry_accel, compute_segment_buffer_entry_accel)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment_buffer_entry_extra, write_segment_buffer_entry_extra)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_cornering_speed, compute_segment_buffer_cornering_speed)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_commands, start_commands)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_gen_segment_stepper_commands, gen_segment_stepper_commands)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_complete_new, complete_new)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_have_commit_space, have_commit_space)
@@ -420,7 +424,14 @@ public:
             return fmin(accum, (AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / (dm * axis_split->max_a_rec));
         }
         
-        static void gen_segment_stepper_commands (Context c, Segment *entry, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared, bool is_first)
+        static void start_commands (Context c)
+        {
+            Axis *o = self(c);
+            o->m_commit_count = 0;
+            o->m_commit_last = o->m_last_committed;
+        }
+        
+        static void gen_segment_stepper_commands (Context c, Segment *entry, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared, bool is_commit)
         {
             Axis *o = self(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
@@ -475,9 +486,9 @@ public:
                 gen_stepper_command(c, axis_entry, x2, t2, -a2);
             }
             
-            if (AMBRO_UNLIKELY(is_first)) {
-                o->m_first_segment_num_stepper_entries = num_stepper_entries;
-                o->m_first_segment_last_stepper_entry = o->m_new_last;
+            if (AMBRO_UNLIKELY(is_commit)) {
+                o->m_commit_count += num_stepper_entries;
+                o->m_commit_last = o->m_new_last;
             }
         }
         
@@ -504,22 +515,19 @@ public:
         static bool have_commit_space (bool accum, Context c)
         {
             Axis *o = self(c);
-            return (accum && o->m_num_committed <= 3 * (StepperSegmentBufferSize - 1));
+            return (accum && o->m_num_committed <= (3 * StepperSegmentBufferSize) - o->m_commit_count);
         }
         
-        static void commit_segment_hot (Context c, Segment *entry)
+        static void commit_segment_hot (Context c)
         {
             Axis *o = self(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            AMBRO_ASSERT(o->m_num_committed <= 3 * StepperSegmentBufferSize - o->m_first_segment_num_stepper_entries)
-            o->m_num_committed += o->m_first_segment_num_stepper_entries;
+            o->m_num_committed += o->m_commit_count;
         }
         
-        static void commit_segment_finish (Context c, Segment *entry)
+        static void commit_segment_finish (Context c)
         {
             Axis *o = self(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            o->m_last_committed = o->m_first_segment_last_stepper_entry;
+            o->m_last_committed = o->m_commit_last;
         }
         
         static void dispose_new (Context c)
@@ -726,8 +734,8 @@ public:
         StepperCommandSizeType m_new_last;
         StepperCommandSizeType m_free_first;
         StepperCommandSizeType m_num_committed;
-        uint8_t m_first_segment_num_stepper_entries;
-        StepperCommandSizeType m_first_segment_last_stepper_entry;
+        StepperCommandSizeType m_commit_count;
+        StepperCommandSizeType m_commit_last;
         TheAxisStepperCommand m_stepper_entries[NumStepperCommands];
     };
     
@@ -790,7 +798,14 @@ public:
             channel_entry->payload = *UnionGetElem<ChannelIndex>(&m->m_split_buffer.channel_payload);
         }
         
-        static void gen_command (Context c, Segment *entry, TimeType time)
+        static void start_commands (Context c)
+        {
+            Channel *o = self(c);
+            o->m_commit_count = 0;
+            o->m_commit_last = o->m_last_committed;
+        }
+        
+        static void gen_command (Context c, Segment *entry, TimeType time, bool is_commit)
         {
             Channel *o = self(c);
             TheChannelSegment *channel_entry = UnionGetElem<ChannelIndex>(&entry->channels);
@@ -804,6 +819,10 @@ public:
             }
             o->m_new_last = cmd;
             channel_entry->command = cmd;
+            if (AMBRO_UNLIKELY(is_commit)) {
+                o->m_commit_count++;
+                o->m_commit_last = o->m_new_last;
+            }
         }
         
         static void complete_new (Context c)
@@ -886,33 +905,22 @@ public:
             o->m_timer.setFirst(c, o->m_channel_commands[o->m_first].time);
         }
         
-        static bool commit_segment (Context c, Segment *entry)
+        static bool have_commit_space (bool accum, Context c)
         {
             Channel *o = self(c);
-            MotionPlanner *m = MotionPlanner::self(c);
-            TheChannelSegment *channel_entry = UnionGetElem<ChannelIndex>(&entry->channels);
-            
-            if (m->m_state == STATE_BUFFERING) {
-                if (o->m_num_committed == ChannelSpec::BufferSize) {
-                    planner_start_stepping(c);
-                    return false;
-                }
-                o->m_num_committed++;
-            } else {
-                bool cleared = false;
-                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    m->m_underrun = planner_is_underrun(c);
-                    if (!m->m_underrun && o->m_num_committed != ChannelSpec::BufferSize) {
-                        o->m_num_committed++;
-                        cleared = true;
-                    }
-                }
-                if (!cleared) {
-                    return false;
-                }
-            }
-            o->m_last_committed = channel_entry->command;
-            return true;
+            return (accum && o->m_num_committed <= ChannelSpec::BufferSize - o->m_commit_count);
+        }
+        
+        static void commit_segment_hot (Context c)
+        {
+            Channel *o = self(c);
+            o->m_num_committed += o->m_commit_count;
+        }
+        
+        static void commit_segment_finish (Context c)
+        {
+            Channel *o = self(c);
+            o->m_last_committed = o->m_commit_last;
         }
         
         static bool is_empty (bool accum, Context c)
@@ -965,6 +973,8 @@ public:
         ChannelCommandSizeType m_new_last;
         ChannelCommandSizeType m_free_first;
         ChannelCommandSizeType m_num_committed;
+        ChannelCommandSizeType m_commit_count;
+        ChannelCommandSizeType m_commit_last;
         TheTimer m_timer;
         TheChannelCommand m_channel_commands[NumChannelCommands];
         
@@ -1180,10 +1190,6 @@ private:
                 o->m_segments_length++;
             } while (o->m_split_buffer.type != 0xFF);
             
-            if (AMBRO_LIKELY(!o->m_underrun && o->m_segments_staging_length != o->m_segments_length)) {
-                plan(c);
-            }
-            
             if (o->m_split_buffer.type == 0xFF) {
                 o->m_pull_finished_event.prependNowNotAlready(c);
                 return;
@@ -1192,38 +1198,43 @@ private:
                 return;
             }
             
-            Segment *entry = &o->m_segments[o->m_segments_start];
-            if (entry->type == 0) {
-                if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
-                    if (!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c)) {
-                        planner_start_stepping(c);
-                        return;
-                    }
-                    TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c, entry);
-                } else {
-                    bool cleared = false;
-                    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                        o->m_underrun = planner_is_underrun(c);
-                        if (!o->m_underrun && TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c)) {
-                            TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c, entry);
-                            cleared = true;
-                        }
-                    }
-                    if (!cleared) {
-                        return;
+            if (AMBRO_LIKELY(o->m_segments_staging_length != o->m_segments_length)) {
+                plan(c);
+            }
+            
+            if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
+                if (!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c) ||
+                    !TupleForEachForwardAccRes(&o->m_channels, true, Foreach_have_commit_space(), c)
+                ) {
+                    planner_start_stepping(c);
+                    return;
+                }
+                TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c);
+                TupleForEachForward(&o->m_channels, Foreach_commit_segment_hot(), c);
+            } else {
+                bool cleared = false;
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                    o->m_underrun = planner_is_underrun(c);
+                    if (!o->m_underrun &&
+                        TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c) &&
+                        TupleForEachForwardAccRes(&o->m_channels, true, Foreach_have_commit_space(), c)
+                    ) {
+                        TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c);
+                        TupleForEachForward(&o->m_channels, Foreach_commit_segment_hot(), c);
+                        cleared = true;
                     }
                 }
-                TupleForEachForward(&o->m_axes, Foreach_commit_segment_finish(), c, entry);
-            } else {
-                if (!TupleForOneOffset<1, bool>(entry->type, &o->m_channels, Foreach_commit_segment(), c, entry)) {
+                if (!cleared) {
                     return;
                 }
             }
-            o->m_segments_start = segments_inc(o->m_segments_start);
-            o->m_segments_length--;
-            o->m_segments_staging_length--;
-            o->m_staging_time += o->m_first_segment_time_duration;
-            o->m_staging_v_squared = o->m_first_segment_end_speed_squared;
+            TupleForEachForward(&o->m_axes, Foreach_commit_segment_finish(), c);
+            TupleForEachForward(&o->m_channels, Foreach_commit_segment_finish(), c);
+            o->m_segments_start = segments_add(o->m_segments_start, LookaheadCommitCount);
+            o->m_segments_length -= LookaheadCommitCount;
+            o->m_segments_staging_length -= LookaheadCommitCount;
+            o->m_staging_time += o->m_commit_time_duration;
+            o->m_staging_v_squared = o->m_commit_end_speed_squared;
         }
     }
     
@@ -1256,12 +1267,13 @@ private:
         i = 0;
         v = o->m_staging_v_squared;
         double v_start = sqrt(o->m_staging_v_squared);
-        TimeType time = o->m_staging_time;
+        TimeType rel_time = 0;
+        TupleForEachForward(&o->m_axes, Foreach_start_commands(), c);
+        TupleForEachForward(&o->m_channels, Foreach_start_commands(), c);
         do {
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
             LinearPlannerSegmentResult result;
             v = LinearPlannerPull(&entry->lp_seg, &state[i], v, &result);
-            TimeType time_duration;
             if (entry->type == 0) {
                 double v_end = sqrt(v);
                 double v_const = sqrt(result.const_v);
@@ -1269,25 +1281,24 @@ private:
                 double t2_double = (v_const - v_end) * entry->max_accel_rec;
                 double t1_double = (1.0 - result.const_start - result.const_end) * entry->rel_max_speed_rec;
                 MinTimeType t1 = MinTimeType::importDoubleSaturatedRound(t0_double + t2_double + t1_double);
-                time_duration = t1.bitsValue();
-                time += t1.bitsValue();
+                rel_time += t1.bitsValue();
                 MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t0_double));
                 t1.m_bits.m_int -= t0.bitsValue();
                 MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t2_double));
                 t1.m_bits.m_int -= t2.bitsValue();
                 TupleForEachForward(&o->m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
-                                    t0_double * t0_double, t2_double * t2_double, i == 0);
+                                    t0_double * t0_double, t2_double * t2_double, i < LookaheadCommitCount);
                 v_start = v_end;
             } else {
-                time_duration = 0;
-                TupleForOneOffset<1>(entry->type, &o->m_channels, Foreach_gen_command(), c, entry, time);
-            }
-            if (AMBRO_UNLIKELY(i == 0)) {
-                o->m_first_segment_end_speed_squared = v;
-                o->m_first_segment_time_duration = time_duration;
+                TupleForOneOffset<1>(entry->type, &o->m_channels, Foreach_gen_command(), c, entry,
+                                     (TimeType)(o->m_staging_time + rel_time), i < LookaheadCommitCount);
             }
             i++;
+            if (AMBRO_UNLIKELY(i == LookaheadCommitCount)) {
+                o->m_commit_end_speed_squared = v;
+                o->m_commit_time_duration = rel_time;
+            }
         } while (i != o->m_segments_length);
         
         TupleForEachForward(&o->m_axes, Foreach_complete_new(), c);
@@ -1460,8 +1471,8 @@ private:
     SegmentBufferSizeType m_segments_length;
     TimeType m_staging_time;
     double m_staging_v_squared;
-    double m_first_segment_end_speed_squared;
-    TimeType m_first_segment_time_duration;
+    double m_commit_end_speed_squared;
+    TimeType m_commit_time_duration;
     double m_last_distance_rec;
     uint8_t m_state;
     bool m_underrun;

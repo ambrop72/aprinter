@@ -420,6 +420,7 @@ using PrinterParams = PrinterMainParams<
     32, // StepperSegmentBufferSize
     32, // EventChannelBufferSize
     4, // LookaheadBufferSize
+    1, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     AvrClockInterruptTimer_TC2_OCA, // EventChannelTimer
     AvrWatchdog,

@@ -85,6 +85,7 @@ template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
     int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSizeExp,
+    int TLookaheadCommitCount,
     typename TForceTimeout, template <typename, typename, typename> class TEventChannelTimer,
     template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
     typename TSdCardParams, typename TProbeParams,
@@ -100,6 +101,7 @@ struct PrinterMainParams {
     static const int StepperSegmentBufferSize = TStepperSegmentBufferSize;
     static const int EventChannelBufferSize = TEventChannelBufferSize;
     static const int LookaheadBufferSizeExp = TLookaheadBufferSizeExp;
+    static const int LookaheadCommitCount = TLookaheadCommitCount;
     using ForceTimeout = TForceTimeout;
     template <typename X, typename Y, typename Z> using EventChannelTimer = TEventChannelTimer<X, Y, Z>;
     template <typename X, typename Y, typename Z> using WatchdogTemplate = TWatchdogTemplate<X, Y, Z>;
@@ -1188,7 +1190,8 @@ private:
                 using Homer = AxisHomer<
                     HomerPosition, Context, TheAxisStepper, AxisSpec::StepBits,
                     typename AxisSpec::DefaultDistanceFactor, typename AxisSpec::DefaultCorneringDistance,
-                    Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, typename AxisSpec::Homing::EndPin,
+                    Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, Params::LookaheadCommitCount,
+                    typename AxisSpec::Homing::EndPin,
                     AxisSpec::Homing::end_invert, AxisSpec::Homing::home_dir, HomerGetAxisStepper, HomerFinishedHandler
                 >;
                 
@@ -2343,7 +2346,7 @@ private:
     
     using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, Params::template EventChannelTimer>>;
     using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
-    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, MotionPlannerChannels>;
+    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, Params::LookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, MotionPlannerChannels>;
     using PlannerInputCommand = typename ThePlanner::InputCommand;
     
     template <int AxisIndex>

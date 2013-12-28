@@ -193,6 +193,7 @@ using PrinterParams = PrinterMainParams<
     22, // StepperSegmentBufferSize
     22, // EventChannelBufferSize
     4, // LookaheadBufferSize
+    1, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     AvrClockInterruptTimer_TC5_OCC, // EventChannelTimer
     AvrWatchdog,
