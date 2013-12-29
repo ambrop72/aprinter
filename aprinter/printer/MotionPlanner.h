@@ -445,23 +445,10 @@ public:
             StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::importDoubleSaturatedRound(frac_x2 * axis_entry->x.doubleValue()));
             x1.m_bits.m_int -= x2.bitsValue();
             
-            StepperAccelFixedType a0;
-            StepperAccelFixedType a2;
-            
-            if (x0.bitsValue() != 0) {
-                a0 = StepperAccelFixedType::importDoubleSaturatedRound(axis_entry->half_accel * t0_squared);
-                if (a0.bitsValue() > x0.bitsValue()) {
-                    a0.m_bits.m_int = x0.bitsValue();
-                }
-            } else {
+            if (x0.bitsValue() == 0) {
                 t1.m_bits.m_int += t0.bitsValue();
             }
-            if (x2.bitsValue() != 0) {
-                a2 = StepperAccelFixedType::importDoubleSaturatedRound(axis_entry->half_accel * t2_squared);
-                if (a2.bitsValue() > x2.bitsValue()) {
-                    a2.m_bits.m_int = x2.bitsValue();
-                }
-            } else {
+            if (x2.bitsValue() == 0) {
                 t1.m_bits.m_int += t2.bitsValue();
             }
             
@@ -479,7 +466,7 @@ public:
             uint8_t num_stepper_entries = 0;
             if (x0.bitsValue() != 0) {
                 num_stepper_entries++;
-                gen_stepper_command(c, dir, x0, t0, a0);
+                gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::importDoubleSaturatedRound(axis_entry->half_accel * t0_squared)));
             }
             if (gen1) {
                 num_stepper_entries++;
@@ -487,7 +474,7 @@ public:
             }
             if (x2.bitsValue() != 0) {
                 num_stepper_entries++;
-                gen_stepper_command(c, dir, x2, t2, -a2);
+                gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::importDoubleSaturatedRound(axis_entry->half_accel * t2_squared)));
             }
             
             if (AMBRO_UNLIKELY(is_commit)) {
