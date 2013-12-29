@@ -881,10 +881,9 @@ private:
         {
             SdCardFeature *o = self(c);
             if (o->m_state != SDCARD_NONE && o->m_state != SDCARD_INITING) {
-                o->m_gcode_parser.init(c);
+                o->m_gcode_parser.deinit(c);
             }
             o->m_next_event.deinit(c);
-            o->m_gcode_parser.deinit(c);
             o->m_sdcard.deinit(c);
         }
         
