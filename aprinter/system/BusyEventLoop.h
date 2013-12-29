@@ -81,6 +81,9 @@ public:
         for (typename Extra::FastEventSizeType i = 0; i < Extra::NumFastEvents; i++) {
             extra(c)->m_fast_events[i].not_triggered = true;
         }
+#ifdef EVENTLOOP_BENCHMARK
+        o->m_bench_time = 0;
+#endif
         
         o->debugInit(c);
     }
@@ -107,8 +110,10 @@ public:
                 if (!extra(c)->m_fast_events[extra(c)->m_fast_event_pos].not_triggered) {
                     extra(c)->m_fast_events[extra(c)->m_fast_event_pos].not_triggered = true;
                     sei();
+                    bench_start_measuring(c);
                     extra(c)->m_fast_events[extra(c)->m_fast_event_pos].handler(c);
                     c.check();
+                    bench_stop_measuring(c);
                     break;
                 }
                 sei();
@@ -122,8 +127,10 @@ public:
                 if ((TimeType)(now - ev->m_time) < UINT32_C(0x80000000)) {
                     o->m_queued_event_list.remove(ev);
                     QueuedEventList::markRemoved(ev);
+                    bench_start_measuring(c);
                     ev->m_handler(ev, c);
                     c.check();
+                    bench_stop_measuring(c);
 #ifdef AMBROLIB_SUPPORT_QUIT
                     if (o->m_quitting) {
                         return;
@@ -134,6 +141,20 @@ public:
             }
         }
     }
+    
+#ifdef EVENTLOOP_BENCHMARK
+    static void resetBenchTime (Context c)
+    {
+        BusyEventLoop *o = self(c);
+        o->m_bench_time = 0;
+    }
+    
+    static TimeType getBenchTime (Context c)
+    {
+        BusyEventLoop *o = self(c);
+        return o->m_bench_time;
+    }
+#endif
     
 #ifdef AMBROLIB_SUPPORT_QUIT
     static void quit (Context c)
@@ -186,11 +207,31 @@ private:
         return PositionTraverse<typename Context::TheRootPosition, ExtraPosition>(c.root());
     }
     
+    static void bench_start_measuring (Context c)
+    {
+#ifdef EVENTLOOP_BENCHMARK
+        BusyEventLoop *o = self(c);
+        o->m_bench_enter_time = c.clock()->getTime(c);
+#endif
+    }
+    
+    static void bench_stop_measuring (Context c)
+    {
+#ifdef EVENTLOOP_BENCHMARK
+        BusyEventLoop *o = self(c);
+        o->m_bench_time += (TimeType)(c.clock()->getTime(c) - o->m_bench_enter_time);
+#endif
+    }
+    
 #ifdef AMBROLIB_SUPPORT_QUIT
     bool m_quitting;
 #endif
     TimeType m_now;
     QueuedEventList m_queued_event_list;
+#ifdef EVENTLOOP_BENCHMARK
+    TimeType m_bench_time;
+    TimeType m_bench_enter_time;
+#endif
 };
 
 template <typename Position, typename Loop, typename FastEventList>

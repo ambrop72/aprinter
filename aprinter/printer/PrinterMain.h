@@ -2740,6 +2740,25 @@ private:
                     TupleForEachForward(&o->m_heaters, Foreach_print_config(), c, cc);
                     return cc->finishCommand(c);
                 } break;
+                
+#ifdef EVENTLOOP_BENCHMARK
+                case 916: { // reset benchmark time
+                    if (!cc->tryUnplannedCommand(c)) {
+                        return;
+                    }
+                    c.eventLoop()->resetBenchTime(c);
+                    return cc->finishCommand(c);
+                } break;
+                
+                case 917: { // print benchmark time
+                    if (!cc->tryUnplannedCommand(c)) {
+                        return;
+                    }
+                    cc->reply_append_uint32(c, c.eventLoop()->getBenchTime(c));
+                    cc->reply_append_ch(c, '\n');
+                    return cc->finishCommand(c);
+                } break;
+#endif
             } break;
             
             case 'G': switch (cc->m_cmd_num) {
