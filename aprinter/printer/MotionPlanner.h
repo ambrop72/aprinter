@@ -117,6 +117,7 @@ private:
     using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
     using UnsignedStepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, false>::Type;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
+    using AxisMaskType = typename ChooseInt<NumAxes, false>::Type;
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
@@ -235,7 +236,6 @@ private:
         using TheAxisStepper = typename AxisSpec::TheAxisStepper;
         using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
         
-        bool dir;
         StepperStepFixedType x;
         double half_accel;
     };
@@ -257,6 +257,7 @@ private:
             struct {
                 double max_accel_rec;
                 double rel_max_speed_rec;
+                AxisMaskType dir;
                 IndexElemTuple<AxesList, AxisSegment> axes;
             };
             IndexElemUnion<ChannelsList, ChannelSegment> channels;
@@ -291,6 +292,7 @@ public:
         using TheAxisSegment = AxisSegment<AxisIndex>;
         using TheAxisStepperCommand = AxisStepperCommand<AxisIndex>;
         static const bool PrestepCallbackEnabled = !TypesAreEqual<typename AxisSpec::PrestepCallback, void>::value;
+        static const AxisMaskType TheAxisMask = (AxisMaskType)1 << AxisIndex;
         
         static Axis * self (Context c)
         {
@@ -377,7 +379,9 @@ public:
             } else {
                 new_x = FixedMin(axis_split->x, StepFixedType::importDoubleSaturatedRound(m->m_split_buffer.split_pos * m->m_split_buffer.split_frac * axis_split->x.doubleValue()));
             }
-            axis_entry->dir = axis_split->dir;
+            if (axis_split->dir) {
+                entry->dir |= TheAxisMask;
+            }
             axis_entry->x = StepperStepFixedType::importBits(new_x.bitsValue() - axis_split->x_pos.bitsValue());
             axis_split->x_pos = new_x;
         }
@@ -418,7 +422,7 @@ public:
             TheAxisSegment *prev_axis_entry = TupleGetElem<AxisIndex>(&prev_entry->axes);
             double m1 = axis_entry->x.doubleValue() * entry_distance_rec;
             double m2 = prev_axis_entry->x.doubleValue() * m->m_last_distance_rec;
-            bool dir_changed = axis_entry->dir != prev_axis_entry->dir;
+            bool dir_changed = (entry->dir ^ prev_entry->dir) & TheAxisMask;
             double dm = (dir_changed ? (m1 + m2) : fabs(m1 - m2));
             return fmin(accum, (AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / (dm * axis_split->max_a_rec));
         }
@@ -471,18 +475,19 @@ public:
                 }
             }
             
+            bool dir = entry->dir & TheAxisMask;
             uint8_t num_stepper_entries = 0;
             if (x0.bitsValue() != 0) {
                 num_stepper_entries++;
-                gen_stepper_command(c, axis_entry, x0, t0, a0);
+                gen_stepper_command(c, dir, x0, t0, a0);
             }
             if (gen1) {
                 num_stepper_entries++;
-                gen_stepper_command(c, axis_entry, x1, t1, StepperAccelFixedType::importBits(0));
+                gen_stepper_command(c, dir, x1, t1, StepperAccelFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
                 num_stepper_entries++;
-                gen_stepper_command(c, axis_entry, x2, t2, -a2);
+                gen_stepper_command(c, dir, x2, t2, -a2);
             }
             
             if (AMBRO_UNLIKELY(is_commit)) {
@@ -491,12 +496,12 @@ public:
             }
         }
         
-        static void gen_stepper_command (Context c, TheAxisSegment *axis_entry, StepperStepFixedType x, StepperTimeFixedType t, StepperAccelFixedType a)
+        static void gen_stepper_command (Context c, bool dir, StepperStepFixedType x, StepperTimeFixedType t, StepperAccelFixedType a)
         {
             Axis *o = self(c);
             StepperCommandSizeType entry = o->m_free_first;
             o->m_free_first = index_command(c, o->m_free_first)->next;
-            TheAxisStepper::generate_command(axis_entry->dir, x, t, a, &index_command(c, entry)->scmd);
+            TheAxisStepper::generate_command(dir, x, t, a, &index_command(c, entry)->scmd);
             if (!(o->m_new_first >= 0)) {
                 o->m_new_first = entry;
             }
@@ -708,7 +713,7 @@ public:
             for (SegmentBufferSizeType i = m->m_segments_staging_length; i < m->m_segments_length; i++) {
                 Segment *seg = &m->m_segments[segments_add(m->m_segments_start, i)];
                 TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&seg->axes);
-                if (axis_entry->dir) {
+                if ((seg->dir & TheAxisMask)) {
                     steps += (StepsType)axis_entry->x.bitsValue();
                 } else {
                     steps -= (StepsType)axis_entry->x.bitsValue();
@@ -1154,6 +1159,7 @@ private:
                 entry->type = o->m_split_buffer.type;
                 if (entry->type == 0) {
                     o->m_split_buffer.split_pos++;
+                    entry->dir = 0;
                     TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry(), c, entry);
                     double distance_squared = TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_segment_buffer_entry_distance(), entry);
                     entry->rel_max_speed_rec = TupleForEachForwardAccRes(&o->m_axes, o->m_split_buffer.base_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), c, entry);
