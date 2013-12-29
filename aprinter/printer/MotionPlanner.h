@@ -1149,100 +1149,98 @@ private:
         AMBRO_ASSERT(!o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type != 0 || o->m_split_buffer.split_pos < o->m_split_buffer.split_count)
         
-        while (1) {
-            do {
-                if (o->m_segments_length == LookaheadBufferSize) {
-                    o->m_underrun = o->m_underrun && (o->m_state == STATE_STEPPING);
-                    break;
+        do {
+            if (AMBRO_LIKELY(o->m_segments_length == LookaheadBufferSize)) {
+                if (AMBRO_UNLIKELY(o->m_underrun)) {
+                    return;
                 }
-                Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
-                entry->type = o->m_split_buffer.type;
-                if (entry->type == 0) {
-                    o->m_split_buffer.split_pos++;
-                    entry->dir = 0;
-                    TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry(), c, entry);
-                    double distance_squared = TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_segment_buffer_entry_distance(), entry);
-                    entry->rel_max_speed_rec = TupleForEachForwardAccRes(&o->m_axes, o->m_split_buffer.base_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), c, entry);
-                    double rel_max_accel_rec = TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_segment_buffer_entry_accel(), c, entry);
-                    double distance = sqrt(distance_squared);
-                    double distance_rec = 1.0 / distance;
-                    double rel_max_accel = 1.0 / rel_max_accel_rec;
-                    entry->lp_seg.max_v = distance_squared / (entry->rel_max_speed_rec * entry->rel_max_speed_rec);
-                    entry->lp_seg.max_start_v = entry->lp_seg.max_v;
-                    entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
-                    entry->lp_seg.a_x_rec = 1.0 / entry->lp_seg.a_x;
-                    entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
-                    entry->max_accel_rec = rel_max_accel_rec * distance_rec;
-                    TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
-                    for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
-                        Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
-                        if (AMBRO_LIKELY(prev_entry->type == 0)) {
-                            entry->lp_seg.max_start_v = TupleForEachForwardAccRes(&o->m_axes, entry->lp_seg.max_start_v, Foreach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
-                            break;
+                if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
+                    if (!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c) ||
+                        !TupleForEachForwardAccRes(&o->m_channels, true, Foreach_have_commit_space(), c)
+                    ) {
+                        planner_start_stepping(c);
+                        return;
+                    }
+                    TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c);
+                    TupleForEachForward(&o->m_channels, Foreach_commit_segment_hot(), c);
+                } else {
+                    bool cleared = false;
+                    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                        o->m_underrun = planner_is_underrun(c);
+                        if (!o->m_underrun &&
+                            TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c) &&
+                            TupleForEachForwardAccRes(&o->m_channels, true, Foreach_have_commit_space(), c)
+                        ) {
+                            TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c);
+                            TupleForEachForward(&o->m_channels, Foreach_commit_segment_hot(), c);
+                            cleared = true;
                         }
                     }
-                    o->m_last_distance_rec = distance_rec;
-                    if (!(o->m_split_buffer.split_pos < o->m_split_buffer.split_count)) {
-                        o->m_split_buffer.type = 0xFF;
+                    if (AMBRO_LIKELY(!cleared)) {
+                        return;
                     }
-                } else {
-                    entry->lp_seg.a_x = 0.0;
-                    entry->lp_seg.max_v = INFINITY;
-                    entry->lp_seg.max_start_v = INFINITY;
-                    entry->lp_seg.a_x_rec = INFINITY;
-                    entry->lp_seg.two_max_v_minus_a_x = INFINITY;
-                    TupleForOneOffset<1>(entry->type, &o->m_channels, Foreach_write_segment(), c, entry);
+                }
+                TupleForEachForward(&o->m_axes, Foreach_commit_segment_finish(), c);
+                TupleForEachForward(&o->m_channels, Foreach_commit_segment_finish(), c);
+                o->m_segments_start = segments_add(o->m_segments_start, LookaheadCommitCount);
+                o->m_segments_length -= LookaheadCommitCount;
+                o->m_segments_staging_length -= LookaheadCommitCount;
+                o->m_staging_time += o->m_commit_time_duration;
+                o->m_staging_v_squared = o->m_commit_end_speed_squared;
+            }
+            
+            Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
+            entry->type = o->m_split_buffer.type;
+            if (AMBRO_LIKELY(entry->type == 0)) {
+                o->m_split_buffer.split_pos++;
+                entry->dir = 0;
+                TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry(), c, entry);
+                double distance_squared = TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_segment_buffer_entry_distance(), entry);
+                entry->rel_max_speed_rec = TupleForEachForwardAccRes(&o->m_axes, o->m_split_buffer.base_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), c, entry);
+                double rel_max_accel_rec = TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_segment_buffer_entry_accel(), c, entry);
+                double distance = sqrt(distance_squared);
+                double distance_rec = 1.0 / distance;
+                double rel_max_accel = 1.0 / rel_max_accel_rec;
+                entry->lp_seg.max_v = distance_squared / (entry->rel_max_speed_rec * entry->rel_max_speed_rec);
+                entry->lp_seg.max_start_v = entry->lp_seg.max_v;
+                entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
+                entry->lp_seg.a_x_rec = 1.0 / entry->lp_seg.a_x;
+                entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
+                entry->max_accel_rec = rel_max_accel_rec * distance_rec;
+                TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
+                for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
+                    Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
+                    if (AMBRO_LIKELY(prev_entry->type == 0)) {
+                        entry->lp_seg.max_start_v = TupleForEachForwardAccRes(&o->m_axes, entry->lp_seg.max_start_v, Foreach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
+                        break;
+                    }
+                }
+                o->m_last_distance_rec = distance_rec;
+                if (AMBRO_LIKELY(o->m_split_buffer.split_pos == o->m_split_buffer.split_count)) {
                     o->m_split_buffer.type = 0xFF;
                 }
-                o->m_segments_length++;
-            } while (o->m_split_buffer.type != 0xFF);
-            
-            if (AMBRO_LIKELY(!o->m_underrun && o->m_segments_staging_length != o->m_segments_length && o->m_segments_length == LookaheadBufferSize)) {
-                plan(c);
-            }
-            
-            if (o->m_split_buffer.type == 0xFF) {
-                o->m_pull_finished_event.prependNowNotAlready(c);
-                return;
-            }
-            if (AMBRO_UNLIKELY(o->m_underrun)) {
-                return;
-            }
-            
-            if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
-                if (!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c) ||
-                    !TupleForEachForwardAccRes(&o->m_channels, true, Foreach_have_commit_space(), c)
-                ) {
-                    planner_start_stepping(c);
-                    return;
-                }
-                TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c);
-                TupleForEachForward(&o->m_channels, Foreach_commit_segment_hot(), c);
             } else {
-                bool cleared = false;
-                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    o->m_underrun = planner_is_underrun(c);
-                    if (!o->m_underrun &&
-                        TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c) &&
-                        TupleForEachForwardAccRes(&o->m_channels, true, Foreach_have_commit_space(), c)
-                    ) {
-                        TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c);
-                        TupleForEachForward(&o->m_channels, Foreach_commit_segment_hot(), c);
-                        cleared = true;
-                    }
+                entry->lp_seg.a_x = 0.0;
+                entry->lp_seg.max_v = INFINITY;
+                entry->lp_seg.max_start_v = INFINITY;
+                entry->lp_seg.a_x_rec = INFINITY;
+                entry->lp_seg.two_max_v_minus_a_x = INFINITY;
+                TupleForOneOffset<1>(entry->type, &o->m_channels, Foreach_write_segment(), c, entry);
+                o->m_split_buffer.type = 0xFF;
+            }
+            o->m_segments_length++;
+            
+            if (AMBRO_UNLIKELY(o->m_segments_length == LookaheadBufferSize)) {
+                if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
+                    o->m_underrun = false;
                 }
-                if (!cleared) {
-                    return;
+                if (AMBRO_LIKELY(!o->m_underrun)) {
+                    plan(c);
                 }
             }
-            TupleForEachForward(&o->m_axes, Foreach_commit_segment_finish(), c);
-            TupleForEachForward(&o->m_channels, Foreach_commit_segment_finish(), c);
-            o->m_segments_start = segments_add(o->m_segments_start, LookaheadCommitCount);
-            o->m_segments_length -= LookaheadCommitCount;
-            o->m_segments_staging_length -= LookaheadCommitCount;
-            o->m_staging_time += o->m_commit_time_duration;
-            o->m_staging_v_squared = o->m_commit_end_speed_squared;
-        }
+        } while (o->m_split_buffer.type != 0xFF);
+        
+        o->m_pull_finished_event.prependNowNotAlready(c);
     }
     
     static void plan (Context c)
