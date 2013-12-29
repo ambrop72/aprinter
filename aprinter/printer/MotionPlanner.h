@@ -1012,11 +1012,6 @@ public:
         TupleForEachForward(&o->m_axes, Foreach_init(), c, prestep_callback_enabled);
         TupleForEachForward(&o->m_channels, Foreach_init(), c);
         o->m_pull_finished_event.prependNowNotAlready(c);
-#ifdef MOTIONPLANNER_BENCHMARK
-        if (NumAxes > 1) {
-            o->m_bench_time = 0;
-        }
-#endif
     }
     
     static void deinit (Context c)
@@ -1249,13 +1244,6 @@ private:
         AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         AMBRO_ASSERT(o->m_segments_staging_length != o->m_segments_length)
         
-#ifdef MOTIONPLANNER_BENCHMARK
-        TimeType bench_start;
-        if (NumAxes > 1) {
-            bench_start = c.clock()->getTime(c);
-        }
-#endif
-        
         LinearPlannerSegmentState state[LookaheadBufferSize];
         
         SegmentBufferSizeType i = o->m_segments_length - 1;
@@ -1332,12 +1320,6 @@ private:
             TupleForEachForward(&o->m_axes, Foreach_dispose_new(), c);
             TupleForEachForward(&o->m_channels, Foreach_dispose_new(), c);
         }
-        
-#ifdef MOTIONPLANNER_BENCHMARK
-        if (NumAxes > 1) {
-            o->m_bench_time += (TimeType)(c.clock()->getTime(c) - bench_start);
-        }
-#endif
     }
     
     static void planner_start_stepping (Context c)
@@ -1347,11 +1329,6 @@ private:
         AMBRO_ASSERT(!o->m_underrun)
         AMBRO_ASSERT(o->m_segments_staging_length == o->m_segments_length)
         
-#ifdef MOTIONPLANNER_BENCHMARK
-        if (NumAxes > 1) {
-            printf("elapsed %" PRIu32 "\n", o->m_bench_time);
-        }
-#endif
         o->m_state = STATE_STEPPING;
         TimeType start_time = c.clock()->getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
         o->m_staging_time += start_time;
@@ -1484,9 +1461,6 @@ private:
     Segment m_segments[LookaheadBufferSize];
     AxesTuple m_axes;
     ChannelsTuple m_channels;
-#ifdef MOTIONPLANNER_BENCHMARK
-    TimeType m_bench_time;
-#endif
     
     template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &MotionPlanner::m_axes, AxisIndex> {};
     template <int ChannelIndex> struct ChannelPosition : public TuplePosition<Position, ChannelsTuple, &MotionPlanner::m_channels, ChannelIndex> {};
