@@ -502,7 +502,7 @@ public:
             StepperCommandSizeType entry = o->m_free_first;
             o->m_free_first = index_command(c, o->m_free_first)->next;
             TheAxisStepper::generate_command(dir, x, t, a, &index_command(c, entry)->scmd);
-            if (!(o->m_new_first >= 0)) {
+            if (AMBRO_UNLIKELY(o->m_new_first < 0)) {
                 o->m_new_first = entry;
             }
             o->m_new_last = entry;
