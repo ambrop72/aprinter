@@ -112,7 +112,7 @@ private:
     template <typename AxisSpec, typename AccumType>
     using MinTimeTypeHelper = FixedIntersectTypes<typename AxisSpec::TheAxisStepper::TimeFixedType, AccumType>;
     using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
-    using SegmentBufferSizeType = typename ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>::Type;
+    using SegmentBufferSizeType = typename ChooseInt<BitsInInt<2 * LookaheadBufferSize>::value, false>::Type; // twice for segments_add()
     static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * LookaheadBufferSize);
     using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
     using UnsignedStepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, false>::Type;
@@ -1439,7 +1439,11 @@ private:
     
     static SegmentBufferSizeType segments_add (SegmentBufferSizeType i, SegmentBufferSizeType j)
     {
-        return (j >= LookaheadBufferSize - i) ? (j - (LookaheadBufferSize - i)) : (i + j);
+        SegmentBufferSizeType res = i + j;
+        if (res >= LookaheadBufferSize) {
+            res -= LookaheadBufferSize;
+        }
+        return res;
     }    
     
     typename Loop::QueuedEvent m_pull_finished_event;
