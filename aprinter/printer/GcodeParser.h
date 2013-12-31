@@ -76,7 +76,6 @@ public:
     struct CommandPart {
         char code;
         char *data;
-        BufferSizeType length;
     };
     
     struct Command : public CommandExtra<ParserType> {
@@ -341,7 +340,6 @@ private:
         
         o->m_command.parts[o->m_command.num_parts].code = code;
         o->m_command.parts[o->m_command.num_parts].data = o->m_buffer + (o->m_temp + 1);
-        o->m_command.parts[o->m_command.num_parts].length = o->m_command.length - (o->m_temp + 1);
         o->m_command.num_parts++;
     }
     
