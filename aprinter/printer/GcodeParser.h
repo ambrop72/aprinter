@@ -127,7 +127,7 @@ public:
         TheTypeHelper::init_command_hook(c);
     }
     
-    static Command * extendCommand (Context c, BufferSizeType avail)
+    static bool extendCommand (Context c, BufferSizeType avail)
     {
         GcodeParser *o = self(c);
         o->debugAccess(c);
@@ -147,7 +147,7 @@ public:
                 }
                 o->m_command.length++;
                 o->m_state = STATE_NOCMD;
-                return &o->m_command;
+                return true;
             }
             
             if (o->m_command.num_parts < 0 || (TheTypeHelper::ChecksumEnabled && o->m_state == STATE_CHECKSUM)) {
@@ -194,7 +194,7 @@ public:
             }
         }
         
-        return NULL;
+        return false;
     }
     
     static void resetCommand (Context c)
@@ -213,6 +213,15 @@ public:
         AMBRO_ASSERT(o->m_state != STATE_NOCMD)
         
         return o->m_buffer;
+    }
+    
+    static Command * getCmd (Context c)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        
+        return &o->m_command;
     }
     
 private:

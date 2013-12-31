@@ -416,20 +416,19 @@ private:
         {
             ChannelCommon *o = self(c);
             o->m_state = COMMAND_IDLE;
-            o->m_cmd = NULL;
+            o->m_cmd = false;
         }
         
-        static void startCommand (Context c, GcodeParserCommand *cmd)
+        static void startCommand (Context c)
         {
             ChannelCommon *o = self(c);
             AMBRO_ASSERT(o->m_state == COMMAND_IDLE)
             AMBRO_ASSERT(!o->m_cmd)
-            AMBRO_ASSERT(cmd)
             
-            o->m_cmd = cmd;
-            if (o->m_cmd->num_parts <= 0) {
+            o->m_cmd = true;
+            if (cmd(c)->num_parts <= 0) {
                 AMBRO_PGM_P err = AMBRO_PSTR("unknown error");
-                switch (o->m_cmd->num_parts) {
+                switch (cmd(c)->num_parts) {
                     case 0: err = AMBRO_PSTR("empty command"); break;
                     case TheGcodeParser::ERROR_TOO_MANY_PARTS: err = AMBRO_PSTR("too many parts"); break;
                     case TheGcodeParser::ERROR_INVALID_PART: err = AMBRO_PSTR("invalid part"); break;
@@ -441,8 +440,8 @@ private:
                 reply_append_ch(c, '\n');
                 return finishCommand(c);
             }
-            o->m_cmd_code = o->m_cmd->parts[0].code;
-            o->m_cmd_num = atoi(o->m_cmd->parts[0].data);
+            o->m_cmd_code = cmd(c)->parts[0].code;
+            o->m_cmd_num = atoi(cmd(c)->parts[0].data);
             if (!Channel::start_command_impl(c)) {
                 return finishCommand(c);
             }
@@ -480,7 +479,7 @@ private:
             AMBRO_ASSERT(o->m_state != COMMAND_LOCKED)
             
             o->m_state = COMMAND_IDLE;
-            o->m_cmd = NULL;
+            o->m_cmd = false;
         }
         
         static void finishCommand (Context c, bool no_ok = false)
@@ -491,7 +490,7 @@ private:
             AMBRO_ASSERT(o->m_state == COMMAND_IDLE || o->m_state == COMMAND_LOCKED)
             
             Channel::finish_command_impl(c, no_ok);
-            o->m_cmd = NULL;
+            o->m_cmd = false;
             if (o->m_state == COMMAND_LOCKED) {
                 AMBRO_ASSERT(m->m_locked)
                 o->m_state = COMMAND_IDLE;
@@ -581,9 +580,9 @@ private:
             AMBRO_ASSERT(code >= 'A')
             AMBRO_ASSERT(code <= 'Z')
             
-            for (GcodePartsSizeType i = 1; i < o->m_cmd->num_parts; i++) {
-                if (o->m_cmd->parts[i].code == code) {
-                    return &o->m_cmd->parts[i];
+            for (GcodePartsSizeType i = 1; i < cmd(c)->num_parts; i++) {
+                if (cmd(c)->parts[i].code == code) {
+                    return &cmd(c)->parts[i];
                 }
             }
             return NULL;
@@ -681,8 +680,14 @@ private:
             return true;
         }
         
+        static GcodeParserCommand * cmd (Context c)
+        {
+            Channel *ch = Channel::self(c);
+            return ch->m_gcode_parser.getCmd(c);
+        }
+        
         uint8_t m_state;
-        GcodeParserCommand *m_cmd;
+        bool m_cmd;
         char m_cmd_code;
         int m_cmd_num;
     };
@@ -735,9 +740,8 @@ private:
             }
             bool overrun;
             RecvSizeType avail = o->m_serial.recvQuery(c, &overrun);
-            typename TheGcodeParser::Command *cmd = o->m_gcode_parser.extendCommand(c, avail.value());
-            if (cmd) {
-                return o->m_channel_common.startCommand(c, cmd);
+            if (o->m_gcode_parser.extendCommand(c, avail.value())) {
+                return o->m_channel_common.startCommand(c);
             }
             if (overrun) {
                 o->m_serial.recvConsume(c, avail);
@@ -758,17 +762,17 @@ private:
             
             bool is_m110 = (o->m_channel_common.m_cmd_code == 'M' && o->m_channel_common.m_cmd_num == 110);
             if (is_m110) {
-                o->m_line_number = o->m_channel_common.get_command_param_uint32(c, 'L', (o->m_channel_common.m_cmd->have_line_number ? o->m_channel_common.m_cmd->line_number : -1));
+                o->m_line_number = o->m_channel_common.get_command_param_uint32(c, 'L', (o->m_channel_common.cmd(c)->have_line_number ? o->m_channel_common.cmd(c)->line_number : -1));
             }
-            if (o->m_channel_common.m_cmd->have_line_number) {
-                if (o->m_channel_common.m_cmd->line_number != o->m_line_number) {
+            if (o->m_channel_common.cmd(c)->have_line_number) {
+                if (o->m_channel_common.cmd(c)->line_number != o->m_line_number) {
                     o->m_channel_common.reply_append_pstr(c, AMBRO_PSTR("Error:Line Number is not Last Line Number+1, Last Line:"));
                     o->m_channel_common.reply_append_uint32(c, (uint32_t)(o->m_line_number - 1));
                     o->m_channel_common.reply_append_ch(c, '\n');
                     return false;
                 }
             }
-            if (o->m_channel_common.m_cmd->have_line_number || is_m110) {
+            if (o->m_channel_common.cmd(c)->have_line_number || is_m110) {
                 o->m_line_number++;
             }
             return true;
@@ -782,7 +786,7 @@ private:
             if (!no_ok) {
                 o->m_channel_common.reply_append_pstr(c, AMBRO_PSTR("ok\n"));
             }
-            o->m_serial.recvConsume(c, RecvSizeType::import(o->m_channel_common.m_cmd->length));
+            o->m_serial.recvConsume(c, RecvSizeType::import(o->m_channel_common.cmd(c)->length));
             o->m_serial.recvForceEvent(c);
         }
         
@@ -963,7 +967,6 @@ private:
             AMBRO_ASSERT(!o->m_eof)
             
             AMBRO_PGM_P eof_str;
-            typename TheGcodeParser::Command *cmd;
             if (!o->m_gcode_parser.haveCommand(c)) {
                 o->m_gcode_parser.startCommand(c, (char *)buf_get(c, o->m_start, o->m_cmd_offset), 0);
             }
@@ -972,9 +975,8 @@ private:
                 eof_str = AMBRO_PSTR("//SdEof\n");
                 goto eof;
             }
-            cmd = o->m_gcode_parser.extendCommand(c, avail);
-            if (cmd) {
-                return o->m_channel_common.startCommand(c, cmd);
+            if (o->m_gcode_parser.extendCommand(c, avail)) {
+                return o->m_channel_common.startCommand(c);
             }
             if (avail == MaxCommandSize) {
                 eof_str = AMBRO_PSTR("//SdLnEr\n");
@@ -1078,10 +1080,10 @@ private:
             AMBRO_ASSERT(o->m_channel_common.m_cmd)
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
             AMBRO_ASSERT(!o->m_eof)
-            AMBRO_ASSERT(o->m_channel_common.m_cmd->length <= o->m_length - o->m_cmd_offset)
+            AMBRO_ASSERT(o->m_channel_common.cmd(c)->length <= o->m_length - o->m_cmd_offset)
             
             o->m_next_event.prependNowNotAlready(c);
-            o->m_cmd_offset += o->m_channel_common.m_cmd->length;
+            o->m_cmd_offset += o->m_channel_common.cmd(c)->length;
             if (o->m_cmd_offset >= BlockSize) {
                 o->m_start += BlockSize;
                 if (o->m_start == BufferBaseSize) {
@@ -2771,8 +2773,8 @@ private:
                     }
                     MoveBuildState s;
                     move_begin(c, &s);
-                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->m_cmd->num_parts; i++) {
-                        typename TheChannelCommon::GcodeParserCommandPart *part = &cc->m_cmd->parts[i];
+                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->cmd(c)->num_parts; i++) {
+                        typename TheChannelCommon::GcodeParserCommandPart *part = &cc->cmd(c)->parts[i];
                         PhysVirtAxisHelperTuple dummy;
                         TupleForEachForward(&dummy, Foreach_collect_new_pos(), c, cc, &s, part);
                         if (part->code == 'F') {
@@ -2791,8 +2793,8 @@ private:
                         return;
                     }
                     AxisMaskType mask = 0;
-                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->m_cmd->num_parts; i++) {
-                        TupleForEachForward(&o->m_axes, Foreach_update_homing_mask(), cc, &mask, &cc->m_cmd->parts[i]);
+                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->cmd(c)->num_parts; i++) {
+                        TupleForEachForward(&o->m_axes, Foreach_update_homing_mask(), cc, &mask, &cc->cmd(c)->parts[i]);
                     }
                     if (mask == 0) {
                         mask = -1;
@@ -2822,8 +2824,8 @@ private:
                         return;
                     }
                     bool found_axes = false;
-                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->m_cmd->num_parts; i++) {
-                        TupleForEachForward(&o->m_axes, Foreach_set_position(), c, cc, &cc->m_cmd->parts[i], &found_axes);
+                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->cmd(c)->num_parts; i++) {
+                        TupleForEachForward(&o->m_axes, Foreach_set_position(), c, cc, &cc->cmd(c)->parts[i], &found_axes);
                     }
                     if (!found_axes) {
                         cc->reply_append_pstr(c, AMBRO_PSTR("Error:not supported\n"));
@@ -2835,7 +2837,7 @@ private:
             unknown_command:
             default: {
                 cc->reply_append_pstr(c, AMBRO_PSTR("Error:Unknown command "));
-                cc->reply_append_str(c, (cc->m_cmd->parts[0].data - 1));
+                cc->reply_append_str(c, (cc->cmd(c)->parts[0].data - 1));
                 cc->reply_append_ch(c, '\n');
                 return cc->finishCommand(c);
             } break;
