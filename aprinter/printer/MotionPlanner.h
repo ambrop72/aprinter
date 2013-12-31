@@ -309,7 +309,7 @@ public:
             Axis *o = self(c);
             o->m_first = -1;
             o->m_free_first = -1;
-            o->m_new_first = -1;
+            o->m_new_last = -1;
             o->m_num_committed = 0;
             o->m_last_committed = 0;
             for (size_t i = 0; i < NumStepperCommands; i++) {
@@ -432,6 +432,7 @@ public:
             Axis *o = self(c);
             o->m_commit_count = 0;
             o->m_commit_last = o->m_last_committed;
+            o->m_new_first = o->m_free_first;
         }
         
         static void gen_segment_stepper_commands (Context c, Segment *entry, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared, bool is_commit)
@@ -489,16 +490,13 @@ public:
             StepperCommandSizeType entry = o->m_free_first;
             o->m_free_first = index_command(c, o->m_free_first)->next;
             TheAxisStepper::generate_command(dir, x, t, a, &index_command(c, entry)->scmd);
-            if (AMBRO_UNLIKELY(o->m_new_first < 0)) {
-                o->m_new_first = entry;
-            }
             o->m_new_last = entry;
         }
         
         static void complete_new (Context c)
         {
             Axis *o = self(c);
-            if (o->m_new_first >= 0) {
+            if (o->m_new_last >= 0) {
                 index_command(c, o->m_new_last)->next = -1;
             }
         }
@@ -524,17 +522,17 @@ public:
         static void dispose_new (Context c)
         {
             Axis *o = self(c);
-            if (o->m_new_first >= 0) {
+            if (o->m_new_last >= 0) {
                 index_command(c, o->m_new_last)->next = o->m_free_first;
                 o->m_free_first = o->m_new_first;
-                o->m_new_first = -1;
+                o->m_new_last = -1;
             }
         }
         
         static void swap_staging_cold (Context c)
         {
             Axis *o = self(c);
-            if (!(o->m_new_first >= 0)) {
+            if (!(o->m_new_last >= 0)) {
                 return;
             }
             if (index_command(c, o->m_last_committed)->next >= 0) {
@@ -546,7 +544,7 @@ public:
                 o->m_first = o->m_new_first;
             }
             o->m_last = o->m_new_last;
-            o->m_new_first = -1;
+            o->m_new_last = -1;
         }
         
         static void swap_staging_prepare (Context c, StepperCommandSizeType *old_first)
@@ -559,7 +557,7 @@ public:
         static void swap_staging_hot (Context c)
         {
             Axis *o = self(c);
-            if (AMBRO_LIKELY(o->m_new_first >= 0)) {
+            if (AMBRO_LIKELY(o->m_new_last >= 0)) {
                 index_command(c, o->m_last_committed)->next = o->m_new_first;
             }
         }
@@ -567,11 +565,11 @@ public:
         static void swap_staging_finish (Context c, StepperCommandSizeType *old_first)
         {
             Axis *o = self(c);
-            if (o->m_new_first >= 0) {
+            if (o->m_new_last >= 0) {
                 StepperCommandSizeType old_last = o->m_last;
                 o->m_last = o->m_new_last;
                 o->m_new_first = old_first[AxisIndex];
-                o->m_new_last = old_last;
+                o->m_new_last = o->m_new_first < 0 ? o->m_new_first : old_last;
             }
         }
         
@@ -760,7 +758,7 @@ public:
             Channel *o = self(c);
             o->m_first = -1;
             o->m_free_first = -1;
-            o->m_new_first = -1;
+            o->m_new_last = -1;
             o->m_num_committed = 0;
             o->m_last_committed = 0;
             for (size_t i = 0; i < NumChannelCommands; i++) {
@@ -794,6 +792,7 @@ public:
             Channel *o = self(c);
             o->m_commit_count = 0;
             o->m_commit_last = o->m_last_committed;
+            o->m_new_first = o->m_free_first;
         }
         
         static void gen_command (Context c, Segment *entry, TimeType time, bool is_commit)
@@ -805,9 +804,6 @@ public:
             o->m_free_first = o->m_channel_commands[o->m_free_first].next;
             o->m_channel_commands[cmd].payload = channel_entry->payload;
             o->m_channel_commands[cmd].time = time;
-            if (!(o->m_new_first >= 0)) {
-                o->m_new_first = cmd;
-            }
             o->m_new_last = cmd;
             channel_entry->command = cmd;
             if (AMBRO_UNLIKELY(is_commit)) {
@@ -819,7 +815,7 @@ public:
         static void complete_new (Context c)
         {
             Channel *o = self(c);
-            if (o->m_new_first >= 0) {
+            if (o->m_new_last >= 0) {
                 o->m_channel_commands[o->m_new_last].next = -1;
             }
         }
@@ -827,17 +823,17 @@ public:
         static void dispose_new (Context c)
         {
             Channel *o = self(c);
-            if (o->m_new_first >= 0) {
+            if (o->m_new_last >= 0) {
                 o->m_channel_commands[o->m_new_last].next = o->m_free_first;
                 o->m_free_first = o->m_new_first;
-                o->m_new_first = -1;
+                o->m_new_last = -1;
             }
         }
         
         static void swap_staging_cold (Context c)
         {
             Channel *o = self(c);
-            if (!(o->m_new_first >= 0)) {
+            if (!(o->m_new_last >= 0)) {
                 return;
             }
             if (o->m_channel_commands[o->m_last_committed].next >= 0) {
@@ -849,7 +845,7 @@ public:
                 o->m_first = o->m_new_first;
             }
             o->m_last = o->m_new_last;
-            o->m_new_first = -1;
+            o->m_new_last = -1;
         }
         
         static void swap_staging_prepare (Context c, ChannelCommandSizeTypeTuple *old_first_tuple)
@@ -863,7 +859,7 @@ public:
         static void swap_staging_hot (LockContext c)
         {
             Channel *o = self(c);
-            if (AMBRO_LIKELY(o->m_new_first >= 0)) {
+            if (AMBRO_LIKELY(o->m_new_last >= 0)) {
                 o->m_channel_commands[o->m_last_committed].next = o->m_new_first;
                 if (AMBRO_LIKELY(o->m_num_committed == 0)) {
                     o->m_first = o->m_new_first;
@@ -876,11 +872,11 @@ public:
         static void swap_staging_finish (Context c, ChannelCommandSizeTypeTuple *old_first_tuple)
         {
             Channel *o = self(c);
-            if (o->m_new_first >= 0) {
+            if (o->m_new_last >= 0) {
                 ChannelCommandSizeType old_last = o->m_last;
                 o->m_last = o->m_new_last;
                 o->m_new_first = *TupleGetElem<ChannelIndex>(old_first_tuple);
-                o->m_new_last = old_last;
+                o->m_new_last = o->m_new_first < 0 ? o->m_new_first : old_last;
             }
         }
         
