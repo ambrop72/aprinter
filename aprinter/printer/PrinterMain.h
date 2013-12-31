@@ -1848,9 +1848,6 @@ private:
             TheAxis *axis = TheAxis::self(c);
             if (AMBRO_UNLIKELY(part->code == TheAxis::axis_name)) {
                 double req = strtod(part->data, NULL);
-                if (isnan(req)) {
-                    req = 0.0;
-                }
                 if (axis->m_relative_positioning) {
                     req += axis->m_req_pos;
                 }
