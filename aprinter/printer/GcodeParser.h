@@ -34,6 +34,7 @@
 #include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Likely.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -137,7 +138,7 @@ public:
         for (; o->m_command.length < avail; o->m_command.length++) {
             char ch = o->m_buffer[o->m_command.length];
             
-            if (ch == '\n') {
+            if (AMBRO_UNLIKELY(ch == '\n')) {
                 if (o->m_command.num_parts >= 0) {
                     if (o->m_state == STATE_INSIDE) {
                         finish_part(c);
@@ -150,11 +151,11 @@ public:
                 return true;
             }
             
-            if (o->m_command.num_parts < 0 || (TheTypeHelper::ChecksumEnabled && o->m_state == STATE_CHECKSUM)) {
+            if (AMBRO_UNLIKELY(o->m_command.num_parts < 0 || (TheTypeHelper::ChecksumEnabled && o->m_state == STATE_CHECKSUM))) {
                 continue;
             }
             
-            if (TheTypeHelper::ChecksumEnabled && ch == '*') {
+            if (AMBRO_UNLIKELY(TheTypeHelper::ChecksumEnabled && ch == '*')) {
                 if (o->m_state == STATE_INSIDE) {
                     finish_part(c);
                 }
@@ -166,10 +167,10 @@ public:
             TheTypeHelper::checksum_add_hook(c, ch);
             
             if (TheTypeHelper::CommentsEnabled) {
-                if (o->m_state == STATE_COMMENT) {
+                if (AMBRO_UNLIKELY(o->m_state == STATE_COMMENT)) {
                     continue;
                 }
-                if (ch == ';') {
+                if (AMBRO_UNLIKELY(ch == ';')) {
                     if (o->m_state == STATE_INSIDE) {
                         finish_part(c);
                     }
@@ -178,8 +179,8 @@ public:
                 }
             }
             
-            if (o->m_state == STATE_OUTSIDE) {
-                if (!is_space(ch)) {
+            if (AMBRO_UNLIKELY(o->m_state == STATE_OUTSIDE)) {
+                if (AMBRO_LIKELY(!is_space(ch))) {
                     if (!is_code(ch)) {
                         o->m_command.num_parts = ERROR_INVALID_PART;
                     }
@@ -187,7 +188,7 @@ public:
                     o->m_state = STATE_INSIDE;
                 }
             } else {
-                if (is_space(ch)) {
+                if (AMBRO_UNLIKELY(is_space(ch))) {
                     finish_part(c);
                     o->m_state = STATE_OUTSIDE;
                 }
@@ -245,7 +246,7 @@ private:
         static bool finish_part_hook (Context c, char code)
         {
             GcodeParser *o = self(c);
-            if (!o->m_command.have_line_number && o->m_command.num_parts == 0 && code == 'N') {
+            if (AMBRO_UNLIKELY(!o->m_command.have_line_number && o->m_command.num_parts == 0 && code == 'N')) {
                 o->m_command.have_line_number = true;
                 o->m_command.line_number = strtoul(o->m_buffer + (o->m_temp + 1), NULL, 10);
                 return true;
@@ -268,7 +269,7 @@ private:
             char *received = o->m_buffer + (o->m_temp + 1);
             BufferSizeType received_len = o->m_command.length - (o->m_temp + 1);
             
-            if (!compare_checksum(o->m_checksum, received, received_len)) {
+            if (AMBRO_UNLIKELY(!compare_checksum(o->m_checksum, received, received_len))) {
                 o->m_command.num_parts = ERROR_CHECKSUM;
             }
         }
@@ -334,7 +335,7 @@ private:
         AMBRO_ASSERT(o->m_state == STATE_INSIDE)
         AMBRO_ASSERT(is_code(o->m_buffer[o->m_temp]))
         
-        if (o->m_command.num_parts == Params::MaxParts) {
+        if (AMBRO_UNLIKELY(o->m_command.num_parts == Params::MaxParts)) {
             o->m_command.num_parts = ERROR_TOO_MANY_PARTS;
             return;
         }
