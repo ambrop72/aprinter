@@ -581,7 +581,8 @@ private:
             AMBRO_ASSERT(code >= 'A')
             AMBRO_ASSERT(code <= 'Z')
             
-            for (GcodePartsSizeType i = 1; i < cmd(c)->num_parts; i++) {
+            auto num_parts = cmd(c)->num_parts;
+            for (GcodePartsSizeType i = 1; i < num_parts; i++) {
                 if (cmd(c)->parts[i].code == code) {
                     return &cmd(c)->parts[i];
                 }
@@ -2766,7 +2767,8 @@ private:
                     }
                     MoveBuildState s;
                     move_begin(c, &s);
-                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->cmd(c)->num_parts; i++) {
+                    auto num_parts = cc->cmd(c)->num_parts;
+                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < num_parts; i++) {
                         typename TheChannelCommon::GcodeParserCommandPart *part = &cc->cmd(c)->parts[i];
                         PhysVirtAxisHelperTuple dummy;
                         TupleForEachForward(&dummy, Foreach_collect_new_pos(), c, cc, &s, part);
@@ -2786,7 +2788,8 @@ private:
                         return;
                     }
                     AxisMaskType mask = 0;
-                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->cmd(c)->num_parts; i++) {
+                    auto num_parts = cc->cmd(c)->num_parts;
+                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < num_parts; i++) {
                         TupleForEachForward(&o->m_axes, Foreach_update_homing_mask(), cc, &mask, &cc->cmd(c)->parts[i]);
                     }
                     if (mask == 0) {
@@ -2817,7 +2820,8 @@ private:
                         return;
                     }
                     bool found_axes = false;
-                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < cc->cmd(c)->num_parts; i++) {
+                    auto num_parts = cc->cmd(c)->num_parts;
+                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < num_parts; i++) {
                         TupleForEachForward(&o->m_axes, Foreach_set_position(), c, cc, &cc->cmd(c)->parts[i], &found_axes);
                     }
                     if (!found_axes) {
