@@ -28,7 +28,6 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/TupleGet.h>
-#include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/IsEqualFunc.h>
@@ -38,9 +37,11 @@
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/Position.h>
-#include <aprinter/meta/TuplePosition.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/ValueTemplateFunc.h>
+#include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/TypeListFold.h>
+#include <aprinter/meta/WrapValue.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -57,9 +58,9 @@ template <typename Position, typename Context, typename StepperDefsList>
 class Steppers : private DebugObject<Context, void> {
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_or_enabled, or_enabled)
     
-    template <int StepperIndex> struct StepperPosition;
+    static int const NumSteppers = TypeListLength<StepperDefsList>::value;
+    using MaskType = typename ChooseInt<NumSteppers, false>::Type;
     
     static Steppers * self (Context c)
     {
@@ -69,17 +70,62 @@ class Steppers : private DebugObject<Context, void> {
 public:
     template <int StepperIndex>
     class Stepper {
+        friend Steppers;
+        
+        AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EnablePin, EnablePin)
+        AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheWrappedMask, TheWrappedMask)
+        
+        using ThisDef = TypeListGet<StepperDefsList, StepperIndex>;
+        using EnablePin = typename ThisDef::EnablePin;
+        static MaskType const TheMask = (MaskType)1 << StepperIndex;
+        using TheWrappedMask = WrapValue<MaskType, TheMask>;
+        
+        template <typename X, typename Y>
+        using OrMaskFunc = WrapValue<MaskType, (X::value | Y::value)>;
+        
+        static MaskType const SameEnableMask = TypeListFold<
+            MapTypeList<
+                FilterTypeList<
+                    MapTypeList<
+                        SequenceList<TypeListLength<StepperDefsList>::value>,
+                        ValueTemplateFunc<int, Stepper>
+                    >,
+                    ComposeFunctions<
+                        IsEqualFunc<EnablePin>,
+                        GetMemberType_EnablePin
+                    >
+                >,
+                GetMemberType_TheWrappedMask
+            >,
+            WrapValue<MaskType, 0>,
+            OrMaskFunc
+        >::value;
+        
+        static bool const SharesEnable = (SameEnableMask != TheMask);
+        
     public:
-        template <typename ThisContext>
-        static void enable (ThisContext c, bool e)
+        static void enable (Context c)
         {
-            Stepper *o = self(c);
             Steppers *s = Steppers::self(c);
             s->debugAccess(c);
-            o->m_enabled = e;
-            SameEnabledTuple dummy;
-            bool pin_enabled = TupleForEachForwardAccRes(&dummy, false, Foreach_or_enabled(), c);
-            c.pins()->template set<typename ThisDef::EnablePin>(c, !pin_enabled);
+            if (SharesEnable) {
+                s->m_mask |= TheMask;
+            }
+            c.pins()->template set<EnablePin>(c, false);
+        }
+        
+        static void disable (Context c)
+        {
+            Steppers *s = Steppers::self(c);
+            s->debugAccess(c);
+            if (SharesEnable) {
+                s->m_mask &= ~TheMask;
+                if (!(s->m_mask & SameEnableMask)) {
+                    c.pins()->template set<EnablePin>(c, true);
+                }
+            } else {
+                c.pins()->template set<EnablePin>(c, true);
+            }
         }
         
         template <typename ThisContext>
@@ -112,30 +158,6 @@ public:
         }
         
     public: // private, workaround gcc bug
-        friend Steppers;
-        
-        AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EnablePin, EnablePin)
-        
-        using ThisDef = TypeListGet<StepperDefsList, StepperIndex>;
-        using SameEnableIndices = FilterTypeList<
-            SequenceList<
-                TypeListLength<StepperDefsList>::value
-            >,
-            ComposeFunctions<
-                IsEqualFunc<typename ThisDef::EnablePin>,
-                ComposeFunctions<
-                    GetMemberType_EnablePin,
-                    TypeListGetFunc<StepperDefsList>
-                >
-            >
-        >;
-        using SameEnabledTuple = Tuple<MapTypeList<SameEnableIndices, ValueTemplateFunc<int, Stepper>>>;
-        
-        static Stepper * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, StepperPosition<StepperIndex>>(c.root());
-        }
-        
         static bool maybe_invert_dir (bool dir)
         {
             return (ThisDef::InvertDir) ? !dir : dir;
@@ -143,8 +165,6 @@ public:
         
         static void init (Context c)
         {
-            Stepper *o = self(c);
-            o->m_enabled = false;
             c.pins()->template set<typename ThisDef::DirPin>(c, maybe_invert_dir(false));
             c.pins()->template set<typename ThisDef::StepPin>(c, false);
             c.pins()->template set<typename ThisDef::EnablePin>(c, true);
@@ -157,20 +177,14 @@ public:
         {
             c.pins()->template set<ThisDef::EnablePin>(c, true);
         }
-        
-        static bool or_enabled (bool accum, Context c)
-        {
-            Stepper *o = self(c);
-            return (accum || o->m_enabled);
-        }
-        
-        bool m_enabled;
     };
     
     static void init (Context c)
     {
         Steppers *o = self(c);
-        TupleForEachForward(&o->m_steppers, Foreach_init(), c);
+        o->m_mask = 0;
+        SteppersTuple dummy;
+        TupleForEachForward(&dummy, Foreach_init(), c);
         o->debugInit(c);
     }
     
@@ -178,22 +192,14 @@ public:
     {
         Steppers *o = self(c);
         o->debugDeinit(c);
-        TupleForEachForward(&o->m_steppers, Foreach_deinit(), c);
-    }
-    
-    template <int StepperIndex>
-    static Stepper<StepperIndex> * getStepper (Context c)
-    {
-        Steppers *o = self(c);
-        return TupleGetElem<StepperIndex>(&o->m_steppers);
+        SteppersTuple dummy;
+        TupleForEachReverse(&dummy, Foreach_deinit(), c);
     }
     
 private:
     using SteppersTuple = IndexElemTuple<StepperDefsList, Stepper>;
     
-    SteppersTuple m_steppers;
-    
-    template <int StepperIndex> struct StepperPosition : public TuplePosition<Position, SteppersTuple, &Steppers::m_steppers, StepperIndex> {};
+    MaskType m_mask;
 };
 
 #include <aprinter/EndNamespace.h>

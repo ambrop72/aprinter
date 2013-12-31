@@ -84,7 +84,7 @@ struct AxisStepperPrecisionParams {
 using AxisStepperAvrPrecisionParams = AxisStepperPrecisionParams<11, 22, 16, 24, 1>;
 using AxisStepperDuePrecisionParams = AxisStepperPrecisionParams<11, 26, 16, 26, 1>;
 
-template <typename Position, typename Context, typename Params, typename Stepper, typename GetStepper, typename ConsumersList>
+template <typename Position, typename Context, typename Params, typename Stepper, typename ConsumersList>
 class AxisStepper
 : private DebugObject<Context, void>
 {
@@ -183,7 +183,7 @@ public:
 #endif
         o->m_consumer_id = TypeListIndex<typename ConsumersList::List, IsEqualFunc<TheConsumer>>::value;
         o->m_current_command = first_command;
-        stepper(c)->setDir(c, o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
+        Stepper::setDir(c, o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
         o->m_notdecel = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
         StepFixedType x = StepFixedType::importBits(o->m_current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
         o->m_notend = (x.bitsValue() != 0);
@@ -263,11 +263,6 @@ public:
 #endif
     
 private:
-    static Stepper * stepper (Context c)
-    {
-        return GetStepper::call(c);
-    }
-    
     template <int ConsumerIndex>
     struct CallbackHelper {
         using TheConsumer = TypeListGet<typename ConsumersList::List, ConsumerIndex>;
@@ -302,7 +297,7 @@ private:
             }
             
             o->m_current_command = current_command;
-            stepper(c)->setDir(c, current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
+            Stepper::setDir(c, current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
             o->m_notdecel = (current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
             StepFixedType x = StepFixedType::importBits(current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
             o->m_notend = (x.bitsValue() != 0);
@@ -344,7 +339,7 @@ private:
             }
         }
         
-        stepper(c)->stepOn(c);
+        Stepper::stepOn(c);
         
         o->m_discriminant.m_bits.m_int += current_command->a_mul.m_bits.m_int;
         AMBRO_ASSERT(o->m_discriminant.bitsValue() >= 0)
@@ -356,7 +351,7 @@ private:
         auto t_mul = current_command->t_mul;
         TimeFixedType t = FixedResMultiply(t_mul, t_frac);
         
-        stepper(c)->stepOff(c);
+        Stepper::stepOff(c);
         
         TimeType next_time;
         if (AMBRO_LIKELY(!o->m_notdecel)) {

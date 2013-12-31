@@ -306,6 +306,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_homing, start_homing)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_update_homing_mask, update_homing_mask)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_enable_stepper, enable_stepper)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_disable_stepper, disable_stepper)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init_new_pos, init_new_pos)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_collect_new_pos, collect_new_pos)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_do_move, do_move)
@@ -1172,11 +1173,10 @@ private:
         friend PrinterMain;
         
         struct AxisStepperPosition;
-        struct AxisStepperGetStepper;
         
         using AxisSpec = TypeListGet<AxesList, AxisIndex>;
         using Stepper = typename TheSteppers::template Stepper<AxisIndex>;
-        using TheAxisStepper = AxisStepper<AxisStepperPosition, Context, typename AxisSpec::TheAxisStepperParams, Stepper, AxisStepperGetStepper, AxisStepperConsumersList<AxisIndex>>;
+        using TheAxisStepper = AxisStepper<AxisStepperPosition, Context, typename AxisSpec::TheAxisStepperParams, Stepper, AxisStepperConsumersList<AxisIndex>>;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
         static const char axis_name = AxisSpec::name;
@@ -1271,7 +1271,7 @@ private:
                 params.slow_speed = speed_from_real(AxisSpec::Homing::DefaultSlowSpeed::value());
                 params.max_accel = accel_from_real(AxisSpec::DefaultMaxAccel::value());
                 
-                stepper(c)->enable(c, true);
+                Stepper::enable(c);
                 hs->m_homer.init(c, params);
                 axis->m_state = AXIS_STATE_HOMING;
                 m->m_homing_rem_axes++;
@@ -1360,15 +1360,14 @@ private:
             }
         }
         
-        static void enable_stepper (Context c, bool enable)
+        static void enable_stepper (Context c)
         {
-            Axis *o = self(c);
-            stepper(c)->enable(c, enable);
+            Stepper::enable(c);
         }
         
-        static Stepper * stepper (Context c)
+        static void disable_stepper (Context c)
         {
-            return PrinterMain::self(c)->m_steppers.template getStepper<AxisIndex>(c);
+            Stepper::disable(c);
         }
         
         static void update_new_pos (Context c, MoveBuildState *s, double req)
@@ -1397,7 +1396,7 @@ private:
                     *distance_squared += delta * delta;
                 }
                 *total_steps += move.doubleValue();
-                enable_stepper(c, true);
+                Stepper::enable(c);
             }
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
             mycmd->dir = dir;
@@ -1457,11 +1456,6 @@ private:
             Stepper::emergency();
         }
         
-        static Stepper * axis_get_stepper (Context c)
-        {
-            return stepper(c);
-        }
-        
         using EventLoopFastEvents = typename HomingFeature::EventLoopFastEvents;
         
         TheAxisStepper m_axis_stepper;
@@ -1472,7 +1466,6 @@ private:
         bool m_relative_positioning;
         
         struct AxisStepperPosition : public MemberPosition<AxisPosition<AxisIndex>, TheAxisStepper, &Axis::m_axis_stepper> {};
-        struct AxisStepperGetStepper : public AMBRO_WFUNC_TD(&Axis::axis_get_stepper) {};
     };
     
     using AxesTuple = IndexElemTuple<AxesList, Axis>;
@@ -2700,7 +2693,7 @@ private:
                     if (!cc->tryUnplannedCommand(c)) {
                         return;
                     }
-                    TupleForEachForward(&o->m_axes, Foreach_enable_stepper(), c, true);
+                    TupleForEachForward(&o->m_axes, Foreach_enable_stepper(), c);
                     now_inactive(c);
                     return cc->finishCommand(c);
                 } break;
@@ -2717,7 +2710,7 @@ private:
                             o->m_disable_timer.appendAt(c, o->m_last_active_time + o->m_inactive_time);
                         }
                     } else {
-                        TupleForEachForward(&o->m_axes, Foreach_enable_stepper(), c, false);
+                        TupleForEachForward(&o->m_axes, Foreach_disable_stepper(), c);
                         o->m_disable_timer.unset(c);
                     }
                     return cc->finishCommand(c);
@@ -2911,7 +2904,7 @@ private:
         PrinterMain *o = self(c);
         o->debugAccess(c);
         
-        TupleForEachForward(&o->m_axes, Foreach_enable_stepper(), c, false);
+        TupleForEachForward(&o->m_axes, Foreach_disable_stepper(), c);
     }
     
     static void force_timer_handler (typename Loop::QueuedEvent *, Context c)
