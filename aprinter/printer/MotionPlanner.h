@@ -109,6 +109,7 @@ private:
     using Loop = typename Context::EventLoop;
     using TimeType = typename Context::Clock::TimeType;
     static const int NumAxes = TypeListLength<AxesList>::value;
+    static const int NumChannels = TypeListLength<ChannelsList>::value;
     template <typename AxisSpec, typename AccumType>
     using MinTimeTypeHelper = FixedIntersectTypes<typename AxisSpec::TheAxisStepper::TimeFixedType, AccumType>;
     using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
@@ -117,7 +118,9 @@ private:
     using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
     using UnsignedStepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, false>::Type;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
-    using AxisMaskType = typename ChooseInt<NumAxes, false>::Type;
+    static const int TypeBits = BitsInInt<NumChannels>::value;
+    using AxisMaskType = typename ChooseInt<NumAxes + TypeBits, false>::Type;
+    static const AxisMaskType TypeMask = ((AxisMaskType)1 << TypeBits) - 1;
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
@@ -251,13 +254,12 @@ private:
     };
     
     struct Segment {
-        uint8_t type;
+        AxisMaskType dir_and_type;
         LinearPlannerSegmentData lp_seg;
         union {
             struct {
                 double max_accel_rec;
                 double rel_max_speed_rec;
-                AxisMaskType dir;
                 IndexElemTuple<AxesList, AxisSegment> axes;
             };
             IndexElemUnion<ChannelsList, ChannelSegment> channels;
@@ -292,7 +294,7 @@ public:
         using TheAxisSegment = AxisSegment<AxisIndex>;
         using TheAxisStepperCommand = AxisStepperCommand<AxisIndex>;
         static const bool PrestepCallbackEnabled = !TypesAreEqual<typename AxisSpec::PrestepCallback, void>::value;
-        static const AxisMaskType TheAxisMask = (AxisMaskType)1 << AxisIndex;
+        static const AxisMaskType TheAxisMask = (AxisMaskType)1 << (AxisIndex + TypeBits);
         
         static Axis * self (Context c)
         {
@@ -380,7 +382,7 @@ public:
                 new_x = FixedMin(axis_split->x, StepFixedType::importDoubleSaturatedRound(m->m_split_buffer.split_pos * m->m_split_buffer.split_frac * axis_split->x.doubleValue()));
             }
             if (axis_split->dir) {
-                entry->dir |= TheAxisMask;
+                entry->dir_and_type |= TheAxisMask;
             }
             axis_entry->x = StepperStepFixedType::importBits(new_x.bitsValue() - axis_split->x_pos.bitsValue());
             axis_split->x_pos = new_x;
@@ -422,7 +424,7 @@ public:
             TheAxisSegment *prev_axis_entry = TupleGetElem<AxisIndex>(&prev_entry->axes);
             double m1 = axis_entry->x.doubleValue() * entry_distance_rec;
             double m2 = prev_axis_entry->x.doubleValue() * m->m_last_distance_rec;
-            bool dir_changed = (entry->dir ^ prev_entry->dir) & TheAxisMask;
+            bool dir_changed = (entry->dir_and_type ^ prev_entry->dir_and_type) & TheAxisMask;
             double dm = (dir_changed ? (m1 + m2) : fabs(m1 - m2));
             return fmin(accum, (AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / (dm * axis_split->max_a_rec));
         }
@@ -463,7 +465,7 @@ public:
                 }
             }
             
-            bool dir = entry->dir & TheAxisMask;
+            bool dir = entry->dir_and_type & TheAxisMask;
             uint8_t num_stepper_entries = 0;
             if (x0.bitsValue() != 0) {
                 num_stepper_entries++;
@@ -698,7 +700,7 @@ public:
             for (SegmentBufferSizeType i = m->m_segments_staging_length; i < m->m_segments_length; i++) {
                 Segment *seg = &m->m_segments[segments_add(m->m_segments_start, i)];
                 TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&seg->axes);
-                if ((seg->dir & TheAxisMask)) {
+                if ((seg->dir_and_type & TheAxisMask)) {
                     steps += (StepsType)axis_entry->x.bitsValue();
                 } else {
                     steps -= (StepsType)axis_entry->x.bitsValue();
@@ -1168,10 +1170,9 @@ private:
             }
             
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
-            entry->type = o->m_split_buffer.type;
-            if (AMBRO_LIKELY(entry->type == 0)) {
+            entry->dir_and_type = o->m_split_buffer.type;
+            if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
                 o->m_split_buffer.split_pos++;
-                entry->dir = 0;
                 TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry(), c, entry);
                 double distance_squared = TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_segment_buffer_entry_distance(), entry);
                 entry->rel_max_speed_rec = TupleForEachForwardAccRes(&o->m_axes, o->m_split_buffer.base_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), c, entry);
@@ -1188,7 +1189,7 @@ private:
                 TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
-                    if (AMBRO_LIKELY(prev_entry->type == 0)) {
+                    if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
                         entry->lp_seg.max_start_v = TupleForEachForwardAccRes(&o->m_axes, entry->lp_seg.max_start_v, Foreach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
                         break;
                     }
@@ -1203,7 +1204,7 @@ private:
                 entry->lp_seg.max_start_v = INFINITY;
                 entry->lp_seg.a_x_rec = INFINITY;
                 entry->lp_seg.two_max_v_minus_a_x = INFINITY;
-                TupleForOneOffset<1>(entry->type, &o->m_channels, Foreach_write_segment(), c, entry);
+                TupleForOneOffset<1>((entry->dir_and_type & TypeMask), &o->m_channels, Foreach_write_segment(), c, entry);
                 o->m_split_buffer.type = 0xFF;
             }
             o->m_segments_length++;
@@ -1250,7 +1251,7 @@ private:
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
             LinearPlannerSegmentResult result;
             v = LinearPlannerPull(&entry->lp_seg, &state[i], v, &result);
-            if (entry->type == 0) {
+            if ((entry->dir_and_type & TypeMask) == 0) {
                 double v_end = sqrt(v);
                 double v_const = sqrt(result.const_v);
                 double t0_double = (v_const - v_start) * entry->max_accel_rec;
@@ -1267,7 +1268,7 @@ private:
                                     t0_double * t0_double, t2_double * t2_double, i < LookaheadCommitCount);
                 v_start = v_end;
             } else {
-                TupleForOneOffset<1>(entry->type, &o->m_channels, Foreach_gen_command(), c, entry,
+                TupleForOneOffset<1>((entry->dir_and_type & TypeMask), &o->m_channels, Foreach_gen_command(), c, entry,
                                      (TimeType)(o->m_staging_time + rel_time), i < LookaheadCommitCount);
             }
             i++;
