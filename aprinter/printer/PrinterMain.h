@@ -1843,7 +1843,7 @@ private:
         }
         
         template <typename TheChannelCommon>
-        static void collect_new_pos (Context c, TheChannelCommon *cc, MoveBuildState *s, typename TheChannelCommon::GcodeParserCommandPart *part)
+        static bool collect_new_pos (Context c, TheChannelCommon *cc, MoveBuildState *s, typename TheChannelCommon::GcodeParserCommandPart *part)
         {
             TheAxis *axis = TheAxis::self(c);
             if (AMBRO_UNLIKELY(part->code == TheAxis::axis_name)) {
@@ -1852,7 +1852,9 @@ private:
                     req += axis->m_req_pos;
                 }
                 update_new_pos(c, s, req);
+                return false;
             }
+            return true;
         }
         
         static void set_relative_positioning (Context c, bool relative)
@@ -2768,9 +2770,10 @@ private:
                     for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < num_parts; i++) {
                         typename TheChannelCommon::GcodeParserCommandPart *part = &cc->cmd(c)->parts[i];
                         PhysVirtAxisHelperTuple dummy;
-                        TupleForEachForward(&dummy, Foreach_collect_new_pos(), c, cc, &s, part);
-                        if (part->code == 'F') {
-                            o->m_max_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
+                        if (TupleForEachForwardInterruptible(&dummy, Foreach_collect_new_pos(), c, cc, &s, part)) {
+                            if (part->code == 'F') {
+                                o->m_max_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
+                            }
                         }
                     }
                     cc->finishCommand(c);
