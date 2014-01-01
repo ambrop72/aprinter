@@ -1627,7 +1627,8 @@ private:
                 if (total_steps != 0.0) {
                     cmd->rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
                     cmd->rel_max_v_rec = fmax(cmd->rel_max_v_rec, sqrt(distance_squared) * o->m_split_time_freq_by_max_speed);
-                    submit_planner_command(c, 0);
+                    m->m_planner.axesCommandDone(c);
+                    submitted_planner_command(c);
                     return;
                 }
             } while (o->m_splitting);
@@ -2037,7 +2038,8 @@ private:
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
                 payload->type = HeaterIndex;
                 UnionGetElem<HeaterIndex>(&payload->heaters)->target = fixed_target;
-                submit_planner_command(c, 1);
+                m->m_planner.channelCommandDone(c, 1);
+                submitted_planner_command(c);
                 return false;
             }
             if (cc->m_cmd_num == HeaterSpec::SetConfigMCommand && TheControl::SupportsConfig) {
@@ -2293,7 +2295,8 @@ private:
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
                 TheSoftPwm::computePowerData(OutputFixedType::importDoubleSaturated(target), &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
-                submit_planner_command(c, 1);
+                m->m_planner.channelCommandDone(c, 1);
+                submitted_planner_command(c);
                 return false;
             }
             return true;
@@ -3084,19 +3087,19 @@ private:
             } else {
                 TupleForEachForward(&o->m_axes, Foreach_limit_axis_move_speed(), c, max_speed, cmd);
             }
-            submit_planner_command(c, 0);
+            o->m_planner.axesCommandDone(c);
+            submitted_planner_command(c);
         } else if (o->m_planner_state == PLANNER_RUNNING) {
             set_force_timer(c);
         }
     }
     
-    static void submit_planner_command (Context c, uint8_t type)
+    static void submitted_planner_command (Context c)
     {
         PrinterMain *o = self(c);
         AMBRO_ASSERT(o->m_planner_state != PLANNER_NONE)
         AMBRO_ASSERT(o->m_planning_pull_pending)
         
-        o->m_planner.commandDone(c, type);
         o->m_planning_pull_pending = false;
         o->m_force_timer.unset(c);
     }

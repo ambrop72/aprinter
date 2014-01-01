@@ -993,17 +993,15 @@ public:
         return &o->m_split_buffer;
     }
     
-    static void commandDone (Context c, uint8_t type)
+    static void axesCommandDone (Context c)
     {
         MotionPlanner *o = self(c);
         AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         AMBRO_ASSERT(o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
-        if (type == 0) {
-            AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.rel_max_v_rec))
-            TupleForEachForward(&o->m_axes, Foreach_commandDone_assert(), c);
-            AMBRO_ASSERT(!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_check_icmd_zero(), c))
-        }
+        AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.rel_max_v_rec))
+        TupleForEachForward(&o->m_axes, Foreach_commandDone_assert(), c);
+        AMBRO_ASSERT(!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_check_icmd_zero(), c))
         
         o->m_waiting = false;
         o->m_pull_finished_event.unset(c);
@@ -1011,19 +1009,37 @@ public:
         o->m_pulling = false;
 #endif
         
-        o->m_split_buffer.type = type;
-        if (o->m_split_buffer.type == 0) {
-            TupleForEachForward(&o->m_axes, Foreach_write_splitbuf(), c);
-            o->m_split_buffer.split_pos = 0;
-            if (AMBRO_LIKELY(TupleForEachForwardAccRes(&o->m_axes, true, Foreach_splitbuf_fits(), c))) {
-                o->m_split_buffer.split_count = 1;
-            } else {
-                double split_count = ceil(TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_split_count(), c));
-                o->m_split_buffer.split_frac = 1.0 / split_count;
-                o->m_split_buffer.rel_max_v_rec *= o->m_split_buffer.split_frac;
-                o->m_split_buffer.split_count = split_count;
-            }
+        o->m_split_buffer.type = 0;
+        TupleForEachForward(&o->m_axes, Foreach_write_splitbuf(), c);
+        o->m_split_buffer.split_pos = 0;
+        if (AMBRO_LIKELY(TupleForEachForwardAccRes(&o->m_axes, true, Foreach_splitbuf_fits(), c))) {
+            o->m_split_buffer.split_count = 1;
+        } else {
+            double split_count = ceil(TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_split_count(), c));
+            o->m_split_buffer.split_frac = 1.0 / split_count;
+            o->m_split_buffer.rel_max_v_rec *= o->m_split_buffer.split_frac;
+            o->m_split_buffer.split_count = split_count;
         }
+        
+        work(c);
+    }
+    
+    static void channelCommandDone (Context c, uint8_t channel_index_plus_one)
+    {
+        MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
+        AMBRO_ASSERT(o->m_pulling)
+        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
+        AMBRO_ASSERT(channel_index_plus_one >= 1)
+        AMBRO_ASSERT(channel_index_plus_one <= NumChannels)
+        
+        o->m_waiting = false;
+        o->m_pull_finished_event.unset(c);
+#ifdef AMBROLIB_ASSERTIONS
+        o->m_pulling = false;
+#endif
+        
+        o->m_split_buffer.type = channel_index_plus_one;
         
         work(c);
     }

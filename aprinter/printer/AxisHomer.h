@@ -148,7 +148,7 @@ private:
         }
         
         if (cmd->axes.elem.x.bitsValue() != 0) {
-            o->m_planner.commandDone(c, 0);
+            o->m_planner.axesCommandDone(c);
         } else {
             o->m_planner.emptyDone(c);
         }
