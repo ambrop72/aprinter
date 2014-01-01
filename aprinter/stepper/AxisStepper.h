@@ -36,6 +36,7 @@
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/Position.h>
+#include <aprinter/math/StoredNumber.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Inline.h>
@@ -118,12 +119,13 @@ public:
     using DirStepFixedType = FixedPoint<step_bits + 2, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
     using TimeFixedType = FixedPoint<time_bits, false, 0>;
+    using TimeMulFixedType = decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
     using CommandCallbackContext = typename TimerInstance::HandlerContext;
     
     struct Command {
         DirStepFixedType dir_x;
         decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) a_mul;
-        decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) t_mul;
+        StoredNumber<TimeMulFixedType::num_bits, TimeMulFixedType::is_signed> t_mul_stored;
     };
     
     AMBRO_ALWAYS_INLINE static void generate_command (bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a, Command *cmd)
@@ -131,7 +133,7 @@ public:
         AMBRO_ASSERT(a >= -x)
         AMBRO_ASSERT(a <= x)
         
-        cmd->t_mul = AXIS_STEPPER_TMUL_EXPR(x, t, a);
+        cmd->t_mul_stored.store(AXIS_STEPPER_TMUL_EXPR(x, t, a).m_bits.m_int);
         cmd->dir_x = DirStepFixedType::importBits(
             x.bitsValue() |
             ((typename DirStepFixedType::IntType)dir << step_bits) |
@@ -187,7 +189,7 @@ public:
         o->m_notdecel = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
         StepFixedType x = StepFixedType::importBits(o->m_current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
         o->m_notend = (x.bitsValue() != 0);
-        TimeType end_time = start_time + o->m_current_command->t_mul.template bitsTo<time_bits>().bitsValue();
+        TimeType end_time = start_time + TimeMulFixedType::importBits(o->m_current_command->t_mul_stored.retrieve()).template bitsTo<time_bits>().bitsValue();
         TimeType timer_t;
         if (AMBRO_UNLIKELY(!o->m_notend)) {
             timer_t = end_time;
@@ -302,7 +304,7 @@ private:
             StepFixedType x = StepFixedType::importBits(current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
             o->m_notend = (x.bitsValue() != 0);
             if (AMBRO_UNLIKELY(!o->m_notend)) {
-                o->m_time += current_command->t_mul.template bitsTo<time_bits>().bitsValue();
+                o->m_time += TimeMulFixedType::importBits(current_command->t_mul_stored.retrieve()).template bitsTo<time_bits>().bitsValue();
                 o->m_timer.setNext(c, o->m_time);
                 return true;
             }
@@ -312,7 +314,7 @@ private:
             if (AMBRO_LIKELY(o->m_notdecel)) {
                 o->m_v0 = (xs + a).toUnsignedUnsafe();
                 o->m_pos = StepFixedType::importBits(x.bitsValue() - 1);
-                o->m_time += current_command->t_mul.template bitsTo<time_bits>().bitsValue();
+                o->m_time += TimeMulFixedType::importBits(current_command->t_mul_stored.retrieve()).template bitsTo<time_bits>().bitsValue();
             } else {
                 o->m_x = x;
                 o->m_v0 = x_minus_a;
@@ -348,7 +350,7 @@ private:
         
         auto t_frac = FixedFracDivide(o->m_pos, q, OptionForceInline());
         
-        auto t_mul = current_command->t_mul;
+        auto t_mul = TimeMulFixedType::importBits(current_command->t_mul_stored.retrieve());
         TimeFixedType t = FixedResMultiply(t_mul, t_frac);
         
         Stepper::stepOff(c);
