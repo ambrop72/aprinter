@@ -157,34 +157,11 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_gen_command, gen_command)
     
 public:
-    template <int AxisIndex>
-    struct AxisInputCommand {
-        using AxisSpec = TypeListGet<AxesList, AxisIndex>;
-        using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
-        
-        bool dir;
-        StepFixedType x;
-        double max_v_rec;
-        double max_a_rec;
-    };
-    
     template <int ChannelIndex>
     using ChannelPayload = typename TypeListGet<ChannelsList, ChannelIndex>::Payload;
     
     using ChannelPayloadUnion = IndexElemUnion<ChannelsList, ChannelPayload>;
     
-    struct InputCommand {
-        uint8_t type;
-        union {
-            struct {
-                double rel_max_v_rec;
-                IndexElemTuple<AxesList, AxisInputCommand> axes;
-            };
-            ChannelPayloadUnion channel_payload;
-        };
-    };
-    
-private:
     template <int AxisIndex>
     struct AxisSplitBuffer {
         using AxisSpec = TypeListGet<AxesList, AxisIndex>;
@@ -194,23 +171,24 @@ private:
         StepFixedType x;
         double max_v_rec;
         double max_a_rec;
-        StepFixedType x_pos;
+        StepFixedType x_pos; // internal
     };
     
     struct SplitBuffer {
-        uint8_t type;
+        uint8_t type; // internal
         union {
             struct {
-                double base_max_v_rec;
-                double split_frac;
-                uint32_t split_count;
-                uint32_t split_pos;
+                double rel_max_v_rec;
+                double split_frac; // internal
+                uint32_t split_count; // internal
+                uint32_t split_pos; // internal
                 IndexElemTuple<AxesList, AxisSplitBuffer> axes;
             };
             ChannelPayloadUnion channel_payload;
         };
     };
     
+private:
     template <int AxisIndex>
     struct AxisStepperCommand {
         using AxisSpec = TypeListGet<AxesList, AxisIndex>;
@@ -280,7 +258,6 @@ public:
         using AxisSpec = TypeListGet<AxesList, AxisIndex>;
         using TheAxisStepper = typename AxisSpec::TheAxisStepper;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
-        using TheAxisInputCommand = AxisInputCommand<AxisIndex>;
         using StepperCommandCallbackContext = typename TheAxisStepper::CommandCallbackContext;
         
     public: // private, workaround gcc bug
@@ -331,22 +308,18 @@ public:
             stepper(c)->stop(c);
         }
         
-        static void commandDone_assert (InputCommand *icmd)
-        {
-            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd->axes);
-            AMBRO_ASSERT(FloatIsPosOrPosZero(axis_icmd->max_v_rec))
-            AMBRO_ASSERT(FloatIsPosOrPosZero(axis_icmd->max_a_rec))
-        }
-        
-        static void write_splitbuf (Context c, InputCommand *icmd)
+        static void commandDone_assert (Context c)
         {
             MotionPlanner *m = MotionPlanner::self(c);
-            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd->axes);
             TheAxisSplitBuffer *axis_split = TupleGetElem<AxisIndex>(&m->m_split_buffer.axes);
-            axis_split->dir = axis_icmd->dir;
-            axis_split->x = axis_icmd->x;
-            axis_split->max_v_rec = axis_icmd->max_v_rec;
-            axis_split->max_a_rec = axis_icmd->max_a_rec;
+            AMBRO_ASSERT(FloatIsPosOrPosZero(axis_split->max_v_rec))
+            AMBRO_ASSERT(FloatIsPosOrPosZero(axis_split->max_a_rec))
+        }
+        
+        static void write_splitbuf (Context c)
+        {
+            MotionPlanner *m = MotionPlanner::self(c);
+            TheAxisSplitBuffer *axis_split = TupleGetElem<AxisIndex>(&m->m_split_buffer.axes);
             axis_split->x_pos = StepFixedType::importBits(0);
         }
         
@@ -364,10 +337,11 @@ public:
             return fmax(accum, axis_split->x.doubleValue() * (1.0001 / StepperStepFixedType::maxValue().doubleValue()));
         }
         
-        static bool check_icmd_zero (bool accum, InputCommand *icmd)
+        static bool check_icmd_zero (bool accum, Context c)
         {
-            TheAxisInputCommand *axis_icmd = TupleGetElem<AxisIndex>(&icmd->axes);
-            return (accum && axis_icmd->x.bitsValue() == 0);
+            MotionPlanner *m = MotionPlanner::self(c);
+            TheAxisSplitBuffer *axis_split = TupleGetElem<AxisIndex>(&m->m_split_buffer.axes);
+            return (accum && axis_split->x.bitsValue() == 0);
         }
         
         static void write_segment_buffer_entry (Context c, Segment *entry)
@@ -1009,16 +983,26 @@ public:
         o->m_pull_finished_event.deinit(c);
     }
     
-    static void commandDone (Context c, InputCommand *icmd)
+    static SplitBuffer * getBuffer (Context c)
     {
         MotionPlanner *o = self(c);
         AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         AMBRO_ASSERT(o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
-        if (icmd->type == 0) {
-            AMBRO_ASSERT(FloatIsPosOrPosZero(icmd->rel_max_v_rec))
-            TupleForEachForward(&o->m_axes, Foreach_commandDone_assert(), icmd);
-            AMBRO_ASSERT(!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_check_icmd_zero(), icmd))
+        
+        return &o->m_split_buffer;
+    }
+    
+    static void commandDone (Context c, uint8_t type)
+    {
+        MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
+        AMBRO_ASSERT(o->m_pulling)
+        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
+        if (type == 0) {
+            AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.rel_max_v_rec))
+            TupleForEachForward(&o->m_axes, Foreach_commandDone_assert(), c);
+            AMBRO_ASSERT(!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_check_icmd_zero(), c))
         }
         
         o->m_waiting = false;
@@ -1027,21 +1011,18 @@ public:
         o->m_pulling = false;
 #endif
         
-        o->m_split_buffer.type = icmd->type;
+        o->m_split_buffer.type = type;
         if (o->m_split_buffer.type == 0) {
-            TupleForEachForward(&o->m_axes, Foreach_write_splitbuf(), c, icmd);
+            TupleForEachForward(&o->m_axes, Foreach_write_splitbuf(), c);
             o->m_split_buffer.split_pos = 0;
             if (AMBRO_LIKELY(TupleForEachForwardAccRes(&o->m_axes, true, Foreach_splitbuf_fits(), c))) {
-                o->m_split_buffer.base_max_v_rec = icmd->rel_max_v_rec;
                 o->m_split_buffer.split_count = 1;
             } else {
                 double split_count = ceil(TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_split_count(), c));
                 o->m_split_buffer.split_frac = 1.0 / split_count;
-                o->m_split_buffer.base_max_v_rec = icmd->rel_max_v_rec * o->m_split_buffer.split_frac;
+                o->m_split_buffer.rel_max_v_rec *= o->m_split_buffer.split_frac;
                 o->m_split_buffer.split_count = split_count;
             }
-        } else {
-            o->m_split_buffer.channel_payload = icmd->channel_payload;
         }
         
         work(c);
@@ -1187,7 +1168,7 @@ private:
                 o->m_split_buffer.split_pos++;
                 TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry(), c, entry);
                 double distance_squared = TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_segment_buffer_entry_distance(), entry);
-                entry->rel_max_speed_rec = TupleForEachForwardAccRes(&o->m_axes, o->m_split_buffer.base_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), c, entry);
+                entry->rel_max_speed_rec = TupleForEachForwardAccRes(&o->m_axes, o->m_split_buffer.rel_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), c, entry);
                 double rel_max_accel_rec = TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_segment_buffer_entry_accel(), c, entry);
                 double distance = sqrt(distance_squared);
                 double distance_rec = 1.0 / distance;

@@ -59,7 +59,7 @@ private:
     
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, GetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
     using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerLookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler>;
-    using PlannerCommand = typename Planner::InputCommand;
+    using PlannerCommand = typename Planner::SplitBuffer;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
     
     static AxisHomer * self (Context c)
@@ -124,32 +124,31 @@ private:
             return;
         }
         
-        PlannerCommand cmd;
-        cmd.type = 0;
-        cmd.rel_max_v_rec = 0.0;
+        PlannerCommand *cmd = o->m_planner.getBuffer(c);
+        cmd->rel_max_v_rec = 0.0;
         switch (o->m_state) {
             case STATE_FAST: {
-                cmd.axes.elem.dir = HomeDir;
-                cmd.axes.elem.x = o->m_params.fast_max_dist;
-                cmd.axes.elem.max_v_rec = 1.0 / o->m_params.fast_speed;
-                cmd.axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
+                cmd->axes.elem.dir = HomeDir;
+                cmd->axes.elem.x = o->m_params.fast_max_dist;
+                cmd->axes.elem.max_v_rec = 1.0 / o->m_params.fast_speed;
+                cmd->axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
             } break;
             case STATE_RETRACT: {
-                cmd.axes.elem.dir = !HomeDir;
-                cmd.axes.elem.x = o->m_params.retract_dist;
-                cmd.axes.elem.max_v_rec = 1.0 / o->m_params.retract_speed;
-                cmd.axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
+                cmd->axes.elem.dir = !HomeDir;
+                cmd->axes.elem.x = o->m_params.retract_dist;
+                cmd->axes.elem.max_v_rec = 1.0 / o->m_params.retract_speed;
+                cmd->axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
             } break;
             case STATE_SLOW: {
-                cmd.axes.elem.dir = HomeDir;
-                cmd.axes.elem.x = o->m_params.slow_max_dist;
-                cmd.axes.elem.max_v_rec = 1.0 / o->m_params.slow_speed;
-                cmd.axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
+                cmd->axes.elem.dir = HomeDir;
+                cmd->axes.elem.x = o->m_params.slow_max_dist;
+                cmd->axes.elem.max_v_rec = 1.0 / o->m_params.slow_speed;
+                cmd->axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
             } break;
         }
         
-        if (cmd.axes.elem.x.bitsValue() != 0) {
-            o->m_planner.commandDone(c, &cmd);
+        if (cmd->axes.elem.x.bitsValue() != 0) {
+            o->m_planner.commandDone(c, 0);
         } else {
             o->m_planner.emptyDone(c);
         }

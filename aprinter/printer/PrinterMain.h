@@ -1621,14 +1621,13 @@ private:
                 }
                 double distance_squared = 0.0;
                 TupleForEachForward(&o->m_virt_axes, Foreach_work_split_distance(), c, virt_pos, &distance_squared);
-                PlannerInputCommand cmd;
+                PlannerSplitBuffer *cmd = m->m_planner.getBuffer(c);
                 double total_steps = 0.0;
-                TupleForEachForward(&m->m_axes, Foreach_do_move(), c, all_phys_pos, &distance_squared, &total_steps, &cmd);
+                TupleForEachForward(&m->m_axes, Foreach_do_move(), c, all_phys_pos, &distance_squared, &total_steps, cmd);
                 if (total_steps != 0.0) {
-                    cmd.type = 0;
-                    cmd.rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
-                    cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, sqrt(distance_squared) * o->m_split_time_freq_by_max_speed);
-                    submit_planner_command(c, &cmd);
+                    cmd->rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
+                    cmd->rel_max_v_rec = fmax(cmd->rel_max_v_rec, sqrt(distance_squared) * o->m_split_time_freq_by_max_speed);
+                    submit_planner_command(c, 0);
                     return;
                 }
             } while (o->m_splitting);
@@ -2005,6 +2004,7 @@ private:
         static bool check_command (Context c, TheChannelCommon *cc)
         {
             Heater *o = self(c);
+            PrinterMain *m = PrinterMain::self(c);
             
             if (cc->m_cmd_num == HeaterSpec::WaitMCommand) {
                 if (!cc->tryUnplannedCommand(c)) {
@@ -2033,12 +2033,11 @@ private:
                 if (!(fixed_target > min_safe_temp() && fixed_target < max_safe_temp())) {
                     fixed_target = ValueFixedType::minValue();
                 }
-                PlannerInputCommand cmd;
-                cmd.type = 1;
-                PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
+                PlannerSplitBuffer *cmd = m->m_planner.getBuffer(c);
+                PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
                 payload->type = HeaterIndex;
                 UnionGetElem<HeaterIndex>(&payload->heaters)->target = fixed_target;
-                submit_planner_command(c, &cmd);
+                submit_planner_command(c, 1);
                 return false;
             }
             if (cc->m_cmd_num == HeaterSpec::SetConfigMCommand && TheControl::SupportsConfig) {
@@ -2277,6 +2276,7 @@ private:
         template <typename TheChannelCommon>
         static bool check_command (Context c, TheChannelCommon *cc)
         {
+            PrinterMain *m = PrinterMain::self(c);
             if (cc->m_cmd_num == FanSpec::SetMCommand || cc->m_cmd_num == FanSpec::OffMCommand) {
                 if (!cc->tryPlannedCommand(c)) {
                     return false;
@@ -2289,12 +2289,11 @@ private:
                     }
                 }
                 cc->finishCommand(c);
-                PlannerInputCommand cmd;
-                cmd.type = 1;
-                PlannerChannelPayload *payload = UnionGetElem<0>(&cmd.channel_payload);
+                PlannerSplitBuffer *cmd = m->m_planner.getBuffer(c);
+                PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
                 TheSoftPwm::computePowerData(OutputFixedType::importDoubleSaturated(target), &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
-                submit_planner_command(c, &cmd);
+                submit_planner_command(c, 1);
                 return false;
             }
             return true;
@@ -2347,7 +2346,7 @@ private:
     using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, Params::template EventChannelTimer>>;
     using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
     using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, Params::LookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, MotionPlannerChannels>;
-    using PlannerInputCommand = typename ThePlanner::InputCommand;
+    using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
     template <int AxisIndex>
     using HomingStateTupleHelper = typename Axis<AxisIndex>::HomingFeature::HomingState;
@@ -3072,33 +3071,32 @@ private:
         if (o->m_transform_feature.handle_virt_move(c, s, max_speed)) {
             return;
         }
-        PlannerInputCommand cmd;
+        PlannerSplitBuffer *cmd = o->m_planner.getBuffer(c);
         double distance_squared = 0.0;
         double total_steps = 0.0;
         TupleForEachForward(&o->m_axes, Foreach_set_req_pos(), c, s->new_pos);
-        TupleForEachForward(&o->m_axes, Foreach_do_move(), c, s->new_pos, &distance_squared, &total_steps, &cmd);
+        TupleForEachForward(&o->m_axes, Foreach_do_move(), c, s->new_pos, &distance_squared, &total_steps, cmd);
         o->m_transform_feature.do_pending_virt_update(c);
         if (total_steps != 0.0) {
-            cmd.type = 0;
-            cmd.rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
+            cmd->rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
             if (s->seen_cartesian) {
-                cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, FloatMakePosOrPosZero(sqrt(distance_squared) / (max_speed * Clock::time_unit)));
+                cmd->rel_max_v_rec = fmax(cmd->rel_max_v_rec, FloatMakePosOrPosZero(sqrt(distance_squared) / (max_speed * Clock::time_unit)));
             } else {
-                TupleForEachForward(&o->m_axes, Foreach_limit_axis_move_speed(), c, max_speed, &cmd);
+                TupleForEachForward(&o->m_axes, Foreach_limit_axis_move_speed(), c, max_speed, cmd);
             }
-            submit_planner_command(c, &cmd);
+            submit_planner_command(c, 0);
         } else if (o->m_planner_state == PLANNER_RUNNING) {
             set_force_timer(c);
         }
     }
     
-    static void submit_planner_command (Context c, PlannerInputCommand *cmd)
+    static void submit_planner_command (Context c, uint8_t type)
     {
         PrinterMain *o = self(c);
         AMBRO_ASSERT(o->m_planner_state != PLANNER_NONE)
         AMBRO_ASSERT(o->m_planning_pull_pending)
         
-        o->m_planner.commandDone(c, cmd);
+        o->m_planner.commandDone(c, type);
         o->m_planning_pull_pending = false;
         o->m_force_timer.unset(c);
     }
