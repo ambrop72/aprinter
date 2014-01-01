@@ -1021,7 +1021,7 @@ public:
             o->m_split_buffer.split_count = split_count;
         }
         
-        work(c);
+        c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
     }
     
     static void channelCommandDone (Context c, uint8_t channel_index_plus_one)
@@ -1041,7 +1041,7 @@ public:
         
         o->m_split_buffer.type = channel_index_plus_one;
         
-        work(c);
+        c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
     }
     
     static void emptyDone (Context c)
@@ -1389,39 +1389,41 @@ private:
     static void stepper_event_handler (Context c)
     {
         MotionPlanner *o = PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-        AMBRO_ASSERT(o->m_state == STATE_STEPPING)
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         
-        bool empty;
-        bool aborted;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            o->m_underrun = planner_is_underrun(c);
-            empty = planner_is_empty(c);
-            aborted = TupleForEachForwardAccRes(&o->m_axes, false, Foreach_is_aborted(), c);
-        }
-        
-        if (AMBRO_UNLIKELY(aborted)) {
-            AMBRO_ASSERT(o->m_underrun)
-            TupleForEachForward(&o->m_axes, Foreach_abort(), c);
-            TupleForEachForward(&o->m_channels, Foreach_abort(), c);
-            c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
-            o->m_state = STATE_ABORTED;
-            o->m_pull_finished_event.unset(c);
-            return AbortedHandler::call(c);
-        }
-        
-        if (AMBRO_UNLIKELY(empty)) {
-            AMBRO_ASSERT(o->m_underrun)
-            o->m_state = STATE_BUFFERING;
-            o->m_segments_start = segments_add(o->m_segments_start, o->m_segments_staging_length);
-            o->m_segments_length -= o->m_segments_staging_length;
-            o->m_segments_staging_length = 0;
-            o->m_staging_time = 0;
-            o->m_staging_v_squared = 0.0;
-            c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
-            TupleForEachForward(&o->m_axes, Foreach_stopped_stepping(), c);
-            TupleForEachForward(&o->m_channels, Foreach_stopped_stepping(), c);
-            if (o->m_waiting) {
-                return continue_wait(c);
+        if (AMBRO_LIKELY(o->m_state == STATE_STEPPING)) {
+            bool empty;
+            bool aborted;
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                o->m_underrun = planner_is_underrun(c);
+                empty = planner_is_empty(c);
+                aborted = TupleForEachForwardAccRes(&o->m_axes, false, Foreach_is_aborted(), c);
+            }
+            
+            if (AMBRO_UNLIKELY(aborted)) {
+                AMBRO_ASSERT(o->m_underrun)
+                TupleForEachForward(&o->m_axes, Foreach_abort(), c);
+                TupleForEachForward(&o->m_channels, Foreach_abort(), c);
+                c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
+                o->m_state = STATE_ABORTED;
+                o->m_pull_finished_event.unset(c);
+                return AbortedHandler::call(c);
+            }
+            
+            if (AMBRO_UNLIKELY(empty)) {
+                AMBRO_ASSERT(o->m_underrun)
+                o->m_state = STATE_BUFFERING;
+                o->m_segments_start = segments_add(o->m_segments_start, o->m_segments_staging_length);
+                o->m_segments_length -= o->m_segments_staging_length;
+                o->m_segments_staging_length = 0;
+                o->m_staging_time = 0;
+                o->m_staging_v_squared = 0.0;
+                c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
+                TupleForEachForward(&o->m_axes, Foreach_stopped_stepping(), c);
+                TupleForEachForward(&o->m_channels, Foreach_stopped_stepping(), c);
+                if (o->m_waiting) {
+                    return continue_wait(c);
+                }
             }
         }
         
