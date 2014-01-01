@@ -148,7 +148,11 @@ private:
             } break;
         }
         
-        o->m_planner.commandDone(c, &cmd);
+        if (cmd.axes.elem.x.bitsValue() != 0) {
+            o->m_planner.commandDone(c, &cmd);
+        } else {
+            o->m_planner.emptyDone(c);
+        }
         o->m_command_sent = true;
     }
     

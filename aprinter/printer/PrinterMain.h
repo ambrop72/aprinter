@@ -1599,34 +1599,40 @@ private:
             PrinterMain *m = PrinterMain::self(c);
             AMBRO_ASSERT(o->m_splitting)
             
-            double virt_pos[NumVirtAxes];
-            double all_phys_pos[NumPhysVirtAxes];
-            double frac;
-            if (o->m_splitter.pull(&frac)) {
-                AMBRO_ASSERT(FloatIsPosOrPosZero(frac))
-                AMBRO_ASSERT(frac <= 1.0)
-                TupleForEachForward(&o->m_virt_axes, Foreach_compute_split(), c, frac, virt_pos);
-                double phys_pos[NumVirtAxes];
-                TheTransformAlg::virtToPhys(virt_pos, phys_pos);
-                if (TupleForEachForwardAccRes(&o->m_virt_axes, false, Foreach_clamp_phys(), c, phys_pos)) {
-                    TheTransformAlg::physToVirt(phys_pos, virt_pos);
+            do {
+                double virt_pos[NumVirtAxes];
+                double all_phys_pos[NumPhysVirtAxes];
+                double frac;
+                if (o->m_splitter.pull(&frac)) {
+                    AMBRO_ASSERT(FloatIsPosOrPosZero(frac))
+                    AMBRO_ASSERT(frac <= 1.0)
+                    TupleForEachForward(&o->m_virt_axes, Foreach_compute_split(), c, frac, virt_pos);
+                    double phys_pos[NumVirtAxes];
+                    TheTransformAlg::virtToPhys(virt_pos, phys_pos);
+                    if (TupleForEachForwardAccRes(&o->m_virt_axes, false, Foreach_clamp_phys(), c, phys_pos)) {
+                        TheTransformAlg::physToVirt(phys_pos, virt_pos);
+                    }
+                    TupleForEachForward(&o->m_virt_axes, Foreach_write_out_phys_pos(), c, phys_pos, all_phys_pos);
+                    TupleForEachForward(&o->m_secondary_axes, Foreach_compute_split(), c, frac, all_phys_pos);
+                } else {
+                    o->m_splitting = false;
+                    TupleForEachForward(&o->m_virt_axes, Foreach_get_final_split(), c, virt_pos, all_phys_pos);
+                    TupleForEachForward(&o->m_secondary_axes, Foreach_get_final_split(), c, all_phys_pos);
                 }
-                TupleForEachForward(&o->m_virt_axes, Foreach_write_out_phys_pos(), c, phys_pos, all_phys_pos);
-                TupleForEachForward(&o->m_secondary_axes, Foreach_compute_split(), c, frac, all_phys_pos);
-            } else {
-                o->m_splitting = false;
-                TupleForEachForward(&o->m_virt_axes, Foreach_get_final_split(), c, virt_pos, all_phys_pos);
-                TupleForEachForward(&o->m_secondary_axes, Foreach_get_final_split(), c, all_phys_pos);
-            }
-            double distance_squared = 0.0;
-            TupleForEachForward(&o->m_virt_axes, Foreach_work_split_distance(), c, virt_pos, &distance_squared);
-            PlannerInputCommand cmd;
-            double total_steps = 0.0;
-            TupleForEachForward(&m->m_axes, Foreach_do_move(), c, all_phys_pos, &distance_squared, &total_steps, &cmd);
-            cmd.type = 0;
-            cmd.rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
-            cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, sqrt(distance_squared) * o->m_split_time_freq_by_max_speed);
-            submit_planner_command(c, &cmd);
+                double distance_squared = 0.0;
+                TupleForEachForward(&o->m_virt_axes, Foreach_work_split_distance(), c, virt_pos, &distance_squared);
+                PlannerInputCommand cmd;
+                double total_steps = 0.0;
+                TupleForEachForward(&m->m_axes, Foreach_do_move(), c, all_phys_pos, &distance_squared, &total_steps, &cmd);
+                if (total_steps != 0.0) {
+                    cmd.type = 0;
+                    cmd.rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
+                    cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, sqrt(distance_squared) * o->m_split_time_freq_by_max_speed);
+                    submit_planner_command(c, &cmd);
+                    return;
+                }
+            } while (o->m_splitting);
+            set_force_timer(c);
         }
         
         template <typename TheChannelCommon>
@@ -2881,6 +2887,16 @@ private:
         o->m_disable_timer.unset(c);
     }
     
+    static void set_force_timer (Context c)
+    {
+        PrinterMain *o = self(c);
+        AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING)
+        AMBRO_ASSERT(o->m_planning_pull_pending)
+        
+        TimeType force_time = c.clock()->getTime(c) + (TimeType)(Params::ForceTimeout::value() * Clock::time_freq);
+        o->m_force_timer.appendAt(c, force_time);
+    }
+    
     template <typename TheChannelCommon>
     static void continue_locking_helper (Context c, TheChannelCommon *cc)
     {
@@ -2958,8 +2974,7 @@ private:
             ChannelCommonTuple dummy;
             TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_continue_planned_helper());
         } else if (o->m_planner_state == PLANNER_RUNNING) {
-            TimeType force_time = c.clock()->getTime(c) + (TimeType)(Params::ForceTimeout::value() * Clock::time_freq);
-            o->m_force_timer.appendAt(c, force_time);
+            set_force_timer(c);
         } else {
             AMBRO_ASSERT(o->m_planner_state == PLANNER_PROBE)
             o->m_probe_feature.custom_pull_handler(c);
@@ -3063,14 +3078,18 @@ private:
         TupleForEachForward(&o->m_axes, Foreach_set_req_pos(), c, s->new_pos);
         TupleForEachForward(&o->m_axes, Foreach_do_move(), c, s->new_pos, &distance_squared, &total_steps, &cmd);
         o->m_transform_feature.do_pending_virt_update(c);
-        cmd.type = 0;
-        cmd.rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
-        if (s->seen_cartesian) {
-            cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, FloatMakePosOrPosZero(sqrt(distance_squared) / (max_speed * Clock::time_unit)));
-        } else {
-            TupleForEachForward(&o->m_axes, Foreach_limit_axis_move_speed(), c, max_speed, &cmd);
+        if (total_steps != 0.0) {
+            cmd.type = 0;
+            cmd.rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
+            if (s->seen_cartesian) {
+                cmd.rel_max_v_rec = fmax(cmd.rel_max_v_rec, FloatMakePosOrPosZero(sqrt(distance_squared) / (max_speed * Clock::time_unit)));
+            } else {
+                TupleForEachForward(&o->m_axes, Foreach_limit_axis_move_speed(), c, max_speed, &cmd);
+            }
+            submit_planner_command(c, &cmd);
+        } else if (o->m_planner_state == PLANNER_RUNNING) {
+            set_force_timer(c);
         }
-        submit_planner_command(c, &cmd);
     }
     
     static void submit_planner_command (Context c, PlannerInputCommand *cmd)

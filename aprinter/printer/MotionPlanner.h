@@ -1018,6 +1018,7 @@ public:
         if (icmd->type == 0) {
             AMBRO_ASSERT(FloatIsPosOrPosZero(icmd->rel_max_v_rec))
             TupleForEachForward(&o->m_axes, Foreach_commandDone_assert(), icmd);
+            AMBRO_ASSERT(!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_check_icmd_zero(), icmd))
         }
         
         o->m_waiting = false;
@@ -1028,11 +1029,6 @@ public:
         
         o->m_split_buffer.type = icmd->type;
         if (o->m_split_buffer.type == 0) {
-            if (TupleForEachForwardAccRes(&o->m_axes, true, Foreach_check_icmd_zero(), icmd)) {
-                o->m_split_buffer.type = 0xFF;
-                o->m_pull_finished_event.prependNowNotAlready(c);
-                return;
-            }
             TupleForEachForward(&o->m_axes, Foreach_write_splitbuf(), c, icmd);
             o->m_split_buffer.split_pos = 0;
             if (AMBRO_LIKELY(TupleForEachForwardAccRes(&o->m_axes, true, Foreach_splitbuf_fits(), c))) {
@@ -1049,6 +1045,22 @@ public:
         }
         
         work(c);
+    }
+    
+    static void emptyDone (Context c)
+    {
+        MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
+        AMBRO_ASSERT(o->m_pulling)
+        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
+        
+        o->m_waiting = false;
+        o->m_pull_finished_event.unset(c);
+#ifdef AMBROLIB_ASSERTIONS
+        o->m_pulling = false;
+#endif
+        
+        o->m_pull_finished_event.prependNowNotAlready(c);
     }
     
     static void waitFinished (Context c)
