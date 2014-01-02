@@ -1,0 +1,114 @@
+Packet = Header IndexElem* Payload
+Header = TTTTSSSS [LLLLLNNN NNNNNNNN]
+IndexElem = TTTLLLLL
+
+-- Basic description --
+
+Each g-code is encoded as a Packet.
+The Header specifies the command (G1, M104...) and the number of parameters.
+The command can either be encoded using a short form for a few common commands,
+or a long form for other commands.
+After the header follow IndexElem fields, one for each command parameter.
+Each IndexElem specifies the parameter letter and the data type of the parameter.
+The actual parameter values are encoded in order in the Payload section of the
+packet.
+
+-- Header fields --
+
+T: Operation type.
+Some common gcodes can be encoded more efficiently using predefined
+operation type values.
+Others need to use long operation encoding.
+If long operation encoding is used, the header is 3 bytes long,
+and the last two bytes specify the operation letter and number.
+If long encoding is not used, the header is 1 byte long, and the
+operation letter and number are defined by the type field.
+Values:
+    1 = G0
+    2 = G1
+    3 = G92
+    15 = long operation encoding
+
+S: Index size.
+The size of the index in bytes, that is, the number of parameters.
+The number of parameters should be between 0 and 14. Index size
+value 15 is reserved.
+
+L: Operation letter.
+For long operation encoding, specified the operation letter.
+The actual letter encoded is ASCII 'A' plus the value of this field.
+Only letters A-Z may be encoded, that is, the value of this parameter
+should be between 0 and 25; higher values are reserved.
+
+N: Operation number.
+For long operation encoding, specifies the numeric portion of the operation.
+Numbers from 0 to 2047 are available.
+For example, the command M114 is encoded with L=M-A=12 and N=114.
+
+-- IndexElem fields --
+
+T: Parameter data type.
+The data type of the payload of this parameter.
+Values:
+    1 = float
+    2 = double
+    3 = uint32
+    4 = uint64
+
+L: Parameter letter.
+The actual letter encoded is ASCII 'A' plus the value of this field.
+Only letters A-Z may be encoded, that is, the value of this parameter
+should be between 0 and 25; higher values are reserved.
+
+-- Parameter values --
+
+The payload of a packet is formed by concatenating the payloads of the parameters in order.
+The size and semantic of the individual payloads depend on the respective data types,
+but the size is always a whole number of bytes.
+
+Float encoding: IEEE 754 binary32, little endian (4 bytes).
+Double encoding: IEEE 754 binary64, little endian (8 bytes).
+Uint32 encoding: little endian (4 bytes).
+
+There are some restrictions on how the decoder may interpret numeric parameters:
+
+- The decoder treats a parameter under a certain semantics, that is, either "integer" or
+  "real". For example, coordinate parameters will typically be treated as real, whereas
+  a file offset would be treated as integer.
+
+- For integer semantics, uint32 should be accepted, and uint64 should be accepted
+  if values 2^32 and larger are permitted by the semantics of the parameter.
+
+- For real semantics, float and uint32 should be accepted, as well as double if the decoder
+  supports doubles. Support for double is an attribute of the decoder - either the decoder
+  supports double for all parameters with real semantics, or for none.
+
+Similarly, gcode to binary encoders should follow these rules:
+
+- If a command parameter is a decimal number without a decimal point, it is encoded
+  as the first of the following types with sufficient range: uint32, uint64, float/double.
+  Here float/double means the encoder is free to make the choice, but double may only
+  be used if the decoder is known to support doubles.
+
+- If a command parameter is a number in a more general sense, it is encoded as float/double.
+  Again, the decision is up to the encoder.
+
+Rationale:
+
+- The problem with the real/integer distinction is that the gcode to binary encoder generally
+  does now know the semantics of the parameters.
+
+- Parameters with real semantics, such as axis coordinates, are typically represented
+  in the gcode with a decimal point (e.g. coordinates produced by slicers).
+  Therefore, these will typically be encoded as floats or doubles, requiring no conversion
+  on the decoder (except if the decoder internally converts between float and double).
+
+- Sometimes parameters with real semantics are represented in the gcode without a decimal
+  point. This is most likely human generated gcode.
+  Assuming the value is not absurdly large, it will be encoded as uint32 and the decoder
+  is expected convert it to whatever floating point type it uses internally.
+
+- Parameters with integer semantics are necessarily represented in the gcode without
+  a decimal point. Therefore, these will be encoded as uint32/uint64, with no loss of data.
+  If the decoder only accepts uint32, it will still work as long as the actual value fits in
+  an uint32, since the encoder is required to use an uint32 it the value fits.
