@@ -2,6 +2,8 @@ Packet = Header IndexElem* Payload
 Header = TTTTSSSS [LLLLLNNN NNNNNNNN]
 IndexElem = TTTLLLLL
 
+File = Packet* EofPacket
+
 -- Basic description --
 
 Each g-code is encoded as a Packet.
@@ -12,6 +14,9 @@ After the header follow IndexElem fields, one for each command parameter.
 Each IndexElem specifies the parameter letter and the data type of the parameter.
 The actual parameter values are encoded in order in the Payload section of the
 packet.
+Gcode can be packed to a stored file by concatenating the encodings of the
+individual commands, and encoding a final EOF command with no parameters, which
+is the single byte 0xE0.
 
 -- Header fields --
 
@@ -27,6 +32,7 @@ Values:
     1 = G0
     2 = G1
     3 = G92
+    14 = EOF
     15 = long operation encoding
 
 S: Index size.
@@ -54,6 +60,7 @@ Values:
     2 = double
     3 = uint32
     4 = uint64
+    5 = void
 
 L: Parameter letter.
 The actual letter encoded is ASCII 'A' plus the value of this field.
@@ -69,8 +76,10 @@ but the size is always a whole number of bytes.
 Float encoding: IEEE 754 binary32, little endian (4 bytes).
 Double encoding: IEEE 754 binary64, little endian (8 bytes).
 Uint32 encoding: little endian (4 bytes).
+Uint64 encoding: little endian (8 bytes).
+Void encoding: nothing (0 bytes).
 
-There are some restrictions on how the decoder may interpret numeric parameters:
+There are some restrictions on how the decoder may interpret parameters:
 
 - The decoder treats a parameter under a certain semantics, that is, either "integer" or
   "real". For example, coordinate parameters will typically be treated as real, whereas
@@ -85,7 +94,9 @@ There are some restrictions on how the decoder may interpret numeric parameters:
 
 Similarly, gcode to binary encoders should follow these rules:
 
-- If a command parameter is a decimal number without a decimal point, it is encoded
+- If a command parameter is just a letter, it should be encoded as void type.
+
+- If a command parameter is a simple unsigned decimal number ([0-9]+), it is encoded
   as the first of the following types with sufficient range: uint32, uint64, float/double.
   Here float/double means the encoder is free to make the choice, but double may only
   be used if the decoder is known to support doubles.
