@@ -65,10 +65,11 @@ public:
     using PartsSizeType = typename ChooseInt<BitsInInt<Params::MaxParts>::value, true>::Type;
     
     enum {
-        ERROR_TOO_MANY_PARTS = -1,
-        ERROR_INVALID_PART = -2,
-        ERROR_CHECKSUM = -3,
-        ERROR_RECV_OVERRUN = -4
+        ERROR_NO_PARTS = -1, // must be -1
+        ERROR_TOO_MANY_PARTS = -2,
+        ERROR_INVALID_PART = -3,
+        ERROR_CHECKSUM = -4,
+        ERROR_RECV_OVERRUN = -5
     };
     
     template <typename TheParserType, typename Dummy = void>
@@ -82,6 +83,7 @@ public:
     struct Command : public CommandExtra<ParserType> {
         BufferSizeType length;
         PartsSizeType num_parts;
+        uint16_t cmd_number;
         CommandPart parts[Params::MaxParts];
     };
     
@@ -90,6 +92,8 @@ public:
         bool have_line_number;
         uint32_t line_number;
     };
+    
+    using PartRef = CommandPart *;
     
     static void init (Context c)
     {
@@ -144,6 +148,12 @@ public:
                         finish_part(c);
                     } else if (TheTypeHelper::ChecksumEnabled && o->m_state == STATE_CHECKSUM) {
                         TheTypeHelper::checksum_check_hook(c);
+                    }
+                    if (o->m_command.num_parts >= 0) {
+                        o->m_command.num_parts--; // becomes ERROR_NO_PARTS if num_parts==0
+                        if (o->m_command.num_parts >= 0) {
+                            o->m_command.cmd_number = atoi(o->m_command.parts[0].data);
+                        }
                     }
                 }
                 o->m_command.length++;
@@ -223,6 +233,77 @@ public:
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         
         return &o->m_command;
+    }
+    
+    static PartsSizeType getNumParts (Context c)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        
+        return o->m_command.num_parts;
+    }
+    
+    static char getCmdCode (Context c)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        AMBRO_ASSERT(o->m_command.num_parts >= 0)
+        
+        return o->m_command.parts[0].code;
+    }
+    
+    static uint16_t getCmdNumber (Context c)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        AMBRO_ASSERT(o->m_command.num_parts >= 0)
+        
+        return o->m_command.cmd_number;
+    }
+    
+    static PartRef getPart (Context c, PartsSizeType i)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        AMBRO_ASSERT(o->m_command.num_parts >= 0)
+        AMBRO_ASSERT(i >= 0)
+        AMBRO_ASSERT(i < o->m_command.num_parts)
+        
+        return &o->m_command.parts[1 + i];
+    }
+    
+    static char getPartCode (Context c, PartRef part)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        AMBRO_ASSERT(o->m_command.num_parts >= 0)
+        
+        return part->code;
+    }
+    
+    static double getPartDoubleValue (Context c, PartRef part)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        AMBRO_ASSERT(o->m_command.num_parts >= 0)
+        
+        return strtod(part->data, NULL);
+    }
+    
+    static uint32_t getPartUint32Value (Context c, PartRef part)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        AMBRO_ASSERT(o->m_command.num_parts >= 0)
+        
+        return strtoul(part->data, NULL, 10);
     }
     
 private:

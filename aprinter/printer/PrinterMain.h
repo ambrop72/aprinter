@@ -402,9 +402,8 @@ private:
     template <typename ChannelCommonPosition, typename Channel>
     struct ChannelCommon {
         using TheGcodeParser = typename Channel::TheGcodeParser;
-        using GcodeParserCommand = typename TheGcodeParser::Command;
-        using GcodeParserCommandPart = typename TheGcodeParser::CommandPart;
         using GcodePartsSizeType = typename TheGcodeParser::PartsSizeType;
+        using GcodeParserPartRef = typename TheGcodeParser::PartRef;
         
         static ChannelCommon * self (Context c)
         {
@@ -427,10 +426,10 @@ private:
             AMBRO_ASSERT(!o->m_cmd)
             
             o->m_cmd = true;
-            if (cmd(c)->num_parts <= 0) {
+            if (gc(c)->getNumParts(c) < 0) {
                 AMBRO_PGM_P err = AMBRO_PSTR("unknown error");
-                switch (cmd(c)->num_parts) {
-                    case 0: err = AMBRO_PSTR("empty command"); break;
+                switch (gc(c)->getNumParts(c)) {
+                    case TheGcodeParser::ERROR_NO_PARTS: err = AMBRO_PSTR("empty command"); break;
                     case TheGcodeParser::ERROR_TOO_MANY_PARTS: err = AMBRO_PSTR("too many parts"); break;
                     case TheGcodeParser::ERROR_INVALID_PART: err = AMBRO_PSTR("invalid part"); break;
                     case TheGcodeParser::ERROR_CHECKSUM: err = AMBRO_PSTR("incorrect checksum"); break;
@@ -441,8 +440,6 @@ private:
                 reply_append_ch(c, '\n');
                 return finishCommand(c);
             }
-            o->m_cmd_code = cmd(c)->parts[0].code;
-            o->m_cmd_num = atoi(cmd(c)->parts[0].data);
             if (!Channel::start_command_impl(c)) {
                 return finishCommand(c);
             }
@@ -574,47 +571,49 @@ private:
             return m->m_transform_feature.try_splitclear_command(c);
         }
         
-        static GcodeParserCommandPart * find_command_param (Context c, char code)
+        static bool find_command_param (Context c, char code, GcodeParserPartRef *out_part)
         {
             ChannelCommon *o = self(c);
             AMBRO_ASSERT(o->m_cmd)
             AMBRO_ASSERT(code >= 'A')
             AMBRO_ASSERT(code <= 'Z')
             
-            auto num_parts = cmd(c)->num_parts;
-            for (GcodePartsSizeType i = 1; i < num_parts; i++) {
-                if (cmd(c)->parts[i].code == code) {
-                    return &cmd(c)->parts[i];
+            auto num_parts = gc(c)->getNumParts(c);
+            for (GcodePartsSizeType i = 0; i < num_parts; i++) {
+                GcodeParserPartRef part = gc(c)->getPart(c, i);
+                if (gc(c)->getPartCode(c, part) == code) {
+                    *out_part = part;
+                    return true;
                 }
             }
-            return NULL;
+            return false;
         }
         
         static uint32_t get_command_param_uint32 (Context c, char code, uint32_t default_value)
         {
-            GcodeParserCommandPart *part = find_command_param(c, code);
-            if (!part) {
+            GcodeParserPartRef part;
+            if (!find_command_param(c, code, &part)) {
                 return default_value;
             }
-            return strtoul(part->data, NULL, 10);
+            return gc(c)->getPartUint32Value(c, part);
         }
         
         static double get_command_param_double (Context c, char code, double default_value)
         {
-            GcodeParserCommandPart *part = find_command_param(c, code);
-            if (!part) {
+            GcodeParserPartRef part;
+            if (!find_command_param(c, code, &part)) {
                 return default_value;
             }
-            return strtod(part->data, NULL);
+            return gc(c)->getPartDoubleValue(c, part);
         }
         
         static bool find_command_param_double (Context c, char code, double *out)
         {
-            GcodeParserCommandPart *part = find_command_param(c, code);
-            if (!part) {
+            GcodeParserPartRef part;
+            if (!find_command_param(c, code, &part)) {
                 return false;
             }
-            *out = strtod(part->data, NULL);
+            *out = gc(c)->getPartDoubleValue(c, part);
             return true;
         }
         
@@ -656,6 +655,17 @@ private:
             Channel::reply_append_buffer_impl(c, buf, len);
         }
         
+        static void reply_append_uint16 (Context c, uint16_t x)
+        {
+            char buf[6];
+#if defined(AMBROLIB_AVR)
+            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu16), x);
+#else
+            uint8_t len = PrintNonnegativeIntDecimal<uint16_t>(x, buf);
+#endif
+            Channel::reply_append_buffer_impl(c, buf, len);
+        }
+        
         static void reply_append_uint8 (Context c, uint8_t x)
         {
             char buf[4];
@@ -682,16 +692,14 @@ private:
             return true;
         }
         
-        static GcodeParserCommand * cmd (Context c)
+        static TheGcodeParser * gc (Context c)
         {
             Channel *ch = Channel::self(c);
-            return ch->m_gcode_parser.getCmd(c);
+            return &ch->m_gcode_parser;
         }
         
         uint8_t m_state;
         bool m_cmd;
-        char m_cmd_code;
-        int m_cmd_num;
     };
     
     struct SerialFeature {
@@ -762,19 +770,19 @@ private:
             SerialFeature *o = self(c);
             AMBRO_ASSERT(o->m_channel_common.m_cmd)
             
-            bool is_m110 = (o->m_channel_common.m_cmd_code == 'M' && o->m_channel_common.m_cmd_num == 110);
+            bool is_m110 = (o->m_channel_common.gc(c)->getCmdCode(c) == 'M' && o->m_channel_common.gc(c)->getCmdNumber(c) == 110);
             if (is_m110) {
-                o->m_line_number = o->m_channel_common.get_command_param_uint32(c, 'L', (o->m_channel_common.cmd(c)->have_line_number ? o->m_channel_common.cmd(c)->line_number : -1));
+                o->m_line_number = o->m_channel_common.get_command_param_uint32(c, 'L', (o->m_gcode_parser.getCmd(c)->have_line_number ? o->m_gcode_parser.getCmd(c)->line_number : -1));
             }
-            if (o->m_channel_common.cmd(c)->have_line_number) {
-                if (o->m_channel_common.cmd(c)->line_number != o->m_line_number) {
+            if (o->m_gcode_parser.getCmd(c)->have_line_number) {
+                if (o->m_gcode_parser.getCmd(c)->line_number != o->m_line_number) {
                     o->m_channel_common.reply_append_pstr(c, AMBRO_PSTR("Error:Line Number is not Last Line Number+1, Last Line:"));
                     o->m_channel_common.reply_append_uint32(c, (uint32_t)(o->m_line_number - 1));
                     o->m_channel_common.reply_append_ch(c, '\n');
                     return false;
                 }
             }
-            if (o->m_channel_common.cmd(c)->have_line_number || is_m110) {
+            if (o->m_gcode_parser.getCmd(c)->have_line_number || is_m110) {
                 o->m_line_number++;
             }
             return true;
@@ -788,7 +796,7 @@ private:
             if (!no_ok) {
                 o->m_channel_common.reply_append_pstr(c, AMBRO_PSTR("ok\n"));
             }
-            o->m_serial.recvConsume(c, RecvSizeType::import(o->m_channel_common.cmd(c)->length));
+            o->m_serial.recvConsume(c, RecvSizeType::import(o->m_gcode_parser.getCmd(c)->length));
             o->m_serial.recvForceEvent(c);
         }
         
@@ -1003,7 +1011,7 @@ private:
             if (TypesAreEqual<TheChannelCommon, SdCardChannelCommon>::value) {
                 return true;
             }
-            if (cc->m_cmd_num == 21) {
+            if (cc->gc(c)->getCmdNumber(c) == 21) {
                 if (!cc->tryUnplannedCommand(c)) {
                     return false;
                 }
@@ -1015,7 +1023,7 @@ private:
                 o->m_state = SDCARD_INITING;
                 return false;
             }
-            if (cc->m_cmd_num == 22) {
+            if (cc->gc(c)->getCmdNumber(c) == 22) {
                 if (!cc->tryUnplannedCommand(c)) {
                     return false;
                 }
@@ -1032,7 +1040,7 @@ private:
                 o->m_sdcard.deactivate(c);
                 return false;
             }
-            if (cc->m_cmd_num == 24) {
+            if (cc->gc(c)->getCmdNumber(c) == 24) {
                 if (!cc->tryUnplannedCommand(c)) {
                     return false;
                 }
@@ -1050,7 +1058,7 @@ private:
                 }
                 return false;
             }
-            if (cc->m_cmd_num == 25) {
+            if (cc->gc(c)->getCmdNumber(c) == 25) {
                 if (!cc->tryUnplannedCommand(c)) {
                     return false;
                 }
@@ -1082,10 +1090,10 @@ private:
             AMBRO_ASSERT(o->m_channel_common.m_cmd)
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
             AMBRO_ASSERT(!o->m_eof)
-            AMBRO_ASSERT(o->m_channel_common.cmd(c)->length <= o->m_length - o->m_cmd_offset)
+            AMBRO_ASSERT(o->m_gcode_parser.getCmd(c)->length <= o->m_length - o->m_cmd_offset)
             
             o->m_next_event.prependNowNotAlready(c);
-            o->m_cmd_offset += o->m_channel_common.cmd(c)->length;
+            o->m_cmd_offset += o->m_gcode_parser.getCmd(c)->length;
             if (o->m_cmd_offset >= BlockSize) {
                 o->m_start += BlockSize;
                 if (o->m_start == BufferBaseSize) {
@@ -1354,9 +1362,9 @@ private:
         }
         
         template <typename TheChannelCommon>
-        static void update_homing_mask (TheChannelCommon *ch, AxisMaskType *mask, typename TheChannelCommon::GcodeParserCommandPart *part)
+        static void update_homing_mask (Context c, TheChannelCommon *cc, AxisMaskType *mask, typename TheChannelCommon::GcodeParserPartRef part)
         {
-            if (AxisSpec::Homing::enabled && part->code == axis_name) {
+            if (AxisSpec::Homing::enabled && cc->gc(c)->getPartCode(c, part) == axis_name) {
                 *mask |= (AxisMaskType)1 << AxisIndex;
             }
         }
@@ -1434,19 +1442,16 @@ private:
         }
         
         template <typename TheChannelCommon>
-        static void set_position (Context c, TheChannelCommon *cc, typename TheChannelCommon::GcodeParserCommandPart *part, bool *found_axes)
+        static void set_position (Context c, TheChannelCommon *cc, typename TheChannelCommon::GcodeParserPartRef part, bool *found_axes)
         {
             Axis *o = self(c);
-            if (part->code == axis_name) {
+            if (cc->gc(c)->getPartCode(c, part) == axis_name) {
                 *found_axes = true;
                 if (AxisSpec::Homing::enabled) {
                     cc->reply_append_pstr(c, AMBRO_PSTR("Error:G92 on homable axis\n"));
                     return;
                 }
-                double req = strtod(part->data, NULL);
-                if (isnan(req)) {
-                    req = 0.0;
-                }
+                double req = cc->gc(c)->getPartDoubleValue(c, part);
                 o->m_req_pos = clamp_req_pos(req);
                 o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(o->m_req_pos));
             }
@@ -1849,11 +1854,11 @@ private:
         }
         
         template <typename TheChannelCommon>
-        static bool collect_new_pos (Context c, TheChannelCommon *cc, MoveBuildState *s, typename TheChannelCommon::GcodeParserCommandPart *part)
+        static bool collect_new_pos (Context c, TheChannelCommon *cc, MoveBuildState *s, typename TheChannelCommon::GcodeParserPartRef part)
         {
             TheAxis *axis = TheAxis::self(c);
-            if (AMBRO_UNLIKELY(part->code == TheAxis::axis_name)) {
-                double req = strtod(part->data, NULL);
+            if (AMBRO_UNLIKELY(cc->gc(c)->getPartCode(c, part) == TheAxis::axis_name)) {
+                double req = cc->gc(c)->getPartDoubleValue(c, part);
                 if (axis->m_relative_positioning) {
                     req += axis->m_req_pos;
                 }
@@ -2007,7 +2012,7 @@ private:
             Heater *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
             
-            if (cc->m_cmd_num == HeaterSpec::WaitMCommand) {
+            if (cc->gc(c)->getCmdNumber(c) == HeaterSpec::WaitMCommand) {
                 if (!cc->tryUnplannedCommand(c)) {
                     return false;
                 }
@@ -2024,7 +2029,7 @@ private:
                 now_active(c);
                 return false;
             }
-            if (cc->m_cmd_num == HeaterSpec::SetMCommand) {
+            if (cc->gc(c)->getCmdNumber(c) == HeaterSpec::SetMCommand) {
                 if (!cc->tryPlannedCommand(c)) {
                     return false;
                 }
@@ -2042,7 +2047,7 @@ private:
                 submitted_planner_command(c);
                 return false;
             }
-            if (cc->m_cmd_num == HeaterSpec::SetConfigMCommand && TheControl::SupportsConfig) {
+            if (cc->gc(c)->getCmdNumber(c) == HeaterSpec::SetConfigMCommand && TheControl::SupportsConfig) {
                 if (!cc->tryUnplannedCommand(c)) {
                     return false;
                 }
@@ -2279,12 +2284,12 @@ private:
         static bool check_command (Context c, TheChannelCommon *cc)
         {
             PrinterMain *m = PrinterMain::self(c);
-            if (cc->m_cmd_num == FanSpec::SetMCommand || cc->m_cmd_num == FanSpec::OffMCommand) {
+            if (cc->gc(c)->getCmdNumber(c) == FanSpec::SetMCommand || cc->gc(c)->getCmdNumber(c) == FanSpec::OffMCommand) {
                 if (!cc->tryPlannedCommand(c)) {
                     return false;
                 }
                 double target = 0.0;
-                if (cc->m_cmd_num == FanSpec::SetMCommand) {
+                if (cc->gc(c)->getCmdNumber(c) == FanSpec::SetMCommand) {
                     target = 1.0;
                     if (cc->find_command_param_double(c, 'S', &target)) {
                         target *= FanSpec::SpeedMultiply::value();
@@ -2380,7 +2385,7 @@ private:
         static bool check_command (Context c, TheChannelCommon *cc)
         {
             ProbeFeature *o = self(c);
-            if (cc->m_cmd_num == 32) {
+            if (cc->gc(c)->getCmdNumber(c) == 32) {
                 if (!cc->tryUnplannedCommand(c)) {
                     return false;
                 }
@@ -2681,8 +2686,8 @@ private:
         TheChannelCommon *cc = TheChannelCommon::self(c);
         AMBRO_ASSERT(cc->m_cmd)
         
-        switch (cc->m_cmd_code) {
-            case 'M': switch (cc->m_cmd_num) {
+        switch (cc->gc(c)->getCmdCode(c)) {
+            case 'M': switch (cc->gc(c)->getCmdNumber(c)) {
                 default:
                     if (
                         TupleForEachForwardInterruptible(&o->m_heaters, Foreach_check_command(), c, cc) &&
@@ -2763,7 +2768,7 @@ private:
 #endif
             } break;
             
-            case 'G': switch (cc->m_cmd_num) {
+            case 'G': switch (cc->gc(c)->getCmdNumber(c)) {
                 default:
                     goto unknown_command;
                 
@@ -2774,13 +2779,13 @@ private:
                     }
                     MoveBuildState s;
                     move_begin(c, &s);
-                    auto num_parts = cc->cmd(c)->num_parts;
-                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < num_parts; i++) {
-                        typename TheChannelCommon::GcodeParserCommandPart *part = &cc->cmd(c)->parts[i];
+                    auto num_parts = cc->gc(c)->getNumParts(c);
+                    for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
+                        typename TheChannelCommon::GcodeParserPartRef part = cc->gc(c)->getPart(c, i);
                         PhysVirtAxisHelperTuple dummy;
                         if (TupleForEachForwardInterruptible(&dummy, Foreach_collect_new_pos(), c, cc, &s, part)) {
-                            if (part->code == 'F') {
-                                o->m_max_speed = strtod(part->data, NULL) * Params::SpeedLimitMultiply::value();
+                            if (cc->gc(c)->getPartCode(c, part) == 'F') {
+                                o->m_max_speed = cc->gc(c)->getPartDoubleValue(c, part) * Params::SpeedLimitMultiply::value();
                             }
                         }
                     }
@@ -2796,9 +2801,9 @@ private:
                         return;
                     }
                     AxisMaskType mask = 0;
-                    auto num_parts = cc->cmd(c)->num_parts;
-                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < num_parts; i++) {
-                        TupleForEachForward(&o->m_axes, Foreach_update_homing_mask(), cc, &mask, &cc->cmd(c)->parts[i]);
+                    auto num_parts = cc->gc(c)->getNumParts(c);
+                    for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
+                        TupleForEachForward(&o->m_axes, Foreach_update_homing_mask(), c, cc, &mask, cc->gc(c)->getPart(c, i));
                     }
                     if (mask == 0) {
                         mask = -1;
@@ -2828,9 +2833,9 @@ private:
                         return;
                     }
                     bool found_axes = false;
-                    auto num_parts = cc->cmd(c)->num_parts;
-                    for (typename TheChannelCommon::GcodePartsSizeType i = 1; i < num_parts; i++) {
-                        TupleForEachForward(&o->m_axes, Foreach_set_position(), c, cc, &cc->cmd(c)->parts[i], &found_axes);
+                    auto num_parts = cc->gc(c)->getNumParts(c);
+                    for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
+                        TupleForEachForward(&o->m_axes, Foreach_set_position(), c, cc, cc->gc(c)->getPart(c, i), &found_axes);
                     }
                     if (!found_axes) {
                         cc->reply_append_pstr(c, AMBRO_PSTR("Error:not supported\n"));
@@ -2842,7 +2847,8 @@ private:
             unknown_command:
             default: {
                 cc->reply_append_pstr(c, AMBRO_PSTR("Error:Unknown command "));
-                cc->reply_append_str(c, (cc->cmd(c)->parts[0].data - 1));
+                cc->reply_append_ch(c, cc->gc(c)->getCmdCode(c));
+                cc->reply_append_uint16(c, cc->gc(c)->getCmdNumber(c));
                 cc->reply_append_ch(c, '\n');
                 return cc->finishCommand(c);
             } break;
