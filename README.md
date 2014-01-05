@@ -6,6 +6,8 @@ It supports many controller boards based on AVR, as well as Arduino Due.
 
 ## Implemented features (possibly with bugs)
 
+  * *Highly experimental* and untested support for delta printers, only for RAMPS-FD/Due.
+    If you want to test, start with [this main file](aprinter/printer/aprinter-rampsfd-delta.cpp).
   * SD card printing (reading of sequential blocks only, no filesystem or partition support).
   * Oprional binary packing of gcode for SD prints. Packed gcode takes about half of the size of the plain gcode,
     and speeds up the firmware's main loop by around 15% on AVR.
