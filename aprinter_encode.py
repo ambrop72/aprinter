@@ -15,6 +15,8 @@ def encode_line(line):
         return ''
     parts = line.split()
     cmd_letter = parts[0][0]
+    if cmd_letter == 'E':
+        return chr(0xE0)
     if not _letter_ok(cmd_letter):
         raise GcodeSyntaxError('invalid command letter')
     try:
