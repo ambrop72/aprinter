@@ -137,6 +137,20 @@ using ExtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using ExtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
 using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
+using UxtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
+using UxtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
+using UxtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
+using UxtruderHeaterControlInterval = UxtruderHeaterPulseInterval;
+using UxtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
+using UxtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
+using UxtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
+using UxtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
+using UxtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.2);
+using UxtruderHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.7);
+using UxtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
+using UxtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
+using UxtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
+
 using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
@@ -448,23 +462,23 @@ using PrinterParams = PrinterMainParams<
             DuePin10, // OutputPin
             true, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
-            ExtruderHeaterMinSafeTemp, // MinSafeTemp
-            ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
-            ExtruderHeaterPulseInterval, // PulseInterval
-            ExtruderHeaterControlInterval, // ControlInterval
+            UxtruderHeaterMinSafeTemp, // MinSafeTemp
+            UxtruderHeaterMaxSafeTemp, // MaxSafeTemp
+            UxtruderHeaterPulseInterval, // PulseInterval
+            UxtruderHeaterControlInterval, // ControlInterval
             PidControl, // Control
             PidControlParams<
-                ExtruderHeaterPidP, // PidP
-                ExtruderHeaterPidI, // PidI
-                ExtruderHeaterPidD, // PidD
-                ExtruderHeaterPidIStateMin, // PidIStateMin
-                ExtruderHeaterPidIStateMax, // PidIStateMax
-                ExtruderHeaterPidDHistory // PidDHistory
+                UxtruderHeaterPidP, // PidP
+                UxtruderHeaterPidI, // PidI
+                UxtruderHeaterPidD, // PidD
+                UxtruderHeaterPidIStateMin, // PidIStateMin
+                UxtruderHeaterPidIStateMax, // PidIStateMax
+                UxtruderHeaterPidDHistory // PidDHistory
             >,
             TemperatureObserverParams<
-                ExtruderHeaterObserverInterval, // ObserverInterval
-                ExtruderHeaterObserverTolerance, // ObserverTolerance
-                ExtruderHeaterObserverMinTime // ObserverMinTime
+                UxtruderHeaterObserverInterval, // ObserverInterval
+                UxtruderHeaterObserverTolerance, // ObserverTolerance
+                UxtruderHeaterObserverMinTime // ObserverMinTime
             >,
             At91Sam3xClockInterruptTimer_TC6A // TimerTemplate
         >
