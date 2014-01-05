@@ -7,6 +7,8 @@ It supports many controller boards based on AVR, as well as Arduino Due.
 ## Implemented features (possibly with bugs)
 
   * SD card printing (reading of sequential blocks only, no filesystem or partition support).
+  * Oprional binary packing of gcode for SD prints. Packed gcode takes about half of the size of the plain gcode,
+    and speeds up the firmware's main loop by around 15% on AVR.
   * Serial communication using the defacto RepRap protocol. Maximum baud rate is 250000 except on Melzi/atmega1284p
     where only 115200 is supported due to unfavourable interrupt priorities.
   * Homing, including homing of multiple axes at the same time. Either min- or max- endstops can be used.
@@ -146,6 +148,29 @@ To print from SD card, you need to:
 - Insert the card into the printer, then issue M21 to initialize the card, and M24 to begin printing.
 
 The `DeTool.py` postprocessor can also prepare the g-code for SD card printing; more about this in the next section.
+
+## Packed gcode
+
+When printing from SD, the firmware can optionally read a custom packed form of gcode, to improve space and processing efficiency. The packing format [is documented](encoding.txt).
+
+The choice between plain text and packed gcode needs to be made at compile time. By default, plain text is used.
+To switched to reading packed gcode, adjust the SD card configuration as follows:
+
+```
+    PrinterMainSdCardParams<
+        ...
+        BinaryGcodeParser,
+        BinaryGcodeParserParams<8>,
+        2, // BufferBlocks
+        43 // MaxCommandSize
+    >,
+```
+
+To pack a gcode file, use the `aprinter_encode.py` script, as follows.
+
+```
+python2.7 /path/to/aprinter/aprinter_encode.py --input file.gcode --output file.packed
+```
 
 ## Multi-extruder configuration
 
