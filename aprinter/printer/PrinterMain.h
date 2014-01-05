@@ -248,13 +248,16 @@ struct PrinterMainNoSdCardParams {
 
 template <
     template<typename, typename, typename, int, typename, typename> class TSdCard,
-    typename TSdCardParams, typename TTheGcodeParserParams, int TReadBufferBlocks,
+    typename TSdCardParams,
+    template<typename, typename, typename, typename> class TGcodeParserTemplate,
+    typename TTheGcodeParserParams, int TReadBufferBlocks,
     int TMaxCommandSize
 >
 struct PrinterMainSdCardParams {
     static const bool enabled = true;
     template <typename X, typename Y, typename Z, int R, typename W, typename Q> using SdCard = TSdCard<X, Y, Z, R, W, Q>;
     using SdCardParams = TSdCardParams;
+    template <typename X, typename Y, typename Z, typename W> using GcodeParserTemplate = TGcodeParserTemplate<X, Y, Z, W>;
     using TheGcodeParserParams = TTheGcodeParserParams;
     static const int ReadBufferBlocks = TReadBufferBlocks;
     static const int MaxCommandSize = TMaxCommandSize;
@@ -796,7 +799,7 @@ private:
             if (!no_ok) {
                 o->m_channel_common.reply_append_pstr(c, AMBRO_PSTR("ok\n"));
             }
-            o->m_serial.recvConsume(c, RecvSizeType::import(o->m_gcode_parser.getCmd(c)->length));
+            o->m_serial.recvConsume(c, RecvSizeType::import(o->m_gcode_parser.getLength(c)));
             o->m_serial.recvForceEvent(c);
         }
         
@@ -867,12 +870,11 @@ private:
         static const int MaxCommandSize = Params::SdCardParams::MaxCommandSize;
         static const size_t BlockSize = 512;
         static_assert(ReadBufferBlocks >= 2, "");
-        static_assert(MaxCommandSize >= 64, "");
         static_assert(MaxCommandSize < BlockSize, "");
         static const size_t BufferBaseSize = ReadBufferBlocks * BlockSize;
         using ParserSizeType = typename ChooseInt<BitsInInt<MaxCommandSize>::value, false>::Type;
         using TheSdCard = typename Params::SdCardParams::template SdCard<SdCardPosition, Context, typename Params::SdCardParams::SdCardParams, 1, SdCardInitHandler, SdCardCommandHandler>;
-        using TheGcodeParser = GcodeParser<GcodeParserPosition, Context, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType, GcodeParserTypeFile>;
+        using TheGcodeParser = typename Params::SdCardParams::template GcodeParserTemplate<GcodeParserPosition, Context, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
         using SdCardReadState = typename TheSdCard::ReadState;
         using SdCardChannelCommon = ChannelCommon<ChannelCommonPosition, SdCardFeature>;
         enum {SDCARD_NONE, SDCARD_INITING, SDCARD_INITED, SDCARD_RUNNING, SDCARD_PAUSING};
@@ -981,11 +983,11 @@ private:
                 o->m_gcode_parser.startCommand(c, (char *)buf_get(c, o->m_start, o->m_cmd_offset), 0);
             }
             ParserSizeType avail = (o->m_length - o->m_cmd_offset > MaxCommandSize) ? MaxCommandSize : (o->m_length - o->m_cmd_offset);
-            if (avail >= 1 && *o->m_gcode_parser.getBuffer(c) == 'E') {
-                eof_str = AMBRO_PSTR("//SdEof\n");
-                goto eof;
-            }
             if (o->m_gcode_parser.extendCommand(c, avail)) {
+                if (o->m_gcode_parser.getNumParts(c) == TheGcodeParser::ERROR_EOF) {
+                    eof_str = AMBRO_PSTR("//SdEof\n");
+                    goto eof;
+                }
                 return o->m_channel_common.startCommand(c);
             }
             if (avail == MaxCommandSize) {
@@ -1090,10 +1092,10 @@ private:
             AMBRO_ASSERT(o->m_channel_common.m_cmd)
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
             AMBRO_ASSERT(!o->m_eof)
-            AMBRO_ASSERT(o->m_gcode_parser.getCmd(c)->length <= o->m_length - o->m_cmd_offset)
+            AMBRO_ASSERT(o->m_gcode_parser.getLength(c) <= o->m_length - o->m_cmd_offset)
             
             o->m_next_event.prependNowNotAlready(c);
-            o->m_cmd_offset += o->m_gcode_parser.getCmd(c)->length;
+            o->m_cmd_offset += o->m_gcode_parser.getLength(c);
             if (o->m_cmd_offset >= BlockSize) {
                 o->m_start += BlockSize;
                 if (o->m_start == BufferBaseSize) {

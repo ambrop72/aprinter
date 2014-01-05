@@ -69,7 +69,8 @@ public:
         ERROR_TOO_MANY_PARTS = -2,
         ERROR_INVALID_PART = -3,
         ERROR_CHECKSUM = -4,
-        ERROR_RECV_OVERRUN = -5
+        ERROR_RECV_OVERRUN = -5,
+        ERROR_EOF = -6
     };
     
     template <typename TheParserType, typename Dummy = void>
@@ -191,6 +192,14 @@ public:
             
             if (AMBRO_UNLIKELY(o->m_state == STATE_OUTSIDE)) {
                 if (AMBRO_LIKELY(!is_space(ch))) {
+                    if (TheTypeHelper::EofEnabled) {
+                        if (o->m_command.num_parts == 0 && ch == 'E') {
+                            o->m_command.length++;
+                            o->m_command.num_parts = ERROR_EOF;
+                            o->m_state = STATE_NOCMD;
+                            return true;
+                        }
+                    }
                     if (!is_code(ch)) {
                         o->m_command.num_parts = ERROR_INVALID_PART;
                     }
@@ -217,22 +226,13 @@ public:
         o->m_state = STATE_NOCMD;
     }
     
-    static char * getBuffer (Context c)
-    {
-        GcodeParser *o = self(c);
-        o->debugAccess(c);
-        AMBRO_ASSERT(o->m_state != STATE_NOCMD)
-        
-        return o->m_buffer;
-    }
-    
-    static Command * getCmd (Context c)
+    static BufferSizeType getLength (Context c)
     {
         GcodeParser *o = self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         
-        return &o->m_command;
+        return o->m_command.length;
     }
     
     static PartsSizeType getNumParts (Context c)
@@ -306,6 +306,24 @@ public:
         return strtoul(part->data, NULL, 10);
     }
     
+    static char * getBuffer (Context c)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state != STATE_NOCMD)
+        
+        return o->m_buffer;
+    }
+    
+    static Command * getCmd (Context c)
+    {
+        GcodeParser *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        
+        return &o->m_command;
+    }
+    
 private:
     enum {STATE_NOCMD, STATE_OUTSIDE, STATE_INSIDE, STATE_COMMENT, STATE_CHECKSUM};
     
@@ -316,6 +334,7 @@ private:
     struct TypeHelper<GcodeParserTypeSerial, Dummy> {
         static const bool ChecksumEnabled = true;
         static const bool CommentsEnabled = false;
+        static const bool EofEnabled = false;
         
         static void init_command_hook (Context c)
         {
@@ -360,6 +379,7 @@ private:
     struct TypeHelper<GcodeParserTypeFile, Dummy> {
         static const bool ChecksumEnabled = false;
         static const bool CommentsEnabled = true;
+        static const bool EofEnabled = true;
         
         static void init_command_hook (Context c)
         {
@@ -444,6 +464,9 @@ template <>
 struct GcodeParserExtraMembers<GcodeParserTypeSerial> {
     uint8_t m_checksum;
 };
+
+template <typename Position, typename Context, typename Params, typename TBufferSizeType>
+using FileGcodeParser = GcodeParser<Position, Context, Params, TBufferSizeType, GcodeParserTypeFile>;
 
 #include <aprinter/EndNamespace.h>
 

@@ -206,6 +206,7 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortB, 0>, // SsPin
             AvrSpi
         >,
+        FileGcodeParser,
         GcodeParserParams<8>,
         2, // BufferBlocks
         100 // MaxCommandSize
