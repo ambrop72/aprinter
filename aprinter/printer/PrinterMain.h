@@ -76,6 +76,7 @@
 #include <aprinter/stepper/AxisStepper.h>
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/GcodeParser.h>
+#include <aprinter/printer/BinaryGcodeParser.h>
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/printer/TemperatureObserver.h>
 

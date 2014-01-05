@@ -206,10 +206,10 @@ using PrinterParams = PrinterMainParams<
             AvrPin<AvrPortB, 0>, // SsPin
             AvrSpi
         >,
-        FileGcodeParser,
-        GcodeParserParams<8>,
+        FileGcodeParser, // BINARY: BinaryGcodeParser
+        GcodeParserParams<8>, // BINARY: BinaryGcodeParserParams<8>
         2, // BufferBlocks
-        100 // MaxCommandSize
+        100 // MaxCommandSize. BINARY: 43
     >,
     PrinterMainProbeParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
