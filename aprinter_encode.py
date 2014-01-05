@@ -10,6 +10,9 @@ class GcodeSyntaxError(Exception):
 EncodeLineErrors = GcodeSyntaxError
 
 def encode_line(line):
+    comment_index = line.find(';')
+    if comment_index >= 0:
+        line = line[:comment_index]
     line = line.strip()
     if len(line) == 0:
         return ''
