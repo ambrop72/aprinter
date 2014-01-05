@@ -185,9 +185,10 @@ using PrinterParams = PrinterMainParams<
             DuePin4, // SsPin
             At91Sam3xSpi
         >,
-        GcodeParserParams<8>,
+        FileGcodeParser, // BINARY: BinaryGcodeParser
+        GcodeParserParams<8>, // BINARY: BinaryGcodeParserParams<8>
         2, // BufferBlocks
-        256 // MaxCommandSize
+        256 // MaxCommandSize. BINARY: 43
     >,
     PrinterMainProbeParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
