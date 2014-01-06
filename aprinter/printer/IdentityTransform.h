@@ -58,25 +58,28 @@ public:
     public:
         void start (double const *old_virt, double const *virt)
         {
-            double d0 = fabs(old_virt[0] - virt[0]);
-            double d1 = fabs(old_virt[1] - virt[1]);
-            double d2 = fabs(old_virt[2] - virt[2]);
-            double dist = fmax(d0, fmax(d1, d2));
-            m_count = ceil(dist * (1.0 / (Params::Split / 1000.0)));
-            if (m_count == 0) {
-                m_count = 1;
+            if (Params::Split != (uint32_t)-1) {
+                double dist = 0.0;
+                for (int i = 0; i < NumAxes; i++) {
+                    dist = fmax(dist, fabs(old_virt[i] - virt[i]));
+                }
+                m_count = 1 + (uint32_t)(dist * (1.0 / (Params::Split / 1000.0)));
+                m_pos = 1;
             }
-            m_pos = 1;
         }
         
         bool pull (double *out_frac)
         {
-            if (m_pos == m_count) {
+            if (Params::Split == (uint32_t)-1) {
                 return false;
+            } else {
+                if (m_pos == m_count) {
+                    return false;
+                }
+                *out_frac = (double)m_pos / m_count;
+                m_pos++;
+                return true;
             }
-            *out_frac = (double)m_pos / m_count;
-            m_pos++;
-            return true;
         }
         
         uint32_t m_count;
