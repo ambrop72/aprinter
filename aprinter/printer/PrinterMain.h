@@ -2067,8 +2067,7 @@ private:
             Heater *o = self(c);
             
             if (TheControl::SupportsConfig) {
-                cc->reply_append_ch(c, HeaterSpec::Name);
-                cc->reply_append_pstr(c, AMBRO_PSTR(": M" ));
+                cc->reply_append_pstr(c, AMBRO_PSTR("M" ));
                 cc->reply_append_uint32(c, HeaterSpec::SetConfigMCommand);
                 TheControl::printConfig(c, cc, &o->m_control_config);
                 cc->reply_append_ch(c, '\n');
