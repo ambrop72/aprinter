@@ -318,6 +318,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_limit_axis_move_speed, limit_axis_move_speed)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_fix_aborted_pos, fix_aborted_pos)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_position, append_position)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_endstop, append_endstop)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_value, append_value)
@@ -1288,6 +1289,16 @@ private:
                 axis->m_state = AXIS_STATE_HOMING;
                 m->m_homing_rem_axes++;
             }
+            
+            template <typename TheChannelCommon>
+            static void append_endstop (Context c, TheChannelCommon *cc)
+            {
+                bool triggered = c.pins()->template get<typename AxisSpec::Homing::EndPin>(c) != AxisSpec::Homing::end_invert;
+                cc->reply_append_ch(c, ' ');
+                cc->reply_append_ch(c, axis_name);
+                cc->reply_append_ch(c, ':');
+                cc->reply_append_ch(c, (triggered ? '1' : '0'));
+            }
         } AMBRO_STRUCT_ELSE(HomingFeature) {
             struct HomingState {};
             template <typename TheHomingFeature>
@@ -1296,6 +1307,8 @@ private:
             static void init (Context c) {}
             static void deinit (Context c) {}
             static void start_homing (Context c, AxisMaskType mask) {}
+            template <typename TheChannelCommon>
+            static void append_endstop (Context c, TheChannelCommon *cc) {}
         };
         
         enum {AXIS_STATE_OTHER, AXIS_STATE_HOMING};
@@ -1458,6 +1471,12 @@ private:
                 o->m_req_pos = clamp_req_pos(req);
                 o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(o->m_req_pos));
             }
+        }
+        
+        template <typename TheChannelCommon>
+        static void append_endstop (Context c, TheChannelCommon *cc)
+        {
+            HomingFeature::append_endstop(c, cc);
         }
         
         static void emergency ()
@@ -2743,6 +2762,13 @@ private:
                     TupleForEachForward(&dummy, Foreach_append_position(), c, cc);
                     cc->reply_append_ch(c, '\n');
                     return cc->finishCommand(c);
+                } break;
+                
+                case 119: {
+                    cc->reply_append_pstr(c, AMBRO_PSTR("endstops:"));
+                    TupleForEachForward(&o->m_axes, Foreach_append_endstop(), c, cc);
+                    cc->reply_append_ch(c, '\n');                    
+                    return cc->finishCommand(c, true);
                 } break;
                 
                 case 136: { // print heater config
