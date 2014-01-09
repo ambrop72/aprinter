@@ -9,7 +9,7 @@ It supports many controller boards based on AVR, as well as Arduino Due.
   * *Highly experimental* and untested support for delta printers, only for RAMPS-FD/Due.
     If you want to test, start with [this main file](aprinter/printer/aprinter-rampsfd-delta.cpp).
   * SD card printing (reading of sequential blocks only, no filesystem or partition support).
-  * Oprional binary packing of gcode for SD prints. Packed gcode takes about half of the size of the plain gcode,
+  * Optional binary packing of gcode for SD prints. Packed gcode takes about half of the size of the plain gcode,
     and speeds up the firmware's main loop by around 15% on AVR.
   * Serial communication using the defacto RepRap protocol. Maximum baud rate is 250000 except on Melzi/atmega1284p
     where only 115200 is supported due to unfavourable interrupt priorities.
@@ -19,10 +19,11 @@ It supports many controller boards based on AVR, as well as Arduino Due.
     The speed is automatically limited to not overload the MCU with interrupts.
     However the semantic of F differs somehow from other firmwares; the speed limit is interpreted as
     euclidean if G1/G0 specifies at least one of X/Y/Z, and as extruder speed limit otherwise.
-  * Look-ahead to preserve some speed on corners. By default, on AVR, planning takes the previous 3 moves into account.
+  * Look-ahead to preserve some speed on corners. By default, on RAMPS1.4, planning takes at least the previous 4 moves into account.
     This can be increased in the configuration, but this
     also increases the chance of buffer underruns , which cause the print to temporarily pause while the buffer refills.
     Look-ahead is very memory-hungry in its current state.
+  * The planning code implements a "multiple commit" feature which buffers moves and processes them in larger chunks. This allows increasing the lookahead count only by allocating more RAM, without an asymptotic increase in CPU usage.
   * Heater control using PID or on-off control. The thermistor tables need to be generated with a Python script.
   * Safe temperature range. A heater is turned off in case its temperature goes beyound the safe range.
   * Fan control.
