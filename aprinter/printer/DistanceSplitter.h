@@ -22,58 +22,38 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_IDENTITY_TRANSFORM_H
-#define AMBROLIB_IDENTITY_TRANSFORM_H
+#ifndef AMBROLIB_DISTANCE_SPLITTER_H
+#define AMBROLIB_DISTANCE_SPLITTER_H
 
-#include <math.h>
-
-#include <aprinter/meta/IndexElemList.h>
-#include <aprinter/meta/Tuple.h>
-#include <aprinter/meta/TupleForEach.h>
-#include <aprinter/printer/DistanceSplitter.h>
+#include <stdint.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <int TNumAxes, typename TSplitLength>
-struct IdentityTransformParams {
-    static int const NumAxes = TNumAxes;
-    using SplitLength = TSplitLength;
-};
-
-template <typename Params>
-class IdentityTransform {
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_copy_coords, copy_coords)
-    
+template <typename SplitLength>
+class DistanceSplitter {
 public:
-    static int const NumAxes = Params::NumAxes;
-    
-    template <typename Src, typename Dst>
-    static void virtToPhys (Src virt, Dst out_phys)
+    void start (double distance, double max_v_rec_b)
     {
-        HelperTuple dummy;
-        TupleForEachForward(&dummy, Foreach_copy_coords(), virt, out_phys);
+        m_count = 1 + (uint32_t)(distance * (1.0 / SplitLength::value()));
+        m_pos = 1;
+        m_max_v_rec = distance / (m_count * max_v_rec_b);
     }
     
-    template <typename Src, typename Dst>
-    static void physToVirt (Src phys, Dst out_virt)
+    bool pull (double *out_rel_max_v_rec, double *out_frac)
     {
-        HelperTuple dummy;
-        TupleForEachForward(&dummy, Foreach_copy_coords(), phys, out_virt);
+        *out_rel_max_v_rec = m_max_v_rec;
+        if (m_pos == m_count) {
+            return false;
+        }
+        *out_frac = (double)m_pos / m_count;
+        m_pos++;
+        return true;
     }
-    
-    using Splitter = DistanceSplitter<typename Params::SplitLength>;
     
 private:
-    template <int AxisIndex>
-    struct Helper {
-        template <typename Src, typename Dst>
-        static void copy_coords (Src src, Dst dst)
-        {
-            dst.template set<AxisIndex>(src.template get<AxisIndex>());
-        }
-    };
-    
-    using HelperTuple = Tuple<IndexElemListCount<NumAxes, Helper>>;
+    uint32_t m_count;
+    uint32_t m_pos;
+    double m_max_v_rec;
 };
 
 #include <aprinter/EndNamespace.h>

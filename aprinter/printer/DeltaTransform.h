@@ -30,6 +30,7 @@
 
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/math/Vector3.h>
+#include <aprinter/printer/DistanceSplitter.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -67,18 +68,20 @@ private:
 public:
     static int const NumAxes = 3;
     
-    static void virtToPhys (double const *virt, double *out_phys)
+    template <typename Src, typename Dst>
+    static void virtToPhys (Src virt, Dst out_phys)
     {
-        out_phys[0] = sqrt(DiagonalRod2::value() - square(Params::Tower1X::value() - virt[0]) - square(Params::Tower1Y::value() - virt[1])) + virt[2];
-        out_phys[1] = sqrt(DiagonalRod2::value() - square(Params::Tower2X::value() - virt[0]) - square(Params::Tower2Y::value() - virt[1])) + virt[2];
-        out_phys[2] = sqrt(DiagonalRod2::value() - square(Params::Tower3X::value() - virt[0]) - square(Params::Tower3Y::value() - virt[1])) + virt[2];
+        out_phys.template set<0>(sqrt(DiagonalRod2::value() - square(Params::Tower1X::value() - virt.template get<0>()) - square(Params::Tower1Y::value() - virt.template get<1>())) + virt.template get<2>());
+        out_phys.template set<1>(sqrt(DiagonalRod2::value() - square(Params::Tower2X::value() - virt.template get<0>()) - square(Params::Tower2Y::value() - virt.template get<1>())) + virt.template get<2>());
+        out_phys.template set<2>(sqrt(DiagonalRod2::value() - square(Params::Tower3X::value() - virt.template get<0>()) - square(Params::Tower3Y::value() - virt.template get<1>())) + virt.template get<2>());
     }
     
-    static void physToVirt (double const *phys, double *out_virt)
+    template <typename Src, typename Dst>
+    static void physToVirt (Src phys, Dst out_virt)
     {
-        Vector3 p1 = Vector3::make(Params::Tower1X::value(), Params::Tower1Y::value(), phys[0]);
-        Vector3 p2 = Vector3::make(Params::Tower2X::value(), Params::Tower2Y::value(), phys[1]);
-        Vector3 p3 = Vector3::make(Params::Tower3X::value(), Params::Tower3Y::value(), phys[2]);
+        Vector3 p1 = Vector3::make(Params::Tower1X::value(), Params::Tower1Y::value(), phys.template get<0>());
+        Vector3 p2 = Vector3::make(Params::Tower2X::value(), Params::Tower2Y::value(), phys.template get<1>());
+        Vector3 p3 = Vector3::make(Params::Tower3X::value(), Params::Tower3Y::value(), phys.template get<2>());
         Vector3 normal = (p1 - p2).cross(p2 - p3);
         double k = 1.0 / normal.norm();
         double q = 0.5 * k;
@@ -89,33 +92,12 @@ public:
         double r2 = 0.25 * k * (p1 - p2).norm() * (p2 - p3).norm() * (p3 - p1).norm();
         double d = sqrt(k * (DiagonalRod2::value() - r2));
         Vector3 ps = pc - (normal * d);
-        out_virt[0] = ps.m_v[0];
-        out_virt[1] = ps.m_v[1];
-        out_virt[2] = ps.m_v[2];
+        out_virt.template set<0>(ps.m_v[0]);
+        out_virt.template set<1>(ps.m_v[1]);
+        out_virt.template set<2>(ps.m_v[2]);
     }
     
-    class Splitter {
-    public:
-        void start (double const *old_virt, double const *virt)
-        {
-            double dist = sqrt(square(old_virt[0] - virt[0]) + square(old_virt[1] - virt[1]) + square(old_virt[2] - virt[2]));
-            m_count = 1 + (uint32_t)(dist * (1.0 / Params::SplitLength::value()));
-            m_pos = 1;
-        }
-        
-        bool pull (double *out_frac)
-        {
-            if (m_pos == m_count) {
-                return false;
-            }
-            *out_frac = (double)m_pos / m_count;
-            m_pos++;
-            return true;
-        }
-        
-        uint32_t m_count;
-        uint32_t m_pos;
-    };
+    using Splitter = DistanceSplitter<typename Params::SplitLength>;
 };
 
 #include <aprinter/EndNamespace.h>

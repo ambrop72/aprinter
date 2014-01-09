@@ -30,6 +30,7 @@
 
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/math/Vector3.h>
+#include <aprinter/printer/DistanceSplitter.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -59,47 +60,28 @@ private:
 public:
     static int const NumAxes = 2;
     
-    static void virtToPhys (double const *virt, double *out_phys)
+    template <typename Src, typename Dst>
+    static void virtToPhys (Src virt, Dst out_phys)
     {
-        out_phys[0] = sqrt(DiagonalRod2::value() - square(Params::Tower1X::value() - virt[0])) + virt[1];
-        out_phys[1] = sqrt(DiagonalRod2::value() - square(Params::Tower2X::value() - virt[0])) + virt[1];
+        out_phys.template set<0>(sqrt(DiagonalRod2::value() - square(Params::Tower1X::value() - virt.template get<0>())) + virt.template get<1>());
+        out_phys.template set<1>(sqrt(DiagonalRod2::value() - square(Params::Tower2X::value() - virt.template get<0>())) + virt.template get<1>());
     }
     
-    static void physToVirt (double const *phys, double *out_virt)
+    template <typename Src, typename Dst>
+    static void physToVirt (Src phys, Dst out_virt)
     {
-        Vector3 p1 = Vector3::make(Params::Tower1X::value(), phys[0], 0);
-        Vector3 p2 = Vector3::make(Params::Tower2X::value(), phys[1], 0);
+        Vector3 p1 = Vector3::make(Params::Tower1X::value(), phys.template get<0>(), 0);
+        Vector3 p2 = Vector3::make(Params::Tower2X::value(), phys.template get<1>(), 0);
         Vector3 pc = (p1 * 0.5) + (p2 * 0.5);
         Vector3 v12 = p2 - p1;
         Vector3 normal = Vector3::make(v12.m_v[1], -v12.m_v[0], 0);
         double d = sqrt((DiagonalRod2::value() / v12.norm()) - 0.25);
         Vector3 ps = pc + (normal * d);
-        out_virt[0] = ps.m_v[0];
-        out_virt[1] = ps.m_v[1];
+        out_virt.template set<0>(ps.m_v[0]);
+        out_virt.template set<1>(ps.m_v[1]);
     }
     
-    class Splitter {
-    public:
-        void start (double const *old_virt, double const *virt)
-        {
-            double dist = sqrt(square(old_virt[0] - virt[0]) + square(old_virt[1] - virt[1]));
-            m_count = 1 + (uint32_t)(dist * (1.0 / Params::SplitLength::value()));
-            m_pos = 1;
-        }
-        
-        bool pull (double *out_frac)
-        {
-            if (m_pos == m_count) {
-                return false;
-            }
-            *out_frac = (double)m_pos / m_count;
-            m_pos++;
-            return true;
-        }
-        
-        uint32_t m_count;
-        uint32_t m_pos;
-    };
+    using Splitter = DistanceSplitter<typename Params::SplitLength>;
 };
 
 #include <aprinter/EndNamespace.h>
