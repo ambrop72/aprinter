@@ -68,16 +68,16 @@ using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
 
 using ABCDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(100.0);
 using ABCDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using ABCDefaultMax = AMBRO_WRAP_DOUBLE(260.0);
+using ABCDefaultMax = AMBRO_WRAP_DOUBLE(360.0);
 using ABCDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
 using ABCDefaultMaxAccel = AMBRO_WRAP_DOUBLE(9000.0);
 using ABCDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using ABCDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
-using ABCDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(262.0);
+using ABCDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(363.0);
 using ABCDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
 using ABCDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
-using ABCDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(150.0);
-using ABCDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(150.0);
+using ABCDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(70.0);
+using ABCDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(70.0);
 using ABCDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(450.0);
@@ -290,7 +290,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultDistanceFactor, // DistanceFactor
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                DuePin38, // HomeEndPin
+                DuePin26, // HomeEndPin
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
