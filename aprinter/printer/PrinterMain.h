@@ -1272,9 +1272,9 @@ private:
                 }
                 
                 typename HomingState::Homer::HomingParams params;
-                params.fast_max_dist = StepFixedType::importDoubleSaturated(dist_from_real(AxisSpec::Homing::DefaultFastMaxDist::value()));
-                params.retract_dist = StepFixedType::importDoubleSaturated(dist_from_real(AxisSpec::Homing::DefaultRetractDist::value()));
-                params.slow_max_dist = StepFixedType::importDoubleSaturated(dist_from_real(AxisSpec::Homing::DefaultSlowMaxDist::value()));
+                params.fast_max_dist = StepFixedType::importDoubleSaturatedRound(dist_from_real(AxisSpec::Homing::DefaultFastMaxDist::value()));
+                params.retract_dist = StepFixedType::importDoubleSaturatedRound(dist_from_real(AxisSpec::Homing::DefaultRetractDist::value()));
+                params.slow_max_dist = StepFixedType::importDoubleSaturatedRound(dist_from_real(AxisSpec::Homing::DefaultSlowMaxDist::value()));
                 params.fast_speed = speed_from_real(AxisSpec::Homing::DefaultFastSpeed::value());
                 params.retract_speed = speed_from_real(AxisSpec::Homing::DefaultRetractSpeed::value());;
                 params.slow_speed = speed_from_real(AxisSpec::Homing::DefaultSlowSpeed::value());
@@ -1950,12 +1950,12 @@ private:
         
         static ValueFixedType min_safe_temp ()
         {
-            return ValueFixedType::importDoubleSaturatedInline(HeaterSpec::MinSafeTemp::value());
+            return ValueFixedType::importDoubleSaturatedRoundInline(HeaterSpec::MinSafeTemp::value());
         }
         
         static ValueFixedType max_safe_temp ()
         {
-            return ValueFixedType::importDoubleSaturatedInline(HeaterSpec::MaxSafeTemp::value());
+            return ValueFixedType::importDoubleSaturatedRoundInline(HeaterSpec::MaxSafeTemp::value());
         }
         
         static Heater * self (Context c)
@@ -2044,7 +2044,7 @@ private:
                     return false;
                 }
                 double target = cc->get_command_param_double(c, 'S', 0.0);
-                ValueFixedType fixed_target = ValueFixedType::importDoubleSaturated(target);
+                ValueFixedType fixed_target = ValueFixedType::importDoubleSaturatedRound(target);
                 if (fixed_target > min_safe_temp() && fixed_target < max_safe_temp()) {
                     set(c, fixed_target);
                 } else {
@@ -2062,7 +2062,7 @@ private:
                 }
                 double target = cc->get_command_param_double(c, 'S', 0.0);
                 cc->finishCommand(c);
-                ValueFixedType fixed_target = ValueFixedType::importDoubleSaturated(target);
+                ValueFixedType fixed_target = ValueFixedType::importDoubleSaturatedRound(target);
                 if (!(fixed_target > min_safe_temp() && fixed_target < max_safe_temp())) {
                     fixed_target = ValueFixedType::minValue();
                 }
@@ -2325,7 +2325,7 @@ private:
                 PlannerSplitBuffer *cmd = m->m_planner.getBuffer(c);
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
-                TheSoftPwm::computePowerData(OutputFixedType::importDoubleSaturated(target), &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
+                TheSoftPwm::computePowerData(OutputFixedType::importDoubleSaturatedRound(target), &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
                 m->m_planner.channelCommandDone(c, 1);
                 submitted_planner_command(c);
                 return false;
@@ -2694,7 +2694,7 @@ private:
     
     static TimeType time_from_real (double t)
     {
-        return (FixedPoint<30, false, 0>::importDoubleSaturated(t * Clock::time_freq)).bitsValue();
+        return (FixedPoint<30, false, 0>::importDoubleSaturatedRound(t * Clock::time_freq)).bitsValue();
     }
     
     static void blinker_handler (Context c)

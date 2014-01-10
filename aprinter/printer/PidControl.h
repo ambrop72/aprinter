@@ -117,7 +117,7 @@ public:
         }
         m_first = false;
         m_last = value_double;
-        return OutputFixedType::importDoubleSaturated((config->p * err) + m_integral + m_derivative);
+        return OutputFixedType::importDoubleSaturatedRound((config->p * err) + m_integral + m_derivative);
     }
     
 private:

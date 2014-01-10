@@ -92,23 +92,6 @@ public:
         }
     }
     
-    static FixedPoint importDoubleSaturated (double op)
-    {
-        return importDoubleSaturatedInline(op);
-    }
-    
-    __attribute__((always_inline)) inline static FixedPoint importDoubleSaturatedInline (double op)
-    {
-        double a = trunc(ldexp(op, -Exp));
-        if (a <= (Signed ? -ldexp(1.0, NumBits) : 0.0)) {
-            return minValue();
-        }
-        if (a >= ldexp(1.0, NumBits)) {
-            return maxValue();
-        }
-        return importBits(a);
-    }
-    
     static FixedPoint importDoubleSaturatedRound (double op)
     {
         return importDoubleSaturatedRoundInline(op);
