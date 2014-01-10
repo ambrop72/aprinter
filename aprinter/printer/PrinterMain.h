@@ -1429,10 +1429,10 @@ private:
         }
         
         template <typename PlannerCmd>
-        static void limit_axis_move_speed (Context c, double max_speed, PlannerCmd *cmd)
+        static void limit_axis_move_speed (Context c, double time_freq_by_max_speed, PlannerCmd *cmd)
         {
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
-            mycmd->max_v_rec = fmax(mycmd->max_v_rec, FloatMakePosOrPosZero(1.0 / speed_from_real(max_speed)));
+            mycmd->max_v_rec = fmax(mycmd->max_v_rec, time_freq_by_max_speed * (1.0 / AxisSpec::DefaultStepsPerUnit::value()));
         }
         
         static void fix_aborted_pos (Context c)
@@ -1578,13 +1578,14 @@ private:
             TheTransformAlg::physToVirt(PhysReqPosSrc{c}, VirtReqPosDst{c});
         }
         
-        static void handle_virt_move (Context c, double max_speed)
+        static void handle_virt_move (Context c, double time_freq_by_max_speed)
         {
             TransformFeature *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
             AMBRO_ASSERT(m->m_planner_state == PLANNER_RUNNING || m->m_planner_state == PLANNER_PROBE)
             AMBRO_ASSERT(m->m_planning_pull_pending)
             AMBRO_ASSERT(o->m_splitting)
+            AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
             
             o->m_virt_update_pending = false;
             TheTransformAlg::virtToPhys(VirtReqPosSrc{c}, PhysReqPosDst{c});
@@ -1593,7 +1594,7 @@ private:
             double distance_squared = 0.0;
             TupleForEachForward(&o->m_virt_axes, Foreach_prepare_split(), c, &distance_squared);
             TupleForEachForward(&o->m_secondary_axes, Foreach_prepare_split(), c, &distance_squared);
-            o->m_splitter.start(sqrt(distance_squared), FloatMakePosOrPosZero(max_speed) * Clock::time_unit);
+            o->m_splitter.start(sqrt(distance_squared), time_freq_by_max_speed);
             do_split(c);
         }
         
@@ -1839,7 +1840,7 @@ private:
     } AMBRO_STRUCT_ELSE(TransformFeature) {
         static int const NumVirtAxes = 0;
         static void init (Context c) {}
-        static void handle_virt_move (Context c, double max_speed) {}
+        static void handle_virt_move (Context c, double time_freq_by_max_speed) {}
         template <int PhysAxisIndex>
         static void mark_phys_moved (Context c) {}
         static void do_pending_virt_update (Context c) {}
@@ -2466,33 +2467,33 @@ private:
             MoveBuildState s;
             move_begin(c, &s);
             double height;
-            double speed;
+            double time_freq_by_speed;
             switch (o->m_point_state) {
                 case 0: {
                     AxisHelperTuple dummy;
                     TupleForEachForward(&dummy, Foreach_add_axis(), c, &s, o->m_current_point);
                     height = ProbeParams::ProbeStartHeight::value();
-                    speed = ProbeParams::ProbeMoveSpeed::value();
+                    time_freq_by_speed = Clock::time_freq / ProbeParams::ProbeMoveSpeed::value();
                 } break;
                 case 1: {
                     height = ProbeParams::ProbeLowHeight::value();
-                    speed = ProbeParams::ProbeFastSpeed::value();
+                    time_freq_by_speed = Clock::time_freq / ProbeParams::ProbeFastSpeed::value();
                 } break;
                 case 2: {
                     height = get_height(c) + ProbeParams::ProbeRetractDist::value();
-                    speed = ProbeParams::ProbeRetractSpeed::value();
+                    time_freq_by_speed = Clock::time_freq / ProbeParams::ProbeRetractSpeed::value();
                 } break;
                 case 3: {
                     height = ProbeParams::ProbeLowHeight::value();
-                    speed = ProbeParams::ProbeSlowSpeed::value();
+                    time_freq_by_speed = Clock::time_freq / ProbeParams::ProbeSlowSpeed::value();
                 } break;
                 case 4: {
                     height = ProbeParams::ProbeStartHeight::value();
-                    speed = ProbeParams::ProbeRetractSpeed::value();
+                    time_freq_by_speed = Clock::time_freq / ProbeParams::ProbeRetractSpeed::value();
                 } break;
             }
             move_add_axis<ProbeAxisIndex>(c, &s, height);
-            move_end(c, &s, speed);
+            move_end(c, &s, time_freq_by_speed);
             o->m_command_sent = true;
         }
         
@@ -2595,7 +2596,7 @@ public:
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
         o->m_probe_feature.init(c);
         o->m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
-        o->m_max_speed = INFINITY;
+        o->m_time_freq_by_max_speed = 0.0;
         o->m_locked = false;
         o->m_planner_state = PLANNER_NONE;
         
@@ -2817,12 +2818,12 @@ private:
                         PhysVirtAxisHelperTuple dummy;
                         if (TupleForEachForwardInterruptible(&dummy, Foreach_collect_new_pos(), c, cc, &s, part)) {
                             if (cc->gc(c)->getPartCode(c, part) == 'F') {
-                                o->m_max_speed = cc->gc(c)->getPartDoubleValue(c, part) * Params::SpeedLimitMultiply::value();
+                                o->m_time_freq_by_max_speed = (Clock::time_freq / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cc->gc(c)->getPartDoubleValue(c, part));
                             }
                         }
                     }
                     cc->finishCommand(c);
-                    move_end(c, &s, o->m_max_speed);
+                    move_end(c, &s, o->m_time_freq_by_max_speed);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -3109,14 +3110,15 @@ private:
         double get () { return Axis<Index>::self(m_c)->m_req_pos; }
     };
     
-    static void move_end (Context c, MoveBuildState *s, double max_speed)
+    static void move_end (Context c, MoveBuildState *s, double time_freq_by_max_speed)
     {
         PrinterMain *o = self(c);
         AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING || o->m_planner_state == PLANNER_PROBE)
         AMBRO_ASSERT(o->m_planning_pull_pending)
+        AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
         
         if (o->m_transform_feature.is_splitting(c)) {
-            o->m_transform_feature.handle_virt_move(c, max_speed);
+            o->m_transform_feature.handle_virt_move(c, time_freq_by_max_speed);
             return;
         }
         PlannerSplitBuffer *cmd = o->m_planner.getBuffer(c);
@@ -3127,9 +3129,9 @@ private:
         if (total_steps != 0.0) {
             cmd->rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
             if (s->seen_cartesian) {
-                cmd->rel_max_v_rec = fmax(cmd->rel_max_v_rec, FloatMakePosOrPosZero(sqrt(distance_squared) / (max_speed * Clock::time_unit)));
+                cmd->rel_max_v_rec = fmax(cmd->rel_max_v_rec, sqrt(distance_squared) * time_freq_by_max_speed);
             } else {
-                TupleForEachForward(&o->m_axes, Foreach_limit_axis_move_speed(), c, max_speed, cmd);
+                TupleForEachForward(&o->m_axes, Foreach_limit_axis_move_speed(), c, time_freq_by_max_speed, cmd);
             }
             o->m_planner.axesCommandDone(c);
         } else {
@@ -3197,7 +3199,7 @@ private:
     ProbeFeature m_probe_feature;
     TimeType m_inactive_time;
     TimeType m_last_active_time;
-    double m_max_speed;
+    double m_time_freq_by_max_speed;
     bool m_locked;
     uint8_t m_planner_state;
     union {

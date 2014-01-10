@@ -32,11 +32,11 @@
 template <typename SplitLength>
 class DistanceSplitter {
 public:
-    void start (double distance, double max_v_rec_b)
+    void start (double distance, double time_freq_by_max_speed)
     {
         m_count = 1 + (uint32_t)(distance * (1.0 / SplitLength::value()));
         m_pos = 1;
-        m_max_v_rec = distance / (m_count * max_v_rec_b);
+        m_max_v_rec = (distance * time_freq_by_max_speed) / m_count;
     }
     
     bool pull (double *out_rel_max_v_rec, double *out_frac)
