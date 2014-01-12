@@ -32,6 +32,7 @@
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Inline.h>
+#include <aprinter/math/FloatTools.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -97,16 +98,10 @@ public:
         return importDoubleSaturatedRoundInline(op);
     }
     
-    __attribute__((always_inline)) inline static FixedPoint importDoubleSaturatedRoundInline (double op)
+    AMBRO_ALWAYS_INLINE
+    static FixedPoint importDoubleSaturatedRoundInline (double op)
     {
-        double a = round(ldexp(op, -Exp));
-        if (a <= (Signed ? -ldexp(1.0, NumBits) : 0.0)) {
-            return minValue();
-        }
-        if (a >= ldexp(1.0, NumBits)) {
-            return maxValue();
-        }
-        return importBits(a);
+        return ImportDoubleImpl<(IsAvr && NumBits <= LongIntBits)>::call(op);
     }
     
     double doubleValue () const
@@ -212,6 +207,59 @@ public:
         
         return FixedPoint<NumBits2, Signed2, Exp2>::importBoundedBits(m_bits.template shiftLeft<(Exp - Exp2)>());
     }
+    
+private:
+#ifdef AMBROLIB_AVR
+    static bool const IsAvr = true;
+#else
+    static bool const IsAvr = false;
+#endif
+    static int const LongIntBits = (8 * sizeof(long int)) - 1;
+    
+    template <bool UseLround, typename Dummy = void>
+    struct ImportDoubleImpl {
+        AMBRO_ALWAYS_INLINE
+        static FixedPoint call (double op)
+        {
+            if (Exp != 0) {
+                op = ldexp(op, -Exp);
+            }
+            double a = round(op);
+            if (a <= (Signed ? -ldexp(1.0, NumBits) : 0.0)) {
+                return minValue();
+            }
+            if (a >= ldexp(1.0, NumBits)) {
+                return maxValue();
+            }
+            return importBits(a);
+        }
+    };
+    
+    template <typename Dummy>
+    struct ImportDoubleImpl<true, Dummy> {
+        AMBRO_ALWAYS_INLINE
+        static FixedPoint call (double op)
+        {
+            if (Exp != 0) {
+                op = ldexp(op, -Exp);
+            }
+            long int a = lround(op);
+            if (a == MinusPowerOfTwo<long int, LongIntBits>::value) {
+                if (FloatSignBit(op)) {
+                    a = BoundedIntType::minIntValue();
+                } else {
+                    a = BoundedIntType::maxIntValue();
+                }
+            } else if (NumBits < LongIntBits) {
+                if (a < BoundedIntType::minIntValue()) {
+                    a = BoundedIntType::minIntValue();
+                } else if (a > BoundedIntType::maxIntValue()) {
+                    a = BoundedIntType::maxIntValue();
+                }
+            }
+            return importBits(a);
+        }
+    };
     
 public:
     BoundedIntType m_bits;
