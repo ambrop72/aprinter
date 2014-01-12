@@ -28,6 +28,7 @@
 #include <math.h>
 #include <float.h>
 #include <string.h>
+#include <stdint.h>
 
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/math/PrintInt.h>
@@ -120,6 +121,19 @@ static void FloatToStrSoft (double x, char *s, int prec_approx = 6, bool pretty 
         s += PrintNonnegativeIntDecimal<int>(e10, s);
     }
     *s = '\0';
+}
+
+template <typename T>
+bool FloatSignBit (T x)
+{
+#ifdef AMBROLIB_AVR
+    static_assert(sizeof(x) == 4, "");
+    union { float f; uint8_t b[4]; } u;
+    u.f = x;
+    return (u.b[3] & 0x80);
+#else
+    return signbit(x);
+#endif
 }
 
 #include <aprinter/EndNamespace.h>
