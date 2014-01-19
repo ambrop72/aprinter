@@ -102,10 +102,10 @@ private:
     template <int AxisIndex> struct AxisPosition;
     template <int ChannelIndex> struct ChannelPosition;
     
-    static_assert(StepperSegmentBufferSize >= 6, "");
+    static_assert(StepperSegmentBufferSize - LookaheadCommitCount >= 6, "");
     static_assert(LookaheadBufferSize >= 2, "");
     static_assert(LookaheadCommitCount >= 1, "");
-    static_assert(LookaheadCommitCount <= LookaheadBufferSize, "");
+    static_assert(LookaheadCommitCount < LookaheadBufferSize, "");
     using Loop = typename Context::EventLoop;
     using TimeType = typename Context::Clock::TimeType;
     static const int NumAxes = TypeListLength<AxesList>::value;
@@ -114,9 +114,10 @@ private:
     using MinTimeTypeHelper = FixedIntersectTypes<typename AxisSpec::TheAxisStepper::TimeFixedType, AccumType>;
     using MinTimeType = TypeListFold<AxesList, FixedIdentity, MinTimeTypeHelper>;
     using SegmentBufferSizeType = typename ChooseInt<BitsInInt<2 * LookaheadBufferSize>::value, false>::Type; // twice for segments_add()
-    static const size_t NumStepperCommands = 3 * (StepperSegmentBufferSize + 2 * LookaheadBufferSize);
-    using StepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, true>::Type;
-    using UnsignedStepperCommandSizeType = typename ChooseInt<BitsInInt<NumStepperCommands>::value, false>::Type;
+    static const size_t StepperCommitBufferSize = 3 * StepperSegmentBufferSize;
+    static const size_t StepperBackupBufferSize = 3 * (LookaheadBufferSize - LookaheadCommitCount);
+    using StepperCommitBufferSizeType = typename ChooseInt<BitsInInt<StepperCommitBufferSize>::value, false>::Type;
+    using StepperBackupBufferSizeType = typename ChooseInt<BitsInInt<StepperBackupBufferSize>::value, false>::Type;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
     static const int TypeBits = BitsInInt<NumChannels>::value;
     using AxisMaskType = typename ChooseInt<NumAxes + TypeBits, false>::Type;
@@ -136,21 +137,14 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_entry_accel, compute_segment_buffer_entry_accel)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment_buffer_entry_extra, write_segment_buffer_entry_extra)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_segment_buffer_cornering_speed, compute_segment_buffer_cornering_speed)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_have_commit_space, have_commit_space)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_commands, start_commands)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_gen_segment_stepper_commands, gen_segment_stepper_commands)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_complete_new, complete_new)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_have_commit_space, have_commit_space)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commit_segment_hot, commit_segment_hot)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_commit_segment_finish, commit_segment_finish)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_dispose_new, dispose_new)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_cold, swap_staging_cold)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_prepare, swap_staging_prepare)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_hot, swap_staging_hot)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_swap_staging_finish, swap_staging_finish)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_do_commit, do_commit)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_do_commit_cold, do_commit_cold)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_do_commit_hot, do_commit_hot)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_stepping, start_stepping)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_empty, is_empty)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_underrun, is_underrun)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_aborted, is_aborted)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_is_busy, is_busy)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_reset_aborted, reset_aborted)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_stopped_stepping, stopped_stepping)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_write_segment, write_segment)
@@ -196,19 +190,15 @@ private:
         using StepperCommand = typename TheAxisStepper::Command;
         
         StepperCommand scmd;
-        StepperCommandSizeType next;
     };
     
     template <int ChannelIndex>
     struct ChannelCommand {
         using ChannelSpec = TypeListGet<ChannelsList, ChannelIndex>;
         using Payload = typename ChannelSpec::Payload;
-        static const size_t NumChannelCommands = ChannelSpec::BufferSize + 2 * LookaheadBufferSize;
-        using ChannelCommandSizeType = typename ChooseInt<BitsInInt<NumChannelCommands>::value, true>::Type;
         
         Payload payload;
         TimeType time;
-        ChannelCommandSizeType next;
     };
     
     template <int AxisIndex>
@@ -228,7 +218,6 @@ private:
         using TheChannelCommand = ChannelCommand<ChannelIndex>;
         
         Payload payload;
-        typename TheChannelCommand::ChannelCommandSizeType command;
     };
     
     struct Segment {
@@ -243,11 +232,6 @@ private:
             IndexElemUnion<ChannelsList, ChannelSegment> channels;
         };
     };
-    
-    template <int ChannelIndex>
-    using ChannelCommandSizeTypeAlias = typename ChannelCommand<ChannelIndex>::ChannelCommandSizeType;
-    
-    using ChannelCommandSizeTypeTuple = IndexElemTuple<ChannelsList, ChannelCommandSizeTypeAlias>;
     
     enum {STATE_BUFFERING, STATE_STEPPING, STATE_ABORTED};
     
@@ -286,15 +270,11 @@ public:
         static void init (Context c, bool prestep_callback_enabled)
         {
             Axis *o = self(c);
-            o->m_first = -1;
-            o->m_free_first = -1;
-            o->m_new_last = -1;
-            o->m_num_committed = 0;
-            o->m_last_committed = 0;
-            for (size_t i = 0; i < NumStepperCommands; i++) {
-                index_command(c, i)->next = o->m_free_first;
-                o->m_free_first = i;
-            }
+            o->m_commit_start = 0;
+            o->m_commit_end = 0;
+            o->m_backup_start = 0;
+            o->m_backup_end = 0;
+            o->m_busy = false;
             stepper(c)->setPrestepCallbackEnabled(c, prestep_callback_enabled);
         }
         
@@ -403,17 +383,21 @@ public:
             return fmin(accum, (AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / (dm * axis_split->max_a_rec));
         }
         
+        static bool have_commit_space (bool accum, Context c)
+        {
+            Axis *o = self(c);
+            return (accum && commit_avail(o->m_commit_start, o->m_commit_end) > 3 * LookaheadCommitCount);
+        }
+        
         static void start_commands (Context c)
         {
             Axis *o = self(c);
-            o->m_commit_count = 0;
-            o->m_commit_last = o->m_last_committed;
-            o->m_new_first = o->m_free_first;
+            o->m_new_commit_end = o->m_commit_end;
+            o->m_new_backup_end = 0;
         }
         
-        static void gen_segment_stepper_commands (Context c, Segment *entry, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared, bool is_commit)
+        static void gen_segment_stepper_commands (Context c, Segment *entry, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared)
         {
-            Axis *o = self(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
             
             StepperStepFixedType x1 = axis_entry->x;
@@ -453,168 +437,93 @@ public:
                 num_stepper_entries++;
                 gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::importDoubleSaturatedRound(axis_entry->half_accel * t2_squared)));
             }
-            
-            if (AMBRO_UNLIKELY(is_commit)) {
-                o->m_commit_count += num_stepper_entries;
-                o->m_commit_last = o->m_new_last;
-            }
         }
         
         static void gen_stepper_command (Context c, bool dir, StepperStepFixedType x, StepperTimeFixedType t, StepperAccelFixedType a)
         {
             Axis *o = self(c);
-            StepperCommandSizeType entry = o->m_free_first;
-            o->m_free_first = index_command(c, o->m_free_first)->next;
-            TheAxisStepper::generate_command(dir, x, t, a, &index_command(c, entry)->scmd);
-            o->m_new_last = entry;
-        }
-        
-        static void complete_new (Context c)
-        {
-            Axis *o = self(c);
-            if (o->m_new_last >= 0) {
-                index_command(c, o->m_new_last)->next = -1;
-            }
-        }
-        
-        static bool have_commit_space (bool accum, Context c)
-        {
-            Axis *o = self(c);
-            return (accum && o->m_num_committed <= (3 * StepperSegmentBufferSize) - o->m_commit_count);
-        }
-        
-        static void commit_segment_hot (Context c)
-        {
-            Axis *o = self(c);
-            o->m_num_committed += o->m_commit_count;
-        }
-        
-        static void commit_segment_finish (Context c)
-        {
-            Axis *o = self(c);
-            o->m_last_committed = o->m_commit_last;
-        }
-        
-        static void dispose_new (Context c)
-        {
-            Axis *o = self(c);
-            if (o->m_new_last >= 0) {
-                index_command(c, o->m_new_last)->next = o->m_free_first;
-                o->m_free_first = o->m_new_first;
-                o->m_new_last = -1;
-            }
-        }
-        
-        static void swap_staging_cold (Context c)
-        {
-            Axis *o = self(c);
-            if (!(o->m_new_last >= 0)) {
-                return;
-            }
-            if (index_command(c, o->m_last_committed)->next >= 0) {
-                index_command(c, o->m_last)->next = o->m_free_first;
-                o->m_free_first = index_command(c, o->m_last_committed)->next;
-            }
-            index_command(c, o->m_last_committed)->next = o->m_new_first;
-            if (o->m_num_committed == 0) {
-                o->m_first = o->m_new_first;
-            }
-            o->m_last = o->m_new_last;
-            o->m_new_last = -1;
-        }
-        
-        static void swap_staging_prepare (Context c, StepperCommandSizeType *old_first)
-        {
-            Axis *o = self(c);
+            MotionPlanner *m = MotionPlanner::self(c);
             
-            old_first[AxisIndex] = index_command(c, o->m_last_committed)->next;
+            TheAxisStepperCommand *cmd;
+            if (!m->m_new_to_backup) {
+                cmd = &o->m_commit_buffer[o->m_new_commit_end];
+                o->m_new_commit_end = commit_inc(o->m_new_commit_end);
+            } else {
+                cmd = &get_backup<false>(c)[o->m_new_backup_end];
+                o->m_new_backup_end++;
+            }
+            TheAxisStepper::generate_command(dir, x, t, a, &cmd->scmd);
         }
         
-        static void swap_staging_hot (Context c)
+        static void do_commit (Context c)
         {
             Axis *o = self(c);
-            if (AMBRO_LIKELY(o->m_new_last >= 0)) {
-                index_command(c, o->m_last_committed)->next = o->m_new_first;
-            }
-        }
-        
-        static void swap_staging_finish (Context c, StepperCommandSizeType *old_first)
-        {
-            Axis *o = self(c);
-            if (o->m_new_last >= 0) {
-                StepperCommandSizeType old_last = o->m_last;
-                o->m_last = o->m_new_last;
-                o->m_new_first = old_first[AxisIndex];
-                o->m_new_last = o->m_new_first < 0 ? o->m_new_first : old_last;
-            }
+            o->m_commit_end = o->m_new_commit_end;
+            o->m_backup_end = o->m_new_backup_end;
         }
         
         static void start_stepping (Context c, TimeType start_time)
         {
             Axis *o = self(c);
-            if (!(o->m_first >= 0)) {
-                return;
+            MotionPlanner *m = MotionPlanner::self(c);
+            AMBRO_ASSERT(!o->m_busy)
+            
+            if (o->m_commit_start != o->m_commit_end) {
+                m->m_syncing = true;
+                o->m_busy = true;
+                TheAxisStepperCommand *cmd = &o->m_commit_buffer[o->m_commit_start];
+                o->m_commit_start = commit_inc(o->m_commit_start);
+                stepper(c)->template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, &cmd->scmd);
             }
-            stepper(c)->template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, &index_command(c, o->m_first)->scmd);
         }
         
-        static bool is_empty (bool accum, Context c)
+        static bool is_busy (bool accum, Context c)
         {
             Axis *o = self(c);
-            return (accum && !(o->m_first >= 0));
-        }
-        
-        static bool is_underrun (bool accum, Context c)
-        {
-            Axis *o = self(c);
-            return (accum || (o->m_num_committed <= 0));
-        }
-        
-        static bool is_aborted (bool accum, Context c)
-        {
-            Axis *o = self(c);
-            return (accum || (PrestepCallbackEnabled && o->m_first <= -2));
+            return (accum || o->m_busy);
         }
         
         static void reset_aborted (Context c)
         {
             Axis *o = self(c);
-            o->m_first = -1;
+            o->m_commit_start = 0;
+            o->m_commit_end = 0;
+            o->m_busy = false;
         }
         
         static void stopped_stepping (Context c)
         {
             Axis *o = self(c);
-            o->m_num_committed = 0;
+            o->m_backup_start = 0;
+            o->m_backup_end = 0;
         }
         
         static bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand **cmd)
         {
             Axis *o = self(c);
             MotionPlanner *m = MotionPlanner::self(c);
-            AMBRO_ASSERT(o->m_first >= 0)
+            AMBRO_ASSERT(o->m_busy)
             AMBRO_ASSERT(m->m_state == STATE_STEPPING)
-            AMBRO_ASSERT(*cmd == &index_command(c, o->m_first)->scmd)
             
             c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
-            o->m_num_committed--;
-            o->m_first = GetContainer(*cmd, &TheAxisStepperCommand::scmd)->next;
-            if (!(o->m_first >= 0)) {
-                return false;
+            if (AMBRO_UNLIKELY(o->m_commit_start != o->m_commit_end)) {
+                *cmd = &o->m_commit_buffer[o->m_commit_start].scmd;
+                o->m_commit_start = commit_inc(o->m_commit_start);
+            } else {
+                m->m_syncing = false;
+                if (o->m_backup_start == o->m_backup_end) {
+                    o->m_busy = false;
+                    return false;
+                }
+                *cmd = &get_backup<true>(c)[o->m_backup_start].scmd;
+                o->m_backup_start++;
             }
-            *cmd = &index_command(c, o->m_first)->scmd;
             return true;
         }
         
         static bool stepper_prestep_callback (StepperCommandCallbackContext c)
         {
             return PrestepCallbackHelper<PrestepCallbackEnabled>::call(c);
-        }
-        
-        AMBRO_ALWAYS_INLINE static TheAxisStepperCommand * index_command (Context c, UnsignedStepperCommandSizeType i)
-        {
-            Axis *o = self(c);
-            return (TheAxisStepperCommand *)((char *)o->m_stepper_entries + i * sizeof(TheAxisStepperCommand));
         }
         
         template <bool Enabled, typename Dummy = void>
@@ -630,15 +539,27 @@ public:
             static bool call (StepperCommandCallbackContext c)
             {
                 Axis *o = self(c);
+                MotionPlanner *m = MotionPlanner::self(c);
                 bool res = AxisSpec::PrestepCallback::call(c);
                 if (AMBRO_UNLIKELY(res)) {
                     c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
-                    o->m_num_committed = 0;
-                    o->m_first = -2 - o->m_first;
+                    m->m_aborted = true;
                 }
                 return res;
             }
         };
+        
+        template <typename StepsType>
+        static void add_command_steps (Context c, StepsType *steps, TheAxisStepperCommand *cmd)
+        {
+            bool dir;
+            StepperStepFixedType cmd_steps = stepper(c)->getPendingCmdSteps(c, &cmd->scmd, &dir);
+            if (dir) {
+                *steps += (StepsType)cmd_steps.bitsValue();
+            } else {
+                *steps -= (StepsType)cmd_steps.bitsValue();
+            }
+        }
         
         template <typename StepsType>
         static StepsType axis_count_aborted_rem_steps (Context c)
@@ -647,7 +568,7 @@ public:
             MotionPlanner *m = MotionPlanner::self(c);
             
             StepsType steps = 0;
-            if (o->m_first != -1) {
+            if (o->m_busy) {
                 bool dir;
                 StepperStepFixedType cmd_steps = stepper(c)->getAbortedCmdSteps(c, &dir);
                 if (dir) {
@@ -655,21 +576,12 @@ public:
                 } else {
                     steps -= (StepsType)cmd_steps.bitsValue();
                 }
-                StepperCommandSizeType first = o->m_first;
-                if (first < 0) {
-                    first = -(o->m_first + 2);
-                }
-                StepperCommandSizeType i = index_command(c, first)->next;
-                while (i != -1) {
-                    TheAxisStepperCommand *cmd = index_command(c, i);
-                    cmd_steps = stepper(c)->getPendingCmdSteps(c, &cmd->scmd, &dir);
-                    if (dir) {
-                        steps += (StepsType)cmd_steps.bitsValue();
-                    } else {
-                        steps -= (StepsType)cmd_steps.bitsValue();
-                    }
-                    i = cmd->next;
-                }
+            }
+            for (StepperCommitBufferSizeType i = o->m_commit_start; i != o->m_commit_end; i = commit_inc(i)) {
+                add_command_steps(c, &steps, &o->m_commit_buffer[i]);
+            }
+            for (StepperBackupBufferSizeType i = o->m_backup_start; i < o->m_backup_end; i++) {
+                add_command_steps(c, &steps, &get_backup<true>(c)[i]);
             }
             for (SegmentBufferSizeType i = m->m_segments_staging_length; i < m->m_segments_length; i++) {
                 Segment *seg = &m->m_segments[segments_add(m->m_segments_start, i)];
@@ -692,16 +604,42 @@ public:
             return steps;
         }
         
-        StepperCommandSizeType m_first;
-        StepperCommandSizeType m_last_committed;
-        StepperCommandSizeType m_last;
-        StepperCommandSizeType m_new_first;
-        StepperCommandSizeType m_new_last;
-        StepperCommandSizeType m_free_first;
-        StepperCommandSizeType m_num_committed;
-        StepperCommandSizeType m_commit_count;
-        StepperCommandSizeType m_commit_last;
-        TheAxisStepperCommand m_stepper_entries[NumStepperCommands];
+        static StepperCommitBufferSizeType commit_add (StepperCommitBufferSizeType a, StepperCommitBufferSizeType b)
+        {
+            return (b >= StepperCommitBufferSize - a) ? (b - (StepperCommitBufferSize - a)) : (a + b);
+        }
+        
+        static StepperCommitBufferSizeType commit_inc (StepperCommitBufferSizeType a)
+        {
+            return (a == StepperCommitBufferSize - 1) ? 0 : (a + 1);
+        }
+        
+        static StepperCommitBufferSizeType commit_avail (StepperCommitBufferSizeType start, StepperCommitBufferSizeType end)
+        {
+            return (end >= start) ? ((StepperCommitBufferSize - 1) - (end - start)) : ((start - end) - 1);
+        }
+        
+        template <bool GetCurrent>
+        static TheAxisStepperCommand * get_backup (Context c)
+        {
+            Axis *o = self(c);
+            MotionPlanner *m = MotionPlanner::self(c);
+            TheAxisStepperCommand *buf = o->m_backup_buffer;
+            if (AMBRO_LIKELY(m->m_current_backup == GetCurrent)) {
+                buf += StepperBackupBufferSize;
+            }
+            return buf;
+        }
+        
+        StepperCommitBufferSizeType m_commit_start;
+        StepperCommitBufferSizeType m_commit_end;
+        StepperBackupBufferSizeType m_backup_start;
+        StepperBackupBufferSizeType m_backup_end;
+        StepperCommitBufferSizeType m_new_commit_end;
+        StepperBackupBufferSizeType m_new_backup_end;
+        bool m_busy;
+        TheAxisStepperCommand m_commit_buffer[StepperCommitBufferSize];
+        TheAxisStepperCommand m_backup_buffer[(size_t)2 * StepperBackupBufferSize];
     };
     
     template <int ChannelIndex>
@@ -720,9 +658,12 @@ public:
         using CallbackContext = typename TheTimer::HandlerContext;
         
     public: // private, workaround gcc bug
-        static_assert(ChannelSpec::BufferSize > 0, "");
-        static const size_t NumChannelCommands = TheChannelCommand::NumChannelCommands;
-        using ChannelCommandSizeType = typename TheChannelCommand::ChannelCommandSizeType;
+        static_assert(ChannelSpec::BufferSize - LookaheadCommitCount > 0, "");
+        static const size_t ChannelCommitBufferSize = ChannelSpec::BufferSize;
+        static const size_t ChannelBackupBufferSize = LookaheadBufferSize - LookaheadCommitCount;
+        using ChannelCommitBufferSizeType = typename ChooseInt<BitsInInt<ChannelCommitBufferSize>::value, false>::Type;
+        using ChannelBackupBufferSizeType = typename ChooseInt<BitsInInt<ChannelBackupBufferSize>::value, false>::Type;
+        using LookaheadSizeType = typename ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>::Type;
         
         static Channel * self (Context c)
         {
@@ -732,15 +673,11 @@ public:
         static void init (Context c)
         {
             Channel *o = self(c);
-            o->m_first = -1;
-            o->m_free_first = -1;
-            o->m_new_last = -1;
-            o->m_num_committed = 0;
-            o->m_last_committed = 0;
-            for (size_t i = 0; i < NumChannelCommands; i++) {
-                o->m_channel_commands[i].next = o->m_free_first;
-                o->m_free_first = i;
-            }
+            o->m_commit_start = 0;
+            o->m_commit_end = 0;
+            o->m_backup_start = 0;
+            o->m_backup_end = 0;
+            o->m_busy = false;
             o->m_timer.init(c);
         }
         
@@ -763,183 +700,161 @@ public:
             channel_entry->payload = *UnionGetElem<ChannelIndex>(&m->m_split_buffer.channel_payload);
         }
         
+        static bool have_commit_space (bool accum, Context c)
+        {
+            Channel *o = self(c);
+            return (accum && commit_avail(o->m_commit_start, o->m_commit_end) > LookaheadCommitCount);
+        }
+        
         static void start_commands (Context c)
         {
             Channel *o = self(c);
-            o->m_commit_count = 0;
-            o->m_commit_last = o->m_last_committed;
-            o->m_new_first = o->m_free_first;
+            o->m_new_commit_end = o->m_commit_end;
+            o->m_new_backup_end = 0;
         }
         
-        static void gen_command (Context c, Segment *entry, TimeType time, bool is_commit)
+        static void gen_command (Context c, Segment *entry, TimeType time)
         {
             Channel *o = self(c);
+            MotionPlanner *m = MotionPlanner::self(c);
             TheChannelSegment *channel_entry = UnionGetElem<ChannelIndex>(&entry->channels);
             
-            ChannelCommandSizeType cmd = o->m_free_first;
-            o->m_free_first = o->m_channel_commands[o->m_free_first].next;
-            o->m_channel_commands[cmd].payload = channel_entry->payload;
-            o->m_channel_commands[cmd].time = time;
-            o->m_new_last = cmd;
-            channel_entry->command = cmd;
-            if (AMBRO_UNLIKELY(is_commit)) {
-                o->m_commit_count++;
-                o->m_commit_last = o->m_new_last;
+            TheChannelCommand *cmd;
+            if (!m->m_new_to_backup) {
+                cmd = &o->m_commit_buffer[o->m_new_commit_end];
+                o->m_new_commit_end = commit_inc(o->m_new_commit_end);
+            } else {
+                cmd = &get_backup<false>(c)[o->m_new_backup_end];
+                o->m_new_backup_end++;
             }
+            cmd->payload = channel_entry->payload;
+            cmd->time = time;
         }
         
-        static void complete_new (Context c)
+        static void do_commit_cold (Context c)
         {
             Channel *o = self(c);
-            if (o->m_new_last >= 0) {
-                o->m_channel_commands[o->m_new_last].next = -1;
-            }
-        }
-        
-        static void dispose_new (Context c)
-        {
-            Channel *o = self(c);
-            if (o->m_new_last >= 0) {
-                o->m_channel_commands[o->m_new_last].next = o->m_free_first;
-                o->m_free_first = o->m_new_first;
-                o->m_new_last = -1;
-            }
-        }
-        
-        static void swap_staging_cold (Context c)
-        {
-            Channel *o = self(c);
-            if (!(o->m_new_last >= 0)) {
-                return;
-            }
-            if (o->m_channel_commands[o->m_last_committed].next >= 0) {
-                o->m_channel_commands[o->m_last].next = o->m_free_first;
-                o->m_free_first = o->m_channel_commands[o->m_last_committed].next;
-            }
-            o->m_channel_commands[o->m_last_committed].next = o->m_new_first;
-            if (o->m_num_committed == 0) {
-                o->m_first = o->m_new_first;
-            }
-            o->m_last = o->m_new_last;
-            o->m_new_last = -1;
-        }
-        
-        static void swap_staging_prepare (Context c, ChannelCommandSizeTypeTuple *old_first_tuple)
-        {
-            Channel *o = self(c);
-            
-            *TupleGetElem<ChannelIndex>(old_first_tuple) = o->m_channel_commands[o->m_last_committed].next;
+            o->m_commit_end = o->m_new_commit_end;
+            o->m_backup_end = o->m_new_backup_end;
         }
         
         template <typename LockContext>
-        static void swap_staging_hot (LockContext c)
+        static void do_commit_hot (LockContext c)
         {
             Channel *o = self(c);
-            if (AMBRO_LIKELY(o->m_new_last >= 0)) {
-                o->m_channel_commands[o->m_last_committed].next = o->m_new_first;
-                if (AMBRO_LIKELY(o->m_num_committed == 0)) {
-                    o->m_first = o->m_new_first;
-                    o->m_timer.unset(c);
-                    o->m_timer.setFirst(c, o->m_channel_commands[o->m_first].time);
-                }
-            }
-        }
-        
-        static void swap_staging_finish (Context c, ChannelCommandSizeTypeTuple *old_first_tuple)
-        {
-            Channel *o = self(c);
-            if (o->m_new_last >= 0) {
-                ChannelCommandSizeType old_last = o->m_last;
-                o->m_last = o->m_new_last;
-                o->m_new_first = *TupleGetElem<ChannelIndex>(old_first_tuple);
-                o->m_new_last = o->m_new_first < 0 ? o->m_new_first : old_last;
+            o->m_commit_end = o->m_new_commit_end;
+            o->m_backup_end = o->m_new_backup_end;
+            if (AMBRO_LIKELY(o->m_commit_start != o->m_commit_end && !o->m_busy)) {
+                o->m_cmd = &o->m_commit_buffer[o->m_commit_start];
+                o->m_commit_start = commit_inc(o->m_commit_start);
+                o->m_busy = true;
+                o->m_timer.setFirst(c, o->m_cmd->time);
             }
         }
         
         static void start_stepping (Context c, TimeType start_time)
         {
             Channel *o = self(c);
-            if (!(o->m_first >= 0)) {
-                return;
+            AMBRO_ASSERT(!o->m_busy)
+            
+            if (o->m_commit_start != o->m_commit_end) {
+                for (ChannelCommitBufferSizeType i = o->m_commit_start; i != o->m_commit_end; i = commit_inc(i)) {
+                    o->m_commit_buffer[i].time += start_time;
+                }
+                for (ChannelBackupBufferSizeType i = 0; i < o->m_backup_end; i++) {
+                    get_backup<true>(c)[i].time += start_time;
+                }
+                o->m_busy = true;
+                o->m_cmd = &o->m_commit_buffer[o->m_commit_start];
+                o->m_commit_start = commit_inc(o->m_commit_start);
+                o->m_timer.setFirst(c, o->m_cmd->time);
             }
-            for (ChannelCommandSizeType cmd = o->m_first; cmd >= 0; cmd = o->m_channel_commands[cmd].next) {
-                o->m_channel_commands[cmd].time += start_time;
-            }
-            o->m_timer.setFirst(c, o->m_channel_commands[o->m_first].time);
         }
         
-        static bool have_commit_space (bool accum, Context c)
+        static bool is_busy (bool accum, Context c)
         {
             Channel *o = self(c);
-            return (accum && o->m_num_committed <= ChannelSpec::BufferSize - o->m_commit_count);
-        }
-        
-        static void commit_segment_hot (Context c)
-        {
-            Channel *o = self(c);
-            o->m_num_committed += o->m_commit_count;
-        }
-        
-        static void commit_segment_finish (Context c)
-        {
-            Channel *o = self(c);
-            o->m_last_committed = o->m_commit_last;
-        }
-        
-        static bool is_empty (bool accum, Context c)
-        {
-            Channel *o = self(c);
-            return (accum && !(o->m_first >= 0));
-        }
-        
-        static bool is_underrun (bool accum, Context c)
-        {
-            Channel *o = self(c);
-            return (accum || (o->m_num_committed < 0));
+            return (accum || o->m_busy);
         }
         
         static void reset_aborted (Context c)
         {
             Channel *o = self(c);
-            o->m_first = -1;
+            o->m_commit_start = 0;
+            o->m_commit_end = 0;
+            o->m_busy = false;
         }
         
         static void stopped_stepping (Context c)
         {
             Channel *o = self(c);
-            o->m_num_committed = 0;
+            o->m_backup_start = 0;
+            o->m_backup_end = 0;
         }
         
         static bool timer_handler (TheTimer *, typename TheTimer::HandlerContext c)
         {
             Channel *o = self(c);
             MotionPlanner *m = MotionPlanner::self(c);
-            AMBRO_ASSERT(o->m_first >= 0)
+            AMBRO_ASSERT(o->m_busy)
             AMBRO_ASSERT(m->m_state == STATE_STEPPING)
             
-            ChannelSpec::Callback::call(c, &o->m_channel_commands[o->m_first].payload);
-            
             c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
-            o->m_num_committed--;
-            o->m_first = o->m_channel_commands[o->m_first].next;
-            if (!(o->m_first >= 0)) {
-                return false;
+            ChannelSpec::Callback::call(c, &o->m_cmd->payload);
+            if (o->m_commit_start != o->m_commit_end) {
+                o->m_cmd = &o->m_commit_buffer[o->m_commit_start];
+                o->m_commit_start = commit_inc(o->m_commit_start);
+            } else {
+                if (o->m_backup_start == o->m_backup_end) {
+                    o->m_busy = false;
+                    return false;
+                }
+                m->m_syncing = false;
+                o->m_cmd = &get_backup<true>(c)[o->m_backup_start];
+                o->m_backup_start++;
             }
-            o->m_timer.setNext(c, o->m_channel_commands[o->m_first].time);
+            o->m_timer.setNext(c, o->m_cmd->time);
             return true;
         }
         
-        ChannelCommandSizeType m_first;
-        ChannelCommandSizeType m_last_committed;
-        ChannelCommandSizeType m_last;
-        ChannelCommandSizeType m_new_first;
-        ChannelCommandSizeType m_new_last;
-        ChannelCommandSizeType m_free_first;
-        ChannelCommandSizeType m_num_committed;
-        ChannelCommandSizeType m_commit_count;
-        ChannelCommandSizeType m_commit_last;
+        static ChannelCommitBufferSizeType commit_add (ChannelCommitBufferSizeType a, ChannelCommitBufferSizeType b)
+        {
+            return (b >= ChannelCommitBufferSize - a) ? (b - (ChannelCommitBufferSize - a)) : (a + b);
+        }
+        
+        static ChannelCommitBufferSizeType commit_inc (ChannelCommitBufferSizeType a)
+        {
+            return (a == ChannelCommitBufferSize - 1) ? 0 : (a + 1);
+        }
+        
+        static ChannelCommitBufferSizeType commit_avail (ChannelCommitBufferSizeType start, ChannelCommitBufferSizeType end)
+        {
+            return (end >= start) ? ((ChannelCommitBufferSize - 1) - (end - start)) : ((start - end) - 1);
+        }
+        
+        template <bool GetCurrent>
+        static TheChannelCommand * get_backup (Context c)
+        {
+            Channel *o = self(c);
+            MotionPlanner *m = MotionPlanner::self(c);
+            TheChannelCommand *buf = o->m_backup_buffer;
+            if (AMBRO_LIKELY(m->m_current_backup == GetCurrent)) {
+                buf += StepperBackupBufferSize;
+            }
+            return buf;
+        }
+        
+        ChannelCommitBufferSizeType m_commit_start;
+        ChannelCommitBufferSizeType m_commit_end;
+        ChannelBackupBufferSizeType m_backup_start;
+        ChannelBackupBufferSizeType m_backup_end;
+        ChannelCommitBufferSizeType m_new_commit_end;
+        ChannelBackupBufferSizeType m_new_backup_end;
+        bool m_busy;
+        TheChannelCommand *m_cmd;
+        TheChannelCommand m_commit_buffer[ChannelCommitBufferSize];
+        TheChannelCommand m_backup_buffer[(size_t)2 * ChannelBackupBufferSize];
         TheTimer m_timer;
-        TheChannelCommand m_channel_commands[NumChannelCommands];
         
         struct TimerHandler : public AMBRO_WFUNC_TD(&Channel::timer_handler) {};
         struct TimerPosition : public MemberPosition<ChannelPosition<ChannelIndex>, TheTimer, &Channel::m_timer> {};
@@ -963,10 +878,13 @@ public:
         o->m_staging_v_squared = 0.0;
         o->m_split_buffer.type = 0xFF;
         o->m_state = STATE_BUFFERING;
-        o->m_underrun = true;
         o->m_waiting = false;
+        o->m_aborted = false;
+        o->m_syncing = false;
+        o->m_current_backup = false;
 #ifdef AMBROLIB_ASSERTIONS
         o->m_pulling = false;
+        o->m_plan_failed = false;
 #endif
         TupleForEachForward(&o->m_axes, Foreach_init(), c, prestep_callback_enabled);
         TupleForEachForward(&o->m_channels, Foreach_init(), c);
@@ -1069,11 +987,7 @@ public:
         
         if (!o->m_waiting) {
             o->m_waiting = true;
-            if (o->m_state == STATE_BUFFERING) {
-                continue_wait(c);
-            } else if (LookaheadCommitCount > 1 && o->m_segments_staging_length != o->m_segments_length) {
-                plan(c);
-            }
+            c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
         }
     }
     
@@ -1090,7 +1004,7 @@ public:
     {
         MotionPlanner *o = self(c);
         AMBRO_ASSERT(o->m_state == STATE_ABORTED)
-        AMBRO_ASSERT(o->m_underrun)
+        AMBRO_ASSERT(o->m_aborted)
         
         o->m_segments_start = 0;
         o->m_segments_staging_length = 0;
@@ -1100,9 +1014,13 @@ public:
         o->m_split_buffer.type = 0xFF;
         o->m_state = STATE_BUFFERING;
         o->m_waiting = false;
+        o->m_aborted = false;
+        o->m_syncing = false;
 #ifdef AMBROLIB_ASSERTIONS
         o->m_pulling = false;
+        o->m_plan_failed = false;
 #endif
+        
         TupleForEachForward(&o->m_axes, Foreach_reset_aborted(), c);
         TupleForEachForward(&o->m_channels, Foreach_reset_aborted(), c);
         TupleForEachForward(&o->m_axes, Foreach_stopped_stepping(), c);
@@ -1130,53 +1048,239 @@ private:
         return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
     }
     
-    static void work (Context c)
+    static bool plan (Context c)
     {
         MotionPlanner *o = self(c);
         AMBRO_ASSERT(o->m_state != STATE_ABORTED)
-        AMBRO_ASSERT(o->m_split_buffer.type != 0xFF)
-        AMBRO_ASSERT(!o->m_pulling)
-        AMBRO_ASSERT(o->m_split_buffer.type != 0 || o->m_split_buffer.split_pos < o->m_split_buffer.split_count)
+        AMBRO_ASSERT(o->m_segments_staging_length != o->m_segments_length)
+        AMBRO_ASSERT(!o->m_plan_failed)
+#ifdef AMBROLIB_ASSERTIONS
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) { AMBRO_ASSERT(planner_have_commit_space(c)) }
+#endif
+        
+        LinearPlannerSegmentState state[LookaheadBufferSize];
+        
+        SegmentBufferSizeType i = o->m_segments_length;
+        double v = 0.0;
+        do {
+            i--;
+            Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
+            v = LinearPlannerPush(&entry->lp_seg, &state[i], v);
+        } while (i != 0);
+        
+        SegmentBufferSizeType commit_count = (o->m_segments_length < LookaheadCommitCount) ? o->m_segments_length : LookaheadCommitCount;
+        
+        o->m_new_to_backup = false;
+        TupleForEachForward(&o->m_axes, Foreach_start_commands(), c);
+        TupleForEachForward(&o->m_channels, Foreach_start_commands(), c);
+        
+        TimeType time = o->m_staging_time;
+        v = o->m_staging_v_squared;
+        double v_start = sqrt(v);
         
         do {
-            if (AMBRO_LIKELY(o->m_segments_length == LookaheadBufferSize)) {
-                if (AMBRO_UNLIKELY(o->m_underrun)) {
+            Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
+            LinearPlannerSegmentResult result;
+            v = LinearPlannerPull(&entry->lp_seg, &state[i], v, &result);
+            if (AMBRO_LIKELY((entry->dir_and_type & TypeMask) == 0)) {
+                double v_end = sqrt(v);
+                double v_const = sqrt(result.const_v);
+                double t0_double = (v_const - v_start) * entry->max_accel_rec;
+                double t2_double = (v_const - v_end) * entry->max_accel_rec;
+                double t1_double = (1.0 - result.const_start - result.const_end) * entry->rel_max_speed_rec;
+                MinTimeType t1 = MinTimeType::importDoubleSaturatedRound(t0_double + t2_double + t1_double);
+                time += t1.bitsValue();
+                MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t0_double));
+                t1.m_bits.m_int -= t0.bitsValue();
+                MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t2_double));
+                t1.m_bits.m_int -= t2.bitsValue();
+                TupleForEachForward(&o->m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
+                                    result.const_start, result.const_end, t0, t2, t1,
+                                    t0_double * t0_double, t2_double * t2_double);
+                v_start = v_end;
+            } else {
+                TupleForOneOffset<1>((entry->dir_and_type & TypeMask), &o->m_channels, Foreach_gen_command(), c, entry, time);
+            }
+            i++;
+            if (AMBRO_UNLIKELY(i == commit_count)) {
+                o->m_new_to_backup = true;
+                o->m_staging_time = time;
+                o->m_staging_v_squared = v;
+            }
+        } while (i != o->m_segments_length);
+        
+        bool ok = true;
+        
+        if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
+            o->m_current_backup = !o->m_current_backup;
+            TupleForEachForward(&o->m_axes, Foreach_do_commit(), c);
+            TupleForEachForward(&o->m_channels, Foreach_do_commit_cold(), c);
+        } else {
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                ok = o->m_syncing;
+                if (AMBRO_LIKELY(ok)) {
+                    o->m_current_backup = !o->m_current_backup;
+                    TupleForEachForward(&o->m_axes, Foreach_do_commit(), c);
+                    TupleForEachForward(&o->m_channels, Foreach_do_commit_hot(), lock_c);
+                }
+            }
+        }
+        
+        if (AMBRO_LIKELY(ok)) {
+            o->m_segments_start = segments_add(o->m_segments_start, commit_count);
+            o->m_segments_length -= commit_count;
+            o->m_segments_staging_length = o->m_segments_length;
+        }
+#ifdef AMBROLIB_ASSERTIONS
+        else {
+            o->m_plan_failed = true;
+        }
+#endif
+        return ok;
+    }
+    
+    static void planner_start_stepping (Context c)
+    {
+        MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
+        AMBRO_ASSERT(!o->m_syncing)
+        
+        o->m_state = STATE_STEPPING;
+        TimeType start_time = c.clock()->getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
+        o->m_staging_time += start_time;
+        TupleForEachForward(&o->m_axes, Foreach_start_stepping(), c, start_time);
+        TupleForEachForward(&o->m_channels, Foreach_start_stepping(), c, start_time);
+    }
+    
+    static void pull_finished_event_handler (typename Loop::QueuedEvent *, Context c)
+    {
+        MotionPlanner *o = self(c);
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
+        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
+        
+        if (AMBRO_UNLIKELY(o->m_waiting)) {
+            AMBRO_ASSERT(o->m_pulling)
+            AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
+            AMBRO_ASSERT(o->m_segments_length == 0)
+            AMBRO_ASSERT(!planner_is_busy(c))
+            
+            o->m_waiting = false;
+            return FinishedHandler::call(c);
+        } else {
+            AMBRO_ASSERT(!o->m_pulling)
+            
+#ifdef AMBROLIB_ASSERTIONS
+            o->m_pulling = true;
+#endif
+            return PullHandler::call(c);
+        }
+    }
+    
+    AMBRO_ALWAYS_INLINE static uint8_t planner_have_commit_space (Context c)
+    {
+        MotionPlanner *o = self(c);
+        return
+            TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c) &&
+            TupleForEachForwardAccRes(&o->m_channels, true, Foreach_have_commit_space(), c);
+    }
+    
+    AMBRO_ALWAYS_INLINE static bool planner_is_busy (Context c)
+    {
+        MotionPlanner *o = self(c);
+        return
+            TupleForEachForwardAccRes(&o->m_axes, false, Foreach_is_busy(), c) ||
+            TupleForEachForwardAccRes(&o->m_channels, false, Foreach_is_busy(), c);
+    }
+    
+    static void stepper_event_handler (Context c)
+    {
+        MotionPlanner *o = PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
+        
+        if (AMBRO_LIKELY(o->m_state == STATE_STEPPING)) {
+            bool busy;
+            bool aborted;
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                busy = planner_is_busy(c);
+                aborted = o->m_aborted;
+            }
+            
+            if (AMBRO_UNLIKELY(aborted)) {
+                TupleForEachForward(&o->m_axes, Foreach_abort(), c);
+                TupleForEachForward(&o->m_channels, Foreach_abort(), c);
+                c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
+                o->m_state = STATE_ABORTED;
+                o->m_pull_finished_event.unset(c);
+                return AbortedHandler::call(c);
+            }
+            
+            if (AMBRO_UNLIKELY(!busy)) {
+                AMBRO_ASSERT(!o->m_syncing)
+                o->m_state = STATE_BUFFERING;
+                o->m_segments_start = segments_add(o->m_segments_start, o->m_segments_staging_length);
+                o->m_segments_length -= o->m_segments_staging_length;
+                o->m_segments_staging_length = 0;
+                o->m_staging_time = 0;
+                o->m_staging_v_squared = 0.0;
+                c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
+                TupleForEachForward(&o->m_axes, Foreach_stopped_stepping(), c);
+                TupleForEachForward(&o->m_channels, Foreach_stopped_stepping(), c);
+#ifdef AMBROLIB_ASSERTIONS
+                o->m_plan_failed = false;
+#endif
+            }
+        }
+        
+        if (AMBRO_UNLIKELY(o->m_waiting)) {
+            if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
+                if (o->m_segments_length == 0) {
+                    o->m_pull_finished_event.prependNowNotAlready(c);
                     return;
                 }
+                if (o->m_segments_staging_length != o->m_segments_length && planner_have_commit_space(c)) {
+                    plan(c);
+                }
+                planner_start_stepping(c);
+            } else if (o->m_segments_staging_length != o->m_segments_length) {
+                bool cleared;
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                    cleared = o->m_syncing && planner_have_commit_space(c);
+                }
+                if (cleared) {
+                    plan(c);
+                }
+            }
+            return;
+        }
+        
+        while (1) {
+            if (AMBRO_LIKELY(o->m_segments_length == LookaheadBufferSize)) {
                 if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
-                    if (!TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c) ||
-                        !TupleForEachForwardAccRes(&o->m_channels, true, Foreach_have_commit_space(), c)
-                    ) {
+                    if (AMBRO_UNLIKELY(!planner_have_commit_space(c))) {
                         planner_start_stepping(c);
                         return;
                     }
-                    TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c);
-                    TupleForEachForward(&o->m_channels, Foreach_commit_segment_hot(), c);
                 } else {
-                    bool cleared = false;
+                    bool cleared;
                     AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                        o->m_underrun = planner_is_underrun(c);
-                        if (!o->m_underrun &&
-                            TupleForEachForwardAccRes(&o->m_axes, true, Foreach_have_commit_space(), c) &&
-                            TupleForEachForwardAccRes(&o->m_channels, true, Foreach_have_commit_space(), c)
-                        ) {
-                            TupleForEachForward(&o->m_axes, Foreach_commit_segment_hot(), c);
-                            TupleForEachForward(&o->m_channels, Foreach_commit_segment_hot(), c);
-                            cleared = true;
-                        }
+                        cleared = o->m_syncing && planner_have_commit_space(c);
                     }
-                    if (AMBRO_LIKELY(!cleared)) {
+                    if (AMBRO_UNLIKELY(!cleared)) {
                         return;
                     }
                 }
-                TupleForEachForward(&o->m_axes, Foreach_commit_segment_finish(), c);
-                TupleForEachForward(&o->m_channels, Foreach_commit_segment_finish(), c);
-                o->m_segments_start = segments_add(o->m_segments_start, LookaheadCommitCount);
-                o->m_segments_length -= LookaheadCommitCount;
-                o->m_segments_staging_length -= LookaheadCommitCount;
-                o->m_staging_time += o->m_commit_time_duration;
-                o->m_staging_v_squared = o->m_commit_end_speed_squared;
+                bool ok = plan(c);
+                if (AMBRO_UNLIKELY(!ok)) {
+                    return;
+                }
             }
+            
+            if (AMBRO_LIKELY(o->m_split_buffer.type == 0xFF)) {
+                return;
+            }
+            
+            AMBRO_ASSERT(!o->m_pulling)
+            AMBRO_ASSERT(o->m_split_buffer.type != 0 || o->m_split_buffer.split_pos < o->m_split_buffer.split_count)
             
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
             entry->dir_and_type = o->m_split_buffer.type;
@@ -1218,217 +1322,9 @@ private:
             }
             o->m_segments_length++;
             
-            if (AMBRO_UNLIKELY(o->m_segments_length == LookaheadBufferSize)) {
-                if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
-                    o->m_underrun = false;
-                }
-                if (AMBRO_LIKELY(!o->m_underrun)) {
-                    plan(c);
-                }
+            if (AMBRO_LIKELY(o->m_split_buffer.type == 0xFF)) {
+                o->m_pull_finished_event.prependNowNotAlready(c);
             }
-        } while (o->m_split_buffer.type != 0xFF);
-        
-        o->m_pull_finished_event.prependNowNotAlready(c);
-    }
-    
-    static void plan (Context c)
-    {
-        MotionPlanner *o = self(c);
-        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
-        AMBRO_ASSERT(o->m_segments_staging_length != o->m_segments_length)
-        
-        LinearPlannerSegmentState state[LookaheadBufferSize];
-        
-        SegmentBufferSizeType i = o->m_segments_length - 1;
-        double v = 0.0;
-        while (1) {
-            Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
-            v = LinearPlannerPush(&entry->lp_seg, &state[i], v);
-            if (AMBRO_UNLIKELY(i == 0)) {
-                break;
-            }
-            i--;
-        }
-        
-        i = 0;
-        v = o->m_staging_v_squared;
-        double v_start = sqrt(o->m_staging_v_squared);
-        TimeType rel_time = 0;
-        TupleForEachForward(&o->m_axes, Foreach_start_commands(), c);
-        TupleForEachForward(&o->m_channels, Foreach_start_commands(), c);
-        do {
-            Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
-            LinearPlannerSegmentResult result;
-            v = LinearPlannerPull(&entry->lp_seg, &state[i], v, &result);
-            if ((entry->dir_and_type & TypeMask) == 0) {
-                double v_end = sqrt(v);
-                double v_const = sqrt(result.const_v);
-                double t0_double = (v_const - v_start) * entry->max_accel_rec;
-                double t2_double = (v_const - v_end) * entry->max_accel_rec;
-                double t1_double = (1.0 - result.const_start - result.const_end) * entry->rel_max_speed_rec;
-                MinTimeType t1 = MinTimeType::importDoubleSaturatedRound(t0_double + t2_double + t1_double);
-                rel_time += t1.bitsValue();
-                MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t0_double));
-                t1.m_bits.m_int -= t0.bitsValue();
-                MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t2_double));
-                t1.m_bits.m_int -= t2.bitsValue();
-                TupleForEachForward(&o->m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
-                                    result.const_start, result.const_end, t0, t2, t1,
-                                    t0_double * t0_double, t2_double * t2_double, i < LookaheadCommitCount);
-                v_start = v_end;
-            } else {
-                TupleForOneOffset<1>((entry->dir_and_type & TypeMask), &o->m_channels, Foreach_gen_command(), c, entry,
-                                     (TimeType)(o->m_staging_time + rel_time), i < LookaheadCommitCount);
-            }
-            i++;
-            if (AMBRO_UNLIKELY(i == LookaheadCommitCount)) {
-                o->m_commit_end_speed_squared = v;
-                o->m_commit_time_duration = rel_time;
-            }
-        } while (i != o->m_segments_length);
-        
-        TupleForEachForward(&o->m_axes, Foreach_complete_new(), c);
-        TupleForEachForward(&o->m_channels, Foreach_complete_new(), c);
-        if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
-            TupleForEachForward(&o->m_axes, Foreach_swap_staging_cold(), c);
-            TupleForEachForward(&o->m_channels, Foreach_swap_staging_cold(), c);
-            o->m_segments_staging_length = o->m_segments_length;
-        } else {
-            StepperCommandSizeType axes_old_first[NumAxes];
-            ChannelCommandSizeTypeTuple channels_old_first;
-            TupleForEachForward(&o->m_axes, Foreach_swap_staging_prepare(), c, axes_old_first);
-            TupleForEachForward(&o->m_channels, Foreach_swap_staging_prepare(), c, &channels_old_first);
-            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                o->m_underrun = planner_is_underrun(c);
-                if (AMBRO_LIKELY(!o->m_underrun)) {
-                    TupleForEachForward(&o->m_axes, Foreach_swap_staging_hot(), c);
-                    TupleForEachForward(&o->m_channels, Foreach_swap_staging_hot(), lock_c);
-                }
-            }
-            if (AMBRO_LIKELY(!o->m_underrun)) {
-                TupleForEachForward(&o->m_axes, Foreach_swap_staging_finish(), c, axes_old_first);
-                TupleForEachForward(&o->m_channels, Foreach_swap_staging_finish(), c, &channels_old_first);
-                o->m_segments_staging_length = o->m_segments_length;
-            }
-            TupleForEachForward(&o->m_axes, Foreach_dispose_new(), c);
-            TupleForEachForward(&o->m_channels, Foreach_dispose_new(), c);
-        }
-    }
-    
-    static void planner_start_stepping (Context c)
-    {
-        MotionPlanner *o = self(c);
-        AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
-        AMBRO_ASSERT(!o->m_underrun)
-        AMBRO_ASSERT(o->m_segments_staging_length == o->m_segments_length)
-        
-        o->m_state = STATE_STEPPING;
-        TimeType start_time = c.clock()->getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
-        o->m_staging_time += start_time;
-        TupleForEachForward(&o->m_axes, Foreach_start_stepping(), c, start_time);
-        TupleForEachForward(&o->m_channels, Foreach_start_stepping(), c, start_time);
-    }
-    
-    static void continue_wait (Context c)
-    {
-        MotionPlanner *o = self(c);
-        AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
-        AMBRO_ASSERT(o->m_waiting)
-        
-        if (o->m_segments_length == 0) {
-            o->m_pull_finished_event.prependNowNotAlready(c);
-        } else {
-            o->m_underrun = false;
-            if (o->m_segments_staging_length != o->m_segments_length) {
-                plan(c);
-            }
-            planner_start_stepping(c);
-        }
-    }
-    
-    static void pull_finished_event_handler (typename Loop::QueuedEvent *, Context c)
-    {
-        MotionPlanner *o = self(c);
-        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
-        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
-        
-        if (AMBRO_UNLIKELY(o->m_waiting)) {
-            AMBRO_ASSERT(o->m_pulling)
-            AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
-            AMBRO_ASSERT(o->m_segments_length == 0)
-            AMBRO_ASSERT(planner_is_empty(c))
-            
-            o->m_waiting = false;
-            return FinishedHandler::call(c);
-        } else {
-            AMBRO_ASSERT(!o->m_pulling)
-            
-#ifdef AMBROLIB_ASSERTIONS
-            o->m_pulling = true;
-#endif
-            return PullHandler::call(c);
-        }
-    }
-    
-    AMBRO_ALWAYS_INLINE static bool planner_is_empty (Context c)
-    {
-        MotionPlanner *o = self(c);
-        return
-            TupleForEachForwardAccRes(&o->m_axes, true, Foreach_is_empty(), c) &&
-            TupleForEachForwardAccRes(&o->m_channels, true, Foreach_is_empty(), c);
-    }
-    
-    AMBRO_ALWAYS_INLINE static uint8_t planner_is_underrun (Context c)
-    {
-        MotionPlanner *o = self(c);
-        return
-            TupleForEachForwardAccRes(&o->m_axes, false, Foreach_is_underrun(), c) ||
-            TupleForEachForwardAccRes(&o->m_channels, false, Foreach_is_underrun(), c);
-    }
-    
-    static void stepper_event_handler (Context c)
-    {
-        MotionPlanner *o = PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
-        
-        if (AMBRO_LIKELY(o->m_state == STATE_STEPPING)) {
-            bool empty;
-            bool aborted;
-            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                o->m_underrun = planner_is_underrun(c);
-                empty = planner_is_empty(c);
-                aborted = TupleForEachForwardAccRes(&o->m_axes, false, Foreach_is_aborted(), c);
-            }
-            
-            if (AMBRO_UNLIKELY(aborted)) {
-                AMBRO_ASSERT(o->m_underrun)
-                TupleForEachForward(&o->m_axes, Foreach_abort(), c);
-                TupleForEachForward(&o->m_channels, Foreach_abort(), c);
-                c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
-                o->m_state = STATE_ABORTED;
-                o->m_pull_finished_event.unset(c);
-                return AbortedHandler::call(c);
-            }
-            
-            if (AMBRO_UNLIKELY(empty)) {
-                AMBRO_ASSERT(o->m_underrun)
-                o->m_state = STATE_BUFFERING;
-                o->m_segments_start = segments_add(o->m_segments_start, o->m_segments_staging_length);
-                o->m_segments_length -= o->m_segments_staging_length;
-                o->m_segments_staging_length = 0;
-                o->m_staging_time = 0;
-                o->m_staging_v_squared = 0.0;
-                c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
-                TupleForEachForward(&o->m_axes, Foreach_stopped_stepping(), c);
-                TupleForEachForward(&o->m_channels, Foreach_stopped_stepping(), c);
-                if (o->m_waiting) {
-                    return continue_wait(c);
-                }
-            }
-        }
-        
-        if (o->m_split_buffer.type != 0xFF) {
-            work(c);
         }
     }
     
@@ -1439,7 +1335,7 @@ private:
             res -= LookaheadBufferSize;
         }
         return res;
-    }    
+    }
     
     typename Loop::QueuedEvent m_pull_finished_event;
     SegmentBufferSizeType m_segments_start;
@@ -1447,14 +1343,16 @@ private:
     SegmentBufferSizeType m_segments_length;
     TimeType m_staging_time;
     double m_staging_v_squared;
-    double m_commit_end_speed_squared;
-    TimeType m_commit_time_duration;
     double m_last_distance_rec;
     uint8_t m_state;
-    bool m_underrun;
     bool m_waiting;
+    bool m_aborted;
+    bool m_syncing;
+    bool m_current_backup;
+    bool m_new_to_backup;
 #ifdef AMBROLIB_ASSERTIONS
     bool m_pulling;
+    bool m_plan_failed;
 #endif
     SplitBuffer m_split_buffer;
     Segment m_segments[LookaheadBufferSize];
