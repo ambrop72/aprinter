@@ -112,7 +112,7 @@ private:
     static const size_t StepperCommitBufferSize = 3 * StepperSegmentBufferSize;
     static const size_t StepperBackupBufferSize = 3 * (LookaheadBufferSize - LookaheadCommitCount);
     using StepperCommitBufferSizeType = typename ChooseInt<BitsInInt<StepperCommitBufferSize>::value, false>::Type;
-    using StepperBackupBufferSizeType = typename ChooseInt<BitsInInt<StepperBackupBufferSize>::value, false>::Type;
+    using StepperBackupBufferSizeType = typename ChooseInt<BitsInInt<2 * StepperBackupBufferSize>::value, false>::Type;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
     static const int TypeBits = BitsInInt<NumChannels>::value;
     using AxisMaskType = typename ChooseInt<NumAxes + TypeBits, false>::Type;
@@ -369,8 +369,9 @@ public:
         static void start_commands (Context c)
         {
             Axis *o = self(c);
+            MotionPlanner *m = MotionPlanner::self(c);
             o->m_new_commit_end = o->m_commit_end;
-            o->m_new_backup_end = 0;
+            o->m_new_backup_end = m->m_current_backup ? 0 : StepperBackupBufferSize;
         }
         
         static void gen_segment_stepper_commands (Context c, Segment *entry, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared)
@@ -422,7 +423,7 @@ public:
                 cmd = &o->m_commit_buffer[o->m_new_commit_end];
                 o->m_new_commit_end = commit_inc(o->m_new_commit_end);
             } else {
-                cmd = &get_backup<false>(c)[o->m_new_backup_end];
+                cmd = &o->m_backup_buffer[o->m_new_backup_end];
                 o->m_new_backup_end++;
             }
             TheAxisStepper::generate_command(dir, x, t, a, cmd);
@@ -431,7 +432,9 @@ public:
         static void do_commit (Context c)
         {
             Axis *o = self(c);
+            MotionPlanner *m = MotionPlanner::self(c);
             o->m_commit_end = o->m_new_commit_end;
+            o->m_backup_start = m->m_current_backup ? 0 : StepperBackupBufferSize;
             o->m_backup_end = o->m_new_backup_end;
         }
         
@@ -488,7 +491,7 @@ public:
                     o->m_busy = false;
                     return false;
                 }
-                *cmd = &get_backup<true>(c)[o->m_backup_start];
+                *cmd = &o->m_backup_buffer[o->m_backup_start];
                 o->m_backup_start++;
             }
             return true;
@@ -539,7 +542,7 @@ public:
                 add_command_steps(c, &steps, &o->m_commit_buffer[i]);
             }
             for (StepperBackupBufferSizeType i = o->m_backup_start; i < o->m_backup_end; i++) {
-                add_command_steps(c, &steps, &get_backup<true>(c)[i]);
+                add_command_steps(c, &steps, &o->m_backup_buffer[i]);
             }
             for (SegmentBufferSizeType i = m->m_segments_staging_length; i < m->m_segments_length; i++) {
                 Segment *seg = &m->m_segments[segments_add(m->m_segments_start, i)];
@@ -564,18 +567,6 @@ public:
             return (end >= start) ? ((StepperCommitBufferSize - 1) - (end - start)) : ((start - end) - 1);
         }
         
-        template <bool GetCurrent>
-        static StepperCommand * get_backup (Context c)
-        {
-            Axis *o = self(c);
-            MotionPlanner *m = MotionPlanner::self(c);
-            StepperCommand *buf = o->m_backup_buffer;
-            if (AMBRO_LIKELY(m->m_current_backup == GetCurrent)) {
-                buf += StepperBackupBufferSize;
-            }
-            return buf;
-        }
-        
         static TheAxisSplitBuffer * get_axis_split (Context c)
         {
             MotionPlanner *m = MotionPlanner::self(c);
@@ -590,7 +581,7 @@ public:
         StepperBackupBufferSizeType m_new_backup_end;
         bool m_busy;
         StepperCommand m_commit_buffer[StepperCommitBufferSize];
-        StepperCommand m_backup_buffer[(size_t)2 * StepperBackupBufferSize];
+        StepperCommand m_backup_buffer[2 * StepperBackupBufferSize];
     };
     
     template <int ChannelIndex>
@@ -613,7 +604,7 @@ public:
         static const size_t ChannelCommitBufferSize = ChannelSpec::BufferSize;
         static const size_t ChannelBackupBufferSize = LookaheadBufferSize - LookaheadCommitCount;
         using ChannelCommitBufferSizeType = typename ChooseInt<BitsInInt<ChannelCommitBufferSize>::value, false>::Type;
-        using ChannelBackupBufferSizeType = typename ChooseInt<BitsInInt<ChannelBackupBufferSize>::value, false>::Type;
+        using ChannelBackupBufferSizeType = typename ChooseInt<BitsInInt<2 * ChannelBackupBufferSize>::value, false>::Type;
         using LookaheadSizeType = typename ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>::Type;
         
         static Channel * self (Context c)
@@ -660,8 +651,9 @@ public:
         static void start_commands (Context c)
         {
             Channel *o = self(c);
+            MotionPlanner *m = MotionPlanner::self(c);
             o->m_new_commit_end = o->m_commit_end;
-            o->m_new_backup_end = 0;
+            o->m_new_backup_end = m->m_current_backup ? 0 : ChannelBackupBufferSize;
         }
         
         static void gen_command (Context c, Segment *entry, TimeType time)
@@ -675,7 +667,7 @@ public:
                 cmd = &o->m_commit_buffer[o->m_new_commit_end];
                 o->m_new_commit_end = commit_inc(o->m_new_commit_end);
             } else {
-                cmd = &get_backup<false>(c)[o->m_new_backup_end];
+                cmd = &o->m_backup_buffer[o->m_new_backup_end];
                 o->m_new_backup_end++;
             }
             cmd->payload = channel_entry->payload;
@@ -685,7 +677,9 @@ public:
         static void do_commit_cold (Context c)
         {
             Channel *o = self(c);
+            MotionPlanner *m = MotionPlanner::self(c);
             o->m_commit_end = o->m_new_commit_end;
+            o->m_backup_start = m->m_current_backup ? 0 : ChannelBackupBufferSize;
             o->m_backup_end = o->m_new_backup_end;
         }
         
@@ -693,7 +687,9 @@ public:
         static void do_commit_hot (LockContext c)
         {
             Channel *o = self(c);
+            MotionPlanner *m = MotionPlanner::self(c);
             o->m_commit_end = o->m_new_commit_end;
+            o->m_backup_start = m->m_current_backup ? 0 : ChannelBackupBufferSize;
             o->m_backup_end = o->m_new_backup_end;
             if (AMBRO_LIKELY(o->m_commit_start != o->m_commit_end && !o->m_busy)) {
                 o->m_busy = true;
@@ -712,8 +708,8 @@ public:
                 for (ChannelCommitBufferSizeType i = o->m_commit_start; i != o->m_commit_end; i = commit_inc(i)) {
                     o->m_commit_buffer[i].time += start_time;
                 }
-                for (ChannelBackupBufferSizeType i = 0; i < o->m_backup_end; i++) {
-                    get_backup<true>(c)[i].time += start_time;
+                for (ChannelBackupBufferSizeType i = o->m_backup_start; i < o->m_backup_end; i++) {
+                    o->m_backup_buffer[i].time += start_time;
                 }
                 o->m_busy = true;
                 o->m_cmd = &o->m_commit_buffer[o->m_commit_start];
@@ -761,7 +757,7 @@ public:
                     return false;
                 }
                 m->m_syncing = false;
-                o->m_cmd = &get_backup<true>(c)[o->m_backup_start];
+                o->m_cmd = &o->m_backup_buffer[o->m_backup_start];
                 o->m_backup_start++;
             }
             o->m_timer.setNext(c, o->m_cmd->time);
@@ -776,18 +772,6 @@ public:
         static ChannelCommitBufferSizeType commit_avail (ChannelCommitBufferSizeType start, ChannelCommitBufferSizeType end)
         {
             return (end >= start) ? ((ChannelCommitBufferSize - 1) - (end - start)) : ((start - end) - 1);
-        }
-        
-        template <bool GetCurrent>
-        static TheChannelCommand * get_backup (Context c)
-        {
-            Channel *o = self(c);
-            MotionPlanner *m = MotionPlanner::self(c);
-            TheChannelCommand *buf = o->m_backup_buffer;
-            if (AMBRO_LIKELY(m->m_current_backup == GetCurrent)) {
-                buf += StepperBackupBufferSize;
-            }
-            return buf;
         }
         
         ChannelCommitBufferSizeType m_commit_start;
@@ -1031,16 +1015,16 @@ private:
         bool ok = true;
         
         if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
-            o->m_current_backup = !o->m_current_backup;
             TupleForEachForward(&o->m_axes, Foreach_do_commit(), c);
             TupleForEachForward(&o->m_channels, Foreach_do_commit_cold(), c);
+            o->m_current_backup = !o->m_current_backup;
         } else {
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 ok = o->m_syncing;
                 if (AMBRO_LIKELY(ok)) {
-                    o->m_current_backup = !o->m_current_backup;
                     TupleForEachForward(&o->m_axes, Foreach_do_commit(), c);
                     TupleForEachForward(&o->m_channels, Foreach_do_commit_hot(), lock_c);
+                    o->m_current_backup = !o->m_current_backup;
                 }
             }
         }
@@ -1136,6 +1120,7 @@ private:
                 o->m_segments_staging_length = 0;
                 o->m_staging_time = 0;
                 o->m_staging_v_squared = 0.0;
+                o->m_current_backup = false;
                 c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
                 TupleForEachForward(&o->m_axes, Foreach_stopped_stepping(), c);
                 TupleForEachForward(&o->m_channels, Foreach_stopped_stepping(), c);
