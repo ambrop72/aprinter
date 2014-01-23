@@ -445,7 +445,11 @@ public:
             AMBRO_ASSERT(!o->m_busy)
             
             if (o->m_commit_start != o->m_commit_end) {
-                m->m_syncing = true; // TODO fix non-bug if one stepper runs out before another even starts
+                if (AxisIndex == 0) {
+                    // Only first axis sets it so it doesn't get re-set after a fast underflow.
+                    // Can't happen anyway due to the start time offset.
+                    m->m_syncing = true;
+                }
                 o->m_busy = true;
                 StepperCommand *cmd = &o->m_commit_buffer[o->m_commit_start];
                 o->m_commit_start = commit_inc(o->m_commit_start);
@@ -559,7 +563,11 @@ public:
         
         static StepperCommitBufferSizeType commit_inc (StepperCommitBufferSizeType a)
         {
-            return (a == StepperCommitBufferSize - 1) ? 0 : (a + 1);
+            a++;
+            if (AMBRO_LIKELY(a == StepperCommitBufferSize)) {
+                a = 0;
+            }
+            return a;
         }
         
         static StepperCommitBufferSizeType commit_avail (StepperCommitBufferSizeType start, StepperCommitBufferSizeType end)
@@ -766,7 +774,11 @@ public:
         
         static ChannelCommitBufferSizeType commit_inc (ChannelCommitBufferSizeType a)
         {
-            return (a == ChannelCommitBufferSize - 1) ? 0 : (a + 1);
+            a++;
+            if (AMBRO_LIKELY(a == ChannelCommitBufferSize)) {
+                a = 0;
+            }
+            return a;
         }
         
         static ChannelCommitBufferSizeType commit_avail (ChannelCommitBufferSizeType start, ChannelCommitBufferSizeType end)
