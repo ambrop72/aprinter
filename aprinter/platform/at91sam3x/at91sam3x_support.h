@@ -32,6 +32,8 @@
 #define F_MCK CHIP_FREQ_CPU_MAX
 #define F_CPU F_MCK
 
+#define INTERRUPT_PRIORITY 4
+
 inline static void at91sam3x_init (void)
 {
     SystemInit();

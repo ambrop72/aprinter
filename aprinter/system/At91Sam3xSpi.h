@@ -100,7 +100,7 @@ public:
         SPI0->SPI_CSR[0] = SPI_CSR_NCPHA | SPI_CSR_BITS_8_BIT | SPI_CSR_SCBR(255);
         SPI0->SPI_IDR = UINT32_MAX;
         NVIC_ClearPendingIRQ(SPI0_IRQn);
-        NVIC_SetPriority(SPI0_IRQn, 4);
+        NVIC_SetPriority(SPI0_IRQn, INTERRUPT_PRIORITY);
         NVIC_EnableIRQ(SPI0_IRQn);
         SPI0->SPI_CR = SPI_CR_SPIEN;
         

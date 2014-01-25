@@ -82,7 +82,7 @@ public:
         UART->UART_MR = UART_MR_PAR_NO | UART_MR_CHMODE_NORMAL;
         UART->UART_IDR = UINT32_MAX;
         NVIC_ClearPendingIRQ(UART_IRQn);
-        NVIC_SetPriority(UART_IRQn, 4);
+        NVIC_SetPriority(UART_IRQn, INTERRUPT_PRIORITY);
         NVIC_EnableIRQ(UART_IRQn);
         UART->UART_IER = UART_IER_RXRDY;
         UART->UART_CR = UART_CR_TXEN | UART_CR_RXEN;

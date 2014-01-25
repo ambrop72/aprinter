@@ -125,7 +125,7 @@ private:
             ch()->TC_IDR = UINT32_MAX;
             ch()->TC_CCR = TC_CCR_CLKEN | TC_CCR_SWTRG;
             NVIC_ClearPendingIRQ(TcSpec::Irq);
-            NVIC_SetPriority(TcSpec::Irq, 4);
+            NVIC_SetPriority(TcSpec::Irq, INTERRUPT_PRIORITY);
             NVIC_EnableIRQ(TcSpec::Irq);
         }
         
