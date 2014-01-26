@@ -37,7 +37,7 @@ static void emergency (void);
 #include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
-//#include <aprinter/system/At91Sam3xClock.h>
+#include <aprinter/system/Mk20Clock.h>
 #include <aprinter/system/Mk20Pins.h>
 #include <aprinter/system/InterruptLock.h>
 //#include <aprinter/system/At91Sam3xAdc.h>
@@ -526,49 +526,42 @@ using AdcParams = At91Sam3xAdcParams<
         At91Sam3xClockInterruptTimer_TC7B // TimerTemplate
     >
 >;
-
-static const int clock_timer_prescaler = 3;
-using ClockTcsList = MakeTypeList<
-    At91Sam3xClockTC0,
-    At91Sam3xClockTC1,
-    At91Sam3xClockTC2,
-    At91Sam3xClockTC3,
-    At91Sam3xClockTC4,
-    At91Sam3xClockTC5,
-    At91Sam3xClockTC6,
-    At91Sam3xClockTC7,
-    At91Sam3xClockTC8
->;
 #endif
+static const int clock_timer_prescaler = 4;
+using ClockFtmsList = MakeTypeList<Mk20ClockFTM0, Mk20ClockFTM1>;
+
 struct MyContext;
-//struct MyLoopExtra;
+struct MyLoopExtra;
 struct Program;
-//struct ClockPosition;
-//struct LoopPosition;
+struct ClockPosition;
+struct LoopPosition;
 struct PinsPosition;
 //struct AdcPosition;
 //struct PrinterPosition;
-//struct LoopExtraPosition;
+struct BlinkerPosition;
+struct BlinkerHandler;
+struct LoopExtraPosition;
 
 using ProgramPosition = RootPosition<Program>;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
-//using MyClock = At91Sam3xClock<ClockPosition, MyContext, clock_timer_prescaler, ClockTcsList>;
-//using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
+using MyClock = Mk20Clock<ClockPosition, MyContext, clock_timer_prescaler, ClockFtmsList>;
+using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
 using MyPins = Mk20Pins<PinsPosition, MyContext>;
 //using MyAdc = At91Sam3xAdc<AdcPosition, MyContext, AdcPins, AdcParams>;
 //using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
+using MyBlinker = Blinker<BlinkerPosition, MyContext, Mk20Pin<Mk20PortC, 5>, BlinkerHandler>;
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
-//    using Clock = MyClock;
-//    using EventLoop = MyLoop;
+    using Clock = MyClock;
+    using EventLoop = MyLoop;
     using Pins = MyPins;
 //    using Adc = MyAdc;
     using TheRootPosition = ProgramPosition;
     
     MyDebugObjectGroup * debugGroup () const;
-//    MyClock * clock () const;
-//    MyLoop * eventLoop () const;
+    MyClock * clock () const;
+    MyLoop * eventLoop () const;
     MyPins * pins () const;
 //    MyAdc * adc () const;
     Program * root () const;
@@ -576,44 +569,40 @@ struct MyContext {
 };
 
 //struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, typename MyPrinter::EventLoopFastEvents> {};
+struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, EmptyTypeList> {};
 
 struct Program {
     MyDebugObjectGroup d_group;
-//    MyClock myclock;
-//    MyLoop myloop;
+    MyClock myclock;
+    MyLoop myloop;
     MyPins mypins;
 //    MyAdc myadc;
 //    MyPrinter myprinter;
-//    MyLoopExtra myloopextra;
+    MyBlinker myblinker;
+    MyLoopExtra myloopextra;
 };
 
-//struct ClockPosition : public MemberPosition<ProgramPosition, MyClock, &Program::myclock> {};
-//struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
+struct ClockPosition : public MemberPosition<ProgramPosition, MyClock, &Program::myclock> {};
+struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
 struct PinsPosition : public MemberPosition<ProgramPosition, MyPins, &Program::mypins> {};
 //struct AdcPosition : public MemberPosition<ProgramPosition, MyAdc, &Program::myadc> {};
 //struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
-//struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
+struct BlinkerPosition : public MemberPosition<ProgramPosition, MyBlinker, &Program::myblinker> {};
+struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
 
 Program p;
 
 MyDebugObjectGroup * MyContext::debugGroup () const { return &p.d_group; }
-//MyClock * MyContext::clock () const { return &p.myclock; }
-//MyLoop * MyContext::eventLoop () const { return &p.myloop; }
+MyClock * MyContext::clock () const { return &p.myclock; }
+MyLoop * MyContext::eventLoop () const { return &p.myloop; }
 MyPins * MyContext::pins () const { return &p.mypins; }
 //MyAdc * MyContext::adc () const { return &p.myadc; }
 Program * MyContext::root () const { return &p; }
 void MyContext::check () const {}
-#if 0
-AMBRO_AT91SAM3X_CLOCK_TC0_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC1_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC2_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC3_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC4_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC5_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC6_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC7_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC8_GLOBAL(p.myclock, MyContext())
 
+AMBRO_MK20_CLOCK_FTM0_GLOBAL(p.myclock, MyContext())
+AMBRO_MK20_CLOCK_FTM1_GLOBAL(p.myclock, MyContext())
+#if 0
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC0A_GLOBAL(*p.myprinter.getEventChannelTimer(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC1A_GLOBAL(*p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC2A_GLOBAL(*p.myprinter.getAxisStepper<1>()->getTimer(), MyContext())
@@ -652,20 +641,29 @@ extern "C" {
 #endif
 }
 
+static void blinker_handler (MyContext c)
+{
+}
+struct BlinkerHandler : public AMBRO_WFUNC(&blinker_handler) {};
+
 int main ()
 {
     MyContext c;
     
     p.d_group.init(c);
-//    p.myclock.init(c);
-//    p.myloop.init(c);
+    p.myclock.init(c);
+    p.myloop.init(c);
     p.mypins.init(c);
 //    p.myadc.init(c);
 //    p.myprinter.init(c);
+    p.myblinker.init(c, 0.5 * MyClock::time_freq);
     
-//    p.myloop.run(c);
+    p.myloop.run(c);
     
+    
+    /*
     // Set LED pin output.
+    PORTC_PCR5 |= PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1);
     GPIOC_PDDR |= (uint32_t)1 << 5;
     
     while (1) {
@@ -681,4 +679,5 @@ int main ()
             __asm__ volatile ("nop");
         }
     }
+    */
 }

@@ -41,5 +41,4 @@ LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS}
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/teensy3/teensy3_support.cpp
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o main.o
 "${CC}" "${LDFLAGS[@]}" mk20dx128.o teensy3_support.o main.o -o aprinter.elf -lm
-#"${CROSS}objcopy" --output-target=binary aprinter.elf aprinter.bin
-${CROSS}objcopy -O ihex aprinter.elf aprinter.hex
+${CROSS}objcopy -O ihex -R .eeprom aprinter.elf aprinter.hex

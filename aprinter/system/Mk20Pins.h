@@ -79,11 +79,22 @@ public:
         SIM_SCGC5 &= ~(SIM_SCGC5_PORTA | SIM_SCGC5_PORTB | SIM_SCGC5_PORTC | SIM_SCGC5_PORTD | SIM_SCGC5_PORTE);
     }
     
+    enum InputMode {INPUT_NORMAL, INPUT_PULLUP, INPUT_PULLDOWN};
+    
     template <typename Pin, typename ThisContext>
-    static void setInput (ThisContext c)
+    static void setInput (ThisContext c, InputMode mode = INPUT_NORMAL)
     {
         Mk20Pins *o = self(c);
         o->debugAccess(c);
+        
+        uint32_t pcr = PORT_PCR_MUX(1);
+        if (mode != INPUT_NORMAL) {
+            pcr |= PORT_PCR_PE;
+            if (mode == INPUT_PULLUP) {
+                pcr |= PORT_PCR_PS;
+            }
+        }
+        Pin::Port::pcr0()[Pin::PinIndex] = pcr;
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Pin::Port::pddr() &= ~(UINT32_C(1) << Pin::PinIndex);
@@ -96,28 +107,10 @@ public:
         Mk20Pins *o = self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            *Pin::Port::pddr() |= (UINT32_C(1) << Pin::PinIndex);
-        }
-    }
-    
-    template <typename Pin, typename ThisContext>
-    static void setPullup (ThisContext c, bool enabled, bool pull_down = false)
-    {
-        Mk20Pins *o = self(c);
-        o->debugAccess(c);
+        Pin::Port::pcr0()[Pin::PinIndex] = PORT_PCR_MUX(1) | PORT_PCR_SRE | PORT_PCR_DSE;
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            if (enabled) {
-                if (pull_down) {
-                    Pin::Port::pcr0()[Pin::PinIndex] &= ~PORT_PCR_PS;
-                } else {
-                    Pin::Port::pcr0()[Pin::PinIndex] |= PORT_PCR_PS;
-                }
-                Pin::Port::pcr0()[Pin::PinIndex] |= PORT_PCR_PE;
-            } else {
-                Pin::Port::pcr0()[Pin::PinIndex] &= ~PORT_PCR_PE;
-            }
+            *Pin::Port::pddr() |= (UINT32_C(1) << Pin::PinIndex);
         }
     }
     
