@@ -1295,6 +1295,11 @@ private:
                 cc->reply_append_ch(c, ':');
                 cc->reply_append_ch(c, (triggered ? '1' : '0'));
             }
+            
+            static double init_position ()
+            {
+                return AxisSpec::Homing::home_dir ? max_req_pos() : min_req_pos();
+            };
         } AMBRO_STRUCT_ELSE(HomingFeature) {
             struct HomingState {};
             template <typename TheHomingFeature>
@@ -1305,6 +1310,7 @@ private:
             static void start_homing (Context c, AxisMaskType mask) {}
             template <typename TheChannelCommon>
             static void append_endstop (Context c, TheChannelCommon *cc) {}
+            static double init_position () { return 0.0; }
         };
         
         enum {AXIS_STATE_OTHER, AXIS_STATE_HOMING};
@@ -1355,7 +1361,7 @@ private:
             o->m_axis_stepper.init(c);
             o->m_state = AXIS_STATE_OTHER;
             o->m_homing_feature.init(c);
-            o->m_req_pos = (AxisSpec::Homing::home_dir ? o->max_req_pos() : o->min_req_pos());
+            o->m_req_pos = HomingFeature::init_position();
             o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(o->dist_from_real(o->m_req_pos));
             o->m_relative_positioning = false;
         }
