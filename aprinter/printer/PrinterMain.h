@@ -1355,8 +1355,8 @@ private:
             o->m_axis_stepper.init(c);
             o->m_state = AXIS_STATE_OTHER;
             o->m_homing_feature.init(c);
-            o->m_req_pos = clamp_req_pos(0.0);
-            o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(o->m_req_pos));
+            o->m_req_pos = (AxisSpec::Homing::home_dir ? o->max_req_pos() : o->min_req_pos());
+            o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(o->dist_from_real(o->m_req_pos));
             o->m_relative_positioning = false;
         }
         
