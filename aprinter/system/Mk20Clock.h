@@ -33,11 +33,8 @@
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/TuplePosition.h>
 #include <aprinter/meta/TupleForEach.h>
-#include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/IsEqualFunc.h>
-#include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/RemoveReference.h>
 #include <aprinter/meta/MakeTypeList.h>
@@ -48,7 +45,8 @@
 
 template <typename FtmSpec, int ChannelIndex>
 struct Mk20Clock__IrqCompHelper {
-    static void call () {}
+    template <typename IrqTime>
+    static void call (IrqTime irq_time) {}
 };
 
 #include <aprinter/BeginNamespace.h>
@@ -101,6 +99,7 @@ class Mk20Clock
     friend class Mk20ClockInterruptTimer;
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init_start, init_start)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_irq_helper, irq_helper)
     
@@ -135,23 +134,29 @@ private:
         {
             SIM_SCGC6 |= FtmSpec::Scgc6Bit;
             *FtmSpec::mode() = FTM_MODE_FTMEN;
-            *FtmSpec::sc();
-            *FtmSpec::sc() = FTM_SC_PS(Prescale);
+            *FtmSpec::sc() = FTM_SC_PS(Prescale) | (FtmIndex == 0 ? FTM_SC_TOIE : 0);
             *FtmSpec::mod() = UINT16_C(0xFFFF);
+            *FtmSpec::cntin() = (FtmIndex == 0) ? 1 : 0;
+            *FtmSpec::cnt() = 0; // this actually sets CNT to the value in CNTIN above
             *FtmSpec::cntin() = 0;
             NVIC_CLEAR_PENDING(FtmSpec::Irq);
             NVIC_SET_PRIORITY(FtmSpec::Irq, INTERRUPT_PRIORITY);
             NVIC_ENABLE_IRQ(FtmSpec::Irq);
-            if (FtmIndex > 0) {
-                *FtmSpec::cnt() = *MyFtm<0>::FtmSpec::cnt() - 1;
-            }
-            *FtmSpec::sc() |= FTM_SC_CLKS(1) | (FtmIndex == 0 ? FTM_SC_TOIE : 0);
+        }
+        
+        static void init_start (Context c)
+        {
+            *FtmSpec::sc() |= FTM_SC_CLKS(1);
         }
         
         static void deinit (Context c)
         {
             NVIC_DISABLE_IRQ(FtmSpec::Irq);
             *FtmSpec::sc() = 0;
+            *FtmSpec::sc();
+            *FtmSpec::sc() = 0;
+            *FtmSpec::status();
+            *FtmSpec::status() = 0;
             NVIC_CLEAR_PENDING(FtmSpec::Irq);
             SIM_SCGC6 &= ~FtmSpec::Scgc6Bit;
         }
@@ -160,8 +165,6 @@ private:
         {
             Mk20Clock *o = self(c);
             
-            *FtmSpec::status();
-            *FtmSpec::status() = 0;
             if (FtmIndex == 0) {
                 uint32_t sc = *FtmSpec::sc();
                 if (sc & FTM_SC_TOF) {
@@ -169,17 +172,20 @@ private:
                     o->m_offset++;
                 }
             }
+            *FtmSpec::status();
+            *FtmSpec::status() = 0;
+            TimeType irq_time = get_time_interrupt(c);
             ChannelsTuple dummy;
-            TupleForEachForward(&dummy, Foreach_irq_helper(), c);
+            TupleForEachForward(&dummy, Foreach_irq_helper(), c, irq_time);
         }
         
         template <int ChannelIndex>
         struct Channel {
             using ChannelSpec = TypeListGet<Channels, ChannelIndex>;
             
-            static void irq_helper (InterruptContext<Context> c)
+            static void irq_helper (InterruptContext<Context> c, TimeType irq_time)
             {
-                Mk20Clock__IrqCompHelper<FtmSpec, ChannelIndex>::call();
+                Mk20Clock__IrqCompHelper<FtmSpec, ChannelIndex>::call(irq_time);
             }
         };
         
@@ -197,8 +203,10 @@ public:
         Mk20Clock *o = self(c);
         
         o->m_offset = 0;
+        
         MyFtmsTuple dummy;
         TupleForEachForward(&dummy, Foreach_init(), c);
+        TupleForEachForward(&dummy, Foreach_init_start(), c);
         
         o->debugInit(c);
     }
@@ -363,7 +371,7 @@ public:
 #endif
     }
     
-    static void irq_handler (InterruptContext<Context> c)
+    static void irq_handler (InterruptContext<Context> c, TimeType irq_time)
     {
         Mk20ClockInterruptTimer *o = self(c);
         
@@ -373,10 +381,7 @@ public:
         
         AMBRO_ASSERT(o->m_running)
         
-        TimeType now = Clock::get_time_interrupt(c);
-        now -= o->m_time;
-        
-        if (now < UINT32_C(0x80000000)) {
+        if ((TimeType)(irq_time - o->m_time) < UINT32_C(0x80000000)) {
             if (!Handler::call(o, c)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
@@ -387,7 +392,7 @@ public:
     }
     
 private:
-    static const TimeType clearance = (64 / Clock::prescale_divide) + 2;
+    static const TimeType clearance = (128 / Clock::prescale_divide) + 2;
     
     TimeType m_time;
 #ifdef AMBROLIB_ASSERTIONS
@@ -425,9 +430,10 @@ static_assert( \
 ); \
 template <> \
 struct Mk20Clock__IrqCompHelper<ftmspec, channel_index> { \
-    static void call () \
+    template <typename IrqTime> \
+    static void call (IrqTime irq_time) \
     { \
-        (timer).irq_handler(MakeInterruptContext((context))); \
+        (timer).irq_handler(MakeInterruptContext((context)), irq_time); \
     } \
 };
 
