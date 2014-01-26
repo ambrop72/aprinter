@@ -28,6 +28,9 @@
 #include <stdint.h>
 #include <mk20dx128.h>
 
+#define FTM_CSC_CHIE ((uint32_t)1 << 6)
+#define FTM_CSC_CHF ((uint32_t)1 << 7)
+
 #define INTERRUPT_PRIORITY 4
 
 inline static void sei (void)

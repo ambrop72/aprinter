@@ -540,6 +540,8 @@ struct PinsPosition;
 //struct PrinterPosition;
 struct BlinkerPosition;
 struct BlinkerHandler;
+struct TimerPosition;
+struct TimerHandler;
 struct LoopExtraPosition;
 
 using ProgramPosition = RootPosition<Program>;
@@ -550,6 +552,7 @@ using MyPins = Mk20Pins<PinsPosition, MyContext>;
 //using MyAdc = At91Sam3xAdc<AdcPosition, MyContext, AdcPins, AdcParams>;
 //using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 using MyBlinker = Blinker<BlinkerPosition, MyContext, Mk20Pin<Mk20PortC, 5>, BlinkerHandler>;
+using MyTimer = Mk20ClockInterruptTimer_Ftm0_Ch0<TimerPosition, MyContext, TimerHandler>;
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
@@ -579,6 +582,7 @@ struct Program {
 //    MyAdc myadc;
 //    MyPrinter myprinter;
     MyBlinker myblinker;
+    MyTimer mytimer;
     MyLoopExtra myloopextra;
 };
 
@@ -588,6 +592,7 @@ struct PinsPosition : public MemberPosition<ProgramPosition, MyPins, &Program::m
 //struct AdcPosition : public MemberPosition<ProgramPosition, MyAdc, &Program::myadc> {};
 //struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
 struct BlinkerPosition : public MemberPosition<ProgramPosition, MyBlinker, &Program::myblinker> {};
+struct TimerPosition : public MemberPosition<ProgramPosition, MyTimer, &Program::mytimer> {};
 struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
 
 Program p;
@@ -602,6 +607,9 @@ void MyContext::check () const {}
 
 AMBRO_MK20_CLOCK_FTM0_GLOBAL(p.myclock, MyContext())
 AMBRO_MK20_CLOCK_FTM1_GLOBAL(p.myclock, MyContext())
+
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH0_GLOBAL(p.mytimer, MyContext())
+
 #if 0
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC0A_GLOBAL(*p.myprinter.getEventChannelTimer(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC1A_GLOBAL(*p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())
@@ -646,6 +654,23 @@ static void blinker_handler (MyContext c)
 }
 struct BlinkerHandler : public AMBRO_WFUNC(&blinker_handler) {};
 
+static typename MyClock::TimeType const interval = 0.5 * MyClock::time_freq;
+
+static bool state;
+static typename MyClock::TimeType next;
+
+using LedPin = Mk20Pin<Mk20PortC, 5>;
+
+static bool timer_handler (MyTimer *, InterruptContext<MyContext> c)
+{
+    state = !state;
+    c.pins()->set<LedPin>(c, state);
+    next += interval;
+    p.mytimer.setNext(c, next);
+    return true;
+}
+struct TimerHandler : public AMBRO_WFUNC(&timer_handler) {};
+
 int main ()
 {
     MyContext c;
@@ -656,7 +681,13 @@ int main ()
     p.mypins.init(c);
 //    p.myadc.init(c);
 //    p.myprinter.init(c);
-    p.myblinker.init(c, 0.5 * MyClock::time_freq);
+//    p.myblinker.init(c, 0.5 * MyClock::time_freq);
+    p.mytimer.init(c);
+    
+    c.pins()->setOutput<LedPin>(c);
+    state = false;
+    next = c.clock()->getTime(c) + interval;
+    p.mytimer.setFirst(c, next);
     
     p.myloop.run(c);
     
