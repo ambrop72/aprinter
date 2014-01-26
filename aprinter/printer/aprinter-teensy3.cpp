@@ -40,24 +40,22 @@ static void emergency (void);
 #include <aprinter/system/Mk20Clock.h>
 #include <aprinter/system/Mk20Pins.h>
 #include <aprinter/system/InterruptLock.h>
-//#include <aprinter/system/At91Sam3xAdc.h>
+#include <aprinter/system/Mk20Adc.h>
 #include <aprinter/system/Mk20Watchdog.h>
 #include <aprinter/system/TeensyUsbSerial.h>
-//#include <aprinter/system/At91Sam3xSpi.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/PidControl.h>
 #include <aprinter/printer/BinaryControl.h>
 #include <aprinter/printer/DeltaTransform.h>
+#include <aprinter/printer/teensy3_pins.h>
 #include <generated/AvrThermistorTable_Extruder.h>
 #include <generated/AvrThermistorTable_Bed.h>
 
 using namespace APrinter;
-#if 0
-using AdcFreq = AMBRO_WRAP_DOUBLE(1000000.0);
-using AdcAvgInterval = AMBRO_WRAP_DOUBLE(0.0025);
-static uint16_t const AdcSmoothing = 0.95 * 65536.0;
-#endif
+
+static int const AdcADiv = 3;
+
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
@@ -86,14 +84,6 @@ using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
-
-using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(660.0);
-using UDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
-using UDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
-using UDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
-using UDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
-using UDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using UDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 
 using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
@@ -310,13 +300,12 @@ using PrinterParams = PrinterMainParams<
      * Heaters.
      */
     MakeTypeList<
-#if 0
         PrinterMainHeaterParams<
             'T', // Name
             104, // SetMCommand
             109, // WaitMCommand
             301, // SetConfigMCommand
-            Mk20Pin<Mk20PortC, 9>, // AdcPin
+            TeensyPinA2, // AdcPin
             Mk20Pin<Mk20PortC, 1>, // OutputPin
             true, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
@@ -339,7 +328,8 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
             Mk20ClockInterruptTimer_Ftm0_Ch5 // TimerTemplate
-        >,
+        >
+#if 0
         PrinterMainHeaterParams<
             'B', // Name
             140, // SetMCommand
@@ -387,24 +377,10 @@ using PrinterParams = PrinterMainParams<
         >
     >
 >;
-#if 0
-// need to list all used ADC pins here
-using AdcPins = MakeTypeList<
-    Mk20Pin<Mk20PortC, 9>
->;
 
-using AdcParams = At91Sam3xAdcParams<
-    AdcFreq,
-    8, // AdcStartup
-    3, // AdcSettling
-    0, // AdcTracking
-    1, // AdcTransfer
-    At91Sam3xAdcAvgParams<
-        AdcAvgInterval,
-        At91Sam3xClockInterruptTimer_TC7B // TimerTemplate
-    >
->;
-#endif
+// need to list all used ADC pins here
+using AdcPins = MakeTypeList<TeensyPinA2>;
+
 static const int clock_timer_prescaler = 4;
 using ClockFtmsList = MakeTypeList<Mk20ClockFTM0, Mk20ClockFTM1>;
 
@@ -414,7 +390,7 @@ struct Program;
 struct ClockPosition;
 struct LoopPosition;
 struct PinsPosition;
-//struct AdcPosition;
+struct AdcPosition;
 struct PrinterPosition;
 struct LoopExtraPosition;
 
@@ -423,7 +399,7 @@ using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
 using MyClock = Mk20Clock<ClockPosition, MyContext, clock_timer_prescaler, ClockFtmsList>;
 using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
 using MyPins = Mk20Pins<PinsPosition, MyContext>;
-//using MyAdc = At91Sam3xAdc<AdcPosition, MyContext, AdcPins, AdcParams>;
+using MyAdc = Mk20Adc<AdcPosition, MyContext, AdcPins, AdcADiv>;
 using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
 struct MyContext {
@@ -431,14 +407,14 @@ struct MyContext {
     using Clock = MyClock;
     using EventLoop = MyLoop;
     using Pins = MyPins;
-//    using Adc = MyAdc;
+    using Adc = MyAdc;
     using TheRootPosition = ProgramPosition;
     
     MyDebugObjectGroup * debugGroup () const;
     MyClock * clock () const;
     MyLoop * eventLoop () const;
     MyPins * pins () const;
-//    MyAdc * adc () const;
+    MyAdc * adc () const;
     Program * root () const;
     void check () const;
 };
@@ -450,7 +426,7 @@ struct Program {
     MyClock myclock;
     MyLoop myloop;
     MyPins mypins;
-//    MyAdc myadc;
+    MyAdc myadc;
     MyPrinter myprinter;
     MyLoopExtra myloopextra;
 };
@@ -458,7 +434,7 @@ struct Program {
 struct ClockPosition : public MemberPosition<ProgramPosition, MyClock, &Program::myclock> {};
 struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
 struct PinsPosition : public MemberPosition<ProgramPosition, MyPins, &Program::mypins> {};
-//struct AdcPosition : public MemberPosition<ProgramPosition, MyAdc, &Program::myadc> {};
+struct AdcPosition : public MemberPosition<ProgramPosition, MyAdc, &Program::myadc> {};
 struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
 struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
 
@@ -468,7 +444,7 @@ MyDebugObjectGroup * MyContext::debugGroup () const { return &p.d_group; }
 MyClock * MyContext::clock () const { return &p.myclock; }
 MyLoop * MyContext::eventLoop () const { return &p.myloop; }
 MyPins * MyContext::pins () const { return &p.mypins; }
-//MyAdc * MyContext::adc () const { return &p.myadc; }
+MyAdc * MyContext::adc () const { return &p.myadc; }
 Program * MyContext::root () const { return &p; }
 void MyContext::check () const {}
 
@@ -480,7 +456,7 @@ AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH1_GLOBAL(*p.myprinter.getAxisStepper<0>(
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH2_GLOBAL(*p.myprinter.getAxisStepper<1>()->getTimer(), MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH3_GLOBAL(*p.myprinter.getAxisStepper<2>()->getTimer(), MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH4_GLOBAL(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
-//AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH5_GLOBAL(*p.myprinter.getHeaterTimer<0>(), MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH5_GLOBAL(*p.myprinter.getHeaterTimer<0>(), MyContext())
 //AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH6_GLOBAL(*p.myprinter.getHeaterTimer<1>(), MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH7_GLOBAL(*p.myprinter.getFanTimer<0>(), MyContext())
 
@@ -501,7 +477,7 @@ int main ()
     p.myclock.init(c);
     p.myloop.init(c);
     p.mypins.init(c);
-//    p.myadc.init(c);
+    p.myadc.init(c);
     p.myprinter.init(c);
     
     p.myloop.run(c);
