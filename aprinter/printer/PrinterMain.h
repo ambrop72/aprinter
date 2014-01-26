@@ -1455,12 +1455,17 @@ private:
             }
         }
         
-        static void set_position (Context c, double value, bool *seen_virtual)
+        static void only_set_position (Context c, double value)
         {
             Axis *o = self(c);
-            PrinterMain *m = PrinterMain::self(c);
             o->m_req_pos = clamp_req_pos(value);
             o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(o->m_req_pos));
+        }
+        
+        static void set_position (Context c, double value, bool *seen_virtual)
+        {
+            PrinterMain *m = PrinterMain::self(c);
+            only_set_position(c, value);
             m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
         }
         
@@ -1793,7 +1798,7 @@ private:
                 ThePhysAxis *axis = ThePhysAxis::self(c);
                 TransformFeature *t = TransformFeature::self(c);
                 double req = axis->m_req_pos;
-                axis->set_position(c, req, NULL);
+                axis->only_set_position(c, req);
                 if (axis->m_req_pos != req) {
                     t->m_virt_update_pending = true;
                 }
