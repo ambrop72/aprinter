@@ -320,6 +320,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_endstop, append_endstop)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_finish_set_position, finish_set_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_value, append_value)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_command, check_command)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_emergency, emergency)
@@ -1454,16 +1455,13 @@ private:
             }
         }
         
-        template <typename TheChannelCommon>
-        static void set_position (Context c, TheChannelCommon *cc, typename TheChannelCommon::GcodeParserPartRef part, bool *found_axes)
+        static void set_position (Context c, double value, bool *seen_virtual)
         {
             Axis *o = self(c);
-            if (cc->gc(c)->getPartCode(c, part) == axis_name) {
-                *found_axes = true;
-                double req = cc->gc(c)->getPartDoubleValue(c, part);
-                o->m_req_pos = clamp_req_pos(req);
-                o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(o->m_req_pos));
-            }
+            PrinterMain *m = PrinterMain::self(c);
+            o->m_req_pos = clamp_req_pos(value);
+            o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(o->m_req_pos));
+            m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
         }
         
         template <typename TheChannelCommon>
@@ -1705,6 +1703,19 @@ private:
             work_command<TheChannelCommon>(c);
         }
         
+        static void handle_set_position (Context c, bool seen_virtual)
+        {
+            TransformFeature *o = self(c);
+            AMBRO_ASSERT(!o->m_splitting)
+            
+            if (seen_virtual) {
+                o->m_virt_update_pending = false;
+                TheTransformAlg::virtToPhys(VirtReqPosSrc{c}, PhysReqPosDst{c});
+                TupleForEachForward(&o->m_virt_axes, Foreach_finish_set_position(), c);
+            }
+            do_pending_virt_update(c);
+        }
+        
         template <int VirtAxisIndex>
         struct VirtAxis {
             static int const axis_name = TypeListGet<VirtAxesList, VirtAxisIndex>::value;
@@ -1768,6 +1779,24 @@ private:
             {
                 ThePhysAxis *axis = ThePhysAxis::self(c);
                 move_pos[PhysAxisIndex] = axis->m_req_pos;
+            }
+            
+            static void set_position (Context c, double value, bool *seen_virtual)
+            {
+                VirtAxis *o = self(c);
+                o->m_req_pos = value;
+                *seen_virtual = true;
+            }
+            
+            static void finish_set_position (Context c)
+            {
+                ThePhysAxis *axis = ThePhysAxis::self(c);
+                TransformFeature *t = TransformFeature::self(c);
+                double req = axis->m_req_pos;
+                axis->set_position(c, req, NULL);
+                if (axis->m_req_pos != req) {
+                    t->m_virt_update_pending = true;
+                }
             }
             
             double m_req_pos;
@@ -1849,6 +1878,7 @@ private:
         static bool is_splitting (Context c) { return false; }
         static void split_more (Context c) {}
         static bool try_splitclear_command (Context c) { return true; }
+        static void handle_set_position (Context c, bool seen_virtual) {}
     };
     
     static int const NumPhysVirtAxes = num_axes + TransformFeature::NumVirtAxes;
@@ -1910,6 +1940,15 @@ private:
             cc->reply_append_ch(c, TheAxis::axis_name);
             cc->reply_append_ch(c, ':');
             cc->reply_append_double(c, axis->m_req_pos);
+        }
+        
+        template <typename TheChannelCommon>
+        static void set_position (Context c, TheChannelCommon *cc, typename TheChannelCommon::GcodeParserPartRef part, bool *seen_virtual)
+        {
+            if (cc->gc(c)->getPartCode(c, part) == TheAxis::axis_name) {
+                double value = cc->gc(c)->getPartDoubleValue(c, part);
+                TheAxis::set_position(c, value, seen_virtual);
+            }
         }
     };
     
@@ -2867,14 +2906,13 @@ private:
                     if (!cc->trySplitClearCommand(c)) {
                         return;
                     }
-                    bool found_axes = false;
+                    bool seen_virtual = false;
                     auto num_parts = cc->gc(c)->getNumParts(c);
                     for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
-                        TupleForEachForward(&o->m_axes, Foreach_set_position(), c, cc, cc->gc(c)->getPart(c, i), &found_axes);
+                        PhysVirtAxisHelperTuple dummy;
+                        TupleForEachForward(&dummy, Foreach_set_position(), c, cc, cc->gc(c)->getPart(c, i), &seen_virtual);
                     }
-                    if (!found_axes) {
-                        cc->reply_append_pstr(c, AMBRO_PSTR("Error:not supported\n"));
-                    }
+                    o->m_transform_feature.handle_set_position(c, seen_virtual);
                     return cc->finishCommand(c);
                 } break;
             } break;
