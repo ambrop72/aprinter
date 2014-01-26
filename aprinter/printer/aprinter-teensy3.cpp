@@ -28,14 +28,6 @@
 
 #include <aprinter/platform/teensy3/teensy3_support.h>
 
-#define OLD_CPLUSPLUS __cplusplus
-#undef __cplusplus
-extern "C" {
-#include <usb_serial.h>
-}
-#define __cplusplus OLD_CPLUSPLUS
-#undef OLD_CPLUSPLUS
-
 static void emergency (void);
 
 #define AMBROLIB_EMERGENCY_ACTION { cli(); emergency(); }
@@ -50,7 +42,7 @@ static void emergency (void);
 #include <aprinter/system/InterruptLock.h>
 //#include <aprinter/system/At91Sam3xAdc.h>
 #include <aprinter/system/Mk20Watchdog.h>
-//#include <aprinter/system/At91Sam3xSerial.h>
+#include <aprinter/system/TeensyUsbSerial.h>
 //#include <aprinter/system/At91Sam3xSpi.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
@@ -195,62 +187,34 @@ using ProbeP3Y = AMBRO_WRAP_DOUBLE(83.0);
  * NOTE: If you need internal pull-ups for endstops, enable these
  * in main() below.
  */
-#if 0
+
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
      */
     PrinterMainSerialParams<
-        UINT32_C(250000), // BaudRate,
+        UINT32_C(0), // BaudRate,
         8, // RecvBufferSizeExp
         9, // SendBufferSizeExp
         GcodeParserParams<16>, // ReceiveBufferSizeExp
-        At91Sam3xSerial,
-        At91Sam3xSerialParams
+        TeensyUsbSerial,
+        TeensyUsbSerialParams
     >,
-    DuePin13, // LedPin
+    Mk20Pin<Mk20PortC, 5>, // LedPin
     LedBlinkInterval, // LedBlinkInterval
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    32, // StepperSegmentBufferSize
-    32, // EventChannelBufferSize
-    20, // LookaheadBufferSize
-    10, // LookaheadCommitCount
+    24, // StepperSegmentBufferSize
+    24, // EventChannelBufferSize
+    16, // LookaheadBufferSize
+    6, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
-    At91Sam3xClockInterruptTimer_TC0A, // EventChannelTimer
-    At91Sam3xWatchdog,
-    At91Sam3xWatchdogParams<260>,
-    PrinterMainSdCardParams<
-        SpiSdCard,
-        SpiSdCardParams<
-            DuePin4, // SsPin
-            At91Sam3xSpi
-        >,
-        FileGcodeParser, // BINARY: BinaryGcodeParser
-        GcodeParserParams<8>, // BINARY: BinaryGcodeParserParams<8>
-        2, // BufferBlocks
-        256 // MaxCommandSize. BINARY: 43
-    >,
-    PrinterMainProbeParams<
-        MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
-        'Z', // ProbeAxis
-        DuePin34, // ProbePin,
-        false, // ProbeInvert,
-        MakeTypeList<ProbeOffsetX, ProbeOffsetY>, // ProbePlatformOffset
-        ProbeStartHeight,
-        ProbeLowHeight,
-        ProbeRetractDist,
-        ProbeMoveSpeed,
-        ProbeFastSpeed,
-        ProbeRetractSpeed,
-        ProbeSlowSpeed,
-        MakeTypeList< // ProbePoints
-            MakeTypeList<ProbeP1X, ProbeP1Y>,
-            MakeTypeList<ProbeP2X, ProbeP2Y>,
-            MakeTypeList<ProbeP3X, ProbeP3Y>
-        >
-    >,
+    Mk20ClockInterruptTimer_Ftm0_Ch0, // EventChannelTimer
+    Mk20Watchdog,
+    Mk20WatchdogParams<2000, 0>,
+    PrinterMainNoSdCardParams,
+    PrinterMainNoProbeParams,
     
     /*
      * Axes.
@@ -258,9 +222,9 @@ using PrinterParams = PrinterMainParams<
     MakeTypeList<
         PrinterMainAxisParams<
             'X', // Name
-            DuePinA8, // DirPin
-            DuePinA9, // StepPin
-            DuePin48, // EnablePin
+            Mk20Pin<Mk20PortD, 0>, // DirPin
+            Mk20Pin<Mk20PortB, 17>, // StepPin
+            Mk20Pin<Mk20PortB, 16>, // EnablePin
             true, // InvertDir
             XDefaultStepsPerUnit, // StepsPerUnit
             XDefaultMin, // Min
@@ -270,9 +234,9 @@ using PrinterParams = PrinterMainParams<
             XDefaultDistanceFactor, // DistanceFactor
             XDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                DuePin22, // HomeEndPin
+                Mk20Pin<Mk20PortC, 3>, // HomeEndPin
                 false, // HomeEndInvert
-                false, // HomeDir
+                true, // HomeDir
                 XDefaultHomeFastMaxDist, // HomeFastMaxDist
                 XDefaultHomeRetractDist, // HomeRetractDist
                 XDefaultHomeSlowMaxDist, // HomeSlowMaxDist
@@ -283,15 +247,15 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3xClockInterruptTimer_TC1A, // StepperTimer,
+                Mk20ClockInterruptTimer_Ftm0_Ch1, // StepperTimer,
                 TheAxisStepperPrecisionParams // PrecisionParams
             >
         >,
         PrinterMainAxisParams<
             'Y', // Name
-            DuePinA10, // DirPin
-            DuePinA11, // StepPin
-            DuePin46, // EnablePin
+            Mk20Pin<Mk20PortD, 7>, // DirPin
+            Mk20Pin<Mk20PortA, 13>, // StepPin
+            Mk20Pin<Mk20PortA, 12>, // EnablePin
             true, // InvertDir
             YDefaultStepsPerUnit, // StepsPerUnit
             YDefaultMin, // Min
@@ -301,9 +265,9 @@ using PrinterParams = PrinterMainParams<
             YDefaultDistanceFactor, // DistanceFactor
             YDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                DuePin24, // HomeEndPin
+                Mk20Pin<Mk20PortC, 4>, // HomeEndPin
                 false, // HomeEndInvert
-                false, // HomeDir
+                true, // HomeDir
                 YDefaultHomeFastMaxDist, // HomeFastMaxDist
                 YDefaultHomeRetractDist, // HomeRetractDist
                 YDefaultHomeSlowMaxDist, // HomeSlowMaxDist
@@ -314,15 +278,15 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3xClockInterruptTimer_TC2A, // StepperTimer
+                Mk20ClockInterruptTimer_Ftm0_Ch2, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >
         >,
         PrinterMainAxisParams<
             'Z', // Name
-            DuePinA12, // DirPin
-            DuePinA13, // StepPin
-            DuePin44, // EnablePin
+            Mk20Pin<Mk20PortD, 3>, // DirPin
+            Mk20Pin<Mk20PortD, 2>, // StepPin
+            Mk20Pin<Mk20PortD, 4>, // EnablePin
             false, // InvertDir
             ZDefaultStepsPerUnit, // StepsPerUnit
             ZDefaultMin, // Min
@@ -332,9 +296,9 @@ using PrinterParams = PrinterMainParams<
             ZDefaultDistanceFactor, // DistanceFactor
             ZDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                DuePin26, // HomeEndPin
+                Mk20Pin<Mk20PortC, 6>, // HomeEndPin
                 false, // HomeEndInvert
-                false, // HomeDir
+                true, // HomeDir
                 ZDefaultHomeFastMaxDist, // HomeFastMaxDist
                 ZDefaultHomeRetractDist, // HomeRetractDist
                 ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
@@ -345,15 +309,15 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3xClockInterruptTimer_TC3A, // StepperTimer
+                Mk20ClockInterruptTimer_Ftm0_Ch3, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >
         >,
         PrinterMainAxisParams<
             'E', // Name
-            DuePin28, // DirPin
-            DuePin36, // StepPin
-            DuePin42, // EnablePin
+            Mk20Pin<Mk20PortC, 0>, // DirPin
+            Mk20Pin<Mk20PortD, 1>, // StepPin
+            Mk20Pin<Mk20PortC, 7>, // EnablePin
             true, // InvertDir
             EDefaultStepsPerUnit, // StepsPerUnit
             EDefaultMin, // Min
@@ -366,28 +330,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3xClockInterruptTimer_TC4A, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
-            >
-        >,
-        PrinterMainAxisParams<
-            'U', // Name
-            DuePin41, // DirPin
-            DuePin43, // StepPin
-            DuePin39, // EnablePin
-            true, // InvertDir
-            UDefaultStepsPerUnit, // StepsPerUnit
-            UDefaultMin, // Min
-            UDefaultMax, // Max
-            UDefaultMaxSpeed, // MaxSpeed
-            UDefaultMaxAccel, // MaxAccel
-            UDefaultDistanceFactor, // DistanceFactor
-            UDefaultCorneringDistance, // CorneringDistance
-            PrinterMainNoHomingParams,
-            false, // EnableCartesianSpeedLimit
-            32, // StepBits
-            AxisStepperParams<
-                At91Sam3xClockInterruptTimer_TC8A, // StepperTimer
+                Mk20ClockInterruptTimer_Ftm0_Ch4, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >
         >
@@ -402,13 +345,14 @@ using PrinterParams = PrinterMainParams<
      * Heaters.
      */
     MakeTypeList<
+#if 0
         PrinterMainHeaterParams<
             'T', // Name
             104, // SetMCommand
             109, // WaitMCommand
             301, // SetConfigMCommand
-            DuePinA1, // AdcPin
-            DuePin9, // OutputPin
+            Mk20Pin<Mk20PortC, 9>, // AdcPin
+            Mk20Pin<Mk20PortC, 1>, // OutputPin
             true, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
@@ -429,15 +373,15 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            At91Sam3xClockInterruptTimer_TC5A // TimerTemplate
+            Mk20ClockInterruptTimer_Ftm0_Ch5 // TimerTemplate
         >,
         PrinterMainHeaterParams<
             'B', // Name
             140, // SetMCommand
             190, // WaitMCommand
             304, // SetConfigMCommand
-            DuePinA0, // AdcPin
-            DuePin8, // OutputPin
+            NOOONE, // AdcPin
+            NOOONE, // OutputPin
             true, // OutputInvert
             AvrThermistorTable_Bed, // Formula
             BedHeaterMinSafeTemp, // MinSafeTemp
@@ -458,37 +402,9 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            At91Sam3xClockInterruptTimer_TC5B // TimerTemplate
-        >,
-        PrinterMainHeaterParams<
-            'U', // Name
-            404, // SetMCommand
-            409, // WaitMCommand
-            402, // SetConfigMCommand
-            DuePinA2, // AdcPin
-            DuePin10, // OutputPin
-            true, // OutputInvert
-            AvrThermistorTable_Extruder, // Formula
-            UxtruderHeaterMinSafeTemp, // MinSafeTemp
-            UxtruderHeaterMaxSafeTemp, // MaxSafeTemp
-            UxtruderHeaterPulseInterval, // PulseInterval
-            UxtruderHeaterControlInterval, // ControlInterval
-            PidControl, // Control
-            PidControlParams<
-                UxtruderHeaterPidP, // PidP
-                UxtruderHeaterPidI, // PidI
-                UxtruderHeaterPidD, // PidD
-                UxtruderHeaterPidIStateMin, // PidIStateMin
-                UxtruderHeaterPidIStateMax, // PidIStateMax
-                UxtruderHeaterPidDHistory // PidDHistory
-            >,
-            TemperatureObserverParams<
-                UxtruderHeaterObserverInterval, // ObserverInterval
-                UxtruderHeaterObserverTolerance, // ObserverTolerance
-                UxtruderHeaterObserverMinTime // ObserverMinTime
-            >,
-            At91Sam3xClockInterruptTimer_TC6A // TimerTemplate
+            Mk20ClockInterruptTimer_Ftm0_Ch6 // TimerTemplate
         >
+#endif
     >,
     
     /*
@@ -498,29 +414,18 @@ using PrinterParams = PrinterMainParams<
         PrinterMainFanParams<
             106, // SetMCommand
             107, // OffMCommand
-            DuePin12, // OutputPin
+            Mk20Pin<Mk20PortC, 3>, // OutputPin
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            At91Sam3xClockInterruptTimer_TC6B // TimerTemplate
-        >,
-        PrinterMainFanParams<
-            406, // SetMCommand
-            407, // OffMCommand
-            DuePin2, // OutputPin
-            false, // OutputInvert
-            FanPulseInterval, // PulseInterval
-            FanSpeedMultiply, // SpeedMultiply
-            At91Sam3xClockInterruptTimer_TC7A // TimerTemplate
+            Mk20ClockInterruptTimer_Ftm0_Ch7 // TimerTemplate
         >
     >
 >;
-
+#if 0
 // need to list all used ADC pins here
 using AdcPins = MakeTypeList<
-    At91Sam3xAdcSmoothPin<DuePinA1, AdcSmoothing>,
-    At91Sam3xAdcSmoothPin<DuePinA0, AdcSmoothing>,
-    At91Sam3xAdcSmoothPin<DuePinA2, AdcSmoothing>
+    Mk20Pin<Mk20PortC, 9>
 >;
 
 using AdcParams = At91Sam3xAdcParams<
@@ -545,11 +450,7 @@ struct ClockPosition;
 struct LoopPosition;
 struct PinsPosition;
 //struct AdcPosition;
-//struct PrinterPosition;
-struct BlinkerPosition;
-struct BlinkerHandler;
-struct TimerPosition;
-struct TimerHandler;
+struct PrinterPosition;
 struct LoopExtraPosition;
 
 using ProgramPosition = RootPosition<Program>;
@@ -558,9 +459,7 @@ using MyClock = Mk20Clock<ClockPosition, MyContext, clock_timer_prescaler, Clock
 using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
 using MyPins = Mk20Pins<PinsPosition, MyContext>;
 //using MyAdc = At91Sam3xAdc<AdcPosition, MyContext, AdcPins, AdcParams>;
-//using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
-using MyBlinker = Blinker<BlinkerPosition, MyContext, Mk20Pin<Mk20PortC, 5>, BlinkerHandler>;
-using MyTimer = Mk20ClockInterruptTimer_Ftm0_Ch0<TimerPosition, MyContext, TimerHandler>;
+using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
@@ -579,8 +478,7 @@ struct MyContext {
     void check () const;
 };
 
-//struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, typename MyPrinter::EventLoopFastEvents> {};
-struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, EmptyTypeList> {};
+struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, typename MyPrinter::EventLoopFastEvents> {};
 
 struct Program {
     MyDebugObjectGroup d_group;
@@ -588,9 +486,7 @@ struct Program {
     MyLoop myloop;
     MyPins mypins;
 //    MyAdc myadc;
-//    MyPrinter myprinter;
-    MyBlinker myblinker;
-    MyTimer mytimer;
+    MyPrinter myprinter;
     MyLoopExtra myloopextra;
 };
 
@@ -598,9 +494,7 @@ struct ClockPosition : public MemberPosition<ProgramPosition, MyClock, &Program:
 struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
 struct PinsPosition : public MemberPosition<ProgramPosition, MyPins, &Program::mypins> {};
 //struct AdcPosition : public MemberPosition<ProgramPosition, MyAdc, &Program::myadc> {};
-//struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
-struct BlinkerPosition : public MemberPosition<ProgramPosition, MyBlinker, &Program::myblinker> {};
-struct TimerPosition : public MemberPosition<ProgramPosition, MyTimer, &Program::mytimer> {};
+struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
 struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
 
 Program p;
@@ -616,76 +510,26 @@ void MyContext::check () const {}
 AMBRO_MK20_CLOCK_FTM0_GLOBAL(p.myclock, MyContext())
 AMBRO_MK20_CLOCK_FTM1_GLOBAL(p.myclock, MyContext())
 
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH0_GLOBAL(p.mytimer, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH0_GLOBAL(*p.myprinter.getEventChannelTimer(), MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH1_GLOBAL(*p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH2_GLOBAL(*p.myprinter.getAxisStepper<1>()->getTimer(), MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH3_GLOBAL(*p.myprinter.getAxisStepper<2>()->getTimer(), MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH4_GLOBAL(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
+//AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH5_GLOBAL(*p.myprinter.getHeaterTimer<0>(), MyContext())
+//AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH6_GLOBAL(*p.myprinter.getHeaterTimer<1>(), MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH7_GLOBAL(*p.myprinter.getFanTimer<0>(), MyContext())
 
-#if 0
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC0A_GLOBAL(*p.myprinter.getEventChannelTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC1A_GLOBAL(*p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC2A_GLOBAL(*p.myprinter.getAxisStepper<1>()->getTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC3A_GLOBAL(*p.myprinter.getAxisStepper<2>()->getTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC4A_GLOBAL(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC8A_GLOBAL(*p.myprinter.getAxisStepper<4>()->getTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5A_GLOBAL(*p.myprinter.getHeaterTimer<0>(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5B_GLOBAL(*p.myprinter.getHeaterTimer<1>(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6A_GLOBAL(*p.myprinter.getHeaterTimer<2>(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6B_GLOBAL(*p.myprinter.getFanTimer<0>(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7A_GLOBAL(*p.myprinter.getFanTimer<1>(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7B_GLOBAL(*p.myadc.getAvgTimer(), MyContext())
-
-AMBRO_AT91SAM3X_SERIAL_GLOBAL(*p.myprinter.getSerial(), MyContext())
-AMBRO_AT91SAM3X_SPI_GLOBAL(*p.myprinter.getSdCard()->getSpi(), MyContext())
-#endif
 static void emergency (void)
 {
-    //MyPrinter::emergency();
+    MyPrinter::emergency();
 }
 
-extern "C" {
-#if 0
-    __attribute__((used))
-    int _write (int file, char *ptr, int len)
-    {
-        if (interrupts_enabled()) {
-            p.myprinter.getSerial()->sendWaitFinished(MyContext());
-        }
-        for (int i = 0; i < len; i++) {
-            while (!(UART->UART_SR & UART_SR_TXRDY));
-            UART->UART_THR = *(uint8_t *)&ptr[i];
-        }
-        return len;
-    }
-#endif
-}
-
-static void blinker_handler (MyContext c)
-{
-    usb_serial_putchar('A');
-}
-struct BlinkerHandler : public AMBRO_WFUNC(&blinker_handler) {};
-
-static typename MyClock::TimeType const interval = 0.5 * MyClock::time_freq;
-
-static bool state;
-static typename MyClock::TimeType next;
-
-using LedPin = Mk20Pin<Mk20PortC, 5>;
-
-static bool timer_handler (MyTimer *, InterruptContext<MyContext> c)
-{
-    state = !state;
-    c.pins()->set<LedPin>(c, state);
-    next += interval;
-    p.mytimer.setNext(c, next);
-    return true;
-}
-struct TimerHandler : public AMBRO_WFUNC(&timer_handler) {};
-
-extern "C" {
-void usb_init (void);
-}
+extern "C" { void usb_init (void); }
 
 int main ()
 {
+    usb_init();
+    
     MyContext c;
     
     p.d_group.init(c);
@@ -693,37 +537,7 @@ int main ()
     p.myloop.init(c);
     p.mypins.init(c);
 //    p.myadc.init(c);
-//    p.myprinter.init(c);
-    p.myblinker.init(c, 0.5 * MyClock::time_freq);
-    p.mytimer.init(c);
-    
-    c.pins()->setOutput<LedPin>(c);
-    state = false;
-    next = c.clock()->getTime(c) + interval;
-    p.mytimer.setFirst(c, next);
-    
-    usb_init();
+    p.myprinter.init(c);
     
     p.myloop.run(c);
-    
-    
-    /*
-    // Set LED pin output.
-    PORTC_PCR5 |= PORT_PCR_SRE | PORT_PCR_DSE | PORT_PCR_MUX(1);
-    GPIOC_PDDR |= (uint32_t)1 << 5;
-    
-    while (1) {
-        // Output high.
-        GPIOC_PSOR = (uint32_t)1 << 5;
-        for (int i = 0; i < 5000000; i++) {
-            __asm__ volatile ("nop");
-        }
-        
-        // Output low.
-        GPIOC_PCOR = (uint32_t)1 << 5;
-        for (int i = 0; i < 5000000; i++) {
-            __asm__ volatile ("nop");
-        }
-    }
-    */
 }
