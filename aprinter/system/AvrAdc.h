@@ -286,8 +286,8 @@ private:
     
     template <typename Dummy>
     struct AdcMaybe<0, Dummy> {
-        static void init (AvrAdc *o, Context c) {}
-        static void deinit (AvrAdc *o, Context c) {}
+        static void init (Context c) {}
+        static void deinit (Context c) {}
     };
     
     template <int PinIndex>
