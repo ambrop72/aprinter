@@ -27,7 +27,7 @@ FLAGS_C_CXX=(
     -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
     -ffunction-sections -fdata-sections
     -I.
-    -I"${TEENSY3}" -D__MK20DX128__ -DF_CPU=48000000
+    -I"${TEENSY3}" -D__MK20DX128__ -DF_CPU=48000000 -DUSB_SERIAL
 )
 FLAGS_LD=(
     -T"${TEENSY3}/mk20dx128.ld" -nostartfiles -Wl,--gc-sections
@@ -38,7 +38,13 @@ CXXFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLA
 LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS})
 
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/mk20dx128.c"
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/nonstd.c"
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/yield.c"
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_dev.c"
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_desc.c"
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_mem.c"
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_serial.c"
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/teensy3/teensy3_support.cpp
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o main.o
-"${CC}" "${LDFLAGS[@]}" mk20dx128.o teensy3_support.o main.o -o aprinter.elf -lm
+"${CC}" "${LDFLAGS[@]}" mk20dx128.o nonstd.o yield.o usb_dev.o usb_desc.o usb_mem.o usb_serial.o teensy3_support.o main.o -o aprinter.elf -lm
 ${CROSS}objcopy -O ihex -R .eeprom aprinter.elf aprinter.hex

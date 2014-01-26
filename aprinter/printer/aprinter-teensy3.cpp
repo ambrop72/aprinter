@@ -28,6 +28,14 @@
 
 #include <aprinter/platform/teensy3/teensy3_support.h>
 
+#define OLD_CPLUSPLUS __cplusplus
+#undef __cplusplus
+extern "C" {
+#include <usb_serial.h>
+}
+#define __cplusplus OLD_CPLUSPLUS
+#undef OLD_CPLUSPLUS
+
 static void emergency (void);
 
 #define AMBROLIB_EMERGENCY_ACTION { cli(); emergency(); }
@@ -41,7 +49,7 @@ static void emergency (void);
 #include <aprinter/system/Mk20Pins.h>
 #include <aprinter/system/InterruptLock.h>
 //#include <aprinter/system/At91Sam3xAdc.h>
-//#include <aprinter/system/At91Sam3xWatchdog.h>
+#include <aprinter/system/Mk20Watchdog.h>
 //#include <aprinter/system/At91Sam3xSerial.h>
 //#include <aprinter/system/At91Sam3xSpi.h>
 #include <aprinter/devices/SpiSdCard.h>
@@ -651,6 +659,7 @@ extern "C" {
 
 static void blinker_handler (MyContext c)
 {
+    usb_serial_putchar('A');
 }
 struct BlinkerHandler : public AMBRO_WFUNC(&blinker_handler) {};
 
@@ -671,6 +680,10 @@ static bool timer_handler (MyTimer *, InterruptContext<MyContext> c)
 }
 struct TimerHandler : public AMBRO_WFUNC(&timer_handler) {};
 
+extern "C" {
+void usb_init (void);
+}
+
 int main ()
 {
     MyContext c;
@@ -681,13 +694,15 @@ int main ()
     p.mypins.init(c);
 //    p.myadc.init(c);
 //    p.myprinter.init(c);
-//    p.myblinker.init(c, 0.5 * MyClock::time_freq);
+    p.myblinker.init(c, 0.5 * MyClock::time_freq);
     p.mytimer.init(c);
     
     c.pins()->setOutput<LedPin>(c);
     state = false;
     next = c.clock()->getTime(c) + interval;
     p.mytimer.setFirst(c, next);
+    
+    usb_init();
     
     p.myloop.run(c);
     
