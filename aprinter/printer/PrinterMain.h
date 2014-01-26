@@ -1460,10 +1460,6 @@ private:
             Axis *o = self(c);
             if (cc->gc(c)->getPartCode(c, part) == axis_name) {
                 *found_axes = true;
-                if (AxisSpec::Homing::enabled) {
-                    cc->reply_append_pstr(c, AMBRO_PSTR("Error:G92 on homable axis\n"));
-                    return;
-                }
                 double req = cc->gc(c)->getPartDoubleValue(c, part);
                 o->m_req_pos = clamp_req_pos(req);
                 o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(o->m_req_pos));
