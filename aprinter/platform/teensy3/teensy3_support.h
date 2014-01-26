@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <mk20dx128.h>
 
+#define FTM_CSC_MSA ((uint32_t)1 << 4)
 #define FTM_CSC_CHIE ((uint32_t)1 << 6)
 #define FTM_CSC_CHF ((uint32_t)1 << 7)
 

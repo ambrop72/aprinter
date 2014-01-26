@@ -53,12 +53,14 @@ struct Mk20Clock__IrqCompHelper {
 
 #include <aprinter/BeginNamespace.h>
 
-template <uint32_t TScAddr, uint32_t TCntAddr, uint32_t TModAddr, uint32_t TCntinAddr, uint32_t TScgc6Bit, int TIrq, typename TChannels>
+template <uint32_t TScAddr, uint32_t TCntAddr, uint32_t TModAddr, uint32_t TCntinAddr, uint32_t TModeAddr, uint32_t TStatusAddr, uint32_t TScgc6Bit, int TIrq, typename TChannels>
 struct Mk20ClockFTM {
     static uint32_t volatile * sc () { return (uint32_t volatile *)TScAddr; }
     static uint32_t volatile * cnt () { return (uint32_t volatile *)TCntAddr; }
     static uint32_t volatile * mod () { return (uint32_t volatile *)TModAddr; }
     static uint32_t volatile * cntin () { return (uint32_t volatile *)TCntinAddr; }
+    static uint32_t volatile * mode () { return (uint32_t volatile *)TModeAddr; }
+    static uint32_t volatile * status () { return (uint32_t volatile *)TStatusAddr; }
     static uint32_t const Scgc6Bit = TScgc6Bit;
     static const int Irq = TIrq;
     using Channels = TChannels;
@@ -70,7 +72,7 @@ struct Mk20Clock__Channel {
     static uint32_t volatile * cv () { return (uint32_t volatile *)TCvAddr; }
 };
 
-using Mk20ClockFTM0 = Mk20ClockFTM<(uint32_t)&FTM0_SC, (uint32_t)&FTM0_CNT, (uint32_t)&FTM0_MOD, (uint32_t)&FTM0_CNTIN, SIM_SCGC6_FTM0, IRQ_FTM0, MakeTypeList<
+using Mk20ClockFTM0 = Mk20ClockFTM<(uint32_t)&FTM0_SC, (uint32_t)&FTM0_CNT, (uint32_t)&FTM0_MOD, (uint32_t)&FTM0_CNTIN, (uint32_t)&FTM0_MODE, (uint32_t)&FTM0_STATUS, SIM_SCGC6_FTM0, IRQ_FTM0, MakeTypeList<
     Mk20Clock__Channel<(uint32_t)&FTM0_C0SC, (uint32_t)&FTM0_C0V>,
     Mk20Clock__Channel<(uint32_t)&FTM0_C1SC, (uint32_t)&FTM0_C1V>,
     Mk20Clock__Channel<(uint32_t)&FTM0_C2SC, (uint32_t)&FTM0_C2V>,
@@ -80,7 +82,7 @@ using Mk20ClockFTM0 = Mk20ClockFTM<(uint32_t)&FTM0_SC, (uint32_t)&FTM0_CNT, (uin
     Mk20Clock__Channel<(uint32_t)&FTM0_C6SC, (uint32_t)&FTM0_C6V>,
     Mk20Clock__Channel<(uint32_t)&FTM0_C7SC, (uint32_t)&FTM0_C7V>
 >>;
-using Mk20ClockFTM1 = Mk20ClockFTM<(uint32_t)&FTM1_SC, (uint32_t)&FTM1_CNT, (uint32_t)&FTM1_MOD, (uint32_t)&FTM1_CNTIN, SIM_SCGC6_FTM1, IRQ_FTM1, MakeTypeList<
+using Mk20ClockFTM1 = Mk20ClockFTM<(uint32_t)&FTM1_SC, (uint32_t)&FTM1_CNT, (uint32_t)&FTM1_MOD, (uint32_t)&FTM1_CNTIN, (uint32_t)&FTM1_MODE, (uint32_t)&FTM1_STATUS, SIM_SCGC6_FTM1, IRQ_FTM1, MakeTypeList<
     Mk20Clock__Channel<(uint32_t)&FTM1_C0SC, (uint32_t)&FTM1_C0V>,
     Mk20Clock__Channel<(uint32_t)&FTM1_C1SC, (uint32_t)&FTM1_C1V>
 >>;
@@ -132,6 +134,7 @@ private:
         static void init (Context c)
         {
             SIM_SCGC6 |= FtmSpec::Scgc6Bit;
+            *FtmSpec::mode() = FTM_MODE_FTMEN;
             *FtmSpec::sc();
             *FtmSpec::sc() = FTM_SC_PS(Prescale);
             *FtmSpec::mod() = UINT16_C(0xFFFF);
@@ -157,6 +160,8 @@ private:
         {
             Mk20Clock *o = self(c);
             
+            *FtmSpec::status();
+            *FtmSpec::status() = 0;
             if (FtmIndex == 0) {
                 uint32_t sc = *FtmSpec::sc();
                 if (sc & FTM_SC_TOF) {
@@ -323,7 +328,7 @@ public:
             }
             *Channel::cv() = time;
             *Channel::csc();
-            *Channel::csc() = FTM_CSC_CHIE;
+            *Channel::csc() = FTM_CSC_MSA | FTM_CSC_CHIE;
         }
     }
     
@@ -362,14 +367,11 @@ public:
     {
         Mk20ClockInterruptTimer *o = self(c);
         
-        uint32_t csc = *Channel::csc();
-        if (!(csc & FTM_CSC_CHIE)) {
+        if (!(*Channel::csc() & FTM_CSC_CHIE)) {
             return;
         }
         
         AMBRO_ASSERT(o->m_running)
-        
-        *Channel::csc() = (csc & ~FTM_CSC_CHF);
         
         TimeType now = Clock::get_time_interrupt(c);
         now -= o->m_time;
