@@ -198,6 +198,7 @@ private:
 };
 
 #define AMBRO_MK20_ADC_ISRS(adc, context) \
+__attribute__((used)) \
 void adc0_isr (void) \
 { \
     (adc).adc_isr(MakeInterruptContext(context)); \
