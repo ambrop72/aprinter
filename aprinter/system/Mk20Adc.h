@@ -56,6 +56,7 @@ private:
     template <int PinIndex> struct PinPosition;
     
     static const int NumPins = TypeListLength<PinsList>::value;
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_handle_isr, handle_isr)
     
     using AdcList = MakeTypeList<
@@ -129,6 +130,8 @@ private:
             o->m_current_pin = 0;
             o->m_finished = false;
             
+            TupleForEachForward(&o->m_pins, Foreach_init(), c);
+            
             SIM_SCGC6 |= SIM_SCGC6_ADC0;
             ADC0_CFG1 = ADC_CFG1_MODE(2) | ADC_CFG1_ADLSMP | ADC_CFG1_ADIV(ADiv);
             ADC0_CFG2 = ADC_CFG2_MUXSEL;
@@ -166,6 +169,11 @@ private:
         static AdcPin * self (Context c)
         {
             return PositionTraverse<typename Context::TheRootPosition, PinPosition<PinIndex>>(c.root());
+        }
+        
+        static void init (Context c)
+        {
+            Pin::Port::pcr0()[Pin::PinIndex] = PORT_PCR_MUX(0);
         }
         
         static bool handle_isr (InterruptContext<Context> c)
