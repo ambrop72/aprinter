@@ -141,7 +141,7 @@ using PrinterParams = PrinterMainParams<
         TeensyUsbSerial,
         TeensyUsbSerialParams
     >,
-    Mk20Pin<Mk20PortC, 5>, // LedPin
+    TeensyPin13, // LedPin
     LedBlinkInterval, // LedBlinkInterval
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
@@ -163,9 +163,9 @@ using PrinterParams = PrinterMainParams<
     MakeTypeList<
         PrinterMainAxisParams<
             'A', // Name
-            Mk20Pin<Mk20PortD, 0>, // DirPin
-            Mk20Pin<Mk20PortB, 17>, // StepPin
-            Mk20Pin<Mk20PortB, 16>, // EnablePin
+            TeensyPin1, // DirPin
+            TeensyPin0, // StepPin
+            TeensyPin8, // EnablePin
             true, // InvertDir
             ABCDefaultStepsPerUnit, // StepsPerUnit
             ABCDefaultMin, // Min
@@ -175,7 +175,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultDistanceFactor, // DistanceFactor
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                Mk20Pin<Mk20PortC, 3>, // HomeEndPin
+                TeensyPin12, // HomeEndPin
                 Mk20PinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
@@ -195,9 +195,9 @@ using PrinterParams = PrinterMainParams<
         >,
         PrinterMainAxisParams<
             'B', // Name
-            Mk20Pin<Mk20PortD, 7>, // DirPin
-            Mk20Pin<Mk20PortA, 13>, // StepPin
-            Mk20Pin<Mk20PortA, 12>, // EnablePin
+            TeensyPin3, // DirPin
+            TeensyPin2, // StepPin
+            TeensyPin9, // EnablePin
             true, // InvertDir
             ABCDefaultStepsPerUnit, // StepsPerUnit
             ABCDefaultMin, // Min
@@ -207,7 +207,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultDistanceFactor, // DistanceFactor
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                Mk20Pin<Mk20PortC, 4>, // HomeEndPin
+                TeensyPin14, // HomeEndPin
                 Mk20PinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
@@ -227,9 +227,9 @@ using PrinterParams = PrinterMainParams<
         >,
         PrinterMainAxisParams<
             'C', // Name
-            Mk20Pin<Mk20PortD, 3>, // DirPin
-            Mk20Pin<Mk20PortD, 2>, // StepPin
-            Mk20Pin<Mk20PortD, 4>, // EnablePin
+            TeensyPin5, // DirPin
+            TeensyPin4, // StepPin
+            TeensyPin10, // EnablePin
             false, // InvertDir
             ABCDefaultStepsPerUnit, // StepsPerUnit
             ABCDefaultMin, // Min
@@ -239,7 +239,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultDistanceFactor, // DistanceFactor
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                Mk20Pin<Mk20PortC, 6>, // HomeEndPin
+                TeensyPin15, // HomeEndPin
                 Mk20PinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
@@ -259,9 +259,9 @@ using PrinterParams = PrinterMainParams<
         >,
         PrinterMainAxisParams<
             'E', // Name
-            Mk20Pin<Mk20PortC, 0>, // DirPin
-            Mk20Pin<Mk20PortD, 1>, // StepPin
-            Mk20Pin<Mk20PortC, 7>, // EnablePin
+            TeensyPin7, // DirPin
+            TeensyPin6, // StepPin
+            TeensyPin11, // EnablePin
             true, // InvertDir
             EDefaultStepsPerUnit, // StepsPerUnit
             EDefaultMin, // Min
@@ -309,7 +309,7 @@ using PrinterParams = PrinterMainParams<
             109, // WaitMCommand
             301, // SetConfigMCommand
             TeensyPinA2, // AdcPin
-            Mk20Pin<Mk20PortC, 1>, // OutputPin
+            TeensyPin17, // OutputPin
             true, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
@@ -372,7 +372,7 @@ using PrinterParams = PrinterMainParams<
         PrinterMainFanParams<
             106, // SetMCommand
             107, // OffMCommand
-            Mk20Pin<Mk20PortC, 3>, // OutputPin
+            TeensyPin18, // OutputPin
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
