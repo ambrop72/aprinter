@@ -454,6 +454,7 @@ void MyContext::check () const {}
 AMBRO_MK20_CLOCK_FTM0_GLOBAL(p.myclock, MyContext())
 AMBRO_MK20_CLOCK_FTM1_GLOBAL(p.myclock, MyContext())
 
+AMBRO_MK20_WATCHDOG_GLOBAL(*p.myprinter.getWatchdog())
 AMBRO_MK20_ADC_ISRS(p.myadc, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH0_GLOBAL(*p.myprinter.getEventChannelTimer(), MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH1_GLOBAL(*p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())

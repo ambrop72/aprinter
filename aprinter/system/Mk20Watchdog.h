@@ -28,6 +28,7 @@
 #include <math.h>
 
 #include <aprinter/meta/Position.h>
+#include <aprinter/meta/RemoveReference.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -35,12 +36,16 @@
 template <uint32_t TToval, uint8_t TPrescval>
 struct Mk20WatchdogParams {
     static const uint32_t Toval = TToval;
-    static const uint32_t Prescval = TPrescval;
+    static const uint8_t Prescval = TPrescval;
 };
 
-template <typename Position, typename Context, typename Params>
+template <typename Position, typename Context, typename TParams>
 class Mk20Watchdog : private DebugObject<Context, void>
 {
+public:
+    using Params = TParams;
+    
+private:
     static_assert(Params::Toval >= 4, "");
     static_assert(Params::Prescval < 8, "");
     
@@ -56,16 +61,6 @@ public:
     {
         Mk20Watchdog *o = self(c);
         o->debugInit(c);
-        
-        WDOG_UNLOCK = WDOG_UNLOCK_SEQ1;
-        WDOG_UNLOCK = WDOG_UNLOCK_SEQ2;
-        asm volatile ("nop");
-        asm volatile ("nop");
-        asm volatile ("nop");
-        WDOG_TOVALH = Params::Toval >> 16;
-        WDOG_TOVALL = Params::Toval;
-        WDOG_PRESC = Params::Prescval << 8;
-        WDOG_STCTRLH = WDOG_STCTRLH_WDOGEN | WDOG_STCTRLH_ALLOWUPDATE;
     }
     
     static void deinit (Context c)
@@ -84,6 +79,18 @@ public:
         WDOG_REFRESH = UINT16_C(0xB480);
     }
 };
+
+#define AMBRO_MK20_WATCHDOG_GLOBAL(watchdog) \
+__attribute__((used)) \
+void startup_early_hook (void) \
+{ \
+    using TheWatchdog = RemoveReference<decltype((watchdog))>; \
+    asm volatile ("nop"); \
+    WDOG_TOVALH = TheWatchdog::Params::Toval >> 16; \
+    WDOG_TOVALL = TheWatchdog::Params::Toval; \
+    WDOG_PRESC = (uint32_t)TheWatchdog::Params::Prescval << 8; \
+    WDOG_STCTRLH = WDOG_STCTRLH_WDOGEN | WDOG_STCTRLH_ALLOWUPDATE; \
+}
 
 #include <aprinter/EndNamespace.h>
 

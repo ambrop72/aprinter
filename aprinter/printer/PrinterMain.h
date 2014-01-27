@@ -2678,6 +2678,11 @@ public:
         o->m_unlocked_timer.deinit(c);
     }
     
+    TheWatchdog * getWatchdog ()
+    {
+        return &m_watchdog;
+    }
+    
     typename SerialFeature::TheSerial * getSerial ()
     {
         return &m_serial_feature.m_serial;
