@@ -25,11 +25,14 @@
 #ifndef AMBROLIB_MK20_WATCHDOG_H
 #define AMBROLIB_MK20_WATCHDOG_H
 
+#include <stdint.h>
 #include <math.h>
 
 #include <aprinter/meta/Position.h>
 #include <aprinter/meta/RemoveReference.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Lock.h>
+#include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -75,8 +78,15 @@ public:
         Mk20Watchdog *o = self(c);
         o->debugAccess(c);
         
+        bool enabled = interrupts_enabled();
+        if (enabled) {
+            cli();
+        }
         WDOG_REFRESH = UINT16_C(0xA602);
         WDOG_REFRESH = UINT16_C(0xB480);
+        if (enabled) {
+            sei();
+        }
     }
 };
 
