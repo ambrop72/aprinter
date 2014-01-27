@@ -138,11 +138,6 @@ using HalfDeltaSplitLength = AMBRO_WRAP_DOUBLE(2.0);
 using HalfDeltaTower1X = AMBRO_WRAP_DOUBLE(HalfDeltaRadius::value() * -1.0);
 using HalfDeltaTower2X = AMBRO_WRAP_DOUBLE(HalfDeltaRadius::value() * 1.0);
 
-/*
- * NOTE: If you need internal pull-ups for endstops, enable these
- * in main() below.
- */
-
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
@@ -202,6 +197,7 @@ using PrinterParams = PrinterMainParams<
             ABDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 MegaPin3, // HomeEndPin
+                AvrPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -233,6 +229,7 @@ using PrinterParams = PrinterMainParams<
             ABDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 MegaPin14, // HomeEndPin
+                AvrPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -264,6 +261,7 @@ using PrinterParams = PrinterMainParams<
             YDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 MegaPin18, // HomeEndPin
+                AvrPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 YDefaultHomeFastMaxDist, // HomeFastMaxDist

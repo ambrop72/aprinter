@@ -459,6 +459,7 @@ using PrinterParams = PrinterMainParams<
             XDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 AvrPin<AvrPortC, 2>, // HomeEndPin
+                AvrPinInputModeNormal, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 XDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -490,6 +491,7 @@ using PrinterParams = PrinterMainParams<
             YDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 AvrPin<AvrPortC, 3>, // HomeEndPin
+                AvrPinInputModeNormal, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 YDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -521,6 +523,7 @@ using PrinterParams = PrinterMainParams<
             ZDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 AvrPin<AvrPortC, 4>, // HomeEndPin
+                AvrPinInputModeNormal, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 ZDefaultHomeFastMaxDist, // HomeFastMaxDist

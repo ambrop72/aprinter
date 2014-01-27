@@ -55,6 +55,16 @@ struct Mk20Pin {
     static const int PinIndex = TPinIndex;
 };
 
+template <bool TPullEnable, bool TPullDown>
+struct Mk20PinInputMode {
+    static bool const PullEnable = TPullEnable;
+    static bool const PullDown = TPullDown;
+};
+
+using Mk20PinInputModeNormal = Mk20PinInputMode<false, false>;
+using Mk20PinInputModePullUp = Mk20PinInputMode<true, false>;
+using Mk20PinInputModePullDown = Mk20PinInputMode<true, true>;
+
 template <typename Position, typename Context>
 class Mk20Pins
 : private DebugObject<Context, void>
@@ -79,18 +89,16 @@ public:
         SIM_SCGC5 &= ~(SIM_SCGC5_PORTA | SIM_SCGC5_PORTB | SIM_SCGC5_PORTC | SIM_SCGC5_PORTD | SIM_SCGC5_PORTE);
     }
     
-    enum InputMode {INPUT_NORMAL, INPUT_PULLUP, INPUT_PULLDOWN};
-    
-    template <typename Pin, typename ThisContext>
-    static void setInput (ThisContext c, InputMode mode = INPUT_NORMAL)
+    template <typename Pin, typename Mode = Mk20PinInputModeNormal, typename ThisContext>
+    static void setInput (ThisContext c)
     {
         Mk20Pins *o = self(c);
         o->debugAccess(c);
         
         uint32_t pcr = PORT_PCR_MUX(1);
-        if (mode != INPUT_NORMAL) {
+        if (Mode::PullEnable) {
             pcr |= PORT_PCR_PE;
-            if (mode == INPUT_PULLUP) {
+            if (!Mode::PullDown) {
                 pcr |= PORT_PCR_PS;
             }
         }

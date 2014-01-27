@@ -137,6 +137,14 @@ struct AvrPin {
     static const int port_pin = PortPin;
 };
 
+template <bool TPullUp>
+struct AvrPinInputMode {
+    static bool const PullUp = TPullUp;
+};
+
+using AvrPinInputModeNormal = AvrPinInputMode<false>;
+using AvrPinInputModePullUp = AvrPinInputMode<true>;
+
 template <typename Position, typename Context>
 class AvrPins
 : private DebugObject<Context, void>
@@ -159,13 +167,18 @@ public:
         o->debugDeinit(c);
     }
     
-    template <typename Pin, typename ThisContext>
+    template <typename Pin, typename Mode = AvrPinInputModeNormal, typename ThisContext>
     static void setInput (ThisContext c)
     {
         AvrPins *o = self(c);
         o->debugAccess(c);
         
         avrClearBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
+        if (Mode::PullUp) {
+            avrSetBitReg<Pin::Port::port_io_addr, Pin::port_pin>(c);
+        } else {
+            avrClearBitReg<Pin::Port::port_io_addr, Pin::port_pin>(c);
+        }
     }
     
     template <typename Pin, typename ThisContext>

@@ -49,6 +49,14 @@ struct At91Sam3xPin {
     static const int PinIndex = TPinIndex;
 };
 
+template <bool TPullUp>
+struct At91Sam3xPinInputMode {
+    static bool const PullUp = TPullUp;
+};
+
+using At91Sam3xPinInputModeNormal = At91Sam3xPinInputMode<false>;
+using At91Sam3xPinInputModePullUp = At91Sam3xPinInputMode<true>;
+
 template <typename Position, typename Context>
 class At91Sam3xPins
 : private DebugObject<Context, void>
@@ -85,7 +93,7 @@ public:
         pmc_disable_periph_clk(ID_PIOA);
     }
     
-    template <typename Pin, typename ThisContext>
+    template <typename Pin, typename Mode = At91Sam3xPinInputModeNormal, typename ThisContext>
     static void setInput (ThisContext c)
     {
         At91Sam3xPins *o = self(c);
@@ -93,6 +101,11 @@ public:
         
         pio<typename Pin::Pio>()->PIO_ODR = (UINT32_C(1) << Pin::PinIndex);
         pio<typename Pin::Pio>()->PIO_PER = (UINT32_C(1) << Pin::PinIndex);
+        if (Mode::PullUp) {
+            pio<typename Pin::Pio>()->PIO_PUER = (UINT32_C(1) << Pin::PinIndex);
+        } else {
+            pio<typename Pin::Pio>()->PIO_PUDR = (UINT32_C(1) << Pin::PinIndex);
+        }
     }
     
     template <typename Pin, typename ThisContext>
@@ -103,19 +116,6 @@ public:
         
         pio<typename Pin::Pio>()->PIO_OER = (UINT32_C(1) << Pin::PinIndex);
         pio<typename Pin::Pio>()->PIO_PER = (UINT32_C(1) << Pin::PinIndex);
-    }
-    
-    template <typename Pin, typename ThisContext>
-    static void setPullup (ThisContext c, bool enabled)
-    {
-        At91Sam3xPins *o = self(c);
-        o->debugAccess(c);
-        
-        if (enabled) {
-            pio<typename Pin::Pio>()->PIO_PUER = (UINT32_C(1) << Pin::PinIndex);
-        } else {
-            pio<typename Pin::Pio>()->PIO_PUDR = (UINT32_C(1) << Pin::PinIndex);
-        }
     }
     
     template <typename Pin>

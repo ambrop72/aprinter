@@ -229,6 +229,7 @@ using PrinterParams = PrinterMainParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
         'Z', // ProbeAxis
         MegaPin19, // ProbePin,
+        AvrPinInputModePullUp, // ProbePinInputMode
         false, // ProbeInvert,
         MakeTypeList<ProbeOffsetX, ProbeOffsetY>, // ProbePlatformOffset
         ProbeStartHeight,
@@ -264,6 +265,7 @@ using PrinterParams = PrinterMainParams<
             XDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 MegaPin3, // HomeEndPin
+                AvrPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 XDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -295,6 +297,7 @@ using PrinterParams = PrinterMainParams<
             YDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 MegaPin14, // HomeEndPin
+                AvrPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 YDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -326,6 +329,7 @@ using PrinterParams = PrinterMainParams<
             ZDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 MegaPin18, // HomeEndPin
+                AvrPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 ZDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -642,11 +646,6 @@ int main ()
     p.mypins.init(c);
     p.myadc.init(c);
     p.myprinter.init(c);
-    
-    // enable internal pull-ups
-    p.mypins.set<MegaPin3>(c, true);
-    p.mypins.set<MegaPin14>(c, true);
-    p.mypins.set<MegaPin18>(c, true);
     
     p.myloop.run(c);
 }

@@ -184,11 +184,6 @@ using ProbeP2Y = AMBRO_WRAP_DOUBLE(155.0);
 using ProbeP3X = AMBRO_WRAP_DOUBLE(205.0);
 using ProbeP3Y = AMBRO_WRAP_DOUBLE(83.0);
 
-/*
- * NOTE: If you need internal pull-ups for endstops, enable these
- * in main() below.
- */
-
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
@@ -229,6 +224,7 @@ using PrinterParams = PrinterMainParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
         'Z', // ProbeAxis
         DuePin34, // ProbePin,
+        At91Sam3xPinInputModeNormal, // ProbePinInputMode
         false, // ProbeInvert,
         MakeTypeList<ProbeOffsetX, ProbeOffsetY>, // ProbePlatformOffset
         ProbeStartHeight,
@@ -264,6 +260,7 @@ using PrinterParams = PrinterMainParams<
             XDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin22, // HomeEndPin
+                At91Sam3xPinInputModeNormal, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 XDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -295,6 +292,7 @@ using PrinterParams = PrinterMainParams<
             YDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin24, // HomeEndPin
+                At91Sam3xPinInputModeNormal, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 YDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -326,6 +324,7 @@ using PrinterParams = PrinterMainParams<
             ZDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin26, // HomeEndPin
+                At91Sam3xPinInputModeNormal, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 ZDefaultHomeFastMaxDist, // HomeFastMaxDist

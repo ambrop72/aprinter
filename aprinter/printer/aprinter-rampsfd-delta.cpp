@@ -149,11 +149,6 @@ using DeltaTower2Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5);
 using DeltaTower3X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.0);
 using DeltaTower3Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 1.0);
 
-/*
- * NOTE: If you need internal pull-ups for endstops, enable these
- * in main() below.
- */
-
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
@@ -194,6 +189,7 @@ using PrinterParams = PrinterMainParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
         'Z', // ProbeAxis
         DuePin34, // ProbePin,
+        At91Sam3xPinInputModeNormal, // ProbePinInputMode
         false, // ProbeInvert,
         MakeTypeList<ProbeOffsetX, ProbeOffsetY>, // ProbePlatformOffset
         ProbeStartHeight,
@@ -229,6 +225,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin22, // HomeEndPin
+                At91Sam3xPinInputModeNormal, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -260,6 +257,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin24, // HomeEndPin
+                At91Sam3xPinInputModeNormal, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -291,6 +289,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin26, // HomeEndPin
+                At91Sam3xPinInputModeNormal, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABCDefaultHomeFastMaxDist, // HomeFastMaxDist

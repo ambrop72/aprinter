@@ -164,13 +164,14 @@ struct PrinterMainNoHomingParams {
 };
 
 template <
-    typename TEndPin, bool tend_invert, bool thome_dir,
+    typename TEndPin, typename TEndPinInputMode, bool tend_invert, bool thome_dir,
     typename TDefaultFastMaxDist, typename TDefaultRetractDist, typename TDefaultSlowMaxDist,
     typename TDefaultFastSpeed, typename TDefaultRetractSpeed, typename TDefaultSlowSpeed
 >
 struct PrinterMainHomingParams {
     static const bool enabled = true;
     using EndPin = TEndPin;
+    using EndPinInputMode = TEndPinInputMode;
     static const bool end_invert = tend_invert;
     static const bool home_dir = thome_dir;
     using DefaultFastMaxDist = TDefaultFastMaxDist;
@@ -272,6 +273,7 @@ template <
     typename TPlatformAxesList,
     int TProbeAxis,
     typename TProbePin,
+    typename TProbePinInputMode,
     bool TProbeInvert,
     typename TProbePlatformOffset,
     typename TProbeStartHeight,
@@ -288,6 +290,7 @@ struct PrinterMainProbeParams {
     using PlatformAxesList = TPlatformAxesList;
     static const int ProbeAxis = TProbeAxis;
     using ProbePin = TProbePin;
+    using ProbePinInputMode = TProbePinInputMode;
     static const bool ProbeInvert = TProbeInvert;
     using ProbePlatformOffset = TProbePlatformOffset;
     using ProbeStartHeight = TProbeStartHeight;
@@ -1250,6 +1253,7 @@ private:
             
             static void init (Context c)
             {
+                c.pins()->template setInput<typename AxisSpec::Homing::EndPin, typename AxisSpec::Homing::EndPinInputMode>(c);
             }
             
             static void deinit (Context c)
@@ -2446,6 +2450,7 @@ private:
         {
             ProbeFeature *o = self(c);
             o->m_current_point = 0xff;
+            c.pins()->template setInput<typename ProbeParams::ProbePin, typename ProbeParams::ProbePinInputMode>(c);
         }
         
         static void deinit (Context c)

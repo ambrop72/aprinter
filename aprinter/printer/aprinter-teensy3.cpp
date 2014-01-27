@@ -176,6 +176,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 Mk20Pin<Mk20PortC, 3>, // HomeEndPin
+                Mk20PinInputModePullUp,
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -207,6 +208,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 Mk20Pin<Mk20PortC, 4>, // HomeEndPin
+                Mk20PinInputModePullUp,
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -238,6 +240,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 Mk20Pin<Mk20PortC, 6>, // HomeEndPin
+                Mk20PinInputModePullUp,
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
