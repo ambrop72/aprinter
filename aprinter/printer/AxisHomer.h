@@ -34,6 +34,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/math/FloatTools.h>
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/printer/MotionPlanner.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -42,8 +43,7 @@ template <
     typename Position, typename Context, typename TheAxisStepper,
     int PlannerStepBits,
     typename PlannerDistanceFactor, typename PlannerCorneringDistance,
-    int PlannerStepperSegmentBufferSize, int PlannerSegmentBufferSizeExp,
-    int PlannerLookaheadCommitCount,
+    int StepperSegmentBufferSize, int MaxLookaheadBufferSize,
     typename SwitchPin, bool SwitchInvert, bool HomeDir,
     typename GetAxisStepper, typename FinishedHandler
 >
@@ -58,8 +58,11 @@ private:
     struct PlannerUnderrunCallback;
     struct PlannerPrestepCallback;
     
+    static int const LookaheadBufferSize = min(MaxLookaheadBufferSize, 3);
+    static int const LookaheadCommitCount = 1;
+    
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, GetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
-    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerLookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
+    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
     
