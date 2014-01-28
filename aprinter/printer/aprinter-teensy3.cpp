@@ -146,10 +146,10 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    24, // StepperSegmentBufferSize
-    24, // EventChannelBufferSize
-    16, // LookaheadBufferSize
-    6, // LookaheadCommitCount
+    28, // StepperSegmentBufferSize
+    28, // EventChannelBufferSize
+    24, // LookaheadBufferSize
+    10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     Mk20ClockInterruptTimer_Ftm0_Ch0, // EventChannelTimer
     Mk20Watchdog,

@@ -31,6 +31,7 @@ FLAGS_C_CXX=(
 )
 FLAGS_LD=(
     -T"${TEENSY3}/mk20dx128.ld" -nostartfiles -Wl,--gc-sections
+    --specs=nano.specs
 )
 
 CFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLAGS_C[@]}" ${CFLAGS})
