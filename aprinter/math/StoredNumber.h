@@ -47,7 +47,6 @@ public:
         return m_value;
     }
     
-private:
     IntType m_value;
 };
 
