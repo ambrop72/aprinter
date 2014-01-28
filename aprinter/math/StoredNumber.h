@@ -37,14 +37,16 @@ class StoredNumber {
 public:
     using IntType = typename ChooseInt<NumBits, Signed>::Type;
     
-    void store (IntType value)
+    static StoredNumber store (IntType value)
     {
-        m_value = value;
+        StoredNumber res;
+        res.m_value = value;
+        return res;
     }
     
-    IntType retrieve () const
+    static IntType retrieve (StoredNumber inp)
     {
-        return m_value;
+        return inp.m_value;
     }
     
     IntType m_value;
@@ -55,29 +57,31 @@ public:
 template <int NumBits>
 class StoredNumber<NumBits, false, EnableIf<(NumBits >= 24 && NumBits < 32), void>> {
 public:
+    using ThisClass = StoredNumber<NumBits, false, EnableIf<(NumBits >= 24 && NumBits < 32), void>>;
     using IntType = typename ChooseInt<NumBits, false>::Type;
     
-    void store (IntType value)
+    static ThisClass store (IntType value)
     {
-        m_value[0] = value >> 0;
-        m_value[1] = value >> 8;
-        m_value[2] = value >> 16;
+        ThisClass res;
+        res.m_value[0] = value >> 0;
+        res.m_value[1] = value >> 8;
+        res.m_value[2] = value >> 16;
+        return res;
     }
     
-    IntType retrieve () const
+    static IntType retrieve (ThisClass inp)
     {
         union {
             IntType x;
             uint8_t bytes[4];
         } u;
-        u.bytes[0] = m_value[0];
-        u.bytes[1] = m_value[1];
-        u.bytes[2] = m_value[2];
+        u.bytes[0] = inp.m_value[0];
+        u.bytes[1] = inp.m_value[1];
+        u.bytes[2] = inp.m_value[2];
         u.bytes[3] = 0;
         return u.x;
     }
     
-private:
     uint8_t m_value[3];
 };
 
