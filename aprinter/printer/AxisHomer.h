@@ -55,10 +55,11 @@ private:
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
     struct PlannerAbortedHandler;
+    struct PlannerUnderrunCallback;
     struct PlannerPrestepCallback;
     
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, GetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
-    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerLookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler>;
+    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, PlannerStepperSegmentBufferSize, PlannerSegmentBufferSizeExp, PlannerLookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
     
@@ -191,6 +192,10 @@ private:
         o->m_command_sent = false;
     }
     
+    static void planner_underrun_callback (Context c)
+    {
+    }
+    
     static bool planner_prestep_callback (typename Planner::template Axis<0>::StepperCommandCallbackContext c)
     {
         return (c.pins()->template get<SwitchPin>(c) != SwitchInvert);
@@ -205,6 +210,7 @@ private:
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_pull_handler) {};
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_finished_handler) {};
     struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_aborted_handler) {};
+    struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_underrun_callback) {};
     struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_prestep_callback) {};
 };
 

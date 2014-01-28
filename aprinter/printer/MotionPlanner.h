@@ -88,7 +88,8 @@ struct MotionPlannerChannelSpec {
 template <
     typename Position, typename Context, typename AxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
     int LookaheadCommitCount,
-    typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename ChannelsList = EmptyTypeList
+    typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename UnderrunCallback,
+    typename ChannelsList = EmptyTypeList
 >
 class MotionPlanner
 : private DebugObject<Context, void>
@@ -827,7 +828,6 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_pulling = false;
 #endif
-        o->m_underrun_count = 0;
         TupleForEachForward(&o->m_axes, Foreach_init(), c, prestep_callback_enabled);
         TupleForEachForward(&o->m_channels, Foreach_init(), c);
         o->m_pull_finished_event.prependNowNotAlready(c);
@@ -940,12 +940,6 @@ public:
         AMBRO_ASSERT(o->m_state == STATE_ABORTED)
         
         return Axis<AxisIndex>::template axis_count_aborted_rem_steps<StepsType>(c);
-    }
-    
-    static uint32_t getUnderrunCount (Context c)
-    {
-        MotionPlanner *o = self(c);
-        return o->m_underrun_count;
     }
     
     template <int ChannelIndex>
@@ -1143,7 +1137,7 @@ private:
                 c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
                 TupleForEachForward(&o->m_axes, Foreach_stopped_stepping(), c);
                 TupleForEachForward(&o->m_channels, Foreach_stopped_stepping(), c);
-                o->m_underrun_count++;
+                UnderrunCallback::call(c);
             }
         }
         
@@ -1269,7 +1263,6 @@ private:
 #ifdef AMBROLIB_ASSERTIONS
     bool m_pulling;
 #endif
-    uint32_t m_underrun_count;
     SplitBuffer m_split_buffer;
     Segment m_segments[LookaheadBufferSize];
     AxesTuple m_axes;

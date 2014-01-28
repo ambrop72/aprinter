@@ -369,6 +369,7 @@ private:
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
     struct PlannerAbortedHandler;
+    struct PlannerUnderrunCallback;
     struct PlannerChannelCallback;
     template <int AxisIndex> struct PlannerPrestepCallback;
     template <int AxisIndex> struct AxisStepperConsumersList;
@@ -2429,7 +2430,7 @@ private:
     
     using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, Params::template EventChannelTimer>>;
     using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
-    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, Params::LookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, MotionPlannerChannels>;
+    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSizeExp, Params::LookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels>;
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
     template <int AxisIndex>
@@ -2648,6 +2649,7 @@ public:
         o->m_probe_feature.init(c);
         o->m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
         o->m_time_freq_by_max_speed = 0.0;
+        o->m_underrun_count = 0;
         o->m_locked = false;
         o->m_planner_state = PLANNER_NONE;
         
@@ -2857,14 +2859,9 @@ private:
 #endif
                 
                 case 920: { // get underrun count
-                    if (!cc->tryPlannedCommand(c)) {
-                        return;
-                    }
-                    cc->reply_append_uint32(c, o->m_planner.getUnderrunCount(c));
+                    cc->reply_append_uint32(c, o->m_underrun_count);
                     cc->reply_append_ch(c, '\n');
                     cc->finishCommand(c);
-                    o->m_planner.emptyDone(c);
-                    submitted_planner_command(c);
                 } break;
             } break;
             
@@ -3136,6 +3133,12 @@ private:
         o->m_probe_feature.custom_aborted_handler(c);
     }
     
+    static void planner_underrun_callback (Context c)
+    {
+        PrinterMain *o = self(c);
+        o->m_underrun_count++;
+    }
+    
     static void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)
     {
         PrinterMain *o = self(c);
@@ -3266,6 +3269,7 @@ private:
     TimeType m_inactive_time;
     TimeType m_last_active_time;
     double m_time_freq_by_max_speed;
+    uint32_t m_underrun_count;
     bool m_locked;
     uint8_t m_planner_state;
     union {
@@ -3299,6 +3303,7 @@ private:
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_pull_handler) {};
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_finished_handler) {};
     struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_aborted_handler) {};
+    struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_underrun_callback) {};
     struct PlannerChannelCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_channel_callback) {};
     template <int AxisIndex> struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&PrinterMain::template planner_prestep_callback<AxisIndex>) {};
     template <int AxisIndex> struct AxisStepperConsumersList {
