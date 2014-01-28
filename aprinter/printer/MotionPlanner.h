@@ -1202,7 +1202,7 @@ private:
                 double distance_rec = 1.0 / distance;
                 double rel_max_accel = 1.0 / rel_max_accel_rec;
                 entry->lp_seg.max_v = distance_squared / (entry->rel_max_speed_rec * entry->rel_max_speed_rec);
-                entry->lp_seg.max_start_v = entry->lp_seg.max_v;
+                entry->lp_seg.max_end_v = entry->lp_seg.max_v;
                 entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
                 entry->lp_seg.a_x_rec = 1.0 / entry->lp_seg.a_x;
                 entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
@@ -1211,7 +1211,7 @@ private:
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
                     if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
-                        entry->lp_seg.max_start_v = TupleForEachForwardAccRes(&o->m_axes, entry->lp_seg.max_start_v, Foreach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
+                        prev_entry->lp_seg.max_end_v = TupleForEachForwardAccRes(&o->m_axes, entry->lp_seg.max_end_v, Foreach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
                         break;
                     }
                 }
@@ -1222,7 +1222,7 @@ private:
             } else {
                 entry->lp_seg.a_x = 0.0;
                 entry->lp_seg.max_v = INFINITY;
-                entry->lp_seg.max_start_v = INFINITY;
+                entry->lp_seg.max_end_v = INFINITY;
                 entry->lp_seg.a_x_rec = INFINITY;
                 entry->lp_seg.two_max_v_minus_a_x = INFINITY;
                 TupleForOneOffset<1>((entry->dir_and_type & TypeMask), &o->m_channels, Foreach_write_segment(), c, entry);

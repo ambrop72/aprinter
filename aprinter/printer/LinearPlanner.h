@@ -35,7 +35,7 @@
 struct LinearPlannerSegmentData {
     double a_x;
     double max_v;
-    double max_start_v;
+    double max_end_v;
     double a_x_rec;
     double two_max_v_minus_a_x;
 };
@@ -55,12 +55,12 @@ static double LinearPlannerPush (LinearPlannerSegmentData *segment, LinearPlanne
     AMBRO_ASSERT(segment)
     AMBRO_ASSERT(FloatIsPosOrPosZero(segment->a_x))
     AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_v))
-    AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_start_v))
-    AMBRO_ASSERT(segment->max_start_v <= segment->max_v)
+    AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_end_v))
+    AMBRO_ASSERT(segment->max_end_v <= segment->max_v)
     AMBRO_ASSERT(FloatIsPosOrPosZero(end_v))
     
-    s->end_v = fmin(segment->max_v, end_v);
-    return fmin(segment->max_start_v, s->end_v + segment->a_x);
+    s->end_v = fmin(segment->max_end_v, end_v);
+    return s->end_v + segment->a_x;
 }
 
 static double LinearPlannerPull (LinearPlannerSegmentData *segment, LinearPlannerSegmentState *s, double start_v, LinearPlannerSegmentResult *result)
