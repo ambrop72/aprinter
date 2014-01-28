@@ -195,7 +195,6 @@ private:
         using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
         
         StepperStepFixedType x;
-        double half_accel;
     };
     
     template <int ChannelIndex>
@@ -214,6 +213,7 @@ private:
             struct {
                 double max_accel_rec;
                 double rel_max_speed_rec;
+                double half_accel[NumAxes];
                 IndexElemTuple<AxesList, AxisSegment> axes;
             };
             IndexElemUnion<ChannelsList, ChannelSegment> channels;
@@ -345,7 +345,7 @@ public:
         static double write_segment_buffer_entry_extra (Segment *entry, double rel_max_accel)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            axis_entry->half_accel = 0.5 * rel_max_accel * axis_entry->x.doubleValue();
+            entry->half_accel[AxisIndex] = 0.5 * rel_max_accel * axis_entry->x.doubleValue();
         }
         
         static double compute_segment_buffer_cornering_speed (double accum, Context c, Segment *entry, double entry_distance_rec, Segment *prev_entry)
@@ -404,13 +404,13 @@ public:
             
             bool dir = entry->dir_and_type & TheAxisMask;
             if (x0.bitsValue() != 0) {
-                gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::importDoubleSaturatedRound(axis_entry->half_accel * t0_squared)));
+                gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::importDoubleSaturatedRound(entry->half_accel[AxisIndex] * t0_squared)));
             }
             if (gen1) {
                 gen_stepper_command(c, dir, x1, t1, StepperAccelFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
-                gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::importDoubleSaturatedRound(axis_entry->half_accel * t2_squared)));
+                gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::importDoubleSaturatedRound(entry->half_accel[AxisIndex] * t2_squared)));
             }
         }
         
