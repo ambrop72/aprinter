@@ -2855,6 +2855,17 @@ private:
                     return cc->finishCommand(c);
                 } break;
 #endif
+                
+                case 920: { // get underrun count
+                    if (!cc->tryPlannedCommand(c)) {
+                        return;
+                    }
+                    cc->reply_append_uint32(c, o->m_planner.getUnderrunCount(c));
+                    cc->reply_append_ch(c, '\n');
+                    cc->finishCommand(c);
+                    o->m_planner.emptyDone(c);
+                    submitted_planner_command(c);
+                } break;
             } break;
             
             case 'G': switch (cc->gc(c)->getCmdNumber(c)) {
