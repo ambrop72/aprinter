@@ -36,6 +36,7 @@ FLAGS_C_CXX=(
 )
 FLAGS_LD=(
     -T"${LINKER_SCRIPT}" -nostartfiles -Wl,--gc-sections
+    --specs=nano.specs
 )
 
 CFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLAGS_C[@]}" ${CFLAGS})
