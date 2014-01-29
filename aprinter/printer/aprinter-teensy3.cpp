@@ -136,7 +136,7 @@ using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
         UINT32_C(0), // BaudRate,
         8, // RecvBufferSizeExp
-        9, // SendBufferSizeExp
+        8, // SendBufferSizeExp
         GcodeParserParams<16>, // ReceiveBufferSizeExp
         TeensyUsbSerial,
         TeensyUsbSerialParams
@@ -146,8 +146,8 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    28, // StepperSegmentBufferSize
-    28, // EventChannelBufferSize
+    30, // StepperSegmentBufferSize
+    30, // EventChannelBufferSize
     24, // LookaheadBufferSize
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
