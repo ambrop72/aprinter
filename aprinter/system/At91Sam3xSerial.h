@@ -209,6 +209,12 @@ public:
         }
     }
     
+    static void sendPoke (Context c)
+    {
+        At91Sam3xSerial *o = self(c);
+        o->debugAccess(c);
+    }
+    
     static void sendRequestEvent (Context c, SendSizeType min_amount)
     {
         At91Sam3xSerial *o = self(c);

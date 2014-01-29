@@ -802,6 +802,7 @@ private:
             if (!no_ok) {
                 o->m_channel_common.reply_append_pstr(c, AMBRO_PSTR("ok\n"));
             }
+            o->m_serial.sendPoke(c);
             o->m_serial.recvConsume(c, RecvSizeType::import(o->m_gcode_parser.getLength(c)));
             o->m_serial.recvForceEvent(c);
         }
@@ -958,7 +959,8 @@ private:
                 return finish_locked(c);
             }
             if (error) {
-                SerialFeature::TheChannelCommon::self(c)->reply_append_pstr(c, AMBRO_PSTR("//SdRdEr\n"));
+                SerialFeature::TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR("//SdRdEr\n"));
+                SerialFeature::self(c)->m_serial.sendPoke(c);
                 return start_read(c);
             }
             o->m_sd_block++;
@@ -1003,7 +1005,8 @@ private:
             }
             return;
         eof:
-            SerialFeature::TheChannelCommon::self(c)->reply_append_pstr(c, eof_str);
+            SerialFeature::TheChannelCommon::reply_append_pstr(c, eof_str);
+            SerialFeature::self(c)->m_serial.sendPoke(c);
             o->m_eof = true;
         }
         
@@ -2654,6 +2657,7 @@ public:
         o->m_planner_state = PLANNER_NONE;
         
         o->m_serial_feature.m_channel_common.reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
+        o->m_serial_feature.m_serial.sendPoke(c);
         
         o->debugInit(c);
     }

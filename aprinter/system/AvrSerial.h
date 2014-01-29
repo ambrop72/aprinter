@@ -216,6 +216,12 @@ public:
         }
     }
     
+    static void sendPoke (Context c)
+    {
+        AvrSerial *o = self(c);
+        o->debugAccess(c);
+    }
+    
     static void sendRequestEvent (Context c, SendSizeType min_amount)
     {
         AvrSerial *o = self(c);

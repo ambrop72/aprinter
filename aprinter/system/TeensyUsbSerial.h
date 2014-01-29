@@ -53,7 +53,6 @@ class TeensyUsbSerial
 {
 private:
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<TeensyUsbSerial>;
-    using SendFastEvent = typename Context::EventLoop::template FastEventSpec<RecvFastEvent>;
     
     static TeensyUsbSerial * self (Context c)
     {
@@ -74,10 +73,8 @@ public:
         o->m_recv_overrun = false;
         o->m_recv_force = false;
         
-        c.eventLoop()->template initFastEvent<SendFastEvent>(c, TeensyUsbSerial::send_event_handler);
         o->m_send_start = SendSizeType::import(0);
         o->m_send_end = SendSizeType::import(0);
-        o->m_send_event = false;
         
         c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
         
@@ -89,7 +86,6 @@ public:
         TeensyUsbSerial *o = self(c);
         o->debugDeinit(c);
         
-        c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
         c.eventLoop()->template resetFastEvent<RecvFastEvent>(c);
     }
     
@@ -168,49 +164,12 @@ public:
     {
         TeensyUsbSerial *o = self(c);
         o->debugAccess(c);
-        
         AMBRO_ASSERT(amount <= send_avail(o->m_send_start, o->m_send_end))
+        
         o->m_send_end = BoundedModuloAdd(o->m_send_end, amount);
-        c.eventLoop()->template triggerFastEvent<SendFastEvent>(c);
     }
     
-    static void sendRequestEvent (Context c, SendSizeType min_amount)
-    {
-        TeensyUsbSerial *o = self(c);
-        o->debugAccess(c);
-        AMBRO_ASSERT(min_amount > SendSizeType::import(0))
-        
-        o->m_send_event = true;
-        c.eventLoop()->template triggerFastEvent<SendFastEvent>(c);
-    }
-    
-    static void sendCancelEvent (Context c)
-    {
-        TeensyUsbSerial *o = self(c);
-        o->debugAccess(c);
-        
-        o->m_send_event = false;
-    }
-    
-    static void sendWaitFinished (Context c)
-    {
-        // TODO
-    }
-    
-    using EventLoopFastEvents = MakeTypeList<RecvFastEvent, SendFastEvent>;
-    
-private:
-    static RecvSizeType recv_avail (RecvSizeType start, RecvSizeType end)
-    {
-        return BoundedModuloSubtract(end, start);
-    }
-    
-    static SendSizeType send_avail (SendSizeType start, SendSizeType end)
-    {
-        return BoundedModuloDec(BoundedModuloSubtract(start, end));
-    }
-    
-    static void send_event_handler (Context c)
+    static void sendPoke (Context c)
     {
         TeensyUsbSerial *o = self(c);
         o->debugAccess(c);
@@ -221,10 +180,19 @@ private:
             usb_serial_write(o->m_send_buffer + o->m_send_start.value(), amount.value());
             o->m_send_start = BoundedModuloAdd(o->m_send_start, amount);
         }
-        if (o->m_send_event) {
-            o->m_send_event = false;
-            SendHandler::call(o, c);
-        }
+    }
+    
+    using EventLoopFastEvents = MakeTypeList<RecvFastEvent>;
+    
+private:
+    static RecvSizeType recv_avail (RecvSizeType start, RecvSizeType end)
+    {
+        return BoundedModuloSubtract(end, start);
+    }
+    
+    static SendSizeType send_avail (SendSizeType start, SendSizeType end)
+    {
+        return BoundedModuloDec(BoundedModuloSubtract(start, end));
     }
     
     static void recv_event_handler (Context c)
@@ -263,7 +231,6 @@ private:
     
     SendSizeType m_send_start;
     SendSizeType m_send_end;
-    bool m_send_event;
     char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
 };
 
