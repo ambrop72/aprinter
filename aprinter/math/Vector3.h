@@ -25,13 +25,14 @@
 #ifndef AMBROLIB_VECTOR3_H
 #define AMBROLIB_VECTOR3_H
 
-#include <math.h>
+#include <aprinter/math/FloatTools.h>
 
 #include <aprinter/BeginNamespace.h>
 
+template <typename FpType>
 class Vector3 {
 public:
-    static Vector3 make (double x, double y, double z)
+    static Vector3 make (FpType x, FpType y, FpType z)
     {
         Vector3 res;
         res.m_v[0] = x;
@@ -40,22 +41,22 @@ public:
         return res;
     }
     
-    double norm () const
+    FpType norm () const
     {
         return (m_v[0] * m_v[0]) + (m_v[1] * m_v[1]) + (m_v[2] * m_v[2]);
     }
     
-    double length () const
+    FpType length () const
     {
-        return sqrt(norm());
+        return FloatSqrt(norm());
     }
     
-    double dot (Vector3 other) const
+    FpType dot (Vector3 other) const
     {
         return (m_v[0] * other.m_v[0]) + (m_v[1] * other.m_v[1]) + (m_v[2] * other.m_v[2]);
     }
     
-    Vector3 operator* (double s) const
+    Vector3 operator* (FpType s) const
     {
         return Vector3::make(m_v[0] * s, m_v[1] * s, m_v[2] * s);
     }
@@ -80,7 +81,7 @@ public:
     }
     
 public:
-    double m_v[3];
+    FpType m_v[3];
 };
 
 #include <aprinter/EndNamespace.h>

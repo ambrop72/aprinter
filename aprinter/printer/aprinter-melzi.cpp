@@ -24,7 +24,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <math.h>
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
@@ -422,6 +421,7 @@ using PrinterParams = PrinterMainParams<
     16, // LookaheadBufferSize
     8, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
+    double, // FpType
     AvrClockInterruptTimer_TC2_OCA, // EventChannelTimer
     AvrWatchdog,
     AvrWatchdogParams<

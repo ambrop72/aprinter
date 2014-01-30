@@ -25,8 +25,6 @@
 #ifndef AMBROLIB_IDENTITY_TRANSFORM_H
 #define AMBROLIB_IDENTITY_TRANSFORM_H
 
-#include <math.h>
-
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/TupleForEach.h>
@@ -40,7 +38,7 @@ struct IdentityTransformParams {
     using SplitLength = TSplitLength;
 };
 
-template <typename Params>
+template <typename Params, typename FpType>
 class IdentityTransform {
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_copy_coords, copy_coords)
     

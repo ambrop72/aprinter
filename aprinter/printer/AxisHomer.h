@@ -26,7 +26,6 @@
 #define AMBROLIB_AXIS_HOMER_H
 
 #include <stdint.h>
-#include <math.h>
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MakeTypeList.h>
@@ -43,7 +42,7 @@ template <
     typename Position, typename Context, typename TheAxisStepper,
     int PlannerStepBits,
     typename PlannerDistanceFactor, typename PlannerCorneringDistance,
-    int StepperSegmentBufferSize, int MaxLookaheadBufferSize,
+    int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename FpType,
     typename SwitchPin, bool SwitchInvert, bool HomeDir,
     typename GetAxisStepper, typename FinishedHandler
 >
@@ -62,7 +61,7 @@ private:
     static int const LookaheadCommitCount = 1;
     
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, GetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
-    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
+    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
     
@@ -78,10 +77,10 @@ public:
         StepFixedType fast_max_dist;
         StepFixedType retract_dist;
         StepFixedType slow_max_dist;
-        double fast_speed;
-        double retract_speed;
-        double slow_speed;
-        double max_accel;
+        FpType fast_speed;
+        FpType retract_speed;
+        FpType slow_speed;
+        FpType max_accel;
     };
     
     static void init (Context c, HomingParams params)
@@ -129,25 +128,25 @@ private:
         }
         
         PlannerCommand *cmd = o->m_planner.getBuffer(c);
-        cmd->rel_max_v_rec = 0.0;
+        cmd->rel_max_v_rec = 0.0f;
         switch (o->m_state) {
             case STATE_FAST: {
                 cmd->axes.elem.dir = HomeDir;
                 cmd->axes.elem.x = o->m_params.fast_max_dist;
-                cmd->axes.elem.max_v_rec = 1.0 / o->m_params.fast_speed;
-                cmd->axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
+                cmd->axes.elem.max_v_rec = 1.0f / o->m_params.fast_speed;
+                cmd->axes.elem.max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
             case STATE_RETRACT: {
                 cmd->axes.elem.dir = !HomeDir;
                 cmd->axes.elem.x = o->m_params.retract_dist;
-                cmd->axes.elem.max_v_rec = 1.0 / o->m_params.retract_speed;
-                cmd->axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
+                cmd->axes.elem.max_v_rec = 1.0f / o->m_params.retract_speed;
+                cmd->axes.elem.max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
             case STATE_SLOW: {
                 cmd->axes.elem.dir = HomeDir;
                 cmd->axes.elem.x = o->m_params.slow_max_dist;
-                cmd->axes.elem.max_v_rec = 1.0 / o->m_params.slow_speed;
-                cmd->axes.elem.max_a_rec = 1.0 / o->m_params.max_accel;
+                cmd->axes.elem.max_v_rec = 1.0f / o->m_params.slow_speed;
+                cmd->axes.elem.max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
         }
         

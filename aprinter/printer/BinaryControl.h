@@ -31,7 +31,7 @@
 
 struct BinaryControlParams {};
 
-template <typename Params, typename MeasurementInterval, typename ValueFixedType>
+template <typename Params, typename MeasurementInterval, typename ValueFixedType, typename FpType>
 class BinaryControl {
 public:
     using OutputFixedType = FixedPoint<16, false, -16>;

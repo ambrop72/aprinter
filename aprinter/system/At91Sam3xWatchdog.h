@@ -25,8 +25,6 @@
 #ifndef AMBROLIB_AT91SAM3X_WATCHDOG_H
 #define AMBROLIB_AT91SAM3X_WATCHDOG_H
 
-#include <math.h>
-
 #include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 

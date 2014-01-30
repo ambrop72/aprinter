@@ -25,11 +25,10 @@
 #ifndef AMBROLIB_TEMPERATURE_OBSERVER_H
 #define AMBROLIB_TEMPERATURE_OBSERVER_H
 
-#include <math.h>
-
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/Position.h>
+#include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/OffsetCallback.h>
 
@@ -46,7 +45,7 @@ struct TemperatureObserverParams {
     using MinTime = TMinTime;
 };
 
-template <typename Position, typename Context, typename Params, typename GetValueCallback, typename Handler>
+template <typename Position, typename Context, typename FpType, typename Params, typename GetValueCallback, typename Handler>
 class TemperatureObserver
 : private DebugObject<Context, void>
 {
@@ -56,7 +55,7 @@ class TemperatureObserver
     }
     
 public:
-    static void init (Context c, double target)
+    static void init (Context c, FpType target)
     {
         TemperatureObserver *o = self(c);
         
@@ -90,8 +89,8 @@ private:
         
         o->m_event.appendAfterPrevious(c, IntervalTicks);
         
-        double value = GetValueCallback::call(c);
-        bool in_range = fabs(value - o->m_target) < Params::ValueTolerance::value();
+        FpType value = GetValueCallback::call(c);
+        bool in_range = FloatAbs(value - o->m_target) < (FpType)Params::ValueTolerance::value();
         
         if (!in_range) {
             o->m_intervals = 0;
@@ -103,7 +102,7 @@ private:
     }
     
     typename Context::EventLoop::QueuedEvent m_event;
-    double m_target;
+    FpType m_target;
     IntervalsType m_intervals;
 };
 

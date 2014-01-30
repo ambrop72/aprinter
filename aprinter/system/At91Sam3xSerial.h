@@ -78,7 +78,7 @@ public:
         PIOA->PIO_PER = (UINT32_C(1) << 8);
         PIOA->PIO_ABSR &= ~(UINT32_C(1) << 9);
         PIOA->PIO_PDR = (UINT32_C(1) << 9);
-        UART->UART_BRGR = (uint16_t)((F_MCK / (16.0 * baud)) + 0.5);
+        UART->UART_BRGR = (uint16_t)(((float)F_MCK / (16.0f * baud)) + 0.5f);
         UART->UART_MR = UART_MR_PAR_NO | UART_MR_CHMODE_NORMAL;
         UART->UART_IDR = UINT32_MAX;
         NVIC_ClearPendingIRQ(UART_IRQn);

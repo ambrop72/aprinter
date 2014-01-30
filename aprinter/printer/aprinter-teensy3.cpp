@@ -24,7 +24,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <math.h>
 
 #include <aprinter/platform/teensy3/teensy3_support.h>
 
@@ -151,6 +150,7 @@ using PrinterParams = PrinterMainParams<
     24, // LookaheadBufferSize
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
+    double, // FpType
     Mk20ClockInterruptTimer_Ftm0_Ch0, // EventChannelTimer
     Mk20Watchdog,
     Mk20WatchdogParams<2000, 0>,

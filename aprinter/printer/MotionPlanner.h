@@ -28,7 +28,6 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
-#include <math.h>
 
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Tuple.h>
@@ -87,7 +86,7 @@ struct MotionPlannerChannelSpec {
 
 template <
     typename Position, typename Context, typename AxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
-    int LookaheadCommitCount,
+    int LookaheadCommitCount, typename FpType,
     typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename UnderrunCallback,
     typename ChannelsList = EmptyTypeList
 >
@@ -118,6 +117,7 @@ private:
     static const int TypeBits = BitsInInt<NumChannels>::value;
     using AxisMaskType = typename ChooseInt<NumAxes + TypeBits, false>::Type;
     static const AxisMaskType TypeMask = ((AxisMaskType)1 << TypeBits) - 1;
+    using TheLinearPlanner = LinearPlanner<FpType>;
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
@@ -159,8 +159,8 @@ public:
         
         bool dir;
         StepFixedType x;
-        double max_v_rec;
-        double max_a_rec;
+        FpType max_v_rec;
+        FpType max_a_rec;
         StepFixedType x_pos; // internal
     };
     
@@ -168,8 +168,8 @@ public:
         uint8_t type; // internal
         union {
             struct {
-                double rel_max_v_rec;
-                double split_frac; // internal
+                FpType rel_max_v_rec;
+                FpType split_frac; // internal
                 uint32_t split_count; // internal
                 uint32_t split_pos; // internal
                 IndexElemTuple<AxesList, AxisSplitBuffer> axes;
@@ -208,12 +208,12 @@ private:
     
     struct Segment {
         AxisMaskType dir_and_type;
-        LinearPlannerSegmentData lp_seg;
+        typename TheLinearPlanner::SegmentData lp_seg;
         union {
             struct {
-                double max_accel_rec;
-                double rel_max_speed_rec;
-                double half_accel[NumAxes];
+                FpType max_accel_rec;
+                FpType rel_max_speed_rec;
+                FpType half_accel[NumAxes];
                 IndexElemTuple<AxesList, AxisSegment> axes;
             };
             IndexElemUnion<ChannelsList, ChannelSegment> channels;
@@ -292,10 +292,10 @@ public:
             return (accum && axis_split->x <= StepperStepFixedType::maxValue());
         }
         
-        static double compute_split_count (double accum, Context c)
+        static FpType compute_split_count (FpType accum, Context c)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            return fmax(accum, axis_split->x.doubleValue() * (1.0001 / StepperStepFixedType::maxValue().doubleValue()));
+            return FloatMax(accum, axis_split->x.template fpValue<FpType>() * (1.0001f / StepperStepFixedType::maxValue().template fpValue<FpType>()));
         }
         
         static bool check_icmd_zero (bool accum, Context c)
@@ -313,7 +313,7 @@ public:
             if (m->m_split_buffer.split_pos == m->m_split_buffer.split_count) {
                 new_x = axis_split->x;
             } else {
-                new_x = FixedMin(axis_split->x, StepFixedType::importDoubleSaturatedRound(m->m_split_buffer.split_pos * m->m_split_buffer.split_frac * axis_split->x.doubleValue()));
+                new_x = FixedMin(axis_split->x, StepFixedType::template importFpSaturatedRound<FpType>(m->m_split_buffer.split_pos * m->m_split_buffer.split_frac * axis_split->x.template fpValue<FpType>()));
             }
             if (axis_split->dir) {
                 entry->dir_and_type |= TheAxisMask;
@@ -322,43 +322,43 @@ public:
             axis_split->x_pos = new_x;
         }
         
-        static double compute_segment_buffer_entry_distance (double accum, Segment *entry)
+        static FpType compute_segment_buffer_entry_distance (FpType accum, Segment *entry)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            return (accum + (axis_entry->x.doubleValue() * axis_entry->x.doubleValue()) * (AxisSpec::DistanceFactor::value() * AxisSpec::DistanceFactor::value()));
+            return (accum + (axis_entry->x.template fpValue<FpType>() * axis_entry->x.template fpValue<FpType>()) * (FpType)(AxisSpec::DistanceFactor::value() * AxisSpec::DistanceFactor::value()));
         }
         
-        static double compute_segment_buffer_entry_speed (double accum, Context c, Segment *entry)
-        {
-            TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            return fmax(accum, axis_entry->x.doubleValue() * axis_split->max_v_rec);
-        }
-        
-        static double compute_segment_buffer_entry_accel (double accum, Context c, Segment *entry)
+        static FpType compute_segment_buffer_entry_speed (FpType accum, Context c, Segment *entry)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            return fmax(accum, axis_entry->x.doubleValue() * axis_split->max_a_rec);
+            return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * axis_split->max_v_rec);
         }
         
-        static double write_segment_buffer_entry_extra (Segment *entry, double rel_max_accel)
+        static FpType compute_segment_buffer_entry_accel (FpType accum, Context c, Segment *entry)
+        {
+            TheAxisSplitBuffer *axis_split = get_axis_split(c);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * axis_split->max_a_rec);
+        }
+        
+        static FpType write_segment_buffer_entry_extra (Segment *entry, FpType rel_max_accel)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            entry->half_accel[AxisIndex] = 0.5 * rel_max_accel * axis_entry->x.doubleValue();
+            entry->half_accel[AxisIndex] = 0.5f * rel_max_accel * axis_entry->x.template fpValue<FpType>();
         }
         
-        static double compute_segment_buffer_cornering_speed (double accum, Context c, Segment *entry, double entry_distance_rec, Segment *prev_entry)
+        static FpType compute_segment_buffer_cornering_speed (FpType accum, Context c, Segment *entry, FpType entry_distance_rec, Segment *prev_entry)
         {
             MotionPlanner *m = MotionPlanner::self(c);
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
             TheAxisSegment *prev_axis_entry = TupleGetElem<AxisIndex>(&prev_entry->axes);
-            double m1 = axis_entry->x.doubleValue() * entry_distance_rec;
-            double m2 = prev_axis_entry->x.doubleValue() * m->m_last_distance_rec;
+            FpType m1 = axis_entry->x.template fpValue<FpType>() * entry_distance_rec;
+            FpType m2 = prev_axis_entry->x.template fpValue<FpType>() * m->m_last_distance_rec;
             bool dir_changed = (entry->dir_and_type ^ prev_entry->dir_and_type) & TheAxisMask;
-            double dm = (dir_changed ? (m1 + m2) : fabs(m1 - m2));
-            return fmin(accum, (AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / (dm * axis_split->max_a_rec));
+            FpType dm = (dir_changed ? (m1 + m2) : FloatAbs(m1 - m2));
+            return FloatMin(accum, (FpType)(AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / (dm * axis_split->max_a_rec));
         }
         
         static bool have_commit_space (bool accum, Context c)
@@ -375,14 +375,14 @@ public:
             o->m_new_backup_end = m->m_current_backup ? 0 : StepperBackupBufferSize;
         }
         
-        static void gen_segment_stepper_commands (Context c, Segment *entry, double frac_x0, double frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, double t0_squared, double t2_squared)
+        static void gen_segment_stepper_commands (Context c, Segment *entry, FpType frac_x0, FpType frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, FpType t0_squared, FpType t2_squared)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
             
             StepperStepFixedType x1 = axis_entry->x;
-            StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::importDoubleSaturatedRound(frac_x0 * axis_entry->x.doubleValue()));
+            StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::template importFpSaturatedRound<FpType>(frac_x0 * axis_entry->x.template fpValue<FpType>()));
             x1.m_bits.m_int -= x0.bitsValue();
-            StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::importDoubleSaturatedRound(frac_x2 * axis_entry->x.doubleValue()));
+            StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::template importFpSaturatedRound<FpType>(frac_x2 * axis_entry->x.template fpValue<FpType>()));
             x1.m_bits.m_int -= x2.bitsValue();
             
             if (x0.bitsValue() == 0) {
@@ -404,13 +404,13 @@ public:
             
             bool dir = entry->dir_and_type & TheAxisMask;
             if (x0.bitsValue() != 0) {
-                gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::importDoubleSaturatedRound(entry->half_accel[AxisIndex] * t0_squared)));
+                gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->half_accel[AxisIndex] * t0_squared)));
             }
             if (gen1) {
                 gen_stepper_command(c, dir, x1, t1, StepperAccelFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
-                gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::importDoubleSaturatedRound(entry->half_accel[AxisIndex] * t2_squared)));
+                gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->half_accel[AxisIndex] * t2_squared)));
             }
         }
         
@@ -818,7 +818,7 @@ public:
         o->m_segments_staging_length = 0;
         o->m_segments_length = 0;
         o->m_staging_time = 0;
-        o->m_staging_v_squared = 0.0;
+        o->m_staging_v_squared = 0.0f;
         o->m_split_buffer.type = 0xFF;
         o->m_state = STATE_BUFFERING;
         o->m_waiting = false;
@@ -875,8 +875,8 @@ public:
         if (AMBRO_LIKELY(TupleForEachForwardAccRes(&o->m_axes, true, Foreach_splitbuf_fits(), c))) {
             o->m_split_buffer.split_count = 1;
         } else {
-            double split_count = ceil(TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_split_count(), c));
-            o->m_split_buffer.split_frac = 1.0 / split_count;
+            FpType split_count = FloatCeil(TupleForEachForwardAccRes(&o->m_axes, 0.0f, Foreach_compute_split_count(), c));
+            o->m_split_buffer.split_frac = 1.0f / split_count;
             o->m_split_buffer.rel_max_v_rec *= o->m_split_buffer.split_frac;
             o->m_split_buffer.split_count = split_count;
         }
@@ -971,14 +971,14 @@ private:
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) { AMBRO_ASSERT(planner_have_commit_space(c)) }
 #endif
         
-        LinearPlannerSegmentState state[LookaheadBufferSize];
+        typename TheLinearPlanner::SegmentState state[LookaheadBufferSize];
         
         SegmentBufferSizeType i = o->m_segments_length;
-        double v = 0.0;
+        FpType v = 0.0f;
         do {
             i--;
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
-            v = LinearPlannerPush(&entry->lp_seg, &state[i], v);
+            v = TheLinearPlanner::push(&entry->lp_seg, &state[i], v);
         } while (i != 0);
         
         SegmentBufferSizeType commit_count = (o->m_segments_length < LookaheadCommitCount) ? o->m_segments_length : LookaheadCommitCount;
@@ -989,23 +989,23 @@ private:
         
         TimeType time = o->m_staging_time;
         v = o->m_staging_v_squared;
-        double v_start = sqrt(v);
+        FpType v_start = FloatSqrt(v);
         
         do {
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
-            LinearPlannerSegmentResult result;
-            v = LinearPlannerPull(&entry->lp_seg, &state[i], v, &result);
+            typename TheLinearPlanner::SegmentResult result;
+            v = TheLinearPlanner::pull(&entry->lp_seg, &state[i], v, &result);
             if (AMBRO_LIKELY((entry->dir_and_type & TypeMask) == 0)) {
-                double v_end = sqrt(v);
-                double v_const = sqrt(result.const_v);
-                double t0_double = (v_const - v_start) * entry->max_accel_rec;
-                double t2_double = (v_const - v_end) * entry->max_accel_rec;
-                double t1_double = (1.0 - result.const_start - result.const_end) * entry->rel_max_speed_rec;
-                MinTimeType t1 = MinTimeType::importDoubleSaturatedRound(t0_double + t2_double + t1_double);
+                FpType v_end = FloatSqrt(v);
+                FpType v_const = FloatSqrt(result.const_v);
+                FpType t0_double = (v_const - v_start) * entry->max_accel_rec;
+                FpType t2_double = (v_const - v_end) * entry->max_accel_rec;
+                FpType t1_double = (1.0f - result.const_start - result.const_end) * entry->rel_max_speed_rec;
+                MinTimeType t1 = MinTimeType::template importFpSaturatedRound<FpType>(t0_double + t2_double + t1_double);
                 time += t1.bitsValue();
-                MinTimeType t0 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t0_double));
+                MinTimeType t0 = FixedMin(t1, MinTimeType::template importFpSaturatedRound<FpType>(t0_double));
                 t1.m_bits.m_int -= t0.bitsValue();
-                MinTimeType t2 = FixedMin(t1, MinTimeType::importDoubleSaturatedRound(t2_double));
+                MinTimeType t2 = FixedMin(t1, MinTimeType::template importFpSaturatedRound<FpType>(t2_double));
                 t1.m_bits.m_int -= t2.bitsValue();
                 TupleForEachForward(&o->m_axes, Foreach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
@@ -1132,7 +1132,7 @@ private:
                 o->m_segments_length -= o->m_segments_staging_length;
                 o->m_segments_staging_length = 0;
                 o->m_staging_time = 0;
-                o->m_staging_v_squared = 0.0;
+                o->m_staging_v_squared = 0.0f;
                 o->m_current_backup = false;
                 c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
                 TupleForEachForward(&o->m_axes, Foreach_stopped_stepping(), c);
@@ -1197,16 +1197,16 @@ private:
             if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
                 o->m_split_buffer.split_pos++;
                 TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry(), c, entry);
-                double distance_squared = TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_segment_buffer_entry_distance(), entry);
+                FpType distance_squared = TupleForEachForwardAccRes(&o->m_axes, 0.0f, Foreach_compute_segment_buffer_entry_distance(), entry);
                 entry->rel_max_speed_rec = TupleForEachForwardAccRes(&o->m_axes, o->m_split_buffer.rel_max_v_rec, Foreach_compute_segment_buffer_entry_speed(), c, entry);
-                double rel_max_accel_rec = TupleForEachForwardAccRes(&o->m_axes, 0.0, Foreach_compute_segment_buffer_entry_accel(), c, entry);
-                double distance = sqrt(distance_squared);
-                double distance_rec = 1.0 / distance;
-                double rel_max_accel = 1.0 / rel_max_accel_rec;
+                FpType rel_max_accel_rec = TupleForEachForwardAccRes(&o->m_axes, 0.0f, Foreach_compute_segment_buffer_entry_accel(), c, entry);
+                FpType distance = FloatSqrt(distance_squared);
+                FpType distance_rec = 1.0f / distance;
+                FpType rel_max_accel = 1.0f / rel_max_accel_rec;
                 entry->lp_seg.max_v = distance_squared / (entry->rel_max_speed_rec * entry->rel_max_speed_rec);
                 entry->lp_seg.max_end_v = entry->lp_seg.max_v;
                 entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
-                entry->lp_seg.a_x_rec = 1.0 / entry->lp_seg.a_x;
+                entry->lp_seg.a_x_rec = 1.0f / entry->lp_seg.a_x;
                 entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
                 entry->max_accel_rec = rel_max_accel_rec * distance_rec;
                 TupleForEachForward(&o->m_axes, Foreach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
@@ -1222,7 +1222,7 @@ private:
                     o->m_split_buffer.type = 0xFF;
                 }
             } else {
-                entry->lp_seg.a_x = 0.0;
+                entry->lp_seg.a_x = 0.0f;
                 entry->lp_seg.max_v = INFINITY;
                 entry->lp_seg.max_end_v = INFINITY;
                 entry->lp_seg.a_x_rec = INFINITY;
@@ -1252,8 +1252,8 @@ private:
     SegmentBufferSizeType m_segments_staging_length;
     SegmentBufferSizeType m_segments_length;
     TimeType m_staging_time;
-    double m_staging_v_squared;
-    double m_last_distance_rec;
+    FpType m_staging_v_squared;
+    FpType m_last_distance_rec;
     uint8_t m_state;
     bool m_waiting;
     bool m_aborted;

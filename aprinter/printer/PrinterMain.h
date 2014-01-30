@@ -87,7 +87,8 @@ template <
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
     int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSize,
     int TLookaheadCommitCount,
-    typename TForceTimeout, template <typename, typename, typename> class TEventChannelTimer,
+    typename TForceTimeout, typename TFpType,
+    template <typename, typename, typename> class TEventChannelTimer,
     template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
     typename TSdCardParams, typename TProbeParams,
     typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList
@@ -104,6 +105,7 @@ struct PrinterMainParams {
     static const int LookaheadBufferSize = TLookaheadBufferSize;
     static const int LookaheadCommitCount = TLookaheadCommitCount;
     using ForceTimeout = TForceTimeout;
+    using FpType = TFpType;
     template <typename X, typename Y, typename Z> using EventChannelTimer = TEventChannelTimer<X, Y, Z>;
     template <typename X, typename Y, typename Z> using WatchdogTemplate = TWatchdogTemplate<X, Y, Z>;
     using WatchdogParams = TWatchdogParams;
@@ -188,13 +190,13 @@ struct PrinterMainNoTransformParams {
 
 template <
     typename TVirtAxesList, typename TPhysAxesList,
-    template<typename> class TTransformAlg, typename TTransformAlgParams
+    template<typename, typename> class TTransformAlg, typename TTransformAlgParams
 >
 struct PrinterMainTransformParams {
     static bool const Enabled = true;
     using VirtAxesList = TVirtAxesList;
     using PhysAxesList = TPhysAxesList;
-    template <typename X> using TransformAlg = TTransformAlg<X>;
+    template <typename X, typename Y> using TransformAlg = TTransformAlg<X, Y>;
     using TransformAlgParams = TTransformAlgParams;
 };
 
@@ -205,7 +207,7 @@ template <
     typename TMinSafeTemp, typename TMaxSafeTemp,
     typename TPulseInterval,
     typename TControlInterval,
-    template<typename, typename, typename> class TControl,
+    template<typename, typename, typename, typename> class TControl,
     typename TControlParams,
     typename TTheTemperatureObserverParams,
     template<typename, typename, typename> class TTimerTemplate
@@ -223,7 +225,7 @@ struct PrinterMainHeaterParams {
     using MaxSafeTemp = TMaxSafeTemp;
     using PulseInterval = TPulseInterval;
     using ControlInterval = TControlInterval;
-    template <typename X, typename Y, typename Z> using Control = TControl<X, Y, Z>;
+    template <typename X, typename Y, typename Z, typename W> using Control = TControl<X, Y, Z, W>;
     using ControlParams = TControlParams;
     using TheTemperatureObserverParams = TTheTemperatureObserverParams;
     template <typename X, typename Y, typename Z> using TimerTemplate = TTimerTemplate<X, Y, Z>;
@@ -377,6 +379,7 @@ private:
     using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
+    using FpType = typename Params::FpType;
     using AxesList = typename Params::AxesList;
     using TransformParams = typename Params::TransformParams;
     using HeatersList = typename Params::HeatersList;
@@ -604,22 +607,22 @@ private:
             return gc(c)->getPartUint32Value(c, part);
         }
         
-        static double get_command_param_double (Context c, char code, double default_value)
+        static FpType get_command_param_fp (Context c, char code, FpType default_value)
         {
             GcodeParserPartRef part;
             if (!find_command_param(c, code, &part)) {
                 return default_value;
             }
-            return gc(c)->getPartDoubleValue(c, part);
+            return gc(c)->template getPartFpValue<FpType>(c, part);
         }
         
-        static bool find_command_param_double (Context c, char code, double *out)
+        static bool find_command_param_fp (Context c, char code, FpType *out)
         {
             GcodeParserPartRef part;
             if (!find_command_param(c, code, &part)) {
                 return false;
             }
-            *out = gc(c)->getPartDoubleValue(c, part);
+            *out = gc(c)->template getPartFpValue<FpType>(c, part);
             return true;
         }
         
@@ -638,7 +641,7 @@ private:
             Channel::reply_append_ch_impl(c, ch);
         }
         
-        static void reply_append_double (Context c, double x)
+        static void reply_append_fp (Context c, FpType x)
         {
             char buf[30];
 #if defined(AMBROLIB_AVR)
@@ -1208,7 +1211,7 @@ private:
                 using Homer = AxisHomer<
                     HomerPosition, Context, TheAxisStepper, AxisSpec::StepBits,
                     typename AxisSpec::DefaultDistanceFactor, typename AxisSpec::DefaultCorneringDistance,
-                    Params::StepperSegmentBufferSize, Params::LookaheadBufferSize,
+                    Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, FpType,
                     typename AxisSpec::Homing::EndPin,
                     AxisSpec::Homing::end_invert, AxisSpec::Homing::home_dir, HomerGetAxisStepper, HomerFinishedHandler
                 >;
@@ -1234,7 +1237,7 @@ private:
                     
                     o->m_homer.deinit(c);
                     axis->m_req_pos = (AxisSpec::Homing::home_dir ? axis->max_req_pos() : axis->min_req_pos());
-                    axis->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(axis->dist_from_real(axis->m_req_pos));
+                    axis->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(axis->dist_from_real(axis->m_req_pos));
                     axis->m_state = AXIS_STATE_OTHER;
                     m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
                     m->m_homing_rem_axes--;
@@ -1281,13 +1284,13 @@ private:
                 }
                 
                 typename HomingState::Homer::HomingParams params;
-                params.fast_max_dist = StepFixedType::importDoubleSaturatedRound(dist_from_real(AxisSpec::Homing::DefaultFastMaxDist::value()));
-                params.retract_dist = StepFixedType::importDoubleSaturatedRound(dist_from_real(AxisSpec::Homing::DefaultRetractDist::value()));
-                params.slow_max_dist = StepFixedType::importDoubleSaturatedRound(dist_from_real(AxisSpec::Homing::DefaultSlowMaxDist::value()));
-                params.fast_speed = speed_from_real(AxisSpec::Homing::DefaultFastSpeed::value());
-                params.retract_speed = speed_from_real(AxisSpec::Homing::DefaultRetractSpeed::value());;
-                params.slow_speed = speed_from_real(AxisSpec::Homing::DefaultSlowSpeed::value());
-                params.max_accel = accel_from_real(AxisSpec::DefaultMaxAccel::value());
+                params.fast_max_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)AxisSpec::Homing::DefaultFastMaxDist::value()));
+                params.retract_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)AxisSpec::Homing::DefaultRetractDist::value()));
+                params.slow_max_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)AxisSpec::Homing::DefaultSlowMaxDist::value()));
+                params.fast_speed = speed_from_real((FpType)AxisSpec::Homing::DefaultFastSpeed::value());
+                params.retract_speed = speed_from_real((FpType)AxisSpec::Homing::DefaultRetractSpeed::value());
+                params.slow_speed = speed_from_real((FpType)AxisSpec::Homing::DefaultSlowSpeed::value());
+                params.max_accel = accel_from_real((FpType)AxisSpec::DefaultMaxAccel::value());
                 
                 Stepper::enable(c);
                 hs->m_homer.init(c, params);
@@ -1305,7 +1308,7 @@ private:
                 cc->reply_append_ch(c, (triggered ? '1' : '0'));
             }
             
-            static double init_position ()
+            static FpType init_position ()
             {
                 return AxisSpec::Homing::home_dir ? max_req_pos() : min_req_pos();
             };
@@ -1319,7 +1322,7 @@ private:
             static void start_homing (Context c, AxisMaskType mask) {}
             template <typename TheChannelCommon>
             static void append_endstop (Context c, TheChannelCommon *cc) {}
-            static double init_position () { return 0.0; }
+            static FpType init_position () { return 0.0f; }
         };
         
         enum {AXIS_STATE_OTHER, AXIS_STATE_HOMING};
@@ -1329,39 +1332,39 @@ private:
             return PositionTraverse<typename Context::TheRootPosition, AxisPosition<AxisIndex>>(c.root());
         }
         
-        static double dist_from_real (double x)
+        static FpType dist_from_real (FpType x)
         {
-            return (x * AxisSpec::DefaultStepsPerUnit::value());
+            return (x * (FpType)AxisSpec::DefaultStepsPerUnit::value());
         }
         
-        static double dist_to_real (double x)
+        static FpType dist_to_real (FpType x)
         {
-            return (x * (1.0 / AxisSpec::DefaultStepsPerUnit::value()));
+            return (x * (FpType)(1.0 / AxisSpec::DefaultStepsPerUnit::value()));
         }
         
-        static double speed_from_real (double v)
+        static FpType speed_from_real (FpType v)
         {
-            return (v * (AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq));
+            return (v * (FpType)(AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq));
         }
         
-        static double accel_from_real (double a)
+        static FpType accel_from_real (FpType a)
         {
-            return (a * (AxisSpec::DefaultStepsPerUnit::value() / (Clock::time_freq * Clock::time_freq)));
+            return (a * (FpType)(AxisSpec::DefaultStepsPerUnit::value() / (Clock::time_freq * Clock::time_freq)));
         }
         
-        static double clamp_req_pos (double req)
+        static FpType clamp_req_pos (FpType req)
         {
-            return fmax(min_req_pos(), fmin(max_req_pos(), req));
+            return FloatMax(min_req_pos(), FloatMin(max_req_pos(), req));
         }
         
-        static double min_req_pos ()
+        static FpType min_req_pos ()
         {
-            return fmax(AxisSpec::DefaultMin::value(), dist_to_real(AbsStepFixedType::minValue().doubleValue()));
+            return FloatMax((FpType)AxisSpec::DefaultMin::value(), dist_to_real((FpType)AbsStepFixedType::minValue().template fpValue<FpType>()));
         }
         
-        static double max_req_pos ()
+        static FpType max_req_pos ()
         {
-            return fmin(AxisSpec::DefaultMax::value(), dist_to_real(AbsStepFixedType::maxValue().doubleValue()));
+            return FloatMin((FpType)AxisSpec::DefaultMax::value(), dist_to_real((FpType)AbsStepFixedType::maxValue().template fpValue<FpType>()));
         }
         
         static void init (Context c)
@@ -1371,7 +1374,7 @@ private:
             o->m_state = AXIS_STATE_OTHER;
             o->m_homing_feature.init(c);
             o->m_req_pos = HomingFeature::init_position();
-            o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(o->dist_from_real(o->m_req_pos));
+            o->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(o->dist_from_real(o->m_req_pos));
             o->m_relative_positioning = false;
         }
         
@@ -1406,7 +1409,7 @@ private:
             Stepper::disable(c);
         }
         
-        static void update_new_pos (Context c, MoveBuildState *s, double req)
+        static void update_new_pos (Context c, MoveBuildState *s, FpType req)
         {
             Axis *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
@@ -1418,10 +1421,10 @@ private:
         }
         
         template <typename Src, typename AddDistance, typename PlannerCmd>
-        static void do_move (Context c, Src new_pos, AddDistance, double *distance_squared, double *total_steps, PlannerCmd *cmd)
+        static void do_move (Context c, Src new_pos, AddDistance, FpType *distance_squared, FpType *total_steps, PlannerCmd *cmd)
         {
             Axis *o = self(c);
-            AbsStepFixedType new_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(new_pos.template get<AxisIndex>()));
+            AbsStepFixedType new_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(dist_from_real(new_pos.template get<AxisIndex>()));
             bool dir = (new_end_pos >= o->m_end_pos);
             StepFixedType move = StepFixedType::importBits(dir ? 
                 ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)o->m_end_pos.bitsValue()) :
@@ -1429,25 +1432,25 @@ private:
             );
             if (AMBRO_UNLIKELY(move.bitsValue() != 0)) {
                 if (AddDistance::value && AxisSpec::enable_cartesian_speed_limit) {
-                    double delta = dist_to_real(move.doubleValue());
+                    FpType delta = dist_to_real(move.template fpValue<FpType>());
                     *distance_squared += delta * delta;
                 }
-                *total_steps += move.doubleValue();
+                *total_steps += move.template fpValue<FpType>();
                 Stepper::enable(c);
             }
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
             mycmd->dir = dir;
             mycmd->x = move;
-            mycmd->max_v_rec = 1.0 / speed_from_real(AxisSpec::DefaultMaxSpeed::value());
-            mycmd->max_a_rec = 1.0 / accel_from_real(AxisSpec::DefaultMaxAccel::value());
+            mycmd->max_v_rec = 1.0f / speed_from_real((FpType)AxisSpec::DefaultMaxSpeed::value());
+            mycmd->max_a_rec = 1.0f / accel_from_real((FpType)AxisSpec::DefaultMaxAccel::value());
             o->m_end_pos = new_end_pos;
         }
         
         template <typename PlannerCmd>
-        static void limit_axis_move_speed (Context c, double time_freq_by_max_speed, PlannerCmd *cmd)
+        static void limit_axis_move_speed (Context c, FpType time_freq_by_max_speed, PlannerCmd *cmd)
         {
             auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
-            mycmd->max_v_rec = fmax(mycmd->max_v_rec, time_freq_by_max_speed * (1.0 / AxisSpec::DefaultStepsPerUnit::value()));
+            mycmd->max_v_rec = FloatMax(mycmd->max_v_rec, time_freq_by_max_speed * (FpType)(1.0 / AxisSpec::DefaultStepsPerUnit::value()));
         }
         
         static void fix_aborted_pos (Context c)
@@ -1458,19 +1461,19 @@ private:
             RemStepsType rem_steps = m->m_planner.template countAbortedRemSteps<AxisIndex, RemStepsType>(c);
             if (rem_steps != 0) {
                 o->m_end_pos.m_bits.m_int -= rem_steps;
-                o->m_req_pos = dist_to_real(o->m_end_pos.doubleValue());
+                o->m_req_pos = dist_to_real(o->m_end_pos.template fpValue<FpType>());
                 m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
             }
         }
         
-        static void only_set_position (Context c, double value)
+        static void only_set_position (Context c, FpType value)
         {
             Axis *o = self(c);
             o->m_req_pos = clamp_req_pos(value);
-            o->m_end_pos = AbsStepFixedType::importDoubleSaturatedRound(dist_from_real(o->m_req_pos));
+            o->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(dist_from_real(o->m_req_pos));
         }
         
-        static void set_position (Context c, double value, bool *seen_virtual)
+        static void set_position (Context c, FpType value, bool *seen_virtual)
         {
             PrinterMain *m = PrinterMain::self(c);
             only_set_position(c, value);
@@ -1494,8 +1497,8 @@ private:
         uint8_t m_state;
         HomingFeature m_homing_feature;
         AbsStepFixedType m_end_pos;
-        double m_req_pos;
-        double m_old_pos;
+        FpType m_req_pos;
+        FpType m_old_pos;
         bool m_relative_positioning;
         
         struct AxisStepperPosition : public MemberPosition<AxisPosition<AxisIndex>, TheAxisStepper, &Axis::m_axis_stepper> {};
@@ -1528,7 +1531,7 @@ private:
         
         using VirtAxesList = typename TransformParams::VirtAxesList;
         using PhysAxesList = typename TransformParams::PhysAxesList;
-        using TheTransformAlg = typename TransformParams::template TransformAlg<typename TransformParams::TransformAlgParams>;
+        using TheTransformAlg = typename TransformParams::template TransformAlg<typename TransformParams::TransformAlgParams, FpType>;
         using TheSplitter = typename TheTransformAlg::Splitter;
         static int const NumVirtAxes = TheTransformAlg::NumAxes;
         static_assert(TypeListLength<VirtAxesList>::value == NumVirtAxes, "");
@@ -1542,37 +1545,37 @@ private:
         struct PhysReqPosSrc {
             Context m_c;
             template <int Index>
-            double get () { return Axis<VirtAxis<Index>::PhysAxisIndex>::self(m_c)->m_req_pos; }
+            FpType get () { return Axis<VirtAxis<Index>::PhysAxisIndex>::self(m_c)->m_req_pos; }
         };
         
         struct PhysReqPosDst {
             Context m_c;
             template <int Index>
-            void set (double x) { Axis<VirtAxis<Index>::PhysAxisIndex>::self(m_c)->m_req_pos = x; }
+            void set (FpType x) { Axis<VirtAxis<Index>::PhysAxisIndex>::self(m_c)->m_req_pos = x; }
         };
         
         struct VirtReqPosSrc {
             Context m_c;
             template <int Index>
-            double get () { return VirtAxis<Index>::self(m_c)->m_req_pos; }
+            FpType get () { return VirtAxis<Index>::self(m_c)->m_req_pos; }
         };
         
         struct VirtReqPosDst {
             Context m_c;
             template <int Index>
-            void set (double x) { VirtAxis<Index>::self(m_c)->m_req_pos = x; }
+            void set (FpType x) { VirtAxis<Index>::self(m_c)->m_req_pos = x; }
         };
         
         struct ArraySrc {
-            double const *m_arr;
+            FpType const *m_arr;
             template <int Index>
-            double get () { return m_arr[Index]; }
+            FpType get () { return m_arr[Index]; }
         };
         
         struct PhysArrayDst {
-            double *m_arr;
+            FpType *m_arr;
             template <int Index>
-            void set (double x) { m_arr[VirtAxis<Index>::PhysAxisIndex] = x; }
+            void set (FpType x) { m_arr[VirtAxis<Index>::PhysAxisIndex] = x; }
         };
         
         static void init (Context c)
@@ -1591,7 +1594,7 @@ private:
             TheTransformAlg::physToVirt(PhysReqPosSrc{c}, VirtReqPosDst{c});
         }
         
-        static void handle_virt_move (Context c, double time_freq_by_max_speed)
+        static void handle_virt_move (Context c, FpType time_freq_by_max_speed)
         {
             TransformFeature *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
@@ -1604,10 +1607,10 @@ private:
             TheTransformAlg::virtToPhys(VirtReqPosSrc{c}, PhysReqPosDst{c});
             TupleForEachForward(&o->m_virt_axes, Foreach_clamp_req_phys(), c);
             do_pending_virt_update(c);
-            double distance_squared = 0.0;
+            FpType distance_squared = 0.0f;
             TupleForEachForward(&o->m_virt_axes, Foreach_prepare_split(), c, &distance_squared);
             TupleForEachForward(&o->m_secondary_axes, Foreach_prepare_split(), c, &distance_squared);
-            o->m_splitter.start(sqrt(distance_squared), time_freq_by_max_speed);
+            o->m_splitter.start(FloatSqrt(distance_squared), time_freq_by_max_speed);
             do_split(c);
         }
         
@@ -1676,11 +1679,11 @@ private:
             AMBRO_ASSERT(m->m_planning_pull_pending)
             
             do {
-                double rel_max_v_rec;
-                double frac;
-                double move_pos[num_axes];
+                FpType rel_max_v_rec;
+                FpType frac;
+                FpType move_pos[num_axes];
                 if (o->m_splitter.pull(&rel_max_v_rec, &frac)) {
-                    double virt_pos[NumVirtAxes];
+                    FpType virt_pos[NumVirtAxes];
                     TupleForEachForward(&o->m_virt_axes, Foreach_compute_split(), c, frac, virt_pos);
                     TheTransformAlg::virtToPhys(ArraySrc{virt_pos}, PhysArrayDst{move_pos});
                     TupleForEachForward(&o->m_virt_axes, Foreach_clamp_move_phys(), c, move_pos);
@@ -1691,10 +1694,10 @@ private:
                     TupleForEachForward(&o->m_secondary_axes, Foreach_get_final_split(), c, move_pos);
                 }
                 PlannerSplitBuffer *cmd = m->m_planner.getBuffer(c);
-                double total_steps = 0.0;
-                TupleForEachForward(&m->m_axes, Foreach_do_move(), c, ArraySrc{move_pos}, WrapBool<false>(), (double *)0, &total_steps, cmd);
-                if (total_steps != 0.0) {
-                    cmd->rel_max_v_rec = fmax(rel_max_v_rec, total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
+                FpType total_steps = 0.0f;
+                TupleForEachForward(&m->m_axes, Foreach_do_move(), c, ArraySrc{move_pos}, WrapBool<false>(), (FpType *)0, &total_steps, cmd);
+                if (total_steps != 0.0f) {
+                    cmd->rel_max_v_rec = FloatMax(rel_max_v_rec, total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
                     m->m_planner.axesCommandDone(c);
                     goto submitted;
                 }
@@ -1748,7 +1751,7 @@ private:
                 o->m_relative_positioning = false;
             }
             
-            static void update_new_pos (Context c, MoveBuildState *s, double req)
+            static void update_new_pos (Context c, MoveBuildState *s, FpType req)
             {
                 VirtAxis *o = self(c);
                 TransformFeature *t = TransformFeature::self(c);
@@ -1769,32 +1772,32 @@ private:
                 }
             }
             
-            static void clamp_move_phys (Context c, double *move_pos)
+            static void clamp_move_phys (Context c, FpType *move_pos)
             {
                 move_pos[PhysAxisIndex] = ThePhysAxis::clamp_req_pos(move_pos[PhysAxisIndex]);
             }
             
-            static void prepare_split (Context c, double *distance_squared)
+            static void prepare_split (Context c, FpType *distance_squared)
             {
                 VirtAxis *o = self(c);
-                double delta = o->m_req_pos - o->m_old_pos;
+                FpType delta = o->m_req_pos - o->m_old_pos;
                 *distance_squared += delta * delta;
             }
             
-            static void compute_split (Context c, double frac, double *virt_pos)
+            static void compute_split (Context c, FpType frac, FpType *virt_pos)
             {
                 VirtAxis *o = self(c);
                 TransformFeature *t = TransformFeature::self(c);
                 virt_pos[VirtAxisIndex] = o->m_old_pos + (frac * (o->m_req_pos - o->m_old_pos));
             }
             
-            static void get_final_split (Context c, double *move_pos)
+            static void get_final_split (Context c, FpType *move_pos)
             {
                 ThePhysAxis *axis = ThePhysAxis::self(c);
                 move_pos[PhysAxisIndex] = axis->m_req_pos;
             }
             
-            static void set_position (Context c, double value, bool *seen_virtual)
+            static void set_position (Context c, FpType value, bool *seen_virtual)
             {
                 VirtAxis *o = self(c);
                 o->m_req_pos = value;
@@ -1805,15 +1808,15 @@ private:
             {
                 ThePhysAxis *axis = ThePhysAxis::self(c);
                 TransformFeature *t = TransformFeature::self(c);
-                double req = axis->m_req_pos;
+                FpType req = axis->m_req_pos;
                 axis->only_set_position(c, req);
                 if (axis->m_req_pos != req) {
                     t->m_virt_update_pending = true;
                 }
             }
             
-            double m_req_pos;
-            double m_old_pos;
+            FpType m_req_pos;
+            FpType m_old_pos;
             bool m_relative_positioning;
         };
         
@@ -1847,23 +1850,23 @@ private:
                 return PositionTraverse<typename Context::TheRootPosition, SecondaryAxisPosition<SecondaryAxisIndex>>(c.root());
             }
             
-            static void prepare_split (Context c, double *distance_squared)
+            static void prepare_split (Context c, FpType *distance_squared)
             {
                 TheAxis *axis = TheAxis::self(c);
                 if (TheAxis::AxisSpec::enable_cartesian_speed_limit) {
-                    double delta = axis->m_req_pos - axis->m_old_pos;
+                    FpType delta = axis->m_req_pos - axis->m_old_pos;
                     *distance_squared += delta * delta;
                 }
             }
             
-            static void compute_split (Context c, double frac, double *move_pos)
+            static void compute_split (Context c, FpType frac, FpType *move_pos)
             {
                 TheAxis *axis = TheAxis::self(c);
                 TransformFeature *t = TransformFeature::self(c);
                 move_pos[AxisIndex] = axis->m_old_pos + (frac * (axis->m_req_pos - axis->m_old_pos));
             }
             
-            static void get_final_split (Context c, double *move_pos)
+            static void get_final_split (Context c, FpType *move_pos)
             {
                 TheAxis *axis = TheAxis::self(c);
                 move_pos[AxisIndex] = axis->m_req_pos;
@@ -1884,7 +1887,7 @@ private:
     } AMBRO_STRUCT_ELSE(TransformFeature) {
         static int const NumVirtAxes = 0;
         static void init (Context c) {}
-        static void handle_virt_move (Context c, double time_freq_by_max_speed) {}
+        static void handle_virt_move (Context c, FpType time_freq_by_max_speed) {}
         template <int PhysAxisIndex>
         static void mark_phys_moved (Context c) {}
         static void do_pending_virt_update (Context c) {}
@@ -1920,7 +1923,7 @@ private:
             axis->m_old_pos = axis->m_req_pos;
         }
         
-        static void update_new_pos (Context c, MoveBuildState *s, double req)
+        static void update_new_pos (Context c, MoveBuildState *s, FpType req)
         {
             TheAxis::update_new_pos(c, s, req);
         }
@@ -1930,7 +1933,7 @@ private:
         {
             TheAxis *axis = TheAxis::self(c);
             if (AMBRO_UNLIKELY(cc->gc(c)->getPartCode(c, part) == TheAxis::axis_name)) {
-                double req = cc->gc(c)->getPartDoubleValue(c, part);
+                FpType req = cc->gc(c)->template getPartFpValue<FpType>(c, part);
                 if (axis->m_relative_positioning) {
                     req += axis->m_old_pos;
                 }
@@ -1952,14 +1955,14 @@ private:
             TheAxis *axis = TheAxis::self(c);
             cc->reply_append_ch(c, TheAxis::axis_name);
             cc->reply_append_ch(c, ':');
-            cc->reply_append_double(c, axis->m_req_pos);
+            cc->reply_append_fp(c, axis->m_req_pos);
         }
         
         template <typename TheChannelCommon>
         static void set_position (Context c, TheChannelCommon *cc, typename TheChannelCommon::GcodeParserPartRef part, bool *seen_virtual)
         {
             if (cc->gc(c)->getPartCode(c, part) == TheAxis::axis_name) {
-                double value = cc->gc(c)->getPartDoubleValue(c, part);
+                FpType value = cc->gc(c)->template getPartFpValue<FpType>(c, part);
                 TheAxis::set_position(c, value, seen_virtual);
             }
         }
@@ -1988,10 +1991,10 @@ private:
         static const bool MainControlEnabled = (HeaterSpec::ControlInterval::value() != 0.0);
         using ValueFixedType = typename HeaterSpec::Formula::ValueFixedType;
         using MeasurementInterval = If<MainControlEnabled, typename HeaterSpec::ControlInterval, typename HeaterSpec::PulseInterval>;
-        using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, MeasurementInterval, ValueFixedType>;
+        using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, MeasurementInterval, ValueFixedType, FpType>;
         using ControlConfig = typename TheControl::Config;
         using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename HeaterSpec::OutputPin, HeaterSpec::OutputInvert, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
-        using TheObserver = TemperatureObserver<ObserverPosition, Context, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
+        using TheObserver = TemperatureObserver<ObserverPosition, Context, FpType, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using OutputFixedType = typename TheControl::OutputFixedType;
         using PwmPowerData = typename TheSoftPwm::PowerData;
         
@@ -2004,12 +2007,12 @@ private:
         
         static ValueFixedType min_safe_temp ()
         {
-            return ValueFixedType::importDoubleSaturatedRoundInline(HeaterSpec::MinSafeTemp::value());
+            return ValueFixedType::template importFpSaturatedRoundInline<FpType>((FpType)HeaterSpec::MinSafeTemp::value());
         }
         
         static ValueFixedType max_safe_temp ()
         {
-            return ValueFixedType::importDoubleSaturatedRoundInline(HeaterSpec::MaxSafeTemp::value());
+            return ValueFixedType::template importFpSaturatedRoundInline<FpType>((FpType)HeaterSpec::MaxSafeTemp::value());
         }
         
         static Heater * self (Context c)
@@ -2050,11 +2053,11 @@ private:
         static void append_value (Context c, TheChannelCommon *cc)
         {
             auto adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
-            double value = HeaterSpec::Formula::call(adc_value).doubleValue();
+            FpType value = HeaterSpec::Formula::call(adc_value).template fpValue<FpType>();
             cc->reply_append_ch(c, ' ');
             cc->reply_append_ch(c, HeaterSpec::Name);
             cc->reply_append_ch(c, ':');
-            cc->reply_append_double(c, value);
+            cc->reply_append_fp(c, value);
 #ifdef PRINTERMAIN_DEBUG_ADC
             cc->reply_append_ch(c, ' ');
             cc->reply_append_ch(c, HeaterSpec::Name);
@@ -2097,8 +2100,8 @@ private:
                 if (!cc->tryUnplannedCommand(c)) {
                     return false;
                 }
-                double target = cc->get_command_param_double(c, 'S', 0.0);
-                ValueFixedType fixed_target = ValueFixedType::importDoubleSaturatedRound(target);
+                FpType target = cc->get_command_param_fp(c, 'S', 0.0f);
+                ValueFixedType fixed_target = ValueFixedType::template importFpSaturatedRound<FpType>(target);
                 if (fixed_target > min_safe_temp() && fixed_target < max_safe_temp()) {
                     set(c, fixed_target);
                 } else {
@@ -2114,9 +2117,9 @@ private:
                 if (!cc->tryPlannedCommand(c)) {
                     return false;
                 }
-                double target = cc->get_command_param_double(c, 'S', 0.0);
+                FpType target = cc->get_command_param_fp(c, 'S', 0.0f);
                 cc->finishCommand(c);
-                ValueFixedType fixed_target = ValueFixedType::importDoubleSaturatedRound(target);
+                ValueFixedType fixed_target = ValueFixedType::template importFpSaturatedRound<FpType>(target);
                 if (!(fixed_target > min_safe_temp() && fixed_target < max_safe_temp())) {
                     fixed_target = ValueFixedType::minValue();
                 }
@@ -2158,10 +2161,10 @@ private:
             o->m_main_control.get_output_for_pwm(c, pd);
         }
         
-        static double observer_get_value_callback (Context c)
+        static FpType observer_get_value_callback (Context c)
         {
             Heater *o = self(c);
-            return o->get_value(c).doubleValue();
+            return o->get_value(c).template fpValue<FpType>();
         }
         
         static void observer_handler (Context c, bool state)
@@ -2368,18 +2371,18 @@ private:
                 if (!cc->tryPlannedCommand(c)) {
                     return false;
                 }
-                double target = 0.0;
+                FpType target = 0.0f;
                 if (cc->gc(c)->getCmdNumber(c) == FanSpec::SetMCommand) {
-                    target = 1.0;
-                    if (cc->find_command_param_double(c, 'S', &target)) {
-                        target *= FanSpec::SpeedMultiply::value();
+                    target = 1.0f;
+                    if (cc->find_command_param_fp(c, 'S', &target)) {
+                        target *= (FpType)FanSpec::SpeedMultiply::value();
                     }
                 }
                 cc->finishCommand(c);
                 PlannerSplitBuffer *cmd = m->m_planner.getBuffer(c);
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
-                TheSoftPwm::computePowerData(OutputFixedType::importDoubleSaturatedRound(target), &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
+                TheSoftPwm::computePowerData(OutputFixedType::template importFpSaturatedRound<FpType>(target), &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
                 m->m_planner.channelCommandDone(c, 1);
                 submitted_planner_command(c);
                 return false;
@@ -2433,7 +2436,7 @@ private:
     
     using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, Params::template EventChannelTimer>>;
     using MotionPlannerAxes = MapTypeList<IndexElemList<AxesList, Axis>, TemplateFunc<MakePlannerAxisSpec>>;
-    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels>;
+    using ThePlanner = MotionPlanner<PlannerPosition, Context, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels>;
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
     template <int AxisIndex>
@@ -2489,8 +2492,8 @@ private:
             static void add_axis (Context c, MoveBuildState *s, uint8_t point_index)
             {
                 PointHelperTuple dummy;
-                double coord = TupleForOne<double>(point_index, &dummy, Foreach_get_coord());
-                move_add_axis<AxisIndex>(c, s, coord + AxisProbeOffset::value());
+                FpType coord = TupleForOne<FpType>(point_index, &dummy, Foreach_get_coord());
+                move_add_axis<AxisIndex>(c, s, coord + (FpType)AxisProbeOffset::value());
             }
             
             template <int PointIndex>
@@ -2498,9 +2501,9 @@ private:
                 using Point = TypeListGet<typename ProbeParams::ProbePoints, PointIndex>;
                 using PointCoord = TypeListGet<Point, PlatformAxisIndex>;
                 
-                static double get_coord ()
+                static FpType get_coord ()
                 {
-                    return PointCoord::value();
+                    return (FpType)PointCoord::value();
                 }
             };
             
@@ -2521,30 +2524,30 @@ private:
             }
             MoveBuildState s;
             move_begin(c, &s);
-            double height;
-            double time_freq_by_speed;
+            FpType height;
+            FpType time_freq_by_speed;
             switch (o->m_point_state) {
                 case 0: {
                     AxisHelperTuple dummy;
                     TupleForEachForward(&dummy, Foreach_add_axis(), c, &s, o->m_current_point);
-                    height = ProbeParams::ProbeStartHeight::value();
-                    time_freq_by_speed = Clock::time_freq / ProbeParams::ProbeMoveSpeed::value();
+                    height = (FpType)ProbeParams::ProbeStartHeight::value();
+                    time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeMoveSpeed::value());
                 } break;
                 case 1: {
-                    height = ProbeParams::ProbeLowHeight::value();
-                    time_freq_by_speed = Clock::time_freq / ProbeParams::ProbeFastSpeed::value();
+                    height = (FpType)ProbeParams::ProbeLowHeight::value();
+                    time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeFastSpeed::value());
                 } break;
                 case 2: {
-                    height = get_height(c) + ProbeParams::ProbeRetractDist::value();
-                    time_freq_by_speed = Clock::time_freq / ProbeParams::ProbeRetractSpeed::value();
+                    height = get_height(c) + (FpType)ProbeParams::ProbeRetractDist::value();
+                    time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeRetractSpeed::value());
                 } break;
                 case 3: {
-                    height = ProbeParams::ProbeLowHeight::value();
-                    time_freq_by_speed = Clock::time_freq / ProbeParams::ProbeSlowSpeed::value();
+                    height = (FpType)ProbeParams::ProbeLowHeight::value();
+                    time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeSlowSpeed::value());
                 } break;
                 case 4: {
-                    height = ProbeParams::ProbeStartHeight::value();
-                    time_freq_by_speed = Clock::time_freq / ProbeParams::ProbeRetractSpeed::value();
+                    height = (FpType)ProbeParams::ProbeStartHeight::value();
+                    time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeRetractSpeed::value());
                 } break;
             }
             move_add_axis<ProbeAxisIndex>(c, &s, height);
@@ -2562,7 +2565,7 @@ private:
             o->m_command_sent = false;
             if (o->m_point_state < 4) {
                 if (o->m_point_state == 3) {
-                    double height = get_height(c);
+                    FpType height = get_height(c);
                     o->m_samples[o->m_current_point] = height;
                     Tuple<ChannelCommonList> dummy;
                     TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_report_height(), height);
@@ -2603,23 +2606,23 @@ private:
             custom_planner_init(c, PLANNER_PROBE, watch_probe);
         }
         
-        static double get_height (Context c)
+        static FpType get_height (Context c)
         {
             return GetPhysVirtAxis<ProbeAxisIndex>::self(c)->m_req_pos;
         }
         
         template <typename TheChannelCommon>
-        static void report_height (Context c, TheChannelCommon *cc, double height)
+        static void report_height (Context c, TheChannelCommon *cc, FpType height)
         {
             cc->reply_append_pstr(c, AMBRO_PSTR("//ProbeHeight "));
-            cc->reply_append_double(c, height);
+            cc->reply_append_fp(c, height);
             cc->reply_append_ch(c, '\n');
         }
         
         uint8_t m_current_point;
         uint8_t m_point_state;
         bool m_command_sent;
-        double m_samples[NumPoints];
+        FpType m_samples[NumPoints];
     } AMBRO_STRUCT_ELSE(ProbeFeature) {
         static void init (Context c) {}
         static void deinit (Context c) {}
@@ -2641,7 +2644,7 @@ public:
         o->m_disable_timer.init(c, PrinterMain::disable_timer_handler);
         o->m_force_timer.init(c, PrinterMain::force_timer_handler);
         o->m_watchdog.init(c);
-        o->m_blinker.init(c, Params::LedBlinkInterval::value() * Clock::time_freq);
+        o->m_blinker.init(c, (FpType)(Params::LedBlinkInterval::value() * Clock::time_freq));
         o->m_steppers.init(c);
         o->m_serial_feature.init(c);
         o->m_sdcard_feature.init(c);
@@ -2650,8 +2653,8 @@ public:
         TupleForEachForward(&o->m_heaters, Foreach_init(), c);
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
         o->m_probe_feature.init(c);
-        o->m_inactive_time = Params::DefaultInactiveTime::value() * Clock::time_freq;
-        o->m_time_freq_by_max_speed = 0.0;
+        o->m_inactive_time = (FpType)(Params::DefaultInactiveTime::value() * Clock::time_freq);
+        o->m_time_freq_by_max_speed = 0.0f;
         o->m_underrun_count = 0;
         o->m_locked = false;
         o->m_planner_state = PLANNER_NONE;
@@ -2754,9 +2757,9 @@ private:
         return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
     }
     
-    static TimeType time_from_real (double t)
+    static TimeType time_from_real (FpType t)
     {
-        return (FixedPoint<30, false, 0>::importDoubleSaturatedRound(t * Clock::time_freq)).bitsValue();
+        return (FixedPoint<30, false, 0>::template importFpSaturatedRound<FpType>(t * (FpType)Clock::time_freq)).bitsValue();
     }
     
     static void blinker_handler (Context c)
@@ -2804,8 +2807,8 @@ private:
                     if (!cc->tryUnplannedCommand(c)) {
                         return;
                     }
-                    double inactive_time;
-                    if (cc->find_command_param_double(c, 'S', &inactive_time)) {
+                    FpType inactive_time;
+                    if (cc->find_command_param_fp(c, 'S', &inactive_time)) {
                         o->m_inactive_time = time_from_real(inactive_time);
                         if (o->m_disable_timer.isSet(c)) {
                             o->m_disable_timer.appendAt(c, o->m_last_active_time + o->m_inactive_time);
@@ -2886,7 +2889,7 @@ private:
                         PhysVirtAxisHelperTuple dummy;
                         if (TupleForEachForwardInterruptible(&dummy, Foreach_collect_new_pos(), c, cc, &s, part)) {
                             if (cc->gc(c)->getPartCode(c, part) == 'F') {
-                                o->m_time_freq_by_max_speed = (Clock::time_freq / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cc->gc(c)->getPartDoubleValue(c, part));
+                                o->m_time_freq_by_max_speed = (FpType)(Clock::time_freq / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cc->gc(c)->template getPartFpValue<FpType>(c, part));
                             }
                         }
                     }
@@ -3172,7 +3175,7 @@ private:
     }
     
     template <int PhysVirtAxisIndex>
-    static void move_add_axis (Context c, MoveBuildState *s, double value)
+    static void move_add_axis (Context c, MoveBuildState *s, FpType value)
     {
         PhysVirtAxisHelper<PhysVirtAxisIndex>::update_new_pos(c, s, value);
     }
@@ -3180,10 +3183,10 @@ private:
     struct ReqPosSrc {
         Context m_c;
         template <int Index>
-        double get () { return Axis<Index>::self(m_c)->m_req_pos; }
+        FpType get () { return Axis<Index>::self(m_c)->m_req_pos; }
     };
     
-    static void move_end (Context c, MoveBuildState *s, double time_freq_by_max_speed)
+    static void move_end (Context c, MoveBuildState *s, FpType time_freq_by_max_speed)
     {
         PrinterMain *o = self(c);
         AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING || o->m_planner_state == PLANNER_PROBE)
@@ -3195,14 +3198,14 @@ private:
             return;
         }
         PlannerSplitBuffer *cmd = o->m_planner.getBuffer(c);
-        double distance_squared = 0.0;
-        double total_steps = 0.0;
+        FpType distance_squared = 0.0f;
+        FpType total_steps = 0.0f;
         TupleForEachForward(&o->m_axes, Foreach_do_move(), c, ReqPosSrc{c}, WrapBool<true>(), &distance_squared, &total_steps, cmd);
         o->m_transform_feature.do_pending_virt_update(c);
-        if (total_steps != 0.0) {
-            cmd->rel_max_v_rec = total_steps * (1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
+        if (total_steps != 0.0f) {
+            cmd->rel_max_v_rec = total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
             if (s->seen_cartesian) {
-                cmd->rel_max_v_rec = fmax(cmd->rel_max_v_rec, sqrt(distance_squared) * time_freq_by_max_speed);
+                cmd->rel_max_v_rec = FloatMax(cmd->rel_max_v_rec, FloatSqrt(distance_squared) * time_freq_by_max_speed);
             } else {
                 TupleForEachForward(&o->m_axes, Foreach_limit_axis_move_speed(), c, time_freq_by_max_speed, cmd);
             }
@@ -3272,7 +3275,7 @@ private:
     ProbeFeature m_probe_feature;
     TimeType m_inactive_time;
     TimeType m_last_active_time;
-    double m_time_freq_by_max_speed;
+    FpType m_time_freq_by_max_speed;
     uint32_t m_underrun_count;
     bool m_locked;
     uint8_t m_planner_state;

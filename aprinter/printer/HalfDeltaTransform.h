@@ -26,7 +26,6 @@
 #define AMBROLIB_HALF_DELTA_TRANSFORM_H
 
 #include <stdint.h>
-#include <math.h>
 
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/math/Vector3.h>
@@ -47,15 +46,16 @@ struct HalfDeltaTransformParams {
     using SplitLength = TSplitLength;
 };
 
-template <typename Params>
+template <typename Params, typename FpType>
 class HalfDeltaTransform {
 private:
-    static constexpr double square (double x)
+    static constexpr FpType square (FpType x)
     {
         return x * x;
     }
     
     using DiagonalRod2 = AMBRO_WRAP_DOUBLE(square(Params::DiagonalRod::value()));
+    using MyVector = Vector3<FpType>;
     
 public:
     static int const NumAxes = 2;
@@ -63,25 +63,25 @@ public:
     template <typename Src, typename Dst>
     static void virtToPhys (Src virt, Dst out_phys)
     {
-        out_phys.template set<0>(sqrt(DiagonalRod2::value() - square(Params::Tower1X::value() - virt.template get<0>())) + virt.template get<1>());
-        out_phys.template set<1>(sqrt(DiagonalRod2::value() - square(Params::Tower2X::value() - virt.template get<0>())) + virt.template get<1>());
+        out_phys.template set<0>(FloatSqrt((FpType)DiagonalRod2::value() - square((FpType)Params::Tower1X::value() - virt.template get<0>())) + virt.template get<1>());
+        out_phys.template set<1>(FloatSqrt((FpType)DiagonalRod2::value() - square((FpType)Params::Tower2X::value() - virt.template get<0>())) + virt.template get<1>());
     }
     
     template <typename Src, typename Dst>
     static void physToVirt (Src phys, Dst out_virt)
     {
-        Vector3 p1 = Vector3::make(Params::Tower1X::value(), phys.template get<0>(), 0);
-        Vector3 p2 = Vector3::make(Params::Tower2X::value(), phys.template get<1>(), 0);
-        Vector3 pc = (p1 * 0.5) + (p2 * 0.5);
-        Vector3 v12 = p2 - p1;
-        Vector3 normal = Vector3::make(v12.m_v[1], -v12.m_v[0], 0);
-        double d = sqrt((DiagonalRod2::value() / v12.norm()) - 0.25);
-        Vector3 ps = pc + (normal * d);
+        MyVector p1 = MyVector::make((FpType)Params::Tower1X::value(), phys.template get<0>(), 0);
+        MyVector p2 = MyVector::make((FpType)Params::Tower2X::value(), phys.template get<1>(), 0);
+        MyVector pc = (p1 * 0.5f) + (p2 * 0.5f);
+        MyVector v12 = p2 - p1;
+        MyVector normal = MyVector::make(v12.m_v[1], -v12.m_v[0], 0);
+        FpType d = FloatSqrt(((FpType)DiagonalRod2::value() / v12.norm()) - 0.25f);
+        MyVector ps = pc + (normal * d);
         out_virt.template set<0>(ps.m_v[0]);
         out_virt.template set<1>(ps.m_v[1]);
     }
     
-    using Splitter = DistanceSplitter<typename Params::SplitLength>;
+    using Splitter = DistanceSplitter<typename Params::SplitLength, FpType>;
 };
 
 #include <aprinter/EndNamespace.h>

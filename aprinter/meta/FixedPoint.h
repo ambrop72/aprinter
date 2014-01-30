@@ -77,39 +77,26 @@ public:
         return m_bits.value();
     }
     
-    static FixedPoint importDouble (double op)
+    template <typename FpType>
+    static FixedPoint importFpSaturatedRound (FpType op)
     {
-#ifdef AMBROLIB_ASSERTIONS
-        double a = trunc(ldexp(op, -Exp));
-        AMBRO_ASSERT(!Signed || a > -ldexp(1.0, NumBits))
-        AMBRO_ASSERT(Signed || a >= 0.0)
-        AMBRO_ASSERT(a < ldexp(1.0, NumBits))
-#endif
-        
-        if (Exp == 0) {
-            return importBits(trunc(op));
-        } else {
-            return importBits(trunc(ldexp(op, -Exp)));
-        }
+        return importFpSaturatedRoundInline(op);
     }
     
-    static FixedPoint importDoubleSaturatedRound (double op)
-    {
-        return importDoubleSaturatedRoundInline(op);
-    }
-    
+    template <typename FpType>
     AMBRO_ALWAYS_INLINE
-    static FixedPoint importDoubleSaturatedRoundInline (double op)
+    static FixedPoint importFpSaturatedRoundInline (FpType op)
     {
-        return ImportDoubleImpl<(IsAvr && NumBits <= LongIntBits)>::call(op);
+        return ImportFpImpl<FpType, (IsAvr && NumBits <= LongIntBits)>::call(op);
     }
     
-    double doubleValue () const
+    template <typename FpType>
+    FpType fpValue () const
     {
         if (Exp == 0) {
             return bitsValue();
         } else {
-            return ldexp(bitsValue(), Exp);
+            return FloatLdexp<FpType>(bitsValue(), Exp);
         }
     }
     
@@ -216,29 +203,29 @@ private:
 #endif
     static int const LongIntBits = (8 * sizeof(long int)) - 1;
     
-    template <bool UseLround, typename Dummy = void>
-    struct ImportDoubleImpl {
+    template <typename FpType, bool UseLround, typename Dummy = void>
+    struct ImportFpImpl {
         AMBRO_ALWAYS_INLINE
-        static FixedPoint call (double op)
+        static FixedPoint call (FpType op)
         {
             if (Exp != 0) {
-                op = ldexp(op, -Exp);
+                op = FloatLdexp(op, -Exp);
             }
-            double a = round(op);
-            if (a <= (Signed ? -ldexp(1.0, NumBits) : 0.0)) {
+            FpType a = FloatRound(op);
+            if (a <= (Signed ? -FloatLdexp<FpType>(1.0f, NumBits) : 0.0f)) {
                 return minValue();
             }
-            if (a >= ldexp(1.0, NumBits)) {
+            if (a >= FloatLdexp<FpType>(1.0f, NumBits)) {
                 return maxValue();
             }
             return importBits(a);
         }
     };
     
-    template <typename Dummy>
-    struct ImportDoubleImpl<true, Dummy> {
+    template <typename FpType, typename Dummy>
+    struct ImportFpImpl<FpType, true, Dummy> {
         AMBRO_ALWAYS_INLINE
-        static FixedPoint call (double op)
+        static FixedPoint call (float op)
         {
             if (Exp != 0) {
                 op = ldexp(op, -Exp);

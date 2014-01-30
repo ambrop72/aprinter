@@ -29,41 +29,51 @@
 #include <float.h>
 #include <string.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/If.h>
 #include <aprinter/math/PrintInt.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename T>
+struct IsFpType {
+    static bool const value = false;
+};
+
+template <>
+struct IsFpType<float> {
+    static bool const value = true;
+};
+
+template <>
+struct IsFpType<double> {
+    static bool const value = true;
+};
+
+template <typename T>
+struct IsFloat {
+    static bool const value = TypesAreEqual<T, float>::value;
+};
+
+template <typename T>
 bool FloatIsPosOrPosZero (T x)
 {
+    static_assert(IsFpType<T>::value, "");
+    
     return (signbit(x) == 0 && !isnan(x));
 }
 
 template <typename T>
 T FloatMakePosOrPosZero (T x)
 {
-    if (!(x > 0.0)) {
-        x = 0.0;
+    static_assert(IsFpType<T>::value, "");
+    
+    if (!(x > 0.0f)) {
+        x = 0.0f;
     }
     return x;
-}
-
-template <typename T>
-T FloatPositiveIntegerRange ()
-{
-    static_assert(TypesAreEqual<T, float>::value || TypesAreEqual<T, double>::value, "");
-    
-    return ldexp(1.0, (TypesAreEqual<T, float>::value ? FLT_MANT_DIG : DBL_MANT_DIG));
-}
-
-template <typename T>
-T FloatSignedIntegerRange ()
-{
-    static_assert(TypesAreEqual<T, float>::value || TypesAreEqual<T, double>::value, "");
-    
-    return ldexp(1.0, (TypesAreEqual<T, float>::value ? FLT_MANT_DIG : DBL_MANT_DIG) - 1);
 }
 
 static void FloatToStrSoft (double x, char *s, int prec_approx = 6, bool pretty = true)
@@ -126,6 +136,8 @@ static void FloatToStrSoft (double x, char *s, int prec_approx = 6, bool pretty 
 template <typename T>
 bool FloatSignBit (T x)
 {
+    static_assert(IsFpType<T>::value, "");
+    
 #ifdef AMBROLIB_AVR
     static_assert(sizeof(x) == 4, "");
     union { float f; uint8_t b[4]; } u;
@@ -134,6 +146,95 @@ bool FloatSignBit (T x)
 #else
     return signbit(x);
 #endif
+}
+
+template <typename T>
+T FloatSqrt (T x)
+{
+    static_assert(IsFpType<T>::value, "");
+    
+    return IsFloat<T>::value ? sqrtf(x) : sqrt(x);
+}
+
+template <typename T>
+T StrToFloat (char const *nptr, char **endptr)
+{
+    static_assert(IsFpType<T>::value, "");
+    
+#ifdef AMBROLIB_AVR
+    return strtod(nptr, endptr);
+#else
+    return IsFloat<T>::value ? strtof(nptr, endptr) : strtod(nptr, endptr);
+#endif
+}
+
+template <typename T>
+T FloatLdexp (T x, int exp)
+{
+    static_assert(IsFpType<T>::value, "");
+    
+    return IsFloat<T>::value ? ldexpf(x, exp) : ldexp(x, exp);
+}
+
+template <typename T>
+T FloatRound (T x)
+{
+    static_assert(IsFpType<T>::value, "");
+    
+    return IsFloat<T>::value ? roundf(x) : round(x);
+}
+
+template <typename T>
+T FloatCeil (T x)
+{
+    static_assert(IsFpType<T>::value, "");
+    
+    return IsFloat<T>::value ? ceilf(x) : ceil(x);
+}
+
+template <typename T>
+T FloatAbs (T x)
+{
+    static_assert(IsFpType<T>::value, "");
+    
+    return IsFloat<T>::value ? fabsf(x) : fabs(x);
+}
+
+template <typename T1, typename T2>
+using FloatPromote = If<(IsFloat<T1>::value && IsFloat<T2>::value), float, double>;
+
+template <typename T1, typename T2>
+FloatPromote<T1, T2> FloatMin (T1 x, T2 y)
+{
+    static_assert(IsFpType<T1>::value, "");
+    static_assert(IsFpType<T2>::value, "");
+    
+    return IsFloat<FloatPromote<T1, T2>>::value ? fminf(x, y) : fmin(x, y);
+}
+
+template <typename T1, typename T2>
+FloatPromote<T1, T2> FloatMax (T1 x, T2 y)
+{
+    static_assert(IsFpType<T1>::value, "");
+    static_assert(IsFpType<T2>::value, "");
+    
+    return IsFloat<FloatPromote<T1, T2>>::value ? fmaxf(x, y) : fmax(x, y);
+}
+
+template <typename T>
+T FloatPositiveIntegerRange ()
+{
+    static_assert(IsFpType<T>::value, "");
+    
+    return FloatLdexp<T>(1.0f, (IsFloat<T>::value ? FLT_MANT_DIG : DBL_MANT_DIG));
+}
+
+template <typename T>
+T FloatSignedIntegerRange ()
+{
+    static_assert(IsFpType<T>::value, "");
+    
+    return FloatLdexp<T>(1.0f, (IsFloat<T>::value ? FLT_MANT_DIG : DBL_MANT_DIG) - 1);
 }
 
 #include <aprinter/EndNamespace.h>

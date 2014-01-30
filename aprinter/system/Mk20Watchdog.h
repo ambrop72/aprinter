@@ -26,7 +26,6 @@
 #define AMBROLIB_MK20_WATCHDOG_H
 
 #include <stdint.h>
-#include <math.h>
 
 #include <aprinter/meta/Position.h>
 #include <aprinter/meta/RemoveReference.h>

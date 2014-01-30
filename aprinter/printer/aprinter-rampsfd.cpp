@@ -24,7 +24,6 @@
 
 #include <stdint.h>
 #include <stdio.h>
-#include <math.h>
 
 #include <aprinter/platform/at91sam3x/at91sam3x_support.h>
 
@@ -206,6 +205,7 @@ using PrinterParams = PrinterMainParams<
     20, // LookaheadBufferSize
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
+    double, // FpType
     At91Sam3xClockInterruptTimer_TC0A, // EventChannelTimer
     At91Sam3xWatchdog,
     At91Sam3xWatchdogParams<260>,

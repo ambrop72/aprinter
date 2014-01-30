@@ -309,7 +309,8 @@ public:
         return part->code;
     }
     
-    static double getPartDoubleValue (Context c, PartRef part)
+    template <typename FpType>
+    static FpType getPartFpValue (Context c, PartRef part)
     {
         BinaryGcodeParser *o = self(c);
         o->debugAccess(c);
@@ -332,7 +333,7 @@ public:
             } break;
             
             default:
-                return 0.0;
+                return 0.0f;
         }
     }
     

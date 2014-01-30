@@ -32,6 +32,7 @@
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/Position.h>
+#include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
@@ -286,14 +287,15 @@ public:
         return part->code;
     }
     
-    static double getPartDoubleValue (Context c, PartRef part)
+    template <typename FpType>
+    static FpType getPartFpValue (Context c, PartRef part)
     {
         GcodeParser *o = self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_command.num_parts >= 0)
         
-        return strtod(part->data, NULL);
+        return StrToFloat<FpType>(part->data, NULL);
     }
     
     static uint32_t getPartUint32Value (Context c, PartRef part)

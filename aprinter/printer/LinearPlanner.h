@@ -25,72 +25,73 @@
 #ifndef AMBROLIB_LINEAR_PLANNER_H
 #define AMBROLIB_LINEAR_PLANNER_H
 
-#include <math.h>
-
 #include <aprinter/base/Assert.h>
 #include <aprinter/math/FloatTools.h>
 
 #include <aprinter/BeginNamespace.h>
 
-struct LinearPlannerSegmentData {
-    double a_x;
-    double max_v;
-    double max_end_v;
-    double a_x_rec;
-    double two_max_v_minus_a_x;
-};
+template <typename FpType>
+struct LinearPlanner {
+    struct SegmentData {
+        FpType a_x;
+        FpType max_v;
+        FpType max_end_v;
+        FpType a_x_rec;
+        FpType two_max_v_minus_a_x;
+    };
 
-struct LinearPlannerSegmentState {
-    double end_v;
-};
+    struct SegmentState {
+        FpType end_v;
+    };
 
-struct LinearPlannerSegmentResult {
-    double const_start;
-    double const_end;
-    double const_v;
-};
+    struct SegmentResult {
+        FpType const_start;
+        FpType const_end;
+        FpType const_v;
+    };
 
-static double LinearPlannerPush (LinearPlannerSegmentData *segment, LinearPlannerSegmentState *s, double end_v)
-{
-    AMBRO_ASSERT(segment)
-    AMBRO_ASSERT(FloatIsPosOrPosZero(segment->a_x))
-    AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_v))
-    AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_end_v))
-    AMBRO_ASSERT(segment->max_end_v <= segment->max_v)
-    AMBRO_ASSERT(FloatIsPosOrPosZero(end_v))
-    
-    s->end_v = fmin(segment->max_end_v, end_v);
-    return s->end_v + segment->a_x;
-}
-
-static double LinearPlannerPull (LinearPlannerSegmentData *segment, LinearPlannerSegmentState *s, double start_v, LinearPlannerSegmentResult *result)
-{
-    double end_v = s->end_v;
-    
-    if (end_v > start_v + segment->a_x) {
-        end_v = start_v + segment->a_x;
-        result->const_start = 1.0;
-        result->const_end = 0.0;
-        result->const_v = end_v;
-    } else {
-        if (start_v + end_v > segment->two_max_v_minus_a_x) {
-            result->const_start = (segment->max_v - start_v) * segment->a_x_rec;
-            result->const_end = (segment->max_v - end_v) * segment->a_x_rec;
-            result->const_v = segment->max_v;
-        } else {
-            double q = end_v + segment->a_x;
-            result->const_start = (q - start_v) * segment->a_x_rec / 2;
-            result->const_end = 1.0 - result->const_start;
-            result->const_v = (q + start_v) / 2;
-        }
+    static FpType push (SegmentData *segment, SegmentState *s, FpType end_v)
+    {
+        AMBRO_ASSERT(segment)
+        AMBRO_ASSERT(FloatIsPosOrPosZero(segment->a_x))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_v))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_end_v))
+        AMBRO_ASSERT(segment->max_end_v <= segment->max_v)
+        AMBRO_ASSERT(FloatIsPosOrPosZero(end_v))
+        
+        s->end_v = FloatMin(segment->max_end_v, end_v);
+        return s->end_v + segment->a_x;
     }
-    
-    AMBRO_ASSERT(FloatIsPosOrPosZero(start_v))
-    AMBRO_ASSERT(FloatIsPosOrPosZero(end_v))
-    AMBRO_ASSERT(FloatIsPosOrPosZero(result->const_v))
-    
-    return end_v;
-}
+
+    static FpType pull (SegmentData *segment, SegmentState *s, FpType start_v, SegmentResult *result)
+    {
+        FpType end_v = s->end_v;
+        
+        if (end_v > start_v + segment->a_x) {
+            end_v = start_v + segment->a_x;
+            result->const_start = 1.0f;
+            result->const_end = 0.0f;
+            result->const_v = end_v;
+        } else {
+            if (start_v + end_v > segment->two_max_v_minus_a_x) {
+                result->const_start = (segment->max_v - start_v) * segment->a_x_rec;
+                result->const_end = (segment->max_v - end_v) * segment->a_x_rec;
+                result->const_v = segment->max_v;
+            } else {
+                FpType q = end_v + segment->a_x;
+                result->const_start = (q - start_v) * segment->a_x_rec / 2;
+                result->const_end = 1.0f - result->const_start;
+                result->const_v = (q + start_v) / 2;
+            }
+        }
+        
+        AMBRO_ASSERT(FloatIsPosOrPosZero(start_v))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(end_v))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(result->const_v))
+        
+        return end_v;
+    }
+};
 
 #include <aprinter/EndNamespace.h>
 

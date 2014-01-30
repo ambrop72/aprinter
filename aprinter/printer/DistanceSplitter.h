@@ -29,23 +29,23 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename SplitLength>
+template <typename SplitLength, typename FpType>
 class DistanceSplitter {
 public:
-    void start (double distance, double time_freq_by_max_speed)
+    void start (FpType distance, FpType time_freq_by_max_speed)
     {
-        m_count = 1 + (uint32_t)(distance * (1.0 / SplitLength::value()));
+        m_count = 1 + (uint32_t)(distance * (FpType)(1.0 / SplitLength::value()));
         m_pos = 1;
         m_max_v_rec = (distance * time_freq_by_max_speed) / m_count;
     }
     
-    bool pull (double *out_rel_max_v_rec, double *out_frac)
+    bool pull (FpType *out_rel_max_v_rec, FpType *out_frac)
     {
         *out_rel_max_v_rec = m_max_v_rec;
         if (m_pos == m_count) {
             return false;
         }
-        *out_frac = (double)m_pos / m_count;
+        *out_frac = (FpType)m_pos / m_count;
         m_pos++;
         return true;
     }
@@ -53,7 +53,7 @@ public:
 private:
     uint32_t m_count;
     uint32_t m_pos;
-    double m_max_v_rec;
+    FpType m_max_v_rec;
 };
 
 #include <aprinter/EndNamespace.h>
