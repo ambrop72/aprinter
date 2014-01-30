@@ -247,7 +247,7 @@ public:
     }
     
 private:
-    static TimeType get_time_interrupt (InterruptContext<Context> c)
+    static TimeType get_time_interrupt (Context c)
     {
         Mk20Clock *o = self(c);
         
@@ -327,8 +327,8 @@ public:
         o->m_running = true;
 #endif
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            TimeType now = Clock::get_time_interrupt(lock_c);
+        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+            TimeType now = Clock::get_time_interrupt(c);
             now -= time;
             now += clearance;
             if (now < UINT32_C(0x80000000)) {
@@ -347,13 +347,15 @@ public:
         AMBRO_ASSERT((*Channel::csc() & FTM_CSC_CHIE))
         
         o->m_time = time;
-        TimeType now = Clock::get_time_interrupt(c);
-        now -= time;
-        now += clearance;
-        if (now < UINT32_C(0x80000000)) {
-            time += now;
+        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+            TimeType now = Clock::get_time_interrupt(c);
+            now -= time;
+            now += clearance;
+            if (now < UINT32_C(0x80000000)) {
+                time += now;
+            }
+            *Channel::cv() = time;
         }
-        *Channel::cv() = time;
     }
     
     template <typename ThisContext>

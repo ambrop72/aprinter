@@ -78,14 +78,9 @@ public:
         Mk20Watchdog *o = self(c);
         o->debugAccess(c);
         
-        bool enabled = interrupts_enabled();
-        if (enabled) {
-            cli();
-        }
-        WDOG_REFRESH = UINT16_C(0xA602);
-        WDOG_REFRESH = UINT16_C(0xB480);
-        if (enabled) {
-            sei();
+        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+            WDOG_REFRESH = UINT16_C(0xA602);
+            WDOG_REFRESH = UINT16_C(0xB480);
         }
     }
 };
