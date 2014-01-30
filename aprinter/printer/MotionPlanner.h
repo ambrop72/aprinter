@@ -527,7 +527,7 @@ public:
             if (dir) {
                 *steps += (StepsType)these_steps.bitsValue();
             } else {
-                *steps += (StepsType)these_steps.bitsValue();
+                *steps -= (StepsType)these_steps.bitsValue();
             }
         }
         
