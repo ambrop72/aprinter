@@ -121,8 +121,8 @@ public:
         (Prescale == 6) ? 64 :
         (Prescale == 7) ? 128 : 0;
     
-    static constexpr double time_unit = (double)prescale_divide / F_CPU;
-    static constexpr double time_freq = (double)F_CPU / prescale_divide;
+    static constexpr double time_unit = (double)prescale_divide / F_BUS;
+    static constexpr double time_freq = (double)F_BUS / prescale_divide;
     
 private:
     template <int FtmIndex>

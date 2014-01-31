@@ -34,6 +34,15 @@
 
 #define INTERRUPT_PRIORITY 4
 
+// in accordance to startup code mk20dx128.c
+#if F_CPU == 96000000 || F_CPU == 48000000
+#define F_BUS 48000000
+#elif F_CPU == 24000000
+#define F_BUS 24000000
+#else
+#error F_CPU not recognized
+#endif
+
 inline static void sei (void)
 {
     asm volatile ("cpsie i" : : : "memory");
