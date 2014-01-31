@@ -145,9 +145,9 @@ using PrinterParams = PrinterMainParams<
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    30, // StepperSegmentBufferSize
-    30, // EventChannelBufferSize
-    24, // LookaheadBufferSize
+    32, // StepperSegmentBufferSize
+    32, // EventChannelBufferSize
+    28, // LookaheadBufferSize
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     float, // FpType
