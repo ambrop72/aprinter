@@ -2700,19 +2700,19 @@ public:
     template <int AxisIndex>
     typename Axis<AxisIndex>::TheAxisStepper * getAxisStepper ()
     {
-        return &PositionTraverse<Position, AxisPosition<AxisIndex>>(this)->m_axis_stepper;
+        return &TupleGetElem<AxisIndex>(&m_axes)->m_axis_stepper;
     }
     
     template <int HeaterIndex>
     typename Heater<HeaterIndex>::TheSoftPwm::TimerInstance * getHeaterTimer ()
     {
-        return PositionTraverse<Position, HeaterPosition<HeaterIndex>>(this)->m_softpwm.getTimer();
+        return TupleGetElem<HeaterIndex>(&m_heaters)->m_softpwm.getTimer();
     }
     
     template <int FanIndex>
     typename Fan<FanIndex>::TheSoftPwm::TimerInstance * getFanTimer ()
     {
-        return PositionTraverse<Position, FanPosition<FanIndex>>(this)->m_softpwm.getTimer();
+        return TupleGetElem<FanIndex>(&m_fans)->m_softpwm.getTimer();
     }
     
     typename ThePlanner::template Channel<0>::TheTimer * getEventChannelTimer ()
