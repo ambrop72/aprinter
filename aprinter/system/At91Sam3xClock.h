@@ -76,9 +76,9 @@ struct At91Sam3xClock__Comp {
     static const uint32_t CpMask = TCpMask;
 };
 
-using At91Sam3xClock__CompA = At91Sam3xClock__Comp<20, TC_SR_CPAS>;
-using At91Sam3xClock__CompB = At91Sam3xClock__Comp<24, TC_SR_CPBS>;
-using At91Sam3xClock__CompC = At91Sam3xClock__Comp<28, TC_SR_CPCS>;
+using At91Sam3xClock__CompA = At91Sam3xClock__Comp<offsetof(TcChannel, TC_RA), TC_SR_CPAS>;
+using At91Sam3xClock__CompB = At91Sam3xClock__Comp<offsetof(TcChannel, TC_RB), TC_SR_CPBS>;
+using At91Sam3xClock__CompC = At91Sam3xClock__Comp<offsetof(TcChannel, TC_RC), TC_SR_CPCS>;
 
 template <typename, typename, typename, typename, typename>
 class At91Sam3xClockInterruptTimer;
