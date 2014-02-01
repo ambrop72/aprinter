@@ -89,29 +89,6 @@ private:
     template <typename ThisContext, int ContextType, typename Dummy = void>
     struct LockHelper;
     
-public:
-    template <typename ThisContext>
-    using EnterContext = typename LockHelper<ThisContext, GetContextType<ThisContext>::value>::EnterContext;
-    
-    template <typename ThisContext>
-    inline static EnterContext<ThisContext> makeContext (ThisContext c)
-    {
-        return LockHelper<ThisContext, GetContextType<ThisContext>::value>::makeContext(c);
-    }
-    
-    template <typename ThisContext>
-    inline static void enterLock (ThisContext c)
-    {
-        return LockHelper<ThisContext, GetContextType<ThisContext>::value>::enterLock(c);
-    }
-    
-    template <typename ThisContext>
-    inline static void exitLock (ThisContext c)
-    {
-        return LockHelper<ThisContext, GetContextType<ThisContext>::value>::exitLock(c);
-    }
-    
-private:
     template <typename ThisContext, typename Dummy>
     struct LockHelper<ThisContext, CONTEXT_NORMAL, Dummy> {
 #if !defined(AMBROLIB_AVR)
@@ -132,19 +109,6 @@ private:
         inline static void enterLock (ThisContext c) {}
         inline static void exitLock (ThisContext c) {}
     };
-};
-
-InterruptLockImpl InterruptTempLock ()
-{
-    return InterruptLockImpl();
-}
-
-#if !defined(AMBROLIB_AVR)
-
-class AtomicLockImpl {
-private:
-    template <typename ThisContext, int ContextType, typename Dummy = void>
-    struct LockHelper;
     
 public:
     template <typename ThisContext>
@@ -167,8 +131,20 @@ public:
     {
         return LockHelper<ThisContext, GetContextType<ThisContext>::value>::exitLock(c);
     }
-    
+};
+
+InterruptLockImpl InterruptTempLock ()
+{
+    return InterruptLockImpl();
+}
+
+#if !defined(AMBROLIB_AVR)
+
+class AtomicLockImpl {
 private:
+    template <typename ThisContext, int ContextType, typename Dummy = void>
+    struct LockHelper;
+    
     template <typename ThisContext, typename Dummy>
     struct LockHelper<ThisContext, CONTEXT_ATOMIC, Dummy> {
         using EnterContext = ThisContext;
@@ -192,6 +168,28 @@ private:
         inline static void enterLock (ThisContext c) { cli(); }
         inline static void exitLock (ThisContext c) { sei(); }
     };
+    
+public:
+    template <typename ThisContext>
+    using EnterContext = typename LockHelper<ThisContext, GetContextType<ThisContext>::value>::EnterContext;
+    
+    template <typename ThisContext>
+    inline static EnterContext<ThisContext> makeContext (ThisContext c)
+    {
+        return LockHelper<ThisContext, GetContextType<ThisContext>::value>::makeContext(c);
+    }
+    
+    template <typename ThisContext>
+    inline static void enterLock (ThisContext c)
+    {
+        return LockHelper<ThisContext, GetContextType<ThisContext>::value>::enterLock(c);
+    }
+    
+    template <typename ThisContext>
+    inline static void exitLock (ThisContext c)
+    {
+        return LockHelper<ThisContext, GetContextType<ThisContext>::value>::exitLock(c);
+    }
 };
 
 AtomicLockImpl AtomicTempLock ()
