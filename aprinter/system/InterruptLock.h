@@ -78,9 +78,9 @@ private:
 public:
     static int const value =
 #if !defined(AMBROLIB_AVR)
-        HasAtomicContextTag::Call<ThisContext>::Type::value ? CONTEXT_ATOMIC :
+        HasAtomicContextTag::template Call<ThisContext>::Type::value ? CONTEXT_ATOMIC :
 #endif
-        HasInterruptContextTag::Call<ThisContext>::Type::value ? CONTEXT_INTERRUPT :
+        HasInterruptContextTag::template Call<ThisContext>::Type::value ? CONTEXT_INTERRUPT :
         CONTEXT_NORMAL;
 };
 

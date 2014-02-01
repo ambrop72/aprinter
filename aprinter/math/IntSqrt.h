@@ -31,6 +31,7 @@
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/IntTypeInfo.h>
+#include <aprinter/meta/WrapValue.h>
 
 #ifdef AMBROLIB_AVR
 #include <avr-asm-ops/sqrt_26_large.h>
@@ -93,26 +94,26 @@ private:
     struct DefaultSqrt {
         static ResType call (OpType op_arg)
         {
-            return Work<0>::call(op_arg, 0);
+            return Work<WrapInt<0>>::call(op_arg, 0);
         }
         
-        template <int I, typename Dummy = void>
+        template <typename I, typename Dummy = void>
         struct Work {
             static ResType call (TempType op, TempType res)
             {
-                TempType one = PowerOfTwo<TempType, (TempBits - 2 - (2 * I))>::value;
+                TempType one = PowerOfTwo<TempType, (TempBits - 2 - (2 * I::value))>::value;
                 if (op >= res + one) {
                     op -= res + one;
                     res = (res >> 1) + one;
                 } else {
                     res >>= 1;
                 }
-                return Work<(I + 1)>::call(op, res);
+                return Work<WrapInt<(I::value + 1)>>::call(op, res);
             }
         };
         
         template <typename Dummy>
-        struct Work<(TempBits / 2), Dummy> {
+        struct Work<WrapInt<(TempBits / 2)>, Dummy> {
             static ResType call (TempType op, TempType res)
             {
                 if (Round && op > res) {
@@ -127,14 +128,14 @@ private:
     struct DefaultSqrt<false, Dummy0> {
         static ResType call (OpType op_arg)
         {
-            return Work<0>::call(op_arg, PowerOfTwo<TempType, TempBits - 2>::value);
+            return Work<WrapInt<0>>::call(op_arg, PowerOfTwo<TempType, TempBits - 2>::value);
         }
         
-        template <int I, typename Dummy = void>
+        template <typename I, typename Dummy = void>
         struct Work {
             static ResType call (TempType op, TempType res)
             {
-                static const TempType one = PowerOfTwo<TempType, TempBits - 2 - I>::value;
+                static const TempType one = PowerOfTwo<TempType, TempBits - 2 - I::value>::value;
                 static const TempType prev_one = one << 1;
                 static const TempType next_one = one >> 1;
                 static const TempType res_add_nobit = (TempType)(next_one - one);
@@ -146,12 +147,12 @@ private:
                     res += res_add_nobit;
                 }
                 op <<= 1;
-                return Work<(I + 1)>::call(op, res);
+                return Work<WrapInt<(I::value + 1)>>::call(op, res);
             }
         };
         
         template <typename Dummy>
-        struct Work<((TempBits / 2) - 1), Dummy> {
+        struct Work<WrapInt<((TempBits / 2) - 1)>, Dummy> {
             static ResType call (TempType op, TempType res)
             {
                 if (op >= res) {

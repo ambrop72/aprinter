@@ -60,15 +60,15 @@ struct At91Sam3xClockTC {
     static const enum IRQn Irq = TIrq;
 };
 
-using At91Sam3xClockTC0 = At91Sam3xClockTC<(uint32_t)(&TC0->TC_CHANNEL[0]), ID_TC0, TC0_IRQn>;
-using At91Sam3xClockTC1 = At91Sam3xClockTC<(uint32_t)(&TC0->TC_CHANNEL[1]), ID_TC1, TC1_IRQn>;
-using At91Sam3xClockTC2 = At91Sam3xClockTC<(uint32_t)(&TC0->TC_CHANNEL[2]), ID_TC2, TC2_IRQn>;
-using At91Sam3xClockTC3 = At91Sam3xClockTC<(uint32_t)(&TC1->TC_CHANNEL[0]), ID_TC3, TC3_IRQn>;
-using At91Sam3xClockTC4 = At91Sam3xClockTC<(uint32_t)(&TC1->TC_CHANNEL[1]), ID_TC4, TC4_IRQn>;
-using At91Sam3xClockTC5 = At91Sam3xClockTC<(uint32_t)(&TC1->TC_CHANNEL[2]), ID_TC5, TC5_IRQn>;
-using At91Sam3xClockTC6 = At91Sam3xClockTC<(uint32_t)(&TC2->TC_CHANNEL[0]), ID_TC6, TC6_IRQn>;
-using At91Sam3xClockTC7 = At91Sam3xClockTC<(uint32_t)(&TC2->TC_CHANNEL[1]), ID_TC7, TC7_IRQn>;
-using At91Sam3xClockTC8 = At91Sam3xClockTC<(uint32_t)(&TC2->TC_CHANNEL[2]), ID_TC8, TC8_IRQn>;
+using At91Sam3xClockTC0 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[0]), ID_TC0, TC0_IRQn>;
+using At91Sam3xClockTC1 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[1]), ID_TC1, TC1_IRQn>;
+using At91Sam3xClockTC2 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC0) + offsetof(Tc, TC_CHANNEL[2]), ID_TC2, TC2_IRQn>;
+using At91Sam3xClockTC3 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC1) + offsetof(Tc, TC_CHANNEL[0]), ID_TC3, TC3_IRQn>;
+using At91Sam3xClockTC4 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC1) + offsetof(Tc, TC_CHANNEL[1]), ID_TC4, TC4_IRQn>;
+using At91Sam3xClockTC5 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC1) + offsetof(Tc, TC_CHANNEL[2]), ID_TC5, TC5_IRQn>;
+using At91Sam3xClockTC6 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC2) + offsetof(Tc, TC_CHANNEL[0]), ID_TC6, TC6_IRQn>;
+using At91Sam3xClockTC7 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC2) + offsetof(Tc, TC_CHANNEL[1]), ID_TC7, TC7_IRQn>;
+using At91Sam3xClockTC8 = At91Sam3xClockTC<GET_PERIPHERAL_ADDR(TC2) + offsetof(Tc, TC_CHANNEL[2]), ID_TC8, TC8_IRQn>;
 
 template <size_t TCpRegOffset, uint32_t TCpMask>
 struct At91Sam3xClock__Comp {

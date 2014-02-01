@@ -34,6 +34,10 @@
 
 #define INTERRUPT_PRIORITY 4
 
+#define GET_PERIPHERAL_ADDR(x) ((uint32_t) GET_PERIPHERAL_ADDR_ x)
+#define GET_PERIPHERAL_ADDR_(x) GET_PERIPHERAL_ADDR__ x
+#define GET_PERIPHERAL_ADDR__(x)
+
 inline static void at91sam3x_init (void)
 {
     SystemInit();

@@ -83,12 +83,16 @@ public:
         template <typename X, typename Y>
         using OrMaskFunc = WrapValue<MaskType, (X::value | Y::value)>;
         
+        // workaround clang bug
+        template <int X>
+        using Stepper_ = Stepper<X>;
+        
         static MaskType const SameEnableMask = TypeListFold<
             MapTypeList<
                 FilterTypeList<
                     MapTypeList<
                         SequenceList<TypeListLength<StepperDefsList>::value>,
-                        ValueTemplateFunc<int, Stepper>
+                        ValueTemplateFunc<int, Stepper_>
                     >,
                     ComposeFunctions<
                         IsEqualFunc<EnablePin>,

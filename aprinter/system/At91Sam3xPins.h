@@ -38,10 +38,10 @@ struct At91Sam3xPio {
     static const uint32_t Addr = TAddr;
 };
 
-using At91Sam3xPioA = At91Sam3xPio<(uint32_t)PIOA>;
-using At91Sam3xPioB = At91Sam3xPio<(uint32_t)PIOB>;
-using At91Sam3xPioC = At91Sam3xPio<(uint32_t)PIOC>;
-using At91Sam3xPioD = At91Sam3xPio<(uint32_t)PIOD>;
+using At91Sam3xPioA = At91Sam3xPio<GET_PERIPHERAL_ADDR(PIOA)>;
+using At91Sam3xPioB = At91Sam3xPio<GET_PERIPHERAL_ADDR(PIOB)>;
+using At91Sam3xPioC = At91Sam3xPio<GET_PERIPHERAL_ADDR(PIOC)>;
+using At91Sam3xPioD = At91Sam3xPio<GET_PERIPHERAL_ADDR(PIOD)>;
 
 template <typename TPio, int TPinIndex>
 struct At91Sam3xPin {
