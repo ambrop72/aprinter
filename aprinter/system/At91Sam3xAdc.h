@@ -233,8 +233,6 @@ private:
         
         using ListPin = TypeListGet<PinsList, PinIndex>;
         using TheHelper = Helper<ListPin>;
-        using Pin = typename TheHelper::RealPin;
-        static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
         
         static AdcPin * self (Context c)
         {
@@ -311,6 +309,9 @@ private:
             
             uint32_t m_state;
         };
+        
+        using Pin = typename TheHelper::RealPin;
+        static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
         
         TheHelper m_helper;
         
