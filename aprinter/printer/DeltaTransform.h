@@ -42,7 +42,7 @@ template <
     typename TTower2Y,
     typename TTower3X,
     typename TTower3Y,
-    typename TSplitLength
+    typename TSplitterParams
 >
 struct DeltaTransformParams {
     using DiagonalRod = TDiagonalRod;
@@ -52,7 +52,7 @@ struct DeltaTransformParams {
     using Tower2Y = TTower2Y;
     using Tower3X = TTower3X;
     using Tower3Y = TTower3Y;
-    using SplitLength = TSplitLength;
+    using SplitterParams = TSplitterParams;
 };
 
 template <typename Params, typename FpType>
@@ -98,7 +98,7 @@ public:
         out_virt.template set<2>(ps.m_v[2]);
     }
     
-    using Splitter = DistanceSplitter<typename Params::SplitLength, FpType>;
+    using Splitter = DistanceSplitter<typename Params::SplitterParams, FpType>;
 };
 
 #include <aprinter/EndNamespace.h>

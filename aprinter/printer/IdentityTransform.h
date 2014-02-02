@@ -32,10 +32,10 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <int TNumAxes, typename TSplitLength>
+template <int TNumAxes, typename TSplitterParams>
 struct IdentityTransformParams {
     static int const NumAxes = TNumAxes;
-    using SplitLength = TSplitLength;
+    using SplitterParams = TSplitterParams;
 };
 
 template <typename Params, typename FpType>
@@ -59,7 +59,7 @@ public:
         TupleForEachForward(&dummy, Foreach_copy_coords(), phys, out_virt);
     }
     
-    using Splitter = DistanceSplitter<typename Params::SplitLength, FpType>;
+    using Splitter = DistanceSplitter<typename Params::SplitterParams, FpType>;
     
 private:
     template <int AxisIndex>

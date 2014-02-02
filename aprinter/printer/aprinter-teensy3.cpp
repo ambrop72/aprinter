@@ -120,7 +120,9 @@ using DeltaSmoothRodOffset = AMBRO_WRAP_DOUBLE(145.0);
 using DeltaEffectorOffset = AMBRO_WRAP_DOUBLE(19.9);
 using DeltaCarriageOffset = AMBRO_WRAP_DOUBLE(19.5);
 using DeltaRadius = AMBRO_WRAP_DOUBLE(DeltaSmoothRodOffset::value() - DeltaEffectorOffset::value() - DeltaCarriageOffset::value());
-using DeltaSplitLength = AMBRO_WRAP_DOUBLE(2.0);
+using DeltaSegmentsPerSecond = AMBRO_WRAP_DOUBLE(100.0);
+using DeltaMinSplitLength = AMBRO_WRAP_DOUBLE(0.1);
+using DeltaMaxSplitLength = AMBRO_WRAP_DOUBLE(4.0);
 using DeltaTower1X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.8660254037844386);
 using DeltaTower1Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5);
 using DeltaTower2X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.8660254037844386);
@@ -286,6 +288,7 @@ using PrinterParams = PrinterMainParams<
     PrinterMainTransformParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>, WrapInt<'Z'>>,
         MakeTypeList<WrapInt<'A'>, WrapInt<'B'>, WrapInt<'C'>>,
+        DeltaSegmentsPerSecond,
         DeltaTransform,
         DeltaTransformParams<
             DeltaDiagonalRod,
@@ -295,7 +298,7 @@ using PrinterParams = PrinterMainParams<
             DeltaTower2Y,
             DeltaTower3X,
             DeltaTower3Y,
-            DeltaSplitLength
+            DistanceSplitterParams<DeltaMinSplitLength, DeltaMaxSplitLength>
         >
     >,
     

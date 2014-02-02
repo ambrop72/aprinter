@@ -27,14 +27,28 @@
 
 #include <stdint.h>
 
+#include <aprinter/math/FloatTools.h>
+#include <aprinter/meta/PowerOfTwo.h>
+
 #include <aprinter/BeginNamespace.h>
 
-template <typename SplitLength, typename FpType>
+template <typename TMinSplitLength, typename TMaxSplitLength>
+struct DistanceSplitterParams {
+    using MinSplitLength = TMinSplitLength;
+    using MaxSplitLength = TMaxSplitLength;
+};
+
+template <typename Params, typename FpType>
 class DistanceSplitter {
 public:
-    void start (FpType distance, FpType time_freq_by_max_speed)
+    void start (FpType distance, FpType time_freq_by_max_speed, FpType num_segments_by_distance)
     {
-        m_count = 1 + (uint32_t)(distance * (FpType)(1.0 / SplitLength::value()));
+        FpType fpcount = distance * FloatMin((FpType)(1.0 / Params::MinSplitLength::value()), FloatMax((FpType)(1.0 / Params::MaxSplitLength::value()), num_segments_by_distance));
+        if (fpcount >= FloatLdexp<FpType>(1.0f, 31)) {
+            m_count = PowerOfTwo<uint32_t, 31>::value;
+        } else {
+            m_count = 1 + (uint32_t)fpcount;
+        }
         m_pos = 1;
         m_max_v_rec = (distance * time_freq_by_max_speed) / m_count;
     }

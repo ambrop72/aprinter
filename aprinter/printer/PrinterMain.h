@@ -190,12 +190,14 @@ struct PrinterMainNoTransformParams {
 
 template <
     typename TVirtAxesList, typename TPhysAxesList,
+    typename TSegmentsPerSecond,
     template<typename, typename> class TTransformAlg, typename TTransformAlgParams
 >
 struct PrinterMainTransformParams {
     static bool const Enabled = true;
     using VirtAxesList = TVirtAxesList;
     using PhysAxesList = TPhysAxesList;
+    using SegmentsPerSecond = TSegmentsPerSecond;
     template <typename X, typename Y> using TransformAlg = TTransformAlg<X, Y>;
     using TransformAlgParams = TTransformAlgParams;
 };
@@ -1610,7 +1612,8 @@ private:
             FpType distance_squared = 0.0f;
             TupleForEachForward(&o->m_virt_axes, Foreach_prepare_split(), c, &distance_squared);
             TupleForEachForward(&o->m_secondary_axes, Foreach_prepare_split(), c, &distance_squared);
-            o->m_splitter.start(FloatSqrt(distance_squared), time_freq_by_max_speed);
+            FpType min_segments_by_distance = (FpType)(TransformParams::SegmentsPerSecond::value() * Clock::time_unit) * time_freq_by_max_speed;
+            o->m_splitter.start(FloatSqrt(distance_squared), time_freq_by_max_speed, min_segments_by_distance);
             do_split(c);
         }
         
