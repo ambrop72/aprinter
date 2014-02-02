@@ -46,7 +46,7 @@ static void emergency (void);
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/PidControl.h>
 #include <aprinter/printer/BinaryControl.h>
-#include <aprinter/printer/DeltaTransform.h>
+#include <aprinter/printer/transform/DeltaTransform.h>
 #include <aprinter/printer/teensy3_pins.h>
 #include <generated/AvrThermistorTable_Extruder.h>
 #include <generated/AvrThermistorTable_Bed.h>

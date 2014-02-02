@@ -50,10 +50,9 @@ static void emergency (void);
 #include <aprinter/printer/PidControl.h>
 #include <aprinter/printer/BinaryControl.h>
 #include <aprinter/printer/arduino_mega_pins.h>
+#include <aprinter/printer/transform/HalfDeltaTransform.h>
 #include <generated/AvrThermistorTable_Extruder.h>
 #include <generated/AvrThermistorTable_Bed.h>
-#include <aprinter/printer/IdentityTransform.h>
-#include <aprinter/printer/HalfDeltaTransform.h>
 
 using namespace APrinter;
 

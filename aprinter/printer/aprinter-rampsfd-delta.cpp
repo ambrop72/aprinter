@@ -48,7 +48,7 @@ static void emergency (void);
 #include <aprinter/printer/PidControl.h>
 #include <aprinter/printer/BinaryControl.h>
 #include <aprinter/printer/arduino_due_pins.h>
-#include <aprinter/printer/DeltaTransform.h>
+#include <aprinter/printer/transform/DeltaTransform.h>
 #include <generated/AvrThermistorTable_Extruder.h>
 #include <generated/AvrThermistorTable_Bed.h>
 
