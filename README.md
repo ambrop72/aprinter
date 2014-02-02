@@ -2,40 +2,41 @@ aprinter
 ========
 
 APrinter is a currently experimantal firmware for RepRap 3D printers and is under heavy development.
-It supports many controller boards based on AVR, as well as Arduino Due.
+It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Teensy 3 (Freescale ARM).
 
 ## Implemented features (possibly with bugs)
 
-  * *Highly experimental* and untested support for delta printers, only for RAMPS-FD/Due.
-    If you want to test, start with [this main file](aprinter/printer/aprinter-rampsfd-delta.cpp).
+  * Highly configurable (at compile time) design. Extra heaters, fans and axes can be added easily, and
+    PWM frequencies for heaters and fans are individually adjustable.
+  * Delta robot support. Additionally, new geometries can be added easily by defining a transform class.
+    Performance will be sub-optimal when using Delta on AVR platforms.
   * SD card printing (reading of sequential blocks only, no filesystem or partition support).
-  * Optional binary packing of gcode for SD prints. Packed gcode takes about half of the size of the plain gcode,
-    and speeds up the firmware's main loop by around 15% on AVR.
-  * Serial communication using the defacto RepRap protocol. Maximum baud rate is 250000 except on Melzi/atmega1284p
-    where only 115200 is supported due to unfavourable interrupt priorities.
-  * Homing, including homing of multiple axes at the same time. Either min- or max- endstops can be used.
-    Endstops are only used during homing and not for detecting collisions.
-  * Line motion with acceleration control and speed limit (F parameter to G0/G1).
-    The speed is automatically limited to not overload the MCU with interrupts.
-    However the semantic of F differs somehow from other firmwares; the speed limit is interpreted as
-    euclidean if G1/G0 specifies at least one of X/Y/Z, and as extruder speed limit otherwise.
-  * Look-ahead to preserve some speed on corners. By default, on RAMPS1.4, planning takes at least the previous 4 moves into account.
-    This can be increased in the configuration, but this
-    also increases the chance of buffer underruns , which cause the print to temporarily pause while the buffer refills.
-    Look-ahead is very memory-hungry in its current state.
-  * The planning code implements a "multiple commit" feature which buffers moves and processes them in larger chunks. This allows increasing the lookahead count only by allocating more RAM, without an asymptotic increase in CPU usage.
+  * Optionally supports a custom packed g-code format for SD printing.
+    This results in about 50% size reduction and 15% reduction in main loop processing load (on AVR).
+  * Bed probing using a microswitch (prints results, no correction yet).
+  * For use with multiple extruders, a g-code post-processor is provided to translate tool commands into
+    motion of individual axes which the firmware understands. If you have a fan on each extruder, the post-processor can
+    control the fans so that only the fan for the current extruder is on.
+  * Constant-acceleration motion with look-ahead planning. To speed up calculations, the firmware will only
+    calculate a new plan every LookaheadCommitCount commands. Effectively, this allows increasing
+    the lookahead count without an asymptotic increase of processing time, only limited by the available RAM.
+  * Homing using min- or max-endstops. Can home multiple at once.
+    where only 115200 is supported due to unfavourable interrupt priorities.es in parallel.
   * Heater control using PID or on-off control. The thermistor tables need to be generated with a Python script.
-  * Safe temperature range. A heater is turned off in case its temperature goes beyound the safe range.
-  * Fan control.
-  * Starting and feeding of the watchdog timer.
-  * Emergency shutdown of motors and heaters in case of an assertion failure
-    (if assertions are enabled with -DAMBROLIB_ASSERTIONS).
+    Each heater is configured with a Safe temperature range; aheater is turned off in case its temperature goes
+    beyound the safe range.
+  * Fan control (any number of fans).
+  * Stepper control based on interrupts, with each stepper having its own timer interrupt.
+    Step times are computed analytically using the quadratic equation, employing custom assembly
+    routines for sqrt and division on AVR. This ensures that steps happen when they should,
+    without one stepper ending a move faster than others due to accumulated rounding errors,
+    and stopping while all steppers finish.
+  * Portable and ported design; three different microcontroller families are already supported.
   * Non-drifting heartbeat LED. Its period is exactly 1 second, subject to the precision of your oscillator.
 
 ## Planned features (in the approximate order of priority):
 
-  * Delta robots and other coordinate transformations (CoreXY, polar).
-  * Further optimization of the planning and stepping code, both for speed and memory usage.
+  * Porting to more platforms (LPC, STM32).
   * Runtime configurability and settings in EEPROM.
   * SD card FAT32 support and write support.
 
@@ -46,12 +47,7 @@ Ports have been completed for the following boards:
   * Melzi (atmega1284p only),
   * RAMPS 1.0, 1.1/1.2 or 1.3/1.4 (only RAMPS 1.4 with atmega2560 is tested),
   * RAMPS-FD or other setup based on Arduino Due.
-
-However, any AVR satisfying the following should work, possibly requiring minor adjustments in the code:
-
-  * 8kB of SRAM,
-  * 128kB of flash,
-  * 4 timers (any one of these can be either 8- or 16-bit).
+  * Teensy 3 (no board, needs manual wiring).
 
 ## Coding style
 
@@ -85,11 +81,8 @@ However, any AVR satisfying the following should work, possibly requiring minor 
 
 ## Building (Due)
 
-  * Obtain a gcc toolchain for ARM Cortex M3, including a C++ compiler.
-    Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
-    Version 4_7-2013q3-20130916-linux has been tested.
-    Alternatively, if you're on Gentoo, you can easily build the toolchain yourself:
-    `USE="-fortran -openmp" crossdev -s4  --genv 'EXTRA_ECONF="--disable-libstdcxx-time"' armv7m-softfloat-eabi`
+  * Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
+    Version `4_8-2013q4-20131204-linux` has been tested.
   * Download the Atmel Software Framework.
     Version 3.12.1 has been tested, use this [download link](http://www.atmel.com/images/asf-standalone-archive-3.12.1.82.zip).
   * Edit `compile-rampsfd.sh` and adjust `CROSS` and `ASF_DIR` appropriately.
@@ -102,6 +95,15 @@ However, any AVR satisfying the following should work, possibly requiring minor 
     microcontroller on the Due to erase the AT91SAM3X8E and put it into bootloader mode.
   * If after successful flashing the firmware does not start (LED stays on instead of blinking),
     press the reset button.
+
+## Building (Teensy 3)
+
+  * Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
+    Version `4_8-2013q4-20131204-linux` has been tested.
+  * Check out the Teensy cores repository: https://github.com/PaulStoffregen/cores
+  * Edit `compile-teensy3` and adjust `CROSS` and `TEENSY_CORES` appropriately.
+  * Run `compile-teensy3` to build the firmware. This needs to be run from within the source directory.
+  * Use the Teensy Loader to flash `aprinter.hex` to the microcontroller.
 
 ## Configuration
 
