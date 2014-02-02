@@ -342,7 +342,7 @@ public:
             return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * axis_split->max_a_rec);
         }
         
-        static FpType write_segment_buffer_entry_extra (Segment *entry, FpType rel_max_accel)
+        static void write_segment_buffer_entry_extra (Segment *entry, FpType rel_max_accel)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
             entry->half_accel[AxisIndex] = 0.5f * rel_max_accel * axis_entry->x.template fpValue<FpType>();
