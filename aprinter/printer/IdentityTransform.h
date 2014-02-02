@@ -59,7 +59,7 @@ public:
         TupleForEachForward(&dummy, Foreach_copy_coords(), phys, out_virt);
     }
     
-    using Splitter = DistanceSplitter<typename Params::SplitLength>;
+    using Splitter = DistanceSplitter<typename Params::SplitLength, FpType>;
     
 private:
     template <int AxisIndex>
