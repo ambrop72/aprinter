@@ -202,7 +202,7 @@ using PrinterParams = PrinterMainParams<
     MaxStepsPerCycle, // MaxStepsPerCycle
     32, // StepperSegmentBufferSize
     32, // EventChannelBufferSize
-    20, // LookaheadBufferSize
+    28, // LookaheadBufferSize
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
