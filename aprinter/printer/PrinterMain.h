@@ -203,6 +203,14 @@ struct PrinterMainTransformParams {
 };
 
 template <
+    char TName, typename TMaxSpeed
+>
+struct PrinterMainVirtualAxisParams {
+    static char const Name = TName;
+    using MaxSpeed = TMaxSpeed;
+};
+
+template <
     char TName, int TSetMCommand, int TWaitMCommand, int TSetConfigMCommand,
     typename TAdcPin, typename TOutputPin, bool TOutputInvert,
     typename TFormula,
@@ -348,6 +356,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_prepare_split, prepare_split)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_split, compute_split)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_get_final_split, get_final_split)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_limit_virt_axis_speed, limit_virt_axis_speed)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
@@ -1612,8 +1621,10 @@ private:
             FpType distance_squared = 0.0f;
             TupleForEachForward(&o->m_virt_axes, Foreach_prepare_split(), c, &distance_squared);
             TupleForEachForward(&o->m_secondary_axes, Foreach_prepare_split(), c, &distance_squared);
+            FpType distance = FloatSqrt(distance_squared);
+            FpType base_max_v_rec = TupleForEachForwardAccRes(&o->m_virt_axes, distance * time_freq_by_max_speed, Foreach_limit_virt_axis_speed(), c);
             FpType min_segments_by_distance = (FpType)(TransformParams::SegmentsPerSecond::value() * Clock::time_unit) * time_freq_by_max_speed;
-            o->m_splitter.start(FloatSqrt(distance_squared), time_freq_by_max_speed, min_segments_by_distance);
+            o->m_splitter.start(distance, base_max_v_rec, min_segments_by_distance);
             do_split(c);
         }
         
@@ -1737,7 +1748,8 @@ private:
         
         template <int VirtAxisIndex>
         struct VirtAxis {
-            static int const axis_name = TypeListGet<VirtAxesList, VirtAxisIndex>::value;
+            using VirtAxisParams = TypeListGet<VirtAxesList, VirtAxisIndex>;
+            static int const axis_name = VirtAxisParams::Name;
             static int const PhysAxisIndex = FindAxis<TypeListGet<PhysAxesList, VirtAxisIndex>::value>::value;
             using ThePhysAxis = Axis<PhysAxisIndex>;
             static_assert(!ThePhysAxis::AxisSpec::enable_cartesian_speed_limit, "");
@@ -1783,15 +1795,15 @@ private:
             static void prepare_split (Context c, FpType *distance_squared)
             {
                 VirtAxis *o = self(c);
-                FpType delta = o->m_req_pos - o->m_old_pos;
-                *distance_squared += delta * delta;
+                o->m_delta = o->m_req_pos - o->m_old_pos;
+                *distance_squared += o->m_delta * o->m_delta;
             }
             
             static void compute_split (Context c, FpType frac, FpType *virt_pos)
             {
                 VirtAxis *o = self(c);
                 TransformFeature *t = TransformFeature::self(c);
-                virt_pos[VirtAxisIndex] = o->m_old_pos + (frac * (o->m_req_pos - o->m_old_pos));
+                virt_pos[VirtAxisIndex] = o->m_old_pos + (frac * o->m_delta);
             }
             
             static void get_final_split (Context c, FpType *move_pos)
@@ -1818,8 +1830,15 @@ private:
                 }
             }
             
+            static FpType limit_virt_axis_speed (FpType accum, Context c)
+            {
+                VirtAxis *o = self(c);
+                return FloatMax(accum, FloatAbs(o->m_delta) * (FpType)(Clock::time_freq / VirtAxisParams::MaxSpeed::value()));
+            }
+            
             FpType m_req_pos;
             FpType m_old_pos;
+            FpType m_delta;
             bool m_relative_positioning;
         };
         

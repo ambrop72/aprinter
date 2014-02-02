@@ -41,7 +41,7 @@ struct DistanceSplitterParams {
 template <typename Params, typename FpType>
 class DistanceSplitter {
 public:
-    void start (FpType distance, FpType time_freq_by_max_speed, FpType num_segments_by_distance)
+    void start (FpType distance, FpType base_max_v_rec, FpType num_segments_by_distance)
     {
         FpType fpcount = distance * FloatMin((FpType)(1.0 / Params::MinSplitLength::value()), FloatMax((FpType)(1.0 / Params::MaxSplitLength::value()), num_segments_by_distance));
         if (fpcount >= FloatLdexp<FpType>(1.0f, 31)) {
@@ -50,7 +50,7 @@ public:
             m_count = 1 + (uint32_t)fpcount;
         }
         m_pos = 1;
-        m_max_v_rec = (distance * time_freq_by_max_speed) / m_count;
+        m_max_v_rec = base_max_v_rec / m_count;
     }
     
     bool pull (FpType *out_rel_max_v_rec, FpType *out_frac)

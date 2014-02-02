@@ -136,6 +136,9 @@ using HalfDeltaSplitLength = AMBRO_WRAP_DOUBLE(2.0);
 using HalfDeltaTower1X = AMBRO_WRAP_DOUBLE(HalfDeltaRadius::value() * -1.0);
 using HalfDeltaTower2X = AMBRO_WRAP_DOUBLE(HalfDeltaRadius::value() * 1.0);
 
+using XMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+using ZMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
@@ -304,7 +307,16 @@ using PrinterParams = PrinterMainParams<
      * Transform and virtual axes.
      */
     PrinterMainTransformParams<
-        MakeTypeList<WrapInt<'X'>, WrapInt<'Z'>>,
+        MakeTypeList<
+            PrinterMainVirtualAxisParams<
+                'X', // Name
+                XMaxSpeed
+            >,
+            PrinterMainVirtualAxisParams<
+                'Z', // Name
+                ZMaxSpeed
+            >
+        >,
         MakeTypeList<WrapInt<'A'>, WrapInt<'B'>>,
         HalfDeltaTransform,
         HalfDeltaTransformParams<

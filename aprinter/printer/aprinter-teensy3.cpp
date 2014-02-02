@@ -130,6 +130,10 @@ using DeltaTower2Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5);
 using DeltaTower3X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.0);
 using DeltaTower3Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 1.0);
 
+using XMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+using YMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+using ZMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
@@ -286,7 +290,20 @@ using PrinterParams = PrinterMainParams<
      * Transform and virtual axes.
      */
     PrinterMainTransformParams<
-        MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>, WrapInt<'Z'>>,
+        MakeTypeList<
+            PrinterMainVirtualAxisParams<
+                'X', // Name
+                XMaxSpeed
+            >,
+            PrinterMainVirtualAxisParams<
+                'Y', // Name
+                YMaxSpeed
+            >,
+            PrinterMainVirtualAxisParams<
+                'Z', // Name
+                ZMaxSpeed
+            >
+        >,
         MakeTypeList<WrapInt<'A'>, WrapInt<'B'>, WrapInt<'C'>>,
         DeltaSegmentsPerSecond,
         DeltaTransform,
