@@ -682,7 +682,7 @@ extern "C" {
 
 int main ()
 {
-    at91sam3x_init();
+    SystemInit();
     
     MyContext c;
     
