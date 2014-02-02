@@ -3,11 +3,32 @@
 set -e
 set -x
 
-CROSS=/home/ambro/gcc-arm-none-eabi-4_7-2013q3/bin/arm-none-eabi-
-#CROSS=armv7m-softfloat-eabi-
-CC=${CC:-${CROSS}gcc}
-ASF_DIR=/home/ambro/asf-3.12.1
+# User settings.
 MAIN=aprinter/printer/aprinter-rampsfd.cpp
+ASF_DIR=/home/ambro/asf-3.12.1
+GCCARM_DIR=/home/ambro/gcc-arm-none-eabi-4_8-2013q4
+CROSS="${GCCARM_DIR}/bin/arm-none-eabi-"
+
+# Clang support.
+# Yes, it works, if you compile clang right, but runs slower.
+# Configure llvm/clang with:
+# ../llvm-3.4/configure --enable-targets=arm --target=arm-none-eabi --enable-cxx11 \
+#   --prefix=/home/ambro/clang-arm-install \
+#   --with-gcc-toolchain=/home/ambro/gcc-arm-none-eabi-4_8-2013q4/lib/gcc/arm-none-eabi/4.8.3 \
+#   --with-c-include-dirs="/home/ambro/gcc-arm-none-eabi-4_8-2013q4/arm-none-eabi/include"
+# Also remove -g from FLAGS_C_CXX_LD below or segmentation fault.
+USE_CLANG=0
+CLANG_DIR=/home/ambro/clang-arm-install
+
+# clang compiler with gcc-arm-embedded libs
+if [[ $USE_CLANG = 1 ]]; then
+    CC="${CLANG_DIR}/bin/arm-none-eabi-clang"
+    CC_STARTUP="${CROSS}gcc"
+    export PATH="${GCCARM_DIR}/bin":$PATH
+else
+    CC="${CROSS}gcc"
+    CC_STARTUP="${CC}"
+fi
 
 CMSIS_DIR=${ASF_DIR}/sam/utils/cmsis/sam3x
 TEMPLATES_DIR=${CMSIS_DIR}/source/templates
@@ -18,6 +39,7 @@ FLAGS_C_CXX_LD=(
 )
 FLAGS_CXX_LD=(
     -fno-rtti -fno-exceptions
+    -Wno-deprecated-register
 )
 FLAGS_C=(
     -std=c99
@@ -47,7 +69,8 @@ LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS}
 "${CC}" -x c -c "${CFLAGS[@]}" "${TEMPLATES_DIR}/system_sam3x.c"
 "${CC}" -x c -c "${CFLAGS[@]}" "${TEMPLATES_DIR}/gcc/startup_sam3x.c"
 "${CC}" -x c -c "${CFLAGS[@]}" "${ASF_DIR}/sam/drivers/pmc/pmc.c"
+"${CC}" -x c -c "${CFLAGS[@]}" -fno-builtin "aprinter/platform/clang_missing.c"
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/at91sam3x/at91sam3x_support.cpp
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o main.o
-"${CC}" "${LDFLAGS[@]}" exceptions.o system_sam3x.o startup_sam3x.o pmc.o at91sam3x_support.o main.o -o aprinter.elf -lm
+"${CC}" "${LDFLAGS[@]}" exceptions.o system_sam3x.o startup_sam3x.o pmc.o clang_missing.o at91sam3x_support.o main.o -o aprinter.elf -lm
 ${CROSS}objcopy --output-target=binary aprinter.elf aprinter.bin
