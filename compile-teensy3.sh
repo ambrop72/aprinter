@@ -3,12 +3,25 @@
 set -e
 set -x
 
-CROSS=/home/ambro/gcc-arm-none-eabi-4_7-2013q3/bin/arm-none-eabi-
+CROSS=/home/ambro/gcc-arm-none-eabi-4_8-2013q4/bin/arm-none-eabi-
 TEENSY_CORES=/home/ambro/cores
 MAIN=aprinter/printer/aprinter-teensy3.cpp
+TEENSY_VERSION=3.0
+F_CPU=96000000
 
 CC=${CC:-${CROSS}gcc}
 TEENSY3="${TEENSY_CORES}/teensy3"
+
+if [[ $TEENSY_VERSION = 3.1 ]]; then
+    CPU_DEF=__MK20DX256__
+    LINKER_SCRIPT=${TEENSY3}/mk20dx256.ld
+elif [[ $TEENSY_VERSION = 3.0 ]]; then
+    CPU_DEF=__MK20DX128__
+    LINKER_SCRIPT=${TEENSY3}/mk20dx128.ld
+else
+    echo "Unknown TEENSY_VERSION"
+    exit 1
+fi
 
 FLAGS_C_CXX_LD=(
     -mcpu=cortex-m4 -mthumb -O2 -g
@@ -27,10 +40,10 @@ FLAGS_C_CXX=(
     -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
     -ffunction-sections -fdata-sections
     -I.
-    -I"${TEENSY3}" -D__MK20DX128__ -DF_CPU=48000000 -DUSB_SERIAL
+    -I"${TEENSY3}" -D${CPU_DEF} -DF_CPU=${F_CPU} -DUSB_SERIAL
 )
 FLAGS_LD=(
-    -T"${TEENSY3}/mk20dx128.ld" -nostartfiles -Wl,--gc-sections
+    -T "${LINKER_SCRIPT}" -nostartfiles -Wl,--gc-sections
     --specs=nano.specs
 )
 
