@@ -206,6 +206,7 @@ private:
 };
 
 #define AMBRO_MK20_ADC_ISRS(adc, context) \
+extern "C" \
 __attribute__((used)) \
 void adc0_isr (void) \
 { \

@@ -264,6 +264,7 @@ private:
 };
 
 #define AMBRO_MK20_CLOCK_FTM_GLOBAL(ftmnum, clock, context) \
+extern "C" \
 __attribute__((used)) \
 void ftm##ftmnum##_isr (void) \
 { \

@@ -194,6 +194,7 @@ public:
 };
 
 #define AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(tcnum, clock, context) \
+extern "C" \
 __attribute__((used)) \
 void TC##tcnum##_Handler (void) \
 { \

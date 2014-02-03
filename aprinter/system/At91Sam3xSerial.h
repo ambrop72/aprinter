@@ -330,6 +330,7 @@ private:
 };
 
 #define AMBRO_AT91SAM3X_SERIAL_GLOBAL(the_serial, context) \
+extern "C" \
 __attribute__((used)) \
 void UART_Handler (void) \
 { \

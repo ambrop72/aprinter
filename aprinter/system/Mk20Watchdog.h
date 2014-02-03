@@ -85,6 +85,7 @@ public:
 };
 
 #define AMBRO_MK20_WATCHDOG_GLOBAL(watchdog) \
+extern "C" \
 __attribute__((used)) \
 void startup_early_hook (void) \
 { \

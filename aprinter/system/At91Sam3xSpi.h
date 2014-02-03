@@ -325,6 +325,7 @@ private:
 };
 
 #define AMBRO_AT91SAM3X_SPI_GLOBAL(thespi, context) \
+extern "C" \
 __attribute__((used)) \
 void SPI0_Handler (void) \
 { \
