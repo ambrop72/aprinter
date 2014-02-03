@@ -91,6 +91,9 @@ void startup_early_hook (void) \
 { \
     using TheWatchdog = RemoveReference<decltype((watchdog))>; \
     asm volatile ("nop"); \
+    asm volatile ("nop"); \
+    asm volatile ("nop"); \
+    asm volatile ("nop"); \
     WDOG_TOVALH = TheWatchdog::Params::Toval >> 16; \
     WDOG_TOVALL = TheWatchdog::Params::Toval; \
     WDOG_PRESC = (uint32_t)TheWatchdog::Params::Prescval << 8; \

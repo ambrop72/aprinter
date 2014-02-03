@@ -51,7 +51,10 @@ CFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLAGS_C[@]}" ${CFLAGS})
 CXXFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLAGS_CXX[@]}" ${CXXFLAGS})
 LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS})
 
-"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/mk20dx128.c"
+cp "${TEENSY3}/mk20dx128.c" mk20dx128-hacked.c
+sed -i 's/WDOG_STCTRLH = WDOG_STCTRLH_ALLOWUPDATE;//' mk20dx128-hacked.c
+
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "mk20dx128-hacked.c"
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/nonstd.c"
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/yield.c"
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_dev.c"
@@ -60,5 +63,5 @@ LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS}
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_serial.c"
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/teensy3/teensy3_support.cpp
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o main.o
-"${CC}" "${LDFLAGS[@]}" mk20dx128.o nonstd.o yield.o usb_dev.o usb_desc.o usb_mem.o usb_serial.o teensy3_support.o main.o -o aprinter.elf -lm
+"${CC}" "${LDFLAGS[@]}" mk20dx128-hacked.o nonstd.o yield.o usb_dev.o usb_desc.o usb_mem.o usb_serial.o teensy3_support.o main.o -o aprinter.elf -lm
 ${CROSS}objcopy -O ihex -R .eeprom aprinter.elf aprinter.hex
