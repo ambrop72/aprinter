@@ -654,7 +654,7 @@ public:
         static bool have_commit_space (bool accum, Context c)
         {
             Channel *o = self(c);
-            return (accum && commit_avail(o->m_commit_start, o->m_commit_end) > LookaheadCommitCount);
+            return (accum && commit_avail(o->m_commit_start, o->m_commit_end) >= LookaheadCommitCount);
         }
         
         static void start_commands (Context c)
@@ -700,10 +700,10 @@ public:
             o->m_commit_end = o->m_new_commit_end;
             o->m_backup_start = m->m_current_backup ? 0 : ChannelBackupBufferSize;
             o->m_backup_end = o->m_new_backup_end;
-            if (AMBRO_LIKELY(o->m_commit_start != o->m_commit_end && !o->m_busy)) {
+            if (AMBRO_LIKELY(o->m_commit_start != o->m_commit_end || o->m_backup_start != o->m_backup_end)) {
                 o->m_busy = true;
-                o->m_cmd = &o->m_commit_buffer[o->m_commit_start];
-                o->m_commit_start = commit_inc(o->m_commit_start);
+                o->m_cmd = (o->m_commit_start != o->m_commit_end) ? &o->m_commit_buffer[o->m_commit_start] : &o->m_backup_buffer[o->m_backup_start];
+                o->m_timer.unset(c);
                 o->m_timer.setFirst(c, o->m_cmd->time);
             }
         }
@@ -713,16 +713,15 @@ public:
             Channel *o = self(c);
             AMBRO_ASSERT(!o->m_busy)
             
-            if (o->m_commit_start != o->m_commit_end) {
-                for (ChannelCommitBufferSizeType i = o->m_commit_start; i != o->m_commit_end; i = commit_inc(i)) {
-                    o->m_commit_buffer[i].time += start_time;
-                }
-                for (ChannelBackupBufferSizeType i = o->m_backup_start; i < o->m_backup_end; i++) {
-                    o->m_backup_buffer[i].time += start_time;
-                }
+            for (ChannelCommitBufferSizeType i = o->m_commit_start; i != o->m_commit_end; i = commit_inc(i)) {
+                o->m_commit_buffer[i].time += start_time;
+            }
+            for (ChannelBackupBufferSizeType i = o->m_backup_start; i < o->m_backup_end; i++) {
+                o->m_backup_buffer[i].time += start_time;
+            }
+            if (o->m_commit_start != o->m_commit_end || o->m_backup_start != o->m_backup_end) {
                 o->m_busy = true;
-                o->m_cmd = &o->m_commit_buffer[o->m_commit_start];
-                o->m_commit_start = commit_inc(o->m_commit_start);
+                o->m_cmd = (o->m_commit_start != o->m_commit_end) ? &o->m_commit_buffer[o->m_commit_start] : &o->m_backup_buffer[o->m_backup_start];
                 o->m_timer.setFirst(c, o->m_cmd->time);
             }
         }
@@ -754,20 +753,24 @@ public:
             MotionPlanner *m = MotionPlanner::self(c);
             AMBRO_ASSERT(o->m_busy)
             AMBRO_ASSERT(m->m_state == STATE_STEPPING)
+            AMBRO_ASSERT(o->m_commit_start != o->m_commit_end || o->m_backup_start != o->m_backup_end)
             
             c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
             ChannelSpec::Callback::call(c, &o->m_cmd->payload);
             if (o->m_commit_start != o->m_commit_end) {
-                o->m_cmd = &o->m_commit_buffer[o->m_commit_start];
                 o->m_commit_start = commit_inc(o->m_commit_start);
+            } else {
+                o->m_backup_start++;
+                m->m_syncing = false;
+            }
+            if (o->m_commit_start != o->m_commit_end) {
+                o->m_cmd = &o->m_commit_buffer[o->m_commit_start];
             } else {
                 if (o->m_backup_start == o->m_backup_end) {
                     o->m_busy = false;
                     return false;
                 }
-                m->m_syncing = false;
                 o->m_cmd = &o->m_backup_buffer[o->m_backup_start];
-                o->m_backup_start++;
             }
             o->m_timer.setNext(c, o->m_cmd->time);
             return true;
