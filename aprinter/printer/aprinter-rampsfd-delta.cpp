@@ -43,6 +43,7 @@ static void emergency (void);
 #include <aprinter/system/At91Sam3xWatchdog.h>
 #include <aprinter/system/At91Sam3xSerial.h>
 #include <aprinter/system/At91Sam3xSpi.h>
+#include <aprinter/system/AsfUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/PidControl.h>
@@ -163,8 +164,13 @@ using PrinterParams = PrinterMainParams<
         8, // RecvBufferSizeExp
         9, // SendBufferSizeExp
         GcodeParserParams<16>, // ReceiveBufferSizeExp
+#ifdef USB_SERIAL
+        AsfUsbSerial,
+        AsfUsbSerialParams
+#else
         At91Sam3xSerial,
         At91Sam3xSerialParams
+#endif
     >,
     DuePin13, // LedPin
     LedBlinkInterval, // LedBlinkInterval
@@ -573,7 +579,9 @@ AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6B_GLOBAL(*p.myprinter.getFanTimer<0>(),
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7A_GLOBAL(*p.myprinter.getFanTimer<1>(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7B_GLOBAL(*p.myadc.getAvgTimer(), MyContext())
 
+#ifndef USB_SERIAL
 AMBRO_AT91SAM3X_SERIAL_GLOBAL(*p.myprinter.getSerial(), MyContext())
+#endif
 AMBRO_AT91SAM3X_SPI_GLOBAL(*p.myprinter.getSdCard()->getSpi(), MyContext())
 
 static void emergency (void)
@@ -587,7 +595,8 @@ extern "C" {
     {
         return -1;
     }
-
+    
+#ifndef USB_SERIAL
     __attribute__((used))
     int _write (int file, char *ptr, int len)
     {
@@ -600,7 +609,8 @@ extern "C" {
         }
         return len;
     }
-
+#endif
+    
     __attribute__((used))
     int _close (int file)
     {
@@ -628,7 +638,7 @@ extern "C" {
 
 int main ()
 {
-    SystemInit();
+    platform_init();
     
     MyContext c;
     

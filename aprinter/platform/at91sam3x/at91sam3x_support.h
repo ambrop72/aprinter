@@ -55,4 +55,6 @@ inline static bool interrupts_enabled (void)
     return !tmp;
 }
 
+void platform_init (void);
+
 #endif

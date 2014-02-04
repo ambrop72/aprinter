@@ -54,3 +54,13 @@ extern "C" {
         return (caddr_t)prev_heap_end;
     }
 }
+
+extern "C" void udc_start (void);
+
+void platform_init (void)
+{
+    SystemInit();
+#ifdef USB_SERIAL
+    udc_start();
+#endif
+}
