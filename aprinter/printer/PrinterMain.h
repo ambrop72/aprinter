@@ -637,6 +637,11 @@ private:
             return true;
         }
         
+        static void reply_poke (Context c)
+        {
+            Channel::reply_poke_impl(c);
+        }
+        
         static void reply_append_str (Context c, char const *str)
         {
             Channel::reply_append_buffer_impl(c, str, strlen(str));
@@ -821,6 +826,12 @@ private:
             o->m_serial.recvForceEvent(c);
         }
         
+        static void reply_poke_impl (Context c)
+        {
+            SerialFeature *o = self(c);
+            o->m_serial.sendPoke(c);
+        }
+        
         static void reply_append_buffer_impl (Context c, char const *str, uint8_t length)
         {
             SerialFeature *o = self(c);
@@ -974,7 +985,7 @@ private:
             }
             if (error) {
                 SerialFeature::TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR("//SdRdEr\n"));
-                SerialFeature::self(c)->m_serial.sendPoke(c);
+                SerialFeature::TheChannelCommon::reply_poke(c);
                 return start_read(c);
             }
             o->m_sd_block++;
@@ -1020,7 +1031,7 @@ private:
             return;
         eof:
             SerialFeature::TheChannelCommon::reply_append_pstr(c, eof_str);
-            SerialFeature::self(c)->m_serial.sendPoke(c);
+            SerialFeature::TheChannelCommon::reply_poke(c);
             o->m_eof = true;
         }
         
@@ -1127,6 +1138,10 @@ private:
                     start_read(c);
                 }
             }
+        }
+        
+        static void reply_poke_impl (Context c)
+        {
         }
         
         static void reply_append_buffer_impl (Context c, char const *str, uint8_t length)
@@ -2639,6 +2654,7 @@ private:
             cc->reply_append_pstr(c, AMBRO_PSTR("//ProbeHeight "));
             cc->reply_append_fp(c, height);
             cc->reply_append_ch(c, '\n');
+            cc->reply_poke(c);
         }
         
         uint8_t m_current_point;
@@ -2682,7 +2698,7 @@ public:
         o->m_planner_state = PLANNER_NONE;
         
         o->m_serial_feature.m_channel_common.reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
-        o->m_serial_feature.m_serial.sendPoke(c);
+        o->m_serial_feature.m_channel_common.reply_poke(c);
         
         o->debugInit(c);
     }
