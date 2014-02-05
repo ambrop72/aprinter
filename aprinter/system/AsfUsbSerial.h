@@ -37,9 +37,10 @@
 
 #include <aprinter/BeginNamespace.h>
 
+extern "C" uint32_t udi_cdc_get_free_tx_buffer (void);
 extern "C" uint32_t udi_cdc_write_buf (const void* buf, uint32_t size);
-extern "C" uint32_t udi_cdc_read_buf (void* buf, uint32_t size);
 extern "C" uint32_t udi_cdc_get_nb_received_data (void);
+extern "C" uint32_t udi_cdc_read_buf (void* buf, uint32_t size);
 
 struct AsfUsbSerialParams {};
 
@@ -49,6 +50,7 @@ class AsfUsbSerial
 {
 private:
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<AsfUsbSerial>;
+    using SendFastEvent = typename Context::EventLoop::template FastEventSpec<RecvFastEvent>;
     
     static AsfUsbSerial * self (Context c)
     {
@@ -69,6 +71,7 @@ public:
         o->m_recv_overrun = false;
         o->m_recv_force = false;
         
+        c.eventLoop()->template initFastEvent<SendFastEvent>(c, AsfUsbSerial::send_event_handler);
         o->m_send_start = SendSizeType::import(0);
         o->m_send_end = SendSizeType::import(0);
         
@@ -82,6 +85,7 @@ public:
         AsfUsbSerial *o = self(c);
         o->debugDeinit(c);
         
+        c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
         c.eventLoop()->template resetFastEvent<RecvFastEvent>(c);
     }
     
@@ -170,15 +174,13 @@ public:
         AsfUsbSerial *o = self(c);
         o->debugAccess(c);
         
-        // we don't really care if we lose data here
-        while (o->m_send_start != o->m_send_end) {
-            SendSizeType amount = (o->m_send_end < o->m_send_start) ? BoundedModuloNegative(o->m_send_start) : BoundedUnsafeSubtract(o->m_send_end, o->m_send_start);
-            udi_cdc_write_buf(o->m_send_buffer + o->m_send_start.value(), amount.value());
-            o->m_send_start = BoundedModuloAdd(o->m_send_start, amount);
+        if (o->m_send_start != o->m_send_end) {
+            c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
+            do_send(c);
         }
     }
     
-    using EventLoopFastEvents = MakeTypeList<RecvFastEvent>;
+    using EventLoopFastEvents = MakeTypeList<RecvFastEvent, SendFastEvent>;
     
 private:
     static RecvSizeType recv_avail (RecvSizeType start, RecvSizeType end)
@@ -221,6 +223,35 @@ private:
             o->m_recv_force = false;
             RecvHandler::call(o, c);
         }
+    }
+    
+    static void send_event_handler (Context c)
+    {
+        AsfUsbSerial *o = self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_send_start != o->m_send_end)
+        
+        do_send(c);
+    }
+    
+    static void do_send (Context c)
+    {
+        AsfUsbSerial *o = self(c);
+        AMBRO_ASSERT(o->m_send_start != o->m_send_end)
+        
+        do {
+            SendSizeType amount = (o->m_send_end < o->m_send_start) ? BoundedModuloNegative(o->m_send_start) : BoundedUnsafeSubtract(o->m_send_end, o->m_send_start);
+            uint32_t bytes = udi_cdc_get_free_tx_buffer();
+            if (bytes == 0) {
+                c.eventLoop()->template triggerFastEvent<SendFastEvent>(c);
+                return;
+            }
+            if (bytes > amount.value()) {
+                bytes = amount.value();
+            }
+            udi_cdc_write_buf(o->m_send_buffer + o->m_send_start.value(), amount.value());
+            o->m_send_start = BoundedModuloAdd(o->m_send_start, amount);
+        } while (o->m_send_start != o->m_send_end);
     }
     
     RecvSizeType m_recv_start;
