@@ -84,8 +84,9 @@ Ports have been completed for the following boards:
   * Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
     Version `4_8-2013q4-20131204-linux` has been tested.
   * Download the Atmel Software Framework.
-    Version 3.12.1 has been tested, use this [download link](http://www.atmel.com/images/asf-standalone-archive-3.12.1.82.zip).
+    Version 3.14.0.86 has been tested, use this [download link](http://www.atmel.com/images/asf-standalone-archive-3.14.0.86.zip).
   * Edit `compile-rampsfd.sh` and adjust `CROSS` and `ASF_DIR` appropriately.
+    Note: the latest ASF comes in a subdirectory `xdk-asf-3.14.0`, you need to include that in `ASF_DIR`.
   * Run `compile-rampsfd.sh` to build the firmware. This needs to be run from within the source directory.
   * Download Arduino 1.5 in order to get the `bossac` program. Note that the vanilla `bossac` will not work.
   * Edit `flash-rampsfd.sh` to set the location of the `bossac` program and the serial port corresponding
@@ -100,10 +101,12 @@ Ports have been completed for the following boards:
 
   * Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
     Version `4_8-2013q4-20131204-linux` has been tested.
-  * Check out the Teensy cores repository: https://github.com/PaulStoffregen/cores
+  * Check out the Teensy cores repository: `git clone https://github.com/PaulStoffregen/cores`
   * Edit `compile-teensy3` and adjust `CROSS` and `TEENSY_CORES` appropriately.
   * Run `compile-teensy3` to build the firmware. This needs to be run from within the source directory.
-  * Use the Teensy Loader to flash `aprinter.hex` to the microcontroller.
+  * Edit `flash-teensy3.sh` and adjust `TEENSY_LOADER` to point to your `teensy_loader_cli` binary.
+  * Press the button on your Teensy 3 to start the bootloader.
+  * Run `flash-teensy3.sh` to upload the firmware.
 
 ## Configuration
 
