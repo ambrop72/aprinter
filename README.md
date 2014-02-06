@@ -102,7 +102,8 @@ Ports have been completed for the following boards:
   * Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
     Version `4_8-2013q4-20131204-linux` has been tested.
   * Check out the Teensy cores repository: `git clone https://github.com/PaulStoffregen/cores`
-  * Edit `compile-teensy3` and adjust `CROSS` and `TEENSY_CORES` appropriately.
+  * Edit `compile-teensy3` and adjust `CROSS`, `TEENSY_CORES` appropriately.
+    Also set `TEENSY_VERSION` to your board version (3.0 or 3.1).
   * Run `compile-teensy3` to build the firmware. This needs to be run from within the source directory.
   * Edit `flash-teensy3.sh` and adjust `TEENSY_LOADER` to point to your `teensy_loader_cli` binary.
   * Press the button on your Teensy 3 to start the bootloader.
