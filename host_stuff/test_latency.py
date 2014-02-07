@@ -63,6 +63,9 @@ class Program (littlevent.close.Obj):
             if response != 'ok':
                 print('Unknown line received: >{}<'.format(response))
             else:
+                if self.writing:
+                    print('ERROR: early response')
+                    return self._quit()
                 self.done_count += 1
                 if self.done_count >= self.want_count:
                     return self._finished()
