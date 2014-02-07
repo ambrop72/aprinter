@@ -1,9 +1,6 @@
 #ifndef CONF_USB_H
 #define CONF_USB_H
 
-#include <stdint.h>
-#include <sam/utils/compiler.h>
-
 #define USB_DEVICE_VENDOR_ID 0x2341
 #define USB_DEVICE_PRODUCT_ID 0x003e
 #define USB_DEVICE_MAJOR_VERSION 1
