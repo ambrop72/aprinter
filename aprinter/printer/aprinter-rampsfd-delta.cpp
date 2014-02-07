@@ -475,10 +475,7 @@ using AdcParams = At91Sam3xAdcParams<
     3, // AdcSettling
     0, // AdcTracking
     1, // AdcTransfer
-    At91Sam3xAdcAvgParams<
-        AdcAvgInterval,
-        At91Sam3xClockInterruptTimer_TC7B // TimerTemplate
-    >
+    At91Sam3xAdcAvgParams<AdcAvgInterval>
 >;
 
 static const int clock_timer_prescaler = 3;
@@ -577,12 +574,12 @@ AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5A_GLOBAL(*p.myprinter.getHeaterTimer<0>
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5B_GLOBAL(*p.myprinter.getHeaterTimer<1>(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6B_GLOBAL(*p.myprinter.getFanTimer<0>(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7A_GLOBAL(*p.myprinter.getFanTimer<1>(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7B_GLOBAL(*p.myadc.getAvgTimer(), MyContext())
 
 #ifndef USB_SERIAL
 AMBRO_AT91SAM3X_SERIAL_GLOBAL(*p.myprinter.getSerial(), MyContext())
 #endif
 AMBRO_AT91SAM3X_SPI_GLOBAL(*p.myprinter.getSdCard()->getSpi(), MyContext())
+AMBRO_AT91SAM3X_ADC_GLOBAL(p.myadc, MyContext())
 
 static void emergency (void)
 {

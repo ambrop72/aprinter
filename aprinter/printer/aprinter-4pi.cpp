@@ -487,10 +487,7 @@ using AdcParams = At91Sam3uAdcParams<
     AdcFreq,
     255, // AdcStartup
     15, // AdcShtim
-    At91Sam3uAdcAvgParams<
-        AdcAvgInterval,
-        At91Sam3uClockInterruptTimer_TC1C // TimerTemplate
-    >
+    At91Sam3uAdcAvgParams<AdcAvgInterval>
 >;
 
 static const int clock_timer_prescaler = 3;
@@ -575,7 +572,6 @@ AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0B_GLOBAL(*p.myprinter.getAxisStepper<2>
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC1B_GLOBAL(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2B_GLOBAL(*p.myprinter.getHeaterTimer<0>(), MyContext())
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0C_GLOBAL(*p.myprinter.getHeaterTimer<1>(), MyContext())
-AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC1C_GLOBAL(*p.myadc.getAvgTimer(), MyContext())
 
 AMBRO_AT91SAM3U_ADC_GLOBAL(p.myadc, MyContext())
 

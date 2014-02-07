@@ -37,7 +37,6 @@
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Position.h>
 #include <aprinter/meta/StructIf.h>
-#include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TuplePosition.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/MapTypeList.h>
@@ -66,13 +65,11 @@ struct At91Sam3uAdcNoAvgParams {
 };
 
 template <
-    typename TAvgInterval,
-    template<typename, typename, typename> class TTimerTemplate
+    typename TAvgInterval
 >
 struct At91Sam3uAdcAvgParams {
     static const bool Enabled = true;
     using AvgInterval = TAvgInterval;
-    template<typename X, typename Y, typename Z> using TimerTemplate = TTimerTemplate<X, Y, Z>;
 };
 
 template <typename TPin, uint16_t TSmoothFactor>
@@ -114,17 +111,13 @@ class At91Sam3uAdc
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_make_pin_mask, make_pin_mask)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_handle_timer, handle_timer)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_calc_avg, calc_avg)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Pin, Pin)
     
     AMBRO_STRUCT_IF(AvgFeature, Params::AvgParams::Enabled) {
-        struct TimerPosition;
-        struct TimerHandler;
-        
-        using TimerInstance = typename Params::AvgParams::template TimerTemplate<TimerPosition, Context, TimerHandler>;
-        using Clock = typename TimerInstance::Clock;
+        using Clock = typename Context::Clock;
         using TimeType = typename Clock::TimeType;
-        static const TimeType Interval = Params::AvgParams::AvgInterval::value() / Clock::time_unit;
+        static TimeType const Interval = Params::AvgParams::AvgInterval::value() / Clock::time_unit;
         
         static AvgFeature * self (Context c)
         {
@@ -134,36 +127,24 @@ class At91Sam3uAdc
         static void init (Context c)
         {
             AvgFeature *o = self(c);
-            o->m_timer.init(c);
             o->m_next = Clock::getTime(c) + Interval;
-            o->m_timer.setFirst(c, o->m_next);
         }
         
-        static void deinit (Context c)
-        {
-            AvgFeature *o = self(c);
-            o->m_timer.deinit(c);
-        }
-        
-        static bool timer_handler (TimerInstance *, typename TimerInstance::HandlerContext c)
+        static void work (InterruptContext<Context> c)
         {
             AvgFeature *o = self(c);
             At91Sam3uAdc *m = At91Sam3uAdc::self(c);
             
-            TupleForEachForward(&m->m_pins, Foreach_handle_timer(), c);
-            o->m_next += Interval;
-            o->m_timer.setNext(c, o->m_next);
-            return true;
+            if ((TimeType)(Clock::getTime(c) - o->m_next) < UINT32_C(0x80000000)) {
+                TupleForEachForward(&m->m_pins, Foreach_calc_avg(), c);
+                o->m_next += Interval;
+            }
         }
         
-        TimerInstance m_timer;
         TimeType m_next;
-        
-        struct TimerPosition : public MemberPosition<AvgFeaturePosition, TimerInstance, &AvgFeature::m_timer> {};
-        struct TimerHandler : public AMBRO_WFUNC_TD(&AvgFeature::timer_handler) {};
     } AMBRO_STRUCT_ELSE(AvgFeature) {
         static void init (Context c) {}
-        static void deinit (Context c) {}
+        static void work (InterruptContext<Context> c) {}
     };
     
 public:
@@ -171,6 +152,8 @@ public:
     {
         At91Sam3uAdc *o = self(c);
         if (NumPins > 0) {
+            o->m_avg_feature.init(c);
+            TupleForEachForward(&o->m_pins, Foreach_init(), c);
             pmc_enable_periph_clk(ID_ADC12B);
             ADC12B->ADC12B_CHDR = UINT32_MAX;
             ADC12B->ADC12B_CHER = TupleForEachForwardAccRes(&o->m_pins, 0, Foreach_make_pin_mask());
@@ -182,8 +165,6 @@ public:
             NVIC_EnableIRQ(ADC12B_IRQn);
             ADC12B->ADC12B_IER = (uint32_t)1 << MaxAdcIndex;
             ADC12B->ADC12B_CR = ADC12B_CR_START;
-            TupleForEachForward(&o->m_pins, Foreach_init(), c);
-            o->m_avg_feature.init(c);
         }
         o->debugInit(c);
     }
@@ -193,7 +174,6 @@ public:
         At91Sam3uAdc *o = self(c);
         o->debugDeinit(c);
         if (NumPins > 0) {
-            o->m_avg_feature.deinit(c);
             NVIC_DisableIRQ(ADC12B_IRQn);
             ADC12B->ADC12B_IDR = UINT32_MAX;
             NVIC_ClearPendingIRQ(ADC12B_IRQn);
@@ -209,19 +189,14 @@ public:
         At91Sam3uAdc *o = self(c);
         o->debugAccess(c);
         
-        static const int PinIndex = TypeListIndex<FlatPinsList, IsEqualFunc<Pin>>::value;
+        static int const PinIndex = TypeListIndex<FlatPinsList, IsEqualFunc<Pin>>::value;
         return AdcPin<PinIndex>::get_value(c);
-    }
-    
-    template <typename TAvgFeature = AvgFeature>
-    typename TAvgFeature::TimerInstance * getAvgTimer ()
-    {
-        return &m_avg_feature.m_timer;
     }
     
     static void adc_isr (InterruptContext<Context> c)
     {
         At91Sam3uAdc *o = self(c);
+        o->m_avg_feature.work(c);
         ADC12B->ADC12B_CDR[MaxAdcIndex];
         ADC12B->ADC12B_CR = ADC12B_CR_START;
     }
@@ -251,9 +226,9 @@ private:
         }
         
         template <typename ThisContext>
-        static void handle_timer (ThisContext c)
+        static void calc_avg (ThisContext c)
         {
-            return self(c)->m_helper.handle_timer(c);
+            return self(c)->m_helper.calc_avg(c);
         }
         
         template <typename ThisContext>
@@ -267,7 +242,7 @@ private:
             using RealPin = TheListPin;
             static void init (Context c) {}
             template <typename ThisContext>
-            static void handle_timer (ThisContext c) {}
+            static void calc_avg (ThisContext c) {}
             template <typename ThisContext>
             static uint16_t get_value (ThisContext c) { return ADC12B->ADC12B_CDR[AdcIndex]; }
         };
@@ -291,7 +266,7 @@ private:
             }
             
             template <typename ThisContext>
-            static void handle_timer (ThisContext c)
+            static void calc_avg (ThisContext c)
             {
                 TheHelper *o = self(c);
                 o->m_state = (((uint64_t)(65536 - TheSmoothFactor) * ((uint32_t)ADC12B->ADC12B_CDR[AdcIndex] << 16)) + ((uint64_t)TheSmoothFactor * o->m_state)) >> 16;
@@ -312,7 +287,7 @@ private:
         };
         
         using Pin = typename TheHelper::RealPin;
-        static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
+        static int const AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
         
         TheHelper m_helper;
         
