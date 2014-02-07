@@ -44,8 +44,8 @@ static void emergency (void);
 #include <aprinter/system/TeensyUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
-#include <aprinter/printer/PidControl.h>
-#include <aprinter/printer/BinaryControl.h>
+#include <aprinter/printer/temp_control/PidControl.h>
+#include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/transform/DeltaTransform.h>
 #include <aprinter/printer/teensy3_pins.h>
 #include <generated/AvrThermistorTable_Extruder.h>

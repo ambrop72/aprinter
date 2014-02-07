@@ -47,8 +47,8 @@ static void emergency (void);
 #include <aprinter/system/AvrSpi.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
-#include <aprinter/printer/PidControl.h>
-#include <aprinter/printer/BinaryControl.h>
+#include <aprinter/printer/temp_control/PidControl.h>
+#include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/arduino_mega_pins.h>
 #include <aprinter/printer/transform/HalfDeltaTransform.h>
 #include <generated/AvrThermistorTable_Extruder.h>
