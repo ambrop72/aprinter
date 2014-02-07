@@ -197,7 +197,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 Mk20ClockInterruptTimer_Ftm0_Ch1, // StepperTimer,
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'B', // Name
@@ -229,7 +230,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 Mk20ClockInterruptTimer_Ftm0_Ch2, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'C', // Name
@@ -261,7 +263,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 Mk20ClockInterruptTimer_Ftm0_Ch3, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'E', // Name
@@ -282,7 +285,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 Mk20ClockInterruptTimer_Ftm0_Ch4, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >
     >,
     

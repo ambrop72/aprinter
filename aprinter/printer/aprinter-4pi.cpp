@@ -45,6 +45,7 @@ static void emergency (void);
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
+#include <aprinter/printer/microstep/A4982MicroStep.h>
 #include <generated/AvrThermistorTable_Extruder.h>
 #include <generated/AvrThermistorTable_Bed.h>
 
@@ -262,6 +263,14 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 At91Sam3uClockInterruptTimer_TC1A, // StepperTimer,
                 TheAxisStepperPrecisionParams // PrecisionParams
+            >,
+            PrinterMainMicroStepParams<
+                A4982MicroStep, // MicroStepTemplate
+                A4982MicroStepParams< // MicroStepParams
+                    At91Sam3uPin<At91Sam3uPioC, 30>, // Ms1Pin
+                    At91Sam3uPin<At91Sam3uPioC, 29> // Ms2Pin
+                >,
+                16 // MicroSteps
             >
         >,
         PrinterMainAxisParams<
@@ -294,6 +303,14 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 At91Sam3uClockInterruptTimer_TC2A, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
+            >,
+            PrinterMainMicroStepParams<
+                A4982MicroStep, // MicroStepTemplate
+                A4982MicroStepParams< // MicroStepParams
+                    At91Sam3uPin<At91Sam3uPioC, 11>, // Ms1Pin
+                    At91Sam3uPin<At91Sam3uPioC, 10> // Ms2Pin
+                >,
+                16 // MicroSteps
             >
         >,
         PrinterMainAxisParams<
@@ -326,6 +343,14 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 At91Sam3uClockInterruptTimer_TC0B, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
+            >,
+            PrinterMainMicroStepParams<
+                A4982MicroStep, // MicroStepTemplate
+                A4982MicroStepParams< // MicroStepParams
+                    At91Sam3uPin<At91Sam3uPioB, 6>, // Ms1Pin
+                    At91Sam3uPin<At91Sam3uPioB, 5> // Ms2Pin
+                >,
+                16 // MicroSteps
             >
         >,
         PrinterMainAxisParams<
@@ -347,6 +372,14 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 At91Sam3uClockInterruptTimer_TC1B, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
+            >,
+            PrinterMainMicroStepParams<
+                A4982MicroStep, // MicroStepTemplate
+                A4982MicroStepParams< // MicroStepParams
+                    At91Sam3uPin<At91Sam3uPioB, 12>, // Ms1Pin
+                    At91Sam3uPin<At91Sam3uPioB, 11> // Ms2Pin
+                >,
+                16 // MicroSteps
             >
         >/*,
         PrinterMainAxisParams<
@@ -368,6 +401,14 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 NONE, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
+            >,
+            PrinterMainMicroStepParams<
+                A4982MicroStep, // MicroStepTemplate
+                A4982MicroStepParams< // MicroStepParams
+                    At91Sam3uPin<At91Sam3uPioB, 0>, // Ms1Pin
+                    At91Sam3uPin<At91Sam3uPioC, 24> // Ms2Pin
+                >,
+                16 // MicroSteps
             >
         >*/
     >,

@@ -140,7 +140,7 @@ template <
     typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
     typename THoming, bool tenable_cartesian_speed_limit, int TStepBits,
-    typename TTheAxisStepperParams
+    typename TTheAxisStepperParams, typename TMicroStep
 >
 struct PrinterMainAxisParams {
     static const char name = tname;
@@ -159,6 +159,23 @@ struct PrinterMainAxisParams {
     static const bool enable_cartesian_speed_limit = tenable_cartesian_speed_limit;
     static const int StepBits = TStepBits;
     using TheAxisStepperParams = TTheAxisStepperParams;
+    using MicroStep = TMicroStep;
+};
+
+struct PrinterMainNoMicroStepParams {
+    static bool const Enabled = false;
+};
+
+template <
+    template<typename, typename, typename> class TMicroStepTemplate,
+    typename TMicroStepParams,
+    uint8_t TMicroSteps
+>
+struct PrinterMainMicroStepParams {
+    static bool const Enabled = true;
+    template <typename X, typename Y, typename Z> using MicroStepTemplate = TMicroStepTemplate<X, Y, Z>;
+    using MicroStepParams = TMicroStepParams;
+    static uint8_t const MicroSteps = TMicroSteps;
 };
 
 struct PrinterMainNoHomingParams {
@@ -1219,6 +1236,7 @@ private:
         friend PrinterMain;
         
         struct AxisStepperPosition;
+        struct MicroStepFeaturePosition;
         
         using AxisSpec = TypeListGet<AxesList, AxisIndex>;
         using Stepper = typename TheSteppers::template Stepper<AxisIndex>;
@@ -1351,6 +1369,27 @@ private:
             static FpType init_position () { return 0.0f; }
         };
         
+        AMBRO_STRUCT_IF(MicroStepFeature, AxisSpec::MicroStep::Enabled) {
+            static MicroStepFeature * self (Context c)
+            {
+                return PositionTraverse<typename Context::TheRootPosition, MicroStepFeaturePosition>(c.root());
+            }
+            
+            struct MicroStepPosition;
+            using MicroStep = typename AxisSpec::MicroStep::template MicroStepTemplate<MicroStepPosition, Context, typename AxisSpec::MicroStep::MicroStepParams>;
+            
+            static void init (Context c)
+            {
+                MicroStepFeature *o = self(c);
+                o->m_micro_step.init(c, AxisSpec::MicroStep::MicroSteps);
+            }
+            
+            MicroStep m_micro_step;
+            struct MicroStepPosition : public MemberPosition<MicroStepFeaturePosition, MicroStep, &MicroStepFeature::m_micro_step> {};
+        } AMBRO_STRUCT_ELSE(MicroStepFeature) {
+            static void init (Context c) {}
+        };
+        
         enum {AXIS_STATE_OTHER, AXIS_STATE_HOMING};
         
         static Axis * self (Context c)
@@ -1399,6 +1438,7 @@ private:
             o->m_axis_stepper.init(c);
             o->m_state = AXIS_STATE_OTHER;
             o->m_homing_feature.init(c);
+            o->m_micro_step_feature.init(c);
             o->m_req_pos = HomingFeature::init_position();
             o->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(o->dist_from_real(o->m_req_pos));
             o->m_relative_positioning = false;
@@ -1522,12 +1562,14 @@ private:
         TheAxisStepper m_axis_stepper;
         uint8_t m_state;
         HomingFeature m_homing_feature;
+        MicroStepFeature m_micro_step_feature;
         AbsStepFixedType m_end_pos;
         FpType m_req_pos;
         FpType m_old_pos;
         bool m_relative_positioning;
         
         struct AxisStepperPosition : public MemberPosition<AxisPosition<AxisIndex>, TheAxisStepper, &Axis::m_axis_stepper> {};
+        struct MicroStepFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, MicroStepFeature, &Axis::m_micro_step_feature> {};
     };
     
     using AxesTuple = IndexElemTuple<AxesList, Axis>;

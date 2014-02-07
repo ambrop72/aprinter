@@ -252,7 +252,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 At91Sam3xClockInterruptTimer_TC1A, // StepperTimer,
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'B', // Name
@@ -284,7 +285,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 At91Sam3xClockInterruptTimer_TC2A, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'C', // Name
@@ -316,7 +318,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 At91Sam3xClockInterruptTimer_TC3A, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'E', // Name
@@ -337,7 +340,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 At91Sam3xClockInterruptTimer_TC4A, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >
     >,
     

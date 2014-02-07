@@ -214,7 +214,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 AvrClockInterruptTimer_TC3_OCA, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'B', // Name
@@ -246,7 +247,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 AvrClockInterruptTimer_TC3_OCB, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'Y', // Name
@@ -278,7 +280,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 AvrClockInterruptTimer_TC3_OCC, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'E', // Name
@@ -299,7 +302,8 @@ using PrinterParams = PrinterMainParams<
             AxisStepperParams<
                 AvrClockInterruptTimer_TC4_OCA, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
-            >
+            >,
+            PrinterMainNoMicroStepParams
         >
     >,
     
