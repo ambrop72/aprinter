@@ -31,6 +31,7 @@ class Program (littlevent.close.Obj):
             self.done_count = 0
             self.writing = False
             self.start_time = time.time()
+            self.frame = ''
             
             self._read()
             self._write()
@@ -49,17 +50,24 @@ class Program (littlevent.close.Obj):
             print('ERROR: read error: {}'.format(err))
             return self._quit()
         self._read()
-        if self.writing:
-            print('ERROR: early response')
-            return self._quit()
-        if data != 'ok\n':
-            print('ERROR: unexpected response: >{}<'.format(data))
-            return self._quit()
-        self.done_count += 1
-        if self.done_count >= self.want_count:
-            return self._finished()
-        self._write()
-    
+        while True:
+            newline_pos = data.find('\n')
+            if newline_pos < 0:
+                self.frame += data
+                return
+            response = self.frame + data[:newline_pos]
+            self.frame = ''
+            data = data[(newline_pos + 1):]
+            if len(response) > 0 and response[-1] == '\r':
+                response = response[:-1]
+            if response != 'ok':
+                print('Unknown line received: >{}<'.format(response))
+            else:
+                self.done_count += 1
+                if self.done_count >= self.want_count:
+                    return self._finished()
+                self._write()
+        
     def _write_handler (self, err):
         assert self.writing
         if err is not None:
