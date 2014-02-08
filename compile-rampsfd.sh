@@ -83,13 +83,16 @@ C_SOURCES=(
 )
 
 if [[ $USE_USB_SERIAL = 1 ]]; then
+    cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" udi_cdc-hacked.c
+    patch -p0 udi_cdc-hacked.c < asf-cdc-tx.patch
+
     FLAGS_C_CXX=("${FLAGS_C_CXX[@]}" -DUSB_SERIAL)
     C_SOURCES=("${C_SOURCES[@]}"
         "${ASF_DIR}/sam/drivers/uotghs/uotghs_device.c"
         "${ASF_DIR}/sam/drivers/pmc/sleep.c"
         "${ASF_DIR}/common/utils/interrupt/interrupt_sam_nvic.c"
         "${ASF_DIR}/common/services/usb/udc/udc.c"
-        "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c"
+        udi_cdc-hacked.c
         "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc_desc.c"
         "${ASF_DIR}/common/services/clock/sam3x/sysclk.c"
     )

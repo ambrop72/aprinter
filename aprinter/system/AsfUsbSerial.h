@@ -237,7 +237,7 @@ private:
             if (bytes > amount.value()) {
                 bytes = amount.value();
             }
-            bytes -= udi_cdc_write_buf(o->m_send_buffer + o->m_send_start.value(), bytes);
+            udi_cdc_write_buf(o->m_send_buffer + o->m_send_start.value(), bytes);
             o->m_send_start = BoundedModuloAdd(o->m_send_start, SendSizeType::import(bytes));
         } while (o->m_send_start != o->m_send_end);
     }

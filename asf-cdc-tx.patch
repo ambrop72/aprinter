@@ -1,0 +1,47 @@
+--- udi_cdc.c.orig	2014-01-07 13:15:44.000000000 +0100
++++ udi_cdc.c	2014-02-08 15:43:10.299717256 +0100
+@@ -959,8 +959,9 @@
+ iram_size_t udi_cdc_multi_get_free_tx_buffer(uint8_t port)
+ {
+ 	irqflags_t flags;
+-	iram_size_t buf_sel_nb, buf_nosel_nb;
++	iram_size_t buf_sel_nb;
+ 	uint8_t buf_sel;
++        iram_size_t result;
+ 
+ #if UDI_CDC_PORT_NB == 1 // To optimize code
+ 	port = 0;
+@@ -969,22 +970,19 @@
+ 	flags = cpu_irq_save();
+ 	buf_sel = udi_cdc_tx_buf_sel[port];
+ 	buf_sel_nb = udi_cdc_tx_buf_nb[port][buf_sel];
+-	buf_nosel_nb = udi_cdc_tx_buf_nb[port][(buf_sel == 0)? 1 : 0];
+-	if (buf_sel_nb == UDI_CDC_TX_BUFFERS) {
+-		if ((!udi_cdc_tx_trans_ongoing[port])
+-			&& (!udi_cdc_tx_both_buf_to_send[port])) {
+-			/* One buffer is full, but the other buffer is not used.
+-			 * (not used = transfer on-going)
+-			 * then move to the other buffer to store data */
+-			udi_cdc_tx_both_buf_to_send[port] = true;
+-			udi_cdc_tx_buf_sel[port] = (buf_sel == 0)? 1 : 0;
+-			buf_sel_nb = 0;
+-			buf_nosel_nb = UDI_CDC_TX_BUFFERS;
+-		}
+-	}
++        if (buf_sel_nb == UDI_CDC_TX_BUFFERS && !udi_cdc_tx_trans_ongoing[port] && !udi_cdc_tx_both_buf_to_send[port]) {
++            udi_cdc_tx_both_buf_to_send[port] = true;
++            udi_cdc_tx_buf_sel[port] = (buf_sel == 0)? 1 : 0;
++            buf_sel_nb = 0;
++        }
++        if (!udi_cdc_tx_trans_ongoing[port] && !udi_cdc_tx_both_buf_to_send[port]) {
++            result = UDI_CDC_TX_BUFFERS;
++        } else {
++            result = UDI_CDC_TX_BUFFERS - buf_sel_nb;
++        }
+ 	cpu_irq_restore(flags);
+ 
+-	return (UDI_CDC_TX_BUFFERS - buf_sel_nb) + (UDI_CDC_TX_BUFFERS - buf_nosel_nb);
++	return result;
+ }
+ 
+ iram_size_t udi_cdc_get_free_tx_buffer(void)
