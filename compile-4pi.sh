@@ -58,6 +58,9 @@ FLAGS_LD=(
     --specs=nano.specs
 )
 
+cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" out/udi_cdc-hacked.c
+patch -p0 out/udi_cdc-hacked.c < patches/asf-cdc-tx.patch
+
 C_SOURCES=(
     "${TEMPLATES_DIR}/exceptions.c"
     "${TEMPLATES_DIR}/system_sam3u.c"
@@ -67,7 +70,7 @@ C_SOURCES=(
     "${ASF_DIR}/sam/drivers/pmc/sleep.c"
     "${ASF_DIR}/common/utils/interrupt/interrupt_sam_nvic.c"
     "${ASF_DIR}/common/services/usb/udc/udc.c"
-    "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c"
+    out/udi_cdc-hacked.c
     "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc_desc.c"
     "${ASF_DIR}/common/services/clock/sam3u/sysclk.c"
 )
