@@ -54,7 +54,7 @@ CXXFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLA
 LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS})
 
 cp "${TEENSY3}/mk20dx128.c" out/mk20dx128-hacked.c
-patch -p2 out/mk20dx128-hacked.c < teensy-startup-watchdog.patch
+patch -p2 out/mk20dx128-hacked.c < patches/teensy-startup-watchdog.patch
 
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ out/mk20dx128-hacked.c -o out/mk20dx128-hacked.o
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/nonstd.c" -o out/nonstd.o

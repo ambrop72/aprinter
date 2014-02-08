@@ -86,7 +86,7 @@ C_SOURCES=(
 
 if [[ $USE_USB_SERIAL = 1 ]]; then
     cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" out/udi_cdc-hacked.c
-    patch -p0 out/udi_cdc-hacked.c < asf-cdc-tx.patch
+    patch -p0 out/udi_cdc-hacked.c < patches/asf-cdc-tx.patch
 
     FLAGS_C_CXX=("${FLAGS_C_CXX[@]}" -DUSB_SERIAL)
     C_SOURCES=("${C_SOURCES[@]}"
