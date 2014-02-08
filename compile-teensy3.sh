@@ -9,6 +9,8 @@ MAIN=aprinter/printer/aprinter-teensy3.cpp
 TEENSY_VERSION=3.0
 F_CPU=96000000
 
+mkdir -p out
+
 CC=${CC:-${CROSS}gcc}
 TEENSY3="${TEENSY_CORES}/teensy3"
 
@@ -51,17 +53,17 @@ CFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLAGS_C[@]}" ${CFLAGS})
 CXXFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLAGS_CXX[@]}" ${CXXFLAGS})
 LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS})
 
-cp "${TEENSY3}/mk20dx128.c" mk20dx128-hacked.c
-sed -i 's/WDOG_STCTRLH = WDOG_STCTRLH_ALLOWUPDATE;//' mk20dx128-hacked.c
+cp "${TEENSY3}/mk20dx128.c" out/mk20dx128-hacked.c
+sed -i 's/WDOG_STCTRLH = WDOG_STCTRLH_ALLOWUPDATE;//' out/mk20dx128-hacked.c
 
-"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "mk20dx128-hacked.c"
-"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/nonstd.c"
-"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/yield.c"
-"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_dev.c"
-"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_desc.c"
-"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_mem.c"
-"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_serial.c"
-"${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/teensy3/teensy3_support.cpp
-"${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o main.o
-"${CC}" "${LDFLAGS[@]}" mk20dx128-hacked.o nonstd.o yield.o usb_dev.o usb_desc.o usb_mem.o usb_serial.o teensy3_support.o main.o -o aprinter.elf -lm
-${CROSS}objcopy -O ihex -R .eeprom aprinter.elf aprinter.hex
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ out/mk20dx128-hacked.c -o out/mk20dx128-hacked.o
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/nonstd.c" -o out/nonstd.o
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/yield.c" -o out/yield.o
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_dev.c" -o out/usb_dev.o
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_desc.c" -o out/usb_desc.o
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_mem.c" -o out/usb_mem.o
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_serial.c" -o out/usb_serial.o
+"${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/teensy3/teensy3_support.cpp -o out/teensy3_support.o
+"${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o out/main.o
+"${CC}" "${LDFLAGS[@]}" out/mk20dx128-hacked.o out/nonstd.o out/yield.o out/usb_dev.o out/usb_desc.o out/usb_mem.o out/usb_serial.o out/teensy3_support.o out/main.o -o out/aprinter.elf -lm
+${CROSS}objcopy -O ihex -R .eeprom out/aprinter.elf out/aprinter.hex

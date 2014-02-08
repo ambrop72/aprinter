@@ -8,6 +8,8 @@ MAIN=aprinter/printer/aprinter-4pi.cpp
 ASF_DIR=/home/ambro/asf-standalone-archive-3.14.0.86/xdk-asf-3.14.0
 GCCARM_DIR=/home/ambro/gcc-arm-none-eabi-4_8-2013q4
 
+mkdir -p out
+
 CROSS="${GCCARM_DIR}/bin/arm-none-eabi-"
 CC="${CROSS}gcc"
 CMSIS_DIR=${ASF_DIR}/sam/utils/cmsis/sam3u
@@ -76,12 +78,12 @@ LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS}
 
 C_OBJS=()
 for cfile in "${C_SOURCES[@]}"; do
-    OBJ=$(basename -s .c "${cfile}").o
+    OBJ=out/$(basename -s .c "${cfile}").o
     C_OBJS=("${C_OBJS[@]}" "${OBJ}")
-    "${CC}" -x c -c "${CFLAGS[@]}" "${cfile}"
+    "${CC}" -x c -c "${CFLAGS[@]}" "${cfile}" -o "${OBJ}"
 done
 
-"${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/at91sam3u/at91sam3u_support.cpp
-"${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o main.o
-"${CC}" "${LDFLAGS[@]}" "${C_OBJS[@]}" at91sam3u_support.o main.o -o aprinter.elf -lm
-${CROSS}objcopy --output-target=binary aprinter.elf aprinter.bin
+"${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/at91sam3u/at91sam3u_support.cpp -o out/at91sam3u_support.o
+"${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o out/main.o
+"${CC}" "${LDFLAGS[@]}" "${C_OBJS[@]}" out/at91sam3u_support.o out/main.o -o out/aprinter.elf -lm
+${CROSS}objcopy --output-target=binary out/aprinter.elf out/aprinter.bin

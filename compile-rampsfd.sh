@@ -21,6 +21,8 @@ USE_USB_SERIAL=0
 USE_CLANG=0
 CLANG_DIR=/home/ambro/clang-arm-install
 
+mkdir -p out
+
 # clang compiler with gcc-arm-embedded libs
 if [[ $USE_CLANG = 1 ]]; then
     CC="${CLANG_DIR}/bin/arm-none-eabi-clang"
@@ -83,8 +85,8 @@ C_SOURCES=(
 )
 
 if [[ $USE_USB_SERIAL = 1 ]]; then
-    cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" udi_cdc-hacked.c
-    patch -p0 udi_cdc-hacked.c < asf-cdc-tx.patch
+    cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" out/udi_cdc-hacked.c
+    patch -p0 out/udi_cdc-hacked.c < asf-cdc-tx.patch
 
     FLAGS_C_CXX=("${FLAGS_C_CXX[@]}" -DUSB_SERIAL)
     C_SOURCES=("${C_SOURCES[@]}"
@@ -92,7 +94,7 @@ if [[ $USE_USB_SERIAL = 1 ]]; then
         "${ASF_DIR}/sam/drivers/pmc/sleep.c"
         "${ASF_DIR}/common/utils/interrupt/interrupt_sam_nvic.c"
         "${ASF_DIR}/common/services/usb/udc/udc.c"
-        udi_cdc-hacked.c
+        out/udi_cdc-hacked.c
         "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc_desc.c"
         "${ASF_DIR}/common/services/clock/sam3x/sysclk.c"
     )
@@ -104,13 +106,13 @@ LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS}
 
 C_OBJS=()
 for cfile in "${C_SOURCES[@]}"; do
-    OBJ=$(basename -s .c "${cfile}").o
+    OBJ=out/$(basename -s .c "${cfile}").o
     C_OBJS=("${C_OBJS[@]}" "${OBJ}")
-    "${CC}" -x c -c "${CFLAGS[@]}" "${cfile}"
+    "${CC}" -x c -c "${CFLAGS[@]}" "${cfile}" -o "${OBJ}"
 done
 
-"${CC}" -x c -c "${CFLAGS[@]}" -fno-builtin "aprinter/platform/clang_missing.c"
-"${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/at91sam3x/at91sam3x_support.cpp
-"${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o main.o
-"${CC}" "${LDFLAGS[@]}" "${C_OBJS[@]}" clang_missing.o at91sam3x_support.o main.o -o aprinter.elf -lm
-${CROSS}objcopy --output-target=binary aprinter.elf aprinter.bin
+"${CC}" -x c -c "${CFLAGS[@]}" -fno-builtin "aprinter/platform/clang_missing.c" -o out/clang_missing.o
+"${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/at91sam3x/at91sam3x_support.cpp -o out/at91sam3x_support.o
+"${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o out/main.o
+"${CC}" "${LDFLAGS[@]}" "${C_OBJS[@]}" out/clang_missing.o out/at91sam3x_support.o out/main.o -o out/aprinter.elf -lm
+${CROSS}objcopy --output-target=binary out/aprinter.elf out/aprinter.bin
