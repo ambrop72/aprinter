@@ -3013,12 +3013,14 @@ private:
         
         o->m_last_active_time = c.clock()->getTime(c);
         o->m_disable_timer.appendAt(c, o->m_last_active_time + o->m_inactive_time);
+        o->m_blinker.setInterval(c, (FpType)(Params::LedBlinkInterval::value() * Clock::time_freq));
     }
     
     static void now_active (Context c)
     {
         PrinterMain *o = self(c);
         o->m_disable_timer.unset(c);
+        o->m_blinker.setInterval(c, (FpType)((Params::LedBlinkInterval::value() / 2) * Clock::time_freq));
     }
     
     static void set_force_timer (Context c)
