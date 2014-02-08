@@ -50,10 +50,7 @@ class BinaryGcodeParser
 {
     static_assert(Params::MaxParts <= 14, "");
     
-    static BinaryGcodeParser * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, BinaryGcodeParser, Position)
     
     enum {
         CMD_TYPE_G0 = 1,

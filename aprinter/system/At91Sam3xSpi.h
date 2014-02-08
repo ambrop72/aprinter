@@ -43,12 +43,8 @@
 
 template <typename Position, typename Context, typename Handler, int CommandBufferBits>
 class At91Sam3xSpi : public DebugObject<Context, void> {
+    AMBRO_MAKE_SELF(Context, At91Sam3xSpi, Position)
     using FastEvent = typename Context::EventLoop::template FastEventSpec<At91Sam3xSpi>;
-    
-    static At91Sam3xSpi * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
     enum {
         COMMAND_READ_BUFFER,

@@ -44,11 +44,7 @@ class AvrWatchdog : private DebugObject<Context, void>
 {
     static_assert(Params::WatchdogPrescaler >= 0, "");
     static_assert(Params::WatchdogPrescaler < 10, "");
-    
-    static AvrWatchdog * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, AvrWatchdog, Position)
     
 public:
     static constexpr double WatchdogTime = PowerOfTwoFunc<double>(11 + Params::WatchdogPrescaler) / 131072.0;

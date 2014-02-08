@@ -49,10 +49,7 @@ template <typename Position, typename Context, typename FpType, typename Params,
 class TemperatureObserver
 : private DebugObject<Context, void>
 {
-    static TemperatureObserver * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, TemperatureObserver, Position)
     
 public:
     static void init (Context c, FpType target)

@@ -50,6 +50,7 @@ class AxisHomer
 : private DebugObject<Context, void>
 {
 private:
+    AMBRO_MAKE_SELF(Context, AxisHomer, Position)
     struct PlannerPosition;
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
@@ -64,11 +65,6 @@ private:
     using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
-    
-    static AxisHomer * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     using StepFixedType = typename Planner::template Axis<0>::StepFixedType;

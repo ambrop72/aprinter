@@ -52,13 +52,9 @@ class AvrSerial
 : private DebugObject<Context, void>
 {
 private:
+    AMBRO_MAKE_SELF(Context, AvrSerial, Position)
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<AvrSerial>;
     using SendFastEvent = typename Context::EventLoop::template FastEventSpec<RecvFastEvent>;
-    
-    static AvrSerial * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     using RecvSizeType = BoundedInt<RecvBufferBits, false>;

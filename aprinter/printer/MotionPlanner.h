@@ -94,6 +94,7 @@ class MotionPlanner
 : private DebugObject<Context, void>
 {
 private:
+    AMBRO_MAKE_SELF(Context, MotionPlanner, Position)
     template <int AxisIndex> struct AxisPosition;
     template <int ChannelIndex> struct ChannelPosition;
     
@@ -234,6 +235,7 @@ public:
     public: // private, workaround gcc bug
         friend MotionPlanner;
         
+        AMBRO_MAKE_SELF(Context, Axis, AxisPosition<AxisIndex>)
         using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
         using StepperTimeFixedType = typename TheAxisStepper::TimeFixedType;
         using StepperAccelFixedType = typename TheAxisStepper::AccelFixedType;
@@ -241,11 +243,6 @@ public:
         using TheAxisSplitBuffer = AxisSplitBuffer<AxisIndex>;
         using TheAxisSegment = AxisSegment<AxisIndex>;
         static const AxisMaskType TheAxisMask = (AxisMaskType)1 << (AxisIndex + TypeBits);
-        
-        static Axis * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, AxisPosition<AxisIndex>>(c.root());
-        }
         
         static TheAxisStepper * stepper (Context c)
         {
@@ -609,17 +606,13 @@ public:
         using CallbackContext = typename TheTimer::HandlerContext;
         
     public: // private, workaround gcc bug
+        AMBRO_MAKE_SELF(Context, Channel, ChannelPosition<ChannelIndex>)
         static_assert(ChannelSpec::BufferSize - LookaheadCommitCount > 1, "");
         static const size_t ChannelCommitBufferSize = ChannelSpec::BufferSize;
         static const size_t ChannelBackupBufferSize = LookaheadBufferSize - LookaheadCommitCount;
         using ChannelCommitBufferSizeType = typename ChooseInt<BitsInInt<ChannelCommitBufferSize>::value, false>::Type;
         using ChannelBackupBufferSizeType = typename ChooseInt<BitsInInt<2 * ChannelBackupBufferSize>::value, false>::Type;
         using LookaheadSizeType = typename ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>::Type;
-        
-        static Channel * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, ChannelPosition<ChannelIndex>>(c.root());
-        }
         
         static void init (Context c)
         {
@@ -960,11 +953,6 @@ public:
     using EventLoopFastEvents = MakeTypeList<StepperFastEvent>;
     
 private:
-    static MotionPlanner * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
-    
     static bool plan (Context c)
     {
         MotionPlanner *o = self(c);

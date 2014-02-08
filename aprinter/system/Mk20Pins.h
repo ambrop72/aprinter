@@ -69,10 +69,7 @@ template <typename Position, typename Context>
 class Mk20Pins
 : private DebugObject<Context, void>
 {
-    static Mk20Pins * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, Mk20Pins, Position)
     
 public:
     static void init (Context c)

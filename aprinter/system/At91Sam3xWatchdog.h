@@ -39,11 +39,7 @@ template <typename Position, typename Context, typename Params>
 class At91Sam3xWatchdog : private DebugObject<Context, void>
 {
     static_assert(Params::Wdv <= 0xFFF, "");
-    
-    static At91Sam3xWatchdog * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, At91Sam3xWatchdog, Position)
     
 public:
     static constexpr double WatchdogTime = Params::Wdv / (F_SCLK / 128.0);

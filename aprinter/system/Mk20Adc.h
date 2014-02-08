@@ -53,6 +53,7 @@ class Mk20Adc
     static_assert(ADiv >= 0 && ADiv <= 3, "");
     
 private:
+    AMBRO_MAKE_SELF(Context, Mk20Adc, Position)
     template <int PinIndex> struct PinPosition;
     
     static const int NumPins = TypeListLength<PinsList>::value;
@@ -77,11 +78,6 @@ private:
         Mk20Pin<Mk20PortC, 0>,
         Mk20Pin<Mk20PortC, 1>
     >;
-    
-    static Mk20Adc * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     static void init (Context c)
@@ -162,14 +158,10 @@ private:
     
     template <int PinIndex>
     struct AdcPin {
+        AMBRO_MAKE_SELF(Context, AdcPin, PinPosition<PinIndex>)
         using Pin = TypeListGet<PinsList, PinIndex>;
         static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
         static const int NextPinIndex = (PinIndex + 1) % NumPins;
-        
-        static AdcPin * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, PinPosition<PinIndex>>(c.root());
-        }
         
         static void init (Context c)
         {

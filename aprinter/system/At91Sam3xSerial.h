@@ -46,13 +46,9 @@ class At91Sam3xSerial
 : private DebugObject<Context, void>
 {
 private:
+    AMBRO_MAKE_SELF(Context, At91Sam3xSerial, Position)
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<At91Sam3xSerial>;
     using SendFastEvent = typename Context::EventLoop::template FastEventSpec<RecvFastEvent>;
-    
-    static At91Sam3xSerial * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     using RecvSizeType = BoundedInt<RecvBufferBits, false>;

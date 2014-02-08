@@ -145,6 +145,12 @@ typename Position2::ObjectType * PositionTraverse (typename Position1::ObjectTyp
     return PositionPrivate::GoDownHelper<Path2>::call(PositionPrivate::GoUpHelper<TypeListReverse<Path1>>::call(x));
 }
 
+#define AMBRO_MAKE_SELF(Context, Type, Position) \
+static Type * self (Context c) \
+{ \
+    return APrinter::PositionTraverse<typename Context::TheRootPosition, Position>(c.root()); \
+}
+
 #include <aprinter/EndNamespace.h>
 
 #endif

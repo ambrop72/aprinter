@@ -337,6 +337,7 @@ class PrinterMain
 : private DebugObject<Context, void>
 {
 private:
+    AMBRO_MAKE_SELF(Context, PrinterMain, Position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_homing, start_homing)
@@ -438,14 +439,10 @@ private:
     
     template <typename ChannelCommonPosition, typename Channel>
     struct ChannelCommon {
+        AMBRO_MAKE_SELF(Context, ChannelCommon, ChannelCommonPosition)
         using TheGcodeParser = typename Channel::TheGcodeParser;
         using GcodePartsSizeType = typename TheGcodeParser::PartsSizeType;
         using GcodeParserPartRef = typename TheGcodeParser::PartRef;
-        
-        static ChannelCommon * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, ChannelCommonPosition>(c.root());
-        }
         
         // channel interface
         
@@ -745,6 +742,7 @@ private:
     };
     
     struct SerialFeature {
+        AMBRO_MAKE_SELF(Context, SerialFeature, SerialFeaturePosition)
         struct SerialPosition;
         struct GcodeParserPosition;
         struct ChannelCommonPosition;
@@ -756,11 +754,6 @@ private:
         using SendSizeType = typename TheSerial::SendSizeType;
         using TheGcodeParser = GcodeParser<GcodeParserPosition, Context, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType, GcodeParserTypeSerial>;
         using TheChannelCommon = ChannelCommon<ChannelCommonPosition, SerialFeature>;
-        
-        static SerialFeature * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, SerialFeaturePosition>(c.root());
-        }
         
         static void init (Context c)
         {
@@ -906,6 +899,7 @@ private:
     };
     
     AMBRO_STRUCT_IF(SdCardFeature, Params::SdCardParams::enabled) {
+        AMBRO_MAKE_SELF(Context, SdCardFeature, SdCardFeaturePosition)
         struct SdCardPosition;
         struct GcodeParserPosition;
         struct ChannelCommonPosition;
@@ -924,11 +918,6 @@ private:
         using SdCardReadState = typename TheSdCard::ReadState;
         using SdCardChannelCommon = ChannelCommon<ChannelCommonPosition, SdCardFeature>;
         enum {SDCARD_NONE, SDCARD_INITING, SDCARD_INITED, SDCARD_RUNNING, SDCARD_PAUSING};
-        
-        static SdCardFeature * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, SdCardFeaturePosition>(c.root());
-        }
         
         static void init (Context c)
         {
@@ -1233,7 +1222,7 @@ private:
     template <int TAxisIndex>
     struct Axis {
         static const int AxisIndex = TAxisIndex;
-        friend PrinterMain;
+        AMBRO_MAKE_SELF(Context, Axis, AxisPosition<AxisIndex>)
         
         struct AxisStepperPosition;
         struct MicroStepFeaturePosition;
@@ -1248,6 +1237,7 @@ private:
         
         AMBRO_STRUCT_IF(HomingFeature, AxisSpec::Homing::enabled) {
             struct HomingState {
+                AMBRO_MAKE_SELF(Context, HomingState, HomingStatePosition<AxisIndex>)
                 struct HomerPosition;
                 struct HomerGetAxisStepper;
                 struct HomerFinishedHandler;
@@ -1259,11 +1249,6 @@ private:
                     typename AxisSpec::Homing::EndPin,
                     AxisSpec::Homing::end_invert, AxisSpec::Homing::home_dir, HomerGetAxisStepper, HomerFinishedHandler
                 >;
-                
-                static HomingState * self (Context c)
-                {
-                    return PositionTraverse<typename Context::TheRootPosition, HomingStatePosition<AxisIndex>>(c.root());
-                }
                 
                 static TheAxisStepper * homer_get_axis_stepper (Context c)
                 {
@@ -1370,11 +1355,7 @@ private:
         };
         
         AMBRO_STRUCT_IF(MicroStepFeature, AxisSpec::MicroStep::Enabled) {
-            static MicroStepFeature * self (Context c)
-            {
-                return PositionTraverse<typename Context::TheRootPosition, MicroStepFeaturePosition>(c.root());
-            }
-            
+            AMBRO_MAKE_SELF(Context, MicroStepFeature, MicroStepFeaturePosition)
             struct MicroStepPosition;
             using MicroStep = typename AxisSpec::MicroStep::template MicroStepTemplate<MicroStepPosition, Context, typename AxisSpec::MicroStep::MicroStepParams>;
             
@@ -1391,11 +1372,6 @@ private:
         };
         
         enum {AXIS_STATE_OTHER, AXIS_STATE_HOMING};
-        
-        static Axis * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, AxisPosition<AxisIndex>>(c.root());
-        }
         
         static FpType dist_from_real (FpType x)
         {
@@ -1594,6 +1570,7 @@ private:
     >;
     
     AMBRO_STRUCT_IF(TransformFeature, TransformParams::Enabled) {
+        AMBRO_MAKE_SELF(Context, TransformFeature, TransformFeaturePosition)
         template <int VirtAxisIndex> struct VirtAxisPosition;
         template <int SecondaryAxisIndex> struct SecondaryAxisPosition;
         
@@ -1604,11 +1581,6 @@ private:
         static int const NumVirtAxes = TheTransformAlg::NumAxes;
         static_assert(TypeListLength<VirtAxesList>::value == NumVirtAxes, "");
         static_assert(TypeListLength<PhysAxesList>::value == NumVirtAxes, "");
-        
-        static TransformFeature * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, TransformFeaturePosition>(c.root());
-        }
         
         struct PhysReqPosSrc {
             Context m_c;
@@ -1805,17 +1777,13 @@ private:
         
         template <int VirtAxisIndex>
         struct VirtAxis {
+            AMBRO_MAKE_SELF(Context, VirtAxis, VirtAxisPosition<VirtAxisIndex>)
             using VirtAxisParams = TypeListGet<VirtAxesList, VirtAxisIndex>;
             static int const axis_name = VirtAxisParams::Name;
             static int const PhysAxisIndex = FindAxis<TypeListGet<PhysAxesList, VirtAxisIndex>::value>::value;
             using ThePhysAxis = Axis<PhysAxisIndex>;
             static_assert(!ThePhysAxis::AxisSpec::enable_cartesian_speed_limit, "");
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
-            
-            static VirtAxis * self (Context c)
-            {
-                return PositionTraverse<typename Context::TheRootPosition, VirtAxisPosition<VirtAxisIndex>>(c.root());
-            }
             
             static void init (Context c)
             {
@@ -1921,13 +1889,9 @@ private:
         
         template <int SecondaryAxisIndex>
         struct SecondaryAxis {
+            AMBRO_MAKE_SELF(Context, SecondaryAxis, SecondaryAxisPosition<SecondaryAxisIndex>)
             static int const AxisIndex = TypeListGet<SecondaryAxisIndices, SecondaryAxisIndex>::value;
             using TheAxis = Axis<AxisIndex>;
-            
-            static SecondaryAxis * self (Context c)
-            {
-                return PositionTraverse<typename Context::TheRootPosition, SecondaryAxisPosition<SecondaryAxisIndex>>(c.root());
-            }
             
             static void prepare_split (Context c, FpType *distance_squared)
             {
@@ -2060,6 +2024,7 @@ private:
     
     template <int HeaterIndex>
     struct Heater {
+        AMBRO_MAKE_SELF(Context, Heater, HeaterPosition<HeaterIndex>)
         struct SoftPwmTimerHandler;
         struct ObserverGetValueCallback;
         struct ObserverHandler;
@@ -2092,11 +2057,6 @@ private:
         static ValueFixedType max_safe_temp ()
         {
             return ValueFixedType::template importFpSaturatedRoundInline<FpType>((FpType)HeaterSpec::MaxSafeTemp::value());
-        }
-        
-        static Heater * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, HeaterPosition<HeaterIndex>>(c.root());
         }
         
         static void init (Context c)
@@ -2279,12 +2239,8 @@ private:
         }
         
         AMBRO_STRUCT_IF(MainControl, MainControlEnabled) {
+            AMBRO_MAKE_SELF(Context, MainControl, MainControlPosition<HeaterIndex>)
             static const TimeType ControlIntervalTicks = HeaterSpec::ControlInterval::value() / Clock::time_unit;
-            
-            static MainControl * self (Context c)
-            {
-                return PositionTraverse<typename Context::TheRootPosition, MainControlPosition<HeaterIndex>>(c.root());
-            }
             
             static void set (Context c) {}
             
@@ -2411,6 +2367,7 @@ private:
     
     template <int FanIndex>
     struct Fan {
+        AMBRO_MAKE_SELF(Context, Fan, FanPosition<FanIndex>)
         struct SoftPwmTimerHandler;
         struct SoftPwmPosition;
         
@@ -2422,11 +2379,6 @@ private:
         struct ChannelPayload {
             PwmPowerData target_pd;
         };
-        
-        static Fan * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, FanPosition<FanIndex>>(c.root());
-        }
         
         static void init (Context c)
         {
@@ -2523,14 +2475,10 @@ private:
     using HomingStateTuple = IndexElemTuple<AxesList, HomingStateTupleHelper>;
     
     AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::enabled) {
+        AMBRO_MAKE_SELF(Context, ProbeFeature, ProbeFeaturePosition)
         using ProbeParams = typename Params::ProbeParams;
         static const int NumPoints = TypeListLength<typename ProbeParams::ProbePoints>::value;
         static const int ProbeAxisIndex = FindPhysVirtAxis<Params::ProbeParams::ProbeAxis>::value;
-        
-        static ProbeFeature * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, ProbeFeaturePosition>(c.root());
-        }
         
         static void init (Context c)
         {
@@ -2832,11 +2780,6 @@ public:
     >;
     
 private:
-    static PrinterMain * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
-    
     static TimeType time_from_real (FpType t)
     {
         return (FixedPoint<30, false, 0>::template importFpSaturatedRound<FpType>(t * (FpType)Clock::time_freq)).bitsValue();

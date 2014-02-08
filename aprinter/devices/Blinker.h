@@ -37,10 +37,7 @@ template <typename Position, typename Context, typename Pin, typename Handler>
 class Blinker
 : private DebugObject<Context, void>
 {
-    static Blinker * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, Blinker, Position)
     
 public:
     using TimeType = typename Context::Clock::TimeType;

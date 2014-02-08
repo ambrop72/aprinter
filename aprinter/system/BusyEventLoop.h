@@ -62,12 +62,6 @@ public:
     typedef BusyEventLoopQueuedEvent<BusyEventLoop> QueuedEvent;
     using FastHandlerType = void (*) (Context);
     
-private:
-    static BusyEventLoop * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
-    
 public:
     static void init (Context c)
     {
@@ -200,6 +194,7 @@ private:
     template <typename>
     friend class BusyEventLoopQueuedEvent;
     
+    AMBRO_MAKE_SELF(Context, BusyEventLoop, Position)
     typedef DoubleEndedList<QueuedEvent, &QueuedEvent::m_list_node> QueuedEventList;
     
     static Extra * extra (Context c)

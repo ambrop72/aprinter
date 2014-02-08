@@ -56,16 +56,12 @@ struct StepperDef {
 
 template <typename Position, typename Context, typename StepperDefsList>
 class Steppers : private DebugObject<Context, void> {
+    AMBRO_MAKE_SELF(Context, Steppers, Position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     
     static int const NumSteppers = TypeListLength<StepperDefsList>::value;
     using MaskType = typename ChooseInt<NumSteppers, false>::Type;
-    
-    static Steppers * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     template <int StepperIndex>

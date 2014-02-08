@@ -149,10 +149,7 @@ template <typename Position, typename Context>
 class AvrPins
 : private DebugObject<Context, void>
 {
-    static AvrPins * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, AvrPins, Position)
     
 public:
     static void init (Context c)

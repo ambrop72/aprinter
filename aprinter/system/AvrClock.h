@@ -47,11 +47,7 @@ class AvrClock
 {
     static_assert(Prescale >= 1, "Prescale must be >=1");
     static_assert(Prescale <= 5, "Prescale must be <=5");
-    
-    static AvrClock * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, AvrClock, Position)
     
 public:
     typedef uint32_t TimeType;
@@ -248,10 +244,7 @@ template <typename Position, typename Context, typename Handler, uint32_t timsk_
 class AvrClock16BitInterruptTimer
 : private DebugObject<Context, void>
 {
-    static AvrClock16BitInterruptTimer * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, AvrClock16BitInterruptTimer, Position)
     
 public:
     typedef typename Context::Clock Clock;
@@ -461,10 +454,7 @@ template <typename Position, typename Context, typename Handler, uint32_t timsk_
 class AvrClock8BitInterruptTimer
 : private DebugObject<Context, void>
 {
-    static AvrClock8BitInterruptTimer * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, AvrClock8BitInterruptTimer, Position)
     
 public:
     typedef typename Context::Clock Clock;

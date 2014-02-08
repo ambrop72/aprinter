@@ -50,11 +50,7 @@ public:
 private:
     static_assert(Params::Toval >= 4, "");
     static_assert(Params::Prescval < 8, "");
-    
-    static Mk20Watchdog * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, Mk20Watchdog, Position)
     
 public:
     static constexpr double WatchdogTime = Params::Toval / (1000.0 / (Params::Prescval + 1));

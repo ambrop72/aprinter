@@ -90,6 +90,7 @@ class AxisStepper
 : private DebugObject<Context, void>
 {
 private:
+    AMBRO_MAKE_SELF(Context, AxisStepper, Position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_command_callback, call_command_callback)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_prestep_callback, call_prestep_callback)
     
@@ -105,11 +106,6 @@ private:
     
     struct TimerHandler;
     struct TimerPosition;
-    
-    static AxisStepper * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     using Clock = typename Context::Clock;

@@ -40,13 +40,9 @@ class SoftPwm
 : private DebugObject<Context, void>
 {
 private:
+    AMBRO_MAKE_SELF(Context, SoftPwm, Position)
     struct TimerHandler;
     struct TimerPosition;
-    
-    static SoftPwm * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     using Clock = typename Context::Clock;

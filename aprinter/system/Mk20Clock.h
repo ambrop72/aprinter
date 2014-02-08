@@ -95,6 +95,7 @@ class Mk20Clock
     static_assert(Prescale >= 0, "");
     static_assert(Prescale <= 7, "");
     
+    AMBRO_MAKE_SELF(Context, Mk20Clock, Position)
     template <typename, typename, typename, typename, int>
     friend class Mk20ClockInterruptTimer;
     
@@ -102,11 +103,6 @@ class Mk20Clock
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init_start, init_start)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_irq_helper, irq_helper)
-    
-    static Mk20Clock * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     using TimeType = uint32_t;

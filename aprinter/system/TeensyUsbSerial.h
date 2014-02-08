@@ -52,12 +52,8 @@ class TeensyUsbSerial
 : private DebugObject<Context, void>
 {
 private:
+    AMBRO_MAKE_SELF(Context, TeensyUsbSerial, Position)
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<TeensyUsbSerial>;
-    
-    static TeensyUsbSerial * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     using RecvSizeType = BoundedInt<RecvBufferBits, false>;

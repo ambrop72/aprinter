@@ -58,6 +58,7 @@ class AvrAdc
 : private DebugObject<Context, void>
 {
 private:
+    AMBRO_MAKE_SELF(Context, AvrAdc, Position)
     template <int PinIndex> struct PinPosition;
     
     static const int NumPins = TypeListLength<PinsList>::value;
@@ -203,11 +204,6 @@ private:
 #error Your device is not supported by AvrAdc
 #endif
     
-    static AvrAdc * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
-    
 public:
     static void init (Context c)
     {
@@ -292,14 +288,10 @@ private:
     
     template <int PinIndex>
     struct AdcPin {
+        AMBRO_MAKE_SELF(Context, AdcPin, PinPosition<PinIndex>)
         using Pin = TypeListGet<PinsList, PinIndex>;
         static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
         static const int NextPinIndex = (PinIndex + 1) % NumPins;
-        
-        static AdcPin * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, PinPosition<PinIndex>>(c.root());
-        }
         
         static MaskType make_pin_mask (MaskType accum)
         {

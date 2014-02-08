@@ -84,6 +84,7 @@ class At91Sam3uAdc
     static_assert(Params::AdcStartup < 256, "");
     static_assert(Params::AdcShtim < 16, "");
     
+    AMBRO_MAKE_SELF(Context, At91Sam3uAdc, Position)
     struct AvgFeaturePosition;
     template <int PinIndex> struct PinPosition;
     
@@ -104,25 +105,16 @@ class At91Sam3uAdc
         At91Sam3uPin<At91Sam3uPioC, 18>
     >;
     
-    static At91Sam3uAdc * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
-    
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_make_pin_mask, make_pin_mask)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_calc_avg, calc_avg)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Pin, Pin)
     
     AMBRO_STRUCT_IF(AvgFeature, Params::AvgParams::Enabled) {
+        AMBRO_MAKE_SELF(Context, AvgFeature, AvgFeaturePosition)
         using Clock = typename Context::Clock;
         using TimeType = typename Clock::TimeType;
         static TimeType const Interval = Params::AvgParams::AvgInterval::value() / Clock::time_unit;
-        
-        static AvgFeature * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, AvgFeaturePosition>(c.root());
-        }
         
         static void init (Context c)
         {
@@ -204,16 +196,12 @@ public:
 private:
     template <int PinIndex>
     struct AdcPin {
+        AMBRO_MAKE_SELF(Context, AdcPin, PinPosition<PinIndex>)
         template <typename TheListPin> struct Helper;
         struct HelperPosition;
         
         using ListPin = TypeListGet<PinsList, PinIndex>;
         using TheHelper = Helper<ListPin>;
-        
-        static AdcPin * self (Context c)
-        {
-            return PositionTraverse<typename Context::TheRootPosition, PinPosition<PinIndex>>(c.root());
-        }
         
         static uint32_t make_pin_mask (uint32_t accum)
         {
@@ -249,15 +237,11 @@ private:
         
         template <typename ThePin, uint16_t TheSmoothFactor>
         struct Helper<At91Sam3uAdcSmoothPin<ThePin, TheSmoothFactor>> {
+            AMBRO_MAKE_SELF(Context, TheHelper, HelperPosition)
             using RealPin = ThePin;
             static_assert(TheSmoothFactor > 0, "");
             static_assert(TheSmoothFactor < 65536, "");
             static_assert(Params::AvgParams::Enabled, "");
-            
-            static TheHelper * self (Context c)
-            {
-                return PositionTraverse<typename Context::TheRootPosition, HelperPosition>(c.root());
-            }
             
             static void init (Context c)
             {

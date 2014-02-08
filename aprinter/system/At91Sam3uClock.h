@@ -88,13 +88,9 @@ class At91Sam3uClock
     template <typename, typename, typename, typename, typename>
     friend class At91Sam3uClockInterruptTimer;
     
+    AMBRO_MAKE_SELF(Context, At91Sam3uClock, Position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
-    
-    static At91Sam3uClock * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     using TimeType = uint32_t;
@@ -243,11 +239,7 @@ public:
     using Comp = TComp;
     
 private:
-    static At91Sam3uClockInterruptTimer * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
-    
+    AMBRO_MAKE_SELF(Context, At91Sam3uClockInterruptTimer, Position)
     using TheMyTc = typename Clock::template FindTc<TcSpec>;
     static const uint32_t CpMask = Comp::CpMask;
     

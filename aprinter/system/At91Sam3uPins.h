@@ -60,10 +60,7 @@ template <typename Position, typename Context>
 class At91Sam3uPins
 : private DebugObject<Context, void>
 {
-    static At91Sam3uPins * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, At91Sam3uPins, Position)
     
     template <typename ThePio>
     static Pio volatile * pio ()

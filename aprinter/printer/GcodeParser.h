@@ -56,10 +56,7 @@ class GcodeParser
 {
     static_assert(Params::MaxParts > 0, "");
     
-    static GcodeParser * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
+    AMBRO_MAKE_SELF(Context, GcodeParser, Position)
     
 public:
     using BufferSizeType = TBufferSizeType;

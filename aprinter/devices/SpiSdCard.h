@@ -48,6 +48,7 @@ struct SpiSdCardParams {
 
 template <typename Position, typename Context, typename Params, int MaxCommands, typename InitHandler, typename CommandHandler>
 class SpiSdCard : public DebugObject<Context, void> {
+    AMBRO_MAKE_SELF(Context, SpiSdCard, Position)
     struct SpiHandler;
     struct SpiPosition;
     
@@ -55,11 +56,6 @@ class SpiSdCard : public DebugObject<Context, void> {
     static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::value;
     using TheSpi = typename Params::template Spi<SpiPosition, Context, SpiHandler, SpiCommandBits>;
     using SpiCommandSizeType = typename TheSpi::CommandSizeType;
-    
-    static SpiSdCard * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
 public:
     class ReadState {

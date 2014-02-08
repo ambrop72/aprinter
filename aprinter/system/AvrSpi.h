@@ -44,12 +44,8 @@
 
 template <typename Position, typename Context, typename Handler, int CommandBufferBits>
 class AvrSpi : public DebugObject<Context, void> {
+    AMBRO_MAKE_SELF(Context, AvrSpi, Position)
     using FastEvent = typename Context::EventLoop::template FastEventSpec<AvrSpi>;
-    
-    static AvrSpi * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
     
     enum {
         COMMAND_READ_BUFFER,
