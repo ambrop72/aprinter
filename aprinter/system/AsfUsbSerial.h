@@ -64,7 +64,6 @@ public:
         c.eventLoop()->template initFastEvent<RecvFastEvent>(c, AsfUsbSerial::recv_event_handler);
         o->m_recv_start = RecvSizeType::import(0);
         o->m_recv_end = RecvSizeType::import(0);
-        o->m_recv_overrun = false;
         o->m_recv_force = false;
         
         c.eventLoop()->template initFastEvent<SendFastEvent>(c, AsfUsbSerial::send_event_handler);
@@ -91,7 +90,7 @@ public:
         o->debugAccess(c);
         AMBRO_ASSERT(out_overrun)
         
-        *out_overrun = o->m_recv_overrun;
+        *out_overrun = (o->m_recv_end == BoundedModuloDec(o->m_recv_start));
         return recv_avail(o->m_recv_start, o->m_recv_end);
     }
     
@@ -116,9 +115,7 @@ public:
     {
         AsfUsbSerial *o = self(c);
         o->debugAccess(c);
-        AMBRO_ASSERT(o->m_recv_overrun)
-        
-        o->m_recv_overrun = false;
+        AMBRO_ASSERT(o->m_recv_end == BoundedModuloDec(o->m_recv_start))
     }
     
     static void recvForceEvent (Context c)
@@ -195,26 +192,21 @@ private:
         o->debugAccess(c);
         
         c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
-        if (!o->m_recv_overrun) {
-            RecvSizeType virtual_start = BoundedModuloDec(o->m_recv_start);
-            while (o->m_recv_end != virtual_start) {
-                RecvSizeType amount = (o->m_recv_end > virtual_start) ? BoundedModuloNegative(o->m_recv_end) : BoundedUnsafeSubtract(virtual_start, o->m_recv_end);
-                uint32_t bytes = udi_cdc_get_nb_received_data();
-                if (bytes == 0) {
-                    goto no_more_data;
-                }
-                if (bytes > amount.value()) {
-                    bytes = amount.value();
-                }
-                udi_cdc_read_buf(o->m_recv_buffer + o->m_recv_end.value(), bytes);
-                memcpy(o->m_recv_buffer + ((size_t)RecvSizeType::maxIntValue() + 1) + o->m_recv_end.value(), o->m_recv_buffer + o->m_recv_end.value(), bytes);
-                o->m_recv_end = BoundedModuloAdd(o->m_recv_end, RecvSizeType::import(bytes));
-                o->m_recv_force = true;
+        RecvSizeType virtual_start = BoundedModuloDec(o->m_recv_start);
+        while (o->m_recv_end != virtual_start) {
+            RecvSizeType amount = (o->m_recv_end > virtual_start) ? BoundedModuloNegative(o->m_recv_end) : BoundedUnsafeSubtract(virtual_start, o->m_recv_end);
+            uint32_t bytes = udi_cdc_get_nb_received_data();
+            if (bytes == 0) {
+                break;
             }
-            o->m_recv_overrun = true;
+            if (bytes > amount.value()) {
+                bytes = amount.value();
+            }
+            udi_cdc_read_buf(o->m_recv_buffer + o->m_recv_end.value(), bytes);
+            memcpy(o->m_recv_buffer + ((size_t)RecvSizeType::maxIntValue() + 1) + o->m_recv_end.value(), o->m_recv_buffer + o->m_recv_end.value(), bytes);
+            o->m_recv_end = BoundedModuloAdd(o->m_recv_end, RecvSizeType::import(bytes));
             o->m_recv_force = true;
         }
-    no_more_data:
         if (o->m_recv_force) {
             o->m_recv_force = false;
             RecvHandler::call(o, c);
@@ -252,7 +244,6 @@ private:
     
     RecvSizeType m_recv_start;
     RecvSizeType m_recv_end;
-    bool m_recv_overrun;
     bool m_recv_force;
     char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
     
