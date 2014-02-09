@@ -22,30 +22,30 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_AT91SAM3X_SPI_H
-#define AMBROLIB_AT91SAM3X_SPI_H
+#ifndef AMBROLIB_AT91SAM3U_SPI_H
+#define AMBROLIB_AT91SAM3U_SPI_H
 
 #include <aprinter/system/At91SamSpi.h>
-#include <aprinter/system/At91Sam3xPins.h>
+#include <aprinter/system/At91Sam3uPins.h>
 
 #include <aprinter/BeginNamespace.h>
 
-using At91Sam3xSpiDevice = At91SamSpiDevice<
-    GET_PERIPHERAL_ADDR(SPI0),
-    ID_SPI0,
-    SPI0_IRQn, 
-    At91Sam3xPin<At91Sam3xPioA, 27>,
-    At91Sam3xPin<At91Sam3xPioA, 26>,
-    At91Sam3xPin<At91Sam3xPioA, 25>
+using At91Sam3uSpiDevice = At91SamSpiDevice<
+    GET_PERIPHERAL_ADDR(SPI),
+    ID_SPI,
+    SPI_IRQn, 
+    At91Sam3uPin<At91Sam3uPioA, 15>,
+    At91Sam3uPin<At91Sam3uPioA, 14>,
+    At91Sam3uPin<At91Sam3uPioA, 13>
 >;
 
 template <typename Position, typename Context, typename Handler, int CommandBufferBits>
-using At91Sam3xSpi = At91SamSpi<Position, Context, Handler, CommandBufferBits, At91Sam3xSpiDevice>;
+using At91Sam3uSpi = At91SamSpi<Position, Context, Handler, CommandBufferBits, At91Sam3uSpiDevice>;
 
-#define AMBRO_AT91SAM3X_SPI_GLOBAL(thespi, context) \
+#define AMBRO_AT91SAM3U_SPI_GLOBAL(thespi, context) \
 extern "C" \
 __attribute__((used)) \
-void SPI0_Handler (void) \
+void SPI_Handler (void) \
 { \
     (thespi).spi_irq(MakeInterruptContext(context)); \
 }
