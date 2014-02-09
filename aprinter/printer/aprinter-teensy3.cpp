@@ -162,6 +162,7 @@ using PrinterParams = PrinterMainParams<
     Mk20WatchdogParams<2000, 0>,
     PrinterMainNoSdCardParams,
     PrinterMainNoProbeParams,
+    PrinterMainNoCurrentParams,
     
     /*
      * Axes.

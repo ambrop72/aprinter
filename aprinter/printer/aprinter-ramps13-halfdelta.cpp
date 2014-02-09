@@ -179,6 +179,7 @@ using PrinterParams = PrinterMainParams<
         43 // MaxCommandSize. BINARY: 43
     >,
     PrinterMainNoProbeParams,
+    PrinterMainNoCurrentParams,
     
     /*
      * Axes.

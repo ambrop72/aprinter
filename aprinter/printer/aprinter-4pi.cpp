@@ -42,10 +42,12 @@ static void emergency (void);
 #include <aprinter/system/At91Sam3uAdc.h>
 #include <aprinter/system/At91Sam3xWatchdog.h>
 #include <aprinter/system/AsfUsbSerial.h>
+#include <aprinter/system/At91Sam3uSpi.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/microstep/A4982MicroStep.h>
+#include <aprinter/printer/current/Ad5206Current.h>
 #include <generated/AvrThermistorTable_Extruder.h>
 #include <generated/AvrThermistorTable_Bed.h>
 
@@ -181,6 +183,8 @@ using ProbeP2Y = AMBRO_WRAP_DOUBLE(155.0);
 using ProbeP3X = AMBRO_WRAP_DOUBLE(205.0);
 using ProbeP3Y = AMBRO_WRAP_DOUBLE(83.0);
 
+using CurrentConversionFactor = AMBRO_WRAP_DOUBLE(100.0 / 743.0);
+
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
@@ -226,6 +230,20 @@ using PrinterParams = PrinterMainParams<
             MakeTypeList<ProbeP1X, ProbeP1Y>,
             MakeTypeList<ProbeP2X, ProbeP2Y>,
             MakeTypeList<ProbeP3X, ProbeP3Y>
+        >
+    >,
+    PrinterMainCurrentParams<
+        MakeTypeList< // CurrentAxesList
+            PrinterMainCurrentAxis<'X', Ad5206CurrentChannelParams<3, CurrentConversionFactor>>,
+            PrinterMainCurrentAxis<'Y', Ad5206CurrentChannelParams<1, CurrentConversionFactor>>,
+            PrinterMainCurrentAxis<'Z', Ad5206CurrentChannelParams<0, CurrentConversionFactor>>,
+            PrinterMainCurrentAxis<'E', Ad5206CurrentChannelParams<2, CurrentConversionFactor>>,
+            PrinterMainCurrentAxis<'U', Ad5206CurrentChannelParams<5, CurrentConversionFactor>>
+        >,
+        Ad5206Current, // CurrentTemplate
+        Ad5206CurrentParams< // CurrentParams
+            At91Sam3uPin<At91Sam3uPioA, 16>, // SsPin
+            At91Sam3uSpi // SpiTemplate
         >
     >,
     
@@ -615,6 +633,7 @@ AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2B_GLOBAL(*p.myprinter.getHeaterTimer<0>
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0C_GLOBAL(*p.myprinter.getHeaterTimer<1>(), MyContext())
 
 AMBRO_AT91SAM3U_ADC_GLOBAL(p.myadc, MyContext())
+AMBRO_AT91SAM3U_SPI_GLOBAL(*p.myprinter.getCurrent()->getSpi(), MyContext())
 
 static void emergency (void)
 {

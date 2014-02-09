@@ -217,6 +217,7 @@ using PrinterParams = PrinterMainParams<
             MakeTypeList<ProbeP3X, ProbeP3Y>
         >
     >,
+    PrinterMainNoCurrentParams,
     
     /*
      * Axes.

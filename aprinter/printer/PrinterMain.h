@@ -90,7 +90,7 @@ template <
     typename TForceTimeout, typename TFpType,
     template <typename, typename, typename> class TEventChannelTimer,
     template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
-    typename TSdCardParams, typename TProbeParams,
+    typename TSdCardParams, typename TProbeParams, typename TCurrentParams,
     typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList
 >
 struct PrinterMainParams {
@@ -111,6 +111,7 @@ struct PrinterMainParams {
     using WatchdogParams = TWatchdogParams;
     using SdCardParams = TSdCardParams;
     using ProbeParams = TProbeParams;
+    using CurrentParams = TCurrentParams;
     using AxesList = TAxesList;
     using TransformParams = TTransformParams;
     using HeatersList = THeatersList;
@@ -332,6 +333,31 @@ struct PrinterMainProbeParams {
     using ProbePoints = TProbePoints;
 };
 
+struct PrinterMainNoCurrentParams {
+    static bool const Enabled = false;
+};
+
+template <
+    typename TCurrentAxesList,
+    template<typename, typename, typename, typename> class TCurrentTemplate,
+    typename TCurrentParams
+>
+struct PrinterMainCurrentParams {
+    static bool const Enabled = true;
+    using CurrentAxesList = TCurrentAxesList;
+    template <typename X, typename Y, typename Z, typename W> using CurrentTemplate = TCurrentTemplate<X, Y, Z, W>;
+    using CurrentParams = TCurrentParams;
+};
+
+template <
+    char TAxisName,
+    typename TParams
+>
+struct PrinterMainCurrentAxis {
+    static char const AxisName = TAxisName;
+    using Params = TParams;
+};
+
 template <typename Position, typename Context, typename Params>
 class PrinterMain
 : private DebugObject<Context, void>
@@ -375,6 +401,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_split, compute_split)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_get_final_split, get_final_split)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_limit_virt_axis_speed, limit_virt_axis_speed)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_current_axis, check_current_axis)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
@@ -394,6 +421,7 @@ private:
     template <int HeaterIndex> struct MainControlPosition;
     template <int FanIndex> struct FanPosition;
     struct ProbeFeaturePosition;
+    struct CurrentFeaturePosition;
     
     struct BlinkerHandler;
     template <int AxisIndex> struct PlannerGetAxisStepper;
@@ -2663,6 +2691,72 @@ private:
         static bool prestep_callback (CallbackContext c) { return false; }
     };
     
+    AMBRO_STRUCT_IF(CurrentFeature, Params::CurrentParams::Enabled) {
+        AMBRO_MAKE_SELF(Context, CurrentFeature, CurrentFeaturePosition)
+        struct CurrentPosition;
+        using CurrentParams = typename Params::CurrentParams;
+        using CurrentAxesList = typename CurrentParams::CurrentAxesList;
+        template <typename ChannelAxisParams>
+        using MakeCurrentChannel = typename ChannelAxisParams::Params;
+        using CurrentChannelsList = MapTypeList<CurrentAxesList, TemplateFunc<MakeCurrentChannel>>;
+        using Current = typename CurrentParams::template CurrentTemplate<CurrentPosition, Context, typename CurrentParams::CurrentParams, CurrentChannelsList>;
+        
+        static void init (Context c)
+        {
+            Current::init(c);
+        }
+        
+        static void deinit (Context c)
+        {
+            Current::deinit(c);
+        }
+        
+        template <typename TheChannelCommon>
+        static bool check_command (Context c, TheChannelCommon *cc)
+        {
+            if (cc->gc(c)->getCmdNumber(c) == 906) {
+                auto num_parts = cc->gc(c)->getNumParts(c);
+                for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
+                    typename TheChannelCommon::GcodeParserPartRef part = cc->gc(c)->getPart(c, i);
+                    CurrentAxesTuple dummy;
+                    TupleForEachForwardInterruptible(&dummy, Foreach_check_current_axis(), c, cc, cc->gc(c)->getPartCode(c, part), cc->gc(c)->template getPartFpValue<FpType>(c, part));
+                }
+                cc->finishCommand(c);
+                return false;
+            }
+            return true;
+        }
+        
+        using EventLoopFastEvents = typename Current::EventLoopFastEvents;
+        
+        template <int CurrentAxisIndex>
+        struct CurrentAxis {
+            using CurrentAxisParams = TypeListGet<CurrentAxesList, CurrentAxisIndex>;
+            
+            template <typename TheChannelCommon>
+            static bool check_current_axis (Context c, TheChannelCommon *cc, char axis_name, FpType current)
+            {
+                if (axis_name == CurrentAxisParams::AxisName) {
+                    Current::template setCurrent<CurrentAxisIndex>(c, current);
+                    return false;
+                }
+                return true;
+            }
+        };
+        
+        using CurrentAxesTuple = IndexElemTuple<CurrentAxesList, CurrentAxis>;
+        
+        Current m_current;
+        
+        struct CurrentPosition : public MemberPosition<CurrentFeaturePosition, Current, &CurrentFeature::m_current> {};
+    } AMBRO_STRUCT_ELSE(CurrentFeature) {
+        static void init (Context c) {}
+        static void deinit (Context c) {}
+        template <typename TheChannelCommon>
+        static bool check_command (Context c, TheChannelCommon *cc) { return true; }
+        using EventLoopFastEvents = EmptyTypeList;
+    };
+    
 public:
     static void init (Context c)
     {
@@ -2681,6 +2775,7 @@ public:
         TupleForEachForward(&o->m_heaters, Foreach_init(), c);
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
         o->m_probe_feature.init(c);
+        o->m_current_feature.init(c);
         o->m_inactive_time = (FpType)(Params::DefaultInactiveTime::value() * Clock::time_freq);
         o->m_time_freq_by_max_speed = 0.0f;
         o->m_underrun_count = 0;
@@ -2701,6 +2796,7 @@ public:
         if (o->m_planner_state != PLANNER_NONE) {
             o->m_planner.deinit(c);
         }
+        o->m_current_feature.deinit(c);
         o->m_probe_feature.deinit(c);
         TupleForEachReverse(&o->m_fans, Foreach_deinit(), c);
         TupleForEachReverse(&o->m_heaters, Foreach_deinit(), c);
@@ -2754,6 +2850,12 @@ public:
         return &m_sdcard_feature.m_sdcard;
     }
     
+    template <typename TCurrentFeatue = CurrentFeature>
+    typename TCurrentFeatue::Current * getCurrent ()
+    {
+        return &m_current_feature.m_current;
+    }
+    
     static void emergency ()
     {
         AxesTuple dummy_axes;
@@ -2765,15 +2867,18 @@ public:
     }
     
     using EventLoopFastEvents = JoinTypeLists<
-        typename SdCardFeature::EventLoopFastEvents,
+        typename CurrentFeature::EventLoopFastEvents,
         JoinTypeLists<
-            typename SerialFeature::TheSerial::EventLoopFastEvents,
+            typename SdCardFeature::EventLoopFastEvents,
             JoinTypeLists<
-                typename ThePlanner::EventLoopFastEvents,
-                TypeListFold<
-                    MapTypeList<typename AxesTuple::ElemTypes, GetMemberType_EventLoopFastEvents>,
-                    EmptyTypeList,
-                    JoinTypeLists
+                typename SerialFeature::TheSerial::EventLoopFastEvents,
+                JoinTypeLists<
+                    typename ThePlanner::EventLoopFastEvents,
+                    TypeListFold<
+                        MapTypeList<typename AxesTuple::ElemTypes, GetMemberType_EventLoopFastEvents>,
+                        EmptyTypeList,
+                        JoinTypeLists
+                    >
                 >
             >
         >
@@ -2807,7 +2912,8 @@ private:
                         TupleForEachForwardInterruptible(&o->m_heaters, Foreach_check_command(), c, cc) &&
                         TupleForEachForwardInterruptible(&o->m_fans, Foreach_check_command(), c, cc) &&
                         o->m_sdcard_feature.check_command(c, cc) &&
-                        o->m_probe_feature.check_command(c, cc) 
+                        o->m_probe_feature.check_command(c, cc) &&
+                        o->m_current_feature.check_command(c, cc)
                     ) {
                         goto unknown_command;
                     }
@@ -3298,6 +3404,7 @@ private:
     HeatersTuple m_heaters;
     FansTuple m_fans;
     ProbeFeature m_probe_feature;
+    CurrentFeature m_current_feature;
     TimeType m_inactive_time;
     TimeType m_last_active_time;
     FpType m_time_freq_by_max_speed;
@@ -3329,6 +3436,7 @@ private:
     template <int HeaterIndex> struct MainControlPosition : public MemberPosition<HeaterPosition<HeaterIndex>, typename Heater<HeaterIndex>::MainControl, &Heater<HeaterIndex>::m_main_control> {};
     template <int FanIndex> struct FanPosition : public TuplePosition<Position, FansTuple, &PrinterMain::m_fans, FanIndex> {};
     struct ProbeFeaturePosition : public MemberPosition<Position, ProbeFeature, &PrinterMain::m_probe_feature> {};
+    struct CurrentFeaturePosition : public MemberPosition<Position, CurrentFeature, &PrinterMain::m_current_feature> {};
     
     struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
     template <int AxisIndex> struct PlannerGetAxisStepper : public AMBRO_WFUNC_TD(&PrinterMain::template planner_get_axis_stepper<AxisIndex>) {};
