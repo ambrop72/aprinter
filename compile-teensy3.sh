@@ -53,10 +53,13 @@ CFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLAGS_C[@]}" ${CFLAGS})
 CXXFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLAGS_CXX[@]}" ${CXXFLAGS})
 LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS})
 
-cp "${TEENSY3}/mk20dx128.c" out/mk20dx128-hacked.c
-patch -p2 out/mk20dx128-hacked.c < patches/teensy-startup-watchdog.patch
+if ! grep startup_default_early_hook "${TEENSY3}/mk20dx128.c"; then
+    echo "ERROR: Please update Teensy cores."
+    echo "IF YOU DELETE THIS CHECK, WATCHDOG WILL NOT RUN!"
+    exit 1
+fi
 
-"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ out/mk20dx128-hacked.c -o out/mk20dx128-hacked.o
+"${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/mk20dx128.c" -o out/mk20dx128.o
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/nonstd.c" -o out/nonstd.o
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/yield.c" -o out/yield.o
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_dev.c" -o out/usb_dev.o
@@ -65,5 +68,5 @@ patch -p2 out/mk20dx128-hacked.c < patches/teensy-startup-watchdog.patch
 "${CC}" -x c -c "${CFLAGS[@]}" -Dasm=__asm__ "${TEENSY3}/usb_serial.c" -o out/usb_serial.o
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/teensy3/teensy3_support.cpp -o out/teensy3_support.o
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o out/main.o
-"${CC}" "${LDFLAGS[@]}" out/mk20dx128-hacked.o out/nonstd.o out/yield.o out/usb_dev.o out/usb_desc.o out/usb_mem.o out/usb_serial.o out/teensy3_support.o out/main.o -o out/aprinter.elf -lm
+"${CC}" "${LDFLAGS[@]}" out/mk20dx128.o out/nonstd.o out/yield.o out/usb_dev.o out/usb_desc.o out/usb_mem.o out/usb_serial.o out/teensy3_support.o out/main.o -o out/aprinter.elf -lm
 ${CROSS}objcopy -O ihex -R .eeprom out/aprinter.elf out/aprinter.hex
