@@ -447,7 +447,7 @@ using PrinterParams = PrinterMainParams<
             301, // SetConfigMCommand
             At91Sam3uPin<At91Sam3uPioB, 4>, // AdcPin
             At91Sam3uPin<At91Sam3uPioA, 21>, // OutputPin
-            true, // OutputInvert
+            false, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
@@ -476,7 +476,7 @@ using PrinterParams = PrinterMainParams<
             304, // SetConfigMCommand
             At91Sam3uPin<At91Sam3uPioC, 16>, // AdcPin
             At91Sam3uPin<At91Sam3uPioA, 20>, // OutputPin
-            true, // OutputInvert
+            false, // OutputInvert
             AvrThermistorTable_Bed, // Formula
             BedHeaterMinSafeTemp, // MinSafeTemp
             BedHeaterMaxSafeTemp, // MaxSafeTemp
@@ -505,7 +505,7 @@ using PrinterParams = PrinterMainParams<
             402, // SetConfigMCommand
             At91Sam3uPin<At91Sam3uPioA, 30>, // AdcPin
             At91Sam3uPin<At91Sam3uPioA, 23>, // OutputPin
-            true, // OutputInvert
+            false, // OutputInvert
             AvrThermistorTable_Extruder, // Formula
             UxtruderHeaterMinSafeTemp, // MinSafeTemp
             UxtruderHeaterMaxSafeTemp, // MaxSafeTemp
