@@ -69,4 +69,4 @@ fi
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/teensy3/teensy3_support.cpp -o out/teensy3_support.o
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o out/main.o
 "${CC}" "${LDFLAGS[@]}" out/mk20dx128.o out/nonstd.o out/yield.o out/usb_dev.o out/usb_desc.o out/usb_mem.o out/usb_serial.o out/teensy3_support.o out/main.o -o out/aprinter.elf -lm
-${CROSS}objcopy -O ihex -R .eeprom out/aprinter.elf out/aprinter.hex
+"${CROSS}objcopy" -O ihex -R .eeprom out/aprinter.elf out/aprinter.hex

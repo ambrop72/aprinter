@@ -106,7 +106,7 @@ LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS}
 
 C_OBJS=()
 for cfile in "${C_SOURCES[@]}"; do
-    OBJ=out/$(basename -s .c "${cfile}").o
+    OBJ=out/$(basename "${cfile}").o
     C_OBJS=("${C_OBJS[@]}" "${OBJ}")
     "${CC}" -x c -c "${CFLAGS[@]}" "${cfile}" -o "${OBJ}"
 done
@@ -115,4 +115,4 @@ done
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" aprinter/platform/at91sam3x/at91sam3x_support.cpp -o out/at91sam3x_support.o
 "${CC}" -x c++ -c "${CXXFLAGS[@]}" "${MAIN}" -o out/main.o
 "${CC}" "${LDFLAGS[@]}" "${C_OBJS[@]}" out/clang_missing.o out/at91sam3x_support.o out/main.o -o out/aprinter.elf -lm
-${CROSS}objcopy --output-target=binary out/aprinter.elf out/aprinter.bin
+"${CROSS}objcopy" --output-target=binary out/aprinter.elf out/aprinter.bin
