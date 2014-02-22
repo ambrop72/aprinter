@@ -155,7 +155,7 @@ class At91Sam3xAdc
     };
     
 public:
-    using FixedType = FixedPoint<10, false, -10>;
+    using FixedType = FixedPoint<12, false, -12>;
     
     static void init (Context c)
     {
@@ -166,7 +166,7 @@ public:
             pmc_enable_periph_clk(ID_ADC);
             ADC->ADC_CHDR = UINT32_MAX;
             ADC->ADC_CHER = TupleForEachForwardAccRes(&o->m_pins, 0, Foreach_make_pin_mask());
-            ADC->ADC_MR = ADC_MR_LOWRES | ADC_MR_PRESCAL(AdcPrescal) |
+            ADC->ADC_MR = ADC_MR_PRESCAL(AdcPrescal) |
                           ((uint32_t)Params::AdcStartup << ADC_MR_STARTUP_Pos) |
                           ((uint32_t)Params::AdcSettling << ADC_MR_SETTLING_Pos) |
                           ADC_MR_TRACKTIM(Params::AdcTracking) |

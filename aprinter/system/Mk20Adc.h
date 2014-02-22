@@ -81,7 +81,7 @@ private:
     >;
     
 public:
-    using FixedType = FixedPoint<10, false, -10>;
+    using FixedType = FixedPoint<16, false, -16>;
     
     static void init (Context c)
     {
@@ -132,7 +132,7 @@ private:
             TupleForEachForward(&o->m_pins, Foreach_init(), c);
             
             SIM_SCGC6 |= SIM_SCGC6_ADC0;
-            ADC0_CFG1 = ADC_CFG1_MODE(2) | ADC_CFG1_ADLSMP | ADC_CFG1_ADIV(ADiv);
+            ADC0_CFG1 = ADC_CFG1_MODE(3) | ADC_CFG1_ADLSMP | ADC_CFG1_ADIV(ADiv);
             ADC0_CFG2 = ADC_CFG2_MUXSEL;
             ADC0_SC2 = 0;
             ADC0_SC3 = 0;

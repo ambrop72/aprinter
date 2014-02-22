@@ -141,7 +141,7 @@ class At91Sam3uAdc
     };
     
 public:
-    using FixedType = FixedPoint<10, false, -10>;
+    using FixedType = FixedPoint<12, false, -12>;
     
     static void init (Context c)
     {
@@ -152,7 +152,7 @@ public:
             pmc_enable_periph_clk(ID_ADC12B);
             ADC12B->ADC12B_CHDR = UINT32_MAX;
             ADC12B->ADC12B_CHER = TupleForEachForwardAccRes(&o->m_pins, 0, Foreach_make_pin_mask());
-            ADC12B->ADC12B_MR = ADC12B_MR_LOWRES_BITS_10 | ADC12B_MR_PRESCAL(AdcPrescal) |
+            ADC12B->ADC12B_MR = ADC12B_MR_PRESCAL(AdcPrescal) |
                                 ADC12B_MR_STARTUP(Params::AdcStartup) | ADC12B_MR_SHTIM(Params::AdcShtim);
             ADC12B->ADC12B_IDR = UINT32_MAX;
             NVIC_ClearPendingIRQ(ADC12B_IRQn);
