@@ -382,6 +382,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_finish_set_position, finish_set_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_value, append_value)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_adc_value, append_adc_value)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_command, check_command)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_emergency, emergency)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_channel_callback, channel_callback)
@@ -2132,12 +2133,16 @@ private:
             cc->reply_append_ch(c, HeaterSpec::Name);
             cc->reply_append_ch(c, ':');
             cc->reply_append_fp(c, value);
-#ifdef PRINTERMAIN_DEBUG_ADC
+        }
+        
+        template <typename TheChannelCommon>
+        static void append_adc_value (Context c, TheChannelCommon *cc)
+        {
+            AdcFixedType adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
             cc->reply_append_ch(c, ' ');
             cc->reply_append_ch(c, HeaterSpec::Name);
             cc->reply_append_pstr(c, AMBRO_PSTR("A:"));
-            cc->reply_append_uint32(c, adc_value.bitsValue());
-#endif
+            cc->reply_append_fp(c, adc_value.template fpValue<FpType>());
         }
         
         template <typename ThisContext>
@@ -2922,6 +2927,13 @@ private:
                     cc->reply_append_uint32(c, o->m_underrun_count);
                     cc->reply_append_ch(c, '\n');
                     cc->finishCommand(c);
+                } break;
+                
+                case 921: { // get heater ADC readings
+                    cc->reply_append_pstr(c, AMBRO_PSTR("ok"));
+                    TupleForEachForward(&o->m_heaters, Foreach_append_adc_value(), c, cc);
+                    cc->reply_append_ch(c, '\n');
+                    return cc->finishCommand(c, true);
                 } break;
             } break;
             
