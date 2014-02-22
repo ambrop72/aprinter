@@ -26,7 +26,6 @@
 #define AMBROLIB_SOFT_PWM_H
 
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Position.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -81,17 +80,22 @@ public:
         return &m_timer;
     }
     
-    template <typename FracFixedType>
-    static void computePowerData (FracFixedType frac, PowerData *pd)
+    static void computeZeroPowerData (PowerData *pd)
     {
-        if (frac.bitsValue() <= 0) {
+        pd->type = 0;
+    }
+    
+    template <typename FpType>
+    static void computePowerData (FpType frac, PowerData *pd)
+    {
+        if (!(frac > 0.005f)) {
             pd->type = 0;
         } else {
-            if (frac >= FracFixedType::maxValue()) {
+            if (!(frac < 0.995f)) {
                 pd->type = 2;
             } else {
                 pd->type = 1;
-                pd->on_time = FixedResMultiply(FixedPoint<32, false, 0>::importBits(interval), frac).bitsValue();
+                pd->on_time = frac * (FpType)interval;
             }
         }
     }

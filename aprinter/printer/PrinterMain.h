@@ -63,6 +63,7 @@
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/NotFunc.h>
+#include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -235,7 +236,7 @@ template <
     typename TMinSafeTemp, typename TMaxSafeTemp,
     typename TPulseInterval,
     typename TControlInterval,
-    template<typename, typename, typename, typename> class TControl,
+    template<typename, typename, typename> class TControl,
     typename TControlParams,
     typename TTheTemperatureObserverParams,
     template<typename, typename, typename> class TTimerTemplate
@@ -253,7 +254,7 @@ struct PrinterMainHeaterParams {
     using MaxSafeTemp = TMaxSafeTemp;
     using PulseInterval = TPulseInterval;
     using ControlInterval = TControlInterval;
-    template <typename X, typename Y, typename Z, typename W> using Control = TControl<X, Y, Z, W>;
+    template <typename X, typename Y, typename Z> using Control = TControl<X, Y, Z>;
     using ControlParams = TControlParams;
     using TheTemperatureObserverParams = TTheTemperatureObserverParams;
     template <typename X, typename Y, typename Z> using TimerTemplate = TTimerTemplate<X, Y, Z>;
@@ -418,7 +419,6 @@ private:
     struct SdCardFeaturePosition;
     struct PlannerPosition;
     template <int HeaterIndex> struct HeaterPosition;
-    template <int HeaterIndex> struct MainControlPosition;
     template <int FanIndex> struct FanPosition;
     struct ProbeFeaturePosition;
     struct CurrentFeaturePosition;
@@ -2060,32 +2060,32 @@ private:
         struct ObserverPosition;
         
         using HeaterSpec = TypeListGet<HeatersList, HeaterIndex>;
-        static const bool MainControlEnabled = (HeaterSpec::ControlInterval::value() != 0.0);
-        using ValueFixedType = typename HeaterSpec::Formula::ValueFixedType;
-        using MeasurementInterval = If<MainControlEnabled, typename HeaterSpec::ControlInterval, typename HeaterSpec::PulseInterval>;
-        using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, MeasurementInterval, ValueFixedType, FpType>;
+        using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, typename HeaterSpec::ControlInterval, FpType>;
         using ControlConfig = typename TheControl::Config;
         using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename HeaterSpec::OutputPin, HeaterSpec::OutputInvert, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
         using TheObserver = TemperatureObserver<ObserverPosition, Context, FpType, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
-        using OutputFixedType = typename TheControl::OutputFixedType;
         using PwmPowerData = typename TheSoftPwm::PowerData;
+        using TheFormula = typename HeaterSpec::Formula::template Inner<FpType>;
+        using AdcFixedType = typename Context::Adc::FixedType;
+        using AdcIntType = typename AdcFixedType::IntType;
         
-        static_assert(MainControlEnabled || TheControl::InterruptContextAllowed, "Chosen heater control algorithm is not allowed in interrupt context.");
-        static_assert(!TheControl::SupportsConfig || MainControlEnabled, "Configurable heater control algorithms not allowed in interrupt context.");
+        static const TimeType ControlIntervalTicks = HeaterSpec::ControlInterval::value() / Clock::time_unit;
+        
+        // compute the ADC readings corresponding to MinSafeTemp and MaxSafeTemp
+        template <typename Temp>
+        struct TempToAdcAbs {
+            using Result = AMBRO_WRAP_DOUBLE((TheFormula::template TempToAdc<Temp>::Result::value() * PowerOfTwo<double, AdcFixedType::num_bits>::value));
+        };
+        using InfAdcValueFp = typename TempToAdcAbs<typename HeaterSpec::MaxSafeTemp>::Result;
+        using SupAdcValueFp = typename TempToAdcAbs<typename HeaterSpec::MinSafeTemp>::Result;
+        static_assert(InfAdcValueFp::value() > 1, "");
+        static_assert(SupAdcValueFp::value() < PowerOfTwoMinusOne<AdcIntType, AdcFixedType::num_bits>::value, "");
+        static constexpr AdcIntType InfAdcValue = InfAdcValueFp::value();
+        static constexpr AdcIntType SupAdcValue = SupAdcValueFp::value();
         
         struct ChannelPayload {
-            ValueFixedType target;
+            FpType target;
         };
-        
-        static ValueFixedType min_safe_temp ()
-        {
-            return ValueFixedType::template importFpSaturatedRoundInline<FpType>((FpType)HeaterSpec::MinSafeTemp::value());
-        }
-        
-        static ValueFixedType max_safe_temp ()
-        {
-            return ValueFixedType::template importFpSaturatedRoundInline<FpType>((FpType)HeaterSpec::MaxSafeTemp::value());
-        }
         
         static void init (Context c)
         {
@@ -2093,9 +2093,10 @@ private:
             o->m_enabled = false;
             o->m_control_config = TheControl::makeDefaultConfig();
             TimeType time = c.clock()->getTime(c) + (TimeType)(0.05 * Clock::time_freq);
-            o->m_main_control.init(c, time);
-            o->m_adc_min = HeaterSpec::Formula::invert(max_safe_temp(), true);
-            o->m_adc_max = HeaterSpec::Formula::invert(min_safe_temp(), false);
+            TheSoftPwm::computeZeroPowerData(&o->m_output_pd);
+            o->m_control_event.init(c, Heater::control_event_handler);
+            o->m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
+            o->m_was_not_unset = false;
             o->m_softpwm.init(c, time);
             o->m_observing = false;
         }
@@ -2107,20 +2108,26 @@ private:
                 o->m_observer.deinit(c);
             }
             o->m_softpwm.deinit(c);
-            o->m_main_control.deinit(c);
+            o->m_control_event.deinit(c);
         }
         
-        template <typename ThisContext>
-        static ValueFixedType get_value (ThisContext c)
+        static FpType adc_to_temp (AdcFixedType adc_value)
         {
-            return HeaterSpec::Formula::call(c.adc()->template getValue<typename HeaterSpec::AdcPin>(c));
+            FpType adc_fp = adc_value.template fpValue<FpType>() + (FpType)(0.5 / PowerOfTwo<double, AdcFixedType::num_bits>::value);
+            return TheFormula::adc_to_temp(adc_fp);
+        }
+        
+        static FpType get_temp (Context c)
+        {
+            AdcFixedType adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
+            return adc_to_temp(adc_value);
         }
         
         template <typename TheChannelCommon>
         static void append_value (Context c, TheChannelCommon *cc)
         {
-            auto adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
-            FpType value = HeaterSpec::Formula::call(adc_value).template fpValue<FpType>();
+            AdcFixedType adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
+            FpType value = adc_to_temp(adc_value);
             cc->reply_append_ch(c, ' ');
             cc->reply_append_ch(c, HeaterSpec::Name);
             cc->reply_append_ch(c, ':');
@@ -2129,20 +2136,17 @@ private:
             cc->reply_append_ch(c, ' ');
             cc->reply_append_ch(c, HeaterSpec::Name);
             cc->reply_append_pstr(c, AMBRO_PSTR("A:"));
-            cc->reply_append_uint32(c, adc_value);
+            cc->reply_append_uint32(c, adc_value.bitsValue());
 #endif
         }
         
         template <typename ThisContext>
-        static void set (ThisContext c, ValueFixedType target)
+        static void set (ThisContext c, FpType target)
         {
             Heater *o = self(c);
-            AMBRO_ASSERT(target > min_safe_temp())
-            AMBRO_ASSERT(target < max_safe_temp())
             
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 o->m_target = target;
-                o->m_main_control.set(lock_c);
                 o->m_enabled = true;
             }
         }
@@ -2153,7 +2157,8 @@ private:
             Heater *o = self(c);
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 o->m_enabled = false;
-                o->m_main_control.unset(lock_c);
+                o->m_was_not_unset = false;
+                TheSoftPwm::computeZeroPowerData(&o->m_output_pd);
             }
         }
         
@@ -2168,9 +2173,8 @@ private:
                     return false;
                 }
                 FpType target = cc->get_command_param_fp(c, 'S', 0.0f);
-                ValueFixedType fixed_target = ValueFixedType::template importFpSaturatedRound<FpType>(target);
-                if (fixed_target > min_safe_temp() && fixed_target < max_safe_temp()) {
-                    set(c, fixed_target);
+                if (target >= (FpType)HeaterSpec::MinSafeTemp::value() && target <= (FpType)HeaterSpec::MaxSafeTemp::value()) {
+                    set(c, target);
                 } else {
                     unset(c);
                 }
@@ -2186,14 +2190,13 @@ private:
                 }
                 FpType target = cc->get_command_param_fp(c, 'S', 0.0f);
                 cc->finishCommand(c);
-                ValueFixedType fixed_target = ValueFixedType::template importFpSaturatedRound<FpType>(target);
-                if (!(fixed_target > min_safe_temp() && fixed_target < max_safe_temp())) {
-                    fixed_target = ValueFixedType::minValue();
+                if (!(target >= (FpType)HeaterSpec::MinSafeTemp::value() && target <= (FpType)HeaterSpec::MaxSafeTemp::value())) {
+                    target = NAN;
                 }
                 PlannerSplitBuffer *cmd = m->m_planner.getBuffer(c);
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
                 payload->type = HeaterIndex;
-                UnionGetElem<HeaterIndex>(&payload->heaters)->target = fixed_target;
+                UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
                 m->m_planner.channelCommandDone(c, 1);
                 submitted_planner_command(c);
                 return false;
@@ -2225,13 +2228,14 @@ private:
         static void softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c, PwmPowerData *pd)
         {
             Heater *o = self(c);
-            o->m_main_control.get_output_for_pwm(c, pd);
-        }
-        
-        static FpType observer_get_value_callback (Context c)
-        {
-            Heater *o = self(c);
-            return o->get_value(c).template fpValue<FpType>();
+            
+            AdcFixedType adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
+            if (AMBRO_LIKELY(adc_value.bitsValue() <= InfAdcValue || adc_value.bitsValue() >= SupAdcValue)) {
+                o->m_enabled = false;
+                o->m_was_not_unset = false;
+                TheSoftPwm::computeZeroPowerData(&o->m_output_pd);
+            }
+            *pd = o->m_output_pd;
         }
         
         static void observer_handler (Context c, bool state)
@@ -2259,135 +2263,56 @@ private:
         static void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
         {
             ChannelPayload *payload = UnionGetElem<HeaterIndex>(payload_union);
-            if (AMBRO_LIKELY(payload->target != ValueFixedType::minValue())) {
+            if (AMBRO_LIKELY(!isnan(payload->target))) {
                 set(c, payload->target);
             } else {
                 unset(c);
             }
         }
         
-        AMBRO_STRUCT_IF(MainControl, MainControlEnabled) {
-            AMBRO_MAKE_SELF(Context, MainControl, MainControlPosition<HeaterIndex>)
-            static const TimeType ControlIntervalTicks = HeaterSpec::ControlInterval::value() / Clock::time_unit;
+        static void control_event_handler (typename Loop::QueuedEvent *, Context c)
+        {
+            Heater *o = self(c);
             
-            static void set (Context c) {}
-            
-            static void init (Context c, TimeType time)
-            {
-                MainControl *o = self(c);
-                TheSoftPwm::computePowerData(OutputFixedType::importBits(0), &o->m_output_pd);
-                o->m_control_event.init(c, MainControl::control_event_handler);
-                o->m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
-                o->m_was_not_unset = false;
+            o->m_control_event.appendAfterPrevious(c, ControlIntervalTicks);
+            bool enabled;
+            FpType target;
+            bool was_not_unset;
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                enabled = o->m_enabled;
+                target = o->m_target;
+                was_not_unset = o->m_was_not_unset;
+                o->m_was_not_unset = enabled;
             }
-            
-            static void deinit (Context c)
-            {
-                MainControl *o = self(c);
-                o->m_control_event.deinit(c);
-            }
-            
-            AMBRO_ALWAYS_INLINE static void unset (Context c)
-            {
-                MainControl *o = self(c);
-                o->m_was_not_unset = false;
-                TheSoftPwm::computePowerData(OutputFixedType::importBits(0), &o->m_output_pd);
-            }
-            
-            static void get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c, PwmPowerData *pd)
-            {
-                MainControl *o = self(c);
-                Heater *h = Heater::self(c);
-                uint16_t adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
-                if (AMBRO_LIKELY(adc_value <= h->m_adc_min || adc_value >= h->m_adc_max)) {
-                    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                        h->m_enabled = false;
-                        unset(c);
-                    }
+            if (AMBRO_LIKELY(enabled)) {
+                if (!was_not_unset) {
+                    o->m_control.init();
                 }
+                FpType sensor_value = get_temp(c);
+                FpType output = o->m_control.addMeasurement(sensor_value, target, &o->m_control_config);
+                PwmPowerData output_pd;
+                TheSoftPwm::computePowerData(output, &output_pd);
                 AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    *pd = o->m_output_pd;
-                }
-            }
-            
-            static void control_event_handler (typename Loop::QueuedEvent *, Context c)
-            {
-                MainControl *o = self(c);
-                Heater *h = Heater::self(c);
-                
-                o->m_control_event.appendAfterPrevious(c, ControlIntervalTicks);
-                bool enabled;
-                ValueFixedType target;
-                bool was_not_unset;
-                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    enabled = h->m_enabled;
-                    target = h->m_target;
-                    was_not_unset = o->m_was_not_unset;
-                    o->m_was_not_unset = enabled;
-                }
-                if (AMBRO_LIKELY(enabled)) {
-                    if (!was_not_unset) {
-                        h->m_control.init();
-                    }
-                    ValueFixedType sensor_value = h->get_value(c);
-                    OutputFixedType output = h->m_control.addMeasurement(sensor_value, target, &h->m_control_config);
-                    PwmPowerData output_pd;
-                    TheSoftPwm::computePowerData(output, &output_pd);
-                    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                        if (o->m_was_not_unset) {
-                            o->m_output_pd = output_pd;
-                        }
+                    if (o->m_was_not_unset) {
+                        o->m_output_pd = output_pd;
                     }
                 }
             }
-            
-            PwmPowerData m_output_pd;
-            typename Loop::QueuedEvent m_control_event;
-            bool m_was_not_unset;
-        } AMBRO_STRUCT_ELSE(MainControl) {
-            static void init (Context c, TimeType time) {}
-            static void deinit (Context c) {}
-            static void unset (Context c) {}
-            
-            AMBRO_ALWAYS_INLINE static void set (Context c)
-            {
-                Heater *h = Heater::self(c);
-                if (!h->m_enabled) {
-                    h->m_control.init();
-                }
-            }
-            
-            static void get_output_for_pwm (typename TheSoftPwm::TimerInstance::HandlerContext c, PwmPowerData *pd)
-            {
-                Heater *h = Heater::self(c);
-                OutputFixedType control_value = OutputFixedType::importBits(0);
-                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    uint16_t adc_value = lock_c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
-                    ValueFixedType sensor_value = HeaterSpec::Formula::call(adc_value);
-                    if (AMBRO_UNLIKELY(adc_value <= h->m_adc_min || adc_value >= h->m_adc_max)) {
-                        h->m_enabled = false;
-                    }
-                    if (AMBRO_LIKELY(h->m_enabled)) {
-                        control_value = h->m_control.addMeasurement(sensor_value, h->m_target, &h->m_control_config);
-                    }
-                }
-                TheSoftPwm::computePowerData(control_value, pd);
-            }
-        };
+        }
         
         bool m_enabled;
         TheControl m_control;
         ControlConfig m_control_config;
-        ValueFixedType m_target;
-        uint16_t m_adc_min;
-        uint16_t m_adc_max;
+        FpType m_target;
         TheSoftPwm m_softpwm;
         TheObserver m_observer;
         bool m_observing;
-        MainControl m_main_control;
+        PwmPowerData m_output_pd;
+        typename Loop::QueuedEvent m_control_event;
+        bool m_was_not_unset;
         
         struct SoftPwmTimerHandler : public AMBRO_WFUNC_TD(&Heater::softpwm_timer_handler) {};
-        struct ObserverGetValueCallback : public AMBRO_WFUNC_TD(&Heater::observer_get_value_callback) {};
+        struct ObserverGetValueCallback : public AMBRO_WFUNC_TD(&Heater::get_temp) {};
         struct ObserverHandler : public AMBRO_WFUNC_TD(&Heater::observer_handler) {};
         struct SoftPwmPosition : public MemberPosition<HeaterPosition<HeaterIndex>, TheSoftPwm, &Heater::m_softpwm> {};
         struct ObserverPosition : public MemberPosition<HeaterPosition<HeaterIndex>, TheObserver, &Heater::m_observer> {};
@@ -2401,7 +2326,6 @@ private:
         
         using FanSpec = TypeListGet<FansList, FanIndex>;
         using TheSoftPwm = SoftPwm<SoftPwmPosition, Context, typename FanSpec::OutputPin, FanSpec::OutputInvert, typename FanSpec::PulseInterval, SoftPwmTimerHandler, FanSpec::template TimerTemplate>;
-        using OutputFixedType = FixedPoint<8, false, -8>;
         using PwmPowerData = typename TheSoftPwm::PowerData;
         
         struct ChannelPayload {
@@ -2411,7 +2335,7 @@ private:
         static void init (Context c)
         {
             Fan *o = self(c);
-            TheSoftPwm::computePowerData(OutputFixedType::importBits(0), &o->m_target_pd);
+            TheSoftPwm::computeZeroPowerData(&o->m_target_pd);
             TimeType time = c.clock()->getTime(c) + (TimeType)(0.05 * Clock::time_freq);
             o->m_softpwm.init(c, time);
         }
@@ -2441,7 +2365,7 @@ private:
                 PlannerSplitBuffer *cmd = m->m_planner.getBuffer(c);
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
                 payload->type = TypeListLength<HeatersList>::value + FanIndex;
-                TheSoftPwm::computePowerData(OutputFixedType::template importFpSaturatedRound<FpType>(target), &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
+                TheSoftPwm::computePowerData(target, &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
                 m->m_planner.channelCommandDone(c, 1);
                 submitted_planner_command(c);
                 return false;
@@ -3433,7 +3357,6 @@ private:
     struct SdCardFeaturePosition : public MemberPosition<Position, SdCardFeature, &PrinterMain::m_sdcard_feature> {};
     struct PlannerPosition : public MemberPosition<Position, ThePlanner, &PrinterMain::m_planner> {};
     template <int HeaterIndex> struct HeaterPosition : public TuplePosition<Position, HeatersTuple, &PrinterMain::m_heaters, HeaterIndex> {};
-    template <int HeaterIndex> struct MainControlPosition : public MemberPosition<HeaterPosition<HeaterIndex>, typename Heater<HeaterIndex>::MainControl, &Heater<HeaterIndex>::m_main_control> {};
     template <int FanIndex> struct FanPosition : public TuplePosition<Position, FansTuple, &PrinterMain::m_fans, FanIndex> {};
     struct ProbeFeaturePosition : public MemberPosition<Position, ProbeFeature, &PrinterMain::m_probe_feature> {};
     struct CurrentFeaturePosition : public MemberPosition<Position, CurrentFeature, &PrinterMain::m_current_feature> {};

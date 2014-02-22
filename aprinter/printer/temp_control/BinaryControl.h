@@ -25,17 +25,13 @@
 #ifndef AMBROLIB_BINARY_CONTROL_H
 #define AMBROLIB_BINARY_CONTROL_H
 
-#include <aprinter/meta/FixedPoint.h>
-
 #include <aprinter/BeginNamespace.h>
 
 struct BinaryControlParams {};
 
-template <typename Params, typename MeasurementInterval, typename ValueFixedType, typename FpType>
+template <typename Params, typename MeasurementInterval, typename FpType>
 class BinaryControl {
 public:
-    using OutputFixedType = FixedPoint<16, false, -16>;
-    static const bool InterruptContextAllowed = true;
     static const bool SupportsConfig = false;
     
     struct Config {};
@@ -59,9 +55,9 @@ public:
     {
     }
     
-    OutputFixedType addMeasurement (ValueFixedType value, ValueFixedType target, Config const *config)
+    FpType addMeasurement (FpType value, FpType target, Config const *config)
     {
-        return (value < target) ? OutputFixedType::maxValue() : OutputFixedType::minValue();
+        return (value < target) ? 1.0f : 0.0f;
     }
 };
 

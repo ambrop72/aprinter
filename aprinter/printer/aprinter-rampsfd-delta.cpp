@@ -46,12 +46,11 @@ static void emergency (void);
 #include <aprinter/system/AsfUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/arduino_due_pins.h>
 #include <aprinter/printer/transform/DeltaTransform.h>
-#include <generated/AvrThermistorTable_Extruder.h>
-#include <generated/AvrThermistorTable_Bed.h>
 
 using namespace APrinter;
 
@@ -88,6 +87,11 @@ using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(9000.0);
 using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 
+using ExtruderHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
+using ExtruderHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(100000.0);
+using ExtruderHeaterThermistorBeta = AMBRO_WRAP_DOUBLE(3960.0);
+using ExtruderHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
+using ExtruderHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(300.0);
 using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
 using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.1);
@@ -102,6 +106,11 @@ using ExtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using ExtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
 using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
+using BedHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
+using BedHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(10000.0);
+using BedHeaterThermistorBeta = AMBRO_WRAP_DOUBLE(3480.0);
+using BedHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
+using BedHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(150.0);
 using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
@@ -391,7 +400,13 @@ using PrinterParams = PrinterMainParams<
             DuePinA1, // AdcPin
             DuePin9, // OutputPin
             true, // OutputInvert
-            AvrThermistorTable_Extruder, // Formula
+            GenericThermistor< // Thermistor
+                ExtruderHeaterThermistorResistorR,
+                ExtruderHeaterThermistorR0,
+                ExtruderHeaterThermistorBeta,
+                ExtruderHeaterThermistorMinTemp,
+                ExtruderHeaterThermistorMaxTemp
+            >,
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
             ExtruderHeaterPulseInterval, // PulseInterval
@@ -420,7 +435,13 @@ using PrinterParams = PrinterMainParams<
             DuePinA0, // AdcPin
             DuePin8, // OutputPin
             true, // OutputInvert
-            AvrThermistorTable_Bed, // Formula
+            GenericThermistor< // Thermistor
+                BedHeaterThermistorResistorR,
+                BedHeaterThermistorR0,
+                BedHeaterThermistorBeta,
+                BedHeaterThermistorMinTemp,
+                BedHeaterThermistorMaxTemp
+            >,
             BedHeaterMinSafeTemp, // MinSafeTemp
             BedHeaterMaxSafeTemp, // MaxSafeTemp
             BedHeaterPulseInterval, // PulseInterval

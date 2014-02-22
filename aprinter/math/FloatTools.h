@@ -200,6 +200,22 @@ T FloatAbs (T x)
     return IsFloat<T>::value ? fabsf(x) : fabs(x);
 }
 
+template <typename T>
+T FloatLog (T x)
+{
+    static_assert(IsFpType<T>::value, "");
+    
+    return IsFloat<T>::value ? logf(x) : log(x);
+}
+
+template <typename T>
+T FloatExp (T x)
+{
+    static_assert(IsFpType<T>::value, "");
+    
+    return IsFloat<T>::value ? expf(x) : exp(x);
+}
+
 template <typename T1, typename T2>
 using FloatPromote = If<(IsFloat<T1>::value && IsFloat<T2>::value), float, double>;
 

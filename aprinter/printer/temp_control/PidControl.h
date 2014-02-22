@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_PID_CONTROL_H
 #define AMBROLIB_PID_CONTROL_H
 
-#include <aprinter/meta/FixedPoint.h>
+#include <aprinter/math/FloatTools.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/Inline.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -45,11 +45,9 @@ struct PidControlParams {
     using DHistory = TDHistory;
 };
 
-template <typename Params, typename MeasurementInterval, typename ValueFixedType, typename FpType>
+template <typename Params, typename MeasurementInterval, typename FpType>
 class PidControl {
 public:
-    using OutputFixedType = FixedPoint<8, false, -8>;
-    static const bool InterruptContextAllowed = false;
     static const bool SupportsConfig = true;
     
     struct Config {
@@ -104,19 +102,17 @@ public:
         m_derivative = 0.0f;
     }
     
-    AMBRO_ALWAYS_INLINE
-    OutputFixedType addMeasurement (ValueFixedType value, ValueFixedType target, Config const *config)
+    FpType addMeasurement (FpType value, FpType target, Config const *config)
     {
-        FpType value_double = value.template fpValue<FpType>();
-        FpType err = target.template fpValue<FpType>() - value_double;
+        FpType err = target - value;
         if (AMBRO_LIKELY(!m_first)) {
             m_integral += ((FpType)MeasurementInterval::value() * config->i) * err;
             m_integral = FloatMax(config->istatemin, FloatMin(config->istatemax, m_integral));
-            m_derivative = (config->dhistory * m_derivative) + (config->c5 * (m_last - value_double));
+            m_derivative = (config->dhistory * m_derivative) + (config->c5 * (m_last - value));
         }
         m_first = false;
-        m_last = value_double;
-        return OutputFixedType::template importFpSaturatedRound<FpType>((config->p * err) + m_integral + m_derivative);
+        m_last = value;
+        return (config->p * err) + m_integral + m_derivative;
     }
     
 private:

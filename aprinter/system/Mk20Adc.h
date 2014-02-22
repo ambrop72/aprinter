@@ -37,6 +37,7 @@
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Position.h>
 #include <aprinter/meta/TuplePosition.h>
+#include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/Mk20Pins.h>
@@ -80,6 +81,8 @@ private:
     >;
     
 public:
+    using FixedType = FixedPoint<10, false, -10>;
+    
     static void init (Context c)
     {
         Mk20Adc *o = self(c);
@@ -95,7 +98,7 @@ public:
     }
     
     template <typename Pin, typename ThisContext>
-    static uint16_t getValue (ThisContext c)
+    static FixedType getValue (ThisContext c)
     {
         Mk20Adc *o = self(c);
         o->debugAccess(c);
@@ -107,7 +110,7 @@ public:
             value = TupleGetElem<PinIndex>(&o->m_pins)->m_value;
         }
         
-        return value;
+        return FixedType::importBits(value);
     }
     
     static void adc_isr (InterruptContext<Context> c)

@@ -43,6 +43,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/At91Sam3xPins.h>
 #include <aprinter/system/InterruptLock.h>
@@ -154,6 +155,8 @@ class At91Sam3xAdc
     };
     
 public:
+    using FixedType = FixedPoint<10, false, -10>;
+    
     static void init (Context c)
     {
         At91Sam3xAdc *o = self(c);
@@ -193,13 +196,13 @@ public:
     }
     
     template <typename Pin, typename ThisContext>
-    static uint16_t getValue (ThisContext c)
+    static FixedType getValue (ThisContext c)
     {
         At91Sam3xAdc *o = self(c);
         o->debugAccess(c);
         
         static int const PinIndex = TypeListIndex<FlatPinsList, IsEqualFunc<Pin>>::value;
-        return AdcPin<PinIndex>::get_value(c);
+        return FixedType::importBits(AdcPin<PinIndex>::get_value(c));
     }
     
     static void adc_isr (InterruptContext<Context> c)

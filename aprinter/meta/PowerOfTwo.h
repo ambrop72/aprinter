@@ -29,32 +29,32 @@
 
 template <typename T, int E>
 struct PowerOfTwo {
-    static const T value = 2 * PowerOfTwo<T, E - 1>::value;
+    static constexpr T value = 2 * PowerOfTwo<T, E - 1>::value;
 };
 
 template <typename T>
 struct PowerOfTwo<T, 0> {
-    static const T value = 1;
+    static constexpr T value = 1;
 };
 
 template <typename T, int E>
 struct PowerOfTwoMinusOne {
-    static const T value = 2 * PowerOfTwoMinusOne<T, E - 1>::value + 1;
+    static constexpr T value = 2 * PowerOfTwoMinusOne<T, E - 1>::value + 1;
 };
 
 template <typename T>
 struct PowerOfTwoMinusOne<T, 0> {
-    static const T value = 0;
+    static constexpr T value = 0;
 };
 
 template <typename T, int E>
 struct MinusPowerOfTwo {
-    static const T value = 2 * MinusPowerOfTwo<T, E - 1>::value;
+    static constexpr T value = 2 * MinusPowerOfTwo<T, E - 1>::value;
 };
 
 template <typename T>
 struct MinusPowerOfTwo<T, 0> {
-    static const T value = -1;
+    static constexpr T value = -1;
 };
 
 template <typename T>
