@@ -2127,8 +2127,7 @@ private:
         template <typename TheChannelCommon>
         static void append_value (Context c, TheChannelCommon *cc)
         {
-            AdcFixedType adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
-            FpType value = adc_to_temp(adc_value);
+            FpType value = get_temp(c);
             cc->reply_append_ch(c, ' ');
             cc->reply_append_ch(c, HeaterSpec::Name);
             cc->reply_append_ch(c, ':');
