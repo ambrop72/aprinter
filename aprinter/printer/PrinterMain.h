@@ -53,8 +53,6 @@
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/TypeListFold.h>
-#include <aprinter/meta/StructIf.h>
-#include <aprinter/meta/If.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/WrapValue.h>
@@ -101,10 +99,10 @@ struct PrinterMainParams {
     using DefaultInactiveTime = TDefaultInactiveTime;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using MaxStepsPerCycle = TMaxStepsPerCycle;
-    static const int StepperSegmentBufferSize = TStepperSegmentBufferSize;
-    static const int EventChannelBufferSize = TEventChannelBufferSize;
-    static const int LookaheadBufferSize = TLookaheadBufferSize;
-    static const int LookaheadCommitCount = TLookaheadCommitCount;
+    static int const StepperSegmentBufferSize = TStepperSegmentBufferSize;
+    static int const EventChannelBufferSize = TEventChannelBufferSize;
+    static int const LookaheadBufferSize = TLookaheadBufferSize;
+    static int const LookaheadCommitCount = TLookaheadCommitCount;
     using ForceTimeout = TForceTimeout;
     using FpType = TFpType;
     template <typename X, typename Y, typename Z> using EventChannelTimer = TEventChannelTimer<X, Y, Z>;
@@ -120,36 +118,36 @@ struct PrinterMainParams {
 };
 
 template <
-    uint32_t tbaud,
+    uint32_t TBaud,
     int TRecvBufferSizeExp, int TSendBufferSizeExp,
     typename TTheGcodeParserParams,
     template <typename, typename, int, int, typename, typename, typename> class TSerialTemplate,
     typename TSerialParams
 >
 struct PrinterMainSerialParams {
-    static const uint32_t baud = tbaud;
-    static const int RecvBufferSizeExp = TRecvBufferSizeExp;
-    static const int SendBufferSizeExp = TSendBufferSizeExp;
+    static uint32_t const Baud = TBaud;
+    static int const RecvBufferSizeExp = TRecvBufferSizeExp;
+    static int const SendBufferSizeExp = TSendBufferSizeExp;
     using TheGcodeParserParams = TTheGcodeParserParams;
     template <typename S, typename X, int Y, int Z, typename W, typename Q, typename R> using SerialTemplate = TSerialTemplate<S, X, Y, Z, W, Q, R>;
     using SerialParams = TSerialParams;
 };
 
 template <
-    char tname,
+    char TName,
     typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir,
     typename TDefaultStepsPerUnit, typename TDefaultMin, typename TDefaultMax,
     typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
-    typename THoming, bool tenable_cartesian_speed_limit, int TStepBits,
+    typename THoming, bool TIsCartesian, int TStepBits,
     typename TTheAxisStepperParams, typename TMicroStep
 >
 struct PrinterMainAxisParams {
-    static const char name = tname;
+    static char const Name = TName;
     using DirPin = TDirPin;
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
-    static const bool InvertDir = TInvertDir;
+    static bool const InvertDir = TInvertDir;
     using DefaultStepsPerUnit = TDefaultStepsPerUnit;
     using DefaultMin = TDefaultMin;
     using DefaultMax = TDefaultMax;
@@ -158,8 +156,8 @@ struct PrinterMainAxisParams {
     using DefaultDistanceFactor = TDefaultDistanceFactor;
     using DefaultCorneringDistance = TDefaultCorneringDistance;
     using Homing = THoming;
-    static const bool enable_cartesian_speed_limit = tenable_cartesian_speed_limit;
-    static const int StepBits = TStepBits;
+    static bool const IsCartesian = TIsCartesian;
+    static int const StepBits = TStepBits;
     using TheAxisStepperParams = TTheAxisStepperParams;
     using MicroStep = TMicroStep;
 };
@@ -181,20 +179,20 @@ struct PrinterMainMicroStepParams {
 };
 
 struct PrinterMainNoHomingParams {
-    static const bool enabled = false;
+    static bool const Enabled = false;
 };
 
 template <
-    typename TEndPin, typename TEndPinInputMode, bool tend_invert, bool thome_dir,
+    typename TEndPin, typename TEndPinInputMode, bool TEndInvert, bool THomeDir,
     typename TDefaultFastMaxDist, typename TDefaultRetractDist, typename TDefaultSlowMaxDist,
     typename TDefaultFastSpeed, typename TDefaultRetractSpeed, typename TDefaultSlowSpeed
 >
 struct PrinterMainHomingParams {
-    static const bool enabled = true;
+    static bool const Enabled = true;
     using EndPin = TEndPin;
     using EndPinInputMode = TEndPinInputMode;
-    static const bool end_invert = tend_invert;
-    static const bool home_dir = thome_dir;
+    static bool const EndInvert = TEndInvert;
+    static bool const HomeDir = THomeDir;
     using DefaultFastMaxDist = TDefaultFastMaxDist;
     using DefaultRetractDist = TDefaultRetractDist;
     using DefaultSlowMaxDist = TDefaultSlowMaxDist;
@@ -242,13 +240,13 @@ template <
     template<typename, typename, typename> class TTimerTemplate
 >
 struct PrinterMainHeaterParams {
-    static const char Name = TName;
-    static const int SetMCommand = TSetMCommand;
-    static const int WaitMCommand = TWaitMCommand;
-    static const int SetConfigMCommand = TSetConfigMCommand;
+    static char const Name = TName;
+    static int const SetMCommand = TSetMCommand;
+    static int const WaitMCommand = TWaitMCommand;
+    static int const SetConfigMCommand = TSetConfigMCommand;
     using AdcPin = TAdcPin;
     using OutputPin = TOutputPin;
-    static const bool OutputInvert = TOutputInvert;
+    static bool const OutputInvert = TOutputInvert;
     using Formula = TFormula;
     using MinSafeTemp = TMinSafeTemp;
     using MaxSafeTemp = TMaxSafeTemp;
@@ -266,17 +264,17 @@ template <
     template<typename, typename, typename> class TTimerTemplate
 >
 struct PrinterMainFanParams {
-    static const int SetMCommand = TSetMCommand;
-    static const int OffMCommand = TOffMCommand;
+    static int const SetMCommand = TSetMCommand;
+    static int const OffMCommand = TOffMCommand;
     using OutputPin = TOutputPin;
-    static const bool OutputInvert = TOutputInvert;
+    static bool const OutputInvert = TOutputInvert;
     using PulseInterval = TPulseInterval;
     using SpeedMultiply = TSpeedMultiply;
     template <typename X, typename Y, typename Z> using TimerTemplate = TTimerTemplate<X, Y, Z>;
 };
 
 struct PrinterMainNoSdCardParams {
-    static const bool enabled = false;
+    static bool const Enabled = false;
 };
 
 template <
@@ -287,22 +285,22 @@ template <
     int TMaxCommandSize
 >
 struct PrinterMainSdCardParams {
-    static const bool enabled = true;
+    static bool const Enabled = true;
     template <typename X, typename Y, typename Z, int R, typename W, typename Q> using SdCard = TSdCard<X, Y, Z, R, W, Q>;
     using SdCardParams = TSdCardParams;
     template <typename X, typename Y, typename Z, typename W> using GcodeParserTemplate = TGcodeParserTemplate<X, Y, Z, W>;
     using TheGcodeParserParams = TTheGcodeParserParams;
-    static const int ReadBufferBlocks = TReadBufferBlocks;
-    static const int MaxCommandSize = TMaxCommandSize;
+    static int const ReadBufferBlocks = TReadBufferBlocks;
+    static int const MaxCommandSize = TMaxCommandSize;
 };
 
 struct PrinterMainNoProbeParams {
-    static const bool enabled = false;
+    static bool const Enabled = false;
 };
 
 template <
     typename TPlatformAxesList,
-    int TProbeAxis,
+    char TProbeAxis,
     typename TProbePin,
     typename TProbePinInputMode,
     bool TProbeInvert,
@@ -317,12 +315,12 @@ template <
     typename TProbePoints
 >
 struct PrinterMainProbeParams {
-    static const bool enabled = true;
+    static bool const Enabled = true;
     using PlatformAxesList = TPlatformAxesList;
-    static const int ProbeAxis = TProbeAxis;
+    static char const ProbeAxis = TProbeAxis;
     using ProbePin = TProbePin;
     using ProbePinInputMode = TProbePinInputMode;
-    static const bool ProbeInvert = TProbeInvert;
+    static bool const ProbeInvert = TProbeInvert;
     using ProbePlatformOffset = TProbePlatformOffset;
     using ProbeStartHeight = TProbeStartHeight;
     using ProbeLowHeight = TProbeLowHeight;
@@ -442,9 +440,9 @@ private:
     using TransformParams = typename Params::TransformParams;
     using HeatersList = typename Params::HeatersList;
     using FansList = typename Params::FansList;
-    static const int num_axes = TypeListLength<AxesList>::value;
-    using AxisMaskType = typename ChooseInt<num_axes, false>::Type;
-    using AxisCountType = typename ChooseInt<BitsInInt<num_axes>::value, false>::Type;
+    static const int NumAxes = TypeListLength<AxesList>::value;
+    using AxisMaskType = typename ChooseInt<NumAxes, false>::Type;
+    using AxisCountType = typename ChooseInt<BitsInInt<NumAxes>::value, false>::Type;
     
     template <typename TheAxis>
     using MakeStepperDef = StepperDef<
@@ -787,7 +785,7 @@ private:
         static void init (Context c)
         {
             SerialFeature *o = self(c);
-            o->m_serial.init(c, Params::Serial::baud);
+            o->m_serial.init(c, Params::Serial::Baud);
             o->m_gcode_parser.init(c);
             o->m_channel_common.init(c);
             o->m_recv_next_error = 0;
@@ -927,7 +925,7 @@ private:
         struct SerialSendHandler : public AMBRO_WFUNC_TD(&SerialFeature::serial_send_handler) {};
     };
     
-    AMBRO_STRUCT_IF(SdCardFeature, Params::SdCardParams::enabled) {
+    AMBRO_STRUCT_IF(SdCardFeature, Params::SdCardParams::Enabled) {
         AMBRO_MAKE_SELF(Context, SdCardFeature, SdCardFeaturePosition)
         struct SdCardPosition;
         struct GcodeParserPosition;
@@ -1261,10 +1259,10 @@ private:
         using TheAxisStepper = AxisStepper<AxisStepperPosition, Context, typename AxisSpec::TheAxisStepperParams, Stepper, AxisStepperConsumersList<AxisIndex>>;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
-        static const char axis_name = AxisSpec::name;
-        using WrappedAxisName = WrapInt<axis_name>;
+        static const char AxisName = AxisSpec::Name;
+        using WrappedAxisName = WrapInt<AxisName>;
         
-        AMBRO_STRUCT_IF(HomingFeature, AxisSpec::Homing::enabled) {
+        AMBRO_STRUCT_IF(HomingFeature, AxisSpec::Homing::Enabled) {
             struct HomingState {
                 AMBRO_MAKE_SELF(Context, HomingState, HomingStatePosition<AxisIndex>)
                 struct HomerPosition;
@@ -1276,7 +1274,7 @@ private:
                     typename AxisSpec::DefaultDistanceFactor, typename AxisSpec::DefaultCorneringDistance,
                     Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, FpType,
                     typename AxisSpec::Homing::EndPin,
-                    AxisSpec::Homing::end_invert, AxisSpec::Homing::home_dir, HomerGetAxisStepper, HomerFinishedHandler
+                    AxisSpec::Homing::EndInvert, AxisSpec::Homing::HomeDir, HomerGetAxisStepper, HomerFinishedHandler
                 >;
                 
                 static TheAxisStepper * homer_get_axis_stepper (Context c)
@@ -1294,7 +1292,7 @@ private:
                     AMBRO_ASSERT(m->m_homing_rem_axes > 0)
                     
                     o->m_homer.deinit(c);
-                    axis->m_req_pos = (AxisSpec::Homing::home_dir ? axis->max_req_pos() : axis->min_req_pos());
+                    axis->m_req_pos = (AxisSpec::Homing::HomeDir ? axis->max_req_pos() : axis->min_req_pos());
                     axis->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(axis->dist_from_real(axis->m_req_pos));
                     axis->m_state = AXIS_STATE_OTHER;
                     m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
@@ -1359,16 +1357,16 @@ private:
             template <typename TheChannelCommon>
             static void append_endstop (Context c, TheChannelCommon *cc)
             {
-                bool triggered = c.pins()->template get<typename AxisSpec::Homing::EndPin>(c) != AxisSpec::Homing::end_invert;
+                bool triggered = c.pins()->template get<typename AxisSpec::Homing::EndPin>(c) != AxisSpec::Homing::EndInvert;
                 cc->reply_append_ch(c, ' ');
-                cc->reply_append_ch(c, axis_name);
+                cc->reply_append_ch(c, AxisName);
                 cc->reply_append_ch(c, ':');
                 cc->reply_append_ch(c, (triggered ? '1' : '0'));
             }
             
             static FpType init_position ()
             {
-                return AxisSpec::Homing::home_dir ? max_req_pos() : min_req_pos();
+                return AxisSpec::Homing::HomeDir ? max_req_pos() : min_req_pos();
             };
         } AMBRO_STRUCT_ELSE(HomingFeature) {
             struct HomingState {};
@@ -1465,7 +1463,7 @@ private:
         template <typename TheChannelCommon>
         static void update_homing_mask (Context c, TheChannelCommon *cc, AxisMaskType *mask, typename TheChannelCommon::GcodeParserPartRef part)
         {
-            if (AxisSpec::Homing::enabled && cc->gc(c)->getPartCode(c, part) == axis_name) {
+            if (AxisSpec::Homing::Enabled && cc->gc(c)->getPartCode(c, part) == AxisName) {
                 *mask |= (AxisMaskType)1 << AxisIndex;
             }
         }
@@ -1485,7 +1483,7 @@ private:
             Axis *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
             o->m_req_pos = clamp_req_pos(req);
-            if (AxisSpec::enable_cartesian_speed_limit) {
+            if (AxisSpec::IsCartesian) {
                 s->seen_cartesian = true;
             }
             m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
@@ -1502,7 +1500,7 @@ private:
                 ((typename StepFixedType::IntType)o->m_end_pos.bitsValue() - (typename StepFixedType::IntType)new_end_pos.bitsValue())
             );
             if (AMBRO_UNLIKELY(move.bitsValue() != 0)) {
-                if (AddDistance::value && AxisSpec::enable_cartesian_speed_limit) {
+                if (AddDistance::value && AxisSpec::IsCartesian) {
                     FpType delta = dist_to_real(move.template fpValue<FpType>());
                     *distance_squared += delta * delta;
                 }
@@ -1753,7 +1751,7 @@ private:
             do {
                 FpType rel_max_v_rec;
                 FpType frac;
-                FpType move_pos[num_axes];
+                FpType move_pos[NumAxes];
                 if (o->m_splitter.pull(&rel_max_v_rec, &frac)) {
                     FpType virt_pos[NumVirtAxes];
                     TupleForEachForward(&o->m_virt_axes, Foreach_compute_split(), c, frac, virt_pos);
@@ -1808,10 +1806,10 @@ private:
         struct VirtAxis {
             AMBRO_MAKE_SELF(Context, VirtAxis, VirtAxisPosition<VirtAxisIndex>)
             using VirtAxisParams = TypeListGet<VirtAxesList, VirtAxisIndex>;
-            static int const axis_name = VirtAxisParams::Name;
+            static int const AxisName = VirtAxisParams::Name;
             static int const PhysAxisIndex = FindAxis<TypeListGet<PhysAxesList, VirtAxisIndex>::value>::value;
             using ThePhysAxis = Axis<PhysAxisIndex>;
-            static_assert(!ThePhysAxis::AxisSpec::enable_cartesian_speed_limit, "");
+            static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
             
             static void init (Context c)
@@ -1908,7 +1906,7 @@ private:
         >::value >= 0)>;
         
         using SecondaryAxisIndices = FilterTypeList<
-            SequenceList<num_axes>,
+            SequenceList<NumAxes>,
             ComposeFunctions<
                 NotFunc,
                 TemplateFunc<IsPhysAxisTransformPhys>
@@ -1925,7 +1923,7 @@ private:
             static void prepare_split (Context c, FpType *distance_squared)
             {
                 TheAxis *axis = TheAxis::self(c);
-                if (TheAxis::AxisSpec::enable_cartesian_speed_limit) {
+                if (TheAxis::AxisSpec::IsCartesian) {
                     FpType delta = axis->m_req_pos - axis->m_old_pos;
                     *distance_squared += delta * delta;
                 }
@@ -1969,7 +1967,7 @@ private:
         static void handle_set_position (Context c, bool seen_virtual) {}
     };
     
-    static int const NumPhysVirtAxes = num_axes + TransformFeature::NumVirtAxes;
+    static int const NumPhysVirtAxes = NumAxes + TransformFeature::NumVirtAxes;
     
     template <bool IsVirt, int PhysVirtAxisIndex>
     struct GetPhysVirtAxisHelper {
@@ -1978,16 +1976,16 @@ private:
     
     template <int PhysVirtAxisIndex>
     struct GetPhysVirtAxisHelper<true, PhysVirtAxisIndex> {
-        using Type = typename TransformFeature::template VirtAxis<(PhysVirtAxisIndex - num_axes)>;
+        using Type = typename TransformFeature::template VirtAxis<(PhysVirtAxisIndex - NumAxes)>;
     };
     
     template <int PhysVirtAxisIndex>
-    using GetPhysVirtAxis = typename GetPhysVirtAxisHelper<(PhysVirtAxisIndex >= num_axes), PhysVirtAxisIndex>::Type;
+    using GetPhysVirtAxis = typename GetPhysVirtAxisHelper<(PhysVirtAxisIndex >= NumAxes), PhysVirtAxisIndex>::Type;
     
     template <int PhysVirtAxisIndex>
     struct PhysVirtAxisHelper {
         using TheAxis = GetPhysVirtAxis<PhysVirtAxisIndex>;
-        using WrappedAxisName = WrapInt<TheAxis::axis_name>;
+        using WrappedAxisName = WrapInt<TheAxis::AxisName>;
         
         static void init_new_pos (Context c)
         {
@@ -2004,7 +2002,7 @@ private:
         static bool collect_new_pos (Context c, TheChannelCommon *cc, MoveBuildState *s, typename TheChannelCommon::GcodeParserPartRef part)
         {
             TheAxis *axis = TheAxis::self(c);
-            if (AMBRO_UNLIKELY(cc->gc(c)->getPartCode(c, part) == TheAxis::axis_name)) {
+            if (AMBRO_UNLIKELY(cc->gc(c)->getPartCode(c, part) == TheAxis::AxisName)) {
                 FpType req = cc->gc(c)->template getPartFpValue<FpType>(c, part);
                 if (axis->m_relative_positioning) {
                     req += axis->m_old_pos;
@@ -2025,7 +2023,7 @@ private:
         static void append_position (Context c, TheChannelCommon *cc)
         {
             TheAxis *axis = TheAxis::self(c);
-            cc->reply_append_ch(c, TheAxis::axis_name);
+            cc->reply_append_ch(c, TheAxis::AxisName);
             cc->reply_append_ch(c, ':');
             cc->reply_append_fp(c, axis->m_req_pos);
         }
@@ -2033,7 +2031,7 @@ private:
         template <typename TheChannelCommon>
         static void set_position (Context c, TheChannelCommon *cc, typename TheChannelCommon::GcodeParserPartRef part, bool *seen_virtual)
         {
-            if (cc->gc(c)->getPartCode(c, part) == TheAxis::axis_name) {
+            if (cc->gc(c)->getPartCode(c, part) == TheAxis::AxisName) {
                 FpType value = cc->gc(c)->template getPartFpValue<FpType>(c, part);
                 TheAxis::set_position(c, value, seen_virtual);
             }
@@ -2430,7 +2428,7 @@ private:
     using HomingStateTupleHelper = typename Axis<AxisIndex>::HomingFeature::HomingState;
     using HomingStateTuple = IndexElemTuple<AxesList, HomingStateTupleHelper>;
     
-    AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::enabled) {
+    AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::Enabled) {
         AMBRO_MAKE_SELF(Context, ProbeFeature, ProbeFeaturePosition)
         using ProbeParams = typename Params::ProbeParams;
         static const int NumPoints = TypeListLength<typename ProbeParams::ProbePoints>::value;
