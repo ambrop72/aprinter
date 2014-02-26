@@ -63,6 +63,7 @@
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/Object.h>
+#include <aprinter/meta/ListForEach.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -367,6 +368,21 @@ public:
     
 private:
     AMBRO_MAKE_SELF(Context, PrinterMain, Position)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_limit_virt_axis_speed, limit_virt_axis_speed)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_clamp_req_phys, clamp_req_phys)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_clamp_move_phys, clamp_move_phys)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prepare_split, prepare_split)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_split, compute_split)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_final_split, get_final_split)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_finish_set_position, finish_set_position)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_finish_init, finish_init)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_continue_splitclear_helper, continue_splitclear_helper)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_report_height, report_height)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_finish_locked_helper, finish_locked_helper)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_continue_locking_helper, continue_locking_helper)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_continue_planned_helper, continue_planned_helper)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_continue_unplanned_helper, continue_unplanned_helper)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_start_homing, start_homing)
@@ -382,29 +398,15 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_endstop, append_endstop)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_finish_set_position, finish_set_position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_value, append_value)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_adc_value, append_adc_value)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_command, check_command)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_emergency, emergency)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_channel_callback, channel_callback)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_print_config, print_config)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_continue_locking_helper, continue_locking_helper)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_continue_planned_helper, continue_planned_helper)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_continue_unplanned_helper, continue_unplanned_helper)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_continue_splitclear_helper, continue_splitclear_helper)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_finish_locked_helper, finish_locked_helper)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_run_for_state_command, run_for_state_command)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_finish_init, finish_init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_add_axis, add_axis)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_get_coord, get_coord)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_report_height, report_height)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_clamp_req_phys, clamp_req_phys)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_clamp_move_phys, clamp_move_phys)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_prepare_split, prepare_split)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_compute_split, compute_split)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_get_final_split, get_final_split)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_limit_virt_axis_speed, limit_virt_axis_speed)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_current_axis, check_current_axis)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
@@ -415,7 +417,6 @@ private:
     template <int AxisIndex> struct AxisPosition;
     template <int AxisIndex> struct HomingFeaturePosition;
     template <int AxisIndex> struct HomingStatePosition;
-    struct TransformFeaturePosition;
     struct SerialFeaturePosition;
     struct SdCardFeaturePosition;
     struct PlannerPosition;
@@ -629,12 +630,10 @@ private:
         
         static bool trySplitClearCommand (Context c)
         {
-            PrinterMain *m = PrinterMain::self(c);
-            
             if (!tryLockedCommand(c)) {
                 return false;
             }
-            return m->m_transform_feature.try_splitclear_command(c);
+            return TransformFeature::try_splitclear_command(c);
         }
         
         static bool find_command_param (Context c, char code, GcodeParserPartRef *out_part)
@@ -750,14 +749,14 @@ private:
         
         // helper function to do something for the first channel in the given state
         
-        template <typename Obj, typename Func, typename... Args>
-        static bool run_for_state_command (Context c, uint8_t state, Obj *obj, Func func, Args... args)
+        template <typename Class, typename Func, typename... Args>
+        static bool run_for_state_command (Context c, uint8_t state, WrapType<Class>, Func func, Args... args)
         {
             ChannelCommon *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
             
             if (o->m_state == state) {
-                func(obj, c, o, args...);
+                func(WrapType<Class>(), c, o, args...);
                 return false;
             }
             return true;
@@ -1002,7 +1001,7 @@ private:
                 o->m_sd_block = 0;
             }
             Tuple<ChannelCommonList> dummy;
-            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_finish_init(), error_code);
+            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<SdCardFeature>(), LForeach_finish_init(), error_code);
         }
         
         static void sd_card_command_handler (Context c)
@@ -1301,7 +1300,7 @@ private:
                     axis->m_req_pos = (AxisSpec::Homing::HomeDir ? axis->max_req_pos() : axis->min_req_pos());
                     axis->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(axis->dist_from_real(axis->m_req_pos));
                     axis->m_state = AXIS_STATE_OTHER;
-                    m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
+                    TransformFeature::template mark_phys_moved<AxisIndex>(c);
                     m->m_homing_rem_axes--;
                     if (m->m_homing_rem_axes == 0) {
                         homing_finished(c);
@@ -1487,12 +1486,11 @@ private:
         static void update_new_pos (Context c, MoveBuildState *s, FpType req)
         {
             Axis *o = self(c);
-            PrinterMain *m = PrinterMain::self(c);
             o->m_req_pos = clamp_req_pos(req);
             if (AxisSpec::IsCartesian) {
                 s->seen_cartesian = true;
             }
-            m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
+            TransformFeature::template mark_phys_moved<AxisIndex>(c);
         }
         
         template <typename Src, typename AddDistance, typename PlannerCmd>
@@ -1537,7 +1535,7 @@ private:
             if (rem_steps != 0) {
                 o->m_end_pos.m_bits.m_int -= rem_steps;
                 o->m_req_pos = dist_to_real(o->m_end_pos.template fpValue<FpType>());
-                m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
+                TransformFeature::template mark_phys_moved<AxisIndex>(c);
             }
         }
         
@@ -1550,9 +1548,8 @@ private:
         
         static void set_position (Context c, FpType value, bool *seen_virtual)
         {
-            PrinterMain *m = PrinterMain::self(c);
             only_set_position(c, value);
-            m->m_transform_feature.template mark_phys_moved<AxisIndex>(c);
+            TransformFeature::template mark_phys_moved<AxisIndex>(c);
         }
         
         template <typename TheChannelCommon>
@@ -1579,6 +1576,8 @@ private:
         
         struct AxisStepperPosition : public MemberPosition<AxisPosition<AxisIndex>, TheAxisStepper, &Axis::m_axis_stepper> {};
         struct MicroStepFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, MicroStepFeature, &Axis::m_micro_step_feature> {};
+        
+        using Object = Axis;
     };
     
     using AxesTuple = IndexElemTuple<AxesList, Axis>;
@@ -1603,17 +1602,14 @@ private:
     >;
     
     AMBRO_STRUCT_IF(TransformFeature, TransformParams::Enabled) {
-        AMBRO_MAKE_SELF(Context, TransformFeature, TransformFeaturePosition)
-        template <int VirtAxisIndex> struct VirtAxisPosition;
-        template <int SecondaryAxisIndex> struct SecondaryAxisPosition;
-        
-        using VirtAxesList = typename TransformParams::VirtAxesList;
-        using PhysAxesList = typename TransformParams::PhysAxesList;
+        struct Object;
+        using ParamsVirtAxesList = typename TransformParams::VirtAxesList;
+        using ParamsPhysAxesList = typename TransformParams::PhysAxesList;
         using TheTransformAlg = typename TransformParams::template TransformAlg<typename TransformParams::TransformAlgParams, FpType>;
         using TheSplitter = typename TheTransformAlg::Splitter;
         static int const NumVirtAxes = TheTransformAlg::NumAxes;
-        static_assert(TypeListLength<VirtAxesList>::value == NumVirtAxes, "");
-        static_assert(TypeListLength<PhysAxesList>::value == NumVirtAxes, "");
+        static_assert(TypeListLength<ParamsVirtAxesList>::value == NumVirtAxes, "");
+        static_assert(TypeListLength<ParamsPhysAxesList>::value == NumVirtAxes, "");
         
         struct PhysReqPosSrc {
             Context m_c;
@@ -1630,13 +1626,13 @@ private:
         struct VirtReqPosSrc {
             Context m_c;
             template <int Index>
-            FpType get () { return VirtAxis<Index>::self(m_c)->m_req_pos; }
+            FpType get () { return VirtAxis<Index>::Object::self(m_c)->m_req_pos; }
         };
         
         struct VirtReqPosDst {
             Context m_c;
             template <int Index>
-            void set (FpType x) { VirtAxis<Index>::self(m_c)->m_req_pos = x; }
+            void set (FpType x) { VirtAxis<Index>::Object::self(m_c)->m_req_pos = x; }
         };
         
         struct ArraySrc {
@@ -1653,108 +1649,107 @@ private:
         
         static void init (Context c)
         {
-            TransformFeature *o = self(c);
-            TupleForEachForward(&o->m_virt_axes, Foreach_init(), c);
+            auto *o = Object::self(c);
+            ListForEachForward<VirtAxesList>(LForeach_init(), c);
             update_virt_from_phys(c);
-            o->m_virt_update_pending = false;
-            o->m_splitclear_pending = false;
-            o->m_splitting = false;
+            o->virt_update_pending = false;
+            o->splitclear_pending = false;
+            o->splitting = false;
         }
         
         static void update_virt_from_phys (Context c)
         {
-            TransformFeature *o = self(c);
             TheTransformAlg::physToVirt(PhysReqPosSrc{c}, VirtReqPosDst{c});
         }
         
         static void handle_virt_move (Context c, FpType time_freq_by_max_speed)
         {
-            TransformFeature *o = self(c);
+            auto *o = Object::self(c);
             PrinterMain *m = PrinterMain::self(c);
             auto *mob = PrinterMain::Object::self(c);
             AMBRO_ASSERT(mob->planner_state == PLANNER_RUNNING || mob->planner_state == PLANNER_PROBE)
             AMBRO_ASSERT(m->m_planning_pull_pending)
-            AMBRO_ASSERT(o->m_splitting)
+            AMBRO_ASSERT(o->splitting)
             AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
             
-            o->m_virt_update_pending = false;
+            o->virt_update_pending = false;
             TheTransformAlg::virtToPhys(VirtReqPosSrc{c}, PhysReqPosDst{c});
-            TupleForEachForward(&o->m_virt_axes, Foreach_clamp_req_phys(), c);
+            ListForEachForward<VirtAxesList>(LForeach_clamp_req_phys(), c);
             do_pending_virt_update(c);
             FpType distance_squared = 0.0f;
-            TupleForEachForward(&o->m_virt_axes, Foreach_prepare_split(), c, &distance_squared);
-            TupleForEachForward(&o->m_secondary_axes, Foreach_prepare_split(), c, &distance_squared);
+            ListForEachForward<VirtAxesList>(LForeach_prepare_split(), c, &distance_squared);
+            ListForEachForward<SecondaryAxesList>(LForeach_prepare_split(), c, &distance_squared);
             FpType distance = FloatSqrt(distance_squared);
-            FpType base_max_v_rec = TupleForEachForwardAccRes(&o->m_virt_axes, distance * time_freq_by_max_speed, Foreach_limit_virt_axis_speed(), c);
+            FpType base_max_v_rec = ListForEachForwardAccRes<VirtAxesList>(distance * time_freq_by_max_speed, LForeach_limit_virt_axis_speed(), c);
             FpType min_segments_by_distance = (FpType)(TransformParams::SegmentsPerSecond::value() * Clock::time_unit) * time_freq_by_max_speed;
-            o->m_splitter.start(distance, base_max_v_rec, min_segments_by_distance);
+            o->splitter.start(distance, base_max_v_rec, min_segments_by_distance);
             do_split(c);
         }
         
         template <int PhysAxisIndex>
         static void mark_phys_moved (Context c)
         {
-            TransformFeature *o = self(c);
+            auto *o = Object::self(c);
             if (IsPhysAxisTransformPhys<WrapInt<PhysAxisIndex>>::value) {
-                o->m_virt_update_pending = true;
+                o->virt_update_pending = true;
             }
         }
         
         static void do_pending_virt_update (Context c)
         {
-            TransformFeature *o = self(c);
-            if (AMBRO_UNLIKELY(o->m_virt_update_pending)) {
-                o->m_virt_update_pending = false;
+            auto *o = Object::self(c);
+            if (AMBRO_UNLIKELY(o->virt_update_pending)) {
+                o->virt_update_pending = false;
                 update_virt_from_phys(c);
             }
         }
         
         static bool is_splitting (Context c)
         {
-            TransformFeature *o = self(c);
-            return o->m_splitting;
+            auto *o = Object::self(c);
+            return o->splitting;
         }
         
         static void split_more (Context c)
         {
-            TransformFeature *o = self(c);
+            auto *o = Object::self(c);
             PrinterMain *m = PrinterMain::self(c);
             auto *mob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(o->m_splitting)
+            AMBRO_ASSERT(o->splitting)
             AMBRO_ASSERT(mob->planner_state != PLANNER_NONE)
             AMBRO_ASSERT(m->m_planning_pull_pending)
             
             do_split(c);
-            if (!o->m_splitting && o->m_splitclear_pending) {
+            if (!o->splitting && o->splitclear_pending) {
                 AMBRO_ASSERT(mob->locked)
                 AMBRO_ASSERT(mob->planner_state == PLANNER_RUNNING)
-                o->m_splitclear_pending = false;
+                o->splitclear_pending = false;
                 ChannelCommonTuple dummy;
-                TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_continue_splitclear_helper());
+                TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<TransformFeature>(), LForeach_continue_splitclear_helper());
             }
         }
         
         static bool try_splitclear_command (Context c)
         {
-            TransformFeature *o = self(c);
+            auto *o = Object::self(c);
             PrinterMain *m = PrinterMain::self(c);
             auto *mob = PrinterMain::Object::self(c);
             AMBRO_ASSERT(mob->locked)
-            AMBRO_ASSERT(!o->m_splitclear_pending)
+            AMBRO_ASSERT(!o->splitclear_pending)
             
-            if (!o->m_splitting) {
+            if (!o->splitting) {
                 return true;
             }
-            o->m_splitclear_pending = true;
+            o->splitclear_pending = true;
             return false;
         }
         
         static void do_split (Context c)
         {
-            TransformFeature *o = self(c);
+            auto *o = Object::self(c);
             PrinterMain *m = PrinterMain::self(c);
             auto *mob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(o->m_splitting)
+            AMBRO_ASSERT(o->splitting)
             AMBRO_ASSERT(mob->planner_state != PLANNER_NONE)
             AMBRO_ASSERT(m->m_planning_pull_pending)
             
@@ -1762,16 +1757,16 @@ private:
                 FpType rel_max_v_rec;
                 FpType frac;
                 FpType move_pos[NumAxes];
-                if (o->m_splitter.pull(&rel_max_v_rec, &frac)) {
+                if (o->splitter.pull(&rel_max_v_rec, &frac)) {
                     FpType virt_pos[NumVirtAxes];
-                    TupleForEachForward(&o->m_virt_axes, Foreach_compute_split(), c, frac, virt_pos);
+                    ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, frac, virt_pos);
                     TheTransformAlg::virtToPhys(ArraySrc{virt_pos}, PhysArrayDst{move_pos});
-                    TupleForEachForward(&o->m_virt_axes, Foreach_clamp_move_phys(), c, move_pos);
-                    TupleForEachForward(&o->m_secondary_axes, Foreach_compute_split(), c, frac, move_pos);
+                    ListForEachForward<VirtAxesList>(LForeach_clamp_move_phys(), c, move_pos);
+                    ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, frac, move_pos);
                 } else {
-                    o->m_splitting = false;
-                    TupleForEachForward(&o->m_virt_axes, Foreach_get_final_split(), c, move_pos);
-                    TupleForEachForward(&o->m_secondary_axes, Foreach_get_final_split(), c, move_pos);
+                    o->splitting = false;
+                    ListForEachForward<VirtAxesList>(LForeach_get_final_split(), c, move_pos);
+                    ListForEachForward<SecondaryAxesList>(LForeach_get_final_split(), c, move_pos);
                 }
                 PlannerSplitBuffer *cmd = m->m_planner.getBuffer(c);
                 FpType total_steps = 0.0f;
@@ -1781,7 +1776,7 @@ private:
                     m->m_planner.axesCommandDone(c);
                     goto submitted;
                 }
-            } while (o->m_splitting);
+            } while (o->splitting);
             
             m->m_planner.emptyDone(c);
         submitted:
@@ -1791,61 +1786,61 @@ private:
         template <typename TheChannelCommon>
         static void continue_splitclear_helper (Context c, TheChannelCommon *cc)
         {
-            TransformFeature *o = self(c);
+            auto *o = Object::self(c);
             AMBRO_ASSERT(cc->m_state == COMMAND_LOCKED)
-            AMBRO_ASSERT(!o->m_splitting)
-            AMBRO_ASSERT(!o->m_splitclear_pending)
+            AMBRO_ASSERT(!o->splitting)
+            AMBRO_ASSERT(!o->splitclear_pending)
             
             work_command<TheChannelCommon>(c);
         }
         
         static void handle_set_position (Context c, bool seen_virtual)
         {
-            TransformFeature *o = self(c);
-            AMBRO_ASSERT(!o->m_splitting)
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(!o->splitting)
             
             if (seen_virtual) {
-                o->m_virt_update_pending = false;
+                o->virt_update_pending = false;
                 TheTransformAlg::virtToPhys(VirtReqPosSrc{c}, PhysReqPosDst{c});
-                TupleForEachForward(&o->m_virt_axes, Foreach_finish_set_position(), c);
+                ListForEachForward<VirtAxesList>(LForeach_finish_set_position(), c);
             }
             do_pending_virt_update(c);
         }
         
         template <int VirtAxisIndex>
         struct VirtAxis {
-            AMBRO_MAKE_SELF(Context, VirtAxis, VirtAxisPosition<VirtAxisIndex>)
-            using VirtAxisParams = TypeListGet<VirtAxesList, VirtAxisIndex>;
+            struct Object;
+            using VirtAxisParams = TypeListGet<ParamsVirtAxesList, VirtAxisIndex>;
             static int const AxisName = VirtAxisParams::Name;
-            static int const PhysAxisIndex = FindAxis<TypeListGet<PhysAxesList, VirtAxisIndex>::value>::value;
+            static int const PhysAxisIndex = FindAxis<TypeListGet<ParamsPhysAxesList, VirtAxisIndex>::value>::value;
             using ThePhysAxis = Axis<PhysAxisIndex>;
             static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
             
             static void init (Context c)
             {
-                VirtAxis *o = self(c);
+                auto *o = Object::self(c);
                 o->m_relative_positioning = false;
             }
             
             static void update_new_pos (Context c, MoveBuildState *s, FpType req)
             {
-                VirtAxis *o = self(c);
-                TransformFeature *t = TransformFeature::self(c);
+                auto *o = Object::self(c);
+                auto *t = TransformFeature::Object::self(c);
                 o->m_req_pos = req;
-                t->m_splitting = true;
+                t->splitting = true;
             }
             
             static void clamp_req_phys (Context c)
             {
                 ThePhysAxis *axis = ThePhysAxis::self(c);
-                TransformFeature *t = TransformFeature::self(c);
+                auto *t = TransformFeature::Object::self(c);
                 if (AMBRO_UNLIKELY(!(axis->m_req_pos <= ThePhysAxis::max_req_pos()))) {
                     axis->m_req_pos = ThePhysAxis::max_req_pos();
-                    t->m_virt_update_pending = true;
+                    t->virt_update_pending = true;
                 } else if (AMBRO_UNLIKELY(!(axis->m_req_pos >= ThePhysAxis::min_req_pos()))) {
                     axis->m_req_pos = ThePhysAxis::min_req_pos();
-                    t->m_virt_update_pending = true;
+                    t->virt_update_pending = true;
                 }
             }
             
@@ -1856,15 +1851,15 @@ private:
             
             static void prepare_split (Context c, FpType *distance_squared)
             {
-                VirtAxis *o = self(c);
+                auto *o = Object::self(c);
                 o->m_delta = o->m_req_pos - o->m_old_pos;
                 *distance_squared += o->m_delta * o->m_delta;
             }
             
             static void compute_split (Context c, FpType frac, FpType *virt_pos)
             {
-                VirtAxis *o = self(c);
-                TransformFeature *t = TransformFeature::self(c);
+                auto *o = Object::self(c);
+                auto *t = TransformFeature::Object::self(c);
                 virt_pos[VirtAxisIndex] = o->m_old_pos + (frac * o->m_delta);
             }
             
@@ -1876,7 +1871,7 @@ private:
             
             static void set_position (Context c, FpType value, bool *seen_virtual)
             {
-                VirtAxis *o = self(c);
+                auto *o = Object::self(c);
                 o->m_req_pos = value;
                 *seen_virtual = true;
             }
@@ -1884,31 +1879,34 @@ private:
             static void finish_set_position (Context c)
             {
                 ThePhysAxis *axis = ThePhysAxis::self(c);
-                TransformFeature *t = TransformFeature::self(c);
+                auto *t = TransformFeature::Object::self(c);
                 FpType req = axis->m_req_pos;
                 axis->only_set_position(c, req);
                 if (axis->m_req_pos != req) {
-                    t->m_virt_update_pending = true;
+                    t->virt_update_pending = true;
                 }
             }
             
             static FpType limit_virt_axis_speed (FpType accum, Context c)
             {
-                VirtAxis *o = self(c);
+                auto *o = Object::self(c);
                 return FloatMax(accum, FloatAbs(o->m_delta) * (FpType)(Clock::time_freq / VirtAxisParams::MaxSpeed::value()));
             }
             
-            FpType m_req_pos;
-            FpType m_old_pos;
-            FpType m_delta;
-            bool m_relative_positioning;
+            struct Object : public ObjBase<VirtAxis, typename TransformFeature::Object, EmptyTypeList>
+            {
+                FpType m_req_pos;
+                FpType m_old_pos;
+                FpType m_delta;
+                bool m_relative_positioning;
+            };
         };
         
-        using VirtAxesTuple = IndexElemTuple<VirtAxesList, VirtAxis>;
+        using VirtAxesList = IndexElemList<ParamsVirtAxesList, VirtAxis>;
         
         template <typename PhysAxisIndex>
         using IsPhysAxisTransformPhys = WrapBool<(TypeListIndex<
-            typename VirtAxesTuple::ElemTypes,
+            VirtAxesList,
             ComposeFunctions<
                 IsEqualFunc<PhysAxisIndex>,
                 GetMemberType_WrappedPhysAxisIndex
@@ -1926,7 +1924,6 @@ private:
         
         template <int SecondaryAxisIndex>
         struct SecondaryAxis {
-            AMBRO_MAKE_SELF(Context, SecondaryAxis, SecondaryAxisPosition<SecondaryAxisIndex>)
             static int const AxisIndex = TypeListGet<SecondaryAxisIndices, SecondaryAxisIndex>::value;
             using TheAxis = Axis<AxisIndex>;
             
@@ -1942,7 +1939,7 @@ private:
             static void compute_split (Context c, FpType frac, FpType *move_pos)
             {
                 TheAxis *axis = TheAxis::self(c);
-                TransformFeature *t = TransformFeature::self(c);
+                auto *t = TransformFeature::Object::self(c);
                 move_pos[AxisIndex] = axis->m_old_pos + (frac * (axis->m_req_pos - axis->m_old_pos));
             }
             
@@ -1953,17 +1950,15 @@ private:
             }
         };
         
-        using SecondaryAxesTuple = IndexElemTuple<SecondaryAxisIndices, SecondaryAxis>;
+        using SecondaryAxesList = IndexElemList<SecondaryAxisIndices, SecondaryAxis>;
         
-        VirtAxesTuple m_virt_axes;
-        SecondaryAxesTuple m_secondary_axes;
-        bool m_virt_update_pending;
-        bool m_splitclear_pending;
-        bool m_splitting;
-        TheSplitter m_splitter;
-        
-        template <int VirtAxisIndex> struct VirtAxisPosition : public TuplePosition<TransformFeaturePosition, VirtAxesTuple, &TransformFeature::m_virt_axes, VirtAxisIndex> {};
-        template <int SecondaryAxisIndex> struct SecondaryAxisPosition : public TuplePosition<TransformFeaturePosition, SecondaryAxesTuple, &TransformFeature::m_secondary_axes, SecondaryAxisIndex> {};
+        struct Object : public ObjBase<TransformFeature, typename PrinterMain::Object, VirtAxesList>
+        {
+            bool virt_update_pending;
+            bool splitclear_pending;
+            bool splitting;
+            TheSplitter splitter;
+        };
     } AMBRO_STRUCT_ELSE(TransformFeature) {
         static int const NumVirtAxes = 0;
         static void init (Context c) {}
@@ -1975,6 +1970,7 @@ private:
         static void split_more (Context c) {}
         static bool try_splitclear_command (Context c) { return true; }
         static void handle_set_position (Context c, bool seen_virtual) {}
+        struct Object {};
     };
     
     static int const NumPhysVirtAxes = NumAxes + TransformFeature::NumVirtAxes;
@@ -1999,7 +1995,7 @@ private:
         
         static void init_new_pos (Context c)
         {
-            TheAxis *axis = TheAxis::self(c);
+            auto *axis = TheAxis::Object::self(c);
             axis->m_old_pos = axis->m_req_pos;
         }
         
@@ -2011,7 +2007,7 @@ private:
         template <typename TheChannelCommon>
         static bool collect_new_pos (Context c, TheChannelCommon *cc, MoveBuildState *s, typename TheChannelCommon::GcodeParserPartRef part)
         {
-            TheAxis *axis = TheAxis::self(c);
+            auto *axis = TheAxis::Object::self(c);
             if (AMBRO_UNLIKELY(cc->gc(c)->getPartCode(c, part) == TheAxis::AxisName)) {
                 FpType req = cc->gc(c)->template getPartFpValue<FpType>(c, part);
                 if (axis->m_relative_positioning) {
@@ -2025,14 +2021,14 @@ private:
         
         static void set_relative_positioning (Context c, bool relative)
         {
-            TheAxis *axis = TheAxis::self(c);
+            auto *axis = TheAxis::Object::self(c);
             axis->m_relative_positioning = relative;
         }
         
         template <typename TheChannelCommon>
         static void append_position (Context c, TheChannelCommon *cc)
         {
-            TheAxis *axis = TheAxis::self(c);
+            auto *axis = TheAxis::Object::self(c);
             cc->reply_append_ch(c, TheAxis::AxisName);
             cc->reply_append_ch(c, ':');
             cc->reply_append_fp(c, axis->m_req_pos);
@@ -2560,7 +2556,7 @@ private:
                     FpType height = get_height(c);
                     o->m_samples[o->m_current_point] = height;
                     Tuple<ChannelCommonList> dummy;
-                    TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_report_height(), height);
+                    TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<ProbeFeature>(), LForeach_report_height(), height);
                 }
                 o->m_point_state++;
                 bool watch_probe = (o->m_point_state == 1 || o->m_point_state == 3);
@@ -2600,7 +2596,7 @@ private:
         
         static FpType get_height (Context c)
         {
-            return GetPhysVirtAxis<ProbeAxisIndex>::self(c)->m_req_pos;
+            return GetPhysVirtAxis<ProbeAxisIndex>::Object::self(c)->m_req_pos;
         }
         
         template <typename TheChannelCommon>
@@ -2709,7 +2705,7 @@ public:
         o->m_serial_feature.init(c);
         o->m_sdcard_feature.init(c);
         TupleForEachForward(&o->m_axes, Foreach_init(), c);
-        o->m_transform_feature.init(c);
+        TransformFeature::init(c);
         TupleForEachForward(&o->m_heaters, Foreach_init(), c);
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
         o->m_probe_feature.init(c);
@@ -3018,7 +3014,7 @@ private:
                         PhysVirtAxisHelperTuple dummy;
                         TupleForEachForward(&dummy, Foreach_set_position(), c, cc, cc->gc(c)->getPart(c, i), &seen_virtual);
                     }
-                    o->m_transform_feature.handle_set_position(c, seen_virtual);
+                    TransformFeature::handle_set_position(c, seen_virtual);
                     return cc->finishCommand(c);
                 } break;
             } break;
@@ -3047,7 +3043,7 @@ private:
         AMBRO_ASSERT(ob->locked)
         
         ChannelCommonTuple dummy;
-        TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_finish_locked_helper());
+        TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_finish_locked_helper());
     }
     
     static void homing_finished (Context c)
@@ -3057,7 +3053,7 @@ private:
         AMBRO_ASSERT(ob->locked)
         AMBRO_ASSERT(o->m_homing_rem_axes == 0)
         
-        o->m_transform_feature.do_pending_virt_update(c);
+        TransformFeature::do_pending_virt_update(c);
         now_inactive(c);
         finish_locked(c);
     }
@@ -3109,7 +3105,7 @@ private:
         
         if (!ob->locked) {
             ChannelCommonTuple dummy;
-            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKING, o, Foreach_continue_locking_helper());
+            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKING, WrapType<PrinterMain>(), LForeach_continue_locking_helper());
         }
     }
     
@@ -3161,8 +3157,8 @@ private:
         AMBRO_ASSERT(!o->m_planning_pull_pending)
         
         o->m_planning_pull_pending = true;
-        if (o->m_transform_feature.is_splitting(c)) {
-            o->m_transform_feature.split_more(c);
+        if (TransformFeature::is_splitting(c)) {
+            TransformFeature::split_more(c);
             return;
         }
         if (ob->planner_state == PLANNER_STOPPING) {
@@ -3170,7 +3166,7 @@ private:
         } else if (ob->planner_state == PLANNER_WAITING) {
             ob->planner_state = PLANNER_RUNNING;
             ChannelCommonTuple dummy;
-            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_continue_planned_helper());
+            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_continue_planned_helper());
         } else if (ob->planner_state == PLANNER_RUNNING) {
             set_force_timer(c);
         } else {
@@ -3212,7 +3208,7 @@ private:
         
         if (old_state == PLANNER_STOPPING) {
             ChannelCommonTuple dummy;
-            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_continue_unplanned_helper());
+            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_continue_unplanned_helper());
         }
     }
     
@@ -3224,7 +3220,7 @@ private:
         AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
         
         TupleForEachForward(&o->m_axes, Foreach_fix_aborted_pos(), c);
-        o->m_transform_feature.do_pending_virt_update(c);
+        TransformFeature::do_pending_virt_update(c);
         o->m_probe_feature.custom_aborted_handler(c);
     }
     
@@ -3282,15 +3278,15 @@ private:
         AMBRO_ASSERT(o->m_planning_pull_pending)
         AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
         
-        if (o->m_transform_feature.is_splitting(c)) {
-            o->m_transform_feature.handle_virt_move(c, time_freq_by_max_speed);
+        if (TransformFeature::is_splitting(c)) {
+            TransformFeature::handle_virt_move(c, time_freq_by_max_speed);
             return;
         }
         PlannerSplitBuffer *cmd = o->m_planner.getBuffer(c);
         FpType distance_squared = 0.0f;
         FpType total_steps = 0.0f;
         TupleForEachForward(&o->m_axes, Foreach_do_move(), c, ReqPosSrc{c}, WrapBool<true>(), &distance_squared, &total_steps, cmd);
-        o->m_transform_feature.do_pending_virt_update(c);
+        TransformFeature::do_pending_virt_update(c);
         if (total_steps != 0.0f) {
             cmd->rel_max_v_rec = total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
             if (s->seen_cartesian) {
@@ -3358,7 +3354,6 @@ private:
     SerialFeature m_serial_feature;
     SdCardFeature m_sdcard_feature;
     AxesTuple m_axes;
-    TransformFeature m_transform_feature;
     HeatersTuple m_heaters;
     FansTuple m_fans;
     ProbeFeature m_probe_feature;
@@ -3379,7 +3374,6 @@ private:
     template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &PrinterMain::m_axes, AxisIndex> {};
     template <int AxisIndex> struct HomingFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, typename Axis<AxisIndex>::HomingFeature, &Axis<AxisIndex>::m_homing_feature> {};
     template <int AxisIndex> struct HomingStatePosition : public TuplePosition<Position, HomingStateTuple, &PrinterMain::m_homers, AxisIndex> {};
-    struct TransformFeaturePosition : public MemberPosition<Position, TransformFeature, &PrinterMain::m_transform_feature> {};
     struct SerialFeaturePosition : public MemberPosition<Position, SerialFeature, &PrinterMain::m_serial_feature> {};
     struct SdCardFeaturePosition : public MemberPosition<Position, SdCardFeature, &PrinterMain::m_sdcard_feature> {};
     struct PlannerPosition : public MemberPosition<Position, ThePlanner, &PrinterMain::m_planner> {};
@@ -3406,7 +3400,8 @@ private:
 public:
     struct Object : public ObjBase<PrinterMain, void, MakeTypeList<
         TheBlinker,
-        TheSteppers
+        TheSteppers,
+        TransformFeature
     >> {
         static Object * self (Context c)
         {
