@@ -62,6 +62,7 @@
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/PowerOfTwo.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -361,6 +362,9 @@ template <typename Position, typename Context, typename Params>
 class PrinterMain
 : private DebugObject<Context, void>
 {
+public:
+    struct Object;
+    
 private:
     AMBRO_MAKE_SELF(Context, PrinterMain, Position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
@@ -408,8 +412,6 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     
     struct WatchdogPosition;
-    struct BlinkerPosition;
-    struct SteppersPosition;
     template <int AxisIndex> struct AxisPosition;
     template <int AxisIndex> struct HomingFeaturePosition;
     template <int AxisIndex> struct HomingStatePosition;
@@ -453,9 +455,9 @@ private:
     >;
     
     using TheWatchdog = typename Params::template WatchdogTemplate<WatchdogPosition, Context, typename Params::WatchdogParams>;
-    using TheBlinker = Blinker<BlinkerPosition, Context, typename Params::LedPin, BlinkerHandler>;
+    using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     using StepperDefsList = MapTypeList<AxesList, TemplateFunc<MakeStepperDef>>;
-    using TheSteppers = Steppers<SteppersPosition, Context, StepperDefsList>;
+    using TheSteppers = Steppers<Context, Object, StepperDefsList>;
     
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
@@ -519,15 +521,15 @@ private:
         static bool maybeResumeLockingCommand (Context c)
         {
             ChannelCommon *o = self(c);
-            PrinterMain *m = PrinterMain::self(c);
+            auto *mob = PrinterMain::Object::self(c);
             AMBRO_ASSERT(o->m_state == COMMAND_IDLE)
             
             if (!o->m_cmd) {
                 return false;
             }
             o->m_state = COMMAND_LOCKING;
-            if (!m->m_unlocked_timer.isSet(c)) {
-                m->m_unlocked_timer.prependNowNotAlready(c);
+            if (!mob->unlocked_timer.isSet(c)) {
+                mob->unlocked_timer.prependNowNotAlready(c);
             }
             return true;
         }
@@ -544,18 +546,18 @@ private:
         static void finishCommand (Context c, bool no_ok = false)
         {
             ChannelCommon *o = self(c);
-            PrinterMain *m = PrinterMain::self(c);
+            auto *mob = PrinterMain::Object::self(c);
             AMBRO_ASSERT(o->m_cmd)
             AMBRO_ASSERT(o->m_state == COMMAND_IDLE || o->m_state == COMMAND_LOCKED)
             
             Channel::finish_command_impl(c, no_ok);
             o->m_cmd = false;
             if (o->m_state == COMMAND_LOCKED) {
-                AMBRO_ASSERT(m->m_locked)
+                AMBRO_ASSERT(mob->locked)
                 o->m_state = COMMAND_IDLE;
-                m->m_locked = false;
-                if (!m->m_unlocked_timer.isSet(c)) {
-                    m->m_unlocked_timer.prependNowNotAlready(c);
+                mob->locked = false;
+                if (!mob->unlocked_timer.isSet(c)) {
+                    mob->unlocked_timer.prependNowNotAlready(c);
                 }
             }
         }
@@ -566,37 +568,39 @@ private:
         {
             ChannelCommon *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
-            AMBRO_ASSERT(o->m_state != COMMAND_LOCKING || !m->m_locked)
-            AMBRO_ASSERT(o->m_state != COMMAND_LOCKED || m->m_locked)
+            auto *mob = PrinterMain::Object::self(c);
+            AMBRO_ASSERT(o->m_state != COMMAND_LOCKING || !mob->locked)
+            AMBRO_ASSERT(o->m_state != COMMAND_LOCKED || mob->locked)
             AMBRO_ASSERT(o->m_cmd)
             
             if (o->m_state == COMMAND_LOCKED) {
                 return true;
             }
-            if (m->m_locked) {
+            if (mob->locked) {
                 o->m_state = COMMAND_LOCKING;
                 return false;
             }
             o->m_state = COMMAND_LOCKED;
-            m->m_locked = true;
+            mob->locked = true;
             return true;
         }
         
         static bool tryUnplannedCommand (Context c)
         {
             PrinterMain *m = PrinterMain::self(c);
+            auto *mob = PrinterMain::Object::self(c);
             
             if (!tryLockedCommand(c)) {
                 return false;
             }
-            AMBRO_ASSERT(m->m_planner_state == PLANNER_NONE || m->m_planner_state == PLANNER_RUNNING)
-            if (m->m_planner_state == PLANNER_NONE) {
+            AMBRO_ASSERT(mob->planner_state == PLANNER_NONE || mob->planner_state == PLANNER_RUNNING)
+            if (mob->planner_state == PLANNER_NONE) {
                 return true;
             }
-            m->m_planner_state = PLANNER_STOPPING;
+            mob->planner_state = PLANNER_STOPPING;
             if (m->m_planning_pull_pending) {
                 m->m_planner.waitFinished(c);
-                m->m_force_timer.unset(c);
+                mob->force_timer.unset(c);
             }
             return false;
         }
@@ -604,21 +608,22 @@ private:
         static bool tryPlannedCommand (Context c)
         {
             PrinterMain *m = PrinterMain::self(c);
+            auto *mob = PrinterMain::Object::self(c);
             
             if (!tryLockedCommand(c)) {
                 return false;
             }
-            AMBRO_ASSERT(m->m_planner_state == PLANNER_NONE || m->m_planner_state == PLANNER_RUNNING)
-            if (m->m_planner_state == PLANNER_NONE) {
+            AMBRO_ASSERT(mob->planner_state == PLANNER_NONE || mob->planner_state == PLANNER_RUNNING)
+            if (mob->planner_state == PLANNER_NONE) {
                 m->m_planner.init(c, false);
-                m->m_planner_state = PLANNER_RUNNING;
+                mob->planner_state = PLANNER_RUNNING;
                 m->m_planning_pull_pending = false;
                 now_active(c);
             }
             if (m->m_planning_pull_pending) {
                 return true;
             }
-            m->m_planner_state = PLANNER_WAITING;
+            mob->planner_state = PLANNER_WAITING;
             return false;
         }
         
@@ -1287,8 +1292,9 @@ private:
                     HomingState *o = self(c);
                     Axis *axis = Axis::self(c);
                     PrinterMain *m = PrinterMain::self(c);
+                    auto *mob = PrinterMain::Object::self(c);
                     AMBRO_ASSERT(axis->m_state == AXIS_STATE_HOMING)
-                    AMBRO_ASSERT(m->m_locked)
+                    AMBRO_ASSERT(mob->locked)
                     AMBRO_ASSERT(m->m_homing_rem_axes > 0)
                     
                     o->m_homer.deinit(c);
@@ -1665,7 +1671,8 @@ private:
         {
             TransformFeature *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
-            AMBRO_ASSERT(m->m_planner_state == PLANNER_RUNNING || m->m_planner_state == PLANNER_PROBE)
+            auto *mob = PrinterMain::Object::self(c);
+            AMBRO_ASSERT(mob->planner_state == PLANNER_RUNNING || mob->planner_state == PLANNER_PROBE)
             AMBRO_ASSERT(m->m_planning_pull_pending)
             AMBRO_ASSERT(o->m_splitting)
             AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
@@ -1712,14 +1719,15 @@ private:
         {
             TransformFeature *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
+            auto *mob = PrinterMain::Object::self(c);
             AMBRO_ASSERT(o->m_splitting)
-            AMBRO_ASSERT(m->m_planner_state != PLANNER_NONE)
+            AMBRO_ASSERT(mob->planner_state != PLANNER_NONE)
             AMBRO_ASSERT(m->m_planning_pull_pending)
             
             do_split(c);
             if (!o->m_splitting && o->m_splitclear_pending) {
-                AMBRO_ASSERT(m->m_locked)
-                AMBRO_ASSERT(m->m_planner_state == PLANNER_RUNNING)
+                AMBRO_ASSERT(mob->locked)
+                AMBRO_ASSERT(mob->planner_state == PLANNER_RUNNING)
                 o->m_splitclear_pending = false;
                 ChannelCommonTuple dummy;
                 TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_continue_splitclear_helper());
@@ -1730,7 +1738,8 @@ private:
         {
             TransformFeature *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
-            AMBRO_ASSERT(m->m_locked)
+            auto *mob = PrinterMain::Object::self(c);
+            AMBRO_ASSERT(mob->locked)
             AMBRO_ASSERT(!o->m_splitclear_pending)
             
             if (!o->m_splitting) {
@@ -1744,8 +1753,9 @@ private:
         {
             TransformFeature *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
+            auto *mob = PrinterMain::Object::self(c);
             AMBRO_ASSERT(o->m_splitting)
-            AMBRO_ASSERT(m->m_planner_state != PLANNER_NONE)
+            AMBRO_ASSERT(mob->planner_state != PLANNER_NONE)
             AMBRO_ASSERT(m->m_planning_pull_pending)
             
             do {
@@ -2244,8 +2254,9 @@ private:
         {
             Heater *o = self(c);
             PrinterMain *m = PrinterMain::self(c);
+            auto *mob = PrinterMain::Object::self(c);
             AMBRO_ASSERT(o->m_observing)
-            AMBRO_ASSERT(m->m_locked)
+            AMBRO_ASSERT(mob->locked)
             
             if (!state) {
                 return;
@@ -2687,13 +2698,14 @@ public:
     static void init (Context c)
     {
         PrinterMain *o = self(c);
+        auto *ob = Object::self(c);
         
-        o->m_unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
-        o->m_disable_timer.init(c, PrinterMain::disable_timer_handler);
-        o->m_force_timer.init(c, PrinterMain::force_timer_handler);
+        ob->unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
+        ob->disable_timer.init(c, PrinterMain::disable_timer_handler);
+        ob->force_timer.init(c, PrinterMain::force_timer_handler);
         o->m_watchdog.init(c);
-        o->m_blinker.init(c, (FpType)(Params::LedBlinkInterval::value() * Clock::time_freq));
-        o->m_steppers.init(c);
+        TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * Clock::time_freq));
+        TheSteppers::init(c);
         o->m_serial_feature.init(c);
         o->m_sdcard_feature.init(c);
         TupleForEachForward(&o->m_axes, Foreach_init(), c);
@@ -2702,11 +2714,11 @@ public:
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
         o->m_probe_feature.init(c);
         o->m_current_feature.init(c);
-        o->m_inactive_time = (FpType)(Params::DefaultInactiveTime::value() * Clock::time_freq);
-        o->m_time_freq_by_max_speed = 0.0f;
-        o->m_underrun_count = 0;
-        o->m_locked = false;
-        o->m_planner_state = PLANNER_NONE;
+        ob->inactive_time = (FpType)(Params::DefaultInactiveTime::value() * Clock::time_freq);
+        ob->time_freq_by_max_speed = 0.0f;
+        ob->underrun_count = 0;
+        ob->locked = false;
+        ob->planner_state = PLANNER_NONE;
         
         o->m_serial_feature.m_channel_common.reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
         o->m_serial_feature.m_channel_common.reply_poke(c);
@@ -2717,9 +2729,10 @@ public:
     static void deinit (Context c)
     {
         PrinterMain *o = self(c);
+        auto *ob = Object::self(c);
         o->debugDeinit(c);
         
-        if (o->m_planner_state != PLANNER_NONE) {
+        if (ob->planner_state != PLANNER_NONE) {
             o->m_planner.deinit(c);
         }
         o->m_current_feature.deinit(c);
@@ -2729,12 +2742,12 @@ public:
         TupleForEachReverse(&o->m_axes, Foreach_deinit(), c);
         o->m_sdcard_feature.deinit(c);
         o->m_serial_feature.deinit(c);
-        o->m_steppers.deinit(c);
-        o->m_blinker.deinit(c);
+        TheSteppers::deinit(c);
+        TheBlinker::deinit(c);
         o->m_watchdog.deinit(c);
-        o->m_force_timer.deinit(c);
-        o->m_disable_timer.deinit(c);
-        o->m_unlocked_timer.deinit(c);
+        ob->force_timer.deinit(c);
+        ob->disable_timer.deinit(c);
+        ob->unlocked_timer.deinit(c);
     }
     
     TheWatchdog * getWatchdog ()
@@ -2828,6 +2841,7 @@ private:
     static void work_command (Context c)
     {
         PrinterMain *o = self(c);
+        auto *ob = Object::self(c);
         TheChannelCommon *cc = TheChannelCommon::self(c);
         AMBRO_ASSERT(cc->m_cmd)
         
@@ -2864,13 +2878,13 @@ private:
                     }
                     FpType inactive_time;
                     if (cc->find_command_param_fp(c, 'S', &inactive_time)) {
-                        o->m_inactive_time = time_from_real(inactive_time);
-                        if (o->m_disable_timer.isSet(c)) {
-                            o->m_disable_timer.appendAt(c, o->m_last_active_time + o->m_inactive_time);
+                        ob->inactive_time = time_from_real(inactive_time);
+                        if (ob->disable_timer.isSet(c)) {
+                            ob->disable_timer.appendAt(c, ob->last_active_time + ob->inactive_time);
                         }
                     } else {
                         TupleForEachForward(&o->m_axes, Foreach_disable_stepper(), c);
-                        o->m_disable_timer.unset(c);
+                        ob->disable_timer.unset(c);
                     }
                     return cc->finishCommand(c);
                 } break;
@@ -2921,7 +2935,7 @@ private:
 #endif
                 
                 case 920: { // get underrun count
-                    cc->reply_append_uint32(c, o->m_underrun_count);
+                    cc->reply_append_uint32(c, ob->underrun_count);
                     cc->reply_append_ch(c, '\n');
                     cc->finishCommand(c);
                 } break;
@@ -2951,12 +2965,12 @@ private:
                         PhysVirtAxisHelperTuple dummy;
                         if (TupleForEachForwardInterruptible(&dummy, Foreach_collect_new_pos(), c, cc, &s, part)) {
                             if (cc->gc(c)->getPartCode(c, part) == 'F') {
-                                o->m_time_freq_by_max_speed = (FpType)(Clock::time_freq / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cc->gc(c)->template getPartFpValue<FpType>(c, part));
+                                ob->time_freq_by_max_speed = (FpType)(Clock::time_freq / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cc->gc(c)->template getPartFpValue<FpType>(c, part));
                             }
                         }
                     }
                     cc->finishCommand(c);
-                    move_end(c, &s, o->m_time_freq_by_max_speed);
+                    move_end(c, &s, ob->time_freq_by_max_speed);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -3029,7 +3043,8 @@ private:
     static void finish_locked (Context c)
     {
         PrinterMain *o = self(c);
-        AMBRO_ASSERT(o->m_locked)
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
         
         ChannelCommonTuple dummy;
         TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_finish_locked_helper());
@@ -3038,7 +3053,8 @@ private:
     static void homing_finished (Context c)
     {
         PrinterMain *o = self(c);
-        AMBRO_ASSERT(o->m_locked)
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
         AMBRO_ASSERT(o->m_homing_rem_axes == 0)
         
         o->m_transform_feature.do_pending_virt_update(c);
@@ -3048,35 +3064,37 @@ private:
     
     static void now_inactive (Context c)
     {
-        PrinterMain *o = self(c);
+        auto *ob = Object::self(c);
         
-        o->m_last_active_time = c.clock()->getTime(c);
-        o->m_disable_timer.appendAt(c, o->m_last_active_time + o->m_inactive_time);
-        o->m_blinker.setInterval(c, (FpType)(Params::LedBlinkInterval::value() * Clock::time_freq));
+        ob->last_active_time = c.clock()->getTime(c);
+        ob->disable_timer.appendAt(c, ob->last_active_time + ob->inactive_time);
+        TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * Clock::time_freq));
     }
     
     static void now_active (Context c)
     {
-        PrinterMain *o = self(c);
-        o->m_disable_timer.unset(c);
-        o->m_blinker.setInterval(c, (FpType)((Params::LedBlinkInterval::value() / 2) * Clock::time_freq));
+        auto *ob = Object::self(c);
+        
+        ob->disable_timer.unset(c);
+        TheBlinker::setInterval(c, (FpType)((Params::LedBlinkInterval::value() / 2) * Clock::time_freq));
     }
     
     static void set_force_timer (Context c)
     {
         PrinterMain *o = self(c);
-        AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING)
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING)
         AMBRO_ASSERT(o->m_planning_pull_pending)
         
         TimeType force_time = c.clock()->getTime(c) + (TimeType)(Params::ForceTimeout::value() * Clock::time_freq);
-        o->m_force_timer.appendAt(c, force_time);
+        ob->force_timer.appendAt(c, force_time);
     }
     
     template <typename TheChannelCommon>
     static void continue_locking_helper (Context c, TheChannelCommon *cc)
     {
-        PrinterMain *o = self(c);
-        AMBRO_ASSERT(!o->m_locked)
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(!ob->locked)
         AMBRO_ASSERT(cc->m_cmd)
         AMBRO_ASSERT(cc->m_state == COMMAND_LOCKING)
         
@@ -3086,9 +3104,10 @@ private:
     static void unlocked_timer_handler (typename Loop::QueuedEvent *, Context c)
     {
         PrinterMain *o = self(c);
+        auto *ob = Object::self(c);
         o->debugAccess(c);
         
-        if (!o->m_locked) {
+        if (!ob->locked) {
             ChannelCommonTuple dummy;
             TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKING, o, Foreach_continue_locking_helper());
         }
@@ -3105,8 +3124,9 @@ private:
     static void force_timer_handler (typename Loop::QueuedEvent *, Context c)
     {
         PrinterMain *o = self(c);
+        auto *ob = Object::self(c);
         o->debugAccess(c);
-        AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING)
         AMBRO_ASSERT(o->m_planning_pull_pending)
         
         o->m_planner.waitFinished(c);
@@ -3121,10 +3141,11 @@ private:
     template <typename TheChannelCommon>
     static void continue_planned_helper (Context c, TheChannelCommon *cc)
     {
-        PrinterMain *m = PrinterMain::self(c);
-        AMBRO_ASSERT(m->m_locked)
-        AMBRO_ASSERT(m->m_planner_state == PLANNER_RUNNING)
-        AMBRO_ASSERT(m->m_planning_pull_pending)
+        PrinterMain *o = self(c);
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING)
+        AMBRO_ASSERT(o->m_planning_pull_pending)
         AMBRO_ASSERT(cc->m_state == COMMAND_LOCKED)
         AMBRO_ASSERT(cc->m_cmd)
         
@@ -3134,8 +3155,9 @@ private:
     static void planner_pull_handler (Context c)
     {
         PrinterMain *o = self(c);
+        auto *ob = Object::self(c);
         o->debugAccess(c);
-        AMBRO_ASSERT(o->m_planner_state != PLANNER_NONE)
+        AMBRO_ASSERT(ob->planner_state != PLANNER_NONE)
         AMBRO_ASSERT(!o->m_planning_pull_pending)
         
         o->m_planning_pull_pending = true;
@@ -3143,16 +3165,16 @@ private:
             o->m_transform_feature.split_more(c);
             return;
         }
-        if (o->m_planner_state == PLANNER_STOPPING) {
+        if (ob->planner_state == PLANNER_STOPPING) {
             o->m_planner.waitFinished(c);
-        } else if (o->m_planner_state == PLANNER_WAITING) {
-            o->m_planner_state = PLANNER_RUNNING;
+        } else if (ob->planner_state == PLANNER_WAITING) {
+            ob->planner_state = PLANNER_RUNNING;
             ChannelCommonTuple dummy;
             TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, o, Foreach_continue_planned_helper());
-        } else if (o->m_planner_state == PLANNER_RUNNING) {
+        } else if (ob->planner_state == PLANNER_RUNNING) {
             set_force_timer(c);
         } else {
-            AMBRO_ASSERT(o->m_planner_state == PLANNER_PROBE)
+            AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
             o->m_probe_feature.custom_pull_handler(c);
         }
     }
@@ -3160,9 +3182,9 @@ private:
     template <typename TheChannelCommon>
     static void continue_unplanned_helper (Context c, TheChannelCommon *cc)
     {
-        PrinterMain *m = PrinterMain::self(c);
-        AMBRO_ASSERT(m->m_locked)
-        AMBRO_ASSERT(m->m_planner_state == PLANNER_NONE)
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_NONE)
         AMBRO_ASSERT(cc->m_state == COMMAND_LOCKED)
         AMBRO_ASSERT(cc->m_cmd)
         
@@ -3172,19 +3194,20 @@ private:
     static void planner_finished_handler (Context c)
     {
         PrinterMain *o = self(c);
+        auto *ob = Object::self(c);
         o->debugAccess(c);
-        AMBRO_ASSERT(o->m_planner_state != PLANNER_NONE)
+        AMBRO_ASSERT(ob->planner_state != PLANNER_NONE)
         AMBRO_ASSERT(o->m_planning_pull_pending)
-        AMBRO_ASSERT(o->m_planner_state != PLANNER_WAITING)
+        AMBRO_ASSERT(ob->planner_state != PLANNER_WAITING)
         
-        if (o->m_planner_state == PLANNER_PROBE) {
+        if (ob->planner_state == PLANNER_PROBE) {
             return o->m_probe_feature.custom_finished_handler(c);
         }
         
-        uint8_t old_state = o->m_planner_state;
+        uint8_t old_state = ob->planner_state;
         o->m_planner.deinit(c);
-        o->m_force_timer.unset(c);
-        o->m_planner_state = PLANNER_NONE;
+        ob->force_timer.unset(c);
+        ob->planner_state = PLANNER_NONE;
         now_inactive(c);
         
         if (old_state == PLANNER_STOPPING) {
@@ -3196,8 +3219,9 @@ private:
     static void planner_aborted_handler (Context c)
     {
         PrinterMain *o = self(c);
+        auto *ob = Object::self(c);
         o->debugAccess(c);
-        AMBRO_ASSERT(o->m_planner_state == PLANNER_PROBE)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
         
         TupleForEachForward(&o->m_axes, Foreach_fix_aborted_pos(), c);
         o->m_transform_feature.do_pending_virt_update(c);
@@ -3206,8 +3230,8 @@ private:
     
     static void planner_underrun_callback (Context c)
     {
-        PrinterMain *o = self(c);
-        o->m_underrun_count++;
+        auto *ob = Object::self(c);
+        ob->underrun_count++;
     }
     
     static void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)
@@ -3253,7 +3277,8 @@ private:
     static void move_end (Context c, MoveBuildState *s, FpType time_freq_by_max_speed)
     {
         PrinterMain *o = self(c);
-        AMBRO_ASSERT(o->m_planner_state == PLANNER_RUNNING || o->m_planner_state == PLANNER_PROBE)
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING || ob->planner_state == PLANNER_PROBE)
         AMBRO_ASSERT(o->m_planning_pull_pending)
         AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
         
@@ -3283,21 +3308,23 @@ private:
     static void submitted_planner_command (Context c)
     {
         PrinterMain *o = self(c);
-        AMBRO_ASSERT(o->m_planner_state != PLANNER_NONE)
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->planner_state != PLANNER_NONE)
         AMBRO_ASSERT(o->m_planning_pull_pending)
         
         o->m_planning_pull_pending = false;
-        o->m_force_timer.unset(c);
+        ob->force_timer.unset(c);
     }
     
     static void custom_planner_init (Context c, uint8_t type, bool enable_prestep_callback)
     {
         PrinterMain *o = self(c);
-        AMBRO_ASSERT(o->m_locked)
-        AMBRO_ASSERT(o->m_planner_state == PLANNER_NONE)
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_NONE)
         AMBRO_ASSERT(type == PLANNER_PROBE)
         
-        o->m_planner_state = type;
+        ob->planner_state = type;
         o->m_planner.init(c, enable_prestep_callback);
         o->m_planning_pull_pending = false;
         now_active(c);
@@ -3306,30 +3333,28 @@ private:
     static void custom_planner_deinit (Context c)
     {
         PrinterMain *o = self(c);
-        AMBRO_ASSERT(o->m_locked)
-        AMBRO_ASSERT(o->m_planner_state == PLANNER_PROBE)
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
         
         o->m_planner.deinit(c);
-        o->m_planner_state = PLANNER_NONE;
+        ob->planner_state = PLANNER_NONE;
         now_inactive(c);
     }
     
     static void custom_planner_wait_finished (Context c)
     {
         PrinterMain *o = self(c);
-        AMBRO_ASSERT(o->m_locked)
-        AMBRO_ASSERT(o->m_planner_state == PLANNER_PROBE)
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
         AMBRO_ASSERT(o->m_planning_pull_pending)
         
         o->m_planner.waitFinished(c);
     }
     
-    typename Loop::QueuedEvent m_unlocked_timer;
-    typename Loop::QueuedEvent m_disable_timer;
-    typename Loop::QueuedEvent m_force_timer;
+    Object m_object;
     TheWatchdog m_watchdog;
-    TheBlinker m_blinker;
-    TheSteppers m_steppers;
     SerialFeature m_serial_feature;
     SdCardFeature m_sdcard_feature;
     AxesTuple m_axes;
@@ -3338,12 +3363,6 @@ private:
     FansTuple m_fans;
     ProbeFeature m_probe_feature;
     CurrentFeature m_current_feature;
-    TimeType m_inactive_time;
-    TimeType m_last_active_time;
-    FpType m_time_freq_by_max_speed;
-    uint32_t m_underrun_count;
-    bool m_locked;
-    uint8_t m_planner_state;
     union {
         struct {
             HomingStateTuple m_homers;
@@ -3357,7 +3376,6 @@ private:
     
     struct WatchdogPosition : public MemberPosition<Position, TheWatchdog, &PrinterMain::m_watchdog> {};
     struct BlinkerPosition : public MemberPosition<Position, TheBlinker, &PrinterMain::m_blinker> {};
-    struct SteppersPosition : public MemberPosition<Position, TheSteppers, &PrinterMain::m_steppers> {};
     template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &PrinterMain::m_axes, AxisIndex> {};
     template <int AxisIndex> struct HomingFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, typename Axis<AxisIndex>::HomingFeature, &Axis<AxisIndex>::m_homing_feature> {};
     template <int AxisIndex> struct HomingStatePosition : public TuplePosition<Position, HomingStateTuple, &PrinterMain::m_homers, AxisIndex> {};
@@ -3383,6 +3401,28 @@ private:
             MakeTypeList<typename ThePlanner::template TheAxisStepperConsumer<AxisIndex>>,
             typename Axis<AxisIndex>::HomingFeature::template MakeAxisStepperConsumersList<typename Axis<AxisIndex>::HomingFeature>
         >;
+    };
+    
+public:
+    struct Object : public ObjBase<PrinterMain, void, MakeTypeList<
+        TheBlinker,
+        TheSteppers
+    >> {
+        static Object * self (Context c)
+        {
+            PrinterMain *o = PrinterMain::self(c);
+            return &o->m_object;
+        }
+        
+        typename Loop::QueuedEvent unlocked_timer;
+        typename Loop::QueuedEvent disable_timer;
+        typename Loop::QueuedEvent force_timer;
+        TimeType inactive_time;
+        TimeType last_active_time;
+        FpType time_freq_by_max_speed;
+        uint32_t underrun_count;
+        bool locked;
+        uint8_t planner_state;
     };
 };
 

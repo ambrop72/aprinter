@@ -27,31 +27,29 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Position, typename Context, typename Pin, typename Handler>
+template <typename Context, typename ParentObject, typename Pin, typename Handler>
 class Blinker
-: private DebugObject<Context, void>
 {
-    AMBRO_MAKE_SELF(Context, Blinker, Position)
-    
 public:
+    struct Object;
     using TimeType = typename Context::Clock::TimeType;
     
     static void init (Context c, TimeType interval)
     {
-        Blinker *o = self(c);
-        o->m_interval = interval;
-        o->m_next_time = c.clock()->getTime(c);
-        o->m_state = false;
-        o->m_timer.init(c, Blinker::timer_handler);
-        o->m_timer.appendAt(c, o->m_next_time);
+        auto *o = Object::self(c);
+        o->interval = interval;
+        o->next_time = c.clock()->getTime(c);
+        o->state = false;
+        o->timer.init(c, Blinker::timer_handler);
+        o->timer.appendAt(c, o->next_time);
         
-        c.pins()->template set<Pin>(c, o->m_state);
+        c.pins()->template set<Pin>(c, o->state);
         c.pins()->template setOutput<Pin>(c);
         
         o->debugInit(c);
@@ -59,18 +57,18 @@ public:
     
     static void deinit (Context c)
     {
-        Blinker *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
-        o->m_timer.deinit(c);
+        o->timer.deinit(c);
     }
     
     static void setInterval (Context c, TimeType interval)
     {
-        Blinker *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
-        o->m_interval = interval;
+        o->interval = interval;
     }
     
 private:
@@ -78,21 +76,26 @@ private:
     
     static void timer_handler (typename Loop::QueuedEvent *, Context c)
     {
-        Blinker *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
-        o->m_state = !o->m_state;
-        c.pins()->template set<Pin>(c, o->m_state);
-        o->m_next_time += o->m_interval;
-        o->m_timer.appendAt(c, o->m_next_time);
+        o->state = !o->state;
+        c.pins()->template set<Pin>(c, o->state);
+        o->next_time += o->interval;
+        o->timer.appendAt(c, o->next_time);
         
         return Handler::call(c);
     }
     
-    TimeType m_interval;
-    TimeType m_next_time;
-    bool m_state;
-    typename Loop::QueuedEvent m_timer;
+public:
+    struct Object : public ObjBase<Blinker, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        TimeType interval;
+        TimeType next_time;
+        bool state;
+        typename Loop::QueuedEvent timer;
+    };
 };
 
 #include <aprinter/EndNamespace.h>

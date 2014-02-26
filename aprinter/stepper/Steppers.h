@@ -36,7 +36,7 @@
 #include <aprinter/meta/SequenceList.h>
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/ValueTemplateFunc.h>
 #include <aprinter/meta/ChooseInt.h>
@@ -54,9 +54,12 @@ struct StepperDef {
     static const bool InvertDir = TInvertDir;
 };
 
-template <typename Position, typename Context, typename StepperDefsList>
-class Steppers : private DebugObject<Context, void> {
-    AMBRO_MAKE_SELF(Context, Steppers, Position)
+template <typename Context, typename ParentObject, typename StepperDefsList>
+class Steppers {
+public:
+    struct Object;
+    
+private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     
@@ -106,21 +109,21 @@ public:
     public:
         static void enable (Context c)
         {
-            Steppers *s = Steppers::self(c);
+            auto *s = Steppers::Object::self(c);
             s->debugAccess(c);
             if (SharesEnable) {
-                s->m_mask |= TheMask;
+                s->mask |= TheMask;
             }
             c.pins()->template set<EnablePin>(c, false);
         }
         
         static void disable (Context c)
         {
-            Steppers *s = Steppers::self(c);
+            auto *s = Steppers::Object::self(c);
             s->debugAccess(c);
             if (SharesEnable) {
-                s->m_mask &= ~TheMask;
-                if (!(s->m_mask & SameEnableMask)) {
+                s->mask &= ~TheMask;
+                if (!(s->mask & SameEnableMask)) {
                     c.pins()->template set<EnablePin>(c, true);
                 }
             } else {
@@ -131,7 +134,7 @@ public:
         template <typename ThisContext>
         static void setDir (ThisContext c, bool dir)
         {
-            Steppers *s = Steppers::self(c);
+            auto *s = Steppers::Object::self(c);
             s->debugAccess(c);
             c.pins()->template set<typename ThisDef::DirPin>(c, maybe_invert_dir(dir));
         }
@@ -139,7 +142,7 @@ public:
         template <typename ThisContext>
         static void stepOn (ThisContext c)
         {
-            Steppers *s = Steppers::self(c);
+            auto *s = Steppers::Object::self(c);
             s->debugAccess(c);
             c.pins()->template set<typename ThisDef::StepPin>(c, true);
         }
@@ -147,7 +150,7 @@ public:
         template <typename ThisContext>
         static void stepOff (ThisContext c)
         {
-            Steppers *s = Steppers::self(c);
+            auto *s = Steppers::Object::self(c);
             s->debugAccess(c);
             c.pins()->template set<typename ThisDef::StepPin>(c, false);
         }
@@ -181,8 +184,8 @@ public:
     
     static void init (Context c)
     {
-        Steppers *o = self(c);
-        o->m_mask = 0;
+        auto *o = Object::self(c);
+        o->mask = 0;
         SteppersTuple dummy;
         TupleForEachForward(&dummy, Foreach_init(), c);
         o->debugInit(c);
@@ -190,7 +193,7 @@ public:
     
     static void deinit (Context c)
     {
-        Steppers *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         SteppersTuple dummy;
         TupleForEachReverse(&dummy, Foreach_deinit(), c);
@@ -199,7 +202,12 @@ public:
 private:
     using SteppersTuple = IndexElemTuple<StepperDefsList, Stepper>;
     
-    MaskType m_mask;
+public:
+    struct Object : public ObjBase<Steppers, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        MaskType mask;
+    };
 };
 
 #include <aprinter/EndNamespace.h>
