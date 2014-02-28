@@ -602,7 +602,7 @@ AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6B_GLOBAL(*p.myprinter.getFanTimer<0>(),
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7A_GLOBAL(*p.myprinter.getFanTimer<1>(), MyContext())
 
 #ifndef USB_SERIAL
-AMBRO_AT91SAM3X_SERIAL_GLOBAL(*p.myprinter.getSerial(), MyContext())
+AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())
 #endif
 AMBRO_AT91SAM3X_SPI_GLOBAL(*p.myprinter.getSdCard()->getSpi(), MyContext())
 AMBRO_AT91SAM3X_ADC_GLOBAL(p.myadc, MyContext())
@@ -624,7 +624,7 @@ extern "C" {
     int _write (int file, char *ptr, int len)
     {
         if (interrupts_enabled()) {
-            p.myprinter.getSerial()->sendWaitFinished(MyContext());
+            MyPrinter::GetSerial::sendWaitFinished(MyContext());
         }
         for (int i = 0; i < len; i++) {
             while (!(UART->UART_SR & UART_SR_TXRDY));

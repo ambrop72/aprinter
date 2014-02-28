@@ -31,7 +31,7 @@
 
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 
@@ -44,22 +44,20 @@ extern "C" uint32_t udi_cdc_read_buf (void* buf, uint32_t size);
 
 struct AsfUsbSerialParams {};
 
-template <typename Position, typename Context, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
-class AsfUsbSerial
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
+class AsfUsbSerial {
 private:
-    AMBRO_MAKE_SELF(Context, AsfUsbSerial, Position)
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<AsfUsbSerial>;
     using SendFastEvent = typename Context::EventLoop::template FastEventSpec<RecvFastEvent>;
     
 public:
+    struct Object;
     using RecvSizeType = BoundedInt<RecvBufferBits, false>;
     using SendSizeType = BoundedInt<SendBufferBits, false>;
     
     static void init (Context c, uint32_t baud)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         
         c.eventLoop()->template initFastEvent<RecvFastEvent>(c, AsfUsbSerial::recv_event_handler);
         o->m_recv_start = RecvSizeType::import(0);
@@ -77,7 +75,7 @@ public:
     
     static void deinit (Context c)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
@@ -86,7 +84,7 @@ public:
     
     static RecvSizeType recvQuery (Context c, bool *out_overrun)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(out_overrun)
         
@@ -96,7 +94,7 @@ public:
     
     static char * recvGetChunkPtr (Context c)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return (o->m_recv_buffer + o->m_recv_start.value());
@@ -104,7 +102,7 @@ public:
     
     static void recvConsume (Context c, RecvSizeType amount)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_ASSERT(amount <= recv_avail(o->m_recv_start, o->m_recv_end))
@@ -113,14 +111,14 @@ public:
     
     static void recvClearOverrun (Context c)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_recv_end == BoundedModuloDec(o->m_recv_start))
     }
     
     static void recvForceEvent (Context c)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         o->m_recv_force = true;
@@ -128,7 +126,7 @@ public:
     
     static SendSizeType sendQuery (Context c)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return send_avail(o->m_send_start, o->m_send_end);
@@ -136,7 +134,7 @@ public:
     
     static SendSizeType sendGetChunkLen (Context c, SendSizeType rem_length)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         if (o->m_send_end.value() > 0 && rem_length > BoundedModuloNegative(o->m_send_end)) {
@@ -147,7 +145,7 @@ public:
     
     static char * sendGetChunkPtr (Context c)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return (o->m_send_buffer + o->m_send_end.value());
@@ -155,7 +153,7 @@ public:
     
     static void sendProvide (Context c, SendSizeType amount)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(amount <= send_avail(o->m_send_start, o->m_send_end))
         
@@ -164,7 +162,7 @@ public:
     
     static void sendPoke (Context c)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         if (o->m_send_start != o->m_send_end) {
@@ -188,7 +186,7 @@ private:
     
     static void recv_event_handler (Context c)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
@@ -209,13 +207,13 @@ private:
         }
         if (o->m_recv_force) {
             o->m_recv_force = false;
-            RecvHandler::call(o, c);
+            RecvHandler::call(c);
         }
     }
     
     static void send_event_handler (Context c)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_send_start != o->m_send_end)
         
@@ -224,7 +222,7 @@ private:
     
     static void do_send (Context c)
     {
-        AsfUsbSerial *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_send_start != o->m_send_end)
         
         do {
@@ -242,14 +240,18 @@ private:
         } while (o->m_send_start != o->m_send_end);
     }
     
-    RecvSizeType m_recv_start;
-    RecvSizeType m_recv_end;
-    bool m_recv_force;
-    char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
-    
-    SendSizeType m_send_start;
-    SendSizeType m_send_end;
-    char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
+public:
+    struct Object : public ObjBase<AsfUsbSerial, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        RecvSizeType m_recv_start;
+        RecvSizeType m_recv_end;
+        bool m_recv_force;
+        char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
+        SendSizeType m_send_start;
+        SendSizeType m_send_end;
+        char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
+    };
 };
 
 #include <aprinter/EndNamespace.h>

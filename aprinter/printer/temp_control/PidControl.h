@@ -26,6 +26,7 @@
 #define AMBROLIB_PID_CONTROL_H
 
 #include <aprinter/math/FloatTools.h>
+#include <aprinter/meta/WrapType.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/Inline.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -66,33 +67,33 @@ public:
     }
     
     template <typename Context, typename TheChannelCommon>
-    static void setConfigCommand (Context c, TheChannelCommon *cc, Config *config)
+    static void setConfigCommand (Context c, WrapType<TheChannelCommon>, Config *config)
     {
         *config = makeConfig(
-            cc->get_command_param_fp(c, 'P', config->p),
-            cc->get_command_param_fp(c, 'I', config->i),
-            cc->get_command_param_fp(c, 'D', config->d),
-            cc->get_command_param_fp(c, 'M', config->istatemin),
-            cc->get_command_param_fp(c, 'A', config->istatemax),
-            cc->get_command_param_fp(c, 'H', config->dhistory)
+            TheChannelCommon::get_command_param_fp(c, 'P', config->p),
+            TheChannelCommon::get_command_param_fp(c, 'I', config->i),
+            TheChannelCommon::get_command_param_fp(c, 'D', config->d),
+            TheChannelCommon::get_command_param_fp(c, 'M', config->istatemin),
+            TheChannelCommon::get_command_param_fp(c, 'A', config->istatemax),
+            TheChannelCommon::get_command_param_fp(c, 'H', config->dhistory)
         );
     }
     
     template <typename Context, typename TheChannelCommon>
-    static void printConfig (Context c, TheChannelCommon *cc, Config const *config)
+    static void printConfig (Context c, WrapType<TheChannelCommon>, Config const *config)
     {
-        cc->reply_append_pstr(c, AMBRO_PSTR(" P"));
-        cc->reply_append_fp(c, config->p);
-        cc->reply_append_pstr(c, AMBRO_PSTR(" I"));
-        cc->reply_append_fp(c, config->i);
-        cc->reply_append_pstr(c, AMBRO_PSTR(" D"));
-        cc->reply_append_fp(c, config->d);
-        cc->reply_append_pstr(c, AMBRO_PSTR(" M"));
-        cc->reply_append_fp(c, config->istatemin);
-        cc->reply_append_pstr(c, AMBRO_PSTR(" A"));
-        cc->reply_append_fp(c, config->istatemax);
-        cc->reply_append_pstr(c, AMBRO_PSTR(" H"));
-        cc->reply_append_fp(c, config->dhistory);
+        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" P"));
+        TheChannelCommon::reply_append_fp(c, config->p);
+        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" I"));
+        TheChannelCommon::reply_append_fp(c, config->i);
+        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" D"));
+        TheChannelCommon::reply_append_fp(c, config->d);
+        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" M"));
+        TheChannelCommon::reply_append_fp(c, config->istatemin);
+        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" A"));
+        TheChannelCommon::reply_append_fp(c, config->istatemax);
+        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" H"));
+        TheChannelCommon::reply_append_fp(c, config->dhistory);
     }
     
     void init ()

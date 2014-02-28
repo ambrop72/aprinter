@@ -31,7 +31,7 @@
 
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -41,22 +41,20 @@
 
 struct At91Sam3xSerialParams {};
 
-template <typename Position, typename Context, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
-class At91Sam3xSerial
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
+class At91Sam3xSerial {
 private:
-    AMBRO_MAKE_SELF(Context, At91Sam3xSerial, Position)
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<At91Sam3xSerial>;
     using SendFastEvent = typename Context::EventLoop::template FastEventSpec<RecvFastEvent>;
     
 public:
+    struct Object;
     using RecvSizeType = BoundedInt<RecvBufferBits, false>;
     using SendSizeType = BoundedInt<SendBufferBits, false>;
     
     static void init (Context c, uint32_t baud)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         
         c.eventLoop()->template initFastEvent<RecvFastEvent>(c, At91Sam3xSerial::recv_event_handler);
         o->m_recv_start = RecvSizeType::import(0);
@@ -88,7 +86,7 @@ public:
     
     static void deinit (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         NVIC_DisableIRQ(UART_IRQn);
@@ -102,7 +100,7 @@ public:
     
     static RecvSizeType recvQuery (Context c, bool *out_overrun)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(out_overrun)
         
@@ -119,7 +117,7 @@ public:
     
     static char * recvGetChunkPtr (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return (o->m_recv_buffer + o->m_recv_start.value());
@@ -127,7 +125,7 @@ public:
     
     static void recvConsume (Context c, RecvSizeType amount)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -138,7 +136,7 @@ public:
     
     static void recvClearOverrun (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_recv_overrun)
         
@@ -153,7 +151,7 @@ public:
     
     static void recvForceEvent (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
@@ -161,7 +159,7 @@ public:
     
     static SendSizeType sendQuery (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         SendSizeType start;
@@ -174,7 +172,7 @@ public:
     
     static SendSizeType sendGetChunkLen (Context c, SendSizeType rem_length)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         if (o->m_send_end.value() > 0 && rem_length > BoundedModuloNegative(o->m_send_end)) {
@@ -186,7 +184,7 @@ public:
     
     static char * sendGetChunkPtr (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return (o->m_send_buffer + o->m_send_end.value());
@@ -194,7 +192,7 @@ public:
     
     static void sendProvide (Context c, SendSizeType amount)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -207,13 +205,13 @@ public:
     
     static void sendPoke (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
     }
     
     static void sendRequestEvent (Context c, SendSizeType min_amount)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(min_amount > SendSizeType::import(0))
         
@@ -230,7 +228,7 @@ public:
     
     static void sendCancelEvent (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -241,7 +239,7 @@ public:
     
     static void sendWaitFinished (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         bool not_finished;
         do {
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -252,7 +250,7 @@ public:
     
     static void uart_irq (InterruptContext<Context> c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         uint32_t status = UART->UART_SR;
         
         if (!o->m_recv_overrun && (status & UART_SR_RXRDY)) {
@@ -300,29 +298,33 @@ private:
     
     static void recv_event_handler (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
-        RecvHandler::call(o, c);
+        RecvHandler::call(c);
     }
     
     static void send_event_handler (Context c)
     {
-        At91Sam3xSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
-        SendHandler::call(o, c);
+        SendHandler::call(c);
     }
     
-    RecvSizeType m_recv_start;
-    RecvSizeType m_recv_end;
-    bool m_recv_overrun;
-    char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
-    
-    SendSizeType m_send_start;
-    SendSizeType m_send_end;
-    SendSizeType m_send_event;
-    char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
+public:
+    struct Object : public ObjBase<At91Sam3xSerial, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        RecvSizeType m_recv_start;
+        RecvSizeType m_recv_end;
+        bool m_recv_overrun;
+        char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
+        SendSizeType m_send_start;
+        SendSizeType m_send_end;
+        SendSizeType m_send_event;
+        char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
+    };
 };
 
 #define AMBRO_AT91SAM3X_SERIAL_GLOBAL(the_serial, context) \
@@ -330,7 +332,7 @@ extern "C" \
 __attribute__((used)) \
 void UART_Handler (void) \
 { \
-    (the_serial).uart_irq(MakeInterruptContext((context))); \
+    the_serial::uart_irq(MakeInterruptContext((context))); \
 }
 
 #include <aprinter/EndNamespace.h>

@@ -30,7 +30,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>
@@ -42,9 +42,8 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Position, typename Context, typename Handler, int CommandBufferBits>
-class AvrSpi : public DebugObject<Context, void> {
-    AMBRO_MAKE_SELF(Context, AvrSpi, Position)
+template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
+class AvrSpi {
     using FastEvent = typename Context::EventLoop::template FastEventSpec<AvrSpi>;
     
     enum {
@@ -78,11 +77,12 @@ class AvrSpi : public DebugObject<Context, void> {
     };
     
 public:
+    struct Object;
     using CommandSizeType = BoundedInt<CommandBufferBits, false>;
     
     static void init (Context c)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         
         c.eventLoop()->template initFastEvent<FastEvent>(c, AvrSpi::event_handler);
         o->m_start = CommandSizeType::import(0);
@@ -103,7 +103,7 @@ public:
     
     static void deinit (Context c)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         SPCR = 0;
@@ -114,7 +114,7 @@ public:
     
     static void cmdReadBuffer (Context c, uint8_t *data, size_t length, uint8_t send_byte)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
         AMBRO_ASSERT(length > 0)
@@ -129,7 +129,7 @@ public:
     
     static void cmdReadUntilDifferent (Context c, uint8_t target_byte, uint8_t max_extra_length, uint8_t send_byte, uint8_t *data)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
         
@@ -144,7 +144,7 @@ public:
     
     static void cmdWriteBuffer (Context c, uint8_t first_byte, uint8_t const *data, size_t length)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
         
@@ -158,7 +158,7 @@ public:
     
     static void cmdWriteByte (Context c, uint8_t byte, size_t extra_count)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
         
@@ -171,7 +171,7 @@ public:
     
     static CommandSizeType getEndIndex (Context c)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return o->m_end;
@@ -179,7 +179,7 @@ public:
     
     static bool indexReached (Context c, CommandSizeType index)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         CommandSizeType start = get_start(c);
@@ -188,7 +188,7 @@ public:
     
     static bool endReached (Context c)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         CommandSizeType start = get_start(c);
@@ -197,7 +197,7 @@ public:
     
     static void unsetEvent (Context c)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         c.eventLoop()->template resetFastEvent<FastEvent>(c);
@@ -205,7 +205,7 @@ public:
     
     static void spi_stc_isr (InterruptContext<Context> c)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_start != o->m_end)
         
         Command *cmd = o->m_current;
@@ -278,7 +278,7 @@ private:
     
     static void event_handler (Context c)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return Handler::call(c);
@@ -286,7 +286,7 @@ private:
     
     static CommandSizeType get_start (Context c)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         CommandSizeType start;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             start = o->m_start;
@@ -296,14 +296,14 @@ private:
     
     static bool is_full (Context c)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         CommandSizeType start = get_start(c);
         return (BoundedModuloSubtract(o->m_end, start) == CommandSizeType::maxValue());
     }
     
     static void write_command (Context c)
     {
-        AvrSpi *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(!is_full(c))
         
         bool was_idle;
@@ -317,16 +317,21 @@ private:
         }
     }
     
-    CommandSizeType m_start;
-    CommandSizeType m_end;
-    Command *m_current;
-    Command m_buffer[(size_t)CommandSizeType::maxIntValue() + 1];
+public:
+    struct Object : public ObjBase<AvrSpi, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        CommandSizeType m_start;
+        CommandSizeType m_end;
+        Command *m_current;
+        Command m_buffer[(size_t)CommandSizeType::maxIntValue() + 1];
+    };
 };
 
 #define AMBRO_AVR_SPI_ISRS(avrspi, context) \
 ISR(SPI_STC_vect) \
 { \
-    (avrspi).spi_stc_isr(MakeInterruptContext(context)); \
+    avrspi::spi_stc_isr(MakeInterruptContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>

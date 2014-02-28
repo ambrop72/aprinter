@@ -29,7 +29,7 @@
 #include <stddef.h>
 #include <sam/drivers/pmc/pmc.h>
 
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>
@@ -57,9 +57,8 @@ struct At91SamSpiDevice {
     using MisoPin = TMisoPin;
 };
 
-template <typename Position, typename Context, typename Handler, int CommandBufferBits, typename Device>
-class At91SamSpi : public DebugObject<Context, void> {
-    AMBRO_MAKE_SELF(Context, At91SamSpi, Position)
+template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits, typename Device>
+class At91SamSpi {
     using FastEvent = typename Context::EventLoop::template FastEventSpec<At91SamSpi>;
     
     enum {
@@ -93,11 +92,12 @@ class At91SamSpi : public DebugObject<Context, void> {
     };
     
 public:
+    struct Object;
     using CommandSizeType = BoundedInt<CommandBufferBits, false>;
     
     static void init (Context c)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         
         c.eventLoop()->template initFastEvent<FastEvent>(c, At91SamSpi::event_handler);
         o->m_start = CommandSizeType::import(0);
@@ -121,7 +121,7 @@ public:
     
     static void deinit (Context c)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         NVIC_DisableIRQ(Device::SpiIrq);
@@ -138,7 +138,7 @@ public:
     
     static void cmdReadBuffer (Context c, uint8_t *data, size_t length, uint8_t send_byte)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
         AMBRO_ASSERT(length > 0)
@@ -153,7 +153,7 @@ public:
     
     static void cmdReadUntilDifferent (Context c, uint8_t target_byte, uint8_t max_extra_length, uint8_t send_byte, uint8_t *data)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
         
@@ -168,7 +168,7 @@ public:
     
     static void cmdWriteBuffer (Context c, uint8_t first_byte, uint8_t const *data, size_t length)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
         
@@ -182,7 +182,7 @@ public:
     
     static void cmdWriteByte (Context c, uint8_t byte, size_t extra_count)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!is_full(c))
         
@@ -195,7 +195,7 @@ public:
     
     static CommandSizeType getEndIndex (Context c)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return o->m_end;
@@ -203,7 +203,7 @@ public:
     
     static bool indexReached (Context c, CommandSizeType index)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         CommandSizeType start = get_start(c);
@@ -212,7 +212,7 @@ public:
     
     static bool endReached (Context c)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         CommandSizeType start = get_start(c);
@@ -221,7 +221,7 @@ public:
     
     static void unsetEvent (Context c)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         c.eventLoop()->template resetFastEvent<FastEvent>(c);
@@ -229,7 +229,7 @@ public:
     
     static void spi_irq (InterruptContext<Context> c)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_start != o->m_end)
         AMBRO_ASSERT(Device::spi()->SPI_SR & SPI_SR_RDRF)
         
@@ -286,7 +286,7 @@ public:
 private:
     static void event_handler (Context c)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return Handler::call(c);
@@ -294,7 +294,7 @@ private:
     
     static CommandSizeType get_start (Context c)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         CommandSizeType start;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             start = o->m_start;
@@ -304,14 +304,14 @@ private:
     
     static bool is_full (Context c)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         CommandSizeType start = get_start(c);
         return (BoundedModuloSubtract(o->m_end, start) == CommandSizeType::maxValue());
     }
     
     static void write_command (Context c)
     {
-        At91SamSpi *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(!is_full(c))
         
         bool was_idle;
@@ -326,10 +326,15 @@ private:
         }
     }
     
-    CommandSizeType m_start;
-    CommandSizeType m_end;
-    Command *m_current;
-    Command m_buffer[(size_t)CommandSizeType::maxIntValue() + 1];
+public:
+    struct Object : public ObjBase<At91SamSpi, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        CommandSizeType m_start;
+        CommandSizeType m_end;
+        Command *m_current;
+        Command m_buffer[(size_t)CommandSizeType::maxIntValue() + 1];
+    };
 };
 
 #include <aprinter/EndNamespace.h>

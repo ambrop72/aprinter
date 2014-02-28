@@ -32,7 +32,7 @@
 
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
@@ -44,13 +44,9 @@ struct BinaryGcodeParserParams {
     static const int MaxParts = TMaxParts;
 };
 
-template <typename Position, typename Context, typename Params, typename TBufferSizeType>
-class BinaryGcodeParser
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, typename Params, typename TBufferSizeType>
+class BinaryGcodeParser {
     static_assert(Params::MaxParts <= 14, "");
-    
-    AMBRO_MAKE_SELF(Context, BinaryGcodeParser, Position)
     
     enum {
         CMD_TYPE_G0 = 1,
@@ -69,6 +65,7 @@ class BinaryGcodeParser
     };
     
 public:
+    struct Object;
     using BufferSizeType = TBufferSizeType;
     using PartsSizeType = typename ChooseInt<BitsInInt<Params::MaxParts>::value, true>::Type;
     
@@ -94,7 +91,7 @@ public:
     
     static void init (Context c)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->m_state = STATE_NOCMD;
         
         o->debugInit(c);
@@ -102,13 +99,13 @@ public:
     
     static void deinit (Context c)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
     }
     
     static bool haveCommand (Context c)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return (o->m_state != STATE_NOCMD);
@@ -116,7 +113,7 @@ public:
     
     static void startCommand (Context c, char *buffer, int8_t assume_error)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(buffer)
@@ -130,7 +127,7 @@ public:
     
     static bool extendCommand (Context c, BufferSizeType avail)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state != STATE_NOCMD)
         AMBRO_ASSERT(avail >= o->m_length)
@@ -239,7 +236,7 @@ public:
     
     static void resetCommand (Context c)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state != STATE_NOCMD)
         
@@ -248,7 +245,7 @@ public:
     
     static BufferSizeType getLength (Context c)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         
@@ -257,7 +254,7 @@ public:
     
     static PartsSizeType getNumParts (Context c)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         
@@ -266,7 +263,7 @@ public:
     
     static char getCmdCode (Context c)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_num_parts >= 0)
@@ -276,7 +273,7 @@ public:
     
     static uint16_t getCmdNumber (Context c)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_num_parts >= 0)
@@ -286,7 +283,7 @@ public:
     
     static PartRef getPart (Context c, PartsSizeType i)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_num_parts >= 0)
@@ -298,7 +295,7 @@ public:
     
     static char getPartCode (Context c, PartRef part)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_num_parts >= 0)
@@ -309,7 +306,7 @@ public:
     template <typename FpType>
     static FpType getPartFpValue (Context c, PartRef part)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_num_parts >= 0)
@@ -336,7 +333,7 @@ public:
     
     static uint32_t getPartUint32Value (Context c, PartRef part)
     {
-        BinaryGcodeParser *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_num_parts >= 0)
@@ -357,14 +354,19 @@ public:
 private:
     enum {STATE_NOCMD, STATE_HEADER, STATE_HEADER_LONG, STATE_INDEX, STATE_PAYLOAD};
     
-    uint8_t m_state;
-    uint8_t *m_buffer;
-    BufferSizeType m_length;
-    uint8_t m_cmd_code;
-    uint16_t m_cmd_num;
-    PartsSizeType m_num_parts;
-    BufferSizeType m_total_size;
-    Part m_parts[Params::MaxParts];
+public:
+    struct Object : public ObjBase<BinaryGcodeParser, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        uint8_t m_state;
+        uint8_t *m_buffer;
+        BufferSizeType m_length;
+        uint8_t m_cmd_code;
+        uint16_t m_cmd_num;
+        PartsSizeType m_num_parts;
+        BufferSizeType m_total_size;
+        Part m_parts[Params::MaxParts];
+    };
 };
 
 #include <aprinter/EndNamespace.h>

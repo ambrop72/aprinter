@@ -751,7 +751,7 @@ void MyContext::check () const { AMBRO_ASSERT_FORCE(p.end == UINT16_C(0x1234)) }
 
 AMBRO_AVR_CLOCK_ISRS(p.myclock, MyContext())
 AMBRO_AVR_ADC_ISRS(p.myadc, MyContext())
-AMBRO_AVR_SERIAL_ISRS(*p.myprinter.getSerial(), MyContext())
+AMBRO_AVR_SERIAL_ISRS(MyPrinter::GetSerial, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(*p.myprinter.getAxisStepper<1>()->getTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*p.myprinter.getAxisStepper<2>()->getTimer(), MyContext())
@@ -760,14 +760,14 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(*p.myprinter.getHeaterTimer<0>(), M
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(*p.myprinter.getHeaterTimer<1>(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCA_ISRS(*p.myprinter.getEventChannelTimer(), MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCB_ISRS(*p.myprinter.getFanTimer<0>(), MyContext())
-AMBRO_AVR_SPI_ISRS(*p.myprinter.getSdCard()->getSpi(), MyContext())
+AMBRO_AVR_SPI_ISRS(MyPrinter::GetSdCard<>::GetSpi, MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
 
 FILE uart_output;
 
 static int uart_putchar (char ch, FILE *stream)
 {
-    p.myprinter.getSerial()->sendWaitFinished(MyContext());
+    MyPrinter::GetSerial::sendWaitFinished(MyContext());
     while (!(UCSR0A & (1 << UDRE0)));
     UDR0 = ch;
     return 1;

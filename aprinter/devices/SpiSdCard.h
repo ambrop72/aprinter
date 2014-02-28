@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInInt.h>
@@ -46,15 +46,17 @@ struct SpiSdCardParams {
     template <typename X, typename Y, typename Z, int W> using Spi = TSpi<X, Y, Z, W>;
 };
 
-template <typename Position, typename Context, typename Params, int MaxCommands, typename InitHandler, typename CommandHandler>
-class SpiSdCard : public DebugObject<Context, void> {
-    AMBRO_MAKE_SELF(Context, SpiSdCard, Position)
+template <typename Context, typename ParentObject, typename Params, int MaxCommands, typename InitHandler, typename CommandHandler>
+class SpiSdCard {
+public:
+    struct Object;
+    
+private:
     struct SpiHandler;
-    struct SpiPosition;
     
     static const int SpiMaxCommands = max(6, 5 * MaxCommands);
     static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::value;
-    using TheSpi = typename Params::template Spi<SpiPosition, Context, SpiHandler, SpiCommandBits>;
+    using TheSpi = typename Params::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
     using SpiCommandSizeType = typename TheSpi::CommandSizeType;
     
 public:
@@ -66,7 +68,7 @@ public:
     
     static void init (Context c)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         
         o->m_state = STATE_INACTIVE;
         c.pins()->template set<SsPin>(c, true);
@@ -77,29 +79,29 @@ public:
     
     static void deinit (Context c)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         c.pins()->template set<SsPin>(c, true);
         if (o->m_state != STATE_INACTIVE) {
-            o->m_spi.deinit(c);
+            TheSpi::deinit(c);
         }
     }
     
     static void activate (Context c)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_INACTIVE)
         
-        o->m_spi.init(c);
-        o->m_spi.cmdWriteByte(c, 0xff, 128 - 1);
+        TheSpi::init(c);
+        TheSpi::cmdWriteByte(c, 0xff, 128 - 1);
         o->m_state = STATE_INIT1;
     }
     
     static void deactivate (Context c)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state != STATE_INACTIVE)
         
@@ -108,7 +110,7 @@ public:
     
     static uint32_t getCapacityBlocks (Context c)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
         
@@ -117,26 +119,26 @@ public:
     
     static void queueReadBlock (Context c, uint32_t block, uint8_t *data, ReadState *state)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
         AMBRO_ASSERT(block < o->m_capacity_blocks)
         
         uint32_t addr = o->m_sdhc ? block : (block * 512);
         sd_command(c, CMD_READ_SINGLE_BLOCK, addr, true, state->buf, state->buf);
-        o->m_spi.cmdReadUntilDifferent(c, 0xff, 255, 0xff, state->buf + 1);
-        o->m_spi.cmdReadBuffer(c, data, 512, 0xff);
-        o->m_spi.cmdWriteByte(c, 0xff, 2 - 1);
-        state->spi_end_index = o->m_spi.getEndIndex(c);
+        TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, state->buf + 1);
+        TheSpi::cmdReadBuffer(c, data, 512, 0xff);
+        TheSpi::cmdWriteByte(c, 0xff, 2 - 1);
+        state->spi_end_index = TheSpi::getEndIndex(c);
     }
     
     static bool checkReadBlock (Context c, ReadState *state, bool *out_error)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
         
-        if (!o->m_spi.indexReached(c, state->spi_end_index)) {
+        if (!TheSpi::indexReached(c, state->spi_end_index)) {
             return false;
         }
         *out_error = (state->buf[0] != 0 || state->buf[1] != 0xfe);
@@ -145,17 +147,14 @@ public:
     
     static void unsetEvent (Context c)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
         
-        o->m_spi.unsetEvent(c);
+        TheSpi::unsetEvent(c);
     }
     
-    TheSpi * getSpi ()
-    {
-        return &m_spi;
-    }
+    using GetSpi = TheSpi;
     
     using EventLoopFastEvents = typename TheSpi::EventLoopFastEvents;
     
@@ -204,7 +203,7 @@ private:
     
     static void sd_command (Context c, uint8_t cmd, uint32_t param, bool checksum, uint8_t *request_buf, uint8_t *response_buf)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         
         request_buf[0] = cmd | 0x40;
         request_buf[1] = param >> 24;
@@ -215,30 +214,30 @@ private:
         if (checksum) {
             request_buf[5] |= crc7(request_buf, 5, 0) << 1;
         }
-        o->m_spi.cmdWriteBuffer(c, 0xff, request_buf, 6);
-        o->m_spi.cmdReadUntilDifferent(c, 0xff, 255, 0xff, response_buf);
+        TheSpi::cmdWriteBuffer(c, 0xff, request_buf, 6);
+        TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, response_buf);
     }
     
     static void sd_send_csd (Context c)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         sd_command(c, CMD_SEND_CSD, 0, true, o->m_buf1, o->m_buf1);
-        o->m_spi.cmdReadUntilDifferent(c, 0xff, 255, 0xff, o->m_buf1 + 1);
-        o->m_spi.cmdWriteByte(c, 0xff, 5 - 1);
-        o->m_spi.cmdReadBuffer(c, o->m_buf2, 6, 0xff);
-        o->m_spi.cmdWriteByte(c, 0xff, 7 - 1);
+        TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, o->m_buf1 + 1);
+        TheSpi::cmdWriteByte(c, 0xff, 5 - 1);
+        TheSpi::cmdReadBuffer(c, o->m_buf2, 6, 0xff);
+        TheSpi::cmdWriteByte(c, 0xff, 7 - 1);
     }
     
     static void spi_handler (Context c)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state != STATE_INACTIVE)
         
         if (AMBRO_LIKELY(o->m_state == STATE_RUNNING)) {
             return CommandHandler::call(c);
         }
-        if (!o->m_spi.endReached(c)) {
+        if (!TheSpi::endReached(c)) {
             return;
         }
         switch (o->m_state) {
@@ -280,7 +279,7 @@ private:
                     return;
                 }
                 sd_command(c, CMD_READ_OCR, 0, true, o->m_buf1, o->m_buf1);
-                o->m_spi.cmdReadBuffer(c, o->m_buf1 + 1, 4, 0xff);
+                TheSpi::cmdReadBuffer(c, o->m_buf1 + 1, 4, 0xff);
                 o->m_state = STATE_INIT5;
             } break;
             case STATE_INIT5: {
@@ -334,10 +333,10 @@ private:
     
     static void deactivate_common (Context c)
     {
-        SpiSdCard *o = self(c);
+        auto *o = Object::self(c);
         
         c.pins()->template set<SsPin>(c, true);
-        o->m_spi.deinit(c);
+        TheSpi::deinit(c);
         o->m_state = STATE_INACTIVE;
     }
     
@@ -347,22 +346,27 @@ private:
         return InitHandler::call(c, code);
     }
     
-    TheSpi m_spi;
-    uint8_t m_state;
-    union {
-        uint8_t m_count;
-        bool m_sdhc;
-    };
-    union {
-        struct {
-            uint8_t m_buf1[6];
-            uint8_t m_buf2[6];
-        };
-        uint32_t m_capacity_blocks;
-    };
-    
     struct SpiHandler : public AMBRO_WFUNC_TD(&SpiSdCard::spi_handler) {};
-    struct SpiPosition : public MemberPosition<Position, TheSpi, &SpiSdCard::m_spi> {};
+    
+public:
+    struct Object : public ObjBase<SpiSdCard, ParentObject, MakeTypeList<
+        TheSpi
+    >>,
+        public DebugObject<Context, void>
+    {
+        uint8_t m_state;
+        union {
+            uint8_t m_count;
+            bool m_sdhc;
+        };
+        union {
+            struct {
+                uint8_t m_buf1[6];
+                uint8_t m_buf2[6];
+            };
+            uint32_t m_capacity_blocks;
+        };
+    };
 };
 
 #include <aprinter/EndNamespace.h>

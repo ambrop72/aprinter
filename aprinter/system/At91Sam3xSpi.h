@@ -39,15 +39,15 @@ using At91Sam3xSpiDevice = At91SamSpiDevice<
     At91Sam3xPin<At91Sam3xPioA, 25>
 >;
 
-template <typename Position, typename Context, typename Handler, int CommandBufferBits>
-using At91Sam3xSpi = At91SamSpi<Position, Context, Handler, CommandBufferBits, At91Sam3xSpiDevice>;
+template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
+using At91Sam3xSpi = At91SamSpi<Context, ParentObject, Handler, CommandBufferBits, At91Sam3xSpiDevice>;
 
 #define AMBRO_AT91SAM3X_SPI_GLOBAL(thespi, context) \
 extern "C" \
 __attribute__((used)) \
 void SPI0_Handler (void) \
 { \
-    (thespi).spi_irq(MakeInterruptContext(context)); \
+    thespi::spi_irq(MakeInterruptContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>

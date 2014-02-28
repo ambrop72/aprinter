@@ -25,6 +25,8 @@
 #ifndef AMBROLIB_BINARY_CONTROL_H
 #define AMBROLIB_BINARY_CONTROL_H
 
+#include <aprinter/meta/WrapType.h>
+
 #include <aprinter/BeginNamespace.h>
 
 struct BinaryControlParams {};
@@ -42,12 +44,12 @@ public:
     }
     
     template <typename Context, typename TheChannelCommon>
-    static void setConfigCommand (Context c, TheChannelCommon *cc, Config *config)
+    static void setConfigCommand (Context c, WrapType<TheChannelCommon>, Config *config)
     {
     }
     
     template <typename Context, typename TheChannelCommon>
-    static void printConfig (Context c, TheChannelCommon *cc, Config const *config)
+    static void printConfig (Context c, WrapType<TheChannelCommon>, Config const *config)
     {
     }
     

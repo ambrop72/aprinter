@@ -34,7 +34,7 @@
 
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -47,22 +47,20 @@ struct AvrSerialParams {
     static const bool DoubleSpeed = TDoubleSpeed;
 };
 
-template <typename Position, typename Context, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
-class AvrSerial
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
+class AvrSerial {
 private:
-    AMBRO_MAKE_SELF(Context, AvrSerial, Position)
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<AvrSerial>;
     using SendFastEvent = typename Context::EventLoop::template FastEventSpec<RecvFastEvent>;
     
 public:
+    struct Object;
     using RecvSizeType = BoundedInt<RecvBufferBits, false>;
     using SendSizeType = BoundedInt<SendBufferBits, false>;
     
     static void init (Context c, uint32_t baud)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         
         c.eventLoop()->template initFastEvent<RecvFastEvent>(c, AvrSerial::recv_event_handler);
         o->m_recv_start = RecvSizeType::import(0);
@@ -90,7 +88,7 @@ public:
     
     static void deinit (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -107,7 +105,7 @@ public:
     
     static RecvSizeType recvQuery (Context c, bool *out_overrun)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(out_overrun)
         
@@ -124,7 +122,7 @@ public:
     
     static char * recvGetChunkPtr (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return (o->m_recv_buffer + o->m_recv_start.value());
@@ -132,7 +130,7 @@ public:
     
     static void recvConsume (Context c, RecvSizeType amount)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -143,7 +141,7 @@ public:
     
     static void recvClearOverrun (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_recv_overrun)
         
@@ -160,7 +158,7 @@ public:
     
     static void recvForceEvent (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
@@ -168,7 +166,7 @@ public:
     
     static SendSizeType sendQuery (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         SendSizeType start;
@@ -181,7 +179,7 @@ public:
     
     static SendSizeType sendGetChunkLen (Context c, SendSizeType rem_length)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         if (o->m_send_end.value() > 0 && rem_length > BoundedModuloNegative(o->m_send_end)) {
@@ -193,7 +191,7 @@ public:
     
     static char * sendGetChunkPtr (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return (o->m_send_buffer + o->m_send_end.value());
@@ -201,7 +199,7 @@ public:
     
     static void sendProvide (Context c, SendSizeType amount)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -214,13 +212,13 @@ public:
     
     static void sendPoke (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
     }
     
     static void sendRequestEvent (Context c, SendSizeType min_amount)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(min_amount > SendSizeType::import(0))
         
@@ -237,7 +235,7 @@ public:
     
     static void sendCancelEvent (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -248,7 +246,7 @@ public:
     
     static void sendWaitFinished (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         bool not_finished;
         do {
             ATOMIC_BLOCK(ATOMIC_RESTORESTATE) {
@@ -259,7 +257,7 @@ public:
     
     static void rx_isr (InterruptContext<Context> c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(!o->m_recv_overrun)
         
         RecvSizeType new_end = BoundedModuloInc(o->m_recv_end);
@@ -278,7 +276,7 @@ public:
     
     static void udre_isr (InterruptContext<Context> c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_send_start != o->m_send_end)
         
         UDR0 = o->m_send_buffer[o->m_send_start.value()];
@@ -309,39 +307,43 @@ private:
     
     static void recv_event_handler (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
-        RecvHandler::call(o, c);
+        RecvHandler::call(c);
     }
     
     static void send_event_handler (Context c)
     {
-        AvrSerial *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
-        SendHandler::call(o, c);
+        SendHandler::call(c);
     }
     
-    RecvSizeType m_recv_start;
-    RecvSizeType m_recv_end;
-    bool m_recv_overrun;
-    char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
-    
-    SendSizeType m_send_start;
-    SendSizeType m_send_end;
-    SendSizeType m_send_event;
-    char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
+public:
+    struct Object : public ObjBase<AvrSerial, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        RecvSizeType m_recv_start;
+        RecvSizeType m_recv_end;
+        bool m_recv_overrun;
+        char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
+        SendSizeType m_send_start;
+        SendSizeType m_send_end;
+        SendSizeType m_send_event;
+        char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
+    };
 };
 
 #define AMBRO_AVR_SERIAL_ISRS(avrserial, context) \
 ISR(USART0_RX_vect) \
 { \
-    (avrserial).rx_isr(MakeInterruptContext(context)); \
+    avrserial::rx_isr(MakeInterruptContext(context)); \
 } \
 ISR(USART0_UDRE_vect) \
 { \
-    (avrserial).udre_isr(MakeInterruptContext(context)); \
+    avrserial::udre_isr(MakeInterruptContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>
