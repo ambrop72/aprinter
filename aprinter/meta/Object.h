@@ -25,12 +25,14 @@
 #ifndef AMBROLIB_OBJECT_H
 #define AMBROLIB_OBJECT_H
 
+#include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TupleGet.h>
+#include <aprinter/meta/GetMemberTypeFunc.h>
 
 #include <aprinter/BeginNamespace.h>
 
