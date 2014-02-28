@@ -670,7 +670,7 @@ AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7A_GLOBAL(*p.myprinter.getFanTimer<1>(),
 #ifndef USB_SERIAL
 AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())
 #endif
-AMBRO_AT91SAM3X_SPI_GLOBAL(*p.myprinter.getSdCard()->getSpi(), MyContext())
+AMBRO_AT91SAM3X_SPI_GLOBAL(MyPrinter::GetSdCard<>::GetSpi, MyContext())
 AMBRO_AT91SAM3X_ADC_GLOBAL(p.myadc, MyContext())
 
 static void emergency (void)
