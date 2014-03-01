@@ -421,7 +421,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     struct PlannerPosition;
     template <int HeaterIndex> struct HeaterPosition;
     template <int FanIndex> struct FanPosition;
-    struct ProbeFeaturePosition;
     
     struct BlinkerHandler;
     template <int AxisIndex> struct PlannerGetAxisStepper;
@@ -2426,27 +2425,26 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using HomingStateTuple = IndexElemTuple<AxesList, HomingStateTupleHelper>;
     
     AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::Enabled) {
-        AMBRO_MAKE_SELF(Context, ProbeFeature, ProbeFeaturePosition)
+        struct Object;
         using ProbeParams = typename Params::ProbeParams;
         static const int NumPoints = TypeListLength<typename ProbeParams::ProbePoints>::value;
         static const int ProbeAxisIndex = FindPhysVirtAxis<Params::ProbeParams::ProbeAxis>::value;
         
         static void init (Context c)
         {
-            ProbeFeature *o = self(c);
+            auto *o = Object::self(c);
             o->m_current_point = 0xff;
             c.pins()->template setInput<typename ProbeParams::ProbePin, typename ProbeParams::ProbePinInputMode>(c);
         }
         
         static void deinit (Context c)
         {
-            ProbeFeature *o = self(c);
         }
         
         template <typename TheChannelCommon>
         static bool check_command (Context c, WrapType<TheChannelCommon>)
         {
-            ProbeFeature *o = self(c);
+            auto *o = Object::self(c);
             if (TheChannelCommon::TheGcodeParser::getCmdNumber(c) == 32) {
                 if (!TheChannelCommon::tryUnplannedCommand(c)) {
                     return false;
@@ -2492,7 +2490,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void custom_pull_handler (Context c)
         {
-            ProbeFeature *o = self(c);
+            auto *o = Object::self(c);
             AMBRO_ASSERT(o->m_current_point != 0xff)
             AMBRO_ASSERT(o->m_point_state <= 4)
             
@@ -2535,7 +2533,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void custom_finished_handler (Context c)
         {
-            ProbeFeature *o = self(c);
+            auto *o = Object::self(c);
             AMBRO_ASSERT(o->m_current_point != 0xff)
             AMBRO_ASSERT(o->m_command_sent)
             
@@ -2565,7 +2563,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void custom_aborted_handler (Context c)
         {
-            ProbeFeature *o = self(c);
+            auto *o = Object::self(c);
             AMBRO_ASSERT(o->m_current_point != 0xff)
             AMBRO_ASSERT(o->m_command_sent)
             AMBRO_ASSERT(o->m_point_state == 1 || o->m_point_state == 3)
@@ -2598,10 +2596,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheChannelCommon::reply_poke(c);
         }
         
-        uint8_t m_current_point;
-        uint8_t m_point_state;
-        bool m_command_sent;
-        FpType m_samples[NumPoints];
+        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, EmptyTypeList> {
+            uint8_t m_current_point;
+            uint8_t m_point_state;
+            bool m_command_sent;
+            FpType m_samples[NumPoints];
+        };
     } AMBRO_STRUCT_ELSE(ProbeFeature) {
         static void init (Context c) {}
         static void deinit (Context c) {}
@@ -2612,6 +2612,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void custom_aborted_handler (Context c) {}
         template <typename CallbackContext>
         static bool prestep_callback (CallbackContext c) { return false; }
+        struct Object {};
     };
     
     AMBRO_STRUCT_IF(CurrentFeature, Params::CurrentParams::Enabled) {
@@ -2698,7 +2699,7 @@ public:
         TransformFeature::init(c);
         TupleForEachForward(&o->m_heaters, Foreach_init(), c);
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
-        o->m_probe_feature.init(c);
+        ProbeFeature::init(c);
         CurrentFeature::init(c);
         ob->inactive_time = (FpType)(Params::DefaultInactiveTime::value() * Clock::time_freq);
         ob->time_freq_by_max_speed = 0.0f;
@@ -2722,7 +2723,7 @@ public:
             o->m_planner.deinit(c);
         }
         CurrentFeature::deinit(c);
-        o->m_probe_feature.deinit(c);
+        ProbeFeature::deinit(c);
         TupleForEachReverse(&o->m_fans, Foreach_deinit(), c);
         TupleForEachReverse(&o->m_heaters, Foreach_deinit(), c);
         TupleForEachReverse(&o->m_axes, Foreach_deinit(), c);
@@ -2829,7 +2830,7 @@ public: // private, see comment on top
                         TupleForEachForwardInterruptible(&o->m_heaters, Foreach_check_command(), c, cc) &&
                         TupleForEachForwardInterruptible(&o->m_fans, Foreach_check_command(), c, cc) &&
                         SdCardFeature::check_command(c, cc) &&
-                        o->m_probe_feature.check_command(c, cc) &&
+                        ProbeFeature::check_command(c, cc) &&
                         CurrentFeature::check_command(c, cc)
                     ) {
                         goto unknown_command;
@@ -3154,7 +3155,7 @@ public: // private, see comment on top
             set_force_timer(c);
         } else {
             AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
-            o->m_probe_feature.custom_pull_handler(c);
+            ProbeFeature::custom_pull_handler(c);
         }
     }
     
@@ -3181,7 +3182,7 @@ public: // private, see comment on top
         AMBRO_ASSERT(ob->planner_state != PLANNER_WAITING)
         
         if (ob->planner_state == PLANNER_PROBE) {
-            return o->m_probe_feature.custom_finished_handler(c);
+            return ProbeFeature::custom_finished_handler(c);
         }
         
         uint8_t old_state = ob->planner_state;
@@ -3205,7 +3206,7 @@ public: // private, see comment on top
         
         TupleForEachForward(&o->m_axes, Foreach_fix_aborted_pos(), c);
         TransformFeature::do_pending_virt_update(c);
-        o->m_probe_feature.custom_aborted_handler(c);
+        ProbeFeature::custom_aborted_handler(c);
     }
     
     static void planner_underrun_callback (Context c)
@@ -3227,7 +3228,7 @@ public: // private, see comment on top
     static bool planner_prestep_callback (typename ThePlanner::template Axis<AxisIndex>::StepperCommandCallbackContext c)
     {
         PrinterMain *o = self(c);
-        return o->m_probe_feature.prestep_callback(c);
+        return ProbeFeature::prestep_callback(c);
     }
     
     struct MoveBuildState {
@@ -3338,7 +3339,6 @@ public: // private, see comment on top
     AxesTuple m_axes;
     HeatersTuple m_heaters;
     FansTuple m_fans;
-    ProbeFeature m_probe_feature;
     union {
         struct {
             HomingStateTuple m_homers;
@@ -3358,7 +3358,6 @@ public: // private, see comment on top
     struct PlannerPosition : public MemberPosition<Position, ThePlanner, &PrinterMain::m_planner> {};
     template <int HeaterIndex> struct HeaterPosition : public TuplePosition<Position, HeatersTuple, &PrinterMain::m_heaters, HeaterIndex> {};
     template <int FanIndex> struct FanPosition : public TuplePosition<Position, FansTuple, &PrinterMain::m_fans, FanIndex> {};
-    struct ProbeFeaturePosition : public MemberPosition<Position, ProbeFeature, &PrinterMain::m_probe_feature> {};
     
     struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
     template <int AxisIndex> struct PlannerGetAxisStepper : public AMBRO_WFUNC_TD(&PrinterMain::template planner_get_axis_stepper<AxisIndex>) {};
@@ -3382,6 +3381,7 @@ public:
         SerialFeature,
         SdCardFeature,
         TransformFeature,
+        ProbeFeature,
         CurrentFeature
     >> {
         static Object * self (Context c)
