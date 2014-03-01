@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/RemoveReference.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
@@ -41,36 +41,35 @@ struct Mk20WatchdogParams {
     static const uint8_t Prescval = TPrescval;
 };
 
-template <typename Position, typename Context, typename TParams>
-class Mk20Watchdog : private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, typename TParams>
+class Mk20Watchdog {
 public:
     using Params = TParams;
     
 private:
     static_assert(Params::Toval >= 4, "");
     static_assert(Params::Prescval < 8, "");
-    AMBRO_MAKE_SELF(Context, Mk20Watchdog, Position)
     
 public:
+    struct Object;
     static constexpr double WatchdogTime = Params::Toval / (1000.0 / (Params::Prescval + 1));
     
     static void init (Context c)
     {
-        Mk20Watchdog *o = self(c);
+        auto *o = Object::self(c);
         o->debugInit(c);
     }
     
     static void deinit (Context c)
     {
-        Mk20Watchdog *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
     }
     
     template <typename ThisContext>
     static void reset (ThisContext c)
     {
-        Mk20Watchdog *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
@@ -78,6 +77,11 @@ public:
             WDOG_REFRESH = UINT16_C(0xB480);
         }
     }
+    
+public:
+    struct Object : public ObjBase<Mk20Watchdog, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {};
 };
 
 #define AMBRO_MK20_WATCHDOG_GLOBAL(watchdog) \
@@ -85,7 +89,7 @@ extern "C" \
 __attribute__((used)) \
 void startup_early_hook (void) \
 { \
-    using TheWatchdog = RemoveReference<decltype((watchdog))>; \
+    using TheWatchdog = watchdog; \
     asm volatile ("nop"); \
     asm volatile ("nop"); \
     asm volatile ("nop"); \

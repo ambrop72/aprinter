@@ -29,7 +29,7 @@
 #include <avr/wdt.h>
 
 #include <aprinter/meta/PowerOfTwo.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -39,19 +39,18 @@ struct AvrWatchdogParams {
     static const int WatchdogPrescaler = TWatchdogPrescaler;
 };
 
-template <typename Position, typename Context, typename Params>
-class AvrWatchdog : private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, typename Params>
+class AvrWatchdog {
     static_assert(Params::WatchdogPrescaler >= 0, "");
     static_assert(Params::WatchdogPrescaler < 10, "");
-    AMBRO_MAKE_SELF(Context, AvrWatchdog, Position)
     
 public:
+    struct Object;
     static constexpr double WatchdogTime = PowerOfTwoFunc<double>(11 + Params::WatchdogPrescaler) / 131072.0;
     
     static void init (Context c)
     {
-        AvrWatchdog *o = self(c);
+        auto *o = Object::self(c);
         
         wdt_enable(Params::WatchdogPrescaler);
         
@@ -60,7 +59,7 @@ public:
     
     static void deinit (Context c)
     {
-        AvrWatchdog *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         wdt_disable();
@@ -69,11 +68,16 @@ public:
     template <typename ThisContext>
     static void reset (ThisContext c)
     {
-        AvrWatchdog *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         wdt_reset();
     }
+    
+public:
+    struct Object : public ObjBase<AvrWatchdog, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {};
 };
 
 #define AMBRO_AVR_WATCHDOG_GLOBAL \

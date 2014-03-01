@@ -414,7 +414,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     
-    struct WatchdogPosition;
     template <int AxisIndex> struct AxisPosition;
     template <int AxisIndex> struct HomingFeaturePosition;
     template <int AxisIndex> struct HomingStatePosition;
@@ -452,7 +451,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         TheAxis::InvertDir
     >;
     
-    using TheWatchdog = typename Params::template WatchdogTemplate<WatchdogPosition, Context, typename Params::WatchdogParams>;
+    using TheWatchdog = typename Params::template WatchdogTemplate<Context, Object, typename Params::WatchdogParams>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     using StepperDefsList = MapTypeList<AxesList, TemplateFunc<MakeStepperDef>>;
     using TheSteppers = Steppers<Context, Object, StepperDefsList>;
@@ -2690,7 +2689,7 @@ public:
         ob->unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
         ob->disable_timer.init(c, PrinterMain::disable_timer_handler);
         ob->force_timer.init(c, PrinterMain::force_timer_handler);
-        o->m_watchdog.init(c);
+        TheWatchdog::init(c);
         TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * Clock::time_freq));
         TheSteppers::init(c);
         SerialFeature::init(c);
@@ -2731,16 +2730,13 @@ public:
         SerialFeature::deinit(c);
         TheSteppers::deinit(c);
         TheBlinker::deinit(c);
-        o->m_watchdog.deinit(c);
+        TheWatchdog::deinit(c);
         ob->force_timer.deinit(c);
         ob->disable_timer.deinit(c);
         ob->unlocked_timer.deinit(c);
     }
     
-    TheWatchdog * getWatchdog ()
-    {
-        return &m_watchdog;
-    }
+    using GetWatchdog = TheWatchdog;
     
     using GetSerial = typename SerialFeature::TheSerial;
     
@@ -2812,7 +2808,7 @@ public: // private, see comment on top
         PrinterMain *o = self(c);
         o->debugAccess(c);
         
-        o->m_watchdog.reset(c);
+        TheWatchdog::reset(c);
     }
     
     template <typename TheChannelCommon>
@@ -3335,7 +3331,6 @@ public: // private, see comment on top
     }
     
     Object m_object;
-    TheWatchdog m_watchdog;
     AxesTuple m_axes;
     HeatersTuple m_heaters;
     FansTuple m_fans;
@@ -3350,7 +3345,6 @@ public: // private, see comment on top
         };
     };
     
-    struct WatchdogPosition : public MemberPosition<Position, TheWatchdog, &PrinterMain::m_watchdog> {};
     struct BlinkerPosition : public MemberPosition<Position, TheBlinker, &PrinterMain::m_blinker> {};
     template <int AxisIndex> struct AxisPosition : public TuplePosition<Position, AxesTuple, &PrinterMain::m_axes, AxisIndex> {};
     template <int AxisIndex> struct HomingFeaturePosition : public MemberPosition<AxisPosition<AxisIndex>, typename Axis<AxisIndex>::HomingFeature, &Axis<AxisIndex>::m_homing_feature> {};
@@ -3376,6 +3370,7 @@ public: // private, see comment on top
     
 public:
     struct Object : public ObjBase<PrinterMain, void, MakeTypeList<
+        TheWatchdog,
         TheBlinker,
         TheSteppers,
         SerialFeature,

@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_AT91SAM3X_WATCHDOG_H
 #define AMBROLIB_AT91SAM3X_WATCHDOG_H
 
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -35,18 +35,17 @@ struct At91Sam3xWatchdogParams {
     static const uint32_t Wdv = TWdv;
 };
 
-template <typename Position, typename Context, typename Params>
-class At91Sam3xWatchdog : private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, typename Params>
+class At91Sam3xWatchdog {
     static_assert(Params::Wdv <= 0xFFF, "");
-    AMBRO_MAKE_SELF(Context, At91Sam3xWatchdog, Position)
     
 public:
+    struct Object;
     static constexpr double WatchdogTime = Params::Wdv / (F_SCLK / 128.0);
     
     static void init (Context c)
     {
-        At91Sam3xWatchdog *o = self(c);
+        auto *o = Object::self(c);
         o->debugInit(c);
         
         WDT->WDT_MR = WDT_MR_WDV(Params::Wdv) | WDT_MR_WDRSTEN | WDT_MR_WDD(Params::Wdv);
@@ -54,18 +53,23 @@ public:
     
     static void deinit (Context c)
     {
-        At91Sam3xWatchdog *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
     }
     
     template <typename ThisContext>
     static void reset (ThisContext c)
     {
-        At91Sam3xWatchdog *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         WDT->WDT_CR = WDT_CR_KEY(0xA5) | WDT_CR_WDRSTT;
     }
+    
+public:
+    struct Object : public ObjBase<At91Sam3xWatchdog, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {};
 };
 
 #include <aprinter/EndNamespace.h>
