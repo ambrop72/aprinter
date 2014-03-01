@@ -665,7 +665,7 @@ AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2B_GLOBAL(*p.myprinter.getHeaterTimer<0>
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0C_GLOBAL(*p.myprinter.getHeaterTimer<1>(), MyContext())
 
 AMBRO_AT91SAM3U_ADC_GLOBAL(p.myadc, MyContext())
-AMBRO_AT91SAM3U_SPI_GLOBAL(*p.myprinter.getCurrent()->getSpi(), MyContext())
+AMBRO_AT91SAM3U_SPI_GLOBAL(MyPrinter::GetCurrent<>::GetSpi, MyContext())
 
 static void emergency (void)
 {

@@ -422,7 +422,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     template <int HeaterIndex> struct HeaterPosition;
     template <int FanIndex> struct FanPosition;
     struct ProbeFeaturePosition;
-    struct CurrentFeaturePosition;
     
     struct BlinkerHandler;
     template <int AxisIndex> struct PlannerGetAxisStepper;
@@ -1944,8 +1943,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         using SecondaryAxesList = IndexElemList<SecondaryAxisIndices, SecondaryAxis>;
         
-        struct Object : public ObjBase<TransformFeature, typename PrinterMain::Object, VirtAxesList>
-        {
+        struct Object : public ObjBase<TransformFeature, typename PrinterMain::Object, VirtAxesList> {
             bool virt_update_pending;
             bool splitclear_pending;
             bool splitting;
@@ -2617,14 +2615,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     };
     
     AMBRO_STRUCT_IF(CurrentFeature, Params::CurrentParams::Enabled) {
-        AMBRO_MAKE_SELF(Context, CurrentFeature, CurrentFeaturePosition)
-        struct CurrentPosition;
+        struct Object;
         using CurrentParams = typename Params::CurrentParams;
         using CurrentAxesList = typename CurrentParams::CurrentAxesList;
         template <typename ChannelAxisParams>
         using MakeCurrentChannel = typename ChannelAxisParams::Params;
         using CurrentChannelsList = MapTypeList<CurrentAxesList, TemplateFunc<MakeCurrentChannel>>;
-        using Current = typename CurrentParams::template CurrentTemplate<CurrentPosition, Context, typename CurrentParams::CurrentParams, CurrentChannelsList>;
+        using Current = typename CurrentParams::template CurrentTemplate<Context, Object, typename CurrentParams::CurrentParams, CurrentChannelsList>;
         
         static void init (Context c)
         {
@@ -2671,15 +2668,16 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         using CurrentAxesTuple = IndexElemTuple<CurrentAxesList, CurrentAxis>;
         
-        Current m_current;
-        
-        struct CurrentPosition : public MemberPosition<CurrentFeaturePosition, Current, &CurrentFeature::m_current> {};
+        struct Object : public ObjBase<CurrentFeature, typename PrinterMain::Object, MakeTypeList<
+            Current
+        >> {};
     } AMBRO_STRUCT_ELSE(CurrentFeature) {
         static void init (Context c) {}
         static void deinit (Context c) {}
         template <typename TheChannelCommon>
         static bool check_command (Context c, WrapType<TheChannelCommon>) { return true; }
         using EventLoopFastEvents = EmptyTypeList;
+        struct Object {};
     };
     
 public:
@@ -2701,7 +2699,7 @@ public:
         TupleForEachForward(&o->m_heaters, Foreach_init(), c);
         TupleForEachForward(&o->m_fans, Foreach_init(), c);
         o->m_probe_feature.init(c);
-        o->m_current_feature.init(c);
+        CurrentFeature::init(c);
         ob->inactive_time = (FpType)(Params::DefaultInactiveTime::value() * Clock::time_freq);
         ob->time_freq_by_max_speed = 0.0f;
         ob->underrun_count = 0;
@@ -2723,7 +2721,7 @@ public:
         if (ob->planner_state != PLANNER_NONE) {
             o->m_planner.deinit(c);
         }
-        o->m_current_feature.deinit(c);
+        CurrentFeature::deinit(c);
         o->m_probe_feature.deinit(c);
         TupleForEachReverse(&o->m_fans, Foreach_deinit(), c);
         TupleForEachReverse(&o->m_heaters, Foreach_deinit(), c);
@@ -2772,10 +2770,7 @@ public:
     using GetSdCard = typename TSdCardFeatue::TheSdCard;
     
     template <typename TCurrentFeatue = CurrentFeature>
-    typename TCurrentFeatue::Current * getCurrent ()
-    {
-        return &m_current_feature.m_current;
-    }
+    using GetCurrent = typename TCurrentFeatue::Current;
     
     static void emergency ()
     {
@@ -2835,7 +2830,7 @@ public: // private, see comment on top
                         TupleForEachForwardInterruptible(&o->m_fans, Foreach_check_command(), c, cc) &&
                         SdCardFeature::check_command(c, cc) &&
                         o->m_probe_feature.check_command(c, cc) &&
-                        o->m_current_feature.check_command(c, cc)
+                        CurrentFeature::check_command(c, cc)
                     ) {
                         goto unknown_command;
                     }
@@ -3344,7 +3339,6 @@ public: // private, see comment on top
     HeatersTuple m_heaters;
     FansTuple m_fans;
     ProbeFeature m_probe_feature;
-    CurrentFeature m_current_feature;
     union {
         struct {
             HomingStateTuple m_homers;
@@ -3365,7 +3359,6 @@ public: // private, see comment on top
     template <int HeaterIndex> struct HeaterPosition : public TuplePosition<Position, HeatersTuple, &PrinterMain::m_heaters, HeaterIndex> {};
     template <int FanIndex> struct FanPosition : public TuplePosition<Position, FansTuple, &PrinterMain::m_fans, FanIndex> {};
     struct ProbeFeaturePosition : public MemberPosition<Position, ProbeFeature, &PrinterMain::m_probe_feature> {};
-    struct CurrentFeaturePosition : public MemberPosition<Position, CurrentFeature, &PrinterMain::m_current_feature> {};
     
     struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
     template <int AxisIndex> struct PlannerGetAxisStepper : public AMBRO_WFUNC_TD(&PrinterMain::template planner_get_axis_stepper<AxisIndex>) {};
@@ -3387,8 +3380,9 @@ public:
         TheBlinker,
         TheSteppers,
         SerialFeature,
+        SdCardFeature,
         TransformFeature,
-        SdCardFeature
+        CurrentFeature
     >> {
         static Object * self (Context c)
         {

@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListGet.h>
@@ -55,25 +55,28 @@ struct Ad5206CurrentChannelParams {
     using ConversionFactor = TConversionFactor;
 };
 
-template <typename Position, typename Context, typename Params, typename ChannelsList>
-class Ad5206Current : public DebugObject<Context, void>  {
-    AMBRO_MAKE_SELF(Context, Ad5206Current, Position)
+template <typename Context, typename ParentObject, typename Params, typename ChannelsList>
+class Ad5206Current {
+public:
+    struct Object;
+    
+private:
     struct SpiHandler;
     struct SpiPosition;
     
     static int const NumDevChannels = 6;
     static int const SpiMaxCommands = 2;
     static int const SpiCommandBits = BitsInInt<SpiMaxCommands>::value;
-    using TheSpi = typename Params::template SpiTemplate<SpiPosition, Context, SpiHandler, SpiCommandBits>;
+    using TheSpi = typename Params::template SpiTemplate<Context, Object, SpiHandler, SpiCommandBits>;
     
 public:
     static void init (Context c)
     {
-        Ad5206Current *o = self(c);
+        auto *o = Object::self(c);
         
         c.pins()->template set<typename Params::SsPin>(c, true);
         c.pins()->template setOutput<typename Params::SsPin>(c);
-        o->m_spi.init(c);
+        TheSpi::init(c);
         o->m_current_channel = 0xFF;
         o->m_delaying = false;
         for (uint8_t i = 0; i < NumDevChannels; i++) {
@@ -85,17 +88,17 @@ public:
     
     static void deinit (Context c)
     {
-        Ad5206Current *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
-        o->m_spi.deinit();
+        TheSpi::deinit();
         c.pins()->template set<typename Params::SsPin>(c, true);
     }
     
     template <int ChannelIndex>
     static void setCurrent (Context c, float current_ma)
     {
-        Ad5206Current *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         using ChannelParams = TypeListGet<ChannelsList, ChannelIndex>;
@@ -108,25 +111,22 @@ public:
         }
     }
     
-    TheSpi * getSpi ()
-    {
-        return &m_spi;
-    }
+    using GetSpi = TheSpi;
     
     using EventLoopFastEvents = typename TheSpi::EventLoopFastEvents;
     
 private:
     static void spi_handler (Context c)
     {
-        Ad5206Current *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_current_channel != 0xFF)
-        AMBRO_ASSERT(o->m_spi.endReached(c))
+        AMBRO_ASSERT(TheSpi::endReached(c))
         
         if (!o->m_delaying) {
             o->m_delaying = true;
             c.pins()->template set<typename Params::SsPin>(c, true);
-            o->m_spi.cmdWriteByte(c, 0xFF, 15);
+            TheSpi::cmdWriteByte(c, 0xFF, 15);
             return;
         }
         o->m_delaying = false;
@@ -142,7 +142,7 @@ private:
     
     static void send_command (Context c, uint8_t dev_channel)
     {
-        Ad5206Current *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_pending[dev_channel])
         AMBRO_ASSERT(!o->m_delaying)
         
@@ -150,18 +150,24 @@ private:
         o->m_current_channel = dev_channel;
         o->m_current_data = o->m_data[dev_channel];
         c.pins()->template set<typename Params::SsPin>(c, false);
-        o->m_spi.cmdWriteBuffer(c, dev_channel, &o->m_current_data, 1);
+        TheSpi::cmdWriteBuffer(c, dev_channel, &o->m_current_data, 1);
     }
     
-    TheSpi m_spi;
-    uint8_t m_current_channel;
-    bool m_delaying;
-    uint8_t m_data[NumDevChannels];
-    bool m_pending[NumDevChannels];
-    uint8_t m_current_data;
-    
     struct SpiHandler : public AMBRO_WFUNC_TD(&Ad5206Current::spi_handler) {};
-    struct SpiPosition : public MemberPosition<Position, TheSpi, &Ad5206Current::m_spi> {};
+    
+public:
+    struct Object : public ObjBase<Ad5206Current, ParentObject, MakeTypeList<
+        TheSpi
+    >>,
+        public DebugObject<Context, void>
+    {
+        TheSpi m_spi;
+        uint8_t m_current_channel;
+        bool m_delaying;
+        uint8_t m_data[NumDevChannels];
+        bool m_pending[NumDevChannels];
+        uint8_t m_current_data;
+    };
 };
 
 #include <aprinter/EndNamespace.h>
