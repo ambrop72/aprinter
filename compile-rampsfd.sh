@@ -38,7 +38,7 @@ TEMPLATES_DIR=${CMSIS_DIR}/source/templates
 LINKER_SCRIPT=${ASF_DIR}/sam/utils/linker_scripts/sam3x/sam3x8/gcc/flash.ld
 
 FLAGS_C_CXX_LD=(
-    -mcpu=cortex-m3 -mthumb -O2 -g
+    -mcpu=cortex-m3 -mthumb -O2
 )
 FLAGS_CXX_LD=(
     -fno-rtti -fno-exceptions

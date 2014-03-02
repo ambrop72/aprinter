@@ -26,7 +26,7 @@ else
 fi
 
 FLAGS_C_CXX_LD=(
-    -mcpu=cortex-m4 -mthumb -O2 -g
+    -mcpu=cortex-m4 -mthumb -O2
 )
 FLAGS_CXX_LD=(
     -fno-rtti -fno-exceptions

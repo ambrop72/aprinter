@@ -12,7 +12,7 @@ MAIN=aprinter/printer/aprinter-melzi.cpp
 
 mkdir -p out
 
-CXXFLAGS="-std=c++11 -mmcu=$MCU -DF_CPU=$F_CPU -DNDEBUG -O2 -fwhole-program -g \
+CXXFLAGS="-std=c++11 -mmcu=$MCU -DF_CPU=$F_CPU -DNDEBUG -O2 -fwhole-program \
 -ffunction-sections -fdata-sections -Wl,--gc-sections \
 -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS \
 -DAMBROLIB_AVR -I. $CXXFLAGS"
