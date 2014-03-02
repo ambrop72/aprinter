@@ -29,6 +29,7 @@
 #include <stddef.h>
 
 #include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/TypeListIndex.h>
@@ -270,11 +271,10 @@ void ftm##ftmnum##_isr (void) \
 #define AMBRO_MK20_CLOCK_FTM0_GLOBAL(clock, context) AMBRO_MK20_CLOCK_FTM_GLOBAL(0, (clock), (context))
 #define AMBRO_MK20_CLOCK_FTM1_GLOBAL(clock, context) AMBRO_MK20_CLOCK_FTM_GLOBAL(1, (clock), (context))
 
-template <typename Position, typename Context, typename Handler, typename TFtmSpec, int TChannelIndex>
-class Mk20ClockInterruptTimer
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, typename Handler, typename TFtmSpec, int TChannelIndex>
+class Mk20ClockInterruptTimer {
 public:
+    struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using HandlerContext = InterruptContext<Context>;
@@ -282,18 +282,13 @@ public:
     static int const ChannelIndex = TChannelIndex;
     
 private:
-    static Mk20ClockInterruptTimer * self (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, Position>(c.root());
-    }
-    
     using TheMyFtm = typename Clock::template FindFtm<FtmSpec>;
     using Channel = typename TheMyFtm::template Channel<ChannelIndex>::ChannelSpec;
     
 public:
     static void init (Context c)
     {
-        Mk20ClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugInit(c);
         
 #ifdef AMBROLIB_ASSERTIONS
@@ -303,7 +298,7 @@ public:
     
     static void deinit (Context c)
     {
-        Mk20ClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -314,7 +309,7 @@ public:
     template <typename ThisContext>
     static void setFirst (ThisContext c, TimeType time)
     {
-        Mk20ClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(!(*Channel::csc() & FTM_CSC_CHIE))
@@ -339,7 +334,7 @@ public:
     
     static void setNext (HandlerContext c, TimeType time)
     {
-        Mk20ClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_running)
         AMBRO_ASSERT((*Channel::csc() & FTM_CSC_CHIE))
         
@@ -358,7 +353,7 @@ public:
     template <typename ThisContext>
     static void unset (ThisContext c)
     {
-        Mk20ClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -372,7 +367,7 @@ public:
     
     static void irq_handler (InterruptContext<Context> c, TimeType irq_time)
     {
-        Mk20ClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         
         if (!(*Channel::csc() & FTM_CSC_CHIE)) {
             return;
@@ -381,7 +376,7 @@ public:
         AMBRO_ASSERT(o->m_running)
         
         if ((TimeType)(irq_time - o->m_time) < UINT32_C(0x80000000)) {
-            if (!Handler::call(o, c)) {
+            if (!Handler::call(c)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
 #endif
@@ -393,38 +388,43 @@ public:
 private:
     static const TimeType clearance = (128 / Clock::prescale_divide) + 2;
     
-    TimeType m_time;
+public:
+    struct Object : public ObjBase<Mk20ClockInterruptTimer, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        TimeType m_time;
 #ifdef AMBROLIB_ASSERTIONS
-    bool m_running;
+        bool m_running;
 #endif
+    };
 };
 
-template <typename Position, typename Context, typename Handler>
-using Mk20ClockInterruptTimer_Ftm0_Ch0 = Mk20ClockInterruptTimer<Position, Context, Handler, Mk20ClockFTM0, 0>;
-template <typename Position, typename Context, typename Handler>
-using Mk20ClockInterruptTimer_Ftm0_Ch1 = Mk20ClockInterruptTimer<Position, Context, Handler, Mk20ClockFTM0, 1>;
-template <typename Position, typename Context, typename Handler>
-using Mk20ClockInterruptTimer_Ftm0_Ch2 = Mk20ClockInterruptTimer<Position, Context, Handler, Mk20ClockFTM0, 2>;
-template <typename Position, typename Context, typename Handler>
-using Mk20ClockInterruptTimer_Ftm0_Ch3 = Mk20ClockInterruptTimer<Position, Context, Handler, Mk20ClockFTM0, 3>;
-template <typename Position, typename Context, typename Handler>
-using Mk20ClockInterruptTimer_Ftm0_Ch4 = Mk20ClockInterruptTimer<Position, Context, Handler, Mk20ClockFTM0, 4>;
-template <typename Position, typename Context, typename Handler>
-using Mk20ClockInterruptTimer_Ftm0_Ch5 = Mk20ClockInterruptTimer<Position, Context, Handler, Mk20ClockFTM0, 5>;
-template <typename Position, typename Context, typename Handler>
-using Mk20ClockInterruptTimer_Ftm0_Ch6 = Mk20ClockInterruptTimer<Position, Context, Handler, Mk20ClockFTM0, 6>;
-template <typename Position, typename Context, typename Handler>
-using Mk20ClockInterruptTimer_Ftm0_Ch7 = Mk20ClockInterruptTimer<Position, Context, Handler, Mk20ClockFTM0, 7>;
+template <typename Context, typename ParentObject, typename Handler>
+using Mk20ClockInterruptTimer_Ftm0_Ch0 = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Mk20ClockFTM0, 0>;
+template <typename Context, typename ParentObject, typename Handler>
+using Mk20ClockInterruptTimer_Ftm0_Ch1 = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Mk20ClockFTM0, 1>;
+template <typename Context, typename ParentObject, typename Handler>
+using Mk20ClockInterruptTimer_Ftm0_Ch2 = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Mk20ClockFTM0, 2>;
+template <typename Context, typename ParentObject, typename Handler>
+using Mk20ClockInterruptTimer_Ftm0_Ch3 = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Mk20ClockFTM0, 3>;
+template <typename Context, typename ParentObject, typename Handler>
+using Mk20ClockInterruptTimer_Ftm0_Ch4 = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Mk20ClockFTM0, 4>;
+template <typename Context, typename ParentObject, typename Handler>
+using Mk20ClockInterruptTimer_Ftm0_Ch5 = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Mk20ClockFTM0, 5>;
+template <typename Context, typename ParentObject, typename Handler>
+using Mk20ClockInterruptTimer_Ftm0_Ch6 = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Mk20ClockFTM0, 6>;
+template <typename Context, typename ParentObject, typename Handler>
+using Mk20ClockInterruptTimer_Ftm0_Ch7 = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Mk20ClockFTM0, 7>;
 
-template <typename Position, typename Context, typename Handler>
-using Mk20ClockInterruptTimer_Ftm1_Ch0 = Mk20ClockInterruptTimer<Position, Context, Handler, Mk20ClockFTM1, 0>;
-template <typename Position, typename Context, typename Handler>
-using Mk20ClockInterruptTimer_Ftm1_Ch1 = Mk20ClockInterruptTimer<Position, Context, Handler, Mk20ClockFTM1, 1>;
+template <typename Context, typename ParentObject, typename Handler>
+using Mk20ClockInterruptTimer_Ftm1_Ch0 = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Mk20ClockFTM1, 0>;
+template <typename Context, typename ParentObject, typename Handler>
+using Mk20ClockInterruptTimer_Ftm1_Ch1 = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Mk20ClockFTM1, 1>;
 
 #define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(ftmspec, channel_index, timer, context) \
 static_assert( \
-    TypesAreEqual<RemoveReference<decltype(timer)>::FtmSpec, ftmspec>::value && \
-    RemoveReference<decltype(timer)>::ChannelIndex == channel_index, \
+    TypesAreEqual<timer::FtmSpec, ftmspec>::value && \
+    timer::ChannelIndex == channel_index, \
     "Incorrect INTERRUPT_TIMER_GLOBAL macro used" \
 ); \
 template <> \
@@ -432,21 +432,21 @@ struct Mk20Clock__IrqCompHelper<ftmspec, channel_index> { \
     template <typename IrqTime> \
     static void call (IrqTime irq_time) \
     { \
-        (timer).irq_handler(MakeInterruptContext((context)), irq_time); \
+        timer::irq_handler(MakeInterruptContext((context)), irq_time); \
     } \
 };
 
-#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH0_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 0, (timer), (context))
-#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH1_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 1, (timer), (context))
-#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH2_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 2, (timer), (context))
-#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH3_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 3, (timer), (context))
-#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH4_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 4, (timer), (context))
-#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH5_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 5, (timer), (context))
-#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH6_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 6, (timer), (context))
-#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH7_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 7, (timer), (context))
+#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH0_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 0, timer, (context))
+#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH1_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 1, timer, (context))
+#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH2_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 2, timer, (context))
+#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH3_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 3, timer, (context))
+#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH4_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 4, timer, (context))
+#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH5_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 5, timer, (context))
+#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH6_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 6, timer, (context))
+#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH7_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 7, timer, (context))
 
-#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM1_CH0_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM1, 0, (timer), (context))
-#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM1_CH1_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM1, 1, (timer), (context))
+#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM1_CH0_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM1, 0, timer, (context))
+#define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM1_CH1_GLOBAL(timer, context) AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM1, 1, timer, (context))
 
 #include <aprinter/EndNamespace.h>
 

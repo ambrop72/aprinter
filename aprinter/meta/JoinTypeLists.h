@@ -26,6 +26,8 @@
 #define AMBROLIB_JOIN_TYPE_LISTS_H
 
 #include <aprinter/meta/TypeList.h>
+#include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/TypeListFold.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -43,7 +45,10 @@ struct JoinTypeListsHelper<ConsTypeList<Head, Tail>, List2> {
 };
 
 template <typename List1, typename List2>
-using JoinTypeLists = typename JoinTypeListsHelper<List1, List2>::Type;
+using JoinTwoTypeLists = typename JoinTypeListsHelper<List1, List2>::Type;
+
+template <typename... Lists>
+using JoinTypeLists = TypeListFold<MakeTypeList<Lists...>, EmptyTypeList, JoinTwoTypeLists>;
 
 #include <aprinter/EndNamespace.h>
 

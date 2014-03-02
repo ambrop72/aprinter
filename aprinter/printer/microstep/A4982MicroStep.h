@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -40,9 +40,11 @@ struct A4982MicroStepParams {
     using Ms2Pin = TMs2Pin;
 };
 
-template <typename Position, typename Context, typename Params>
+template <typename Context, typename ParentObject, typename Params>
 class A4982MicroStep {
 public:
+    struct Object;
+    
     static void init (Context c, uint8_t microsteps)
     {
         set_microsteps(c, microsteps);
@@ -76,6 +78,9 @@ public:
         c.pins()->template set<typename Params::Ms1Pin>(c, ms1);
         c.pins()->template set<typename Params::Ms2Pin>(c, ms2);
     }
+    
+public:
+    struct Object : public ObjBase<A4982MicroStep, ParentObject, EmptyTypeList> {};
 };
 
 #include <aprinter/EndNamespace.h>

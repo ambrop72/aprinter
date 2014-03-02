@@ -141,7 +141,9 @@ using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
 using HalfDeltaDiagonalRod = AMBRO_WRAP_DOUBLE(150.0); // length of pushrods
 using HalfDeltaRadius = AMBRO_WRAP_DOUBLE(100.0); // half distance between pushrods
-using HalfDeltaSplitLength = AMBRO_WRAP_DOUBLE(2.0);
+using HalfDeltaSegmentsPerSecond = AMBRO_WRAP_DOUBLE(100.0);
+using HalfDeltaMinSplitLength = AMBRO_WRAP_DOUBLE(0.5);
+using HalfDeltaMaxSplitLength = AMBRO_WRAP_DOUBLE(4.0);
 using HalfDeltaTower1X = AMBRO_WRAP_DOUBLE(HalfDeltaRadius::value() * -1.0);
 using HalfDeltaTower2X = AMBRO_WRAP_DOUBLE(HalfDeltaRadius::value() * 1.0);
 
@@ -332,12 +334,13 @@ using PrinterParams = PrinterMainParams<
             >
         >,
         MakeTypeList<WrapInt<'A'>, WrapInt<'B'>>,
+        HalfDeltaSegmentsPerSecond,
         HalfDeltaTransform,
         HalfDeltaTransformParams<
             HalfDeltaDiagonalRod,
             HalfDeltaTower1X,
             HalfDeltaTower2X,
-            HalfDeltaSplitLength
+            DistanceSplitterParams<HalfDeltaMinSplitLength, HalfDeltaMaxSplitLength>
         >
     >,
     
@@ -512,14 +515,14 @@ void MyContext::check () const { AMBRO_ASSERT_FORCE(p.end == UINT16_C(0x1234)) }
 AMBRO_AVR_CLOCK_ISRS(p.myclock, MyContext())
 AMBRO_AVR_ADC_ISRS(p.myadc, MyContext())
 AMBRO_AVR_SERIAL_ISRS(MyPrinter::GetSerial, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(*p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(*p.myprinter.getAxisStepper<1>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCC_ISRS(*p.myprinter.getAxisStepper<2>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCC_ISRS(*p.myprinter.getHeaterTimer<0>(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCA_ISRS(*p.myprinter.getHeaterTimer<1>(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCC_ISRS(*p.myprinter.getEventChannelTimer(), MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(*p.myprinter.getFanTimer<0>(), MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(MyPrinter::GetAxisTimer<0>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(MyPrinter::GetAxisTimer<1>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCC_ISRS(MyPrinter::GetAxisTimer<2>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(MyPrinter::GetAxisTimer<3>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCC_ISRS(MyPrinter::GetHeaterTimer<0>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCA_ISRS(MyPrinter::GetHeaterTimer<1>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCC_ISRS(MyPrinter::GetEventChannelTimer, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(MyPrinter::GetFanTimer<0>, MyContext())
 AMBRO_AVR_SPI_ISRS(MyPrinter::GetSdCard<>::GetSpi, MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
 

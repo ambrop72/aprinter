@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/OffsetCallback.h>
@@ -45,16 +45,14 @@ struct TemperatureObserverParams {
     using MinTime = TMinTime;
 };
 
-template <typename Position, typename Context, typename FpType, typename Params, typename GetValueCallback, typename Handler>
-class TemperatureObserver
-: private DebugObject<Context, void>
-{
-    AMBRO_MAKE_SELF(Context, TemperatureObserver, Position)
-    
+template <typename Context, typename ParentObject, typename FpType, typename Params, typename GetValueCallback, typename Handler>
+class TemperatureObserver {
 public:
+    struct Object;
+    
     static void init (Context c, FpType target)
     {
-        TemperatureObserver *o = self(c);
+        auto *o = Object::self(c);
         
         o->m_event.init(c, &TemperatureObserver::event_handler);
         o->m_target = target;
@@ -66,7 +64,7 @@ public:
     
     static void deinit (Context c)
     {
-        TemperatureObserver *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         o->m_event.deinit(c);
@@ -81,7 +79,7 @@ private:
     
     static void event_handler (typename Context::EventLoop::QueuedEvent *, Context c)
     {
-        TemperatureObserver *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         o->m_event.appendAfterPrevious(c, IntervalTicks);
@@ -98,9 +96,14 @@ private:
         return Handler::call(c, o->m_intervals == MinIntervals);
     }
     
-    typename Context::EventLoop::QueuedEvent m_event;
-    FpType m_target;
-    IntervalsType m_intervals;
+public:
+    struct Object : public ObjBase<TemperatureObserver, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        typename Context::EventLoop::QueuedEvent m_event;
+        FpType m_target;
+        IntervalsType m_intervals;
+    };
 };
 
 #include <aprinter/EndNamespace.h>

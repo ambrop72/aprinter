@@ -29,7 +29,7 @@
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/math/FloatTools.h>
@@ -39,19 +39,18 @@
 #include <aprinter/BeginNamespace.h>
 
 template <
-    typename Position, typename Context, typename TheAxisStepper,
+    typename Context, typename ParentObject, typename TheAxisStepper,
     int PlannerStepBits,
     typename PlannerDistanceFactor, typename PlannerCorneringDistance,
     int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename FpType,
     typename SwitchPin, bool SwitchInvert, bool HomeDir,
-    typename GetAxisStepper, typename FinishedHandler
+    typename FinishedHandler
 >
-class AxisHomer
-: private DebugObject<Context, void>
-{
+class AxisHomer {
+public:
+    struct Object;
+    
 private:
-    AMBRO_MAKE_SELF(Context, AxisHomer, Position)
-    struct PlannerPosition;
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
     struct PlannerAbortedHandler;
@@ -61,8 +60,8 @@ private:
     static int const LookaheadBufferSize = min(MaxLookaheadBufferSize, 3);
     static int const LookaheadCommitCount = 1;
     
-    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, GetAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
-    using Planner = MotionPlanner<PlannerPosition, Context, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
+    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
+    using Planner = MotionPlanner<Context, Object, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
     
@@ -81,7 +80,7 @@ public:
     
     static void init (Context c, HomingParams params)
     {
-        AxisHomer *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(params.fast_max_dist.bitsValue() > 0)
         AMBRO_ASSERT(params.retract_dist.bitsValue() > 0)
         AMBRO_ASSERT(params.slow_max_dist.bitsValue() > 0)
@@ -90,7 +89,7 @@ public:
         AMBRO_ASSERT(FloatIsPosOrPosZero(params.slow_speed))
         AMBRO_ASSERT(FloatIsPosOrPosZero(params.max_accel))
         
-        o->m_planner.init(c, true);
+        Planner::init(c, true);
         o->m_state = STATE_FAST;
         o->m_command_sent = false;
         o->m_params = params;
@@ -100,11 +99,11 @@ public:
     
     static void deinit (Context c)
     {
-        AxisHomer *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         if (o->m_state != STATE_END) {
-            o->m_planner.deinit(c);
+            Planner::deinit(c);
         }
     }
     
@@ -114,16 +113,16 @@ public:
 private:
     static void planner_pull_handler (Context c)
     {
-        AxisHomer *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state != STATE_END)
         
         if (o->m_command_sent) {
-            o->m_planner.waitFinished(c);
+            Planner::waitFinished(c);
             return;
         }
         
-        PlannerCommand *cmd = o->m_planner.getBuffer(c);
+        PlannerCommand *cmd = Planner::getBuffer(c);
         cmd->rel_max_v_rec = 0.0f;
         switch (o->m_state) {
             case STATE_FAST: {
@@ -147,21 +146,21 @@ private:
         }
         
         if (cmd->axes.elem.x.bitsValue() != 0) {
-            o->m_planner.axesCommandDone(c);
+            Planner::axesCommandDone(c);
         } else {
-            o->m_planner.emptyDone(c);
+            Planner::emptyDone(c);
         }
         o->m_command_sent = true;
     }
     
     static void planner_finished_handler (Context c)
     {
-        AxisHomer *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state != STATE_END)
         AMBRO_ASSERT(o->m_command_sent)
         
-        o->m_planner.deinit(c);
+        Planner::deinit(c);
         
         if (o->m_state != STATE_RETRACT) {
             o->m_state = STATE_END;
@@ -169,24 +168,24 @@ private:
         }
         
         o->m_state++;
-        o->m_planner.init(c, true);
+        Planner::init(c, true);
         o->m_command_sent = false;
     }
     
     static void planner_aborted_handler (Context c)
     {
-        AxisHomer *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_FAST || o->m_state == STATE_SLOW)
         
-        o->m_planner.deinit(c);
+        Planner::deinit(c);
         o->m_state++;
         
         if (o->m_state == STATE_END) {
             return FinishedHandler::call(c, true);
         }
         
-        o->m_planner.init(c, o->m_state != STATE_RETRACT);
+        Planner::init(c, o->m_state != STATE_RETRACT);
         o->m_command_sent = false;
     }
     
@@ -199,17 +198,22 @@ private:
         return (c.pins()->template get<SwitchPin>(c) != SwitchInvert);
     }
     
-    Planner m_planner;
-    uint8_t m_state;
-    bool m_command_sent;
-    HomingParams m_params;
-    
-    struct PlannerPosition : public MemberPosition<Position, Planner, &AxisHomer::m_planner> {};
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_pull_handler) {};
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_finished_handler) {};
     struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_aborted_handler) {};
     struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_underrun_callback) {};
     struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_prestep_callback) {};
+    
+public:
+    struct Object : public ObjBase<AxisHomer, ParentObject, MakeTypeList<
+        Planner
+    >>,
+        public DebugObject<Context, void>
+    {
+        uint8_t m_state;
+        bool m_command_sent;
+        HomingParams m_params;
+    };
 };
 
 #include <aprinter/EndNamespace.h>

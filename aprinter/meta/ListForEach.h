@@ -92,6 +92,45 @@ struct ListForEach<EmptyTypeList> {
     }
 };
 
+template <typename List, int Offset, typename Ret, typename IndexType>
+struct ListForOneHelper;
+
+template <typename Head, typename Tail, int Offset, typename Ret, typename IndexType>
+struct ListForOneHelper<ConsTypeList<Head, Tail>, Offset, Ret, IndexType> {
+    template <typename Func, typename... Args>
+    AMBRO_ALWAYS_INLINE static Ret call (IndexType index, Func func, Args... args)
+    {
+        if (index == Offset) {
+            return func(WrapType<Head>(), args...);
+        }
+        return ListForOneHelper<Tail, Offset + 1, Ret, IndexType>::call(index, func, args...);
+    }
+    
+    template <typename Func, typename... Args>
+    AMBRO_ALWAYS_INLINE static bool call_bool (IndexType index, Func func, Args... args)
+    {
+        if (index == Offset) {
+            func(WrapType<Head>(), args...);
+            return true;
+        }
+        return ListForOneHelper<Tail, Offset + 1, Ret, IndexType>::call_bool(index, func, args...);
+    }
+};
+
+template <int Offset, typename Ret, typename IndexType>
+struct ListForOneHelper<EmptyTypeList, Offset, Ret, IndexType> {
+    template <typename Func, typename... Args>
+    AMBRO_ALWAYS_INLINE static Ret call (IndexType index, Func func, Args... args)
+    {
+    }
+    
+    template <typename Func, typename... Args>
+    AMBRO_ALWAYS_INLINE static bool call_bool (IndexType index, Func func, Args... args)
+    {
+        return false;
+    }
+};
+
 template <typename List, typename Func, typename... Args>
 AMBRO_ALWAYS_INLINE void ListForEachForward (Func func, Args... args)
 {
@@ -114,6 +153,18 @@ template <typename List, typename InitialAccRes, typename Func, typename... Args
 AMBRO_ALWAYS_INLINE auto ListForEachForwardAccRes (InitialAccRes initial_acc_res, Func func, Args... args) -> decltype(ListForEach<List>::call_forward_accres(initial_acc_res, func, args...))
 {
     return ListForEach<List>::call_forward_accres(initial_acc_res, func, args...);
+}
+
+template <typename List, int Offset, typename Ret = void, typename IndexType, typename Func, typename... Args>
+AMBRO_ALWAYS_INLINE Ret ListForOneOffset (IndexType index, Func func, Args... args)
+{
+    return ListForOneHelper<List, Offset, Ret, IndexType>::call(index, func, args...);
+}
+
+template <typename List, int Offset, typename IndexType, typename Func, typename... Args>
+AMBRO_ALWAYS_INLINE bool ListForOneBoolOffset (IndexType index, Func func, Args... args)
+{
+    return ListForOneHelper<List, Offset, void, IndexType>::call_bool(index, func, args...);
 }
 
 #define AMBRO_DECLARE_LIST_FOREACH_HELPER(helper_name, func_name) \

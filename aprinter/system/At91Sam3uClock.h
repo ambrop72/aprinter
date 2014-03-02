@@ -30,6 +30,7 @@
 #include <sam/drivers/pmc/pmc.h>
 
 #include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/TypeListIndex.h>
@@ -227,11 +228,10 @@ void TC##tcnum##_Handler (void) \
 #define AMBRO_AT91SAM3U_CLOCK_TC1_GLOBAL(clock, context) AMBRO_AT91SAM3U_CLOCK_TC_GLOBAL(1, (clock), (context))
 #define AMBRO_AT91SAM3U_CLOCK_TC2_GLOBAL(clock, context) AMBRO_AT91SAM3U_CLOCK_TC_GLOBAL(2, (clock), (context))
 
-template <typename Position, typename Context, typename Handler, typename TTcSpec, typename TComp>
-class At91Sam3uClockInterruptTimer
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, typename Handler, typename TTcSpec, typename TComp>
+class At91Sam3uClockInterruptTimer {
 public:
+    struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using HandlerContext = InterruptContext<Context>;
@@ -239,14 +239,13 @@ public:
     using Comp = TComp;
     
 private:
-    AMBRO_MAKE_SELF(Context, At91Sam3uClockInterruptTimer, Position)
     using TheMyTc = typename Clock::template FindTc<TcSpec>;
     static const uint32_t CpMask = Comp::CpMask;
     
 public:
     static void init (Context c)
     {
-        At91Sam3uClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugInit(c);
         
 #ifdef AMBROLIB_ASSERTIONS
@@ -256,7 +255,7 @@ public:
     
     static void deinit (Context c)
     {
-        At91Sam3uClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -267,7 +266,7 @@ public:
     template <typename ThisContext>
     static void setFirst (ThisContext c, TimeType time)
     {
-        At91Sam3uClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(!(ch()->TC_IMR & CpMask))
@@ -295,7 +294,7 @@ public:
     
     static void setNext (HandlerContext c, TimeType time)
     {
-        At91Sam3uClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_running)
         AMBRO_ASSERT((ch()->TC_IMR & CpMask))
         
@@ -314,7 +313,7 @@ public:
     template <typename ThisContext>
     static void unset (ThisContext c)
     {
-        At91Sam3uClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -328,7 +327,7 @@ public:
     
     static void irq_handler (InterruptContext<Context> c, TimeType irq_time)
     {
-        At91Sam3uClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         
         if (!(ch()->TC_IMR & CpMask)) {
             return;
@@ -337,7 +336,7 @@ public:
         AMBRO_ASSERT(o->m_running)
         
         if ((TimeType)(irq_time - o->m_time) < UINT32_C(0x80000000)) {
-            if (!Handler::call(o, c)) {
+            if (!Handler::call(c)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
 #endif
@@ -359,37 +358,42 @@ private:
     
     static const TimeType clearance = (64 / Clock::prescale_divide) + 2;
     
-    TimeType m_time;
+public:
+    struct Object : public ObjBase<At91Sam3uClockInterruptTimer, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        TimeType m_time;
 #ifdef AMBROLIB_ASSERTIONS
-    bool m_running;
+        bool m_running;
 #endif
+    };
 };
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3uClockInterruptTimer_TC0A = At91Sam3uClockInterruptTimer<Position, Context, Handler, At91Sam3uClockTC0, At91Sam3uClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3uClockInterruptTimer_TC0B = At91Sam3uClockInterruptTimer<Position, Context, Handler, At91Sam3uClockTC0, At91Sam3uClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3uClockInterruptTimer_TC0C = At91Sam3uClockInterruptTimer<Position, Context, Handler, At91Sam3uClockTC0, At91Sam3uClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3uClockInterruptTimer_TC0A = At91Sam3uClockInterruptTimer<Context, ParentObject, Handler, At91Sam3uClockTC0, At91Sam3uClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3uClockInterruptTimer_TC0B = At91Sam3uClockInterruptTimer<Context, ParentObject, Handler, At91Sam3uClockTC0, At91Sam3uClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3uClockInterruptTimer_TC0C = At91Sam3uClockInterruptTimer<Context, ParentObject, Handler, At91Sam3uClockTC0, At91Sam3uClock__CompC>;
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3uClockInterruptTimer_TC1A = At91Sam3uClockInterruptTimer<Position, Context, Handler, At91Sam3uClockTC1, At91Sam3uClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3uClockInterruptTimer_TC1B = At91Sam3uClockInterruptTimer<Position, Context, Handler, At91Sam3uClockTC1, At91Sam3uClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3uClockInterruptTimer_TC1C = At91Sam3uClockInterruptTimer<Position, Context, Handler, At91Sam3uClockTC1, At91Sam3uClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3uClockInterruptTimer_TC1A = At91Sam3uClockInterruptTimer<Context, ParentObject, Handler, At91Sam3uClockTC1, At91Sam3uClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3uClockInterruptTimer_TC1B = At91Sam3uClockInterruptTimer<Context, ParentObject, Handler, At91Sam3uClockTC1, At91Sam3uClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3uClockInterruptTimer_TC1C = At91Sam3uClockInterruptTimer<Context, ParentObject, Handler, At91Sam3uClockTC1, At91Sam3uClock__CompC>;
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3uClockInterruptTimer_TC2A = At91Sam3uClockInterruptTimer<Position, Context, Handler, At91Sam3uClockTC2, At91Sam3uClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3uClockInterruptTimer_TC2B = At91Sam3uClockInterruptTimer<Position, Context, Handler, At91Sam3uClockTC2, At91Sam3uClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3uClockInterruptTimer_TC2C = At91Sam3uClockInterruptTimer<Position, Context, Handler, At91Sam3uClockTC2, At91Sam3uClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3uClockInterruptTimer_TC2A = At91Sam3uClockInterruptTimer<Context, ParentObject, Handler, At91Sam3uClockTC2, At91Sam3uClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3uClockInterruptTimer_TC2B = At91Sam3uClockInterruptTimer<Context, ParentObject, Handler, At91Sam3uClockTC2, At91Sam3uClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3uClockInterruptTimer_TC2C = At91Sam3uClockInterruptTimer<Context, ParentObject, Handler, At91Sam3uClockTC2, At91Sam3uClock__CompC>;
 
 #define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(tcspec, comp, timer, context) \
 static_assert( \
-    TypesAreEqual<RemoveReference<decltype(timer)>::TcSpec, tcspec>::value  && \
-    TypesAreEqual<RemoveReference<decltype(timer)>::Comp, comp>::value, \
+    TypesAreEqual<timer::TcSpec, tcspec>::value  && \
+    TypesAreEqual<timer::Comp, comp>::value, \
     "Incorrect TCXY macro used" \
 ); \
 template <> \
@@ -397,21 +401,21 @@ struct At91Sam3uClock__IrqCompHelper<tcspec, comp> { \
     template <typename IrqTime> \
     static void call (IrqTime irq_time) \
     { \
-        (timer).irq_handler(MakeInterruptContext((context)), irq_time); \
+        timer::irq_handler(MakeInterruptContext((context)), irq_time); \
     } \
 };
 
-#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0A_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0B_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0C_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0A_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0B_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0C_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClock__CompC, timer, (context))
 
-#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC1A_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC1B_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC1C_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC1A_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC1B_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC1C_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClock__CompC, timer, (context))
 
-#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2A_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2B_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2C_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2A_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2B_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2C_GLOBAL(timer, context) AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClock__CompC, timer, (context))
 
 #include <aprinter/EndNamespace.h>
 

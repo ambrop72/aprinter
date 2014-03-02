@@ -30,6 +30,7 @@
 #include <sam/drivers/pmc/pmc.h>
 
 #include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/TypeListIndex.h>
@@ -207,11 +208,10 @@ void TC##tcnum##_Handler (void) \
 #define AMBRO_AT91SAM3X_CLOCK_TC7_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(7, (clock), (context))
 #define AMBRO_AT91SAM3X_CLOCK_TC8_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(8, (clock), (context))
 
-template <typename Position, typename Context, typename Handler, typename TTcSpec, typename TComp>
-class At91Sam3xClockInterruptTimer
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, typename Handler, typename TTcSpec, typename TComp>
+class At91Sam3xClockInterruptTimer {
 public:
+    struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using HandlerContext = InterruptContext<Context>;
@@ -219,14 +219,13 @@ public:
     using Comp = TComp;
     
 private:
-    AMBRO_MAKE_SELF(Context, At91Sam3xClockInterruptTimer, Position)
     using TheMyTc = typename Clock::template FindTc<TcSpec>;
     static const uint32_t CpMask = Comp::CpMask;
     
 public:
     static void init (Context c)
     {
-        At91Sam3xClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugInit(c);
         
 #ifdef AMBROLIB_ASSERTIONS
@@ -236,7 +235,7 @@ public:
     
     static void deinit (Context c)
     {
-        At91Sam3xClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -247,7 +246,7 @@ public:
     template <typename ThisContext>
     static void setFirst (ThisContext c, TimeType time)
     {
-        At91Sam3xClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(!(ch()->TC_IMR & CpMask))
@@ -272,7 +271,7 @@ public:
     
     static void setNext (HandlerContext c, TimeType time)
     {
-        At91Sam3xClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_running)
         AMBRO_ASSERT((ch()->TC_IMR & CpMask))
         
@@ -291,7 +290,7 @@ public:
     template <typename ThisContext>
     static void unset (ThisContext c)
     {
-        At91Sam3xClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -305,7 +304,7 @@ public:
     
     static void irq_handler (InterruptContext<Context> c)
     {
-        At91Sam3xClockInterruptTimer *o = self(c);
+        auto *o = Object::self(c);
         
         if (!(ch()->TC_IMR & CpMask)) {
             return;
@@ -317,7 +316,7 @@ public:
         now -= o->m_time;
         
         if (now < UINT32_C(0x80000000)) {
-            if (!Handler::call(o, c)) {
+            if (!Handler::call(c)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
 #endif
@@ -339,124 +338,129 @@ private:
     
     static const TimeType clearance = (64 / Clock::prescale_divide) + 2;
     
-    TimeType m_time;
+public:
+    struct Object : public ObjBase<At91Sam3xClockInterruptTimer, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        TimeType m_time;
 #ifdef AMBROLIB_ASSERTIONS
-    bool m_running;
+        bool m_running;
 #endif
+    };
 };
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC0A = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC0, At91Sam3xClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC0B = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC0, At91Sam3xClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC0C = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC0, At91Sam3xClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC0A = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC0, At91Sam3xClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC0B = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC0, At91Sam3xClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC0C = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC0, At91Sam3xClock__CompC>;
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC1A = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC1, At91Sam3xClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC1B = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC1, At91Sam3xClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC1C = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC1, At91Sam3xClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC1A = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC1, At91Sam3xClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC1B = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC1, At91Sam3xClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC1C = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC1, At91Sam3xClock__CompC>;
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC2A = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC2, At91Sam3xClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC2B = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC2, At91Sam3xClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC2C = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC2, At91Sam3xClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC2A = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC2, At91Sam3xClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC2B = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC2, At91Sam3xClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC2C = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC2, At91Sam3xClock__CompC>;
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC3A = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC3, At91Sam3xClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC3B = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC3, At91Sam3xClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC3C = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC3, At91Sam3xClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC3A = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC3, At91Sam3xClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC3B = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC3, At91Sam3xClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC3C = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC3, At91Sam3xClock__CompC>;
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC4A = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC4, At91Sam3xClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC4B = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC4, At91Sam3xClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC4C = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC4, At91Sam3xClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC4A = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC4, At91Sam3xClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC4B = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC4, At91Sam3xClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC4C = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC4, At91Sam3xClock__CompC>;
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC5A = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC5, At91Sam3xClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC5B = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC5, At91Sam3xClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC5C = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC5, At91Sam3xClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC5A = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC5, At91Sam3xClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC5B = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC5, At91Sam3xClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC5C = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC5, At91Sam3xClock__CompC>;
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC6A = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC6, At91Sam3xClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC6B = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC6, At91Sam3xClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC6C = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC6, At91Sam3xClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC6A = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC6, At91Sam3xClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC6B = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC6, At91Sam3xClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC6C = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC6, At91Sam3xClock__CompC>;
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC7A = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC7, At91Sam3xClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC7B = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC7, At91Sam3xClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC7C = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC7, At91Sam3xClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC7A = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC7, At91Sam3xClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC7B = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC7, At91Sam3xClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC7C = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC7, At91Sam3xClock__CompC>;
 
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC8A = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC8, At91Sam3xClock__CompA>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC8B = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC8, At91Sam3xClock__CompB>;
-template <typename Position, typename Context, typename Handler>
-using At91Sam3xClockInterruptTimer_TC8C = At91Sam3xClockInterruptTimer<Position, Context, Handler, At91Sam3xClockTC8, At91Sam3xClock__CompC>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC8A = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC8, At91Sam3xClock__CompA>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC8B = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC8, At91Sam3xClock__CompB>;
+template <typename Context, typename ParentObject, typename Handler>
+using At91Sam3xClockInterruptTimer_TC8C = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, At91Sam3xClockTC8, At91Sam3xClock__CompC>;
 
 #define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(tcspec, comp, timer, context) \
 static_assert( \
-    TypesAreEqual<RemoveReference<decltype(timer)>::TcSpec, tcspec>::value  && \
-    TypesAreEqual<RemoveReference<decltype(timer)>::Comp, comp>::value, \
+    TypesAreEqual<timer::TcSpec, tcspec>::value && \
+    TypesAreEqual<timer::Comp, comp>::value, \
     "Incorrect TCXY macro used" \
 ); \
 template <> \
 struct At91Sam3xClock__IrqCompHelper<tcspec, comp> { \
     static void call () \
     { \
-        (timer).irq_handler(MakeInterruptContext((context))); \
+        timer::irq_handler(MakeInterruptContext((context))); \
     } \
 };
 
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC0A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC0, At91Sam3xClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC0B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC0, At91Sam3xClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC0C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC0, At91Sam3xClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC0A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC0, At91Sam3xClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC0B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC0, At91Sam3xClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC0C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC0, At91Sam3xClock__CompC, timer, (context))
 
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC1A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC1, At91Sam3xClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC1B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC1, At91Sam3xClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC1C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC1, At91Sam3xClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC1A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC1, At91Sam3xClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC1B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC1, At91Sam3xClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC1C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC1, At91Sam3xClock__CompC, timer, (context))
 
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC2A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC2, At91Sam3xClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC2B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC2, At91Sam3xClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC2C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC2, At91Sam3xClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC2A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC2, At91Sam3xClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC2B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC2, At91Sam3xClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC2C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC2, At91Sam3xClock__CompC, timer, (context))
 
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC3A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC3, At91Sam3xClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC3B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC3, At91Sam3xClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC3C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC3, At91Sam3xClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC3A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC3, At91Sam3xClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC3B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC3, At91Sam3xClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC3C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC3, At91Sam3xClock__CompC, timer, (context))
 
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC4A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC4, At91Sam3xClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC4B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC4, At91Sam3xClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC4C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC4, At91Sam3xClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC4A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC4, At91Sam3xClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC4B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC4, At91Sam3xClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC4C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC4, At91Sam3xClock__CompC, timer, (context))
 
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC5, At91Sam3xClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC5, At91Sam3xClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC5, At91Sam3xClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC5, At91Sam3xClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC5, At91Sam3xClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC5C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC5, At91Sam3xClock__CompC, timer, (context))
 
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC6, At91Sam3xClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC6, At91Sam3xClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC6, At91Sam3xClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC6, At91Sam3xClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC6, At91Sam3xClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC6C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC6, At91Sam3xClock__CompC, timer, (context))
 
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC7, At91Sam3xClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC7, At91Sam3xClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC7, At91Sam3xClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC7, At91Sam3xClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC7, At91Sam3xClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC7, At91Sam3xClock__CompC, timer, (context))
 
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC8A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC8, At91Sam3xClock__CompA, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC8B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC8, At91Sam3xClock__CompB, (timer), (context))
-#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC8C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC8, At91Sam3xClock__CompC, (timer), (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC8A_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC8, At91Sam3xClock__CompA, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC8B_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC8, At91Sam3xClock__CompB, timer, (context))
+#define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC8C_GLOBAL(timer, context) AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC8, At91Sam3xClock__CompC, timer, (context))
 
 #include <aprinter/EndNamespace.h>
 

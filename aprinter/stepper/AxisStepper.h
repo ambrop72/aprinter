@@ -35,7 +35,7 @@
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/math/StoredNumber.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -85,12 +85,9 @@ struct AxisStepperPrecisionParams {
 using AxisStepperAvrPrecisionParams = AxisStepperPrecisionParams<11, 22, 16, 24, 1>;
 using AxisStepperDuePrecisionParams = AxisStepperPrecisionParams<11, 26, 16, 26, 1>;
 
-template <typename Position, typename Context, typename Params, typename Stepper, typename ConsumersList>
-class AxisStepper
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, typename Params, typename Stepper, typename ConsumersList>
+class AxisStepper {
 private:
-    AMBRO_MAKE_SELF(Context, AxisStepper, Position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_command_callback, call_command_callback)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_prestep_callback, call_prestep_callback)
     
@@ -105,12 +102,12 @@ private:
     static const int amul_shift = 2 * (1 + discriminant_prec);
     
     struct TimerHandler;
-    struct TimerPosition;
     
 public:
+    struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    using TimerInstance = typename Params::template Timer<TimerPosition, Context, TimerHandler>;
+    using TimerInstance = typename Params::template Timer<Context, Object, TimerHandler>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
     using DirStepFixedType = FixedPoint<step_bits + 2, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
@@ -141,9 +138,9 @@ public:
     
     static void init (Context c)
     {
-        AxisStepper *o = self(c);
+        auto *o = Object::self(c);
         
-        o->m_timer.init(c);
+        TimerInstance::init(c);
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
 #endif
@@ -153,16 +150,16 @@ public:
     
     static void deinit (Context c)
     {
-        AxisStepper *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         AMBRO_ASSERT(!o->m_running)
         
-        o->m_timer.deinit(c);
+        TimerInstance::deinit(c);
     }
     
     static void setPrestepCallbackEnabled (Context c, bool enabled)
     {
-        AxisStepper *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
         
@@ -172,7 +169,7 @@ public:
     template <typename TheConsumer>
     static void start (Context c, TimeType start_time, Command *first_command)
     {
-        AxisStepper *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(first_command)
@@ -208,15 +205,15 @@ public:
                 o->m_time = start_time;
             }
         }
-        o->m_timer.setFirst(c, timer_t);
+        TimerInstance::setFirst(c, timer_t);
     }
     
     static void stop (Context c)
     {
-        AxisStepper *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
-        o->m_timer.unset(c);
+        TimerInstance::unset(c);
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
 #endif
@@ -224,7 +221,7 @@ public:
     
     static StepFixedType getAbortedCmdSteps (Context c, bool *dir)
     {
-        AxisStepper *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
         
@@ -246,15 +243,12 @@ public:
         return StepFixedType::importBits(cmd->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
     }
     
-    TimerInstance * getTimer ()
-    {
-        return &m_timer;
-    }
+    using GetTimer = TimerInstance;
     
 #ifdef AMBROLIB_ASSERTIONS
     static bool isRunning (Context c)
     {
-        AxisStepper *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return o->m_running;
@@ -279,9 +273,9 @@ private:
         }
     };
     
-    static bool timer_handler (TimerInstance *, typename TimerInstance::HandlerContext c)
+    static bool timer_handler (typename TimerInstance::HandlerContext c)
     {
-        AxisStepper *o = self(c);
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_running)
         
         Command *current_command = o->m_current_command;
@@ -302,7 +296,7 @@ private:
             o->m_notend = (x.bitsValue() != 0);
             if (AMBRO_UNLIKELY(!o->m_notend)) {
                 o->m_time += TimeMulFixedType::importBits(TMulStored::retrieve(current_command->t_mul_stored)).template bitsTo<time_bits>().bitsValue();
-                o->m_timer.setNext(c, o->m_time);
+                TimerInstance::setNext(c, o->m_time);
                 return true;
             }
             auto xs = x.toSigned().template shiftBits<(-discriminant_prec)>();
@@ -370,27 +364,32 @@ private:
             next_time = (o->m_time - t.bitsValue());
         }
         
-        o->m_timer.setNext(c, next_time);
+        TimerInstance::setNext(c, next_time);
         return true;
     }
     
-    TimerInstance m_timer;
-#ifdef AMBROLIB_ASSERTIONS
-    bool m_running;
-#endif
-    uint8_t m_consumer_id;
-    Command *m_current_command;
-    bool m_notend;
-    bool m_notdecel;
-    StepFixedType m_x;
-    StepFixedType m_pos;
-    decltype(AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) m_discriminant;
-    TimeType m_time;
-    decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) m_v0;
-    bool m_prestep_callback_enabled;
-    
     struct TimerHandler : public AMBRO_WFUNC_TD(&AxisStepper::timer_handler) {};
-    struct TimerPosition : public MemberPosition<Position, TimerInstance, &AxisStepper::m_timer> {};
+    
+public:
+    struct Object : public ObjBase<AxisStepper, ParentObject, MakeTypeList<
+        TimerInstance
+    >>,
+        public DebugObject<Context, void>
+    {
+#ifdef AMBROLIB_ASSERTIONS
+        bool m_running;
+#endif
+        uint8_t m_consumer_id;
+        Command *m_current_command;
+        bool m_notend;
+        bool m_notdecel;
+        StepFixedType m_x;
+        StepFixedType m_pos;
+        decltype(AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) m_discriminant;
+        TimeType m_time;
+        decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) m_v0;
+        bool m_prestep_callback_enabled;
+    };
 };
 
 #include <aprinter/EndNamespace.h>
