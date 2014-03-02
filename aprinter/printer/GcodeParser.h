@@ -456,7 +456,6 @@ private:
     };
     
 public:
-   
     struct Object : public ObjBase<GcodeParser, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>,
         public ExtraMembers<ParserType>
