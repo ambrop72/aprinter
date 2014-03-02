@@ -1257,7 +1257,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             static void init (Context c)
             {
-                c.pins()->template setInput<typename AxisSpec::Homing::EndPin, typename AxisSpec::Homing::EndPinInputMode>(c);
+                Context::Pins::template setInput<typename AxisSpec::Homing::EndPin, typename AxisSpec::Homing::EndPinInputMode>(c);
             }
             
             static void deinit (Context c)
@@ -1296,7 +1296,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             template <typename TheChannelCommon>
             static void append_endstop (Context c, WrapType<TheChannelCommon>)
             {
-                bool triggered = c.pins()->template get<typename AxisSpec::Homing::EndPin>(c) != AxisSpec::Homing::EndInvert;
+                bool triggered = Context::Pins::template get<typename AxisSpec::Homing::EndPin>(c) != AxisSpec::Homing::EndInvert;
                 TheChannelCommon::reply_append_ch(c, ' ');
                 TheChannelCommon::reply_append_ch(c, AxisName);
                 TheChannelCommon::reply_append_ch(c, ':');
@@ -2045,7 +2045,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             o->m_enabled = false;
             o->m_control_config = TheControl::makeDefaultConfig();
-            TimeType time = c.clock()->getTime(c) + (TimeType)(0.05 * Clock::time_freq);
+            TimeType time = Clock::getTime(c) + (TimeType)(0.05 * Clock::time_freq);
             TheSoftPwm::computeZeroPowerData(&o->m_output_pd);
             o->m_control_event.init(c, Heater::control_event_handler);
             o->m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
@@ -2072,7 +2072,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static FpType get_temp (Context c)
         {
-            AdcFixedType adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
+            AdcFixedType adc_value = Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
             return adc_to_temp(adc_value);
         }
         
@@ -2089,7 +2089,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename TheChannelCommon>
         static void append_adc_value (Context c, WrapType<TheChannelCommon>)
         {
-            AdcFixedType adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
+            AdcFixedType adc_value = Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
             TheChannelCommon::reply_append_ch(c, ' ');
             TheChannelCommon::reply_append_ch(c, HeaterSpec::Name);
             TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR("A:"));
@@ -2184,7 +2184,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             
-            AdcFixedType adc_value = c.adc()->template getValue<typename HeaterSpec::AdcPin>(c);
+            AdcFixedType adc_value = Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
             if (AMBRO_LIKELY(adc_value.bitsValue() <= InfAdcValue || adc_value.bitsValue() >= SupAdcValue)) {
                 o->m_enabled = false;
                 o->m_was_not_unset = false;
@@ -2291,7 +2291,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             TheSoftPwm::computeZeroPowerData(&o->m_target_pd);
-            TimeType time = c.clock()->getTime(c) + (TimeType)(0.05 * Clock::time_freq);
+            TimeType time = Clock::getTime(c) + (TimeType)(0.05 * Clock::time_freq);
             TheSoftPwm::init(c, time);
         }
         
@@ -2387,7 +2387,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             o->m_current_point = 0xff;
-            c.pins()->template setInput<typename ProbeParams::ProbePin, typename ProbeParams::ProbePinInputMode>(c);
+            Context::Pins::template setInput<typename ProbeParams::ProbePin, typename ProbeParams::ProbePinInputMode>(c);
         }
         
         static void deinit (Context c)
@@ -2527,7 +2527,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename CallbackContext>
         static bool prestep_callback (CallbackContext c)
         {
-            return (c.pins()->template get<typename ProbeParams::ProbePin>(c) != Params::ProbeParams::ProbeInvert);
+            return (Context::Pins::template get<typename ProbeParams::ProbePin>(c) != Params::ProbeParams::ProbeInvert);
         }
         
         static void init_probe_planner (Context c, bool watch_probe)
@@ -2977,7 +2977,7 @@ public: // private, see comment on top
     {
         auto *ob = Object::self(c);
         
-        ob->last_active_time = c.clock()->getTime(c);
+        ob->last_active_time = Clock::getTime(c);
         ob->disable_timer.appendAt(c, ob->last_active_time + ob->inactive_time);
         TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * Clock::time_freq));
     }
@@ -2996,7 +2996,7 @@ public: // private, see comment on top
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         
-        TimeType force_time = c.clock()->getTime(c) + (TimeType)(Params::ForceTimeout::value() * Clock::time_freq);
+        TimeType force_time = Clock::getTime(c) + (TimeType)(Params::ForceTimeout::value() * Clock::time_freq);
         ob->force_timer.appendAt(c, force_time);
     }
     

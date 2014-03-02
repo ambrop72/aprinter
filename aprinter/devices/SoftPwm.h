@@ -56,8 +56,8 @@ public:
         TimerInstance::init(c);
         o->m_state = false;
         o->m_start_time = start_time;
-        c.pins()->template set<Pin>(c, Invert);
-        c.pins()->template setOutput<Pin>(c);
+        Context::Pins::template set<Pin>(c, Invert);
+        Context::Pins::template setOutput<Pin>(c);
         TimerInstance::setFirst(c, start_time);
         
         o->debugInit(c);
@@ -69,7 +69,7 @@ public:
         o->debugDeinit(c);
         
         TimerInstance::deinit(c);
-        c.pins()->template set<Pin>(c, Invert);
+        Context::Pins::template set<Pin>(c, Invert);
     }
     
     using GetTimer = TimerInstance;
@@ -105,7 +105,7 @@ private:
         if (AMBRO_LIKELY(!o->m_state)) {
             PowerData pd;
             TimerCallback::call(c, &pd);
-            c.pins()->template set<Pin>(c, (pd.type != 0) != Invert);
+            Context::Pins::template set<Pin>(c, (pd.type != 0) != Invert);
             if (AMBRO_LIKELY(pd.type == 1)) {
                 next_time = o->m_start_time + pd.on_time;
                 o->m_state = true;
@@ -114,7 +114,7 @@ private:
                 next_time = o->m_start_time;
             }
         } else {
-            c.pins()->template set<Pin>(c, Invert);
+            Context::Pins::template set<Pin>(c, Invert);
             o->m_start_time += interval;
             next_time = o->m_start_time;
             o->m_state = false;

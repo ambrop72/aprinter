@@ -48,8 +48,8 @@ public:
     static void init (Context c, uint8_t microsteps)
     {
         set_microsteps(c, microsteps);
-        c.pins()->template setOutput<typename Params::Ms1Pin>(c);
-        c.pins()->template setOutput<typename Params::Ms2Pin>(c);
+        Context::Pins::template setOutput<typename Params::Ms1Pin>(c);
+        Context::Pins::template setOutput<typename Params::Ms2Pin>(c);
     }
     
     static void set_microsteps (Context c, uint8_t microsteps)
@@ -75,8 +75,8 @@ public:
                 ms2 = true;
             } break;
         }
-        c.pins()->template set<typename Params::Ms1Pin>(c, ms1);
-        c.pins()->template set<typename Params::Ms2Pin>(c, ms2);
+        Context::Pins::template set<typename Params::Ms1Pin>(c, ms1);
+        Context::Pins::template set<typename Params::Ms2Pin>(c, ms2);
     }
     
 public:

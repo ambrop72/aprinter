@@ -28,15 +28,13 @@
 #include <stdint.h>
 
 #include <aprinter/meta/TypeListGet.h>
-#include <aprinter/meta/IndexElemTuple.h>
+#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IsEqualFunc.h>
-#include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/TypeListLength.h>
-#include <aprinter/meta/TupleForEach.h>
+#include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/Position.h>
-#include <aprinter/meta/TuplePosition.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
@@ -47,19 +45,14 @@
 
 struct Mk20AdcUnsupportedInput {};
 
-template <typename Position, typename Context, typename PinsList, int ADiv>
-class Mk20Adc
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, typename ParamsPinsList, int ADiv>
+class Mk20Adc {
     static_assert(ADiv >= 0 && ADiv <= 3, "");
     
 private:
-    AMBRO_MAKE_SELF(Context, Mk20Adc, Position)
-    template <int PinIndex> struct PinPosition;
-    
-    static const int NumPins = TypeListLength<PinsList>::value;
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_handle_isr, handle_isr)
+    static const int NumPins = TypeListLength<ParamsPinsList>::value;
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_isr, handle_isr)
     
     using AdcList = MakeTypeList<
         Mk20AdcUnsupportedInput,
@@ -81,18 +74,19 @@ private:
     >;
     
 public:
+    struct Object;
     using FixedType = FixedPoint<16, false, -16>;
     
     static void init (Context c)
     {
-        Mk20Adc *o = self(c);
+        auto *o = Object::self(c);
         AdcMaybe<NumPins>::init(c);
         o->debugInit(c);
     }
     
     static void deinit (Context c)
     {
-        Mk20Adc *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         AdcMaybe<NumPins>::deinit(c);
     }
@@ -100,14 +94,14 @@ public:
     template <typename Pin, typename ThisContext>
     static FixedType getValue (ThisContext c)
     {
-        Mk20Adc *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
-        static const int PinIndex = TypeListIndex<PinsList, IsEqualFunc<Pin>>::value;
+        static const int PinIndex = TypeListIndex<ParamsPinsList, IsEqualFunc<Pin>>::value;
         
         uint16_t value;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            value = TupleGetElem<PinIndex>(&o->m_pins)->m_value;
+            value = AdcPin<PinIndex>::Object::self(c)->m_value;
         }
         
         return FixedType::importBits(value);
@@ -115,8 +109,7 @@ public:
     
     static void adc_isr (InterruptContext<Context> c)
     {
-        Mk20Adc *o = self(c);
-        TupleForEachForwardInterruptible(&o->m_pins, Foreach_handle_isr(), c);
+        ListForEachForwardInterruptible<PinsList>(LForeach_handle_isr(), c);
     }
     
 private:
@@ -124,12 +117,12 @@ private:
     struct AdcMaybe {
         static void init (Context c)
         {
-            Mk20Adc *o = self(c);
+            auto *o = Object::self(c);
             
             o->m_current_pin = 0;
             o->m_finished = false;
             
-            TupleForEachForward(&o->m_pins, Foreach_init(), c);
+            ListForEachForward<PinsList>(LForeach_init(), c);
             
             SIM_SCGC6 |= SIM_SCGC6_ADC0;
             ADC0_CFG1 = ADC_CFG1_MODE(3) | ADC_CFG1_ADLSMP | ADC_CFG1_ADIV(ADiv);
@@ -161,8 +154,8 @@ private:
     
     template <int PinIndex>
     struct AdcPin {
-        AMBRO_MAKE_SELF(Context, AdcPin, PinPosition<PinIndex>)
-        using Pin = TypeListGet<PinsList, PinIndex>;
+        struct Object;
+        using Pin = TypeListGet<ParamsPinsList, PinIndex>;
         static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
         static const int NextPinIndex = (PinIndex + 1) % NumPins;
         
@@ -173,31 +166,35 @@ private:
         
         static bool handle_isr (InterruptContext<Context> c)
         {
-            AdcPin *o = self(c);
-            Mk20Adc *a = Mk20Adc::self(c);
+            auto *o = Object::self(c);
+            auto *ao = Mk20Adc::Object::self(c);
             
-            if (a->m_current_pin != PinIndex) {
+            if (ao->m_current_pin != PinIndex) {
                 return true;
             }
             o->m_value = ADC0_RA;
             ADC0_SC1A = ADC_SC1_AIEN | ADC_SC1_ADCH(AdcPin<NextPinIndex>::AdcIndex);
-            a->m_current_pin = NextPinIndex;
+            ao->m_current_pin = NextPinIndex;
             if (PinIndex == NumPins - 1) {
-                a->m_finished = true;
+                ao->m_finished = true;
             }
             return false;
         }
         
-        uint16_t m_value;
+        struct Object : public ObjBase<AdcPin, typename Mk20Adc::Object, EmptyTypeList> {
+            uint16_t m_value;
+        };
     };
     
-    using PinsTuple = IndexElemTuple<PinsList, AdcPin>;
+    using PinsList = IndexElemList<ParamsPinsList, AdcPin>;
     
-    PinsTuple m_pins;
-    uint8_t m_current_pin;
-    bool m_finished;
-    
-    template <int PinIndex> struct PinPosition : public TuplePosition<Position, PinsTuple, &Mk20Adc::m_pins, PinIndex> {};
+public:
+    struct Object : public ObjBase<Mk20Adc, ParentObject, PinsList>,
+        public DebugObject<Context, void>
+    {
+        uint8_t m_current_pin;
+        bool m_finished;
+    };
 };
 
 #define AMBRO_MK20_ADC_ISRS(adc, context) \
@@ -205,7 +202,7 @@ extern "C" \
 __attribute__((used)) \
 void adc0_isr (void) \
 { \
-    (adc).adc_isr(MakeInterruptContext(context)); \
+    adc::adc_isr(MakeInterruptContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>

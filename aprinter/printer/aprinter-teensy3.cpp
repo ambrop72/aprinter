@@ -34,6 +34,7 @@ static void emergency (void);
 
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/Mk20Clock.h>
@@ -436,19 +437,16 @@ using ClockFtmsList = MakeTypeList<Mk20ClockFTM0, Mk20ClockFTM1>;
 struct MyContext;
 struct MyLoopExtra;
 struct Program;
-struct ClockPosition;
 struct LoopPosition;
-struct PinsPosition;
-struct AdcPosition;
 struct PrinterPosition;
 struct LoopExtraPosition;
 
 using ProgramPosition = RootPosition<Program>;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
-using MyClock = Mk20Clock<ClockPosition, MyContext, clock_timer_prescaler, ClockFtmsList>;
+using MyClock = Mk20Clock<MyContext, Program, clock_timer_prescaler, ClockFtmsList>;
 using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
-using MyPins = Mk20Pins<PinsPosition, MyContext>;
-using MyAdc = Mk20Adc<AdcPosition, MyContext, AdcPins, AdcADiv>;
+using MyPins = Mk20Pins<MyContext, Program>;
+using MyAdc = Mk20Adc<MyContext, Program, AdcPins, AdcADiv>;
 using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
 struct MyContext {
@@ -460,48 +458,44 @@ struct MyContext {
     using TheRootPosition = ProgramPosition;
     
     MyDebugObjectGroup * debugGroup () const;
-    MyClock * clock () const;
     MyLoop * eventLoop () const;
-    MyPins * pins () const;
-    MyAdc * adc () const;
     Program * root () const;
     void check () const;
 };
 
 struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, typename MyPrinter::EventLoopFastEvents> {};
 
-struct Program {
+struct Program : public ObjBase<void, void, MakeTypeList<
+    MyClock,
+    MyPins,
+    MyAdc
+>> {
     MyDebugObjectGroup d_group;
-    MyClock myclock;
     MyLoop myloop;
-    MyPins mypins;
-    MyAdc myadc;
     MyPrinter myprinter;
     MyLoopExtra myloopextra;
+    
+    static Program * self (MyContext c);
 };
 
-struct ClockPosition : public MemberPosition<ProgramPosition, MyClock, &Program::myclock> {};
 struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
-struct PinsPosition : public MemberPosition<ProgramPosition, MyPins, &Program::mypins> {};
-struct AdcPosition : public MemberPosition<ProgramPosition, MyAdc, &Program::myadc> {};
 struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
 struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
 
 Program p;
 
+Program * Program::self (MyContext c) { return &p; }
+
 MyDebugObjectGroup * MyContext::debugGroup () const { return &p.d_group; }
-MyClock * MyContext::clock () const { return &p.myclock; }
 MyLoop * MyContext::eventLoop () const { return &p.myloop; }
-MyPins * MyContext::pins () const { return &p.mypins; }
-MyAdc * MyContext::adc () const { return &p.myadc; }
 Program * MyContext::root () const { return &p; }
 void MyContext::check () const {}
 
-AMBRO_MK20_CLOCK_FTM0_GLOBAL(p.myclock, MyContext())
-AMBRO_MK20_CLOCK_FTM1_GLOBAL(p.myclock, MyContext())
+AMBRO_MK20_CLOCK_FTM0_GLOBAL(MyClock, MyContext())
+AMBRO_MK20_CLOCK_FTM1_GLOBAL(MyClock, MyContext())
 
 AMBRO_MK20_WATCHDOG_GLOBAL(MyPrinter::GetWatchdog)
-AMBRO_MK20_ADC_ISRS(p.myadc, MyContext())
+AMBRO_MK20_ADC_ISRS(MyAdc, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH0_GLOBAL(MyPrinter::GetEventChannelTimer, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH1_GLOBAL(MyPrinter::GetAxisTimer<0>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH2_GLOBAL(MyPrinter::GetAxisTimer<1>, MyContext())
@@ -525,10 +519,10 @@ int main ()
     MyContext c;
     
     p.d_group.init(c);
-    p.myclock.init(c);
+    MyClock::init(c);
     p.myloop.init(c);
-    p.mypins.init(c);
-    p.myadc.init(c);
+    MyPins::init(c);
+    MyAdc::init(c);
     p.myprinter.init(c);
     
     p.myloop.run(c);

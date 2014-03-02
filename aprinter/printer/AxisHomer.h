@@ -195,7 +195,7 @@ private:
     
     static bool planner_prestep_callback (typename Planner::template Axis<0>::StepperCommandCallbackContext c)
     {
-        return (c.pins()->template get<SwitchPin>(c) != SwitchInvert);
+        return (Context::Pins::template get<SwitchPin>(c) != SwitchInvert);
     }
     
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_pull_handler) {};

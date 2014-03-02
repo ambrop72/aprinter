@@ -29,7 +29,6 @@
 #include <stddef.h>
 #include <sam/drivers/pmc/pmc.h>
 
-#include <aprinter/meta/Position.h>
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
@@ -79,21 +78,19 @@ using At91Sam3uClock__CompC = At91Sam3uClock__Comp<offsetof(TcChannel, TC_RC), T
 template <typename, typename, typename, typename, typename>
 class At91Sam3uClockInterruptTimer;
 
-template <typename Position, typename Context, int Prescale, typename TcsList>
-class At91Sam3uClock
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, int Prescale, typename TcsList>
+class At91Sam3uClock {
     static_assert(Prescale >= 1, "Prescale must be >=1");
     static_assert(Prescale <= 4, "Prescale must be <=4");
     
     template <typename, typename, typename, typename, typename>
     friend class At91Sam3uClockInterruptTimer;
     
-    AMBRO_MAKE_SELF(Context, At91Sam3uClock, Position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     
 public:
+    struct Object;
     using TimeType = uint32_t;
     
     static constexpr TimeType prescale_divide =
@@ -136,7 +133,7 @@ private:
         
         static void irq_handler (InterruptContext<Context> c)
         {
-            At91Sam3uClock *o = self(c);
+            auto *o = Object::self(c);
             if (TcIndex != 0) {
                 ch()->TC_SR;
             }
@@ -160,7 +157,7 @@ private:
 public:
     static void init (Context c)
     {
-        At91Sam3uClock *o = self(c);
+        auto *o = Object::self(c);
         
         o->m_offset = 0;
         
@@ -172,7 +169,7 @@ public:
     
     static void deinit (Context c)
     {
-        At91Sam3uClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         MyTcsTuple dummy;
@@ -182,7 +179,7 @@ public:
     template <typename ThisContext>
     static TimeType getTime (ThisContext c)
     {
-        At91Sam3uClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TimeType time;
@@ -201,7 +198,7 @@ public:
 public:
     static TimeType get_time_interrupt (Context c)
     {
-        At91Sam3uClock *o = self(c);
+        auto *o = Object::self(c);
         
         uint16_t offset = o->m_offset;
         uint16_t low = MyTc<0>::ch()->TC_CV;
@@ -212,8 +209,13 @@ public:
         }
         return ((uint32_t)offset << 16) | low;
     }
-
-    uint16_t m_offset;
+    
+public:
+    struct Object : public ObjBase<At91Sam3uClock, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        uint16_t m_offset;
+    };
 };
 
 #define AMBRO_AT91SAM3U_CLOCK_TC_GLOBAL(tcnum, clock, context) \
@@ -221,12 +223,12 @@ extern "C" \
 __attribute__((used)) \
 void TC##tcnum##_Handler (void) \
 { \
-    (clock).tc_irq_handler<At91Sam3uClockTC##tcnum>(MakeInterruptContext((context))); \
+    clock::tc_irq_handler<At91Sam3uClockTC##tcnum>(MakeInterruptContext((context))); \
 }
 
-#define AMBRO_AT91SAM3U_CLOCK_TC0_GLOBAL(clock, context) AMBRO_AT91SAM3U_CLOCK_TC_GLOBAL(0, (clock), (context))
-#define AMBRO_AT91SAM3U_CLOCK_TC1_GLOBAL(clock, context) AMBRO_AT91SAM3U_CLOCK_TC_GLOBAL(1, (clock), (context))
-#define AMBRO_AT91SAM3U_CLOCK_TC2_GLOBAL(clock, context) AMBRO_AT91SAM3U_CLOCK_TC_GLOBAL(2, (clock), (context))
+#define AMBRO_AT91SAM3U_CLOCK_TC0_GLOBAL(clock, context) AMBRO_AT91SAM3U_CLOCK_TC_GLOBAL(0, clock, (context))
+#define AMBRO_AT91SAM3U_CLOCK_TC1_GLOBAL(clock, context) AMBRO_AT91SAM3U_CLOCK_TC_GLOBAL(1, clock, (context))
+#define AMBRO_AT91SAM3U_CLOCK_TC2_GLOBAL(clock, context) AMBRO_AT91SAM3U_CLOCK_TC_GLOBAL(2, clock, (context))
 
 template <typename Context, typename ParentObject, typename Handler, typename TTcSpec, typename TComp>
 class At91Sam3uClockInterruptTimer {
@@ -286,7 +288,7 @@ public:
             *my_cp_reg() = time;
             uint32_t sr = ch()->TC_SR;
             if (TheMyTc::TcIndex == 0 && (sr & TC_SR_COVFS)) {
-                Clock::self(c)->m_offset++;
+                Clock::Object::self(c)->m_offset++;
             }
             ch()->TC_IER = CpMask;
         }

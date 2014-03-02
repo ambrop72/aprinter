@@ -74,8 +74,8 @@ public:
     {
         auto *o = Object::self(c);
         
-        c.pins()->template set<typename Params::SsPin>(c, true);
-        c.pins()->template setOutput<typename Params::SsPin>(c);
+        Context::Pins::template set<typename Params::SsPin>(c, true);
+        Context::Pins::template setOutput<typename Params::SsPin>(c);
         TheSpi::init(c);
         o->m_current_channel = 0xFF;
         o->m_delaying = false;
@@ -92,7 +92,7 @@ public:
         o->debugDeinit(c);
         
         TheSpi::deinit();
-        c.pins()->template set<typename Params::SsPin>(c, true);
+        Context::Pins::template set<typename Params::SsPin>(c, true);
     }
     
     template <int ChannelIndex>
@@ -125,7 +125,7 @@ private:
         
         if (!o->m_delaying) {
             o->m_delaying = true;
-            c.pins()->template set<typename Params::SsPin>(c, true);
+            Context::Pins::template set<typename Params::SsPin>(c, true);
             TheSpi::cmdWriteByte(c, 0xFF, 15);
             return;
         }
@@ -149,7 +149,7 @@ private:
         o->m_pending[dev_channel] = false;
         o->m_current_channel = dev_channel;
         o->m_current_data = o->m_data[dev_channel];
-        c.pins()->template set<typename Params::SsPin>(c, false);
+        Context::Pins::template set<typename Params::SsPin>(c, false);
         TheSpi::cmdWriteBuffer(c, dev_channel, &o->m_current_data, 1);
     }
     

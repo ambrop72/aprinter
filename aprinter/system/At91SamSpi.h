@@ -103,9 +103,9 @@ public:
         o->m_start = CommandSizeType::import(0);
         o->m_end = CommandSizeType::import(0);
         
-        c.pins()->template setPeripheralOutputA<typename Device::SckPin>(c);
-        c.pins()->template setPeripheralOutputA<typename Device::MosiPin>(c);
-        c.pins()->template setInput<typename Device::MisoPin>(c);
+        Context::Pins::template setPeripheralOutputA<typename Device::SckPin>(c);
+        Context::Pins::template setPeripheralOutputA<typename Device::MosiPin>(c);
+        Context::Pins::template setInput<typename Device::MisoPin>(c);
         
         pmc_enable_periph_clk(Device::SpiId);
         Device::spi()->SPI_MR = SPI_MR_MSTR | SPI_MR_MODFDIS | SPI_MR_PCS(0);
@@ -130,8 +130,8 @@ public:
         NVIC_ClearPendingIRQ(Device::SpiIrq);
         pmc_disable_periph_clk(Device::SpiId);
         
-        c.pins()->template setInput<typename Device::MosiPin>(c);
-        c.pins()->template setInput<typename Device::SckPin>(c);
+        Context::Pins::template setInput<typename Device::MosiPin>(c);
+        Context::Pins::template setInput<typename Device::SckPin>(c);
         
         c.eventLoop()->template resetFastEvent<FastEvent>(c);
     }

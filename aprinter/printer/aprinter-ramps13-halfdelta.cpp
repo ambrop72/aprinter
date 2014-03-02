@@ -35,6 +35,7 @@ static void emergency (void);
 
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
@@ -450,19 +451,16 @@ static const int clock_timer_prescaler = 3;
 struct MyContext;
 struct MyLoopExtra;
 struct Program;
-struct ClockPosition;
 struct LoopPosition;
-struct PinsPosition;
-struct AdcPosition;
 struct PrinterPosition;
 struct LoopExtraPosition;
 
 using ProgramPosition = RootPosition<Program>;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
-using MyClock = AvrClock<ClockPosition, MyContext, clock_timer_prescaler>;
+using MyClock = AvrClock<MyContext, Program, clock_timer_prescaler>;
 using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
-using MyPins = AvrPins<PinsPosition, MyContext>;
-using MyAdc = AvrAdc<AdcPosition, MyContext, AdcPins, AdcRefSel, AdcPrescaler>;
+using MyPins = AvrPins<MyContext, Program>;
+using MyAdc = AvrAdc<MyContext, Program, AdcPins, AdcRefSel, AdcPrescaler>;
 using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
 struct MyContext {
@@ -474,46 +472,42 @@ struct MyContext {
     using TheRootPosition = ProgramPosition;
     
     MyDebugObjectGroup * debugGroup () const;
-    MyClock * clock () const;
     MyLoop * eventLoop () const;
-    MyPins * pins () const;
-    MyAdc * adc () const;
     Program * root () const;
     void check () const;
 };
 
 struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, typename MyPrinter::EventLoopFastEvents> {};
 
-struct Program {
+struct Program : public ObjBase<void, void, MakeTypeList<
+    MyClock,
+    MyPins,
+    MyAdc
+>> {
     MyDebugObjectGroup d_group;
-    MyClock myclock;
     MyLoop myloop;
-    MyPins mypins;
-    MyAdc myadc;
     MyPrinter myprinter;
     MyLoopExtra myloopextra;
     uint16_t end;
+    
+    static Program * self (MyContext c);
 };
 
-struct ClockPosition : public MemberPosition<ProgramPosition, MyClock, &Program::myclock> {};
 struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
-struct PinsPosition : public MemberPosition<ProgramPosition, MyPins, &Program::mypins> {};
-struct AdcPosition : public MemberPosition<ProgramPosition, MyAdc, &Program::myadc> {};
 struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
 struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
 
 Program p;
 
+Program * Program::self (MyContext c) { return &p; }
+
 MyDebugObjectGroup * MyContext::debugGroup () const { return &p.d_group; }
-MyClock * MyContext::clock () const { return &p.myclock; }
 MyLoop * MyContext::eventLoop () const { return &p.myloop; }
-MyPins * MyContext::pins () const { return &p.mypins; }
-MyAdc * MyContext::adc () const { return &p.myadc; }
 Program * MyContext::root () const { return &p; }
 void MyContext::check () const { AMBRO_ASSERT_FORCE(p.end == UINT16_C(0x1234)) }
 
-AMBRO_AVR_CLOCK_ISRS(p.myclock, MyContext())
-AMBRO_AVR_ADC_ISRS(p.myadc, MyContext())
+AMBRO_AVR_CLOCK_ISRS(MyClock, MyContext())
+AMBRO_AVR_ADC_ISRS(MyAdc, MyContext())
 AMBRO_AVR_SERIAL_ISRS(MyPrinter::GetSerial, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(MyPrinter::GetAxisTimer<0>, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(MyPrinter::GetAxisTimer<1>, MyContext())
@@ -558,19 +552,14 @@ int main ()
     
     p.end = UINT16_C(0x1234);
     p.d_group.init(c);
-    p.myclock.init(c);
-    p.myclock.initTC3(c);
-    p.myclock.initTC4(c);
-    p.myclock.initTC5(c);
+    MyClock::init(c);
+    MyClock::initTC3(c);
+    MyClock::initTC4(c);
+    MyClock::initTC5(c);
     p.myloop.init(c);
-    p.mypins.init(c);
-    p.myadc.init(c);
+    MyPins::init(c);
+    MyAdc::init(c);
     p.myprinter.init(c);
-    
-    // enable internal pull-ups
-    p.mypins.set<MegaPin3>(c, true);
-    p.mypins.set<MegaPin14>(c, true);
-    p.mypins.set<MegaPin18>(c, true);
     
     p.myloop.run(c);
 }

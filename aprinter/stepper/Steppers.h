@@ -114,7 +114,7 @@ public:
             if (SharesEnable) {
                 s->mask |= TheMask;
             }
-            c.pins()->template set<EnablePin>(c, false);
+            Context::Pins::template set<EnablePin>(c, false);
         }
         
         static void disable (Context c)
@@ -124,10 +124,10 @@ public:
             if (SharesEnable) {
                 s->mask &= ~TheMask;
                 if (!(s->mask & SameEnableMask)) {
-                    c.pins()->template set<EnablePin>(c, true);
+                    Context::Pins::template set<EnablePin>(c, true);
                 }
             } else {
-                c.pins()->template set<EnablePin>(c, true);
+                Context::Pins::template set<EnablePin>(c, true);
             }
         }
         
@@ -136,7 +136,7 @@ public:
         {
             auto *s = Steppers::Object::self(c);
             s->debugAccess(c);
-            c.pins()->template set<typename ThisDef::DirPin>(c, maybe_invert_dir(dir));
+            Context::Pins::template set<typename ThisDef::DirPin>(c, maybe_invert_dir(dir));
         }
         
         template <typename ThisContext>
@@ -144,7 +144,7 @@ public:
         {
             auto *s = Steppers::Object::self(c);
             s->debugAccess(c);
-            c.pins()->template set<typename ThisDef::StepPin>(c, true);
+            Context::Pins::template set<typename ThisDef::StepPin>(c, true);
         }
         
         template <typename ThisContext>
@@ -152,7 +152,7 @@ public:
         {
             auto *s = Steppers::Object::self(c);
             s->debugAccess(c);
-            c.pins()->template set<typename ThisDef::StepPin>(c, false);
+            Context::Pins::template set<typename ThisDef::StepPin>(c, false);
         }
         
         static void emergency ()
@@ -168,17 +168,17 @@ public:
         
         static void init (Context c)
         {
-            c.pins()->template set<typename ThisDef::DirPin>(c, maybe_invert_dir(false));
-            c.pins()->template set<typename ThisDef::StepPin>(c, false);
-            c.pins()->template set<typename ThisDef::EnablePin>(c, true);
-            c.pins()->template setOutput<typename ThisDef::DirPin>(c);
-            c.pins()->template setOutput<typename ThisDef::StepPin>(c);
-            c.pins()->template setOutput<typename ThisDef::EnablePin>(c);
+            Context::Pins::template set<typename ThisDef::DirPin>(c, maybe_invert_dir(false));
+            Context::Pins::template set<typename ThisDef::StepPin>(c, false);
+            Context::Pins::template set<typename ThisDef::EnablePin>(c, true);
+            Context::Pins::template setOutput<typename ThisDef::DirPin>(c);
+            Context::Pins::template setOutput<typename ThisDef::StepPin>(c);
+            Context::Pins::template setOutput<typename ThisDef::EnablePin>(c);
         }
         
         static void deinit (Context c)
         {
-            c.pins()->template set<ThisDef::EnablePin>(c, true);
+            Context::Pins::template set<ThisDef::EnablePin>(c, true);
         }
     };
     

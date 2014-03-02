@@ -71,8 +71,8 @@ public:
         auto *o = Object::self(c);
         
         o->m_state = STATE_INACTIVE;
-        c.pins()->template set<SsPin>(c, true);
-        c.pins()->template setOutput<SsPin>(c);
+        Context::Pins::template set<SsPin>(c, true);
+        Context::Pins::template setOutput<SsPin>(c);
         
         o->debugInit(c);
     }
@@ -82,7 +82,7 @@ public:
         auto *o = Object::self(c);
         o->debugDeinit(c);
         
-        c.pins()->template set<SsPin>(c, true);
+        Context::Pins::template set<SsPin>(c, true);
         if (o->m_state != STATE_INACTIVE) {
             TheSpi::deinit(c);
         }
@@ -242,7 +242,7 @@ private:
         }
         switch (o->m_state) {
             case STATE_INIT1: {
-                c.pins()->template set<SsPin>(c, false);
+                Context::Pins::template set<SsPin>(c, false);
                 sd_command(c, CMD_GO_IDLE_STATE, 0, true, o->m_buf1, o->m_buf1);
                 o->m_state = STATE_INIT2;
                 o->m_count = 255;
@@ -335,7 +335,7 @@ private:
     {
         auto *o = Object::self(c);
         
-        c.pins()->template set<SsPin>(c, true);
+        Context::Pins::template set<SsPin>(c, true);
         TheSpi::deinit(c);
         o->m_state = STATE_INACTIVE;
     }

@@ -31,7 +31,6 @@
 #include <avr/interrupt.h>
 #include <avr/sfr_defs.h>
 
-#include <aprinter/meta/Position.h>
 #include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -42,15 +41,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Position, typename Context, int Prescale>
-class AvrClock
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, int Prescale>
+class AvrClock {
     static_assert(Prescale >= 1, "Prescale must be >=1");
     static_assert(Prescale <= 5, "Prescale must be <=5");
-    AMBRO_MAKE_SELF(Context, AvrClock, Position)
     
 public:
+    struct Object;
     typedef uint32_t TimeType;
     
 public:
@@ -66,7 +63,7 @@ public:
     
     static void init (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->m_offset = 0;
         TIMSK1 = 0;
         TCCR1A = 0;
@@ -77,7 +74,7 @@ public:
     
     static void deinit (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         TIMSK1 = 0;
         TCCR1B = 0;
@@ -86,7 +83,7 @@ public:
     template <typename ThisContext>
     static TimeType getTime (ThisContext c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         uint32_t now;
@@ -115,7 +112,7 @@ public:
 #ifdef TCNT3
     static void initTC3 (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TIMSK3 = 0;
@@ -126,7 +123,7 @@ public:
     
     static void deinitTC3 (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TIMSK3 = 0;
@@ -137,7 +134,7 @@ public:
 #ifdef TCNT4
     static void initTC4 (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TIMSK4 = 0;
@@ -148,7 +145,7 @@ public:
     
     static void deinitTC4 (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TIMSK4 = 0;
@@ -159,7 +156,7 @@ public:
 #ifdef TCNT5
     static void initTC5 (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TIMSK5 = 0;
@@ -170,7 +167,7 @@ public:
     
     static void deinitTC5 (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TIMSK5 = 0;
@@ -183,7 +180,7 @@ public:
     
     static void initTC0 (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TIMSK0 = 0;
@@ -194,7 +191,7 @@ public:
     
     static void deinitTC0 (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TIMSK0 = 0;
@@ -212,7 +209,7 @@ public:
     
     static void initTC2 (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TIMSK2 = 0;
@@ -223,7 +220,7 @@ public:
     
     static void deinitTC2 (Context c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         TIMSK2 = 0;
@@ -233,12 +230,16 @@ public:
     
     static void timer1_ovf_isr (InterruptContext<Context> c)
     {
-        AvrClock *o = self(c);
+        auto *o = Object::self(c);
         o->m_offset++;
     }
     
 public:
-    volatile uint16_t m_offset;
+    struct Object : public ObjBase<AvrClock, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        volatile uint16_t m_offset;
+    };
 };
 
 template <typename Context, typename ParentObject, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg, uint8_t ocf_bit>
@@ -283,7 +284,7 @@ public:
 #endif
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            uint16_t now_high = lock_c.clock()->m_offset;
+            uint16_t now_high = Clock::Object::self(c)->m_offset;
             uint16_t now_low;
             
             asm volatile (
@@ -339,7 +340,7 @@ public:
         
         o->m_time = time;
         
-        uint16_t now_high = c.clock()->m_offset;
+        uint16_t now_high = Clock::Object::self(c)->m_offset;
         uint16_t now_low;
         
         asm volatile (
@@ -404,7 +405,7 @@ public:
         AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
         
         uint16_t now_low;
-        uint16_t now_high = c.clock()->m_offset;
+        uint16_t now_high = Clock::Object::self(c)->m_offset;
         
         asm volatile (
             "    lds %A[now_low],%[tcnt1]+0\n"
@@ -495,7 +496,7 @@ public:
 #endif
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            uint16_t now_high = lock_c.clock()->m_offset;
+            uint16_t now_high = Clock::Object::self(c)->m_offset;
             uint16_t now_low;
             
             asm volatile (
@@ -550,7 +551,7 @@ public:
         
         o->m_time = time;
     
-        uint16_t now_high = c.clock()->m_offset;
+        uint16_t now_high = Clock::Object::self(c)->m_offset;
         uint16_t now_low;
         
         asm volatile (
@@ -613,7 +614,7 @@ public:
         AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
         
         uint16_t now_low;
-        uint16_t now_high = c.clock()->m_offset;
+        uint16_t now_high = Clock::Object::self(c)->m_offset;
         
         asm volatile (
             "    lds %A[now_low],%[tcnt1]+0\n"
@@ -727,7 +728,7 @@ using AvrClockInterruptTimer_TC2_OCB = AvrClock8BitInterruptTimer<Context, Paren
 #define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \
 ISR(TIMER1_OVF_vect) \
 { \
-    (avrclock).timer1_ovf_isr(MakeInterruptContext((context))); \
+    avrclock::timer1_ovf_isr(MakeInterruptContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(avrclockinterrupttimer, context) \

@@ -99,7 +99,8 @@ private:
     static_assert(LookaheadCommitCount >= 1, "");
     static_assert(LookaheadCommitCount < LookaheadBufferSize, "");
     using Loop = typename Context::EventLoop;
-    using TimeType = typename Context::Clock::TimeType;
+    using Clock = typename Context::Clock;
+    using TimeType = typename Clock::TimeType;
     static const int NumAxes = TypeListLength<ParamsAxesList>::value;
     static const int NumChannels = TypeListLength<ParamsChannelsList>::value;
     template <typename AxisSpec, typename AccumType>
@@ -1037,7 +1038,7 @@ private:
         AMBRO_ASSERT(!o->m_syncing)
         
         o->m_state = STATE_STEPPING;
-        TimeType start_time = c.clock()->getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
+        TimeType start_time = Clock::getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
         o->m_staging_time += start_time;
         ListForEachForward<AxesList>(LForeach_start_stepping(), c, start_time);
         ListForEachForward<ChannelsList>(LForeach_start_stepping(), c, start_time);

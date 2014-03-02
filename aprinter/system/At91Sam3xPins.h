@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <sam/drivers/pmc/pmc.h>
 
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -57,12 +57,8 @@ struct At91Sam3xPinInputMode {
 using At91Sam3xPinInputModeNormal = At91Sam3xPinInputMode<false>;
 using At91Sam3xPinInputModePullUp = At91Sam3xPinInputMode<true>;
 
-template <typename Position, typename Context>
-class At91Sam3xPins
-: private DebugObject<Context, void>
-{
-    AMBRO_MAKE_SELF(Context, At91Sam3xPins, Position)
-    
+template <typename Context, typename ParentObject>
+class At91Sam3xPins {
     template <typename ThePio>
     static Pio volatile * pio ()
     {
@@ -70,9 +66,11 @@ class At91Sam3xPins
     }
     
 public:
+    struct Object;
+    
     static void init (Context c)
     {
-        At91Sam3xPins *o = self(c);
+        auto *o = Object::self(c);
         pmc_enable_periph_clk(ID_PIOA);
         pmc_enable_periph_clk(ID_PIOB);
         pmc_enable_periph_clk(ID_PIOC);
@@ -82,7 +80,7 @@ public:
     
     static void deinit (Context c)
     {
-        At91Sam3xPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         pmc_disable_periph_clk(ID_PIOD);
         pmc_disable_periph_clk(ID_PIOC);
@@ -93,7 +91,7 @@ public:
     template <typename Pin, typename Mode = At91Sam3xPinInputModeNormal, typename ThisContext>
     static void setInput (ThisContext c)
     {
-        At91Sam3xPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         pio<typename Pin::Pio>()->PIO_ODR = (UINT32_C(1) << Pin::PinIndex);
@@ -108,7 +106,7 @@ public:
     template <typename Pin, typename ThisContext>
     static void setOutput (ThisContext c)
     {
-        At91Sam3xPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         pio<typename Pin::Pio>()->PIO_OER = (UINT32_C(1) << Pin::PinIndex);
@@ -118,7 +116,7 @@ public:
     template <typename Pin>
     static void setPeripheralOutputA (Context c)
     {
-        At91Sam3xPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         pio<typename Pin::Pio>()->PIO_ABSR &= ~(UINT32_C(1) << Pin::PinIndex);
@@ -128,7 +126,7 @@ public:
     template <typename Pin>
     static void setPeripheralOutputB (Context c)
     {
-        At91Sam3xPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         pio<typename Pin::Pio>()->PIO_ABSR |= (UINT32_C(1) << Pin::PinIndex);
@@ -138,7 +136,7 @@ public:
     template <typename Pin, typename ThisContext>
     static bool get (ThisContext c)
     {
-        At91Sam3xPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return (pio<typename Pin::Pio>()->PIO_PDSR & (UINT32_C(1) << Pin::PinIndex));
@@ -147,7 +145,7 @@ public:
     template <typename Pin, typename ThisContext>
     static void set (ThisContext c, bool x)
     {
-        At91Sam3xPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         if (x) {
@@ -165,7 +163,12 @@ public:
         } else {
             pio<typename Pin::Pio>()->PIO_CODR = (UINT32_C(1) << Pin::PinIndex);
         }
-     }
+    }
+    
+public:
+    struct Object : public ObjBase<At91Sam3xPins, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {};
 };
 
 #include <aprinter/EndNamespace.h>

@@ -38,19 +38,20 @@ class Blinker
 {
 public:
     struct Object;
-    using TimeType = typename Context::Clock::TimeType;
+    using Clock = typename Context::Clock;
+    using TimeType = typename Clock::TimeType;
     
     static void init (Context c, TimeType interval)
     {
         auto *o = Object::self(c);
         o->interval = interval;
-        o->next_time = c.clock()->getTime(c);
+        o->next_time = Clock::getTime(c);
         o->state = false;
         o->timer.init(c, Blinker::timer_handler);
         o->timer.appendAt(c, o->next_time);
         
-        c.pins()->template set<Pin>(c, o->state);
-        c.pins()->template setOutput<Pin>(c);
+        Context::Pins::template set<Pin>(c, o->state);
+        Context::Pins::template setOutput<Pin>(c);
         
         o->debugInit(c);
     }
@@ -80,7 +81,7 @@ private:
         o->debugAccess(c);
         
         o->state = !o->state;
-        c.pins()->template set<Pin>(c, o->state);
+        Context::Pins::template set<Pin>(c, o->state);
         o->next_time += o->interval;
         o->timer.appendAt(c, o->next_time);
         

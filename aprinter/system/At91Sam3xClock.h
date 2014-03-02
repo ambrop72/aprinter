@@ -29,13 +29,11 @@
 #include <stddef.h>
 #include <sam/drivers/pmc/pmc.h>
 
-#include <aprinter/meta/Position.h>
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/TuplePosition.h>
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/IsEqualFunc.h>
@@ -84,21 +82,19 @@ using At91Sam3xClock__CompC = At91Sam3xClock__Comp<offsetof(TcChannel, TC_RC), T
 template <typename, typename, typename, typename, typename>
 class At91Sam3xClockInterruptTimer;
 
-template <typename Position, typename Context, int Prescale, typename TcsList>
-class At91Sam3xClock
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, int Prescale, typename TcsList>
+class At91Sam3xClock {
     static_assert(Prescale >= 1, "Prescale must be >=1");
     static_assert(Prescale <= 4, "Prescale must be <=4");
     
     template <typename, typename, typename, typename, typename>
     friend class At91Sam3xClockInterruptTimer;
     
-    AMBRO_MAKE_SELF(Context, At91Sam3xClock, Position)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     
 public:
+    struct Object;
     using TimeType = uint32_t;
     
     static constexpr TimeType prescale_divide =
@@ -157,7 +153,7 @@ private:
 public:
     static void init (Context c)
     {
-        At91Sam3xClock *o = self(c);
+        auto *o = Object::self(c);
         
         MyTcsTuple dummy;
         TupleForEachForward(&dummy, Foreach_init(), c);
@@ -167,7 +163,7 @@ public:
     
     static void deinit (Context c)
     {
-        At91Sam3xClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         MyTcsTuple dummy;
@@ -177,7 +173,7 @@ public:
     template <typename ThisContext>
     static TimeType getTime (ThisContext c)
     {
-        At91Sam3xClock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return MyTc<0>::ch()->TC_CV;
@@ -188,6 +184,11 @@ public:
     {
         FindTc<TcSpec>::irq_handler(c);
     }
+    
+public:
+    struct Object : public ObjBase<At91Sam3xClock, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {};
 };
 
 #define AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(tcnum, clock, context) \
@@ -195,18 +196,18 @@ extern "C" \
 __attribute__((used)) \
 void TC##tcnum##_Handler (void) \
 { \
-    (clock).tc_irq_handler<At91Sam3xClockTC##tcnum>(MakeInterruptContext((context))); \
+    clock::tc_irq_handler<At91Sam3xClockTC##tcnum>(MakeInterruptContext((context))); \
 }
 
-#define AMBRO_AT91SAM3X_CLOCK_TC0_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(0, (clock), (context))
-#define AMBRO_AT91SAM3X_CLOCK_TC1_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(1, (clock), (context))
-#define AMBRO_AT91SAM3X_CLOCK_TC2_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(2, (clock), (context))
-#define AMBRO_AT91SAM3X_CLOCK_TC3_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(3, (clock), (context))
-#define AMBRO_AT91SAM3X_CLOCK_TC4_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(4, (clock), (context))
-#define AMBRO_AT91SAM3X_CLOCK_TC5_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(5, (clock), (context))
-#define AMBRO_AT91SAM3X_CLOCK_TC6_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(6, (clock), (context))
-#define AMBRO_AT91SAM3X_CLOCK_TC7_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(7, (clock), (context))
-#define AMBRO_AT91SAM3X_CLOCK_TC8_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(8, (clock), (context))
+#define AMBRO_AT91SAM3X_CLOCK_TC0_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(0, clock, (context))
+#define AMBRO_AT91SAM3X_CLOCK_TC1_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(1, clock, (context))
+#define AMBRO_AT91SAM3X_CLOCK_TC2_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(2, clock, (context))
+#define AMBRO_AT91SAM3X_CLOCK_TC3_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(3, clock, (context))
+#define AMBRO_AT91SAM3X_CLOCK_TC4_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(4, clock, (context))
+#define AMBRO_AT91SAM3X_CLOCK_TC5_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(5, clock, (context))
+#define AMBRO_AT91SAM3X_CLOCK_TC6_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(6, clock, (context))
+#define AMBRO_AT91SAM3X_CLOCK_TC7_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(7, clock, (context))
+#define AMBRO_AT91SAM3X_CLOCK_TC8_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(8, clock, (context))
 
 template <typename Context, typename ParentObject, typename Handler, typename TTcSpec, typename TComp>
 class At91Sam3xClockInterruptTimer {

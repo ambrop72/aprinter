@@ -35,7 +35,7 @@
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/AvrIo.h>
 
@@ -145,29 +145,27 @@ struct AvrPinInputMode {
 using AvrPinInputModeNormal = AvrPinInputMode<false>;
 using AvrPinInputModePullUp = AvrPinInputMode<true>;
 
-template <typename Position, typename Context>
-class AvrPins
-: private DebugObject<Context, void>
-{
-    AMBRO_MAKE_SELF(Context, AvrPins, Position)
-    
+template <typename Context, typename ParentObject>
+class AvrPins {
 public:
+    struct Object;
+    
     static void init (Context c)
     {
-        AvrPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugInit(c);
     }
     
     static void deinit (Context c)
     {
-        AvrPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
     }
     
     template <typename Pin, typename Mode = AvrPinInputModeNormal, typename ThisContext>
     static void setInput (ThisContext c)
     {
-        AvrPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         avrClearBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
@@ -181,7 +179,7 @@ public:
     template <typename Pin, typename ThisContext>
     static void setOutput (ThisContext c)
     {
-        AvrPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         avrSetBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
@@ -190,7 +188,7 @@ public:
     template <typename Pin, typename ThisContext>
     static bool get (ThisContext c)
     {
-        AvrPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return (Pin::Port::getPin() & (1 << Pin::port_pin));
@@ -199,7 +197,7 @@ public:
     template <typename Pin, typename ThisContext>
     static void set (ThisContext c, bool x)
     {
-        AvrPins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         if (x) {
@@ -218,6 +216,11 @@ public:
             avrUnknownClearBitReg<Pin::Port::port_io_addr, Pin::port_pin>();
         }
     }
+    
+public:
+    struct Object : public ObjBase<AvrPins, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {};
 };
 
 #include <aprinter/EndNamespace.h>

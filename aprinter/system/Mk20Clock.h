@@ -28,7 +28,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/meta/Position.h>
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
@@ -89,14 +88,11 @@ using Mk20ClockFTM1 = Mk20ClockFTM<(uint32_t)&FTM1_SC, (uint32_t)&FTM1_CNT, (uin
 template <typename, typename, typename, typename, int>
 class Mk20ClockInterruptTimer;
 
-template <typename Position, typename Context, int Prescale, typename FtmsList>
-class Mk20Clock
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, int Prescale, typename FtmsList>
+class Mk20Clock {
     static_assert(Prescale >= 0, "");
     static_assert(Prescale <= 7, "");
     
-    AMBRO_MAKE_SELF(Context, Mk20Clock, Position)
     template <typename, typename, typename, typename, int>
     friend class Mk20ClockInterruptTimer;
     
@@ -106,6 +102,7 @@ class Mk20Clock
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_irq_helper, irq_helper)
     
 public:
+    struct Object;
     using TimeType = uint32_t;
     
     static constexpr TimeType prescale_divide =
@@ -160,7 +157,7 @@ private:
         
         static void irq_handler (InterruptContext<Context> c)
         {
-            Mk20Clock *o = self(c);
+            auto *o = Object::self(c);
             
             if (FtmIndex == 0) {
                 uint32_t sc = *FtmSpec::sc();
@@ -197,7 +194,7 @@ private:
 public:
     static void init (Context c)
     {
-        Mk20Clock *o = self(c);
+        auto *o = Object::self(c);
         
         o->m_offset = 0;
         
@@ -210,7 +207,7 @@ public:
     
     static void deinit (Context c)
     {
-        Mk20Clock *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         
         MyFtmsTuple dummy;
@@ -220,7 +217,7 @@ public:
     template <typename ThisContext>
     static TimeType getTime (ThisContext c)
     {
-        Mk20Clock *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         uint16_t offset;
@@ -246,7 +243,7 @@ public:
 private:
     static TimeType get_time_interrupt (Context c)
     {
-        Mk20Clock *o = self(c);
+        auto *o = Object::self(c);
         
         uint16_t offset = o->m_offset;
         uint16_t low = *MyFtm<0>::FtmSpec::cnt();
@@ -257,7 +254,12 @@ private:
         return ((uint32_t)offset << 16) | low;
     }
     
-    uint16_t m_offset;
+public:
+    struct Object : public ObjBase<Mk20Clock, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
+        uint16_t m_offset;
+    };
 };
 
 #define AMBRO_MK20_CLOCK_FTM_GLOBAL(ftmnum, clock, context) \
@@ -265,11 +267,11 @@ extern "C" \
 __attribute__((used)) \
 void ftm##ftmnum##_isr (void) \
 { \
-    (clock).ftm_irq_handler<Mk20ClockFTM##ftmnum>(MakeInterruptContext((context))); \
+    clock::ftm_irq_handler<Mk20ClockFTM##ftmnum>(MakeInterruptContext((context))); \
 }
 
-#define AMBRO_MK20_CLOCK_FTM0_GLOBAL(clock, context) AMBRO_MK20_CLOCK_FTM_GLOBAL(0, (clock), (context))
-#define AMBRO_MK20_CLOCK_FTM1_GLOBAL(clock, context) AMBRO_MK20_CLOCK_FTM_GLOBAL(1, (clock), (context))
+#define AMBRO_MK20_CLOCK_FTM0_GLOBAL(clock, context) AMBRO_MK20_CLOCK_FTM_GLOBAL(0, clock, (context))
+#define AMBRO_MK20_CLOCK_FTM1_GLOBAL(clock, context) AMBRO_MK20_CLOCK_FTM_GLOBAL(1, clock, (context))
 
 template <typename Context, typename ParentObject, typename Handler, typename TFtmSpec, int TChannelIndex>
 class Mk20ClockInterruptTimer {

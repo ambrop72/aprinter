@@ -69,7 +69,7 @@ public:
 #ifdef AMBROLIB_SUPPORT_QUIT
         o->m_quitting = false;
 #endif
-        o->m_now = c.clock()->getTime(c);
+        o->m_now = Clock::getTime(c);
         o->m_queued_event_list.init();
         extra(c)->m_fast_event_pos = 0;
         for (typename Extra::FastEventSizeType i = 0; i < Extra::NumFastEvents; i++) {
@@ -114,7 +114,7 @@ public:
             }
             
         again:;
-            TimeType now = c.clock()->getTime(c);
+            TimeType now = Clock::getTime(c);
             o->m_now = now;
             for (QueuedEvent *ev = o->m_queued_event_list.first(); ev; ev = o->m_queued_event_list.next(ev)) {
                 AMBRO_ASSERT(!QueuedEventList::isRemoved(ev))
@@ -206,7 +206,7 @@ private:
     {
 #ifdef EVENTLOOP_BENCHMARK
         BusyEventLoop *o = self(c);
-        o->m_bench_enter_time = c.clock()->getTime(c);
+        o->m_bench_enter_time = Clock::getTime(c);
 #endif
     }
     
@@ -214,7 +214,7 @@ private:
     {
 #ifdef EVENTLOOP_BENCHMARK
         BusyEventLoop *o = self(c);
-        o->m_bench_time += (TimeType)(c.clock()->getTime(c) - o->m_bench_enter_time);
+        o->m_bench_time += (TimeType)(Clock::getTime(c) - o->m_bench_enter_time);
 #endif
     }
     

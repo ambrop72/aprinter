@@ -88,12 +88,12 @@ public:
         o->m_start = CommandSizeType::import(0);
         o->m_end = CommandSizeType::import(0);
         
-        c.pins()->template set<SckPin>(c, false);
-        c.pins()->template set<MosiPin>(c, false);
-        c.pins()->template set<MisoPin>(c, false);
-        c.pins()->template setOutput<SckPin>(c);
-        c.pins()->template setOutput<MosiPin>(c);
-        c.pins()->template setInput<MisoPin>(c);
+        Context::Pins::template set<SckPin>(c, false);
+        Context::Pins::template set<MosiPin>(c, false);
+        Context::Pins::template set<MisoPin>(c, false);
+        Context::Pins::template setOutput<SckPin>(c);
+        Context::Pins::template setOutput<MosiPin>(c);
+        Context::Pins::template setInput<MisoPin>(c);
         
         SPCR = (1 << SPIE) | (1 << SPE) | (1 << MSTR) | (1 << SPR1) | (1 << SPR0);
         SPSR = 0;

@@ -34,6 +34,7 @@ static void emergency (void);
 
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/At91Sam3xClock.h>
@@ -584,19 +585,16 @@ using ClockTcsList = MakeTypeList<
 struct MyContext;
 struct MyLoopExtra;
 struct Program;
-struct ClockPosition;
 struct LoopPosition;
-struct PinsPosition;
-struct AdcPosition;
 struct PrinterPosition;
 struct LoopExtraPosition;
 
 using ProgramPosition = RootPosition<Program>;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
-using MyClock = At91Sam3xClock<ClockPosition, MyContext, clock_timer_prescaler, ClockTcsList>;
+using MyClock = At91Sam3xClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>;
 using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
-using MyPins = At91Sam3xPins<PinsPosition, MyContext>;
-using MyAdc = At91Sam3xAdc<AdcPosition, MyContext, AdcPins, AdcParams>;
+using MyPins = At91Sam3xPins<MyContext, Program>;
+using MyAdc = At91Sam3xAdc<MyContext, Program, AdcPins, AdcParams>;
 using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
 
 struct MyContext {
@@ -608,52 +606,48 @@ struct MyContext {
     using TheRootPosition = ProgramPosition;
     
     MyDebugObjectGroup * debugGroup () const;
-    MyClock * clock () const;
     MyLoop * eventLoop () const;
-    MyPins * pins () const;
-    MyAdc * adc () const;
     Program * root () const;
     void check () const;
 };
 
 struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, typename MyPrinter::EventLoopFastEvents> {};
 
-struct Program {
+struct Program : public ObjBase<void, void, MakeTypeList<
+    MyClock,
+    MyPins,
+    MyAdc
+>> {
     MyDebugObjectGroup d_group;
-    MyClock myclock;
     MyLoop myloop;
-    MyPins mypins;
-    MyAdc myadc;
     MyPrinter myprinter;
     MyLoopExtra myloopextra;
+    
+    static Program * self (MyContext c);
 };
 
-struct ClockPosition : public MemberPosition<ProgramPosition, MyClock, &Program::myclock> {};
 struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
-struct PinsPosition : public MemberPosition<ProgramPosition, MyPins, &Program::mypins> {};
-struct AdcPosition : public MemberPosition<ProgramPosition, MyAdc, &Program::myadc> {};
 struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
 struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
 
 Program p;
 
+Program * Program::self (MyContext c) { return &p; }
+
 MyDebugObjectGroup * MyContext::debugGroup () const { return &p.d_group; }
-MyClock * MyContext::clock () const { return &p.myclock; }
 MyLoop * MyContext::eventLoop () const { return &p.myloop; }
-MyPins * MyContext::pins () const { return &p.mypins; }
-MyAdc * MyContext::adc () const { return &p.myadc; }
 Program * MyContext::root () const { return &p; }
 void MyContext::check () const {}
 
-AMBRO_AT91SAM3X_CLOCK_TC0_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC1_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC2_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC3_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC4_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC5_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC6_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC7_GLOBAL(p.myclock, MyContext())
-AMBRO_AT91SAM3X_CLOCK_TC8_GLOBAL(p.myclock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC0_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC1_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC2_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC3_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC4_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC5_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC6_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC7_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC8_GLOBAL(MyClock, MyContext())
 
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC0A_GLOBAL(MyPrinter::GetEventChannelTimer, MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC1A_GLOBAL(MyPrinter::GetAxisTimer<0>, MyContext())
@@ -671,7 +665,7 @@ AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_TC7A_GLOBAL(MyPrinter::GetFanTimer<1>, MyC
 AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())
 #endif
 AMBRO_AT91SAM3X_SPI_GLOBAL(MyPrinter::GetSdCard<>::GetSpi, MyContext())
-AMBRO_AT91SAM3X_ADC_GLOBAL(p.myadc, MyContext())
+AMBRO_AT91SAM3X_ADC_GLOBAL(MyAdc, MyContext())
 
 static void emergency (void)
 {
@@ -732,10 +726,10 @@ int main ()
     MyContext c;
     
     p.d_group.init(c);
-    p.myclock.init(c);
+    MyClock::init(c);
     p.myloop.init(c);
-    p.mypins.init(c);
-    p.myadc.init(c);
+    MyPins::init(c);
+    MyAdc::init(c);
     p.myprinter.init(c);
     
     p.myloop.run(c);

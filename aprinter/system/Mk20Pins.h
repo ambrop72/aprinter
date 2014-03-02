@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
@@ -65,23 +65,21 @@ using Mk20PinInputModeNormal = Mk20PinInputMode<false, false>;
 using Mk20PinInputModePullUp = Mk20PinInputMode<true, false>;
 using Mk20PinInputModePullDown = Mk20PinInputMode<true, true>;
 
-template <typename Position, typename Context>
-class Mk20Pins
-: private DebugObject<Context, void>
-{
-    AMBRO_MAKE_SELF(Context, Mk20Pins, Position)
-    
+template <typename Context, typename ParentObject>
+class Mk20Pins {
 public:
+    struct Object;
+    
     static void init (Context c)
     {
-        Mk20Pins *o = self(c);
+        auto *o = Object::self(c);
         SIM_SCGC5 |= SIM_SCGC5_PORTA | SIM_SCGC5_PORTB | SIM_SCGC5_PORTC | SIM_SCGC5_PORTD | SIM_SCGC5_PORTE;
         o->debugInit(c);
     }
     
     static void deinit (Context c)
     {
-        Mk20Pins *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         SIM_SCGC5 &= ~(SIM_SCGC5_PORTA | SIM_SCGC5_PORTB | SIM_SCGC5_PORTC | SIM_SCGC5_PORTD | SIM_SCGC5_PORTE);
     }
@@ -89,7 +87,7 @@ public:
     template <typename Pin, typename Mode = Mk20PinInputModeNormal, typename ThisContext>
     static void setInput (ThisContext c)
     {
-        Mk20Pins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         uint32_t pcr = PORT_PCR_MUX(1);
@@ -109,7 +107,7 @@ public:
     template <typename Pin, typename ThisContext>
     static void setOutput (ThisContext c)
     {
-        Mk20Pins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         Pin::Port::pcr0()[Pin::PinIndex] = PORT_PCR_MUX(1) | PORT_PCR_SRE | PORT_PCR_DSE;
@@ -122,7 +120,7 @@ public:
     template <typename Pin, typename ThisContext>
     static bool get (ThisContext c)
     {
-        Mk20Pins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         return (*Pin::Port::pdir() & (UINT32_C(1) << Pin::PinIndex));
@@ -131,7 +129,7 @@ public:
     template <typename Pin, typename ThisContext>
     static void set (ThisContext c, bool x)
     {
-        Mk20Pins *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         if (x) {
@@ -149,7 +147,12 @@ public:
         } else {
             *Pin::Port::pcor() = (UINT32_C(1) << Pin::PinIndex);
         }
-     }
+    }
+    
+public:
+    struct Object : public ObjBase<Mk20Pins, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {};
 };
 
 #include <aprinter/EndNamespace.h>
