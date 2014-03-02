@@ -84,7 +84,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        c.eventLoop()->template initFastEvent<FastEvent>(c, AvrSpi::event_handler);
+        Context::EventLoop::template initFastEvent<FastEvent>(c, AvrSpi::event_handler);
         o->m_start = CommandSizeType::import(0);
         o->m_end = CommandSizeType::import(0);
         
@@ -109,7 +109,7 @@ public:
         SPCR = 0;
         SPSR = 0;
         
-        c.eventLoop()->template resetFastEvent<FastEvent>(c);
+        Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
     
     static void cmdReadBuffer (Context c, uint8_t *data, size_t length, uint8_t send_byte)
@@ -200,7 +200,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        c.eventLoop()->template resetFastEvent<FastEvent>(c);
+        Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
     
     static void spi_stc_isr (InterruptContext<Context> c)
@@ -246,7 +246,7 @@ public:
                 }
             } break;
         }
-        c.eventLoop()->template triggerFastEvent<FastEvent>(c);
+        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
         o->m_start = BoundedModuloInc(o->m_start);
         if (AMBRO_LIKELY(o->m_start != o->m_end)) {
             o->m_current = &o->m_buffer[o->m_start.value()];

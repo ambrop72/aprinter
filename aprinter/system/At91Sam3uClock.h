@@ -34,7 +34,6 @@
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/TuplePosition.h>
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/IsEqualFunc.h>

@@ -33,7 +33,6 @@ static void emergency (void);
 #define AMBROLIB_ABORT_ACTION { while (1); }
 
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/Position.h>
 #include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
@@ -590,19 +589,15 @@ using ClockTcsList = MakeTypeList<
 >;
 
 struct MyContext;
-struct MyLoopExtra;
+struct MyLoopExtraDelay;
 struct Program;
-struct LoopPosition;
-struct PrinterPosition;
-struct LoopExtraPosition;
 
-using ProgramPosition = RootPosition<Program>;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
 using MyClock = At91Sam3uClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>;
-using MyLoop = BusyEventLoop<LoopPosition, LoopExtraPosition, MyContext, MyLoopExtra>;
+using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
 using MyPins = At91Sam3uPins<MyContext, Program>;
 using MyAdc = At91Sam3uAdc<MyContext, Program, AdcPins, AdcParams>;
-using MyPrinter = PrinterMain<PrinterPosition, MyContext, PrinterParams>;
+using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
@@ -610,40 +605,31 @@ struct MyContext {
     using EventLoop = MyLoop;
     using Pins = MyPins;
     using Adc = MyAdc;
-    using TheRootPosition = ProgramPosition;
     
     MyDebugObjectGroup * debugGroup () const;
-    MyLoop * eventLoop () const;
-    Program * root () const;
     void check () const;
 };
 
-struct MyLoopExtra : public BusyEventLoopExtra<LoopExtraPosition, MyLoop, typename MyPrinter::EventLoopFastEvents> {};
+using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, typename MyPrinter::EventLoopFastEvents>;
+struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};
 
 struct Program : public ObjBase<void, void, MakeTypeList<
     MyClock,
+    MyLoop,
     MyPins,
-    MyAdc
+    MyAdc,
+    MyPrinter,
+    MyLoopExtra
 >> {
     MyDebugObjectGroup d_group;
-    MyLoop myloop;
-    MyPrinter myprinter;
-    MyLoopExtra myloopextra;
     
     static Program * self (MyContext c);
 };
 
-struct LoopPosition : public MemberPosition<ProgramPosition, MyLoop, &Program::myloop> {};
-struct PrinterPosition : public MemberPosition<ProgramPosition, MyPrinter, &Program::myprinter> {};
-struct LoopExtraPosition : public MemberPosition<ProgramPosition, MyLoopExtra, &Program::myloopextra> {};
-
 Program p;
 
 Program * Program::self (MyContext c) { return &p; }
-
 MyDebugObjectGroup * MyContext::debugGroup () const { return &p.d_group; }
-MyLoop * MyContext::eventLoop () const { return &p.myloop; }
-Program * MyContext::root () const { return &p; }
 void MyContext::check () const {}
 
 AMBRO_AT91SAM3U_CLOCK_TC0_GLOBAL(MyClock, MyContext())
@@ -706,10 +692,10 @@ int main ()
     
     p.d_group.init(c);
     MyClock::init(c);
-    p.myloop.init(c);
+    MyLoop::init(c);
     MyPins::init(c);
     MyAdc::init(c);
-    p.myprinter.init(c);
+    MyPrinter::init(c);
     
-    p.myloop.run(c);
+    MyLoop::run(c);
 }

@@ -62,7 +62,6 @@ public:
     
 private:
     struct SpiHandler;
-    struct SpiPosition;
     
     static int const NumDevChannels = 6;
     static int const SpiMaxCommands = 2;

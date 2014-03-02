@@ -61,7 +61,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        c.eventLoop()->template initFastEvent<RecvFastEvent>(c, TeensyUsbSerial::recv_event_handler);
+        Context::EventLoop::template initFastEvent<RecvFastEvent>(c, TeensyUsbSerial::recv_event_handler);
         o->m_recv_start = RecvSizeType::import(0);
         o->m_recv_end = RecvSizeType::import(0);
         o->m_recv_force = false;
@@ -69,7 +69,7 @@ public:
         o->m_send_start = SendSizeType::import(0);
         o->m_send_end = SendSizeType::import(0);
         
-        c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
+        Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
         
         o->debugInit(c);
     }
@@ -79,7 +79,7 @@ public:
         auto *o = Object::self(c);
         o->debugDeinit(c);
         
-        c.eventLoop()->template resetFastEvent<RecvFastEvent>(c);
+        Context::EventLoop::template resetFastEvent<RecvFastEvent>(c);
     }
     
     static RecvSizeType recvQuery (Context c, bool *out_overrun)
@@ -191,7 +191,7 @@ private:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
+        Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
         RecvSizeType virtual_start = BoundedModuloDec(o->m_recv_start);
         while (o->m_recv_end != virtual_start) {
             RecvSizeType amount = (o->m_recv_end > virtual_start) ? BoundedModuloNegative(o->m_recv_end) : BoundedUnsafeSubtract(virtual_start, o->m_recv_end);

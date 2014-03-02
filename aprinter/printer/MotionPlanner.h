@@ -475,7 +475,7 @@ public:
             AMBRO_ASSERT(o->m_busy)
             AMBRO_ASSERT(m->m_state == STATE_STEPPING)
             
-            c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
+            Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
             if (AMBRO_UNLIKELY(o->m_commit_start != o->m_commit_end)) {
                 *cmd = &o->m_commit_buffer[o->m_commit_start];
                 o->m_commit_start = commit_inc(o->m_commit_start);
@@ -496,7 +496,7 @@ public:
             auto *m = MotionPlanner::Object::self(c);
             bool res = AxisSpec::PrestepCallback::call(c);
             if (AMBRO_UNLIKELY(res)) {
-                c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
+                Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
                 m->m_aborted = true;
             }
             return res;
@@ -739,7 +739,7 @@ public:
             AMBRO_ASSERT(m->m_state == STATE_STEPPING)
             AMBRO_ASSERT(o->m_commit_start != o->m_commit_end || o->m_backup_start != o->m_backup_end)
             
-            c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
+            Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
             ChannelSpec::Callback::call(c, &o->m_cmd->payload);
             if (o->m_commit_start != o->m_commit_end) {
                 o->m_commit_start = commit_inc(o->m_commit_start);
@@ -802,7 +802,7 @@ public:
         auto *o = Object::self(c);
         
         o->m_pull_finished_event.init(c, MotionPlanner::pull_finished_event_handler);
-        c.eventLoop()->template initFastEvent<StepperFastEvent>(c, MotionPlanner::stepper_event_handler);
+        Context::EventLoop::template initFastEvent<StepperFastEvent>(c, MotionPlanner::stepper_event_handler);
         o->m_segments_start = 0;
         o->m_segments_staging_length = 0;
         o->m_segments_length = 0;
@@ -828,7 +828,7 @@ public:
         
         ListForEachForward<ChannelsList>(LForeach_deinit(), c);
         ListForEachForward<AxesList>(LForeach_deinit(), c);
-        c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
+        Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
         o->m_pull_finished_event.deinit(c);
     }
     
@@ -870,7 +870,7 @@ public:
             o->m_split_buffer.split_count = split_count;
         }
         
-        c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
+        Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
     }
     
     static void channelCommandDone (Context c, uint8_t channel_index_plus_one)
@@ -890,7 +890,7 @@ public:
         
         o->m_split_buffer.type = channel_index_plus_one;
         
-        c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
+        Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
     }
     
     static void emptyDone (Context c)
@@ -918,7 +918,7 @@ public:
         
         if (!o->m_waiting) {
             o->m_waiting = true;
-            c.eventLoop()->template triggerFastEvent<StepperFastEvent>(c);
+            Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
         }
     }
     
@@ -1098,7 +1098,7 @@ private:
             if (AMBRO_UNLIKELY(aborted)) {
                 ListForEachForward<AxesList>(LForeach_abort(), c);
                 ListForEachForward<ChannelsList>(LForeach_abort(), c);
-                c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
+                Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
                 o->m_state = STATE_ABORTED;
                 o->m_pull_finished_event.unset(c);
                 return AbortedHandler::call(c);
@@ -1113,7 +1113,7 @@ private:
                 o->m_staging_time = 0;
                 o->m_staging_v_squared = 0.0f;
                 o->m_current_backup = false;
-                c.eventLoop()->template resetFastEvent<StepperFastEvent>(c);
+                Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
                 ListForEachForward<AxesList>(LForeach_stopped_stepping(), c);
                 ListForEachForward<ChannelsList>(LForeach_stopped_stepping(), c);
                 UnderrunCallback::call(c);

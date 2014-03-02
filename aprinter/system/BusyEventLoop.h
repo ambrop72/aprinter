@@ -32,10 +32,11 @@
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IsEqualFunc.h>
-#include <aprinter/meta/Position.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/WrapType.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -51,11 +52,10 @@ class BusyEventLoopExtra;
 template <typename>
 class BusyEventLoopQueuedEvent;
 
-template <typename Position, typename ExtraPosition, typename TContext, typename Extra>
-class BusyEventLoop
-: private DebugObject<TContext, void>
-{
+template <typename TContext, typename ParentObject, typename ExtraDelay>
+class BusyEventLoop {
 public:
+    struct Object;
     using Context = TContext;
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
@@ -65,15 +65,15 @@ public:
 public:
     static void init (Context c)
     {
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
 #ifdef AMBROLIB_SUPPORT_QUIT
         o->m_quitting = false;
 #endif
         o->m_now = Clock::getTime(c);
         o->m_queued_event_list.init();
-        extra(c)->m_fast_event_pos = 0;
-        for (typename Extra::FastEventSizeType i = 0; i < Extra::NumFastEvents; i++) {
-            extra(c)->m_fast_events[i].not_triggered = true;
+        Delay::extra(c)->m_fast_event_pos = 0;
+        for (typename Delay::Extra::FastEventSizeType i = 0; i < Delay::Extra::NumFastEvents; i++) {
+            Delay::extra(c)->m_fast_events[i].not_triggered = true;
         }
 #ifdef EVENTLOOP_BENCHMARK
         o->m_bench_time = 0;
@@ -84,28 +84,28 @@ public:
     
     static void deinit (Context c)
     {
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
         o->debugDeinit(c);
         AMBRO_ASSERT(o->m_queued_event_list.isEmpty())
     }
     
     static void run (Context c)
     {
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         while (1) {
-            for (typename Extra::FastEventSizeType i = 0; i < Extra::NumFastEvents; i++) {
-                extra(c)->m_fast_event_pos++;
-                if (AMBRO_UNLIKELY(extra(c)->m_fast_event_pos == Extra::NumFastEvents)) {
-                    extra(c)->m_fast_event_pos = 0;
+            for (typename Delay::Extra::FastEventSizeType i = 0; i < Delay::Extra::NumFastEvents; i++) {
+                Delay::extra(c)->m_fast_event_pos++;
+                if (AMBRO_UNLIKELY(Delay::extra(c)->m_fast_event_pos == Delay::Extra::NumFastEvents)) {
+                    Delay::extra(c)->m_fast_event_pos = 0;
                 }
                 cli();
-                if (!extra(c)->m_fast_events[extra(c)->m_fast_event_pos].not_triggered) {
-                    extra(c)->m_fast_events[extra(c)->m_fast_event_pos].not_triggered = true;
+                if (!Delay::extra(c)->m_fast_events[Delay::extra(c)->m_fast_event_pos].not_triggered) {
+                    Delay::extra(c)->m_fast_events[Delay::extra(c)->m_fast_event_pos].not_triggered = true;
                     sei();
                     bench_start_measuring(c);
-                    extra(c)->m_fast_events[extra(c)->m_fast_event_pos].handler(c);
+                    Delay::extra(c)->m_fast_events[Delay::extra(c)->m_fast_event_pos].handler(c);
                     c.check();
                     bench_stop_measuring(c);
                     break;
@@ -139,13 +139,13 @@ public:
 #ifdef EVENTLOOP_BENCHMARK
     static void resetBenchTime (Context c)
     {
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
         o->m_bench_time = 0;
     }
     
     static TimeType getBenchTime (Context c)
     {
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
         return o->m_bench_time;
     }
 #endif
@@ -153,7 +153,7 @@ public:
 #ifdef AMBROLIB_SUPPORT_QUIT
     static void quit (Context c)
     {
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
         o->m_quitting = true;
     }
 #endif
@@ -164,29 +164,29 @@ public:
     template <typename EventSpec>
     static void initFastEvent (Context c, FastHandlerType handler)
     {
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
-        extra(c)->m_fast_events[Extra::template get_event_index<EventSpec>()].handler = handler;
+        Delay::extra(c)->m_fast_events[Delay::Extra::template get_event_index<EventSpec>()].handler = handler;
     }
     
     template <typename EventSpec>
     static void resetFastEvent (Context c)
     {
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
-        extra(c)->m_fast_events[Extra::template get_event_index<EventSpec>()].not_triggered = true;
+        Delay::extra(c)->m_fast_events[Delay::Extra::template get_event_index<EventSpec>()].not_triggered = true;
     }
     
     template <typename EventSpec, typename ThisContext>
     static void triggerFastEvent (ThisContext c)
     {
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            extra(c)->m_fast_events[Extra::template get_event_index<EventSpec>()].not_triggered = false;
+            Delay::extra(c)->m_fast_events[Delay::Extra::template get_event_index<EventSpec>()].not_triggered = false;
         }
     }
     
@@ -194,18 +194,17 @@ private:
     template <typename>
     friend class BusyEventLoopQueuedEvent;
     
-    AMBRO_MAKE_SELF(Context, BusyEventLoop, Position)
     typedef DoubleEndedList<QueuedEvent, &QueuedEvent::m_list_node> QueuedEventList;
     
-    static Extra * extra (Context c)
-    {
-        return PositionTraverse<typename Context::TheRootPosition, ExtraPosition>(c.root());
-    }
+    struct Delay {
+        using Extra = typename ExtraDelay::Type;
+        static typename Extra::Object * extra (Context c) { return Extra::Object::self(c); }
+    };
     
     static void bench_start_measuring (Context c)
     {
 #ifdef EVENTLOOP_BENCHMARK
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
         o->m_bench_enter_time = Clock::getTime(c);
 #endif
     }
@@ -213,23 +212,28 @@ private:
     static void bench_stop_measuring (Context c)
     {
 #ifdef EVENTLOOP_BENCHMARK
-        BusyEventLoop *o = self(c);
+        auto *o = Object::self(c);
         o->m_bench_time += (TimeType)(Clock::getTime(c) - o->m_bench_enter_time);
 #endif
     }
     
+public:
+    struct Object : public ObjBase<BusyEventLoop, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {
 #ifdef AMBROLIB_SUPPORT_QUIT
-    bool m_quitting;
+        bool m_quitting;
 #endif
-    TimeType m_now;
-    QueuedEventList m_queued_event_list;
+        TimeType m_now;
+        QueuedEventList m_queued_event_list;
 #ifdef EVENTLOOP_BENCHMARK
-    TimeType m_bench_time;
-    TimeType m_bench_enter_time;
+        TimeType m_bench_time;
+        TimeType m_bench_enter_time;
 #endif
+    };
 };
 
-template <typename Position, typename Loop, typename FastEventList>
+template <typename ParentObject, typename Loop, typename FastEventList>
 class BusyEventLoopExtra {
     friend Loop;
     
@@ -247,8 +251,11 @@ class BusyEventLoopExtra {
         return TypeListIndex<FastEventList, IsEqualFunc<EventSpec>>::value;
     }
     
-    FastEventSizeType m_fast_event_pos;
-    FastEventState m_fast_events[NumFastEvents];
+public:
+    struct Object : public ObjBase<BusyEventLoopExtra, ParentObject, EmptyTypeList> {
+        FastEventSizeType m_fast_event_pos;
+        FastEventState m_fast_events[NumFastEvents];
+    };
 };
 
 template <typename Loop>
@@ -271,62 +278,62 @@ public:
     void deinit (Context c)
     {
         this->debugDeinit(c);
-        Loop *l = c.eventLoop();
+        auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
-            l->m_queued_event_list.remove(this);
+            lo->m_queued_event_list.remove(this);
         }
     }
     
     void appendAt (Context c, TimeType time)
     {
         this->debugAccess(c);
-        Loop *l = c.eventLoop();
+        auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
-            l->m_queued_event_list.remove(this);
+            lo->m_queued_event_list.remove(this);
         }
-        l->m_queued_event_list.append(this);
+        lo->m_queued_event_list.append(this);
         m_time = time;
     }
     
     void appendAfterPrevious (Context c, TimeType after_time)
     {
         this->debugAccess(c);
-        Loop *l = c.eventLoop();
+        auto *lo = Loop::Object::self(c);
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
         
-        l->m_queued_event_list.append(this);
+        lo->m_queued_event_list.append(this);
         m_time += after_time;
     }
     
     void appendNowNotAlready (Context c)
     {
         this->debugAccess(c);
-        Loop *l = c.eventLoop();
+        auto *lo = Loop::Object::self(c);
         
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
-        l->m_queued_event_list.append(this);
-        m_time = l->m_now;
+        lo->m_queued_event_list.append(this);
+        m_time = lo->m_now;
     }
     
     void prependNowNotAlready (Context c)
     {
         this->debugAccess(c);
-        Loop *l = c.eventLoop();
+        auto *lo = Loop::Object::self(c);
         
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
-        l->m_queued_event_list.prepend(this);
-        m_time = l->m_now;
+        lo->m_queued_event_list.prepend(this);
+        m_time = lo->m_now;
     }
     
     void unset (Context c)
     {
         this->debugAccess(c);
-        Loop *l = c.eventLoop();
+        auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
-            l->m_queued_event_list.remove(this);
+            lo->m_queued_event_list.remove(this);
             Loop::QueuedEventList::markRemoved(this);
         }
     }

@@ -56,12 +56,12 @@ public:
     {
         auto *o = Object::self(c);
         
-        c.eventLoop()->template initFastEvent<RecvFastEvent>(c, At91Sam3xSerial::recv_event_handler);
+        Context::EventLoop::template initFastEvent<RecvFastEvent>(c, At91Sam3xSerial::recv_event_handler);
         o->m_recv_start = RecvSizeType::import(0);
         o->m_recv_end = RecvSizeType::import(0);
         o->m_recv_overrun = false;
         
-        c.eventLoop()->template initFastEvent<SendFastEvent>(c, At91Sam3xSerial::send_event_handler);
+        Context::EventLoop::template initFastEvent<SendFastEvent>(c, At91Sam3xSerial::send_event_handler);
         o->m_send_start = SendSizeType::import(0);
         o->m_send_end = SendSizeType::import(0);;
         o->m_send_event = BoundedModuloInc(o->m_send_end);
@@ -94,8 +94,8 @@ public:
         NVIC_ClearPendingIRQ(UART_IRQn);
         pmc_disable_periph_clk(ID_UART);
         
-        c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
-        c.eventLoop()->template resetFastEvent<RecvFastEvent>(c);
+        Context::EventLoop::template resetFastEvent<SendFastEvent>(c);
+        Context::EventLoop::template resetFastEvent<RecvFastEvent>(c);
     }
     
     static RecvSizeType recvQuery (Context c, bool *out_overrun)
@@ -154,7 +154,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
+        Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
     }
     
     static SendSizeType sendQuery (Context c)
@@ -218,10 +218,10 @@ public:
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             if (send_avail(o->m_send_start, o->m_send_end) >= min_amount) {
                 o->m_send_event = BoundedModuloInc(o->m_send_end);
-                c.eventLoop()->template triggerFastEvent<SendFastEvent>(lock_c);
+                Context::EventLoop::template triggerFastEvent<SendFastEvent>(lock_c);
             } else {
                 o->m_send_event = BoundedModuloAdd(BoundedModuloInc(o->m_send_end), min_amount);
-                c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
+                Context::EventLoop::template resetFastEvent<SendFastEvent>(c);
             }
         }
     }
@@ -233,7 +233,7 @@ public:
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             o->m_send_event = BoundedModuloInc(o->m_send_end);
-            c.eventLoop()->template resetFastEvent<SendFastEvent>(c);
+            Context::EventLoop::template resetFastEvent<SendFastEvent>(c);
         }
     }
     
@@ -265,7 +265,7 @@ public:
                 UART->UART_IDR = UART_IDR_RXRDY;
             }
             
-            c.eventLoop()->template triggerFastEvent<RecvFastEvent>(c);
+            Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
         }
         
         if (o->m_send_start != o->m_send_end && (status & UART_SR_TXRDY)) {
@@ -278,7 +278,7 @@ public:
             
             if (o->m_send_start == o->m_send_event) {
                 o->m_send_event = BoundedModuloInc(o->m_send_end);
-                c.eventLoop()->template triggerFastEvent<SendFastEvent>(c);
+                Context::EventLoop::template triggerFastEvent<SendFastEvent>(c);
             }
         }
     }

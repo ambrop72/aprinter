@@ -44,7 +44,6 @@
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/IndexElemList.h>
-#include <aprinter/meta/Position.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/FixedPoint.h>
@@ -359,15 +358,12 @@ struct PrinterMainCurrentAxis {
     using Params = TParams;
 };
 
-template <typename Position, typename Context, typename Params>
-class PrinterMain
-: private DebugObject<Context, void>
-{
+template <typename Context, typename ParentObject, typename Params>
+class PrinterMain {
 public:
     struct Object;
     
 public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083662/c-strange-is-private-error
-    AMBRO_MAKE_SELF(Context, PrinterMain, Position)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_limit_virt_axis_speed, limit_virt_axis_speed)
@@ -456,7 +452,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     struct MoveBuildState;
     
-    template <typename ParentObject, typename Channel>
+    template <typename ChannelParentObject, typename Channel>
     struct ChannelCommon {
         struct Object;
         using TheGcodeParser = typename Channel::TheGcodeParser;
@@ -747,7 +743,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return true;
         }
         
-        struct Object : public ObjBase<ChannelCommon, ParentObject, EmptyTypeList> {
+        struct Object : public ObjBase<ChannelCommon, ChannelParentObject, EmptyTypeList> {
             uint8_t m_state;
             bool m_cmd;
         };
@@ -2637,7 +2633,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
 public:
     static void init (Context c)
     {
-        PrinterMain *o = self(c);
         auto *ob = Object::self(c);
         
         ob->unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
@@ -2663,14 +2658,13 @@ public:
         SerialFeature::TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
         SerialFeature::TheChannelCommon::reply_poke(c);
         
-        o->debugInit(c);
+        ob->debugInit(c);
     }
     
     static void deinit (Context c)
     {
-        PrinterMain *o = self(c);
         auto *ob = Object::self(c);
-        o->debugDeinit(c);
+        ob->debugDeinit(c);
         
         if (ob->planner_state != PLANNER_NONE) {
             ThePlanner::deinit(c);
@@ -2744,8 +2738,8 @@ public: // private, see comment on top
     
     static void blinker_handler (Context c)
     {
-        PrinterMain *o = self(c);
-        o->debugAccess(c);
+        auto *ob = Object::self(c);
+        ob->debugAccess(c);
         
         TheWatchdog::reset(c);
     }
@@ -2832,7 +2826,7 @@ public: // private, see comment on top
                     if (!TheChannelCommon::tryUnplannedCommand(c)) {
                         return;
                     }
-                    c.eventLoop()->resetBenchTime(c);
+                    Context::EventLoop::resetBenchTime(c);
                     return TheChannelCommon::finishCommand(c);
                 } break;
                 
@@ -2840,7 +2834,7 @@ public: // private, see comment on top
                     if (!TheChannelCommon::tryUnplannedCommand(c)) {
                         return;
                     }
-                    TheChannelCommon::reply_append_uint32(c, c.eventLoop()->getBenchTime(c));
+                    TheChannelCommon::reply_append_uint32(c, Context::EventLoop::getBenchTime(c));
                     TheChannelCommon::reply_append_ch(c, '\n');
                     return TheChannelCommon::finishCommand(c);
                 } break;
@@ -2954,7 +2948,6 @@ public: // private, see comment on top
     
     static void finish_locked (Context c)
     {
-        PrinterMain *o = self(c);
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
         
@@ -3014,9 +3007,8 @@ public: // private, see comment on top
     
     static void unlocked_timer_handler (typename Loop::QueuedEvent *, Context c)
     {
-        PrinterMain *o = self(c);
         auto *ob = Object::self(c);
-        o->debugAccess(c);
+        ob->debugAccess(c);
         
         if (!ob->locked) {
             ChannelCommonTuple dummy;
@@ -3026,17 +3018,16 @@ public: // private, see comment on top
     
     static void disable_timer_handler (typename Loop::QueuedEvent *, Context c)
     {
-        PrinterMain *o = self(c);
-        o->debugAccess(c);
+        auto *ob = Object::self(c);
+        ob->debugAccess(c);
         
         ListForEachForward<AxesList>(LForeach_disable_stepper(), c);
     }
     
     static void force_timer_handler (typename Loop::QueuedEvent *, Context c)
     {
-        PrinterMain *o = self(c);
         auto *ob = Object::self(c);
-        o->debugAccess(c);
+        ob->debugAccess(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         
@@ -3059,9 +3050,8 @@ public: // private, see comment on top
     
     static void planner_pull_handler (Context c)
     {
-        PrinterMain *o = self(c);
         auto *ob = Object::self(c);
-        o->debugAccess(c);
+        ob->debugAccess(c);
         AMBRO_ASSERT(ob->planner_state != PLANNER_NONE)
         AMBRO_ASSERT(!ob->m_planning_pull_pending)
         
@@ -3099,9 +3089,8 @@ public: // private, see comment on top
     
     static void planner_finished_handler (Context c)
     {
-        PrinterMain *o = self(c);
         auto *ob = Object::self(c);
-        o->debugAccess(c);
+        ob->debugAccess(c);
         AMBRO_ASSERT(ob->planner_state != PLANNER_NONE)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         AMBRO_ASSERT(ob->planner_state != PLANNER_WAITING)
@@ -3124,9 +3113,8 @@ public: // private, see comment on top
     
     static void planner_aborted_handler (Context c)
     {
-        PrinterMain *o = self(c);
         auto *ob = Object::self(c);
-        o->debugAccess(c);
+        ob->debugAccess(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
         
         ListForEachForward<AxesList>(LForeach_fix_aborted_pos(), c);
@@ -3142,8 +3130,8 @@ public: // private, see comment on top
     
     static void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)
     {
-        PrinterMain *o = self(c);
-        o->debugAccess(c);
+        auto *ob = Object::self(c);
+        ob->debugAccess(c);
         
         ListForOneBoolOffset<HeatersList, 0>(payload->type, LForeach_channel_callback(), c, &payload->heaters) ||
         ListForOneBoolOffset<FansList, TypeListLength<ParamsHeatersList>::value>(payload->type, LForeach_channel_callback(), c, &payload->fans);
@@ -3252,8 +3240,6 @@ public: // private, see comment on top
         ThePlanner::waitFinished(c);
     }
     
-    Object m_object;
-    
     struct PlannerUnion {
         struct Object : public ObjUnionBase<PlannerUnion, typename PrinterMain::Object, MakeTypeList<
             PlannerUnionPlanner,
@@ -3286,7 +3272,7 @@ public: // private, see comment on top
     };
     
 public:
-    struct Object : public ObjBase<PrinterMain, void, JoinTypeLists<
+    struct Object : public ObjBase<PrinterMain, ParentObject, JoinTypeLists<
         AxesList,
         HeatersList,
         FansList,
@@ -3301,13 +3287,9 @@ public:
             CurrentFeature,
             PlannerUnion
         >
-    >> {
-        static Object * self (Context c)
-        {
-            PrinterMain *o = PrinterMain::self(c);
-            return &o->m_object;
-        }
-        
+    >>,
+        public DebugObject<Context, void>
+    {
         typename Loop::QueuedEvent unlocked_timer;
         typename Loop::QueuedEvent disable_timer;
         typename Loop::QueuedEvent force_timer;
