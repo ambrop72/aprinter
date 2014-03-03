@@ -451,7 +451,7 @@ struct MyContext;
 struct MyLoopExtraDelay;
 struct Program;
 
-using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
+using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
 using MyClock = AvrClock<MyContext, Program, clock_timer_prescaler>;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
 using MyPins = AvrPins<MyContext, Program>;
@@ -465,7 +465,6 @@ struct MyContext {
     using Pins = MyPins;
     using Adc = MyAdc;
     
-    MyDebugObjectGroup * debugGroup () const;
     void check () const;
 };
 
@@ -473,6 +472,7 @@ using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, typename MyPrinter::Even
 struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};
 
 struct Program : public ObjBase<void, void, MakeTypeList<
+    MyDebugObjectGroup,
     MyClock,
     MyLoop,
     MyPins,
@@ -480,7 +480,6 @@ struct Program : public ObjBase<void, void, MakeTypeList<
     MyPrinter,
     MyLoopExtra
 >> {
-    MyDebugObjectGroup d_group;
     uint16_t end;
     
     static Program * self (MyContext c);
@@ -489,7 +488,6 @@ struct Program : public ObjBase<void, void, MakeTypeList<
 Program p;
 
 Program * Program::self (MyContext c) { return &p; }
-MyDebugObjectGroup * MyContext::debugGroup () const { return &p.d_group; }
 void MyContext::check () const { AMBRO_ASSERT_FORCE(p.end == UINT16_C(0x1234)) }
 
 AMBRO_AVR_CLOCK_ISRS(MyClock, MyContext())
@@ -537,7 +535,7 @@ int main ()
     MyContext c;
     
     p.end = UINT16_C(0x1234);
-    p.d_group.init(c);
+    MyDebugObjectGroup::init(c);
     MyClock::init(c);
     MyClock::initTC3(c);
     MyClock::initTC4(c);

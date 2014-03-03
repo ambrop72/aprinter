@@ -27,104 +27,88 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context>
+template <typename Context, typename ParentObject>
 class DebugObjectGroup {
 public:
-    void init (Context c);
-    void deinit (Context c);
+    struct Object;
     
-private:
+    static void init (Context c)
+    {
+        auto *o = Object::self(c);
 #ifdef AMBROLIB_ASSERTIONS
-    uint32_t m_count;
+        o->m_count = 0;
 #endif
+    }
     
-    template <typename TContext, typename Ident>
-    friend class DebugObject;
+    static void deinit (Context c)
+    {
+        auto *o = Object::self(c);
+#ifdef AMBROLIB_ASSERTIONS
+        AMBRO_ASSERT(o->m_count == 0)
+#endif
+    }
+    
+public:
+    struct Object : public ObjBase<DebugObjectGroup, ParentObject, EmptyTypeList> {
+#ifdef AMBROLIB_ASSERTIONS
+        uint32_t m_count;
+#endif
+    };
 };
 
 template <typename Context, typename Ident>
 class DebugObject {
 public:
     template <typename ThisContext>
-    void debugInit (ThisContext c);
+    void debugInit (ThisContext c)
+    {
+        auto *go = Context::DebugGroup::Object::self(c);
+#ifdef AMBROLIB_ASSERTIONS
+        m_magic = getMagic();
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            go->m_count++;
+        }
+#endif
+    }
     
     template <typename ThisContext>
-    void debugDeinit (ThisContext c);
+    void debugDeinit (ThisContext c)
+    {
+        auto *go = Context::DebugGroup::Object::self(c);
+#ifdef AMBROLIB_ASSERTIONS
+        AMBRO_ASSERT(m_magic == getMagic())
+        m_magic = 0;
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            go->m_count--;
+        }
+#endif
+    }
     
     template <typename ThisContext>
-    void debugAccess (ThisContext c);
+    void debugAccess (ThisContext c)
+    {
+#ifdef AMBROLIB_ASSERTIONS
+        AMBRO_ASSERT(m_magic == getMagic())
+#endif
+    }
     
 private:
-    static uint32_t getMagic ();
+    static uint32_t getMagic ()
+    {
+        return UINT32_C(0x1c5c0678);
+    }
     
 #ifdef AMBROLIB_ASSERTIONS
     uint32_t m_magic;
 #endif
 };
-
-template <typename Context>
-void DebugObjectGroup<Context>::init (Context c)
-{
-#ifdef AMBROLIB_ASSERTIONS
-    m_count = 0;
-#endif
-}
-
-template <typename Context>
-void DebugObjectGroup<Context>::deinit (Context c)
-{
-#ifdef AMBROLIB_ASSERTIONS
-    AMBRO_ASSERT(m_count == 0)
-#endif
-}
-
-template <typename Context, typename Ident>
-template <typename ThisContext>
-void DebugObject<Context, Ident>::debugInit (ThisContext c)
-{
-#ifdef AMBROLIB_ASSERTIONS
-    DebugObjectGroup<Context> *g = c.debugGroup();
-    m_magic = getMagic();
-    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-        g->m_count++;
-    }
-#endif
-}
-
-template <typename Context, typename Ident>
-template <typename ThisContext>
-void DebugObject<Context, Ident>::debugDeinit (ThisContext c)
-{
-#ifdef AMBROLIB_ASSERTIONS
-    DebugObjectGroup<Context> *g = c.debugGroup();
-    AMBRO_ASSERT(m_magic == getMagic())
-    m_magic = 0;
-    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-        g->m_count--;
-    }
-#endif
-}
-
-template <typename Context, typename Ident>
-template <typename ThisContext>
-void DebugObject<Context, Ident>::debugAccess (ThisContext c)
-{
-#ifdef AMBROLIB_ASSERTIONS
-    AMBRO_ASSERT(m_magic == getMagic())
-#endif
-}
-
-template <typename Context, typename Ident>
-uint32_t DebugObject<Context, Ident>::getMagic ()
-{
-    return UINT32_C(0x1c5c0678);
-}
 
 #include <aprinter/EndNamespace.h>
 

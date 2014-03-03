@@ -437,7 +437,7 @@ struct MyContext;
 struct MyLoopExtraDelay;
 struct Program;
 
-using MyDebugObjectGroup = DebugObjectGroup<MyContext>;
+using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
 using MyClock = Mk20Clock<MyContext, Program, clock_timer_prescaler, ClockFtmsList>;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
 using MyPins = Mk20Pins<MyContext, Program>;
@@ -451,7 +451,6 @@ struct MyContext {
     using Pins = MyPins;
     using Adc = MyAdc;
     
-    MyDebugObjectGroup * debugGroup () const;
     void check () const;
 };
 
@@ -459,6 +458,7 @@ using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, typename MyPrinter::Even
 struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};
 
 struct Program : public ObjBase<void, void, MakeTypeList<
+    MyDebugObjectGroup,
     MyClock,
     MyLoop,
     MyPins,
@@ -466,15 +466,12 @@ struct Program : public ObjBase<void, void, MakeTypeList<
     MyPrinter,
     MyLoopExtra
 >> {
-    MyDebugObjectGroup d_group;
-    
     static Program * self (MyContext c);
 };
 
 Program p;
 
 Program * Program::self (MyContext c) { return &p; }
-MyDebugObjectGroup * MyContext::debugGroup () const { return &p.d_group; }
 void MyContext::check () const {}
 
 AMBRO_MK20_CLOCK_FTM0_GLOBAL(MyClock, MyContext())
@@ -504,7 +501,7 @@ int main ()
     
     MyContext c;
     
-    p.d_group.init(c);
+    MyDebugObjectGroup::init(c);
     MyClock::init(c);
     MyLoop::init(c);
     MyPins::init(c);
