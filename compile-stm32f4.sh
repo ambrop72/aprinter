@@ -6,6 +6,7 @@ set -x
 # User settings.
 MAIN=aprinter/printer/aprinter-stm32f4.cpp
 STM32F4_DIR=/home/ambro/STM32F4xx_DSP_StdPeriph_Lib_V1.3.0
+STM_USB_DIR=/home/ambro/STM32_USB-Host-Device_Lib_V2.1.0
 GCCARM_DIR=/home/ambro/gcc-arm-none-eabi-4_8-2013q4
 CROSS="${GCCARM_DIR}/bin/arm-none-eabi-"
 
@@ -38,6 +39,7 @@ FLAGS_C_CXX=(
     -I "${CMSIS_DIR}/Include"
     -I "${STM32F4_DIR}/Libraries/CMSIS/Include"
     -I "${STDPERIPH}/inc"
+    -I "${STM_USB_DIR}/Libraries/STM32_USB_OTG_Driver/inc"
     -ffunction-sections -fdata-sections
 )
 FLAGS_LD=(

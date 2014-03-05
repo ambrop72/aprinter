@@ -45,6 +45,7 @@ static void emergency (void);
 //#include <aprinter/system/At91Sam3xSpi.h>
 //#include <aprinter/system/AsfUsbSerial.h>
 //#include <aprinter/devices/SpiSdCard.h>
+#include <aprinter/usb/Stm32f4Usb.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
@@ -552,6 +553,7 @@ using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
 using MyPins = Stm32f4Pins<MyContext, Program>;
 //using MyAdc = At91Sam3uAdc<MyContext, Program, AdcPins, AdcParams>;
 //using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
+using MyUsb = Stm32f4Usb<MyContext, Program, Stm32F4UsbInfoFS>;
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
@@ -564,7 +566,7 @@ struct MyContext {
 };
 
 //using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, typename MyPrinter::EventLoopFastEvents>;
-using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, EmptyTypeList>;
+using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, typename MyUsb::EventLoopFastEvents>;
 struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};
 
 struct Program : public ObjBase<void, void, MakeTypeList<
@@ -574,6 +576,7 @@ struct Program : public ObjBase<void, void, MakeTypeList<
     MyPins,
 //    MyAdc,
 //    MyPrinter,
+    MyUsb,
     MyLoopExtra
 >> {
     static Program * self (MyContext c);
@@ -613,6 +616,9 @@ AMBRO_AT91SAM3X_SERIAL_GLOBAL(*p.myprinter.getSerial(), MyContext())
 AMBRO_AT91SAM3X_SPI_GLOBAL(*p.myprinter.getSdCard()->getSpi(), MyContext())
 AMBRO_AT91SAM3X_ADC_GLOBAL(p.myadc, MyContext())
 #endif
+
+AMBRO_STM32F4_USB_GLOBAL(MyUsb, MyContext())
+
 static void emergency (void)
 {
 //    MyPrinter::emergency();
@@ -676,7 +682,12 @@ uint32_t const HalfTicks = 0.25 * MyClock::time_freq;
 
 static void timer_handler (MyLoop::QueuedEvent *, MyContext c)
 {
-    next += HalfTicks;
+    if (MyUsb::connected(c)) {
+        next += 2 * HalfTicks;
+    } else {
+        next += HalfTicks;
+    }
+    
     timer.appendAt(c, next);
     state = !state;
     MyPins::template set<LedPin>(c, state);
@@ -694,6 +705,7 @@ int main ()
     MyPins::init(c);
     //MyAdc::init(c);
     //MyPrinter::init(c);
+    MyUsb::init(c);
     
     state = false;
     MyPins::template set<LedPin>(c, state);
