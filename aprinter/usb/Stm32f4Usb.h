@@ -66,6 +66,12 @@ private:
 public:
     struct Object;
     
+    enum State {
+        STATE_WAITING_RESET = 0,
+        STATE_WAITING_ENUM = 1,
+        STATE_ENUM_DONE = 2
+    };
+    
     static void init (Context c)
     {
         auto *o = Object::self(c);
@@ -74,71 +80,66 @@ public:
         
         RCC_AHB2PeriphClockCmd(RCC_AHB2Periph_OTG_FS, ENABLE);
         
+        //reset_otg(c);
+        
         USB_OTG_GINTSTS_TypeDef intsts;
         USB_OTG_GUSBCFG_TypeDef usbcfg;
         USB_OTG_GCCFG_TypeDef gccfg;
-        USB_OTG_GRSTCTL_TypeDef grstctl;
         USB_OTG_GAHBCFG_TypeDef ahbcfg;
         USB_OTG_GINTMSK_TypeDef intmsk;
         USB_OTG_DCFG_TypeDef dcfg;
         
-        intsts.d32 = 0;
-        intsts.b.modemismatch = 1;
-        core()->GINTSTS = intsts.d32;
+        // OTG init
         
-        usbcfg.d32 = core()->GUSBCFG;
+        //core()->GINTSTS = core()->GINTSTS;
+        
+        ahbcfg.d32 = 0;
+        ahbcfg.b.glblintrmsk = 1;
+        ahbcfg.b.ptxfemplvl = 1;
+        core()->GAHBCFG = ahbcfg.d32;
+        
+        usbcfg.d32 = 0;
         usbcfg.b.physel = 1;
-        core()->GUSBCFG = usbcfg.d32;
-        
-        gccfg.d32 = core()->GCCFG;
-        gccfg.b.vbussensingB = 1;
-        gccfg.b.pwdn = 1;
-        core()->GCCFG = gccfg.d32;
-        
-        do {
-            grstctl.d32 = core()->GRSTCTL;
-        } while (!grstctl.b.ahbidle);
-        
-        grstctl.b.csftrst = 1;
-        core()->GRSTCTL = grstctl.d32;
-        
-        do {
-            grstctl.d32 = core()->GRSTCTL;
-        } while (grstctl.b.csftrst);
-        
-        usbcfg.d32 = core()->GUSBCFG;
+        usbcfg.b.force_dev = 1;
         usbcfg.b.toutcal = Info::Toutcal;
         usbcfg.b.usbtrdtim = Info::Trdtim;
         usbcfg.b.srpcap = 1;
         usbcfg.b.hnpcap = 1;
         core()->GUSBCFG = usbcfg.d32;
         
+        intmsk.d32 = 0;
+        intmsk.b.otgintr = 1;
+        intmsk.b.modemismatch = 1;
+        core()->GINTMSK = intmsk.d32;
+        
+        //core()->GRXFSIZ = 128;
+        
+        // device init
+        
         dcfg.d32 = device()->DCFG;
         dcfg.b.devspd = 3;
         dcfg.b.nzstsouthshk = 1;
         device()->DCFG = dcfg.d32;
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            o->int_usbreset = false;
-            o->int_enumdone = false;
-        }
-        
-        ahbcfg.d32 = core()->GAHBCFG;
-        ahbcfg.b.glblintrmsk = 1;
-        core()->GAHBCFG = ahbcfg.d32;
+        //*pcgcctl() = 0;
         
         intmsk.d32 = core()->GINTMSK;
-        intmsk.b.otgintr = 1;
-        intmsk.b.modemismatch = 1;
         intmsk.b.usbreset = 1;
         intmsk.b.enumdone = 1;
         intmsk.b.erlysuspend = 1;
         intmsk.b.usbsuspend = 1;
         intmsk.b.sofintr = 1;
+        intmsk.b.inepintr = 1;
         core()->GINTMSK = intmsk.d32;
         
-        o->reset_finished = false;
-        o->enum_done = false;
+        //device()->DAINTMSK = 0xF;
+        
+        gccfg.d32 = 0;
+        gccfg.b.vbussensingB = 1;
+        gccfg.b.pwdn = 1;
+        core()->GCCFG = gccfg.d32;
+        
+        o->state = STATE_WAITING_RESET;
         
         NVIC_ClearPendingIRQ(Info::Irq);
         NVIC_SetPriority(Info::Irq, INTERRUPT_PRIORITY);
@@ -154,6 +155,12 @@ public:
         
         NVIC_DisableIRQ(Info::Irq);
         
+        device()->DCFG = 0;
+        core()->GCCFG = 0;
+        core()->GINTMSK = 0;
+        core()->GUSBCFG = 0;
+        core()->GAHBCFG = 0;
+        
         NVIC_ClearPendingIRQ(Info::Irq);
         
         RCC_AHB2PeriphClockCmd(RCC_AHB2Periph_OTG_FS, DISABLE);
@@ -161,11 +168,15 @@ public:
         Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
     
-    static bool connected (Context c)
+    static State getState (Context c)
     {
-        USB_OTG_GOTGCTL_TypeDef gotgctl;
-        gotgctl.d32 = core()->GOTGCTL;
-        return gotgctl.b.bsesvld;
+        auto *o = Object::self(c);
+        
+        State state;
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            state = o->state;
+        }
+        return state;
     }
     
     static void usb_irq (InterruptContext<Context> c)
@@ -174,14 +185,61 @@ public:
         
         USB_OTG_GINTSTS_TypeDef intsts;
         intsts.d32 = core()->GINTSTS;
-        core()->GINTSTS = intsts.d32;
+        
+        USB_OTG_GINTSTS_TypeDef intsts_clear;
+        intsts_clear.d32 = 0;
+        
+        if (intsts.b.otgintr) {
+            USB_OTG_GOTGINT_TypeDef otgint;
+            otgint.d32 = core()->GOTGINT;
+            core()->GOTGINT = otgint.d32;
+            if (otgint.b.sesenddet) {
+                o->state = STATE_WAITING_RESET;
+            }
+        }
+        
+        if (intsts.b.modemismatch) {
+            intsts_clear.b.modemismatch = 1;
+        }
         
         if (intsts.b.usbreset) {
-            o->int_usbreset = true;
+            intsts_clear.b.usbreset = 1;
+            if (o->state == STATE_WAITING_RESET) {
+                o->state = STATE_WAITING_ENUM;
+            }
         }
+        
         if (intsts.b.enumdone) {
-            o->int_enumdone = true;
+            intsts_clear.b.enumdone = 1;
+            if (o->state == STATE_WAITING_ENUM) {
+                o->state = STATE_ENUM_DONE;
+            }
         }
+        
+        if (intsts.b.erlysuspend) {
+            intsts_clear.b.erlysuspend = 1;
+        }
+        
+        if (intsts.b.usbsuspend) {
+            intsts_clear.b.usbsuspend = 1;
+        }
+        
+        if (intsts.b.sofintr) {
+            intsts_clear.b.sofintr = 1;
+        }
+        
+        /*
+        if (intsts.b.inepint) {
+            USB_OTG_DAINT_TypeDef daint;
+            daint.d32 = device()->DAINT;
+            
+            if (daint.in & (1 << 0)) {
+                
+            }
+        }
+        */
+        
+        core()->GINTSTS = intsts_clear.d32;
         
         Context::EventLoop::template triggerFastEvent<FastEvent>(c);
     }
@@ -199,11 +257,17 @@ private:
         return (USB_OTG_DREGS *)(Info::OtgAddress + USB_OTG_DEV_GLOBAL_REG_OFFSET);
     }
     
+    static uint32_t volatile * pcgcctl ()
+    {
+        return (uint32_t volatile *)(Info::OtgAddress + USB_OTG_PCGCCTL_OFFSET);
+    }
+    
     static void event_handler (Context c)
     {
         auto *o = Object::self(c);
         o->debugAccess(c);
         
+        /*
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             if (o->int_usbreset) {
                 o->reset_finished = true;
@@ -214,17 +278,30 @@ private:
             o->int_usbreset = false;
             o->int_enumdone = false;
         }
+        */
+    }
+    
+    static void reset_otg (Context c)
+    {
+        USB_OTG_GRSTCTL_TypeDef grstctl;
         
+        do {
+            grstctl.d32 = core()->GRSTCTL;
+        } while (!grstctl.b.ahbidle);
+        
+        grstctl.b.csftrst = 1;
+        core()->GRSTCTL = grstctl.d32;
+        
+        do {
+            grstctl.d32 = core()->GRSTCTL;
+        } while (grstctl.b.csftrst);
     }
     
 public:
     struct Object : public ObjBase<Stm32f4Usb, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
     {
-        bool int_usbreset;
-        bool int_enumdone;
-        bool reset_finished;
-        bool enum_done;
+        State state;
     };
 };
 

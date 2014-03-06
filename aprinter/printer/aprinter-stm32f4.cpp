@@ -623,74 +623,22 @@ static void emergency (void)
 {
 //    MyPrinter::emergency();
 }
-#if 0
-extern "C" {
-    __attribute__((used))
-    int _read (int file, char *ptr, int len)
-    {
-        return -1;
-    }
-    
-#ifndef USB_SERIAL
-    __attribute__((used))
-    int _write (int file, char *ptr, int len)
-    {
-        if (interrupts_enabled()) {
-            p.myprinter.getSerial()->sendWaitFinished(MyContext());
-        }
-        for (int i = 0; i < len; i++) {
-            while (!(UART->UART_SR & UART_SR_TXRDY));
-            UART->UART_THR = *(uint8_t *)&ptr[i];
-        }
-        return len;
-    }
-#endif
-    
-    __attribute__((used))
-    int _close (int file)
-    {
-        return -1;
-    }
-
-    __attribute__((used))
-    int _fstat (int file, struct stat * st)
-    {
-        return -1;
-    }
-
-    __attribute__((used))
-    int _isatty (int fd)
-    {
-        return 1;
-    }
-
-    __attribute__((used))
-    int _lseek (int file, int ptr, int dir)
-    {
-        return -1;
-    }
-}
-#endif
-
-using LedPin = DiscoveryPinLedGreen;
 
 MyLoop::QueuedEvent timer;
 uint32_t next;
-bool state;
 
-uint32_t const HalfTicks = 0.25 * MyClock::time_freq;
+uint32_t const Ticks = 0.002 * MyClock::time_freq;
 
 static void timer_handler (MyLoop::QueuedEvent *, MyContext c)
 {
-    if (MyUsb::connected(c)) {
-        next += 2 * HalfTicks;
-    } else {
-        next += HalfTicks;
-    }
+    typename MyUsb::State st = MyUsb::getState(c);
+    MyPins::template set<DiscoveryPinLedGreen>(c, st == MyUsb::STATE_WAITING_RESET);
+    MyPins::template set<DiscoveryPinLedOrange>(c, st == MyUsb::STATE_WAITING_ENUM);
+    MyPins::template set<DiscoveryPinLedRed>(c, st == MyUsb::STATE_ENUM_DONE);
+    //MyPins::template set<DiscoveryPinLedBlue>(c, st == 3);
     
+    next += Ticks;
     timer.appendAt(c, next);
-    state = !state;
-    MyPins::template set<LedPin>(c, state);
 }
 
 int main ()
@@ -707,11 +655,23 @@ int main ()
     //MyPrinter::init(c);
     MyUsb::init(c);
     
-    state = false;
-    MyPins::template set<LedPin>(c, state);
-    MyPins::template setOutput<LedPin>(c);
+    MyPins::template setAlternateFunction<Stm32f4Pin<Stm32f4PortA, 8>, 10>(c);
+    MyPins::template setAlternateFunction<Stm32f4Pin<Stm32f4PortA, 10>, 10>(c);
+    MyPins::template setAlternateFunction<Stm32f4Pin<Stm32f4PortA, 11>, 10>(c);
+    MyPins::template setAlternateFunction<Stm32f4Pin<Stm32f4PortA, 12>, 10>(c);
+    
+    MyPins::template set<DiscoveryPinLedGreen>(c, 0);
+    MyPins::template set<DiscoveryPinLedOrange>(c, 0);
+    MyPins::template set<DiscoveryPinLedRed>(c, 0);
+    MyPins::template set<DiscoveryPinLedBlue>(c, 0);
+    
+    MyPins::template setOutput<DiscoveryPinLedGreen>(c);
+    MyPins::template setOutput<DiscoveryPinLedOrange>(c);
+    MyPins::template setOutput<DiscoveryPinLedRed>(c);
+    MyPins::template setOutput<DiscoveryPinLedBlue>(c);
+    
     timer.init(c, timer_handler);
-    next = MyClock::getTime(c) + HalfTicks;
+    next = MyClock::getTime(c);
     timer.appendAt(c, next);
     
     MyLoop::run(c);

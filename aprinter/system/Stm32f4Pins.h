@@ -141,6 +141,19 @@ public:
         }
     }
     
+    template <typename Pin, int AfNumber, typename ThisContext>
+    static void setAlternateFunction (ThisContext c)
+    {
+        auto *o = Object::self(c);
+        o->debugAccess(c);
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            set_af<Pin, AfNumber>();
+            set_moder<Pin, 2>();
+            set_pupdr<Pin, 0>();
+        }
+    }
+    
     template <typename Pin, typename ThisContext>
     static bool get (ThisContext c)
     {
@@ -190,6 +203,21 @@ private:
     static void set_optyper ()
     {
         Pin::Port::gpio()->OTYPER = (Pin::Port::gpio()->OTYPER & ~(UINT32_C(1) << Pin::PinIndex)) | ((uint32_t)Value << Pin::PinIndex);
+    }
+    
+    template <typename Pin, uint8_t Value>
+    static void set_af ()
+    {
+        if (Pin::PinIndex >= 8) {
+            Pin::Port::gpio()->AFR[1] = set_bits(4 * (Pin::PinIndex - 8), 4, Pin::Port::gpio()->AFR[1], Value);
+        } else {
+            Pin::Port::gpio()->AFR[0] = set_bits(4 * Pin::PinIndex, 4, Pin::Port::gpio()->AFR[0], Value);
+        }
+    }
+    
+    static uint32_t set_bits (int offset, int bits, uint32_t x, uint32_t val)
+    {
+        return (x & (uint32_t)~(((uint32_t)-1 >> (32 - bits)) << offset)) | (uint32_t)(val << offset);
     }
     
 public:
