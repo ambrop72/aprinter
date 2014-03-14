@@ -1,6 +1,8 @@
 #ifndef AMBROLIB_ARDUINO_DUE_PINS_H
 #define AMBROLIB_ARDUINO_DUE_PINS_H
 
+#include <aprinter/system/At91Sam3xPins.h>
+
 #include <aprinter/BeginNamespace.h>
 
 using DuePin0 = At91Sam3xPin<At91Sam3xPioA, 8>;

@@ -1,6 +1,8 @@
 #ifndef AMBROLIB_ARDUINO_MEGA_PINS_H
 #define AMBROLIB_ARDUINO_MEGA_PINS_H
 
+#include <aprinter/system/AvrPins.h>
+
 #include <aprinter/BeginNamespace.h>
 
 using MegaPin0 = AvrPin<AvrPortE, 0>;
