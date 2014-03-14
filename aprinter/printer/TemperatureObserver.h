@@ -30,7 +30,6 @@
 #include <aprinter/meta/Object.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/base/OffsetCallback.h>
 
 #include <aprinter/BeginNamespace.h>
 
