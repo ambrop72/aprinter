@@ -28,7 +28,6 @@
 #include <stdint.h>
 
 #include <aprinter/meta/Object.h>
-#include <aprinter/meta/RemoveReference.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>

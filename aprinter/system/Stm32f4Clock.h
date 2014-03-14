@@ -37,7 +37,6 @@
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/RemoveReference.h>
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
