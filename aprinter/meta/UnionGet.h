@@ -29,7 +29,6 @@
 
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/Union.h>
-#include <aprinter/base/GetContainer.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -53,16 +52,6 @@ struct UnionGet<Union<ConsTypeList<Head, Tail>>, Index> {
     {
         return TargetUnionGet::getElem(tuple->getTail());
     }
-    
-    static ThisUnionType * getFromElem (ElemType *elem)
-    {
-        return ThisUnionType::getFromTail(TargetUnionGet::getFromElem(elem));
-    }
-    
-    static ThisUnionType const * getFromElem (ElemType const *elem)
-    {
-        return ThisUnionType::getFromTail(TargetUnionGet::getFromElem(elem));
-    }
 };
 
 template <typename Head, typename Tail>
@@ -80,28 +69,12 @@ struct UnionGet<Union<ConsTypeList<Head, Tail>>, 0> {
     {
         return &tuple->elem;
     }
-    
-    static ThisUnionType * getFromElem (ElemType *elem)
-    {
-        return GetContainer(elem, &ThisUnionType::elem);
-    }
-    
-    static ThisUnionType const * getFromElem (ElemType const *elem)
-    {
-        return GetContainer(elem, &ThisUnionType::elem);
-    }
 };
 
 template <int Index, typename UnionType>
 auto UnionGetElem (UnionType *tuple) -> decltype(UnionGet<UnionType, Index>::getElem(tuple))
 {
     return UnionGet<UnionType, Index>::getElem(tuple);
-}
-
-template <int Index, typename UnionType, typename ElemPtr>
-auto UnionGetUnion (ElemPtr elem_ptr) -> decltype(UnionGet<UnionType, Index>::getFromElem(elem_ptr))
-{
-    return UnionGet<UnionType, Index>::getFromElem(elem_ptr);
 }
 
 #include <aprinter/EndNamespace.h>

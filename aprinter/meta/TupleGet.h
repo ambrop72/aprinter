@@ -29,7 +29,6 @@
 
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/Tuple.h>
-#include <aprinter/base/GetContainer.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -53,16 +52,6 @@ struct TupleGet<Tuple<ConsTypeList<Head, Tail>>, Index> {
     {
         return TargetTupleGet::getElem(tuple->getTail());
     }
-    
-    static ThisTupleType * getFromElem (ElemType *elem)
-    {
-        return ThisTupleType::getFromTail(TargetTupleGet::getFromElem(elem));
-    }
-    
-    static ThisTupleType const * getFromElem (ElemType const *elem)
-    {
-        return ThisTupleType::getFromTail(TargetTupleGet::getFromElem(elem));
-    }
 };
 
 template <typename Head, typename Tail>
@@ -80,28 +69,12 @@ struct TupleGet<Tuple<ConsTypeList<Head, Tail>>, 0> {
     {
         return &tuple->elem;
     }
-    
-    static ThisTupleType * getFromElem (ElemType *elem)
-    {
-        return GetContainer(elem, &ThisTupleType::elem);
-    }
-    
-    static ThisTupleType const * getFromElem (ElemType const *elem)
-    {
-        return GetContainer(elem, &ThisTupleType::elem);
-    }
 };
 
 template <int Index, typename TupleType>
 auto TupleGetElem (TupleType *tuple) -> decltype(TupleGet<TupleType, Index>::getElem(tuple))
 {
     return TupleGet<TupleType, Index>::getElem(tuple);
-}
-
-template <int Index, typename TupleType, typename ElemPtr>
-auto TupleGetTuple (ElemPtr elem_ptr) -> decltype(TupleGet<TupleType, Index>::getFromElem(elem_ptr))
-{
-    return TupleGet<TupleType, Index>::getFromElem(elem_ptr);
 }
 
 #include <aprinter/EndNamespace.h>
