@@ -37,7 +37,6 @@
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/TupleGet.h>
-#include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/ChooseInt.h>
@@ -394,15 +393,15 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_channel_callback, channel_callback)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_config, print_config)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_run_for_state_command, run_for_state_command)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_get_coord, get_coord)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_add_axis, add_axis)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_check_current_axis, check_current_axis)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_append_position, append_position)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_collect_new_pos, collect_new_pos)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_relative_positioning, set_relative_positioning)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_set_position, set_position)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init_new_pos, init_new_pos)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_run_for_state_command, run_for_state_command)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_add_axis, add_axis)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_current_axis, check_current_axis)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_coord, get_coord)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_position, append_position)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_new_pos, collect_new_pos)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_position, set_position)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init_new_pos, init_new_pos)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
@@ -969,8 +968,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 o->m_cmd_offset = 0;
                 o->m_sd_block = 0;
             }
-            ChannelCommonTuple dummy;
-            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<SdCardFeature>(), LForeach_finish_init(), error_code);
+            ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<SdCardFeature>(), LForeach_finish_init(), error_code);
         }
         
         static void sd_card_command_handler (Context c)
@@ -1220,7 +1218,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         MakeTypeList<typename SerialFeature::TheChannelCommon>,
         typename SdCardFeature::SdChannelCommonList
     >;
-    using ChannelCommonTuple = Tuple<ChannelCommonList>;
     
     template <int TAxisIndex>
     struct Axis {
@@ -1672,8 +1669,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 AMBRO_ASSERT(mob->locked)
                 AMBRO_ASSERT(mob->planner_state == PLANNER_RUNNING)
                 o->splitclear_pending = false;
-                ChannelCommonTuple dummy;
-                TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<TransformFeature>(), LForeach_continue_splitclear_helper());
+                ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<TransformFeature>(), LForeach_continue_splitclear_helper());
             }
         }
         
@@ -1990,11 +1986,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
     };
     
-    using PhysVirtAxisHelperTuple = Tuple<IndexElemListCount<NumPhysVirtAxes, PhysVirtAxisHelper>>;
+    using PhysVirtAxisHelperList = IndexElemListCount<NumPhysVirtAxes, PhysVirtAxisHelper>;
     
     template <int AxisName>
     using FindPhysVirtAxis = TypeListIndex<
-        typename PhysVirtAxisHelperTuple::ElemTypes,
+        PhysVirtAxisHelperList,
         ComposeFunctions<
             IsEqualFunc<WrapInt<AxisName>>,
             GetMemberType_WrappedAxisName
@@ -2416,8 +2412,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             static void add_axis (Context c, MoveBuildState *s, uint8_t point_index)
             {
-                PointHelperTuple dummy;
-                FpType coord = TupleForOne<FpType>(point_index, &dummy, Foreach_get_coord());
+                FpType coord = ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_coord());
                 move_add_axis<AxisIndex>(c, s, coord + (FpType)AxisProbeOffset::value());
             }
             
@@ -2432,10 +2427,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 }
             };
             
-            using PointHelperTuple = IndexElemTuple<typename ProbeParams::ProbePoints, PointHelper>;
+            using PointHelperList = IndexElemList<typename ProbeParams::ProbePoints, PointHelper>;
         };
         
-        using AxisHelperTuple = IndexElemTuple<typename ProbeParams::PlatformAxesList, AxisHelper>;
+        using AxisHelperList = IndexElemList<typename ProbeParams::PlatformAxesList, AxisHelper>;
         
         static void custom_pull_handler (Context c)
         {
@@ -2453,8 +2448,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             FpType time_freq_by_speed;
             switch (o->m_point_state) {
                 case 0: {
-                    AxisHelperTuple dummy;
-                    TupleForEachForward(&dummy, Foreach_add_axis(), c, &s, o->m_current_point);
+                    ListForEachForward<AxisHelperList>(LForeach_add_axis(), c, &s, o->m_current_point);
                     height = (FpType)ProbeParams::ProbeStartHeight::value();
                     time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeMoveSpeed::value());
                 } break;
@@ -2492,8 +2486,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (o->m_point_state == 3) {
                     FpType height = get_height(c);
                     o->m_samples[o->m_current_point] = height;
-                    ChannelCommonTuple dummy;
-                    TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<ProbeFeature>(), LForeach_report_height(), height);
+                    ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<ProbeFeature>(), LForeach_report_height(), height);
                 }
                 o->m_point_state++;
                 bool watch_probe = (o->m_point_state == 1 || o->m_point_state == 3);
@@ -2567,10 +2560,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_STRUCT_IF(CurrentFeature, Params::CurrentParams::Enabled) {
         struct Object;
         using CurrentParams = typename Params::CurrentParams;
-        using CurrentAxesList = typename CurrentParams::CurrentAxesList;
+        using ParamsCurrentAxesList = typename CurrentParams::CurrentAxesList;
         template <typename ChannelAxisParams>
         using MakeCurrentChannel = typename ChannelAxisParams::Params;
-        using CurrentChannelsList = MapTypeList<CurrentAxesList, TemplateFunc<MakeCurrentChannel>>;
+        using CurrentChannelsList = MapTypeList<ParamsCurrentAxesList, TemplateFunc<MakeCurrentChannel>>;
         using Current = typename CurrentParams::template CurrentTemplate<Context, Object, typename CurrentParams::CurrentParams, CurrentChannelsList>;
         
         static void init (Context c)
@@ -2590,8 +2583,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 auto num_parts = TheChannelCommon::TheGcodeParser::getNumParts(c);
                 for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
                     typename TheChannelCommon::GcodeParserPartRef part = TheChannelCommon::TheGcodeParser::getPart(c, i);
-                    CurrentAxesTuple dummy;
-                    TupleForEachForwardInterruptible(&dummy, Foreach_check_current_axis(), c, cc, TheChannelCommon::TheGcodeParser::getPartCode(c, part), TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part));
+                    ListForEachForwardInterruptible<CurrentAxesList>(LForeach_check_current_axis(), c, cc, TheChannelCommon::TheGcodeParser::getPartCode(c, part), TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part));
                 }
                 TheChannelCommon::finishCommand(c);
                 return false;
@@ -2603,7 +2595,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         template <int CurrentAxisIndex>
         struct CurrentAxis {
-            using CurrentAxisParams = TypeListGet<CurrentAxesList, CurrentAxisIndex>;
+            using CurrentAxisParams = TypeListGet<ParamsCurrentAxesList, CurrentAxisIndex>;
             
             template <typename TheChannelCommon>
             static bool check_current_axis (Context c, WrapType<TheChannelCommon>, char axis_name, FpType current)
@@ -2616,7 +2608,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
         };
         
-        using CurrentAxesTuple = IndexElemTuple<CurrentAxesList, CurrentAxis>;
+        using CurrentAxesList = IndexElemList<ParamsCurrentAxesList, CurrentAxis>;
         
         struct Object : public ObjBase<CurrentFeature, typename PrinterMain::Object, MakeTypeList<
             Current
@@ -2803,8 +2795,7 @@ public: // private, see comment on top
                 } break;
                 
                 case 114: {
-                    PhysVirtAxisHelperTuple dummy;
-                    TupleForEachForward(&dummy, Foreach_append_position(), c, cc);
+                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_append_position(), c, cc);
                     TheChannelCommon::reply_append_ch(c, '\n');
                     return TheChannelCommon::finishCommand(c);
                 } break;
@@ -2868,8 +2859,7 @@ public: // private, see comment on top
                     auto num_parts = TheChannelCommon::TheGcodeParser::getNumParts(c);
                     for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
                         typename TheChannelCommon::GcodeParserPartRef part = TheChannelCommon::TheGcodeParser::getPart(c, i);
-                        PhysVirtAxisHelperTuple dummy;
-                        if (TupleForEachForwardInterruptible(&dummy, Foreach_collect_new_pos(), c, cc, &s, part)) {
+                        if (ListForEachForwardInterruptible<PhysVirtAxisHelperList>(LForeach_collect_new_pos(), c, cc, &s, part)) {
                             if (TheChannelCommon::TheGcodeParser::getPartCode(c, part) == 'F') {
                                 ob->time_freq_by_max_speed = (FpType)(Clock::time_freq / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part));
                             }
@@ -2903,14 +2893,12 @@ public: // private, see comment on top
                 } break;
                 
                 case 90: { // absolute positioning
-                    PhysVirtAxisHelperTuple dummy;
-                    TupleForEachForward(&dummy, Foreach_set_relative_positioning(), c, false);
+                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_set_relative_positioning(), c, false);
                     return TheChannelCommon::finishCommand(c);
                 } break;
                 
                 case 91: { // relative positioning
-                    PhysVirtAxisHelperTuple dummy;
-                    TupleForEachForward(&dummy, Foreach_set_relative_positioning(), c, true);
+                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_set_relative_positioning(), c, true);
                     return TheChannelCommon::finishCommand(c);
                 } break;
                 
@@ -2921,8 +2909,7 @@ public: // private, see comment on top
                     bool seen_virtual = false;
                     auto num_parts = TheChannelCommon::TheGcodeParser::getNumParts(c);
                     for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
-                        PhysVirtAxisHelperTuple dummy;
-                        TupleForEachForward(&dummy, Foreach_set_position(), c, cc, TheChannelCommon::TheGcodeParser::getPart(c, i), &seen_virtual);
+                        ListForEachForward<PhysVirtAxisHelperList>(LForeach_set_position(), c, cc, TheChannelCommon::TheGcodeParser::getPart(c, i), &seen_virtual);
                     }
                     TransformFeature::handle_set_position(c, seen_virtual);
                     return TheChannelCommon::finishCommand(c);
@@ -2951,8 +2938,7 @@ public: // private, see comment on top
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
         
-        ChannelCommonTuple dummy;
-        TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_finish_locked_helper());
+        ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_finish_locked_helper());
     }
     
     static void homing_finished (Context c)
@@ -3011,8 +2997,7 @@ public: // private, see comment on top
         ob->debugAccess(c);
         
         if (!ob->locked) {
-            ChannelCommonTuple dummy;
-            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKING, WrapType<PrinterMain>(), LForeach_continue_locking_helper());
+            ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKING, WrapType<PrinterMain>(), LForeach_continue_locking_helper());
         }
     }
     
@@ -3064,8 +3049,7 @@ public: // private, see comment on top
             ThePlanner::waitFinished(c);
         } else if (ob->planner_state == PLANNER_WAITING) {
             ob->planner_state = PLANNER_RUNNING;
-            ChannelCommonTuple dummy;
-            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_continue_planned_helper());
+            ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_continue_planned_helper());
         } else if (ob->planner_state == PLANNER_RUNNING) {
             set_force_timer(c);
         } else {
@@ -3106,8 +3090,7 @@ public: // private, see comment on top
         now_inactive(c);
         
         if (old_state == PLANNER_STOPPING) {
-            ChannelCommonTuple dummy;
-            TupleForEachForwardInterruptible(&dummy, Foreach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_continue_unplanned_helper());
+            ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_continue_unplanned_helper());
         }
     }
     
@@ -3149,8 +3132,7 @@ public: // private, see comment on top
     
     static void move_begin (Context c, MoveBuildState *s)
     {
-        PhysVirtAxisHelperTuple dummy;
-        TupleForEachForward(&dummy, Foreach_init_new_pos(), c);
+        ListForEachForward<PhysVirtAxisHelperList>(LForeach_init_new_pos(), c);
         s->seen_cartesian = false;
     }
     
