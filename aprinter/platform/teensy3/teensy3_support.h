@@ -25,8 +25,9 @@
 #ifndef AMBROLIB_TEENSY3_SUPPORT_H
 #define AMBROLIB_TEENSY3_SUPPORT_H
 
-#include <stdint.h>
 #include <mk20dx128.h>
+
+#include <aprinter/platform/arm_cortex_common.h>
 
 #define FTM_CSC_MSA ((uint32_t)1 << 4)
 #define FTM_CSC_CHIE ((uint32_t)1 << 6)
@@ -42,22 +43,5 @@
 #else
 #error F_CPU not recognized
 #endif
-
-inline static void sei (void)
-{
-    asm volatile ("cpsie i" : : : "memory");
-}
-
-inline static void cli (void)
-{
-    asm volatile ("cpsid i" : : : "memory");
-}
-
-inline static bool interrupts_enabled (void)
-{
-    uint32_t tmp;
-    asm volatile ("mrs %[tmp],primask\n" : [tmp] "=&r" (tmp));
-    return !tmp;
-}
 
 #endif

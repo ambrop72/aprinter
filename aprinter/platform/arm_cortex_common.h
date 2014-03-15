@@ -22,19 +22,26 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STM32F4_SUPPORT_H
-#define AMBROLIB_STM32F4_SUPPORT_H
+#ifndef APRINTER_ARM_CORTEX_COMMON_H
+#define APRINTER_ARM_CORTEX_COMMON_H
 
-#include <stm32f4xx.h>
-#include <stm32f4xx_rcc.h>
+#include <stdint.h>
 
-#include <aprinter/platform/arm_cortex_common.h>
+inline static void sei (void)
+{
+    asm volatile ("cpsie i" : : : "memory");
+}
 
-#define F_CPU 168000000
-#define F_TIMERS1 (F_CPU / 2)
+inline static void cli (void)
+{
+    asm volatile ("cpsid i" : : : "memory");
+}
 
-#define INTERRUPT_PRIORITY 4
-
-void platform_init (void);
+inline static bool interrupts_enabled (void)
+{
+    uint32_t tmp;
+    asm volatile ("mrs %[tmp],primask\n" : [tmp] "=&r" (tmp));
+    return !tmp;
+}
 
 #endif

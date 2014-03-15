@@ -25,8 +25,9 @@
 #ifndef AMBROLIB_AT91SAM3X_SUPPORT_H
 #define AMBROLIB_AT91SAM3X_SUPPORT_H
 
-#include <stdint.h>
 #include <sam3xa.h>
+
+#include <aprinter/platform/arm_cortex_common.h>
 
 #define F_SCLK CHIP_FREQ_SLCK_RC
 #define F_MCK CHIP_FREQ_CPU_MAX
@@ -37,23 +38,6 @@
 #define GET_PERIPHERAL_ADDR(x) ((uint32_t) GET_PERIPHERAL_ADDR_ x)
 #define GET_PERIPHERAL_ADDR_(x) GET_PERIPHERAL_ADDR__ x
 #define GET_PERIPHERAL_ADDR__(x)
-
-inline static void sei (void)
-{
-    asm volatile ("cpsie i" : : : "memory");
-}
-
-inline static void cli (void)
-{
-    asm volatile ("cpsid i" : : : "memory");
-}
-
-inline static bool interrupts_enabled (void)
-{
-    uint32_t tmp;
-    asm volatile ("mrs %[tmp],primask\n" : [tmp] "=&r" (tmp));
-    return !tmp;
-}
 
 void platform_init (void);
 
