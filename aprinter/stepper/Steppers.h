@@ -42,6 +42,7 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/TupleForEach.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>
