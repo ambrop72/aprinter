@@ -76,6 +76,7 @@ using XDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
 using XDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
 using XDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
+using XDefaultCurrent = AMBRO_WRAP_DOUBLE(128.0);
 
 using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
@@ -90,6 +91,7 @@ using YDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
 using YDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
 using YDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using YDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
+using YDefaultCurrent = AMBRO_WRAP_DOUBLE(128.0);
 
 using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(4000.0);
 using ZDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
@@ -104,6 +106,7 @@ using ZDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(1.2);
 using ZDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
+using ZDefaultCurrent = AMBRO_WRAP_DOUBLE(128.0);
 
 using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);
 using EDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
@@ -112,6 +115,7 @@ using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
+using EDefaultCurrent = AMBRO_WRAP_DOUBLE(128.0);
 
 using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(660.0);
 using UDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
@@ -120,6 +124,7 @@ using UDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using UDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using UDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using UDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
+using UDefaultCurrent = AMBRO_WRAP_DOUBLE(128.0);
 
 using ExtruderHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
 using ExtruderHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(100000.0);
@@ -248,11 +253,11 @@ using PrinterParams = PrinterMainParams<
     >,
     PrinterMainCurrentParams<
         MakeTypeList< // CurrentAxesList
-            PrinterMainCurrentAxis<'X', Ad5206CurrentChannelParams<3, CurrentConversionFactor>>,
-            PrinterMainCurrentAxis<'Y', Ad5206CurrentChannelParams<1, CurrentConversionFactor>>,
-            PrinterMainCurrentAxis<'Z', Ad5206CurrentChannelParams<0, CurrentConversionFactor>>,
-            PrinterMainCurrentAxis<'E', Ad5206CurrentChannelParams<2, CurrentConversionFactor>>,
-            PrinterMainCurrentAxis<'U', Ad5206CurrentChannelParams<5, CurrentConversionFactor>>
+            PrinterMainCurrentAxis<'X', XDefaultCurrent, Ad5206CurrentChannelParams<3, CurrentConversionFactor>>,
+            PrinterMainCurrentAxis<'Y', YDefaultCurrent, Ad5206CurrentChannelParams<1, CurrentConversionFactor>>,
+            PrinterMainCurrentAxis<'Z', ZDefaultCurrent, Ad5206CurrentChannelParams<0, CurrentConversionFactor>>,
+            PrinterMainCurrentAxis<'E', EDefaultCurrent, Ad5206CurrentChannelParams<2, CurrentConversionFactor>>,
+            PrinterMainCurrentAxis<'U', UDefaultCurrent, Ad5206CurrentChannelParams<5, CurrentConversionFactor>>
         >,
         Ad5206Current, // CurrentTemplate
         Ad5206CurrentParams< // CurrentParams

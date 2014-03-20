@@ -350,10 +350,12 @@ struct PrinterMainCurrentParams {
 
 template <
     char TAxisName,
+    typename TDefaultCurrent,
     typename TParams
 >
 struct PrinterMainCurrentAxis {
     static char const AxisName = TAxisName;
+    using DefaultCurrent = TDefaultCurrent;
     using Params = TParams;
 };
 
@@ -2569,6 +2571,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void init (Context c)
         {
             Current::init(c);
+            ListForEachForward<CurrentAxesList>(LForeach_init(), c);
         }
         
         static void deinit (Context c)
@@ -2596,6 +2599,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <int CurrentAxisIndex>
         struct CurrentAxis {
             using CurrentAxisParams = TypeListGet<ParamsCurrentAxesList, CurrentAxisIndex>;
+            
+            static void init (Context c)
+            {
+                Current::template setCurrent<CurrentAxisIndex>(c, CurrentAxisParams::DefaultCurrent::value());
+            }
             
             template <typename TheChannelCommon>
             static bool check_current_axis (Context c, WrapType<TheChannelCommon>, char axis_name, FpType current)
