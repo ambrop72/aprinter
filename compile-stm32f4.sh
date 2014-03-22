@@ -8,7 +8,7 @@ MAIN=aprinter/printer/aprinter-stm32f4.cpp
 STM32F4_DIR=/home/ambro/STM32F4xx_DSP_StdPeriph_Lib_V1.3.0
 STM_USB_DIR=/home/ambro/STM32_USB-Host-Device_Lib_V2.1.0
 GCCARM_DIR=/home/ambro/gcc-arm-none-eabi-4_8-2013q4
-CROSS="${GCCARM_DIR}/bin/arm-none-eabi-"
+CROSS="arm-none-eabi-"
 
 mkdir -p out
 
@@ -19,7 +19,7 @@ STDPERIPH=${STM32F4_DIR}/Libraries/STM32F4xx_StdPeriph_Driver
 LINKER_SCRIPT=${STM32F4_DIR}/Project/STM32F4xx_StdPeriph_Templates/RIDE/stm32f4xx_flash.ld
 
 FLAGS_C_CXX_LD=(
-    -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -O2
+    -mcpu=cortex-m4 -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard -O2
 )
 FLAGS_CXX_LD=(
     -fno-rtti -fno-exceptions

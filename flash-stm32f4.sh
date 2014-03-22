@@ -3,7 +3,7 @@
 set -e
 set -x
 
-STLINK=/home/ambro/stlink
+STLINK=/run/current-system/sw/bin
 
 #"${STLINK}/st-flash" erase
-"${STLINK}/st-flash" --reset write out/aprinter.bin 0x08000000
+"${STLINK}/st-flash" write out/aprinter.bin 0x08000000
