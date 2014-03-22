@@ -62,7 +62,7 @@ Ports have been completed for the following boards:
     For example, the configuration specifies a list of heaters, and it is trivial to add new heaters.
   * No reliance on inefficient libraries such as Arduino.
 
-## Building (AVR)
+## Building for AVR (RAMPS, Melzi)
 
   * Make sure you have avr-g++ 4.8.1 or newer.
     Since it's not that easy to build or get that, I provide a
@@ -79,16 +79,18 @@ Ports have been completed for the following boards:
     If you're using Melzi, you will have to set the Debug jumper and play with the reset button
     to get the upload going.
 
-## Building (Due)
+## Building for Due (RADDS, RAMPS-FD)
 
   * Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
     Version `4_8-2013q4-20131204-linux` has been tested.
   * Download the Atmel Software Framework.
     Version 3.14.0.86 has been tested, use this [download link](http://www.atmel.com/images/asf-standalone-archive-3.14.0.86.zip).
   * Edit `compile-rampsfd.sh` and adjust `CROSS` and `ASF_DIR` appropriately.
+    For RADDS, change `MAIN` to point to `aprinter-radds.cpp` instead of `aprinter-rampsfd.cpp`.
     Note: the latest ASF comes in a subdirectory `xdk-asf-3.14.0`, you need to include that in `ASF_DIR`.
   * Run `compile-rampsfd.sh` to build the firmware. This needs to be run from within the source directory.
   * Download Arduino 1.5 in order to get the `bossac` program. Note that the vanilla `bossac` will not work.
+    Alternatively, check out the `arduino` branch of https://github.com/shumatech/BOSSA and build bossac using `make bin/bossac`.
   * Edit `flash-rampsfd.sh` to set the location of the `bossac` program and the serial port corresponding
     to the programming port of the Due.
   * With the board connected using the programming port, run `flash-rampsfd.sh` to upload the firmware to your board.
@@ -96,6 +98,8 @@ Ports have been completed for the following boards:
     microcontroller on the Due to erase the AT91SAM3X8E and put it into bootloader mode.
   * If after successful flashing the firmware does not start (LED stays on instead of blinking),
     press the reset button.
+
+Note that on RADDS pin 13 (Due's internal LED) is used for one of the FETs, and there is no LED on the RADDS itself. The firmware defaults to pin 37 for the LED, where you can install a LED.
 
 ## Building (Teensy 3)
 
