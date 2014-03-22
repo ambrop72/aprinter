@@ -45,21 +45,20 @@ configure_sam3x() {
     ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86/
     ASF_DIR=${ASF_BASE_DIR}/xdk-asf-3.14.0
     
-    CMSIS_DIR=${ASF_DIR}/sam/utils/cmsis/sam3x
+    CMSIS_DIR=${ASF_DIR}/sam/utils/cmsis/${ARCH}
     TEMPLATES_DIR=${CMSIS_DIR}/source/templates
-    LINKER_SCRIPT=${ASF_DIR}/sam/utils/linker_scripts/sam3x/sam3x8/gcc/flash.ld
+    LINKER_SCRIPT=${ASF_DIR}/sam/utils/linker_scripts/${ARCH}/${ARCH}${SUBARCH}/gcc/flash.ld
 
     configure_arm
 
     FLAGS_CXX_LD+=(
         -Wno-deprecated-register
     )
-    FLAGS_C_CXX+=(    
-        -D__SAM3X8E__ -DHEAP_SIZE=16384
+    FLAGS_C_CXX+=(
+        -D__${ARCH^^}${SUBARCH^^}E__ -DHEAP_SIZE=16384
         -DBOARD=${BOARD}
         -I"${CMSIS_DIR}/include"
         -I"${TEMPLATES_DIR}"
-        -I"${ASF_DIR}/thirdparty/CMSIS/Include"
         -I"${ASF_DIR}/sam/utils"
         -I"${ASF_DIR}/sam/utils/preprocessor"
         -I"${ASF_DIR}/sam/utils/header_files"
@@ -73,34 +72,51 @@ configure_sam3x() {
         -I"${ASF_DIR}/common/services/usb/class/cdc"
         -I"${ASF_DIR}/common/services/usb/class/cdc/device"
         -I"${ASF_DIR}/common/boards"
+        -I"${ASF_DIR}/thirdparty/CMSIS/Include"
         -I"${ASF_DIR}"
-        -I aprinter/platform/at91sam3x
+        -I aprinter/platform/at91${ARCH}
     )
 
     C_SOURCES+=(
         "${TEMPLATES_DIR}/exceptions.c"
-        "${TEMPLATES_DIR}/system_sam3x.c"
-        "${TEMPLATES_DIR}/gcc/startup_sam3x.c"
+        "${TEMPLATES_DIR}/system_${ARCH}.c"
+        "${TEMPLATES_DIR}/gcc/startup_${ARCH}.c"
         "${ASF_DIR}/sam/drivers/pmc/pmc.c"
+        
     )
     CXX_SOURCES+=(
-        "aprinter/platform/at91sam3x/at91sam3x_support.cpp"
+        "aprinter/platform/at91${ARCH}/at91${ARCH}_support.cpp"
     )
 
-    if [[ $USE_USB_SERIAL = 1 ]]; then
+    if [ "$ARCH" = "sam3u" ]; then
+        FLAGS_C_CXX+=(
+            -I"${ASF_DIR}/sam/drivers/pio"
+            -I"${ASF_DIR}/common/services/ioport"
+        )
+    fi
+
+    if [ $USE_USB_SERIAL -gt 0 ]; then
         cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" ${BUILD}/udi_cdc-hacked.c
         patch -p0 ${BUILD}/udi_cdc-hacked.c < ${ROOT}/patches/asf-cdc-tx.patch
 
-        FLAGS_C_CXX=("${FLAGS_C_CXX[@]}" -DUSB_SERIAL)
+        if [ "$ARCH" = "sam3x" ]; then
+            FLAGS_C_CXX+=( -DUSB_SERIAL )
+            C_SOURCES+=(
+                "${ASF_DIR}/sam/drivers/uotghs/uotghs_device.c"
+            )
+        elif [ "$ARCH" = "sam3u" ]; then
+            C_SOURCES+=(
+                "${ASF_DIR}/sam/drivers/udphs/udphs_device.c"
+            )
+        fi
 
-        C_SOURCES+=("${C_SOURCES[@]}"
-            "${ASF_DIR}/sam/drivers/uotghs/uotghs_device.c"
+        C_SOURCES+=(
             "${ASF_DIR}/sam/drivers/pmc/sleep.c"
             "${ASF_DIR}/common/utils/interrupt/interrupt_sam_nvic.c"
             "${ASF_DIR}/common/services/usb/udc/udc.c"
             ${BUILD}/udi_cdc-hacked.c
             "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc_desc.c"
-            "${ASF_DIR}/common/services/clock/sam3x/sysclk.c"
+            "${ASF_DIR}/common/services/clock/${ARCH}/sysclk.c"
         )
     fi
 

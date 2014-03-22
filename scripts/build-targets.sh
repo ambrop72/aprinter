@@ -63,7 +63,26 @@ configure_rampsfd() {
     # user settable variables
     MCU=cortex-m3
     BOARD=43
+    ARCH=sam3x
+    SUBARCH=8
     USE_USB_SERIAL=0
+
+    # configure architecture
+    configure_sam3x
+}
+
+#####################################################################################
+
+TARGETS+=( "4pi" )
+configure_4pi() {
+    configure 4pi
+
+    # user settable variables
+    MCU=cortex-m3
+    BOARD=33
+    ARCH=sam3u
+    SUBARCH=4
+    USE_USB_SERIAL=1
 
     # configure architecture
     configure_sam3x
