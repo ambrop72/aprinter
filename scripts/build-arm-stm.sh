@@ -102,7 +102,7 @@ clean_stm() {
 flush_stm() {
     flush_arm
     echo "  Flushing STM32F4 toolchain"
-    (V; 
+    ($V; 
     rm -rf ${DEPS}/${STM32F4_DIR}
     rm -rf ${DEPS}/${STM_USB_DIR}
     rm -rf ${DEPS}/stlink)

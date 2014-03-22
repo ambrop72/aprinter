@@ -68,7 +68,7 @@ ARM_CC=$GCCARM_DIR/bin/arm-none-eabi-gcc
 ARM_OBJCOPY=$GCCARM_DIR/bin/arm-none-eabi-objcopy
 
 check_depends_arm() {
-    echo "    Checking depends"
+    echo "   Checking depends"
     [ -f ${ARM_CC} ] || fail "Missing ARM compiler" 
     [ -f ${ARM_OBJCOPY} ] || fail "Missing ARM objcopy"
 }
@@ -135,27 +135,32 @@ build_arm() {
     ASMFLAGS=("${FLAGS_C_CXX_LD[@]}")
     LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS})
 
+    echo "   Compiling C files"
     for file in "${C_SOURCES[@]}"; do
         OBJ=${BUILD}/$(basename "${file}" .c).o
         OBJS+=( "${OBJ}" )
         ( $V ; "${ARM_CC}" -x c -c "${CFLAGS[@]}" "${file}" -o "${OBJ}" )
     done
 
+    echo "   Compiling C++ files"
     for file in "${CXX_SOURCES[@]}"; do
         OBJ=${BUILD}/$(basename "${file}" .cpp).o
         OBJS+=( "${OBJ}" )
         ( $V ; "${ARM_CC}" -x c++ -c "${CXXFLAGS[@]}" "${file}" -o "${OBJ}" )
     done
 
+    echo "   Compiling Assembly files"
     for file in "${ASM_SOURCES[@]}"; do
         OBJ=${BUILD}/$(basename "${file}" .s).o
         OBJS+=( "${OBJ}" )
         ( $V ; "${ARM_CC}" -x assembler -c "${ASMFLAGS[@]}" "${file}" -o "${OBJ}" )
     done
     
+    echo "   Linking objects"
     ( $V ;
     "${ARM_CC}" "${LDFLAGS[@]}" "${OBJS[@]}" -o ${TARGET}.elf -lm
 
+    echo "   Building images"
     "${ARM_OBJCOPY}" --output-target=binary ${TARGET}.elf ${TARGET}.bin
     "${ARM_OBJCOPY}" --output-target=ihex ${TARGET}.elf ${TARGET}.hex
     )

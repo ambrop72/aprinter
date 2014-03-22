@@ -70,7 +70,7 @@ flush_avr() {
 }
 
 check_depends_avr() {
-    echo "    Checking depends"
+    echo "   Checking depends"
     [ -f ${AVR_GXX} ] || fail "Missing AVR compiler" 
     [ -f ${AVR_OBJCOPY} ] || fail "Missing AVR objcopy"
     [ -f ${AVR_SIZE} ] || fail "Missing AVR size calculator"
@@ -105,9 +105,12 @@ configure_avr() {
 
 build_avr() {
     echo "  Compiling for AVR"
+    check_depends_avr
+    echo "   Compiling and linking"
     ($V; $CXX $CXXFLAGS $SOURCE -o $TARGET.elf -Wl,-u,vfprintf -lprintf_flt || exit 2)
+    echo "   Building images"
     ($V; $OBJCPY -j .text -j .data -O ihex $TARGET.elf $TARGET.hex || exit 2)
-    echo -n "  Size of build: "
+    echo -n "   Size of build: "
     $AVR_SIZE --format=avr --mcu=${MCU} ${TARGET}.elf | grep bytes | sed 's/\(.*\):\s*\(.* bytes.* Full\)/\1: \2/g' | sed 'N;s/\n/\; /' | sed 's/\s\s*/ /g'
 }
 

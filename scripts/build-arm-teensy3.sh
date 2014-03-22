@@ -86,7 +86,7 @@ check_depends_teensy() {
 flush_teensy() {
     flush_arm
     echo "  Flushing Teensy3 toolchain"
-    (V;
+    ($V;
     rm -rf ${DEPS}/teensy3-cores
     rm -rf ${DEPS}/teensy_loader_cli
     )

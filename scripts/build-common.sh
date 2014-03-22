@@ -59,6 +59,7 @@ configure() {
 # Utility functions
 
 checksum() {
+    echo "   Checksum validation"
     declare -a checksums=("${!1}")
     printf "%s\n" "${checksums[@]}" | shasum -a 256 -c -
 }
@@ -87,17 +88,21 @@ extract() {
     declare -a files=("${!1}")
 
     for f in "${files[@]}"; do
-        case "${f#*.}" in
-            zip)
+        echo "   Extraction of $f"
+        case "${f}" in
+            *.zip)
+                echo "Z"
                 ($V; unzip -qq $f && rm $f)
                 ;;
-            tar.gz)
+            *.tar.gz)
+                echo "TG"
                 ($V; tar xzf $f && rm $f)
                 ;;
-            tar.bz2)
+            *.tar.bz2)
+                echo "TB"
                 ($V; tar xjf $f && rm $f)
                 ;;
-            7z)
+            *.7z)
                 ($V; 7z x $f && rm $f)
                 ;;
             *)

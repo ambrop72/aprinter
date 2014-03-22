@@ -32,7 +32,7 @@ SAM3X_URL=(
     "http://www.atmel.com/images/asf-standalone-archive-3.14.0.86.zip"
 )
 SAM3X_CHECKSUM=(
-    "0df37160320f722b545bcbb54901e0227ad902c9ad718ff2ce707f63c08e3dc8  asf-standalone-archive-3.14.0.86.zip"
+    "9739afa2c8192bd181f2d4e50fa312dc4c943b7a6a093213e755c0c7de9c3ed3  asf-standalone-archive-3.14.0.86.zip"
 )
 
 build_sam3x() {
@@ -42,7 +42,8 @@ build_sam3x() {
 }
 
 configure_sam3x() {
-    ASF_DIR=${DEPS}/asf-standalone-archive-3.14.0.86/xdk-asf-3.14.0
+    ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86/
+    ASF_DIR=${ASF_BASE_DIR}/xdk-asf-3.14.0
     
     CMSIS_DIR=${ASF_DIR}/sam/utils/cmsis/sam3x
     TEMPLATES_DIR=${CMSIS_DIR}/source/templates
@@ -125,7 +126,7 @@ upload_sam3x() {
 flush_sam3x() {
     flush_arm
     echo "  Flushing SAM3X toolchain"
-    rm -rf ${ASF_DIR}/..
+    rm -rf ${ASF_BASE_DIR}
     rm -rf ${DEPS}/bossa-code
 }
 
