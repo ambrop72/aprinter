@@ -39,11 +39,11 @@ fi
 GCCARM_CURRENT=4_8-2013q4
 GCCARM_RELEASE=20131204
 
-: ${ARM_GCC_PREFIX:="arm-none-eabi-"}
-: ${ARM_GCC_PATH:="${ROOT}/depends/gcc-arm-none-eabi-${GCCARM_CURRENT}/bin"}
+ARM_GCC_PATH="${ROOT}/depends/gcc-arm-none-eabi-${GCCARM_CURRENT}/bin"
+: ${ARM_GCC_PREFIX:="${ARM_GCC_PATH}/arm-none-eabi-"}
 
-ARM_CC=$ARM_GCC_PATH/${ARM_GCC_PREFIX}gcc
-ARM_OBJCOPY=$ARM_GCC_PATH/${ARM_GCC_PREFIX}objcopy
+ARM_CC=${ARM_GCC_PREFIX}gcc
+ARM_OBJCOPY=${ARM_GCC_PREFIX}objcopy
 
 GCCARM_URL=(
     "https://launchpad.net/gcc-arm-embedded/4.8/4.8-2013-q4-major/+download/gcc-arm-none-eabi-${GCCARM_CURRENT}-${GCCARM_RELEASE}-${SYSARCH}.tar.bz2" 
