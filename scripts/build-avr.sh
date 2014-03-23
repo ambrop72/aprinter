@@ -87,9 +87,6 @@ configure_avr() {
     AVR_SIZE=${AVR_GCC_PATH}/bin/avr-size
 
     AVRDUDE=${AVR_GCC_PATH}/bin/avrdude
-    AVRDUDE_PORT=/dev/ttyUSB0
-    AVRDUDE_BAUDRATE=57600
-    AVRDUDE_PROGRAMMER=stk500v1
 
     CXX=${AVR_GXX}
     OBJCPY=${AVR_OBJCPY}

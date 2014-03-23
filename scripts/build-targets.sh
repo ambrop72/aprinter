@@ -35,6 +35,9 @@ configure_melzi() {
     # user settable variables
     F_CPU=16000000 
     MCU=atmega1284p
+    AVRDUDE_PORT=/dev/ttyUSB0
+    AVRDUDE_BAUDRATE=57600
+    AVRDUDE_PROGRAMMER=stk500v1
 
     # configure architecture
     configure_avr
@@ -47,8 +50,11 @@ configure_ramps13() {
     configure ramps13
 
     # user settable variables
-    F_CPU=16000000 
+    F_CPU=16000000
     MCU=atmega2560
+    AVRDUDE_PORT=/dev/ttyACM0
+    AVRDUDE_BAUDRATE=115200
+    AVRDUDE_PROGRAMMER=stk500v2
 
     # configure architecture
     configure_avr
