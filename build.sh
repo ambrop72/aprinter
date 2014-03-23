@@ -47,16 +47,15 @@ DEPS=$ROOT/depends
 set -e
 
 #####################################################################################
-# source any user configuration
-
-[ -f config.sh ] && source config.sh
-
-#####################################################################################
-# load build functions
+# source config and build functions
 
 TARGETS=()
 
-for f in scripts/*; do
+for f in config/*.sh; do
+    source $f
+done
+
+for f in scripts/*.sh; do
     source $f
 done
 
