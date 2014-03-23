@@ -130,7 +130,7 @@ check_depends_sam3x() {
 
 upload_sam3x() {
     echo "  Uploading to Sam3X MCU"
-    ${DEPS}/bossa-code/bin/bossac -p $1 -U false -i -e -w -v -b ${TARGET}.bin -R 
+    ${DEPS}/bossa-code/bin/bossac -p ${BOSSA_PORT} -U false -i -e -w -v -b ${TARGET}.bin -R 
 }
 
 flush_sam3x() {

@@ -72,6 +72,7 @@ configure_rampsfd() {
     ARCH=sam3x
     SUBARCH=8
     USE_USB_SERIAL=0
+    BOSSA_PORT=/dev/ttyACM0
 
     # configure architecture
     configure_sam3x
@@ -89,6 +90,7 @@ configure_4pi() {
     ARCH=sam3u
     SUBARCH=4
     USE_USB_SERIAL=1
+    BOSSA_PORT=/dev/ttyACM0
 
     # configure architecture
     configure_sam3x
