@@ -163,7 +163,6 @@ install_sam3x() {
     else
         echo "   Installation of Atmel Software Framework"
         retr_and_extract SAM3X_URL[@] SAM3X_CHECKSUM[@]
-        
     fi
     
     # install SAM3X flasher

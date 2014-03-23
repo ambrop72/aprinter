@@ -29,7 +29,9 @@
 # Teensy
 
 configure_teensy() {
-    TEENSY_CORES=${DEPS}/teensy3-cores
+    TEENSY_CORES=${DEPS}/teensy-cores
+    TEENSY_LOADER_DIR=${DEPS}/teensy_loader_cli
+
     TEENSY3="${TEENSY_CORES}/teensy3"
 
     if [[ $TEENSY_VERSION = 3.1 ]]; then
@@ -79,36 +81,40 @@ configure_teensy() {
 
 check_depends_teensy() {
     check_depends_arm
-    [ -d ${TEENSY3_CORES} ] || fail "Teensy3 Framework missing in dependences"
-    [ -d ${DEPS}/teensy_loader_cli ] || fail "Teensy3 upload tool missing"
+    [ -d ${TEENSY_CORES} ] || fail "Teensy3 Framework missing in dependences"
+    [ -e ${TEENSY_LOADER_DIR}/teensy_loader_cli ] || fail "Teensy3 upload tool missing"
 }
 
 flush_teensy() {
     flush_arm
     echo "  Flushing Teensy3 toolchain"
     ($V;
-    rm -rf ${DEPS}/teensy3-cores
-    rm -rf ${DEPS}/teensy_loader_cli
+    rm -rf ${TEENSY_CORES}
+    rm -rf ${TEENSY_LOADER_DIR}
     )
 }
 
 install_teensy() {
     install_arm
-    (
-        [ -d ${TEENSY3_CORES} ] && \
-        [ -d ${DEPS}/teensy_loader_cli ] && \
-        echo "   [!] Teensy3 toolchain already installed" && return 0
-
-        cd ${DEPS}
-        git clone https://github.com/PaulStoffregen/cores teensy3-cores
-        git clone https://github.com/astraw/teensy_loader_cli
-        cd teensy_loader_cli
+    
+    if [ -d ${TEENSY_CORES} ]; then
+        echo "   [!] Teensy3 Framework already installed"
+    else
+        echo "   Installation of Teensy3 Framework"
+        git clone https://github.com/PaulStoffregen/cores ${TEENSY_CORES}
+    fi
+    
+    if [ -e ${TEENSY_LOADER_DIR}/teensy_loader_cli ]; then
+        echo "   [!] Teensy3 Loader already installed"
+    else
+        echo "   Installation of Teensy3 Loader"
+        [ -d ${TEENSY_LOADER_DIR} ] || git clone https://github.com/astraw/teensy_loader_cli ${TEENSY_LOADER_DIR}
+        cd ${TEENSY_LOADER_DIR}
         make
-    )
-    echo "  Installation of Teensy3 Framework and Teensy CLI Loader: success"
+    fi
 }
 
 upload_teensy() {
     echo "  Uploading to Teensy"
-    ${DEPS}/teensy_loader_cli/teensy_loader_cli -mmcu=${MMCU} ${TARGET}.hex
+    ${TEENSY_LOADER_DIR}/teensy_loader_cli -mmcu=${MMCU} ${TARGET}.hex
 }
