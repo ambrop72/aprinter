@@ -114,23 +114,6 @@ while true; do
         upload)
             ACT+=("upload")
             shift;
-            case "$1" in
-                -p|--port)
-                    shift;
-                    PORT=$1
-                    shift;
-                    ;;
-                -b|--baudrate)
-                    shift;
-                    BAUDRATE=$1
-                    shift;
-                    ;;
-                -B|--bitrate)
-                    shift;
-                    BITRATE=$1
-                    shift;
-                    ;;
-            esac
             ACT+=("UPLOAD")
             ;;
     esac
@@ -155,7 +138,7 @@ if [ "$DEST" = "all" ]; then
     for DEST in ${TARGETS[@]}; do
          in_array "upload" ${ACT[*]} && (
             configure_$DEST
-            ${UPLOAD} "${PORT}" "${BAUDRATE}" "${BITRATE}"
+            ${UPLOAD}
          )
     done
     for DEST in ${TARGETS[@]}; do
@@ -178,7 +161,7 @@ else
         ${RUNBUILD}
     )
     in_array "upload" ${ACT[*]} && (
-        ${UPLOAD} "${PORT}" "${BAUDRATE}" "${BITRATE}"
+        ${UPLOAD}
     )
     in_array "clean" ${ACT[*]} && (
         ${CLEAN}
