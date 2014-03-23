@@ -124,7 +124,7 @@ configure_sam3x() {
 
 check_depends_sam3x() {
     check_depends_arm
-    [ -d ${ASF_DIR} ] || fail "Atmega Source Framework missing in dependences"
+    [ -d ${ASF_DIR} ] || fail "Atmel Software Framework missing in dependences"
     [ -f ${DEPS}/bossa-code/bin/bossac ] || fail "Missing Sam3x upload tool 'bossac'"
 }
 
