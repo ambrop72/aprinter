@@ -100,11 +100,19 @@ directory, each download checked with a sha256 and not reinstalled if already pr
 The `flush` action will delete all those install dependencies, be careful, no warning 
 or confirmation is issued upon running that command.
 
-And finally, the `clean` action will remove all build files for the given build in the
+The `clean` action will remove all build files for the given build in the
 `build` directory.
+
+Finally, there are four environment variables that can override default settings:
+
+ * `AVR_GCC_PATH` sets the path to the bin directory containing the ARM toolchain (defaults to `/usr/local/`)
+ * `AVR_GCC_PREFIX` sets the prefix that all gcc tools may have (defaults to `avr-`)
+ * `ARM_GCC_PATH` sets the path to the bin directory containing the AVR toolchain (defaults to `./depends/gcc-arm-none-eabi-4_8-2013q4`)
+ * `ARM_GCC_PREFIX` sets the prefix that all gcc tools may have (defaults to `arm-none-eabi-`)
 
 *Nota Bene*: 
 
+ * NEVER RUN THIS SCRIPT AS ROOT!
  * the AVR tools installation is not yet included in the depends
  * the ARM toolchain is a binary version downloaded from launchpad
  * the `-v` parameter (between targets and actions) show the command ran by the script

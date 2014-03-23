@@ -29,20 +29,24 @@
 # ARM stuff
 
 if [ "$(uname)" == "Linux" ]; then
-    ARCH=linux
+    SYSARCH=linux
 elif [ "${uname}" == "Darwin" ]; then
-    ARCH=mac
+    SYSARCH=mac
 else
-    ARCH=""
+    SYSARCH=""
 fi
 
 GCCARM_CURRENT=4_8-2013q4
 GCCARM_RELEASE=20131204
 
-GCCARM_DIR=$(dirname $0)/depends/gcc-arm-none-eabi-${GCCARM_CURRENT}
+: ${ARM_GCC_PREFIX:="arm-none-eabi-"}
+: ${ARM_GCC_PATH:="${ROOT}/depends/gcc-arm-none-eabi-${GCCARM_CURRENT}/bin"}
+
+ARM_CC=$ARM_GCC_PATH/${ARM_GCC_PREFIX}gcc
+ARM_OBJCOPY=$ARM_GCC_PATH/${ARM_GCC_PREFIX}objcopy
 
 GCCARM_URL=(
-    "https://launchpad.net/gcc-arm-embedded/4.8/4.8-2013-q4-major/+download/gcc-arm-none-eabi-${GCCARM_CURRENT}-${GCCARM_RELEASE}-${ARCH}.tar.bz2" 
+    "https://launchpad.net/gcc-arm-embedded/4.8/4.8-2013-q4-major/+download/gcc-arm-none-eabi-${GCCARM_CURRENT}-${GCCARM_RELEASE}-${SYSARCH}.tar.bz2" 
 )
 
 GCCARM_CHECKSUM=(
@@ -60,12 +64,10 @@ install_arm() {
 
 flush_arm() {
     clean
-    echo "  Deleting GCC-ARM install"
-    rm -rf ${GCCARM_DIR}
+    echo "  Deleting GCC-ARM install. Are you sure? (C-c to abort)"
+    read 
+    rm -rf ${ARM_GCC_PATH}
 }
-
-ARM_CC=$GCCARM_DIR/bin/arm-none-eabi-gcc
-ARM_OBJCOPY=$GCCARM_DIR/bin/arm-none-eabi-objcopy
 
 check_depends_arm() {
     echo "   Checking depends"

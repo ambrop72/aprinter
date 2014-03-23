@@ -28,7 +28,8 @@
 #####################################################################################
 # AVR SPECIFIC STUFF
 
-AVR_PATH=/usr/local/bin/
+: ${AVR_GCC_PREFIX:="avr-"}
+: ${AVR_GCC_PATH="/usr/local/"}
 
 AVR_TOOLCHAIN_URL=(
     "http://ftp.gnu.org/gnu/binutils/binutils-2.23.2.tar.bz2"
@@ -61,7 +62,8 @@ install_avr() {
 }
 
 flush_avr() {
-    echo "  Flushing AVR toolchain"
+    echo "  Flushing AVR toolchain. Are you sure? (C-c to abort)"
+    read
 
     (V;
     rm -rf ${DEPS}/binutils-2.23.2
@@ -70,21 +72,22 @@ flush_avr() {
 }
 
 check_depends_avr() {
-    echo "   Checking depends"
+    echo -n "   Checking depends: "
     [ -f ${AVR_GXX} ] || fail "Missing AVR compiler" 
     [ -f ${AVR_OBJCOPY} ] || fail "Missing AVR objcopy"
     [ -f ${AVR_SIZE} ] || fail "Missing AVR size calculator"
     [ -f ${AVRDUDE} ] || fail "Missing AVR uploader 'avrdude'"
+    echo "ok"
 }
 
 configure_avr() {
     echo "  Configuring AVR build"
 
-    AVR_GXX=${AVR_PATH}/avr-g++
-    AVR_OBJCPY=${AVR_PATH}/avr-objcopy
-    AVR_SIZE=${AVR_PATH}/avr-size
+    AVR_GXX=${AVR_GCC_PATH}/bin/${AVR_GCC_PREFIX}g++
+    AVR_OBJCPY=${AVR_GCC_PATH}/bin/avr-objcopy
+    AVR_SIZE=${AVR_GCC_PATH}/bin/avr-size
 
-    AVRDUDE=${AVR_PATH}/avrdude
+    AVRDUDE=${AVR_GCC_PATH}/bin/avrdude
     AVRDUDE_PORT=/dev/ttyUSB0
     AVRDUDE_BAUDRATE=57600
     AVRDUDE_PROGRAMMER=stk500v1

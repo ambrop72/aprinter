@@ -125,6 +125,6 @@ in_array() {
 }
 
 fail() {
-    echo $2
+    echo $1
     exit 5
 }
