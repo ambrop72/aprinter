@@ -69,6 +69,7 @@ retr_and_extract() {
     declare -a cs=("${!2}")
 
     (
+    create_depends_dir
     cd ${DEPS}
 
     files=()
