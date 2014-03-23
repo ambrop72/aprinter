@@ -40,7 +40,12 @@ GCCARM_CURRENT=4_8-2013q4
 GCCARM_RELEASE=20131204
 
 ARM_GCC_PATH="${ROOT}/depends/gcc-arm-none-eabi-${GCCARM_CURRENT}/bin"
-: ${ARM_GCC_PREFIX:="${ARM_GCC_PATH}/arm-none-eabi-"}
+
+if [ -n "${CUSTOM_ARM_GCC}" ]; then
+    ARM_GCC_PREFIX=${CUSTOM_ARM_GCC}
+else
+    ARM_GCC_PREFIX=${ARM_GCC_PATH}/arm-none-eabi
+fi
 
 ARM_CC=${ARM_GCC_PREFIX}gcc
 ARM_OBJCOPY=${ARM_GCC_PREFIX}objcopy
@@ -54,12 +59,14 @@ GCCARM_CHECKSUM=(
 )
 
 install_arm() {
-    echo "  Installing ARM toolchain"
-    [ -f ${ARM_CC} ] && \
-    [ -f ${ARM_OBJCOPY} ] && echo "   [!] ARM toolchain already installed" && return 0
+    if [ -z "${CUSTOM_ARM_GCC}" ]; then
+        echo "  Installing ARM toolchain"
+        [ -f ${ARM_CC} ] && \
+        [ -f ${ARM_OBJCOPY} ] && echo "   [!] ARM toolchain already installed" && return 0
 
-    create_depends_dir
-    retr_and_extract GCCARM_URL[@] GCCARM_CHECKSUM[@]
+        create_depends_dir
+        retr_and_extract GCCARM_URL[@] GCCARM_CHECKSUM[@]
+    fi
 }
 
 flush_arm() {
@@ -136,6 +143,8 @@ build_arm() {
     CXXFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_C_CXX[@]}" "${FLAGS_CXX[@]}" ${CXXFLAGS})
     ASMFLAGS=("${FLAGS_C_CXX_LD[@]}")
     LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS})
+
+    create_build_dir
 
     echo "   Compiling C files"
     for file in "${C_SOURCES[@]}"; do
