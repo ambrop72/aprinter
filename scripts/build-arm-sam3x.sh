@@ -35,6 +35,8 @@ SAM3X_CHECKSUM=(
     "9739afa2c8192bd181f2d4e50fa312dc4c943b7a6a093213e755c0c7de9c3ed3  asf-standalone-archive-3.14.0.86.zip"
 )
 
+BOSSA_DIR=${DEPS}/bossa
+
 configure_sam3x() {
     ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86/
     ASF_DIR=${ASF_BASE_DIR}/xdk-asf-3.14.0
@@ -125,12 +127,12 @@ configure_sam3x() {
 check_depends_sam3x() {
     check_depends_arm
     [ -d ${ASF_DIR} ] || fail "Atmel Software Framework missing in dependences"
-    [ -f ${DEPS}/bossa-code/bin/bossac ] || fail "Missing Sam3x upload tool 'bossac'"
+    [ -f ${BOSSA_DIR}/bin/bossac ] || fail "Missing Sam3x upload tool 'bossac'"
 }
 
 upload_sam3x() {
     echo "  Uploading to Sam3X MCU"
-    ${DEPS}/bossa-code/bin/bossac -p ${BOSSA_PORT} -U false -i -e -w -v -b ${TARGET}.bin -R 
+    ${BOSSA_DIR}/bin/bossac -p ${BOSSA_PORT} -U false -i -e -w -v -b ${TARGET}.bin -R 
 }
 
 flush_sam3x() {
@@ -143,19 +145,24 @@ flush_sam3x() {
 install_sam3x() {
     install_arm
 
-    [ -d ${ASF_DIR} ] && \
-    [ -f ${DEPS}/bossa-code/bin/bossac ] && \
-    echo "   [!] SAM3X toolchain already installed" && return 0
-
-    retr_and_extract SAM3X_URL[@] SAM3X_CHECKSUM[@]
-
+    # install ASF
+    if [ -d ${ASF_DIR} ]; then
+        echo "   [!] Atmel Software Framework already installed"
+    else
+        echo "   Installation of Atmel Software Framework"
+        retr_and_extract SAM3X_URL[@] SAM3X_CHECKSUM[@]
+        
+    fi
+    
     # install SAM3X flasher
-    (
-    cd ${DEPS}
-    git clone git://git.code.sf.net/p/b-o-s-s-a/code bossa-code
-    cd bossa-code
-    make strip-bossac
-    )
-    echo "  Installation of Atmel Software Framework and bossac for SAM3X: success"
+    if [ -f ${BOSSA_DIR}/bin/bossac ]; then
+        echo "   [!] BOSSA already installed"
+    else
+        echo "   Installation of BOSSA"
+        (
+        git clone -b arduino https://github.com/shumatech/BOSSA "${BOSSA_DIR}"
+        cd "${BOSSA_DIR}"
+        make strip-bossac
+        )
+    fi
 }
-
