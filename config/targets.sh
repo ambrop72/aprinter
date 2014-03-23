@@ -55,7 +55,7 @@ target_ramps13() {
 TARGETS+=( "rampsfd" )
 target_rampsfd() {
     PLATFORM=sam3x
-    BOARD=43
+    ASF_BOARD=43
     ARCH=sam3x
     SUBARCH=8
     USE_USB_SERIAL=0
@@ -69,7 +69,7 @@ target_rampsfd() {
 TARGETS+=( "4pi" )
 target_4pi() {
     PLATFORM=sam3x
-    BOARD=33
+    ASF_BOARD=33
     ARCH=sam3u
     SUBARCH=4
     USE_USB_SERIAL=1

@@ -54,7 +54,7 @@ configure_sam3x() {
     )
     FLAGS_C_CXX+=(
         -D__${ARCH^^}${SUBARCH^^}E__ -DHEAP_SIZE=16384
-        -DBOARD=${BOARD}
+        -DBOARD=${ASF_BOARD}
         -I"${CMSIS_DIR}/include"
         -I"${TEMPLATES_DIR}"
         -I"${ASF_DIR}/sam/utils"
