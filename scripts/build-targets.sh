@@ -73,6 +73,8 @@ configure_rampsfd() {
     SUBARCH=8
     USE_USB_SERIAL=0
     BOSSA_PORT=/dev/ttyACM0
+    BOSSA_USE_USB=0
+    BOSSA_IS_ARDUINO_DUE=1
 
     # configure architecture
     configure_sam3x
@@ -91,6 +93,7 @@ configure_4pi() {
     SUBARCH=4
     USE_USB_SERIAL=1
     BOSSA_PORT=/dev/ttyACM0
+    BOSSA_USE_USB=1
 
     # configure architecture
     configure_sam3x

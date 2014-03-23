@@ -131,8 +131,20 @@ check_depends_sam3x() {
 }
 
 upload_sam3x() {
-    echo "  Uploading to Sam3X MCU"
-    ${BOSSA_DIR}/bin/bossac -p ${BOSSA_PORT} -U false -i -e -w -v -b ${TARGET}.bin -R 
+    local bossa_args=()
+    echo -n "  Uploading to Sam3X MCU "
+    if [ "$BOSSA_USE_USB" = 1 ]; then
+        echo "over Native USB"
+    else
+        echo "over UART"
+        bossa_args=(-U false)
+        if [ "$BOSSA_IS_ARDUINO_DUE" = 1 ]; then
+            echo STTY
+            stty -F ${BOSSA_PORT} 1200
+            sleep 0.5
+        fi
+    fi
+    ${BOSSA_DIR}/bin/bossac -p ${BOSSA_PORT#/dev/} "${bossa_args[@]}" -i -e -w -v -b ${TARGET}.bin -R
 }
 
 flush_sam3x() {
