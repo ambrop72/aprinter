@@ -72,12 +72,11 @@ flush_avr() {
 }
 
 check_depends_avr() {
-    echo -n "   Checking depends: "
-    [ -f ${AVR_GXX} ] || fail "Missing AVR compiler" 
-    [ -f ${AVR_OBJCOPY} ] || fail "Missing AVR objcopy"
-    [ -f ${AVR_SIZE} ] || fail "Missing AVR size calculator"
-    [ -f ${AVRDUDE} ] || fail "Missing AVR uploader 'avrdude'"
-    echo "ok"
+    echo "   Checking depends"
+    check_build_tool "${AVR_GXX}" "AVR compiler"
+    check_build_tool "${AVR_OBJCOPY}" "AVR objcopy"
+    check_build_tool "${AVR_SIZE}" "AVR size calculator"
+    check_build_tool "${AVRDUDE}" "AVR uploader 'avrdude'"
 }
 
 configure_avr() {

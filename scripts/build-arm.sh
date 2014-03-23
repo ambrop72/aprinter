@@ -71,8 +71,8 @@ flush_arm() {
 
 check_depends_arm() {
     echo "   Checking depends"
-    [ -f ${ARM_CC} ] || fail "Missing ARM compiler" 
-    [ -f ${ARM_OBJCOPY} ] || fail "Missing ARM objcopy"
+    check_build_tool "${ARM_CC}" "ARM compiler"
+    check_build_tool "${ARM_OBJCOPY}" "ARM objcopy"
 }
 
 clean_arm() {

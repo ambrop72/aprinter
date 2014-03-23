@@ -128,3 +128,7 @@ fail() {
     echo $1
     exit 5
 }
+
+check_build_tool() {
+    "$1" --version >/dev/null || fail "Missing or broken ${2}" 
+}
