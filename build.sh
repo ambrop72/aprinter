@@ -47,6 +47,11 @@ DEPS=$ROOT/depends
 set -e
 
 #####################################################################################
+# source any user configuration
+
+[ -f config.sh ] && source config.sh
+
+#####################################################################################
 # load build functions
 
 TARGETS=()
