@@ -67,7 +67,6 @@ configure_rampsfd() {
     configure rampsfd
 
     # user settable variables
-    MCU=cortex-m3
     BOARD=43
     ARCH=sam3x
     SUBARCH=8
@@ -87,7 +86,6 @@ configure_4pi() {
     configure 4pi
 
     # user settable variables
-    MCU=cortex-m3
     BOARD=33
     ARCH=sam3u
     SUBARCH=4
@@ -106,7 +104,6 @@ configure_teensy3() {
     configure teensy3
 
     # user settable variables
-    MCU=cortex-m4
     F_CPU=96000000
     TEENSY_VERSION=3.0
 
@@ -121,7 +118,6 @@ configure_stm32f4() {
     configure stm32f4
 
     # user settable variables
-    MCU=cortex-m4
 
     # configure architecture
     configure_stm

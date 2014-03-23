@@ -47,6 +47,8 @@ configure_teensy() {
         exit 1
     fi
 
+    ARM_CPU=cortex-m4
+
     configure_arm
 
     FLAGS_C+=(

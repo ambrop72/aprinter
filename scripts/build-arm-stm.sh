@@ -48,6 +48,8 @@ configure_stm() {
     LINKER_SCRIPT=${STM32F4_DIR}/Project/STM32F4xx_StdPeriph_Templates/RIDE/stm32f4xx_flash.ld
 
     STFLASH=${DEPS}/stlink/st-flash
+    
+    ARM_CPU=cortex-m4
 
     configure_arm
 

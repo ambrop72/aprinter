@@ -45,6 +45,8 @@ configure_sam3x() {
     TEMPLATES_DIR=${CMSIS_DIR}/source/templates
     LINKER_SCRIPT=${ASF_DIR}/sam/utils/linker_scripts/${ARCH}/${ARCH}${SUBARCH}/gcc/flash.ld
 
+    ARM_CPU=cortex-m3
+
     configure_arm
 
     FLAGS_CXX_LD+=(

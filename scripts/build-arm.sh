@@ -103,7 +103,7 @@ clean_arm() {
 configure_arm() {
     echo "  Configuring ARM build"
     FLAGS_C_CXX_LD=(
-        -mcpu=${MCU} -mthumb -O2
+        -mcpu=${ARM_CPU} -mthumb ${ARM_EXTRA_CPU_FLAGS} -O2
     )
     FLAGS_CXX_LD=(
         -fno-rtti -fno-exceptions
