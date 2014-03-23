@@ -114,7 +114,10 @@ while true; do
         upload)
             ACT+=("upload")
             shift;
-            ACT+=("UPLOAD")
+            ;;
+        *)
+            echo "Unknown command: $1"
+            exit 1
             ;;
     esac
     if [ $# -eq 0 ]; then
