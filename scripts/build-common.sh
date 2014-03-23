@@ -92,15 +92,12 @@ extract() {
         echo "   Extraction of $f"
         case "${f}" in
             *.zip)
-                echo "Z"
                 ($V; unzip -qq $f && rm $f)
                 ;;
             *.tar.gz)
-                echo "TG"
                 ($V; tar xzf $f && rm $f)
                 ;;
             *.tar.bz2)
-                echo "TB"
                 ($V; tar xjf $f && rm $f)
                 ;;
             *.7z)
