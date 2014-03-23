@@ -28,12 +28,14 @@
 #include "stm32f4_support.h"
 
 extern "C" {
-    /*
+    void __libc_init_array ();
+    
     __attribute__((used))
     void _init (void)
     {
     }
     
+    /*
     __attribute__((used))
     caddr_t _sbrk (int incr)
     {
@@ -59,4 +61,5 @@ extern "C" {
 
 void platform_init (void)
 {
+    __libc_init_array();
 }

@@ -635,7 +635,7 @@ static void timer_handler (MyLoop::QueuedEvent *, MyContext c)
     MyPins::template set<DiscoveryPinLedGreen>(c, st == MyUsb::STATE_WAITING_RESET);
     MyPins::template set<DiscoveryPinLedOrange>(c, st == MyUsb::STATE_WAITING_ENUM);
     MyPins::template set<DiscoveryPinLedRed>(c, st == MyUsb::STATE_ENUM_DONE);
-    //MyPins::template set<DiscoveryPinLedBlue>(c, st == 3);
+    MyPins::template set<DiscoveryPinLedBlue>(c, st == MyUsb::STATE_TEST);
     
     next += Ticks;
     timer.appendAt(c, next);

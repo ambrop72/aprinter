@@ -109,5 +109,6 @@ install_teensy() {
 }
 
 upload_teensy() {
+    echo "  Uploading to Teensy"
     ${DEPS}/teensy_loader_cli/teensy_loader_cli -mmcu=${MMCU} ${TARGET}.hex
 }

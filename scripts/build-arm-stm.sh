@@ -47,10 +47,12 @@ configure_stm() {
     STDPERIPH=${STM32F4_DIR}/Libraries/STM32F4xx_StdPeriph_Driver
     LINKER_SCRIPT=${STM32F4_DIR}/Project/STM32F4xx_StdPeriph_Templates/RIDE/stm32f4xx_flash.ld
 
+    STFLASH=${DEPS}/stlink/st-flash
+
     configure_arm
 
     FLAGS_C_CXX_LD+=(
-        -mfpu=fpv4-sp-d16
+        -mfpu=fpv4-sp-d16 -mfloat-abi=hard
     )
     FLAGS_C_CXX+=(
         -DSTM32F40_41xxx -DHSE_VALUE=8000000 -D"assert_param(x)"
@@ -129,6 +131,9 @@ install_stm() {
 }
 
 upload_stm() {
-    echo 
+    echo "  Uploading to STM"
+    #"${STFLASH}" erase
+    "${STFLASH}" write ${TARGET}.bin 0x08000000
+
 }
 
