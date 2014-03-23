@@ -28,19 +28,25 @@
 #####################################################################################
 # Teensy
 
+TEENSY_LOADER_URL=(
+    "http://www.pjrc.com/teensy/teensy_loader_cli.2.1.zip"
+)
+TEENSY_LOADER_CHECKSUM=(
+    "dafd040d6748b52e0d4a01846d4136f3354ca27ddc36a55ed00d0a0af0902d46  teensy_loader_cli.2.1.zip"
+)
+
 configure_teensy() {
     TEENSY_CORES=${DEPS}/teensy-cores
     TEENSY_LOADER_DIR=${DEPS}/teensy_loader_cli
-
+    
+    TEENSY_LOADER=${TEENSY_LOADER_DIR}/teensy_loader_cli
     TEENSY3="${TEENSY_CORES}/teensy3"
 
     if [[ $TEENSY_VERSION = 3.1 ]]; then
         CPU_DEF=__MK20DX256__
-        MPU=mk20dx256
         LINKER_SCRIPT=${TEENSY3}/mk20dx256.ld
     elif [[ $TEENSY_VERSION = 3.0 ]]; then
         CPU_DEF=__MK20DX128__
-        MPU=mk20dx128
         LINKER_SCRIPT=${TEENSY3}/mk20dx128.ld
     else
         echo "Unknown TEENSY_VERSION"
@@ -84,7 +90,7 @@ configure_teensy() {
 check_depends_teensy() {
     check_depends_arm
     [ -d ${TEENSY_CORES} ] || fail "Teensy3 Framework missing in dependences"
-    [ -e ${TEENSY_LOADER_DIR}/teensy_loader_cli ] || fail "Teensy3 upload tool missing"
+    [ -e ${TEENSY_LOADER} ] || fail "Teensy3 upload tool missing"
 }
 
 flush_teensy() {
@@ -106,11 +112,11 @@ install_teensy() {
         git clone https://github.com/PaulStoffregen/cores ${TEENSY_CORES}
     fi
     
-    if [ -e ${TEENSY_LOADER_DIR}/teensy_loader_cli ]; then
+    if [ -e ${TEENSY_LOADER} ]; then
         echo "   [!] Teensy3 Loader already installed"
     else
         echo "   Installation of Teensy3 Loader"
-        [ -d ${TEENSY_LOADER_DIR} ] || git clone https://github.com/astraw/teensy_loader_cli ${TEENSY_LOADER_DIR}
+        retr_and_extract TEENSY_LOADER_URL[@] TEENSY_LOADER_CHECKSUM[@]
         cd ${TEENSY_LOADER_DIR}
         make
     fi
@@ -118,5 +124,5 @@ install_teensy() {
 
 upload_teensy() {
     echo "  Uploading to Teensy"
-    ${TEENSY_LOADER_DIR}/teensy_loader_cli -mmcu=${MMCU} ${TARGET}.hex
+    ${TEENSY_LOADER} -mmcu=mk20dx128 ${TARGET}.hex
 }
