@@ -66,6 +66,20 @@ target_rampsfd() {
 
 #####################################################################################
 
+TARGETS+=( "radds" )
+target_radds() {
+    PLATFORM=sam3x
+    ASF_BOARD=43
+    ARCH=sam3x
+    SUBARCH=8
+    USE_USB_SERIAL=0
+    BOSSA_PORT=/dev/ttyACM0
+    BOSSA_USE_USB=0
+    BOSSA_IS_ARDUINO_DUE=1
+}
+
+#####################################################################################
+
 TARGETS+=( "4pi" )
 target_4pi() {
     PLATFORM=sam3x
