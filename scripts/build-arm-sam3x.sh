@@ -35,12 +35,12 @@ SAM3X_CHECKSUM=(
     "9739afa2c8192bd181f2d4e50fa312dc4c943b7a6a093213e755c0c7de9c3ed3  asf-standalone-archive-3.14.0.86.zip"
 )
 
-BOSSA_DIR=${DEPS}/bossa
-
 configure_sam3x() {
     ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86/
     ASF_DIR=${ASF_BASE_DIR}/xdk-asf-3.14.0
-    
+
+    BOSSA_DIR=${DEPS}/bossa
+
     CMSIS_DIR=${ASF_DIR}/sam/utils/cmsis/${ARCH}
     TEMPLATES_DIR=${CMSIS_DIR}/source/templates
     LINKER_SCRIPT=${ASF_DIR}/sam/utils/linker_scripts/${ARCH}/${ARCH}${SUBARCH}/gcc/flash.ld
@@ -153,7 +153,7 @@ flush_sam3x() {
     flush_arm
     echo "  Flushing SAM3X toolchain"
     rm -rf ${ASF_BASE_DIR}
-    rm -rf ${DEPS}/bossa-code
+    rm -rf ${BOSSA_DIR}
 }
 
 install_sam3x() {
@@ -173,7 +173,7 @@ install_sam3x() {
     else
         echo "   Installation of BOSSA"
         (
-        git clone -b arduino https://github.com/shumatech/BOSSA "${BOSSA_DIR}"
+        [ -d ${BOSSA_DIR} ] || git clone -b arduino https://github.com/shumatech/BOSSA "${BOSSA_DIR}"
         cd "${BOSSA_DIR}"
         make strip-bossac
         )
