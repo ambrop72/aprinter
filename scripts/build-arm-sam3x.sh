@@ -35,12 +35,6 @@ SAM3X_CHECKSUM=(
     "9739afa2c8192bd181f2d4e50fa312dc4c943b7a6a093213e755c0c7de9c3ed3  asf-standalone-archive-3.14.0.86.zip"
 )
 
-build_sam3x() {
-    "${CC}" -x c -c "${CFLAGS[@]}" -fno-builtin "aprinter/platform/clang_missing.c" -o ${BUILD}/clang_missing.o
-    OBJS+=( "${BUILD}/clang_missing.o" )
-    build_arm
-}
-
 configure_sam3x() {
     ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86/
     ASF_DIR=${ASF_BASE_DIR}/xdk-asf-3.14.0
