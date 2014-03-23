@@ -141,7 +141,6 @@ upload_sam3x() {
         echo "over UART"
         bossa_args=(-U false)
         if [ "$BOSSA_IS_ARDUINO_DUE" = 1 ]; then
-            echo STTY
             stty -F ${BOSSA_PORT} 1200
             sleep 0.5
         fi

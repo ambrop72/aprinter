@@ -29,44 +29,32 @@
 # Targets configuration
 
 TARGETS+=( "melzi" )
-configure_melzi() {
-    configure melzi
-
-    # user settable variables
+target_melzi() {
+    PLATFORM=avr
     F_CPU=16000000 
     MCU=atmega1284p
     AVRDUDE_PORT=/dev/ttyUSB0
     AVRDUDE_BAUDRATE=57600
     AVRDUDE_PROGRAMMER=stk500v1
-
-    # configure architecture
-    configure_avr
 }
 
 #####################################################################################
 
 TARGETS+=( "ramps13" )
-configure_ramps13() {
-    configure ramps13
-
-    # user settable variables
+target_ramps13() {
+    PLATFORM=avr
     F_CPU=16000000
     MCU=atmega2560
     AVRDUDE_PORT=/dev/ttyACM0
     AVRDUDE_BAUDRATE=115200
     AVRDUDE_PROGRAMMER=stk500v2
-
-    # configure architecture
-    configure_avr
 }
 
 #####################################################################################
 
 TARGETS+=( "rampsfd" )
-configure_rampsfd() {
-    configure rampsfd
-
-    # user settable variables
+target_rampsfd() {
+    PLATFORM=sam3x
     BOARD=43
     ARCH=sam3x
     SUBARCH=8
@@ -74,53 +62,35 @@ configure_rampsfd() {
     BOSSA_PORT=/dev/ttyACM0
     BOSSA_USE_USB=0
     BOSSA_IS_ARDUINO_DUE=1
-
-    # configure architecture
-    configure_sam3x
 }
 
 #####################################################################################
 
 TARGETS+=( "4pi" )
-configure_4pi() {
-    configure 4pi
-
-    # user settable variables
+target_4pi() {
+    PLATFORM=sam3x
     BOARD=33
     ARCH=sam3u
     SUBARCH=4
     USE_USB_SERIAL=1
     BOSSA_PORT=/dev/ttyACM0
     BOSSA_USE_USB=1
-
-    # configure architecture
-    configure_sam3x
 }
 
 #####################################################################################
 
 TARGETS+=( "teensy3" )
-configure_teensy3() {
-    configure teensy3
-
-    # user settable variables
+target_teensy3() {
+    PLATFORM=teensy
     F_CPU=96000000
-    TEENSY_VERSION=3.0
-
-    # configure architecture
-    configure_teensy
+    TEENSY_VERSION=3.1
 }
 
 #####################################################################################
 
 TARGETS+=( "stm32f4" )
-configure_stm32f4() {
-    configure stm32f4
-
-    # user settable variables
-
-    # configure architecture
-    configure_stm
+target_stm32f4() {
+    PLATFORM=stm
 }
 
 #####################################################################################

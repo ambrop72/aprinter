@@ -127,33 +127,33 @@ done
 if [ "$DEST" = "all" ]; then
     for DEST in ${TARGETS[@]}; do
          in_array "install" ${ACT[*]} && (
-            configure_$DEST
+            configure $DEST
             ${INSTALL}
          )
          in_array "build" ${ACT[*]} && (
-            configure_$DEST
+            configure $DEST
             ${RUNBUILD}
          )
     done
     for DEST in ${TARGETS[@]}; do
          in_array "upload" ${ACT[*]} && (
-            configure_$DEST
+            configure $DEST
             ${UPLOAD}
          )
     done
     for DEST in ${TARGETS[@]}; do
          in_array "clean" ${ACT[*]} && (
-            configure_$DEST
+            configure $DEST
             ${CLEAN}
          )
          in_array "flush" ${ACT[*]} && (
-            configure_$DEST
+            configure $DEST
             ${FLUSH}
          )
 
     done
 else
-    configure_$DEST
+    configure $DEST
     in_array "install" ${ACT[*]} && (
         ${INSTALL}
     )

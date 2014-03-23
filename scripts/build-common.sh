@@ -49,11 +49,18 @@ flush() {
 }
 
 configure() {
-    echo "  Configuring for target $1"
-    SOURCE=$SPATH/aprinter-$1.cpp
-    TARGET=$BUILD/aprinter-$1
+    local target_name=$1
+    echo "  Configuring for target ${target_name}"
+    
+    target_${target_name}
+    
+    : ${SOURCE_NAME:=${target_name}}
+    SOURCE=$SPATH/aprinter-${SOURCE_NAME}.cpp
+    TARGET=$BUILD/aprinter-${target_name}
     CLEAN=clean
     FLUSH=flush
+    
+    configure_${PLATFORM}
 }
 
 # Utility functions
