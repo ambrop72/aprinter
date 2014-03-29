@@ -48,7 +48,7 @@ install_avr() {
     retr_and_extract AVR_TOOLCHAIN_URL[@] AVR_TOOLCHAIN_CHECKSUMS[@]
 
     (
-        cd ${DEPS}
+        cd "${DEPS}"
         (
             cd binutils-2.23.2
             ./configure && make # TODO
@@ -66,8 +66,8 @@ flush_avr() {
     read
 
     (V;
-    rm -rf ${DEPS}/binutils-2.23.2
-    rm -rf ${DEPS}/gcc-4.8.2
+    rm -rf "${DEPS}/binutils-2.23.2"
+    rm -rf "${DEPS}/gcc-4.8.2"
     )
 }
 
@@ -106,15 +106,14 @@ build_avr() {
     echo "  Compiling for AVR"
     check_depends_avr
     echo "   Compiling and linking"
-    ($V; $CXX $CXXFLAGS $SOURCE -o $TARGET.elf -Wl,-u,vfprintf -lprintf_flt || exit 2)
+    ($V; "$CXX" $CXXFLAGS "$SOURCE" -o "$TARGET.elf" -Wl,-u,vfprintf -lprintf_flt || exit 2)
     echo "   Building images"
-    ($V; $OBJCPY -j .text -j .data -O ihex $TARGET.elf $TARGET.hex || exit 2)
+    ($V; "$OBJCPY" -j .text -j .data -O ihex "$TARGET.elf" "$TARGET.hex" || exit 2)
     echo -n "   Size of build: "
-    $AVR_SIZE --format=avr --mcu=${MCU} ${TARGET}.elf | grep bytes | sed 's/\(.*\):\s*\(.* bytes.* Full\)/\1: \2/g' | sed 'N;s/\n/\; /' | sed 's/\s\s*/ /g'
+    "$AVR_SIZE" --format=avr --mcu=${MCU} "${TARGET}.elf" | grep bytes | sed 's/\(.*\):\s*\(.* bytes.* Full\)/\1: \2/g' | sed 'N;s/\n/\; /' | sed 's/\s\s*/ /g'
 }
 
 upload_avr() {
     echo "  Uploading to AVR"
-    ($V; $AVRDUDE $AVRDUDE_FLAGS -U flash:w:$TARGET.hex:i || exit 3)
+    ($V; "$AVRDUDE" "$AVRDUDE_FLAGS" -U "flash:w:$TARGET.hex:i" || exit 3)
 }
-

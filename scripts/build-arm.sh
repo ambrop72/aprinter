@@ -61,8 +61,8 @@ GCCARM_CHECKSUM=(
 install_arm() {
     if [ -z "${CUSTOM_ARM_GCC}" ]; then
         echo "  Installing ARM toolchain"
-        [ -f ${ARM_CC} ] && \
-        [ -f ${ARM_OBJCOPY} ] && echo "   [!] ARM toolchain already installed" && return 0
+        [ -f "${ARM_CC}" ] && \
+        [ -f "${ARM_OBJCOPY}" ] && echo "   [!] ARM toolchain already installed" && return 0
 
         create_depends_dir
         retr_and_extract GCCARM_URL[@] GCCARM_CHECKSUM[@]
@@ -73,7 +73,7 @@ flush_arm() {
     clean
     echo "  Deleting GCC-ARM install. Are you sure? (C-c to abort)"
     read 
-    rm -rf ${ARM_GCC_PATH}
+    rm -rf "${ARM_GCC_PATH}"
 }
 
 check_depends_arm() {
@@ -126,7 +126,7 @@ configure_arm() {
     )
 
     C_SOURCES=()
-    CXX_SOURCES=( ${SOURCE} )
+    CXX_SOURCES=( "${SOURCE}" )
     ASM_SOURCES=()
 
     OBJS=()
@@ -169,10 +169,10 @@ build_arm() {
     
     echo "   Linking objects"
     ( $V ;
-    "${ARM_CC}" "${LDFLAGS[@]}" "${OBJS[@]}" -o ${TARGET}.elf -lm
+    "${ARM_CC}" "${LDFLAGS[@]}" "${OBJS[@]}" -o "${TARGET}.elf" -lm
 
     echo "   Building images"
-    "${ARM_OBJCOPY}" --output-target=binary ${TARGET}.elf ${TARGET}.bin
-    "${ARM_OBJCOPY}" --output-target=ihex ${TARGET}.elf ${TARGET}.hex
+    "${ARM_OBJCOPY}" --output-target=binary "${TARGET}.elf" "${TARGET}.bin"
+    "${ARM_OBJCOPY}" --output-target=ihex "${TARGET}.elf" "${TARGET}.hex"
     )
 }

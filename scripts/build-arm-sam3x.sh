@@ -36,7 +36,7 @@ SAM3X_CHECKSUM=(
 )
 
 configure_sam3x() {
-    ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86/
+    ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86
     ASF_DIR=${ASF_BASE_DIR}/xdk-asf-3.14.0
 
     BOSSA_DIR=${DEPS}/bossa
@@ -94,8 +94,8 @@ configure_sam3x() {
     fi
 
     if [ $USE_USB_SERIAL -gt 0 ]; then
-        cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" ${BUILD}/udi_cdc-hacked.c
-        patch -p0 ${BUILD}/udi_cdc-hacked.c < ${ROOT}/patches/asf-cdc-tx.patch
+        cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" "${BUILD}/udi_cdc-hacked.c"
+        patch -p0 "${BUILD}/udi_cdc-hacked.c" < "${ROOT}/patches/asf-cdc-tx.patch"
 
         if [ "$ARCH" = "sam3x" ]; then
             FLAGS_C_CXX+=( -DUSB_SERIAL )
@@ -112,7 +112,7 @@ configure_sam3x() {
             "${ASF_DIR}/sam/drivers/pmc/sleep.c"
             "${ASF_DIR}/common/utils/interrupt/interrupt_sam_nvic.c"
             "${ASF_DIR}/common/services/usb/udc/udc.c"
-            ${BUILD}/udi_cdc-hacked.c
+            "${BUILD}/udi_cdc-hacked.c"
             "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc_desc.c"
             "${ASF_DIR}/common/services/clock/${ARCH}/sysclk.c"
         )
@@ -128,8 +128,8 @@ configure_sam3x() {
 
 check_depends_sam3x() {
     check_depends_arm
-    [ -d ${ASF_DIR} ] || fail "Atmel Software Framework missing in dependences"
-    [ -f ${BOSSA_DIR}/bin/bossac ] || fail "Missing Sam3x upload tool 'bossac'"
+    [ -d "${ASF_DIR}" ] || fail "Atmel Software Framework missing in dependences"
+    [ -f "${BOSSA_DIR}/bin/bossac" ] || fail "Missing Sam3x upload tool 'bossac'"
 }
 
 upload_sam3x() {
@@ -141,25 +141,25 @@ upload_sam3x() {
         echo "over UART"
         bossa_args=(-U false)
         if [ "$BOSSA_IS_ARDUINO_DUE" = 1 ]; then
-            stty -F ${BOSSA_PORT} 1200
+            stty -F "${BOSSA_PORT}" 1200
             sleep 0.5
         fi
     fi
-    ${BOSSA_DIR}/bin/bossac -p ${BOSSA_PORT#/dev/} "${bossa_args[@]}" -i -e -w -v -b ${TARGET}.bin -R
+    "${BOSSA_DIR}/bin/bossac" -p "${BOSSA_PORT#/dev/}" "${bossa_args[@]}" -i -e -w -v -b "${TARGET}.bin" -R
 }
 
 flush_sam3x() {
     flush_arm
     echo "  Flushing SAM3X toolchain"
-    rm -rf ${ASF_BASE_DIR}
-    rm -rf ${BOSSA_DIR}
+    rm -rf "${ASF_BASE_DIR}"
+    rm -rf "${BOSSA_DIR}"
 }
 
 install_sam3x() {
     install_arm
 
     # install ASF
-    if [ -d ${ASF_DIR} ]; then
+    if [ -d "${ASF_DIR}" ]; then
         echo "   [!] Atmel Software Framework already installed"
     else
         echo "   Installation of Atmel Software Framework"
@@ -167,12 +167,12 @@ install_sam3x() {
     fi
     
     # install SAM3X flasher
-    if [ -f ${BOSSA_DIR}/bin/bossac ]; then
+    if [ -f "${BOSSA_DIR}/bin/bossac" ]; then
         echo "   [!] BOSSA already installed"
     else
         echo "   Installation of BOSSA"
         (
-        [ -d ${BOSSA_DIR} ] || git clone -b arduino https://github.com/shumatech/BOSSA "${BOSSA_DIR}"
+        [ -d "${BOSSA_DIR}" ] || git clone -b arduino https://github.com/shumatech/BOSSA "${BOSSA_DIR}"
         cd "${BOSSA_DIR}"
         make strip-bossac
         )

@@ -40,12 +40,12 @@ configure_teensy() {
     TEENSY_LOADER_DIR=${DEPS}/teensy_loader_cli
     
     TEENSY_LOADER=${TEENSY_LOADER_DIR}/teensy_loader_cli
-    TEENSY3="${TEENSY_CORES}/teensy3"
+    TEENSY3=${TEENSY_CORES}/teensy3
 
-    if [[ $TEENSY_VERSION = 3.1 ]]; then
+    if [[ "$TEENSY_VERSION" = 3.1 ]]; then
         CPU_DEF=__MK20DX256__
         LINKER_SCRIPT=${TEENSY3}/mk20dx256.ld
-    elif [[ $TEENSY_VERSION = 3.0 ]]; then
+    elif [[ "$TEENSY_VERSION" = 3.0 ]]; then
         CPU_DEF=__MK20DX128__
         LINKER_SCRIPT=${TEENSY3}/mk20dx128.ld
     else
@@ -89,40 +89,40 @@ configure_teensy() {
 
 check_depends_teensy() {
     check_depends_arm
-    [ -d ${TEENSY_CORES} ] || fail "Teensy3 Framework missing in dependences"
-    [ -e ${TEENSY_LOADER} ] || fail "Teensy3 upload tool missing"
+    [ -d "${TEENSY_CORES}" ] || fail "Teensy3 Framework missing in dependences"
+    [ -e "${TEENSY_LOADER}" ] || fail "Teensy3 upload tool missing"
 }
 
 flush_teensy() {
     flush_arm
     echo "  Flushing Teensy3 toolchain"
     ($V;
-    rm -rf ${TEENSY_CORES}
-    rm -rf ${TEENSY_LOADER_DIR}
+    rm -rf "${TEENSY_CORES}"
+    rm -rf "${TEENSY_LOADER_DIR}"
     )
 }
 
 install_teensy() {
     install_arm
     
-    if [ -d ${TEENSY_CORES} ]; then
+    if [ -d "${TEENSY_CORES}" ]; then
         echo "   [!] Teensy3 Framework already installed"
     else
         echo "   Installation of Teensy3 Framework"
-        git clone https://github.com/PaulStoffregen/cores ${TEENSY_CORES}
+        git clone https://github.com/PaulStoffregen/cores "${TEENSY_CORES}"
     fi
     
-    if [ -e ${TEENSY_LOADER} ]; then
+    if [ -e "${TEENSY_LOADER}" ]; then
         echo "   [!] Teensy3 Loader already installed"
     else
         echo "   Installation of Teensy3 Loader"
         retr_and_extract TEENSY_LOADER_URL[@] TEENSY_LOADER_CHECKSUM[@]
-        cd ${TEENSY_LOADER_DIR}
+        cd "${TEENSY_LOADER_DIR}"
         make
     fi
 }
 
 upload_teensy() {
     echo "  Uploading to Teensy"
-    ${TEENSY_LOADER} -mmcu=mk20dx128 ${TARGET}.hex
+    "${TEENSY_LOADER}" -mmcu=mk20dx128 "${TARGET}.hex"
 }

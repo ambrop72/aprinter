@@ -29,18 +29,18 @@
 # COMMON STUFF
 
 create_build_dir() {
-    mkdir -p ${BUILD}
+    mkdir -p "${BUILD}"
 }
 
 create_depends_dir() {
-    mkdir -p ${DEPS}
+    mkdir -p "${DEPS}"
 }
 
 # base actions functions
 
 clean() {
     echo "  Clean all builds for ${TARGET}"
-    ($V; rm -f ${TARGET}*)
+    ($V; rm -f "${TARGET}"*)
 }
 
 flush() {
@@ -77,13 +77,13 @@ retr_and_extract() {
 
     (
     create_depends_dir
-    cd ${DEPS}
+    cd "${DEPS}"
 
     files=()
     for url in "${urls[@]}"; do
         f=$(basename $url)
         echo "   Downloading '$f'"
-        curl ${url} -C- -L -o $f
+        curl "${url}" -C- -L -o "$f"
         files+=( "$f" )
     done
 
@@ -99,16 +99,16 @@ extract() {
         echo "   Extraction of $f"
         case "${f}" in
             *.zip)
-                ($V; unzip -qq $f && rm $f)
+                ($V; unzip -qq "$f" && rm "$f")
                 ;;
             *.tar.gz)
-                ($V; tar xzf $f && rm $f)
+                ($V; tar xzf "$f" && rm "$f")
                 ;;
             *.tar.bz2)
-                ($V; tar xjf $f && rm $f)
+                ($V; tar xjf "$f" && rm "$f")
                 ;;
             *.7z)
-                ($V; 7z x $f && rm $f)
+                ($V; 7z x "$f" && rm "$f")
                 ;;
             *)
                 echo "extension '${f#*.}' not handled for '$f'"
