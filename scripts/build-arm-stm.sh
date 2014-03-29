@@ -39,16 +39,21 @@ STM32F4_CHECKSUMS=(
 )
 
 configure_stm() {
+    STLINK_DIR=${DEPS}/stlink
     STM32F4_DIR=${DEPS}/STM32F4xx_DSP_StdPeriph_Lib_V1.3.0
     STM_USB_DIR=${DEPS}/STM32_USB-Host-Device_Lib_V2.1.0
+
+    if [ -n "${CUSTOM_STLINK}" ]; then
+        STLINK=${CUSTOM_STLINK}
+    else
+        STLINK=${STLINK_DIR}
+    fi
 
     CMSIS_DIR=${STM32F4_DIR}/Libraries/CMSIS/Device/ST/STM32F4xx
     TEMPLATES_DIR=${CMSIS_DIR}/Source/Templates
     STDPERIPH=${STM32F4_DIR}/Libraries/STM32F4xx_StdPeriph_Driver
     LINKER_SCRIPT=${STM32F4_DIR}/Project/STM32F4xx_StdPeriph_Templates/RIDE/stm32f4xx_flash.ld
 
-    STFLASH=${DEPS}/stlink/st-flash
-    
     ARM_CPU=cortex-m4
 
     configure_arm
@@ -86,56 +91,58 @@ configure_stm() {
 }
 
 build_stm() {
-    cp -f "${TEMPLATES_DIR}/system_stm32f4xx.c" ${BUILD}/system_stm32f4xx-hacked.c
-    sed 's/#define PLL_M      25/#define PLL_M      8/' -i ${BUILD}/system_stm32f4xx-hacked.c
+    cp -f "${TEMPLATES_DIR}/system_stm32f4xx.c" "${BUILD}/system_stm32f4xx-hacked.c"
+    sed 's/#define PLL_M      25/#define PLL_M      8/' -i "${BUILD}/system_stm32f4xx-hacked.c"
     build_arm
 }
 
 check_depends_stm() {
     check_depends_arm
-    [ -d ${STM32F4_DIR} ] || fail "STM32F4 framework missing in dependences"
-    [ -d ${STM_USB_DIR} ] || fail "STM USB framework missing in dependences"
-    [ -d ${DEPS}/stlink ] || fail "STM upload tool 'stlink' missing"
+    [ -d "${STM32F4_DIR}" ] || fail "STM32F4 framework missing in dependences"
+    [ -d "${STM_USB_DIR}" ] || fail "STM USB framework missing in dependences"
+    [ -e "${STLINK}/st-flash" ] || fail "STM upload tool 'stlink' missing"
 }
 
 clean_stm() {
     clean_arm
-    ($V; rm -f ${BUILD}/system_stm32f4xx-hacked.c)
+    ($V; rm -f "${BUILD}/system_stm32f4xx-hacked.c")
 }
 
 flush_stm() {
     flush_arm
     echo "  Flushing STM32F4 toolchain"
     ($V; 
-    rm -rf ${DEPS}/${STM32F4_DIR}
-    rm -rf ${DEPS}/${STM_USB_DIR}
-    rm -rf ${DEPS}/stlink)
+    rm -rf "${STM32F4_DIR}"
+    rm -rf "${STM_USB_DIR}"
+    rm -rf "${STLINK_DIR}"
+    )
 }
 
 install_stm() {
     install_arm
 
-    [ -d ${STM32F4_DIR} ] && \
-    [ -d ${STM_USB_DIR} ] && \
-    [ -d ${DEPS}/stlink ] && \
-        echo "   [!] STM32F4 toolchain already installed" && return 0
+    if [ -d "${STM32F4_DIR}" ] && [ -d "${STM_USB_DIR}" ]; then
+        echo "   [!] STM32F4 libraries already installed"
+    else
+        echo "   Installation of STM32F4 libraries"
+        retr_and_extract STM32F4_URL[@] STM32F4_CHECKSUMS[@]
+    fi
 
-    retr_and_extract STM32F4_URL[@] STM32F4_CHECKSUMS[@]
-
-    (
-        cd ${DEPS}
-
-        git clone https://github.com/texane/stlink 
-        cd stlink
-        ./autogen.sh && ./configure && make
-    )
-    echo "  Installation of STM32F4 Toolchain and STLink: success"
+    if [ -z "${CUSTOM_STLINK}" ]; then
+        if [ -e "${STLINK_DIR}/st-flash" ]; then
+            echo "   [!] STLink already installed"
+        else
+            echo "   Installation of STLink"
+            (
+                git clone https://github.com/texane/stlink "${STLINK_DIR}"
+                cd "${STLINK_DIR}"
+                ./autogen.sh && ./configure && make
+            )
+        fi
+    fi
 }
 
 upload_stm() {
     echo "  Uploading to STM"
-    #"${STFLASH}" erase
-    "${STFLASH}" write ${TARGET}.bin 0x08000000
-
+    "${STLINK}/st-flash" write "${TARGET}.bin" 0x08000000
 }
-
