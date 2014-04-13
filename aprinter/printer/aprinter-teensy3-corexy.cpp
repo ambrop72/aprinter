@@ -221,7 +221,15 @@ using PrinterParams = PrinterMainParams<
                 Mk20ClockInterruptTimer_Ftm0_Ch1, // StepperTimer,
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
-            PrinterMainNoMicroStepParams
+            PrinterMainMicroStepParams<
+               A4988MicroStep, // MicroStepTemplate
+               A4988MicroStepParams< // MicroStepParams
+                   TeensyPin7, // Ms1Pin
+                   TeensyPin8, // Ms2Pin
+                   TeensyPin9 // Ms3Pin
+               >,
+               16 // MicroSteps
+           >
         >,
         PrinterMainAxisParams<
             'B', // Name
@@ -250,7 +258,7 @@ using PrinterParams = PrinterMainParams<
             TeensyPin0, // DirPin
             TeensyPin0, // StepPin
             TeensyPin0, // EnablePin
-            true, // InvertDir
+            false, // InvertDir
             ZDefaultStepsPerUnit, // StepsPerUnit
             ZDefaultMin, // Min
             ZDefaultMax, // Max
@@ -280,9 +288,9 @@ using PrinterParams = PrinterMainParams<
         >,
         PrinterMainAxisParams<
             'E', // Name
-            TeensyPin7, // DirPin
-            TeensyPin6, // StepPin
-            TeensyPin11, // EnablePin
+            TeensyPin0, // DirPin
+            TeensyPin0, // StepPin
+            TeensyPin0, // EnablePin
             true, // InvertDir
             EDefaultStepsPerUnit, // StepsPerUnit
             EDefaultMin, // Min
