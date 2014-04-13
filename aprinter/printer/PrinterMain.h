@@ -1981,6 +1981,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void append_position (Context c, WrapType<TheChannelCommon>)
         {
             auto *axis = TheAxis::Object::self(c);
+            if (PhysVirtAxisIndex > 0) {
+                TheChannelCommon::reply_append_ch(c, ' ');
+            }
             TheChannelCommon::reply_append_ch(c, TheAxis::AxisName);
             TheChannelCommon::reply_append_ch(c, ':');
             TheChannelCommon::reply_append_fp(c, axis->m_req_pos);
