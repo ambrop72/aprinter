@@ -73,27 +73,27 @@ using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
 // stepper speed limits. Specifying INFINITY will not limit
 // the speed at cartesian axis level.
 
-using XDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using XDefaultMax = AMBRO_WRAP_DOUBLE(750.0);
-using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+using XMinPos = AMBRO_WRAP_DOUBLE(0.0);
+using XMaxPos = AMBRO_WRAP_DOUBLE(750.0);
+using XMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
 
-using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using YDefaultMax = AMBRO_WRAP_DOUBLE(750.0);
-using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+using YMinPos = AMBRO_WRAP_DOUBLE(0.0);
+using YMaxPos = AMBRO_WRAP_DOUBLE(750.0);
+using YMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
 
 // CoreXY steppers are called A and B.
 
 using ADefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(200.0);
-using ADefaultMin = AMBRO_WRAP_DOUBLE(XDefaultMin::value() + YDefaultMin::value());
-using ADefaultMax = AMBRO_WRAP_DOUBLE(XDefaultMax::value() + YDefaultMax::value());
+using ADefaultMin = AMBRO_WRAP_DOUBLE(1.01 * (XMinPos::value() + YMinPos::value()));
+using ADefaultMax = AMBRO_WRAP_DOUBLE(1.01 * (XMaxPos::value() + YMaxPos::value()));
 using ADefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
 using ADefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
 using ADefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using ADefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 
 using BDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(200.0);
-using BDefaultMin = AMBRO_WRAP_DOUBLE(XDefaultMin::value() - YDefaultMax::value());
-using BDefaultMax = AMBRO_WRAP_DOUBLE(XDefaultMax::value() - YDefaultMin::value());
+using BDefaultMin = AMBRO_WRAP_DOUBLE(1.01 * (XMinPos::value() - YMaxPos::value()));
+using BDefaultMax = AMBRO_WRAP_DOUBLE(1.01 * (XMaxPos::value() - YMinPos::value()));
 using BDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
 using BDefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
 using BDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
@@ -317,11 +317,15 @@ using PrinterParams = PrinterMainParams<
         MakeTypeList<
             PrinterMainVirtualAxisParams<
                 'X', // Name
-                XDefaultMaxSpeed
+                XMinPos,
+                XMaxPos,
+                XMaxSpeed
             >,
             PrinterMainVirtualAxisParams<
                 'Y', // Name
-                YDefaultMaxSpeed
+                YMinPos,
+                YMaxPos,
+                YMaxSpeed
             >
         >,
         MakeTypeList<WrapInt<'A'>, WrapInt<'B'>>,

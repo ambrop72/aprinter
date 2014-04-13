@@ -220,10 +220,13 @@ struct PrinterMainTransformParams {
 };
 
 template <
-    char TName, typename TMaxSpeed
+    char TName, typename TMinPos, typename TMaxPos,
+    typename TMaxSpeed
 >
 struct PrinterMainVirtualAxisParams {
     static char const Name = TName;
+    using MinPos = TMinPos;
+    using MaxPos = TMaxPos;
     using MaxSpeed = TMaxSpeed;
 };
 
@@ -1772,7 +1775,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             {
                 auto *o = Object::self(c);
                 auto *t = TransformFeature::Object::self(c);
-                o->m_req_pos = req;
+                o->m_req_pos = clamp_virt_pos(req);
                 t->splitting = true;
             }
             
@@ -1817,7 +1820,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             static void set_position (Context c, FpType value, bool *seen_virtual)
             {
                 auto *o = Object::self(c);
-                o->m_req_pos = value;
+                o->m_req_pos = clamp_virt_pos(value);
                 *seen_virtual = true;
             }
             
@@ -1836,6 +1839,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             {
                 auto *o = Object::self(c);
                 return FloatMax(accum, FloatAbs(o->m_delta) * (FpType)(Clock::time_freq / VirtAxisParams::MaxSpeed::value()));
+            }
+            
+            static FpType clamp_virt_pos (FpType req)
+            {
+                return FloatMax(VirtAxisParams::MinPos::value(), FloatMin(VirtAxisParams::MaxPos::value(), req));
             }
             
             struct Object : public ObjBase<VirtAxis, typename TransformFeature::Object, EmptyTypeList>
