@@ -84,16 +84,16 @@ using YMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
 // CoreXY steppers are called A and B.
 
 using ADefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(200.0);
-using ADefaultMin = AMBRO_WRAP_DOUBLE(1.01 * (XMinPos::value() + YMinPos::value()));
-using ADefaultMax = AMBRO_WRAP_DOUBLE(1.01 * (XMaxPos::value() + YMaxPos::value()));
+using ADefaultMin = AMBRO_WRAP_DOUBLE((XMinPos::value() + YMinPos::value()) - 0.5);
+using ADefaultMax = AMBRO_WRAP_DOUBLE((XMaxPos::value() + YMaxPos::value()) + 0.5);
 using ADefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
 using ADefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
 using ADefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using ADefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 
 using BDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(200.0);
-using BDefaultMin = AMBRO_WRAP_DOUBLE(1.01 * (XMinPos::value() - YMaxPos::value()));
-using BDefaultMax = AMBRO_WRAP_DOUBLE(1.01 * (XMaxPos::value() - YMinPos::value()));
+using BDefaultMin = AMBRO_WRAP_DOUBLE((XMinPos::value() - YMaxPos::value()) - 0.5);
+using BDefaultMax = AMBRO_WRAP_DOUBLE((XMaxPos::value() - YMinPos::value()) + 0.5);
 using BDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
 using BDefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
 using BDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
