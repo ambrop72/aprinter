@@ -102,6 +102,16 @@ target_teensy3() {
 
 #####################################################################################
 
+TARGETS+=( "teensy3-corexy" )
+target_teensy3-corexy() {
+    SOURCE_NAME=teensy3-corexy
+    PLATFORM=teensy
+    F_CPU=96000000
+    TEENSY_VERSION=3.1
+}
+
+#####################################################################################
+
 TARGETS+=( "stm32f4" )
 target_stm32f4() {
     PLATFORM=stm
