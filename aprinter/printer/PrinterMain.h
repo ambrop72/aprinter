@@ -221,13 +221,37 @@ struct PrinterMainTransformParams {
 
 template <
     char TName, typename TMinPos, typename TMaxPos,
-    typename TMaxSpeed
+    typename TMaxSpeed, typename TVirtualHoming
 >
 struct PrinterMainVirtualAxisParams {
     static char const Name = TName;
     using MinPos = TMinPos;
     using MaxPos = TMaxPos;
     using MaxSpeed = TMaxSpeed;
+    using VirtualHoming = TVirtualHoming;
+};
+
+struct PrinterMainNoVirtualHomingParams {
+    static bool const Enabled = false;
+};
+
+template <
+    typename TEndPin, typename TEndPinInputMode, bool TEndInvert, bool THomeDir,
+    typename TFastExtraDist, typename TRetractDist, typename TSlowExtraDist,
+    typename TFastSpeed, typename TRetractSpeed, typename TSlowSpeed
+>
+struct PrinterMainVirtualHomingParams {
+    static bool const Enabled = true;
+    using EndPin = TEndPin;
+    using EndPinInputMode = TEndPinInputMode;
+    static bool const EndInvert = TEndInvert;
+    static bool const HomeDir = THomeDir;
+    using FastExtraDist = TFastExtraDist;
+    using RetractDist = TRetractDist;
+    using SlowExtraDist = TSlowExtraDist;
+    using FastSpeed = TFastSpeed;
+    using RetractSpeed = TRetractSpeed;
+    using SlowSpeed = TSlowSpeed;
 };
 
 template <
@@ -386,13 +410,15 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_continue_unplanned_helper, continue_unplanned_helper)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_emergency, emergency)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_homing, start_homing)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_virt_homing, start_virt_homing)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prestep_callback, prestep_callback)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_homing_mask, update_homing_mask)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_enable_stepper, enable_stepper)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_disable_stepper, disable_stepper)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_do_move, do_move)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_limit_axis_move_speed, limit_axis_move_speed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fix_aborted_pos, fix_aborted_pos)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_endstop, append_endstop)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_m119_append_endstop, m119_append_endstop)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_value, append_value)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_adc_value, append_adc_value)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
@@ -405,7 +431,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_position, append_position)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_new_pos, collect_new_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_position, set_position)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_g92_check_axis, g92_check_axis)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init_new_pos, init_new_pos)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
@@ -433,8 +459,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using ParamsHeatersList = typename Params::HeatersList;
     using ParamsFansList = typename Params::FansList;
     static const int NumAxes = TypeListLength<ParamsAxesList>::value;
-    using AxisMaskType = typename ChooseInt<NumAxes, false>::Type;
-    using AxisCountType = typename ChooseInt<BitsInInt<NumAxes>::value, false>::Type;
     
     template <typename TheAxis>
     using MakeStepperDef = StepperDef<
@@ -452,9 +476,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
-    enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_PROBE};
+    enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
     
     struct MoveBuildState;
+    struct SetPositionState;
     
     template <typename ChannelParentObject, typename Channel>
     struct ChannelCommon {
@@ -1224,6 +1249,39 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         typename SdCardFeature::SdChannelCommonList
     >;
     
+    template <typename TheAxis, bool Enabled = TheAxis::HomingSpec::Enabled>
+    struct HomingHelper {
+        static void init (Context c) {}
+        template <typename TheChannelCommon>
+        static void m119_append_endstop (Context c, WrapType<TheChannelCommon>) {}
+    };
+    
+    template <typename TheAxis>
+    struct HomingHelper<TheAxis, true> {
+        using HomingSpec = typename TheAxis::HomingSpec;
+        
+        static void init (Context c)
+        {
+            Context::Pins::template setInput<typename HomingSpec::EndPin, typename HomingSpec::EndPinInputMode>(c);
+        }
+        
+        template <typename TheChannelCommon>
+        static void m119_append_endstop (Context c, WrapType<TheChannelCommon>)
+        {
+            bool triggered = endstop_is_triggered(c);
+            TheChannelCommon::reply_append_ch(c, ' ');
+            TheChannelCommon::reply_append_ch(c, TheAxis::AxisName);
+            TheChannelCommon::reply_append_ch(c, ':');
+            TheChannelCommon::reply_append_ch(c, (triggered ? '1' : '0'));
+        }
+        
+        template <typename TheContext>
+        static bool endstop_is_triggered (TheContext c)
+        {
+            return (Context::Pins::template get<typename HomingSpec::EndPin>(c) != HomingSpec::EndInvert);
+        }
+    };
+    
     template <int TAxisIndex>
     struct Axis {
         struct Object;
@@ -1235,8 +1293,15 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
         static const char AxisName = AxisSpec::Name;
         using WrappedAxisName = WrapInt<AxisName>;
+        using HomingSpec = typename AxisSpec::Homing;
+        using TheHomingHelper = HomingHelper<Axis>;
         
-        AMBRO_STRUCT_IF(HomingFeature, AxisSpec::Homing::Enabled) {
+        template <typename ThePrinterMain = PrinterMain>
+        struct Lazy {
+            static typename ThePrinterMain::PhysVirtAxisMaskType const AxisMask = (typename ThePrinterMain::PhysVirtAxisMaskType)1 << AxisIndex;
+        };
+        
+        AMBRO_STRUCT_IF(HomingFeature, HomingSpec::Enabled) {
             struct Object;
             struct HomerFinishedHandler;
             
@@ -1244,19 +1309,14 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 Context, Object, TheAxisStepper, AxisSpec::StepBits,
                 typename AxisSpec::DefaultDistanceFactor, typename AxisSpec::DefaultCorneringDistance,
                 Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, FpType,
-                typename AxisSpec::Homing::EndPin,
-                AxisSpec::Homing::EndInvert, AxisSpec::Homing::HomeDir, HomerFinishedHandler
+                typename HomingSpec::EndPin,
+                HomingSpec::EndInvert, HomingSpec::HomeDir, HomerFinishedHandler
             >;
             
             template <typename TheHomingFeature>
             using MakeAxisStepperConsumersList = MakeTypeList<typename TheHomingFeature::Homer::TheAxisStepperConsumer>;
             
             using EventLoopFastEvents = typename Homer::EventLoopFastEvents;
-            
-            static void init (Context c)
-            {
-                Context::Pins::template setInput<typename AxisSpec::Homing::EndPin, typename AxisSpec::Homing::EndPinInputMode>(c);
-            }
             
             static void deinit (Context c)
             {
@@ -1266,44 +1326,30 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 }
             }
             
-            static void start_homing (Context c, AxisMaskType mask)
+            static void start_phys_homing (Context c)
             {
                 auto *axis = Axis::Object::self(c);
                 auto *mob = PrinterMain::Object::self(c);
                 AMBRO_ASSERT(axis->m_state == AXIS_STATE_OTHER)
-                
-                if (!(mask & ((AxisMaskType)1 << AxisIndex))) {
-                    return;
-                }
+                AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                 
                 typename Homer::HomingParams params;
-                params.fast_max_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)AxisSpec::Homing::DefaultFastMaxDist::value()));
-                params.retract_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)AxisSpec::Homing::DefaultRetractDist::value()));
-                params.slow_max_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)AxisSpec::Homing::DefaultSlowMaxDist::value()));
-                params.fast_speed = speed_from_real((FpType)AxisSpec::Homing::DefaultFastSpeed::value());
-                params.retract_speed = speed_from_real((FpType)AxisSpec::Homing::DefaultRetractSpeed::value());
-                params.slow_speed = speed_from_real((FpType)AxisSpec::Homing::DefaultSlowSpeed::value());
+                params.fast_max_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)HomingSpec::DefaultFastMaxDist::value()));
+                params.retract_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)HomingSpec::DefaultRetractDist::value()));
+                params.slow_max_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)HomingSpec::DefaultSlowMaxDist::value()));
+                params.fast_speed = speed_from_real((FpType)HomingSpec::DefaultFastSpeed::value());
+                params.retract_speed = speed_from_real((FpType)HomingSpec::DefaultRetractSpeed::value());
+                params.slow_speed = speed_from_real((FpType)HomingSpec::DefaultSlowSpeed::value());
                 params.max_accel = accel_from_real((FpType)AxisSpec::DefaultMaxAccel::value());
                 
                 Stepper::enable(c);
                 Homer::init(c, params);
                 axis->m_state = AXIS_STATE_HOMING;
-                mob->m_homing_rem_axes++;
-            }
-            
-            template <typename TheChannelCommon>
-            static void append_endstop (Context c, WrapType<TheChannelCommon>)
-            {
-                bool triggered = Context::Pins::template get<typename AxisSpec::Homing::EndPin>(c) != AxisSpec::Homing::EndInvert;
-                TheChannelCommon::reply_append_ch(c, ' ');
-                TheChannelCommon::reply_append_ch(c, AxisName);
-                TheChannelCommon::reply_append_ch(c, ':');
-                TheChannelCommon::reply_append_ch(c, (triggered ? '1' : '0'));
             }
             
             static FpType init_position ()
             {
-                return AxisSpec::Homing::HomeDir ? max_req_pos() : min_req_pos();
+                return HomingSpec::HomeDir ? max_req_pos() : min_req_pos();
             };
             
             static void homer_finished_handler (Context c, bool success)
@@ -1312,16 +1358,16 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 auto *mob = PrinterMain::Object::self(c);
                 AMBRO_ASSERT(axis->m_state == AXIS_STATE_HOMING)
                 AMBRO_ASSERT(mob->locked)
-                AMBRO_ASSERT(mob->m_homing_rem_axes > 0)
+                AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                 
                 Homer::deinit(c);
-                axis->m_req_pos = (AxisSpec::Homing::HomeDir ? max_req_pos() : min_req_pos());
+                axis->m_req_pos = init_position();
                 axis->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(dist_from_real(axis->m_req_pos));
                 axis->m_state = AXIS_STATE_OTHER;
                 TransformFeature::template mark_phys_moved<AxisIndex>(c);
-                mob->m_homing_rem_axes--;
-                if (mob->m_homing_rem_axes == 0) {
-                    homing_finished(c);
+                mob->m_homing_rem_axes &= ~Lazy<>::AxisMask;
+                if (!(mob->m_homing_rem_axes & PhysAxisMask)) {
+                    phys_homing_finished(c);
                 }
             }
             
@@ -1334,11 +1380,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             template <typename TheHomingFeature>
             using MakeAxisStepperConsumersList = MakeTypeList<>;
             using EventLoopFastEvents = EmptyTypeList;
-            static void init (Context c) {}
             static void deinit (Context c) {}
-            static void start_homing (Context c, AxisMaskType mask) {}
-            template <typename TheChannelCommon>
-            static void append_endstop (Context c, WrapType<TheChannelCommon>) {}
+            static void start_phys_homing (Context c) {}
             static FpType init_position () { return 0.0f; }
             struct Object {};
         };
@@ -1403,7 +1446,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             TheAxisStepper::init(c);
             o->m_state = AXIS_STATE_OTHER;
-            HomingFeature::init(c);
+            TheHomingHelper::init(c);
             MicroStepFeature::init(c);
             o->m_req_pos = HomingFeature::init_position();
             o->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(dist_from_real(o->m_req_pos));
@@ -1416,17 +1459,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheAxisStepper::deinit(c);
         }
         
-        static void start_homing (Context c, AxisMaskType mask)
+        static void start_phys_homing (Context c)
         {
-            HomingFeature::start_homing(c, mask);
-        }
-        
-        template <typename TheChannelCommon>
-        static void update_homing_mask (Context c, WrapType<TheChannelCommon>, AxisMaskType *mask, typename TheChannelCommon::GcodeParserPartRef part)
-        {
-            if (AxisSpec::Homing::Enabled && TheChannelCommon::TheGcodeParser::getPartCode(c, part) == AxisName) {
-                *mask |= (AxisMaskType)1 << AxisIndex;
-            }
+            HomingFeature::start_phys_homing(c);
         }
         
         static void enable_stepper (Context c)
@@ -1507,12 +1542,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TransformFeature::template mark_phys_moved<AxisIndex>(c);
         }
         
-        template <typename TheChannelCommon>
-        static void append_endstop (Context c, WrapType<TheChannelCommon> cc)
-        {
-            HomingFeature::append_endstop(c, cc);
-        }
-        
         static void emergency ()
         {
             Stepper::emergency();
@@ -1552,6 +1581,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         typename TheAxis::AxisSpec::DefaultCorneringDistance,
         PlannerPrestepCallback<TheAxis::AxisIndex>
     >;
+    
+    struct PlannerClient {
+        virtual void pull_handler (Context c) = 0;
+        virtual void finished_handler (Context c) = 0;
+        virtual void aborted_handler (Context c) = 0;
+    };
     
     AMBRO_STRUCT_IF(TransformFeature, TransformParams::Enabled) {
         struct Object;
@@ -1618,7 +1653,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             auto *mob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(mob->planner_state == PLANNER_RUNNING || mob->planner_state == PLANNER_PROBE)
+            AMBRO_ASSERT(mob->planner_state == PLANNER_RUNNING || mob->planner_state == PLANNER_CUSTOM)
             AMBRO_ASSERT(mob->m_planning_pull_pending)
             AMBRO_ASSERT(o->splitting)
             AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
@@ -1755,6 +1790,17 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             do_pending_virt_update(c);
         }
         
+        static bool start_virt_homing (Context c)
+        {
+            return ListForEachForwardInterruptible<VirtAxesList>(LForeach_start_virt_homing(), c);
+        }
+        
+        template <typename CallbackContext>
+        static bool prestep_callback (CallbackContext c)
+        {
+            return !ListForEachForwardInterruptible<VirtAxesList>(LForeach_prestep_callback(), c);
+        }
+        
         template <int VirtAxisIndex>
         struct VirtAxis {
             struct Object;
@@ -1764,11 +1810,19 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             using ThePhysAxis = Axis<PhysAxisIndex>;
             static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
+            using HomingSpec = typename VirtAxisParams::VirtualHoming;
+            using TheHomingHelper = HomingHelper<VirtAxis>;
+            
+            template <typename ThePrinterMain = PrinterMain>
+            struct Lazy {
+                static typename ThePrinterMain::PhysVirtAxisMaskType const AxisMask = (typename ThePrinterMain::PhysVirtAxisMaskType)1 << (NumAxes + VirtAxisIndex);
+            };
             
             static void init (Context c)
             {
                 auto *o = Object::self(c);
                 o->m_relative_positioning = false;
+                TheHomingHelper::init(c);
             }
             
             static void update_new_pos (Context c, MoveBuildState *s, FpType req)
@@ -1846,7 +1900,139 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 return FloatMax(VirtAxisParams::MinPos::value(), FloatMin(VirtAxisParams::MaxPos::value(), req));
             }
             
-            struct Object : public ObjBase<VirtAxis, typename TransformFeature::Object, EmptyTypeList>
+            static bool start_virt_homing (Context c)
+            {
+                return HomingFeature::start_virt_homing(c);
+            }
+            
+            template <typename CallbackContext>
+            static bool prestep_callback (CallbackContext c)
+            {
+                return HomingFeature::prestep_callback(c);
+            }
+            
+            static void start_phys_homing (Context c) {}
+            
+            AMBRO_STRUCT_IF(HomingFeature, HomingSpec::Enabled) {
+                struct Object;
+                
+                static bool start_virt_homing (Context c)
+                {
+                    auto *o = Object::self(c);
+                    auto *mo = PrinterMain::Object::self(c);
+                    
+                    if (!(mo->m_homing_rem_axes & Lazy<>::AxisMask)) {
+                        return true;
+                    }
+                    set_position(c, home_start_pos());
+                    custom_planner_init(c, &o->planner_client, true);
+                    o->state = 0;
+                    o->command_sent = false;
+                    return false;
+                }
+                
+                template <typename CallbackContext>
+                static bool prestep_callback (CallbackContext c)
+                {
+                    return !TheHomingHelper::endstop_is_triggered(c);
+                }
+                
+                static void set_position (Context c, FpType value)
+                {
+                    SetPositionState s;
+                    set_position_begin(c, &s);
+                    set_position_add_axis<(NumAxes + VirtAxisIndex)>(c, &s, value);
+                    set_position_end(c, &s);
+                }
+                
+                static FpType home_start_pos ()
+                {
+                    return HomingSpec::HomeDir ? VirtAxisParams::MinPos::value() : VirtAxisParams::MaxPos::value();
+                }
+                
+                static FpType home_end_pos ()
+                {
+                    return HomingSpec::HomeDir ? VirtAxisParams::MaxPos::value() : VirtAxisParams::MinPos::value();
+                }
+                
+                static FpType home_dir ()
+                {
+                    return HomingSpec::HomeDir ? 1.0f : -1.0f;
+                }
+                
+                struct VirtHomingPlannerClient : public PlannerClient {
+                    void pull_handler (Context c)
+                    {
+                        auto *o = Object::self(c);
+                        auto *axis = VirtAxis::Object::self(c);
+                        
+                        if (o->command_sent) {
+                            return custom_planner_wait_finished(c);
+                        }
+                        MoveBuildState s;
+                        move_begin(c, &s);
+                        FpType position;
+                        FpType speed;
+                        switch (o->state) {
+                            case 0: {
+                                position = home_end_pos() + home_dir() * HomingSpec::FastExtraDist::value();
+                                speed = HomingSpec::FastSpeed::value();
+                            } break;
+                            case 1: {
+                                position = home_end_pos() - home_dir() * HomingSpec::RetractDist::value();
+                                speed = HomingSpec::RetractSpeed::value();
+                            } break;
+                            case 2: {
+                                position = home_end_pos() + home_dir() * HomingSpec::SlowExtraDist::value();
+                                speed = HomingSpec::SlowSpeed::value();
+                            } break;
+                        }
+                        move_add_axis<(NumAxes + VirtAxisIndex)>(c, &s, position);
+                        move_end(c, &s, (FpType)Clock::time_freq / speed);
+                        o->command_sent = true;
+                    }
+                    
+                    void finished_handler (Context c)
+                    {
+                        auto *o = Object::self(c);
+                        auto *mo = PrinterMain::Object::self(c);
+                        AMBRO_ASSERT(o->state < 3)
+                        AMBRO_ASSERT(o->command_sent)
+                        
+                        custom_planner_deinit(c);
+                        if (o->state != 1) {
+                            set_position(c, home_end_pos());
+                        }
+                        o->state++;
+                        o->command_sent = false;
+                        if (o->state < 3) {
+                            return custom_planner_init(c, &o->planner_client, o->state == 2);
+                        }
+                        mo->m_homing_rem_axes &= ~Lazy<>::AxisMask;
+                        work_virt_homing(c);
+                    }
+                    
+                    void aborted_handler (Context c)
+                    {
+                        finished_handler(c);
+                    }
+                };
+                
+                struct Object : public ObjBase<HomingFeature, typename VirtAxis::Object, EmptyTypeList> {
+                    VirtHomingPlannerClient planner_client;
+                    uint8_t state;
+                    bool command_sent;
+                };
+            } AMBRO_STRUCT_ELSE(HomingFeature) {
+                static bool start_virt_homing (Context c) { return true; }
+                template <typename CallbackContext>
+                static bool prestep_callback (CallbackContext c) { return true; }
+                struct Object {};
+            };
+            
+            struct Object : public ObjBase<VirtAxis, typename TransformFeature::Object, MakeTypeList<
+                HomingFeature
+            >>
             {
                 FpType m_req_pos;
                 FpType m_old_pos;
@@ -1922,10 +2108,15 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void split_more (Context c) {}
         static bool try_splitclear_command (Context c) { return true; }
         static void handle_set_position (Context c, bool seen_virtual) {}
+        static bool start_virt_homing (Context c) { return true; }
+        template <typename CallbackContext>
+        static bool prestep_callback (CallbackContext c) { return false; }
         struct Object {};
     };
     
     static int const NumPhysVirtAxes = NumAxes + TransformFeature::NumVirtAxes;
+    using PhysVirtAxisMaskType = typename ChooseInt<NumPhysVirtAxes, false>::Type;
+    static PhysVirtAxisMaskType const PhysAxisMask = PowerOfTwoMinusOne<PhysVirtAxisMaskType, NumAxes>::value;
     
     template <bool IsVirt, int PhysVirtAxisIndex>
     struct GetPhysVirtAxisHelper {
@@ -1944,6 +2135,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     struct PhysVirtAxisHelper {
         using TheAxis = GetPhysVirtAxis<PhysVirtAxisIndex>;
         using WrappedAxisName = WrapInt<TheAxis::AxisName>;
+        static PhysVirtAxisMaskType const AxisMask = TheAxis::template Lazy<>::AxisMask;
         
         static void init_new_pos (Context c)
         {
@@ -1990,12 +2182,36 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
         
         template <typename TheChannelCommon>
-        static void set_position (Context c, WrapType<TheChannelCommon>, typename TheChannelCommon::GcodeParserPartRef part, bool *seen_virtual)
+        static void g92_check_axis (Context c, WrapType<TheChannelCommon>, typename TheChannelCommon::GcodeParserPartRef part, SetPositionState *s)
         {
             if (TheChannelCommon::TheGcodeParser::getPartCode(c, part) == TheAxis::AxisName) {
                 FpType value = TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part);
-                TheAxis::set_position(c, value, seen_virtual);
+                set_position_add_axis<PhysVirtAxisIndex>(c, s, value);
             }
+        }
+        
+        template <typename TheChannelCommon>
+        static void update_homing_mask (Context c, WrapType<TheChannelCommon>, PhysVirtAxisMaskType *mask, typename TheChannelCommon::GcodeParserPartRef part)
+        {
+            if (TheChannelCommon::TheGcodeParser::getPartCode(c, part) == TheAxis::AxisName) {
+                *mask |= AxisMask;
+            }
+        }
+        
+        static void start_homing (Context c, PhysVirtAxisMaskType mask)
+        {
+            auto *m = PrinterMain::Object::self(c);
+            if (!TheAxis::HomingSpec::Enabled || !(mask & AxisMask)) {
+                return;
+            }
+            m->m_homing_rem_axes |= AxisMask;
+            TheAxis::start_phys_homing(c);
+        }
+        
+        template <typename TheChannelCommon>
+        static void m119_append_endstop (Context c, WrapType<TheChannelCommon> cc)
+        {
+            TheAxis::TheHomingHelper::m119_append_endstop(c, cc);
         }
     };
     
@@ -2445,86 +2661,88 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         using AxisHelperList = IndexElemList<typename ProbeParams::PlatformAxesList, AxisHelper>;
         
-        static void custom_pull_handler (Context c)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_current_point != 0xff)
-            AMBRO_ASSERT(o->m_point_state <= 4)
-            
-            if (o->m_command_sent) {
-                custom_planner_wait_finished(c);
-                return;
-            }
-            MoveBuildState s;
-            move_begin(c, &s);
-            FpType height;
-            FpType time_freq_by_speed;
-            switch (o->m_point_state) {
-                case 0: {
-                    ListForEachForward<AxisHelperList>(LForeach_add_axis(), c, &s, o->m_current_point);
-                    height = (FpType)ProbeParams::ProbeStartHeight::value();
-                    time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeMoveSpeed::value());
-                } break;
-                case 1: {
-                    height = (FpType)ProbeParams::ProbeLowHeight::value();
-                    time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeFastSpeed::value());
-                } break;
-                case 2: {
-                    height = get_height(c) + (FpType)ProbeParams::ProbeRetractDist::value();
-                    time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeRetractSpeed::value());
-                } break;
-                case 3: {
-                    height = (FpType)ProbeParams::ProbeLowHeight::value();
-                    time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeSlowSpeed::value());
-                } break;
-                case 4: {
-                    height = (FpType)ProbeParams::ProbeStartHeight::value();
-                    time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeRetractSpeed::value());
-                } break;
-            }
-            move_add_axis<ProbeAxisIndex>(c, &s, height);
-            move_end(c, &s, time_freq_by_speed);
-            o->m_command_sent = true;
-        }
-        
-        static void custom_finished_handler (Context c)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_current_point != 0xff)
-            AMBRO_ASSERT(o->m_command_sent)
-            
-            custom_planner_deinit(c);
-            o->m_command_sent = false;
-            if (o->m_point_state < 4) {
-                if (o->m_point_state == 3) {
-                    FpType height = get_height(c);
-                    o->m_samples[o->m_current_point] = height;
-                    ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<ProbeFeature>(), LForeach_report_height(), height);
-                }
-                o->m_point_state++;
-                bool watch_probe = (o->m_point_state == 1 || o->m_point_state == 3);
-                init_probe_planner(c, watch_probe);
-            } else {
-                o->m_current_point++;
-                if (o->m_current_point == NumPoints) {
-                    o->m_current_point = 0xff;
-                    finish_locked(c);
+        struct ProbePlannerClient : public PlannerClient {
+            void pull_handler (Context c)
+            {
+                auto *o = Object::self(c);
+                AMBRO_ASSERT(o->m_current_point != 0xff)
+                AMBRO_ASSERT(o->m_point_state <= 4)
+                
+                if (o->m_command_sent) {
+                    custom_planner_wait_finished(c);
                     return;
                 }
-                init_probe_planner(c, false);
-                o->m_point_state = 0;
+                MoveBuildState s;
+                move_begin(c, &s);
+                FpType height;
+                FpType time_freq_by_speed;
+                switch (o->m_point_state) {
+                    case 0: {
+                        ListForEachForward<AxisHelperList>(LForeach_add_axis(), c, &s, o->m_current_point);
+                        height = (FpType)ProbeParams::ProbeStartHeight::value();
+                        time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeMoveSpeed::value());
+                    } break;
+                    case 1: {
+                        height = (FpType)ProbeParams::ProbeLowHeight::value();
+                        time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeFastSpeed::value());
+                    } break;
+                    case 2: {
+                        height = get_height(c) + (FpType)ProbeParams::ProbeRetractDist::value();
+                        time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeRetractSpeed::value());
+                    } break;
+                    case 3: {
+                        height = (FpType)ProbeParams::ProbeLowHeight::value();
+                        time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeSlowSpeed::value());
+                    } break;
+                    case 4: {
+                        height = (FpType)ProbeParams::ProbeStartHeight::value();
+                        time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeRetractSpeed::value());
+                    } break;
+                }
+                move_add_axis<ProbeAxisIndex>(c, &s, height);
+                move_end(c, &s, time_freq_by_speed);
+                o->m_command_sent = true;
             }
-        }
-        
-        static void custom_aborted_handler (Context c)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_current_point != 0xff)
-            AMBRO_ASSERT(o->m_command_sent)
-            AMBRO_ASSERT(o->m_point_state == 1 || o->m_point_state == 3)
             
-            custom_finished_handler(c);
-        }
+            void finished_handler (Context c)
+            {
+                auto *o = Object::self(c);
+                AMBRO_ASSERT(o->m_current_point != 0xff)
+                AMBRO_ASSERT(o->m_command_sent)
+                
+                custom_planner_deinit(c);
+                o->m_command_sent = false;
+                if (o->m_point_state < 4) {
+                    if (o->m_point_state == 3) {
+                        FpType height = get_height(c);
+                        o->m_samples[o->m_current_point] = height;
+                        ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<ProbeFeature>(), LForeach_report_height(), height);
+                    }
+                    o->m_point_state++;
+                    bool watch_probe = (o->m_point_state == 1 || o->m_point_state == 3);
+                    init_probe_planner(c, watch_probe);
+                } else {
+                    o->m_current_point++;
+                    if (o->m_current_point == NumPoints) {
+                        o->m_current_point = 0xff;
+                        finish_locked(c);
+                        return;
+                    }
+                    init_probe_planner(c, false);
+                    o->m_point_state = 0;
+                }
+            }
+            
+            void aborted_handler (Context c)
+            {
+                auto *o = Object::self(c);
+                AMBRO_ASSERT(o->m_current_point != 0xff)
+                AMBRO_ASSERT(o->m_command_sent)
+                AMBRO_ASSERT(o->m_point_state == 1 || o->m_point_state == 3)
+                
+                finished_handler(c);
+            }
+        };
         
         template <typename CallbackContext>
         static bool prestep_callback (CallbackContext c)
@@ -2534,7 +2752,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void init_probe_planner (Context c, bool watch_probe)
         {
-            custom_planner_init(c, PLANNER_PROBE, watch_probe);
+            auto *o = Object::self(c);
+            custom_planner_init(c, &o->planner_client, watch_probe);
         }
         
         static FpType get_height (Context c)
@@ -2552,6 +2771,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
         
         struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, EmptyTypeList> {
+            ProbePlannerClient planner_client;
             uint8_t m_current_point;
             uint8_t m_point_state;
             bool m_command_sent;
@@ -2562,9 +2782,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void deinit (Context c) {}
         template <typename TheChannelCommon>
         static bool check_command (Context c, WrapType<TheChannelCommon>) { return true; }
-        static void custom_pull_handler (Context c) {}
-        static void custom_finished_handler (Context c) {}
-        static void custom_aborted_handler (Context c) {}
         template <typename CallbackContext>
         static bool prestep_callback (CallbackContext c) { return false; }
         struct Object {};
@@ -2821,7 +3038,7 @@ public: // private, see comment on top
                 
                 case 119: {
                     TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR("endstops:"));
-                    ListForEachForward<AxesList>(LForeach_append_endstop(), c, cc);
+                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_m119_append_endstop(), c, cc);
                     TheChannelCommon::reply_append_ch(c, '\n');                    
                     return TheChannelCommon::finishCommand(c, true);
                 } break;
@@ -2895,20 +3112,20 @@ public: // private, see comment on top
                     if (!TheChannelCommon::tryUnplannedCommand(c)) {
                         return;
                     }
-                    AxisMaskType mask = 0;
+                    PhysVirtAxisMaskType mask = 0;
                     auto num_parts = TheChannelCommon::TheGcodeParser::getNumParts(c);
                     for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
-                        ListForEachForward<AxesList>(LForeach_update_homing_mask(), c, cc, &mask, TheChannelCommon::TheGcodeParser::getPart(c, i));
+                        ListForEachForward<PhysVirtAxisHelperList>(LForeach_update_homing_mask(), c, cc, &mask, TheChannelCommon::TheGcodeParser::getPart(c, i));
                     }
                     if (mask == 0) {
                         mask = -1;
                     }
                     ob->m_homing_rem_axes = 0;
-                    ListForEachForward<AxesList>(LForeach_start_homing(), c, mask);
-                    if (ob->m_homing_rem_axes == 0) {
-                        return TheChannelCommon::finishCommand(c);
-                    }
                     now_active(c);
+                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_start_homing(), c, mask);
+                    if (!(ob->m_homing_rem_axes & PhysAxisMask)) {
+                        return phys_homing_finished(c);
+                    }
                 } break;
                 
                 case 90: { // absolute positioning
@@ -2925,12 +3142,13 @@ public: // private, see comment on top
                     if (!TheChannelCommon::trySplitClearCommand(c)) {
                         return;
                     }
-                    bool seen_virtual = false;
+                    SetPositionState s;
+                    set_position_begin(c, &s);
                     auto num_parts = TheChannelCommon::TheGcodeParser::getNumParts(c);
                     for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
-                        ListForEachForward<PhysVirtAxisHelperList>(LForeach_set_position(), c, cc, TheChannelCommon::TheGcodeParser::getPart(c, i), &seen_virtual);
+                        ListForEachForward<PhysVirtAxisHelperList>(LForeach_g92_check_axis(), c, cc, TheChannelCommon::TheGcodeParser::getPart(c, i), &s);
                     }
-                    TransformFeature::handle_set_position(c, seen_virtual);
+                    set_position_end(c, &s);
                     return TheChannelCommon::finishCommand(c);
                 } break;
             } break;
@@ -2960,13 +3178,25 @@ public: // private, see comment on top
         ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_finish_locked_helper());
     }
     
-    static void homing_finished (Context c)
+    static void phys_homing_finished (Context c)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
-        AMBRO_ASSERT(ob->m_homing_rem_axes == 0)
+        AMBRO_ASSERT(!(ob->m_homing_rem_axes & PhysAxisMask))
         
         TransformFeature::do_pending_virt_update(c);
+        work_virt_homing(c);
+    }
+    
+    static void work_virt_homing (Context c)
+    {
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
+        AMBRO_ASSERT(!(ob->m_homing_rem_axes & PhysAxisMask))
+        
+        if (!TransformFeature::start_virt_homing(c)) {
+            return;
+        }
         now_inactive(c);
         finish_locked(c);
     }
@@ -3072,8 +3302,8 @@ public: // private, see comment on top
         } else if (ob->planner_state == PLANNER_RUNNING) {
             set_force_timer(c);
         } else {
-            AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
-            ProbeFeature::custom_pull_handler(c);
+            AMBRO_ASSERT(ob->planner_state == PLANNER_CUSTOM)
+            ob->planner_client->pull_handler(c);
         }
     }
     
@@ -3098,8 +3328,8 @@ public: // private, see comment on top
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         AMBRO_ASSERT(ob->planner_state != PLANNER_WAITING)
         
-        if (ob->planner_state == PLANNER_PROBE) {
-            return ProbeFeature::custom_finished_handler(c);
+        if (ob->planner_state == PLANNER_CUSTOM) {
+            return ob->planner_client->finished_handler(c);
         }
         
         uint8_t old_state = ob->planner_state;
@@ -3117,11 +3347,11 @@ public: // private, see comment on top
     {
         auto *ob = Object::self(c);
         ob->debugAccess(c);
-        AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_CUSTOM)
         
         ListForEachForward<AxesList>(LForeach_fix_aborted_pos(), c);
         TransformFeature::do_pending_virt_update(c);
-        ProbeFeature::custom_aborted_handler(c);
+        ob->planner_client->aborted_handler(c);
     }
     
     static void planner_underrun_callback (Context c)
@@ -3142,7 +3372,9 @@ public: // private, see comment on top
     template <int AxisIndex>
     static bool planner_prestep_callback (typename ThePlanner::template Axis<AxisIndex>::StepperCommandCallbackContext c)
     {
-        return ProbeFeature::prestep_callback(c);
+        return
+            ProbeFeature::prestep_callback(c) ||
+            TransformFeature::prestep_callback(c);
     }
     
     struct MoveBuildState {
@@ -3170,7 +3402,7 @@ public: // private, see comment on top
     static void move_end (Context c, MoveBuildState *s, FpType time_freq_by_max_speed)
     {
         auto *ob = Object::self(c);
-        AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING || ob->planner_state == PLANNER_PROBE)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING || ob->planner_state == PLANNER_CUSTOM)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
         
@@ -3197,6 +3429,30 @@ public: // private, see comment on top
         submitted_planner_command(c);
     }
     
+    struct SetPositionState {
+        bool seen_virtual;
+    };
+    
+    static void set_position_begin (Context c, SetPositionState *s)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->locked)
+        AMBRO_ASSERT(!TransformFeature::is_splitting(c))
+        
+        s->seen_virtual = false;
+    }
+    
+    template <int PhysVirtAxisIndex>
+    static void set_position_add_axis (Context c, SetPositionState *s, FpType value)
+    {
+        PhysVirtAxisHelper<PhysVirtAxisIndex>::TheAxis::set_position(c, value, &s->seen_virtual);
+    }
+    
+    static void set_position_end (Context c, SetPositionState *s)
+    {
+        TransformFeature::handle_set_position(c, s->seen_virtual);
+    }
+    
     static void submitted_planner_command (Context c)
     {
         auto *ob = Object::self(c);
@@ -3207,14 +3463,14 @@ public: // private, see comment on top
         ob->force_timer.unset(c);
     }
     
-    static void custom_planner_init (Context c, uint8_t type, bool enable_prestep_callback)
+    static void custom_planner_init (Context c, PlannerClient *planner_client, bool enable_prestep_callback)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
         AMBRO_ASSERT(ob->planner_state == PLANNER_NONE)
-        AMBRO_ASSERT(type == PLANNER_PROBE)
         
-        ob->planner_state = type;
+        ob->planner_state = PLANNER_CUSTOM;
+        ob->planner_client = planner_client;
         ThePlanner::init(c, enable_prestep_callback);
         ob->m_planning_pull_pending = false;
         now_active(c);
@@ -3224,7 +3480,7 @@ public: // private, see comment on top
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
-        AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_CUSTOM)
         
         ThePlanner::deinit(c);
         ob->planner_state = PLANNER_NONE;
@@ -3235,7 +3491,7 @@ public: // private, see comment on top
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
-        AMBRO_ASSERT(ob->planner_state == PLANNER_PROBE)
+        AMBRO_ASSERT(ob->planner_state == PLANNER_CUSTOM)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         
         ThePlanner::waitFinished(c);
@@ -3300,8 +3556,9 @@ public:
         uint32_t underrun_count;
         bool locked;
         uint8_t planner_state;
+        PlannerClient *planner_client;
         bool m_planning_pull_pending;
-        AxisCountType m_homing_rem_axes;
+        PhysVirtAxisMaskType m_homing_rem_axes;
     };
 };
 

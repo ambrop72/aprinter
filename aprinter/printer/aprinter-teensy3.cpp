@@ -317,19 +317,22 @@ using PrinterParams = PrinterMainParams<
                 'X', // Name
                 XMinPos,
                 XMaxPos,
-                XMaxSpeed
+                XMaxSpeed,
+                PrinterMainNoVirtualHomingParams
             >,
             PrinterMainVirtualAxisParams<
                 'Y', // Name
                 YMinPos,
                 YMaxPos,
-                YMaxSpeed
+                YMaxSpeed,
+                PrinterMainNoVirtualHomingParams
             >,
             PrinterMainVirtualAxisParams<
                 'Z', // Name
                 ZMinPos,
                 ZMaxPos,
-                ZMaxSpeed
+                ZMaxSpeed,
+                PrinterMainNoVirtualHomingParams
             >
         >,
         MakeTypeList<WrapInt<'A'>, WrapInt<'B'>, WrapInt<'C'>>,

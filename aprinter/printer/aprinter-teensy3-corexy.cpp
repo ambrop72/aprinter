@@ -67,8 +67,6 @@ using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
 // axis, not to a "corresponding stepper". Actually,
 // anything that is specific to a stepper will be named
 // with A or B, and not misnamed with X or Y.
-// NOTE: Min and Max here are not implemented properly yet,
-// they are only used to compute stepper limits.
 // NOTE: The speed limits here are used in addition to the
 // stepper speed limits. Specifying INFINITY will not limit
 // the speed at cartesian axis level.
@@ -76,24 +74,36 @@ using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
 using XMinPos = AMBRO_WRAP_DOUBLE(0.0);
 using XMaxPos = AMBRO_WRAP_DOUBLE(750.0);
 using XMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+using XHomeFastExtraDist = AMBRO_WRAP_DOUBLE(30.0);
+using XHomeRetractDist = AMBRO_WRAP_DOUBLE(5.0);
+using XHomeSlowExtraDist = AMBRO_WRAP_DOUBLE(3.0);
+using XHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
+using XHomeRetractSpeed = AMBRO_WRAP_DOUBLE(60.0);
+using XHomeSlowSpeed = AMBRO_WRAP_DOUBLE(2.0);
 
 using YMinPos = AMBRO_WRAP_DOUBLE(0.0);
 using YMaxPos = AMBRO_WRAP_DOUBLE(750.0);
 using YMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+using YHomeFastExtraDist = AMBRO_WRAP_DOUBLE(30.0);
+using YHomeRetractDist = AMBRO_WRAP_DOUBLE(5.0);
+using YHomeSlowExtraDist = AMBRO_WRAP_DOUBLE(3.0);
+using YHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
+using YHomeRetractSpeed = AMBRO_WRAP_DOUBLE(60.0);
+using YHomeSlowSpeed = AMBRO_WRAP_DOUBLE(2.0);
 
 // CoreXY steppers are called A and B.
 
 using ADefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(200.0);
-using ADefaultMin = AMBRO_WRAP_DOUBLE((XMinPos::value() + YMinPos::value()) - 0.5);
-using ADefaultMax = AMBRO_WRAP_DOUBLE((XMaxPos::value() + YMaxPos::value()) + 0.5);
+using ADefaultMin = AMBRO_WRAP_DOUBLE(-INFINITY);
+using ADefaultMax = AMBRO_WRAP_DOUBLE(INFINITY);;
 using ADefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
 using ADefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
 using ADefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using ADefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 
 using BDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(200.0);
-using BDefaultMin = AMBRO_WRAP_DOUBLE((XMinPos::value() - YMaxPos::value()) - 0.5);
-using BDefaultMax = AMBRO_WRAP_DOUBLE((XMaxPos::value() - YMinPos::value()) + 0.5);
+using BDefaultMin = AMBRO_WRAP_DOUBLE(-INFINITY);
+using BDefaultMax = AMBRO_WRAP_DOUBLE(INFINITY);
 using BDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
 using BDefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
 using BDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
@@ -319,13 +329,37 @@ using PrinterParams = PrinterMainParams<
                 'X', // Name
                 XMinPos,
                 XMaxPos,
-                XMaxSpeed
+                XMaxSpeed,
+                PrinterMainVirtualHomingParams<
+                    TeensyPin21, // HomeEndPin
+                    Mk20PinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
+                    false, // HomeDir
+                    XHomeFastExtraDist,
+                    XHomeRetractDist,
+                    XHomeSlowExtraDist,
+                    XHomeFastSpeed,
+                    XHomeRetractSpeed,
+                    XHomeSlowSpeed
+                >
             >,
             PrinterMainVirtualAxisParams<
                 'Y', // Name
                 YMinPos,
                 YMaxPos,
-                YMaxSpeed
+                YMaxSpeed,
+                PrinterMainVirtualHomingParams<
+                    TeensyPin22, // HomeEndPin
+                    Mk20PinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
+                    false, // HomeDir
+                    YHomeFastExtraDist,
+                    YHomeRetractDist,
+                    YHomeSlowExtraDist,
+                    YHomeFastSpeed,
+                    YHomeRetractSpeed,
+                    YHomeSlowSpeed
+                >
             >
         >,
         MakeTypeList<WrapInt<'A'>, WrapInt<'B'>>,
