@@ -64,7 +64,7 @@ using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
 
-using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
+using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 80.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
 using XDefaultMax = AMBRO_WRAP_DOUBLE(210.0);
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
@@ -78,7 +78,7 @@ using XDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
 using XDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
-using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
+using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 80.0);
 using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using YDefaultMax = AMBRO_WRAP_DOUBLE(155.0);
 using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
@@ -92,7 +92,7 @@ using YDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
 using YDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using YDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
-using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(4000.0);
+using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 4000.0);
 using ZDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using ZDefaultMax = AMBRO_WRAP_DOUBLE(100.0);
 using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
@@ -106,7 +106,7 @@ using ZDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
 
-using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);
+using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 928.0);
 using EDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
 using EDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
 using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
@@ -114,7 +114,7 @@ using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 
-using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(660.0);
+using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 660.0);
 using UDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
 using UDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
 using UDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
@@ -271,7 +271,7 @@ using PrinterParams = PrinterMainParams<
             DuePin23, // DirPin
             DuePin24, // StepPin
             DuePin26, // EnablePin
-            true, // InvertDir
+            false, // InvertDir
             XDefaultStepsPerUnit, // StepsPerUnit
             XDefaultMin, // Min
             XDefaultMax, // Max
@@ -304,7 +304,7 @@ using PrinterParams = PrinterMainParams<
             DuePin16, // DirPin
             DuePin17, // StepPin
             DuePin22, // EnablePin
-            true, // InvertDir
+            false, // InvertDir
             YDefaultStepsPerUnit, // StepsPerUnit
             YDefaultMin, // Min
             YDefaultMax, // Max
@@ -337,7 +337,7 @@ using PrinterParams = PrinterMainParams<
             DuePin3, // DirPin
             DuePin2, // StepPin
             DuePin15, // EnablePin
-            false, // InvertDir
+            true, // InvertDir
             ZDefaultStepsPerUnit, // StepsPerUnit
             ZDefaultMin, // Min
             ZDefaultMax, // Max
@@ -370,7 +370,7 @@ using PrinterParams = PrinterMainParams<
             DuePinA6, // DirPin
             DuePinA7, // StepPin
             DuePinA8, // EnablePin
-            true, // InvertDir
+            false, // InvertDir
             EDefaultStepsPerUnit, // StepsPerUnit
             EDefaultMin, // Min
             EDefaultMax, // Max
@@ -392,7 +392,7 @@ using PrinterParams = PrinterMainParams<
             DuePinA9, // DirPin
             DuePinA10, // StepPin
             DuePinA11, // EnablePin
-            true, // InvertDir
+            false, // InvertDir
             UDefaultStepsPerUnit, // StepsPerUnit
             UDefaultMin, // Min
             UDefaultMax, // Max
