@@ -203,7 +203,7 @@ using PrinterParams = PrinterMainParams<
      * Common parameters.
      */
     PrinterMainSerialParams<
-        UINT32_C(250000), // BaudRate,
+        UINT32_C(115200), // BaudRate,
         8, // RecvBufferSizeExp
         9, // SendBufferSizeExp
         GcodeParserParams<16>, // ReceiveBufferSizeExp

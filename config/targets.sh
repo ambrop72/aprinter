@@ -58,7 +58,7 @@ target_rampsfd() {
     ASF_BOARD=43
     ARCH=sam3x
     SUBARCH=8
-    USE_USB_SERIAL=0
+    USE_USB_SERIAL=1
     BOSSA_PORT=/dev/ttyACM0
     BOSSA_USE_USB=0
     BOSSA_IS_ARDUINO_DUE=1
@@ -72,7 +72,7 @@ target_radds() {
     ASF_BOARD=43
     ARCH=sam3x
     SUBARCH=8
-    USE_USB_SERIAL=0
+    USE_USB_SERIAL=1
     BOSSA_PORT=/dev/ttyACM0
     BOSSA_USE_USB=0
     BOSSA_IS_ARDUINO_DUE=1
