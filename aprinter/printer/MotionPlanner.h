@@ -1192,7 +1192,7 @@ private:
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
                     if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
-                        prev_entry->lp_seg.max_end_v = ListForEachForwardAccRes<AxesList>(entry->lp_seg.max_end_v, LForeach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
+                        prev_entry->lp_seg.max_end_v = ListForEachForwardAccRes<AxesList>(prev_entry->lp_seg.max_end_v, LForeach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
                         break;
                     }
                 }
