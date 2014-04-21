@@ -58,7 +58,7 @@ using AdcAvgInterval = AMBRO_WRAP_DOUBLE(0.0025);
 static uint16_t const AdcSmoothing = 0.95 * 65536.0;
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
-using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
+using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(8.0 * 60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
@@ -80,7 +80,7 @@ using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 80.0);
 using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using YDefaultMax = AMBRO_WRAP_DOUBLE(155.0);
+using YDefaultMax = AMBRO_WRAP_DOUBLE(157.0);
 using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
 using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(650.0);
 using YDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
