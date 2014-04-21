@@ -42,7 +42,6 @@
 
 #include <aprinter/BeginNamespace.h>
 
-extern _reent r;
 template <
     uint32_t TOtgAddress,
     uint8_t TTrdtim,
@@ -142,10 +141,20 @@ public:
         intmsk.b.enumdone = 1;
         intmsk.b.sofintr = 1;
         intmsk.b.inepintr = 1;
+        intmsk.b.outepintr = 1;
         intmsk.b.rxstsqlvl = 1;
         core()->GINTMSK = intmsk.d32;
         
-        //device()->DAINTMSK = 0xF;
+        USB_OTG_DAINT_TypeDef daintmsk;
+        daintmsk.d32 = 0;
+        daintmsk.ep.out = (1 << 0);
+        daintmsk.ep.in = (1 << 0);
+        device()->DAINTMSK = daintmsk.d32;
+        
+        USB_OTG_DOEPMSK_TypeDef doepmsk;
+        doepmsk.d32 = device()->DOEPMSK;
+        doepmsk.b.setup = 1;
+        device()->DOEPMSK = doepmsk.d32;
         
         gccfg.d32 = 0;
         gccfg.b.vbussensingB = 1;
@@ -218,6 +227,7 @@ public:
         
         if (intsts.b.enumdone) {
             intsts_clear.b.enumdone = 1;
+            
             if (o->state == STATE_WAITING_ENUM) {
                 o->state = STATE_ENUM_DONE;
                 
@@ -228,10 +238,6 @@ public:
                 diepctl.d32 = inep()[0].DIEPCTL;
                 diepctl.b.mps = DEP0CTL_MPS_64;
                 inep()[0].DIEPCTL = diepctl.d32;
-                
-                USB_OTG_GINTMSK_TypeDef intmsk;
-                intmsk.d32 = core()->GINTMSK;
-                core()->GINTMSK = intmsk.d32;
             }
         }
         
@@ -242,19 +248,11 @@ public:
             switch (rxsts.b.pktsts) {
                 case STS_SETUP_UPDT: {
                     read_rx_fifo(0, sizeof(o->setup_packet), (uint8_t *)&o->setup_packet);
-                    
-                    if (o->state >= STATE_ENUM_DONE) {
-                        handle_setup(c);
-                    }
                 } break;
                 
                 case STS_DATA_UPDT: {
                     uint16_t size = min((uint16_t)sizeof(o->data), (uint16_t)rxsts.b.bcnt);
                     read_rx_fifo(0, size, o->data);
-                    
-                    if (o->state >= STATE_ENUM_DONE) {
-                        handle_data(c);
-                    }
                 } break;
             }
         }
@@ -263,21 +261,37 @@ public:
             intsts_clear.b.sofintr = 1;
         }
         
-        /*
         if (intsts.b.inepint) {
             USB_OTG_DAINT_TypeDef daint;
             daint.d32 = device()->DAINT;
             
             if (daint.ep.in & (1 << 0)) {
-                if (o->state == STATE_ENUM_DONE) {
-                    USB_OTG_DIEPINTn_TypeDef diepint;
-                    diepint.d32 = inep()[0].DIEPINT;
+                USB_OTG_DIEPINTn_TypeDef diepint;
+                diepint.d32 = inep()[0].DIEPINT;
+                
+            }
+        }
+        
+        if (intsts.b.outepintr) {
+            USB_OTG_DAINT_TypeDef daint;
+            daint.d32 = device()->DAINT;
+            
+            if (daint.ep.out & (1 << 0)) {
+                USB_OTG_DOEPINTn_TypeDef doepint;
+                doepint.d32 = outep()[0].DOEPINT;
+                
+                if (doepint.b.setup) {
+                    USB_OTG_DOEPINTn_TypeDef doepint_clear;
+                    doepint_clear.d32 = 0;
+                    doepint_clear.b.setup = 1;
+                    outep()[0].DOEPINT = doepint_clear.d32;
                     
-                    
+                    if (o->state >= STATE_ENUM_DONE) {
+                        handle_setup(c);
+                    }
                 }
             }
         }
-        */
         
         core()->GINTSTS = intsts_clear.d32;
         
@@ -307,6 +321,11 @@ private:
         return (USB_OTG_INEPREGS *)(Info::OtgAddress + USB_OTG_DEV_IN_EP_REG_OFFSET);
     }
     
+    static USB_OTG_OUTEPREGS * outep ()
+    {
+        return (USB_OTG_OUTEPREGS *)(Info::OtgAddress + USB_OTG_DEV_OUT_EP_REG_OFFSET);
+    }
+    
     static uint32_t volatile * dfifo (uint8_t ep_index)
     {
         return (uint32_t volatile *)(Info::OtgAddress + USB_OTG_DATA_FIFO_OFFSET + ep_index * USB_OTG_DATA_FIFO_SIZE);
@@ -315,17 +334,17 @@ private:
     static void read_rx_fifo (uint8_t ep_index, uint16_t size, uint8_t *out)
     {
         uint32_t volatile *src = dfifo(ep_index);
-        uint16_t count = size / 4;
-        uint8_t rem = size % 4;
-        while (count > 0) {
+        
+        while (size >= 4) {
             uint32_t word = *src;
             memcpy(out, &word, 4);
+            size -= 4;
             out += 4;
-            count--;
         }
-        if (rem > 0) {
+        
+        if (size > 0) {
             uint32_t word = *src;
-            memcpy(out, &word, rem);
+            memcpy(out, &word, size);
         }
     }
     
@@ -334,18 +353,7 @@ private:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        /*
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            if (o->int_usbreset) {
-                o->reset_finished = true;
-            }
-            if (o->int_enumdone) {
-                o->enum_done = true;
-            }
-            o->int_usbreset = false;
-            o->int_enumdone = false;
-        }
-        */
+        
     }
     
     static void reset_otg (Context c)
@@ -367,6 +375,7 @@ private:
     static void handle_setup (InterruptContext<Context> c)
     {
         auto *o = Object::self(c);
+        AMBRO_ASSERT(o->state >= STATE_ENUM_DONE)
         
         UsbSetupPacket *s = &o->setup_packet;
         
@@ -381,11 +390,6 @@ private:
         else if (s->bmRequestType == USB_REQUEST_TYPE_H2D_STD_DEV && s->bRequest == USB_REQUEST_ID_SET_ADDRESS) {
             
         }
-    }
-    
-    static void handle_data (InterruptContext<Context> c)
-    {
-        auto *o = Object::self(c);
     }
     
 public:
