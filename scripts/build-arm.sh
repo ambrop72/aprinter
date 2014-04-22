@@ -39,12 +39,12 @@ fi
 GCCARM_CURRENT=4_8-2013q4
 GCCARM_RELEASE=20131204
 
-ARM_GCC_PATH="${ROOT}/depends/gcc-arm-none-eabi-${GCCARM_CURRENT}/bin"
+ARM_GCC_PATH="${ROOT}/depends/gcc-arm-none-eabi-${GCCARM_CURRENT}"
 
 if [ -n "${CUSTOM_ARM_GCC}" ]; then
     ARM_GCC_PREFIX=${CUSTOM_ARM_GCC}
 else
-    ARM_GCC_PREFIX=${ARM_GCC_PATH}/arm-none-eabi
+    ARM_GCC_PREFIX=${ARM_GCC_PATH}/bin/arm-none-eabi-
 fi
 
 ARM_CC=${ARM_GCC_PREFIX}gcc

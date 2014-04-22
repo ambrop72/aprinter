@@ -94,9 +94,6 @@ configure_sam3x() {
     fi
 
     if [ $USE_USB_SERIAL -gt 0 ]; then
-        cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" "${BUILD}/udi_cdc-hacked.c"
-        patch -p0 "${BUILD}/udi_cdc-hacked.c" < "${ROOT}/patches/asf-cdc-tx.patch"
-
         if [ "$ARCH" = "sam3x" ]; then
             FLAGS_C_CXX+=( -DUSB_SERIAL )
             C_SOURCES+=(
@@ -120,7 +117,7 @@ configure_sam3x() {
 
     # define target functions
     INSTALL=install_sam3x
-    RUNBUILD=build_arm
+    RUNBUILD=build_sam3x
     UPLOAD=upload_sam3x
     FLUSH=flush_sam3x
     CHECK=check_depends_sam3x
@@ -130,6 +127,13 @@ check_depends_sam3x() {
     check_depends_arm
     [ -d "${ASF_DIR}" ] || fail "Atmel Software Framework missing in dependences"
     [ -f "${BOSSA_DIR}/bin/bossac" ] || fail "Missing Sam3x upload tool 'bossac'"
+}
+
+build_sam3x() {
+    cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" "${BUILD}/udi_cdc-hacked.c"
+    patch -p0 "${BUILD}/udi_cdc-hacked.c" < "${ROOT}/patches/asf-cdc-tx.patch"
+    
+    build_arm
 }
 
 upload_sam3x() {
