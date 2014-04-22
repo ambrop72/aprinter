@@ -105,11 +105,9 @@ public:
         
         // OTG init
         
-        //core()->GINTSTS = core()->GINTSTS;
-        
         ahbcfg.d32 = 0;
         ahbcfg.b.glblintrmsk = 1;
-        ahbcfg.b.ptxfemplvl = 1;
+        ahbcfg.b.nptxfemplvl_txfemplvl = 0;
         core()->GAHBCFG = ahbcfg.d32;
         
         usbcfg.d32 = 0;
@@ -125,16 +123,12 @@ public:
         intmsk.b.otgintr = 1;
         core()->GINTMSK = intmsk.d32;
         
-        //core()->GRXFSIZ = 128;
-        
         // device init
         
         dcfg.d32 = device()->DCFG;
         dcfg.b.devspd = 3;
         dcfg.b.nzstsouthshk = 1;
         device()->DCFG = dcfg.d32;
-        
-        //*pcgcctl() = 0;
         
         intmsk.d32 = core()->GINTMSK;
         intmsk.b.usbreset = 1;
@@ -162,6 +156,7 @@ public:
         core()->GCCFG = gccfg.d32;
         
         o->state = STATE_WAITING_RESET;
+        o->tx_ptr = NULL;
         
         NVIC_ClearPendingIRQ(Info::Irq);
         NVIC_SetPriority(Info::Irq, INTERRUPT_PRIORITY);
@@ -247,12 +242,12 @@ public:
             
             switch (rxsts.b.pktsts) {
                 case STS_SETUP_UPDT: {
-                    read_rx_fifo(0, sizeof(o->setup_packet), (uint8_t *)&o->setup_packet);
+                    read_rx_fifo(0, (uint8_t *)&o->setup_packet, sizeof(o->setup_packet));
                 } break;
                 
                 case STS_DATA_UPDT: {
-                    uint16_t size = min((uint16_t)sizeof(o->data), (uint16_t)rxsts.b.bcnt);
-                    read_rx_fifo(0, size, o->data);
+                    uint16_t size = min((uint16_t)rxsts.b.bcnt, (uint16_t)sizeof(o->data));
+                    read_rx_fifo(0, o->data, size);
                 } break;
             }
         }
@@ -269,6 +264,17 @@ public:
                 USB_OTG_DIEPINTn_TypeDef diepint;
                 diepint.d32 = inep()[0].DIEPINT;
                 
+                if (diepint.b.emptyintr && o->tx_ptr) {
+                    uint16_t packet_len = min((uint16_t)64, o->tx_len);
+                    write_tx_fifo(0, o->tx_ptr, packet_len);
+                    o->tx_ptr += packet_len;
+                    o->tx_len -= packet_len;
+                    
+                    if (o->tx_len == 0) {
+                        device()->DIEPEMPMSK &= ~((uint32_t)1 << 0);
+                        o->tx_ptr = NULL;
+                    }
+                }
             }
         }
         
@@ -331,20 +337,39 @@ private:
         return (uint32_t volatile *)(Info::OtgAddress + USB_OTG_DATA_FIFO_OFFSET + ep_index * USB_OTG_DATA_FIFO_SIZE);
     }
     
-    static void read_rx_fifo (uint8_t ep_index, uint16_t size, uint8_t *out)
+    static void read_rx_fifo (uint8_t ep_index, uint8_t *data, uint16_t len)
     {
-        uint32_t volatile *src = dfifo(ep_index);
+        uint32_t volatile *fifo = dfifo(ep_index);
         
-        while (size >= 4) {
-            uint32_t word = *src;
-            memcpy(out, &word, 4);
-            size -= 4;
-            out += 4;
+        while (len >= 4) {
+            uint32_t word = *fifo;
+            memcpy(data, &word, 4);
+            data += 4;
+            len -= 4;
         }
         
-        if (size > 0) {
-            uint32_t word = *src;
-            memcpy(out, &word, size);
+        if (len > 0) {
+            uint32_t word = *fifo;
+            memcpy(data, &word, len);
+        }
+    }
+    
+    static void write_tx_fifo (uint8_t ep_index, uint8_t const *data, uint16_t len)
+    {
+        uint32_t volatile *fifo = dfifo(ep_index);
+        
+        while (len >= 4) {
+            uint32_t word;
+            memcpy(&word, data, 4);
+            *fifo = word;
+            data += 4;
+            len -= 4;
+        }
+        
+        if (len > 0) {
+            uint32_t word = 0;
+            memcpy(&word, data, len);
+            *fifo = word;
         }
     }
     
@@ -372,7 +397,8 @@ private:
         } while (grstctl.b.csftrst);
     }
     
-    static void handle_setup (InterruptContext<Context> c)
+    template <typename ThisContext>
+    static void handle_setup (ThisContext c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state >= STATE_ENUM_DONE)
@@ -382,14 +408,40 @@ private:
         if (s->bmRequestType == USB_REQUEST_TYPE_D2H_STD_DEV && s->bRequest == USB_REQUEST_ID_GET_DESCRIPTOR) {
             uint8_t desc_type = s->wValue >> 8;
             uint8_t desc_index = s->wValue;
-            if (desc_type == USB_DESSCRIPTOR_TYPE_DEVICE) {
-                o->state = STATE_TEST;
-                // TODO send descriptor here
+            if (desc_type == USB_DESSCRIPTOR_TYPE_DEVICE && !o->tx_ptr) {
+                start_tx(c, (uint8_t *)&o->device_desc, sizeof(o->device_desc));
+                if (s->wLength >= 65) {
+                    o->state = STATE_TEST;
+                }
             }
         }
         else if (s->bmRequestType == USB_REQUEST_TYPE_H2D_STD_DEV && s->bRequest == USB_REQUEST_ID_SET_ADDRESS) {
             
         }
+    }
+    
+    template <typename ThisContext>
+    static void start_tx (ThisContext c, uint8_t const *ptr, uint16_t len)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(!o->tx_ptr)
+        
+        o->tx_ptr = ptr;
+        o->tx_len = len;
+        
+        USB_OTG_DEPXFRSIZ_TypeDef dieptsiz;
+        dieptsiz.d32 = 0;
+        dieptsiz.b.xfersize = len;
+        dieptsiz.b.pktcnt = (len + 63) / 64;
+        inep()[0].DIEPTSIZ = dieptsiz.d32;
+        
+        USB_OTG_DEPCTL_TypeDef diepctl;
+        diepctl.d32 = inep()[0].DIEPCTL;
+        diepctl.b.cnak = 1;
+        diepctl.b.epena = 1;
+        inep()[0].DIEPCTL = diepctl.d32;
+        
+        device()->DIEPEMPMSK |= ((uint32_t)1 << 0);
     }
     
 public:
@@ -400,6 +452,8 @@ public:
         UsbSetupPacket setup_packet;
         uint8_t data[1024];
         UsbDeviceDescriptor device_desc;
+        uint8_t const *tx_ptr;
+        uint16_t tx_len;
     };
 };
 
