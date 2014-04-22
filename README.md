@@ -46,8 +46,9 @@ Ports have been completed for the following boards:
 
   * Melzi (atmega1284p only),
   * RAMPS 1.0, 1.1/1.2 or 1.3/1.4 (only RAMPS 1.4 with atmega2560 is tested),
-  * RAMPS-FD or other setup based on Arduino Due.
-  * Teensy 3 (no board, needs manual wiring).
+  * RAMPS-FD, RADDS or other setup based on Arduino Due.
+  * 4pi.
+  * Teensy 3 (no standard board, needs manual wiring).
 
 ## Coding style
 
