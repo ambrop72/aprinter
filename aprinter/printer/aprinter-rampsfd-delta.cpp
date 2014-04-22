@@ -65,6 +65,18 @@ using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
 
+using XMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
+using XMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
+using XMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+
+using YMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
+using YMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
+using YMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+
+using ZMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
+using ZMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
+using ZMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+
 using ABCDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(100.0);
 using ABCDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using ABCDefaultMax = AMBRO_WRAP_DOUBLE(360.0);
@@ -160,16 +172,12 @@ using DeltaTower2Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5);
 using DeltaTower3X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.0);
 using DeltaTower3Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 1.0);
 
-using XMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
-using YMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
-using ZMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
-
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
      */
     PrinterMainSerialParams<
-        UINT32_C(250000), // BaudRate,
+        UINT32_C(115200), // BaudRate,
         8, // RecvBufferSizeExp
         9, // SendBufferSizeExp
         GcodeParserParams<16>, // ReceiveBufferSizeExp
@@ -362,15 +370,24 @@ using PrinterParams = PrinterMainParams<
         MakeTypeList<
             PrinterMainVirtualAxisParams<
                 'X', // Name
-                XMaxSpeed
+                XMinPos,
+                XMaxPos,
+                XMaxSpeed,
+                PrinterMainNoVirtualHomingParams
             >,
             PrinterMainVirtualAxisParams<
                 'Y', // Name
-                YMaxSpeed
+                YMinPos,
+                YMaxPos,
+                YMaxSpeed,
+                PrinterMainNoVirtualHomingParams
             >,
             PrinterMainVirtualAxisParams<
                 'Z', // Name
-                ZMaxSpeed
+                ZMinPos,
+                ZMaxPos,
+                ZMaxSpeed,
+                PrinterMainNoVirtualHomingParams
             >
         >,
         MakeTypeList<WrapInt<'A'>, WrapInt<'B'>, WrapInt<'C'>>,

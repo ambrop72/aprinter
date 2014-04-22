@@ -62,6 +62,73 @@ Ports have been completed for the following boards:
     For example, the configuration specifies a list of heaters, and it is trivial to add new heaters.
   * No reliance on inefficient libraries such as Arduino.
 
+## Using Build system
+
+The build system works as follows:
+
+    ./build.sh TARGET [param] ACTION [param]
+
+where `TARGET` is any of:
+
+ * `melzi`, `ramps13`, `rampsfd`, `teensy`, `stm32f4` or `all`
+
+and `ACTION` is any of:
+
+ * `install`, `build`, `upload`, `clean`, `flush`
+
+If you use the special target `all`, the actions will be applied to all the targets,
+for example:
+
+    ./build.sh all build
+
+will compile all targets.
+
+You can run one or several actions for each target, for example:
+
+    ./build.sh melzi build upload
+
+will compile the `melzi` target and upload it.
+
+The `upload` action can take three optional parameters:
+
+    * `-p <port>`: specify the port to upload to
+    * `-b <baudrate>`: baudrate at which the upload shall be done
+    * `-B <bitrate>`: the bitrate
+
+The `install` action will install the necessary framework and tools in the `depends`
+directory, each download checked with a sha256 and not reinstalled if already present.
+The `flush` action will delete all those install dependencies, be careful, no warning 
+or confirmation is issued upon running that command.
+
+The `clean` action will remove all build files for the given build in the
+`build` directory.
+
+Finally, there are four environment variables that can override default settings:
+
+ * `AVR_GCC_PATH` sets the path to the bin directory containing the ARM toolchain (defaults to `/usr/local/`)
+ * `AVR_GCC_PREFIX` sets the prefix that all gcc tools may have (defaults to `avr-`)
+ * `ARM_GCC_PATH` sets the path to the bin directory containing the AVR toolchain (defaults to `./depends/gcc-arm-none-eabi-4_8-2013q4`)
+ * `ARM_GCC_PREFIX` sets the prefix that all gcc tools may have (defaults to `arm-none-eabi-`)
+
+*Nota Bene*: 
+
+ * NEVER RUN THIS SCRIPT AS ROOT!
+ * the AVR tools installation is not yet included in the depends
+ * the ARM toolchain is a binary version downloaded from launchpad
+ * the `-v` parameter (between targets and actions) show the command ran by the script
+ * the script has only been tested when ran from source directory root
+ * not having all boards, all the upload scripts have not been tested
+
+## Extending the build system
+
+The build targets are defined in the file: `scripts/build-targets.sh`. If you want to
+add a new board with an existing architecture/platform, this is where it belongs. The
+target name shall match the `aprinter-TARGET.cpp` source file.
+
+Otherwise, to add a new framework on top of the existing ARM architecture, you can take
+existing `build-arm-*.sh` scripts as example. Or the `build-avr.sh` for a different architecture
+and framework.
+
 ## Building for AVR (RAMPS, Melzi)
 
   * Make sure you have avr-g++ 4.8.1 or newer.
@@ -72,10 +139,9 @@ Ports have been completed for the following boards:
     `export PATH=/path/to/toolchain/bin:$PATH`
   * Find or create a main file for your board. The main files for supported boards can be
     found at `aprinter/printer/aprinter-BoardName.cpp`.
-  * Find or create a compile script for your board, named `compile-BoardName.sh`.
-  * Also find or create your flash script, `flash-BoardName.sh`, and set the correct the serial port.
+  * `./build.sh melzi build upload`
+  * `./build.sh ramps13 build upload`
   * Run your compile script to compile the code. This needs to be run from within the source directory.
-  * Run your flash script to upload the code to your MCU.
     If you're using Melzi, you will have to set the Debug jumper and play with the reset button
     to get the upload going.
 
@@ -85,15 +151,7 @@ Ports have been completed for the following boards:
     Version `4_8-2013q4-20131204-linux` has been tested.
   * Download the Atmel Software Framework.
     Version 3.14.0.86 has been tested, use this [download link](http://www.atmel.com/images/asf-standalone-archive-3.14.0.86.zip).
-  * Edit `compile-rampsfd.sh` and adjust `CROSS` and `ASF_DIR` appropriately.
-    For RADDS, change `MAIN` to point to `aprinter-radds.cpp` instead of `aprinter-rampsfd.cpp`.
-    Note: the latest ASF comes in a subdirectory `xdk-asf-3.14.0`, you need to include that in `ASF_DIR`.
-  * Run `compile-rampsfd.sh` to build the firmware. This needs to be run from within the source directory.
-  * Download Arduino 1.5 in order to get the `bossac` program. Note that the vanilla `bossac` will not work.
-    Alternatively, check out the `arduino` branch of https://github.com/shumatech/BOSSA and build bossac using `make bin/bossac`.
-  * Edit `flash-rampsfd.sh` to set the location of the `bossac` program and the serial port corresponding
-    to the programming port of the Due.
-  * With the board connected using the programming port, run `flash-rampsfd.sh` to upload the firmware to your board.
+  * `./build.sh rampsfd build upload`
     Note that this script will first put the serial port into 1200 baud, which will cause the usb-to-serial
     microcontroller on the Due to erase the AT91SAM3X8E and put it into bootloader mode.
   * If after successful flashing the firmware does not start (LED stays on instead of blinking),
@@ -103,15 +161,10 @@ Note that on RADDS pin 13 (Due's internal LED) is used for one of the FETs, and 
 
 ## Building (Teensy 3)
 
-  * Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
-    Version `4_8-2013q4-20131204-linux` has been tested.
-  * Check out the Teensy cores repository: `git clone https://github.com/PaulStoffregen/cores`
-  * Edit `compile-teensy3` and adjust `CROSS`, `TEENSY_CORES` appropriately.
-    Also set `TEENSY_VERSION` to your board version (3.0 or 3.1).
-  * Run `compile-teensy3` to build the firmware. This needs to be run from within the source directory.
-  * Edit `flash-teensy3.sh` and adjust `TEENSY_LOADER` to point to your `teensy_loader_cli` binary.
+  * Edit `scripts/build-targets.sh` to set `TEENSY_VERSION` to your board version (3.0 or 3.1).
+  * Compile `./build.sh teensy3 build`
   * Press the button on your Teensy 3 to start the bootloader.
-  * Run `flash-teensy3.sh` to upload the firmware.
+  * Upload with `./build.sh teensy3 upload`
 
 ## Configuration
 
