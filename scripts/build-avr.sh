@@ -28,52 +28,52 @@
 #####################################################################################
 # AVR SPECIFIC STUFF
 
-: ${AVR_GCC_PREFIX:="avr-"}
-: ${AVR_GCC_PATH="/usr/local/"}
+ATMEL_AVR_GCC_PATH="${ROOT}/depends/avr8-gnu-toolchain-linux_x86"
 
-AVR_TOOLCHAIN_URL=(
-    "http://ftp.gnu.org/gnu/binutils/binutils-2.23.2.tar.bz2"
-    "ftp://ftp.gnu.org/gnu/gcc/gcc-4.8.2/gcc-4.8.2.tar.bz2"
+if [ -n "${CUSTOM_AVR_GCC}" ]; then
+    AVR_GCC_PREFIX=${CUSTOM_AVR_GCC}
+else
+    AVR_GCC_PREFIX=${ATMEL_AVR_GCC_PATH}/bin/avr-
+fi
+
+AVR_CC=${AVR_GCC_PREFIX}gcc
+AVR_OBJCOPY=${AVR_GCC_PREFIX}objcopy
+AVR_SIZE=${AVR_GCC_PREFIX}size
+
+if [ -n "${CUSTOM_AVRDUDE}" ]; then
+    AVRDUDE=${CUSTOM_AVRDUDE}
+else
+    AVRDUDE=avrdude
+fi
+
+ATMEL_AVR_GCC_URL=(
+    "http://www.atmel.com/images/avr8-gnu-toolchain-3.4.3.1072-linux.any.x86.tar.gz"
 )
-AVR_TOOLCHAIN_CHECKSUMS=(
-    ""
-    ""
+ATMEL_AVR_GCC_CHECKSUM=(
+    "fa815c9e966b67353a16fb37b78e4b7d3e4eec72e8416f2d933a89262a46cbfb  avr8-gnu-toolchain-3.4.3.1072-linux.any.x86.tar.gz"
 )
 
 install_avr() {
-    echo "  Installing AVR toolchain"
-    echo "   [X] Not implemented at the moment (use system installs)"
-    return 0
-    create_depends_dir
-    retr_and_extract AVR_TOOLCHAIN_URL[@] AVR_TOOLCHAIN_CHECKSUMS[@]
+    if [ -z "${CUSTOM_AVR_GCC}" ]; then
+        echo "  Installing Atmel AVR toolchain"
+        [ -f "${AVR_CC}" ] && \
+        [ -f "${AVR_OBJCOPY}" ] && echo "   [!] Atmel AVR toolchain already installed" && return 0
 
-    (
-        cd "${DEPS}"
-        (
-            cd binutils-2.23.2
-            ./configure && make # TODO
-        )
-        (
-            cd gcc-4.8.2
-            ./configure && make # TODO
-        )
-        # TODO install avrdude
-    )
+        create_depends_dir
+        retr_and_extract ATMEL_AVR_GCC_URL[@] ATMEL_AVR_GCC_CHECKSUM[@]
+    fi
 }
 
 flush_avr() {
-    echo "  Flushing AVR toolchain. Are you sure? (C-c to abort)"
-    read
-
-    (V;
-    rm -rf "${DEPS}/binutils-2.23.2"
-    rm -rf "${DEPS}/gcc-4.8.2"
-    )
+    clean
+    echo "  Deleting Atmel AVR toolchain install. Are you sure? (C-c to abort)"
+    read 
+    rm -rf "${ATMEL_AVR_GCC_PATH}"
 }
 
 check_depends_avr() {
     echo "   Checking depends"
-    check_build_tool "${AVR_GXX}" "AVR compiler"
+    check_build_tool "${AVR_CC}" "AVR compiler"
     check_build_tool "${AVR_OBJCOPY}" "AVR objcopy"
     check_build_tool "${AVR_SIZE}" "AVR size calculator"
     check_build_tool "${AVRDUDE}" "AVR uploader 'avrdude'"
@@ -82,38 +82,41 @@ check_depends_avr() {
 configure_avr() {
     echo "  Configuring AVR build"
 
-    AVR_GXX=${AVR_GCC_PATH}/bin/${AVR_GCC_PREFIX}g++
-    AVR_OBJCPY=${AVR_GCC_PATH}/bin/avr-objcopy
-    AVR_SIZE=${AVR_GCC_PATH}/bin/avr-size
-
-    AVRDUDE=${AVR_GCC_PATH}/bin/avrdude
-
-    CXX=${AVR_GXX}
-    OBJCPY=${AVR_OBJCPY}
-    AVRDUDE_FLAGS="-p $MCU -D -P $AVRDUDE_PORT -b $AVRDUDE_BAUDRATE -c $AVRDUDE_PROGRAMMER"
-    CXXFLAGS="-std=c++11 -mmcu=${MCU} -DF_CPU=${F_CPU} -DNDEBUG -O2 -fwhole-program \
-    -ffunction-sections -fdata-sections -Wl,--gc-sections \
-    -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS \
-    -DAMBROLIB_AVR -I. $CXXFLAGS_EXTRA"
-
-    # define target functions
+    CXXFLAGS=(
+        -std=c++11 -mmcu=${MCU} -DF_CPU=${F_CPU} -DNDEBUG -O2 -fwhole-program \
+        -ffunction-sections -fdata-sections -Wl,--gc-sections \
+        -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS \
+        -DAMBROLIB_AVR -I.
+        ${CXXFLAGS}
+    )
+    
+    AVRDUDE_FLAGS=(
+        -p $MCU -D -P $AVRDUDE_PORT -b $AVRDUDE_BAUDRATE -c $AVRDUDE_PROGRAMMER
+    )
+    
     INSTALL=install_avr
     RUNBUILD=build_avr
     UPLOAD=upload_avr
+    FLUSH=flush_avr
+    CHECK=check_depends_avr
 }
 
 build_avr() {
     echo "  Compiling for AVR"
-    check_depends_avr
+    ${CHECK}
+    
     echo "   Compiling and linking"
-    ($V; "$CXX" $CXXFLAGS "$SOURCE" -o "$TARGET.elf" -Wl,-u,vfprintf -lprintf_flt || exit 2)
+    ($V; "$AVR_CC" -x c++ "${CXXFLAGS[@]}" "$SOURCE" -o "$TARGET.elf" -Wl,-u,vfprintf -lprintf_flt || exit 2)
+    
     echo "   Building images"
-    ($V; "$OBJCPY" -j .text -j .data -O ihex "$TARGET.elf" "$TARGET.hex" || exit 2)
+    ($V; "$AVR_OBJCOPY" -j .text -j .data -O ihex "$TARGET.elf" "$TARGET.hex" || exit 2)
+    
     echo -n "   Size of build: "
     "$AVR_SIZE" --format=avr --mcu=${MCU} "${TARGET}.elf" | grep bytes | sed 's/\(.*\):\s*\(.* bytes.* Full\)/\1: \2/g' | sed 'N;s/\n/\; /' | sed 's/\s\s*/ /g'
 }
 
 upload_avr() {
     echo "  Uploading to AVR"
-    ($V; "$AVRDUDE" "$AVRDUDE_FLAGS" -U "flash:w:$TARGET.hex:i" || exit 3)
+    
+    ($V; "$AVRDUDE" "${AVRDUDE_FLAGS[@]}" -U "flash:w:$TARGET.hex:i" || exit 3)
 }

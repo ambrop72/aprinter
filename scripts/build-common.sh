@@ -135,5 +135,5 @@ fail() {
 }
 
 check_build_tool() {
-    "$1" --version >/dev/null || fail "Missing or broken ${2}" 
+    "$1" --version >/dev/null 2>&1 || fail "Missing or broken ${2}" 
 }
