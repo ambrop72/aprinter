@@ -89,96 +89,70 @@ You can run one or several actions for each target, for example:
 
 will compile the `melzi` target and upload it.
 
-The `upload` action can take three optional parameters:
-
-    * `-p <port>`: specify the port to upload to
-    * `-b <baudrate>`: baudrate at which the upload shall be done
-    * `-B <bitrate>`: the bitrate
-
 The `install` action will install the necessary framework and tools in the `depends`
 directory, each download checked with a sha256 and not reinstalled if already present.
 The `flush` action will delete all those install dependencies, be careful, no warning 
 or confirmation is issued upon running that command.
-
 The `clean` action will remove all build files for the given build in the
 `build` directory.
 
-Finally, there are four environment variables that can override default settings:
+Some dependencies can be overridden from environment variables or `config/config.sh`. In particular:
 
- * `AVR_GCC_PATH` sets the path to the bin directory containing the ARM toolchain (defaults to `/usr/local/`)
- * `AVR_GCC_PREFIX` sets the prefix that all gcc tools may have (defaults to `avr-`)
- * `ARM_GCC_PATH` sets the path to the bin directory containing the AVR toolchain (defaults to `./depends/gcc-arm-none-eabi-4_8-2013q4`)
- * `ARM_GCC_PREFIX` sets the prefix that all gcc tools may have (defaults to `arm-none-eabi-`)
+ * `CUSTOM_AVR_GCC` and `CUSTOM_ARM_GCC` override the AVR and ARM toolchains, respectively.
+   This should be a prefix used to call the tools.
+   For example, `${CUSTOM_AVR_GCC}gcc` is called during AVR compilation.
+ * `AVRDUDE` overrides the `avrdude` tool, used for upload to AVR boards.
 
 *Nota Bene*: 
 
  * NEVER RUN THIS SCRIPT AS ROOT!
- * the AVR tools installation is not yet included in the depends
- * the ARM toolchain is a binary version downloaded from launchpad
- * the `-v` parameter (between targets and actions) show the command ran by the script
- * the script has only been tested when ran from source directory root
- * not having all boards, all the upload scripts have not been tested
+ * Most of the build system will work only on Linux.
+   On other platforms, custom installation of dependencies and hacking the scripts will be necessary.
+ * The AVR toolchain is a [binary by Atmel](http://www.atmel.com/tools/atmelavrtoolchainforlinux.aspx).
+ * The ARM toolchain is a binary by the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) project.
+ * The `-v` parameter (between targets and actions) will show the commands ran by the script.
+ * The script has only been tested when ran from source directory root.
 
 ## Extending the build system
 
-The build targets are defined in the file: `scripts/build-targets.sh`. If you want to
-add a new board with an existing architecture/platform, this is where it belongs. The
-target name shall match the `aprinter-TARGET.cpp` source file.
+The build targets are defined in the file: `config/targets.sh`. If you want to
+add a new board with an existing architecture/platform, this is where it belongs.
+By default, the target will use the source file `aprinter-TARGET.cpp`,
+except if `SOURCE` is defined in the target, in which case it will use `aprinter-SOURCE.cpp`.
 
-Otherwise, to add a new framework on top of the existing ARM architecture, you can take
-existing `build-arm-*.sh` scripts as example. Or the `build-avr.sh` for a different architecture
-and framework.
+## Getting started
 
-## Building for AVR (RAMPS, Melzi)
+  * Find the target name you need to use.
+    The basic targets are `melzi`, `ramps13`, `rampsfd`, `radds`, `teensy`, `4pi`.
+    You can find more in `config/targets.sh`, including variants of those targets mentioned, as well as
+    targets in development. You may have to adjust some variables in the target definition.
+  * To install the toolchain and other dependnecies: `./build.sh <target> install`
+  * Note that for AVR, you will still need `avrdude` preinstalled.
+  * To build: `./build.sh <target> build`
+  * To upload: `./build.sh <target> upload`
 
-  * Make sure you have avr-g++ 4.8.1 or newer.
-    Since it's not that easy to build or get that, I provide a
-    (hopefully) portable build for Linux: https://docs.google.com/file/d/0Bx9devQE0OqbWTh4VUFvOWhlNEU/edit?usp=sharing
-    Sorry about the giant file size, there were some problems with stripping the binaries.
-    To use the toolchain, extract it somewhere and modify your PATH as follows:
-    `export PATH=/path/to/toolchain/bin:$PATH`
-  * Find or create a main file for your board. The main files for supported boards can be
-    found at `aprinter/printer/aprinter-BoardName.cpp`.
-  * `./build.sh melzi build upload`
-  * `./build.sh ramps13 build upload`
-  * Run your compile script to compile the code. This needs to be run from within the source directory.
-    If you're using Melzi, you will have to set the Debug jumper and play with the reset button
-    to get the upload going.
+*Melzi.* you will have to set the Debug jumper and play with the reset button to get the upload going.
 
-## Building for Due (RADDS, RAMPS-FD)
+*Arduino Due.* Make sure you connect via the programming port while uploading.
+But switch to the native USB port for actual printer communication.
+Some Due clones have a problem resetting. If after uploading, the firmware does
+not start (LED doesn't blink), press the reset button.
 
-  * Download the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) toolchain.
-    Version `4_8-2013q4-20131204-linux` has been tested.
-  * Download the Atmel Software Framework.
-    Version 3.14.0.86 has been tested, use this [download link](http://www.atmel.com/images/asf-standalone-archive-3.14.0.86.zip).
-  * `./build.sh rampsfd build upload`
-    Note that this script will first put the serial port into 1200 baud, which will cause the usb-to-serial
-    microcontroller on the Due to erase the AT91SAM3X8E and put it into bootloader mode.
-  * If after successful flashing the firmware does not start (LED stays on instead of blinking),
-    press the reset button.
+*RADDS.* On this board, pin 13 (Due's internal LED) is used for one of the FETs, and there is no LED on the RADDS itself. Due to this, the firmware defaults to pin 37 for the LED, where you can install one.
 
-Note that on RADDS pin 13 (Due's internal LED) is used for one of the FETs, and there is no LED on the RADDS itself. The firmware defaults to pin 37 for the LED, where you can install a LED.
-
-## Building (Teensy 3)
-
-  * Edit `scripts/build-targets.sh` to set `TEENSY_VERSION` to your board version (3.0 or 3.1).
-  * Compile `./build.sh teensy3 build`
-  * Press the button on your Teensy 3 to start the bootloader.
-  * Upload with `./build.sh teensy3 upload`
+*Teensy 3.* You need to press the button on the board before trying to upload, to put the board into bootloader mode.
 
 ## Configuration
 
 Most configuration is specified in the main file of the firmware. There is no support for EEPROM or other forms of runtime configuration (except for PID parameters, try M136). After chaning any configuration, you need to recompile and reflash the firmware.
 
-However, thermistors are configured by generating the appropriate thermistor tables, as opposed to in the main file.
-To configure thermistors, regenerate the thermistor tables in the generated/ folder using the Python script
-`gen_avr_thermistor_table.py`. The generated thermistor table files include the command that can be used to regenerate them, so you can use this as a starting point.
-
 For information about specific types of configuration, see the sections about SD cards and multiple extruders.
 
 ## Testing it
 
-  * Connect to the printer with Pronterface, and make sure you use baud rate 250000, or 115200 for Melzi.
+  * Connect to the printer with Pronterface, and make sure you use the right baud rate.
+    Find the right one in your main file. For native USB serial (Teensy 3, Arduino Due, 4pi), the baud rate
+    doesn't matter.
   * Try homing and some basic motion.
   * Check the current temperatures (M105).
   * Only try turning on the heaters once you've verified that the temperatures are being reported correctly.
