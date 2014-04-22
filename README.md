@@ -69,20 +69,9 @@ The build system works as follows:
 
     ./build.sh TARGET [param] ACTION [param]
 
-where `TARGET` is any of:
+where `TARGET` is one of the targets defined in `config/targets.sh` and `ACTION` is any of:
 
- * `melzi`, `ramps13`, `rampsfd`, `teensy`, `stm32f4` or `all`
-
-and `ACTION` is any of:
-
- * `install`, `build`, `upload`, `clean`, `flush`
-
-If you use the special target `all`, the actions will be applied to all the targets,
-for example:
-
-    ./build.sh all build
-
-will compile all targets.
+ * `install`, `build`, `upload`, `clean`, `flush`.
 
 You can run one or several actions for each target, for example:
 
@@ -121,12 +110,19 @@ add a new board with an existing architecture/platform, this is where it belongs
 By default, the target will use the source file `aprinter-TARGET.cpp`,
 except if `SOURCE` is defined in the target, in which case it will use `aprinter-SOURCE.cpp`.
 
+Each target defines a `PLATFORM`, which defines which script in `scripts/` handles the target. For more information, see the source.
+
 ## Getting started
 
+The basic steps are:
+
   * Find the target name you need to use.
-    The basic targets are `melzi`, `ramps13`, `rampsfd`, `radds`, `teensy`, `4pi`.
+    The basic supported targets are `melzi`, `ramps13`, `rampsfd`, `radds`, `teensy`, `4pi`.
     You can find more in `config/targets.sh`, including variants of those targets mentioned, as well as
     targets in development. You may have to adjust some variables in the target definition.
+  * Locate the main source file corresponding to the target, which is `aprinter/printer/aprinter-SOURCE.cpp`.
+    Here, `SOURCE` defaults to the target name if it is not defined in the target definition.
+  * Examine the main file and adapt it to your liking.
   * To install the toolchain and other dependnecies: `./build.sh <target> install`
   * Note that for AVR, you will still need `avrdude` preinstalled.
   * To build: `./build.sh <target> build`
