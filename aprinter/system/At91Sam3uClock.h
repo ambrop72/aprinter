@@ -181,7 +181,7 @@ public:
         o->debugAccess(c);
         
         TimeType time;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
             time = get_time_interrupt(c);
         }
         return time;
@@ -316,7 +316,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
             ch()->TC_IDR = CpMask;
         }
         

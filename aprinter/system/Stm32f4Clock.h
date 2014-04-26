@@ -312,7 +312,7 @@ public:
         Stm32f4ClockInterruptTimer *o = self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
             ch()->TC_IDR = CpMask;
         }
         

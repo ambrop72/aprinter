@@ -221,7 +221,7 @@ public:
         
         uint16_t offset;
         uint16_t low;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
             offset = o->m_offset;
             low = *MyFtm<0>::FtmSpec::cnt();
             if (*MyFtm<0>::FtmSpec::sc() & FTM_SC_TOF) {
@@ -357,7 +357,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
             *Channel::csc() = 0;
         }
         

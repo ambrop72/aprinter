@@ -100,7 +100,7 @@ public:
         static const int PinIndex = TypeListIndex<ParamsPinsList, IsEqualFunc<Pin>>::value;
         
         uint16_t value;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
             value = AdcPin<PinIndex>::Object::self(c)->m_value;
         }
         
