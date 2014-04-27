@@ -29,7 +29,10 @@
 
 #include <aprinter/platform/arm_cortex_common.h>
 
+#define FTM_CSC_ELSA ((uint32_t)1 << 2)
+#define FTM_CSC_ELSB ((uint32_t)1 << 3)
 #define FTM_CSC_MSA ((uint32_t)1 << 4)
+#define FTM_CSC_MSB ((uint32_t)1 << 5)
 #define FTM_CSC_CHIE ((uint32_t)1 << 6)
 #define FTM_CSC_CHF ((uint32_t)1 << 7)
 
