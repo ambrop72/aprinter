@@ -217,7 +217,7 @@ private:
             
             static void handle_irq (InterruptContext<Context> c)
             {
-                TimeType irq_time = get_time_interrupt(c);
+                TimeType irq_time = getTime(c);
                 ListForEachForward<ChannelsList>(Foreach_irq_helper(), c, irq_time);
             }
             
@@ -277,10 +277,12 @@ private:
             auto *o = Object::self(c);
             
             if (FtmIndex == 0) {
-                uint32_t sc = *Ftm::sc();
-                if (sc & FTM_SC_TOF) {
-                    *Ftm::sc() = sc & ~FTM_SC_TOF;
-                    o->m_offset += (uint32_t)TheModeHelper::TopVal + 1;
+                AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+                    uint32_t sc = *Ftm::sc();
+                    if (sc & FTM_SC_TOF) {
+                        *Ftm::sc() = sc & ~FTM_SC_TOF;
+                        o->m_offset += (uint32_t)TheModeHelper::TopVal + 1;
+                    }
                 }
             }
             TheModeHelper::handle_irq(c);
@@ -317,7 +319,6 @@ public:
     static TimeType getTime (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
         
         uint32_t offset;
         uint32_t low;
@@ -337,20 +338,6 @@ public:
     static void ftm_irq_handler (InterruptContext<Context> c)
     {
         FindFtm<Ftm>::irq_handler(c);
-    }
-    
-private:
-    static TimeType get_time_interrupt (Context c)
-    {
-        auto *o = Object::self(c);
-        
-        uint32_t offset = o->m_offset;
-        uint32_t low = *MyFtm<0>::Ftm::cnt();
-        if (*MyFtm<0>::Ftm::sc() & FTM_SC_TOF) {
-            offset += (uint32_t)MyFtm<0>::TheModeHelper::TopVal + 1;
-            low = *MyFtm<0>::Ftm::cnt();
-        }
-        return (offset | low);
     }
     
 public:
@@ -419,7 +406,7 @@ public:
 #endif
         
         AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
-            TimeType now = Clock::get_time_interrupt(c);
+            TimeType now = Clock::getTime(lock_c);
             now -= time;
             now += clearance;
             if (now < UINT32_C(0x80000000)) {
@@ -439,7 +426,7 @@ public:
         
         o->m_time = time;
         AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
-            TimeType now = Clock::get_time_interrupt(c);
+            TimeType now = Clock::getTime(lock_c);
             now -= time;
             now += clearance;
             if (now < UINT32_C(0x80000000)) {
