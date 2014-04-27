@@ -32,8 +32,8 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/TypeListIndex.h>
-#include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/TupleForEach.h>
+#include <aprinter/meta/IndexElemList.h>
+#include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/MakeTypeList.h>
@@ -163,10 +163,10 @@ class Mk20Clock {
     template <typename, typename, typename, int, typename>
     friend class Mk20ClockPwm;
     
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init_start, init_start)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_irq_helper, irq_helper)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init_start, init_start)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_irq_helper, irq_helper)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Ftm, Ftm)
     
 public:
@@ -216,13 +216,12 @@ private:
                 }
             };
             
-            using ChannelsTuple = IndexElemTuple<Channels, Channel>;
+            using ChannelsList = IndexElemList<Channels, Channel>;
             
             static void handle_irq (InterruptContext<Context> c)
             {
                 TimeType irq_time = get_time_interrupt(c);
-                ChannelsTuple dummy;
-                TupleForEachForward(&dummy, Foreach_irq_helper(), c, irq_time);
+                ListForEachForward<ChannelsList>(Foreach_irq_helper(), c, irq_time);
             }
             
             static uint16_t mod_time (TimeType time)
@@ -290,7 +289,7 @@ private:
         }
     };
     
-    using MyFtmsTuple = IndexElemTuple<FtmsList, MyFtm>;
+    using MyFtmsList = IndexElemList<FtmsList, MyFtm>;
     
     template <typename Ftm>
     using FindFtm = MyFtm<TypeListIndex<FtmsList, ComposeFunctions<IsEqualFunc<Ftm>, GetMemberType_Ftm>>::value>;
@@ -302,9 +301,8 @@ public:
         
         o->m_offset = 0;
         
-        MyFtmsTuple dummy;
-        TupleForEachForward(&dummy, Foreach_init(), c);
-        TupleForEachForward(&dummy, Foreach_init_start(), c);
+        ListForEachForward<MyFtmsList>(Foreach_init(), c);
+        ListForEachForward<MyFtmsList>(Foreach_init_start(), c);
         
         o->debugInit(c);
     }
@@ -314,8 +312,7 @@ public:
         auto *o = Object::self(c);
         o->debugDeinit(c);
         
-        MyFtmsTuple dummy;
-        TupleForEachReverse(&dummy, Foreach_deinit(), c);
+        ListForEachReverse<MyFtmsList>(Foreach_deinit(), c);
     }
     
     template <typename ThisContext>
