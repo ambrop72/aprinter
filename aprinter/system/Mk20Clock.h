@@ -247,6 +247,7 @@ private:
         static void init (Context c)
         {
             SIM_SCGC6 |= Ftm::Scgc6Bit;
+            *Ftm::sc();
             *Ftm::sc() = FTM_SC_PS(TheModeHelper::FtmPrescale) | (FtmIndex == 0 ? FTM_SC_TOIE : 0);
             *Ftm::mod() = TheModeHelper::TopVal;
             *Ftm::cntin() = (FtmIndex == 0) ? 1 : 0;
