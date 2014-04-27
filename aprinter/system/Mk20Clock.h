@@ -208,8 +208,6 @@ private:
             
             template <int ChannelIndex>
             struct Channel {
-                using ChannelSpec = TypeListGet<Channels, ChannelIndex>;
-                
                 static void irq_helper (InterruptContext<Context> c, TimeType irq_time)
                 {
                     Mk20Clock__IrqCompHelper<Ftm, ChannelIndex>::call(irq_time);
