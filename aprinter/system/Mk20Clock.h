@@ -200,7 +200,6 @@ private:
         struct ModeHelper<Mk20ClockFtmModeClock<NumBits>> {
             static_assert(NumBits >= 1, "");
             static_assert(NumBits <= 16, "");
-            static_assert(FtmIndex != 0 || NumBits == 16, "First FTM in FtmsList must have NumBits=16.");
             
             static uint8_t const FtmPrescale = Prescale;
             static uint16_t const TopVal = PowerOfTwoMinusOne<uint16_t, NumBits>::value;
@@ -281,7 +280,7 @@ private:
                 uint32_t sc = *Ftm::sc();
                 if (sc & FTM_SC_TOF) {
                     *Ftm::sc() = sc & ~FTM_SC_TOF;
-                    o->m_offset++;
+                    o->m_offset += (uint32_t)TheModeHelper::TopVal + 1;
                 }
             }
             TheModeHelper::handle_irq(c);
@@ -320,18 +319,18 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        uint16_t offset;
-        uint16_t low;
+        uint32_t offset;
+        uint32_t low;
         AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
             offset = o->m_offset;
             low = *MyFtm<0>::Ftm::cnt();
             if (*MyFtm<0>::Ftm::sc() & FTM_SC_TOF) {
-                offset++;
+                offset += (uint32_t)MyFtm<0>::TheModeHelper::TopVal + 1;
                 low = *MyFtm<0>::Ftm::cnt();
             }
         }
         
-        return ((uint32_t)offset << 16) | low;
+        return (offset | low);
     }
     
     template <typename Ftm>
@@ -345,20 +344,20 @@ private:
     {
         auto *o = Object::self(c);
         
-        uint16_t offset = o->m_offset;
-        uint16_t low = *MyFtm<0>::Ftm::cnt();
+        uint32_t offset = o->m_offset;
+        uint32_t low = *MyFtm<0>::Ftm::cnt();
         if (*MyFtm<0>::Ftm::sc() & FTM_SC_TOF) {
-            offset++;
+            offset += (uint32_t)MyFtm<0>::TheModeHelper::TopVal + 1;
             low = *MyFtm<0>::Ftm::cnt();
         }
-        return ((uint32_t)offset << 16) | low;
+        return (offset | low);
     }
     
 public:
     struct Object : public ObjBase<Mk20Clock, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
     {
-        uint16_t m_offset;
+        uint32_t m_offset;
     };
 };
 
