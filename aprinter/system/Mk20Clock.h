@@ -173,15 +173,7 @@ public:
     struct Object;
     using TimeType = uint32_t;
     
-    static constexpr TimeType prescale_divide =
-        (Prescale == 0) ? 1 :
-        (Prescale == 1) ? 2 :
-        (Prescale == 2) ? 4 :
-        (Prescale == 3) ? 8 :
-        (Prescale == 4) ? 16 :
-        (Prescale == 5) ? 32 :
-        (Prescale == 6) ? 64 :
-        (Prescale == 7) ? 128 : 0;
+    static constexpr TimeType prescale_divide = PowerOfTwo<TimeType, Prescale>::value;
     
     static constexpr double time_unit = (double)prescale_divide / F_BUS;
     static constexpr double time_freq = (double)F_BUS / prescale_divide;
