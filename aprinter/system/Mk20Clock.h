@@ -134,13 +134,13 @@ using Mk20ClockFTM1 = Mk20ClockFTM<
     >
 >;
 
-template <uint8_t NumBits>
+template <uint8_t PrescaleReduce, uint8_t NumBits>
 struct Mk20ClockFtmModeClock {};
 
 template <uint8_t Prescale, uint16_t TopVal>
 struct Mk20ClockFtmModeCustom {};
 
-template <typename TFtm, typename TMode = Mk20ClockFtmModeClock<16>>
+template <typename TFtm, typename TMode = Mk20ClockFtmModeClock<0, 16>>
 struct Mk20ClockFtmSpec {
     using Ftm = TFtm;
     using Mode = TMode;
@@ -188,12 +188,14 @@ private:
         template <typename TheMode>
         struct ModeHelper;
         
-        template <uint8_t NumBits>
-        struct ModeHelper<Mk20ClockFtmModeClock<NumBits>> {
+        template <uint8_t PrescaleReduce, uint8_t NumBits>
+        struct ModeHelper<Mk20ClockFtmModeClock<PrescaleReduce, NumBits>> {
+            static_assert(FtmIndex != 0 || PrescaleReduce == 0, "");
+            static_assert(PrescaleReduce <= Prescale, "");
             static_assert(NumBits >= 1, "");
             static_assert(NumBits <= 16, "");
             
-            static uint8_t const FtmPrescale = Prescale;
+            static uint8_t const FtmPrescale = Prescale - PrescaleReduce;
             static uint16_t const TopVal = PowerOfTwoMinusOne<uint16_t, NumBits>::value;
             static bool const SupportsTimer = true;
             
@@ -213,9 +215,9 @@ private:
                 ListForEachForward<ChannelsList>(Foreach_irq_helper(), c, irq_time);
             }
             
-            static uint16_t mod_time (TimeType time)
+            static uint16_t make_target_time (TimeType time)
             {
-                return (time & TopVal);
+                return ((time << PrescaleReduce) & TopVal);
             }
         };
         
@@ -404,7 +406,7 @@ public:
             if (now < UINT32_C(0x80000000)) {
                 time += now;
             }
-            *Channel::cv() = TheMyFtm::TheModeHelper::mod_time(time);
+            *Channel::cv() = TheMyFtm::TheModeHelper::make_target_time(time);
             *Channel::csc();
             *Channel::csc() = FTM_CSC_MSA | FTM_CSC_CHIE;
         }
@@ -424,7 +426,7 @@ public:
             if (now < UINT32_C(0x80000000)) {
                 time += now;
             }
-            *Channel::cv() = TheMyFtm::TheModeHelper::mod_time(time);
+            *Channel::cv() = TheMyFtm::TheModeHelper::make_target_time(time);
         }
     }
     
