@@ -43,12 +43,14 @@ static void emergency (void);
 #include <aprinter/system/Mk20Watchdog.h>
 #include <aprinter/system/TeensyUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
+#include <aprinter/stepper/LaserStepper.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/transform/CoreXyTransform.h>
 #include <aprinter/printer/microstep/A4988MicroStep.h>
+#include <aprinter/printer/duty_formula/LinearDutyFormula.h>
 #include <aprinter/printer/teensy3_pins.h>
 
 using namespace APrinter;
@@ -448,15 +450,6 @@ using PrinterParams = PrinterMainParams<
      * Fans.
      */
     MakeTypeList<
-        PrinterMainFanParams<
-            106, // SetMCommand
-            107, // OffMCommand
-            TeensyPin19, // OutputPin
-            false, // OutputInvert
-            FanPulseInterval, // PulseInterval
-            FanSpeedMultiply, // SpeedMultiply
-            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7>::InterruptTimer // TimerTemplate
-        >
     >
 >;
 
@@ -469,7 +462,7 @@ using AdcPins = MakeTypeList<
 static const int clock_timer_prescaler = 4;
 using ClockFtmsList = MakeTypeList<
     Mk20ClockFtmSpec<Mk20ClockFTM0>,
-    Mk20ClockFtmSpec<Mk20ClockFTM1, Mk20ClockFtmModeCustom<2, UINT16_C(0xFFFE)>>
+    Mk20ClockFtmSpec<Mk20ClockFTM1, Mk20ClockFtmModeCustom<0, UINT16_C(0xFFFE)>>
 >;
 
 struct MyContext;
@@ -527,7 +520,6 @@ AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 3, MyPrinter::GetAxisTime
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 4, MyPrinter::GetAxisTimer<3>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 5, MyPrinter::GetHeaterTimer<0>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 6, MyPrinter::GetHeaterTimer<1>, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 7, MyPrinter::GetFanTimer<0>, MyContext())
 
 static void emergency (void)
 {
@@ -550,7 +542,7 @@ int main ()
     MyPrinter::init(c);
     MyPwm::init(c);
     
-    MyPwm::setDutyCycle(c, 0.05f * MyPwm::MaxDutyCycle);
+    MyPwm::setDutyCycle(c, 0.2f * MyPwm::MaxDutyCycle);
     
     MyLoop::run(c);
 }

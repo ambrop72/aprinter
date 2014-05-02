@@ -84,10 +84,17 @@ struct MotionPlannerChannelSpec {
 };
 
 template <
+    typename TTheLaserStepperService
+>
+struct MotionPlannerLaserSpec {
+    using TheLaserStepperService = TTheLaserStepperService;
+};
+
+template <
     typename Context, typename ParentObject, typename ParamsAxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
     int LookaheadCommitCount, typename FpType,
     typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename UnderrunCallback,
-    typename ParamsChannelsList = EmptyTypeList
+    typename ParamsChannelsList = EmptyTypeList, typename ParamsLasersList = EmptyTypeList
 >
 class MotionPlanner {
 public:
@@ -102,6 +109,7 @@ private:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     static const int NumAxes = TypeListLength<ParamsAxesList>::value;
+    static_assert(NumAxes > 0, "");
     static const int NumChannels = TypeListLength<ParamsChannelsList>::value;
     template <typename AxisSpec, typename AccumType>
     using MinTimeTypeHelper = FixedIntersectTypes<typename AxisSpec::TheAxisStepper::TimeFixedType, AccumType>;
@@ -143,6 +151,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stopped_stepping, stopped_stepping)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment, write_segment)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_command, gen_command)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fixup_split, fixup_split)
     
 public:
     template <int ChannelIndex>
@@ -162,6 +171,12 @@ public:
         StepFixedType x_pos; // internal
     };
     
+    template <int LaserIndex>
+    struct LaserSplitBuffer {
+        FpType x;
+        FpType max_v_rec;
+    };
+    
     struct SplitBuffer {
         uint8_t type; // internal
         union {
@@ -171,6 +186,7 @@ public:
                 uint32_t split_count; // internal
                 uint32_t split_pos; // internal
                 IndexElemTuple<ParamsAxesList, AxisSplitBuffer> axes;
+                IndexElemTuple<ParamsLasersList, LaserSplitBuffer> lasers;
             };
             ChannelPayloadUnion channel_payload;
         };
@@ -195,6 +211,11 @@ private:
         StepperStepFixedType x;
     };
     
+    template <int LaserIndex>
+    struct LaserSegment {
+        FpType x_by_distance;
+    };
+    
     template <int ChannelIndex>
     struct ChannelSegment {
         using ChannelSpec = TypeListGet<ParamsChannelsList, ChannelIndex>;
@@ -213,6 +234,7 @@ private:
                 FpType rel_max_speed_rec;
                 FpType half_accel[NumAxes];
                 IndexElemTuple<ParamsAxesList, AxisSegment> axes;
+                IndexElemTuple<ParamsLasersList, LaserSegment> lasers;
             };
             IndexElemUnion<ParamsChannelsList, ChannelSegment> channels;
         };
@@ -225,6 +247,7 @@ public:
     class Axis {
     public:
         using AxisSpec = TypeListGet<ParamsAxesList, AxisIndex>;
+        using TheAxisSplitBuffer = AxisSplitBuffer<AxisIndex>;
         using TheAxisStepper = typename AxisSpec::TheAxisStepper;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using StepperCommandCallbackContext = typename TheAxisStepper::CommandCallbackContext;
@@ -237,7 +260,6 @@ public:
         using StepperTimeFixedType = typename TheAxisStepper::TimeFixedType;
         using StepperAccelFixedType = typename TheAxisStepper::AccelFixedType;
         using StepperCommand = typename TheAxisStepper::Command;
-        using TheAxisSplitBuffer = AxisSplitBuffer<AxisIndex>;
         using TheAxisSegment = AxisSegment<AxisIndex>;
         static const AxisMaskType TheAxisMask = (AxisMaskType)1 << (AxisIndex + TypeBits);
         
@@ -584,6 +606,228 @@ public:
         };
     };
     
+    template <int LaserIndex>
+    class Laser {
+    public: // private, workaround gcc bug
+        friend MotionPlanner;
+        struct Object;
+        struct StepperCommandCallback;
+        
+    public:
+        using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
+        using TheLaserSplitBuffer = LaserSplitBuffer<LaserIndex>;
+        using TheLaserStepper = typename LaserSpec::TheLaserStepperService::template LaserStepper<Context, Object, FpType, StepperCommandCallback>;
+        using StepperCommandCallbackContext = typename TheLaserStepper::CommandCallbackContext;
+        
+    public: // private, workaround gcc bug
+        using StepperCommand = typename TheLaserStepper::Command;
+        using TheLaserSegment = LaserSegment<LaserIndex>;
+        
+        static void init (Context c)
+        {
+            auto *o = Object::self(c);
+            o->m_commit_start = 0;
+            o->m_commit_end = 0;
+            o->m_backup_start = 0;
+            o->m_backup_end = 0;
+            o->m_busy = false;
+            TheLaserStepper::init(c);
+        }
+        
+        static void deinit (Context c)
+        {
+            TheLaserStepper::stop(c);
+            TheLaserStepper::deinit(c);
+        }
+        
+        static void abort (Context c)
+        {
+            TheLaserStepper::stop(c);
+        }
+        
+        static void commandDone_assert (Context c)
+        {
+            TheLaserSplitBuffer *laser_split = get_laser_split(c);
+            AMBRO_ASSERT(FloatIsPosOrPosZero(laser_split->x))
+            AMBRO_ASSERT(FloatIsPosOrPosZero(laser_split->max_v_rec))
+        }
+        
+        static void fixup_split (Context c)
+        {
+            auto *m = MotionPlanner::Object::self(c);
+            TheLaserSplitBuffer *laser_split = get_laser_split(c);
+            
+            laser_split->x *= m->m_split_buffer.split_frac;
+        }
+        
+        static FpType compute_segment_buffer_entry_speed (FpType accum, Context c)
+        {
+            TheLaserSplitBuffer *laser_split = get_laser_split(c);
+            
+            return FloatMax(accum, laser_split->x * laser_split->max_v_rec);
+        }
+        
+        static void write_segment_buffer_entry_extra (Context c, Segment *entry, FpType distance_rec)
+        {
+            TheLaserSplitBuffer *laser_split = get_laser_split(c);
+            TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(&entry->lasers);
+            
+            laser_segment->x_by_distance = laser_split->x * distance_rec;
+        }
+        
+        static bool have_commit_space (bool accum, Context c)
+        {
+            auto *o = Object::self(c);
+            return (accum && commit_avail(o->m_commit_start, o->m_commit_end) > 3 * LookaheadCommitCount);
+        }
+        
+        static void start_commands (Context c)
+        {
+            auto *o = Object::self(c);
+            auto *m = MotionPlanner::Object::self(c);
+            o->m_new_commit_end = o->m_commit_end;
+            o->m_new_backup_end = m->m_current_backup ? 0 : StepperBackupBufferSize;
+        }
+        
+        static void gen_segment_stepper_commands (Context c, Segment *entry, MinTimeType t0, MinTimeType t2, MinTimeType t1, FpType v_start, FpType v_end, FpType v_const)
+        {
+            TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(&entry->lasers);
+            
+            FpType xv_start = laser_segment->x_by_distance * v_start;
+            FpType xv_end = laser_segment->x_by_distance * v_end;
+            FpType xv_const = laser_segment->x_by_distance * v_const;
+            
+            if (t0.bitsValue() != 0) {
+                gen_stepper_command(c, t0.bitsValue(), xv_start, xv_const);
+            }
+            if (t1.bitsValue() != 0 || (t0.bitsValue() == 0 && t2.bitsValue() == 0)) {
+                gen_stepper_command(c, t1.bitsValue(), xv_const, xv_const);
+            }
+            if (t2.bitsValue() != 0) {
+                gen_stepper_command(c, t2.bitsValue(), xv_const, xv_end);
+            }
+        }
+        
+        static void gen_stepper_command (Context c, TimeType t, FpType xv_start, FpType xv_end)
+        {
+            auto *o = Object::self(c);
+            auto *m = MotionPlanner::Object::self(c);
+            
+            StepperCommand *cmd;
+            if (!m->m_new_to_backup) {
+                cmd = &o->m_commit_buffer[o->m_new_commit_end];
+                o->m_new_commit_end = commit_inc(o->m_new_commit_end);
+            } else {
+                cmd = &o->m_backup_buffer[o->m_new_backup_end];
+                o->m_new_backup_end++;
+            }
+            TheLaserStepper::generate_command(t, xv_start, xv_end, cmd);
+        }
+        
+        static void do_commit (Context c)
+        {
+            auto *o = Object::self(c);
+            auto *m = MotionPlanner::Object::self(c);
+            o->m_commit_end = o->m_new_commit_end;
+            o->m_backup_start = m->m_current_backup ? 0 : StepperBackupBufferSize;
+            o->m_backup_end = o->m_new_backup_end;
+        }
+        
+        static void start_stepping (Context c, TimeType start_time)
+        {
+            auto *o = Object::self(c);
+            auto *m = MotionPlanner::Object::self(c);
+            AMBRO_ASSERT(!o->m_busy)
+            
+            if (o->m_commit_start != o->m_commit_end) {
+                o->m_busy = true;
+                StepperCommand *cmd = &o->m_commit_buffer[o->m_commit_start];
+                o->m_commit_start = commit_inc(o->m_commit_start);
+                TheLaserStepper::start(c, start_time, cmd);
+            }
+        }
+        
+        static bool is_busy (bool accum, Context c)
+        {
+            auto *o = Object::self(c);
+            return (accum || o->m_busy);
+        }
+        
+        static void reset_aborted (Context c)
+        {
+            auto *o = Object::self(c);
+            o->m_commit_start = 0;
+            o->m_commit_end = 0;
+            o->m_busy = false;
+        }
+        
+        static void stopped_stepping (Context c)
+        {
+            auto *o = Object::self(c);
+            o->m_backup_start = 0;
+            o->m_backup_end = 0;
+        }
+        
+        static bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand **cmd)
+        {
+            auto *o = Object::self(c);
+            auto *m = MotionPlanner::Object::self(c);
+            AMBRO_ASSERT(o->m_busy)
+            AMBRO_ASSERT(m->m_state == STATE_STEPPING)
+            
+            Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
+            if (AMBRO_UNLIKELY(o->m_commit_start != o->m_commit_end)) {
+                *cmd = &o->m_commit_buffer[o->m_commit_start];
+                o->m_commit_start = commit_inc(o->m_commit_start);
+            } else {
+                m->m_syncing = false;
+                if (o->m_backup_start == o->m_backup_end) {
+                    o->m_busy = false;
+                    return false;
+                }
+                *cmd = &o->m_backup_buffer[o->m_backup_start];
+                o->m_backup_start++;
+            }
+            return true;
+        }
+        
+        static StepperCommitBufferSizeType commit_inc (StepperCommitBufferSizeType a)
+        {
+            a++;
+            if (AMBRO_LIKELY(a == StepperCommitBufferSize)) {
+                a = 0;
+            }
+            return a;
+        }
+        
+        static StepperCommitBufferSizeType commit_avail (StepperCommitBufferSizeType start, StepperCommitBufferSizeType end)
+        {
+            return (end >= start) ? ((StepperCommitBufferSize - 1) - (end - start)) : ((start - end) - 1);
+        }
+        
+        static TheLaserSplitBuffer * get_laser_split (Context c)
+        {
+            auto *m = MotionPlanner::Object::self(c);
+            return TupleGetElem<LaserIndex>(&m->m_split_buffer.lasers);
+        }
+        
+        struct StepperCommandCallback : public AMBRO_WFUNC_TD(&Laser::stepper_command_callback) {};
+        
+        struct Object : public ObjBase<Laser, typename MotionPlanner::Object, MakeTypeList<
+            TheLaserStepper
+        >> {
+            StepperCommitBufferSizeType m_commit_start;
+            StepperCommitBufferSizeType m_commit_end;
+            StepperBackupBufferSizeType m_backup_start;
+            StepperBackupBufferSizeType m_backup_end;
+            StepperCommitBufferSizeType m_new_commit_end;
+            StepperBackupBufferSizeType m_new_backup_end;
+            bool m_busy;
+            StepperCommand m_commit_buffer[StepperCommitBufferSize];
+            StepperCommand m_backup_buffer[2 * StepperBackupBufferSize];
+        };
+    };
+    
     template <int ChannelIndex>
     class Channel {
     public: // private, workaround gcc bug
@@ -794,6 +1038,7 @@ public:
     
 private:
     using AxesList = IndexElemList<ParamsAxesList, Axis>;
+    using LasersList = IndexElemList<ParamsLasersList, Laser>;
     using ChannelsList = IndexElemList<ParamsChannelsList, Channel>;
     
 public:
@@ -818,6 +1063,7 @@ public:
         o->m_pulling = false;
 #endif
         ListForEachForward<AxesList>(LForeach_init(), c, prestep_callback_enabled);
+        ListForEachForward<LasersList>(LForeach_init(), c);
         ListForEachForward<ChannelsList>(LForeach_init(), c);
         o->m_pull_finished_event.prependNowNotAlready(c);
     }
@@ -827,6 +1073,7 @@ public:
         auto *o = Object::self(c);
         
         ListForEachForward<ChannelsList>(LForeach_deinit(), c);
+        ListForEachForward<LasersList>(LForeach_deinit(), c);
         ListForEachForward<AxesList>(LForeach_deinit(), c);
         Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
         o->m_pull_finished_event.deinit(c);
@@ -850,6 +1097,7 @@ public:
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
         AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.rel_max_v_rec))
         ListForEachForward<AxesList>(LForeach_commandDone_assert(), c);
+        ListForEachForward<LasersList>(LForeach_commandDone_assert(), c);
         AMBRO_ASSERT(!ListForEachForwardAccRes<AxesList>(true, LForeach_check_icmd_zero(), c))
         
         o->m_waiting = false;
@@ -868,6 +1116,7 @@ public:
             o->m_split_buffer.split_frac = 1.0f / split_count;
             o->m_split_buffer.rel_max_v_rec *= o->m_split_buffer.split_frac;
             o->m_split_buffer.split_count = split_count;
+            ListForEachForward<LasersList>(LForeach_fixup_split(), c);
         }
         
         Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
@@ -966,6 +1215,7 @@ private:
         
         o->m_new_to_backup = false;
         ListForEachForward<AxesList>(LForeach_start_commands(), c);
+        ListForEachForward<LasersList>(LForeach_start_commands(), c);
         ListForEachForward<ChannelsList>(LForeach_start_commands(), c);
         
         TimeType time = o->m_staging_time;
@@ -991,6 +1241,8 @@ private:
                 ListForEachForward<AxesList>(LForeach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
                                     t0_double * t0_double, t2_double * t2_double);
+                ListForEachForward<LasersList>(LForeach_gen_segment_stepper_commands(), c, entry,
+                    t0, t2, t1, v_start, v_end, v_const);
                 v_start = v_end;
             } else {
                 ListForOneOffset<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_gen_command(), c, entry, time);
@@ -1010,6 +1262,7 @@ private:
         
         if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
             ListForEachForward<AxesList>(LForeach_do_commit(), c);
+            ListForEachForward<LasersList>(LForeach_do_commit(), c);
             ListForEachForward<ChannelsList>(LForeach_do_commit_cold(), c);
             o->m_current_backup = !o->m_current_backup;
         } else {
@@ -1017,6 +1270,7 @@ private:
                 ok = o->m_syncing;
                 if (AMBRO_LIKELY(ok)) {
                     ListForEachForward<AxesList>(LForeach_do_commit(), c);
+                    ListForEachForward<LasersList>(LForeach_do_commit(), c);
                     ListForEachForward<ChannelsList>(LForeach_do_commit_hot(), lock_c);
                     o->m_current_backup = !o->m_current_backup;
                 }
@@ -1041,6 +1295,7 @@ private:
         TimeType start_time = Clock::getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
         o->m_staging_time += start_time;
         ListForEachForward<AxesList>(LForeach_start_stepping(), c, start_time);
+        ListForEachForward<LasersList>(LForeach_start_stepping(), c, start_time);
         ListForEachForward<ChannelsList>(LForeach_start_stepping(), c, start_time);
     }
     
@@ -1072,6 +1327,7 @@ private:
     {
         return
             ListForEachForwardAccRes<AxesList>(true, LForeach_have_commit_space(), c) &&
+            ListForEachForwardAccRes<LasersList>(true, LForeach_have_commit_space(), c) &&
             ListForEachForwardAccRes<ChannelsList>(true, LForeach_have_commit_space(), c);
     }
     
@@ -1079,6 +1335,7 @@ private:
     {
         return
             ListForEachForwardAccRes<AxesList>(false, LForeach_is_busy(), c) ||
+            ListForEachForwardAccRes<LasersList>(false, LForeach_is_busy(), c) ||
             ListForEachForwardAccRes<ChannelsList>(false, LForeach_is_busy(), c);
     }
     
@@ -1097,6 +1354,7 @@ private:
             
             if (AMBRO_UNLIKELY(aborted)) {
                 ListForEachForward<AxesList>(LForeach_abort(), c);
+                ListForEachForward<LasersList>(LForeach_abort(), c);
                 ListForEachForward<ChannelsList>(LForeach_abort(), c);
                 Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
                 o->m_state = STATE_ABORTED;
@@ -1115,6 +1373,7 @@ private:
                 o->m_current_backup = false;
                 Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
                 ListForEachForward<AxesList>(LForeach_stopped_stepping(), c);
+                ListForEachForward<LasersList>(LForeach_stopped_stepping(), c);
                 ListForEachForward<ChannelsList>(LForeach_stopped_stepping(), c);
                 UnderrunCallback::call(c);
             }
@@ -1177,7 +1436,8 @@ private:
                 o->m_split_buffer.split_pos++;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
                 FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), entry);
-                entry->rel_max_speed_rec = ListForEachForwardAccRes<AxesList>(o->m_split_buffer.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
+                FpType axes_rel_max_speed_rec = ListForEachForwardAccRes<AxesList>(o->m_split_buffer.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
+                entry->rel_max_speed_rec = ListForEachForwardAccRes<LasersList>(axes_rel_max_speed_rec, LForeach_compute_segment_buffer_entry_speed(), c);
                 FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_accel(), c, entry);
                 FpType distance = FloatSqrt(distance_squared);
                 FpType distance_rec = 1.0f / distance;
@@ -1189,6 +1449,7 @@ private:
                 entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
                 entry->max_accel_rec = rel_max_accel_rec * distance_rec;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
+                ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
                     if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
@@ -1229,6 +1490,7 @@ private:
 public:
     struct Object : public ObjBase<MotionPlanner, ParentObject, JoinTypeLists<
         AxesList,
+        LasersList,
         ChannelsList
     >> {
         typename Loop::QueuedEvent m_pull_finished_event;
