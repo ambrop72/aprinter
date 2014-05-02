@@ -77,6 +77,16 @@ public:
         return m_bits.value();
     }
     
+    template <typename FpValue>
+    static constexpr FixedPoint constImport ()
+    {
+        static constexpr double low = Signed ? __builtin_ldexp(-1.0, NumBits) : 0.0;
+        static constexpr double high = __builtin_ldexp(1.0, NumBits);
+        static constexpr double a = __builtin_round(__builtin_ldexp(FpValue::value(), -Exp));
+        static constexpr IntType bits = (a <= low) ? BoundedIntType::minIntValue() : (a >= high) ? BoundedIntType::maxIntValue() : a;
+        return FixedPoint{BoundedIntType{bits}};
+    }
+    
     template <typename FpType>
     static FixedPoint importFpSaturatedRound (FpType op)
     {
