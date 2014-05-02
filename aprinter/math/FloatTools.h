@@ -76,6 +76,14 @@ T FloatMakePosOrPosZero (T x)
     return x;
 }
 
+template <typename T>
+bool FloatIsNan (T x)
+{
+    static_assert(IsFpType<T>::value, "");
+    
+    return isnan(x);
+}
+
 static void FloatToStrSoft (double x, char *s, int prec_approx = 6, bool pretty = true)
 {
     if (isnan(x)) {
