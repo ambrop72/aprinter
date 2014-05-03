@@ -45,7 +45,7 @@ public:
 private:
     using Factor = AMBRO_WRAP_DOUBLE(LinearFactor::value() * MaxDutyCycle);
     using FactorFixedType = ChooseFixedForFloat<FactorBits, Factor>;
-    static constexpr FactorFixedType FactorFixed = FactorFixedType::template constImport<Factor>();
+    static constexpr FactorFixedType FactorFixed = FactorFixedType::template ConstImport<Factor>::value();
 };
 
 template <int PowerRangeExp, int PowerNumBits, typename LinearFactor, int FactorBits>
