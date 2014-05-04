@@ -84,10 +84,12 @@ struct MotionPlannerChannelSpec {
 };
 
 template <
-    typename TTheLaserStepperService
+    typename TTheLaserStepperService,
+    typename TPowerInterface
 >
 struct MotionPlannerLaserSpec {
     using TheLaserStepperService = TTheLaserStepperService;
+    using PowerInterface = TPowerInterface;
 };
 
 template <
@@ -616,7 +618,7 @@ public:
     public:
         using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
         using TheLaserSplitBuffer = LaserSplitBuffer<LaserIndex>;
-        using TheLaserStepper = typename LaserSpec::TheLaserStepperService::template LaserStepper<Context, Object, FpType, StepperCommandCallback>;
+        using TheLaserStepper = typename LaserSpec::TheLaserStepperService::template LaserStepper<Context, Object, FpType, typename LaserSpec::PowerInterface, StepperCommandCallback>;
         using StepperCommandCallbackContext = typename TheLaserStepper::CommandCallbackContext;
         
     public: // private, workaround gcc bug

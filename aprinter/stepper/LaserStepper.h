@@ -37,20 +37,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    typename TPwmService,
-    typename TDutyFormulaService,
-    typename TInterruptTimerService,
-    typename TAdjustmentInterval
->
-struct LaserStepperParams {
-    using PwmService = TPwmService;
-    using DutyFormulaService = TDutyFormulaService;
-    using InterruptTimerService = TInterruptTimerService;
-    using AdjustmentInterval = TAdjustmentInterval;
-};
-
-template <typename Context, typename ParentObject, typename FpType, typename CommandCallback, typename Params>
+template <typename Context, typename ParentObject, typename FpType, typename PowerInterface, typename CommandCallback, typename Params>
 class LaserStepper {
 private:
     struct TimerCallback;
@@ -59,9 +46,7 @@ public:
     struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    using ThePwm = typename Params::PwmService::template Pwm<Context, Object>;
-    using TheDutyFormula = typename Params::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle>;
-    using PowerFixedType = typename TheDutyFormula::PowerFixedType;
+    using PowerFixedType = typename PowerInterface::PowerFixedType;
     using TheTimer = typename Params::InterruptTimerService::template InterruptTimer<Context, Object, TimerCallback>;
     using CommandCallbackContext = typename TheTimer::HandlerContext;
     
@@ -86,12 +71,11 @@ public:
     {
         auto *o = Object::self(c);
         
-        ThePwm::init(c);
         TheTimer::init(c);
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
 #endif
-        set_power(c, PowerFixedType::importBits(0));
+        PowerInterface::setPower(c, PowerFixedType::importBits(0));
         
         o->debugInit(c);
     }
@@ -103,7 +87,6 @@ public:
         AMBRO_ASSERT(!o->m_running)
         
         TheTimer::deinit(c);
-        ThePwm::deinit(c);
     }
     
     static void start (Context c, TimeType start_time, Command *first_command)
@@ -128,22 +111,14 @@ public:
         o->debugAccess(c);
         
         TheTimer::unset(c);
-        set_power(c, PowerFixedType::importBits(0));
+        PowerInterface::setPower(c, PowerFixedType::importBits(0));
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
 #endif
     }
     
-    using GetTimer = TheTimer;
-    
 private:
     static TimeType const AdjustmentIntervalTicks = Params::AdjustmentInterval::value() / Clock::time_unit;
-    
-    template <typename ThisContext>
-    static void set_power (ThisContext c, PowerFixedType power)
-    {
-        ThePwm::setDutyCycle(c, TheDutyFormula::powerToDuty(power));
-    }
     
     static bool timer_callback (typename TheTimer::HandlerContext c)
     {
@@ -155,7 +130,7 @@ private:
             o->m_cmd_time += o->m_cmd->duration;
             rel_time = o->m_time - o->m_cmd_time;
             if (!CommandCallback::call(c, &o->m_cmd)) {
-                set_power(c, PowerFixedType::importBits(0));
+                PowerInterface::setPower(c, PowerFixedType::importBits(0));
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
 #endif
@@ -164,7 +139,7 @@ private:
         }
         float frac = fminf(1.0f, (float)rel_time / o->m_cmd->duration);
         PowerFixedType power = PowerFixedType::importFpSaturatedRound((1.0f - frac) * o->m_cmd->v_start + frac * o->m_cmd->v_end);
-        set_power(c, power);
+        PowerInterface::setPower(c, power);
         o->m_time += AdjustmentIntervalTicks;
         TheTimer::setNext(c, o->m_time);
         return true;
@@ -187,10 +162,16 @@ public:
     };
 };
 
-template <typename Params>
+template <
+    typename TInterruptTimerService,
+    typename TAdjustmentInterval
+>
 struct LaserStepperService {
-    template <typename Context, typename ParentObject, typename FpType, typename CommandCallback>
-    using LaserStepper = LaserStepper<Context, ParentObject, FpType, CommandCallback, Params>;
+    using InterruptTimerService = TInterruptTimerService;
+    using AdjustmentInterval = TAdjustmentInterval;
+    
+    template <typename Context, typename ParentObject, typename FpType, typename PowerInterface, typename CommandCallback>
+    using LaserStepper = LaserStepper<Context, ParentObject, FpType, PowerInterface, CommandCallback, LaserStepperService>;
 };
 
 #include <aprinter/EndNamespace.h>

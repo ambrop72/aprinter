@@ -177,6 +177,10 @@ using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
+using LMaxPower = AMBRO_WRAP_DOUBLE(100.0);
+using LDutyLinearFactor = AMBRO_WRAP_DOUBLE(1.0 / 100.0);
+using LDutyAdjustmentInterval = AMBRO_WRAP_DOUBLE(1.0 / 200.0);
+
 using DummySegmentsPerSecond = AMBRO_WRAP_DOUBLE(0.0);
 
 using PrinterParams = PrinterMainParams<
@@ -450,6 +454,27 @@ using PrinterParams = PrinterMainParams<
      * Fans.
      */
     MakeTypeList<
+    >,
+    
+    /*
+     * Lasers.
+     */
+    MakeTypeList<
+        PrinterMainLaserParams<
+            'L', // Name
+            LMaxPower, // MaxPower
+            Mk20ClockPwmService<Mk20ClockFTM1, 1, TeensyPin17>,
+            LinearDutyFormulaService<
+                8, // PowerRangeExp
+                16, // PowerNumBits
+                LDutyLinearFactor,
+                16 // FactorBits
+            >,
+            LaserStepperService<
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7>,
+                LDutyAdjustmentInterval
+            >
+        >
     >
 >;
 
@@ -475,7 +500,6 @@ using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
 using MyPins = Mk20Pins<MyContext, Program>;
 using MyAdc = Mk20Adc<MyContext, Program, AdcPins, AdcADiv>;
 using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
-using MyPwm = Mk20ClockPwmService<Mk20ClockFTM1, 1, TeensyPin17>::Pwm<MyContext, Program>;
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
@@ -497,7 +521,6 @@ struct Program : public ObjBase<void, void, MakeTypeList<
     MyPins,
     MyAdc,
     MyPrinter,
-    MyPwm,
     MyLoopExtra
 >> {
     static Program * self (MyContext c);
@@ -520,6 +543,7 @@ AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 3, MyPrinter::GetAxisTime
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 4, MyPrinter::GetAxisTimer<3>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 5, MyPrinter::GetHeaterTimer<0>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 6, MyPrinter::GetHeaterTimer<1>, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 7, MyPrinter::GetLaserStepper<0>::TheTimer, MyContext())
 
 static void emergency (void)
 {
@@ -540,9 +564,6 @@ int main ()
     MyPins::init(c);
     MyAdc::init(c);
     MyPrinter::init(c);
-    MyPwm::init(c);
-    
-    MyPwm::setDutyCycle(c, 0.2f * MyPwm::MaxDutyCycle);
     
     MyLoop::run(c);
 }
