@@ -1636,7 +1636,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *mycmd = TupleGetElem<LaserIndex>(&cmd->lasers);
             mycmd->x = src.template get<LaserIndex>();
-            mycmd->max_v_rec = (FpType)(1.0 / LaserSpec::MaxPower::value());
+            mycmd->max_v_rec = (FpType)(Clock::time_freq / LaserSpec::MaxPower::value());
         }
         
         struct PowerInterface {
