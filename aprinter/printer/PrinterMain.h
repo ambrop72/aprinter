@@ -3511,7 +3511,7 @@ public: // private, see comment on top
     using MoveBuildLaserExtraTuple = Tuple<MapTypeList<LasersList, TemplateFunc<MoveBuildLaserExtra>>>;
     
     struct MoveBuildState : public MoveBuildLaserExtraTuple {
-        MoveBuildLaserExtraTuple * laser_extra () { return static_cast<MoveBuildLaserExtraTuple *>(this); }
+        MoveBuildLaserExtraTuple * laser_extra () { return this; }
         bool seen_cartesian;
     };
     
