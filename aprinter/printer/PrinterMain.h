@@ -92,7 +92,7 @@ template <
     template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
     typename TSdCardParams, typename TProbeParams, typename TCurrentParams,
     typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList,
-    typename TLasersList
+    typename TLasersList = EmptyTypeList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
