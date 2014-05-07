@@ -149,7 +149,6 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_do_commit_hot, do_commit_hot)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_stepping, start_stepping)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_is_busy, is_busy)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_reset_aborted, reset_aborted)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stopped_stepping, stopped_stepping)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment, write_segment)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_command, gen_command)
@@ -477,14 +476,6 @@ public:
             return (accum || o->m_busy);
         }
         
-        static void reset_aborted (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_commit_start = 0;
-            o->m_commit_end = 0;
-            o->m_busy = false;
-        }
-        
         static void stopped_stepping (Context c)
         {
             auto *o = Object::self(c);
@@ -755,14 +746,6 @@ public:
             return (accum || o->m_busy);
         }
         
-        static void reset_aborted (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_commit_start = 0;
-            o->m_commit_end = 0;
-            o->m_busy = false;
-        }
-        
         static void stopped_stepping (Context c)
         {
             auto *o = Object::self(c);
@@ -960,14 +943,6 @@ public:
         {
             auto *o = Object::self(c);
             return (accum || o->m_busy);
-        }
-        
-        static void reset_aborted (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_commit_start = 0;
-            o->m_commit_end = 0;
-            o->m_busy = false;
         }
         
         static void stopped_stepping (Context c)
