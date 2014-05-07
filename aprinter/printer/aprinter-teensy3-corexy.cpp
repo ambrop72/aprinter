@@ -177,6 +177,7 @@ using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
+// NOTE: When changing LMaxPower, also set PowerRangeExp=ceil(log2(LMaxPower))+1.
 using LMaxPower = AMBRO_WRAP_DOUBLE(100.0);
 using LDutyLinearFactor = AMBRO_WRAP_DOUBLE(1.0 / 100.0);
 using LDutyAdjustmentInterval = AMBRO_WRAP_DOUBLE(1.0 / 200.0);
