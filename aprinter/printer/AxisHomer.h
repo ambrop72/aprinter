@@ -123,29 +123,29 @@ private:
         }
         
         PlannerCommand *cmd = Planner::getBuffer(c);
-        cmd->rel_max_v_rec = 0.0f;
+        cmd->axes.rel_max_v_rec = 0.0f;
         switch (o->m_state) {
             case STATE_FAST: {
-                cmd->axes.elem.dir = HomeDir;
-                cmd->axes.elem.x = o->m_params.fast_max_dist;
-                cmd->axes.elem.max_v_rec = 1.0f / o->m_params.fast_speed;
-                cmd->axes.elem.max_a_rec = 1.0f / o->m_params.max_accel;
+                cmd->axes.axes()->elem.dir = HomeDir;
+                cmd->axes.axes()->elem.x = o->m_params.fast_max_dist;
+                cmd->axes.axes()->elem.max_v_rec = 1.0f / o->m_params.fast_speed;
+                cmd->axes.axes()->elem.max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
             case STATE_RETRACT: {
-                cmd->axes.elem.dir = !HomeDir;
-                cmd->axes.elem.x = o->m_params.retract_dist;
-                cmd->axes.elem.max_v_rec = 1.0f / o->m_params.retract_speed;
-                cmd->axes.elem.max_a_rec = 1.0f / o->m_params.max_accel;
+                cmd->axes.axes()->elem.dir = !HomeDir;
+                cmd->axes.axes()->elem.x = o->m_params.retract_dist;
+                cmd->axes.axes()->elem.max_v_rec = 1.0f / o->m_params.retract_speed;
+                cmd->axes.axes()->elem.max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
             case STATE_SLOW: {
-                cmd->axes.elem.dir = HomeDir;
-                cmd->axes.elem.x = o->m_params.slow_max_dist;
-                cmd->axes.elem.max_v_rec = 1.0f / o->m_params.slow_speed;
-                cmd->axes.elem.max_a_rec = 1.0f / o->m_params.max_accel;
+                cmd->axes.axes()->elem.dir = HomeDir;
+                cmd->axes.axes()->elem.x = o->m_params.slow_max_dist;
+                cmd->axes.axes()->elem.max_v_rec = 1.0f / o->m_params.slow_speed;
+                cmd->axes.axes()->elem.max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
         }
         
-        if (cmd->axes.elem.x.bitsValue() != 0) {
+        if (cmd->axes.axes()->elem.x.bitsValue() != 0) {
             Planner::axesCommandDone(c);
         } else {
             Planner::emptyDone(c);

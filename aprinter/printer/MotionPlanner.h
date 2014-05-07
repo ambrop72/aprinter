@@ -181,17 +181,28 @@ public:
         FpType max_v_rec;
     };
     
+    using SplitBufferAxesTuple = IndexElemTuple<ParamsAxesList, AxisSplitBuffer>;
+    using SplitBufferLasersTuple = IndexElemTuple<ParamsLasersList, LaserSplitBuffer>;
+    
+    struct SplitBufferAxesHelper : private SplitBufferAxesTuple {
+        SplitBufferAxesTuple * axes () { return this; };
+    };
+    
+    struct SplitBufferLasersHelper : private SplitBufferLasersTuple {
+        SplitBufferLasersTuple * lasers () { return this; };
+    };
+    
+    struct SplitBufferAxesPart : public SplitBufferAxesHelper, public SplitBufferLasersHelper {
+        FpType rel_max_v_rec;
+        FpType split_frac; // internal
+        uint32_t split_count; // internal
+        uint32_t split_pos; // internal
+    };
+    
     struct SplitBuffer {
         uint8_t type; // internal
         union {
-            struct {
-                FpType rel_max_v_rec;
-                FpType split_frac; // internal
-                uint32_t split_count; // internal
-                uint32_t split_pos; // internal
-                IndexElemTuple<ParamsAxesList, AxisSplitBuffer> axes;
-                IndexElemTuple<ParamsLasersList, LaserSplitBuffer> lasers;
-            };
+            SplitBufferAxesPart axes;
             ChannelPayloadUnion channel_payload;
         };
     };
@@ -461,10 +472,10 @@ public:
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
             StepFixedType new_x;
-            if (m->m_split_buffer.split_pos == m->m_split_buffer.split_count) {
+            if (m->m_split_buffer.axes.split_pos == m->m_split_buffer.axes.split_count) {
                 new_x = axis_split->x;
             } else {
-                new_x = FixedMin(axis_split->x, StepFixedType::template importFpSaturatedRound<FpType>(m->m_split_buffer.split_pos * m->m_split_buffer.split_frac * axis_split->x.template fpValue<FpType>()));
+                new_x = FixedMin(axis_split->x, StepFixedType::template importFpSaturatedRound<FpType>(m->m_split_buffer.axes.split_pos * m->m_split_buffer.axes.split_frac * axis_split->x.template fpValue<FpType>()));
             }
             if (axis_split->dir) {
                 entry->dir_and_type |= TheAxisMask;
@@ -619,7 +630,7 @@ public:
         static TheAxisSplitBuffer * get_axis_split (Context c)
         {
             auto *m = MotionPlanner::Object::self(c);
-            return TupleGetElem<AxisIndex>(&m->m_split_buffer.axes);
+            return TupleGetElem<AxisIndex>(m->m_split_buffer.axes.axes());
         }
         
         struct Object : public ObjBase<Axis, typename MotionPlanner::Object, MakeTypeList<
@@ -675,7 +686,7 @@ public:
             auto *m = MotionPlanner::Object::self(c);
             TheLaserSplitBuffer *laser_split = get_laser_split(c);
             
-            laser_split->x *= m->m_split_buffer.split_frac;
+            laser_split->x *= m->m_split_buffer.axes.split_frac;
         }
         
         static FpType compute_segment_buffer_entry_speed (FpType accum, Context c)
@@ -720,7 +731,7 @@ public:
         static TheLaserSplitBuffer * get_laser_split (Context c)
         {
             auto *m = MotionPlanner::Object::self(c);
-            return TupleGetElem<LaserIndex>(&m->m_split_buffer.lasers);
+            return TupleGetElem<LaserIndex>(m->m_split_buffer.axes.lasers());
         }
         
         struct StepperCommandCallback : public AMBRO_WFUNC_TD(&TheCommon::stepper_command_callback) {};
@@ -991,7 +1002,7 @@ public:
         AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         AMBRO_ASSERT(o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
-        AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.rel_max_v_rec))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.axes.rel_max_v_rec))
         ListForEachForward<AxesList>(LForeach_commandDone_assert(), c);
         ListForEachForward<LasersList>(LForeach_commandDone_assert(), c);
         AMBRO_ASSERT(!ListForEachForwardAccRes<AxesList>(true, LForeach_check_icmd_zero(), c))
@@ -1004,14 +1015,14 @@ public:
         
         o->m_split_buffer.type = 0;
         ListForEachForward<AxesList>(LForeach_write_splitbuf(), c);
-        o->m_split_buffer.split_pos = 0;
+        o->m_split_buffer.axes.split_pos = 0;
         if (AMBRO_LIKELY(ListForEachForwardAccRes<AxesList>(true, LForeach_splitbuf_fits(), c))) {
-            o->m_split_buffer.split_count = 1;
+            o->m_split_buffer.axes.split_count = 1;
         } else {
             FpType split_count = FloatCeil(ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_split_count(), c));
-            o->m_split_buffer.split_frac = 1.0f / split_count;
-            o->m_split_buffer.rel_max_v_rec *= o->m_split_buffer.split_frac;
-            o->m_split_buffer.split_count = split_count;
+            o->m_split_buffer.axes.split_frac = 1.0f / split_count;
+            o->m_split_buffer.axes.rel_max_v_rec *= o->m_split_buffer.axes.split_frac;
+            o->m_split_buffer.axes.split_count = split_count;
             ListForEachForward<LasersList>(LForeach_fixup_split(), c);
         }
         
@@ -1317,15 +1328,15 @@ private:
             }
             
             AMBRO_ASSERT(!o->m_pulling)
-            AMBRO_ASSERT(o->m_split_buffer.type != 0 || o->m_split_buffer.split_pos < o->m_split_buffer.split_count)
+            AMBRO_ASSERT(o->m_split_buffer.type != 0 || o->m_split_buffer.axes.split_pos < o->m_split_buffer.axes.split_count)
             
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
             entry->dir_and_type = o->m_split_buffer.type;
             if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
-                o->m_split_buffer.split_pos++;
+                o->m_split_buffer.axes.split_pos++;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
                 FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), entry);
-                FpType axes_rel_max_speed_rec = ListForEachForwardAccRes<AxesList>(o->m_split_buffer.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
+                FpType axes_rel_max_speed_rec = ListForEachForwardAccRes<AxesList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
                 entry->rel_max_speed_rec = ListForEachForwardAccRes<LasersList>(axes_rel_max_speed_rec, LForeach_compute_segment_buffer_entry_speed(), c);
                 FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_accel(), c, entry);
                 FpType distance = FloatSqrt(distance_squared);
@@ -1347,7 +1358,7 @@ private:
                     }
                 }
                 o->m_last_distance_rec = distance_rec;
-                if (AMBRO_LIKELY(o->m_split_buffer.split_pos == o->m_split_buffer.split_count)) {
+                if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
                     o->m_split_buffer.type = 0xFF;
                 }
             } else {

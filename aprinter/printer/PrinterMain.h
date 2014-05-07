@@ -1523,7 +1523,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 *total_steps += move.template fpValue<FpType>();
                 Stepper::enable(c);
             }
-            auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
+            auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
             mycmd->dir = dir;
             mycmd->x = move;
             mycmd->max_v_rec = 1.0f / speed_from_real((FpType)AxisSpec::DefaultMaxSpeed::value());
@@ -1534,7 +1534,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename PlannerCmd>
         static void limit_axis_move_speed (Context c, FpType time_freq_by_max_speed, PlannerCmd *cmd)
         {
-            auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
+            auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
             mycmd->max_v_rec = FloatMax(mycmd->max_v_rec, time_freq_by_max_speed * (FpType)(1.0 / AxisSpec::DefaultStepsPerUnit::value()));
         }
         
@@ -1634,7 +1634,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename Src, typename PlannerCmd>
         static void write_planner_cmd (Context c, Src src, PlannerCmd *cmd)
         {
-            auto *mycmd = TupleGetElem<LaserIndex>(&cmd->lasers);
+            auto *mycmd = TupleGetElem<LaserIndex>(cmd->axes.lasers());
             mycmd->x = src.template get<LaserIndex>();
             mycmd->max_v_rec = (FpType)(Clock::time_freq / LaserSpec::MaxPower::value());
         }
@@ -1850,7 +1850,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 ListForEachForward<AxesList>(LForeach_do_move(), c, ArraySrc{move_pos}, WrapBool<false>(), (FpType *)0, &total_steps, cmd);
                 if (total_steps != 0.0f) {
                     ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserSplitSrc{c, o->frac, prev_frac}, cmd);
-                    cmd->rel_max_v_rec = FloatMax(rel_max_v_rec, total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
+                    cmd->axes.rel_max_v_rec = FloatMax(rel_max_v_rec, total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
                     ThePlanner::axesCommandDone(c);
                     goto submitted;
                 }
@@ -3564,9 +3564,9 @@ public: // private, see comment on top
         TransformFeature::do_pending_virt_update(c);
         if (total_steps != 0.0f) {
             ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserExtraSrc{s}, cmd);
-            cmd->rel_max_v_rec = total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
+            cmd->axes.rel_max_v_rec = total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
             if (s->seen_cartesian) {
-                cmd->rel_max_v_rec = FloatMax(cmd->rel_max_v_rec, FloatSqrt(distance_squared) * time_freq_by_max_speed);
+                cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, FloatSqrt(distance_squared) * time_freq_by_max_speed);
             } else {
                 ListForEachForward<AxesList>(LForeach_limit_axis_move_speed(), c, time_freq_by_max_speed, cmd);
             }
