@@ -665,7 +665,7 @@ public:
             TheLaserSplitBuffer *laser_split = get_laser_split(c);
             TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(&entry->lasers);
             
-            laser_segment->x_by_distance = laser_split->x * distance_rec;
+            laser_segment->x_by_distance = laser_split->x * distance_rec * (FpType)Clock::time_freq;
         }
         
         static bool have_commit_space (bool accum, Context c)
