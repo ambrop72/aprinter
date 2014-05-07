@@ -187,7 +187,6 @@ public:
     struct SplitBufferAxesHelper : private SplitBufferAxesTuple {
         SplitBufferAxesTuple * axes () { return this; };
     };
-    
     struct SplitBufferLasersHelper : private SplitBufferLasersTuple {
         SplitBufferLasersTuple * lasers () { return this; };
     };
@@ -240,17 +239,27 @@ private:
         Payload payload;
     };
     
+    using SegmentAxesTuple = IndexElemTuple<ParamsAxesList, AxisSegment>;
+    using SegmentLasersTuple = IndexElemTuple<ParamsLasersList, LaserSegment>;
+    
+    struct SegmentAxesHelper : private SegmentAxesTuple {
+        SegmentAxesTuple * axes () { return this; };
+    };
+    struct SegmentLasersHelper : private SegmentLasersTuple {
+        SegmentLasersTuple * lasers () { return this; };
+    };
+    
+    struct SegmentAxesPart : public SegmentAxesHelper, public SegmentLasersHelper {
+        FpType max_accel_rec;
+        FpType rel_max_speed_rec;
+        FpType half_accel[NumAxes];
+    };
+    
     struct Segment {
         AxisMaskType dir_and_type;
         typename TheLinearPlanner::SegmentData lp_seg;
         union {
-            struct {
-                FpType max_accel_rec;
-                FpType rel_max_speed_rec;
-                FpType half_accel[NumAxes];
-                IndexElemTuple<ParamsAxesList, AxisSegment> axes;
-                IndexElemTuple<ParamsLasersList, LaserSegment> lasers;
-            };
+            SegmentAxesPart axes;
             IndexElemUnion<ParamsChannelsList, ChannelSegment> channels;
         };
     };
@@ -470,7 +479,7 @@ public:
         {
             auto *m = MotionPlanner::Object::self(c);
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             StepFixedType new_x;
             if (m->m_split_buffer.axes.split_pos == m->m_split_buffer.axes.split_count) {
                 new_x = axis_split->x;
@@ -486,36 +495,36 @@ public:
         
         static FpType compute_segment_buffer_entry_distance (FpType accum, Segment *entry)
         {
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             return (accum + (axis_entry->x.template fpValue<FpType>() * axis_entry->x.template fpValue<FpType>()) * (FpType)(AxisSpec::DistanceFactor::value() * AxisSpec::DistanceFactor::value()));
         }
         
         static FpType compute_segment_buffer_entry_speed (FpType accum, Context c, Segment *entry)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * axis_split->max_v_rec);
         }
         
         static FpType compute_segment_buffer_entry_accel (FpType accum, Context c, Segment *entry)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * axis_split->max_a_rec);
         }
         
         static void write_segment_buffer_entry_extra (Segment *entry, FpType rel_max_accel)
         {
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            entry->half_accel[AxisIndex] = 0.5f * rel_max_accel * axis_entry->x.template fpValue<FpType>();
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
+            entry->axes.half_accel[AxisIndex] = 0.5f * rel_max_accel * axis_entry->x.template fpValue<FpType>();
         }
         
         static FpType compute_segment_buffer_cornering_speed (FpType accum, Context c, Segment *entry, FpType entry_distance_rec, Segment *prev_entry)
         {
             auto *m = MotionPlanner::Object::self(c);
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            TheAxisSegment *prev_axis_entry = TupleGetElem<AxisIndex>(&prev_entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
+            TheAxisSegment *prev_axis_entry = TupleGetElem<AxisIndex>(prev_entry->axes.axes());
             FpType m1 = axis_entry->x.template fpValue<FpType>() * entry_distance_rec;
             FpType m2 = prev_axis_entry->x.template fpValue<FpType>() * m->m_last_distance_rec;
             bool dir_changed = (entry->dir_and_type ^ prev_entry->dir_and_type) & TheAxisMask;
@@ -525,7 +534,7 @@ public:
         
         static void gen_segment_stepper_commands (Context c, Segment *entry, FpType frac_x0, FpType frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, FpType t0_squared, FpType t2_squared)
         {
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             
             StepperStepFixedType x1 = axis_entry->x;
             StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::template importFpSaturatedRound<FpType>(frac_x0 * axis_entry->x.template fpValue<FpType>()));
@@ -552,13 +561,13 @@ public:
             
             bool dir = entry->dir_and_type & TheAxisMask;
             if (x0.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->half_accel[AxisIndex] * t0_squared)));
+                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->axes.half_accel[AxisIndex] * t0_squared)));
             }
             if (gen1) {
                 TheCommon::gen_stepper_command(c, dir, x1, t1, StepperAccelFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->half_accel[AxisIndex] * t2_squared)));
+                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->axes.half_accel[AxisIndex] * t2_squared)));
             }
         }
         
@@ -616,7 +625,7 @@ public:
             }
             for (SegmentBufferSizeType i = m->m_segments_staging_length; i < m->m_segments_length; i++) {
                 Segment *seg = &m->m_segments[segments_add(m->m_segments_start, i)];
-                TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&seg->axes);
+                TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(seg->axes.axes());
                 add_steps(&steps, axis_entry->x, (seg->dir_and_type & TheAxisMask));
             }
             if (m->m_split_buffer.type == 0) {
@@ -699,14 +708,14 @@ public:
         static void write_segment_buffer_entry_extra (Context c, Segment *entry, FpType distance_rec)
         {
             TheLaserSplitBuffer *laser_split = get_laser_split(c);
-            TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(&entry->lasers);
+            TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(entry->axes.lasers());
             
             laser_segment->x_by_distance = laser_split->x * distance_rec * (FpType)Clock::time_freq;
         }
         
         static void gen_segment_stepper_commands (Context c, Segment *entry, MinTimeType t0, MinTimeType t2, MinTimeType t1, FpType v_start, FpType v_end, FpType v_const)
         {
-            TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(&entry->lasers);
+            TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(entry->axes.lasers());
             
             FpType xv_start = laser_segment->x_by_distance * v_start;
             FpType xv_end = laser_segment->x_by_distance * v_end;
@@ -1135,9 +1144,9 @@ private:
             if (AMBRO_LIKELY((entry->dir_and_type & TypeMask) == 0)) {
                 FpType v_end = FloatSqrt(v);
                 FpType v_const = FloatSqrt(result.const_v);
-                FpType t0_double = (v_const - v_start) * entry->max_accel_rec;
-                FpType t2_double = (v_const - v_end) * entry->max_accel_rec;
-                FpType t1_double = (1.0f - result.const_start - result.const_end) * entry->rel_max_speed_rec;
+                FpType t0_double = (v_const - v_start) * entry->axes.max_accel_rec;
+                FpType t2_double = (v_const - v_end) * entry->axes.max_accel_rec;
+                FpType t1_double = (1.0f - result.const_start - result.const_end) * entry->axes.rel_max_speed_rec;
                 MinTimeType t1 = MinTimeType::template importFpSaturatedRound<FpType>(t0_double + t2_double + t1_double);
                 time += t1.bitsValue();
                 MinTimeType t0 = FixedMin(t1, MinTimeType::template importFpSaturatedRound<FpType>(t0_double));
@@ -1337,17 +1346,17 @@ private:
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
                 FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), entry);
                 FpType axes_rel_max_speed_rec = ListForEachForwardAccRes<AxesList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
-                entry->rel_max_speed_rec = ListForEachForwardAccRes<LasersList>(axes_rel_max_speed_rec, LForeach_compute_segment_buffer_entry_speed(), c);
+                entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<LasersList>(axes_rel_max_speed_rec, LForeach_compute_segment_buffer_entry_speed(), c);
                 FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_accel(), c, entry);
                 FpType distance = FloatSqrt(distance_squared);
                 FpType distance_rec = 1.0f / distance;
                 FpType rel_max_accel = 1.0f / rel_max_accel_rec;
-                entry->lp_seg.max_v = distance_squared / (entry->rel_max_speed_rec * entry->rel_max_speed_rec);
+                entry->lp_seg.max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
                 entry->lp_seg.max_end_v = entry->lp_seg.max_v;
                 entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
                 entry->lp_seg.a_x_rec = 1.0f / entry->lp_seg.a_x;
                 entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
-                entry->max_accel_rec = rel_max_accel_rec * distance_rec;
+                entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
                 ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
