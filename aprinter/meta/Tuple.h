@@ -47,6 +47,16 @@ struct Tuple<ConsTypeList<TElemType, TTailTypes>>
     using TailTypes = TTailTypes;
     using TailTupleType = Tuple<TTailTypes>;
     
+    ElemType * getHead ()
+    {
+        return &elem;
+    }
+    
+    ElemType const * getHead () const
+    {
+        return &elem;
+    }
+    
     TailTupleType * getTail ()
     {
         return static_cast<TailTupleType *>(this);
