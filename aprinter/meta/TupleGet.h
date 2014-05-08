@@ -62,12 +62,12 @@ struct TupleGet<Tuple<ConsTypeList<Head, Tail>>, 0> {
     
     static ElemType * getElem (ThisTupleType *tuple)
     {
-        return &tuple->elem;
+        return tuple->getHead();
     }
     
     static ElemType const * getElem (ThisTupleType const *tuple)
     {
-        return &tuple->elem;
+        return tuple->getHead();
     }
 };
 
