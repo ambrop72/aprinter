@@ -273,7 +273,7 @@ private:
         using TheStepper = typename TheAxis::TheStepper;
         using StepperCommandCallbackContext = typename TheStepper::CommandCallbackContext;
         
-        static void init (Context c)
+        static void init (Context c, bool prestep_callback_enabled)
         {
             auto *o = Object::self(c);
             o->m_commit_start = 0;
@@ -281,8 +281,29 @@ private:
             o->m_backup_start = 0;
             o->m_backup_end = 0;
             o->m_busy = false;
+            TheAxis::init_impl(c, prestep_callback_enabled);
         }
         
+        static void deinit (Context c)
+        {
+            TheAxis::deinit_impl(c);
+        }
+        
+        static void abort (Context c)
+        {
+            TheAxis::abort_impl(c);
+        }
+        
+        static void commandDone_assert (Context c)
+        {
+            TheAxis::commandDone_assert_impl(c);
+        }
+        
+        static FpType compute_segment_buffer_entry_speed (FpType accum, Context c, Segment *entry)
+        {
+            return FloatMax(accum, TheAxis::compute_segment_buffer_entry_speed_impl(c, entry));
+        }
+
         static bool have_commit_space (bool accum, Context c)
         {
             auto *o = Object::self(c);
@@ -392,7 +413,9 @@ private:
             return (end >= start) ? ((StepperCommitBufferSize - 1) - (end - start)) : ((start - end) - 1);
         }
         
-        struct Object : public ObjBase<AxisCommon, typename TheAxis::Object, EmptyTypeList> {
+        struct Object : public ObjBase<AxisCommon, typename MotionPlanner::Object, MakeTypeList<
+            TheAxis
+        >> {
             StepperCommitBufferSizeType m_commit_start;
             StepperCommitBufferSizeType m_commit_end;
             StepperBackupBufferSizeType m_backup_start;
@@ -428,23 +451,22 @@ public:
         using TheAxisSegment = AxisSegment<AxisIndex>;
         static const AxisMaskType TheAxisMask = (AxisMaskType)1 << (AxisIndex + TypeBits);
         
-        static void init (Context c, bool prestep_callback_enabled)
+        static void init_impl (Context c, bool prestep_callback_enabled)
         {
-            TheCommon::init(c);
             TheAxisStepper::setPrestepCallbackEnabled(c, prestep_callback_enabled);
         }
         
-        static void deinit (Context c)
+        static void deinit_impl (Context c)
         {
             TheAxisStepper::stop(c);
         }
         
-        static void abort (Context c)
+        static void abort_impl (Context c)
         {
             TheAxisStepper::stop(c);
         }
         
-        static void commandDone_assert (Context c)
+        static void commandDone_assert_impl (Context c)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             AMBRO_ASSERT(FloatIsPosOrPosZero(axis_split->max_v_rec))
@@ -499,11 +521,11 @@ public:
             return (accum + (axis_entry->x.template fpValue<FpType>() * axis_entry->x.template fpValue<FpType>()) * (FpType)(AxisSpec::DistanceFactor::value() * AxisSpec::DistanceFactor::value()));
         }
         
-        static FpType compute_segment_buffer_entry_speed (FpType accum, Context c, Segment *entry)
+        static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * axis_split->max_v_rec);
+            return axis_entry->x.template fpValue<FpType>() * axis_split->max_v_rec;
         }
         
         static FpType compute_segment_buffer_entry_accel (FpType accum, Context c, Segment *entry)
@@ -642,9 +664,7 @@ public:
             return TupleGetElem<AxisIndex>(m->m_split_buffer.axes.axes());
         }
         
-        struct Object : public ObjBase<Axis, typename MotionPlanner::Object, MakeTypeList<
-            TheCommon
-        >> {};
+        struct Object : public ObjBase<Axis, typename TheCommon::Object, EmptyTypeList> {};
     };
     
     template <int LaserIndex>
@@ -666,24 +686,23 @@ public:
         using StepperCommand = typename TheLaserStepper::Command;
         using TheLaserSegment = LaserSegment<LaserIndex>;
         
-        static void init (Context c)
+        static void init_impl (Context c, bool prestep_callback_enabled)
         {
-            TheCommon::init(c);
             TheLaserStepper::init(c);
         }
         
-        static void deinit (Context c)
+        static void deinit_impl (Context c)
         {
             TheLaserStepper::stop(c);
             TheLaserStepper::deinit(c);
         }
         
-        static void abort (Context c)
+        static void abort_impl (Context c)
         {
             TheLaserStepper::stop(c);
         }
         
-        static void commandDone_assert (Context c)
+        static void commandDone_assert_impl (Context c)
         {
             TheLaserSplitBuffer *laser_split = get_laser_split(c);
             AMBRO_ASSERT(FloatIsPosOrPosZero(laser_split->x))
@@ -698,11 +717,11 @@ public:
             laser_split->x *= m->m_split_buffer.axes.split_frac;
         }
         
-        static FpType compute_segment_buffer_entry_speed (FpType accum, Context c)
+        static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry)
         {
             TheLaserSplitBuffer *laser_split = get_laser_split(c);
             
-            return FloatMax(accum, laser_split->x * laser_split->max_v_rec);
+            return laser_split->x * laser_split->max_v_rec;
         }
         
         static void write_segment_buffer_entry_extra (Context c, Segment *entry, FpType distance_rec)
@@ -745,8 +764,7 @@ public:
         
         struct StepperCommandCallback : public AMBRO_WFUNC_TD(&TheCommon::stepper_command_callback) {};
         
-        struct Object : public ObjBase<Laser, typename MotionPlanner::Object, MakeTypeList<
-            TheCommon,
+        struct Object : public ObjBase<Laser, typename TheCommon::Object, MakeTypeList<
             TheLaserStepper
         >> {};
     };
@@ -978,8 +996,7 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_pulling = false;
 #endif
-        ListForEachForward<AxesList>(LForeach_init(), c, prestep_callback_enabled);
-        ListForEachForward<LasersList>(LForeach_init(), c);
+        ListForEachForward<AxisCommonList>(LForeach_init(), c, prestep_callback_enabled);
         ListForEachForward<ChannelsList>(LForeach_init(), c);
         o->m_pull_finished_event.prependNowNotAlready(c);
     }
@@ -989,8 +1006,7 @@ public:
         auto *o = Object::self(c);
         
         ListForEachForward<ChannelsList>(LForeach_deinit(), c);
-        ListForEachForward<LasersList>(LForeach_deinit(), c);
-        ListForEachForward<AxesList>(LForeach_deinit(), c);
+        ListForEachForward<AxisCommonList>(LForeach_deinit(), c);
         Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
         o->m_pull_finished_event.deinit(c);
     }
@@ -1012,8 +1028,7 @@ public:
         AMBRO_ASSERT(o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
         AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.axes.rel_max_v_rec))
-        ListForEachForward<AxesList>(LForeach_commandDone_assert(), c);
-        ListForEachForward<LasersList>(LForeach_commandDone_assert(), c);
+        ListForEachForward<AxisCommonList>(LForeach_commandDone_assert(), c);
         AMBRO_ASSERT(!ListForEachForwardAccRes<AxesList>(true, LForeach_check_icmd_zero(), c))
         
         o->m_waiting = false;
@@ -1263,8 +1278,7 @@ private:
             }
             
             if (AMBRO_UNLIKELY(aborted)) {
-                ListForEachForward<AxesList>(LForeach_abort(), c);
-                ListForEachForward<LasersList>(LForeach_abort(), c);
+                ListForEachForward<AxisCommonList>(LForeach_abort(), c);
                 ListForEachForward<ChannelsList>(LForeach_abort(), c);
                 Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
                 o->m_state = STATE_ABORTED;
@@ -1345,8 +1359,7 @@ private:
                 o->m_split_buffer.axes.split_pos++;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
                 FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), entry);
-                FpType axes_rel_max_speed_rec = ListForEachForwardAccRes<AxesList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
-                entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<LasersList>(axes_rel_max_speed_rec, LForeach_compute_segment_buffer_entry_speed(), c);
+                entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
                 FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_accel(), c, entry);
                 FpType distance = FloatSqrt(distance_squared);
                 FpType distance_rec = 1.0f / distance;
@@ -1398,8 +1411,7 @@ private:
     
 public:
     struct Object : public ObjBase<MotionPlanner, ParentObject, JoinTypeLists<
-        AxesList,
-        LasersList,
+        AxisCommonList,
         ChannelsList
     >> {
         typename Loop::QueuedEvent m_pull_finished_event;
