@@ -30,6 +30,7 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Object.h>
+#include <aprinter/meta/TupleGet.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/math/FloatTools.h>
@@ -124,28 +125,29 @@ private:
         
         PlannerCommand *cmd = Planner::getBuffer(c);
         cmd->axes.rel_max_v_rec = 0.0f;
+        auto *axis_cmd = TupleGetElem<0>(cmd->axes.axes());
         switch (o->m_state) {
             case STATE_FAST: {
-                cmd->axes.axes()->elem.dir = HomeDir;
-                cmd->axes.axes()->elem.x = o->m_params.fast_max_dist;
-                cmd->axes.axes()->elem.max_v_rec = 1.0f / o->m_params.fast_speed;
-                cmd->axes.axes()->elem.max_a_rec = 1.0f / o->m_params.max_accel;
+                axis_cmd->dir = HomeDir;
+                axis_cmd->x = o->m_params.fast_max_dist;
+                axis_cmd->max_v_rec = 1.0f / o->m_params.fast_speed;
+                axis_cmd->max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
             case STATE_RETRACT: {
-                cmd->axes.axes()->elem.dir = !HomeDir;
-                cmd->axes.axes()->elem.x = o->m_params.retract_dist;
-                cmd->axes.axes()->elem.max_v_rec = 1.0f / o->m_params.retract_speed;
-                cmd->axes.axes()->elem.max_a_rec = 1.0f / o->m_params.max_accel;
+                axis_cmd->dir = !HomeDir;
+                axis_cmd->x = o->m_params.retract_dist;
+                axis_cmd->max_v_rec = 1.0f / o->m_params.retract_speed;
+                axis_cmd->max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
             case STATE_SLOW: {
-                cmd->axes.axes()->elem.dir = HomeDir;
-                cmd->axes.axes()->elem.x = o->m_params.slow_max_dist;
-                cmd->axes.axes()->elem.max_v_rec = 1.0f / o->m_params.slow_speed;
-                cmd->axes.axes()->elem.max_a_rec = 1.0f / o->m_params.max_accel;
+                axis_cmd->dir = HomeDir;
+                axis_cmd->x = o->m_params.slow_max_dist;
+                axis_cmd->max_v_rec = 1.0f / o->m_params.slow_speed;
+                axis_cmd->max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
         }
         
-        if (cmd->axes.axes()->elem.x.bitsValue() != 0) {
+        if (axis_cmd->x.bitsValue() != 0) {
             Planner::axesCommandDone(c);
         } else {
             Planner::emptyDone(c);
