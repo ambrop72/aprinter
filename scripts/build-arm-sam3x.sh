@@ -53,7 +53,7 @@ configure_sam3x() {
         -Wno-deprecated-register
     )
     FLAGS_C_CXX+=(
-        -D__${ARCH^^}${SUBARCH^^}E__ -DHEAP_SIZE=16384
+        -D__$(echo $ARCH | tr 'a-z' 'A-Z')$(echo $SUBARCH | tr 'a-z' 'A-Z')E__ -DHEAP_SIZE=16384
         -DBOARD=${ASF_BOARD}
         -I"${CMSIS_DIR}/include"
         -I"${TEMPLATES_DIR}"

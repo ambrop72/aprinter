@@ -30,14 +30,21 @@
 
 if [ "$(uname)" == "Linux" ]; then
     SYSARCH=linux
-elif [ "${uname}" == "Darwin" ]; then
+elif [ "$(uname)" == "Darwin" ]; then
     SYSARCH=mac
 else
     SYSARCH=""
 fi
 
 GCCARM_CURRENT=4_8-2013q4
-GCCARM_RELEASE=20131204
+
+if [ "$(uname)" == "Linux" ]; then
+    GCCARM_RELEASE=20131204
+elif [ "$(uname)" == "Darwin" ]; then
+    GCCARM_RELEASE=20131218
+else
+    GCCARM_RELEASE=""
+fi
 
 ARM_GCC_PATH="${ROOT}/depends/gcc-arm-none-eabi-${GCCARM_CURRENT}"
 
@@ -54,9 +61,13 @@ GCCARM_URL=(
     "https://launchpad.net/gcc-arm-embedded/4.8/4.8-2013-q4-major/+download/gcc-arm-none-eabi-${GCCARM_CURRENT}-${GCCARM_RELEASE}-${SYSARCH}.tar.bz2" 
 )
 
-GCCARM_CHECKSUM=(
-    "fd090320ab9d4b6cf8cdf29bf5b046db816da9e6738eb282b9cf2321ecf6356a  gcc-arm-none-eabi-4_8-2013q4-20131204-linux.tar.bz2"
-)
+if [ "$(uname)" == "Linux" ]; then
+    GCCARM_CHECKSUM="fd090320ab9d4b6cf8cdf29bf5b046db816da9e6738eb282b9cf2321ecf6356a  gcc-arm-none-eabi-4_8-2013q4-20131204-linux.tar.bz2"
+elif [ "$(uname)" == "Darwin" ]; then
+    GCCARM_CHECKSUM="1f158f2fd0ca14ff22933693dc5b4047b95663b070725313d1a9f7c9ede0ff82  gcc-arm-none-eabi-4_8-2013q4-20131218-mac.tar.bz2"
+else
+    GCCARM_CHECKSUM=""
+fi
 
 install_arm() {
     if [ -z "${CUSTOM_ARM_GCC}" ]; then
