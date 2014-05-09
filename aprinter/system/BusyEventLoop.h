@@ -238,7 +238,7 @@ class BusyEventLoopExtra {
     friend Loop;
     
     static const int NumFastEvents = TypeListLength<FastEventList>::value;
-    using FastEventSizeType = typename ChooseInt<max(1, BitsInInt<NumFastEvents>::value), false>::Type;
+    using FastEventSizeType = ChooseInt<max(1, BitsInInt<NumFastEvents>::value), false>;
     
     struct FastEventState {
         bool not_triggered;

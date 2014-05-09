@@ -22,29 +22,38 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_TEENSY3_SUPPORT_H
-#define AMBROLIB_TEENSY3_SUPPORT_H
+#ifndef APRINTER_LINEAR_DUTY_FORMULA_H
+#define APRINTER_LINEAR_DUTY_FORMULA_H
 
-#include <mk20dx128.h>
+#include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/ChooseFixedForFloat.h>
 
-#include <aprinter/platform/arm_cortex_common.h>
+#include <aprinter/BeginNamespace.h>
 
-#define FTM_CSC_ELSA ((uint32_t)1 << 2)
-#define FTM_CSC_ELSB ((uint32_t)1 << 3)
-#define FTM_CSC_MSA ((uint32_t)1 << 4)
-#define FTM_CSC_MSB ((uint32_t)1 << 5)
-#define FTM_CSC_CHIE ((uint32_t)1 << 6)
-#define FTM_CSC_CHF ((uint32_t)1 << 7)
+template <typename DutyCycleType, DutyCycleType MaxDutyCycle, int PowerRangeExp, int PowerNumBits, typename LinearFactor, int FactorBits>
+class LinearDutyFormula {
+public:
+    using PowerFixedType = FixedPoint<PowerNumBits, false, (PowerRangeExp - PowerNumBits)>;
+    
+    static DutyCycleType powerToDuty (PowerFixedType power)
+    {
+        auto res = FixedResMultiply(power, FactorFixed);
+        return (res.m_bits.m_int > MaxDutyCycle) ? MaxDutyCycle : res.m_bits.m_int;
+    }
+    
+private:
+    using Factor = AMBRO_WRAP_DOUBLE(LinearFactor::value() * MaxDutyCycle);
+    using FactorFixedType = ChooseFixedForFloat<FactorBits, Factor>;
+    static constexpr FactorFixedType FactorFixed = FactorFixedType::template ConstImport<Factor>::value();
+};
 
-#define INTERRUPT_PRIORITY 4
+template <int PowerRangeExp, int PowerNumBits, typename LinearFactor, int FactorBits>
+struct LinearDutyFormulaService {
+    template <typename DutyCycleType, DutyCycleType MaxDutyCycle>
+    using DutyFormula = LinearDutyFormula<DutyCycleType, MaxDutyCycle, PowerRangeExp, PowerNumBits, LinearFactor, FactorBits>;
+};
 
-// in accordance to startup code mk20dx128.c
-#if F_CPU == 96000000 || F_CPU == 48000000
-#define F_BUS 48000000
-#elif F_CPU == 24000000
-#define F_BUS 24000000
-#else
-#error F_CPU not recognized
-#endif
+#include <aprinter/EndNamespace.h>
 
 #endif

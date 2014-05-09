@@ -174,7 +174,7 @@ using PrinterParams = PrinterMainParams<
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     float, // FpType
-    Mk20ClockInterruptTimer_Ftm0_Ch0, // EventChannelTimer
+    Mk20ClockInterruptTimerService<Mk20ClockFTM0, 0>::InterruptTimer, // EventChannelTimer
     Mk20Watchdog,
     Mk20WatchdogParams<2000, 0>,
     PrinterMainNoSdCardParams,
@@ -213,7 +213,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                Mk20ClockInterruptTimer_Ftm0_Ch1, // StepperTimer,
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 1>::InterruptTimer, // StepperTimer,
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -246,7 +246,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                Mk20ClockInterruptTimer_Ftm0_Ch2, // StepperTimer
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 2>::InterruptTimer, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -279,7 +279,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                Mk20ClockInterruptTimer_Ftm0_Ch3, // StepperTimer
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 3>::InterruptTimer, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -301,7 +301,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                Mk20ClockInterruptTimer_Ftm0_Ch4, // StepperTimer
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 4>::InterruptTimer, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -387,7 +387,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            Mk20ClockInterruptTimer_Ftm0_Ch5 // TimerTemplate
+            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 5>::InterruptTimer // TimerTemplate
         >
 #if 0
         PrinterMainHeaterParams<
@@ -423,7 +423,7 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            Mk20ClockInterruptTimer_Ftm0_Ch6 // TimerTemplate
+            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 6>::InterruptTimer // TimerTemplate
         >
 #endif
     >,
@@ -439,7 +439,7 @@ using PrinterParams = PrinterMainParams<
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            Mk20ClockInterruptTimer_Ftm0_Ch7 // TimerTemplate
+            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7>::InterruptTimer // TimerTemplate
         >
     >
 >;
@@ -448,7 +448,10 @@ using PrinterParams = PrinterMainParams<
 using AdcPins = MakeTypeList<TeensyPinA2>;
 
 static const int clock_timer_prescaler = 4;
-using ClockFtmsList = MakeTypeList<Mk20ClockFTM0, Mk20ClockFTM1>;
+using ClockFtmsList = MakeTypeList<
+    Mk20ClockFtmSpec<Mk20ClockFTM0>,
+    Mk20ClockFtmSpec<Mk20ClockFTM1>
+>;
 
 struct MyContext;
 struct MyLoopExtraDelay;
@@ -491,19 +494,19 @@ Program p;
 Program * Program::self (MyContext c) { return &p; }
 void MyContext::check () const {}
 
-AMBRO_MK20_CLOCK_FTM0_GLOBAL(MyClock, MyContext())
-AMBRO_MK20_CLOCK_FTM1_GLOBAL(MyClock, MyContext())
+AMBRO_MK20_CLOCK_FTM_GLOBAL(0, MyClock, MyContext())
+AMBRO_MK20_CLOCK_FTM_GLOBAL(1, MyClock, MyContext())
 
 AMBRO_MK20_WATCHDOG_GLOBAL(MyPrinter::GetWatchdog)
 AMBRO_MK20_ADC_ISRS(MyAdc, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH0_GLOBAL(MyPrinter::GetEventChannelTimer, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH1_GLOBAL(MyPrinter::GetAxisTimer<0>, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH2_GLOBAL(MyPrinter::GetAxisTimer<1>, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH3_GLOBAL(MyPrinter::GetAxisTimer<2>, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH4_GLOBAL(MyPrinter::GetAxisTimer<3>, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH5_GLOBAL(MyPrinter::GetHeaterTimer<0>, MyContext())
-//AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH6_GLOBAL(MyPrinter::GetHeaterTimer<1>, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_FTM0_CH7_GLOBAL(MyPrinter::GetFanTimer<0>, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 0, MyPrinter::GetEventChannelTimer, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 1, MyPrinter::GetAxisTimer<0>, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 2, MyPrinter::GetAxisTimer<1>, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 3, MyPrinter::GetAxisTimer<2>, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 4, MyPrinter::GetAxisTimer<3>, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 5, MyPrinter::GetHeaterTimer<0>, MyContext())
+//AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 6, MyPrinter::GetHeaterTimer<1>, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 7, MyPrinter::GetFanTimer<0>, MyContext())
 
 static void emergency (void)
 {

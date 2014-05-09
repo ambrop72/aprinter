@@ -47,6 +47,8 @@
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/JoinTypeLists.h>
+#include <aprinter/meta/MapTypeList.h>
+#include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
@@ -84,10 +86,19 @@ struct MotionPlannerChannelSpec {
 };
 
 template <
+    typename TTheLaserStepperService,
+    typename TPowerInterface
+>
+struct MotionPlannerLaserSpec {
+    using TheLaserStepperService = TTheLaserStepperService;
+    using PowerInterface = TPowerInterface;
+};
+
+template <
     typename Context, typename ParentObject, typename ParamsAxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
     int LookaheadCommitCount, typename FpType,
     typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename UnderrunCallback,
-    typename ParamsChannelsList = EmptyTypeList
+    typename ParamsChannelsList = EmptyTypeList, typename ParamsLasersList = EmptyTypeList
 >
 class MotionPlanner {
 public:
@@ -102,18 +113,19 @@ private:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     static const int NumAxes = TypeListLength<ParamsAxesList>::value;
+    static_assert(NumAxes > 0, "");
     static const int NumChannels = TypeListLength<ParamsChannelsList>::value;
     template <typename AxisSpec, typename AccumType>
     using MinTimeTypeHelper = FixedIntersectTypes<typename AxisSpec::TheAxisStepper::TimeFixedType, AccumType>;
     using MinTimeType = TypeListFold<ParamsAxesList, FixedIdentity, MinTimeTypeHelper>;
-    using SegmentBufferSizeType = typename ChooseInt<BitsInInt<2 * LookaheadBufferSize>::value, false>::Type; // twice for segments_add()
+    using SegmentBufferSizeType = ChooseInt<BitsInInt<2 * LookaheadBufferSize>::value, false>; // twice for segments_add()
     static const size_t StepperCommitBufferSize = 3 * StepperSegmentBufferSize;
     static const size_t StepperBackupBufferSize = 3 * (LookaheadBufferSize - LookaheadCommitCount);
-    using StepperCommitBufferSizeType = typename ChooseInt<BitsInInt<StepperCommitBufferSize>::value, false>::Type;
-    using StepperBackupBufferSizeType = typename ChooseInt<BitsInInt<2 * StepperBackupBufferSize>::value, false>::Type;
+    using StepperCommitBufferSizeType = ChooseInt<BitsInInt<StepperCommitBufferSize>::value, false>;
+    using StepperBackupBufferSizeType = ChooseInt<BitsInInt<2 * StepperBackupBufferSize>::value, false>;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
     static const int TypeBits = BitsInInt<NumChannels>::value;
-    using AxisMaskType = typename ChooseInt<NumAxes + TypeBits, false>::Type;
+    using AxisMaskType = ChooseInt<NumAxes + TypeBits, false>;
     static const AxisMaskType TypeMask = ((AxisMaskType)1 << TypeBits) - 1;
     using TheLinearPlanner = LinearPlanner<FpType>;
     
@@ -139,10 +151,11 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_do_commit_hot, do_commit_hot)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_stepping, start_stepping)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_is_busy, is_busy)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_reset_aborted, reset_aborted)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stopped_stepping, stopped_stepping)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment, write_segment)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_command, gen_command)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fixup_split, fixup_split)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheCommon, TheCommon)
     
 public:
     template <int ChannelIndex>
@@ -162,16 +175,33 @@ public:
         StepFixedType x_pos; // internal
     };
     
+    template <int LaserIndex>
+    struct LaserSplitBuffer {
+        FpType x;
+        FpType max_v_rec;
+    };
+    
+    using SplitBufferAxesTuple = IndexElemTuple<ParamsAxesList, AxisSplitBuffer>;
+    using SplitBufferLasersTuple = IndexElemTuple<ParamsLasersList, LaserSplitBuffer>;
+    
+    struct SplitBufferAxesHelper : private SplitBufferAxesTuple {
+        SplitBufferAxesTuple * axes () { return this; };
+    };
+    struct SplitBufferLasersHelper : private SplitBufferLasersTuple {
+        SplitBufferLasersTuple * lasers () { return this; };
+    };
+    
+    struct SplitBufferAxesPart : public SplitBufferAxesHelper, public SplitBufferLasersHelper {
+        FpType rel_max_v_rec;
+        FpType split_frac; // internal
+        uint32_t split_count; // internal
+        uint32_t split_pos; // internal
+    };
+    
     struct SplitBuffer {
         uint8_t type; // internal
         union {
-            struct {
-                FpType rel_max_v_rec;
-                FpType split_frac; // internal
-                uint32_t split_count; // internal
-                uint32_t split_pos; // internal
-                IndexElemTuple<ParamsAxesList, AxisSplitBuffer> axes;
-            };
+            SplitBufferAxesPart axes;
             ChannelPayloadUnion channel_payload;
         };
     };
@@ -195,6 +225,11 @@ private:
         StepperStepFixedType x;
     };
     
+    template <int LaserIndex>
+    struct LaserSegment {
+        FpType x_by_distance;
+    };
+    
     template <int ChannelIndex>
     struct ChannelSegment {
         using ChannelSpec = TypeListGet<ParamsChannelsList, ChannelIndex>;
@@ -204,42 +239,39 @@ private:
         Payload payload;
     };
     
+    using SegmentAxesTuple = IndexElemTuple<ParamsAxesList, AxisSegment>;
+    using SegmentLasersTuple = IndexElemTuple<ParamsLasersList, LaserSegment>;
+    
+    struct SegmentAxesHelper : private SegmentAxesTuple {
+        SegmentAxesTuple * axes () { return this; };
+    };
+    struct SegmentLasersHelper : private SegmentLasersTuple {
+        SegmentLasersTuple * lasers () { return this; };
+    };
+    
+    struct SegmentAxesPart : public SegmentAxesHelper, public SegmentLasersHelper {
+        FpType max_accel_rec;
+        FpType rel_max_speed_rec;
+        FpType half_accel[NumAxes];
+    };
+    
     struct Segment {
         AxisMaskType dir_and_type;
         typename TheLinearPlanner::SegmentData lp_seg;
         union {
-            struct {
-                FpType max_accel_rec;
-                FpType rel_max_speed_rec;
-                FpType half_accel[NumAxes];
-                IndexElemTuple<ParamsAxesList, AxisSegment> axes;
-            };
+            SegmentAxesPart axes;
             IndexElemUnion<ParamsChannelsList, ChannelSegment> channels;
         };
     };
     
     enum {STATE_BUFFERING, STATE_STEPPING, STATE_ABORTED};
     
-public:
-    template <int AxisIndex>
-    class Axis {
-    public:
-        using AxisSpec = TypeListGet<ParamsAxesList, AxisIndex>;
-        using TheAxisStepper = typename AxisSpec::TheAxisStepper;
-        using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
-        using StepperCommandCallbackContext = typename TheAxisStepper::CommandCallbackContext;
-        
-    public: // private, workaround gcc bug
-        friend MotionPlanner;
-        
+    template <typename TheAxis>
+    struct AxisCommon {
         struct Object;
-        using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
-        using StepperTimeFixedType = typename TheAxisStepper::TimeFixedType;
-        using StepperAccelFixedType = typename TheAxisStepper::AccelFixedType;
-        using StepperCommand = typename TheAxisStepper::Command;
-        using TheAxisSplitBuffer = AxisSplitBuffer<AxisIndex>;
-        using TheAxisSegment = AxisSegment<AxisIndex>;
-        static const AxisMaskType TheAxisMask = (AxisMaskType)1 << (AxisIndex + TypeBits);
+        using StepperCommand = typename TheAxis::StepperCommand;
+        using TheStepper = typename TheAxis::TheStepper;
+        using StepperCommandCallbackContext = typename TheStepper::CommandCallbackContext;
         
         static void init (Context c, bool prestep_callback_enabled)
         {
@@ -249,20 +281,192 @@ public:
             o->m_backup_start = 0;
             o->m_backup_end = 0;
             o->m_busy = false;
-            TheAxisStepper::setPrestepCallbackEnabled(c, prestep_callback_enabled);
+            TheAxis::init_impl(c, prestep_callback_enabled);
         }
         
         static void deinit (Context c)
         {
-            TheAxisStepper::stop(c);
+            TheAxis::deinit_impl(c);
         }
         
         static void abort (Context c)
         {
-            TheAxisStepper::stop(c);
+            TheAxis::abort_impl(c);
         }
         
         static void commandDone_assert (Context c)
+        {
+            TheAxis::commandDone_assert_impl(c);
+        }
+        
+        static FpType compute_segment_buffer_entry_speed (FpType accum, Context c, Segment *entry)
+        {
+            return FloatMax(accum, TheAxis::compute_segment_buffer_entry_speed_impl(c, entry));
+        }
+
+        static bool have_commit_space (bool accum, Context c)
+        {
+            auto *o = Object::self(c);
+            return (accum && commit_avail(o->m_commit_start, o->m_commit_end) > 3 * LookaheadCommitCount);
+        }
+        
+        static void start_commands (Context c)
+        {
+            auto *o = Object::self(c);
+            auto *m = MotionPlanner::Object::self(c);
+            o->m_new_commit_end = o->m_commit_end;
+            o->m_new_backup_end = m->m_current_backup ? 0 : StepperBackupBufferSize;
+        }
+        
+        template <typename... Args>
+        static void gen_stepper_command (Context c, Args... args)
+        {
+            auto *o = Object::self(c);
+            auto *m = MotionPlanner::Object::self(c);
+            
+            StepperCommand *cmd;
+            if (!m->m_new_to_backup) {
+                cmd = &o->m_commit_buffer[o->m_new_commit_end];
+                o->m_new_commit_end = commit_inc(o->m_new_commit_end);
+            } else {
+                cmd = &o->m_backup_buffer[o->m_new_backup_end];
+                o->m_new_backup_end++;
+            }
+            TheStepper::generate_command(args..., cmd);
+        }
+        
+        static void do_commit (Context c)
+        {
+            auto *o = Object::self(c);
+            auto *m = MotionPlanner::Object::self(c);
+            o->m_commit_end = o->m_new_commit_end;
+            o->m_backup_start = m->m_current_backup ? 0 : StepperBackupBufferSize;
+            o->m_backup_end = o->m_new_backup_end;
+        }
+        
+        static void start_stepping (Context c, TimeType start_time)
+        {
+            auto *o = Object::self(c);
+            auto *m = MotionPlanner::Object::self(c);
+            AMBRO_ASSERT(!o->m_busy)
+            
+            if (o->m_commit_start != o->m_commit_end) {
+                if (TheAxis::IsFirst) {
+                    // Only first axis sets it so it doesn't get re-set after a fast underflow.
+                    // Can't happen anyway due to the start time offset.
+                    m->m_syncing = true;
+                }
+                o->m_busy = true;
+                StepperCommand *cmd = &o->m_commit_buffer[o->m_commit_start];
+                o->m_commit_start = commit_inc(o->m_commit_start);
+                TheAxis::start_stepping_impl(c, start_time, cmd);
+            }
+        }
+        
+        static bool is_busy (bool accum, Context c)
+        {
+            auto *o = Object::self(c);
+            return (accum || o->m_busy);
+        }
+        
+        static void stopped_stepping (Context c)
+        {
+            auto *o = Object::self(c);
+            o->m_backup_start = 0;
+            o->m_backup_end = 0;
+        }
+        
+        static bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand **cmd)
+        {
+            auto *o = Object::self(c);
+            auto *m = MotionPlanner::Object::self(c);
+            AMBRO_ASSERT(o->m_busy)
+            AMBRO_ASSERT(m->m_state == STATE_STEPPING)
+            
+            Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
+            if (AMBRO_UNLIKELY(o->m_commit_start != o->m_commit_end)) {
+                *cmd = &o->m_commit_buffer[o->m_commit_start];
+                o->m_commit_start = commit_inc(o->m_commit_start);
+            } else {
+                m->m_syncing = false;
+                if (o->m_backup_start == o->m_backup_end) {
+                    o->m_busy = false;
+                    return false;
+                }
+                *cmd = &o->m_backup_buffer[o->m_backup_start];
+                o->m_backup_start++;
+            }
+            return true;
+        }
+        
+        static StepperCommitBufferSizeType commit_inc (StepperCommitBufferSizeType a)
+        {
+            a++;
+            if (AMBRO_LIKELY(a == StepperCommitBufferSize)) {
+                a = 0;
+            }
+            return a;
+        }
+        
+        static StepperCommitBufferSizeType commit_avail (StepperCommitBufferSizeType start, StepperCommitBufferSizeType end)
+        {
+            return (end >= start) ? ((StepperCommitBufferSize - 1) - (end - start)) : ((start - end) - 1);
+        }
+        
+        struct Object : public ObjBase<AxisCommon, typename MotionPlanner::Object, MakeTypeList<
+            TheAxis
+        >> {
+            StepperCommitBufferSizeType m_commit_start;
+            StepperCommitBufferSizeType m_commit_end;
+            StepperBackupBufferSizeType m_backup_start;
+            StepperBackupBufferSizeType m_backup_end;
+            StepperCommitBufferSizeType m_new_commit_end;
+            StepperBackupBufferSizeType m_new_backup_end;
+            bool m_busy;
+            StepperCommand m_commit_buffer[StepperCommitBufferSize];
+            StepperCommand m_backup_buffer[2 * StepperBackupBufferSize];
+        };
+    };
+    
+public:
+    template <int AxisIndex>
+    class Axis {
+    public:
+        using AxisSpec = TypeListGet<ParamsAxesList, AxisIndex>;
+        using TheAxisSplitBuffer = AxisSplitBuffer<AxisIndex>;
+        using TheAxisStepper = typename AxisSpec::TheAxisStepper;
+        using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
+        using StepperCommandCallbackContext = typename TheAxisStepper::CommandCallbackContext;
+        
+    public: // private, workaround gcc bug
+        friend MotionPlanner;
+        
+        struct Object;
+        using TheCommon = AxisCommon<Axis>;
+        using TheStepper = TheAxisStepper;
+        static bool const IsFirst = (AxisIndex == 0);
+        using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
+        using StepperAccelFixedType = typename TheAxisStepper::AccelFixedType;
+        using StepperCommand = typename TheAxisStepper::Command;
+        using TheAxisSegment = AxisSegment<AxisIndex>;
+        static const AxisMaskType TheAxisMask = (AxisMaskType)1 << (AxisIndex + TypeBits);
+        
+        static void init_impl (Context c, bool prestep_callback_enabled)
+        {
+            TheAxisStepper::setPrestepCallbackEnabled(c, prestep_callback_enabled);
+        }
+        
+        static void deinit_impl (Context c)
+        {
+            TheAxisStepper::stop(c);
+        }
+        
+        static void abort_impl (Context c)
+        {
+            TheAxisStepper::stop(c);
+        }
+        
+        static void commandDone_assert_impl (Context c)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             AMBRO_ASSERT(FloatIsPosOrPosZero(axis_split->max_v_rec))
@@ -297,12 +501,12 @@ public:
         {
             auto *m = MotionPlanner::Object::self(c);
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             StepFixedType new_x;
-            if (m->m_split_buffer.split_pos == m->m_split_buffer.split_count) {
+            if (m->m_split_buffer.axes.split_pos == m->m_split_buffer.axes.split_count) {
                 new_x = axis_split->x;
             } else {
-                new_x = FixedMin(axis_split->x, StepFixedType::template importFpSaturatedRound<FpType>(m->m_split_buffer.split_pos * m->m_split_buffer.split_frac * axis_split->x.template fpValue<FpType>()));
+                new_x = FixedMin(axis_split->x, StepFixedType::template importFpSaturatedRound<FpType>(m->m_split_buffer.axes.split_pos * m->m_split_buffer.axes.split_frac * axis_split->x.template fpValue<FpType>()));
             }
             if (axis_split->dir) {
                 entry->dir_and_type |= TheAxisMask;
@@ -313,36 +517,36 @@ public:
         
         static FpType compute_segment_buffer_entry_distance (FpType accum, Segment *entry)
         {
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             return (accum + (axis_entry->x.template fpValue<FpType>() * axis_entry->x.template fpValue<FpType>()) * (FpType)(AxisSpec::DistanceFactor::value() * AxisSpec::DistanceFactor::value()));
         }
         
-        static FpType compute_segment_buffer_entry_speed (FpType accum, Context c, Segment *entry)
+        static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * axis_split->max_v_rec);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
+            return axis_entry->x.template fpValue<FpType>() * axis_split->max_v_rec;
         }
         
         static FpType compute_segment_buffer_entry_accel (FpType accum, Context c, Segment *entry)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * axis_split->max_a_rec);
         }
         
         static void write_segment_buffer_entry_extra (Segment *entry, FpType rel_max_accel)
         {
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            entry->half_accel[AxisIndex] = 0.5f * rel_max_accel * axis_entry->x.template fpValue<FpType>();
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
+            entry->axes.half_accel[AxisIndex] = 0.5f * rel_max_accel * axis_entry->x.template fpValue<FpType>();
         }
         
         static FpType compute_segment_buffer_cornering_speed (FpType accum, Context c, Segment *entry, FpType entry_distance_rec, Segment *prev_entry)
         {
             auto *m = MotionPlanner::Object::self(c);
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
-            TheAxisSegment *prev_axis_entry = TupleGetElem<AxisIndex>(&prev_entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
+            TheAxisSegment *prev_axis_entry = TupleGetElem<AxisIndex>(prev_entry->axes.axes());
             FpType m1 = axis_entry->x.template fpValue<FpType>() * entry_distance_rec;
             FpType m2 = prev_axis_entry->x.template fpValue<FpType>() * m->m_last_distance_rec;
             bool dir_changed = (entry->dir_and_type ^ prev_entry->dir_and_type) & TheAxisMask;
@@ -350,23 +554,9 @@ public:
             return FloatMin(accum, (FpType)(AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / (dm * axis_split->max_a_rec));
         }
         
-        static bool have_commit_space (bool accum, Context c)
-        {
-            auto *o = Object::self(c);
-            return (accum && commit_avail(o->m_commit_start, o->m_commit_end) > 3 * LookaheadCommitCount);
-        }
-        
-        static void start_commands (Context c)
-        {
-            auto *o = Object::self(c);
-            auto *m = MotionPlanner::Object::self(c);
-            o->m_new_commit_end = o->m_commit_end;
-            o->m_new_backup_end = m->m_current_backup ? 0 : StepperBackupBufferSize;
-        }
-        
         static void gen_segment_stepper_commands (Context c, Segment *entry, FpType frac_x0, FpType frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, FpType t0_squared, FpType t2_squared)
         {
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&entry->axes);
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             
             StepperStepFixedType x1 = axis_entry->x;
             StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::template importFpSaturatedRound<FpType>(frac_x0 * axis_entry->x.template fpValue<FpType>()));
@@ -393,102 +583,19 @@ public:
             
             bool dir = entry->dir_and_type & TheAxisMask;
             if (x0.bitsValue() != 0) {
-                gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->half_accel[AxisIndex] * t0_squared)));
+                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->axes.half_accel[AxisIndex] * t0_squared)));
             }
             if (gen1) {
-                gen_stepper_command(c, dir, x1, t1, StepperAccelFixedType::importBits(0));
+                TheCommon::gen_stepper_command(c, dir, x1, t1, StepperAccelFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
-                gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->half_accel[AxisIndex] * t2_squared)));
+                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->axes.half_accel[AxisIndex] * t2_squared)));
             }
         }
         
-        static void gen_stepper_command (Context c, bool dir, StepperStepFixedType x, StepperTimeFixedType t, StepperAccelFixedType a)
+        static void start_stepping_impl (Context c, TimeType start_time, StepperCommand *cmd)
         {
-            auto *o = Object::self(c);
-            auto *m = MotionPlanner::Object::self(c);
-            
-            StepperCommand *cmd;
-            if (!m->m_new_to_backup) {
-                cmd = &o->m_commit_buffer[o->m_new_commit_end];
-                o->m_new_commit_end = commit_inc(o->m_new_commit_end);
-            } else {
-                cmd = &o->m_backup_buffer[o->m_new_backup_end];
-                o->m_new_backup_end++;
-            }
-            TheAxisStepper::generate_command(dir, x, t, a, cmd);
-        }
-        
-        static void do_commit (Context c)
-        {
-            auto *o = Object::self(c);
-            auto *m = MotionPlanner::Object::self(c);
-            o->m_commit_end = o->m_new_commit_end;
-            o->m_backup_start = m->m_current_backup ? 0 : StepperBackupBufferSize;
-            o->m_backup_end = o->m_new_backup_end;
-        }
-        
-        static void start_stepping (Context c, TimeType start_time)
-        {
-            auto *o = Object::self(c);
-            auto *m = MotionPlanner::Object::self(c);
-            AMBRO_ASSERT(!o->m_busy)
-            
-            if (o->m_commit_start != o->m_commit_end) {
-                if (AxisIndex == 0) {
-                    // Only first axis sets it so it doesn't get re-set after a fast underflow.
-                    // Can't happen anyway due to the start time offset.
-                    m->m_syncing = true;
-                }
-                o->m_busy = true;
-                StepperCommand *cmd = &o->m_commit_buffer[o->m_commit_start];
-                o->m_commit_start = commit_inc(o->m_commit_start);
-                TheAxisStepper::template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, cmd);
-            }
-        }
-        
-        static bool is_busy (bool accum, Context c)
-        {
-            auto *o = Object::self(c);
-            return (accum || o->m_busy);
-        }
-        
-        static void reset_aborted (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_commit_start = 0;
-            o->m_commit_end = 0;
-            o->m_busy = false;
-        }
-        
-        static void stopped_stepping (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_backup_start = 0;
-            o->m_backup_end = 0;
-        }
-        
-        static bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand **cmd)
-        {
-            auto *o = Object::self(c);
-            auto *m = MotionPlanner::Object::self(c);
-            AMBRO_ASSERT(o->m_busy)
-            AMBRO_ASSERT(m->m_state == STATE_STEPPING)
-            
-            Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
-            if (AMBRO_UNLIKELY(o->m_commit_start != o->m_commit_end)) {
-                *cmd = &o->m_commit_buffer[o->m_commit_start];
-                o->m_commit_start = commit_inc(o->m_commit_start);
-            } else {
-                m->m_syncing = false;
-                if (o->m_backup_start == o->m_backup_end) {
-                    o->m_busy = false;
-                    return false;
-                }
-                *cmd = &o->m_backup_buffer[o->m_backup_start];
-                o->m_backup_start++;
-            }
-            return true;
+            TheAxisStepper::template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, cmd);
         }
         
         static bool stepper_prestep_callback (StepperCommandCallbackContext c)
@@ -523,24 +630,24 @@ public:
         template <typename StepsType>
         static StepsType axis_count_aborted_rem_steps (Context c)
         {
-            auto *o = Object::self(c);
+            auto *co = TheCommon::Object::self(c);
             auto *m = MotionPlanner::Object::self(c);
             
             StepsType steps = 0;
-            if (o->m_busy) {
+            if (co->m_busy) {
                 bool dir;
                 StepperStepFixedType cmd_steps = TheAxisStepper::getAbortedCmdSteps(c, &dir);
                 add_steps(&steps, cmd_steps, dir);
             }
-            for (StepperCommitBufferSizeType i = o->m_commit_start; i != o->m_commit_end; i = commit_inc(i)) {
-                add_command_steps(c, &steps, &o->m_commit_buffer[i]);
+            for (StepperCommitBufferSizeType i = co->m_commit_start; i != co->m_commit_end; i = TheCommon::commit_inc(i)) {
+                add_command_steps(c, &steps, &co->m_commit_buffer[i]);
             }
-            for (StepperBackupBufferSizeType i = o->m_backup_start; i < o->m_backup_end; i++) {
-                add_command_steps(c, &steps, &o->m_backup_buffer[i]);
+            for (StepperBackupBufferSizeType i = co->m_backup_start; i < co->m_backup_end; i++) {
+                add_command_steps(c, &steps, &co->m_backup_buffer[i]);
             }
             for (SegmentBufferSizeType i = m->m_segments_staging_length; i < m->m_segments_length; i++) {
                 Segment *seg = &m->m_segments[segments_add(m->m_segments_start, i)];
-                TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(&seg->axes);
+                TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(seg->axes.axes());
                 add_steps(&steps, axis_entry->x, (seg->dir_and_type & TheAxisMask));
             }
             if (m->m_split_buffer.type == 0) {
@@ -551,37 +658,115 @@ public:
             return steps;
         }
         
-        static StepperCommitBufferSizeType commit_inc (StepperCommitBufferSizeType a)
-        {
-            a++;
-            if (AMBRO_LIKELY(a == StepperCommitBufferSize)) {
-                a = 0;
-            }
-            return a;
-        }
-        
-        static StepperCommitBufferSizeType commit_avail (StepperCommitBufferSizeType start, StepperCommitBufferSizeType end)
-        {
-            return (end >= start) ? ((StepperCommitBufferSize - 1) - (end - start)) : ((start - end) - 1);
-        }
-        
         static TheAxisSplitBuffer * get_axis_split (Context c)
         {
             auto *m = MotionPlanner::Object::self(c);
-            return TupleGetElem<AxisIndex>(&m->m_split_buffer.axes);
+            return TupleGetElem<AxisIndex>(m->m_split_buffer.axes.axes());
         }
         
-        struct Object : public ObjBase<Axis, typename MotionPlanner::Object, EmptyTypeList> {
-            StepperCommitBufferSizeType m_commit_start;
-            StepperCommitBufferSizeType m_commit_end;
-            StepperBackupBufferSizeType m_backup_start;
-            StepperBackupBufferSizeType m_backup_end;
-            StepperCommitBufferSizeType m_new_commit_end;
-            StepperBackupBufferSizeType m_new_backup_end;
-            bool m_busy;
-            StepperCommand m_commit_buffer[StepperCommitBufferSize];
-            StepperCommand m_backup_buffer[2 * StepperBackupBufferSize];
-        };
+        struct Object : public ObjBase<Axis, typename TheCommon::Object, EmptyTypeList> {};
+    };
+    
+    template <int LaserIndex>
+    class Laser {
+    public: // private, workaround gcc bug
+        friend MotionPlanner;
+        struct Object;
+        struct StepperCommandCallback;
+        
+    public:
+        using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
+        using TheLaserSplitBuffer = LaserSplitBuffer<LaserIndex>;
+        using TheLaserStepper = typename LaserSpec::TheLaserStepperService::template LaserStepper<Context, Object, FpType, typename LaserSpec::PowerInterface, StepperCommandCallback>;
+        
+    public: // private, workaround gcc bug
+        using TheCommon = AxisCommon<Laser>;
+        using TheStepper = TheLaserStepper;
+        static bool const IsFirst = false;
+        using StepperCommand = typename TheLaserStepper::Command;
+        using TheLaserSegment = LaserSegment<LaserIndex>;
+        
+        static void init_impl (Context c, bool prestep_callback_enabled)
+        {
+            TheLaserStepper::init(c);
+        }
+        
+        static void deinit_impl (Context c)
+        {
+            TheLaserStepper::stop(c);
+            TheLaserStepper::deinit(c);
+        }
+        
+        static void abort_impl (Context c)
+        {
+            TheLaserStepper::stop(c);
+        }
+        
+        static void commandDone_assert_impl (Context c)
+        {
+            TheLaserSplitBuffer *laser_split = get_laser_split(c);
+            AMBRO_ASSERT(FloatIsPosOrPosZero(laser_split->x))
+            AMBRO_ASSERT(FloatIsPosOrPosZero(laser_split->max_v_rec))
+        }
+        
+        static void fixup_split (Context c)
+        {
+            auto *m = MotionPlanner::Object::self(c);
+            TheLaserSplitBuffer *laser_split = get_laser_split(c);
+            
+            laser_split->x *= m->m_split_buffer.axes.split_frac;
+        }
+        
+        static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry)
+        {
+            TheLaserSplitBuffer *laser_split = get_laser_split(c);
+            
+            return laser_split->x * laser_split->max_v_rec;
+        }
+        
+        static void write_segment_buffer_entry_extra (Context c, Segment *entry, FpType distance_rec)
+        {
+            TheLaserSplitBuffer *laser_split = get_laser_split(c);
+            TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(entry->axes.lasers());
+            
+            laser_segment->x_by_distance = laser_split->x * distance_rec * (FpType)Clock::time_freq;
+        }
+        
+        static void gen_segment_stepper_commands (Context c, Segment *entry, MinTimeType t0, MinTimeType t2, MinTimeType t1, FpType v_start, FpType v_end, FpType v_const)
+        {
+            TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(entry->axes.lasers());
+            
+            FpType xv_start = laser_segment->x_by_distance * v_start;
+            FpType xv_end = laser_segment->x_by_distance * v_end;
+            FpType xv_const = laser_segment->x_by_distance * v_const;
+            
+            if (t0.bitsValue() != 0) {
+                TheCommon::gen_stepper_command(c, t0.bitsValue(), xv_start, xv_const);
+            }
+            if (t1.bitsValue() != 0 || (t0.bitsValue() == 0 && t2.bitsValue() == 0)) {
+                TheCommon::gen_stepper_command(c, t1.bitsValue(), xv_const, xv_const);
+            }
+            if (t2.bitsValue() != 0) {
+                TheCommon::gen_stepper_command(c, t2.bitsValue(), xv_const, xv_end);
+            }
+        }
+        
+        static void start_stepping_impl (Context c, TimeType start_time, StepperCommand *cmd)
+        {
+            TheLaserStepper::start(c, start_time, cmd);
+        }
+        
+        static TheLaserSplitBuffer * get_laser_split (Context c)
+        {
+            auto *m = MotionPlanner::Object::self(c);
+            return TupleGetElem<LaserIndex>(m->m_split_buffer.axes.lasers());
+        }
+        
+        struct StepperCommandCallback : public AMBRO_WFUNC_TD(&TheCommon::stepper_command_callback) {};
+        
+        struct Object : public ObjBase<Laser, typename TheCommon::Object, MakeTypeList<
+            TheLaserStepper
+        >> {};
     };
     
     template <int ChannelIndex>
@@ -603,9 +788,9 @@ public:
         static_assert(ChannelSpec::BufferSize - LookaheadCommitCount > 1, "");
         static const size_t ChannelCommitBufferSize = ChannelSpec::BufferSize;
         static const size_t ChannelBackupBufferSize = LookaheadBufferSize - LookaheadCommitCount;
-        using ChannelCommitBufferSizeType = typename ChooseInt<BitsInInt<ChannelCommitBufferSize>::value, false>::Type;
-        using ChannelBackupBufferSizeType = typename ChooseInt<BitsInInt<2 * ChannelBackupBufferSize>::value, false>::Type;
-        using LookaheadSizeType = typename ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>::Type;
+        using ChannelCommitBufferSizeType = ChooseInt<BitsInInt<ChannelCommitBufferSize>::value, false>;
+        using ChannelBackupBufferSizeType = ChooseInt<BitsInInt<2 * ChannelBackupBufferSize>::value, false>;
+        using LookaheadSizeType = ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>;
         
         static void init (Context c)
         {
@@ -716,14 +901,6 @@ public:
             return (accum || o->m_busy);
         }
         
-        static void reset_aborted (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_commit_start = 0;
-            o->m_commit_end = 0;
-            o->m_busy = false;
-        }
-        
         static void stopped_stepping (Context c)
         {
             auto *o = Object::self(c);
@@ -794,7 +971,9 @@ public:
     
 private:
     using AxesList = IndexElemList<ParamsAxesList, Axis>;
+    using LasersList = IndexElemList<ParamsLasersList, Laser>;
     using ChannelsList = IndexElemList<ParamsChannelsList, Channel>;
+    using AxisCommonList = MapTypeList<JoinTypeLists<AxesList, LasersList>, GetMemberType_TheCommon>;
     
 public:
     static void init (Context c, bool prestep_callback_enabled)
@@ -817,7 +996,7 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_pulling = false;
 #endif
-        ListForEachForward<AxesList>(LForeach_init(), c, prestep_callback_enabled);
+        ListForEachForward<AxisCommonList>(LForeach_init(), c, prestep_callback_enabled);
         ListForEachForward<ChannelsList>(LForeach_init(), c);
         o->m_pull_finished_event.prependNowNotAlready(c);
     }
@@ -827,7 +1006,7 @@ public:
         auto *o = Object::self(c);
         
         ListForEachForward<ChannelsList>(LForeach_deinit(), c);
-        ListForEachForward<AxesList>(LForeach_deinit(), c);
+        ListForEachForward<AxisCommonList>(LForeach_deinit(), c);
         Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
         o->m_pull_finished_event.deinit(c);
     }
@@ -848,8 +1027,8 @@ public:
         AMBRO_ASSERT(o->m_state != STATE_ABORTED)
         AMBRO_ASSERT(o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
-        AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.rel_max_v_rec))
-        ListForEachForward<AxesList>(LForeach_commandDone_assert(), c);
+        AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.axes.rel_max_v_rec))
+        ListForEachForward<AxisCommonList>(LForeach_commandDone_assert(), c);
         AMBRO_ASSERT(!ListForEachForwardAccRes<AxesList>(true, LForeach_check_icmd_zero(), c))
         
         o->m_waiting = false;
@@ -860,14 +1039,15 @@ public:
         
         o->m_split_buffer.type = 0;
         ListForEachForward<AxesList>(LForeach_write_splitbuf(), c);
-        o->m_split_buffer.split_pos = 0;
+        o->m_split_buffer.axes.split_pos = 0;
         if (AMBRO_LIKELY(ListForEachForwardAccRes<AxesList>(true, LForeach_splitbuf_fits(), c))) {
-            o->m_split_buffer.split_count = 1;
+            o->m_split_buffer.axes.split_count = 1;
         } else {
             FpType split_count = FloatCeil(ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_split_count(), c));
-            o->m_split_buffer.split_frac = 1.0f / split_count;
-            o->m_split_buffer.rel_max_v_rec *= o->m_split_buffer.split_frac;
-            o->m_split_buffer.split_count = split_count;
+            o->m_split_buffer.axes.split_frac = 1.0f / split_count;
+            o->m_split_buffer.axes.rel_max_v_rec *= o->m_split_buffer.axes.split_frac;
+            o->m_split_buffer.axes.split_count = split_count;
+            ListForEachForward<LasersList>(LForeach_fixup_split(), c);
         }
         
         Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
@@ -936,7 +1116,7 @@ public:
     
     template <int AxisIndex>
     using TheAxisStepperConsumer = AxisStepperConsumer<
-        AMBRO_WFUNC_T(&Axis<AxisIndex>::stepper_command_callback),
+        AMBRO_WFUNC_T(&Axis<AxisIndex>::TheCommon::stepper_command_callback),
         AMBRO_WFUNC_T(&Axis<AxisIndex>::stepper_prestep_callback)
     >;
     
@@ -965,7 +1145,7 @@ private:
         SegmentBufferSizeType commit_count = (o->m_segments_length < LookaheadCommitCount) ? o->m_segments_length : LookaheadCommitCount;
         
         o->m_new_to_backup = false;
-        ListForEachForward<AxesList>(LForeach_start_commands(), c);
+        ListForEachForward<AxisCommonList>(LForeach_start_commands(), c);
         ListForEachForward<ChannelsList>(LForeach_start_commands(), c);
         
         TimeType time = o->m_staging_time;
@@ -979,9 +1159,9 @@ private:
             if (AMBRO_LIKELY((entry->dir_and_type & TypeMask) == 0)) {
                 FpType v_end = FloatSqrt(v);
                 FpType v_const = FloatSqrt(result.const_v);
-                FpType t0_double = (v_const - v_start) * entry->max_accel_rec;
-                FpType t2_double = (v_const - v_end) * entry->max_accel_rec;
-                FpType t1_double = (1.0f - result.const_start - result.const_end) * entry->rel_max_speed_rec;
+                FpType t0_double = (v_const - v_start) * entry->axes.max_accel_rec;
+                FpType t2_double = (v_const - v_end) * entry->axes.max_accel_rec;
+                FpType t1_double = (1.0f - result.const_start - result.const_end) * entry->axes.rel_max_speed_rec;
                 MinTimeType t1 = MinTimeType::template importFpSaturatedRound<FpType>(t0_double + t2_double + t1_double);
                 time += t1.bitsValue();
                 MinTimeType t0 = FixedMin(t1, MinTimeType::template importFpSaturatedRound<FpType>(t0_double));
@@ -991,6 +1171,8 @@ private:
                 ListForEachForward<AxesList>(LForeach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
                                     t0_double * t0_double, t2_double * t2_double);
+                ListForEachForward<LasersList>(LForeach_gen_segment_stepper_commands(), c, entry,
+                    t0, t2, t1, v_start, v_end, v_const);
                 v_start = v_end;
             } else {
                 ListForOneOffset<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_gen_command(), c, entry, time);
@@ -1009,14 +1191,14 @@ private:
         bool ok = true;
         
         if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
-            ListForEachForward<AxesList>(LForeach_do_commit(), c);
+            ListForEachForward<AxisCommonList>(LForeach_do_commit(), c);
             ListForEachForward<ChannelsList>(LForeach_do_commit_cold(), c);
             o->m_current_backup = !o->m_current_backup;
         } else {
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 ok = o->m_syncing;
                 if (AMBRO_LIKELY(ok)) {
-                    ListForEachForward<AxesList>(LForeach_do_commit(), c);
+                    ListForEachForward<AxisCommonList>(LForeach_do_commit(), c);
                     ListForEachForward<ChannelsList>(LForeach_do_commit_hot(), lock_c);
                     o->m_current_backup = !o->m_current_backup;
                 }
@@ -1040,7 +1222,7 @@ private:
         o->m_state = STATE_STEPPING;
         TimeType start_time = Clock::getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
         o->m_staging_time += start_time;
-        ListForEachForward<AxesList>(LForeach_start_stepping(), c, start_time);
+        ListForEachForward<AxisCommonList>(LForeach_start_stepping(), c, start_time);
         ListForEachForward<ChannelsList>(LForeach_start_stepping(), c, start_time);
     }
     
@@ -1071,14 +1253,14 @@ private:
     AMBRO_ALWAYS_INLINE static uint8_t planner_have_commit_space (Context c)
     {
         return
-            ListForEachForwardAccRes<AxesList>(true, LForeach_have_commit_space(), c) &&
+            ListForEachForwardAccRes<AxisCommonList>(true, LForeach_have_commit_space(), c) &&
             ListForEachForwardAccRes<ChannelsList>(true, LForeach_have_commit_space(), c);
     }
     
     AMBRO_ALWAYS_INLINE static bool planner_is_busy (Context c)
     {
         return
-            ListForEachForwardAccRes<AxesList>(false, LForeach_is_busy(), c) ||
+            ListForEachForwardAccRes<AxisCommonList>(false, LForeach_is_busy(), c) ||
             ListForEachForwardAccRes<ChannelsList>(false, LForeach_is_busy(), c);
     }
     
@@ -1096,7 +1278,7 @@ private:
             }
             
             if (AMBRO_UNLIKELY(aborted)) {
-                ListForEachForward<AxesList>(LForeach_abort(), c);
+                ListForEachForward<AxisCommonList>(LForeach_abort(), c);
                 ListForEachForward<ChannelsList>(LForeach_abort(), c);
                 Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
                 o->m_state = STATE_ABORTED;
@@ -1114,7 +1296,7 @@ private:
                 o->m_staging_v_squared = 0.0f;
                 o->m_current_backup = false;
                 Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
-                ListForEachForward<AxesList>(LForeach_stopped_stepping(), c);
+                ListForEachForward<AxisCommonList>(LForeach_stopped_stepping(), c);
                 ListForEachForward<ChannelsList>(LForeach_stopped_stepping(), c);
                 UnderrunCallback::call(c);
             }
@@ -1169,26 +1351,27 @@ private:
             }
             
             AMBRO_ASSERT(!o->m_pulling)
-            AMBRO_ASSERT(o->m_split_buffer.type != 0 || o->m_split_buffer.split_pos < o->m_split_buffer.split_count)
+            AMBRO_ASSERT(o->m_split_buffer.type != 0 || o->m_split_buffer.axes.split_pos < o->m_split_buffer.axes.split_count)
             
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
             entry->dir_and_type = o->m_split_buffer.type;
             if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
-                o->m_split_buffer.split_pos++;
+                o->m_split_buffer.axes.split_pos++;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
                 FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), entry);
-                entry->rel_max_speed_rec = ListForEachForwardAccRes<AxesList>(o->m_split_buffer.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
+                entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
                 FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_accel(), c, entry);
                 FpType distance = FloatSqrt(distance_squared);
                 FpType distance_rec = 1.0f / distance;
                 FpType rel_max_accel = 1.0f / rel_max_accel_rec;
-                entry->lp_seg.max_v = distance_squared / (entry->rel_max_speed_rec * entry->rel_max_speed_rec);
+                entry->lp_seg.max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
                 entry->lp_seg.max_end_v = entry->lp_seg.max_v;
                 entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
                 entry->lp_seg.a_x_rec = 1.0f / entry->lp_seg.a_x;
                 entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
-                entry->max_accel_rec = rel_max_accel_rec * distance_rec;
+                entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
+                ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
                     if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
@@ -1197,7 +1380,7 @@ private:
                     }
                 }
                 o->m_last_distance_rec = distance_rec;
-                if (AMBRO_LIKELY(o->m_split_buffer.split_pos == o->m_split_buffer.split_count)) {
+                if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
                     o->m_split_buffer.type = 0xFF;
                 }
             } else {
@@ -1228,7 +1411,7 @@ private:
     
 public:
     struct Object : public ObjBase<MotionPlanner, ParentObject, JoinTypeLists<
-        AxesList,
+        AxisCommonList,
         ChannelsList
     >> {
         typename Loop::QueuedEvent m_pull_finished_event;

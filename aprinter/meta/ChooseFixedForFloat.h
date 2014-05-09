@@ -22,29 +22,18 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_TEENSY3_SUPPORT_H
-#define AMBROLIB_TEENSY3_SUPPORT_H
+#ifndef AMBROLIB_CHOOSE_FIXED_FOR_FLOAT_H
+#define AMBROLIB_CHOOSE_FIXED_FOR_FLOAT_H
 
-#include <mk20dx128.h>
+#include <aprinter/meta/BitsInFloat.h>
+#include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/MinMax.h>
 
-#include <aprinter/platform/arm_cortex_common.h>
+#include <aprinter/BeginNamespace.h>
 
-#define FTM_CSC_ELSA ((uint32_t)1 << 2)
-#define FTM_CSC_ELSB ((uint32_t)1 << 3)
-#define FTM_CSC_MSA ((uint32_t)1 << 4)
-#define FTM_CSC_MSB ((uint32_t)1 << 5)
-#define FTM_CSC_CHIE ((uint32_t)1 << 6)
-#define FTM_CSC_CHF ((uint32_t)1 << 7)
+template <int Bits, typename FloatValue1>
+using ChooseFixedForFloat = FixedPoint<Bits, (FloatValue1::value() < 0), (BitsInFloat(absolute(FloatValue1::value())) - Bits)>;
 
-#define INTERRUPT_PRIORITY 4
-
-// in accordance to startup code mk20dx128.c
-#if F_CPU == 96000000 || F_CPU == 48000000
-#define F_BUS 48000000
-#elif F_CPU == 24000000
-#define F_BUS 24000000
-#else
-#error F_CPU not recognized
-#endif
+#include <aprinter/EndNamespace.h>
 
 #endif

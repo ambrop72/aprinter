@@ -44,7 +44,7 @@ struct TupleForEach<Tuple<ConsTypeList<Head, Tail>>> {
     template <typename Func, typename... Args>
     AMBRO_ALWAYS_INLINE static void call_forward (TupleType *tuple, Func func, Args... args)
     {
-        func(&tuple->elem, args...);
+        func(tuple->getHead(), args...);
         TupleForEach<TailTupleType>::call_forward(tuple->getTail(), func, args...);
     }
     
@@ -52,22 +52,22 @@ struct TupleForEach<Tuple<ConsTypeList<Head, Tail>>> {
     AMBRO_ALWAYS_INLINE static void call_reverse (TupleType *tuple, Func func, Args... args)
     {
         TupleForEach<TailTupleType>::call_reverse(tuple->getTail(), func, args...);
-        func(&tuple->elem, args...);
+        func(tuple->getHead(), args...);
     }
     
     template <typename Func, typename... Args>
     AMBRO_ALWAYS_INLINE static bool call_forward_interruptible (TupleType *tuple, Func func, Args... args)
     {
-        if (!func(&tuple->elem, args...)) {
+        if (!func(tuple->getHead(), args...)) {
             return false;
         }
         return TupleForEach<TailTupleType>::call_forward_interruptible(tuple->getTail(), func, args...);
     }
     
     template <typename AccRes, typename Func, typename... Args>
-    AMBRO_ALWAYS_INLINE static auto call_forward_accres (TupleType *tuple, AccRes acc_res, Func func, Args... args) -> decltype(TupleForEach<TailTupleType>::call_forward_accres(tuple->getTail(), func(&tuple->elem, acc_res, args...), func, args...))
+    AMBRO_ALWAYS_INLINE static auto call_forward_accres (TupleType *tuple, AccRes acc_res, Func func, Args... args) -> decltype(TupleForEach<TailTupleType>::call_forward_accres(tuple->getTail(), func(tuple->getHead(), acc_res, args...), func, args...))
     {
-        return TupleForEach<TailTupleType>::call_forward_accres(tuple->getTail(), func(&tuple->elem, acc_res, args...), func, args...);
+        return TupleForEach<TailTupleType>::call_forward_accres(tuple->getTail(), func(tuple->getHead(), acc_res, args...), func, args...);
     }
 };
 
@@ -110,7 +110,7 @@ struct TupleForOneHelper<Tuple<ConsTypeList<Head, Tail>>, Offset, Ret, IndexType
     AMBRO_ALWAYS_INLINE static Ret call (IndexType index, TupleType *tuple, Func func, Args... args)
     {
         if (index == Offset) {
-            return func(&tuple->elem, args...);
+            return func(tuple->getHead(), args...);
         }
         return TupleForOneHelper<TailTupleType, Offset + 1, Ret, IndexType>::call(index, tuple->getTail(), func, args...);
     }
@@ -119,7 +119,7 @@ struct TupleForOneHelper<Tuple<ConsTypeList<Head, Tail>>, Offset, Ret, IndexType
     AMBRO_ALWAYS_INLINE static Ret call_always (IndexType index, TupleType *tuple, Func func, Args... args)
     {
         if (AMBRO_LIKELY((index == Offset || TypesAreEqual<TailTupleType, Tuple<EmptyTypeList>>::value))) {
-            return func(&tuple->elem, args...);
+            return func(tuple->getHead(), args...);
         }
         return TupleForOneHelper<TailTupleType, Offset + 1, Ret, IndexType>::call_always(index, tuple->getTail(), func, args...);
     }
@@ -128,7 +128,7 @@ struct TupleForOneHelper<Tuple<ConsTypeList<Head, Tail>>, Offset, Ret, IndexType
     AMBRO_ALWAYS_INLINE static bool call_bool (IndexType index, TupleType *tuple, Func func, Args... args)
     {
         if (index == Offset) {
-            func(&tuple->elem, args...);
+            func(tuple->getHead(), args...);
             return true;
         }
         return TupleForOneHelper<TailTupleType, Offset + 1, Ret, IndexType>::call_bool(index, tuple->getTail(), func, args...);

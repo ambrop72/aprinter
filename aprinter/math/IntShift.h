@@ -40,8 +40,8 @@ template <int NumBits, bool Signed, int ShiftCount>
 class IntShiftRight {
 public:
     static_assert(ShiftCount >= 0, "");
-    typedef typename ChooseInt<NumBits, Signed>::Type OpType;
-    typedef typename ChooseInt<NumBits - ShiftCount, Signed>::Type ResType;
+    typedef ChooseInt<NumBits, Signed> OpType;
+    typedef ChooseInt<NumBits - ShiftCount, Signed> ResType;
     
     template <typename Option = int>
     __attribute__((always_inline)) inline static ResType call (OpType op)
@@ -81,9 +81,9 @@ template <int NumBits, bool Signed, int ShiftCount>
 class IntShiftLeft {
 public:
     static_assert(ShiftCount >= 0, "");
-    typedef typename ChooseInt<NumBits, Signed>::Type OpType;
+    typedef ChooseInt<NumBits, Signed> OpType;
     static const int ResBits = NumBits + ShiftCount;
-    typedef typename ChooseInt<ResBits, Signed>::Type ResType;
+    typedef ChooseInt<ResBits, Signed> ResType;
     
     template <typename Option = int>
     __attribute__((always_inline)) inline static ResType call (OpType op)
@@ -113,8 +113,8 @@ template <int NumBits, bool Signed, int ShiftCount>
 class IntUndoShiftLeft {
 public:
     static_assert(ShiftCount >= 0, "");
-    typedef typename ChooseInt<NumBits, Signed>::Type OpType;
-    typedef typename ChooseInt<NumBits - ShiftCount, Signed>::Type ResType;
+    typedef ChooseInt<NumBits, Signed> OpType;
+    typedef ChooseInt<NumBits - ShiftCount, Signed> ResType;
     
     template <typename Option = int>
     __attribute__((always_inline)) inline static ResType call (OpType op)

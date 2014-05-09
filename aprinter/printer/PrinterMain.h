@@ -62,6 +62,7 @@
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/WrapType.h>
+#include <aprinter/meta/TupleForEach.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -90,7 +91,8 @@ template <
     template <typename, typename, typename> class TEventChannelTimer,
     template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
     typename TSdCardParams, typename TProbeParams, typename TCurrentParams,
-    typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList
+    typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList,
+    typename TLasersList = EmptyTypeList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
@@ -115,6 +117,7 @@ struct PrinterMainParams {
     using TransformParams = TTransformParams;
     using HeatersList = THeatersList;
     using FansList = TFansList;
+    using LasersList = TLasersList;
 };
 
 template <
@@ -386,6 +389,21 @@ struct PrinterMainCurrentAxis {
     using Params = TParams;
 };
 
+template <
+    char TName,
+    typename TMaxPower,
+    typename TPwmService,
+    typename TDutyFormulaService,
+    typename TTheLaserStepperService
+>
+struct PrinterMainLaserParams {
+    static char const Name = TName;
+    using MaxPower = TMaxPower;
+    using PwmService = TPwmService;
+    using DutyFormulaService = TDutyFormulaService;
+    using TheLaserStepperService = TTheLaserStepperService;
+};
+
 template <typename Context, typename ParentObject, typename Params>
 class PrinterMain {
 public:
@@ -433,6 +451,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_g92_check_axis, g92_check_axis)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init_new_pos, init_new_pos)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_planner_cmd, write_planner_cmd)
+    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(TForeach_init, init)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
@@ -455,6 +475,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using TimeType = typename Clock::TimeType;
     using FpType = typename Params::FpType;
     using ParamsAxesList = typename Params::AxesList;
+    using ParamsLasersList = typename Params::LasersList;
     using TransformParams = typename Params::TransformParams;
     using ParamsHeatersList = typename Params::HeatersList;
     using ParamsFansList = typename Params::FansList;
@@ -941,7 +962,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static_assert(ReadBufferBlocks >= 2, "");
         static_assert(MaxCommandSize < BlockSize, "");
         static const size_t BufferBaseSize = ReadBufferBlocks * BlockSize;
-        using ParserSizeType = typename ChooseInt<BitsInInt<MaxCommandSize>::value, false>::Type;
+        using ParserSizeType = ChooseInt<BitsInInt<MaxCommandSize>::value, false>;
         using TheSdCard = typename Params::SdCardParams::template SdCard<Context, Object, typename Params::SdCardParams::SdCardParams, 1, SdCardInitHandler, SdCardCommandHandler>;
         using TheGcodeParser = typename Params::SdCardParams::template GcodeParserTemplate<Context, Object, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
         using SdCardReadState = typename TheSdCard::ReadState;
@@ -1502,7 +1523,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 *total_steps += move.template fpValue<FpType>();
                 Stepper::enable(c);
             }
-            auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
+            auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
             mycmd->dir = dir;
             mycmd->x = move;
             mycmd->max_v_rec = 1.0f / speed_from_real((FpType)AxisSpec::DefaultMaxSpeed::value());
@@ -1513,14 +1534,14 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename PlannerCmd>
         static void limit_axis_move_speed (Context c, FpType time_freq_by_max_speed, PlannerCmd *cmd)
         {
-            auto *mycmd = TupleGetElem<AxisIndex>(&cmd->axes);
+            auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
             mycmd->max_v_rec = FloatMax(mycmd->max_v_rec, time_freq_by_max_speed * (FpType)(1.0 / AxisSpec::DefaultStepsPerUnit::value()));
         }
         
         static void fix_aborted_pos (Context c)
         {
             auto *o = Object::self(c);
-            using RemStepsType = typename ChooseInt<AxisSpec::StepBits, true>::Type;
+            using RemStepsType = ChooseInt<AxisSpec::StepBits, true>;
             RemStepsType rem_steps = ThePlanner::template countAbortedRemSteps<AxisIndex, RemStepsType>(c);
             if (rem_steps != 0) {
                 o->m_end_pos.m_bits.m_int -= rem_steps;
@@ -1582,6 +1603,65 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         PlannerPrestepCallback<TheAxis::AxisIndex>
     >;
     
+    template <int LaserIndex>
+    struct Laser {
+        struct Object;
+        using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
+        using ThePwm = typename LaserSpec::PwmService::template Pwm<Context, Object>;
+        using TheDutyFormula = typename LaserSpec::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle>;
+        
+        static void init (Context c)
+        {
+            ThePwm::init(c);
+        }
+        
+        static void deinit (Context c)
+        {
+            ThePwm::deinit(c);
+        }
+        
+        template <typename TheChannelCommon>
+        static bool collect_new_pos (Context c, WrapType<TheChannelCommon>, MoveBuildState *s, typename TheChannelCommon::GcodeParserPartRef part)
+        {
+            if (AMBRO_UNLIKELY(TheChannelCommon::TheGcodeParser::getPartCode(c, part) == LaserSpec::Name)) {
+                FpType energy = TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part);
+                move_add_laser<LaserIndex>(c, s, energy);
+                return false;
+            }
+            return true;
+        }
+        
+        template <typename Src, typename PlannerCmd>
+        static void write_planner_cmd (Context c, Src src, PlannerCmd *cmd)
+        {
+            auto *mycmd = TupleGetElem<LaserIndex>(cmd->axes.lasers());
+            mycmd->x = src.template get<LaserIndex>();
+            mycmd->max_v_rec = (FpType)(Clock::time_freq / LaserSpec::MaxPower::value());
+        }
+        
+        struct PowerInterface {
+            using PowerFixedType = typename TheDutyFormula::PowerFixedType;
+            
+            template <typename ThisContext>
+            static void setPower (ThisContext c, PowerFixedType power)
+            {
+                ThePwm::setDutyCycle(c, TheDutyFormula::powerToDuty(power));
+            }
+        };
+        
+        struct Object : public ObjBase<Laser, typename PrinterMain::Object, MakeTypeList<
+            ThePwm
+        >> {};
+    };
+    
+    using LasersList = IndexElemList<ParamsLasersList, Laser>;
+    
+    template <typename TheLaser>
+    using MakePlannerLaserSpec = MotionPlannerLaserSpec<
+        typename TheLaser::LaserSpec::TheLaserStepperService,
+        typename TheLaser::PowerInterface
+    >;
+    
     struct PlannerClient {
         virtual void pull_handler (Context c) = 0;
         virtual void finished_handler (Context c) = 0;
@@ -1634,6 +1714,18 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             void set (FpType x) { m_arr[VirtAxis<Index>::PhysAxisIndex] = x; }
         };
         
+        struct LaserSplitSrc {
+            Context c;
+            FpType frac;
+            FpType prev_frac;
+            
+            template <int LaserIndex>
+            FpType get ()
+            {
+                return (frac - prev_frac) * LaserSplit<LaserIndex>::Object::self(c)->energy;
+            }
+        };
+        
         static void init (Context c)
         {
             auto *o = Object::self(c);
@@ -1649,7 +1741,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheTransformAlg::physToVirt(PhysReqPosSrc{c}, VirtReqPosDst{c});
         }
         
-        static void handle_virt_move (Context c, FpType time_freq_by_max_speed)
+        static void handle_virt_move (Context c, MoveBuildState *s, FpType time_freq_by_max_speed)
         {
             auto *o = Object::self(c);
             auto *mob = PrinterMain::Object::self(c);
@@ -1665,10 +1757,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             FpType distance_squared = 0.0f;
             ListForEachForward<VirtAxesList>(LForeach_prepare_split(), c, &distance_squared);
             ListForEachForward<SecondaryAxesList>(LForeach_prepare_split(), c, &distance_squared);
+            ListForEachForward<LaserSplitsList>(LForeach_prepare_split(), c, s);
             FpType distance = FloatSqrt(distance_squared);
             FpType base_max_v_rec = ListForEachForwardAccRes<VirtAxesList>(distance * time_freq_by_max_speed, LForeach_limit_virt_axis_speed(), c);
             FpType min_segments_by_distance = (FpType)(TransformParams::SegmentsPerSecond::value() * Clock::time_unit) * time_freq_by_max_speed;
             o->splitter.start(distance, base_max_v_rec, min_segments_by_distance);
+            o->frac = 0.0;
             do_split(c);
         }
         
@@ -1736,16 +1830,17 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             AMBRO_ASSERT(mob->m_planning_pull_pending)
             
             do {
+                FpType prev_frac = o->frac;
                 FpType rel_max_v_rec;
-                FpType frac;
                 FpType move_pos[NumAxes];
-                if (o->splitter.pull(&rel_max_v_rec, &frac)) {
+                if (o->splitter.pull(&rel_max_v_rec, &o->frac)) {
                     FpType virt_pos[NumVirtAxes];
-                    ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, frac, virt_pos);
+                    ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, o->frac, virt_pos);
                     TheTransformAlg::virtToPhys(ArraySrc{virt_pos}, PhysArrayDst{move_pos});
                     ListForEachForward<VirtAxesList>(LForeach_clamp_move_phys(), c, move_pos);
-                    ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, frac, move_pos);
+                    ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, o->frac, move_pos);
                 } else {
+                    o->frac = 1.0;
                     o->splitting = false;
                     ListForEachForward<VirtAxesList>(LForeach_get_final_split(), c, move_pos);
                     ListForEachForward<SecondaryAxesList>(LForeach_get_final_split(), c, move_pos);
@@ -1754,7 +1849,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 FpType total_steps = 0.0f;
                 ListForEachForward<AxesList>(LForeach_do_move(), c, ArraySrc{move_pos}, WrapBool<false>(), (FpType *)0, &total_steps, cmd);
                 if (total_steps != 0.0f) {
-                    cmd->rel_max_v_rec = FloatMax(rel_max_v_rec, total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
+                    ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserSplitSrc{c, o->frac, prev_frac}, cmd);
+                    cmd->axes.rel_max_v_rec = FloatMax(rel_max_v_rec, total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
                     ThePlanner::axesCommandDone(c);
                     goto submitted;
                 }
@@ -2091,16 +2187,37 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         using SecondaryAxesList = IndexElemList<SecondaryAxisIndices, SecondaryAxis>;
         
-        struct Object : public ObjBase<TransformFeature, typename PrinterMain::Object, VirtAxesList> {
+        template <int LaserIndex>
+        struct LaserSplit {
+            struct Object;
+            
+            static void prepare_split (Context c, MoveBuildState *s)
+            {
+                auto *o = Object::self(c);
+                o->energy = TupleGetElem<LaserIndex>(s->laser_extra())->energy;
+            }
+            
+            struct Object : public ObjBase<LaserSplit, typename TransformFeature::Object, EmptyTypeList> {
+                FpType energy;
+            };
+        };
+        
+        using LaserSplitsList = IndexElemList<ParamsLasersList, LaserSplit>;
+        
+        struct Object : public ObjBase<TransformFeature, typename PrinterMain::Object, JoinTypeLists<
+            VirtAxesList,
+            LaserSplitsList
+        >> {
             bool virt_update_pending;
             bool splitclear_pending;
             bool splitting;
+            FpType frac;
             TheSplitter splitter;
         };
     } AMBRO_STRUCT_ELSE(TransformFeature) {
         static int const NumVirtAxes = 0;
         static void init (Context c) {}
-        static void handle_virt_move (Context c, FpType time_freq_by_max_speed) {}
+        static void handle_virt_move (Context c, MoveBuildState *s, FpType time_freq_by_max_speed) {}
         template <int PhysAxisIndex>
         static void mark_phys_moved (Context c) {}
         static void do_pending_virt_update (Context c) {}
@@ -2115,7 +2232,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     };
     
     static int const NumPhysVirtAxes = NumAxes + TransformFeature::NumVirtAxes;
-    using PhysVirtAxisMaskType = typename ChooseInt<NumPhysVirtAxes, false>::Type;
+    using PhysVirtAxisMaskType = ChooseInt<NumPhysVirtAxes, false>;
     static PhysVirtAxisMaskType const PhysAxisMask = PowerOfTwoMinusOne<PhysVirtAxisMaskType, NumAxes>::value;
     
     template <bool IsVirt, int PhysVirtAxisIndex>
@@ -2595,7 +2712,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, Params::template EventChannelTimer>>;
     using MotionPlannerAxes = MapTypeList<AxesList, TemplateFunc<MakePlannerAxisSpec>>;
-    using ThePlanner = MotionPlanner<Context, typename PlannerUnionPlanner::Object, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels>;
+    using MotionPlannerLasers = MapTypeList<LasersList, TemplateFunc<MakePlannerLaserSpec>>;
+    using ThePlanner = MotionPlanner<Context, typename PlannerUnionPlanner::Object, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels, MotionPlannerLasers>;
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
     AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::Enabled) {
@@ -2872,6 +2990,7 @@ public:
         SerialFeature::init(c);
         SdCardFeature::init(c);
         ListForEachForward<AxesList>(LForeach_init(), c);
+        ListForEachForward<LasersList>(LForeach_init(), c);
         TransformFeature::init(c);
         ListForEachForward<HeatersList>(LForeach_init(), c);
         ListForEachForward<FansList>(LForeach_init(), c);
@@ -2901,6 +3020,7 @@ public:
         ProbeFeature::deinit(c);
         ListForEachReverse<FansList>(LForeach_deinit(), c);
         ListForEachReverse<HeatersList>(LForeach_deinit(), c);
+        ListForEachReverse<LasersList>(LForeach_deinit(), c);
         ListForEachReverse<AxesList>(LForeach_deinit(), c);
         SdCardFeature::deinit(c);
         SerialFeature::deinit(c);
@@ -2932,6 +3052,9 @@ public:
     
     template <typename TCurrentFeatue = CurrentFeature>
     using GetCurrent = typename TCurrentFeatue::Current;
+    
+    template <int LaserIndex>
+    using GetLaserStepper = typename ThePlanner::template Laser<LaserIndex>::TheLaserStepper;
     
     static void emergency ()
     {
@@ -3095,7 +3218,9 @@ public: // private, see comment on top
                     auto num_parts = TheChannelCommon::TheGcodeParser::getNumParts(c);
                     for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
                         typename TheChannelCommon::GcodeParserPartRef part = TheChannelCommon::TheGcodeParser::getPart(c, i);
-                        if (ListForEachForwardInterruptible<PhysVirtAxisHelperList>(LForeach_collect_new_pos(), c, cc, &s, part)) {
+                        if (ListForEachForwardInterruptible<PhysVirtAxisHelperList>(LForeach_collect_new_pos(), c, cc, &s, part) &&
+                            ListForEachForwardInterruptible<LasersList>(LForeach_collect_new_pos(), c, cc, &s, part)
+                        ) {
                             if (TheChannelCommon::TheGcodeParser::getPartCode(c, part) == 'F') {
                                 ob->time_freq_by_max_speed = (FpType)(Clock::time_freq / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part));
                             }
@@ -3377,7 +3502,16 @@ public: // private, see comment on top
             TransformFeature::prestep_callback(c);
     }
     
-    struct MoveBuildState {
+    template <typename TheLaser>
+    struct MoveBuildLaserExtra {
+        FpType energy;
+        void init () { energy = 0.0; }
+    };
+    
+    using MoveBuildLaserExtraTuple = Tuple<MapTypeList<LasersList, TemplateFunc<MoveBuildLaserExtra>>>;
+    
+    struct MoveBuildState : public MoveBuildLaserExtraTuple {
+        MoveBuildLaserExtraTuple * laser_extra () { return this; }
         bool seen_cartesian;
     };
     
@@ -3385,6 +3519,7 @@ public: // private, see comment on top
     {
         ListForEachForward<PhysVirtAxisHelperList>(LForeach_init_new_pos(), c);
         s->seen_cartesian = false;
+        TupleForEachForward(s->laser_extra(), TForeach_init());
     }
     
     template <int PhysVirtAxisIndex>
@@ -3393,10 +3528,22 @@ public: // private, see comment on top
         PhysVirtAxisHelper<PhysVirtAxisIndex>::update_new_pos(c, s, value);
     }
     
+    template <int LaserIndex>
+    static void move_add_laser (Context c, MoveBuildState *s, FpType energy)
+    {
+        TupleGetElem<LaserIndex>(s->laser_extra())->energy = FloatMakePosOrPosZero(energy);
+    }
+    
     struct ReqPosSrc {
         Context m_c;
         template <int Index>
         FpType get () { return Axis<Index>::Object::self(m_c)->m_req_pos; }
+    };
+    
+    struct LaserExtraSrc {
+        MoveBuildState *s;
+        template <int LaserIndex>
+        FpType get () { return TupleGetElem<LaserIndex>(s->laser_extra())->energy; }
     };
     
     static void move_end (Context c, MoveBuildState *s, FpType time_freq_by_max_speed)
@@ -3407,7 +3554,7 @@ public: // private, see comment on top
         AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
         
         if (TransformFeature::is_splitting(c)) {
-            TransformFeature::handle_virt_move(c, time_freq_by_max_speed);
+            TransformFeature::handle_virt_move(c, s, time_freq_by_max_speed);
             return;
         }
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
@@ -3416,9 +3563,10 @@ public: // private, see comment on top
         ListForEachForward<AxesList>(LForeach_do_move(), c, ReqPosSrc{c}, WrapBool<true>(), &distance_squared, &total_steps, cmd);
         TransformFeature::do_pending_virt_update(c);
         if (total_steps != 0.0f) {
-            cmd->rel_max_v_rec = total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
+            ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserExtraSrc{s}, cmd);
+            cmd->axes.rel_max_v_rec = total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
             if (s->seen_cartesian) {
-                cmd->rel_max_v_rec = FloatMax(cmd->rel_max_v_rec, FloatSqrt(distance_squared) * time_freq_by_max_speed);
+                cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, FloatSqrt(distance_squared) * time_freq_by_max_speed);
             } else {
                 ListForEachForward<AxesList>(LForeach_limit_axis_move_speed(), c, time_freq_by_max_speed, cmd);
             }
@@ -3531,6 +3679,7 @@ public: // private, see comment on top
 public:
     struct Object : public ObjBase<PrinterMain, ParentObject, JoinTypeLists<
         AxesList,
+        LasersList,
         HeatersList,
         FansList,
         MakeTypeList<

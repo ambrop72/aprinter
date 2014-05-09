@@ -65,6 +65,8 @@ using Mk20PinInputModeNormal = Mk20PinInputMode<false, false>;
 using Mk20PinInputModePullUp = Mk20PinInputMode<true, false>;
 using Mk20PinInputModePullDown = Mk20PinInputMode<true, true>;
 
+using Mk20PinOutputModeNormal = void;
+
 template <typename Context, typename ParentObject>
 class Mk20Pins {
 public:
@@ -104,13 +106,13 @@ public:
         }
     }
     
-    template <typename Pin, typename ThisContext>
+    template <typename Pin, typename Mode = Mk20PinOutputModeNormal, uint8_t AlternateFunction = 1, typename ThisContext>
     static void setOutput (ThisContext c)
     {
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        Pin::Port::pcr0()[Pin::PinIndex] = PORT_PCR_MUX(1) | PORT_PCR_SRE | PORT_PCR_DSE;
+        Pin::Port::pcr0()[Pin::PinIndex] = PORT_PCR_MUX(AlternateFunction) | PORT_PCR_SRE | PORT_PCR_DSE;
         
         AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
             *Pin::Port::pddr() |= (UINT32_C(1) << Pin::PinIndex);

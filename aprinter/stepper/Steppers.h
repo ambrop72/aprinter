@@ -65,7 +65,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     
     static int const NumSteppers = TypeListLength<StepperDefsList>::value;
-    using MaskType = typename ChooseInt<NumSteppers, false>::Type;
+    using MaskType = ChooseInt<NumSteppers, false>;
     
 public:
     template <int StepperIndex>

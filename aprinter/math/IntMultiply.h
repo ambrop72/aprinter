@@ -44,9 +44,9 @@ public:
     static_assert(RightShift >= 0, "RightShift must be non-negative");
     static_assert(RightShift < NumBits1 + NumBits2, "RightShift must be less than multiplication result width");
     
-    typedef typename ChooseInt<NumBits1, Signed1>::Type Op1Type;
-    typedef typename ChooseInt<NumBits2, Signed2>::Type Op2Type;
-    typedef typename ChooseInt<(NumBits1 + NumBits2 - RightShift), (Signed1 || Signed2)>::Type ResType;
+    typedef ChooseInt<NumBits1, Signed1> Op1Type;
+    typedef ChooseInt<NumBits2, Signed2> Op2Type;
+    typedef ChooseInt<(NumBits1 + NumBits2 - RightShift), (Signed1 || Signed2)> ResType;
     
     static const bool Signed = Signed1 || Signed2;
     static const int TempBits = NumBits1 + NumBits2;
@@ -85,7 +85,7 @@ public:
     }
     
 private:
-    typedef typename ChooseInt<(NumBits1 + NumBits2), (Signed1 || Signed2)>::Type TempResType;
+    typedef ChooseInt<(NumBits1 + NumBits2), (Signed1 || Signed2)> TempResType;
     
     static ResType default_multiply (Op1Type op1, Op2Type op2)
     {
