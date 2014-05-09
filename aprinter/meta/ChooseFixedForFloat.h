@@ -34,9 +34,6 @@
 template <int Bits, typename FloatValue1>
 using ChooseFixedForFloat = FixedPoint<Bits, (FloatValue1::value() < 0), (BitsInFloat(absolute(FloatValue1::value())) - Bits)>;
 
-template <int Bits, typename FloatValue1, typename FloatValue2>
-using ChooseFixedForFloatTwo = FixedPoint<Bits, (FloatValue1::value() < 0 || FloatValue2::value() < 0), (BitsInFloat(max(absolute(FloatValue1::value()), absolute(FloatValue2::value()))) - Bits)>;
-
 #include <aprinter/EndNamespace.h>
 
 #endif
