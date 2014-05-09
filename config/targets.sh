@@ -28,6 +28,16 @@
 #####################################################################################
 # Targets configuration
 
+# Some defaults used for several targets.
+
+if [ "${SYSARCH}" == "mac" ]; then
+    DEFAULT_BOSSA_PORT=/dev/tty.usbmodem1411
+else
+    DEFAULT_BOSSA_PORT=/dev/ttyACM0
+fi
+
+#####################################################################################
+
 TARGETS+=( "melzi" )
 target_melzi() {
     PLATFORM=avr
@@ -59,7 +69,7 @@ target_rampsfd() {
     ARCH=sam3x
     SUBARCH=8
     USE_USB_SERIAL=1
-    BOSSA_PORT=/dev/ttyACM0
+    BOSSA_PORT=${DEFAULT_BOSSA_PORT}
     BOSSA_USE_USB=0
     BOSSA_IS_ARDUINO_DUE=1
 }
@@ -73,7 +83,7 @@ target_radds() {
     ARCH=sam3x
     SUBARCH=8
     USE_USB_SERIAL=1
-    BOSSA_PORT=/dev/ttyACM0
+    BOSSA_PORT=${DEFAULT_BOSSA_PORT}
     BOSSA_USE_USB=0
     BOSSA_IS_ARDUINO_DUE=1
 }
@@ -87,7 +97,7 @@ target_4pi() {
     ARCH=sam3u
     SUBARCH=4
     USE_USB_SERIAL=1
-    BOSSA_PORT=/dev/ttyACM0
+    BOSSA_PORT=${DEFAULT_BOSSA_PORT}
     BOSSA_USE_USB=1
 }
 

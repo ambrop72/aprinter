@@ -140,11 +140,6 @@ build_sam3x() {
 upload_sam3x() {
     local bossa_args=()
     echo -n "  Uploading to Sam3X MCU "
-    
-    if [ "${SYSARCH}" == "mac" ]; then
-        BOSSA_PORT="/dev/tty.usbmodem1411"
-    fi  
-
     if [ "$BOSSA_USE_USB" = 1 ]; then
         echo "over Native USB"
     else
