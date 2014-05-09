@@ -86,6 +86,8 @@ or confirmation is issued upon running that command.
 The `clean` action will remove all build files for the given build in the
 `build` directory.
 
+On Mac OS X `install` action may require `brew install wxmac` before.
+
 Some dependencies can be overridden from environment variables or `config/config.sh`. In particular:
 
  * `CUSTOM_AVR_GCC` and `CUSTOM_ARM_GCC` override the AVR and ARM toolchains, respectively.
