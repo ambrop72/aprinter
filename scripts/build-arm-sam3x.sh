@@ -178,6 +178,13 @@ install_sam3x() {
         (
         [ -d "${BOSSA_DIR}" ] || git clone -b arduino https://github.com/shumatech/BOSSA "${BOSSA_DIR}"
         cd "${BOSSA_DIR}"
+
+        if [ "${SYSARCH}" == "mac" ]; then
+            FIX_MAKEFILE="-Werror -Wno-error=unused-but-set-variable"
+            REPLACE_TO="-Wno-error"
+            sed -i '' "s/${FIX_MAKEFILE}/${REPLACE_TO}/g" "Makefile"
+        fi
+
         make strip-bossac
         )
     fi
