@@ -269,8 +269,8 @@ private:
     template <typename TheAxis>
     struct AxisCommon {
         struct Object;
-        using StepperCommand = typename TheAxis::StepperCommand;
         using TheStepper = typename TheAxis::TheStepper;
+        using StepperCommand = typename TheStepper::Command;
         using StepperCommandCallbackContext = typename TheStepper::CommandCallbackContext;
         
         static void init (Context c, bool prestep_callback_enabled)
@@ -447,7 +447,7 @@ public:
         static bool const IsFirst = (AxisIndex == 0);
         using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
         using StepperAccelFixedType = typename TheAxisStepper::AccelFixedType;
-        using StepperCommand = typename TheAxisStepper::Command;
+        using StepperCommand = typename TheCommon::StepperCommand;
         using TheAxisSegment = AxisSegment<AxisIndex>;
         static const AxisMaskType TheAxisMask = (AxisMaskType)1 << (AxisIndex + TypeBits);
         
@@ -683,7 +683,7 @@ public:
         using TheCommon = AxisCommon<Laser>;
         using TheStepper = TheLaserStepper;
         static bool const IsFirst = false;
-        using StepperCommand = typename TheLaserStepper::Command;
+        using StepperCommand = typename TheCommon::StepperCommand;
         using TheLaserSegment = LaserSegment<LaserIndex>;
         
         static void init_impl (Context c, bool prestep_callback_enabled)
