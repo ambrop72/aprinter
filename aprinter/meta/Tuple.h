@@ -67,16 +67,6 @@ struct Tuple<ConsTypeList<TElemType, TTailTypes>>
         return static_cast<TailTupleType const *>(this);
     }
     
-    static Tuple * getFromTail (TailTupleType *tail)
-    {
-        return static_cast<Tuple *>(tail);
-    }
-    
-    static Tuple const * getFromTail (TailTupleType const *tail)
-    {
-        return static_cast<Tuple const *>(tail);
-    }
-    
     ElemType elem;
 };
 

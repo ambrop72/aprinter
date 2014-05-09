@@ -56,16 +56,6 @@ struct Union<ConsTypeList<TElemType, TTailTypes>>
         return &tail;
     }
     
-    static Union * getFromTail (TailUnionType *tail)
-    {
-        return static_cast<Union *>(tail);
-    }
-    
-    static Union const * getFromTail (TailUnionType const *tail)
-    {
-        return static_cast<Union const *>(tail);
-    }
-    
     union {
         ElemType elem;
         TailUnionType tail;
