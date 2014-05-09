@@ -155,8 +155,6 @@ build_arm() {
     ASMFLAGS=("${FLAGS_C_CXX_LD[@]}")
     LDFLAGS=("${FLAGS_C_CXX_LD[@]}" "${FLAGS_CXX_LD[@]}" "${FLAGS_LD[@]}" ${LDFLAGS})
 
-    create_build_dir
-
     echo "   Compiling C files"
     for file in "${C_SOURCES[@]}"; do
         OBJ=${BUILD}/$(basename "${file}" .c).o

@@ -130,6 +130,7 @@ check_depends_sam3x() {
 }
 
 build_sam3x() {
+    create_build_dir
     cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" "${BUILD}/udi_cdc-hacked.c"
     patch -p0 "${BUILD}/udi_cdc-hacked.c" < "${ROOT}/patches/asf-cdc-tx.patch"
     
@@ -139,13 +140,22 @@ build_sam3x() {
 upload_sam3x() {
     local bossa_args=()
     echo -n "  Uploading to Sam3X MCU "
+    
+    if [ "${SYSARCH}" == "mac" ]; then
+        BOSSA_PORT="/dev/tty.usbmodem1411"
+    fi  
+
     if [ "$BOSSA_USE_USB" = 1 ]; then
         echo "over Native USB"
     else
         echo "over UART"
         bossa_args=(-U false)
         if [ "$BOSSA_IS_ARDUINO_DUE" = 1 ]; then
-            stty -F "${BOSSA_PORT}" 1200
+            if [ "${SYSARCH}" == "mac" ]; then
+                stty -f "${BOSSA_PORT}" 1200
+            else
+                stty -F "${BOSSA_PORT}" 1200
+            fi
             sleep 0.5
         fi
     fi
