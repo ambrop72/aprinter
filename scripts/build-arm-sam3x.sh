@@ -130,7 +130,6 @@ check_depends_sam3x() {
 }
 
 build_sam3x() {
-    create_build_dir
     cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" "${BUILD}/udi_cdc-hacked.c"
     patch -p0 "${BUILD}/udi_cdc-hacked.c" < "${ROOT}/patches/asf-cdc-tx.patch"
     

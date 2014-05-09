@@ -28,10 +28,6 @@
 #####################################################################################
 # COMMON STUFF
 
-create_build_dir() {
-    mkdir -p "${BUILD}"
-}
-
 create_depends_dir() {
     mkdir -p "${DEPS}"
 }
@@ -61,6 +57,11 @@ configure() {
     FLUSH=flush
     
     configure_${PLATFORM}
+}
+
+build() {
+    mkdir -p "${BUILD}"
+    ${RUNBUILD}
 }
 
 # Utility functions

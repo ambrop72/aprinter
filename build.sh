@@ -134,7 +134,7 @@ if [ "$DEST" = "all" ]; then
          )
          in_array "build" ${ACT[*]} && (
             configure $DEST
-            ${RUNBUILD}
+            build
          )
     done
     for DEST in ${TARGETS[@]}; do
@@ -160,7 +160,7 @@ else
         ${INSTALL}
     )
     in_array "build" ${ACT[*]} && (
-        ${RUNBUILD}
+        build
     )
     in_array "upload" ${ACT[*]} && (
         ${UPLOAD}
