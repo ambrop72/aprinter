@@ -286,6 +286,7 @@ private:
         
         static void deinit (Context c)
         {
+            TheAxis::abort_impl(c);
             TheAxis::deinit_impl(c);
         }
         
@@ -458,7 +459,6 @@ public:
         
         static void deinit_impl (Context c)
         {
-            TheAxisStepper::stop(c);
         }
         
         static void abort_impl (Context c)
@@ -693,7 +693,6 @@ public:
         
         static void deinit_impl (Context c)
         {
-            TheLaserStepper::stop(c);
             TheLaserStepper::deinit(c);
         }
         
