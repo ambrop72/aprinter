@@ -35,6 +35,10 @@ SAM3X_CHECKSUM=(
     "9739afa2c8192bd181f2d4e50fa312dc4c943b7a6a093213e755c0c7de9c3ed3  asf-standalone-archive-3.14.0.86.zip"
 )
 
+sam3x_to_upper() {
+    echo "$1"| tr 'a-z' 'A-Z'
+}
+
 configure_sam3x() {
     ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86
     ASF_DIR=${ASF_BASE_DIR}/xdk-asf-3.14.0
@@ -53,7 +57,7 @@ configure_sam3x() {
         -Wno-deprecated-register
     )
     FLAGS_C_CXX+=(
-        -D__$(echo $ARCH | tr 'a-z' 'A-Z')$(echo $SUBARCH | tr 'a-z' 'A-Z')E__ -DHEAP_SIZE=16384
+        -D__$(sam3x_to_upper "$ARCH")$(sam3x_to_upper "$SUBARCH")$(sam3x_to_upper "$SUBSUBARCH")__ -DHEAP_SIZE=16384
         -DBOARD=${ASF_BOARD}
         -I"${CMSIS_DIR}/include"
         -I"${TEMPLATES_DIR}"

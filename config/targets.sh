@@ -68,6 +68,7 @@ target_rampsfd() {
     ASF_BOARD=43
     ARCH=sam3x
     SUBARCH=8
+    SUBSUBARCH=e
     USE_USB_SERIAL=1
     BOSSA_PORT=${DEFAULT_BOSSA_PORT}
     BOSSA_USE_USB=0
@@ -82,6 +83,7 @@ target_radds() {
     ASF_BOARD=43
     ARCH=sam3x
     SUBARCH=8
+    SUBSUBARCH=e
     USE_USB_SERIAL=1
     BOSSA_PORT=${DEFAULT_BOSSA_PORT}
     BOSSA_USE_USB=0
@@ -96,6 +98,7 @@ target_4pi() {
     ASF_BOARD=33
     ARCH=sam3u
     SUBARCH=4
+    SUBSUBARCH=e
     USE_USB_SERIAL=1
     BOSSA_PORT=${DEFAULT_BOSSA_PORT}
     BOSSA_USE_USB=1
