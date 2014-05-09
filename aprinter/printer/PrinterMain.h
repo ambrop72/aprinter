@@ -962,7 +962,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static_assert(ReadBufferBlocks >= 2, "");
         static_assert(MaxCommandSize < BlockSize, "");
         static const size_t BufferBaseSize = ReadBufferBlocks * BlockSize;
-        using ParserSizeType = typename ChooseInt<BitsInInt<MaxCommandSize>::value, false>::Type;
+        using ParserSizeType = ChooseInt<BitsInInt<MaxCommandSize>::value, false>;
         using TheSdCard = typename Params::SdCardParams::template SdCard<Context, Object, typename Params::SdCardParams::SdCardParams, 1, SdCardInitHandler, SdCardCommandHandler>;
         using TheGcodeParser = typename Params::SdCardParams::template GcodeParserTemplate<Context, Object, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
         using SdCardReadState = typename TheSdCard::ReadState;
@@ -1541,7 +1541,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void fix_aborted_pos (Context c)
         {
             auto *o = Object::self(c);
-            using RemStepsType = typename ChooseInt<AxisSpec::StepBits, true>::Type;
+            using RemStepsType = ChooseInt<AxisSpec::StepBits, true>;
             RemStepsType rem_steps = ThePlanner::template countAbortedRemSteps<AxisIndex, RemStepsType>(c);
             if (rem_steps != 0) {
                 o->m_end_pos.m_bits.m_int -= rem_steps;
@@ -2232,7 +2232,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     };
     
     static int const NumPhysVirtAxes = NumAxes + TransformFeature::NumVirtAxes;
-    using PhysVirtAxisMaskType = typename ChooseInt<NumPhysVirtAxes, false>::Type;
+    using PhysVirtAxisMaskType = ChooseInt<NumPhysVirtAxes, false>;
     static PhysVirtAxisMaskType const PhysAxisMask = PowerOfTwoMinusOne<PhysVirtAxisMaskType, NumAxes>::value;
     
     template <bool IsVirt, int PhysVirtAxisIndex>

@@ -67,7 +67,7 @@ class BinaryGcodeParser {
 public:
     struct Object;
     using BufferSizeType = TBufferSizeType;
-    using PartsSizeType = typename ChooseInt<BitsInInt<Params::MaxParts>::value, true>::Type;
+    using PartsSizeType = ChooseInt<BitsInInt<Params::MaxParts>::value, true>;
     
 private:
     struct Part {

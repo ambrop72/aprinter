@@ -74,7 +74,7 @@ private:
     using TimeType = typename Clock::TimeType;
     static const TimeType IntervalTicks = Params::SampleInterval::value() * Clock::time_freq;
     static const int MinIntervals = (Params::MinTime::value() / Params::SampleInterval::value()) + 2.0;
-    using IntervalsType = typename ChooseInt<BitsInInt<MinIntervals>::value, false>::Type;
+    using IntervalsType = ChooseInt<BitsInInt<MinIntervals>::value, false>;
     
     static void event_handler (typename Context::EventLoop::QueuedEvent *, Context c)
     {

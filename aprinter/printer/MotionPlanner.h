@@ -118,14 +118,14 @@ private:
     template <typename AxisSpec, typename AccumType>
     using MinTimeTypeHelper = FixedIntersectTypes<typename AxisSpec::TheAxisStepper::TimeFixedType, AccumType>;
     using MinTimeType = TypeListFold<ParamsAxesList, FixedIdentity, MinTimeTypeHelper>;
-    using SegmentBufferSizeType = typename ChooseInt<BitsInInt<2 * LookaheadBufferSize>::value, false>::Type; // twice for segments_add()
+    using SegmentBufferSizeType = ChooseInt<BitsInInt<2 * LookaheadBufferSize>::value, false>; // twice for segments_add()
     static const size_t StepperCommitBufferSize = 3 * StepperSegmentBufferSize;
     static const size_t StepperBackupBufferSize = 3 * (LookaheadBufferSize - LookaheadCommitCount);
-    using StepperCommitBufferSizeType = typename ChooseInt<BitsInInt<StepperCommitBufferSize>::value, false>::Type;
-    using StepperBackupBufferSizeType = typename ChooseInt<BitsInInt<2 * StepperBackupBufferSize>::value, false>::Type;
+    using StepperCommitBufferSizeType = ChooseInt<BitsInInt<StepperCommitBufferSize>::value, false>;
+    using StepperBackupBufferSizeType = ChooseInt<BitsInInt<2 * StepperBackupBufferSize>::value, false>;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
     static const int TypeBits = BitsInInt<NumChannels>::value;
-    using AxisMaskType = typename ChooseInt<NumAxes + TypeBits, false>::Type;
+    using AxisMaskType = ChooseInt<NumAxes + TypeBits, false>;
     static const AxisMaskType TypeMask = ((AxisMaskType)1 << TypeBits) - 1;
     using TheLinearPlanner = LinearPlanner<FpType>;
     
@@ -788,9 +788,9 @@ public:
         static_assert(ChannelSpec::BufferSize - LookaheadCommitCount > 1, "");
         static const size_t ChannelCommitBufferSize = ChannelSpec::BufferSize;
         static const size_t ChannelBackupBufferSize = LookaheadBufferSize - LookaheadCommitCount;
-        using ChannelCommitBufferSizeType = typename ChooseInt<BitsInInt<ChannelCommitBufferSize>::value, false>::Type;
-        using ChannelBackupBufferSizeType = typename ChooseInt<BitsInInt<2 * ChannelBackupBufferSize>::value, false>::Type;
-        using LookaheadSizeType = typename ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>::Type;
+        using ChannelCommitBufferSizeType = ChooseInt<BitsInInt<ChannelCommitBufferSize>::value, false>;
+        using ChannelBackupBufferSizeType = ChooseInt<BitsInInt<2 * ChannelBackupBufferSize>::value, false>;
+        using LookaheadSizeType = ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>;
         
         static void init (Context c)
         {

@@ -32,33 +32,26 @@
 #include <aprinter/BeginNamespace.h>
 
 template <int NumBits, bool Signed>
-class ChooseInt {
+class ChooseIntHelper {
 public:
     static_assert(NumBits > 0, "");
     static_assert((!Signed || NumBits < 64), "Too many bits (signed)");
     static_assert((!!Signed || NumBits <= 64), "Too many bits (unsigned).");
     
-    typedef
+    using Result =
         If<(Signed && NumBits < 8), int8_t,
         If<(Signed && NumBits < 16), int16_t,
-#ifdef AMBROLIB_AVR
-//        If<(Signed && NumBits < 24), __int24,
-#endif
         If<(Signed && NumBits < 32), int32_t,
         If<(Signed && NumBits < 64), int64_t,
         If<(!Signed && NumBits <= 8), uint8_t,
         If<(!Signed && NumBits <= 16), uint16_t,
-#ifdef AMBROLIB_AVR
-//        If<(!Signed && NumBits <= 24), __uint24,
-#endif
         If<(!Signed && NumBits <= 32), uint32_t,
         If<(!Signed && NumBits <= 64), uint64_t,
-        void>>>>>>>>
-#ifdef AMBROLIB_AVR
-//        >>
-#endif
-        Type;
+        void>>>>>>>>;
 };
+
+template <int NumBits, bool Signed = false>
+using ChooseInt = typename ChooseIntHelper<NumBits, Signed>::Result;
 
 #include <aprinter/EndNamespace.h>
 

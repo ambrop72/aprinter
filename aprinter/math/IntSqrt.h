@@ -43,8 +43,8 @@ template <int NumBits, bool Round>
 class IntSqrt {
 public:
     static_assert(NumBits >= 3, "");
-    typedef typename ChooseInt<NumBits, false>::Type OpType;
-    typedef typename ChooseInt<((NumBits + 1 + Round) / 2), false>::Type ResType;
+    typedef ChooseInt<NumBits, false> OpType;
+    typedef ChooseInt<((NumBits + 1 + Round) / 2), false> ResType;
     
     template <typename Option = int>
     __attribute__((always_inline)) inline static ResType call (OpType op, Option opt = 0)
@@ -87,7 +87,7 @@ public:
 
 private:
     static const int TempBits = NumBits + Modulo(NumBits, 2);
-    using TempType = typename ChooseInt<TempBits, false>::Type;
+    using TempType = ChooseInt<TempBits, false>;
     static const bool OverflowPossible = (TempBits == IntTypeInfo<TempType>::NumBits);
     
     template <bool TheOverflowPossible, typename Dummy0 = void>

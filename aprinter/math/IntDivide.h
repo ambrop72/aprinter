@@ -41,9 +41,9 @@ class IntDivide {
 public:
     static_assert(LeftShift >= 0, "LeftShift must be non-negative");
     
-    typedef typename ChooseInt<NumBits1, Signed1>::Type Op1Type;
-    typedef typename ChooseInt<NumBits2, Signed2>::Type Op2Type;
-    typedef typename ChooseInt<ResSatBits, (Signed1 || Signed2)>::Type ResType;
+    typedef ChooseInt<NumBits1, Signed1> Op1Type;
+    typedef ChooseInt<NumBits2, Signed2> Op2Type;
+    typedef ChooseInt<ResSatBits, (Signed1 || Signed2)> ResType;
     
     template <typename Option = int>
     __attribute__((always_inline)) inline static ResType call (Op1Type op1, Op2Type op2, Option opt = 0)
@@ -56,8 +56,8 @@ public:
     }
     
 private:
-    typedef typename ChooseInt<(NumBits1 + LeftShift), (Signed1 || Signed2)>::Type TempResType;
-    typedef typename ChooseInt<NumBits2, (Signed1 || Signed2)>::Type TempType2;
+    typedef ChooseInt<(NumBits1 + LeftShift), (Signed1 || Signed2)> TempResType;
+    typedef ChooseInt<NumBits2, (Signed1 || Signed2)> TempType2;
     
     static ResType default_divide (Op1Type op1, Op2Type op2)
     {

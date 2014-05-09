@@ -35,7 +35,7 @@
 template <int NumBits, bool Signed, typename Dummy = void>
 class StoredNumber {
 public:
-    using IntType = typename ChooseInt<NumBits, Signed>::Type;
+    using IntType = ChooseInt<NumBits, Signed>;
     
     static StoredNumber store (IntType value)
     {
@@ -58,7 +58,7 @@ template <int NumBits>
 class StoredNumber<NumBits, false, EnableIf<(NumBits >= 24 && NumBits < 32), void>> {
 public:
     using ThisClass = StoredNumber<NumBits, false, EnableIf<(NumBits >= 24 && NumBits < 32), void>>;
-    using IntType = typename ChooseInt<NumBits, false>::Type;
+    using IntType = ChooseInt<NumBits, false>;
     
     static ThisClass store (IntType value)
     {
