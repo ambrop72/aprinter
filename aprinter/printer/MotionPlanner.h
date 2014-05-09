@@ -1004,8 +1004,8 @@ public:
     {
         auto *o = Object::self(c);
         
-        ListForEachForward<ChannelsList>(LForeach_deinit(), c);
-        ListForEachForward<AxisCommonList>(LForeach_deinit(), c);
+        ListForEachReverse<ChannelsList>(LForeach_deinit(), c);
+        ListForEachReverse<AxisCommonList>(LForeach_deinit(), c);
         Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
         o->m_pull_finished_event.deinit(c);
     }
