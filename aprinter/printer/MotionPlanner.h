@@ -606,7 +606,9 @@ public:
             bool res = AxisSpec::PrestepCallback::call(c);
             if (AMBRO_UNLIKELY(res)) {
                 Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
-                m->m_aborted = true;
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                    m->m_aborted = true;
+                }
             }
             return res;
         }
