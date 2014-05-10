@@ -245,16 +245,6 @@ public:
     
     using GetTimer = TimerInstance;
     
-#ifdef AMBROLIB_ASSERTIONS
-    static bool isRunning (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        return o->m_running;
-    }
-#endif
-    
 private:
     template <int ConsumerIndex>
     struct CallbackHelper {
