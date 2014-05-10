@@ -2523,12 +2523,14 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             
             AdcFixedType adc_value = Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
-            if (AMBRO_LIKELY(adc_value.bitsValue() <= InfAdcValue || adc_value.bitsValue() >= SupAdcValue)) {
-                o->m_enabled = false;
-                o->m_was_not_unset = false;
-                TheSoftPwm::computeZeroPowerData(&o->m_output_pd);
+            bool unsafe = (AMBRO_LIKELY(adc_value.bitsValue() <= InfAdcValue || adc_value.bitsValue() >= SupAdcValue));
+            
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                if (unsafe) {
+                    unset(lock_c);
+                }
+                *pd = o->m_output_pd;
             }
-            *pd = o->m_output_pd;
         }
         
         static void observer_handler (Context c, bool state)
