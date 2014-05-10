@@ -435,6 +435,7 @@ public:
         o->debugAccess(c);
         
         AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+            *Channel::csc();
             *Channel::csc() = 0;
         }
         
@@ -447,8 +448,11 @@ public:
     {
         auto *o = Object::self(c);
         
-        uint32_t csc = *Channel::csc();
-        *Channel::csc() = (csc & ~FTM_CSC_CHF);
+        uint32_t csc;
+        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+            csc = *Channel::csc();
+            *Channel::csc() = (csc & ~FTM_CSC_CHF);
+        }
         
         if (!(csc & FTM_CSC_CHIE)) {
             return;
