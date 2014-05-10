@@ -172,7 +172,9 @@ private:
             if (ao->m_current_pin != PinIndex) {
                 return true;
             }
-            o->m_value = ADC0_RA;
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                o->m_value = ADC0_RA;
+            }
             ADC0_SC1A = ADC_SC1_AIEN | ADC_SC1_ADCH(AdcPin<NextPinIndex>::AdcIndex);
             ao->m_current_pin = NextPinIndex;
             if (PinIndex == NumPins - 1) {
