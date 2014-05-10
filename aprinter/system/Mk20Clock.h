@@ -211,6 +211,15 @@ private:
             
             static void handle_irq (InterruptContext<Context> c)
             {
+                if (FtmIndex == 0) {
+                    AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+                        uint32_t sc = *Ftm::sc();
+                        if (sc & FTM_SC_TOF) {
+                            *Ftm::sc() = sc & ~FTM_SC_TOF;
+                            Object::self(c)->m_offset += (uint32_t)TopVal + 1;
+                        }
+                    }
+                }
                 TimeType irq_time = getTime(c);
                 ListForEachForward<ChannelsList>(Foreach_irq_helper(), c, irq_time);
             }
@@ -268,17 +277,6 @@ private:
         
         static void irq_handler (InterruptContext<Context> c)
         {
-            auto *o = Object::self(c);
-            
-            if (FtmIndex == 0) {
-                AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
-                    uint32_t sc = *Ftm::sc();
-                    if (sc & FTM_SC_TOF) {
-                        *Ftm::sc() = sc & ~FTM_SC_TOF;
-                        o->m_offset += (uint32_t)TheModeHelper::TopVal + 1;
-                    }
-                }
-            }
             TheModeHelper::handle_irq(c);
         }
     };
