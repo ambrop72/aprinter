@@ -255,7 +255,7 @@ public:
         } while (not_finished);
     }
     
-    static void rx_isr (InterruptContext<Context> c)
+    static void rx_isr (AtomicContext<Context> c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(!o->m_recv_overrun)
@@ -274,7 +274,7 @@ public:
         Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
     }
     
-    static void udre_isr (InterruptContext<Context> c)
+    static void udre_isr (AtomicContext<Context> c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_send_start != o->m_send_end)
@@ -339,11 +339,11 @@ public:
 #define AMBRO_AVR_SERIAL_ISRS(avrserial, context) \
 ISR(USART0_RX_vect) \
 { \
-    avrserial::rx_isr(MakeInterruptContext(context)); \
+    avrserial::rx_isr(MakeAtomicContext(context)); \
 } \
 ISR(USART0_UDRE_vect) \
 { \
-    avrserial::udre_isr(MakeInterruptContext(context)); \
+    avrserial::udre_isr(MakeAtomicContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>

@@ -101,7 +101,7 @@ public:
         }
         Pin::Port::pcr0()[Pin::PinIndex] = pcr;
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Pin::Port::pddr() &= ~(UINT32_C(1) << Pin::PinIndex);
         }
     }
@@ -114,7 +114,7 @@ public:
         
         Pin::Port::pcr0()[Pin::PinIndex] = PORT_PCR_MUX(AlternateFunction) | PORT_PCR_SRE | PORT_PCR_DSE;
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Pin::Port::pddr() |= (UINT32_C(1) << Pin::PinIndex);
         }
     }

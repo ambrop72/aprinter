@@ -212,7 +212,7 @@ private:
             static void handle_irq (InterruptContext<Context> c)
             {
                 if (FtmIndex == 0) {
-                    AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+                    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                         uint32_t sc = *Ftm::sc();
                         if (sc & FTM_SC_TOF) {
                             *Ftm::sc() = sc & ~FTM_SC_TOF;
@@ -314,7 +314,7 @@ public:
         
         uint32_t offset;
         uint32_t low;
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             offset = o->m_offset;
             low = *MyFtm<0>::Ftm::cnt();
             if (*MyFtm<0>::Ftm::sc() & FTM_SC_TOF) {
@@ -397,7 +397,7 @@ public:
         o->m_running = true;
 #endif
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = Clock::getTime(lock_c);
             now -= time;
             now += clearance;
@@ -417,7 +417,7 @@ public:
         AMBRO_ASSERT((*Channel::csc() & FTM_CSC_CHIE))
         
         o->m_time = time;
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = Clock::getTime(lock_c);
             now -= time;
             now += clearance;
@@ -434,7 +434,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Channel::csc();
             *Channel::csc() = 0;
         }
@@ -449,7 +449,7 @@ public:
         auto *o = Object::self(c);
         
         uint32_t csc;
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             csc = *Channel::csc();
             *Channel::csc() = (csc & ~FTM_CSC_CHF);
         }

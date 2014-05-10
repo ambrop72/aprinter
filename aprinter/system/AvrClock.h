@@ -228,7 +228,7 @@ public:
     }
 #endif
     
-    static void timer1_ovf_isr (InterruptContext<Context> c)
+    static void timer1_ovf_isr (AtomicContext<Context> c)
     {
         auto *o = Object::self(c);
         o->m_offset++;
@@ -248,7 +248,7 @@ public:
     struct Object;
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
-    typedef InterruptContext<Context> HandlerContext;
+    typedef AtomicContext<Context> HandlerContext;
     
     static void init (Context c)
     {
@@ -397,7 +397,7 @@ public:
     }
     
     template <uint32_t check_ocr_reg>
-    static void timer_comp_isr (InterruptContext<Context> c)
+    static void timer_comp_isr (AtomicContext<Context> c)
     {
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         auto *o = Object::self(c);
@@ -460,7 +460,7 @@ public:
     struct Object;
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
-    typedef InterruptContext<Context> HandlerContext;
+    typedef AtomicContext<Context> HandlerContext;
     
     static void init (Context c)
     {
@@ -606,7 +606,7 @@ public:
     }
     
     template <uint32_t check_ocr_reg>
-    static void timer_comp_isr (InterruptContext<Context> c)
+    static void timer_comp_isr (AtomicContext<Context> c)
     {
         static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         auto *o = Object::self(c);
@@ -728,103 +728,103 @@ using AvrClockInterruptTimer_TC2_OCB = AvrClock8BitInterruptTimer<Context, Paren
 #define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \
 ISR(TIMER1_OVF_vect) \
 { \
-    avrclock::timer1_ovf_isr(MakeInterruptContext((context))); \
+    avrclock::timer1_ovf_isr(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER1_COMPA_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR1A)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR1A)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER1_COMPB_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR1B)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR1B)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCC_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER1_COMPC_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR1C)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR1C)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER3_COMPA_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR3A)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR3A)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER3_COMPB_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR3B)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR3B)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCC_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER3_COMPC_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR3C)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR3C)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER4_COMPA_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR4A)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR4A)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER4_COMPB_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR4B)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR4B)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCC_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER4_COMPC_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR4C)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR4C)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER5_COMPA_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR5A)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR5A)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER5_COMPB_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR5B)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR5B)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC5_OCC_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER5_COMPC_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR5C)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR5C)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER0_COMPA_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR0A)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR0A)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER0_COMPB_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR0B)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR0B)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCA_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER2_COMPA_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR2A)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR2A)>(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCB_ISRS(avrclockinterrupttimer, context) \
 ISR(TIMER2_COMPB_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR2B)>(MakeInterruptContext((context))); \
+    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR2B)>(MakeAtomicContext((context))); \
 }
 
 #include <aprinter/EndNamespace.h>

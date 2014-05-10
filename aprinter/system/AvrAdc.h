@@ -232,7 +232,7 @@ public:
         return FixedType::importBits(value);
     }
     
-    static void adc_isr (InterruptContext<Context> c)
+    static void adc_isr (AtomicContext<Context> c)
     {
         ListForEachForwardInterruptible<PinsList>(LForeach_handle_isr(), c);
     }
@@ -294,7 +294,7 @@ private:
             return (accum | AdcPinMask<Pin>::value);
         }
         
-        static bool handle_isr (InterruptContext<Context> c)
+        static bool handle_isr (AtomicContext<Context> c)
         {
             auto *o = Object::self(c);
             auto *ao = AvrAdc::Object::self(c);
@@ -336,7 +336,7 @@ public:
 #define AMBRO_AVR_ADC_ISRS(adc, context) \
 ISR(ADC_vect) \
 { \
-    adc::adc_isr(MakeInterruptContext(context)); \
+    adc::adc_isr(MakeAtomicContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>

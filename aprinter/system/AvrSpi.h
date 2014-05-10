@@ -203,7 +203,7 @@ public:
         Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
     
-    static void spi_stc_isr (InterruptContext<Context> c)
+    static void spi_stc_isr (AtomicContext<Context> c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_start != o->m_end)
@@ -331,7 +331,7 @@ public:
 #define AMBRO_AVR_SPI_ISRS(avrspi, context) \
 ISR(SPI_STC_vect) \
 { \
-    avrspi::spi_stc_isr(MakeInterruptContext(context)); \
+    avrspi::spi_stc_isr(MakeAtomicContext(context)); \
 }
 
 #include <aprinter/EndNamespace.h>

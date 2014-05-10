@@ -122,7 +122,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             set_moder<Pin, 0>();
             set_pupdr<Pin, Mode::Pupdr>();
         }
@@ -134,7 +134,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             set_optyper<Pin, Mode::Optyper>();
             set_moder<Pin, 1>();
             set_pupdr<Pin, 0>();
@@ -147,7 +147,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             set_af<Pin, AfNumber>();
             set_moder<Pin, 2>();
             set_pupdr<Pin, 0>();

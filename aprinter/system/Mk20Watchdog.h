@@ -71,7 +71,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             WDOG_REFRESH = UINT16_C(0xA602);
             WDOG_REFRESH = UINT16_C(0xB480);
         }

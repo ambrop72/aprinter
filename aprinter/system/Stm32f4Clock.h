@@ -272,7 +272,7 @@ public:
         o->m_running = true;
 #endif
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = Clock::get_time_interrupt(c);
             now -= time;
             now += clearance;
@@ -295,7 +295,7 @@ public:
         AMBRO_ASSERT((ch()->TC_IMR & CpMask))
         
         o->m_time = time;
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = Clock::get_time_interrupt(c);
             now -= time;
             now += clearance;
@@ -312,7 +312,7 @@ public:
         Stm32f4ClockInterruptTimer *o = self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             ch()->TC_IDR = CpMask;
         }
         

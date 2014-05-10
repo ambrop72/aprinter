@@ -256,7 +256,7 @@ public:
         o->m_running = true;
 #endif
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = Clock::template MyTc<0>::ch()->TC_CV;
             now -= time;
             now += clearance;
@@ -276,7 +276,7 @@ public:
         AMBRO_ASSERT((ch()->TC_IMR & CpMask))
         
         o->m_time = time;
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = Clock::template MyTc<0>::ch()->TC_CV;
             now -= time;
             now += clearance;
@@ -293,7 +293,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             ch()->TC_IDR = CpMask;
         }
         

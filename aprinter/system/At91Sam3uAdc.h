@@ -259,7 +259,7 @@ private:
             {
                 auto *o = Object::self(c);
                 uint32_t value;
-                AMBRO_LOCK_T(AtomicTempLock(), c, lock_c) {
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                     value = o->m_state;
                 }
                 return ((value >> 16) + ((value >> 15) & 1));
