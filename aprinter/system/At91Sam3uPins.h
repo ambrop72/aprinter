@@ -30,6 +30,8 @@
 
 #include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Lock.h>
+#include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -110,24 +112,28 @@ public:
         pio<typename Pin::Pio>()->PIO_PER = (UINT32_C(1) << Pin::PinIndex);
     }
     
-    template <typename Pin>
-    static void setPeripheralOutputA (Context c)
+    template <typename Pin, typename ThisContext>
+    static void setPeripheralOutputA (ThisContext c)
     {
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        pio<typename Pin::Pio>()->PIO_ABSR &= ~(UINT32_C(1) << Pin::PinIndex);
-        pio<typename Pin::Pio>()->PIO_PDR = (UINT32_C(1) << Pin::PinIndex);
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            pio<typename Pin::Pio>()->PIO_ABSR &= ~(UINT32_C(1) << Pin::PinIndex);
+            pio<typename Pin::Pio>()->PIO_PDR = (UINT32_C(1) << Pin::PinIndex);
+        }
     }
     
-    template <typename Pin>
-    static void setPeripheralOutputB (Context c)
+    template <typename Pin, typename ThisContext>
+    static void setPeripheralOutputB (ThisContext c)
     {
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        pio<typename Pin::Pio>()->PIO_ABSR |= (UINT32_C(1) << Pin::PinIndex);
-        pio<typename Pin::Pio>()->PIO_PDR = (UINT32_C(1) << Pin::PinIndex);
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            pio<typename Pin::Pio>()->PIO_ABSR |= (UINT32_C(1) << Pin::PinIndex);
+            pio<typename Pin::Pio>()->PIO_PDR = (UINT32_C(1) << Pin::PinIndex);
+        }
     }
     
     template <typename Pin, typename ThisContext>
