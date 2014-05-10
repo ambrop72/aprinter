@@ -135,7 +135,7 @@ private:
             if (TcIndex != 0) {
                 ch()->TC_SR;
             }
-            TimeType irq_time = get_time_interrupt(c);
+            TimeType irq_time = getTime(c);
             At91Sam3uClock__IrqCompHelper<TcSpec, At91Sam3uClock__CompA>::call(irq_time);
             At91Sam3uClock__IrqCompHelper<TcSpec, At91Sam3uClock__CompB>::call(irq_time);
             At91Sam3uClock__IrqCompHelper<TcSpec, At91Sam3uClock__CompC>::call(irq_time);
@@ -178,34 +178,25 @@ public:
     static TimeType getTime (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
         
-        TimeType time;
+        uint16_t offset;
+        uint16_t low;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            time = get_time_interrupt(c);
+            offset = o->m_offset;
+            low = MyTc<0>::ch()->TC_CV;
+            if (MyTc<0>::ch()->TC_SR & TC_SR_COVFS) {
+                offset++;
+                o->m_offset = offset;
+                low = MyTc<0>::ch()->TC_CV;
+            }
         }
-        return time;
+        return ((uint32_t)offset << 16) | low;
     }
     
     template <typename TcSpec>
     static void tc_irq_handler (InterruptContext<Context> c)
     {
         FindTc<TcSpec>::irq_handler(c);
-    }
-    
-public:
-    static TimeType get_time_interrupt (Context c)
-    {
-        auto *o = Object::self(c);
-        
-        uint16_t offset = o->m_offset;
-        uint16_t low = MyTc<0>::ch()->TC_CV;
-        if (MyTc<0>::ch()->TC_SR & TC_SR_COVFS) {
-            offset++;
-            o->m_offset = offset;
-            low = MyTc<0>::ch()->TC_CV;
-        }
-        return ((uint32_t)offset << 16) | low;
     }
     
 public:
@@ -277,7 +268,7 @@ public:
 #endif
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            TimeType now = Clock::get_time_interrupt(c);
+            TimeType now = Clock::getTime(lock_c);
             now -= time;
             now += clearance;
             if (now < UINT32_C(0x80000000)) {
@@ -300,7 +291,7 @@ public:
         
         o->m_time = time;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            TimeType now = Clock::get_time_interrupt(c);
+            TimeType now = Clock::getTime(lock_c);
             now -= time;
             now += clearance;
             if (now < UINT32_C(0x80000000)) {
