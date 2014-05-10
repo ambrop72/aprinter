@@ -251,7 +251,10 @@ private:
             static void calc_avg (ThisContext c)
             {
                 auto *o = Object::self(c);
-                o->m_state = (((uint64_t)(65536 - TheSmoothFactor) * ((uint32_t)ADC12B->ADC12B_CDR[AdcIndex] << 16)) + ((uint64_t)TheSmoothFactor * o->m_state)) >> 16;
+                uint32_t new_state = (((uint64_t)(65536 - TheSmoothFactor) * ((uint32_t)ADC12B->ADC12B_CDR[AdcIndex] << 16)) + ((uint64_t)TheSmoothFactor * o->m_state)) >> 16;
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                    o->m_state = new_state;
+                }
             }
             
             template <typename ThisContext>
