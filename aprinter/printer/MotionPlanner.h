@@ -389,7 +389,9 @@ private:
                 *cmd = &o->m_commit_buffer[o->m_commit_start];
                 o->m_commit_start = commit_inc(o->m_commit_start);
             } else {
-                m->m_syncing = false;
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                    m->m_syncing = false;
+                }
                 if (o->m_backup_start == o->m_backup_end) {
                     o->m_busy = false;
                     return false;
@@ -921,7 +923,9 @@ public:
                 o->m_commit_start = commit_inc(o->m_commit_start);
             } else {
                 o->m_backup_start++;
-                m->m_syncing = false;
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                    m->m_syncing = false;
+                }
             }
             if (o->m_commit_start != o->m_commit_end) {
                 o->m_cmd = &o->m_commit_buffer[o->m_commit_start];
