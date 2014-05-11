@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_AT91SAM3X_WATCHDOG_H
-#define AMBROLIB_AT91SAM3X_WATCHDOG_H
+#ifndef AMBROLIB_AT91SAM_WATCHDOG_H
+#define AMBROLIB_AT91SAM_WATCHDOG_H
 
 #include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
@@ -31,12 +31,12 @@
 #include <aprinter/BeginNamespace.h>
 
 template <uint32_t TWdv>
-struct At91Sam3xWatchdogParams {
+struct At91SamWatchdogParams {
     static const uint32_t Wdv = TWdv;
 };
 
 template <typename Context, typename ParentObject, typename Params>
-class At91Sam3xWatchdog {
+class At91SamWatchdog {
     static_assert(Params::Wdv <= 0xFFF, "");
     
 public:
@@ -67,7 +67,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<At91Sam3xWatchdog, ParentObject, EmptyTypeList>,
+    struct Object : public ObjBase<At91SamWatchdog, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
     {};
 };

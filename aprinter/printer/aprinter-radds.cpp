@@ -40,7 +40,7 @@ static void emergency (void);
 #include <aprinter/system/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/system/At91Sam3xAdc.h>
-#include <aprinter/system/At91Sam3xWatchdog.h>
+#include <aprinter/system/At91SamWatchdog.h>
 #include <aprinter/system/At91Sam3xSerial.h>
 #include <aprinter/system/At91SamSpi.h>
 #include <aprinter/system/AsfUsbSerial.h>
@@ -227,8 +227,8 @@ using PrinterParams = PrinterMainParams<
     ForceTimeout, // ForceTimeout
     double, // FpType
     At91Sam3xClockInterruptTimer_TC0A, // EventChannelTimer
-    At91Sam3xWatchdog,
-    At91Sam3xWatchdogParams<260>,
+    At91SamWatchdog,
+    At91SamWatchdogParams<260>,
     PrinterMainSdCardParams<
         SpiSdCard,
         SpiSdCardParams<
