@@ -37,6 +37,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/system/InterruptLock.h>
+#include <aprinter/system/At91SamPins.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -58,8 +59,8 @@ struct At91SamSpiDevice {
 };
 
 template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits, typename Device>
-class At91SamSpi {
-    using FastEvent = typename Context::EventLoop::template FastEventSpec<At91SamSpi>;
+class At91SamSpiBase {
+    using FastEvent = typename Context::EventLoop::template FastEventSpec<At91SamSpiBase>;
     
     enum {
         COMMAND_READ_BUFFER,
@@ -99,7 +100,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        Context::EventLoop::template initFastEvent<FastEvent>(c, At91SamSpi::event_handler);
+        Context::EventLoop::template initFastEvent<FastEvent>(c, At91SamSpiBase::event_handler);
         o->m_start = CommandSizeType::import(0);
         o->m_end = CommandSizeType::import(0);
         
@@ -327,7 +328,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<At91SamSpi, ParentObject, EmptyTypeList>,
+    struct Object : public ObjBase<At91SamSpiBase, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
     {
         CommandSizeType m_start;
@@ -336,6 +337,56 @@ public:
         Command m_buffer[(size_t)CommandSizeType::maxIntValue() + 1];
     };
 };
+
+#if defined(__SAM3X8E__)
+
+using At91Sam3xSpiDevice = At91SamSpiDevice<
+    GET_PERIPHERAL_ADDR(SPI0),
+    ID_SPI0,
+    SPI0_IRQn, 
+    At91SamPin<At91SamPioA, 27>,
+    At91SamPin<At91SamPioA, 26>,
+    At91SamPin<At91SamPioA, 25>
+>;
+
+template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
+using At91Sam3xSpi = At91SamSpiBase<Context, ParentObject, Handler, CommandBufferBits, At91Sam3xSpiDevice>;
+
+#define AMBRO_AT91SAM3X_SPI_GLOBAL(thespi, context) \
+extern "C" \
+__attribute__((used)) \
+void SPI0_Handler (void) \
+{ \
+    thespi::spi_irq(MakeInterruptContext(context)); \
+}
+
+#elif defined(__SAM3U4E__)
+
+using At91Sam3uSpiDevice = At91SamSpiDevice<
+    GET_PERIPHERAL_ADDR(SPI),
+    ID_SPI,
+    SPI_IRQn, 
+    At91SamPin<At91SamPioA, 15>,
+    At91SamPin<At91SamPioA, 14>,
+    At91SamPin<At91SamPioA, 13>
+>;
+
+template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
+using At91Sam3uSpi = At91SamSpiBase<Context, ParentObject, Handler, CommandBufferBits, At91Sam3uSpiDevice>;
+
+#define AMBRO_AT91SAM3U_SPI_GLOBAL(thespi, context) \
+extern "C" \
+__attribute__((used)) \
+void SPI_Handler (void) \
+{ \
+    thespi::spi_irq(MakeInterruptContext(context)); \
+}
+
+#else
+
+#error "Unsupported device"
+
+#endif
 
 #include <aprinter/EndNamespace.h>
 

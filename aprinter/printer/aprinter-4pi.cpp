@@ -42,7 +42,7 @@ static void emergency (void);
 #include <aprinter/system/At91Sam3uAdc.h>
 #include <aprinter/system/At91Sam3xWatchdog.h>
 #include <aprinter/system/AsfUsbSerial.h>
-#include <aprinter/system/At91Sam3uSpi.h>
+#include <aprinter/system/At91SamSpi.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
