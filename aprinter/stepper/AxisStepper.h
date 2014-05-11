@@ -56,11 +56,11 @@
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
 template <
-    template<typename, typename, typename> class TTimer,
+    typename TTimerService,
     typename TPrecisionParams
 >
 struct AxisStepperParams {
-    template<typename X, typename Y, typename Z> using Timer = TTimer<X, Y, Z>;
+    using TimerService = TTimerService;
     using PrecisionParams = TPrecisionParams;
 };
 
@@ -107,7 +107,7 @@ public:
     struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    using TimerInstance = typename Params::template Timer<Context, Object, TimerHandler>;
+    using TimerInstance = typename Params::TimerService::template InterruptTimer<Context, Object, TimerHandler>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
     using DirStepFixedType = FixedPoint<step_bits + 2, false, 0>;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;

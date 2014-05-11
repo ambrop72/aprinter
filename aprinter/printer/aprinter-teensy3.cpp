@@ -174,7 +174,7 @@ using PrinterParams = PrinterMainParams<
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     float, // FpType
-    Mk20ClockInterruptTimerService<Mk20ClockFTM0, 0>::InterruptTimer, // EventChannelTimer
+    Mk20ClockInterruptTimerService<Mk20ClockFTM0, 0>, // EventChannelTimer
     Mk20Watchdog,
     Mk20WatchdogParams<2000, 0>,
     PrinterMainNoSdCardParams,
@@ -213,7 +213,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 1>::InterruptTimer, // StepperTimer,
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 1>, // StepperTimer,
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -246,7 +246,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 2>::InterruptTimer, // StepperTimer
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 2>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -279,7 +279,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 3>::InterruptTimer, // StepperTimer
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 3>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -301,7 +301,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 4>::InterruptTimer, // StepperTimer
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 4>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -387,7 +387,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 5>::InterruptTimer // TimerTemplate
+            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 5> // TimerTemplate
         >
 #if 0
         PrinterMainHeaterParams<
@@ -423,7 +423,7 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 6>::InterruptTimer // TimerTemplate
+            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 6> // TimerTemplate
         >
 #endif
     >,
@@ -439,7 +439,7 @@ using PrinterParams = PrinterMainParams<
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7>::InterruptTimer // TimerTemplate
+            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7> // TimerTemplate
         >
     >
 >;

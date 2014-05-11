@@ -226,7 +226,7 @@ using PrinterParams = PrinterMainParams<
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
-    At91Sam3xClockInterruptTimerService<At91Sam3xClockTC0, At91Sam3xClockCompA>::InterruptTimer, // EventChannelTimer
+    At91Sam3xClockInterruptTimerService<At91Sam3xClockTC0, At91Sam3xClockCompA>, // EventChannelTimer
     At91SamWatchdog,
     At91SamWatchdogParams<260>,
     PrinterMainSdCardParams<
@@ -294,7 +294,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC1, At91Sam3xClockCompA>::InterruptTimer, // StepperTimer,
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC1, At91Sam3xClockCompA>, // StepperTimer,
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -327,7 +327,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC2, At91Sam3xClockCompA>::InterruptTimer, // StepperTimer
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC2, At91Sam3xClockCompA>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -360,7 +360,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC3, At91Sam3xClockCompA>::InterruptTimer, // StepperTimer
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC3, At91Sam3xClockCompA>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -382,7 +382,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC4, At91Sam3xClockCompA>::InterruptTimer, // StepperTimer
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC4, At91Sam3xClockCompA>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -404,7 +404,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC8, At91Sam3xClockCompA>::InterruptTimer, // StepperTimer
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC8, At91Sam3xClockCompA>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -453,7 +453,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC5, At91Sam3xClockCompA>::InterruptTimer // TimerTemplate
+            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC5, At91Sam3xClockCompA> // TimerTemplate
         >,
         PrinterMainHeaterParams<
             'B', // Name
@@ -488,7 +488,7 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC5, At91Sam3xClockCompB>::InterruptTimer // TimerTemplate
+            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC5, At91Sam3xClockCompB> // TimerTemplate
         >,
         PrinterMainHeaterParams<
             'U', // Name
@@ -523,7 +523,7 @@ using PrinterParams = PrinterMainParams<
                 UxtruderHeaterObserverTolerance, // ObserverTolerance
                 UxtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC6, At91Sam3xClockCompA>::InterruptTimer // TimerTemplate
+            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC6, At91Sam3xClockCompA> // TimerTemplate
         >
     >,
     
@@ -538,7 +538,7 @@ using PrinterParams = PrinterMainParams<
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC6, At91Sam3xClockCompB>::InterruptTimer // TimerTemplate
+            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC6, At91Sam3xClockCompB> // TimerTemplate
         >,
         PrinterMainFanParams<
             406, // SetMCommand
@@ -547,7 +547,7 @@ using PrinterParams = PrinterMainParams<
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC7, At91Sam3xClockCompA>::InterruptTimer // TimerTemplate
+            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC7, At91Sam3xClockCompA> // TimerTemplate
         >
     >
 >;

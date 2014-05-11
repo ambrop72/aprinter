@@ -34,7 +34,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Pin, bool Invert, typename PulseInterval, typename TimerCallback, template<typename, typename, typename> class TimerTemplate>
+template <typename Context, typename ParentObject, typename Pin, bool Invert, typename PulseInterval, typename TimerCallback, typename TimerService>
 class SoftPwm {
 private:
     struct TimerHandler;
@@ -43,7 +43,7 @@ public:
     struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    using TimerInstance = TimerTemplate<Context, Object, TimerHandler>;
+    using TimerInstance = typename TimerService::template InterruptTimer<Context, Object, TimerHandler>;
     
     struct PowerData {
         TimeType on_time;

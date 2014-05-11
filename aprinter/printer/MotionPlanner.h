@@ -76,13 +76,13 @@ template <
     typename TPayload,
     typename TCallback,
     int TBufferSize,
-    template <typename, typename, typename> class TTimer
+    typename TTimerService
 >
 struct MotionPlannerChannelSpec {
     using Payload = TPayload;
     using Callback = TCallback;
     static const int BufferSize = TBufferSize;
-    template<typename X, typename Y, typename Z> using Timer = TTimer<X, Y, Z>;
+    using TimerService = TTimerService;
 };
 
 template <
@@ -784,7 +784,7 @@ public:
         using Payload = typename ChannelSpec::Payload;
         using TheChannelCommand = ChannelCommand<ChannelIndex>;
         using TheChannelSegment = ChannelSegment<ChannelIndex>;
-        using TheTimer = typename ChannelSpec::template Timer<Context, Object, TimerHandler>;
+        using TheTimer = typename ChannelSpec::TimerService::template InterruptTimer<Context, Object, TimerHandler>;
         using CallbackContext = typename TheTimer::HandlerContext;
         
     public: // private, workaround gcc bug

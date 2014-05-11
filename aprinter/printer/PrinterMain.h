@@ -88,7 +88,7 @@ template <
     int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSize,
     int TLookaheadCommitCount,
     typename TForceTimeout, typename TFpType,
-    template <typename, typename, typename> class TEventChannelTimer,
+    typename TEventChannelTimerService,
     template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
     typename TSdCardParams, typename TProbeParams, typename TCurrentParams,
     typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList,
@@ -107,7 +107,7 @@ struct PrinterMainParams {
     static int const LookaheadCommitCount = TLookaheadCommitCount;
     using ForceTimeout = TForceTimeout;
     using FpType = TFpType;
-    template <typename X, typename Y, typename Z> using EventChannelTimer = TEventChannelTimer<X, Y, Z>;
+    using EventChannelTimerService = TEventChannelTimerService;
     template <typename X, typename Y, typename Z> using WatchdogTemplate = TWatchdogTemplate<X, Y, Z>;
     using WatchdogParams = TWatchdogParams;
     using SdCardParams = TSdCardParams;
@@ -267,7 +267,7 @@ template <
     template<typename, typename, typename> class TControl,
     typename TControlParams,
     typename TTheTemperatureObserverParams,
-    template<typename, typename, typename> class TTimerTemplate
+    typename TTimerService
 >
 struct PrinterMainHeaterParams {
     static char const Name = TName;
@@ -285,13 +285,13 @@ struct PrinterMainHeaterParams {
     template <typename X, typename Y, typename Z> using Control = TControl<X, Y, Z>;
     using ControlParams = TControlParams;
     using TheTemperatureObserverParams = TTheTemperatureObserverParams;
-    template <typename X, typename Y, typename Z> using TimerTemplate = TTimerTemplate<X, Y, Z>;
+    using TimerService = TTimerService;
 };
 
 template <
     int TSetMCommand, int TOffMCommand,
     typename TOutputPin, bool TOutputInvert, typename TPulseInterval, typename TSpeedMultiply,
-    template<typename, typename, typename> class TTimerTemplate
+    typename TTimerService
 >
 struct PrinterMainFanParams {
     static int const SetMCommand = TSetMCommand;
@@ -300,7 +300,7 @@ struct PrinterMainFanParams {
     static bool const OutputInvert = TOutputInvert;
     using PulseInterval = TPulseInterval;
     using SpeedMultiply = TSpeedMultiply;
-    template <typename X, typename Y, typename Z> using TimerTemplate = TTimerTemplate<X, Y, Z>;
+    using TimerService = TTimerService;
 };
 
 struct PrinterMainNoSdCardParams {
@@ -2353,7 +2353,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using HeaterSpec = TypeListGet<ParamsHeatersList, HeaterIndex>;
         using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, typename HeaterSpec::ControlInterval, FpType>;
         using ControlConfig = typename TheControl::Config;
-        using TheSoftPwm = SoftPwm<Context, Object, typename HeaterSpec::OutputPin, HeaterSpec::OutputInvert, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, HeaterSpec::template TimerTemplate>;
+        using TheSoftPwm = SoftPwm<Context, Object, typename HeaterSpec::OutputPin, HeaterSpec::OutputInvert, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, typename HeaterSpec::TimerService>;
         using TheObserver = TemperatureObserver<Context, Object, FpType, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using PwmPowerData = typename TheSoftPwm::PowerData;
         using TheFormula = typename HeaterSpec::Formula::template Inner<FpType>;
@@ -2620,7 +2620,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct SoftPwmTimerHandler;
         
         using FanSpec = TypeListGet<ParamsFansList, FanIndex>;
-        using TheSoftPwm = SoftPwm<Context, Object, typename FanSpec::OutputPin, FanSpec::OutputInvert, typename FanSpec::PulseInterval, SoftPwmTimerHandler, FanSpec::template TimerTemplate>;
+        using TheSoftPwm = SoftPwm<Context, Object, typename FanSpec::OutputPin, FanSpec::OutputInvert, typename FanSpec::PulseInterval, SoftPwmTimerHandler, typename FanSpec::TimerService>;
         using PwmPowerData = typename TheSoftPwm::PowerData;
         
         struct ChannelPayload {
@@ -2712,7 +2712,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         };
     };
     
-    using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, Params::template EventChannelTimer>>;
+    using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, typename Params::EventChannelTimerService>>;
     using MotionPlannerAxes = MapTypeList<AxesList, TemplateFunc<MakePlannerAxisSpec>>;
     using MotionPlannerLasers = MapTypeList<LasersList, TemplateFunc<MakePlannerLaserSpec>>;
     using ThePlanner = MotionPlanner<Context, typename PlannerUnionPlanner::Object, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels, MotionPlannerLasers>;

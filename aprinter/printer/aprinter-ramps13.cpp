@@ -223,7 +223,7 @@ using PrinterParams = PrinterMainParams<
     6, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
-    AvrClockInterruptTimerService<AvrClockTcChannel5C>::InterruptTimer, // EventChannelTimer
+    AvrClockInterruptTimerService<AvrClockTcChannel5C>, // EventChannelTimer
     AvrWatchdog,
     AvrWatchdogParams<
         WDTO_2S
@@ -293,7 +293,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimerService<AvrClockTcChannel3A>::InterruptTimer, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel3A>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -326,7 +326,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimerService<AvrClockTcChannel3B>::InterruptTimer, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel3B>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -359,7 +359,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimerService<AvrClockTcChannel3C>::InterruptTimer, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel3C>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -381,7 +381,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimerService<AvrClockTcChannel4A>::InterruptTimer, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel4A>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -403,7 +403,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimerService<AvrClockTcChannel4B>::InterruptTimer, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel4B>, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -452,7 +452,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            AvrClockInterruptTimerService<AvrClockTcChannel4C>::InterruptTimer // TimerTemplate
+            AvrClockInterruptTimerService<AvrClockTcChannel4C> // TimerTemplate
         >,
         PrinterMainHeaterParams<
             'B', // Name
@@ -487,7 +487,7 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            AvrClockInterruptTimerService<AvrClockTcChannel5A>::InterruptTimer // TimerTemplate
+            AvrClockInterruptTimerService<AvrClockTcChannel5A> // TimerTemplate
         >,
         PrinterMainHeaterParams<
             'U', // Name
@@ -522,7 +522,7 @@ using PrinterParams = PrinterMainParams<
                 UxtruderHeaterObserverTolerance, // ObserverTolerance
                 UxtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            AvrClockInterruptTimerService<AvrClockTcChannel5B>::InterruptTimer // TimerTemplate
+            AvrClockInterruptTimerService<AvrClockTcChannel5B> // TimerTemplate
         >
     >,
     
@@ -537,7 +537,7 @@ using PrinterParams = PrinterMainParams<
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            AvrClockInterruptTimerService<AvrClockTcChannel1A>::InterruptTimer // TimerTemplate
+            AvrClockInterruptTimerService<AvrClockTcChannel1A> // TimerTemplate
         >,
         PrinterMainFanParams<
             406, // SetMCommand
@@ -546,7 +546,7 @@ using PrinterParams = PrinterMainParams<
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            AvrClockInterruptTimerService<AvrClockTcChannel1B>::InterruptTimer // TimerTemplate
+            AvrClockInterruptTimerService<AvrClockTcChannel1B> // TimerTemplate
         >
     >
 >;
