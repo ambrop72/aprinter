@@ -435,7 +435,6 @@ public:
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            *Channel::csc();
             *Channel::csc() = 0;
         }
         
