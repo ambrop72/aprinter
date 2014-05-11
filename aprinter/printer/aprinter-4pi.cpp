@@ -39,7 +39,7 @@ static void emergency (void);
 #include <aprinter/system/At91Sam3uClock.h>
 #include <aprinter/system/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
-#include <aprinter/system/At91Sam3uAdc.h>
+#include <aprinter/system/At91SamAdc.h>
 #include <aprinter/system/At91SamWatchdog.h>
 #include <aprinter/system/AsfUsbSerial.h>
 #include <aprinter/system/At91SamSpi.h>
@@ -574,16 +574,16 @@ using PrinterParams = PrinterMainParams<
 
 // need to list all used ADC pins here
 using AdcPins = MakeTypeList<
-    At91Sam3uAdcSmoothPin<At91SamPin<At91SamPioB, 4>, AdcSmoothing>,
-    At91Sam3uAdcSmoothPin<At91SamPin<At91SamPioC, 16>, AdcSmoothing>,
-    At91Sam3uAdcSmoothPin<At91SamPin<At91SamPioA, 30>, AdcSmoothing>
+    At91SamAdcSmoothPin<At91SamPin<At91SamPioB, 4>, AdcSmoothing>,
+    At91SamAdcSmoothPin<At91SamPin<At91SamPioC, 16>, AdcSmoothing>,
+    At91SamAdcSmoothPin<At91SamPin<At91SamPioA, 30>, AdcSmoothing>
 >;
 
 using AdcParams = At91Sam3uAdcParams<
     AdcFreq,
     255, // AdcStartup
     15, // AdcShtim
-    At91Sam3uAdcAvgParams<AdcAvgInterval>
+    At91SamAdcAvgParams<AdcAvgInterval>
 >;
 
 static const int clock_timer_prescaler = 3;
@@ -601,7 +601,7 @@ using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
 using MyClock = At91Sam3uClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
 using MyPins = At91SamPins<MyContext, Program>;
-using MyAdc = At91Sam3uAdc<MyContext, Program, AdcPins, AdcParams>;
+using MyAdc = At91SamAdc<MyContext, Program, AdcPins, AdcParams>;
 using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
 
 struct MyContext {

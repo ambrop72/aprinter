@@ -39,7 +39,7 @@ static void emergency (void);
 #include <aprinter/system/Stm32f4Clock.h>
 #include <aprinter/system/Stm32f4Pins.h>
 #include <aprinter/system/InterruptLock.h>
-//#include <aprinter/system/At91Sam3xAdc.h>
+//#include <aprinter/system/At91SamAdc.h>
 //#include <aprinter/system/At91SamWatchdog.h>
 //#include <aprinter/system/At91Sam3xSerial.h>
 //#include <aprinter/system/At91Sam3xSpi.h>
@@ -523,9 +523,9 @@ using PrinterParams = PrinterMainParams<
 
 // need to list all used ADC pins here
 using AdcPins = MakeTypeList<
-    At91Sam3xAdcSmoothPin<DuePinA1, AdcSmoothing>,
-    At91Sam3xAdcSmoothPin<DuePinA0, AdcSmoothing>,
-    At91Sam3xAdcSmoothPin<DuePinA2, AdcSmoothing>
+    At91SamAdcSmoothPin<DuePinA1, AdcSmoothing>,
+    At91SamAdcSmoothPin<DuePinA0, AdcSmoothing>,
+    At91SamAdcSmoothPin<DuePinA2, AdcSmoothing>
 >;
 
 using AdcParams = At91Sam3xAdcParams<
@@ -534,7 +534,7 @@ using AdcParams = At91Sam3xAdcParams<
     3, // AdcSettling
     0, // AdcTracking
     1, // AdcTransfer
-    At91Sam3xAdcAvgParams<AdcAvgInterval>
+    At91SamAdcAvgParams<AdcAvgInterval>
 >;
 #endif
 
@@ -551,7 +551,7 @@ using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
 using MyClock = Stm32f4Clock<MyContext, Program, clock_timer_prescaler, ClockTcsList>;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
 using MyPins = Stm32f4Pins<MyContext, Program>;
-//using MyAdc = At91Sam3uAdc<MyContext, Program, AdcPins, AdcParams>;
+//using MyAdc = At91SamAdc<MyContext, Program, AdcPins, AdcParams>;
 //using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
 using MyUsb = Stm32f4Usb<MyContext, Program, Stm32F4UsbInfoFS>;
 

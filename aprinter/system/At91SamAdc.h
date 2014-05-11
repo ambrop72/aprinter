@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_AT91SAM3X_ADC_H
-#define AMBROLIB_AT91SAM3X_ADC_H
+#ifndef AMBROLIB_AT91SAM_ADC_H
+#define AMBROLIB_AT91SAM_ADC_H
 
 #include <stdint.h>
 #include <sam/drivers/pmc/pmc.h>
@@ -50,6 +50,8 @@
 
 #include <aprinter/BeginNamespace.h>
 
+#if defined(__SAM3X8E__)
+
 struct At91Sam3xAdcTempInput {};
 
 template <
@@ -65,29 +67,53 @@ struct At91Sam3xAdcParams {
     using AvgParams = TAvgParams;
 };
 
-struct At91Sam3xAdcNoAvgParams {
+#elif defined(__SAM3U4E__)
+
+template <
+    typename TAdcFreq, uint8_t TAdcStartup, uint8_t TAdcShtim,
+    typename TAvgParams
+>
+struct At91Sam3uAdcParams {
+    using AdcFreq = TAdcFreq;
+    static const uint8_t AdcStartup = TAdcStartup;
+    static const uint8_t AdcShtim = TAdcShtim;
+    using AvgParams = TAvgParams;
+};
+
+#else
+#error "Unsupported device."
+#endif
+
+struct At91SamAdcNoAvgParams {
     static const bool Enabled = false;
 };
 
 template <
     typename TAvgInterval
 >
-struct At91Sam3xAdcAvgParams {
+struct At91SamAdcAvgParams {
     static const bool Enabled = true;
     using AvgInterval = TAvgInterval;
 };
 
 template <typename TPin, uint16_t TSmoothFactor>
-struct At91Sam3xAdcSmoothPin {};
+struct At91SamAdcSmoothPin {};
 
 template <typename Context, typename ParentObject, typename ParamsPinsList, typename Params>
-class At91Sam3xAdc {
+class At91SamAdc {
+#if defined(__SAM3X8E__)
     static_assert(Params::AdcFreq::value() >= 1000000.0, "");
     static_assert(Params::AdcFreq::value() <= 20000000.0, "");
     static_assert(Params::AdcStartup < 16, "");
     static_assert(Params::AdcSettling < 4, "");
     static_assert(Params::AdcTracking < 16, "");
     static_assert(Params::AdcTransfer < 4, "");
+#elif defined(__SAM3U4E__)
+    static_assert(Params::AdcFreq::value() >= 1000000.0, "");
+    static_assert(Params::AdcFreq::value() <= 20000000.0, "");
+    static_assert(Params::AdcStartup < 256, "");
+    static_assert(Params::AdcShtim < 16, "");
+#endif
     
     static const int32_t AdcPrescal = ((F_MCK / (2.0 * Params::AdcFreq::value())) - 1.0) + 0.5;
     static_assert(AdcPrescal >= 0, "");
@@ -95,6 +121,7 @@ class At91Sam3xAdc {
     
     static const int NumPins = TypeListLength<ParamsPinsList>::value;
     
+#if defined(__SAM3X8E__)
     using AdcList = MakeTypeList<
         At91SamPin<At91SamPioA, 2>,
         At91SamPin<At91SamPioA, 3>,
@@ -113,6 +140,18 @@ class At91Sam3xAdc {
         At91SamPin<At91SamPioB, 21>,
         At91Sam3xAdcTempInput
     >;
+#elif defined(__SAM3U4E__)
+    using AdcList = MakeTypeList<
+        At91SamPin<At91SamPioA, 22>,
+        At91SamPin<At91SamPioA, 30>,
+        At91SamPin<At91SamPioB, 3>,
+        At91SamPin<At91SamPioB, 4>,
+        At91SamPin<At91SamPioC, 15>,
+        At91SamPin<At91SamPioC, 16>,
+        At91SamPin<At91SamPioC, 17>,
+        At91SamPin<At91SamPioC, 18>
+    >;
+#endif
     
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_make_pin_mask, make_pin_mask)
@@ -140,7 +179,7 @@ class At91Sam3xAdc {
             }
         }
         
-        struct Object : public ObjBase<AvgFeature, typename At91Sam3xAdc::Object, EmptyTypeList> {
+        struct Object : public ObjBase<AvgFeature, typename At91SamAdc::Object, EmptyTypeList> {
             TimeType m_next;
         };
     } AMBRO_STRUCT_ELSE(AvgFeature) {
@@ -159,6 +198,7 @@ public:
         if (NumPins > 0) {
             AvgFeature::init(c);
             ListForEachForward<PinsList>(LForeach_init(), c);
+#if defined(__SAM3X8E__)
             pmc_enable_periph_clk(ID_ADC);
             ADC->ADC_CHDR = UINT32_MAX;
             ADC->ADC_CHER = ListForEachForwardAccRes<PinsList>(0, LForeach_make_pin_mask());
@@ -173,6 +213,20 @@ public:
             NVIC_EnableIRQ(ADC_IRQn);
             ADC->ADC_IER = (uint32_t)1 << MaxAdcIndex;
             ADC->ADC_CR = ADC_CR_START;
+#elif defined(__SAM3U4E__)
+            pmc_enable_periph_clk(ID_ADC12B);
+            ADC12B->ADC12B_CHDR = UINT32_MAX;
+            ADC12B->ADC12B_CHER = ListForEachForwardAccRes<PinsList>(0, LForeach_make_pin_mask());
+            ADC12B->ADC12B_MR = ADC12B_MR_PRESCAL(AdcPrescal) |
+                                ADC12B_MR_STARTUP(Params::AdcStartup) | ADC12B_MR_SHTIM(Params::AdcShtim);
+            ADC12B->ADC12B_IDR = UINT32_MAX;
+            NVIC_ClearPendingIRQ(ADC12B_IRQn);
+            NVIC_SetPriority(ADC12B_IRQn, INTERRUPT_PRIORITY);
+            NVIC_EnableIRQ(ADC12B_IRQn);
+            ADC12B->ADC12B_IER = (uint32_t)1 << MaxAdcIndex;
+            ADC12B->ADC12B_CR = ADC12B_CR_START;
+#endif
+            
         }
         o->debugInit(c);
     }
@@ -182,12 +236,21 @@ public:
         auto *o = Object::self(c);
         o->debugDeinit(c);
         if (NumPins > 0) {
+#if defined(__SAM3X8E__)
             NVIC_DisableIRQ(ADC_IRQn);
             ADC->ADC_IDR = UINT32_MAX;
             NVIC_ClearPendingIRQ(ADC_IRQn);
             ADC->ADC_MR = 0;
             ADC->ADC_CHDR = UINT32_MAX;
             pmc_disable_periph_clk(ID_ADC);
+#elif defined(__SAM3U4E__)
+            NVIC_DisableIRQ(ADC12B_IRQn);
+            ADC12B->ADC12B_IDR = UINT32_MAX;
+            NVIC_ClearPendingIRQ(ADC12B_IRQn);
+            ADC12B->ADC12B_MR = 0;
+            ADC12B->ADC12B_CHDR = UINT32_MAX;
+            pmc_disable_periph_clk(ID_ADC12B);
+#endif
         }
     }
     
@@ -204,8 +267,13 @@ public:
     static void adc_isr (InterruptContext<Context> c)
     {
         AvgFeature::work(c);
+#if defined(__SAM3X8E__)
         ADC->ADC_CDR[MaxAdcIndex];
         ADC->ADC_CR = ADC_CR_START;
+#elif defined(__SAM3U4E__)
+        ADC12B->ADC12B_CDR[MaxAdcIndex];
+        ADC12B->ADC12B_CR = ADC12B_CR_START;
+#endif
     }
     
 private:
@@ -245,13 +313,22 @@ private:
             static void init (Context c) {}
             template <typename ThisContext>
             static void calc_avg (ThisContext c) {}
+            
             template <typename ThisContext>
-            static uint16_t get_value (ThisContext c) { return ADC->ADC_CDR[AdcIndex]; }
+            static uint16_t get_value (ThisContext c)
+            {
+#if defined(__SAM3X8E__)
+                return ADC->ADC_CDR[AdcIndex];
+#elif defined(__SAM3U4E__)
+                return ADC12B->ADC12B_CDR[AdcIndex];
+#endif
+            }
+            
             struct Object {};
         };
         
         template <typename ThePin, uint16_t TheSmoothFactor>
-        struct Helper<At91Sam3xAdcSmoothPin<ThePin, TheSmoothFactor>> {
+        struct Helper<At91SamAdcSmoothPin<ThePin, TheSmoothFactor>> {
             struct Object;
             using RealPin = ThePin;
             static_assert(TheSmoothFactor > 0, "");
@@ -268,7 +345,13 @@ private:
             static void calc_avg (ThisContext c)
             {
                 auto *o = Object::self(c);
-                uint32_t new_state = (((uint64_t)(65536 - TheSmoothFactor) * ((uint32_t)ADC->ADC_CDR[AdcIndex] << 16)) + ((uint64_t)TheSmoothFactor * o->m_state)) >> 16;
+                uint16_t cdr;
+#if defined(__SAM3X8E__)
+                cdr = ADC->ADC_CDR[AdcIndex];
+#elif defined(__SAM3U4E__)
+                cdr = ADC12B->ADC12B_CDR[AdcIndex];
+#endif
+                uint32_t new_state = (((uint64_t)(65536 - TheSmoothFactor) * ((uint32_t)cdr << 16)) + ((uint64_t)TheSmoothFactor * o->m_state)) >> 16;
                 AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                     o->m_state = new_state;
                 }
@@ -293,7 +376,7 @@ private:
         using Pin = typename TheHelper::RealPin;
         static int const AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
         
-        struct Object : public ObjBase<AdcPin, typename At91Sam3xAdc::Object, MakeTypeList<
+        struct Object : public ObjBase<AdcPin, typename At91SamAdc::Object, MakeTypeList<
             TheHelper
         >> {};
     };
@@ -306,7 +389,7 @@ private:
     static int const MaxAdcIndex = TypeListFold<PinsList, WrapInt<0>, MaxAdcIndexFoldFunc>::value;
     
 public:
-    struct Object : public ObjBase<At91Sam3xAdc, ParentObject, JoinTypeLists<
+    struct Object : public ObjBase<At91SamAdc, ParentObject, JoinTypeLists<
         PinsList,
         MakeTypeList<
             AvgFeature
@@ -316,6 +399,9 @@ public:
     {};
 };
 
+
+#if defined(__SAM3X8E__)
+
 #define AMBRO_AT91SAM3X_ADC_GLOBAL(adc, context) \
 extern "C" \
 __attribute__((used)) \
@@ -323,6 +409,18 @@ void ADC_Handler (void) \
 { \
     adc::adc_isr(MakeInterruptContext(context)); \
 }
+
+#elif defined(__SAM3U4E__)
+
+#define AMBRO_AT91SAM3U_ADC_GLOBAL(adc, context) \
+extern "C" \
+__attribute__((used)) \
+void ADC12B_Handler (void) \
+{ \
+    adc::adc_isr(MakeInterruptContext(context)); \
+}
+
+#endif
 
 #include <aprinter/EndNamespace.h>
 
