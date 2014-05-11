@@ -431,7 +431,7 @@ using PrinterParams = PrinterMainParams<
     8, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
-    AvrClockInterruptTimer_TC2_OCA, // EventChannelTimer
+    AvrClockInterruptTimerService<AvrClockTcChannel2A>::InterruptTimer, // EventChannelTimer
     AvrWatchdog,
     AvrWatchdogParams<
         WDTO_2S
@@ -482,7 +482,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC1_OCA, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel1A>::InterruptTimer, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -515,7 +515,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC1_OCB, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel1B>::InterruptTimer, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -548,7 +548,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCA, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel3A>::InterruptTimer, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -570,7 +570,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                AvrClockInterruptTimer_TC3_OCB, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel3B>::InterruptTimer, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -619,7 +619,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            AvrClockInterruptTimer_TC0_OCA // TimerTemplate
+            AvrClockInterruptTimerService<AvrClockTcChannel0A>::InterruptTimer // TimerTemplate
         >,
         PrinterMainHeaterParams<
             'B', // Name
@@ -654,7 +654,7 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            AvrClockInterruptTimer_TC0_OCB // TimerTemplate
+            AvrClockInterruptTimerService<AvrClockTcChannel0B>::InterruptTimer // TimerTemplate
         >
     >,
     
@@ -669,7 +669,7 @@ using PrinterParams = PrinterMainParams<
             false, // OutputInvert
             FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            AvrClockInterruptTimer_TC2_OCB // TimerTemplate
+            AvrClockInterruptTimerService<AvrClockTcChannel2B>::InterruptTimer // TimerTemplate
         >
     >
 >;
@@ -730,14 +730,14 @@ void MyContext::check () const { AMBRO_ASSERT_FORCE(p.end == UINT16_C(0x1234)) }
 AMBRO_AVR_CLOCK_ISRS(MyClock, MyContext())
 AMBRO_AVR_ADC_ISRS(MyAdc, MyContext())
 AMBRO_AVR_SERIAL_ISRS(MyPrinter::GetSerial, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCA_ISRS(MyPrinter::GetAxisTimer<0>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC1_OCB_ISRS(MyPrinter::GetAxisTimer<1>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCA_ISRS(MyPrinter::GetAxisTimer<2>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC3_OCB_ISRS(MyPrinter::GetAxisTimer<3>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCA_ISRS(MyPrinter::GetHeaterTimer<0>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC0_OCB_ISRS(MyPrinter::GetHeaterTimer<1>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCA_ISRS(MyPrinter::GetEventChannelTimer, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC2_OCB_ISRS(MyPrinter::GetFanTimer<0>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(1, A, MyPrinter::GetAxisTimer<0>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(1, B, MyPrinter::GetAxisTimer<1>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(3, A, MyPrinter::GetAxisTimer<2>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(3, B, MyPrinter::GetAxisTimer<3>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(0, A, MyPrinter::GetHeaterTimer<0>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(0, B, MyPrinter::GetHeaterTimer<1>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(2, A, MyPrinter::GetEventChannelTimer, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(2, B, MyPrinter::GetFanTimer<0>, MyContext())
 AMBRO_AVR_SPI_ISRS(MyPrinter::GetSdCard<>::GetSpi, MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
 
