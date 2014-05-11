@@ -37,7 +37,7 @@ static void emergency (void);
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/At91Sam3uClock.h>
-#include <aprinter/system/At91Sam3uPins.h>
+#include <aprinter/system/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/system/At91Sam3uAdc.h>
 #include <aprinter/system/At91Sam3xWatchdog.h>
@@ -216,7 +216,7 @@ using PrinterParams = PrinterMainParams<
         AsfUsbSerial,
         AsfUsbSerialParams
     >,
-    At91Sam3uPin<At91Sam3uPioC, 22>, // LedPin
+    At91SamPin<At91SamPioC, 22>, // LedPin
     LedBlinkInterval, // LedBlinkInterval
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
@@ -234,8 +234,8 @@ using PrinterParams = PrinterMainParams<
     PrinterMainProbeParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
         'Z', // ProbeAxis
-        At91Sam3uPin<At91Sam3uPioC, 18>, // ProbePin,
-        At91Sam3uPinInputModePullUp, // ProbePinInputMode
+        At91SamPin<At91SamPioC, 18>, // ProbePin,
+        At91SamPinInputModePullUp, // ProbePinInputMode
         false, // ProbeInvert,
         MakeTypeList<ProbeOffsetX, ProbeOffsetY>, // ProbePlatformOffset
         ProbeStartHeight,
@@ -261,7 +261,7 @@ using PrinterParams = PrinterMainParams<
         >,
         Ad5206Current, // CurrentTemplate
         Ad5206CurrentParams< // CurrentParams
-            At91Sam3uPin<At91Sam3uPioA, 16>, // SsPin
+            At91SamPin<At91SamPioA, 16>, // SsPin
             At91Sam3uSpi // SpiTemplate
         >
     >,
@@ -272,9 +272,9 @@ using PrinterParams = PrinterMainParams<
     MakeTypeList<
         PrinterMainAxisParams<
             'X', // Name
-            At91Sam3uPin<At91Sam3uPioB, 8>, // DirPin
-            At91Sam3uPin<At91Sam3uPioC, 28>, // StepPin
-            At91Sam3uPin<At91Sam3uPioC, 31>, // EnablePin
+            At91SamPin<At91SamPioB, 8>, // DirPin
+            At91SamPin<At91SamPioC, 28>, // StepPin
+            At91SamPin<At91SamPioC, 31>, // EnablePin
             true, // InvertDir
             XDefaultStepsPerUnit, // StepsPerUnit
             XDefaultMin, // Min
@@ -284,8 +284,8 @@ using PrinterParams = PrinterMainParams<
             XDefaultDistanceFactor, // DistanceFactor
             XDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                At91Sam3uPin<At91Sam3uPioB, 16>, // HomeEndPin
-                At91Sam3uPinInputModePullUp, // HomeEndPinInputMode
+                At91SamPin<At91SamPioB, 16>, // HomeEndPin
+                At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 XDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -304,17 +304,17 @@ using PrinterParams = PrinterMainParams<
             PrinterMainMicroStepParams<
                 A4982MicroStep, // MicroStepTemplate
                 A4982MicroStepParams< // MicroStepParams
-                    At91Sam3uPin<At91Sam3uPioC, 30>, // Ms1Pin
-                    At91Sam3uPin<At91Sam3uPioC, 29> // Ms2Pin
+                    At91SamPin<At91SamPioC, 30>, // Ms1Pin
+                    At91SamPin<At91SamPioC, 29> // Ms2Pin
                 >,
                 16 // MicroSteps
             >
         >,
         PrinterMainAxisParams<
             'Y', // Name
-            At91Sam3uPin<At91Sam3uPioA, 31>, // DirPin
-            At91Sam3uPin<At91Sam3uPioC, 23>, // StepPin
-            At91Sam3uPin<At91Sam3uPioA, 22>, // EnablePin
+            At91SamPin<At91SamPioA, 31>, // DirPin
+            At91SamPin<At91SamPioC, 23>, // StepPin
+            At91SamPin<At91SamPioA, 22>, // EnablePin
             true, // InvertDir
             YDefaultStepsPerUnit, // StepsPerUnit
             YDefaultMin, // Min
@@ -324,8 +324,8 @@ using PrinterParams = PrinterMainParams<
             YDefaultDistanceFactor, // DistanceFactor
             YDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                At91Sam3uPin<At91Sam3uPioA, 17>, // HomeEndPin
-                At91Sam3uPinInputModePullUp, // HomeEndPinInputMode
+                At91SamPin<At91SamPioA, 17>, // HomeEndPin
+                At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 YDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -344,17 +344,17 @@ using PrinterParams = PrinterMainParams<
             PrinterMainMicroStepParams<
                 A4982MicroStep, // MicroStepTemplate
                 A4982MicroStepParams< // MicroStepParams
-                    At91Sam3uPin<At91Sam3uPioC, 11>, // Ms1Pin
-                    At91Sam3uPin<At91Sam3uPioC, 10> // Ms2Pin
+                    At91SamPin<At91SamPioC, 11>, // Ms1Pin
+                    At91SamPin<At91SamPioC, 10> // Ms2Pin
                 >,
                 16 // MicroSteps
             >
         >,
         PrinterMainAxisParams<
             'Z', // Name
-            At91Sam3uPin<At91Sam3uPioC, 27>, // DirPin
-            At91Sam3uPin<At91Sam3uPioA, 27>, // StepPin
-            At91Sam3uPin<At91Sam3uPioB, 7>, // EnablePin
+            At91SamPin<At91SamPioC, 27>, // DirPin
+            At91SamPin<At91SamPioA, 27>, // StepPin
+            At91SamPin<At91SamPioB, 7>, // EnablePin
             false, // InvertDir
             ZDefaultStepsPerUnit, // StepsPerUnit
             ZDefaultMin, // Min
@@ -364,8 +364,8 @@ using PrinterParams = PrinterMainParams<
             ZDefaultDistanceFactor, // DistanceFactor
             ZDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                At91Sam3uPin<At91Sam3uPioC, 12>, // HomeEndPin
-                At91Sam3uPinInputModePullUp, // HomeEndPinInputMode
+                At91SamPin<At91SamPioC, 12>, // HomeEndPin
+                At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 ZDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -384,17 +384,17 @@ using PrinterParams = PrinterMainParams<
             PrinterMainMicroStepParams<
                 A4982MicroStep, // MicroStepTemplate
                 A4982MicroStepParams< // MicroStepParams
-                    At91Sam3uPin<At91Sam3uPioB, 6>, // Ms1Pin
-                    At91Sam3uPin<At91Sam3uPioB, 5> // Ms2Pin
+                    At91SamPin<At91SamPioB, 6>, // Ms1Pin
+                    At91SamPin<At91SamPioB, 5> // Ms2Pin
                 >,
                 16 // MicroSteps
             >
         >,
         PrinterMainAxisParams<
             'E', // Name
-            At91Sam3uPin<At91Sam3uPioB, 2>, // DirPin
-            At91Sam3uPin<At91Sam3uPioC, 26>, // StepPin
-            At91Sam3uPin<At91Sam3uPioB, 13>, // EnablePin
+            At91SamPin<At91SamPioB, 2>, // DirPin
+            At91SamPin<At91SamPioC, 26>, // StepPin
+            At91SamPin<At91SamPioB, 13>, // EnablePin
             true, // InvertDir
             EDefaultStepsPerUnit, // StepsPerUnit
             EDefaultMin, // Min
@@ -413,17 +413,17 @@ using PrinterParams = PrinterMainParams<
             PrinterMainMicroStepParams<
                 A4982MicroStep, // MicroStepTemplate
                 A4982MicroStepParams< // MicroStepParams
-                    At91Sam3uPin<At91Sam3uPioB, 12>, // Ms1Pin
-                    At91Sam3uPin<At91Sam3uPioB, 11> // Ms2Pin
+                    At91SamPin<At91SamPioB, 12>, // Ms1Pin
+                    At91SamPin<At91SamPioB, 11> // Ms2Pin
                 >,
                 16 // MicroSteps
             >
         >/*,
         PrinterMainAxisParams<
             'U', // Name
-            At91Sam3uPin<At91Sam3uPioC, 25>, // DirPin
-            At91Sam3uPin<At91Sam3uPioB, 1>, // StepPin
-            At91Sam3uPin<At91Sam3uPioC, 13>, // EnablePin
+            At91SamPin<At91SamPioC, 25>, // DirPin
+            At91SamPin<At91SamPioB, 1>, // StepPin
+            At91SamPin<At91SamPioC, 13>, // EnablePin
             true, // InvertDir
             UDefaultStepsPerUnit, // StepsPerUnit
             UDefaultMin, // Min
@@ -442,8 +442,8 @@ using PrinterParams = PrinterMainParams<
             PrinterMainMicroStepParams<
                 A4982MicroStep, // MicroStepTemplate
                 A4982MicroStepParams< // MicroStepParams
-                    At91Sam3uPin<At91Sam3uPioB, 0>, // Ms1Pin
-                    At91Sam3uPin<At91Sam3uPioC, 24> // Ms2Pin
+                    At91SamPin<At91SamPioB, 0>, // Ms1Pin
+                    At91SamPin<At91SamPioC, 24> // Ms2Pin
                 >,
                 16 // MicroSteps
             >
@@ -464,8 +464,8 @@ using PrinterParams = PrinterMainParams<
             104, // SetMCommand
             109, // WaitMCommand
             301, // SetConfigMCommand
-            At91Sam3uPin<At91Sam3uPioB, 4>, // AdcPin
-            At91Sam3uPin<At91Sam3uPioA, 21>, // OutputPin
+            At91SamPin<At91SamPioB, 4>, // AdcPin
+            At91SamPin<At91SamPioA, 21>, // OutputPin
             false, // OutputInvert
             GenericThermistor< // Thermistor
                 ExtruderHeaterThermistorResistorR,
@@ -499,8 +499,8 @@ using PrinterParams = PrinterMainParams<
             140, // SetMCommand
             190, // WaitMCommand
             304, // SetConfigMCommand
-            At91Sam3uPin<At91Sam3uPioC, 16>, // AdcPin
-            At91Sam3uPin<At91Sam3uPioA, 20>, // OutputPin
+            At91SamPin<At91SamPioC, 16>, // AdcPin
+            At91SamPin<At91SamPioA, 20>, // OutputPin
             false, // OutputInvert
             GenericThermistor< // Thermistor
                 BedHeaterThermistorResistorR,
@@ -534,8 +534,8 @@ using PrinterParams = PrinterMainParams<
             404, // SetMCommand
             409, // WaitMCommand
             402, // SetConfigMCommand
-            At91Sam3uPin<At91Sam3uPioA, 30>, // AdcPin
-            At91Sam3uPin<At91Sam3uPioA, 23>, // OutputPin
+            At91SamPin<At91SamPioA, 30>, // AdcPin
+            At91SamPin<At91SamPioA, 23>, // OutputPin
             false, // OutputInvert
             GenericThermistor< // Thermistor
                 UxtruderHeaterThermistorResistorR,
@@ -574,9 +574,9 @@ using PrinterParams = PrinterMainParams<
 
 // need to list all used ADC pins here
 using AdcPins = MakeTypeList<
-    At91Sam3uAdcSmoothPin<At91Sam3uPin<At91Sam3uPioB, 4>, AdcSmoothing>,
-    At91Sam3uAdcSmoothPin<At91Sam3uPin<At91Sam3uPioC, 16>, AdcSmoothing>,
-    At91Sam3uAdcSmoothPin<At91Sam3uPin<At91Sam3uPioA, 30>, AdcSmoothing>
+    At91Sam3uAdcSmoothPin<At91SamPin<At91SamPioB, 4>, AdcSmoothing>,
+    At91Sam3uAdcSmoothPin<At91SamPin<At91SamPioC, 16>, AdcSmoothing>,
+    At91Sam3uAdcSmoothPin<At91SamPin<At91SamPioA, 30>, AdcSmoothing>
 >;
 
 using AdcParams = At91Sam3uAdcParams<
@@ -600,7 +600,7 @@ struct Program;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
 using MyClock = At91Sam3uClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
-using MyPins = At91Sam3uPins<MyContext, Program>;
+using MyPins = At91SamPins<MyContext, Program>;
 using MyAdc = At91Sam3uAdc<MyContext, Program, AdcPins, AdcParams>;
 using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
 

@@ -45,7 +45,7 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/system/At91Sam3uPins.h>
+#include <aprinter/system/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -90,14 +90,14 @@ class At91Sam3uAdc {
     static const int NumPins = TypeListLength<ParamsPinsList>::value;
     
     using AdcList = MakeTypeList<
-        At91Sam3uPin<At91Sam3uPioA, 22>,
-        At91Sam3uPin<At91Sam3uPioA, 30>,
-        At91Sam3uPin<At91Sam3uPioB, 3>,
-        At91Sam3uPin<At91Sam3uPioB, 4>,
-        At91Sam3uPin<At91Sam3uPioC, 15>,
-        At91Sam3uPin<At91Sam3uPioC, 16>,
-        At91Sam3uPin<At91Sam3uPioC, 17>,
-        At91Sam3uPin<At91Sam3uPioC, 18>
+        At91SamPin<At91SamPioA, 22>,
+        At91SamPin<At91SamPioA, 30>,
+        At91SamPin<At91SamPioB, 3>,
+        At91SamPin<At91SamPioB, 4>,
+        At91SamPin<At91SamPioC, 15>,
+        At91SamPin<At91SamPioC, 16>,
+        At91SamPin<At91SamPioC, 17>,
+        At91SamPin<At91SamPioC, 18>
     >;
     
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)

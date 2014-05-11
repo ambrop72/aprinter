@@ -231,7 +231,7 @@ using PrinterParams = PrinterMainParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
         'Z', // ProbeAxis
         DuePin34, // ProbePin,
-        At91Sam3xPinInputModePullUp, // ProbePinInputMode
+        At91SamPinInputModePullUp, // ProbePinInputMode
         false, // ProbeInvert,
         MakeTypeList<ProbeOffsetX, ProbeOffsetY>, // ProbePlatformOffset
         ProbeStartHeight,
@@ -268,7 +268,7 @@ using PrinterParams = PrinterMainParams<
             XDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin22, // HomeEndPin
-                At91Sam3xPinInputModePullUp, // HomeEndPinInputMode
+                At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 XDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -301,7 +301,7 @@ using PrinterParams = PrinterMainParams<
             YDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin24, // HomeEndPin
-                At91Sam3xPinInputModePullUp, // HomeEndPinInputMode
+                At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 YDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -334,7 +334,7 @@ using PrinterParams = PrinterMainParams<
             ZDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin38, // HomeEndPin
-                At91Sam3xPinInputModePullUp, // HomeEndPinInputMode
+                At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
                 ZDefaultHomeFastMaxDist, // HomeFastMaxDist

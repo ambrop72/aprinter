@@ -26,7 +26,7 @@
 #define AMBROLIB_AT91SAM3X_SPI_H
 
 #include <aprinter/system/At91SamSpi.h>
-#include <aprinter/system/At91Sam3xPins.h>
+#include <aprinter/system/At91SamPins.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -34,9 +34,9 @@ using At91Sam3xSpiDevice = At91SamSpiDevice<
     GET_PERIPHERAL_ADDR(SPI0),
     ID_SPI0,
     SPI0_IRQn, 
-    At91Sam3xPin<At91Sam3xPioA, 27>,
-    At91Sam3xPin<At91Sam3xPioA, 26>,
-    At91Sam3xPin<At91Sam3xPioA, 25>
+    At91SamPin<At91SamPioA, 27>,
+    At91SamPin<At91SamPioA, 26>,
+    At91SamPin<At91SamPioA, 25>
 >;
 
 template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>

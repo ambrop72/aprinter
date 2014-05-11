@@ -45,7 +45,7 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/system/At91Sam3xPins.h>
+#include <aprinter/system/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -96,21 +96,21 @@ class At91Sam3xAdc {
     static const int NumPins = TypeListLength<ParamsPinsList>::value;
     
     using AdcList = MakeTypeList<
-        At91Sam3xPin<At91Sam3xPioA, 2>,
-        At91Sam3xPin<At91Sam3xPioA, 3>,
-        At91Sam3xPin<At91Sam3xPioA, 4>,
-        At91Sam3xPin<At91Sam3xPioA, 6>,
-        At91Sam3xPin<At91Sam3xPioA, 22>,
-        At91Sam3xPin<At91Sam3xPioA, 23>,
-        At91Sam3xPin<At91Sam3xPioA, 24>,
-        At91Sam3xPin<At91Sam3xPioA, 16>,
-        At91Sam3xPin<At91Sam3xPioB, 12>,
-        At91Sam3xPin<At91Sam3xPioB, 13>,
-        At91Sam3xPin<At91Sam3xPioB, 17>,
-        At91Sam3xPin<At91Sam3xPioB, 18>,
-        At91Sam3xPin<At91Sam3xPioB, 19>,
-        At91Sam3xPin<At91Sam3xPioB, 20>,
-        At91Sam3xPin<At91Sam3xPioB, 21>,
+        At91SamPin<At91SamPioA, 2>,
+        At91SamPin<At91SamPioA, 3>,
+        At91SamPin<At91SamPioA, 4>,
+        At91SamPin<At91SamPioA, 6>,
+        At91SamPin<At91SamPioA, 22>,
+        At91SamPin<At91SamPioA, 23>,
+        At91SamPin<At91SamPioA, 24>,
+        At91SamPin<At91SamPioA, 16>,
+        At91SamPin<At91SamPioB, 12>,
+        At91SamPin<At91SamPioB, 13>,
+        At91SamPin<At91SamPioB, 17>,
+        At91SamPin<At91SamPioB, 18>,
+        At91SamPin<At91SamPioB, 19>,
+        At91SamPin<At91SamPioB, 20>,
+        At91SamPin<At91SamPioB, 21>,
         At91Sam3xAdcTempInput
     >;
     

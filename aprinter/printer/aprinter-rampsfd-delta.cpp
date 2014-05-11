@@ -37,7 +37,7 @@ static void emergency (void);
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/At91Sam3xClock.h>
-#include <aprinter/system/At91Sam3xPins.h>
+#include <aprinter/system/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/system/At91Sam3xAdc.h>
 #include <aprinter/system/At91Sam3xWatchdog.h>
@@ -218,7 +218,7 @@ using PrinterParams = PrinterMainParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
         'Z', // ProbeAxis
         DuePin34, // ProbePin,
-        At91Sam3xPinInputModePullUp, // ProbePinInputMode
+        At91SamPinInputModePullUp, // ProbePinInputMode
         false, // ProbeInvert,
         MakeTypeList<ProbeOffsetX, ProbeOffsetY>, // ProbePlatformOffset
         ProbeStartHeight,
@@ -255,7 +255,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin22, // HomeEndPin
-                At91Sam3xPinInputModePullUp, // HomeEndPinInputMode
+                At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -288,7 +288,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin24, // HomeEndPin
-                At91Sam3xPinInputModePullUp, // HomeEndPinInputMode
+                At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -321,7 +321,7 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 DuePin26, // HomeEndPin
-                At91Sam3xPinInputModePullUp, // HomeEndPinInputMode
+                At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
                 ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
@@ -541,7 +541,7 @@ struct Program;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
 using MyClock = At91Sam3xClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
-using MyPins = At91Sam3xPins<MyContext, Program>;
+using MyPins = At91SamPins<MyContext, Program>;
 using MyAdc = At91Sam3xAdc<MyContext, Program, AdcPins, AdcParams>;
 using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
 
