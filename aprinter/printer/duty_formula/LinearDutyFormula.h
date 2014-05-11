@@ -31,10 +31,10 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename DutyCycleType, DutyCycleType MaxDutyCycle, int PowerRangeExp, int PowerNumBits, typename LinearFactor, int FactorBits>
+template <typename DutyCycleType, DutyCycleType MaxDutyCycle, typename MaxPower, int PowerNumBits, typename LinearFactor, int FactorBits>
 class LinearDutyFormula {
 public:
-    using PowerFixedType = FixedPoint<PowerNumBits, false, (PowerRangeExp - PowerNumBits)>;
+    using PowerFixedType = ChooseFixedForFloat<PowerNumBits, MaxPower>;
     
     static DutyCycleType powerToDuty (PowerFixedType power)
     {
@@ -48,10 +48,10 @@ private:
     static constexpr FactorFixedType FactorFixed = FactorFixedType::template ConstImport<Factor>::value();
 };
 
-template <int PowerRangeExp, int PowerNumBits, typename LinearFactor, int FactorBits>
+template <int PowerNumBits, typename LinearFactor, int FactorBits>
 struct LinearDutyFormulaService {
-    template <typename DutyCycleType, DutyCycleType MaxDutyCycle>
-    using DutyFormula = LinearDutyFormula<DutyCycleType, MaxDutyCycle, PowerRangeExp, PowerNumBits, LinearFactor, FactorBits>;
+    template <typename DutyCycleType, DutyCycleType MaxDutyCycle, typename MaxPower>
+    using DutyFormula = LinearDutyFormula<DutyCycleType, MaxDutyCycle, MaxPower, PowerNumBits, LinearFactor, FactorBits>;
 };
 
 #include <aprinter/EndNamespace.h>

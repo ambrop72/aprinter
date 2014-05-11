@@ -1608,7 +1608,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct Object;
         using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
         using ThePwm = typename LaserSpec::PwmService::template Pwm<Context, Object>;
-        using TheDutyFormula = typename LaserSpec::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle>;
+        using TheDutyFormula = typename LaserSpec::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle, typename LaserSpec::MaxPower>;
         
         static void init (Context c)
         {
