@@ -227,7 +227,7 @@ using PrinterParams = PrinterMainParams<
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
-    At91Sam3uClockInterruptTimer_TC0A, // EventChannelTimer
+    At91Sam3uClockInterruptTimerService<At91Sam3uClockTC0, At91Sam3uClockCompA>::InterruptTimer, // EventChannelTimer
     At91SamWatchdog,
     At91SamWatchdogParams<260>,
     PrinterMainNoSdCardParams,
@@ -298,7 +298,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3uClockInterruptTimer_TC1A, // StepperTimer,
+                At91Sam3uClockInterruptTimerService<At91Sam3uClockTC1, At91Sam3uClockCompA>::InterruptTimer, // StepperTimer,
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainMicroStepParams<
@@ -338,7 +338,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3uClockInterruptTimer_TC2A, // StepperTimer
+                At91Sam3uClockInterruptTimerService<At91Sam3uClockTC2, At91Sam3uClockCompA>::InterruptTimer, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainMicroStepParams<
@@ -378,7 +378,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3uClockInterruptTimer_TC0B, // StepperTimer
+                At91Sam3uClockInterruptTimerService<At91Sam3uClockTC0, At91Sam3uClockCompB>::InterruptTimer, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainMicroStepParams<
@@ -407,7 +407,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisStepperParams<
-                At91Sam3uClockInterruptTimer_TC1B, // StepperTimer
+                At91Sam3uClockInterruptTimerService<At91Sam3uClockTC1, At91Sam3uClockCompB>::InterruptTimer, // StepperTimer
                 TheAxisStepperPrecisionParams // PrecisionParams
             >,
             PrinterMainMicroStepParams<
@@ -492,7 +492,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            At91Sam3uClockInterruptTimer_TC2B // TimerTemplate
+            At91Sam3uClockInterruptTimerService<At91Sam3uClockTC2, At91Sam3uClockCompB>::InterruptTimer // TimerTemplate
         >,
         PrinterMainHeaterParams<
             'B', // Name
@@ -527,7 +527,7 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            At91Sam3uClockInterruptTimer_TC0C // TimerTemplate
+            At91Sam3uClockInterruptTimerService<At91Sam3uClockTC0, At91Sam3uClockCompC>::InterruptTimer // TimerTemplate
         >/*,
         PrinterMainHeaterParams<
             'U', // Name
@@ -638,13 +638,13 @@ AMBRO_AT91SAM3U_CLOCK_TC0_GLOBAL(MyClock, MyContext())
 AMBRO_AT91SAM3U_CLOCK_TC1_GLOBAL(MyClock, MyContext())
 AMBRO_AT91SAM3U_CLOCK_TC2_GLOBAL(MyClock, MyContext())
 
-AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0A_GLOBAL(MyPrinter::GetEventChannelTimer, MyContext())
-AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC1A_GLOBAL(MyPrinter::GetAxisTimer<0>, MyContext())
-AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2A_GLOBAL(MyPrinter::GetAxisTimer<1>, MyContext())
-AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0B_GLOBAL(MyPrinter::GetAxisTimer<2>, MyContext())
-AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC1B_GLOBAL(MyPrinter::GetAxisTimer<3>, MyContext())
-AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC2B_GLOBAL(MyPrinter::GetHeaterTimer<0>, MyContext())
-AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_TC0C_GLOBAL(MyPrinter::GetHeaterTimer<1>, MyContext())
+AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClockCompA, MyPrinter::GetEventChannelTimer, MyContext())
+AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClockCompA, MyPrinter::GetAxisTimer<0>, MyContext())
+AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClockCompA, MyPrinter::GetAxisTimer<1>, MyContext())
+AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClockCompB, MyPrinter::GetAxisTimer<2>, MyContext())
+AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClockCompB, MyPrinter::GetAxisTimer<3>, MyContext())
+AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClockCompB, MyPrinter::GetHeaterTimer<0>, MyContext())
+AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClockCompC, MyPrinter::GetHeaterTimer<1>, MyContext())
 
 AMBRO_AT91SAM3U_ADC_GLOBAL(MyAdc, MyContext())
 AMBRO_AT91SAM3U_SPI_GLOBAL(MyPrinter::GetCurrent<>::GetSpi, MyContext())
