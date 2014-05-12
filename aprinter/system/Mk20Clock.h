@@ -522,8 +522,8 @@ private:
     using ChannelPin = TypeListFind<typename Channel::PinsList, ComposeFunctions<IsEqualFunc<Pin>, GetMemberType_Pin>>;
     
 public:
-    using DutyCycleType = ChooseInt<BitsInInt<((uint32_t)TheMyFtm::TheModeHelper::TopVal + 1)>::value, false>;
-    static DutyCycleType const MaxDutyCycle = (uint32_t)TheMyFtm::TheModeHelper::TopVal + 1;
+    using DutyCycleType = ChooseInt<BitsInInt<(TheMyFtm::TheModeHelper::TopVal + 1)>::value, false>;
+    static DutyCycleType const MaxDutyCycle = TheMyFtm::TheModeHelper::TopVal + 1;
     
     static void init (Context c)
     {
