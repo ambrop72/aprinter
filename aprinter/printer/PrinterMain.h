@@ -391,6 +391,7 @@ struct PrinterMainCurrentAxis {
 
 template <
     char TName,
+    typename TLaserPower,
     typename TMaxPower,
     typename TPwmService,
     typename TDutyFormulaService,
@@ -398,6 +399,7 @@ template <
 >
 struct PrinterMainLaserParams {
     static char const Name = TName;
+    using LaserPower = TLaserPower;
     using MaxPower = TMaxPower;
     using PwmService = TPwmService;
     using DutyFormulaService = TDutyFormulaService;
@@ -1608,7 +1610,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct Object;
         using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
         using ThePwm = typename LaserSpec::PwmService::template Pwm<Context, Object>;
-        using TheDutyFormula = typename LaserSpec::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle, typename LaserSpec::MaxPower>;
+        using TheDutyFormula = typename LaserSpec::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle>;
         
         static void init (Context c)
         {
@@ -1635,8 +1637,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void write_planner_cmd (Context c, Src src, PlannerCmd *cmd)
         {
             auto *mycmd = TupleGetElem<LaserIndex>(cmd->axes.lasers());
-            mycmd->x = src.template get<LaserIndex>();
-            mycmd->max_v_rec = (FpType)(Clock::time_freq / LaserSpec::MaxPower::value());
+            mycmd->x = src.template get<LaserIndex>() * (FpType)(1.0 / LaserSpec::LaserPower::value());
+            mycmd->max_v_rec = (FpType)(Clock::time_freq / (LaserSpec::MaxPower::value() / LaserSpec::LaserPower::value()));
         }
         
         struct PowerInterface {

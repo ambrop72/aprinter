@@ -25,33 +25,32 @@
 #ifndef APRINTER_LINEAR_DUTY_FORMULA_H
 #define APRINTER_LINEAR_DUTY_FORMULA_H
 
-#include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/FixedPoint.h>
-#include <aprinter/meta/ChooseFixedForFloat.h>
+#include <aprinter/meta/BitsInInt.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename DutyCycleType, DutyCycleType MaxDutyCycle, typename MaxPower, int PowerNumBits, typename LinearFactor, int FactorBits>
+template <typename DutyCycleType, DutyCycleType MaxDutyCycle, int PowerBits>
 class LinearDutyFormula {
 public:
-    using PowerFixedType = ChooseFixedForFloat<PowerNumBits, MaxPower>;
+    using PowerFixedType = FixedPoint<(PowerBits + 1), false, -PowerBits>;
     
     static DutyCycleType powerToDuty (PowerFixedType power)
     {
-        auto res = FixedResMultiply(power, FactorFixed);
+        auto res = FixedResMultiply(power, Factor);
         return (res.m_bits.m_int > MaxDutyCycle) ? MaxDutyCycle : res.m_bits.m_int;
     }
     
 private:
-    using Factor = AMBRO_WRAP_DOUBLE(LinearFactor::value() * MaxDutyCycle);
-    using FactorFixedType = ChooseFixedForFloat<FactorBits, Factor>;
-    static constexpr FactorFixedType FactorFixed = FactorFixedType::template ConstImport<Factor>::value();
+    static int const FactorBits = BitsInInt<MaxDutyCycle>::value;
+    using FactorFixedType = FixedPoint<FactorBits, false, 0>;
+    static constexpr FactorFixedType Factor = FactorFixedType::importBitsConstexpr(MaxDutyCycle);
 };
 
-template <int PowerNumBits, typename LinearFactor, int FactorBits>
+template <int PowerBits>
 struct LinearDutyFormulaService {
-    template <typename DutyCycleType, DutyCycleType MaxDutyCycle, typename MaxPower>
-    using DutyFormula = LinearDutyFormula<DutyCycleType, MaxDutyCycle, MaxPower, PowerNumBits, LinearFactor, FactorBits>;
+    template <typename DutyCycleType, DutyCycleType MaxDutyCycle>
+    using DutyFormula = LinearDutyFormula<DutyCycleType, MaxDutyCycle, PowerBits>;
 };
 
 #include <aprinter/EndNamespace.h>

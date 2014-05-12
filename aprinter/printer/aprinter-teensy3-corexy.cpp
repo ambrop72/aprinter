@@ -177,8 +177,8 @@ using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
+using LLaserPower = AMBRO_WRAP_DOUBLE(100.0);
 using LMaxPower = AMBRO_WRAP_DOUBLE(100.0);
-using LDutyLinearFactor = AMBRO_WRAP_DOUBLE(1.0 / 100.0);
 using LDutyAdjustmentInterval = AMBRO_WRAP_DOUBLE(1.0 / 200.0);
 
 using DummySegmentsPerSecond = AMBRO_WRAP_DOUBLE(0.0);
@@ -462,12 +462,11 @@ using PrinterParams = PrinterMainParams<
     MakeTypeList<
         PrinterMainLaserParams<
             'L', // Name
-            LMaxPower, // MaxPower
+            LLaserPower,
+            LMaxPower,
             Mk20ClockPwmService<Mk20ClockFTM1, 1, TeensyPin17>,
             LinearDutyFormulaService<
-                16, // PowerNumBits
-                LDutyLinearFactor,
-                16 // FactorBits
+                15 // PowerBits
             >,
             LaserStepperService<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7>,
