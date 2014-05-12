@@ -37,6 +37,17 @@ BUILD=$ROOT/build
 DEPS=$ROOT/depends
 
 #####################################################################################
+# detect build operating system
+
+if [ "$(uname)" == "Linux" ]; then
+    SYSARCH=linux
+elif [ "$(uname)" == "Darwin" ]; then
+    SYSARCH=mac
+else
+    SYSARCH=""
+fi
+
+#####################################################################################
 # Guard to avoid running this script with another shell than bash
 
 [ -z "$BASH_VERSION" ] && (

@@ -28,14 +28,6 @@
 #########################################################################################
 # ARM stuff
 
-if [ "$(uname)" == "Linux" ]; then
-    SYSARCH=linux
-elif [ "$(uname)" == "Darwin" ]; then
-    SYSARCH=mac
-else
-    SYSARCH=""
-fi
-
 GCCARM_CURRENT=4_8-2013q4
 
 if [ "$(uname)" == "Linux" ]; then
