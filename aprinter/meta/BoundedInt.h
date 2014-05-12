@@ -59,14 +59,14 @@ public:
         return PowerOfTwoMinusOne<IntType, NumBits>::value;
     }
     
-    static BoundedInt minValue ()
+    static constexpr BoundedInt minValue ()
     {
-        return BoundedInt::import(minIntValue());
+        return BoundedInt{minIntValue()};
     }
     
-    static BoundedInt maxValue ()
+    static constexpr BoundedInt maxValue ()
     {
-        return BoundedInt::import(maxIntValue());
+        return BoundedInt{maxIntValue()};
     }
     
     static BoundedInt import (IntType the_int)

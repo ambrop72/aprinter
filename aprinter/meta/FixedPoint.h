@@ -47,7 +47,7 @@ public:
     using BoundedIntType = BoundedInt<NumBits, Signed>;
     using IntType = typename BoundedIntType::IntType;
     
-    static FixedPoint importBoundedBits (BoundedIntType op)
+    static constexpr FixedPoint importBoundedBits (BoundedIntType op)
     {
         return FixedPoint{op};
     }
@@ -57,12 +57,17 @@ public:
         return importBoundedBits(BoundedIntType::import(op));
     }
     
-    static FixedPoint minValue ()
+    static constexpr FixedPoint importBitsConstexpr (IntType op)
+    {
+        return importBoundedBits(BoundedIntType{op});
+    }
+    
+    static constexpr FixedPoint minValue ()
     {
         return importBoundedBits(BoundedIntType::minValue());
     }
     
-    static FixedPoint maxValue ()
+    static constexpr FixedPoint maxValue ()
     {
         return importBoundedBits(BoundedIntType::maxValue());
     }
