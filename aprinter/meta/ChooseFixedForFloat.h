@@ -27,22 +27,20 @@
 
 #include <aprinter/meta/BitsInFloat.h>
 #include <aprinter/meta/FixedPoint.h>
-#include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/PowerOfTwo.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <int Bits, typename FloatValue1>
+template <int Bits, bool Signed, typename FloatValue>
 struct ChooseFixedForFloat__Helper {
-    static bool const Signed = (FloatValue1::value() < 0);
+    static_assert(FloatValue::value() > 0.0, "");
     static constexpr double Power = __builtin_ldexp(1.0, -Bits);
-    static constexpr double FixedValue = FloatValue1::value() * (1.0001 / (1.0 - Power));
-    static int const Exp = BitsInFloat(absolute(FixedValue)) - Bits;
+    static constexpr double FixedValue = FloatValue::value() * (1.0001 / (1.0 - Power));
+    static int const Exp = BitsInFloat(FixedValue) - Bits;
     using Result = FixedPoint<Bits, Signed, Exp>;
 };
 
-template <int Bits, typename FloatValue1>
-using ChooseFixedForFloat = typename ChooseFixedForFloat__Helper<Bits, FloatValue1>::Result;
+template <int Bits, bool Signed, typename FloatValue>
+using ChooseFixedForFloat = typename ChooseFixedForFloat__Helper<Bits, Signed, FloatValue>::Result;
 
 #include <aprinter/EndNamespace.h>
 
