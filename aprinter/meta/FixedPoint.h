@@ -77,7 +77,7 @@ public:
         return m_bits;
     }
     
-    IntType bitsValue () const
+    constexpr IntType bitsValue () const
     {
         return m_bits.value();
     }
@@ -117,6 +117,11 @@ public:
         } else {
             return FloatLdexp<FpType>(bitsValue(), Exp);
         }
+    }
+    
+    constexpr double fpValueConstexpr () const
+    {
+        return __builtin_ldexp(m_bits.m_int, Exp);
     }
     
     FixedPoint<NumBits, true, Exp> toSigned () const

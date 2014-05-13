@@ -83,7 +83,7 @@ public:
 #endif
     }
     
-    IntType value () const
+    constexpr IntType value () const
     {
         return m_int;
     }
