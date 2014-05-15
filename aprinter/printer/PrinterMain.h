@@ -1641,6 +1641,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             mycmd->max_v_rec = (FpType)(Clock::time_freq / (LaserSpec::MaxPower::value() / LaserSpec::LaserPower::value()));
         }
         
+        static void emergency ()
+        {
+            ThePwm::emergencySetOff();
+        }
+        
         struct PowerInterface {
             using PowerFixedType = typename TheDutyFormula::PowerFixedType;
             
@@ -3063,6 +3068,7 @@ public:
     static void emergency ()
     {
         ListForEachForward<AxesList>(LForeach_emergency());
+        ListForEachForward<LasersList>(LForeach_emergency());
         ListForEachForward<HeatersList>(LForeach_emergency());
         ListForEachForward<FansList>(LForeach_emergency());
     }

@@ -569,6 +569,12 @@ public:
         *Channel::cv() = duty_cycle;
     }
     
+    static void emergencySetOff ()
+    {
+        Context::Pins::template emergencySet<Pin>(false);
+        Context::Pins::template emergencySetOutput<Pin>();
+    }
+    
 public:
     struct Object : public ObjBase<Mk20ClockPwm, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>

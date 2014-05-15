@@ -151,6 +151,13 @@ public:
         }
     }
     
+    template <typename Pin>
+    static void emergencySetOutput ()
+    {
+        Pin::Port::pcr0()[Pin::PinIndex] = PORT_PCR_MUX(1) | PORT_PCR_SRE | PORT_PCR_DSE;
+        *Pin::Port::pddr() |= (UINT32_C(1) << Pin::PinIndex);
+    }
+    
 public:
     struct Object : public ObjBase<Mk20Pins, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
