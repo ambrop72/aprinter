@@ -26,16 +26,27 @@
 #define AMBROLIB_LASER_STEPPER_H
 
 #include <stdint.h>
-#include <math.h>
 
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/WrapFunction.h>
+#include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/BitsInInt.h>
+#include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/ChooseFixedForFloat.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Inline.h>
 
 #include <aprinter/BeginNamespace.h>
+
+template <int TTimeBits, int TIntervalTimeBits>
+struct LaserStepperPrecisionParams {
+    static int const TimeBits = TTimeBits;
+    static int const IntervalTimeBits = TIntervalTimeBits;
+};
+
+using LaserStepperDefaultPrecisionParams = LaserStepperPrecisionParams<26, 32>;
 
 template <typename Context, typename ParentObject, typename FpType, typename PowerInterface, typename CommandCallback, typename Params>
 class LaserStepper {
@@ -47,24 +58,46 @@ public:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using PowerFixedType = typename PowerInterface::PowerFixedType;
+    static_assert(!PowerFixedType::is_signed, "");
     using TheTimer = typename Params::InterruptTimerService::template InterruptTimer<Context, Object, TimerCallback>;
     using CommandCallbackContext = typename TheTimer::HandlerContext;
+    using TimeFixedType = FixedPoint<Params::PrecisionParams::TimeBits, false, 0>;
     
+private:
+    using RequestedInterval = AMBRO_WRAP_DOUBLE(Params::AdjustmentInterval::value() / Clock::time_unit);
+    static uintmax_t const MaxCount = 2 + (1.01 * TimeFixedType::maxValue().bitsValue() / RequestedInterval::value());
+    using CountFixedType = FixedPoint<BitsInInt<MaxCount>::value, false, 0>;
+    using MaxIntervalTime = AMBRO_WRAP_DOUBLE(2.0 * RequestedInterval::value());
+    using IntervalTimeFixedType = ChooseFixedForFloat<Params::PrecisionParams::IntervalTimeBits, false, MaxIntervalTime>;
+    
+public:
     struct Command {
-        TimeType duration;
-        float v_start;
-        float v_end;
+        TimeFixedType duration;
+        CountFixedType count;
+        PowerFixedType power_end;
+        PowerFixedType power_delta;
+        IntervalTimeFixedType interval_time;
+        bool is_accel;
     };
     
     AMBRO_ALWAYS_INLINE
-    static void generate_command (TimeType duration, FpType v_start, FpType v_end, Command *cmd)
+    static void generate_command (TimeFixedType duration, FpType v_start, FpType v_end, Command *cmd)
     {
         AMBRO_ASSERT(FloatIsPosOrPosZero(v_start))
         AMBRO_ASSERT(FloatIsPosOrPosZero(v_end))
         
         cmd->duration = duration;
-        cmd->v_start = v_start;
-        cmd->v_end = v_end;
+        cmd->count.m_bits.m_int = duration.bitsValue() * (FpType)(1.0 / RequestedInterval::value());
+        if (cmd->count.m_bits.m_int == 0) {
+            cmd->count.m_bits.m_int = 1;
+        }
+        cmd->power_end = PowerFixedType::importFpSaturatedRound(v_end);
+        auto power_start = PowerFixedType::importFpSaturatedRound(v_start);
+        cmd->is_accel = (cmd->power_end >= power_start);
+        cmd->power_delta = PowerFixedType::importBits(cmd->is_accel ?
+            (cmd->power_end.bitsValue() - power_start.bitsValue()) :
+            (power_start.bitsValue() - cmd->power_end.bitsValue()));
+        cmd->interval_time = IntervalTimeFixedType::importFpSaturatedRound((FpType)duration.bitsValue() / cmd->count.m_bits.m_int);
     }
     
     static void init (Context c)
@@ -100,9 +133,9 @@ public:
         o->m_running = true;
 #endif
         o->m_cmd = first_command;
-        o->m_cmd_time = start_time;
-        o->m_time = start_time;
-        TheTimer::setFirst(c, o->m_time);
+        o->m_time = start_time + o->m_cmd->duration.bitsValue();
+        o->m_pos = o->m_cmd->count;
+        TheTimer::setFirst(c, start_time);
     }
     
     static void stop (Context c)
@@ -118,17 +151,12 @@ public:
     }
     
 private:
-    static TimeType const AdjustmentIntervalTicks = Params::AdjustmentInterval::value() / Clock::time_unit;
-    
     static bool timer_callback (typename TheTimer::HandlerContext c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_running)
         
-        TimeType rel_time = o->m_time - o->m_cmd_time;
-        if (rel_time >= o->m_cmd->duration) {
-            o->m_cmd_time += o->m_cmd->duration;
-            rel_time = o->m_time - o->m_cmd_time;
+        if (o->m_pos.m_bits.m_int == 0) {
             if (!CommandCallback::call(c, &o->m_cmd)) {
                 PowerInterface::setPower(c, PowerFixedType::importBits(0));
 #ifdef AMBROLIB_ASSERTIONS
@@ -136,12 +164,21 @@ private:
 #endif
                 return false;
             }
+            o->m_time += o->m_cmd->duration.bitsValue();
+            o->m_pos = o->m_cmd->count;
         }
-        float frac = fminf(1.0f, (float)rel_time / o->m_cmd->duration);
-        PowerFixedType power = PowerFixedType::importFpSaturatedRound((1.0f - frac) * o->m_cmd->v_start + frac * o->m_cmd->v_end);
+        PowerFixedType rel_power = ((o->m_cmd->power_delta * o->m_pos) / o->m_cmd->count).template dropBitsUnsafe<PowerFixedType::num_bits>();
+        PowerFixedType power = o->m_cmd->power_end;
+        if (o->m_cmd->is_accel) {
+            power.m_bits.m_int -= rel_power.m_bits.m_int;
+        } else {
+            power.m_bits.m_int += rel_power.m_bits.m_int;
+        }
         PowerInterface::setPower(c, power);
-        o->m_time += AdjustmentIntervalTicks;
-        TheTimer::setNext(c, o->m_time);
+        o->m_pos.m_bits.m_int--;
+        TimeFixedType next_rel_time = FixedMin(o->m_cmd->duration, FixedResMultiply(o->m_pos, o->m_cmd->interval_time));
+        TimeType next_time = o->m_time - next_rel_time.bitsValue();
+        TheTimer::setNext(c, next_time);
         return true;
     }
     
@@ -157,18 +194,20 @@ public:
         bool m_running;
 #endif
         Command *m_cmd;
-        TimeType m_cmd_time;
         TimeType m_time;
+        CountFixedType m_pos;
     };
 };
 
 template <
     typename TInterruptTimerService,
-    typename TAdjustmentInterval
+    typename TAdjustmentInterval,
+    typename TPrecisionParams
 >
 struct LaserStepperService {
     using InterruptTimerService = TInterruptTimerService;
     using AdjustmentInterval = TAdjustmentInterval;
+    using PrecisionParams = TPrecisionParams;
     
     template <typename Context, typename ParentObject, typename FpType, typename PowerInterface, typename CommandCallback>
     using LaserStepper = LaserStepper<Context, ParentObject, FpType, PowerInterface, CommandCallback, LaserStepperService>;

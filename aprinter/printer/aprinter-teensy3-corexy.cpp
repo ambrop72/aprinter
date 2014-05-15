@@ -470,7 +470,8 @@ using PrinterParams = PrinterMainParams<
             >,
             LaserStepperService<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7>,
-                LDutyAdjustmentInterval
+                LDutyAdjustmentInterval,
+                LaserStepperDefaultPrecisionParams
             >
         >
     >

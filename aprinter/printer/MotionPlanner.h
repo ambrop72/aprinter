@@ -115,9 +115,6 @@ private:
     static const int NumAxes = TypeListLength<ParamsAxesList>::value;
     static_assert(NumAxes > 0, "");
     static const int NumChannels = TypeListLength<ParamsChannelsList>::value;
-    template <typename AxisSpec, typename AccumType>
-    using MinTimeTypeHelper = FixedIntersectTypes<typename AxisSpec::TheAxisStepper::TimeFixedType, AccumType>;
-    using MinTimeType = TypeListFold<ParamsAxesList, FixedIdentity, MinTimeTypeHelper>;
     using SegmentBufferSizeType = ChooseInt<BitsInInt<2 * LookaheadBufferSize>::value, false>; // twice for segments_add()
     static const size_t StepperCommitBufferSize = 3 * StepperSegmentBufferSize;
     static const size_t StepperBackupBufferSize = 3 * (LookaheadBufferSize - LookaheadCommitCount);
@@ -556,7 +553,8 @@ public:
             return FloatMin(accum, (FpType)(AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / (dm * axis_split->max_a_rec));
         }
         
-        static void gen_segment_stepper_commands (Context c, Segment *entry, FpType frac_x0, FpType frac_x2, MinTimeType t0, MinTimeType t2, MinTimeType t1, FpType t0_squared, FpType t2_squared)
+        template <typename TheMinTimeType>
+        static void gen_segment_stepper_commands (Context c, Segment *entry, FpType frac_x0, FpType frac_x2, TheMinTimeType t0, TheMinTimeType t2, TheMinTimeType t1, FpType t0_squared, FpType t2_squared)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             
@@ -735,7 +733,8 @@ public:
             laser_segment->x_by_distance = laser_split->x * distance_rec * (FpType)Clock::time_freq;
         }
         
-        static void gen_segment_stepper_commands (Context c, Segment *entry, MinTimeType t0, MinTimeType t2, MinTimeType t1, FpType v_start, FpType v_end, FpType v_const)
+        template <typename TheTheMinTimeType>
+        static void gen_segment_stepper_commands (Context c, Segment *entry, TheTheMinTimeType t0, TheTheMinTimeType t2, TheTheMinTimeType t1, FpType v_start, FpType v_end, FpType v_const)
         {
             TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(entry->axes.lasers());
             
@@ -744,13 +743,13 @@ public:
             FpType xv_const = laser_segment->x_by_distance * v_const;
             
             if (t0.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, t0.bitsValue(), xv_start, xv_const);
+                TheCommon::gen_stepper_command(c, t0, xv_start, xv_const);
             }
             if (t1.bitsValue() != 0 || (t0.bitsValue() == 0 && t2.bitsValue() == 0)) {
-                TheCommon::gen_stepper_command(c, t1.bitsValue(), xv_const, xv_const);
+                TheCommon::gen_stepper_command(c, t1, xv_const, xv_const);
             }
             if (t2.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, t2.bitsValue(), xv_const, xv_end);
+                TheCommon::gen_stepper_command(c, t2, xv_const, xv_end);
             }
         }
         
@@ -979,6 +978,10 @@ private:
     using LasersList = IndexElemList<ParamsLasersList, Laser>;
     using ChannelsList = IndexElemList<ParamsChannelsList, Channel>;
     using AxisCommonList = MapTypeList<JoinTypeLists<AxesList, LasersList>, GetMemberType_TheCommon>;
+    
+    template <typename TheAxisCommon, typename AccumType>
+    using MinTimeTypeHelper = FixedIntersectTypes<typename TheAxisCommon::TheStepper::TimeFixedType, AccumType>;
+    using MinTimeType = TypeListFold<AxisCommonList, FixedIdentity, MinTimeTypeHelper>;
     
 public:
     static void init (Context c, bool prestep_callback_enabled)
