@@ -43,6 +43,7 @@ static void emergency (void);
 #include <aprinter/system/Mk20Watchdog.h>
 #include <aprinter/system/TeensyUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
+#include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
@@ -212,7 +213,7 @@ using PrinterParams = PrinterMainParams<
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 1>, // StepperTimer,
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -245,7 +246,7 @@ using PrinterParams = PrinterMainParams<
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 2>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -278,7 +279,7 @@ using PrinterParams = PrinterMainParams<
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 3>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -300,7 +301,7 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 4>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,

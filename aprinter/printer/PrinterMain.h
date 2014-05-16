@@ -73,7 +73,6 @@
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/devices/SoftPwm.h>
 #include <aprinter/driver/Steppers.h>
-#include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/BinaryGcodeParser.h>
@@ -143,7 +142,7 @@ template <
     typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
     typename THoming, bool TIsCartesian, int TStepBits,
-    typename TTheAxisDriverParams, typename TMicroStep
+    typename TTheAxisDriverService, typename TMicroStep
 >
 struct PrinterMainAxisParams {
     static char const Name = TName;
@@ -161,7 +160,7 @@ struct PrinterMainAxisParams {
     using Homing = THoming;
     static bool const IsCartesian = TIsCartesian;
     static int const StepBits = TStepBits;
-    using TheAxisDriverParams = TTheAxisDriverParams;
+    using TheAxisDriverService = TTheAxisDriverService;
     using MicroStep = TMicroStep;
 };
 
@@ -1314,7 +1313,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static const int AxisIndex = TAxisIndex;
         using AxisSpec = TypeListGet<ParamsAxesList, AxisIndex>;
         using Stepper = typename TheSteppers::template Stepper<AxisIndex>;
-        using TheAxisDriver = AxisDriver<Context, Object, typename AxisSpec::TheAxisDriverParams, Stepper, AxisDriverConsumersList<AxisIndex>>;
+        using TheAxisDriver = typename AxisSpec::TheAxisDriverService::template AxisDriver<Context, Object, Stepper, AxisDriverConsumersList<AxisIndex>>;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
         static const char AxisName = AxisSpec::Name;

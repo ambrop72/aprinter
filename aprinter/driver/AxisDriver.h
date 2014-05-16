@@ -55,15 +55,6 @@
 
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
-template <
-    typename TTimerService,
-    typename TPrecisionParams
->
-struct AxisDriverParams {
-    using TimerService = TTimerService;
-    using PrecisionParams = TPrecisionParams;
-};
-
 template <typename TCommandCallback, typename TPrestepCallback>
 struct AxisDriverConsumer {
     using CommandCallback = TCommandCallback;
@@ -85,7 +76,7 @@ struct AxisDriverPrecisionParams {
 using AxisDriverAvrPrecisionParams = AxisDriverPrecisionParams<11, 22, 16, 24, 1>;
 using AxisDriverDuePrecisionParams = AxisDriverPrecisionParams<11, 26, 16, 26, 1>;
 
-template <typename Context, typename ParentObject, typename Params, typename Stepper, typename ConsumersList>
+template <typename Context, typename ParentObject, typename Stepper, typename ConsumersList, typename Params>
 class AxisDriver {
 private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_command_callback, call_command_callback)
@@ -380,6 +371,18 @@ public:
         decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) m_v0;
         bool m_prestep_callback_enabled;
     };
+};
+
+template <
+    typename TTimerService,
+    typename TPrecisionParams
+>
+struct AxisDriverService {
+    using TimerService = TTimerService;
+    using PrecisionParams = TPrecisionParams;
+    
+    template <typename Context, typename ParentObject, typename Stepper, typename ConsumersList>
+    using AxisDriver = AxisDriver<Context, ParentObject, Stepper, ConsumersList, AxisDriverService>;
 };
 
 #include <aprinter/EndNamespace.h>

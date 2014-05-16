@@ -43,6 +43,7 @@ static void emergency (void);
 #include <aprinter/system/At91SamWatchdog.h>
 #include <aprinter/system/AsfUsbSerial.h>
 #include <aprinter/system/At91SamSpi.h>
+#include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
@@ -297,7 +298,7 @@ using PrinterParams = PrinterMainParams<
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 At91Sam3uClockInterruptTimerService<At91Sam3uClockTC1, At91Sam3uClockCompA>, // StepperTimer,
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -337,7 +338,7 @@ using PrinterParams = PrinterMainParams<
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 At91Sam3uClockInterruptTimerService<At91Sam3uClockTC2, At91Sam3uClockCompA>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -377,7 +378,7 @@ using PrinterParams = PrinterMainParams<
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 At91Sam3uClockInterruptTimerService<At91Sam3uClockTC0, At91Sam3uClockCompB>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -406,7 +407,7 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 At91Sam3uClockInterruptTimerService<At91Sam3uClockTC1, At91Sam3uClockCompB>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -435,7 +436,7 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 NONE, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,

@@ -46,6 +46,7 @@ static void emergency (void);
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/system/AvrSpi.h>
 #include <aprinter/devices/SpiSdCard.h>
+#include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
@@ -292,7 +293,7 @@ using PrinterParams = PrinterMainParams<
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 AvrClockInterruptTimerService<AvrClockTcChannel3A>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -325,7 +326,7 @@ using PrinterParams = PrinterMainParams<
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 AvrClockInterruptTimerService<AvrClockTcChannel3B>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -358,7 +359,7 @@ using PrinterParams = PrinterMainParams<
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 AvrClockInterruptTimerService<AvrClockTcChannel3C>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -380,7 +381,7 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 AvrClockInterruptTimerService<AvrClockTcChannel4A>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
@@ -402,7 +403,7 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisDriverParams<
+            AxisDriverService<
                 AvrClockInterruptTimerService<AvrClockTcChannel4B>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
