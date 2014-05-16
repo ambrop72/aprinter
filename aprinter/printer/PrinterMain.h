@@ -391,6 +391,7 @@ struct PrinterMainCurrentAxis {
 
 template <
     char TName,
+    char TDensityName,
     typename TLaserPower,
     typename TMaxPower,
     typename TPwmService,
@@ -399,6 +400,7 @@ template <
 >
 struct PrinterMainLaserParams {
     static char const Name = TName;
+    static char const DensityName = TDensityName;
     using LaserPower = TLaserPower;
     using MaxPower = TMaxPower;
     using PwmService = TPwmService;
@@ -453,6 +455,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_g92_check_axis, g92_check_axis)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init_new_pos, init_new_pos)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_automatic_energy, handle_automatic_energy)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_planner_cmd, write_planner_cmd)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(TForeach_init, init)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
@@ -1614,6 +1617,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void init (Context c)
         {
+            auto *o = Object::self(c);
+            o->density = 0.0;
             ThePwm::init(c);
         }
         
@@ -1625,12 +1630,27 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename TheChannelCommon>
         static bool collect_new_pos (Context c, WrapType<TheChannelCommon>, MoveBuildState *s, typename TheChannelCommon::GcodeParserPartRef part)
         {
-            if (AMBRO_UNLIKELY(TheChannelCommon::TheGcodeParser::getPartCode(c, part) == LaserSpec::Name)) {
+            auto *o = Object::self(c);
+            char code = TheChannelCommon::TheGcodeParser::getPartCode(c, part);
+            if (AMBRO_UNLIKELY(code == LaserSpec::Name)) {
                 FpType energy = TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part);
                 move_add_laser<LaserIndex>(c, s, energy);
                 return false;
             }
+            if (AMBRO_UNLIKELY(code== LaserSpec::DensityName)) {
+                o->density = TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part);
+                return false;
+            }
             return true;
+        }
+        
+        static void handle_automatic_energy (Context c, MoveBuildState *s, FpType distance)
+        {
+            auto *o = Object::self(c);
+            auto *le = TupleGetElem<LaserIndex>(s->laser_extra());
+            if (!le->energy_specified) {
+                le->energy = FloatMakePosOrPosZero(o->density * distance);
+            }
         }
         
         template <typename Src, typename PlannerCmd>
@@ -1658,7 +1678,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         struct Object : public ObjBase<Laser, typename PrinterMain::Object, MakeTypeList<
             ThePwm
-        >> {};
+        >> {
+            FpType density;
+        };
     };
     
     using LasersList = IndexElemList<ParamsLasersList, Laser>;
@@ -1764,8 +1786,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             FpType distance_squared = 0.0f;
             ListForEachForward<VirtAxesList>(LForeach_prepare_split(), c, &distance_squared);
             ListForEachForward<SecondaryAxesList>(LForeach_prepare_split(), c, &distance_squared);
-            ListForEachForward<LaserSplitsList>(LForeach_prepare_split(), c, s);
             FpType distance = FloatSqrt(distance_squared);
+            ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, s, distance);
+            ListForEachForward<LaserSplitsList>(LForeach_prepare_split(), c, s);
             FpType base_max_v_rec = ListForEachForwardAccRes<VirtAxesList>(distance * time_freq_by_max_speed, LForeach_limit_virt_axis_speed(), c);
             FpType min_segments_by_distance = (FpType)(TransformParams::SegmentsPerSecond::value() * Clock::time_unit) * time_freq_by_max_speed;
             o->splitter.start(distance, base_max_v_rec, min_segments_by_distance);
@@ -3515,7 +3538,13 @@ public: // private, see comment on top
     template <typename TheLaser>
     struct MoveBuildLaserExtra {
         FpType energy;
-        void init () { energy = 0.0; }
+        bool energy_specified;
+        
+        void init ()
+        {
+            energy = 0.0f;
+            energy_specified = false;
+        }
     };
     
     using MoveBuildLaserExtraTuple = Tuple<MapTypeList<LasersList, TemplateFunc<MoveBuildLaserExtra>>>;
@@ -3541,7 +3570,9 @@ public: // private, see comment on top
     template <int LaserIndex>
     static void move_add_laser (Context c, MoveBuildState *s, FpType energy)
     {
-        TupleGetElem<LaserIndex>(s->laser_extra())->energy = FloatMakePosOrPosZero(energy);
+        auto *le = TupleGetElem<LaserIndex>(s->laser_extra());
+        le->energy = FloatMakePosOrPosZero(energy);
+        le->energy_specified = true;
     }
     
     struct ReqPosSrc {
@@ -3573,13 +3604,15 @@ public: // private, see comment on top
         ListForEachForward<AxesList>(LForeach_do_move(), c, ReqPosSrc{c}, WrapBool<true>(), &distance_squared, &total_steps, cmd);
         TransformFeature::do_pending_virt_update(c);
         if (total_steps != 0.0f) {
-            ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserExtraSrc{s}, cmd);
             cmd->axes.rel_max_v_rec = total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
             if (s->seen_cartesian) {
-                cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, FloatSqrt(distance_squared) * time_freq_by_max_speed);
+                FpType distance = FloatSqrt(distance_squared);
+                cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, distance * time_freq_by_max_speed);
+                ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, s, distance);
             } else {
                 ListForEachForward<AxesList>(LForeach_limit_axis_move_speed(), c, time_freq_by_max_speed, cmd);
             }
+            ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserExtraSrc{s}, cmd);
             ThePlanner::axesCommandDone(c);
         } else {
             ThePlanner::emptyDone(c);

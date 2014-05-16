@@ -462,6 +462,7 @@ using PrinterParams = PrinterMainParams<
     MakeTypeList<
         PrinterMainLaserParams<
             'L', // Name
+            'M', // DensityName
             LLaserPower,
             LMaxPower,
             Mk20ClockPwmService<Mk20ClockFTM1, 1, TeensyPin17>,
