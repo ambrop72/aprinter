@@ -34,7 +34,7 @@
 #include <aprinter/meta/WrapValue.h>
 
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/sqrt_26_large.h>
+#include <aprinter/avr-asm-ops/sqrt_26_large.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>

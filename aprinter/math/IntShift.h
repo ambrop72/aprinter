@@ -31,7 +31,7 @@
 #include <aprinter/meta/PowerOfTwo.h>
 
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/shift.h>
+#include <aprinter/avr-asm-ops/shift.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>

@@ -33,7 +33,7 @@
 #include <aprinter/math/IntShift.h>
 
 #ifdef AMBROLIB_AVR
-#include <avr-asm-ops/mul.h>
+#include <aprinter/avr-asm-ops/mul.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
