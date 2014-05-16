@@ -229,8 +229,7 @@ using PrinterParams = PrinterMainParams<
     ForceTimeout, // ForceTimeout
     double, // FpType
     At91Sam3uClockInterruptTimerService<At91Sam3uClockTC0, At91Sam3uClockCompA>, // EventChannelTimer
-    At91SamWatchdog,
-    At91SamWatchdogParams<260>,
+    At91SamWatchdogService<260>,
     PrinterMainNoSdCardParams,
     PrinterMainProbeParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList

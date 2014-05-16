@@ -30,11 +30,6 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <uint32_t TWdv>
-struct At91SamWatchdogParams {
-    static const uint32_t Wdv = TWdv;
-};
-
 template <typename Context, typename ParentObject, typename Params>
 class At91SamWatchdog {
     static_assert(Params::Wdv <= 0xFFF, "");
@@ -70,6 +65,14 @@ public:
     struct Object : public ObjBase<At91SamWatchdog, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
     {};
+};
+
+template <uint32_t TWdv>
+struct At91SamWatchdogService {
+    static const uint32_t Wdv = TWdv;
+    
+    template <typename Context, typename ParentObject>
+    using Watchdog = At91SamWatchdog<Context, ParentObject, At91SamWatchdogService>;
 };
 
 #include <aprinter/EndNamespace.h>

@@ -34,11 +34,6 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <int TWatchdogPrescaler>
-struct AvrWatchdogParams {
-    static const int WatchdogPrescaler = TWatchdogPrescaler;
-};
-
 template <typename Context, typename ParentObject, typename Params>
 class AvrWatchdog {
     static_assert(Params::WatchdogPrescaler >= 0, "");
@@ -78,6 +73,14 @@ public:
     struct Object : public ObjBase<AvrWatchdog, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
     {};
+};
+
+template <int TWatchdogPrescaler>
+struct AvrWatchdogService {
+    static const int WatchdogPrescaler = TWatchdogPrescaler;
+    
+    template <typename Context, typename ParentObject>
+    using Watchdog = AvrWatchdog<Context, ParentObject, AvrWatchdogService>;
 };
 
 #define AMBRO_AVR_WATCHDOG_GLOBAL \

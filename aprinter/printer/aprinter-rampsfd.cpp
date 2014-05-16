@@ -228,8 +228,7 @@ using PrinterParams = PrinterMainParams<
     ForceTimeout, // ForceTimeout
     double, // FpType
     At91Sam3xClockInterruptTimerService<At91Sam3xClockTC0, At91Sam3xClockCompA>, // EventChannelTimer
-    At91SamWatchdog,
-    At91SamWatchdogParams<260>,
+    At91SamWatchdogService<260>,
     PrinterMainSdCardParams<
         SpiSdCard,
         SpiSdCardParams<

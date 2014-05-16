@@ -208,8 +208,7 @@ using PrinterParams = PrinterMainParams<
     ForceTimeout, // ForceTimeout
     float, // FpType
     Mk20ClockInterruptTimerService<Mk20ClockFTM0, 0>, // EventChannelTimer
-    Mk20Watchdog,
-    Mk20WatchdogParams<2000, 0>,
+    Mk20WatchdogService<2000, 0>,
     PrinterMainNoSdCardParams,
     PrinterMainNoProbeParams,
     PrinterMainNoCurrentParams,

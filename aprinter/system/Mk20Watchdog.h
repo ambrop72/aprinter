@@ -34,12 +34,6 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <uint32_t TToval, uint8_t TPrescval>
-struct Mk20WatchdogParams {
-    static const uint32_t Toval = TToval;
-    static const uint8_t Prescval = TPrescval;
-};
-
 template <typename Context, typename ParentObject, typename TParams>
 class Mk20Watchdog {
 public:
@@ -81,6 +75,15 @@ public:
     struct Object : public ObjBase<Mk20Watchdog, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
     {};
+};
+
+template <uint32_t TToval, uint8_t TPrescval>
+struct Mk20WatchdogService {
+    static const uint32_t Toval = TToval;
+    static const uint8_t Prescval = TPrescval;
+    
+    template <typename Context, typename ParentObject>
+    using Watchdog = Mk20Watchdog<Context, ParentObject, Mk20WatchdogService>;
 };
 
 #define AMBRO_MK20_WATCHDOG_GLOBAL(watchdog) \

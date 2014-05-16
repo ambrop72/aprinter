@@ -225,8 +225,7 @@ using PrinterParams = PrinterMainParams<
     ForceTimeout, // ForceTimeout
     double, // FpType
     AvrClockInterruptTimerService<AvrClockTcChannel5C>, // EventChannelTimer
-    AvrWatchdog,
-    AvrWatchdogParams<
+    AvrWatchdogService<
         WDTO_2S
     >,
     PrinterMainSdCardParams<

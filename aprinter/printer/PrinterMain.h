@@ -88,7 +88,7 @@ template <
     int TLookaheadCommitCount,
     typename TForceTimeout, typename TFpType,
     typename TEventChannelTimerService,
-    template <typename, typename, typename> class TWatchdogTemplate, typename TWatchdogParams,
+    typename TWatchdogService,
     typename TSdCardParams, typename TProbeParams, typename TCurrentParams,
     typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList,
     typename TLasersList = EmptyTypeList
@@ -107,8 +107,7 @@ struct PrinterMainParams {
     using ForceTimeout = TForceTimeout;
     using FpType = TFpType;
     using EventChannelTimerService = TEventChannelTimerService;
-    template <typename X, typename Y, typename Z> using WatchdogTemplate = TWatchdogTemplate<X, Y, Z>;
-    using WatchdogParams = TWatchdogParams;
+    using WatchdogService = TWatchdogService;
     using SdCardParams = TSdCardParams;
     using ProbeParams = TProbeParams;
     using CurrentParams = TCurrentParams;
@@ -493,7 +492,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         TheAxis::InvertDir
     >;
     
-    using TheWatchdog = typename Params::template WatchdogTemplate<Context, Object, typename Params::WatchdogParams>;
+    using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     using StepperDefsList = MapTypeList<ParamsAxesList, TemplateFunc<MakeStepperDef>>;
     using TheSteppers = Steppers<Context, Object, StepperDefsList>;
