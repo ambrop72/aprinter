@@ -209,11 +209,9 @@ using PrinterParams = PrinterMainParams<
         9, // SendBufferSizeExp
         GcodeParserParams<16>, // ReceiveBufferSizeExp
 #ifdef USB_SERIAL
-        AsfUsbSerial,
-        AsfUsbSerialParams
+        AsfUsbSerialService
 #else
-        At91Sam3xSerial,
-        At91Sam3xSerialParams
+        At91Sam3xSerialService
 #endif
     >,
     DuePin37, // LedPin

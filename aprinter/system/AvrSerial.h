@@ -42,12 +42,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <bool TDoubleSpeed>
-struct AvrSerialParams {
-    static const bool DoubleSpeed = TDoubleSpeed;
-};
-
-template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
+template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler, typename Params>
 class AvrSerial {
 private:
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<AvrSerial>;
@@ -334,6 +329,14 @@ public:
         SendSizeType m_send_event;
         char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
     };
+};
+
+template <bool TDoubleSpeed>
+struct AvrSerialService {
+    static const bool DoubleSpeed = TDoubleSpeed;
+    
+    template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler>
+    using Serial = AvrSerial<Context, ParentObject, RecvBufferBits, SendBufferBits, RecvHandler, SendHandler, AvrSerialService>;
 };
 
 #define AMBRO_AVR_SERIAL_ISRS(avrserial, context) \

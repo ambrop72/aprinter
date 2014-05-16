@@ -210,8 +210,7 @@ using PrinterParams = PrinterMainParams<
         7, // RecvBufferSizeExp
         7, // SendBufferSizeExp
         GcodeParserParams<8>, // ReceiveBufferSizeExp
-        AvrSerial,
-        AvrSerialParams<true>
+        AvrSerialService<true>
     >,
     MegaPin13, // LedPin
     LedBlinkInterval, // LedBlinkInterval

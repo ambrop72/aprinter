@@ -39,9 +39,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-struct At91Sam3xSerialParams {};
-
-template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
+template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler, typename Params>
 class At91Sam3xSerial {
 private:
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<At91Sam3xSerial>;
@@ -325,6 +323,11 @@ public:
         SendSizeType m_send_event;
         char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
     };
+};
+
+struct At91Sam3xSerialService {
+    template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler>
+    using Serial = At91Sam3xSerial<Context, ParentObject, RecvBufferBits, SendBufferBits, RecvHandler, SendHandler, At91Sam3xSerialService>;
 };
 
 #define AMBRO_AT91SAM3X_SERIAL_GLOBAL(the_serial, context) \

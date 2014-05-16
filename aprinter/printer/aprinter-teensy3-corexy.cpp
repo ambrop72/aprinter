@@ -193,8 +193,7 @@ using PrinterParams = PrinterMainParams<
         8, // RecvBufferSizeExp
         8, // SendBufferSizeExp
         GcodeParserParams<16>, // ReceiveBufferSizeExp
-        TeensyUsbSerial,
-        TeensyUsbSerialParams
+        TeensyUsbSerialService
     >,
     TeensyPin13, // LedPin
     LedBlinkInterval, // LedBlinkInterval

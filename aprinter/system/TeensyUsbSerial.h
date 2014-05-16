@@ -45,9 +45,7 @@ extern "C" {
 
 #include <aprinter/BeginNamespace.h>
 
-struct TeensyUsbSerialParams {};
-
-template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
+template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler, typename Params>
 class TeensyUsbSerial {
 private:
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<TeensyUsbSerial>;
@@ -221,6 +219,11 @@ public:
         SendSizeType m_send_end;
         char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
     };
+};
+
+struct TeensyUsbSerialService {
+    template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler>
+    using Serial = TeensyUsbSerial<Context, ParentObject, RecvBufferBits, SendBufferBits, RecvHandler, SendHandler, TeensyUsbSerialService>;
 };
 
 #include <aprinter/EndNamespace.h>

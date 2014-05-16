@@ -214,8 +214,7 @@ using PrinterParams = PrinterMainParams<
         8, // RecvBufferSizeExp
         9, // SendBufferSizeExp
         GcodeParserParams<16>, // ReceiveBufferSizeExp
-        AsfUsbSerial,
-        AsfUsbSerialParams
+        AsfUsbSerialService
     >,
     At91SamPin<At91SamPioC, 22>, // LedPin
     LedBlinkInterval, // LedBlinkInterval

@@ -42,9 +42,7 @@ extern "C" uint32_t udi_cdc_write_buf (const void* buf, uint32_t size);
 extern "C" uint32_t udi_cdc_get_nb_received_data (void);
 extern "C" uint32_t udi_cdc_read_buf (void* buf, uint32_t size);
 
-struct AsfUsbSerialParams {};
-
-template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename Params, typename RecvHandler, typename SendHandler>
+template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler, typename Params>
 class AsfUsbSerial {
 private:
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<AsfUsbSerial>;
@@ -252,6 +250,11 @@ public:
         SendSizeType m_send_end;
         char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
     };
+};
+
+struct AsfUsbSerialService {
+    template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler>
+    using Serial = AsfUsbSerial<Context, ParentObject, RecvBufferBits, SendBufferBits, RecvHandler, SendHandler, AsfUsbSerialService>;
 };
 
 #include <aprinter/EndNamespace.h>

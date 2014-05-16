@@ -122,16 +122,14 @@ template <
     uint32_t TBaud,
     int TRecvBufferSizeExp, int TSendBufferSizeExp,
     typename TTheGcodeParserParams,
-    template <typename, typename, int, int, typename, typename, typename> class TSerialTemplate,
-    typename TSerialParams
+    typename TSerialService
 >
 struct PrinterMainSerialParams {
     static uint32_t const Baud = TBaud;
     static int const RecvBufferSizeExp = TRecvBufferSizeExp;
     static int const SendBufferSizeExp = TSendBufferSizeExp;
     using TheGcodeParserParams = TTheGcodeParserParams;
-    template <typename S, typename X, int Y, int Z, typename W, typename Q, typename R> using SerialTemplate = TSerialTemplate<S, X, Y, Z, W, Q, R>;
-    using SerialParams = TSerialParams;
+    using SerialService = TSerialService;
 };
 
 template <
@@ -807,7 +805,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct SerialRecvHandler;
         struct SerialSendHandler;
         
-        using TheSerial = typename Params::Serial::template SerialTemplate<Context, Object, Params::Serial::RecvBufferSizeExp, Params::Serial::SendBufferSizeExp, typename Params::Serial::SerialParams, SerialRecvHandler, SerialSendHandler>;
+        using TheSerial = typename Params::Serial::SerialService::template Serial<Context, Object, Params::Serial::RecvBufferSizeExp, Params::Serial::SendBufferSizeExp, SerialRecvHandler, SerialSendHandler>;
         using RecvSizeType = typename TheSerial::RecvSizeType;
         using SendSizeType = typename TheSerial::SendSizeType;
         using TheGcodeParser = GcodeParser<Context, Object, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType, GcodeParserTypeSerial>;
