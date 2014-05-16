@@ -64,7 +64,7 @@ using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
-//using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
+//using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
@@ -280,9 +280,9 @@ using PrinterParams = PrinterMainParams<
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 At91Sam3xClockInterruptTimerService<At91Sam3xClockTC1, At91Sam3xClockCompA>, // StepperTimer,
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -313,9 +313,9 @@ using PrinterParams = PrinterMainParams<
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 At91Sam3xClockInterruptTimerService<At91Sam3xClockTC2, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -346,9 +346,9 @@ using PrinterParams = PrinterMainParams<
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 At91Sam3xClockInterruptTimerService<At91Sam3xClockTC3, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -368,9 +368,9 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 At91Sam3xClockInterruptTimerService<At91Sam3xClockTC4, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -390,9 +390,9 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 At91Sam3xClockInterruptTimerService<At91Sam3xClockTC8, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >
@@ -599,11 +599,11 @@ AMBRO_AT91SAM3X_CLOCK_TC7_GLOBAL(p.myclock, MyContext())
 AMBRO_AT91SAM3X_CLOCK_TC8_GLOBAL(p.myclock, MyContext())
 
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC0, At91Sam3xClockCompA, *p.myprinter.getEventChannelTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC1, At91Sam3xClockCompA, *p.myprinter.getAxisStepper<0>()->getTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC2, At91Sam3xClockCompA, *p.myprinter.getAxisStepper<1>()->getTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC3, At91Sam3xClockCompA, *p.myprinter.getAxisStepper<2>()->getTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC4, At91Sam3xClockCompA, *p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
-AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC8, At91Sam3xClockCompA, *p.myprinter.getAxisStepper<4>()->getTimer(), MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC1, At91Sam3xClockCompA, *p.myprinter.getAxisDriver<0>()->getTimer(), MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC2, At91Sam3xClockCompA, *p.myprinter.getAxisDriver<1>()->getTimer(), MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC3, At91Sam3xClockCompA, *p.myprinter.getAxisDriver<2>()->getTimer(), MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC4, At91Sam3xClockCompA, *p.myprinter.getAxisDriver<3>()->getTimer(), MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC8, At91Sam3xClockCompA, *p.myprinter.getAxisDriver<4>()->getTimer(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC5, At91Sam3xClockCompA, *p.myprinter.getHeaterTimer<0>(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC5, At91Sam3xClockCompB, *p.myprinter.getHeaterTimer<1>(), MyContext())
 AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC6, At91Sam3xClockCompA, *p.myprinter.getHeaterTimer<2>(), MyContext())

@@ -63,7 +63,7 @@ using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
-using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
+using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 
 using XMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
 using XMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
@@ -267,9 +267,9 @@ using PrinterParams = PrinterMainParams<
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 At91Sam3xClockInterruptTimerService<At91Sam3xClockTC1, At91Sam3xClockCompA>, // StepperTimer,
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -300,9 +300,9 @@ using PrinterParams = PrinterMainParams<
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 At91Sam3xClockInterruptTimerService<At91Sam3xClockTC2, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -333,9 +333,9 @@ using PrinterParams = PrinterMainParams<
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 At91Sam3xClockInterruptTimerService<At91Sam3xClockTC3, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -355,9 +355,9 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 At91Sam3xClockInterruptTimerService<At91Sam3xClockTC4, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >

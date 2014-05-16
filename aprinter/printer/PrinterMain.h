@@ -72,8 +72,8 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/devices/SoftPwm.h>
-#include <aprinter/stepper/Steppers.h>
-#include <aprinter/stepper/AxisStepper.h>
+#include <aprinter/driver/Steppers.h>
+#include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/BinaryGcodeParser.h>
@@ -143,7 +143,7 @@ template <
     typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
     typename THoming, bool TIsCartesian, int TStepBits,
-    typename TTheAxisStepperParams, typename TMicroStep
+    typename TTheAxisDriverParams, typename TMicroStep
 >
 struct PrinterMainAxisParams {
     static char const Name = TName;
@@ -161,7 +161,7 @@ struct PrinterMainAxisParams {
     using Homing = THoming;
     static bool const IsCartesian = TIsCartesian;
     static int const StepBits = TStepBits;
-    using TheAxisStepperParams = TTheAxisStepperParams;
+    using TheAxisDriverParams = TTheAxisDriverParams;
     using MicroStep = TMicroStep;
 };
 
@@ -396,7 +396,7 @@ template <
     typename TMaxPower,
     typename TPwmService,
     typename TDutyFormulaService,
-    typename TTheLaserStepperService
+    typename TTheLaserDriverService
 >
 struct PrinterMainLaserParams {
     static char const Name = TName;
@@ -405,7 +405,7 @@ struct PrinterMainLaserParams {
     using MaxPower = TMaxPower;
     using PwmService = TPwmService;
     using DutyFormulaService = TDutyFormulaService;
-    using TheLaserStepperService = TTheLaserStepperService;
+    using TheLaserDriverService = TTheLaserDriverService;
 };
 
 template <typename Context, typename ParentObject, typename Params>
@@ -473,7 +473,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     struct PlannerUnderrunCallback;
     struct PlannerChannelCallback;
     template <int AxisIndex> struct PlannerPrestepCallback;
-    template <int AxisIndex> struct AxisStepperConsumersList;
+    template <int AxisIndex> struct AxisDriverConsumersList;
     
     using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
@@ -1314,7 +1314,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static const int AxisIndex = TAxisIndex;
         using AxisSpec = TypeListGet<ParamsAxesList, AxisIndex>;
         using Stepper = typename TheSteppers::template Stepper<AxisIndex>;
-        using TheAxisStepper = AxisStepper<Context, Object, typename AxisSpec::TheAxisStepperParams, Stepper, AxisStepperConsumersList<AxisIndex>>;
+        using TheAxisDriver = AxisDriver<Context, Object, typename AxisSpec::TheAxisDriverParams, Stepper, AxisDriverConsumersList<AxisIndex>>;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
         static const char AxisName = AxisSpec::Name;
@@ -1332,7 +1332,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             struct HomerFinishedHandler;
             
             using Homer = AxisHomer<
-                Context, Object, TheAxisStepper, AxisSpec::StepBits,
+                Context, Object, TheAxisDriver, AxisSpec::StepBits,
                 typename AxisSpec::DefaultDistanceFactor, typename AxisSpec::DefaultCorneringDistance,
                 Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, FpType,
                 typename HomingSpec::EndPin,
@@ -1340,7 +1340,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             >;
             
             template <typename TheHomingFeature>
-            using MakeAxisStepperConsumersList = MakeTypeList<typename TheHomingFeature::Homer::TheAxisStepperConsumer>;
+            using MakeAxisDriverConsumersList = MakeTypeList<typename TheHomingFeature::Homer::TheAxisDriverConsumer>;
             
             using EventLoopFastEvents = typename Homer::EventLoopFastEvents;
             
@@ -1404,7 +1404,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             >> {};
         } AMBRO_STRUCT_ELSE(HomingFeature) {
             template <typename TheHomingFeature>
-            using MakeAxisStepperConsumersList = MakeTypeList<>;
+            using MakeAxisDriverConsumersList = MakeTypeList<>;
             using EventLoopFastEvents = EmptyTypeList;
             static void deinit (Context c) {}
             static void start_phys_homing (Context c) {}
@@ -1470,7 +1470,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void init (Context c)
         {
             auto *o = Object::self(c);
-            TheAxisStepper::init(c);
+            TheAxisDriver::init(c);
             o->m_state = AXIS_STATE_OTHER;
             TheHomingHelper::init(c);
             MicroStepFeature::init(c);
@@ -1482,7 +1482,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void deinit (Context c)
         {
             HomingFeature::deinit(c);
-            TheAxisStepper::deinit(c);
+            TheAxisDriver::deinit(c);
         }
         
         static void start_phys_homing (Context c)
@@ -1576,7 +1576,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using EventLoopFastEvents = typename HomingFeature::EventLoopFastEvents;
         
         struct Object : public ObjBase<Axis, typename PrinterMain::Object, MakeTypeList<
-            TheAxisStepper,
+            TheAxisDriver,
             MicroStepFeature
         >>
         {
@@ -1601,7 +1601,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     template <typename TheAxis>
     using MakePlannerAxisSpec = MotionPlannerAxisSpec<
-        typename TheAxis::TheAxisStepper,
+        typename TheAxis::TheAxisDriver,
         TheAxis::AxisSpec::StepBits,
         typename TheAxis::AxisSpec::DefaultDistanceFactor,
         typename TheAxis::AxisSpec::DefaultCorneringDistance,
@@ -1687,7 +1687,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     template <typename TheLaser>
     using MakePlannerLaserSpec = MotionPlannerLaserSpec<
-        typename TheLaser::LaserSpec::TheLaserStepperService,
+        typename TheLaser::LaserSpec::TheLaserDriverService,
         typename TheLaser::PowerInterface
     >;
     
@@ -3069,7 +3069,7 @@ public:
     using GetSerial = typename SerialFeature::TheSerial;
     
     template <int AxisIndex>
-    using GetAxisTimer = typename Axis<AxisIndex>::TheAxisStepper::GetTimer;
+    using GetAxisTimer = typename Axis<AxisIndex>::TheAxisDriver::GetTimer;
     
     template <int HeaterIndex>
     using GetHeaterTimer = typename Heater<HeaterIndex>::TheSoftPwm::GetTimer;
@@ -3086,7 +3086,7 @@ public:
     using GetCurrent = typename TCurrentFeatue::Current;
     
     template <int LaserIndex>
-    using GetLaserStepper = typename ThePlanner::template Laser<LaserIndex>::TheLaserStepper;
+    using GetLaserDriver = typename ThePlanner::template Laser<LaserIndex>::TheLaserDriver;
     
     static void emergency ()
     {
@@ -3712,10 +3712,10 @@ public: // private, see comment on top
     struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_underrun_callback) {};
     struct PlannerChannelCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_channel_callback) {};
     template <int AxisIndex> struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&PrinterMain::template planner_prestep_callback<AxisIndex>) {};
-    template <int AxisIndex> struct AxisStepperConsumersList {
+    template <int AxisIndex> struct AxisDriverConsumersList {
         using List = JoinTypeLists<
-            MakeTypeList<typename ThePlanner::template TheAxisStepperConsumer<AxisIndex>>,
-            typename Axis<AxisIndex>::HomingFeature::template MakeAxisStepperConsumersList<typename Axis<AxisIndex>::HomingFeature>
+            MakeTypeList<typename ThePlanner::template TheAxisDriverConsumer<AxisIndex>>,
+            typename Axis<AxisIndex>::HomingFeature::template MakeAxisDriverConsumersList<typename Axis<AxisIndex>::HomingFeature>
         >;
     };
     

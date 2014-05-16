@@ -40,7 +40,7 @@
 #include <aprinter/BeginNamespace.h>
 
 template <
-    typename Context, typename ParentObject, typename TheAxisStepper,
+    typename Context, typename ParentObject, typename TheAxisDriver,
     int PlannerStepBits,
     typename PlannerDistanceFactor, typename PlannerCorneringDistance,
     int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename FpType,
@@ -61,7 +61,7 @@ private:
     static int const LookaheadBufferSize = min(MaxLookaheadBufferSize, 3);
     static int const LookaheadCommitCount = 1;
     
-    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisStepper, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
+    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
     using Planner = MotionPlanner<Context, Object, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
@@ -108,7 +108,7 @@ public:
         }
     }
     
-    using TheAxisStepperConsumer = typename Planner::template TheAxisStepperConsumer<0>;
+    using TheAxisDriverConsumer = typename Planner::template TheAxisDriverConsumer<0>;
     using EventLoopFastEvents = typename Planner::EventLoopFastEvents;
     
 private:

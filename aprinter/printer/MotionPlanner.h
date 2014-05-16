@@ -58,14 +58,14 @@
 #include <aprinter/BeginNamespace.h>
 
 template <
-    typename TTheAxisStepper,
+    typename TTheAxisDriver,
     int TStepBits,
     typename TDistanceFactor,
     typename TCorneringDistance,
     typename TPrestepCallback
 >
 struct MotionPlannerAxisSpec {
-    using TheAxisStepper = TTheAxisStepper;
+    using TheAxisDriver = TTheAxisDriver;
     static const int StepBits = TStepBits;
     using DistanceFactor = TDistanceFactor;
     using CorneringDistance = TCorneringDistance;
@@ -86,11 +86,11 @@ struct MotionPlannerChannelSpec {
 };
 
 template <
-    typename TTheLaserStepperService,
+    typename TTheLaserDriverService,
     typename TPowerInterface
 >
 struct MotionPlannerLaserSpec {
-    using TheLaserStepperService = TTheLaserStepperService;
+    using TheLaserDriverService = TTheLaserDriverService;
     using PowerInterface = TPowerInterface;
 };
 
@@ -216,8 +216,8 @@ private:
     template <int AxisIndex>
     struct AxisSegment {
         using AxisSpec = TypeListGet<ParamsAxesList, AxisIndex>;
-        using TheAxisStepper = typename AxisSpec::TheAxisStepper;
-        using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
+        using TheAxisDriver = typename AxisSpec::TheAxisDriver;
+        using StepperStepFixedType = typename TheAxisDriver::StepFixedType;
         
         StepperStepFixedType x;
     };
@@ -434,26 +434,26 @@ public:
     public:
         using AxisSpec = TypeListGet<ParamsAxesList, AxisIndex>;
         using TheAxisSplitBuffer = AxisSplitBuffer<AxisIndex>;
-        using TheAxisStepper = typename AxisSpec::TheAxisStepper;
+        using TheAxisDriver = typename AxisSpec::TheAxisDriver;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
-        using StepperCommandCallbackContext = typename TheAxisStepper::CommandCallbackContext;
+        using StepperCommandCallbackContext = typename TheAxisDriver::CommandCallbackContext;
         
     public: // private, workaround gcc bug
         friend MotionPlanner;
         
         struct Object;
         using TheCommon = AxisCommon<Axis>;
-        using TheStepper = TheAxisStepper;
+        using TheStepper = TheAxisDriver;
         static bool const IsFirst = (AxisIndex == 0);
-        using StepperStepFixedType = typename TheAxisStepper::StepFixedType;
-        using StepperAccelFixedType = typename TheAxisStepper::AccelFixedType;
+        using StepperStepFixedType = typename TheAxisDriver::StepFixedType;
+        using StepperAccelFixedType = typename TheAxisDriver::AccelFixedType;
         using StepperCommand = typename TheCommon::StepperCommand;
         using TheAxisSegment = AxisSegment<AxisIndex>;
         static const AxisMaskType TheAxisMask = (AxisMaskType)1 << (AxisIndex + TypeBits);
         
         static void init_impl (Context c, bool prestep_callback_enabled)
         {
-            TheAxisStepper::setPrestepCallbackEnabled(c, prestep_callback_enabled);
+            TheAxisDriver::setPrestepCallbackEnabled(c, prestep_callback_enabled);
         }
         
         static void deinit_impl (Context c)
@@ -462,7 +462,7 @@ public:
         
         static void abort_impl (Context c)
         {
-            TheAxisStepper::stop(c);
+            TheAxisDriver::stop(c);
         }
         
         static void commandDone_assert_impl (Context c)
@@ -595,7 +595,7 @@ public:
         
         static void start_stepping_impl (Context c, TimeType start_time, StepperCommand *cmd)
         {
-            TheAxisStepper::template start<TheAxisStepperConsumer<AxisIndex>>(c, start_time, cmd);
+            TheAxisDriver::template start<TheAxisDriverConsumer<AxisIndex>>(c, start_time, cmd);
         }
         
         static bool stepper_prestep_callback (StepperCommandCallbackContext c)
@@ -615,7 +615,7 @@ public:
         static void add_command_steps (Context c, StepsType *steps, StepperCommand *cmd)
         {
             bool dir;
-            StepperStepFixedType cmd_steps = TheAxisStepper::getPendingCmdSteps(c, cmd, &dir);
+            StepperStepFixedType cmd_steps = TheAxisDriver::getPendingCmdSteps(c, cmd, &dir);
             add_steps(steps, cmd_steps, dir);
         }
         
@@ -638,7 +638,7 @@ public:
             StepsType steps = 0;
             if (co->m_busy) {
                 bool dir;
-                StepperStepFixedType cmd_steps = TheAxisStepper::getAbortedCmdSteps(c, &dir);
+                StepperStepFixedType cmd_steps = TheAxisDriver::getAbortedCmdSteps(c, &dir);
                 add_steps(&steps, cmd_steps, dir);
             }
             for (StepperCommitBufferSizeType i = co->m_commit_start; i != co->m_commit_end; i = TheCommon::commit_inc(i)) {
@@ -679,28 +679,28 @@ public:
     public:
         using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
         using TheLaserSplitBuffer = LaserSplitBuffer<LaserIndex>;
-        using TheLaserStepper = typename LaserSpec::TheLaserStepperService::template LaserStepper<Context, Object, FpType, typename LaserSpec::PowerInterface, StepperCommandCallback>;
+        using TheLaserDriver = typename LaserSpec::TheLaserDriverService::template LaserDriver<Context, Object, FpType, typename LaserSpec::PowerInterface, StepperCommandCallback>;
         
     public: // private, workaround gcc bug
         using TheCommon = AxisCommon<Laser>;
-        using TheStepper = TheLaserStepper;
+        using TheStepper = TheLaserDriver;
         static bool const IsFirst = false;
         using StepperCommand = typename TheCommon::StepperCommand;
         using TheLaserSegment = LaserSegment<LaserIndex>;
         
         static void init_impl (Context c, bool prestep_callback_enabled)
         {
-            TheLaserStepper::init(c);
+            TheLaserDriver::init(c);
         }
         
         static void deinit_impl (Context c)
         {
-            TheLaserStepper::deinit(c);
+            TheLaserDriver::deinit(c);
         }
         
         static void abort_impl (Context c)
         {
-            TheLaserStepper::stop(c);
+            TheLaserDriver::stop(c);
         }
         
         static void commandDone_assert_impl (Context c)
@@ -755,7 +755,7 @@ public:
         
         static void start_stepping_impl (Context c, TimeType start_time, StepperCommand *cmd)
         {
-            TheLaserStepper::start(c, start_time, cmd);
+            TheLaserDriver::start(c, start_time, cmd);
         }
         
         static TheLaserSplitBuffer * get_laser_split (Context c)
@@ -767,7 +767,7 @@ public:
         struct StepperCommandCallback : public AMBRO_WFUNC_TD(&TheCommon::stepper_command_callback) {};
         
         struct Object : public ObjBase<Laser, typename TheCommon::Object, MakeTypeList<
-            TheLaserStepper
+            TheLaserDriver
         >> {};
     };
     
@@ -1123,7 +1123,7 @@ public:
     using GetChannelTimer = typename Channel<ChannelIndex>::TheTimer;
     
     template <int AxisIndex>
-    using TheAxisStepperConsumer = AxisStepperConsumer<
+    using TheAxisDriverConsumer = AxisDriverConsumer<
         AMBRO_WFUNC_T(&Axis<AxisIndex>::TheCommon::stepper_command_callback),
         AMBRO_WFUNC_T(&Axis<AxisIndex>::stepper_prestep_callback)
     >;

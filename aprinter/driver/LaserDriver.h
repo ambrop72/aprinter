@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_LASER_STEPPER_H
-#define AMBROLIB_LASER_STEPPER_H
+#ifndef AMBROLIB_LASER_DRIVER_H
+#define AMBROLIB_LASER_DRIVER_H
 
 #include <stdint.h>
 
@@ -41,15 +41,15 @@
 #include <aprinter/BeginNamespace.h>
 
 template <int TTimeBits, int TIntervalTimeBits>
-struct LaserStepperPrecisionParams {
+struct LaserDriverPrecisionParams {
     static int const TimeBits = TTimeBits;
     static int const IntervalTimeBits = TIntervalTimeBits;
 };
 
-using LaserStepperDefaultPrecisionParams = LaserStepperPrecisionParams<26, 32>;
+using LaserDriverDefaultPrecisionParams = LaserDriverPrecisionParams<26, 32>;
 
 template <typename Context, typename ParentObject, typename FpType, typename PowerInterface, typename CommandCallback, typename Params>
-class LaserStepper {
+class LaserDriver {
 private:
     struct TimerCallback;
     
@@ -182,10 +182,10 @@ private:
         return true;
     }
     
-    struct TimerCallback : public AMBRO_WFUNC_TD(&LaserStepper::timer_callback) {};
+    struct TimerCallback : public AMBRO_WFUNC_TD(&LaserDriver::timer_callback) {};
     
 public:
-    struct Object : public ObjBase<LaserStepper, ParentObject, MakeTypeList<
+    struct Object : public ObjBase<LaserDriver, ParentObject, MakeTypeList<
         TheTimer
     >>,
         public DebugObject<Context, void>
@@ -204,13 +204,13 @@ template <
     typename TAdjustmentInterval,
     typename TPrecisionParams
 >
-struct LaserStepperService {
+struct LaserDriverService {
     using InterruptTimerService = TInterruptTimerService;
     using AdjustmentInterval = TAdjustmentInterval;
     using PrecisionParams = TPrecisionParams;
     
     template <typename Context, typename ParentObject, typename FpType, typename PowerInterface, typename CommandCallback>
-    using LaserStepper = LaserStepper<Context, ParentObject, FpType, PowerInterface, CommandCallback, LaserStepperService>;
+    using LaserDriver = LaserDriver<Context, ParentObject, FpType, PowerInterface, CommandCallback, LaserDriverService>;
 };
 
 #include <aprinter/EndNamespace.h>

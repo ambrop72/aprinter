@@ -43,7 +43,7 @@ static void emergency (void);
 #include <aprinter/system/Mk20Watchdog.h>
 #include <aprinter/system/TeensyUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
-#include <aprinter/stepper/LaserStepper.h>
+#include <aprinter/driver/LaserDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
@@ -62,7 +62,7 @@ using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
-using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
+using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 
 // Cartesian axes invloved in CoreXY are X and Y.
 // Any configuration here is related to a cartesian
@@ -233,9 +233,9 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 1>, // StepperTimer,
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainMicroStepParams<
                A4988MicroStep, // MicroStepTemplate
@@ -263,9 +263,9 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 2>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -296,9 +296,9 @@ using PrinterParams = PrinterMainParams<
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 3>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -318,9 +318,9 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 4>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >
@@ -469,10 +469,10 @@ using PrinterParams = PrinterMainParams<
             LinearDutyFormulaService<
                 15 // PowerBits
             >,
-            LaserStepperService<
+            LaserDriverService<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7>,
                 LDutyAdjustmentInterval,
-                LaserStepperDefaultPrecisionParams
+                LaserDriverDefaultPrecisionParams
             >
         >
     >
@@ -543,7 +543,7 @@ AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 3, MyPrinter::GetAxisTime
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 4, MyPrinter::GetAxisTimer<3>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 5, MyPrinter::GetHeaterTimer<0>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 6, MyPrinter::GetHeaterTimer<1>, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 7, MyPrinter::GetLaserStepper<0>::TheTimer, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 7, MyPrinter::GetLaserDriver<0>::TheTimer, MyContext())
 
 static void emergency (void)
 {

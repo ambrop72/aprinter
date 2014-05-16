@@ -59,7 +59,7 @@ using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
-using TheAxisStepperPrecisionParams = AxisStepperDuePrecisionParams;
+using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 
 using XMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
 using XMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
@@ -212,9 +212,9 @@ using PrinterParams = PrinterMainParams<
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 1>, // StepperTimer,
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -245,9 +245,9 @@ using PrinterParams = PrinterMainParams<
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 2>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -278,9 +278,9 @@ using PrinterParams = PrinterMainParams<
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 3>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
@@ -300,9 +300,9 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
-            AxisStepperParams<
+            AxisDriverParams<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 4>, // StepperTimer
-                TheAxisStepperPrecisionParams // PrecisionParams
+                TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >

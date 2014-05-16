@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_AXIS_STEPPER_H
-#define AMBROLIB_AXIS_STEPPER_H
+#ifndef AMBROLIB_AXIS_DRIVER_H
+#define AMBROLIB_AXIS_DRIVER_H
 
 #include <stdint.h>
 
@@ -59,13 +59,13 @@ template <
     typename TTimerService,
     typename TPrecisionParams
 >
-struct AxisStepperParams {
+struct AxisDriverParams {
     using TimerService = TTimerService;
     using PrecisionParams = TPrecisionParams;
 };
 
 template <typename TCommandCallback, typename TPrestepCallback>
-struct AxisStepperConsumer {
+struct AxisDriverConsumer {
     using CommandCallback = TCommandCallback;
     using PrestepCallback = TPrestepCallback;
 };
@@ -74,7 +74,7 @@ template <
     int tstep_bits, int ttime_bits, int tq_div_shift,
     int ttime_mul_bits, int tdiscriminant_prec
 >
-struct AxisStepperPrecisionParams {
+struct AxisDriverPrecisionParams {
     static const int step_bits = tstep_bits;
     static const int time_bits = ttime_bits;
     static const int q_div_shift = tq_div_shift;
@@ -82,11 +82,11 @@ struct AxisStepperPrecisionParams {
     static const int discriminant_prec = tdiscriminant_prec;
 };
 
-using AxisStepperAvrPrecisionParams = AxisStepperPrecisionParams<11, 22, 16, 24, 1>;
-using AxisStepperDuePrecisionParams = AxisStepperPrecisionParams<11, 26, 16, 26, 1>;
+using AxisDriverAvrPrecisionParams = AxisDriverPrecisionParams<11, 22, 16, 24, 1>;
+using AxisDriverDuePrecisionParams = AxisDriverPrecisionParams<11, 26, 16, 26, 1>;
 
 template <typename Context, typename ParentObject, typename Params, typename Stepper, typename ConsumersList>
-class AxisStepper {
+class AxisDriver {
 private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_command_callback, call_command_callback)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_prestep_callback, call_prestep_callback)
@@ -358,10 +358,10 @@ private:
         return true;
     }
     
-    struct TimerHandler : public AMBRO_WFUNC_TD(&AxisStepper::timer_handler) {};
+    struct TimerHandler : public AMBRO_WFUNC_TD(&AxisDriver::timer_handler) {};
     
 public:
-    struct Object : public ObjBase<AxisStepper, ParentObject, MakeTypeList<
+    struct Object : public ObjBase<AxisDriver, ParentObject, MakeTypeList<
         TimerInstance
     >>,
         public DebugObject<Context, void>
