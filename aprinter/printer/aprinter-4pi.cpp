@@ -477,8 +477,7 @@ using PrinterParams = PrinterMainParams<
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
             ExtruderHeaterPulseInterval, // PulseInterval
             ExtruderHeaterControlInterval, // ControlInterval
-            PidControl, // Control
-            PidControlParams<
+            PidControlService<
                 ExtruderHeaterPidP, // PidP
                 ExtruderHeaterPidI, // PidI
                 ExtruderHeaterPidD, // PidD
@@ -512,8 +511,7 @@ using PrinterParams = PrinterMainParams<
             BedHeaterMaxSafeTemp, // MaxSafeTemp
             BedHeaterPulseInterval, // PulseInterval
             BedHeaterControlInterval, // ControlInterval
-            PidControl, // Control
-            PidControlParams<
+            PidControlService<
                 BedHeaterPidP, // PidP
                 BedHeaterPidI, // PidI
                 BedHeaterPidD, // PidD
@@ -547,8 +545,7 @@ using PrinterParams = PrinterMainParams<
             UxtruderHeaterMaxSafeTemp, // MaxSafeTemp
             UxtruderHeaterPulseInterval, // PulseInterval
             UxtruderHeaterControlInterval, // ControlInterval
-            PidControl, // Control
-            PidControlParams<
+            PidControlService<
                 UxtruderHeaterPidP, // PidP
                 UxtruderHeaterPidI, // PidI
                 UxtruderHeaterPidD, // PidD

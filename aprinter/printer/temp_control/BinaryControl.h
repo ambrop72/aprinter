@@ -29,9 +29,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-struct BinaryControlParams {};
-
-template <typename Params, typename MeasurementInterval, typename FpType>
+template <typename MeasurementInterval, typename FpType, typename Params>
 class BinaryControl {
 public:
     static const bool SupportsConfig = false;
@@ -61,6 +59,11 @@ public:
     {
         return (value < target) ? 1.0f : 0.0f;
     }
+};
+
+struct BinaryControlService {
+    template <typename MeasurementInterval, typename FpType>
+    using Control = BinaryControl<MeasurementInterval, FpType, BinaryControlService>;
 };
 
 #include <aprinter/EndNamespace.h>

@@ -260,8 +260,7 @@ template <
     typename TMinSafeTemp, typename TMaxSafeTemp,
     typename TPulseInterval,
     typename TControlInterval,
-    template<typename, typename, typename> class TControl,
-    typename TControlParams,
+    typename TControlService,
     typename TTheTemperatureObserverParams,
     typename TTimerService
 >
@@ -278,8 +277,7 @@ struct PrinterMainHeaterParams {
     using MaxSafeTemp = TMaxSafeTemp;
     using PulseInterval = TPulseInterval;
     using ControlInterval = TControlInterval;
-    template <typename X, typename Y, typename Z> using Control = TControl<X, Y, Z>;
-    using ControlParams = TControlParams;
+    using ControlService = TControlService;
     using TheTemperatureObserverParams = TTheTemperatureObserverParams;
     using TimerService = TTimerService;
 };
@@ -2377,7 +2375,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct ObserverHandler;
         
         using HeaterSpec = TypeListGet<ParamsHeatersList, HeaterIndex>;
-        using TheControl = typename HeaterSpec::template Control<typename HeaterSpec::ControlParams, typename HeaterSpec::ControlInterval, FpType>;
+        using TheControl = typename HeaterSpec::ControlService::template Control<typename HeaterSpec::ControlInterval, FpType>;
         using ControlConfig = typename TheControl::Config;
         using TheSoftPwm = SoftPwm<Context, Object, typename HeaterSpec::OutputPin, HeaterSpec::OutputInvert, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, typename HeaterSpec::TimerService>;
         using TheObserver = TemperatureObserver<Context, Object, FpType, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;

@@ -33,20 +33,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    typename TP, typename TI, typename TD, typename TIStateMin, typename TIStateMax,
-    typename TDHistory
->
-struct PidControlParams {
-    using P = TP;
-    using I = TI;
-    using D = TD;
-    using IStateMin = TIStateMin;
-    using IStateMax = TIStateMax;
-    using DHistory = TDHistory;
-};
-
-template <typename Params, typename MeasurementInterval, typename FpType>
+template <typename MeasurementInterval, typename FpType, typename Params>
 class PidControl {
 public:
     static const bool SupportsConfig = true;
@@ -134,6 +121,22 @@ private:
     FpType m_last;
     FpType m_integral;
     FpType m_derivative;
+};
+
+template <
+    typename TP, typename TI, typename TD, typename TIStateMin, typename TIStateMax,
+    typename TDHistory
+>
+struct PidControlService {
+    using P = TP;
+    using I = TI;
+    using D = TD;
+    using IStateMin = TIStateMin;
+    using IStateMax = TIStateMax;
+    using DHistory = TDHistory;
+    
+    template <typename MeasurementInterval, typename FpType>
+    using Control = PidControl<MeasurementInterval, FpType, PidControlService>;
 };
 
 #include <aprinter/EndNamespace.h>
