@@ -487,7 +487,7 @@ public:
         static FpType compute_split_count (FpType accum, Context c)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            return FloatMax(accum, axis_split->x.template fpValue<FpType>() * (1.0001f / StepperStepFixedType::maxValue().template fpValue<FpType>()));
+            return FloatMax(accum, axis_split->x.template fpValue<FpType>() * (FpType)(1.0001 / StepperStepFixedType::maxValue().fpValueConstexpr()));
         }
         
         static bool check_icmd_zero (bool accum, Context c)

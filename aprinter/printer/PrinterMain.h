@@ -63,6 +63,7 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/WrapType.h>
 #include <aprinter/meta/TupleForEach.h>
+#include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -1354,13 +1355,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                 
                 typename Homer::HomingParams params;
-                params.fast_max_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)HomingSpec::DefaultFastMaxDist::value()));
-                params.retract_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)HomingSpec::DefaultRetractDist::value()));
-                params.slow_max_dist = StepFixedType::template importFpSaturatedRound<FpType>(dist_from_real((FpType)HomingSpec::DefaultSlowMaxDist::value()));
-                params.fast_speed = speed_from_real((FpType)HomingSpec::DefaultFastSpeed::value());
-                params.retract_speed = speed_from_real((FpType)HomingSpec::DefaultRetractSpeed::value());
-                params.slow_speed = speed_from_real((FpType)HomingSpec::DefaultSlowSpeed::value());
-                params.max_accel = accel_from_real((FpType)AxisSpec::DefaultMaxAccel::value());
+                params.fast_max_dist = StepFixedType::template importFpSaturatedRound<FpType>((FpType)(HomingSpec::DefaultFastMaxDist::value() * DistConversion));
+                params.retract_dist = StepFixedType::template importFpSaturatedRound<FpType>((FpType)(HomingSpec::DefaultRetractDist::value() * DistConversion));
+                params.slow_max_dist = StepFixedType::template importFpSaturatedRound<FpType>((FpType)(HomingSpec::DefaultSlowMaxDist::value() * DistConversion));
+                params.fast_speed = (FpType)(HomingSpec::DefaultFastSpeed::value() * SpeedConversion);
+                params.retract_speed = (FpType)(HomingSpec::DefaultRetractSpeed::value() * SpeedConversion);
+                params.slow_speed = (FpType)(HomingSpec::DefaultSlowSpeed::value() * SpeedConversion);
+                params.max_accel = (FpType)(AxisSpec::DefaultMaxAccel::value() * AccelConversion);
                 
                 Stepper::enable(c);
                 Homer::init(c, params);
@@ -1369,7 +1370,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             static FpType init_position ()
             {
-                return HomingSpec::HomeDir ? max_req_pos() : min_req_pos();
+                return HomingSpec::HomeDir ? (FpType)MaxReqPos : (FpType)MinReqPos;
             };
             
             static void homer_finished_handler (Context c, bool success)
@@ -1382,7 +1383,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 
                 Homer::deinit(c);
                 axis->m_req_pos = init_position();
-                axis->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(dist_from_real(axis->m_req_pos));
+                axis->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(axis->m_req_pos * (FpType)DistConversion);
                 axis->m_state = AXIS_STATE_OTHER;
                 TransformFeature::template mark_phys_moved<AxisIndex>(c);
                 mob->m_homing_rem_axes &= ~Lazy<>::AxisMask;
@@ -1426,39 +1427,16 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         enum {AXIS_STATE_OTHER, AXIS_STATE_HOMING};
         
-        static FpType dist_from_real (FpType x)
-        {
-            return (x * (FpType)AxisSpec::DefaultStepsPerUnit::value());
-        }
+        static constexpr double DistConversion = AxisSpec::DefaultStepsPerUnit::value();
+        static constexpr double SpeedConversion = AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq;
+        static constexpr double AccelConversion = AxisSpec::DefaultStepsPerUnit::value() / (Clock::time_freq * Clock::time_freq);
         
-        static FpType dist_to_real (FpType x)
-        {
-            return (x * (FpType)(1.0 / AxisSpec::DefaultStepsPerUnit::value()));
-        }
-        
-        static FpType speed_from_real (FpType v)
-        {
-            return (v * (FpType)(AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq));
-        }
-        
-        static FpType accel_from_real (FpType a)
-        {
-            return (a * (FpType)(AxisSpec::DefaultStepsPerUnit::value() / (Clock::time_freq * Clock::time_freq)));
-        }
+        static constexpr double MinReqPos = ConstexprFmax(AxisSpec::DefaultMin::value(), AbsStepFixedType::minValue().fpValueConstexpr() / DistConversion);
+        static constexpr double MaxReqPos = ConstexprFmin(AxisSpec::DefaultMax::value(), AbsStepFixedType::maxValue().fpValueConstexpr() / DistConversion);
         
         static FpType clamp_req_pos (FpType req)
         {
-            return FloatMax(min_req_pos(), FloatMin(max_req_pos(), req));
-        }
-        
-        static FpType min_req_pos ()
-        {
-            return FloatMax((FpType)AxisSpec::DefaultMin::value(), dist_to_real((FpType)AbsStepFixedType::minValue().template fpValue<FpType>()));
-        }
-        
-        static FpType max_req_pos ()
-        {
-            return FloatMin((FpType)AxisSpec::DefaultMax::value(), dist_to_real((FpType)AbsStepFixedType::maxValue().template fpValue<FpType>()));
+            return FloatMax((FpType)MinReqPos, FloatMin((FpType)MaxReqPos, req));
         }
         
         static void init (Context c)
@@ -1469,7 +1447,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheHomingHelper::init(c);
             MicroStepFeature::init(c);
             o->m_req_pos = HomingFeature::init_position();
-            o->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(dist_from_real(o->m_req_pos));
+            o->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(o->m_req_pos * (FpType)DistConversion);
             o->m_relative_positioning = false;
         }
         
@@ -1508,7 +1486,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void do_move (Context c, Src new_pos, AddDistance, FpType *distance_squared, FpType *total_steps, PlannerCmd *cmd)
         {
             auto *o = Object::self(c);
-            AbsStepFixedType new_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(dist_from_real(new_pos.template get<AxisIndex>()));
+            AbsStepFixedType new_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(new_pos.template get<AxisIndex>() * (FpType)DistConversion);
             bool dir = (new_end_pos >= o->m_end_pos);
             StepFixedType move = StepFixedType::importBits(dir ? 
                 ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)o->m_end_pos.bitsValue()) :
@@ -1516,7 +1494,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             );
             if (AMBRO_UNLIKELY(move.bitsValue() != 0)) {
                 if (AddDistance::value && AxisSpec::IsCartesian) {
-                    FpType delta = dist_to_real(move.template fpValue<FpType>());
+                    FpType delta = move.template fpValue<FpType>() * (FpType)(1.0 / DistConversion);
                     *distance_squared += delta * delta;
                 }
                 *total_steps += move.template fpValue<FpType>();
@@ -1525,8 +1503,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
             mycmd->dir = dir;
             mycmd->x = move;
-            mycmd->max_v_rec = 1.0f / speed_from_real((FpType)AxisSpec::DefaultMaxSpeed::value());
-            mycmd->max_a_rec = 1.0f / accel_from_real((FpType)AxisSpec::DefaultMaxAccel::value());
+            mycmd->max_v_rec = (FpType)(1.0 / (AxisSpec::DefaultMaxSpeed::value() * SpeedConversion));
+            mycmd->max_a_rec = (FpType)(1.0 / (AxisSpec::DefaultMaxAccel::value() * AccelConversion));
             o->m_end_pos = new_end_pos;
         }
         
@@ -1544,7 +1522,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             RemStepsType rem_steps = ThePlanner::template countAbortedRemSteps<AxisIndex, RemStepsType>(c);
             if (rem_steps != 0) {
                 o->m_end_pos.m_bits.m_int -= rem_steps;
-                o->m_req_pos = dist_to_real(o->m_end_pos.template fpValue<FpType>());
+                o->m_req_pos = o->m_end_pos.template fpValue<FpType>() * (FpType)(1.0 / DistConversion);
                 TransformFeature::template mark_phys_moved<AxisIndex>(c);
             }
         }
@@ -1553,7 +1531,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             o->m_req_pos = clamp_req_pos(value);
-            o->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(dist_from_real(o->m_req_pos));
+            o->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(o->m_req_pos * (FpType)DistConversion);
         }
         
         static void set_position (Context c, FpType value, bool *seen_virtual)
@@ -1957,11 +1935,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             {
                 auto *axis = ThePhysAxis::Object::self(c);
                 auto *t = TransformFeature::Object::self(c);
-                if (AMBRO_UNLIKELY(!(axis->m_req_pos <= ThePhysAxis::max_req_pos()))) {
-                    axis->m_req_pos = ThePhysAxis::max_req_pos();
+                if (AMBRO_UNLIKELY(!(axis->m_req_pos <= (FpType)ThePhysAxis::MaxReqPos))) {
+                    axis->m_req_pos = (FpType)ThePhysAxis::MaxReqPos;
                     t->virt_update_pending = true;
-                } else if (AMBRO_UNLIKELY(!(axis->m_req_pos >= ThePhysAxis::min_req_pos()))) {
-                    axis->m_req_pos = ThePhysAxis::min_req_pos();
+                } else if (AMBRO_UNLIKELY(!(axis->m_req_pos >= (FpType)ThePhysAxis::MinReqPos))) {
+                    axis->m_req_pos = (FpType)ThePhysAxis::MinReqPos;
                     t->virt_update_pending = true;
                 }
             }
