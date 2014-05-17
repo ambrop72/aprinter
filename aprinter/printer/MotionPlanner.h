@@ -687,6 +687,7 @@ public:
         static bool const IsFirst = false;
         using StepperCommand = typename TheCommon::StepperCommand;
         using TheLaserSegment = LaserSegment<LaserIndex>;
+        static TimeType const AdjustmentIntervalTicks = LaserSpec::TheLaserDriverService::AdjustmentInterval::value() / Clock::time_unit;
         
         static void init_impl (Context c, bool prestep_callback_enabled)
         {
@@ -742,13 +743,32 @@ public:
             FpType xv_end = laser_segment->x_by_distance * v_end;
             FpType xv_const = laser_segment->x_by_distance * v_const;
             
-            if (t0.bitsValue() != 0) {
+            bool skip0 = (t0.bitsValue() < AdjustmentIntervalTicks);
+            if (skip0) {
+                t1.m_bits.m_int += t0.bitsValue();
+            }
+            
+            bool skip2 = (t2.bitsValue() < AdjustmentIntervalTicks);
+            if (skip2) {
+                t1.m_bits.m_int += t2.bitsValue();
+            }
+            
+            bool skip1 = (t1.bitsValue() < AdjustmentIntervalTicks && (!skip0 || !skip2));
+            if (skip1) {
+                if (!skip0) {
+                    t0.m_bits.m_int += t1.bitsValue();
+                } else {
+                    t2.m_bits.m_int += t1.bitsValue();
+                }
+            }
+            
+            if (!skip0) {
                 TheCommon::gen_stepper_command(c, t0, xv_start, xv_const);
             }
-            if (t1.bitsValue() != 0 || (t0.bitsValue() == 0 && t2.bitsValue() == 0)) {
+            if (!skip1) {
                 TheCommon::gen_stepper_command(c, t1, xv_const, xv_const);
             }
-            if (t2.bitsValue() != 0) {
+            if (!skip2) {
                 TheCommon::gen_stepper_command(c, t2, xv_const, xv_end);
             }
         }
