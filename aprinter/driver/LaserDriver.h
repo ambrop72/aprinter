@@ -73,10 +73,10 @@ private:
 public:
     struct Command {
         TimeFixedType duration;
+        IntervalTimeFixedType interval_time;
         CountFixedType count;
         PowerFixedType power_end;
         PowerFixedType power_delta;
-        IntervalTimeFixedType interval_time;
         bool is_accel;
     };
     
