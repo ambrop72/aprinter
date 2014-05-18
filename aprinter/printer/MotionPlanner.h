@@ -506,7 +506,7 @@ public:
             if (m->m_split_buffer.axes.split_pos == m->m_split_buffer.axes.split_count) {
                 new_x = axis_split->x;
             } else {
-                new_x = FixedMin(axis_split->x, StepFixedType::template importFpSaturatedRound<FpType>(m->m_split_buffer.axes.split_pos * m->m_split_buffer.axes.split_frac * axis_split->x.template fpValue<FpType>()));
+                new_x = FixedMin(axis_split->x, StepFixedType::importFpSaturatedRound(m->m_split_buffer.axes.split_pos * m->m_split_buffer.axes.split_frac * axis_split->x.template fpValue<FpType>()));
             }
             if (axis_split->dir) {
                 entry->dir_and_type |= TheAxisMask;
@@ -563,9 +563,9 @@ public:
             
             FpType xfp = axis_entry->x.template fpValue<FpType>();
             StepperStepFixedType x1 = axis_entry->x;
-            StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::template importFpSaturatedRound<FpType>(frac_x0 * xfp));
+            StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::importFpSaturatedRound(frac_x0 * xfp));
             x1.m_bits.m_int -= x0.bitsValue();
-            StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::template importFpSaturatedRound<FpType>(frac_x2 * xfp));
+            StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::importFpSaturatedRound(frac_x2 * xfp));
             x1.m_bits.m_int -= x2.bitsValue();
             
             if (x0.bitsValue() == 0) {
@@ -587,13 +587,13 @@ public:
             
             bool dir = entry->dir_and_type & TheAxisMask;
             if (x0.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->axes.half_accel[AxisIndex] * t0_squared)));
+                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::importFpSaturatedRound(entry->axes.half_accel[AxisIndex] * t0_squared)));
             }
             if (gen1) {
                 TheCommon::gen_stepper_command(c, dir, x1, t1, StepperAccelFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::template importFpSaturatedRound<FpType>(entry->axes.half_accel[AxisIndex] * t2_squared)));
+                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::importFpSaturatedRound(entry->axes.half_accel[AxisIndex] * t2_squared)));
             }
         }
         
@@ -1193,11 +1193,11 @@ private:
                 FpType t0_double = (v_const - v_start) * entry->axes.max_accel_rec;
                 FpType t2_double = (v_const - v_end) * entry->axes.max_accel_rec;
                 FpType t1_double = (1.0f - result.const_start - result.const_end) * entry->axes.rel_max_speed_rec;
-                MinTimeType t1 = MinTimeType::template importFpSaturatedRound<FpType>(t0_double + t2_double + t1_double);
+                MinTimeType t1 = MinTimeType::importFpSaturatedRound(t0_double + t2_double + t1_double);
                 time += t1.bitsValue();
-                MinTimeType t0 = FixedMin(t1, MinTimeType::template importFpSaturatedRound<FpType>(t0_double));
+                MinTimeType t0 = FixedMin(t1, MinTimeType::importFpSaturatedRound(t0_double));
                 t1.m_bits.m_int -= t0.bitsValue();
-                MinTimeType t2 = FixedMin(t1, MinTimeType::template importFpSaturatedRound<FpType>(t2_double));
+                MinTimeType t2 = FixedMin(t1, MinTimeType::importFpSaturatedRound(t2_double));
                 t1.m_bits.m_int -= t2.bitsValue();
                 ListForEachForward<AxesList>(LForeach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,

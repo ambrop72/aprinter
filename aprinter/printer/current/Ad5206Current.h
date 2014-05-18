@@ -103,7 +103,7 @@ public:
         using ChannelParams = TypeListGet<ChannelsList, ChannelIndex>;
         uint8_t const dev_channel = ChannelParams::DevChannelIndex;
         static_assert(dev_channel < 6, "");
-        o->m_data[dev_channel] = FixedPoint<8, false, 0>::importFpSaturatedRound<float>(current_ma * (float)ChannelParams::ConversionFactor::value()).bitsValue();
+        o->m_data[dev_channel] = FixedPoint<8, false, 0>::importFpSaturatedRound(current_ma * (float)ChannelParams::ConversionFactor::value()).bitsValue();
         o->m_pending[dev_channel] = true;
         if (o->m_current_channel == 0xFF) {
             send_command(c, dev_channel);

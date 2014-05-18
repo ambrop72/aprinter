@@ -1355,9 +1355,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                 
                 typename Homer::HomingParams params;
-                params.fast_max_dist = StepFixedType::template importFpSaturatedRound<FpType>((FpType)(HomingSpec::DefaultFastMaxDist::value() * DistConversion));
-                params.retract_dist = StepFixedType::template importFpSaturatedRound<FpType>((FpType)(HomingSpec::DefaultRetractDist::value() * DistConversion));
-                params.slow_max_dist = StepFixedType::template importFpSaturatedRound<FpType>((FpType)(HomingSpec::DefaultSlowMaxDist::value() * DistConversion));
+                params.fast_max_dist = StepFixedType::importFpSaturatedRound((FpType)(HomingSpec::DefaultFastMaxDist::value() * DistConversion));
+                params.retract_dist = StepFixedType::importFpSaturatedRound((FpType)(HomingSpec::DefaultRetractDist::value() * DistConversion));
+                params.slow_max_dist = StepFixedType::importFpSaturatedRound((FpType)(HomingSpec::DefaultSlowMaxDist::value() * DistConversion));
                 params.fast_speed = (FpType)(HomingSpec::DefaultFastSpeed::value() * SpeedConversion);
                 params.retract_speed = (FpType)(HomingSpec::DefaultRetractSpeed::value() * SpeedConversion);
                 params.slow_speed = (FpType)(HomingSpec::DefaultSlowSpeed::value() * SpeedConversion);
@@ -1383,7 +1383,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 
                 Homer::deinit(c);
                 axis->m_req_pos = init_position();
-                axis->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(axis->m_req_pos * (FpType)DistConversion);
+                axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * (FpType)DistConversion);
                 axis->m_state = AXIS_STATE_OTHER;
                 TransformFeature::template mark_phys_moved<AxisIndex>(c);
                 mob->m_homing_rem_axes &= ~Lazy<>::AxisMask;
@@ -1447,7 +1447,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheHomingHelper::init(c);
             MicroStepFeature::init(c);
             o->m_req_pos = HomingFeature::init_position();
-            o->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(o->m_req_pos * (FpType)DistConversion);
+            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * (FpType)DistConversion);
             o->m_relative_positioning = false;
         }
         
@@ -1486,7 +1486,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void do_move (Context c, Src new_pos, AddDistance, FpType *distance_squared, FpType *total_steps, PlannerCmd *cmd)
         {
             auto *o = Object::self(c);
-            AbsStepFixedType new_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(new_pos.template get<AxisIndex>() * (FpType)DistConversion);
+            AbsStepFixedType new_end_pos = AbsStepFixedType::importFpSaturatedRound(new_pos.template get<AxisIndex>() * (FpType)DistConversion);
             bool dir = (new_end_pos >= o->m_end_pos);
             StepFixedType move = StepFixedType::importBits(dir ? 
                 ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)o->m_end_pos.bitsValue()) :
@@ -1531,7 +1531,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             o->m_req_pos = clamp_req_pos(value);
-            o->m_end_pos = AbsStepFixedType::template importFpSaturatedRound<FpType>(o->m_req_pos * (FpType)DistConversion);
+            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * (FpType)DistConversion);
         }
         
         static void set_position (Context c, FpType value, bool *seen_virtual)
@@ -3089,7 +3089,7 @@ public:
 public: // private, see comment on top
     static TimeType time_from_real (FpType t)
     {
-        return (FixedPoint<30, false, 0>::template importFpSaturatedRound<FpType>(t * (FpType)Clock::time_freq)).bitsValue();
+        return (FixedPoint<30, false, 0>::importFpSaturatedRound(t * (FpType)Clock::time_freq)).bitsValue();
     }
     
     static void blinker_handler (Context c)
