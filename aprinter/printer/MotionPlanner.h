@@ -550,7 +550,7 @@ public:
             FpType m2 = prev_axis_entry->x.template fpValue<FpType>() * m->m_last_distance_rec;
             bool dir_changed = (entry->dir_and_type ^ prev_entry->dir_and_type) & TheAxisMask;
             FpType dm = (dir_changed ? (m1 + m2) : FloatAbs(m1 - m2));
-            return FloatMin(accum, (FpType)(AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value()) / (dm * axis_split->max_a_rec));
+            return FloatMax(accum, (dm * axis_split->max_a_rec) * (FpType)(1.0 / (AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value())));
         }
         
         template <typename TheMinTimeType>
@@ -1404,7 +1404,8 @@ private:
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
                     if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
-                        prev_entry->lp_seg.max_end_v = ListForEachForwardAccRes<AxesList>(prev_entry->lp_seg.max_end_v, LForeach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
+                        FpType limit = 1.0f / ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
+                        prev_entry->lp_seg.max_end_v = FloatMin(prev_entry->lp_seg.max_end_v, limit);
                         break;
                     }
                 }
