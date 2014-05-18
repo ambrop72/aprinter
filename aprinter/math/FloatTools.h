@@ -245,6 +245,22 @@ FloatPromote<T1, T2> FloatMax (T1 x, T2 y)
     return IsFloat<FloatPromote<T1, T2>>::value ? fmaxf(x, y) : fmax(x, y);
 }
 
+struct FloatIdentity {};
+
+template <typename T2>
+T2 FloatMin (FloatIdentity, T2 y)
+{
+    static_assert(IsFpType<T2>::value, "");
+    return y;
+}
+
+template <typename T2>
+T2 FloatMax (FloatIdentity, T2 y)
+{
+    static_assert(IsFpType<T2>::value, "");
+    return y;
+}
+
 template <typename T>
 T FloatPositiveIntegerRange ()
 {

@@ -484,7 +484,8 @@ public:
             return (accum && axis_split->x <= StepperStepFixedType::maxValue());
         }
         
-        static FpType compute_split_count (FpType accum, Context c)
+        template <typename AccumType>
+        static FpType compute_split_count (AccumType accum, Context c)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             return FloatMax(accum, axis_split->x.template fpValue<FpType>() * (FpType)(1.0001 / StepperStepFixedType::maxValue().fpValueConstexpr()));
@@ -527,7 +528,8 @@ public:
             return axis_entry->x.template fpValue<FpType>() * axis_split->max_v_rec;
         }
         
-        static FpType compute_segment_buffer_entry_accel (FpType accum, Context c, Segment *entry)
+        template <typename AccumType>
+        static FpType compute_segment_buffer_entry_accel (AccumType accum, Context c, Segment *entry)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
@@ -540,7 +542,8 @@ public:
             entry->axes.half_accel[AxisIndex] = 0.5f * rel_max_accel * axis_entry->x.template fpValue<FpType>();
         }
         
-        static FpType compute_segment_buffer_cornering_speed (FpType accum, Context c, Segment *entry, FpType entry_distance_rec, Segment *prev_entry)
+        template <typename AccumType>
+        static FpType compute_segment_buffer_cornering_speed (AccumType accum, Context c, Segment *entry, FpType entry_distance_rec, Segment *prev_entry)
         {
             auto *m = MotionPlanner::Object::self(c);
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
@@ -1072,7 +1075,7 @@ public:
         if (AMBRO_LIKELY(ListForEachForwardAccRes<AxesList>(true, LForeach_splitbuf_fits(), c))) {
             o->m_split_buffer.axes.split_count = 1;
         } else {
-            o->m_split_buffer.axes.split_count = FloatCeil(ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_split_count(), c));
+            o->m_split_buffer.axes.split_count = FloatCeil(ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_split_count(), c));
             o->m_split_buffer.axes.split_frac = (FpType)1.0 / o->m_split_buffer.axes.split_count;
             o->m_split_buffer.axes.rel_max_v_rec *= o->m_split_buffer.axes.split_frac;
             ListForEachForward<LasersList>(LForeach_fixup_split(), c);
@@ -1388,7 +1391,7 @@ private:
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
                 FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), entry);
                 entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
-                FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_accel(), c, entry);
+                FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, entry);
                 FpType distance_squared_rec = 1.0f / distance_squared;
                 FpType distance_rec = FloatSqrt(distance_squared_rec);
                 FpType rel_max_accel = 1.0f / rel_max_accel_rec;
@@ -1403,7 +1406,7 @@ private:
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
                     if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
-                        FpType limit = 1.0f / ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
+                        FpType limit = 1.0f / ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
                         prev_entry->lp_seg.max_end_v = FloatMin(prev_entry->lp_seg.max_end_v, limit);
                         break;
                     }
