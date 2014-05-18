@@ -33,6 +33,8 @@
 
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/If.h>
+#include <aprinter/meta/PowerOfTwo.h>
+#include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/math/PrintInt.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -276,6 +278,79 @@ T FloatSignedIntegerRange ()
     
     return FloatLdexp<T>(1.0f, (IsFloat<T>::value ? FLT_MANT_DIG : DBL_MANT_DIG) - 1);
 }
+
+#define APRINTER_DEFINE_INT_ROUND_HELPER_START \
+template <typename FpType, typename IntType, typename Dummy2 = void> \
+struct FloatIntRoundHelper;
+
+#define APRINTER_DEFINE_INT_ROUND_HELPER(FpType, IntType, func) \
+template <typename Dummy2> \
+struct FloatIntRoundHelper<FpType, IntType, Dummy2> { \
+    inline static IntType call (FpType x) \
+    { \
+        return func(x); \
+    } \
+};
+
+template <int LongIntSize, typename Dummy = void>
+struct FloatRoundImpl;
+
+template <typename Dummy>
+struct FloatRoundImpl<4, Dummy> {
+    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(lroundf(0)), int32_t>::value, "");
+    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(llroundf(0)), int64_t>::value, "");
+    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(lround(0)), int32_t>::value, "");
+    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(llround(0)), int64_t>::value, "");
+    
+    APRINTER_DEFINE_INT_ROUND_HELPER_START
+    APRINTER_DEFINE_INT_ROUND_HELPER(float, int8_t, lroundf)
+    APRINTER_DEFINE_INT_ROUND_HELPER(float, int16_t, lroundf)
+    APRINTER_DEFINE_INT_ROUND_HELPER(float, int32_t, lroundf)
+    APRINTER_DEFINE_INT_ROUND_HELPER(float, int64_t, llroundf)
+    APRINTER_DEFINE_INT_ROUND_HELPER(double, int8_t, lround)
+    APRINTER_DEFINE_INT_ROUND_HELPER(double, int16_t, lround)
+    APRINTER_DEFINE_INT_ROUND_HELPER(double, int32_t, lround)
+    APRINTER_DEFINE_INT_ROUND_HELPER(double, int64_t, llround)
+};
+
+template <typename Dummy>
+struct FloatRoundImpl<8, Dummy> {
+    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(lroundf(0)), int64_t>::value, "");
+    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(lround(0)), int64_t>::value, "");
+    
+    APRINTER_DEFINE_INT_ROUND_HELPER_START
+    APRINTER_DEFINE_INT_ROUND_HELPER(float, int8_t, lroundf)
+    APRINTER_DEFINE_INT_ROUND_HELPER(float, int16_t, lroundf)
+    APRINTER_DEFINE_INT_ROUND_HELPER(float, int32_t, lroundf)
+    APRINTER_DEFINE_INT_ROUND_HELPER(float, int64_t, lroundf)
+    APRINTER_DEFINE_INT_ROUND_HELPER(double, int8_t, lround)
+    APRINTER_DEFINE_INT_ROUND_HELPER(double, int16_t, lround)
+    APRINTER_DEFINE_INT_ROUND_HELPER(double, int32_t, lround)
+    APRINTER_DEFINE_INT_ROUND_HELPER(double, int64_t, lround)
+};
+
+template <typename IntType, typename FpType>
+IntType FloatIntRound (FpType x)
+{
+    static_assert(IsFpType<FpType>::value, "");
+    static_assert(IntTypeInfo<IntType>::Signed, "");
+    
+    return FloatRoundImpl<sizeof(long int)>::template FloatIntRoundHelper<FpType, IntType>::call(x);
+}
+
+template <typename FpType, typename IntType, int Bits>
+class FloatIntRoundLimit {
+    static constexpr IntType MaxInt = PowerOfTwoMinusOne<IntType, Bits>::value;
+    static constexpr FpType FpPower = __builtin_ldexp(1.0, Bits);
+    
+    static constexpr FpType helper (IntType x)
+    {
+        return ((FpType)x != FpPower) ? (FpType)x : helper(x - 1);
+    }
+    
+public:
+    static constexpr FpType value = helper(MaxInt);
+};
 
 #include <aprinter/EndNamespace.h>
 
