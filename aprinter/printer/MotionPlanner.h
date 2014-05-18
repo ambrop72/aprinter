@@ -323,7 +323,7 @@ private:
             auto *m = MotionPlanner::Object::self(c);
             
             StepperCommand *cmd;
-            if (!m->m_new_to_backup) {
+            if (AMBRO_UNLIKELY(!m->m_new_to_backup)) {
                 cmd = &o->m_commit_buffer[o->m_new_commit_end];
                 o->m_new_commit_end = commit_inc(o->m_new_commit_end);
             } else {
@@ -558,10 +558,11 @@ public:
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             
+            FpType xfp = axis_entry->x.template fpValue<FpType>();
             StepperStepFixedType x1 = axis_entry->x;
-            StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::template importFpSaturatedRound<FpType>(frac_x0 * axis_entry->x.template fpValue<FpType>()));
+            StepperStepFixedType x0 = FixedMin(x1, StepperStepFixedType::template importFpSaturatedRound<FpType>(frac_x0 * xfp));
             x1.m_bits.m_int -= x0.bitsValue();
-            StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::template importFpSaturatedRound<FpType>(frac_x2 * axis_entry->x.template fpValue<FpType>()));
+            StepperStepFixedType x2 = FixedMin(x1, StepperStepFixedType::template importFpSaturatedRound<FpType>(frac_x2 * xfp));
             x1.m_bits.m_int -= x2.bitsValue();
             
             if (x0.bitsValue() == 0) {
