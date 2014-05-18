@@ -1072,10 +1072,9 @@ public:
         if (AMBRO_LIKELY(ListForEachForwardAccRes<AxesList>(true, LForeach_splitbuf_fits(), c))) {
             o->m_split_buffer.axes.split_count = 1;
         } else {
-            FpType split_count = FloatCeil(ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_split_count(), c));
-            o->m_split_buffer.axes.split_frac = 1.0f / split_count;
+            o->m_split_buffer.axes.split_count = FloatCeil(ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_split_count(), c));
+            o->m_split_buffer.axes.split_frac = (FpType)1.0 / o->m_split_buffer.axes.split_count;
             o->m_split_buffer.axes.rel_max_v_rec *= o->m_split_buffer.axes.split_frac;
-            o->m_split_buffer.axes.split_count = split_count;
             ListForEachForward<LasersList>(LForeach_fixup_split(), c);
         }
         
