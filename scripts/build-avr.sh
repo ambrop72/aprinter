@@ -84,6 +84,7 @@ configure_avr() {
 
     CXXFLAGS=(
         -std=c++11 -mmcu=${MCU} -DF_CPU=${F_CPU} -DNDEBUG -O2 -fwhole-program \
+        -fno-math-errno -fno-trapping-math
         -ffunction-sections -fdata-sections -Wl,--gc-sections \
         -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS \
         -DAMBROLIB_AVR -I.
