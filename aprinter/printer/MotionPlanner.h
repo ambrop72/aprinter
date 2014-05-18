@@ -1390,13 +1390,13 @@ private:
                 FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), entry);
                 entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
                 FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_accel(), c, entry);
-                FpType distance = FloatSqrt(distance_squared);
-                FpType distance_rec = 1.0f / distance;
+                FpType distance_squared_rec = 1.0f / distance_squared;
+                FpType distance_rec = FloatSqrt(distance_squared_rec);
                 FpType rel_max_accel = 1.0f / rel_max_accel_rec;
                 entry->lp_seg.max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
                 entry->lp_seg.max_end_v = entry->lp_seg.max_v;
                 entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
-                entry->lp_seg.a_x_rec = 1.0f / entry->lp_seg.a_x;
+                entry->lp_seg.a_x_rec = 0.5f * rel_max_accel_rec * distance_squared_rec;
                 entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
                 entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
