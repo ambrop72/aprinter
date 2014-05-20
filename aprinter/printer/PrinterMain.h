@@ -73,7 +73,7 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/devices/SoftPwm.h>
-#include <aprinter/driver/Steppers.h>
+#include <aprinter/driver/StepperGroups.h>
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/BinaryGcodeParser.h>
@@ -140,7 +140,8 @@ template <
     typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
     typename THoming, bool TIsCartesian, int TStepBits,
-    typename TTheAxisDriverService, typename TMicroStep
+    typename TTheAxisDriverService, typename TMicroStep,
+    typename TSlaveSteppersList = EmptyTypeList
 >
 struct PrinterMainAxisParams {
     static char const Name = TName;
@@ -160,6 +161,17 @@ struct PrinterMainAxisParams {
     static int const StepBits = TStepBits;
     using TheAxisDriverService = TTheAxisDriverService;
     using MicroStep = TMicroStep;
+    using SlaveSteppersList = TSlaveSteppersList;
+};
+
+template <
+    typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir
+>
+struct PrinterMainSlaveStepperParams {
+    using DirPin = TDirPin;
+    using StepPin = TStepPin;
+    using EnablePin = TEnablePin;
+    static bool const InvertDir = TInvertDir;
 };
 
 struct PrinterMainNoMicroStepParams {
@@ -481,18 +493,34 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using ParamsFansList = typename Params::FansList;
     static const int NumAxes = TypeListLength<ParamsAxesList>::value;
     
-    template <typename TheAxis>
-    using MakeStepperDef = StepperDef<
-        typename TheAxis::DirPin,
-        typename TheAxis::StepPin,
-        typename TheAxis::EnablePin,
-        TheAxis::InvertDir
-    >;
-    
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
-    using StepperDefsList = MapTypeList<ParamsAxesList, TemplateFunc<MakeStepperDef>>;
-    using TheSteppers = Steppers<Context, Object, StepperDefsList>;
+    
+    template <typename TheSlaveStepper>
+    using MakeSlaveStepperDef = StepperDef<
+        typename TheSlaveStepper::DirPin,
+        typename TheSlaveStepper::StepPin,
+        typename TheSlaveStepper::EnablePin,
+        TheSlaveStepper::InvertDir
+    >;
+    
+    template <typename TheAxis>
+    using MakeStepperGroupParams = StepperGroupParams<
+        JoinTypeLists<
+            MakeTypeList<
+                StepperDef<
+                    typename TheAxis::DirPin,
+                    typename TheAxis::StepPin,
+                    typename TheAxis::EnablePin,
+                    TheAxis::InvertDir
+                >
+            >,
+            MapTypeList<typename TheAxis::SlaveSteppersList, TemplateFunc<MakeSlaveStepperDef>>
+        >
+    >;
+    
+    using StepperGroupParamsList = MapTypeList<ParamsAxesList, TemplateFunc<MakeStepperGroupParams>>;
+    using TheSteppers = StepperGroups<Context, Object, StepperGroupParamsList>;
     
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
