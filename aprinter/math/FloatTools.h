@@ -298,19 +298,23 @@ struct FloatRoundImpl;
 template <typename Dummy>
 struct FloatRoundImpl<4, Dummy> {
     static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(lroundf(0)), int32_t>::value, "");
-    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(llroundf(0)), int64_t>::value, "");
     static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(lround(0)), int32_t>::value, "");
+#if !defined(AMBROLIB_AVR)
+    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(llroundf(0)), int64_t>::value, "");
     static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(llround(0)), int64_t>::value, "");
+#endif
     
     APRINTER_DEFINE_INT_ROUND_HELPER_START
     APRINTER_DEFINE_INT_ROUND_HELPER(float, int8_t, lroundf)
     APRINTER_DEFINE_INT_ROUND_HELPER(float, int16_t, lroundf)
     APRINTER_DEFINE_INT_ROUND_HELPER(float, int32_t, lroundf)
-    APRINTER_DEFINE_INT_ROUND_HELPER(float, int64_t, llroundf)
     APRINTER_DEFINE_INT_ROUND_HELPER(double, int8_t, lround)
     APRINTER_DEFINE_INT_ROUND_HELPER(double, int16_t, lround)
     APRINTER_DEFINE_INT_ROUND_HELPER(double, int32_t, lround)
+#if !defined(AMBROLIB_AVR)
+    APRINTER_DEFINE_INT_ROUND_HELPER(float, int64_t, llroundf)
     APRINTER_DEFINE_INT_ROUND_HELPER(double, int64_t, llround)
+#endif
 };
 
 template <typename Dummy>
