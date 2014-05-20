@@ -47,6 +47,9 @@ struct JoinTypeListsHelper<ConsTypeList<Head, Tail>, List2> {
 template <typename List1, typename List2>
 using JoinTwoTypeLists = typename JoinTypeListsHelper<List1, List2>::Type;
 
+template <typename List1, typename List2>
+using JoinTwoTypeListsSwapped = typename JoinTypeListsHelper<List2, List1>::Type;
+
 template <typename... Lists>
 using JoinTypeLists = TypeListFold<MakeTypeList<Lists...>, EmptyTypeList, JoinTwoTypeLists>;
 
