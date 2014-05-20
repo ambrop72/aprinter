@@ -30,8 +30,11 @@
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/Modulo.h>
+#include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/If.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Inline.h>
+#include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -106,7 +109,12 @@ public:
     AMBRO_ALWAYS_INLINE
     static FixedPoint importFpSaturatedRoundInline (FpType op)
     {
-        return ImportFpImpl<FpType, (IsAvr && NumBits <= LongIntBits)>::call(op);
+#ifdef AMBROLIB_AVR
+        using Impl = If<(NumBits <= LongIntBits), ImportFpImpl_AvrLround, ImportFpImpl_FpRound>;
+#else
+        using Impl = If<(NumBits != 32 && NumBits != 64), ImportFpImpl_IntRound, ImportFpImpl_FpRound>;
+#endif
+        return Impl::call(op);
     }
     
     template <typename FpType>
@@ -220,15 +228,8 @@ public:
     }
     
 private:
-#ifdef AMBROLIB_AVR
-    static bool const IsAvr = true;
-#else
-    static bool const IsAvr = false;
-#endif
-    static int const LongIntBits = (8 * sizeof(long int)) - 1;
-    
-    template <typename FpType, bool UseLround, typename Dummy = void>
-    struct ImportFpImpl {
+    struct ImportFpImpl_FpRound {
+        template <typename FpType>
         AMBRO_ALWAYS_INLINE
         static FixedPoint call (FpType op)
         {
@@ -236,18 +237,42 @@ private:
                 op = FloatLdexp(op, -Exp);
             }
             FpType a = FloatRound(op);
-            if (a <= (Signed ? -FloatLdexp<FpType>(1.0f, NumBits) : 0.0f)) {
+            if (AMBRO_UNLIKELY(!(a > (Signed ? -FloatLdexp<FpType>(1.0f, NumBits) : 0.0f)))) {
                 return minValue();
             }
-            if (a >= FloatLdexp<FpType>(1.0f, NumBits)) {
+            if (AMBRO_UNLIKELY(a >= FloatLdexp<FpType>(1.0f, NumBits))) {
                 return maxValue();
             }
             return importBits(a);
         }
     };
     
-    template <typename FpType, typename Dummy>
-    struct ImportFpImpl<FpType, true, Dummy> {
+    struct ImportFpImpl_IntRound {
+        template <typename FpType>
+        AMBRO_ALWAYS_INLINE
+        static FixedPoint call (FpType op)
+        {
+            using SingedIntType = ChooseInt<NumBits, true>;
+            constexpr FpType FpHigh = FloatIntRoundLimit<FpType, SingedIntType, NumBits>::value;
+            constexpr FpType FpLow = Signed ? -FpHigh : 0.0f;
+            
+            if (Exp != 0) {
+                op = FloatLdexp(op, -Exp);
+            }
+            if (AMBRO_UNLIKELY(!(op > FpLow))) {
+                return minValue();
+            }
+            if (AMBRO_UNLIKELY(op >= FpHigh)) {
+                return maxValue();
+            }
+            return importBits(FloatIntRound<SingedIntType>(op));
+        }
+    };
+    
+#ifdef AMBROLIB_AVR
+    static int const LongIntBits = (8 * sizeof(long int)) - 1;
+    
+    struct ImportFpImpl_AvrLround {
         AMBRO_ALWAYS_INLINE
         static FixedPoint call (float op)
         {
@@ -271,6 +296,7 @@ private:
             return importBits(a);
         }
     };
+#endif
     
 public:
     BoundedIntType m_bits;
