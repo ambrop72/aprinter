@@ -14,6 +14,7 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
   * Optionally supports a custom packed g-code format for SD printing.
     This results in about 50% size reduction and 15% reduction in main loop processing load (on AVR).
   * Bed probing using a microswitch (prints results, no correction yet).
+  * Slave steppers, driven synchronously, can be configured for an axis (e.g. two Z motors driven by separate drivers).
   * For use with multiple extruders, a g-code post-processor is provided to translate tool commands into
     motion of individual axes which the firmware understands. If you have a fan on each extruder, the post-processor can
     control the fans so that only the fan for the current extruder is on.
@@ -276,6 +277,29 @@ you will want to pass:
 ```
 
 If the fans are not equally powerful, you can adjust the `SpeedMultiplier` to scale the speed of specific fans.
+
+## Slave steppers
+
+Slave steppers are extra steppers assigned to an axis. They will be driven synchronously with the main stepper for the axis.
+Actually, the only difference between the main stepper and slave steppers is the way they are specified in the configuration.
+
+To add one or more slave steppers to an axis, specify them in the `PrinterMainAxisParams` after the microstep configuration, as follows.
+
+```
+PrinterMainAxisParams<
+    ...
+    PrinterMainNoMicroStepParams, // Don't forget the comma.
+    MakeTypeList<
+        PrinterMainSlaveStepperParams<
+            DuePinA9, // DirPin
+            DuePinA10, // StepPin
+            DuePinA11, // EnablePin
+            false // InvertDir
+        >
+        // Add more if you need. Don't forget a comma above.
+    >
+>
+```
 
 ## Output compare units
 
