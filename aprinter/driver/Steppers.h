@@ -204,6 +204,8 @@ private:
     using SteppersTuple = IndexElemTuple<StepperDefsList, Stepper>;
     
 public:
+    using SteppersList = typename SteppersTuple::ElemTypes;
+    
     struct Object : public ObjBase<Steppers, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
     {
