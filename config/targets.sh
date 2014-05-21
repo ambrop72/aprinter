@@ -31,9 +31,9 @@
 # Some defaults used for several targets.
 
 if [ "${SYSARCH}" == "mac" ]; then
-    DEFAULT_BOSSA_PORT=/dev/tty.usbmodem1411
+    DEFAULT_BOSSA_PORT=`find /dev/tty.usbmodem* | sort -n | tail -1`
 else
-    DEFAULT_BOSSA_PORT=/dev/ttyACM0
+    DEFAULT_BOSSA_PORT=`find /dev/ttyACM* | sort -n | tail -1`
 fi
 
 #####################################################################################
