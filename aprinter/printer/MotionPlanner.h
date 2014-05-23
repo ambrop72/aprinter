@@ -1281,7 +1281,7 @@ private:
         }
     }
     
-    AMBRO_ALWAYS_INLINE static uint8_t planner_have_commit_space (Context c)
+    AMBRO_ALWAYS_INLINE static bool planner_have_commit_space (Context c)
     {
         return
             ListForEachForwardAccRes<AxisCommonList>(true, LForeach_have_commit_space(), c) &&
