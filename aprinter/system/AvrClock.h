@@ -33,43 +33,192 @@
 
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/StructIf.h>
+#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/IndexElemList.h>
+#include <aprinter/meta/ListForEach.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/system/InterruptLock.h>
-#include <aprinter/system/AvrIo.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, int Prescale>
+struct AvrClockPrescaleMode1 {
+    template <uint16_t Div>
+    struct DivToPrescale {
+        static uint8_t const Value =
+            (Div == 1) ? 1 :
+            (Div == 8) ? 2 :
+            (Div == 64) ? 3 :
+            (Div == 256) ? 4 :
+            (Div == 1024) ? 5 :
+            0;
+        static_assert(Value != 0, "");
+    };
+};
+
+struct AvrClockPrescaleMode2 {
+    template <uint16_t Div>
+    struct DivToPrescale {
+        static uint8_t const Value =
+            (Div == 1) ? 1 :
+            (Div == 8) ? 2 :
+            (Div == 32) ? 3 :
+            (Div == 64) ? 4 :
+            (Div == 128) ? 5 :
+            (Div == 256) ? 6 :
+            (Div == 1024) ? 7 :
+            0;
+        static_assert(Value != 0, "");
+    };
+};
+
+#define APRINTER_DEFINE_AVR_16BIT_TC(TcNum, ThePrescaleMode) \
+struct AvrClockTc##TcNum { \
+    static bool const Is8Bit = false; \
+    static uint8_t volatile * timsk () { return &TIMSK##TcNum; } \
+    static uint8_t volatile * tccra () { return &TCCR##TcNum##A; } \
+    static uint8_t volatile * tccrb () { return &TCCR##TcNum##B; } \
+    static uint8_t volatile * tifr () { return &TIFR##TcNum; } \
+    static uint16_t volatile * tcnt () { return &TCNT##TcNum; } \
+    static uint8_t const toie = TOIE##TcNum; \
+    static uint8_t const tov = TOV##TcNum; \
+    using PrescaleMode = ThePrescaleMode; \
+};
+
+#define APRINTER_DEFINE_AVR_8BIT_TC(TcNum, ThePrescaleMode) \
+struct AvrClockTc##TcNum { \
+    static bool const Is8Bit = true; \
+    static uint8_t volatile * timsk () { return &TIMSK##TcNum; } \
+    static uint8_t volatile * tccra () { return &TCCR##TcNum##A; } \
+    static uint8_t volatile * tccrb () { return &TCCR##TcNum##B; } \
+    static uint8_t volatile * tifr () { return &TIFR##TcNum; } \
+    static uint8_t volatile * tcnt () { return &TCNT##TcNum; } \
+    static uint8_t const toie = TOIE##TcNum; \
+    static uint8_t const tov = TOV##TcNum; \
+    using PrescaleMode = ThePrescaleMode; \
+};
+
+#define APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(TcNum, ChannelLetter) \
+struct AvrClockTcChannel##TcNum##ChannelLetter { \
+    using Tc = AvrClockTc##TcNum; \
+    static uint8_t const ocie = OCIE##TcNum##ChannelLetter; \
+    static uint8_t const ocf = OCF##TcNum##ChannelLetter; \
+    static uint16_t volatile * ocr () { return &OCR##TcNum##ChannelLetter; } \
+};
+
+#define APRINTER_DEFINE_AVR_8BIT_TC_CHANNEL(TcNum, ChannelLetter) \
+struct AvrClockTcChannel##TcNum##ChannelLetter { \
+    using Tc = AvrClockTc##TcNum; \
+    static uint8_t const ocie = OCIE##TcNum##ChannelLetter; \
+    static uint8_t const ocf = OCF##TcNum##ChannelLetter; \
+    static uint8_t volatile * ocr () { return &OCR##TcNum##ChannelLetter; } \
+};
+
+#ifdef TCNT0
+APRINTER_DEFINE_AVR_8BIT_TC(0, AvrClockPrescaleMode1)
+APRINTER_DEFINE_AVR_8BIT_TC_CHANNEL(0, A)
+APRINTER_DEFINE_AVR_8BIT_TC_CHANNEL(0, B)
+#endif
+
+#ifdef TCNT1
+APRINTER_DEFINE_AVR_16BIT_TC(1, AvrClockPrescaleMode1)
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(1, A)
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(1, B)
+#ifdef OCF1C
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(1, C)
+#endif
+#endif
+
+#ifdef TCNT2
+APRINTER_DEFINE_AVR_8BIT_TC(2, AvrClockPrescaleMode2)
+APRINTER_DEFINE_AVR_8BIT_TC_CHANNEL(2, A)
+APRINTER_DEFINE_AVR_8BIT_TC_CHANNEL(2, B)
+#endif
+
+#ifdef TCNT3
+APRINTER_DEFINE_AVR_16BIT_TC(3, AvrClockPrescaleMode1)
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(3, A)
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(3, B)
+#ifdef OCF3C
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(3, C)
+#endif
+#endif
+
+#ifdef TCNT4
+APRINTER_DEFINE_AVR_16BIT_TC(4, AvrClockPrescaleMode1)
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(4, A)
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(4, B)
+#ifdef OCF4C
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(4, C)
+#endif
+#endif
+
+#ifdef TCNT5
+APRINTER_DEFINE_AVR_16BIT_TC(5, AvrClockPrescaleMode1)
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(5, A)
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(5, B)
+#ifdef OCF5C
+APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(5, C)
+#endif
+#endif
+
+template <typename Context, typename ParentObject, uint16_t TPrescaleDivide, typename TcsList>
 class AvrClock {
-    static_assert(Prescale >= 1, "Prescale must be >=1");
-    static_assert(Prescale <= 5, "Prescale must be <=5");
-    
 public:
+    using ClockTc = TypeListGet<TcsList, 0>;
+    static_assert(!ClockTc::Is8Bit, "First TC must be 16-bit.");
     struct Object;
-    typedef uint32_t TimeType;
+    using TimeType = uint32_t;
+    static uint16_t const PrescaleDivide = TPrescaleDivide;
+    static constexpr double time_unit = (double)PrescaleDivide / F_CPU;
+    static constexpr double time_freq = (double)F_CPU / PrescaleDivide;
+    
+private:
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init_start, init_start)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
+    
+    template <int TcIndex>
+    struct MyTc {
+        using TcSpec = TypeListGet<TcsList, TcIndex>;
+        
+        static void init (Context c)
+        {
+            *TcSpec::timsk() = 0;
+            *TcSpec::tccra() = 0;
+            *TcSpec::tccrb() = 0;
+            *TcSpec::tcnt() = (TcIndex == 0) ? 1 : 0;
+        }
+        
+        static void init_start (Context c)
+        {
+            if (TcIndex == 0) {
+                *TcSpec::timsk() = (1 << TcSpec::toie);
+            }
+            *TcSpec::tccrb() = TcSpec::PrescaleMode::template DivToPrescale<PrescaleDivide>::Value;
+        }
+        
+        static void deinit (Context c)
+        {
+            *TcSpec::timsk() = 0;
+            *TcSpec::tccrb() = 0;
+        }
+    };
+    
+    using MyTcsList = IndexElemList<TcsList, MyTc>;
     
 public:
-    static constexpr TimeType prescale_divide =
-        (Prescale == 1) ? 1 :
-        (Prescale == 2) ? 8 :
-        (Prescale == 3) ? 64 :
-        (Prescale == 4) ? 256 :
-        (Prescale == 5) ? 1024 : 0;
-    
-    static constexpr double time_unit = (double)prescale_divide / F_CPU;
-    static constexpr double time_freq = 1.0 / time_unit;
-    
     static void init (Context c)
     {
         auto *o = Object::self(c);
+        
         o->m_offset = 0;
-        TIMSK1 = 0;
-        TCCR1A = 0;
-        TCCR1B = (uint16_t)Prescale;
-        TIMSK1 = (1 << TOIE1);
+        
+        ListForEachForward<MyTcsList>(Foreach_init(), c);
+        ListForEachForward<MyTcsList>(Foreach_init_start(), c);
+        
         o->debugInit(c);
     }
     
@@ -77,8 +226,8 @@ public:
     {
         auto *o = Object::self(c);
         o->debugDeinit(c);
-        TIMSK1 = 0;
-        TCCR1B = 0;
+        
+        ListForEachReverse<MyTcsList>(Foreach_deinit(), c);
     }
     
     template <typename ThisContext>
@@ -92,144 +241,25 @@ public:
             uint16_t offset = o->m_offset;
             asm volatile (
                 "    movw %C[now],%A[offset]\n"
-                "    lds %A[now],%[tcnt1]+0\n"
-                "    sbis %[tifr1],%[tov1]\n"
+                "    lds %A[now],%[tcnt]+0\n"
+                "    sbis %[tifr],%[tov]\n"
                 "    rjmp no_overflow_%=\n"
-                "    lds %A[now],%[tcnt1]+0\n"
+                "    lds %A[now],%[tcnt]+0\n"
                 "    subi %C[now],-1\n"
                 "    sbci %D[now],-1\n"
                 "no_overflow_%=:\n"
-                "    lds %B[now],%[tcnt1]+1\n"
+                "    lds %B[now],%[tcnt]+1\n"
             : [now] "=&d" (now)
             : [offset] "r" (offset),
-            [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
-            [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
-            [tov1] "n" (TOV1)
+              [tcnt] "n" (_SFR_MEM_ADDR(*ClockTc::tcnt())),
+              [tifr] "I" (_SFR_IO_ADDR(*ClockTc::tifr())),
+              [tov] "n" (ClockTc::tov)
             );
         }
         return now;
     }
     
-#ifdef TCNT3
-    static void initTC3 (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        TIMSK3 = 0;
-        TCCR3A = 0;
-        TCCR3B = (uint16_t)Prescale;
-        TCNT3 = TCNT1 - 1;
-    }
-    
-    static void deinitTC3 (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        TIMSK3 = 0;
-        TCCR3B = 0;
-    }
-#endif
-
-#ifdef TCNT4
-    static void initTC4 (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        TIMSK4 = 0;
-        TCCR4A = 0;
-        TCCR4B = (uint16_t)Prescale;
-        TCNT4 = TCNT1 - 1;
-    }
-    
-    static void deinitTC4 (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        TIMSK4 = 0;
-        TCCR4B = 0;
-    }
-#endif
-
-#ifdef TCNT5
-    static void initTC5 (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        TIMSK5 = 0;
-        TCCR5A = 0;
-        TCCR5B = (uint16_t)Prescale;
-        TCNT5 = TCNT1 - 1;
-    }
-    
-    static void deinitTC5 (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        TIMSK5 = 0;
-        TCCR5B = 0;
-    }
-#endif
-
-#ifdef TCNT0
-    static const int TC0Prescale = Prescale;
-    
-    static void initTC0 (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        TIMSK0 = 0;
-        TCCR0A = 0;
-        TCCR0B = TC0Prescale;
-        TCNT0 = TCNT1 - 1;
-    }
-    
-    static void deinitTC0 (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        TIMSK0 = 0;
-        TCCR0B = 0;
-    }
-#endif
-    
-#ifdef TCNT2
-    static const int TC2Prescale =
-        (Prescale == 1) ? 1 :
-        (Prescale == 2) ? 2 :
-        (Prescale == 3) ? 4 :
-        (Prescale == 4) ? 6 :
-        (Prescale == 5) ? 7 : 0;
-    
-    static void initTC2 (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        TIMSK2 = 0;
-        TCCR2A = 0;
-        TCCR2B = TC2Prescale;
-        TCNT2 = TCNT1 - 1;
-    }
-    
-    static void deinitTC2 (Context c)
-    {
-        auto *o = Object::self(c);
-        o->debugAccess(c);
-        
-        TIMSK2 = 0;
-        TCCR2B = 0;
-    }
-#endif
-    
-    static void timer1_ovf_isr (AtomicContext<Context> c)
+    static void clock_timer_ovf_isr (AtomicContext<Context> c)
     {
         auto *o = Object::self(c);
         o->m_offset++;
@@ -239,17 +269,19 @@ public:
     struct Object : public ObjBase<AvrClock, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
     {
-        volatile uint16_t m_offset;
+        uint16_t m_offset;
     };
 };
 
-template <typename Context, typename ParentObject, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg, uint8_t ocf_bit>
+template <typename Context, typename ParentObject, typename Handler, typename TTcChannel>
 class AvrClock16BitInterruptTimer {
 public:
     struct Object;
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
     typedef AtomicContext<Context> HandlerContext;
+    using TcChannel = TTcChannel;
+    using Tc = typename TcChannel::Tc;
     
     static void init (Context c)
     {
@@ -267,7 +299,7 @@ public:
         o->debugDeinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            avrSoftClearBitReg<timsk_reg>(ocie_bit);
+            *Tc::timsk() &= ~(1 << TcChannel::ocie);
         }
     }
     
@@ -277,7 +309,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
-        AMBRO_ASSERT(!(avrGetBitReg<timsk_reg, ocie_bit>()))
+        AMBRO_ASSERT(!(*Tc::timsk() & (1 << TcChannel::ocie)))
         
         o->m_time = time;
 #ifdef AMBROLIB_ASSERTIONS
@@ -289,14 +321,14 @@ public:
             uint16_t now_low;
             
             asm volatile (
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    sbis %[tifr1],%[tov1]\n"
+                "    lds %A[now_low],%[tcnt]+0\n"
+                "    sbis %[tifr],%[tov]\n"
                 "    rjmp no_overflow_%=\n"
-                "    lds %A[now_low],%[tcnt1]+0\n"
+                "    lds %A[now_low],%[tcnt]+0\n"
                 "    subi %A[now_high],-1\n"
                 "    sbci %B[now_high],-1\n"
                 "no_overflow_%=:\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
+                "    lds %B[now_low],%[tcnt]+1\n"
                 "    sub %A[now_low],%A[time]\n"
                 "    sbc %B[now_low],%B[time]\n"
                 "    sbc %A[now_high],%C[time]\n"
@@ -312,7 +344,7 @@ public:
                 "    sts %[ocr]+1,%B[time]\n"
                 "    sts %[ocr]+0,%A[time]\n"
                 "    lds %A[now_low],%[timsk]\n"
-                "    ori %[now_low],1<<%[ocie_bit]\n"
+                "    ori %[now_low],1<<%[ocie]\n"
                 "    sts %[timsk],%[now_low]\n"
                 : [now_low] "=&d" (now_low),
                   [now_high] "=&d" (now_high),
@@ -323,12 +355,12 @@ public:
                   [mcB] "n" ((minus_clearance >> 8) & 0xFF),
                   [mcC] "n" ((minus_clearance >> 16) & 0xFF),
                   [mcD] "n" ((minus_clearance >> 24) & 0xFF),
-                  [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
-                  [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
-                  [tov1] "n" (TOV1),
-                  [ocr] "n" (ocr_reg + __SFR_OFFSET),
-                  [timsk] "n" (timsk_reg + __SFR_OFFSET),
-                  [ocie_bit] "n" (ocie_bit)
+                  [tcnt] "n" (_SFR_MEM_ADDR(*Clock::ClockTc::tcnt())),
+                  [tifr] "I" (_SFR_IO_ADDR(*Clock::ClockTc::tifr())),
+                  [tov] "n" (Clock::ClockTc::tov),
+                  [ocr] "n" (_SFR_MEM_ADDR(*TcChannel::ocr())),
+                  [timsk] "n" (_SFR_MEM_ADDR(*Tc::timsk())),
+                  [ocie] "n" (TcChannel::ocie)
             );
         }
     }
@@ -337,7 +369,7 @@ public:
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_running)
-        AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
+        AMBRO_ASSERT(*Tc::timsk() & (1 << TcChannel::ocie))
         
         o->m_time = time;
         
@@ -345,14 +377,14 @@ public:
         uint16_t now_low;
         
         asm volatile (
-            "    lds %A[now_low],%[tcnt1]+0\n"
-            "    sbis %[tifr1],%[tov1]\n"
+            "    lds %A[now_low],%[tcnt]+0\n"
+            "    sbis %[tifr],%[tov]\n"
             "    rjmp no_overflow_%=\n"
-            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    lds %A[now_low],%[tcnt]+0\n"
             "    subi %A[now_high],-1\n"
             "    sbci %B[now_high],-1\n"
             "no_overflow_%=:\n"
-            "    lds %B[now_low],%[tcnt1]+1\n"
+            "    lds %B[now_low],%[tcnt]+1\n"
             "    sub %A[now_low],%A[time]\n"
             "    sbc %B[now_low],%B[time]\n"
             "    sbc %A[now_high],%C[time]\n"
@@ -376,10 +408,10 @@ public:
               [mcB] "n" ((minus_clearance >> 8) & 0xFF),
               [mcC] "n" ((minus_clearance >> 16) & 0xFF),
               [mcD] "n" ((minus_clearance >> 24) & 0xFF),
-              [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
-              [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
-              [tov1] "n" (TOV1),
-              [ocr] "n" (ocr_reg + __SFR_OFFSET)
+              [tcnt] "n" (_SFR_MEM_ADDR(*Clock::ClockTc::tcnt())),
+              [tifr] "I" (_SFR_IO_ADDR(*Clock::ClockTc::tifr())),
+              [tov] "n" (Clock::ClockTc::tov),
+              [ocr] "n" (_SFR_MEM_ADDR(*TcChannel::ocr()))
         );
     }
     
@@ -390,33 +422,31 @@ public:
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            avrSoftClearBitReg<timsk_reg>(ocie_bit);
+            *Tc::timsk() &= ~(1 << TcChannel::ocie);
 #ifdef AMBROLIB_ASSERTIONS
             o->m_running = false;
 #endif
         }
     }
     
-    template <uint32_t check_ocr_reg>
     static void timer_comp_isr (AtomicContext<Context> c)
     {
-        static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_running)
-        AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
+        AMBRO_ASSERT(*Tc::timsk() & (1 << TcChannel::ocie))
         
         uint16_t now_low;
         uint16_t now_high = Clock::Object::self(c)->m_offset;
         
         asm volatile (
-            "    lds %A[now_low],%[tcnt1]+0\n"
-            "    sbis %[tifr1],%[tov1]\n"
+            "    lds %A[now_low],%[tcnt]+0\n"
+            "    sbis %[tifr],%[tov]\n"
             "    rjmp no_overflow_%=\n"
-            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    lds %A[now_low],%[tcnt]+0\n"
             "    subi %A[now_high],-1\n"
             "    sbci %B[now_high],-1\n"
             "no_overflow_%=:\n"
-            "    lds %B[now_low],%[tcnt1]+1\n"
+            "    lds %B[now_low],%[tcnt]+1\n"
             "    sub %A[now_low],%A[time]\n"
             "    sbc %B[now_low],%B[time]\n"
             "    sbc %A[now_high],%C[time]\n"
@@ -425,9 +455,9 @@ public:
               [now_high] "=&d" (now_high)
             : "[now_high]" (now_high),
               [time] "r" (o->m_time),
-              [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
-              [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
-              [tov1] "n" (TOV1)
+              [tcnt] "n" (_SFR_MEM_ADDR(*Clock::ClockTc::tcnt())),
+              [tifr] "I" (_SFR_IO_ADDR(*Clock::ClockTc::tifr())),
+              [tov] "n" (Clock::ClockTc::tov)
         );
         
         if (now_high < UINT16_C(0x8000)) {
@@ -435,13 +465,13 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
 #endif
-                avrSoftClearBitReg<timsk_reg>(ocie_bit);
+                *Tc::timsk() &= ~(1 << TcChannel::ocie);
             }
         }
     }
     
 private:
-    static const TimeType clearance = (35 / Clock::prescale_divide) + 2;
+    static const TimeType clearance = (35 / Clock::PrescaleDivide) + 2;
     static const TimeType minus_clearance = -clearance;
     
 public:
@@ -455,13 +485,15 @@ public:
     };
 };
 
-template <typename Context, typename ParentObject, typename Handler, uint32_t timsk_reg, uint8_t ocie_bit, uint32_t ocr_reg, uint8_t ocf_bit>
+template <typename Context, typename ParentObject, typename Handler, typename TTcChannel>
 class AvrClock8BitInterruptTimer {
 public:
     struct Object;
     typedef typename Context::Clock Clock;
     typedef typename Clock::TimeType TimeType;
     typedef AtomicContext<Context> HandlerContext;
+    using TcChannel = TTcChannel;
+    using Tc = typename TcChannel::Tc;
     
     static void init (Context c)
     {
@@ -479,7 +511,7 @@ public:
         o->debugDeinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            avrSoftClearBitReg<timsk_reg>(ocie_bit);
+            *Tc::timsk() &= ~(1 << TcChannel::ocie);
         }
     }
     
@@ -489,7 +521,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(!o->m_running)
-        AMBRO_ASSERT(!(avrGetBitReg<timsk_reg, ocie_bit>()))
+        AMBRO_ASSERT(!(*Tc::timsk() & (1 << TcChannel::ocie)))
         
         o->m_time = time;
 #ifdef AMBROLIB_ASSERTIONS
@@ -501,14 +533,14 @@ public:
             uint16_t now_low;
             
             asm volatile (
-                "    lds %A[now_low],%[tcnt1]+0\n"
-                "    sbis %[tifr1],%[tov1]\n"
+                "    lds %A[now_low],%[tcnt]+0\n"
+                "    sbis %[tifr],%[tov]\n"
                 "    rjmp no_overflow_%=\n"
-                "    lds %A[now_low],%[tcnt1]+0\n"
+                "    lds %A[now_low],%[tcnt]+0\n"
                 "    subi %A[now_high],-1\n"
                 "    sbci %B[now_high],-1\n"
                 "no_overflow_%=:\n"
-                "    lds %B[now_low],%[tcnt1]+1\n"
+                "    lds %B[now_low],%[tcnt]+1\n"
                 "    sub %A[now_low],%A[time]\n"
                 "    sbc %B[now_low],%B[time]\n"
                 "    sbc %A[now_high],%C[time]\n"
@@ -522,7 +554,7 @@ public:
                 "no_saturation_%=:\n"
                 "    sts %[ocr],%A[time]\n"
                 "    lds %A[now_low],%[timsk]\n"
-                "    ori %[now_low],1<<%[ocie_bit]\n"
+                "    ori %[now_low],1<<%[ocie]\n"
                 "    sts %[timsk],%[now_low]\n"
                 : [now_low] "=&d" (now_low),
                   [now_high] "=&d" (now_high),
@@ -533,12 +565,12 @@ public:
                   [mcB] "n" ((minus_clearance >> 8) & 0xFF),
                   [mcC] "n" ((minus_clearance >> 16) & 0xFF),
                   [mcD] "n" ((minus_clearance >> 24) & 0xFF),
-                  [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
-                  [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
-                  [tov1] "n" (TOV1),
-                  [ocr] "n" (ocr_reg + __SFR_OFFSET),
-                  [timsk] "n" (timsk_reg + __SFR_OFFSET),
-                  [ocie_bit] "n" (ocie_bit)
+                  [tcnt] "n" (_SFR_MEM_ADDR(*Clock::ClockTc::tcnt())),
+                  [tifr] "I" (_SFR_IO_ADDR(*Clock::ClockTc::tifr())),
+                  [tov] "n" (Clock::ClockTc::tov),
+                  [ocr] "n" (_SFR_MEM_ADDR(*TcChannel::ocr())),
+                  [timsk] "n" (_SFR_MEM_ADDR(*Tc::timsk())),
+                  [ocie] "n" (TcChannel::ocie)
             );
         }
     }
@@ -548,22 +580,22 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_running)
-        AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
+        AMBRO_ASSERT(*Tc::timsk() & (1 << TcChannel::ocie))
         
         o->m_time = time;
-    
+        
         uint16_t now_high = Clock::Object::self(c)->m_offset;
         uint16_t now_low;
         
         asm volatile (
-            "    lds %A[now_low],%[tcnt1]+0\n"
-            "    sbis %[tifr1],%[tov1]\n"
+            "    lds %A[now_low],%[tcnt]+0\n"
+            "    sbis %[tifr],%[tov]\n"
             "    rjmp no_overflow_%=\n"
-            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    lds %A[now_low],%[tcnt]+0\n"
             "    subi %A[now_high],-1\n"
             "    sbci %B[now_high],-1\n"
             "no_overflow_%=:\n"
-            "    lds %B[now_low],%[tcnt1]+1\n"
+            "    lds %B[now_low],%[tcnt]+1\n"
             "    sub %A[now_low],%A[time]\n"
             "    sbc %B[now_low],%B[time]\n"
             "    sbc %A[now_high],%C[time]\n"
@@ -585,10 +617,10 @@ public:
               [mcB] "n" ((minus_clearance >> 8) & 0xFF),
               [mcC] "n" ((minus_clearance >> 16) & 0xFF),
               [mcD] "n" ((minus_clearance >> 24) & 0xFF),
-              [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
-              [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
-              [tov1] "n" (TOV1),
-              [ocr] "n" (ocr_reg + __SFR_OFFSET)
+              [tcnt] "n" (_SFR_MEM_ADDR(*Clock::ClockTc::tcnt())),
+              [tifr] "I" (_SFR_IO_ADDR(*Clock::ClockTc::tifr())),
+              [tov] "n" (Clock::ClockTc::tov),
+              [ocr] "n" (_SFR_MEM_ADDR(*TcChannel::ocr()))
         );
     }
     
@@ -599,33 +631,31 @@ public:
         o->debugAccess(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            avrSoftClearBitReg<timsk_reg>(ocie_bit);
+            *Tc::timsk() &= ~(1 << TcChannel::ocie);
 #ifdef AMBROLIB_ASSERTIONS
             o->m_running = false;
 #endif
         }
     }
     
-    template <uint32_t check_ocr_reg>
     static void timer_comp_isr (AtomicContext<Context> c)
     {
-        static_assert(check_ocr_reg == ocr_reg, "incorrect ISRS macro used");
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_running)
-        AMBRO_ASSERT((avrGetBitReg<timsk_reg, ocie_bit>()))
+        AMBRO_ASSERT(*Tc::timsk() & (1 << TcChannel::ocie))
         
         uint16_t now_low;
         uint16_t now_high = Clock::Object::self(c)->m_offset;
         
         asm volatile (
-            "    lds %A[now_low],%[tcnt1]+0\n"
-            "    sbis %[tifr1],%[tov1]\n"
+            "    lds %A[now_low],%[tcnt]+0\n"
+            "    sbis %[tifr],%[tov]\n"
             "    rjmp no_overflow_%=\n"
-            "    lds %A[now_low],%[tcnt1]+0\n"
+            "    lds %A[now_low],%[tcnt]+0\n"
             "    subi %A[now_high],-1\n"
             "    sbci %B[now_high],-1\n"
             "no_overflow_%=:\n"
-            "    lds %B[now_low],%[tcnt1]+1\n"
+            "    lds %B[now_low],%[tcnt]+1\n"
             "    sub %A[now_low],%A[time]\n"
             "    sbc %B[now_low],%B[time]\n"
             "    sbc %A[now_high],%C[time]\n"
@@ -634,9 +664,9 @@ public:
               [now_high] "=&d" (now_high)
             : "[now_high]" (now_high),
               [time] "r" (o->m_time),
-              [tcnt1] "n" (_SFR_MEM_ADDR(TCNT1)),
-              [tifr1] "I" (_SFR_IO_ADDR(TIFR1)),
-              [tov1] "n" (TOV1)
+              [tcnt] "n" (_SFR_MEM_ADDR(*Clock::ClockTc::tcnt())),
+              [tifr] "I" (_SFR_IO_ADDR(*Clock::ClockTc::tifr())),
+              [tov] "n" (Clock::ClockTc::tov)
         );
         
         if (now_high < UINT16_C(0x8000)) {
@@ -644,13 +674,13 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
 #endif
-                avrSoftClearBitReg<timsk_reg>(ocie_bit);
+                *Tc::timsk() &= ~(1 << TcChannel::ocie);
             }
         }
     }
     
 private:
-    static const TimeType clearance = (35 / Clock::prescale_divide) + 2;
+    static const TimeType clearance = (35 / Clock::PrescaleDivide) + 2;
     static const TimeType minus_clearance = -clearance;
     
 public:
@@ -664,23 +694,14 @@ public:
     };
 };
 
-template <bool Tis_8bit, uint32_t Ttimsk_reg, uint8_t Tocie_bit, uint32_t Tocr_reg, uint8_t Tocf_bit>
-struct AvrClockTcChannel {
-    static bool const is_8bit = Tis_8bit;
-    static uint32_t const timsk_reg = Ttimsk_reg;
-    static uint8_t const ocie_bit = Tocie_bit;
-    static uint32_t const ocr_reg = Tocr_reg;
-    static uint8_t const ocf_bit = Tocf_bit;
-};
-
 template <typename TcChannel>
 class AvrClockInterruptTimerService {
-    AMBRO_STRUCT_IF(BitnessChoice, TcChannel::is_8bit) {
+    AMBRO_STRUCT_IF(BitnessChoice, TcChannel::Tc::Is8Bit) {
         template <typename Context, typename ParentObject, typename Handler>
-        using InterruptTimer = AvrClock8BitInterruptTimer<Context, ParentObject, Handler, TcChannel::timsk_reg, TcChannel::ocie_bit, TcChannel::ocr_reg, TcChannel::ocf_bit>;
+        using InterruptTimer = AvrClock8BitInterruptTimer<Context, ParentObject, Handler, TcChannel>;
     } AMBRO_STRUCT_ELSE(BitnessChoice) {
         template <typename Context, typename ParentObject, typename Handler>
-        using InterruptTimer = AvrClock16BitInterruptTimer<Context, ParentObject, Handler, TcChannel::timsk_reg, TcChannel::ocie_bit, TcChannel::ocr_reg, TcChannel::ocf_bit>;
+        using InterruptTimer = AvrClock16BitInterruptTimer<Context, ParentObject, Handler, TcChannel>;
     };
     
 public:
@@ -688,56 +709,18 @@ public:
     using InterruptTimer = typename BitnessChoice::template InterruptTimer<Context, ParentObject, Handler>;
 };
 
-using AvrClockTcChannel1A = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK1), OCIE1A, _SFR_IO_ADDR(OCR1A), OCF1A>;
-using AvrClockTcChannel1B = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK1), OCIE1B, _SFR_IO_ADDR(OCR1B), OCF1B>;
-#ifdef OCR1C
-using AvrClockTcChannel1C = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK1), OCIE1C, _SFR_IO_ADDR(OCR1C), OCF1C>;
-#endif
-
-#ifdef TCNT3
-using AvrClockTcChannel3A = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK3), OCIE3A, _SFR_IO_ADDR(OCR3A), OCF3A>;
-using AvrClockTcChannel3B = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK3), OCIE3B, _SFR_IO_ADDR(OCR3B), OCF3B>;
-#ifdef OCR3C
-using AvrClockTcChannel3C = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK3), OCIE3C, _SFR_IO_ADDR(OCR3C), OCF3C>;
-#endif
-#endif
-
-#ifdef TCNT4
-using AvrClockTcChannel4A = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK4), OCIE4A, _SFR_IO_ADDR(OCR4A), OCF4A>;
-using AvrClockTcChannel4B = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK4), OCIE4B, _SFR_IO_ADDR(OCR4B), OCF4B>;
-#ifdef OCR4C
-using AvrClockTcChannel4C = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK4), OCIE4C, _SFR_IO_ADDR(OCR4C), OCF4C>;
-#endif
-#endif
-
-#ifdef TCNT5
-using AvrClockTcChannel5A = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK5), OCIE5A, _SFR_IO_ADDR(OCR5A), OCF5A>;
-using AvrClockTcChannel5B = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK5), OCIE5B, _SFR_IO_ADDR(OCR5B), OCF5B>;
-#ifdef OCR5C
-using AvrClockTcChannel5C = AvrClockTcChannel<false, _SFR_IO_ADDR(TIMSK5), OCIE5C, _SFR_IO_ADDR(OCR5C), OCF5C>;
-#endif
-#endif
-
-#ifdef TCNT0
-using AvrClockTcChannel0A = AvrClockTcChannel<true, _SFR_IO_ADDR(TIMSK0), OCIE0A, _SFR_IO_ADDR(OCR0A), OCF0A>;
-using AvrClockTcChannel0B = AvrClockTcChannel<true, _SFR_IO_ADDR(TIMSK0), OCIE0B, _SFR_IO_ADDR(OCR0B), OCF0B>;
-#endif
-
-#ifdef TCNT2
-using AvrClockTcChannel2A = AvrClockTcChannel<true, _SFR_IO_ADDR(TIMSK2), OCIE2A, _SFR_IO_ADDR(OCR2A), OCF2A>;
-using AvrClockTcChannel2B = AvrClockTcChannel<true, _SFR_IO_ADDR(TIMSK2), OCIE2B, _SFR_IO_ADDR(OCR2B), OCF2B>;
-#endif
-
-#define AMBRO_AVR_CLOCK_ISRS(avrclock, context) \
-ISR(TIMER1_OVF_vect) \
+#define AMBRO_AVR_CLOCK_ISRS(FirstTcNum, Clock, context) \
+static_assert(TypesAreEqual<Clock::ClockTc, AvrClockTc##FirstTcNum>::value, "Incorrect FirstTcNum specified in AMBRO_AVR_CLOCK_ISRS."); \
+ISR(TIMER##FirstTcNum##_OVF_vect) \
 { \
-    avrclock::timer1_ovf_isr(MakeAtomicContext((context))); \
+    Clock::clock_timer_ovf_isr(MakeAtomicContext((context))); \
 }
 
-#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(tcnum, completter, avrclockinterrupttimer, context) \
-ISR(TIMER##tcnum##_COMP##completter##_vect) \
+#define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(TcNum, ChannelLetter, Timer, context) \
+static_assert(TypesAreEqual<Timer::TcChannel, AvrClockTcChannel##TcNum##ChannelLetter>::value, "Incorrect AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS macro used."); \
+ISR(TIMER##TcNum##_COMP##ChannelLetter##_vect) \
 { \
-    avrclockinterrupttimer::timer_comp_isr<_SFR_IO_ADDR(OCR##tcnum##completter)>(MakeAtomicContext((context))); \
+    Timer::timer_comp_isr(MakeAtomicContext((context))); \
 }
 
 #include <aprinter/EndNamespace.h>

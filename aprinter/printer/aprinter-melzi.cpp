@@ -679,14 +679,21 @@ using AdcPins = MakeTypeList<
 
 static const int AdcRefSel = 1;
 static const int AdcPrescaler = 7;
-static const int clock_timer_prescaler = 3;
+
+static const int ClockPrescaleDivide = 64;
+using ClockTcsList = MakeTypeList<
+    AvrClockTc1,
+    AvrClockTc3,
+    AvrClockTc0,
+    AvrClockTc2
+>;
 
 struct MyContext;
 struct MyLoopExtraDelay;
 struct Program;
 
 using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
-using MyClock = AvrClock<MyContext, Program, clock_timer_prescaler>;
+using MyClock = AvrClock<MyContext, Program, ClockPrescaleDivide, ClockTcsList>;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
 using MyPins = AvrPins<MyContext, Program>;
 using MyAdc = AvrAdc<MyContext, Program, AdcPins, AdcRefSel, AdcPrescaler>;
@@ -724,7 +731,7 @@ Program p;
 Program * Program::self (MyContext c) { return &p; }
 void MyContext::check () const { AMBRO_ASSERT_FORCE(p.end == UINT16_C(0x1234)) }
 
-AMBRO_AVR_CLOCK_ISRS(MyClock, MyContext())
+AMBRO_AVR_CLOCK_ISRS(1, MyClock, MyContext())
 AMBRO_AVR_ADC_ISRS(MyAdc, MyContext())
 AMBRO_AVR_SERIAL_ISRS(MyPrinter::GetSerial, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(1, A, MyPrinter::GetAxisTimer<0>, MyContext())
@@ -771,9 +778,6 @@ int main ()
     p.end = UINT16_C(0x1234);
     MyDebugObjectGroup::init(c);
     MyClock::init(c);
-    MyClock::initTC3(c);
-    MyClock::initTC0(c);
-    MyClock::initTC2(c);
     MyLoop::init(c);
     MyPins::init(c);
     MyAdc::init(c);
