@@ -33,18 +33,26 @@
 
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/StructIf.h>
+#include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
+#include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/TypeListIndex.h>
+#include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/IsEqualFunc.h>
+#include <aprinter/meta/TypeMap.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/system/InterruptLock.h>
+#include <aprinter/system/AvrPins.h>
 
 #include <aprinter/BeginNamespace.h>
 
-struct AvrClockPrescaleMode1 {
+struct AvrClock__PrescaleMode1 {
     template <uint16_t Div>
     struct DivToPrescale {
         static uint8_t const Value =
@@ -58,7 +66,7 @@ struct AvrClockPrescaleMode1 {
     };
 };
 
-struct AvrClockPrescaleMode2 {
+struct AvrClock__PrescaleMode2 {
     template <uint16_t Div>
     struct DivToPrescale {
         static uint8_t const Value =
@@ -97,6 +105,8 @@ struct AvrClockTc##TcNum { \
     static uint8_t volatile * tcnt () { return &TCNT##TcNum; } \
     static uint8_t const toie = TOIE##TcNum; \
     static uint8_t const tov = TOV##TcNum; \
+    static uint8_t const wgm0 = WGM##TcNum##0; \
+    static uint8_t const wgm1 = WGM##TcNum##1; \
     using PrescaleMode = ThePrescaleMode; \
 };
 
@@ -114,16 +124,18 @@ struct AvrClockTcChannel##TcNum##ChannelLetter { \
     static uint8_t const ocie = OCIE##TcNum##ChannelLetter; \
     static uint8_t const ocf = OCF##TcNum##ChannelLetter; \
     static uint8_t volatile * ocr () { return &OCR##TcNum##ChannelLetter; } \
+    static uint8_t const com0 = COM##TcNum##ChannelLetter##0; \
+    static uint8_t const com1 = COM##TcNum##ChannelLetter##1; \
 };
 
 #ifdef TCNT0
-APRINTER_DEFINE_AVR_8BIT_TC(0, AvrClockPrescaleMode1)
+APRINTER_DEFINE_AVR_8BIT_TC(0, AvrClock__PrescaleMode1)
 APRINTER_DEFINE_AVR_8BIT_TC_CHANNEL(0, A)
 APRINTER_DEFINE_AVR_8BIT_TC_CHANNEL(0, B)
 #endif
 
 #ifdef TCNT1
-APRINTER_DEFINE_AVR_16BIT_TC(1, AvrClockPrescaleMode1)
+APRINTER_DEFINE_AVR_16BIT_TC(1, AvrClock__PrescaleMode1)
 APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(1, A)
 APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(1, B)
 #ifdef OCF1C
@@ -132,13 +144,13 @@ APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(1, C)
 #endif
 
 #ifdef TCNT2
-APRINTER_DEFINE_AVR_8BIT_TC(2, AvrClockPrescaleMode2)
+APRINTER_DEFINE_AVR_8BIT_TC(2, AvrClock__PrescaleMode2)
 APRINTER_DEFINE_AVR_8BIT_TC_CHANNEL(2, A)
 APRINTER_DEFINE_AVR_8BIT_TC_CHANNEL(2, B)
 #endif
 
 #ifdef TCNT3
-APRINTER_DEFINE_AVR_16BIT_TC(3, AvrClockPrescaleMode1)
+APRINTER_DEFINE_AVR_16BIT_TC(3, AvrClock__PrescaleMode1)
 APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(3, A)
 APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(3, B)
 #ifdef OCF3C
@@ -147,7 +159,7 @@ APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(3, C)
 #endif
 
 #ifdef TCNT4
-APRINTER_DEFINE_AVR_16BIT_TC(4, AvrClockPrescaleMode1)
+APRINTER_DEFINE_AVR_16BIT_TC(4, AvrClock__PrescaleMode1)
 APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(4, A)
 APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(4, B)
 #ifdef OCF4C
@@ -156,7 +168,7 @@ APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(4, C)
 #endif
 
 #ifdef TCNT5
-APRINTER_DEFINE_AVR_16BIT_TC(5, AvrClockPrescaleMode1)
+APRINTER_DEFINE_AVR_16BIT_TC(5, AvrClock__PrescaleMode1)
 APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(5, A)
 APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(5, B)
 #ifdef OCF5C
@@ -164,14 +176,87 @@ APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(5, C)
 #endif
 #endif
 
+#if defined(__AVR_ATmega164A__) || defined(__AVR_ATmega164PA__) || defined(__AVR_ATmega324A__) || \
+    defined(__AVR_ATmega324PA__) || defined(__AVR_ATmega644A__) || defined(__AVR_ATmega644PA__) || \
+    defined(__AVR_ATmega128__) || defined(__AVR_ATmega1284P__)
+
+using AvrClock__PinMap = MakeTypeMap<
+    TypeMapEntry<AvrClockTcChannel0A, AvrPin<AvrPortB, 3>>,
+    TypeMapEntry<AvrClockTcChannel0B, AvrPin<AvrPortB, 4>>,
+    TypeMapEntry<AvrClockTcChannel1A, AvrPin<AvrPortD, 5>>,
+    TypeMapEntry<AvrClockTcChannel1B, AvrPin<AvrPortD, 4>>,
+    TypeMapEntry<AvrClockTcChannel2A, AvrPin<AvrPortD, 7>>,
+    TypeMapEntry<AvrClockTcChannel2B, AvrPin<AvrPortD, 6>>,
+    TypeMapEntry<AvrClockTcChannel3A, AvrPin<AvrPortB, 6>>,
+    TypeMapEntry<AvrClockTcChannel3B, AvrPin<AvrPortB, 7>>
+>;
+
+#elif defined(__AVR_ATmega640__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega1281__) || \
+    defined(__AVR_ATmega2560__) || defined(__AVR_ATmega2561__)
+
+using AvrClock__PinMap = MakeTypeMap<
+    TypeMapEntry<AvrClockTcChannel0A, AvrPin<AvrPortB, 7>>,
+    TypeMapEntry<AvrClockTcChannel0B, AvrPin<AvrPortG, 5>>,
+    TypeMapEntry<AvrClockTcChannel1A, AvrPin<AvrPortB, 5>>,
+    TypeMapEntry<AvrClockTcChannel1B, AvrPin<AvrPortB, 6>>,
+    TypeMapEntry<AvrClockTcChannel1C, AvrPin<AvrPortB, 7>>,
+    TypeMapEntry<AvrClockTcChannel2A, AvrPin<AvrPortB, 4>>,
+    TypeMapEntry<AvrClockTcChannel2B, AvrPin<AvrPortH, 6>>,
+    TypeMapEntry<AvrClockTcChannel3A, AvrPin<AvrPortE, 3>>,
+    TypeMapEntry<AvrClockTcChannel3B, AvrPin<AvrPortE, 4>>,
+    TypeMapEntry<AvrClockTcChannel3C, AvrPin<AvrPortE, 5>>,
+    TypeMapEntry<AvrClockTcChannel4A, AvrPin<AvrPortH, 3>>,
+    TypeMapEntry<AvrClockTcChannel4B, AvrPin<AvrPortH, 4>>,
+    TypeMapEntry<AvrClockTcChannel4C, AvrPin<AvrPortH, 5>>,
+    TypeMapEntry<AvrClockTcChannel5A, AvrPin<AvrPortL, 3>>,
+    TypeMapEntry<AvrClockTcChannel5B, AvrPin<AvrPortL, 4>>,
+    TypeMapEntry<AvrClockTcChannel5C, AvrPin<AvrPortL, 5>>
+>;
+
+#else
+#error Your device is not supported by AvrClock.
+#endif
+
+struct AvrClockTcModeClock {};
+
+template <uint16_t PrescaleDivide>
+struct AvrClockTcModePwm {};
+
+template <typename TTc, typename TMode = AvrClockTcModeClock>
+struct AvrClockTcSpec {
+    using Tc = TTc;
+    using Mode = TMode;
+};
+
+template <typename, typename, typename, typename>
+class AvrClock16BitInterruptTimer;
+
+template <typename, typename, typename, typename>
+class AvrClock8BitInterruptTimer;
+
+template <typename, typename, typename, typename>
+class AvrClockPwm;
+
 template <typename Context, typename ParentObject, uint16_t TPrescaleDivide, typename TcsList>
 class AvrClock {
+    template <typename, typename, typename, typename>
+    friend class AvrClock16BitInterruptTimer;
+
+    template <typename, typename, typename, typename>
+    friend class AvrClock8BitInterruptTimer;
+    
+    template <typename, typename, typename, typename>
+    friend class AvrClockPwm;
+    
 public:
-    using ClockTc = TypeListGet<TcsList, 0>;
-    static_assert(!ClockTc::Is8Bit, "First TC must be 16-bit.");
     struct Object;
-    using TimeType = uint32_t;
+    using ClockTcSpec = TypeListGet<TcsList, 0>;
+    using ClockTc = typename ClockTcSpec::Tc;
+    static_assert(TypesAreEqual<typename ClockTcSpec::Mode, AvrClockTcModeClock>::value, "First TC must be AvrClockTcModeClock.");
+    static_assert(!ClockTc::Is8Bit, "First TC must be 16-bit.");
     static uint16_t const PrescaleDivide = TPrescaleDivide;
+    
+    using TimeType = uint32_t;
     static constexpr double time_unit = (double)PrescaleDivide / F_CPU;
     static constexpr double time_freq = (double)F_CPU / PrescaleDivide;
     
@@ -179,35 +264,75 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init_start, init_start)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Tc, Tc)
     
     template <int TcIndex>
     struct MyTc {
         using TcSpec = TypeListGet<TcsList, TcIndex>;
+        using Tc = typename TcSpec::Tc;
         
-        static void init (Context c)
-        {
-            *TcSpec::timsk() = 0;
-            *TcSpec::tccra() = 0;
-            *TcSpec::tccrb() = 0;
-            *TcSpec::tcnt() = (TcIndex == 0) ? 1 : 0;
-        }
+        template <typename TheMode, typename Dummy = void>
+        struct ModeHelper;
         
-        static void init_start (Context c)
-        {
-            if (TcIndex == 0) {
-                *TcSpec::timsk() = (1 << TcSpec::toie);
+        template <typename Dummy>
+        struct ModeHelper<AvrClockTcModeClock, Dummy> {
+            static bool const IsPwmMode = false;
+            
+            static void init (Context c)
+            {
+                *Tc::timsk() = 0;
+                *Tc::tccra() = 0;
+                *Tc::tccrb() = 0;
+                *Tc::tcnt() = (TcIndex == 0) ? 1 : 0;
             }
-            *TcSpec::tccrb() = TcSpec::PrescaleMode::template DivToPrescale<PrescaleDivide>::Value;
-        }
+            
+            static void init_start (Context c)
+            {
+                if (TcIndex == 0) {
+                    *Tc::timsk() = (1 << Tc::toie);
+                }
+                *Tc::tccrb() = Tc::PrescaleMode::template DivToPrescale<PrescaleDivide>::Value;
+            }
+            
+            static void deinit (Context c)
+            {
+                *Tc::timsk() = 0;
+                *Tc::tccrb() = 0;
+            }
+        };
         
-        static void deinit (Context c)
-        {
-            *TcSpec::timsk() = 0;
-            *TcSpec::tccrb() = 0;
-        }
+        template <uint16_t PwmPrescaleDivide, typename Dummy>
+        struct ModeHelper<AvrClockTcModePwm<PwmPrescaleDivide>, Dummy> {
+            static_assert(Tc::Is8Bit, "");
+            
+            static bool const IsPwmMode = true;
+            
+            static void init (Context c)
+            {
+                *Tc::timsk() = 0;
+                *Tc::tccra() = (1 << Tc::wgm0);
+                *Tc::tccrb() = Tc::PrescaleMode::template DivToPrescale<PwmPrescaleDivide>::Value;
+            }
+            
+            static void init_start (Context c) {}
+            
+            static void deinit (Context c)
+            {
+                *Tc::tccrb() = 0;
+            }
+        };
+        
+        using TheModeHelper = ModeHelper<typename TcSpec::Mode>;
+        
+        static void init (Context c) { TheModeHelper::init(c); }
+        static void init_start (Context c) { TheModeHelper::init_start(c); }
+        static void deinit (Context c) { TheModeHelper::deinit(c); }
     };
     
     using MyTcsList = IndexElemList<TcsList, MyTc>;
+    
+    template <typename Tc>
+    using FindTc = MyTc<TypeListIndex<MyTcsList, ComposeFunctions<IsEqualFunc<Tc>, GetMemberType_Tc>>::value>;
     
 public:
     static void init (Context c)
@@ -283,6 +408,12 @@ public:
     using TcChannel = TTcChannel;
     using Tc = typename TcChannel::Tc;
     
+private:
+    using MyTc = typename Clock::template FindTc<Tc>;
+    static_assert(TypesAreEqual<typename MyTc::TcSpec::Mode, AvrClockTcModeClock>::value, "TC must be AvrClockTcModeClock.");
+    static_assert(!Tc::Is8Bit, "");
+    
+public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
@@ -495,6 +626,12 @@ public:
     using TcChannel = TTcChannel;
     using Tc = typename TcChannel::Tc;
     
+private:
+    using MyTc = typename Clock::template FindTc<Tc>;
+    static_assert(TypesAreEqual<typename MyTc::TcSpec::Mode, AvrClockTcModeClock>::value, "TC must be AvrClockTcModeClock.");
+    static_assert(Tc::Is8Bit, "");
+    
+public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
@@ -722,6 +859,91 @@ ISR(TIMER##TcNum##_COMP##ChannelLetter##_vect) \
 { \
     Timer::timer_comp_isr(MakeAtomicContext((context))); \
 }
+
+/*
+ * NOTE concerning hardware PWM.
+ * 
+ * We're using "Phase Correct PWM mode", because in "Fast PWM" mode,
+ * it is impossible to get zero duty cycle without glitches.
+ * 
+ * See: http://stackoverflow.com/questions/23853066/how-to-achieve-zero-duty-cycle-pwm-in-avr-without-glitches
+ */
+
+template <typename Context, typename ParentObject, typename TcChannel, typename Pin>
+class AvrClockPwm {
+public:
+    struct Object;
+    using Clock = typename Context::Clock;
+    
+private:
+    using Tc = typename TcChannel::Tc;
+    using MyTc = typename Clock::template FindTc<Tc>;
+    static_assert(MyTc::TheModeHelper::IsPwmMode, "TC must be AvrClockTcModePwm.");
+    static_assert(Tc::Is8Bit, "TC must be 8-bit.");
+    static_assert(TypesAreEqual<Pin, TypeMapGet<AvrClock__PinMap, TcChannel>>::value, "Invalid Pin specified.");
+    static uint8_t const ComMask = (1 << TcChannel::com1) | (1 << TcChannel::com0);
+    
+public:
+    using DutyCycleType = uint16_t;
+    static DutyCycleType const MaxDutyCycle = UINT16_C(0x100);
+    
+    static void init (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        *TcChannel::ocr() = 0;
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            *Tc::tccra() = (*Tc::tccra() & ~ComMask) | (1 << TcChannel::com1);
+            *Tc::tifr() = (1 << TcChannel::ocf);
+        }
+        
+        while (!(*Tc::tifr() & (1 << TcChannel::ocf)));
+        
+        Context::Pins::template set<Pin>(c, false);
+        Context::Pins::template setOutput<Pin>(c);
+        
+        o->debugInit(c);
+    }
+    
+    static void deinit (Context c)
+    {
+        auto *o = Object::self(c);
+        o->debugDeinit(c);
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            *Tc::tccra() &= ~ComMask;
+        }
+        
+        Context::Pins::template set<Pin>(c, false);
+    }
+    
+    template <typename ThisContext>
+    static void setDutyCycle (ThisContext c, DutyCycleType duty_cycle)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(duty_cycle <= MaxDutyCycle)
+        
+        *TcChannel::ocr() = (duty_cycle < MaxDutyCycle) ? duty_cycle : (MaxDutyCycle - 1);
+    }
+    
+    static void emergencySetOff ()
+    {
+        *Tc::tccra() &= ~ComMask;
+        Context::Pins::template emergencySet<Pin>(false);
+    }
+    
+public:
+    struct Object : public ObjBase<AvrClockPwm, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {};
+};
+
+template <typename TcChannel, typename Pin>
+struct AvrClockPwmService {
+    template <typename Context, typename ParentObject>
+    using Pwm = AvrClockPwm<Context, ParentObject, TcChannel, Pin>;
+};
 
 #include <aprinter/EndNamespace.h>
 

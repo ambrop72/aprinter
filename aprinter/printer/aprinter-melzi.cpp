@@ -682,10 +682,10 @@ static const int AdcPrescaler = 7;
 
 static const int ClockPrescaleDivide = 64;
 using ClockTcsList = MakeTypeList<
-    AvrClockTc1,
-    AvrClockTc3,
-    AvrClockTc0,
-    AvrClockTc2
+    AvrClockTcSpec<AvrClockTc1>,
+    AvrClockTcSpec<AvrClockTc3>,
+    AvrClockTcSpec<AvrClockTc0>,
+    AvrClockTcSpec<AvrClockTc2>
 >;
 
 struct MyContext;
