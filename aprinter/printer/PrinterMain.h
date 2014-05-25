@@ -464,6 +464,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init_new_pos, init_new_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_automatic_energy, handle_automatic_energy)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_planner_cmd, write_planner_cmd)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(TForeach_init, init)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
@@ -2438,10 +2439,20 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return TheFormula::adc_to_temp(adc_fp);
         }
         
+        template <typename ThisContext>
+        static AdcFixedType get_adc (ThisContext c)
+        {
+            return Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
+        }
+        
+        static bool adc_is_unsafe (AdcFixedType adc_value)
+        {
+            return (adc_value.bitsValue() <= InfAdcValue || adc_value.bitsValue() >= SupAdcValue);
+        }
+        
         static FpType get_temp (Context c)
         {
-            AdcFixedType adc_value = Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
-            return adc_to_temp(adc_value);
+            return adc_to_temp(get_adc(c));
         }
         
         template <typename TheChannelCommon>
@@ -2457,7 +2468,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename TheChannelCommon>
         static void append_adc_value (Context c, WrapType<TheChannelCommon>)
         {
-            AdcFixedType adc_value = Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
+            AdcFixedType adc_value = get_adc(c);
             TheChannelCommon::reply_append_ch(c, ' ');
             TheChannelCommon::reply_append_ch(c, HeaterSpec::Name);
             TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR("A:"));
@@ -2548,17 +2559,19 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
         }
         
+        static void check_safety (Context c)
+        {
+            AdcFixedType adc_value = get_adc(c);
+            if (adc_is_unsafe(adc_value)) {
+                unset(c);
+            }
+        }
+        
         static void softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c, PwmPowerData *pd)
         {
             auto *o = Object::self(c);
             
-            AdcFixedType adc_value = Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
-            bool unsafe = (AMBRO_LIKELY(adc_value.bitsValue() <= InfAdcValue || adc_value.bitsValue() >= SupAdcValue));
-            
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                if (unsafe) {
-                    unset(lock_c);
-                }
                 *pd = o->m_output_pd;
             }
         }
@@ -2600,6 +2613,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             
             o->m_control_event.appendAfterPrevious(c, ControlIntervalTicks);
+            
+            AdcFixedType adc_value = get_adc(c);
+            if (adc_is_unsafe(adc_value)) {
+                unset(c);
+            }
+            
             bool enabled;
             FpType target;
             bool was_not_unset;
@@ -2613,7 +2632,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (!was_not_unset) {
                     o->m_control.init();
                 }
-                FpType sensor_value = get_temp(c);
+                FpType sensor_value = adc_to_temp(adc_value);
                 FpType output = o->m_control.addMeasurement(sensor_value, target, &o->m_control_config);
                 PwmPowerData output_pd;
                 TheSoftPwm::computePowerData(output, &output_pd);
@@ -3125,6 +3144,7 @@ public: // private, see comment on top
         auto *ob = Object::self(c);
         ob->debugAccess(c);
         
+        ListForEachForward<HeatersList>(LForeach_check_safety(), c);
         TheWatchdog::reset(c);
     }
     
