@@ -2594,7 +2594,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void emergency ()
         {
-            Context::Pins::template emergencySet<typename HeaterSpec::OutputPin>(false);
+            Context::Pins::template emergencySet<typename HeaterSpec::OutputPin>(HeaterSpec::OutputInvert);
         }
         
         template <typename ThisContext, typename TheChannelPayloadUnion>
@@ -2725,7 +2725,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void emergency ()
         {
-            Context::Pins::template emergencySet<typename FanSpec::OutputPin>(false);
+            Context::Pins::template emergencySet<typename FanSpec::OutputPin>(FanSpec::OutputInvert);
         }
         
         template <typename ThisContext, typename TheChannelPayloadUnion>
