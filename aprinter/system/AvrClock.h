@@ -43,6 +43,8 @@
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/TypeMap.h>
+#include <aprinter/meta/BitsInInt.h>
+#include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -92,6 +94,9 @@ struct AvrClockTc##TcNum { \
     static uint16_t volatile * tcnt () { return &TCNT##TcNum; } \
     static uint8_t const toie = TOIE##TcNum; \
     static uint8_t const tov = TOV##TcNum; \
+    static uint8_t const wgm1 = WGM##TcNum##1; \
+    static uint8_t const wgm3 = WGM##TcNum##3; \
+    static uint16_t volatile * icr () { return &ICR##TcNum; } \
     using PrescaleMode = ThePrescaleMode; \
 };
 
@@ -106,7 +111,6 @@ struct AvrClockTc##TcNum { \
     static uint8_t const toie = TOIE##TcNum; \
     static uint8_t const tov = TOV##TcNum; \
     static uint8_t const wgm0 = WGM##TcNum##0; \
-    static uint8_t const wgm1 = WGM##TcNum##1; \
     using PrescaleMode = ThePrescaleMode; \
 };
 
@@ -116,6 +120,8 @@ struct AvrClockTcChannel##TcNum##ChannelLetter { \
     static uint8_t const ocie = OCIE##TcNum##ChannelLetter; \
     static uint8_t const ocf = OCF##TcNum##ChannelLetter; \
     static uint16_t volatile * ocr () { return &OCR##TcNum##ChannelLetter; } \
+    static uint8_t const com0 = COM##TcNum##ChannelLetter##0; \
+    static uint8_t const com1 = COM##TcNum##ChannelLetter##1; \
 };
 
 #define APRINTER_DEFINE_AVR_8BIT_TC_CHANNEL(TcNum, ChannelLetter) \
@@ -220,7 +226,10 @@ using AvrClock__PinMap = MakeTypeMap<
 struct AvrClockTcModeClock {};
 
 template <uint16_t PrescaleDivide>
-struct AvrClockTcModePwm {};
+struct AvrClockTcMode8BitPwm {};
+
+template <uint16_t PrescaleDivide, uint16_t TopVal>
+struct AvrClockTcMode16BitPwm {};
 
 template <typename TTc, typename TMode = AvrClockTcModeClock>
 struct AvrClockTcSpec {
@@ -235,7 +244,10 @@ template <typename, typename, typename, typename>
 class AvrClock8BitInterruptTimer;
 
 template <typename, typename, typename, typename>
-class AvrClockPwm;
+class AvrClock8BitPwm;
+
+template <typename, typename, typename, typename>
+class AvrClock16BitPwm;
 
 template <typename Context, typename ParentObject, uint16_t TPrescaleDivide, typename TcsList>
 class AvrClock {
@@ -246,7 +258,10 @@ class AvrClock {
     friend class AvrClock8BitInterruptTimer;
     
     template <typename, typename, typename, typename>
-    friend class AvrClockPwm;
+    friend class AvrClock8BitPwm;
+    
+    template <typename, typename, typename, typename>
+    friend class AvrClock16BitPwm;
     
 public:
     struct Object;
@@ -293,40 +308,55 @@ private:
                 }
                 *Tc::tccrb() = Tc::PrescaleMode::template DivToPrescale<PrescaleDivide>::Value;
             }
-            
-            static void deinit (Context c)
-            {
-                *Tc::timsk() = 0;
-                *Tc::tccrb() = 0;
-            }
         };
         
         template <uint16_t PwmPrescaleDivide, typename Dummy>
-        struct ModeHelper<AvrClockTcModePwm<PwmPrescaleDivide>, Dummy> {
+        struct ModeHelper<AvrClockTcMode8BitPwm<PwmPrescaleDivide>, Dummy> {
             static_assert(Tc::Is8Bit, "");
             
             static bool const IsPwmMode = true;
             
             static void init (Context c)
             {
+                *Tc::tccrb() = 0;
                 *Tc::timsk() = 0;
                 *Tc::tccra() = (1 << Tc::wgm0);
                 *Tc::tccrb() = Tc::PrescaleMode::template DivToPrescale<PwmPrescaleDivide>::Value;
             }
             
             static void init_start (Context c) {}
+        };
+        
+        template <uint16_t PwmPrescaleDivide, uint16_t TPwmTopVal, typename Dummy>
+        struct ModeHelper<AvrClockTcMode16BitPwm<PwmPrescaleDivide, TPwmTopVal>, Dummy> {
+            static_assert(!Tc::Is8Bit, "");
+            static_assert(TPwmTopVal >= 1, "");
             
-            static void deinit (Context c)
+            static bool const IsPwmMode = true;
+            static uint16_t const PwmTopVal = TPwmTopVal;
+            
+            static void init (Context c)
             {
                 *Tc::tccrb() = 0;
+                *Tc::timsk() = 0;
+                *Tc::icr() = PwmTopVal;
+                *Tc::tccra() = (1 << Tc::wgm1);
+                *Tc::tccrb() = (1 << Tc::wgm3) | Tc::PrescaleMode::template DivToPrescale<PwmPrescaleDivide>::Value;
             }
+            
+            static void init_start (Context c) {}
         };
         
         using TheModeHelper = ModeHelper<typename TcSpec::Mode>;
         
         static void init (Context c) { TheModeHelper::init(c); }
         static void init_start (Context c) { TheModeHelper::init_start(c); }
-        static void deinit (Context c) { TheModeHelper::deinit(c); }
+        
+        static void deinit (Context c)
+        {
+            *Tc::timsk() = 0;
+            *Tc::tccrb() = 0;
+        }
     };
     
     using MyTcsList = IndexElemList<TcsList, MyTc>;
@@ -870,7 +900,7 @@ ISR(TIMER##TcNum##_COMP##ChannelLetter##_vect) \
  */
 
 template <typename Context, typename ParentObject, typename TcChannel, typename Pin>
-class AvrClockPwm {
+class AvrClock8BitPwm {
 public:
     struct Object;
     using Clock = typename Context::Clock;
@@ -878,7 +908,7 @@ public:
 private:
     using Tc = typename TcChannel::Tc;
     using MyTc = typename Clock::template FindTc<Tc>;
-    static_assert(MyTc::TheModeHelper::IsPwmMode, "TC must be AvrClockTcModePwm.");
+    static_assert(MyTc::TheModeHelper::IsPwmMode, "TC must be configured in PWM mode.");
     static_assert(Tc::Is8Bit, "TC must be 8-bit.");
     static_assert(TypesAreEqual<Pin, TypeMapGet<AvrClock__PinMap, TcChannel>>::value, "Invalid Pin specified.");
     static uint8_t const ComMask = (1 << TcChannel::com1) | (1 << TcChannel::com0);
@@ -934,15 +964,95 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<AvrClockPwm, ParentObject, EmptyTypeList>,
+    struct Object : public ObjBase<AvrClock8BitPwm, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
     {};
 };
 
 template <typename TcChannel, typename Pin>
-struct AvrClockPwmService {
+struct AvrClock8BitPwmService {
     template <typename Context, typename ParentObject>
-    using Pwm = AvrClockPwm<Context, ParentObject, TcChannel, Pin>;
+    using Pwm = AvrClock8BitPwm<Context, ParentObject, TcChannel, Pin>;
+};
+
+template <typename Context, typename ParentObject, typename TcChannel, typename Pin>
+class AvrClock16BitPwm {
+public:
+    struct Object;
+    using Clock = typename Context::Clock;
+    
+private:
+    using Tc = typename TcChannel::Tc;
+    using MyTc = typename Clock::template FindTc<Tc>;
+    static_assert(MyTc::TheModeHelper::IsPwmMode, "TC must be configured in PWM mode.");
+    static_assert(!Tc::Is8Bit, "TC must be 16-bit.");
+    static_assert(TypesAreEqual<Pin, TypeMapGet<AvrClock__PinMap, TcChannel>>::value, "Invalid Pin specified.");
+    static uint8_t const ComMask = (1 << TcChannel::com1) | (1 << TcChannel::com0);
+    static uint32_t const PwmTopValPlus1 = (uint32_t)MyTc::TheModeHelper::PwmTopVal + 1;
+    
+public:
+    using DutyCycleType = ChooseInt<BitsInInt<PwmTopValPlus1>::value>;
+    static DutyCycleType const MaxDutyCycle = PwmTopValPlus1;
+    
+    static void init (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        *TcChannel::ocr() = 0;
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            *Tc::tccra() = (*Tc::tccra() & ~ComMask) | (1 << TcChannel::com1);
+            *Tc::tifr() = (1 << TcChannel::ocf);
+        }
+        
+        while (!(*Tc::tifr() & (1 << TcChannel::ocf)));
+        
+        Context::Pins::template set<Pin>(c, false);
+        Context::Pins::template setOutput<Pin>(c);
+        
+        o->debugInit(c);
+    }
+    
+    static void deinit (Context c)
+    {
+        auto *o = Object::self(c);
+        o->debugDeinit(c);
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            *Tc::tccra() &= ~ComMask;
+        }
+        
+        Context::Pins::template set<Pin>(c, false);
+    }
+    
+    template <typename ThisContext>
+    static void setDutyCycle (ThisContext c, DutyCycleType duty_cycle)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(duty_cycle <= MaxDutyCycle)
+        
+        uint16_t ocr_val = (duty_cycle < MaxDutyCycle) ? duty_cycle : (MaxDutyCycle - 1);
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            *TcChannel::ocr() = ocr_val;
+        }
+    }
+    
+    static void emergencySetOff ()
+    {
+        *Tc::tccra() &= ~ComMask;
+        Context::Pins::template emergencySet<Pin>(false);
+    }
+    
+public:
+    struct Object : public ObjBase<AvrClock16BitPwm, ParentObject, EmptyTypeList>,
+        public DebugObject<Context, void>
+    {};
+};
+
+template <typename TcChannel, typename Pin>
+struct AvrClock16BitPwmService {
+    template <typename Context, typename ParentObject>
+    using Pwm = AvrClock16BitPwm<Context, ParentObject, TcChannel, Pin>;
 };
 
 #include <aprinter/EndNamespace.h>
