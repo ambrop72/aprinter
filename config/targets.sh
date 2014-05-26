@@ -62,6 +62,18 @@ target_ramps13() {
 
 #####################################################################################
 
+TARGETS+=( "megatronics3" )
+target_megatronics3() {
+    PLATFORM=avr
+    F_CPU=16000000
+    MCU=atmega2560
+    AVRDUDE_PORT=/dev/ttyACM0
+    AVRDUDE_BAUDRATE=115200
+    AVRDUDE_PROGRAMMER=stk500v2
+}
+
+#####################################################################################
+
 TARGETS+=( "rampsfd" )
 target_rampsfd() {
     PLATFORM=sam3x
