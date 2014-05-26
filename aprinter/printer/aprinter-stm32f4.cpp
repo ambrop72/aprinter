@@ -48,6 +48,7 @@ static void emergency (void);
 #include <aprinter/usb/Stm32f4Usb.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/stm32f4discovery_pins.h>
@@ -498,20 +499,24 @@ using PrinterParams = PrinterMainParams<
         PrinterMainFanParams<
             106, // SetMCommand
             107, // OffMCommand
-            DuePin12, // OutputPin
-            false, // OutputInvert
-            FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC6, At91Sam3xClockCompB> // TimerTemplate
+            SoftPwmService<
+                DuePin12, // OutputPin
+                false, // OutputInvert
+                FanPulseInterval, // PulseInterval
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC6, At91Sam3xClockCompB> // TimerTemplate
+            >
         >,
         PrinterMainFanParams<
             406, // SetMCommand
             407, // OffMCommand
-            DuePin2, // OutputPin
-            false, // OutputInvert
-            FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            At91Sam3xClockInterruptTimerService<At91Sam3xClockTC7, At91Sam3xClockCompA> // TimerTemplate
+            SoftPwmService<
+                DuePin2, // OutputPin
+                false, // OutputInvert
+                FanPulseInterval, // PulseInterval
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC7, At91Sam3xClockCompA> // TimerTemplate
+            >
         >
     >
 >;

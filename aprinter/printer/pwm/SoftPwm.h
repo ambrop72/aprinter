@@ -25,16 +25,18 @@
 #ifndef AMBROLIB_SOFT_PWM_H
 #define AMBROLIB_SOFT_PWM_H
 
+#include <stdint.h>
+
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/Object.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Pin, bool Invert, typename PulseInterval, typename TimerCallback, typename TimerService>
+template <typename Context, typename ParentObject, typename Params>
 class SoftPwm {
 private:
     struct TimerHandler;
@@ -43,9 +45,9 @@ public:
     struct Object;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    using TimerInstance = typename TimerService::template InterruptTimer<Context, Object, TimerHandler>;
+    using TheTimer = typename Params::TimerService::template InterruptTimer<Context, Object, TimerHandler>;
     
-    struct PowerData {
+    struct DutyCycleData {
         TimeType on_time;
         uint8_t type;
     };
@@ -53,12 +55,14 @@ public:
     static void init (Context c, TimeType start_time)
     {
         auto *o = Object::self(c);
-        TimerInstance::init(c);
+        
+        computeZeroDutyCycle(&o->m_duty);
+        TheTimer::init(c);
         o->m_state = false;
         o->m_start_time = start_time;
-        Context::Pins::template set<Pin>(c, Invert);
-        Context::Pins::template setOutput<Pin>(c);
-        TimerInstance::setFirst(c, start_time);
+        Context::Pins::template set<typename Params::Pin>(c, Params::Invert);
+        Context::Pins::template setOutput<typename Params::Pin>(c);
+        TheTimer::setFirst(c, start_time);
         
         o->debugInit(c);
     }
@@ -68,58 +72,73 @@ public:
         auto *o = Object::self(c);
         o->debugDeinit(c);
         
-        TimerInstance::deinit(c);
-        Context::Pins::template set<Pin>(c, Invert);
+        TheTimer::deinit(c);
+        Context::Pins::template set<typename Params::Pin>(c, Params::Invert);
     }
     
-    using GetTimer = TimerInstance;
-    
-    static void computeZeroPowerData (PowerData *pd)
+    static void computeZeroDutyCycle (DutyCycleData *duty)
     {
-        pd->type = 0;
+        duty->type = 0;
     }
     
     template <typename FpType>
-    static void computePowerData (FpType frac, PowerData *pd)
+    static void computeDutyCycle (FpType frac, DutyCycleData *duty)
     {
         if (!(frac > 0.005f)) {
-            pd->type = 0;
+            duty->type = 0;
         } else {
             if (!(frac < 0.995f)) {
-                pd->type = 2;
+                duty->type = 2;
             } else {
-                pd->type = 1;
-                pd->on_time = frac * (FpType)interval;
+                duty->type = 1;
+                duty->on_time = frac * (FpType)Interval;
             }
         }
     }
     
-private:
-    static const TimeType interval = PulseInterval::value() / Clock::time_unit;
+    template <typename ThisContext>
+    static void setDutyCycle (ThisContext c, DutyCycleData duty)
+    {
+        auto *o = Object::self(c);
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            o->m_duty = duty;
+        }
+    }
     
-    static bool timer_handler (typename TimerInstance::HandlerContext c)
+    static void emergency ()
+    {
+        Context::Pins::template emergencySet<typename Params::Pin>(Params::Invert);
+    }
+    
+private:
+    static TimeType const Interval = Params::PulseInterval::value() / Clock::time_unit;
+    
+    static bool timer_handler (typename TheTimer::HandlerContext c)
     {
         auto *o = Object::self(c);
         
         TimeType next_time;
         if (AMBRO_LIKELY(!o->m_state)) {
-            PowerData pd;
-            TimerCallback::call(c, &pd);
-            Context::Pins::template set<Pin>(c, (pd.type != 0) != Invert);
-            if (AMBRO_LIKELY(pd.type == 1)) {
-                next_time = o->m_start_time + pd.on_time;
+            DutyCycleData duty;
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                duty = o->m_duty;
+            }
+            Context::Pins::template set<typename Params::Pin>(c, (duty.type != 0) != Params::Invert);
+            if (AMBRO_LIKELY(duty.type == 1)) {
+                next_time = o->m_start_time + duty.on_time;
                 o->m_state = true;
             } else {
-                o->m_start_time += interval;
+                o->m_start_time += Interval;
                 next_time = o->m_start_time;
             }
         } else {
-            Context::Pins::template set<Pin>(c, Invert);
-            o->m_start_time += interval;
+            Context::Pins::template set<typename Params::Pin>(c, Params::Invert);
+            o->m_start_time += Interval;
             next_time = o->m_start_time;
             o->m_state = false;
         }
-        TimerInstance::setNext(c, next_time);
+        TheTimer::setNext(c, next_time);
         return true;
     }
     
@@ -127,13 +146,25 @@ private:
     
 public:
     struct Object : public ObjBase<SoftPwm, ParentObject, MakeTypeList<
-        TimerInstance
+        TheTimer
     >>,
         public DebugObject<Context, void>
     {
+        DutyCycleData m_duty;
         bool m_state;
         TimeType m_start_time;
     };
+};
+
+template <typename TPin, bool TInvert, typename TPulseInterval, typename TTimerService>
+struct SoftPwmService {
+    using Pin = TPin;
+    static bool const Invert = TInvert;
+    using PulseInterval = TPulseInterval;
+    using TimerService = TTimerService;
+    
+    template <typename Context, typename ParentObject>
+    using Pwm = SoftPwm<Context, ParentObject, SoftPwmService>;
 };
 
 #include <aprinter/EndNamespace.h>

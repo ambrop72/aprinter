@@ -46,6 +46,7 @@ static void emergency (void);
 #include <aprinter/driver/LaserDriver.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
@@ -383,8 +384,6 @@ using PrinterParams = PrinterMainParams<
             109, // WaitMCommand
             301, // SetConfigMCommand
             TeensyPinA0, // AdcPin
-            TeensyPin21, // OutputPin
-            true, // OutputInvert
             GenericThermistor< // Thermistor
                 ExtruderHeaterThermistorResistorR,
                 ExtruderHeaterThermistorR0,
@@ -394,7 +393,6 @@ using PrinterParams = PrinterMainParams<
             >,
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
-            ExtruderHeaterPulseInterval, // PulseInterval
             ExtruderHeaterControlInterval, // ControlInterval
             PidControlService<
                 ExtruderHeaterPidP, // PidP
@@ -409,7 +407,12 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 5> // TimerTemplate
+            SoftPwmService<
+                TeensyPin21, // OutputPin
+                true, // OutputInvert
+                ExtruderHeaterPulseInterval, // PulseInterval
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 5> // TimerTemplate
+            >
         >,
         PrinterMainHeaterParams<
             'B', // Name
@@ -417,8 +420,6 @@ using PrinterParams = PrinterMainParams<
             190, // WaitMCommand
             304, // SetConfigMCommand
             TeensyPinA1, // AdcPin
-            TeensyPin20, // OutputPin
-            true, // OutputInvert
             GenericThermistor< // Thermistor
                 BedHeaterThermistorResistorR,
                 BedHeaterThermistorR0,
@@ -428,7 +429,6 @@ using PrinterParams = PrinterMainParams<
             >,
             BedHeaterMinSafeTemp, // MinSafeTemp
             BedHeaterMaxSafeTemp, // MaxSafeTemp
-            BedHeaterPulseInterval, // PulseInterval
             BedHeaterControlInterval, // ControlInterval
             PidControlService<
                 BedHeaterPidP, // PidP
@@ -443,7 +443,12 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            Mk20ClockInterruptTimerService<Mk20ClockFTM0, 6> // TimerTemplate
+            SoftPwmService<
+                TeensyPin20, // OutputPin
+                true, // OutputInvert
+                BedHeaterPulseInterval, // PulseInterval
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 6> // TimerTemplate
+            >
         >
     >,
     
@@ -538,8 +543,8 @@ AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 1, MyPrinter::GetAxisTime
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 2, MyPrinter::GetAxisTimer<1>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 3, MyPrinter::GetAxisTimer<2>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 4, MyPrinter::GetAxisTimer<3>, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 5, MyPrinter::GetHeaterTimer<0>, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 6, MyPrinter::GetHeaterTimer<1>, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 5, MyPrinter::GetHeaterPwm<0>::TheTimer, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 6, MyPrinter::GetHeaterPwm<1>::TheTimer, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 7, MyPrinter::GetLaserDriver<0>::TheTimer, MyContext())
 
 static void emergency (void)

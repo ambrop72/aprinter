@@ -45,6 +45,7 @@ static void emergency (void);
 #include <aprinter/system/At91SamSpi.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
@@ -464,8 +465,6 @@ using PrinterParams = PrinterMainParams<
             109, // WaitMCommand
             301, // SetConfigMCommand
             At91SamPin<At91SamPioB, 4>, // AdcPin
-            At91SamPin<At91SamPioA, 21>, // OutputPin
-            false, // OutputInvert
             GenericThermistor< // Thermistor
                 ExtruderHeaterThermistorResistorR,
                 ExtruderHeaterThermistorR0,
@@ -475,7 +474,6 @@ using PrinterParams = PrinterMainParams<
             >,
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
-            ExtruderHeaterPulseInterval, // PulseInterval
             ExtruderHeaterControlInterval, // ControlInterval
             PidControlService<
                 ExtruderHeaterPidP, // PidP
@@ -490,7 +488,12 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            At91Sam3uClockInterruptTimerService<At91Sam3uClockTC2, At91Sam3uClockCompB> // TimerTemplate
+            SoftPwmService<
+                At91SamPin<At91SamPioA, 21>, // OutputPin
+                false, // OutputInvert
+                ExtruderHeaterPulseInterval, // PulseInterval
+                At91Sam3uClockInterruptTimerService<At91Sam3uClockTC2, At91Sam3uClockCompB> // TimerTemplate
+            >
         >,
         PrinterMainHeaterParams<
             'B', // Name
@@ -498,8 +501,6 @@ using PrinterParams = PrinterMainParams<
             190, // WaitMCommand
             304, // SetConfigMCommand
             At91SamPin<At91SamPioC, 16>, // AdcPin
-            At91SamPin<At91SamPioA, 20>, // OutputPin
-            false, // OutputInvert
             GenericThermistor< // Thermistor
                 BedHeaterThermistorResistorR,
                 BedHeaterThermistorR0,
@@ -509,7 +510,6 @@ using PrinterParams = PrinterMainParams<
             >,
             BedHeaterMinSafeTemp, // MinSafeTemp
             BedHeaterMaxSafeTemp, // MaxSafeTemp
-            BedHeaterPulseInterval, // PulseInterval
             BedHeaterControlInterval, // ControlInterval
             PidControlService<
                 BedHeaterPidP, // PidP
@@ -524,7 +524,12 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            At91Sam3uClockInterruptTimerService<At91Sam3uClockTC0, At91Sam3uClockCompC> // TimerTemplate
+            SoftPwmService<
+                At91SamPin<At91SamPioA, 20>, // OutputPin
+                false, // OutputInvert
+                BedHeaterPulseInterval, // PulseInterval
+                At91Sam3uClockInterruptTimerService<At91Sam3uClockTC0, At91Sam3uClockCompC> // TimerTemplate
+            >
         >/*,
         PrinterMainHeaterParams<
             'U', // Name
@@ -532,8 +537,6 @@ using PrinterParams = PrinterMainParams<
             409, // WaitMCommand
             402, // SetConfigMCommand
             At91SamPin<At91SamPioA, 30>, // AdcPin
-            At91SamPin<At91SamPioA, 23>, // OutputPin
-            false, // OutputInvert
             GenericThermistor< // Thermistor
                 UxtruderHeaterThermistorResistorR,
                 UxtruderHeaterThermistorR0,
@@ -543,7 +546,6 @@ using PrinterParams = PrinterMainParams<
             >,
             UxtruderHeaterMinSafeTemp, // MinSafeTemp
             UxtruderHeaterMaxSafeTemp, // MaxSafeTemp
-            UxtruderHeaterPulseInterval, // PulseInterval
             UxtruderHeaterControlInterval, // ControlInterval
             PidControlService<
                 UxtruderHeaterPidP, // PidP
@@ -558,7 +560,12 @@ using PrinterParams = PrinterMainParams<
                 UxtruderHeaterObserverTolerance, // ObserverTolerance
                 UxtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            NONE // TimerTemplate
+            SoftPwmService<
+                At91SamPin<At91SamPioA, 23>, // OutputPin
+                false, // OutputInvert
+                UxtruderHeaterPulseInterval, // PulseInterval
+                NONE // TimerTemplate
+            >
         >*/
     >,
     
@@ -639,8 +646,8 @@ AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClockCo
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClockCompA, MyPrinter::GetAxisTimer<1>, MyContext())
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClockCompB, MyPrinter::GetAxisTimer<2>, MyContext())
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClockCompB, MyPrinter::GetAxisTimer<3>, MyContext())
-AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClockCompB, MyPrinter::GetHeaterTimer<0>, MyContext())
-AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClockCompC, MyPrinter::GetHeaterTimer<1>, MyContext())
+AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClockCompB, MyPrinter::GetHeaterPwm<0>::TheTimer, MyContext())
+AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClockCompC, MyPrinter::GetHeaterPwm<1>::TheTimer, MyContext())
 
 AMBRO_AT91SAM3U_ADC_GLOBAL(MyAdc, MyContext())
 AMBRO_AT91SAM3U_SPI_GLOBAL(MyPrinter::GetCurrent<>::GetSpi, MyContext())

@@ -48,6 +48,7 @@ static void emergency (void);
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
@@ -591,8 +592,6 @@ using PrinterParams = PrinterMainParams<
             109, // WaitMCommand
             301, // SetConfigMCommand
             AvrPin<AvrPortA, 7>, // AdcPin
-            AvrPin<AvrPortD, 5>, // OutputPin
-            false, // OutputInvert
             GenericThermistor< // Thermistor
                 ExtruderHeaterThermistorResistorR,
                 ExtruderHeaterThermistorR0,
@@ -602,7 +601,6 @@ using PrinterParams = PrinterMainParams<
             >,
             ExtruderHeaterMinSafeTemp, // MinSafeTemp
             ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
-            ExtruderHeaterPulseInterval, // PulseInterval
             ExtruderHeaterControlInterval, // ControlInterval
             PidControlService<
                 ExtruderHeaterPidP, // PidP
@@ -617,7 +615,12 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            AvrClockInterruptTimerService<AvrClockTcChannel0A> // TimerTemplate
+            SoftPwmService<
+                AvrPin<AvrPortD, 5>, // OutputPin
+                false, // OutputInvert
+                ExtruderHeaterPulseInterval, // PulseInterval
+                AvrClockInterruptTimerService<AvrClockTcChannel0A> // TimerTemplate
+            >
         >,
         PrinterMainHeaterParams<
             'B', // Name
@@ -625,8 +628,6 @@ using PrinterParams = PrinterMainParams<
             190, // WaitMCommand
             304, // SetConfigMCommand
             AvrPin<AvrPortA, 6>, // AdcPin
-            AvrPin<AvrPortD, 4>, // OutputPin
-            false, // OutputInvert
             GenericThermistor< // Thermistor
                 BedHeaterThermistorResistorR,
                 BedHeaterThermistorR0,
@@ -636,7 +637,6 @@ using PrinterParams = PrinterMainParams<
             >,
             BedHeaterMinSafeTemp, // MinSafeTemp
             BedHeaterMaxSafeTemp, // MaxSafeTemp
-            BedHeaterPulseInterval, // PulseInterval
             BedHeaterControlInterval, // ControlInterval
             PidControlService<
                 BedHeaterPidP, // PidP
@@ -651,7 +651,12 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            AvrClockInterruptTimerService<AvrClockTcChannel0B> // TimerTemplate
+            SoftPwmService<
+                AvrPin<AvrPortD, 4>, // OutputPin
+                false, // OutputInvert
+                BedHeaterPulseInterval, // PulseInterval
+                AvrClockInterruptTimerService<AvrClockTcChannel0B> // TimerTemplate
+            >
         >
     >,
     
@@ -662,11 +667,13 @@ using PrinterParams = PrinterMainParams<
         PrinterMainFanParams<
             106, // SetMCommand
             107, // OffMCommand
-            AvrPin<AvrPortB, 4>, // OutputPin
-            false, // OutputInvert
-            FanPulseInterval, // PulseInterval
             FanSpeedMultiply, // SpeedMultiply
-            AvrClockInterruptTimerService<AvrClockTcChannel2B> // TimerTemplate
+            SoftPwmService<
+                AvrPin<AvrPortB, 4>, // OutputPin
+                false, // OutputInvert
+                FanPulseInterval, // PulseInterval
+                AvrClockInterruptTimerService<AvrClockTcChannel2B> // TimerTemplate
+            >
         >
     >
 >;
@@ -738,10 +745,10 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(1, A, MyPrinter::GetAxisTimer<0>, MyContext
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(1, B, MyPrinter::GetAxisTimer<1>, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(3, A, MyPrinter::GetAxisTimer<2>, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(3, B, MyPrinter::GetAxisTimer<3>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(0, A, MyPrinter::GetHeaterTimer<0>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(0, B, MyPrinter::GetHeaterTimer<1>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(0, A, MyPrinter::GetHeaterPwm<0>::TheTimer, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(0, B, MyPrinter::GetHeaterPwm<1>::TheTimer, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(2, A, MyPrinter::GetEventChannelTimer, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(2, B, MyPrinter::GetFanTimer<0>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(2, B, MyPrinter::GetFanPwm<0>::TheTimer, MyContext())
 AMBRO_AVR_SPI_ISRS(MyPrinter::GetSdCard<>::GetSpi, MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
 

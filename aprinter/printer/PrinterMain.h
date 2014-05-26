@@ -72,7 +72,6 @@
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/devices/Blinker.h>
-#include <aprinter/devices/SoftPwm.h>
 #include <aprinter/driver/StepperGroups.h>
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/GcodeParser.h>
@@ -268,14 +267,13 @@ struct PrinterMainVirtualHomingParams {
 
 template <
     char TName, int TSetMCommand, int TWaitMCommand, int TSetConfigMCommand,
-    typename TAdcPin, typename TOutputPin, bool TOutputInvert,
+    typename TAdcPin,
     typename TFormula,
     typename TMinSafeTemp, typename TMaxSafeTemp,
-    typename TPulseInterval,
     typename TControlInterval,
     typename TControlService,
     typename TTheTemperatureObserverParams,
-    typename TTimerService
+    typename TPwmService
 >
 struct PrinterMainHeaterParams {
     static char const Name = TName;
@@ -283,31 +281,25 @@ struct PrinterMainHeaterParams {
     static int const WaitMCommand = TWaitMCommand;
     static int const SetConfigMCommand = TSetConfigMCommand;
     using AdcPin = TAdcPin;
-    using OutputPin = TOutputPin;
-    static bool const OutputInvert = TOutputInvert;
     using Formula = TFormula;
     using MinSafeTemp = TMinSafeTemp;
     using MaxSafeTemp = TMaxSafeTemp;
-    using PulseInterval = TPulseInterval;
     using ControlInterval = TControlInterval;
     using ControlService = TControlService;
     using TheTemperatureObserverParams = TTheTemperatureObserverParams;
-    using TimerService = TTimerService;
+    using PwmService = TPwmService;
 };
 
 template <
     int TSetMCommand, int TOffMCommand,
-    typename TOutputPin, bool TOutputInvert, typename TPulseInterval, typename TSpeedMultiply,
-    typename TTimerService
+    typename TSpeedMultiply,
+    typename TPwmService
 >
 struct PrinterMainFanParams {
     static int const SetMCommand = TSetMCommand;
     static int const OffMCommand = TOffMCommand;
-    using OutputPin = TOutputPin;
-    static bool const OutputInvert = TOutputInvert;
-    using PulseInterval = TPulseInterval;
     using SpeedMultiply = TSpeedMultiply;
-    using TimerService = TTimerService;
+    using PwmService = TPwmService;
 };
 
 struct PrinterMainNoSdCardParams {
@@ -2377,16 +2369,15 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     template <int HeaterIndex>
     struct Heater {
         struct Object;
-        struct SoftPwmTimerHandler;
         struct ObserverGetValueCallback;
         struct ObserverHandler;
         
         using HeaterSpec = TypeListGet<ParamsHeatersList, HeaterIndex>;
         using TheControl = typename HeaterSpec::ControlService::template Control<typename HeaterSpec::ControlInterval, FpType>;
         using ControlConfig = typename TheControl::Config;
-        using TheSoftPwm = SoftPwm<Context, Object, typename HeaterSpec::OutputPin, HeaterSpec::OutputInvert, typename HeaterSpec::PulseInterval, SoftPwmTimerHandler, typename HeaterSpec::TimerService>;
+        using ThePwm = typename HeaterSpec::PwmService::template Pwm<Context, Object>;
         using TheObserver = TemperatureObserver<Context, Object, FpType, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
-        using PwmPowerData = typename TheSoftPwm::PowerData;
+        using PwmDutyCycleData = typename ThePwm::DutyCycleData;
         using TheFormula = typename HeaterSpec::Formula::template Inner<FpType>;
         using AdcFixedType = typename Context::Adc::FixedType;
         using AdcIntType = typename AdcFixedType::IntType;
@@ -2415,11 +2406,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             o->m_enabled = false;
             o->m_control_config = TheControl::makeDefaultConfig();
             TimeType time = Clock::getTime(c) + (TimeType)(0.05 * Clock::time_freq);
-            TheSoftPwm::computeZeroPowerData(&o->m_output_pd);
             o->m_control_event.init(c, Heater::control_event_handler);
             o->m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
             o->m_was_not_unset = false;
-            TheSoftPwm::init(c, time);
+            ThePwm::init(c, time);
             o->m_observing = false;
         }
         
@@ -2429,7 +2419,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             if (o->m_observing) {
                 TheObserver::deinit(c);
             }
-            TheSoftPwm::deinit(c);
+            ThePwm::deinit(c);
             o->m_control_event.deinit(c);
         }
         
@@ -2493,7 +2483,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 o->m_enabled = false;
                 o->m_was_not_unset = false;
-                TheSoftPwm::computeZeroPowerData(&o->m_output_pd);
+                PwmDutyCycleData duty;
+                ThePwm::computeZeroDutyCycle(&duty);
+                ThePwm::setDutyCycle(lock_c, duty);
             }
         }
         
@@ -2567,15 +2559,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
         }
         
-        static void softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c, PwmPowerData *pd)
-        {
-            auto *o = Object::self(c);
-            
-            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                *pd = o->m_output_pd;
-            }
-        }
-        
         static void observer_handler (Context c, bool state)
         {
             auto *o = Object::self(c);
@@ -2594,7 +2577,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void emergency ()
         {
-            Context::Pins::template emergencySet<typename HeaterSpec::OutputPin>(HeaterSpec::OutputInvert);
+            ThePwm::emergency();
         }
         
         template <typename ThisContext, typename TheChannelPayloadUnion>
@@ -2634,22 +2617,21 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 }
                 FpType sensor_value = adc_to_temp(adc_value);
                 FpType output = o->m_control.addMeasurement(sensor_value, target, &o->m_control_config);
-                PwmPowerData output_pd;
-                TheSoftPwm::computePowerData(output, &output_pd);
+                PwmDutyCycleData duty;;
+                ThePwm::computeDutyCycle(output, &duty);
                 AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                     if (o->m_was_not_unset) {
-                        o->m_output_pd = output_pd;
+                        ThePwm::setDutyCycle(lock_c, duty);
                     }
                 }
             }
         }
         
-        struct SoftPwmTimerHandler : public AMBRO_WFUNC_TD(&Heater::softpwm_timer_handler) {};
         struct ObserverGetValueCallback : public AMBRO_WFUNC_TD(&Heater::get_temp) {};
         struct ObserverHandler : public AMBRO_WFUNC_TD(&Heater::observer_handler) {};
         
         struct Object : public ObjBase<Heater, typename PrinterMain::Object, MakeTypeList<
-            TheSoftPwm,
+            ThePwm,
             TheObserver
         >> {
             bool m_enabled;
@@ -2657,7 +2639,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             ControlConfig m_control_config;
             FpType m_target;
             bool m_observing;
-            PwmPowerData m_output_pd;
             typename Loop::QueuedEvent m_control_event;
             bool m_was_not_unset;
         };
@@ -2666,27 +2647,25 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     template <int FanIndex>
     struct Fan {
         struct Object;
-        struct SoftPwmTimerHandler;
         
         using FanSpec = TypeListGet<ParamsFansList, FanIndex>;
-        using TheSoftPwm = SoftPwm<Context, Object, typename FanSpec::OutputPin, FanSpec::OutputInvert, typename FanSpec::PulseInterval, SoftPwmTimerHandler, typename FanSpec::TimerService>;
-        using PwmPowerData = typename TheSoftPwm::PowerData;
+        using ThePwm = typename FanSpec::PwmService::template Pwm<Context, Object>;
+        using PwmDutyCycleData = typename ThePwm::DutyCycleData;
         
         struct ChannelPayload {
-            PwmPowerData target_pd;
+            PwmDutyCycleData duty;
         };
         
         static void init (Context c)
         {
             auto *o = Object::self(c);
-            TheSoftPwm::computeZeroPowerData(&o->m_target_pd);
             TimeType time = Clock::getTime(c) + (TimeType)(0.05 * Clock::time_freq);
-            TheSoftPwm::init(c, time);
+            ThePwm::init(c, time);
         }
         
         static void deinit (Context c)
         {
-            TheSoftPwm::deinit(c);
+            ThePwm::deinit(c);
         }
         
         template <typename TheChannelCommon>
@@ -2707,7 +2686,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
                 payload->type = TypeListLength<ParamsHeatersList>::value + FanIndex;
-                TheSoftPwm::computePowerData(target, &UnionGetElem<FanIndex>(&payload->fans)->target_pd);
+                ThePwm::computeDutyCycle(target, &UnionGetElem<FanIndex>(&payload->fans)->duty);
                 ThePlanner::channelCommandDone(c, 1);
                 submitted_planner_command(c);
                 return false;
@@ -2715,17 +2694,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return true;
         }
         
-        static void softpwm_timer_handler (typename TheSoftPwm::TimerInstance::HandlerContext c, PwmPowerData *pd)
-        {
-            auto *o = Object::self(c);
-            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                *pd = o->m_target_pd;
-            }
-        }
-        
         static void emergency ()
         {
-            Context::Pins::template emergencySet<typename FanSpec::OutputPin>(FanSpec::OutputInvert);
+            ThePwm::emergency();
         }
         
         template <typename ThisContext, typename TheChannelPayloadUnion>
@@ -2733,18 +2704,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             ChannelPayload *payload = UnionGetElem<FanIndex>(payload_union);
-            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                o->m_target_pd = payload->target_pd;
-            }
+            ThePwm::setDutyCycle(c, payload->duty);
         }
         
-        struct SoftPwmTimerHandler : public AMBRO_WFUNC_TD(&Fan::softpwm_timer_handler) {};
-        
         struct Object : public ObjBase<Fan, typename PrinterMain::Object, MakeTypeList<
-            TheSoftPwm
-        >> {
-            PwmPowerData m_target_pd;
-        };
+            ThePwm
+        >> {};
     };
     
     using HeatersList = IndexElemList<ParamsHeatersList, Heater>;
@@ -3091,10 +3056,10 @@ public:
     using GetAxisTimer = typename Axis<AxisIndex>::TheAxisDriver::GetTimer;
     
     template <int HeaterIndex>
-    using GetHeaterTimer = typename Heater<HeaterIndex>::TheSoftPwm::GetTimer;
+    using GetHeaterPwm = typename Heater<HeaterIndex>::ThePwm;
     
     template <int FanIndex>
-    using GetFanTimer = typename Fan<FanIndex>::TheSoftPwm::GetTimer;
+    using GetFanPwm = typename Fan<FanIndex>::ThePwm;
     
     using GetEventChannelTimer = typename ThePlanner::template GetChannelTimer<0>;
     
