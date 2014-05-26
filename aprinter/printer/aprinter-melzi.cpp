@@ -49,6 +49,7 @@ static void emergency (void);
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/pwm/SoftPwm.h>
+#include <aprinter/printer/pwm/HardPwm.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
@@ -119,8 +120,7 @@ using ExtruderHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
 using ExtruderHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(300.0);
 using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
-using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
-using ExtruderHeaterControlInterval = ExtruderHeaterPulseInterval;
+using ExtruderHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.2);
 using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
 using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
 using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
@@ -138,7 +138,6 @@ using BedHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
 using BedHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(150.0);
 using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
-using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
 using BedHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.3);
 using BedHeaterPidP = AMBRO_WRAP_DOUBLE(1.0);
 using BedHeaterPidI = AMBRO_WRAP_DOUBLE(0.012);
@@ -225,7 +224,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisDriverService<
-                AvrClockInterruptTimerService<AvrClockTcChannel1A>, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel0A>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -258,7 +257,7 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisDriverService<
-                AvrClockInterruptTimerService<AvrClockTcChannel1B>, // StepperTimer
+                AvrClockInterruptTimerService<AvrClockTcChannel0B>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -358,11 +357,8 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            SoftPwmService<
-                AvrPin<AvrPortD, 5>, // OutputPin
-                false, // OutputInvert
-                ExtruderHeaterPulseInterval, // PulseInterval
-                AvrClockInterruptTimerService<AvrClockTcChannel0A> // TimerTemplate
+            HardPwmService<
+                AvrClock16BitPwmService<AvrClockTcChannel1A, AvrPin<AvrPortD, 5>>
             >
         >,
         PrinterMainHeaterParams<
@@ -394,11 +390,8 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
-            SoftPwmService<
-                AvrPin<AvrPortD, 4>, // OutputPin
-                false, // OutputInvert
-                BedHeaterPulseInterval, // PulseInterval
-                AvrClockInterruptTimerService<AvrClockTcChannel0B> // TimerTemplate
+            HardPwmService<
+                AvrClock16BitPwmService<AvrClockTcChannel1B, AvrPin<AvrPortD, 4>>
             >
         >
     >,
@@ -432,10 +425,10 @@ static const int AdcPrescaler = 7;
 
 static const int ClockPrescaleDivide = 64;
 using ClockTcsList = MakeTypeList<
-    AvrClockTcSpec<AvrClockTc1>,
     AvrClockTcSpec<AvrClockTc3>,
     AvrClockTcSpec<AvrClockTc0>,
-    AvrClockTcSpec<AvrClockTc2>
+    AvrClockTcSpec<AvrClockTc2>,
+    AvrClockTcSpec<AvrClockTc1, AvrClockTcMode16BitPwm<64, 0xfff>>
 >;
 
 struct MyContext;
@@ -481,15 +474,13 @@ Program p;
 Program * Program::self (MyContext c) { return &p; }
 void MyContext::check () const { AMBRO_ASSERT_FORCE(p.end == UINT16_C(0x1234)) }
 
-AMBRO_AVR_CLOCK_ISRS(1, MyClock, MyContext())
+AMBRO_AVR_CLOCK_ISRS(3, MyClock, MyContext())
 AMBRO_AVR_ADC_ISRS(MyAdc, MyContext())
 AMBRO_AVR_SERIAL_ISRS(MyPrinter::GetSerial, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(1, A, MyPrinter::GetAxisTimer<0>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(1, B, MyPrinter::GetAxisTimer<1>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(0, A, MyPrinter::GetAxisTimer<0>, MyContext())
+AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(0, B, MyPrinter::GetAxisTimer<1>, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(3, A, MyPrinter::GetAxisTimer<2>, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(3, B, MyPrinter::GetAxisTimer<3>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(0, A, MyPrinter::GetHeaterPwm<0>::TheTimer, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(0, B, MyPrinter::GetHeaterPwm<1>::TheTimer, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(2, A, MyPrinter::GetEventChannelTimer, MyContext())
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(2, B, MyPrinter::GetFanPwm<0>::TheTimer, MyContext())
 AMBRO_AVR_SPI_ISRS(MyPrinter::GetSdCard<>::GetSpi, MyContext())
