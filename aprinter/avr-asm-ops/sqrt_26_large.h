@@ -142,8 +142,8 @@ __attribute__((always_inline)) inline static uint16_t sqrt_26_large (uint32_t x,
 /*
  * Square root 26-bit with rounding.
  * 
- * Cycles in worst case: 138
- * = 11 + 3 * 8 + 8 + 10 + 6 * 10 + 10 + 15
+ * Cycles in worst case: 137
+ * = 11 + 3 * 8 + 8 + 10 + 6 * 10 + 10 + 14
  */
 __attribute__((always_inline)) inline static uint16_t sqrt_26_large_round (uint32_t x, OptionForceInline opt)
 {
@@ -173,22 +173,21 @@ __attribute__((always_inline)) inline static uint16_t sqrt_26_large_round (uint3
         SQRT_26_ITER_8_13(12)
         SQRT_26_ITER_8_13(13)
         SQRT_26_ITER_14_14(14)
-        "    cpi %A[x],0x80\n"
-        "    cpc %C[x],%A[goo]\n"
-        "    cpc %D[x],%B[goo]\n"
-        "    brcs zero_bit_end_%=\n"
-        "    subi %A[x],0x80\n"
-        "    sbc %C[x],%A[goo]\n"
-        "    sbc %D[x],%B[goo]\n"
-        "    inc %A[goo]\n"
-        "zero_bit_end_%=:"
         "    lsl %A[x]\n"
         "    rol %C[x]\n"
         "    rol %D[x]\n"
+        "    subi %A[x],0x80\n"
+        "    sbc %C[x],%A[goo]\n"
+        "    sbc %D[x],%B[goo]\n"
+        "    brcs no_inc_%=\n"
+        "    lsr %D[x]\n"
+        "    ror %C[x]\n"
         "    cp %A[goo],%C[x]\n"
         "    cpc %B[goo],%D[x]\n"
         "    adc %A[goo],__zero_reg__\n"
-        "    adc %B[goo],__zero_reg__\n"
+        "    subi %A[goo],-1\n"
+        "    sbci %B[goo],-1\n"
+        "no_inc_%=:"
         
         : [goo] "=&d" (goo),
           [x] "=&d" (x)
@@ -209,7 +208,6 @@ static uint16_t sqrt_26_large_round (uint32_t x, Option opt = 0)
 {
     return sqrt_26_large_round(x, OptionForceInline());
 }
-
 
 #include <aprinter/EndNamespace.h>
 
