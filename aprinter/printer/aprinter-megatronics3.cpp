@@ -122,6 +122,14 @@ using UDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using UDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using UDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(55.0);
 
+using VDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(660.0);
+using VDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
+using VDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
+using VDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
+using VDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
+using VDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
+using VDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(55.0);
+
 using ExtruderHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
 using ExtruderHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(100000.0);
 using ExtruderHeaterThermistorBeta = AMBRO_WRAP_DOUBLE(3960.0);
@@ -430,13 +438,13 @@ using PrinterParams = PrinterMainParams<
             MegaPin22, // StepPin
             MegaPin23, // EnablePin
             true, // InvertDir
-            UDefaultStepsPerUnit, // StepsPerUnit
-            UDefaultMin, // Min
-            UDefaultMax, // Max
-            UDefaultMaxSpeed, // MaxSpeed
-            UDefaultMaxAccel, // MaxAccel
-            UDefaultDistanceFactor, // DistanceFactor
-            UDefaultCorneringDistance, // CorneringDistance
+            VDefaultStepsPerUnit, // StepsPerUnit
+            VDefaultMin, // Min
+            VDefaultMax, // Max
+            VDefaultMaxSpeed, // MaxSpeed
+            VDefaultMaxAccel, // MaxAccel
+            VDefaultDistanceFactor, // DistanceFactor
+            VDefaultCorneringDistance, // CorneringDistance
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
