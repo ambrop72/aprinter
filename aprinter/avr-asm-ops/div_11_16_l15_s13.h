@@ -120,11 +120,10 @@ __attribute__((always_inline)) inline static uint16_t div_11_16_l15_s13 (uint16_
         DIVIDE_11_16_L15_S13_ITER_28_28(28)
         "    lsl %A[n]\n"
         "    rol %B[n]\n"
-        "    rol __tmp_reg__\n"
-        "    rol %[tmp]\n"
+        "    adc %[tmp],__zero_reg__\n"
+        "    or %[tmp],__tmp_reg__\n"
         "    cp %A[n],%A[d]\n"
         "    cpc %B[n],%B[d]\n"
-        "    cpc __tmp_reg__,__zero_reg__\n"
         "    cpc %[tmp],__zero_reg__\n"
         "    sbci %A[q],-1\n"
         
