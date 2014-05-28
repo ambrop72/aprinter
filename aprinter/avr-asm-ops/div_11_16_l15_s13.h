@@ -90,8 +90,8 @@
 /**
  * Division 2^15*(11bit/16bit), saturated to 13 bits.
  * 
- * Cycles in worst case: 142
- * = 7 + (3 * 8) + (2 * 11) + (6 * 11) + (1 * 14) + 9
+ * Cycles in worst case: 141
+ * = 7 + (3 * 8) + (2 * 11) + (6 * 11) + (1 * 14) + 8
  */
 __attribute__((always_inline)) inline static uint16_t div_11_16_l15_s13 (uint16_t n, uint16_t d, OptionForceInline opt)
 {
