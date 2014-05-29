@@ -45,6 +45,8 @@
 #include <aprinter/meta/TypeMap.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/WrapDouble.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -53,6 +55,8 @@
 #include <aprinter/system/AvrPins.h>
 
 #include <aprinter/BeginNamespace.h>
+
+using AvrClockDefaultExtraClearance = AMBRO_WRAP_DOUBLE(0.0);
 
 struct AvrClock__PrescaleMode1 {
     template <uint16_t Div>
@@ -237,10 +241,10 @@ struct AvrClockTcSpec {
     using Mode = TMode;
 };
 
-template <typename, typename, typename, typename>
+template <typename, typename, typename, typename, typename>
 class AvrClock16BitInterruptTimer;
 
-template <typename, typename, typename, typename>
+template <typename, typename, typename, typename, typename>
 class AvrClock8BitInterruptTimer;
 
 template <typename, typename, typename, typename>
@@ -251,10 +255,10 @@ class AvrClock16BitPwm;
 
 template <typename Context, typename ParentObject, uint16_t TPrescaleDivide, typename TcsList>
 class AvrClock {
-    template <typename, typename, typename, typename>
+    template <typename, typename, typename, typename, typename>
     friend class AvrClock16BitInterruptTimer;
 
-    template <typename, typename, typename, typename>
+    template <typename, typename, typename, typename, typename>
     friend class AvrClock8BitInterruptTimer;
     
     template <typename, typename, typename, typename>
@@ -428,7 +432,7 @@ public:
     };
 };
 
-template <typename Context, typename ParentObject, typename Handler, typename TTcChannel>
+template <typename Context, typename ParentObject, typename Handler, typename TTcChannel, typename ExtraClearance>
 class AvrClock16BitInterruptTimer {
 public:
     struct Object;
@@ -632,7 +636,7 @@ public:
     }
     
 private:
-    static const TimeType clearance = (35 / Clock::PrescaleDivide) + 2;
+    static const TimeType clearance = MaxValue<TimeType>((35 / Clock::PrescaleDivide) + 2, ExtraClearance::value() * Clock::time_freq);
     static const TimeType minus_clearance = -clearance;
     
 public:
@@ -646,7 +650,7 @@ public:
     };
 };
 
-template <typename Context, typename ParentObject, typename Handler, typename TTcChannel>
+template <typename Context, typename ParentObject, typename Handler, typename TTcChannel, typename ExtraClearance>
 class AvrClock8BitInterruptTimer {
 public:
     struct Object;
@@ -847,7 +851,7 @@ public:
     }
     
 private:
-    static const TimeType clearance = (35 / Clock::PrescaleDivide) + 2;
+    static const TimeType clearance = MaxValue<TimeType>((35 / Clock::PrescaleDivide) + 2, ExtraClearance::value() * Clock::time_freq);
     static const TimeType minus_clearance = -clearance;
     
 public:
@@ -861,14 +865,14 @@ public:
     };
 };
 
-template <typename TcChannel>
+template <typename TcChannel, typename ExtraClearance = AvrClockDefaultExtraClearance>
 class AvrClockInterruptTimerService {
     AMBRO_STRUCT_IF(BitnessChoice, TcChannel::Tc::Is8Bit) {
         template <typename Context, typename ParentObject, typename Handler>
-        using InterruptTimer = AvrClock8BitInterruptTimer<Context, ParentObject, Handler, TcChannel>;
+        using InterruptTimer = AvrClock8BitInterruptTimer<Context, ParentObject, Handler, TcChannel, ExtraClearance>;
     } AMBRO_STRUCT_ELSE(BitnessChoice) {
         template <typename Context, typename ParentObject, typename Handler>
-        using InterruptTimer = AvrClock16BitInterruptTimer<Context, ParentObject, Handler, TcChannel>;
+        using InterruptTimer = AvrClock16BitInterruptTimer<Context, ParentObject, Handler, TcChannel, ExtraClearance>;
     };
     
 public:

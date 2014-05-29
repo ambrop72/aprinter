@@ -43,6 +43,8 @@
 #include <aprinter/meta/TypeListFind.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/WrapDouble.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -56,6 +58,8 @@ struct Mk20Clock__IrqCompHelper {
 };
 
 #include <aprinter/BeginNamespace.h>
+
+using Mk20ClockDefaultExtraClearance = AMBRO_WRAP_DOUBLE(0.0);
 
 template <
     uint32_t TScAddr, uint32_t TCntAddr, uint32_t TModAddr, uint32_t TCntinAddr,
@@ -146,7 +150,7 @@ struct Mk20ClockFtmSpec {
     using Mode = TMode;
 };
 
-template <typename, typename, typename, typename, int>
+template <typename, typename, typename, typename, int, typename>
 class Mk20ClockInterruptTimer;
 
 template <typename, typename, typename, int, typename>
@@ -157,7 +161,7 @@ class Mk20Clock {
     static_assert(Prescale >= 0, "");
     static_assert(Prescale <= 7, "");
     
-    template <typename, typename, typename, typename, int>
+    template <typename, typename, typename, typename, int, typename>
     friend class Mk20ClockInterruptTimer;
     
     template <typename, typename, typename, int, typename>
@@ -348,7 +352,7 @@ void ftm##ftmnum##_isr (void) \
     clock::ftm_irq_handler<Mk20ClockFTM##ftmnum>(MakeInterruptContext((context))); \
 }
 
-template <typename Context, typename ParentObject, typename Handler, typename TFtm, int TChannelIndex>
+template <typename Context, typename ParentObject, typename Handler, typename TFtm, int TChannelIndex, typename ExtraClearance>
 class Mk20ClockInterruptTimer {
 public:
     struct Object;
@@ -470,7 +474,7 @@ public:
     }
     
 private:
-    static const TimeType clearance = (128 / Clock::prescale_divide) + 2;
+    static const TimeType clearance = MaxValue<TimeType>((128 / Clock::prescale_divide) + 2, ExtraClearance::value() * Clock::time_freq);
     
 public:
     struct Object : public ObjBase<Mk20ClockInterruptTimer, ParentObject, EmptyTypeList>,
@@ -483,10 +487,10 @@ public:
     };
 };
 
-template <typename Ftm, int ChannelIndex>
+template <typename Ftm, int ChannelIndex, typename ExtraClearance = Mk20ClockDefaultExtraClearance>
 struct Mk20ClockInterruptTimerService {
     template <typename Context, typename ParentObject, typename Handler>
-    using InterruptTimer = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Ftm, ChannelIndex>;
+    using InterruptTimer = Mk20ClockInterruptTimer<Context, ParentObject, Handler, Ftm, ChannelIndex, ExtraClearance>;
 };
 
 #define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(ftm, channel_index, timer, context) \

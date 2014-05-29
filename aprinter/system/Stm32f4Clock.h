@@ -38,6 +38,8 @@
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/TypeListLength.h>
+#include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/WrapDouble.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>

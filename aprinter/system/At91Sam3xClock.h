@@ -39,6 +39,8 @@
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/WrapDouble.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -50,6 +52,8 @@ struct At91Sam3xClock__IrqCompHelper {
 };
 
 #include <aprinter/BeginNamespace.h>
+
+using At91Sam3xClockDefaultExtraClearance = AMBRO_WRAP_DOUBLE(0.0);
 
 template <uint32_t TAddr, int TId, enum IRQn TIrq>
 struct At91Sam3xClockTC {
@@ -78,7 +82,7 @@ using At91Sam3xClockCompA = At91Sam3xClockComp<offsetof(TcChannel, TC_RA), TC_SR
 using At91Sam3xClockCompB = At91Sam3xClockComp<offsetof(TcChannel, TC_RB), TC_SR_CPBS>;
 using At91Sam3xClockCompC = At91Sam3xClockComp<offsetof(TcChannel, TC_RC), TC_SR_CPCS>;
 
-template <typename, typename, typename, typename, typename>
+template <typename, typename, typename, typename, typename, typename>
 class At91Sam3xClockInterruptTimer;
 
 template <typename Context, typename ParentObject, int Prescale, typename TcsList>
@@ -86,7 +90,7 @@ class At91Sam3xClock {
     static_assert(Prescale >= 1, "Prescale must be >=1");
     static_assert(Prescale <= 4, "Prescale must be <=4");
     
-    template <typename, typename, typename, typename, typename>
+    template <typename, typename, typename, typename, typename, typename>
     friend class At91Sam3xClockInterruptTimer;
     
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
@@ -208,7 +212,7 @@ void TC##tcnum##_Handler (void) \
 #define AMBRO_AT91SAM3X_CLOCK_TC7_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(7, clock, (context))
 #define AMBRO_AT91SAM3X_CLOCK_TC8_GLOBAL(clock, context) AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(8, clock, (context))
 
-template <typename Context, typename ParentObject, typename Handler, typename TTcSpec, typename TComp>
+template <typename Context, typename ParentObject, typename Handler, typename TTcSpec, typename TComp, typename ExtraClearance>
 class At91Sam3xClockInterruptTimer {
 public:
     struct Object;
@@ -336,7 +340,7 @@ private:
         return (RwReg volatile *)(TcSpec::Addr + Comp::CpRegOffset);
     }
     
-    static const TimeType clearance = (64 / Clock::prescale_divide) + 2;
+    static const TimeType clearance = MaxValue<TimeType>((64 / Clock::prescale_divide) + 2, ExtraClearance::value() * Clock::time_freq);
     
 public:
     struct Object : public ObjBase<At91Sam3xClockInterruptTimer, ParentObject, EmptyTypeList>,
@@ -349,10 +353,10 @@ public:
     };
 };
 
-template <typename Tc, typename Comp>
+template <typename Tc, typename Comp, typename ExtraClearance = At91Sam3xClockDefaultExtraClearance>
 struct At91Sam3xClockInterruptTimerService {
     template <typename Context, typename ParentObject, typename Handler>
-    using InterruptTimer = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, Tc, Comp>;
+    using InterruptTimer = At91Sam3xClockInterruptTimer<Context, ParentObject, Handler, Tc, Comp, ExtraClearance>;
 };
 
 #define AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(tcspec, comp, timer, context) \
