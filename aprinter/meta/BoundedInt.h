@@ -171,42 +171,42 @@ public:
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
 bool operator== (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    using TempType = ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>;
+    using TempType = ChooseInt<MaxValue(NumBits1, NumBits2), (Signed1 || Signed2)>;
     return ((TempType)op1.value() == (TempType)op2.value());
 }
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
 bool operator!= (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    using TempType = ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>;
+    using TempType = ChooseInt<MaxValue(NumBits1, NumBits2), (Signed1 || Signed2)>;
     return ((TempType)op1.value() != (TempType)op2.value());
 }
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
 bool operator< (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    using TempType = ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>;
+    using TempType = ChooseInt<MaxValue(NumBits1, NumBits2), (Signed1 || Signed2)>;
     return ((TempType)op1.value() < (TempType)op2.value());
 }
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
 bool operator> (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    using TempType = ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>;
+    using TempType = ChooseInt<MaxValue(NumBits1, NumBits2), (Signed1 || Signed2)>;
     return ((TempType)op1.value() > (TempType)op2.value());
 }
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
 bool operator<= (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    using TempType = ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>;
+    using TempType = ChooseInt<MaxValue(NumBits1, NumBits2), (Signed1 || Signed2)>;
     return ((TempType)op1.value() <= (TempType)op2.value());
 }
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
 bool operator>= (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    using TempType = ChooseInt<max(NumBits1, NumBits2), (Signed1 || Signed2)>;
+    using TempType = ChooseInt<MaxValue(NumBits1, NumBits2), (Signed1 || Signed2)>;
     return ((TempType)op1.value() >= (TempType)op2.value());
 }
 
@@ -218,17 +218,17 @@ BoundedInt<NumBits, true> operator- (BoundedInt<NumBits, Signed> op)
 }
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
-BoundedInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)> operator+ (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+BoundedInt<(MaxValue(NumBits1, NumBits2) + 1), (Signed1 || Signed2)> operator+ (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    using TempType = ChooseInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)>;
-    return BoundedInt<(max(NumBits1, NumBits2) + 1), (Signed1 || Signed2)>::import((TempType)op1.value() + (TempType)op2.value());
+    using TempType = ChooseInt<(MaxValue(NumBits1, NumBits2) + 1), (Signed1 || Signed2)>;
+    return BoundedInt<(MaxValue(NumBits1, NumBits2) + 1), (Signed1 || Signed2)>::import((TempType)op1.value() + (TempType)op2.value());
 }
 
 template <int NumBits1, bool Signed1, int NumBits2, bool Signed2>
-BoundedInt<(max(NumBits1, NumBits2) + 1), true> operator- (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
+BoundedInt<(MaxValue(NumBits1, NumBits2) + 1), true> operator- (BoundedInt<NumBits1, Signed1> op1, BoundedInt<NumBits2, Signed2> op2)
 {
-    using TempType = ChooseInt<(max(NumBits1, NumBits2) + 1), true>;
-    return BoundedInt<(max(NumBits1, NumBits2) + 1), true>::import((TempType)op1.value() - (TempType)op2.value());
+    using TempType = ChooseInt<(MaxValue(NumBits1, NumBits2) + 1), true>;
+    return BoundedInt<(MaxValue(NumBits1, NumBits2) + 1), true>::import((TempType)op1.value() - (TempType)op2.value());
 }
 
 template <int RightShift, int NumBits1, bool Signed1, int NumBits2, bool Signed2>

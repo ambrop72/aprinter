@@ -385,7 +385,7 @@ private:
     using FlatPinsList = MapTypeList<PinsList, GetMemberType_Pin>;
     
     template <typename ListElem, typename AccumValue>
-    using MaxAdcIndexFoldFunc = WrapInt<max(AccumValue::value, ListElem::AdcIndex)>;
+    using MaxAdcIndexFoldFunc = WrapInt<MaxValue(AccumValue::value, ListElem::AdcIndex)>;
     static int const MaxAdcIndex = TypeListFold<PinsList, WrapInt<0>, MaxAdcIndexFoldFunc>::value;
     
 public:

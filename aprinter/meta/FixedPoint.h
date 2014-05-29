@@ -163,15 +163,15 @@ public:
     }
     
     template <int MaxBits>
-    FixedPoint<min(NumBits, MaxBits), Signed, Exp - (min(NumBits, MaxBits) - NumBits)> bitsDown () const
+    FixedPoint<MinValue(NumBits, MaxBits), Signed, Exp - (MinValue(NumBits, MaxBits) - NumBits)> bitsDown () const
     {
-        return FixedPoint<min(NumBits, MaxBits), Signed, Exp - (min(NumBits, MaxBits) - NumBits)>::importBoundedBits(bitsBoundedValue().template shift<(NumBits - min(NumBits, MaxBits))>());
+        return FixedPoint<MinValue(NumBits, MaxBits), Signed, Exp - (MinValue(NumBits, MaxBits) - NumBits)>::importBoundedBits(bitsBoundedValue().template shift<(NumBits - MinValue(NumBits, MaxBits))>());
     }
     
     template <int MinBits>
-    FixedPoint<max(NumBits, MinBits), Signed, Exp - (max(NumBits, MinBits) - NumBits)> bitsUp () const
+    FixedPoint<MaxValue(NumBits, MinBits), Signed, Exp - (MaxValue(NumBits, MinBits) - NumBits)> bitsUp () const
     {
-        return FixedPoint<max(NumBits, MinBits), Signed, Exp - (max(NumBits, MinBits) - NumBits)>::importBoundedBits(bitsBoundedValue().template shift<(NumBits - max(NumBits, MinBits))>());
+        return FixedPoint<MaxValue(NumBits, MinBits), Signed, Exp - (MaxValue(NumBits, MinBits) - NumBits)>::importBoundedBits(bitsBoundedValue().template shift<(NumBits - MaxValue(NumBits, MinBits))>());
     }
     
     template <int ShiftExp>
@@ -338,12 +338,12 @@ AMBRO_ALWAYS_INLINE typename FixedPointMultiply<NumBits1, Signed1, Exp1, NumBits
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
 struct FixedPointAdd {
-    static const int shift_op1 = min(0, Exp2 - Exp1);
-    static const int shift_op2 = min(0, Exp1 - Exp2);
+    static const int shift_op1 = MinValue(0, Exp2 - Exp1);
+    static const int shift_op2 = MinValue(0, Exp1 - Exp2);
     static_assert(Exp1 + shift_op1 == Exp2 + shift_op2, "");
     static const int numbits_shift_op1 = NumBits1 - shift_op1;
     static const int numbits_shift_op2 = NumBits2 - shift_op2;
-    static const int numbits_result = max(numbits_shift_op1, numbits_shift_op2) + 1;
+    static const int numbits_result = MaxValue(numbits_shift_op1, numbits_shift_op2) + 1;
     static const int exp_result = Exp1 + shift_op1;
     
     using ResultType = FixedPoint<numbits_result, (Signed1 || Signed2), exp_result>;
@@ -403,8 +403,8 @@ typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, Exp1
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
 struct FixedPointCompare {
-    static const int shift_op1 = min(0, Exp2 - Exp1);
-    static const int shift_op2 = min(0, Exp1 - Exp2);
+    static const int shift_op1 = MinValue(0, Exp2 - Exp1);
+    static const int shift_op2 = MinValue(0, Exp1 - Exp2);
     static_assert(Exp1 + shift_op1 == Exp2 + shift_op2, "");
     
     static bool eq (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2)
@@ -490,9 +490,9 @@ struct FixedIntersectTypesHelper<FixedPoint<NumBits1, Signed1, Exp1>, FixedIdent
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
 struct FixedIntersectTypesHelper<FixedPoint<NumBits1, Signed1, Exp1>, FixedPoint<NumBits2, Signed2, Exp2>> {
-    static const int exp_result = max(Exp1, Exp2);
+    static const int exp_result = MaxValue(Exp1, Exp2);
     static const bool signed_result = (Signed1 && Signed2);
-    static const int numbits_result = min(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result;
+    static const int numbits_result = MinValue(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result;
     using Type = FixedPoint<numbits_result, signed_result, exp_result>;
 };
 
@@ -509,9 +509,9 @@ struct FixedUnionTypesHelper<FixedPoint<NumBits1, Signed1, Exp1>, FixedIdentity>
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
 struct FixedUnionTypesHelper<FixedPoint<NumBits1, Signed1, Exp1>, FixedPoint<NumBits2, Signed2, Exp2>> {
-    static const int exp_result = min(Exp1, Exp2);
+    static const int exp_result = MinValue(Exp1, Exp2);
     static const bool signed_result = (Signed1 || Signed2);
-    static const int numbits_result = max(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result;
+    static const int numbits_result = MaxValue(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result;
     using Type = FixedPoint<numbits_result, signed_result, exp_result>;
 };
 
@@ -520,9 +520,9 @@ using FixedUnionTypes = typename FixedUnionTypesHelper<T1, T2>::Type;
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
 struct FixedMaxHelper {
-    static const int exp_result = min(Exp1, Exp2);
+    static const int exp_result = MinValue(Exp1, Exp2);
     static const bool signed_result = (Signed1 && Signed2);
-    static const int numbits_result = max(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result;
+    static const int numbits_result = MaxValue(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result;
     static const int shift1 = Exp1 - exp_result;
     static const int shift2 = Exp2 - exp_result;
     
@@ -552,15 +552,15 @@ auto FixedMax (FixedPoint<NumBits, Signed, Exp> op1, FixedIdentity op2) -> declt
 
 template <int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
 struct FixedMinHelper {
-    static const int exp_result = min(Exp1, Exp2);
+    static const int exp_result = MinValue(Exp1, Exp2);
     static const bool signed_result = (Signed1 || Signed2);
     static const int numbits_result =
         (
             (!Signed1 && NumBits1 + Exp1 >= NumBits2 + Exp2) ||
             (!Signed2 && NumBits2 + Exp2 >= NumBits1 + Exp1)
         ) ?
-        (min(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result) :
-        (max(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result);
+        (MinValue(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result) :
+        (MaxValue(NumBits1 + Exp1, NumBits2 + Exp2) - exp_result);
     static const int shift1 = Exp1 - exp_result;
     static const int shift2 = Exp2 - exp_result;
     

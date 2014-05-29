@@ -28,19 +28,19 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename T>
-constexpr T min (T op1, T op2)
+constexpr T MinValue (T op1, T op2)
 {
     return (op1 < op2) ? op1 : op2;
 }
 
 template <typename T>
-constexpr T max (T op1, T op2)
+constexpr T MaxValue (T op1, T op2)
 {
     return (op1 > op2) ? op1 : op2;
 }
 
 template <typename T>
-constexpr T absolute (T op)
+constexpr T AbsoluteValue (T op)
 {
     return (op > 0) ? op : -op;
 }

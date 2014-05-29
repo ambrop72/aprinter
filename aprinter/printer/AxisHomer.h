@@ -58,7 +58,7 @@ private:
     struct PlannerUnderrunCallback;
     struct PlannerPrestepCallback;
     
-    static int const LookaheadBufferSize = min(MaxLookaheadBufferSize, 3);
+    static int const LookaheadBufferSize = MinValue(MaxLookaheadBufferSize, 3);
     static int const LookaheadCommitCount = 1;
     
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;

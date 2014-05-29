@@ -246,7 +246,7 @@ public:
                 } break;
                 
                 case STS_DATA_UPDT: {
-                    uint16_t size = min((uint16_t)rxsts.b.bcnt, (uint16_t)sizeof(o->data));
+                    uint16_t size = MinValue((uint16_t)rxsts.b.bcnt, (uint16_t)sizeof(o->data));
                     read_rx_fifo(0, o->data, size);
                 } break;
             }
@@ -265,7 +265,7 @@ public:
                 diepint.d32 = inep()[0].DIEPINT;
                 
                 if (diepint.b.emptyintr && o->tx_ptr) {
-                    uint16_t packet_len = min((uint16_t)64, o->tx_len);
+                    uint16_t packet_len = MinValue((uint16_t)64, o->tx_len);
                     write_tx_fifo(0, o->tx_ptr, packet_len);
                     o->tx_ptr += packet_len;
                     o->tx_len -= packet_len;
