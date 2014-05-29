@@ -63,6 +63,7 @@ using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00137); // max stepping frequency relative to F_CPU
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisDriverPrecisionParams = AxisDriverAvrPrecisionParams;
+using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
@@ -248,7 +249,7 @@ using PrinterParams = PrinterMainParams<
     4, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
-    AvrClockInterruptTimerService<AvrClockTcChannel1B>, // EventChannelTimer
+    AvrClockInterruptTimerService<AvrClockTcChannel1B, EventChannelTimerClearance>, // EventChannelTimer
     AvrWatchdogService<
         WDTO_2S
     >,

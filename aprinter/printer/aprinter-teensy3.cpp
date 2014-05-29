@@ -62,6 +62,7 @@ using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
+using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
 using XMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
 using XMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
@@ -175,7 +176,7 @@ using PrinterParams = PrinterMainParams<
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     float, // FpType
-    Mk20ClockInterruptTimerService<Mk20ClockFTM0, 0>, // EventChannelTimer
+    Mk20ClockInterruptTimerService<Mk20ClockFTM0, 0, EventChannelTimerClearance>, // EventChannelTimer
     Mk20WatchdogService<2000, 0>,
     PrinterMainNoSdCardParams,
     PrinterMainNoProbeParams,

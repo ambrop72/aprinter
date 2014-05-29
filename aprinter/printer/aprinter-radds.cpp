@@ -65,6 +65,7 @@ using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
+using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 80.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
@@ -226,7 +227,7 @@ using PrinterParams = PrinterMainParams<
     10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
-    At91Sam3xClockInterruptTimerService<At91Sam3xClockTC0, At91Sam3xClockCompA>, // EventChannelTimerService
+    At91Sam3xClockInterruptTimerService<At91Sam3xClockTC0, At91Sam3xClockCompA, EventChannelTimerClearance>, // EventChannelTimerService
     At91SamWatchdogService<260>,
     PrinterMainSdCardParams<
         SpiSdCard,
