@@ -575,9 +575,8 @@ public:
                 t1.m_bits.m_int += t2.bitsValue();
             }
             
-            bool gen1 = true;
-            if (x1.bitsValue() == 0 && (x0.bitsValue() != 0 || x2.bitsValue() != 0)) {
-                gen1 = false;
+            bool skip1 = (x1.bitsValue() == 0 && (x0.bitsValue() != 0 || x2.bitsValue() != 0));
+            if (skip1) {
                 if (x0.bitsValue() != 0) {
                     t0.m_bits.m_int += t1.bitsValue();
                 } else {
@@ -589,7 +588,7 @@ public:
             if (x0.bitsValue() != 0) {
                 TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::importFpSaturatedRound(entry->axes.half_accel[AxisIndex] * t0_squared)));
             }
-            if (gen1) {
+            if (!skip1) {
                 TheCommon::gen_stepper_command(c, dir, x1, t1, StepperAccelFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
