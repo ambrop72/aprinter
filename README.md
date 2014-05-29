@@ -54,10 +54,10 @@ Ports have been completed for the following boards:
 ## Coding style
 
   * Extreme attention to detail and bugless code. Lots of assertions (the proven kind, not guesses).
-  * The software is written in C++11.
+  * The software is written in C++11, with some use of G++ specific features such as constexpr math.
   * Extensive use of abstractions for hardware access and program structuring.
-    It should be possible to port the software on new platforms with little work.
-    In fact, the firmware already works on Arduino Due, which is based on an Atmel ARM microcontroller.
+    A dependency injection pattern is used to decouple many components from their dependencies
+    where appropriate.  Assembly is performed in the main file.
   * Template metaprogramming is used to implement the abstractions efficiently.
     No, I do not care if the average C hacker can't read my code.
   * Hardcoding is avoided where that makes sense, with the help of template metaprogramming.
