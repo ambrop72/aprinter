@@ -1394,11 +1394,10 @@ private:
                 FpType distance_squared_rec = 1.0f / distance_squared;
                 FpType distance_rec = FloatSqrt(distance_squared_rec);
                 FpType rel_max_accel = 1.0f / rel_max_accel_rec;
-                entry->lp_seg.max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
-                entry->lp_seg.max_end_v = entry->lp_seg.max_v;
-                entry->lp_seg.a_x = 2 * rel_max_accel * distance_squared;
-                entry->lp_seg.a_x_rec = 0.5f * rel_max_accel_rec * distance_squared_rec;
-                entry->lp_seg.two_max_v_minus_a_x = 2 * entry->lp_seg.max_v - entry->lp_seg.a_x;
+                FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
+                FpType a_x = 2 * rel_max_accel * distance_squared;
+                FpType a_x_rec = 0.5f * rel_max_accel_rec * distance_squared_rec;
+                TheLinearPlanner::initSegment(&entry->lp_seg, max_v, a_x, a_x_rec);
                 entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
                 ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
@@ -1406,7 +1405,7 @@ private:
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
                     if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
                         FpType limit = 1.0f / ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
-                        prev_entry->lp_seg.max_end_v = FloatMin(prev_entry->lp_seg.max_end_v, FloatMin(limit, entry->lp_seg.max_v));
+                        TheLinearPlanner::applySegmentJunction(&prev_entry->lp_seg, &entry->lp_seg, limit);
                         break;
                     }
                 }
@@ -1415,11 +1414,7 @@ private:
                     o->m_split_buffer.type = 0xFF;
                 }
             } else {
-                entry->lp_seg.a_x = 0.0f;
-                entry->lp_seg.max_v = INFINITY;
-                entry->lp_seg.max_end_v = INFINITY;
-                entry->lp_seg.a_x_rec = INFINITY;
-                entry->lp_seg.two_max_v_minus_a_x = INFINITY;
+                TheLinearPlanner::initDummySegment(&entry->lp_seg);
                 ListForOneOffset<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_write_segment(), c, entry);
                 o->m_split_buffer.type = 0xFF;
             }

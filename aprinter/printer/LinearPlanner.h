@@ -25,6 +25,8 @@
 #ifndef AMBROLIB_LINEAR_PLANNER_H
 #define AMBROLIB_LINEAR_PLANNER_H
 
+#include <math.h>
+
 #include <aprinter/base/Assert.h>
 #include <aprinter/math/FloatTools.h>
 
@@ -32,7 +34,8 @@
 
 template <typename FpType>
 struct LinearPlanner {
-    struct SegmentData {
+    class SegmentData {
+        friend LinearPlanner;
         FpType a_x;
         FpType max_v;
         FpType max_end_v;
@@ -40,7 +43,8 @@ struct LinearPlanner {
         FpType two_max_v_minus_a_x;
     };
 
-    struct SegmentState {
+    class SegmentState {
+        friend LinearPlanner;
         FpType end_v;
     };
 
@@ -49,10 +53,38 @@ struct LinearPlanner {
         FpType const_end;
         FpType const_v;
     };
-
+    
+    static void initDummySegment (SegmentData *segment)
+    {
+        segment->a_x = 0.0f;
+        segment->max_v = INFINITY;
+        segment->max_end_v = INFINITY;
+        segment->a_x_rec = INFINITY;
+        segment->two_max_v_minus_a_x = INFINITY;
+    }
+    
+    static void initSegment (SegmentData *segment, FpType max_v, FpType a_x, FpType a_x_rec)
+    {
+        AMBRO_ASSERT(FloatIsPosOrPosZero(max_v))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(a_x))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(a_x_rec))
+        
+        segment->max_v = max_v;
+        segment->max_end_v = max_v;
+        segment->a_x = a_x;
+        segment->a_x_rec = a_x_rec;
+        segment->two_max_v_minus_a_x = 2 * max_v - a_x;
+    }
+    
+    static void applySegmentJunction (SegmentData *segment, SegmentData *next_segment, FpType max_junction_v)
+    {
+        AMBRO_ASSERT(FloatIsPosOrPosZero(max_junction_v))
+        
+        segment->max_end_v = FloatMin(segment->max_end_v, FloatMin(next_segment->max_v, max_junction_v));
+    }
+    
     static FpType push (SegmentData *segment, SegmentState *s, FpType end_v)
     {
-        AMBRO_ASSERT(segment)
         AMBRO_ASSERT(FloatIsPosOrPosZero(segment->a_x))
         AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_v))
         AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_end_v))
