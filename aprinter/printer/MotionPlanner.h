@@ -305,7 +305,7 @@ private:
         static bool have_commit_space (bool accum, Context c)
         {
             auto *o = Object::self(c);
-            return (accum && commit_avail(o->m_commit_start, o->m_commit_end) > 3 * LookaheadCommitCount);
+            return (accum && commit_avail(o->m_commit_start, o->m_commit_end) >= 3 * LookaheadCommitCount);
         }
         
         static void start_commands (Context c)
