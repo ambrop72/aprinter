@@ -33,6 +33,12 @@
 
 #include <aprinter/base/Stringify.h>
 
+#ifdef AMBROLIB_EMERGENCY_ACTION
+#define AMBRO_ASSERT_EMERGENCY_ACTION AMBROLIB_EMERGENCY_ACTION
+#else
+#define AMBRO_ASSERT_EMERGENCY_ACTION
+#endif
+
 #ifdef AMBROLIB_ABORT_ACTION
 #define AMBRO_ASSERT_ABORT_ACTION AMBROLIB_ABORT_ACTION
 #else
@@ -50,7 +56,7 @@
 #define AMBRO_ASSERT_FORCE(e) \
     { \
         if (!(e)) { \
-            AMBROLIB_EMERGENCY_ACTION \
+            AMBRO_ASSERT_EMERGENCY_ACTION \
             AMBRO_ASSERT_PRINT_ACTION \
             AMBRO_ASSERT_ABORT_ACTION \
         } \
