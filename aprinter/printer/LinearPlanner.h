@@ -97,6 +97,11 @@ struct LinearPlanner {
 
     static FpType pull (SegmentData *segment, SegmentState *s, FpType start_v, SegmentResult *result)
     {
+        AMBRO_ASSERT(s->end_v <= segment->max_end_v)
+        AMBRO_ASSERT(FloatIsPosOrPosZero(start_v))
+        AMBRO_ASSERT(start_v <= s->end_v + segment->a_x)
+        AMBRO_ASSERT(start_v <= segment->max_v)
+        
         FpType end_v = s->end_v;
         
         if (end_v > start_v + segment->a_x) {
