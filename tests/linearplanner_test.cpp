@@ -34,6 +34,7 @@ using namespace APrinter;
 using FpType = double;
 
 static constexpr FpType SpeedEpsilon = 0.00001;
+static constexpr FpType PositionEpsilon = 0.00001;
 
 struct Segment {
     FpType distance;
@@ -86,6 +87,10 @@ static void test_path (Path path)
         AMBRO_ASSERT_FORCE(start_v <= speed_limit)
         AMBRO_ASSERT_FORCE(result.const_v <= speed_limit)
         AMBRO_ASSERT_FORCE(v <= speed_limit)
+        
+        AMBRO_ASSERT_FORCE(result.const_start >= -PositionEpsilon)
+        AMBRO_ASSERT_FORCE(result.const_end >= -PositionEpsilon)
+        AMBRO_ASSERT_FORCE(result.const_start + result.const_end <= 1.0f + PositionEpsilon)
     }
 }
 
