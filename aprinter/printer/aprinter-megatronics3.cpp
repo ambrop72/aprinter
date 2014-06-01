@@ -257,7 +257,7 @@ using PrinterParams = PrinterMainParams<
         SpiSdCardService< // SdCardService
             AvrPin<AvrPortB, 0>, // SsPin
             AvrSpiService< // SpiService
-                128 // SpiSpeedDiv
+                32 // SpiSpeedDiv
             >
         >,
         FileGcodeParser, // BINARY: BinaryGcodeParser
