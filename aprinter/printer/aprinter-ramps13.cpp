@@ -234,7 +234,7 @@ using PrinterParams = PrinterMainParams<
         >,
         FileGcodeParser, // BINARY: BinaryGcodeParser
         GcodeParserParams<8>, // BINARY: BinaryGcodeParserParams<8>
-        2, // BufferBlocks
+        1024, // BufferBaseSize
         100 // MaxCommandSize. BINARY: 43
     >,
     PrinterMainProbeParams<

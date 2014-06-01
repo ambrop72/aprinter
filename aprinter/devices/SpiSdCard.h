@@ -45,7 +45,7 @@ public:
 private:
     struct SpiHandler;
     
-    static const int SpiMaxCommands = MaxValue(6, 5 * MaxCommands);
+    static const int SpiMaxCommands = MaxValue(6, 6 * MaxCommands);
     static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::value;
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
     using SpiCommandSizeType = typename TheSpi::CommandSizeType;
@@ -108,17 +108,22 @@ public:
         return o->m_capacity_blocks;
     }
     
-    static void queueReadBlock (Context c, uint32_t block, uint8_t *data, ReadState *state)
+    static void queueReadBlock (Context c, uint32_t block, uint8_t *data1, size_t data1_len, uint8_t *data2, ReadState *state)
     {
         auto *o = Object::self(c);
         o->debugAccess(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
         AMBRO_ASSERT(block < o->m_capacity_blocks)
+        AMBRO_ASSERT(data1_len > 0)
+        AMBRO_ASSERT(data1_len <= 512)
         
         uint32_t addr = o->m_sdhc ? block : (block * 512);
         sd_command(c, CMD_READ_SINGLE_BLOCK, addr, true, state->buf, state->buf);
         TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, state->buf + 1);
-        TheSpi::cmdReadBuffer(c, data, 512, 0xff);
+        TheSpi::cmdReadBuffer(c, data1, data1_len, 0xff);
+        if (data1_len < 512) {
+            TheSpi::cmdReadBuffer(c, data2, 512 - data1_len, 0xff);
+        }
         TheSpi::cmdWriteByte(c, 0xff, 2 - 1);
         state->spi_end_index = TheSpi::getEndIndex(c);
     }
