@@ -38,15 +38,6 @@
 #include <aprinter/BeginNamespace.h>
 
 template <
-    typename TSsPin,
-    template <typename, typename, typename, int> class TSpiTemplate
->
-struct Ad5206CurrentParams {
-    using SsPin = TSsPin;
-    template <typename X, typename Y, typename Z, int W> using SpiTemplate = TSpiTemplate<X, Y, Z, W>;
-};
-
-template <
     uint8_t TDevChannelIndex,
     typename TConversionFactor
 >
@@ -55,7 +46,7 @@ struct Ad5206CurrentChannelParams {
     using ConversionFactor = TConversionFactor;
 };
 
-template <typename Context, typename ParentObject, typename Params, typename ChannelsList>
+template <typename Context, typename ParentObject, typename ChannelsList, typename Params>
 class Ad5206Current {
 public:
     struct Object;
@@ -66,7 +57,7 @@ private:
     static int const NumDevChannels = 6;
     static int const SpiMaxCommands = 2;
     static int const SpiCommandBits = BitsInInt<SpiMaxCommands>::value;
-    using TheSpi = typename Params::template SpiTemplate<Context, Object, SpiHandler, SpiCommandBits>;
+    using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
     
 public:
     static void init (Context c)
@@ -167,6 +158,18 @@ public:
         bool m_pending[NumDevChannels];
         uint8_t m_current_data;
     };
+};
+
+template <
+    typename TSsPin,
+    typename TSpiService
+>
+struct Ad5206CurrentService {
+    using SsPin = TSsPin;
+    using SpiService = TSpiService;
+    
+    template <typename Context, typename ParentObject, typename ChannelsList>
+    using Current = Ad5206Current<Context, ParentObject, ChannelsList, Ad5206CurrentService>;
 };
 
 #include <aprinter/EndNamespace.h>

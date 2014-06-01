@@ -180,10 +180,9 @@ using PrinterParams = PrinterMainParams<
         WDTO_2S
     >,
     PrinterMainSdCardParams<
-        SpiSdCard,
-        SpiSdCardParams<
+        SpiSdCardService< // SdCardService
             AvrPin<AvrPortA, 0>, // SsPin
-            AvrSpi
+            AvrSpiService // SpiService
         >,
         FileGcodeParser, // BINARY: BinaryGcodeParser
         GcodeParserParams<8>, // BINARY: BinaryGcodeParserParams<8>

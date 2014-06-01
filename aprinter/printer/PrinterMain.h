@@ -307,16 +307,14 @@ struct PrinterMainNoSdCardParams {
 };
 
 template <
-    template<typename, typename, typename, int, typename, typename> class TSdCard,
-    typename TSdCardParams,
+    typename TSdCardService,
     template<typename, typename, typename, typename> class TGcodeParserTemplate,
     typename TTheGcodeParserParams, int TReadBufferBlocks,
     int TMaxCommandSize
 >
 struct PrinterMainSdCardParams {
     static bool const Enabled = true;
-    template <typename X, typename Y, typename Z, int R, typename W, typename Q> using SdCard = TSdCard<X, Y, Z, R, W, Q>;
-    using SdCardParams = TSdCardParams;
+    using SdCardService = TSdCardService;
     template <typename X, typename Y, typename Z, typename W> using GcodeParserTemplate = TGcodeParserTemplate<X, Y, Z, W>;
     using TheGcodeParserParams = TTheGcodeParserParams;
     static int const ReadBufferBlocks = TReadBufferBlocks;
@@ -367,14 +365,12 @@ struct PrinterMainNoCurrentParams {
 
 template <
     typename TCurrentAxesList,
-    template<typename, typename, typename, typename> class TCurrentTemplate,
-    typename TCurrentParams
+    typename TCurrentService
 >
 struct PrinterMainCurrentParams {
     static bool const Enabled = true;
     using CurrentAxesList = TCurrentAxesList;
-    template <typename X, typename Y, typename Z, typename W> using CurrentTemplate = TCurrentTemplate<X, Y, Z, W>;
-    using CurrentParams = TCurrentParams;
+    using CurrentService = TCurrentService;
 };
 
 template <
@@ -984,7 +980,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static_assert(MaxCommandSize < BlockSize, "");
         static const size_t BufferBaseSize = ReadBufferBlocks * BlockSize;
         using ParserSizeType = ChooseInt<BitsInInt<MaxCommandSize>::value, false>;
-        using TheSdCard = typename Params::SdCardParams::template SdCard<Context, Object, typename Params::SdCardParams::SdCardParams, 1, SdCardInitHandler, SdCardCommandHandler>;
+        using TheSdCard = typename Params::SdCardParams::SdCardService::template SdCard<Context, Object, 1, SdCardInitHandler, SdCardCommandHandler>;
         using TheGcodeParser = typename Params::SdCardParams::template GcodeParserTemplate<Context, Object, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
         using SdCardReadState = typename TheSdCard::ReadState;
         using TheChannelCommon = ChannelCommon<Object, SdCardFeature>;
@@ -2928,7 +2924,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename ChannelAxisParams>
         using MakeCurrentChannel = typename ChannelAxisParams::Params;
         using CurrentChannelsList = MapTypeList<ParamsCurrentAxesList, TemplateFunc<MakeCurrentChannel>>;
-        using Current = typename CurrentParams::template CurrentTemplate<Context, Object, typename CurrentParams::CurrentParams, CurrentChannelsList>;
+        using Current = typename CurrentParams::CurrentService::template Current<Context, Object, CurrentChannelsList>;
         
         static void init (Context c)
         {

@@ -230,10 +230,9 @@ using PrinterParams = PrinterMainParams<
     At91Sam3xClockInterruptTimerService<At91Sam3xClockTC0, At91Sam3xClockCompA, EventChannelTimerClearance>, // EventChannelTimerService
     At91SamWatchdogService<260>,
     PrinterMainSdCardParams<
-        SpiSdCard,
-        SpiSdCardParams<
+        SpiSdCardService< // SdCardService
             DuePin4, // SsPin
-            At91Sam3xSpi
+            At91SamSpiService<At91Sam3xSpiDevice> // SpiService
         >,
         FileGcodeParser, // BINARY: BinaryGcodeParser
         GcodeParserParams<8>, // BINARY: BinaryGcodeParserParams<8>

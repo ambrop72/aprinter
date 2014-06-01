@@ -260,10 +260,9 @@ using PrinterParams = PrinterMainParams<
             PrinterMainCurrentAxis<'E', EDefaultCurrent, Ad5206CurrentChannelParams<2, CurrentConversionFactor>>,
             PrinterMainCurrentAxis<'U', UDefaultCurrent, Ad5206CurrentChannelParams<5, CurrentConversionFactor>>
         >,
-        Ad5206Current, // CurrentTemplate
-        Ad5206CurrentParams< // CurrentParams
+        Ad5206CurrentService< // CurrentService
             At91SamPin<At91SamPioA, 16>, // SsPin
-            At91Sam3uSpi // SpiTemplate
+            At91SamSpiService<At91Sam3uSpiDevice> // SpiService
         >
     >,
     
