@@ -33,6 +33,8 @@
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/If.h>
+#include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -42,8 +44,27 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
+template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits, typename Params>
 class AvrSpi {
+    template <bool TSpi2x, bool TSpr1, bool TSpr0>
+    struct SpiSpeed {
+        static bool const Spi2x = TSpi2x;
+        static bool const Spr1 = TSpr1;
+        static bool const Spr0 = TSpr0;
+    };
+    
+    using TheSpeed =
+        If<(Params::SpiSpeedDiv == 128), SpiSpeed<false, true, true>,
+        If<(Params::SpiSpeedDiv == 64), SpiSpeed<false, true, false>,
+        If<(Params::SpiSpeedDiv == 32), SpiSpeed<true, true, false>,
+        If<(Params::SpiSpeedDiv == 16), SpiSpeed<false, false, true>,
+        If<(Params::SpiSpeedDiv == 4), SpiSpeed<false, false, false>,
+        If<(Params::SpiSpeedDiv == 8), SpiSpeed<true, false, true>,
+        If<(Params::SpiSpeedDiv == 2), SpiSpeed<true, false, false>,
+        void>>>>>>>;
+    
+    static_assert(!TypesAreEqual<TheSpeed, void>::value, "Unsupported SpiSpeedDiv.");
+    
     using FastEvent = typename Context::EventLoop::template FastEventSpec<AvrSpi>;
     
     enum {
@@ -95,8 +116,8 @@ public:
         Context::Pins::template setOutput<MosiPin>(c);
         Context::Pins::template setInput<MisoPin>(c);
         
-        SPCR = (1 << SPIE) | (1 << SPE) | (1 << MSTR) | (1 << SPR1) | (1 << SPR0);
-        SPSR = 0;
+        SPCR = (1 << SPIE) | (1 << SPE) | (1 << MSTR) | (TheSpeed::Spr1 << SPR1) | (TheSpeed::Spr0 << SPR0);
+        SPSR = (TheSpeed::Spi2x << SPI2X);
         
         o->debugInit(c);
     }
@@ -328,9 +349,14 @@ public:
     };
 };
 
+template <
+    uint16_t TSpiSpeedDiv
+>
 struct AvrSpiService {
+    static uint16_t const SpiSpeedDiv = TSpiSpeedDiv;
+    
     template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
-    using Spi = AvrSpi<Context, ParentObject, Handler, CommandBufferBits>;
+    using Spi = AvrSpi<Context, ParentObject, Handler, CommandBufferBits, AvrSpiService>;
 };
 
 #define AMBRO_AVR_SPI_ISRS(avrspi, context) \
