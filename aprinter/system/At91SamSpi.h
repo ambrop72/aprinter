@@ -338,6 +338,12 @@ public:
     };
 };
 
+template <typename Device>
+struct At91SamSpiService {
+    template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
+    using Spi = At91SamSpiBase<Context, ParentObject, Handler, CommandBufferBits, Device>;
+};
+
 #if defined(__SAM3X8E__)
 
 using At91Sam3xSpiDevice = At91SamSpiDevice<
@@ -348,9 +354,6 @@ using At91Sam3xSpiDevice = At91SamSpiDevice<
     At91SamPin<At91SamPioA, 26>,
     At91SamPin<At91SamPioA, 25>
 >;
-
-template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
-using At91Sam3xSpi = At91SamSpiBase<Context, ParentObject, Handler, CommandBufferBits, At91Sam3xSpiDevice>;
 
 #define AMBRO_AT91SAM3X_SPI_GLOBAL(thespi, context) \
 extern "C" \
@@ -370,9 +373,6 @@ using At91Sam3uSpiDevice = At91SamSpiDevice<
     At91SamPin<At91SamPioA, 14>,
     At91SamPin<At91SamPioA, 13>
 >;
-
-template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
-using At91Sam3uSpi = At91SamSpiBase<Context, ParentObject, Handler, CommandBufferBits, At91Sam3uSpiDevice>;
 
 #define AMBRO_AT91SAM3U_SPI_GLOBAL(thespi, context) \
 extern "C" \

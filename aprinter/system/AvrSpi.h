@@ -328,6 +328,11 @@ public:
     };
 };
 
+struct AvrSpiService {
+    template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
+    using Spi = AvrSpi<Context, ParentObject, Handler, CommandBufferBits>;
+};
+
 #define AMBRO_AVR_SPI_ISRS(avrspi, context) \
 ISR(SPI_STC_vect) \
 { \

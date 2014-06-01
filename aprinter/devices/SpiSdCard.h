@@ -37,16 +37,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    typename TSsPin,
-    template <typename, typename, typename, int> class TSpi
->
-struct SpiSdCardParams {
-    using SsPin = TSsPin;
-    template <typename X, typename Y, typename Z, int W> using Spi = TSpi<X, Y, Z, W>;
-};
-
-template <typename Context, typename ParentObject, typename Params, int MaxCommands, typename InitHandler, typename CommandHandler>
+template <typename Context, typename ParentObject, int MaxCommands, typename InitHandler, typename CommandHandler, typename Params>
 class SpiSdCard {
 public:
     struct Object;
@@ -56,7 +47,7 @@ private:
     
     static const int SpiMaxCommands = MaxValue(6, 5 * MaxCommands);
     static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::value;
-    using TheSpi = typename Params::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
+    using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
     using SpiCommandSizeType = typename TheSpi::CommandSizeType;
     
 public:
@@ -367,6 +358,18 @@ public:
             uint32_t m_capacity_blocks;
         };
     };
+};
+
+template <
+    typename TSsPin,
+    typename TSpiService
+>
+struct SpiSdCardService {
+    using SsPin = TSsPin;
+    using SpiService = TSpiService;
+    
+    template <typename Context, typename ParentObject, int MaxCommands, typename InitHandler, typename CommandHandler>
+    using SdCard = SpiSdCard<Context, ParentObject, MaxCommands, InitHandler, CommandHandler, SpiSdCardService>;
 };
 
 #include <aprinter/EndNamespace.h>
