@@ -1190,14 +1190,21 @@ private:
                 FpType v_end = FloatSqrt(v);
                 FpType v_const = FloatSqrt(result.const_v);
                 FpType t0_double = (v_const - v_start) * entry->axes.max_accel_rec;
+                MinTimeType t0 = MinTimeType::importFpSaturatedRound(t0_double);
                 FpType t2_double = (v_const - v_end) * entry->axes.max_accel_rec;
+                MinTimeType t2 = MinTimeType::importFpSaturatedRound(t2_double);
                 FpType t1_double = (1.0f - result.const_start - result.const_end) * entry->axes.rel_max_speed_rec;
-                MinTimeType t1 = MinTimeType::importFpSaturatedRound(t0_double + t2_double + t1_double);
-                time += t1.bitsValue();
-                MinTimeType t0 = FixedMin(t1, MinTimeType::importFpSaturatedRound(t0_double));
-                t1.m_bits.m_int -= t0.bitsValue();
-                MinTimeType t2 = FixedMin(t1, MinTimeType::importFpSaturatedRound(t2_double));
-                t1.m_bits.m_int -= t2.bitsValue();
+                MinTimeType t1 = MinTimeType::importFpSaturatedRound(t1_double);
+                auto t_sum = t0 + t2 + t1;
+                if (AMBRO_UNLIKELY(t_sum > MinTimeType::maxValue())) {
+                    t1 = MinTimeType::maxValue();
+                    t_sum = t1;
+                    t0 = FixedMin(t1, t0);
+                    t1.m_bits.m_int -= t0.bitsValue();
+                    t2 = FixedMin(t1, t2);
+                    t1.m_bits.m_int -= t2.bitsValue();
+                }
+                time += t_sum.bitsValue();
                 ListForEachForward<AxesList>(LForeach_gen_segment_stepper_commands(), c, entry,
                                     result.const_start, result.const_end, t0, t2, t1,
                                     t0_double * t0_double, t2_double * t2_double);
