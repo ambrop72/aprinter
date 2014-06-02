@@ -503,7 +503,7 @@ public:
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             StepFixedType new_x;
-            if (m->m_split_buffer.axes.split_pos == m->m_split_buffer.axes.split_count) {
+            if (AMBRO_LIKELY(m->m_split_buffer.axes.split_pos == m->m_split_buffer.axes.split_count)) {
                 new_x = axis_split->x;
             } else {
                 new_x = FixedMin(axis_split->x, StepFixedType::importFpSaturatedRound(m->m_split_buffer.axes.split_pos * m->m_split_buffer.axes.split_frac * axis_split->x.template fpValue<FpType>()));
