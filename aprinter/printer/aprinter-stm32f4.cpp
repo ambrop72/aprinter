@@ -277,7 +277,8 @@ using PrinterParams = PrinterMainParams<
                 XDefaultHomeFastSpeed, // HomeFastSpeed
                 XDefaultHomeRetractSpeed, // HomeRetractSpeed
                 XDefaultHomeSlowSpeed, // HomeSlowSpeed
-                AxisHomerService // HomerService
+                AxisHomerService< // HomerService
+                >
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -311,7 +312,8 @@ using PrinterParams = PrinterMainParams<
                 YDefaultHomeFastSpeed, // HomeFastSpeed
                 YDefaultHomeRetractSpeed, // HomeRetractSpeed
                 YDefaultHomeSlowSpeed, // HomeSlowSpeed
-                AxisHomerService // HomerService
+                AxisHomerService< // HomerService
+                >
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -345,7 +347,8 @@ using PrinterParams = PrinterMainParams<
                 ZDefaultHomeFastSpeed, // HomeFastSpeed
                 ZDefaultHomeRetractSpeed, // HomeRetractSpeed
                 ZDefaultHomeSlowSpeed, // HomeSlowSpeed
-                AxisHomerService // HomerService
+                AxisHomerService< // HomerService
+                >
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits

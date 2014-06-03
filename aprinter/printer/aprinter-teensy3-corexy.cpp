@@ -289,13 +289,14 @@ using PrinterParams = PrinterMainParams<
                 Mk20PinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
-                ZDefaultHomeFastMaxDist, // HomeFastMaxDist
-                ZDefaultHomeRetractDist, // HomeRetractDist
-                ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                ZDefaultHomeFastSpeed, // HomeFastSpeed
-                ZDefaultHomeRetractSpeed, // HomeRetractSpeed
-                ZDefaultHomeSlowSpeed, // HomeSlowSpeed
-                AxisHomerService // HomerService
+                AxisHomerService< // HomerService
+                    ZDefaultHomeFastMaxDist, // HomeFastMaxDist
+                    ZDefaultHomeRetractDist, // HomeRetractDist
+                    ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                    ZDefaultHomeFastSpeed, // HomeFastSpeed
+                    ZDefaultHomeRetractSpeed, // HomeRetractSpeed
+                    ZDefaultHomeSlowSpeed // HomeSlowSpeed
+                >
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits

@@ -205,13 +205,14 @@ using PrinterParams = PrinterMainParams<
                 Mk20PinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
-                ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
-                ABCDefaultHomeRetractDist, // HomeRetractDist
-                ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                ABCDefaultHomeFastSpeed, // HomeFastSpeed
-                ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
-                ABCDefaultHomeSlowSpeed, // HomeSlowSpeed
-                AxisHomerService // HomerService
+                AxisHomerService< // HomerService
+                    ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
+                    ABCDefaultHomeRetractDist, // HomeRetractDist
+                    ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                    ABCDefaultHomeFastSpeed, // HomeFastSpeed
+                    ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
+                    ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                >
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -239,13 +240,14 @@ using PrinterParams = PrinterMainParams<
                 Mk20PinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
-                ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
-                ABCDefaultHomeRetractDist, // HomeRetractDist
-                ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                ABCDefaultHomeFastSpeed, // HomeFastSpeed
-                ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
-                ABCDefaultHomeSlowSpeed, // HomeSlowSpeed
-                AxisHomerService // HomerService
+                AxisHomerService< // HomerService
+                    ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
+                    ABCDefaultHomeRetractDist, // HomeRetractDist
+                    ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                    ABCDefaultHomeFastSpeed, // HomeFastSpeed
+                    ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
+                    ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                >
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -273,13 +275,14 @@ using PrinterParams = PrinterMainParams<
                 Mk20PinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 true, // HomeDir
-                ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
-                ABCDefaultHomeRetractDist, // HomeRetractDist
-                ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                ABCDefaultHomeFastSpeed, // HomeFastSpeed
-                ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
-                ABCDefaultHomeSlowSpeed, // HomeSlowSpeed
-                AxisHomerService // HomerService
+                AxisHomerService< // HomerService
+                    ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
+                    ABCDefaultHomeRetractDist, // HomeRetractDist
+                    ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                    ABCDefaultHomeFastSpeed, // HomeFastSpeed
+                    ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
+                    ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                >
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits

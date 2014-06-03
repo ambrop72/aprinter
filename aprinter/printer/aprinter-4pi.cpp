@@ -289,13 +289,14 @@ using PrinterParams = PrinterMainParams<
                 At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
-                XDefaultHomeFastMaxDist, // HomeFastMaxDist
-                XDefaultHomeRetractDist, // HomeRetractDist
-                XDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                XDefaultHomeFastSpeed, // HomeFastSpeed
-                XDefaultHomeRetractSpeed, // HomeRetractSpeed
-                XDefaultHomeSlowSpeed, // HomeSlowSpeed
-                AxisHomerService // HomerService
+                AxisHomerService< // HomerService
+                    XDefaultHomeFastMaxDist, // HomeFastMaxDist
+                    XDefaultHomeRetractDist, // HomeRetractDist
+                    XDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                    XDefaultHomeFastSpeed, // HomeFastSpeed
+                    XDefaultHomeRetractSpeed, // HomeRetractSpeed
+                    XDefaultHomeSlowSpeed // HomeSlowSpeed
+                >
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -330,13 +331,14 @@ using PrinterParams = PrinterMainParams<
                 At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
-                YDefaultHomeFastMaxDist, // HomeFastMaxDist
-                YDefaultHomeRetractDist, // HomeRetractDist
-                YDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                YDefaultHomeFastSpeed, // HomeFastSpeed
-                YDefaultHomeRetractSpeed, // HomeRetractSpeed
-                YDefaultHomeSlowSpeed, // HomeSlowSpeed
-                AxisHomerService // HomerService
+                AxisHomerService< // HomerService
+                    YDefaultHomeFastMaxDist, // HomeFastMaxDist
+                    YDefaultHomeRetractDist, // HomeRetractDist
+                    YDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                    YDefaultHomeFastSpeed, // HomeFastSpeed
+                    YDefaultHomeRetractSpeed, // HomeRetractSpeed
+                    YDefaultHomeSlowSpeed // HomeSlowSpeed
+                >
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -371,13 +373,14 @@ using PrinterParams = PrinterMainParams<
                 At91SamPinInputModePullUp, // HomeEndPinInputMode
                 false, // HomeEndInvert
                 false, // HomeDir
-                ZDefaultHomeFastMaxDist, // HomeFastMaxDist
-                ZDefaultHomeRetractDist, // HomeRetractDist
-                ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                ZDefaultHomeFastSpeed, // HomeFastSpeed
-                ZDefaultHomeRetractSpeed, // HomeRetractSpeed
-                ZDefaultHomeSlowSpeed, // HomeSlowSpeed
-                AxisHomerService // HomerService
+                AxisHomerService< // HomerService
+                    ZDefaultHomeFastMaxDist, // HomeFastMaxDist
+                    ZDefaultHomeRetractDist, // HomeRetractDist
+                    ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                    ZDefaultHomeFastSpeed, // HomeFastSpeed
+                    ZDefaultHomeRetractSpeed, // HomeRetractSpeed
+                    ZDefaultHomeSlowSpeed // HomeSlowSpeed
+                >
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
