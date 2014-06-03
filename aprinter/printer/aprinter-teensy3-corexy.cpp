@@ -46,6 +46,7 @@ static void emergency (void);
 #include <aprinter/driver/LaserDriver.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
@@ -293,7 +294,8 @@ using PrinterParams = PrinterMainParams<
                 ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
                 ZDefaultHomeFastSpeed, // HomeFastSpeed
                 ZDefaultHomeRetractSpeed, // HomeRetractSpeed
-                ZDefaultHomeSlowSpeed // HomeSlowSpeed
+                ZDefaultHomeSlowSpeed, // HomeSlowSpeed
+                AxisHomerService // HomerService
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits

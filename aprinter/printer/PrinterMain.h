@@ -74,7 +74,6 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/driver/StepperGroups.h>
-#include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/BinaryGcodeParser.h>
 #include <aprinter/printer/MotionPlanner.h>
@@ -197,7 +196,8 @@ struct PrinterMainNoHomingParams {
 template <
     typename TEndPin, typename TEndPinInputMode, bool TEndInvert, bool THomeDir,
     typename TDefaultFastMaxDist, typename TDefaultRetractDist, typename TDefaultSlowMaxDist,
-    typename TDefaultFastSpeed, typename TDefaultRetractSpeed, typename TDefaultSlowSpeed
+    typename TDefaultFastSpeed, typename TDefaultRetractSpeed, typename TDefaultSlowSpeed,
+    typename THomerService
 >
 struct PrinterMainHomingParams {
     static bool const Enabled = true;
@@ -211,6 +211,7 @@ struct PrinterMainHomingParams {
     using DefaultFastSpeed = TDefaultFastSpeed;
     using DefaultRetractSpeed = TDefaultRetractSpeed;
     using DefaultSlowSpeed = TDefaultSlowSpeed;
+    using HomerService = THomerService;
 };
 
 struct PrinterMainNoTransformParams {
@@ -1358,12 +1359,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             struct Object;
             struct HomerFinishedHandler;
             
-            using Homer = AxisHomer<
-                Context, Object, TheAxisDriver, AxisSpec::StepBits,
-                typename AxisSpec::DefaultDistanceFactor, typename AxisSpec::DefaultCorneringDistance,
-                Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, FpType,
-                typename HomingSpec::EndPin,
-                HomingSpec::EndInvert, HomingSpec::HomeDir, HomerFinishedHandler
+            using Homer = typename HomingSpec::HomerService::template Homer<
+                Context, Object, FpType, TheAxisDriver, typename HomingSpec::EndPin, HomingSpec::EndInvert,
+                HomingSpec::HomeDir, AxisSpec::StepBits, typename AxisSpec::DefaultDistanceFactor,
+                typename AxisSpec::DefaultCorneringDistance, Params::StepperSegmentBufferSize,
+                Params::LookaheadBufferSize, HomerFinishedHandler
             >;
             
             template <typename TheHomingFeature>

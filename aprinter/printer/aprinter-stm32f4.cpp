@@ -48,6 +48,7 @@ static void emergency (void);
 #include <aprinter/usb/Stm32f4Usb.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
@@ -275,7 +276,8 @@ using PrinterParams = PrinterMainParams<
                 XDefaultHomeSlowMaxDist, // HomeSlowMaxDist
                 XDefaultHomeFastSpeed, // HomeFastSpeed
                 XDefaultHomeRetractSpeed, // HomeRetractSpeed
-                XDefaultHomeSlowSpeed // HomeSlowSpeed
+                XDefaultHomeSlowSpeed, // HomeSlowSpeed
+                AxisHomerService // HomerService
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -308,7 +310,8 @@ using PrinterParams = PrinterMainParams<
                 YDefaultHomeSlowMaxDist, // HomeSlowMaxDist
                 YDefaultHomeFastSpeed, // HomeFastSpeed
                 YDefaultHomeRetractSpeed, // HomeRetractSpeed
-                YDefaultHomeSlowSpeed // HomeSlowSpeed
+                YDefaultHomeSlowSpeed, // HomeSlowSpeed
+                AxisHomerService // HomerService
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -341,7 +344,8 @@ using PrinterParams = PrinterMainParams<
                 ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
                 ZDefaultHomeFastSpeed, // HomeFastSpeed
                 ZDefaultHomeRetractSpeed, // HomeRetractSpeed
-                ZDefaultHomeSlowSpeed // HomeSlowSpeed
+                ZDefaultHomeSlowSpeed, // HomeSlowSpeed
+                AxisHomerService // HomerService
             >,
             true, // EnableCartesianSpeedLimit
             32, // StepBits

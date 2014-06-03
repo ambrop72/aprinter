@@ -41,12 +41,10 @@
 #include <aprinter/BeginNamespace.h>
 
 template <
-    typename Context, typename ParentObject, typename TheAxisDriver,
-    int PlannerStepBits,
-    typename PlannerDistanceFactor, typename PlannerCorneringDistance,
-    int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename FpType,
-    typename SwitchPin, bool SwitchInvert, bool HomeDir,
-    typename FinishedHandler
+    typename Context, typename ParentObject, typename FpType,
+    typename TheAxisDriver, typename SwitchPin, bool SwitchInvert, bool HomeDir,
+    int PlannerStepBits, typename PlannerDistanceFactor, typename PlannerCorneringDistance,
+    int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename FinishedHandler
 >
 class AxisHomer {
 public:
@@ -222,6 +220,20 @@ public:
         bool m_command_sent;
         HomingParams m_params;
     };
+};
+
+struct AxisHomerService {
+    template <
+        typename Context, typename ParentObject, typename FpType,
+        typename TheAxisDriver, typename SwitchPin, bool SwitchInvert, bool HomeDir,
+        int PlannerStepBits, typename PlannerDistanceFactor, typename PlannerCorneringDistance,
+        int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename FinishedHandler
+    >
+    using Homer = AxisHomer<
+        Context, ParentObject, FpType, TheAxisDriver, SwitchPin, SwitchInvert, HomeDir,
+        PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance,
+        StepperSegmentBufferSize, MaxLookaheadBufferSize, FinishedHandler
+    >;
 };
 
 #include <aprinter/EndNamespace.h>

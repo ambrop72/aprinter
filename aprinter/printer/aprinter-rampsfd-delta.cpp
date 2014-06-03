@@ -47,6 +47,7 @@ static void emergency (void);
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
+#include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
@@ -262,7 +263,8 @@ using PrinterParams = PrinterMainParams<
                 ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
                 ABCDefaultHomeFastSpeed, // HomeFastSpeed
                 ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
-                ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                ABCDefaultHomeSlowSpeed, // HomeSlowSpeed
+                AxisHomerService // HomerService
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -295,7 +297,8 @@ using PrinterParams = PrinterMainParams<
                 ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
                 ABCDefaultHomeFastSpeed, // HomeFastSpeed
                 ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
-                ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                ABCDefaultHomeSlowSpeed, // HomeSlowSpeed
+                AxisHomerService // HomerService
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -328,7 +331,8 @@ using PrinterParams = PrinterMainParams<
                 ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
                 ABCDefaultHomeFastSpeed, // HomeFastSpeed
                 ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
-                ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                ABCDefaultHomeSlowSpeed, // HomeSlowSpeed
+                AxisHomerService // HomerService
             >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
