@@ -35,6 +35,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/WrapDouble.h>
 #include <aprinter/printer/MotionPlanner.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -61,7 +62,9 @@ private:
     static int const LookaheadBufferSize = MinValue(MaxLookaheadBufferSize, 3);
     static int const LookaheadCommitCount = 1;
     
-    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerPrestepCallback>>;
+    using MaxSpeedRec = AMBRO_WRAP_DOUBLE(0.0);
+    using MaxAccelRec = AMBRO_WRAP_DOUBLE(0.0);
+    using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, MaxSpeedRec, MaxAccelRec, PlannerPrestepCallback>>;
     using Planner = MotionPlanner<Context, Object, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
@@ -124,28 +127,31 @@ private:
         }
         
         PlannerCommand *cmd = Planner::getBuffer(c);
-        cmd->axes.rel_max_v_rec = 0.0f;
         auto *axis_cmd = TupleGetElem<0>(cmd->axes.axes());
+        FpType max_v_rec;
+        FpType max_a_rec;
         switch (o->m_state) {
             case STATE_FAST: {
                 axis_cmd->dir = HomeDir;
                 axis_cmd->x = o->m_params.fast_max_dist;
-                axis_cmd->max_v_rec = 1.0f / o->m_params.fast_speed;
-                axis_cmd->max_a_rec = 1.0f / o->m_params.max_accel;
+                max_v_rec = 1.0f / o->m_params.fast_speed;
+                max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
             case STATE_RETRACT: {
                 axis_cmd->dir = !HomeDir;
                 axis_cmd->x = o->m_params.retract_dist;
-                axis_cmd->max_v_rec = 1.0f / o->m_params.retract_speed;
-                axis_cmd->max_a_rec = 1.0f / o->m_params.max_accel;
+                max_v_rec = 1.0f / o->m_params.retract_speed;
+                max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
             case STATE_SLOW: {
                 axis_cmd->dir = HomeDir;
                 axis_cmd->x = o->m_params.slow_max_dist;
-                axis_cmd->max_v_rec = 1.0f / o->m_params.slow_speed;
-                axis_cmd->max_a_rec = 1.0f / o->m_params.max_accel;
+                max_v_rec = 1.0f / o->m_params.slow_speed;
+                max_a_rec = 1.0f / o->m_params.max_accel;
             } break;
         }
+        cmd->axes.rel_max_v_rec = axis_cmd->x.template fpValue<FpType>() * max_v_rec;
+        cmd->axes.rel_max_a_rec = axis_cmd->x.template fpValue<FpType>() * max_a_rec;
         
         if (axis_cmd->x.bitsValue() != 0) {
             Planner::axesCommandDone(c);

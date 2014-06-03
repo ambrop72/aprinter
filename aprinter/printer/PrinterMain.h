@@ -1339,6 +1339,16 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using HomingSpec = typename AxisSpec::Homing;
         using TheHomingHelper = HomingHelper<Axis>;
         
+        static constexpr double DistConversion = AxisSpec::DefaultStepsPerUnit::value();
+        static constexpr double SpeedConversion = AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq;
+        static constexpr double AccelConversion = AxisSpec::DefaultStepsPerUnit::value() / (Clock::time_freq * Clock::time_freq);
+        
+        static constexpr double MinReqPos = ConstexprFmax(AxisSpec::DefaultMin::value(), AbsStepFixedType::minValue().fpValueConstexpr() / DistConversion);
+        static constexpr double MaxReqPos = ConstexprFmin(AxisSpec::DefaultMax::value(), AbsStepFixedType::maxValue().fpValueConstexpr() / DistConversion);
+        
+        using PlannerMaxSpeedRec = AMBRO_WRAP_DOUBLE(1.0 / (AxisSpec::DefaultMaxSpeed::value() * SpeedConversion));
+        using PlannerMaxAccelRec = AMBRO_WRAP_DOUBLE(1.0 / (AxisSpec::DefaultMaxAccel::value() * AccelConversion));
+        
         template <typename ThePrinterMain = PrinterMain>
         struct Lazy {
             static typename ThePrinterMain::PhysVirtAxisMaskType const AxisMask = (typename ThePrinterMain::PhysVirtAxisMaskType)1 << AxisIndex;
@@ -1449,13 +1459,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         enum {AXIS_STATE_OTHER, AXIS_STATE_HOMING};
         
-        static constexpr double DistConversion = AxisSpec::DefaultStepsPerUnit::value();
-        static constexpr double SpeedConversion = AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq;
-        static constexpr double AccelConversion = AxisSpec::DefaultStepsPerUnit::value() / (Clock::time_freq * Clock::time_freq);
-        
-        static constexpr double MinReqPos = ConstexprFmax(AxisSpec::DefaultMin::value(), AbsStepFixedType::minValue().fpValueConstexpr() / DistConversion);
-        static constexpr double MaxReqPos = ConstexprFmin(AxisSpec::DefaultMax::value(), AbsStepFixedType::maxValue().fpValueConstexpr() / DistConversion);
-        
         static FpType clamp_req_pos (FpType req)
         {
             return FloatMax((FpType)MinReqPos, FloatMin((FpType)MaxReqPos, req));
@@ -1525,8 +1528,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
             mycmd->dir = dir;
             mycmd->x = move;
-            mycmd->max_v_rec = (FpType)(1.0 / (AxisSpec::DefaultMaxSpeed::value() * SpeedConversion));
-            mycmd->max_a_rec = (FpType)(1.0 / (AxisSpec::DefaultMaxAccel::value() * AccelConversion));
             o->m_end_pos = new_end_pos;
         }
         
@@ -1534,7 +1535,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void limit_axis_move_speed (Context c, FpType time_freq_by_max_speed, PlannerCmd *cmd)
         {
             auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
-            mycmd->max_v_rec = FloatMax(mycmd->max_v_rec, time_freq_by_max_speed * (FpType)(1.0 / AxisSpec::DefaultStepsPerUnit::value()));
+            FpType max_v_rec = time_freq_by_max_speed * (FpType)(1.0 / AxisSpec::DefaultStepsPerUnit::value());
+            cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, mycmd->x.template fpValue<FpType>() * max_v_rec);
         }
         
         static void fix_aborted_pos (Context c)
@@ -1599,6 +1601,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         TheAxis::AxisSpec::StepBits,
         typename TheAxis::AxisSpec::DefaultDistanceFactor,
         typename TheAxis::AxisSpec::DefaultCorneringDistance,
+        typename TheAxis::PlannerMaxSpeedRec,
+        typename TheAxis::PlannerMaxAccelRec,
         PlannerPrestepCallback<TheAxis::AxisIndex>
     >;
     
@@ -1608,6 +1612,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using LaserSpec = TypeListGet<ParamsLasersList, LaserIndex>;
         using ThePwm = typename LaserSpec::PwmService::template Pwm<Context, Object>;
         using TheDutyFormula = typename LaserSpec::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle>;
+        
+        using PlannerMaxSpeedRec = AMBRO_WRAP_DOUBLE(Clock::time_freq / (LaserSpec::MaxPower::value() / LaserSpec::LaserPower::value()));
         
         static void init (Context c)
         {
@@ -1652,7 +1658,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *mycmd = TupleGetElem<LaserIndex>(cmd->axes.lasers());
             mycmd->x = src.template get<LaserIndex>() * (FpType)(1.0 / LaserSpec::LaserPower::value());
-            mycmd->max_v_rec = (FpType)(Clock::time_freq / (LaserSpec::MaxPower::value() / LaserSpec::LaserPower::value()));
         }
         
         static void emergency ()
@@ -1682,7 +1687,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     template <typename TheLaser>
     using MakePlannerLaserSpec = MotionPlannerLaserSpec<
         typename TheLaser::LaserSpec::TheLaserDriverService,
-        typename TheLaser::PowerInterface
+        typename TheLaser::PowerInterface,
+        typename TheLaser::PlannerMaxSpeedRec
     >;
     
     struct PlannerClient {
@@ -1875,6 +1881,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (total_steps != 0.0f) {
                     ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserSplitSrc{c, o->frac, prev_frac}, cmd);
                     cmd->axes.rel_max_v_rec = FloatMax(rel_max_v_rec, total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
+                    cmd->axes.rel_max_a_rec = 0.0f;
                     ThePlanner::axesCommandDone(c);
                     goto submitted;
                 }
@@ -3591,6 +3598,7 @@ public: // private, see comment on top
         TransformFeature::do_pending_virt_update(c);
         if (total_steps != 0.0f) {
             cmd->axes.rel_max_v_rec = total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
+            cmd->axes.rel_max_a_rec = 0.0f;
             if (s->seen_cartesian) {
                 FpType distance = FloatSqrt(distance_squared);
                 cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, distance * time_freq_by_max_speed);
