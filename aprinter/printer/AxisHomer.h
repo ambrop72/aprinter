@@ -39,12 +39,29 @@
 
 #include <aprinter/BeginNamespace.h>
 
+template <typename Context, typename Params>
+class AxisHomerGlobal {
+public:
+    static void init (Context c)
+    {
+        Context::Pins::template setInput<typename Params::SwitchPin, typename Params::SwitchPinInputMode>(c);
+    }
+    
+    template <typename ThisContext>
+    static bool endstop_is_triggered (ThisContext c)
+    {
+        return (Context::Pins::template get<typename Params::SwitchPin>(c) != Params::SwitchInvert);
+    }
+    
+    struct Object {};
+};
+
 template <
-    typename Context, typename ParentObject, typename FpType,
-    typename TheAxisDriver, typename SwitchPin, bool SwitchInvert, bool HomeDir,
-    int PlannerStepBits, typename PlannerDistanceFactor, typename PlannerCorneringDistance,
-    int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename MaxAccel,
-    typename DistConversion, typename SpeedConversion, typename AccelConversion,
+    typename Context, typename ParentObject, typename TheGlobal, typename FpType,
+    typename TheAxisDriver, int PlannerStepBits, typename PlannerDistanceFactor,
+    typename PlannerCorneringDistance, int StepperSegmentBufferSize,
+    int MaxLookaheadBufferSize, typename MaxAccel, typename DistConversion,
+    typename SpeedConversion, typename AccelConversion, bool HomeDir,
     typename FinishedHandler, typename Params
 >
 class AxisHomer {
@@ -186,7 +203,7 @@ private:
     
     static bool planner_prestep_callback (typename Planner::template Axis<0>::StepperCommandCallbackContext c)
     {
-        return (Context::Pins::template get<SwitchPin>(c) != SwitchInvert);
+        return TheGlobal::endstop_is_triggered(c);
     }
     
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_pull_handler) {};
@@ -207,10 +224,14 @@ public:
 };
 
 template <
+    typename TSwitchPin, typename TSwitchPinInputMode, bool TSwitchInvert,
     typename TFastMaxDist, typename TRetractDist, typename TSlowMaxDist,
     typename TFastSpeed, typename TRetractSpeed, typename TSlowSpeed
 >
 struct AxisHomerService {
+    using SwitchPin = TSwitchPin;
+    using SwitchPinInputMode = TSwitchPinInputMode;
+    static bool const SwitchInvert = TSwitchInvert;
     using FastMaxDist = TFastMaxDist;
     using RetractDist = TRetractDist;
     using SlowMaxDist = TSlowMaxDist;
@@ -219,20 +240,22 @@ struct AxisHomerService {
     using SlowSpeed = TSlowSpeed;
     
     template <
-        typename Context, typename ParentObject, typename FpType,
-        typename TheAxisDriver, typename SwitchPin, bool SwitchInvert, bool HomeDir,
-        int PlannerStepBits, typename PlannerDistanceFactor, typename PlannerCorneringDistance,
-        int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename MaxAccel,
-        typename DistConversion, typename SpeedConversion, typename AccelConversion,
-        typename FinishedHandler
+        typename Context, typename FpType, int PlannerStepBits, typename PlannerDistanceFactor,
+        typename PlannerCorneringDistance, int StepperSegmentBufferSize, int MaxLookaheadBufferSize,
+        typename MaxAccel, typename DistConversion, typename SpeedConversion, typename AccelConversion,
+        bool HomeDir
     >
-    using Homer = AxisHomer<
-        Context, ParentObject, FpType, TheAxisDriver, SwitchPin, SwitchInvert, HomeDir,
-        PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance,
-        StepperSegmentBufferSize, MaxLookaheadBufferSize, MaxAccel,
-        DistConversion, SpeedConversion, AccelConversion,
-        FinishedHandler, AxisHomerService
-    >;
+    struct Instance {
+        template <typename ParentObject>
+        using HomerGlobal = AxisHomerGlobal<Context, AxisHomerService>;
+        
+        template <typename ParentObject, typename TheGlobal, typename TheAxisDriver, typename FinishedHandler>
+        using Homer = AxisHomer<
+            Context, ParentObject, TheGlobal, FpType, TheAxisDriver, PlannerStepBits, PlannerDistanceFactor,
+            PlannerCorneringDistance, StepperSegmentBufferSize, MaxLookaheadBufferSize, MaxAccel,
+            DistConversion, SpeedConversion, AccelConversion, HomeDir, FinishedHandler, AxisHomerService
+        >;
+    };
 };
 
 #include <aprinter/EndNamespace.h>

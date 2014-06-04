@@ -213,11 +213,11 @@ using PrinterParams = PrinterMainParams<
             XDefaultDistanceFactor, // DistanceFactor
             XDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                AvrPin<AvrPortC, 2>, // HomeEndPin
-                AvrPinInputModePullUp, // HomeEndPinInputMode
-                false, // HomeEndInvert
                 false, // HomeDir
                 AxisHomerService< // HomerService
+                    AvrPin<AvrPortC, 2>, // HomeEndPin
+                    AvrPinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
                     XDefaultHomeFastMaxDist, // HomeFastMaxDist
                     XDefaultHomeRetractDist, // HomeRetractDist
                     XDefaultHomeSlowMaxDist, // HomeSlowMaxDist
@@ -248,11 +248,11 @@ using PrinterParams = PrinterMainParams<
             YDefaultDistanceFactor, // DistanceFactor
             YDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                AvrPin<AvrPortC, 3>, // HomeEndPin
-                AvrPinInputModePullUp, // HomeEndPinInputMode
-                false, // HomeEndInvert
                 false, // HomeDir
                 AxisHomerService< // HomerService
+                    AvrPin<AvrPortC, 3>, // HomeEndPin
+                    AvrPinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
                     YDefaultHomeFastMaxDist, // HomeFastMaxDist
                     YDefaultHomeRetractDist, // HomeRetractDist
                     YDefaultHomeSlowMaxDist, // HomeSlowMaxDist
@@ -283,11 +283,11 @@ using PrinterParams = PrinterMainParams<
             ZDefaultDistanceFactor, // DistanceFactor
             ZDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                AvrPin<AvrPortC, 4>, // HomeEndPin
-                AvrPinInputModePullUp, // HomeEndPinInputMode
-                false, // HomeEndInvert
                 false, // HomeDir
                 AxisHomerService< // HomerService
+                    AvrPin<AvrPortC, 4>, // HomeEndPin
+                    AvrPinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
                     ZDefaultHomeFastMaxDist, // HomeFastMaxDist
                     ZDefaultHomeRetractDist, // HomeRetractDist
                     ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist

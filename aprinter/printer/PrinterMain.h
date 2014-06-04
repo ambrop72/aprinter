@@ -194,14 +194,11 @@ struct PrinterMainNoHomingParams {
 };
 
 template <
-    typename TEndPin, typename TEndPinInputMode, bool TEndInvert, bool THomeDir,
+    bool THomeDir,
     typename THomerService
 >
 struct PrinterMainHomingParams {
     static bool const Enabled = true;
-    using EndPin = TEndPin;
-    using EndPinInputMode = TEndPinInputMode;
-    static bool const EndInvert = TEndInvert;
     static bool const HomeDir = THomeDir;
     using HomerService = THomerService;
 };
@@ -453,7 +450,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
-    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingFeature, HomingFeature)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
     
     struct PlannerUnionPlanner;
     struct PlannerUnionHoming;
@@ -1285,39 +1282,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         typename SdCardFeature::SdChannelCommonList
     >;
     
-    template <typename TheAxis, bool Enabled = TheAxis::HomingSpec::Enabled>
-    struct HomingHelper {
-        static void init (Context c) {}
-        template <typename TheChannelCommon>
-        static void m119_append_endstop (Context c, WrapType<TheChannelCommon>) {}
-    };
-    
-    template <typename TheAxis>
-    struct HomingHelper<TheAxis, true> {
-        using HomingSpec = typename TheAxis::HomingSpec;
-        
-        static void init (Context c)
-        {
-            Context::Pins::template setInput<typename HomingSpec::EndPin, typename HomingSpec::EndPinInputMode>(c);
-        }
-        
-        template <typename TheChannelCommon>
-        static void m119_append_endstop (Context c, WrapType<TheChannelCommon>)
-        {
-            bool triggered = endstop_is_triggered(c);
-            TheChannelCommon::reply_append_ch(c, ' ');
-            TheChannelCommon::reply_append_ch(c, TheAxis::AxisName);
-            TheChannelCommon::reply_append_ch(c, ':');
-            TheChannelCommon::reply_append_ch(c, (triggered ? '1' : '0'));
-        }
-        
-        template <typename TheContext>
-        static bool endstop_is_triggered (TheContext c)
-        {
-            return (Context::Pins::template get<typename HomingSpec::EndPin>(c) != HomingSpec::EndInvert);
-        }
-    };
-    
     template <int TAxisIndex>
     struct Axis {
         struct Object;
@@ -1330,7 +1294,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static const char AxisName = AxisSpec::Name;
         using WrappedAxisName = WrapInt<AxisName>;
         using HomingSpec = typename AxisSpec::Homing;
-        using TheHomingHelper = HomingHelper<Axis>;
         
         using DistConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value());
         using SpeedConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq);
@@ -1349,26 +1312,62 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         AMBRO_STRUCT_IF(HomingFeature, HomingSpec::Enabled) {
             struct Object;
-            struct HomerFinishedHandler;
             
-            using Homer = typename HomingSpec::HomerService::template Homer<
-                Context, Object, FpType, TheAxisDriver, typename HomingSpec::EndPin, HomingSpec::EndInvert,
-                HomingSpec::HomeDir, AxisSpec::StepBits, typename AxisSpec::DefaultDistanceFactor,
+            using HomerInstance = typename HomingSpec::HomerService::template Instance<
+                Context, FpType, AxisSpec::StepBits, typename AxisSpec::DefaultDistanceFactor,
                 typename AxisSpec::DefaultCorneringDistance, Params::StepperSegmentBufferSize,
                 Params::LookaheadBufferSize, typename AxisSpec::DefaultMaxAccel,
-                DistConversion, SpeedConversion, AccelConversion, HomerFinishedHandler
+                DistConversion, SpeedConversion, AccelConversion, HomingSpec::HomeDir
             >;
             
-            template <typename TheHomingFeature>
-            using MakeAxisDriverConsumersList = MakeTypeList<typename TheHomingFeature::Homer::TheAxisDriverConsumer>;
+            using HomerGlobal = typename HomerInstance::template HomerGlobal<Object>;
             
-            using EventLoopFastEvents = typename Homer::EventLoopFastEvents;
+            struct HomingState {
+                struct Object;
+                struct HomerFinishedHandler;
+                
+                using Homer = typename HomerInstance::template Homer<Object, HomerGlobal, TheAxisDriver, HomerFinishedHandler>;
+                
+                static void homer_finished_handler (Context c, bool success)
+                {
+                    auto *axis = Axis::Object::self(c);
+                    auto *mob = PrinterMain::Object::self(c);
+                    AMBRO_ASSERT(axis->m_state == AXIS_STATE_HOMING)
+                    AMBRO_ASSERT(mob->locked)
+                    AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
+                    
+                    Homer::deinit(c);
+                    axis->m_req_pos = init_position();
+                    axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * (FpType)DistConversion::value());
+                    axis->m_state = AXIS_STATE_OTHER;
+                    TransformFeature::template mark_phys_moved<AxisIndex>(c);
+                    mob->m_homing_rem_axes &= ~Lazy<>::AxisMask;
+                    if (!(mob->m_homing_rem_axes & PhysAxisMask)) {
+                        phys_homing_finished(c);
+                    }
+                }
+                
+                struct HomerFinishedHandler : public AMBRO_WFUNC_TD(&HomingState::homer_finished_handler) {};
+                
+                struct Object : public ObjBase<HomingState, typename PlannerUnionHoming::Object, MakeTypeList<
+                    Homer
+                >> {};
+            };
+            
+            using AxisDriverConsumersList = MakeTypeList<typename HomingState::Homer::TheAxisDriverConsumer>;
+            
+            using EventLoopFastEvents = typename HomingState::Homer::EventLoopFastEvents;
+            
+            static void init (Context c)
+            {
+                HomerGlobal::init(c);
+            }
             
             static void deinit (Context c)
             {
                 auto *axis = Axis::Object::self(c);
                 if (axis->m_state == AXIS_STATE_HOMING) {
-                    Homer::deinit(c);
+                    HomingState::Homer::deinit(c);
                 }
             }
             
@@ -1380,48 +1379,38 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                 
                 Stepper::enable(c);
-                Homer::init(c);
+                HomingState::Homer::init(c);
                 axis->m_state = AXIS_STATE_HOMING;
             }
             
             static FpType init_position ()
             {
                 return HomingSpec::HomeDir ? (FpType)MaxReqPos::value() : (FpType)MinReqPos::value();
-            };
-            
-            static void homer_finished_handler (Context c, bool success)
-            {
-                auto *axis = Axis::Object::self(c);
-                auto *mob = PrinterMain::Object::self(c);
-                AMBRO_ASSERT(axis->m_state == AXIS_STATE_HOMING)
-                AMBRO_ASSERT(mob->locked)
-                AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
-                
-                Homer::deinit(c);
-                axis->m_req_pos = init_position();
-                axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * (FpType)DistConversion::value());
-                axis->m_state = AXIS_STATE_OTHER;
-                TransformFeature::template mark_phys_moved<AxisIndex>(c);
-                mob->m_homing_rem_axes &= ~Lazy<>::AxisMask;
-                if (!(mob->m_homing_rem_axes & PhysAxisMask)) {
-                    phys_homing_finished(c);
-                }
             }
             
-            struct HomerFinishedHandler : public AMBRO_WFUNC_TD(&HomingFeature::homer_finished_handler) {};
+            template <typename ThisContext>
+            static bool endstop_is_triggered (ThisContext c)
+            {
+                return HomerGlobal::endstop_is_triggered(c);
+            }
             
-            struct Object : public ObjBase<HomingFeature, typename PlannerUnionHoming::Object, MakeTypeList<
-                Homer
+            struct Object : public ObjBase<HomingFeature, typename Axis::Object, MakeTypeList<
+                HomerGlobal
             >> {};
         } AMBRO_STRUCT_ELSE(HomingFeature) {
-            template <typename TheHomingFeature>
-            using MakeAxisDriverConsumersList = MakeTypeList<>;
+            struct HomingState { struct Object {}; };
+            using AxisDriverConsumersList = EmptyTypeList;
             using EventLoopFastEvents = EmptyTypeList;
+            static void init (Context c) {}
             static void deinit (Context c) {}
             static void start_phys_homing (Context c) {}
             static FpType init_position () { return 0.0f; }
+            template <typename ThisContext>
+            static bool endstop_is_triggered (ThisContext c) { return false; }
             struct Object {};
         };
+        
+        using HomingState = typename HomingFeature::HomingState;
         
         AMBRO_STRUCT_IF(MicroStepFeature, AxisSpec::MicroStep::Enabled) {
             struct Object;
@@ -1434,8 +1423,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             struct Object : public ObjBase<MicroStepFeature, typename Axis::Object, MakeTypeList<
                 MicroStep
-            >>
-            {};
+            >> {};
         } AMBRO_STRUCT_ELSE(MicroStepFeature) {
             static void init (Context c) {}
             struct Object {};
@@ -1453,7 +1441,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             TheAxisDriver::init(c);
             o->m_state = AXIS_STATE_OTHER;
-            TheHomingHelper::init(c);
+            HomingFeature::init(c);
             MicroStepFeature::init(c);
             o->m_req_pos = HomingFeature::init_position();
             o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * (FpType)DistConversion::value());
@@ -1557,6 +1545,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         struct Object : public ObjBase<Axis, typename PrinterMain::Object, MakeTypeList<
             TheAxisDriver,
+            HomingFeature,
             MicroStepFeature
         >>
         {
@@ -1922,7 +1911,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
             using HomingSpec = typename VirtAxisParams::VirtualHoming;
-            using TheHomingHelper = HomingHelper<VirtAxis>;
             
             template <typename ThePrinterMain = PrinterMain>
             struct Lazy {
@@ -1933,7 +1921,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             {
                 auto *o = Object::self(c);
                 o->m_relative_positioning = false;
-                TheHomingHelper::init(c);
+                HomingFeature::init(c);
             }
             
             static void update_new_pos (Context c, MoveBuildState *s, FpType req)
@@ -2027,6 +2015,17 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             AMBRO_STRUCT_IF(HomingFeature, HomingSpec::Enabled) {
                 struct Object;
                 
+                static void init (Context c)
+                {
+                    Context::Pins::template setInput<typename HomingSpec::EndPin, typename HomingSpec::EndPinInputMode>(c);
+                }
+                
+                template <typename ThisContext>
+                static bool endstop_is_triggered (ThisContext c)
+                {
+                    return (Context::Pins::template get<typename HomingSpec::EndPin>(c) != HomingSpec::EndInvert);
+                }
+                
                 static bool start_virt_homing (Context c)
                 {
                     auto *o = Object::self(c);
@@ -2045,7 +2044,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 template <typename CallbackContext>
                 static bool prestep_callback (CallbackContext c)
                 {
-                    return !TheHomingHelper::endstop_is_triggered(c);
+                    return !endstop_is_triggered(c);
                 }
                 
                 static void set_position (Context c, FpType value)
@@ -2135,6 +2134,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     bool command_sent;
                 };
             } AMBRO_STRUCT_ELSE(HomingFeature) {
+                static void init (Context c) {}
+                template <typename ThisContext>
+                static bool endstop_is_triggered (ThisContext c) { return false; }
                 static bool start_virt_homing (Context c) { return true; }
                 template <typename CallbackContext>
                 static bool prestep_callback (CallbackContext c) { return true; }
@@ -2341,9 +2343,15 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
         
         template <typename TheChannelCommon>
-        static void m119_append_endstop (Context c, WrapType<TheChannelCommon> cc)
+        static void m119_append_endstop (Context c, WrapType<TheChannelCommon>)
         {
-            TheAxis::TheHomingHelper::m119_append_endstop(c, cc);
+            if (TheAxis::HomingSpec::Enabled) {
+                bool triggered = TheAxis::HomingFeature::endstop_is_triggered(c);
+                TheChannelCommon::reply_append_ch(c, ' ');
+                TheChannelCommon::reply_append_ch(c, TheAxis::AxisName);
+                TheChannelCommon::reply_append_ch(c, ':');
+                TheChannelCommon::reply_append_ch(c, (triggered ? '1' : '0'));
+            }
         }
     };
     
@@ -3677,10 +3685,10 @@ public: // private, see comment on top
         struct Object : public ObjBase<PlannerUnionPlanner, typename PlannerUnion::Object, MakeTypeList<ThePlanner>> {};
     };
     
-    using HomingFeaturesList = MapTypeList<AxesList, GetMemberType_HomingFeature>;
+    using HomingStateList = MapTypeList<AxesList, GetMemberType_HomingState>;
     
     struct PlannerUnionHoming {
-        struct Object : public ObjBase<PlannerUnionHoming, typename PlannerUnion::Object, HomingFeaturesList> {};
+        struct Object : public ObjBase<PlannerUnionHoming, typename PlannerUnion::Object, HomingStateList> {};
     };
     
     struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
@@ -3693,7 +3701,7 @@ public: // private, see comment on top
     template <int AxisIndex> struct AxisDriverConsumersList {
         using List = JoinTypeLists<
             MakeTypeList<typename ThePlanner::template TheAxisDriverConsumer<AxisIndex>>,
-            typename Axis<AxisIndex>::HomingFeature::template MakeAxisDriverConsumersList<typename Axis<AxisIndex>::HomingFeature>
+            typename Axis<AxisIndex>::HomingFeature::AxisDriverConsumersList
         >;
     };
     

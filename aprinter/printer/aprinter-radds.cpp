@@ -280,11 +280,11 @@ using PrinterParams = PrinterMainParams<
             XDefaultDistanceFactor, // DistanceFactor
             XDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                DuePin28, // HomeEndPin
-                At91SamPinInputModePullUp, // HomeEndPinInputMode
-                false, // HomeEndInvert
                 false, // HomeDir
                 AxisHomerService< // HomerService
+                    DuePin28, // HomeEndPin
+                    At91SamPinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
                     XDefaultHomeFastMaxDist, // HomeFastMaxDist
                     XDefaultHomeRetractDist, // HomeRetractDist
                     XDefaultHomeSlowMaxDist, // HomeSlowMaxDist
@@ -315,11 +315,11 @@ using PrinterParams = PrinterMainParams<
             YDefaultDistanceFactor, // DistanceFactor
             YDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                DuePin30, // HomeEndPin
-                At91SamPinInputModePullUp, // HomeEndPinInputMode
-                false, // HomeEndInvert
                 false, // HomeDir
                 AxisHomerService< // HomerService
+                    DuePin30, // HomeEndPin
+                    At91SamPinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
                     YDefaultHomeFastMaxDist, // HomeFastMaxDist
                     YDefaultHomeRetractDist, // HomeRetractDist
                     YDefaultHomeSlowMaxDist, // HomeSlowMaxDist
@@ -350,11 +350,11 @@ using PrinterParams = PrinterMainParams<
             ZDefaultDistanceFactor, // DistanceFactor
             ZDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                DuePin32, // HomeEndPin
-                At91SamPinInputModePullUp, // HomeEndPinInputMode
-                false, // HomeEndInvert
                 false, // HomeDir
                 AxisHomerService< // HomerService
+                    DuePin32, // HomeEndPin
+                    At91SamPinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
                     ZDefaultHomeFastMaxDist, // HomeFastMaxDist
                     ZDefaultHomeRetractDist, // HomeRetractDist
                     ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist

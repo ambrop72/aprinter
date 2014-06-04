@@ -201,11 +201,11 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultDistanceFactor, // DistanceFactor
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                TeensyPin12, // HomeEndPin
-                Mk20PinInputModePullUp, // HomeEndPinInputMode
-                false, // HomeEndInvert
                 true, // HomeDir
                 AxisHomerService< // HomerService
+                    TeensyPin12, // HomeEndPin
+                    Mk20PinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
                     ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
                     ABCDefaultHomeRetractDist, // HomeRetractDist
                     ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
@@ -236,11 +236,11 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultDistanceFactor, // DistanceFactor
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                TeensyPin14, // HomeEndPin
-                Mk20PinInputModePullUp, // HomeEndPinInputMode
-                false, // HomeEndInvert
                 true, // HomeDir
                 AxisHomerService< // HomerService
+                    TeensyPin14, // HomeEndPin
+                    Mk20PinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
                     ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
                     ABCDefaultHomeRetractDist, // HomeRetractDist
                     ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
@@ -271,11 +271,11 @@ using PrinterParams = PrinterMainParams<
             ABCDefaultDistanceFactor, // DistanceFactor
             ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                TeensyPin15, // HomeEndPin
-                Mk20PinInputModePullUp, // HomeEndPinInputMode
-                false, // HomeEndInvert
                 true, // HomeDir
                 AxisHomerService< // HomerService
+                    TeensyPin15, // HomeEndPin
+                    Mk20PinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
                     ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
                     ABCDefaultHomeRetractDist, // HomeRetractDist
                     ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist

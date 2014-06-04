@@ -285,11 +285,11 @@ using PrinterParams = PrinterMainParams<
             ZDefaultDistanceFactor, // DistanceFactor
             ZDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                TeensyPin12, // HomeEndPin
-                Mk20PinInputModePullUp, // HomeEndPinInputMode
-                false, // HomeEndInvert
                 false, // HomeDir
                 AxisHomerService< // HomerService
+                    TeensyPin12, // HomeEndPin
+                    Mk20PinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
                     ZDefaultHomeFastMaxDist, // HomeFastMaxDist
                     ZDefaultHomeRetractDist, // HomeRetractDist
                     ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
