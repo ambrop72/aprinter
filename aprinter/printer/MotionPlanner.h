@@ -193,7 +193,6 @@ public:
     
     struct SplitBufferAxesPart : public SplitBufferAxesHelper, public SplitBufferLasersHelper {
         FpType rel_max_v_rec;
-        FpType rel_max_a_rec;
         FpType split_frac; // internal
         uint32_t split_count; // internal
         uint32_t split_pos; // internal
@@ -527,7 +526,8 @@ public:
             return axis_entry->x.template fpValue<FpType>() * (FpType)AxisSpec::MaxSpeedRec::value();
         }
         
-        static FpType compute_segment_buffer_entry_accel (FpType accum, Context c, Segment *entry)
+        template <typename AccumType>
+        static FpType compute_segment_buffer_entry_accel (AccumType accum, Context c, Segment *entry)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
@@ -1056,7 +1056,6 @@ public:
         AMBRO_ASSERT(o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
         AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.axes.rel_max_v_rec))
-        AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.axes.rel_max_a_rec))
         ListForEachForward<AxisCommonList>(LForeach_commandDone_assert(), c);
         AMBRO_ASSERT(!ListForEachForwardAccRes<AxesList>(true, LForeach_check_icmd_zero(), c))
         
@@ -1075,7 +1074,6 @@ public:
             o->m_split_buffer.axes.split_count = FloatCeil(ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_split_count(), c));
             o->m_split_buffer.axes.split_frac = (FpType)1.0 / o->m_split_buffer.axes.split_count;
             o->m_split_buffer.axes.rel_max_v_rec *= o->m_split_buffer.axes.split_frac;
-            o->m_split_buffer.axes.rel_max_a_rec *= o->m_split_buffer.axes.split_frac;
             ListForEachForward<LasersList>(LForeach_fixup_split(), c);
         }
         
@@ -1396,7 +1394,7 @@ private:
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
                 FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), entry);
                 entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
-                FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(o->m_split_buffer.axes.rel_max_a_rec, LForeach_compute_segment_buffer_entry_accel(), c, entry);
+                FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, entry);
                 FpType distance_squared_rec = 1.0f / distance_squared;
                 FpType distance_rec = FloatSqrt(distance_squared_rec);
                 FpType rel_max_accel = 1.0f / rel_max_accel_rec;

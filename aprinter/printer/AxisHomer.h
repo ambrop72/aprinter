@@ -154,7 +154,6 @@ private:
             } break;
         }
         cmd->axes.rel_max_v_rec = axis_cmd->x.template fpValue<FpType>() * max_v_rec;
-        cmd->axes.rel_max_a_rec = 0.0f;
         
         if (axis_cmd->x.bitsValue() != 0) {
             Planner::axesCommandDone(c);

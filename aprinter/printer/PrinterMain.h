@@ -1855,7 +1855,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (total_steps != 0.0f) {
                     ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserSplitSrc{c, o->frac, prev_frac}, cmd);
                     cmd->axes.rel_max_v_rec = FloatMax(rel_max_v_rec, total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit)));
-                    cmd->axes.rel_max_a_rec = 0.0f;
                     ThePlanner::axesCommandDone(c);
                     goto submitted;
                 }
@@ -3591,7 +3590,6 @@ public: // private, see comment on top
         TransformFeature::do_pending_virt_update(c);
         if (total_steps != 0.0f) {
             cmd->axes.rel_max_v_rec = total_steps * (FpType)(1.0 / (Params::MaxStepsPerCycle::value() * F_CPU * Clock::time_unit));
-            cmd->axes.rel_max_a_rec = 0.0f;
             if (s->seen_cartesian) {
                 FpType distance = FloatSqrt(distance_squared);
                 cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, distance * time_freq_by_max_speed);
