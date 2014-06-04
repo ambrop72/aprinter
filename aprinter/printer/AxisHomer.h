@@ -58,11 +58,9 @@ public:
 
 template <
     typename Context, typename ParentObject, typename TheGlobal, typename FpType,
-    typename TheAxisDriver, int PlannerStepBits, typename PlannerDistanceFactor,
-    typename PlannerCorneringDistance, int StepperSegmentBufferSize,
+    typename TheAxisDriver, int PlannerStepBits, int StepperSegmentBufferSize,
     int MaxLookaheadBufferSize, typename MaxAccel, typename DistConversion,
-    typename SpeedConversion, typename AccelConversion, bool HomeDir,
-    typename FinishedHandler, typename Params
+    typename TimeConversion, bool HomeDir, typename FinishedHandler, typename Params
 >
 class AxisHomer {
 public:
@@ -78,12 +76,17 @@ private:
     static int const LookaheadBufferSize = MinValue(MaxLookaheadBufferSize, 3);
     static int const LookaheadCommitCount = 1;
     
+    using SpeedConversion = AMBRO_WRAP_DOUBLE(DistConversion::value() / TimeConversion::value());
+    using AccelConversion = AMBRO_WRAP_DOUBLE(DistConversion::value() / (TimeConversion::value() * TimeConversion::value()));
+    
     using FastSteps = AMBRO_WRAP_DOUBLE(Params::FastMaxDist::value() * DistConversion::value());
     using RetractSteps = AMBRO_WRAP_DOUBLE(Params::RetractDist::value() * DistConversion::value());
     using SlowSteps = AMBRO_WRAP_DOUBLE(Params::SlowMaxDist::value() * DistConversion::value());
     
     using PlannerMaxSpeedRec = AMBRO_WRAP_DOUBLE(0.0);
     using PlannerMaxAccelRec = AMBRO_WRAP_DOUBLE(1.0 / (MaxAccel::value() * AccelConversion::value()));
+    using PlannerDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
+    using PlannerCorneringDistance = AMBRO_WRAP_DOUBLE(1.0);
     
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerMaxSpeedRec, PlannerMaxAccelRec, PlannerPrestepCallback>>;
     using Planner = MotionPlanner<Context, Object, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
@@ -240,10 +243,9 @@ struct AxisHomerService {
     using SlowSpeed = TSlowSpeed;
     
     template <
-        typename Context, typename FpType, int PlannerStepBits, typename PlannerDistanceFactor,
-        typename PlannerCorneringDistance, int StepperSegmentBufferSize, int MaxLookaheadBufferSize,
-        typename MaxAccel, typename DistConversion, typename SpeedConversion, typename AccelConversion,
-        bool HomeDir
+        typename Context, typename FpType, int PlannerStepBits, int StepperSegmentBufferSize,
+        int MaxLookaheadBufferSize, typename MaxAccel, typename DistConversion,
+        typename TimeConversion, bool HomeDir
     >
     struct Instance {
         template <typename ParentObject>
@@ -251,9 +253,9 @@ struct AxisHomerService {
         
         template <typename ParentObject, typename TheGlobal, typename TheAxisDriver, typename FinishedHandler>
         using Homer = AxisHomer<
-            Context, ParentObject, TheGlobal, FpType, TheAxisDriver, PlannerStepBits, PlannerDistanceFactor,
-            PlannerCorneringDistance, StepperSegmentBufferSize, MaxLookaheadBufferSize, MaxAccel,
-            DistConversion, SpeedConversion, AccelConversion, HomeDir, FinishedHandler, AxisHomerService
+            Context, ParentObject, TheGlobal, FpType, TheAxisDriver, PlannerStepBits,
+            StepperSegmentBufferSize, MaxLookaheadBufferSize, MaxAccel, DistConversion,
+            TimeConversion, HomeDir, FinishedHandler, AxisHomerService
         >;
     };
 };

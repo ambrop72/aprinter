@@ -505,6 +505,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
+    using TimeConversion = AMBRO_WRAP_DOUBLE(Clock::time_freq);
+    
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
     
@@ -1296,8 +1298,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using HomingSpec = typename AxisSpec::Homing;
         
         using DistConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value());
-        using SpeedConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value() / Clock::time_freq);
-        using AccelConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value() / (Clock::time_freq * Clock::time_freq));
+        using SpeedConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value() / TimeConversion::value());
+        using AccelConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value() / (TimeConversion::value() * TimeConversion::value()));
         
         using MinReqPos = AMBRO_WRAP_DOUBLE(ConstexprFmax(AxisSpec::DefaultMin::value(), AbsStepFixedType::minValue().fpValueConstexpr() / DistConversion::value()));
         using MaxReqPos = AMBRO_WRAP_DOUBLE(ConstexprFmin(AxisSpec::DefaultMax::value(), AbsStepFixedType::maxValue().fpValueConstexpr() / DistConversion::value()));
@@ -1314,10 +1316,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             struct Object;
             
             using HomerInstance = typename HomingSpec::HomerService::template Instance<
-                Context, FpType, AxisSpec::StepBits, typename AxisSpec::DefaultDistanceFactor,
-                typename AxisSpec::DefaultCorneringDistance, Params::StepperSegmentBufferSize,
+                Context, FpType, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
                 Params::LookaheadBufferSize, typename AxisSpec::DefaultMaxAccel,
-                DistConversion, SpeedConversion, AccelConversion, HomingSpec::HomeDir
+                DistConversion, TimeConversion, HomingSpec::HomeDir
             >;
             
             using HomerGlobal = typename HomerInstance::template HomerGlobal<Object>;
@@ -1586,7 +1587,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using ThePwm = typename LaserSpec::PwmService::template Pwm<Context, Object>;
         using TheDutyFormula = typename LaserSpec::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle>;
         
-        using PlannerMaxSpeedRec = AMBRO_WRAP_DOUBLE(Clock::time_freq / (LaserSpec::MaxPower::value() / LaserSpec::LaserPower::value()));
+        using PlannerMaxSpeedRec = AMBRO_WRAP_DOUBLE(TimeConversion::value() / (LaserSpec::MaxPower::value() / LaserSpec::LaserPower::value()));
         
         static void init (Context c)
         {
@@ -1991,7 +1992,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             static FpType limit_virt_axis_speed (FpType accum, Context c)
             {
                 auto *o = Object::self(c);
-                return FloatMax(accum, FloatAbs(o->m_delta) * (FpType)(Clock::time_freq / VirtAxisParams::MaxSpeed::value()));
+                return FloatMax(accum, FloatAbs(o->m_delta) * (FpType)(TimeConversion::value() / VirtAxisParams::MaxSpeed::value()));
             }
             
             static FpType clamp_virt_pos (FpType req)
@@ -2098,7 +2099,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                             } break;
                         }
                         move_add_axis<(NumAxes + VirtAxisIndex)>(c, &s, position);
-                        move_end(c, &s, (FpType)Clock::time_freq / speed);
+                        move_end(c, &s, (FpType)TimeConversion::value() / speed);
                         o->command_sent = true;
                     }
                     
@@ -2405,7 +2406,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             o->m_enabled = false;
             o->m_control_config = TheControl::makeDefaultConfig();
-            TimeType time = Clock::getTime(c) + (TimeType)(0.05 * Clock::time_freq);
+            TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
             o->m_control_event.init(c, Heater::control_event_handler);
             o->m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
             o->m_was_not_unset = false;
@@ -2659,7 +2660,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void init (Context c)
         {
             auto *o = Object::self(c);
-            TimeType time = Clock::getTime(c) + (TimeType)(0.05 * Clock::time_freq);
+            TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
             ThePwm::init(c, time);
         }
         
@@ -2814,23 +2815,23 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     case 0: {
                         ListForEachForward<AxisHelperList>(LForeach_add_axis(), c, &s, o->m_current_point);
                         height = (FpType)ProbeParams::ProbeStartHeight::value();
-                        time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeMoveSpeed::value());
+                        time_freq_by_speed = (FpType)(TimeConversion::value() / ProbeParams::ProbeMoveSpeed::value());
                     } break;
                     case 1: {
                         height = (FpType)ProbeParams::ProbeLowHeight::value();
-                        time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeFastSpeed::value());
+                        time_freq_by_speed = (FpType)(TimeConversion::value() / ProbeParams::ProbeFastSpeed::value());
                     } break;
                     case 2: {
                         height = get_height(c) + (FpType)ProbeParams::ProbeRetractDist::value();
-                        time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeRetractSpeed::value());
+                        time_freq_by_speed = (FpType)(TimeConversion::value() / ProbeParams::ProbeRetractSpeed::value());
                     } break;
                     case 3: {
                         height = (FpType)ProbeParams::ProbeLowHeight::value();
-                        time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeSlowSpeed::value());
+                        time_freq_by_speed = (FpType)(TimeConversion::value() / ProbeParams::ProbeSlowSpeed::value());
                     } break;
                     case 4: {
                         height = (FpType)ProbeParams::ProbeStartHeight::value();
-                        time_freq_by_speed = (FpType)(Clock::time_freq / ProbeParams::ProbeRetractSpeed::value());
+                        time_freq_by_speed = (FpType)(TimeConversion::value() / ProbeParams::ProbeRetractSpeed::value());
                     } break;
                 }
                 move_add_axis<ProbeAxisIndex>(c, &s, height);
@@ -3001,7 +3002,7 @@ public:
         ob->disable_timer.init(c, PrinterMain::disable_timer_handler);
         ob->force_timer.init(c, PrinterMain::force_timer_handler);
         TheWatchdog::init(c);
-        TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * Clock::time_freq));
+        TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
         TheSteppers::init(c);
         SerialFeature::init(c);
         SdCardFeature::init(c);
@@ -3012,7 +3013,7 @@ public:
         ListForEachForward<FansList>(LForeach_init(), c);
         ProbeFeature::init(c);
         CurrentFeature::init(c);
-        ob->inactive_time = (FpType)(Params::DefaultInactiveTime::value() * Clock::time_freq);
+        ob->inactive_time = (FpType)(Params::DefaultInactiveTime::value() * TimeConversion::value());
         ob->time_freq_by_max_speed = 0.0f;
         ob->underrun_count = 0;
         ob->locked = false;
@@ -3101,7 +3102,7 @@ public:
 public: // private, see comment on top
     static TimeType time_from_real (FpType t)
     {
-        return (FixedPoint<30, false, 0>::importFpSaturatedRound(t * (FpType)Clock::time_freq)).bitsValue();
+        return (FixedPoint<30, false, 0>::importFpSaturatedRound(t * (FpType)TimeConversion::value())).bitsValue();
     }
     
     static void blinker_handler (Context c)
@@ -3240,7 +3241,7 @@ public: // private, see comment on top
                             ListForEachForwardInterruptible<LasersList>(LForeach_collect_new_pos(), c, cc, &s, part)
                         ) {
                             if (TheChannelCommon::TheGcodeParser::getPartCode(c, part) == 'F') {
-                                ob->time_freq_by_max_speed = (FpType)(Clock::time_freq / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part));
+                                ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part));
                             }
                         }
                     }
@@ -3350,7 +3351,7 @@ public: // private, see comment on top
         
         ob->last_active_time = Clock::getTime(c);
         ob->disable_timer.appendAt(c, ob->last_active_time + ob->inactive_time);
-        TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * Clock::time_freq));
+        TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
     }
     
     static void now_active (Context c)
@@ -3358,7 +3359,7 @@ public: // private, see comment on top
         auto *ob = Object::self(c);
         
         ob->disable_timer.unset(c);
-        TheBlinker::setInterval(c, (FpType)((Params::LedBlinkInterval::value() / 2) * Clock::time_freq));
+        TheBlinker::setInterval(c, (FpType)((Params::LedBlinkInterval::value() / 2) * TimeConversion::value()));
     }
     
     static void set_force_timer (Context c)
@@ -3367,7 +3368,7 @@ public: // private, see comment on top
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         
-        TimeType force_time = Clock::getTime(c) + (TimeType)(Params::ForceTimeout::value() * Clock::time_freq);
+        TimeType force_time = Clock::getTime(c) + (TimeType)(Params::ForceTimeout::value() * TimeConversion::value());
         ob->force_timer.appendAt(c, force_time);
     }
     
