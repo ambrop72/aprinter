@@ -123,7 +123,7 @@ The basic steps are:
     The basic supported targets are `melzi`, `ramps13`, `rampsfd`, `radds`, `teensy`, `4pi`.
     You can find more in `config/targets.sh`, including variants of those targets mentioned, as well as
     targets in development. You may have to adjust some variables in the target definition.
-  * Locate the main source file corresponding to the target, which is `aprinter/printer/aprinter-SOURCE.cpp`.
+  * Locate the main source file corresponding to the target, which is `main/aprinter-SOURCE.cpp`.
     Here, `SOURCE` defaults to the target name if it is not defined in the target definition.
   * Examine the main file and adapt it to your liking.
   * To install the toolchain and other dependnecies: `./build.sh <target> install`

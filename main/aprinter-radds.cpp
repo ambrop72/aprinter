@@ -25,8 +25,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include <avr/io.h>
-#include <avr/interrupt.h>
+#include <aprinter/platform/at91sam3x/at91sam3x_support.h>
 
 static void emergency (void);
 
@@ -35,38 +34,41 @@ static void emergency (void);
 
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Object.h>
-#include <aprinter/base/Assert.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
-#include <aprinter/system/AvrClock.h>
-#include <aprinter/system/AvrPins.h>
+#include <aprinter/system/At91Sam3xClock.h>
+#include <aprinter/system/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
-#include <aprinter/system/AvrAdc.h>
-#include <aprinter/system/AvrWatchdog.h>
-#include <aprinter/system/AvrSerial.h>
-#include <aprinter/system/AvrSpi.h>
+#include <aprinter/system/At91SamAdc.h>
+#include <aprinter/system/At91SamWatchdog.h>
+#include <aprinter/system/At91Sam3xSerial.h>
+#include <aprinter/system/At91SamSpi.h>
+#include <aprinter/system/AsfUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/pwm/SoftPwm.h>
-#include <aprinter/printer/pwm/HardPwm.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
-#include <aprinter/printer/arduino_mega_pins.h>
+#include <aprinter/board/arduino_due_pins.h>
 
 using namespace APrinter;
 
+using AdcFreq = AMBRO_WRAP_DOUBLE(1000000.0);
+using AdcAvgInterval = AMBRO_WRAP_DOUBLE(0.0025);
+static uint16_t const AdcSmoothing = 0.95 * 65536.0;
+
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
-using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
+using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(8.0 * 60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
-using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.00137); // max stepping frequency relative to F_CPU
+using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
-using TheAxisDriverPrecisionParams = AxisDriverAvrPrecisionParams;
+using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
-using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
+using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 80.0);
 using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
 using XDefaultMax = AMBRO_WRAP_DOUBLE(210.0);
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
@@ -80,9 +82,9 @@ using XDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
 using XDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
-using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(80.0);
+using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 80.0);
 using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using YDefaultMax = AMBRO_WRAP_DOUBLE(155.0);
+using YDefaultMax = AMBRO_WRAP_DOUBLE(157.0);
 using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
 using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(650.0);
 using YDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
@@ -94,7 +96,7 @@ using YDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
 using YDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using YDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
-using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(4000.0);
+using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 4000.0);
 using ZDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
 using ZDefaultMax = AMBRO_WRAP_DOUBLE(100.0);
 using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
@@ -108,7 +110,7 @@ using ZDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
 
-using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);
+using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 928.0);
 using EDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
 using EDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
 using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
@@ -116,13 +118,13 @@ using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 
-using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(660.0);
+using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 660.0);
 using UDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
 using UDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
 using UDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using UDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using UDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using UDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(55.0);
+using UDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 
 using ExtruderHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
 using ExtruderHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(100000.0);
@@ -131,7 +133,8 @@ using ExtruderHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
 using ExtruderHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(300.0);
 using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
-using ExtruderHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.2);
+using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
+using ExtruderHeaterControlInterval = ExtruderHeaterPulseInterval;
 using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
 using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
 using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
@@ -149,7 +152,8 @@ using UxtruderHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
 using UxtruderHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(300.0);
 using UxtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using UxtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
-using UxtruderHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.2);
+using UxtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
+using UxtruderHeaterControlInterval = UxtruderHeaterPulseInterval;
 using UxtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
 using UxtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
 using UxtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
@@ -180,6 +184,7 @@ using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
 using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
+using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
 using ProbeOffsetX = AMBRO_WRAP_DOUBLE(-18.0);
 using ProbeOffsetY = AMBRO_WRAP_DOUBLE(-31.0);
@@ -197,54 +202,49 @@ using ProbeP2Y = AMBRO_WRAP_DOUBLE(155.0);
 using ProbeP3X = AMBRO_WRAP_DOUBLE(205.0);
 using ProbeP3Y = AMBRO_WRAP_DOUBLE(83.0);
 
-/*
- * NOTE: If you need internal pull-ups for endstops, enable these
- * in main() below.
- */
-
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
      */
     PrinterMainSerialParams<
-        UINT32_C(250000), // BaudRate
-        7, // RecvBufferSizeExp
-        7, // SendBufferSizeExp
-        GcodeParserParams<8>, // ReceiveBufferSizeExp
-        AvrSerialService<true>
+        UINT32_C(115200), // BaudRate,
+        8, // RecvBufferSizeExp
+        9, // SendBufferSizeExp
+        GcodeParserParams<16>, // ReceiveBufferSizeExp
+#ifdef USB_SERIAL
+        AsfUsbSerialService
+#else
+        At91Sam3xSerialService
+#endif
     >,
-    MegaPin13, // LedPin
+    DuePin37, // LedPin
     LedBlinkInterval, // LedBlinkInterval
     DefaultInactiveTime, // DefaultInactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    27, // StepperSegmentBufferSize
-    27, // EventChannelBufferSize
-    15, // LookaheadBufferSize
-    9, // LookaheadCommitCount
+    32, // StepperSegmentBufferSize
+    32, // EventChannelBufferSize
+    28, // LookaheadBufferSize
+    10, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
-    AvrClockInterruptTimerService<AvrClockTcChannel5C, EventChannelTimerClearance>, // EventChannelTimer
-    AvrWatchdogService<
-        WDTO_2S
-    >,
+    At91Sam3xClockInterruptTimerService<At91Sam3xClockTC0, At91Sam3xClockCompA, EventChannelTimerClearance>, // EventChannelTimerService
+    At91SamWatchdogService<260>,
     PrinterMainSdCardParams<
         SpiSdCardService< // SdCardService
-            AvrPin<AvrPortB, 0>, // SsPin
-            AvrSpiService< // SpiService
-                32 // SpiSpeedDiv
-            >
+            DuePin4, // SsPin
+            At91SamSpiService<At91Sam3xSpiDevice> // SpiService
         >,
         FileGcodeParser, // BINARY: BinaryGcodeParser
         GcodeParserParams<8>, // BINARY: BinaryGcodeParserParams<8>
-        960, // BufferBaseSize
-        100 // MaxCommandSize. BINARY: 43
+        2048, // BufferBaseSize
+        256 // MaxCommandSize. BINARY: 43
     >,
     PrinterMainProbeParams<
         MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
         'Z', // ProbeAxis
-        MegaPin19, // ProbePin,
-        AvrPinInputModePullUp, // ProbePinInputMode
+        DuePin38, // ProbePin,
+        At91SamPinInputModePullUp, // ProbePinInputMode
         false, // ProbeInvert,
         MakeTypeList<ProbeOffsetX, ProbeOffsetY>, // ProbePlatformOffset
         ProbeStartHeight,
@@ -268,10 +268,10 @@ using PrinterParams = PrinterMainParams<
     MakeTypeList<
         PrinterMainAxisParams<
             'X', // Name
-            MegaPin55, // DirPin
-            MegaPin54, // StepPin
-            MegaPin38, // EnablePin
-            true, // InvertDir
+            DuePin23, // DirPin
+            DuePin24, // StepPin
+            DuePin26, // EnablePin
+            false, // InvertDir
             XDefaultStepsPerUnit, // StepsPerUnit
             XDefaultMin, // Min
             XDefaultMax, // Max
@@ -282,8 +282,8 @@ using PrinterParams = PrinterMainParams<
             PrinterMainHomingParams<
                 false, // HomeDir
                 AxisHomerService< // HomerService
-                    MegaPin3, // HomeEndPin
-                    AvrPinInputModePullUp, // HomeEndPinInputMode
+                    DuePin28, // HomeEndPin
+                    At91SamPinInputModePullUp, // HomeEndPinInputMode
                     false, // HomeEndInvert
                     XDefaultHomeFastMaxDist, // HomeFastMaxDist
                     XDefaultHomeRetractDist, // HomeRetractDist
@@ -296,17 +296,17 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisDriverService<
-                AvrClockInterruptTimerService<AvrClockTcChannel3A>, // StepperTimer
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC1, At91Sam3xClockCompA>, // StepperTimer,
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'Y', // Name
-            MegaPin61, // DirPin
-            MegaPin60, // StepPin
-            MegaPin56, // EnablePin
-            true, // InvertDir
+            DuePin16, // DirPin
+            DuePin17, // StepPin
+            DuePin22, // EnablePin
+            false, // InvertDir
             YDefaultStepsPerUnit, // StepsPerUnit
             YDefaultMin, // Min
             YDefaultMax, // Max
@@ -317,8 +317,8 @@ using PrinterParams = PrinterMainParams<
             PrinterMainHomingParams<
                 false, // HomeDir
                 AxisHomerService< // HomerService
-                    MegaPin14, // HomeEndPin
-                    AvrPinInputModePullUp, // HomeEndPinInputMode
+                    DuePin30, // HomeEndPin
+                    At91SamPinInputModePullUp, // HomeEndPinInputMode
                     false, // HomeEndInvert
                     YDefaultHomeFastMaxDist, // HomeFastMaxDist
                     YDefaultHomeRetractDist, // HomeRetractDist
@@ -331,17 +331,17 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisDriverService<
-                AvrClockInterruptTimerService<AvrClockTcChannel3B>, // StepperTimer
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC2, At91Sam3xClockCompA>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'Z', // Name
-            MegaPin48, // DirPin
-            MegaPin46, // StepPin
-            MegaPin62, // EnablePin
-            false, // InvertDir
+            DuePin3, // DirPin
+            DuePin2, // StepPin
+            DuePin15, // EnablePin
+            true, // InvertDir
             ZDefaultStepsPerUnit, // StepsPerUnit
             ZDefaultMin, // Min
             ZDefaultMax, // Max
@@ -352,8 +352,8 @@ using PrinterParams = PrinterMainParams<
             PrinterMainHomingParams<
                 false, // HomeDir
                 AxisHomerService< // HomerService
-                    MegaPin18, // HomeEndPin
-                    AvrPinInputModePullUp, // HomeEndPinInputMode
+                    DuePin32, // HomeEndPin
+                    At91SamPinInputModePullUp, // HomeEndPinInputMode
                     false, // HomeEndInvert
                     ZDefaultHomeFastMaxDist, // HomeFastMaxDist
                     ZDefaultHomeRetractDist, // HomeRetractDist
@@ -366,17 +366,17 @@ using PrinterParams = PrinterMainParams<
             true, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisDriverService<
-                AvrClockInterruptTimerService<AvrClockTcChannel3C>, // StepperTimer
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC3, At91Sam3xClockCompA>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'E', // Name
-            MegaPin28, // DirPin
-            MegaPin26, // StepPin
-            MegaPin24, // EnablePin
-            true, // InvertDir
+            DuePinA6, // DirPin
+            DuePinA7, // StepPin
+            DuePinA8, // EnablePin
+            false, // InvertDir
             EDefaultStepsPerUnit, // StepsPerUnit
             EDefaultMin, // Min
             EDefaultMax, // Max
@@ -388,17 +388,17 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisDriverService<
-                AvrClockInterruptTimerService<AvrClockTcChannel4A>, // StepperTimer
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC4, At91Sam3xClockCompA>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'U', // Name
-            MegaPin34, // DirPin
-            MegaPin36, // StepPin
-            MegaPin30, // EnablePin
-            true, // InvertDir
+            DuePinA9, // DirPin
+            DuePinA10, // StepPin
+            DuePinA11, // EnablePin
+            false, // InvertDir
             UDefaultStepsPerUnit, // StepsPerUnit
             UDefaultMin, // Min
             UDefaultMax, // Max
@@ -410,7 +410,7 @@ using PrinterParams = PrinterMainParams<
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisDriverService<
-                AvrClockInterruptTimerService<AvrClockTcChannel4B>, // StepperTimer
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC8, At91Sam3xClockCompA>, // StepperTimer
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
             PrinterMainNoMicroStepParams
@@ -431,7 +431,7 @@ using PrinterParams = PrinterMainParams<
             104, // SetMCommand
             109, // WaitMCommand
             301, // SetConfigMCommand
-            MegaPinA13, // AdcPin
+            DuePinA0, // AdcPin
             GenericThermistor< // Thermistor
                 ExtruderHeaterThermistorResistorR,
                 ExtruderHeaterThermistorR0,
@@ -455,8 +455,11 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            HardPwmService<
-                AvrClock8BitPwmService<AvrClockTcChannel2A, MegaPin10>
+            SoftPwmService<
+                DuePin13, // OutputPin
+                false, // OutputInvert
+                ExtruderHeaterPulseInterval, // PulseInterval
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC5, At91Sam3xClockCompA> // TimerTemplate
             >
         >,
         PrinterMainHeaterParams<
@@ -464,7 +467,7 @@ using PrinterParams = PrinterMainParams<
             140, // SetMCommand
             190, // WaitMCommand
             304, // SetConfigMCommand
-            MegaPinA14, // AdcPin
+            DuePinA4, // AdcPin
             GenericThermistor< // Thermistor
                 BedHeaterThermistorResistorR,
                 BedHeaterThermistorR0,
@@ -489,10 +492,10 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
             SoftPwmService<
-                MegaPin8, // OutputPin
+                DuePin7, // OutputPin
                 false, // OutputInvert
                 BedHeaterPulseInterval, // PulseInterval
-                AvrClockInterruptTimerService<AvrClockTcChannel5A> // TimerTemplate
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC5, At91Sam3xClockCompB> // TimerTemplate
             >
         >,
         PrinterMainHeaterParams<
@@ -500,7 +503,7 @@ using PrinterParams = PrinterMainParams<
             404, // SetMCommand
             409, // WaitMCommand
             402, // SetConfigMCommand
-            MegaPinA15, // AdcPin
+            DuePinA1, // AdcPin
             GenericThermistor< // Thermistor
                 UxtruderHeaterThermistorResistorR,
                 UxtruderHeaterThermistorR0,
@@ -524,8 +527,11 @@ using PrinterParams = PrinterMainParams<
                 UxtruderHeaterObserverTolerance, // ObserverTolerance
                 UxtruderHeaterObserverMinTime // ObserverMinTime
             >,
-            HardPwmService<
-                AvrClock8BitPwmService<AvrClockTcChannel2B, MegaPin9>
+            SoftPwmService<
+                DuePin12, // OutputPin
+                false, // OutputInvert
+                UxtruderHeaterPulseInterval, // PulseInterval
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC6, At91Sam3xClockCompA> // TimerTemplate
             >
         >
     >,
@@ -538,16 +544,22 @@ using PrinterParams = PrinterMainParams<
             106, // SetMCommand
             107, // OffMCommand
             FanSpeedMultiply, // SpeedMultiply
-            HardPwmService<
-                AvrClock8BitPwmService<AvrClockTcChannel0B, MegaPin4>
+            SoftPwmService<
+                DuePin9, // OutputPin
+                false, // OutputInvert
+                FanPulseInterval, // PulseInterval
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC6, At91Sam3xClockCompB> // TimerTemplate
             >
         >,
         PrinterMainFanParams<
             406, // SetMCommand
             407, // OffMCommand
             FanSpeedMultiply, // SpeedMultiply
-            HardPwmService<
-                AvrClock16BitPwmService<AvrClockTcChannel1A, MegaPin11>
+            SoftPwmService<
+                DuePin8, // OutputPin
+                false, // OutputInvert
+                FanPulseInterval, // PulseInterval
+                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC7, At91Sam3xClockCompA> // TimerTemplate
             >
         >
     >
@@ -555,22 +567,31 @@ using PrinterParams = PrinterMainParams<
 
 // need to list all used ADC pins here
 using AdcPins = MakeTypeList<
-    MegaPinA13,
-    MegaPinA14,
-    MegaPinA15
+    At91SamAdcSmoothPin<DuePinA0, AdcSmoothing>,
+    At91SamAdcSmoothPin<DuePinA4, AdcSmoothing>,
+    At91SamAdcSmoothPin<DuePinA1, AdcSmoothing>
 >;
 
-static const int AdcRefSel = 1;
-static const int AdcPrescaler = 7;
+using AdcParams = At91Sam3xAdcParams<
+    AdcFreq,
+    8, // AdcStartup
+    3, // AdcSettling
+    0, // AdcTracking
+    1, // AdcTransfer
+    At91SamAdcAvgParams<AdcAvgInterval>
+>;
 
-static const int ClockPrescaleDivide = 64;
+static const int clock_timer_prescaler = 3;
 using ClockTcsList = MakeTypeList<
-    AvrClockTcSpec<AvrClockTc3>,
-    AvrClockTcSpec<AvrClockTc4>,
-    AvrClockTcSpec<AvrClockTc5>,
-    AvrClockTcSpec<AvrClockTc0, AvrClockTcMode8BitPwm<1024>>,
-    AvrClockTcSpec<AvrClockTc2, AvrClockTcMode8BitPwm<1024>>,
-    AvrClockTcSpec<AvrClockTc1, AvrClockTcMode16BitPwm<64, 0xfff>>
+    At91Sam3xClockTC0,
+    At91Sam3xClockTC1,
+    At91Sam3xClockTC2,
+    At91Sam3xClockTC3,
+    At91Sam3xClockTC4,
+    At91Sam3xClockTC5,
+    At91Sam3xClockTC6,
+    At91Sam3xClockTC7,
+    At91Sam3xClockTC8
 >;
 
 struct MyContext;
@@ -578,10 +599,10 @@ struct MyLoopExtraDelay;
 struct Program;
 
 using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
-using MyClock = AvrClock<MyContext, Program, ClockPrescaleDivide, ClockTcsList>;
+using MyClock = At91Sam3xClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
-using MyPins = AvrPins<MyContext, Program>;
-using MyAdc = AvrAdc<MyContext, Program, AdcPins, AdcRefSel, AdcPrescaler>;
+using MyPins = At91SamPins<MyContext, Program>;
+using MyAdc = At91SamAdc<MyContext, Program, AdcPins, AdcParams>;
 using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
 
 struct MyContext {
@@ -606,60 +627,100 @@ struct Program : public ObjBase<void, void, MakeTypeList<
     MyPrinter,
     MyLoopExtra
 >> {
-    uint16_t end;
-    
     static Program * self (MyContext c);
 };
 
 Program p;
 
 Program * Program::self (MyContext c) { return &p; }
-void MyContext::check () const { AMBRO_ASSERT_FORCE(p.end == UINT16_C(0x1234)) }
+void MyContext::check () const {}
 
-AMBRO_AVR_CLOCK_ISRS(3, MyClock, MyContext())
-AMBRO_AVR_ADC_ISRS(MyAdc, MyContext())
-AMBRO_AVR_SERIAL_ISRS(MyPrinter::GetSerial, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(3, A, MyPrinter::GetAxisTimer<0>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(3, B, MyPrinter::GetAxisTimer<1>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(3, C, MyPrinter::GetAxisTimer<2>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(4, A, MyPrinter::GetAxisTimer<3>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(4, B, MyPrinter::GetAxisTimer<4>, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(5, A, MyPrinter::GetHeaterPwm<1>::TheTimer, MyContext())
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(5, C, MyPrinter::GetEventChannelTimer, MyContext())
-AMBRO_AVR_SPI_ISRS(MyPrinter::GetSdCard<>::GetSpi, MyContext())
-AMBRO_AVR_WATCHDOG_GLOBAL
+AMBRO_AT91SAM3X_CLOCK_TC0_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC1_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC2_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC3_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC4_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC5_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC6_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC7_GLOBAL(MyClock, MyContext())
+AMBRO_AT91SAM3X_CLOCK_TC8_GLOBAL(MyClock, MyContext())
 
-FILE uart_output;
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC0, At91Sam3xClockCompA, MyPrinter::GetEventChannelTimer, MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC1, At91Sam3xClockCompA, MyPrinter::GetAxisTimer<0>, MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC2, At91Sam3xClockCompA, MyPrinter::GetAxisTimer<1>, MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC3, At91Sam3xClockCompA, MyPrinter::GetAxisTimer<2>, MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC4, At91Sam3xClockCompA, MyPrinter::GetAxisTimer<3>, MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC8, At91Sam3xClockCompA, MyPrinter::GetAxisTimer<4>, MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC5, At91Sam3xClockCompA, MyPrinter::GetHeaterPwm<0>::TheTimer, MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC5, At91Sam3xClockCompB, MyPrinter::GetHeaterPwm<1>::TheTimer, MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC6, At91Sam3xClockCompA, MyPrinter::GetHeaterPwm<2>::TheTimer, MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC6, At91Sam3xClockCompB, MyPrinter::GetFanPwm<0>::TheTimer, MyContext())
+AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC7, At91Sam3xClockCompA, MyPrinter::GetFanPwm<1>::TheTimer, MyContext())
 
-static int uart_putchar (char ch, FILE *stream)
-{
-    MyPrinter::GetSerial::sendWaitFinished(MyContext());
-    while (!(UCSR0A & (1 << UDRE0)));
-    UDR0 = ch;
-    return 1;
-}
-
-static void setup_uart_stdio ()
-{
-    uart_output.put = uart_putchar;
-    uart_output.flags = _FDEV_SETUP_WRITE;
-    stdout = &uart_output;
-    stderr = &uart_output;
-}
+#ifndef USB_SERIAL
+AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())
+#endif
+AMBRO_AT91SAM3X_SPI_GLOBAL(MyPrinter::GetSdCard<>::GetSpi, MyContext())
+AMBRO_AT91SAM3X_ADC_GLOBAL(MyAdc, MyContext())
 
 static void emergency (void)
 {
     MyPrinter::emergency();
 }
 
+extern "C" {
+    __attribute__((used))
+    int _read (int file, char *ptr, int len)
+    {
+        return -1;
+    }
+    
+#ifndef USB_SERIAL
+    __attribute__((used))
+    int _write (int file, char *ptr, int len)
+    {
+        if (interrupts_enabled()) {
+            MyPrinter::GetSerial::sendWaitFinished(MyContext());
+        }
+        for (int i = 0; i < len; i++) {
+            while (!(UART->UART_SR & UART_SR_TXRDY));
+            UART->UART_THR = *(uint8_t *)&ptr[i];
+        }
+        return len;
+    }
+#endif
+    
+    __attribute__((used))
+    int _close (int file)
+    {
+        return -1;
+    }
+
+    __attribute__((used))
+    int _fstat (int file, struct stat * st)
+    {
+        return -1;
+    }
+
+    __attribute__((used))
+    int _isatty (int fd)
+    {
+        return 1;
+    }
+
+    __attribute__((used))
+    int _lseek (int file, int ptr, int dir)
+    {
+        return -1;
+    }
+}
+
 int main ()
 {
-    sei();
-    setup_uart_stdio();
+    platform_init();
     
     MyContext c;
     
-    p.end = UINT16_C(0x1234);
     MyDebugObjectGroup::init(c);
     MyClock::init(c);
     MyLoop::init(c);

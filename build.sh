@@ -32,7 +32,7 @@
 # configure paths
 
 ROOT=$(dirname $0)
-SPATH=$ROOT/aprinter/printer
+SPATH=$ROOT/main
 BUILD=$ROOT/build
 DEPS=$ROOT/depends
 

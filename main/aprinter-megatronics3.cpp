@@ -54,7 +54,7 @@ static void emergency (void);
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
-#include <aprinter/printer/arduino_mega_pins.h>
+#include <aprinter/board/arduino_mega_pins.h>
 
 using namespace APrinter;
 

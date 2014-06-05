@@ -52,7 +52,7 @@ static void emergency (void);
 #include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
-#include <aprinter/printer/stm32f4discovery_pins.h>
+#include <aprinter/board/stm32f4discovery_pins.h>
 
 #include <aprinter/meta/WrapDouble.h>
 

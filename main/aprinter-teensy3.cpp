@@ -43,7 +43,6 @@ static void emergency (void);
 #include <aprinter/system/Mk20Watchdog.h>
 #include <aprinter/system/TeensyUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
-#include <aprinter/driver/LaserDriver.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/AxisHomer.h>
@@ -51,10 +50,8 @@ static void emergency (void);
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
-#include <aprinter/printer/transform/CoreXyTransform.h>
-#include <aprinter/printer/microstep/A4988MicroStep.h>
-#include <aprinter/printer/duty_formula/LinearDutyFormula.h>
-#include <aprinter/printer/teensy3_pins.h>
+#include <aprinter/printer/transform/DeltaTransform.h>
+#include <aprinter/board/teensy3_pins.h>
 
 using namespace APrinter;
 
@@ -68,69 +65,31 @@ using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
-// Cartesian axes invloved in CoreXY are X and Y.
-// Any configuration here is related to a cartesian
-// axis, not to a "corresponding stepper". Actually,
-// anything that is specific to a stepper will be named
-// with A or B, and not misnamed with X or Y.
-// NOTE: The speed limits here are used in addition to the
-// stepper speed limits. Specifying INFINITY will not limit
-// the speed at cartesian axis level.
-
-using XMinPos = AMBRO_WRAP_DOUBLE(0.0);
-using XMaxPos = AMBRO_WRAP_DOUBLE(750.0);
+using XMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
+using XMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
 using XMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
-using XHomeFastExtraDist = AMBRO_WRAP_DOUBLE(30.0);
-using XHomeRetractDist = AMBRO_WRAP_DOUBLE(5.0);
-using XHomeSlowExtraDist = AMBRO_WRAP_DOUBLE(3.0);
-using XHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
-using XHomeRetractSpeed = AMBRO_WRAP_DOUBLE(60.0);
-using XHomeSlowSpeed = AMBRO_WRAP_DOUBLE(2.0);
 
-using YMinPos = AMBRO_WRAP_DOUBLE(0.0);
-using YMaxPos = AMBRO_WRAP_DOUBLE(750.0);
+using YMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
+using YMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
 using YMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
-using YHomeFastExtraDist = AMBRO_WRAP_DOUBLE(30.0);
-using YHomeRetractDist = AMBRO_WRAP_DOUBLE(5.0);
-using YHomeSlowExtraDist = AMBRO_WRAP_DOUBLE(3.0);
-using YHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
-using YHomeRetractSpeed = AMBRO_WRAP_DOUBLE(60.0);
-using YHomeSlowSpeed = AMBRO_WRAP_DOUBLE(2.0);
 
-// CoreXY steppers are called A and B.
+using ZMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
+using ZMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
+using ZMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
 
-using ADefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(200.0);
-using ADefaultMin = AMBRO_WRAP_DOUBLE(-INFINITY);
-using ADefaultMax = AMBRO_WRAP_DOUBLE(INFINITY);;
-using ADefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
-using ADefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
-using ADefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using ADefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
-
-using BDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(200.0);
-using BDefaultMin = AMBRO_WRAP_DOUBLE(-INFINITY);
-using BDefaultMax = AMBRO_WRAP_DOUBLE(INFINITY);
-using BDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
-using BDefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
-using BDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using BDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
-
-// Z is configured as a normal cartesian axis, not invloved
-// in the CoreXY transform.
-
-using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(4000.0);
-using ZDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using ZDefaultMax = AMBRO_WRAP_DOUBLE(100.0);
-using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
-using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
-using ZDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using ZDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
-using ZDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(101.0);
-using ZDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(0.8);
-using ZDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(1.2);
-using ZDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(2.0);
-using ZDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(2.0);
-using ZDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
+using ABCDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(100.0);
+using ABCDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
+using ABCDefaultMax = AMBRO_WRAP_DOUBLE(360.0);
+using ABCDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
+using ABCDefaultMaxAccel = AMBRO_WRAP_DOUBLE(9000.0);
+using ABCDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
+using ABCDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
+using ABCDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(363.0);
+using ABCDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
+using ABCDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
+using ABCDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(70.0);
+using ABCDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(70.0);
+using ABCDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);
 using EDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
@@ -181,11 +140,20 @@ using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
-using LLaserPower = AMBRO_WRAP_DOUBLE(100.0);
-using LMaxPower = AMBRO_WRAP_DOUBLE(100.0);
-using LDutyAdjustmentInterval = AMBRO_WRAP_DOUBLE(1.0 / 200.0);
-
-using DummySegmentsPerSecond = AMBRO_WRAP_DOUBLE(0.0);
+using DeltaDiagonalRod = AMBRO_WRAP_DOUBLE(214.0);
+using DeltaSmoothRodOffset = AMBRO_WRAP_DOUBLE(145.0);
+using DeltaEffectorOffset = AMBRO_WRAP_DOUBLE(19.9);
+using DeltaCarriageOffset = AMBRO_WRAP_DOUBLE(19.5);
+using DeltaRadius = AMBRO_WRAP_DOUBLE(DeltaSmoothRodOffset::value() - DeltaEffectorOffset::value() - DeltaCarriageOffset::value());
+using DeltaSegmentsPerSecond = AMBRO_WRAP_DOUBLE(100.0);
+using DeltaMinSplitLength = AMBRO_WRAP_DOUBLE(0.1);
+using DeltaMaxSplitLength = AMBRO_WRAP_DOUBLE(4.0);
+using DeltaTower1X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.8660254037844386);
+using DeltaTower1Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5);
+using DeltaTower2X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.8660254037844386);
+using DeltaTower2Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5);
+using DeltaTower3X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.0);
+using DeltaTower3Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 1.0);
 
 using PrinterParams = PrinterMainParams<
     /*
@@ -221,48 +189,66 @@ using PrinterParams = PrinterMainParams<
     MakeTypeList<
         PrinterMainAxisParams<
             'A', // Name
-            TeensyPin0, // DirPin
-            TeensyPin1, // StepPin
-            TeensyPin2, // EnablePin
-            false, // InvertDir
-            ADefaultStepsPerUnit, // StepsPerUnit
-            ADefaultMin, // Min
-            ADefaultMax, // Max
-            ADefaultMaxSpeed, // MaxSpeed
-            ADefaultMaxAccel, // MaxAccel
-            ADefaultDistanceFactor, // DistanceFactor
-            ADefaultCorneringDistance, // CorneringDistance
-            PrinterMainNoHomingParams,
+            TeensyPin1, // DirPin
+            TeensyPin0, // StepPin
+            TeensyPin8, // EnablePin
+            true, // InvertDir
+            ABCDefaultStepsPerUnit, // StepsPerUnit
+            ABCDefaultMin, // Min
+            ABCDefaultMax, // Max
+            ABCDefaultMaxSpeed, // MaxSpeed
+            ABCDefaultMaxAccel, // MaxAccel
+            ABCDefaultDistanceFactor, // DistanceFactor
+            ABCDefaultCorneringDistance, // CorneringDistance
+            PrinterMainHomingParams<
+                true, // HomeDir
+                AxisHomerService< // HomerService
+                    TeensyPin12, // HomeEndPin
+                    Mk20PinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
+                    ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
+                    ABCDefaultHomeRetractDist, // HomeRetractDist
+                    ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                    ABCDefaultHomeFastSpeed, // HomeFastSpeed
+                    ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
+                    ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                >
+            >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisDriverService<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 1>, // StepperTimer,
                 TheAxisDriverPrecisionParams // PrecisionParams
             >,
-            PrinterMainMicroStepParams<
-               A4988MicroStep, // MicroStepTemplate
-               A4988MicroStepParams< // MicroStepParams
-                   TeensyPin29, // Ms1Pin
-                   TeensyPin30, // Ms2Pin
-                   TeensyPin31 // Ms3Pin
-               >,
-               16 // MicroSteps
-           >
+            PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
             'B', // Name
             TeensyPin3, // DirPin
-            TeensyPin4, // StepPin
-            TeensyPin5, // EnablePin
-            false, // InvertDir
-            BDefaultStepsPerUnit, // StepsPerUnit
-            BDefaultMin, // Min
-            BDefaultMax, // Max
-            BDefaultMaxSpeed, // MaxSpeed
-            BDefaultMaxAccel, // MaxAccel
-            BDefaultDistanceFactor, // DistanceFactor
-            BDefaultCorneringDistance, // CorneringDistance
-            PrinterMainNoHomingParams,
+            TeensyPin2, // StepPin
+            TeensyPin9, // EnablePin
+            true, // InvertDir
+            ABCDefaultStepsPerUnit, // StepsPerUnit
+            ABCDefaultMin, // Min
+            ABCDefaultMax, // Max
+            ABCDefaultMaxSpeed, // MaxSpeed
+            ABCDefaultMaxAccel, // MaxAccel
+            ABCDefaultDistanceFactor, // DistanceFactor
+            ABCDefaultCorneringDistance, // CorneringDistance
+            PrinterMainHomingParams<
+                true, // HomeDir
+                AxisHomerService< // HomerService
+                    TeensyPin14, // HomeEndPin
+                    Mk20PinInputModePullUp, // HomeEndPinInputMode
+                    false, // HomeEndInvert
+                    ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
+                    ABCDefaultHomeRetractDist, // HomeRetractDist
+                    ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                    ABCDefaultHomeFastSpeed, // HomeFastSpeed
+                    ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
+                    ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                >
+            >,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisDriverService<
@@ -272,33 +258,33 @@ using PrinterParams = PrinterMainParams<
             PrinterMainNoMicroStepParams
         >,
         PrinterMainAxisParams<
-            'Z', // Name
-            TeensyPin6, // DirPin
-            TeensyPin7, // StepPin
-            TeensyPin8, // EnablePin
+            'C', // Name
+            TeensyPin5, // DirPin
+            TeensyPin4, // StepPin
+            TeensyPin10, // EnablePin
             false, // InvertDir
-            ZDefaultStepsPerUnit, // StepsPerUnit
-            ZDefaultMin, // Min
-            ZDefaultMax, // Max
-            ZDefaultMaxSpeed, // MaxSpeed
-            ZDefaultMaxAccel, // MaxAccel
-            ZDefaultDistanceFactor, // DistanceFactor
-            ZDefaultCorneringDistance, // CorneringDistance
+            ABCDefaultStepsPerUnit, // StepsPerUnit
+            ABCDefaultMin, // Min
+            ABCDefaultMax, // Max
+            ABCDefaultMaxSpeed, // MaxSpeed
+            ABCDefaultMaxAccel, // MaxAccel
+            ABCDefaultDistanceFactor, // DistanceFactor
+            ABCDefaultCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                false, // HomeDir
+                true, // HomeDir
                 AxisHomerService< // HomerService
-                    TeensyPin12, // HomeEndPin
+                    TeensyPin15, // HomeEndPin
                     Mk20PinInputModePullUp, // HomeEndPinInputMode
                     false, // HomeEndInvert
-                    ZDefaultHomeFastMaxDist, // HomeFastMaxDist
-                    ZDefaultHomeRetractDist, // HomeRetractDist
-                    ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                    ZDefaultHomeFastSpeed, // HomeFastSpeed
-                    ZDefaultHomeRetractSpeed, // HomeRetractSpeed
-                    ZDefaultHomeSlowSpeed // HomeSlowSpeed
+                    ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
+                    ABCDefaultHomeRetractDist, // HomeRetractDist
+                    ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
+                    ABCDefaultHomeFastSpeed, // HomeFastSpeed
+                    ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
+                    ABCDefaultHomeSlowSpeed // HomeSlowSpeed
                 >
             >,
-            true, // EnableCartesianSpeedLimit
+            false, // EnableCartesianSpeedLimit
             32, // StepBits
             AxisDriverService<
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 3>, // StepperTimer
@@ -308,8 +294,8 @@ using PrinterParams = PrinterMainParams<
         >,
         PrinterMainAxisParams<
             'E', // Name
-            TeensyPin9, // DirPin
-            TeensyPin10, // StepPin
+            TeensyPin7, // DirPin
+            TeensyPin6, // StepPin
             TeensyPin11, // EnablePin
             true, // InvertDir
             EDefaultStepsPerUnit, // StepsPerUnit
@@ -340,42 +326,36 @@ using PrinterParams = PrinterMainParams<
                 XMinPos,
                 XMaxPos,
                 XMaxSpeed,
-                PrinterMainVirtualHomingParams<
-                    TeensyPin23, // HomeEndPin
-                    Mk20PinInputModePullUp, // HomeEndPinInputMode
-                    false, // HomeEndInvert
-                    false, // HomeDir
-                    XHomeFastExtraDist,
-                    XHomeRetractDist,
-                    XHomeSlowExtraDist,
-                    XHomeFastSpeed,
-                    XHomeRetractSpeed,
-                    XHomeSlowSpeed
-                >
+                PrinterMainNoVirtualHomingParams
             >,
             PrinterMainVirtualAxisParams<
                 'Y', // Name
                 YMinPos,
                 YMaxPos,
                 YMaxSpeed,
-                PrinterMainVirtualHomingParams<
-                    TeensyPin22, // HomeEndPin
-                    Mk20PinInputModePullUp, // HomeEndPinInputMode
-                    false, // HomeEndInvert
-                    false, // HomeDir
-                    YHomeFastExtraDist,
-                    YHomeRetractDist,
-                    YHomeSlowExtraDist,
-                    YHomeFastSpeed,
-                    YHomeRetractSpeed,
-                    YHomeSlowSpeed
-                >
+                PrinterMainNoVirtualHomingParams
+            >,
+            PrinterMainVirtualAxisParams<
+                'Z', // Name
+                ZMinPos,
+                ZMaxPos,
+                ZMaxSpeed,
+                PrinterMainNoVirtualHomingParams
             >
         >,
-        MakeTypeList<WrapInt<'A'>, WrapInt<'B'>>,
-        DummySegmentsPerSecond,
-        CoreXyTransform,
-        CoreXyTransformParams
+        MakeTypeList<WrapInt<'A'>, WrapInt<'B'>, WrapInt<'C'>>,
+        DeltaSegmentsPerSecond,
+        DeltaTransform,
+        DeltaTransformParams<
+            DeltaDiagonalRod,
+            DeltaTower1X,
+            DeltaTower1Y,
+            DeltaTower2X,
+            DeltaTower2Y,
+            DeltaTower3X,
+            DeltaTower3Y,
+            DistanceSplitterParams<DeltaMinSplitLength, DeltaMaxSplitLength>
+        >
     >,
     
     /*
@@ -387,7 +367,7 @@ using PrinterParams = PrinterMainParams<
             104, // SetMCommand
             109, // WaitMCommand
             301, // SetConfigMCommand
-            TeensyPinA0, // AdcPin
+            TeensyPinA2, // AdcPin
             GenericThermistor< // Thermistor
                 ExtruderHeaterThermistorResistorR,
                 ExtruderHeaterThermistorR0,
@@ -412,18 +392,19 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
             SoftPwmService<
-                TeensyPin21, // OutputPin
+                TeensyPin17, // OutputPin
                 true, // OutputInvert
                 ExtruderHeaterPulseInterval, // PulseInterval
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 5> // TimerTemplate
             >
-        >,
+        >
+#if 0
         PrinterMainHeaterParams<
             'B', // Name
             140, // SetMCommand
             190, // WaitMCommand
             304, // SetConfigMCommand
-            TeensyPinA1, // AdcPin
+            NOOONE, // AdcPin
             GenericThermistor< // Thermistor
                 BedHeaterThermistorResistorR,
                 BedHeaterThermistorR0,
@@ -448,52 +429,40 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
             SoftPwmService<
-                TeensyPin20, // OutputPin
+                NOOONE, // OutputPin
                 true, // OutputInvert
                 BedHeaterPulseInterval, // PulseInterval
                 Mk20ClockInterruptTimerService<Mk20ClockFTM0, 6> // TimerTemplate
             >
         >
+#endif
     >,
     
     /*
      * Fans.
      */
     MakeTypeList<
-    >,
-    
-    /*
-     * Lasers.
-     */
-    MakeTypeList<
-        PrinterMainLaserParams<
-            'L', // Name
-            'M', // DensityName
-            LLaserPower,
-            LMaxPower,
-            Mk20ClockPwmService<Mk20ClockFTM1, 1, TeensyPin17>,
-            LinearDutyFormulaService<
-                15 // PowerBits
-            >,
-            LaserDriverService<
-                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7>,
-                LDutyAdjustmentInterval,
-                LaserDriverDefaultPrecisionParams
+        PrinterMainFanParams<
+            106, // SetMCommand
+            107, // OffMCommand
+            FanSpeedMultiply, // SpeedMultiply
+            SoftPwmService<
+                TeensyPin18, // OutputPin
+                false, // OutputInvert
+                FanPulseInterval, // PulseInterval
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7> // TimerTemplate
             >
         >
     >
 >;
 
 // need to list all used ADC pins here
-using AdcPins = MakeTypeList<
-    TeensyPinA0,
-    TeensyPinA1
->;
+using AdcPins = MakeTypeList<TeensyPinA2>;
 
 static const int clock_timer_prescaler = 4;
 using ClockFtmsList = MakeTypeList<
     Mk20ClockFtmSpec<Mk20ClockFTM0>,
-    Mk20ClockFtmSpec<Mk20ClockFTM1, Mk20ClockFtmModeCustom<0, UINT16_C(0xFFFE)>>
+    Mk20ClockFtmSpec<Mk20ClockFTM1>
 >;
 
 struct MyContext;
@@ -548,8 +517,8 @@ AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 2, MyPrinter::GetAxisTime
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 3, MyPrinter::GetAxisTimer<2>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 4, MyPrinter::GetAxisTimer<3>, MyContext())
 AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 5, MyPrinter::GetHeaterPwm<0>::TheTimer, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 6, MyPrinter::GetHeaterPwm<1>::TheTimer, MyContext())
-AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 7, MyPrinter::GetLaserDriver<0>::TheTimer, MyContext())
+//AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 6, MyPrinter::GetHeaterPwm<1>::TheTimer, MyContext())
+AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM0, 7, MyPrinter::GetFanPwm<0>::TheTimer, MyContext())
 
 static void emergency (void)
 {
