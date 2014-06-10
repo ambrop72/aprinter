@@ -60,7 +60,7 @@ struct ObjBase : public Tuple<MapTypeList<TNestedClassesList, ObjectPrivate::Get
     template <typename NestedClass, typename Context>
     typename NestedClass::Object * get_nested_object (Context c)
     {
-        return TupleGetElem<TypeListIndex<NestedClassesList, IsEqualFunc<NestedClass>>::value>(static_cast<NestedClassesTuple *>(this));
+        return TupleGetElem<TypeListIndex<NestedClassesList, IsEqualFunc<NestedClass>>::Value>(static_cast<NestedClassesTuple *>(this));
     }
 };
 
@@ -81,7 +81,7 @@ struct ObjUnionBase : public Union<MapTypeList<TNestedClassesList, ObjectPrivate
     template <typename NestedClass, typename Context>
     typename NestedClass::Object * get_nested_object (Context c)
     {
-        return UnionGetElem<TypeListIndex<NestedClassesList, IsEqualFunc<NestedClass>>::value>(static_cast<NestedClassesUnion *>(this));
+        return UnionGetElem<TypeListIndex<NestedClassesList, IsEqualFunc<NestedClass>>::Value>(static_cast<NestedClassesUnion *>(this));
     }
 };
 

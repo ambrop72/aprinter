@@ -66,7 +66,7 @@ public:
 private:
     using RequestedInterval = AMBRO_WRAP_DOUBLE(Params::AdjustmentInterval::value() / Clock::time_unit);
     static uintmax_t const MaxCount = 2 + (1.01 * TimeFixedType::maxValue().bitsValue() / RequestedInterval::value());
-    using CountFixedType = FixedPoint<BitsInInt<MaxCount>::value, false, 0>;
+    using CountFixedType = FixedPoint<BitsInInt<MaxCount>::Value, false, 0>;
     using MaxIntervalTime = AMBRO_WRAP_DOUBLE(2.0 * RequestedInterval::value());
     using IntervalTimeFixedType = ChooseFixedForFloat<Params::PrecisionParams::IntervalTimeBits, false, MaxIntervalTime>;
     

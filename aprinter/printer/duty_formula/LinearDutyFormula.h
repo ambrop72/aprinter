@@ -42,7 +42,7 @@ public:
     }
     
 private:
-    static int const FactorBits = BitsInInt<MaxDutyCycle>::value;
+    static int const FactorBits = BitsInInt<MaxDutyCycle>::Value;
     using FactorFixedType = FixedPoint<FactorBits, false, 0>;
     static constexpr FactorFixedType Factor = FactorFixedType::importBitsConstexpr(MaxDutyCycle);
 };

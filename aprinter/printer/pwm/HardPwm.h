@@ -41,7 +41,7 @@ public:
     using ThePwm = typename Params::PwmService::template Pwm<Context, Object>;
     
 private:
-    using DutyFixedType = FixedPoint<BitsInInt<ThePwm::MaxDutyCycle>::value, false, 0>;
+    using DutyFixedType = FixedPoint<BitsInInt<ThePwm::MaxDutyCycle>::Value, false, 0>;
     
 public:
     struct DutyCycleData {

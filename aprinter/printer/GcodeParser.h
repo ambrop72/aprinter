@@ -54,7 +54,7 @@ class GcodeParser {
 public:
     struct Object;
     using BufferSizeType = TBufferSizeType;
-    using PartsSizeType = ChooseInt<BitsInInt<Params::MaxParts>::value, true>;
+    using PartsSizeType = ChooseInt<BitsInInt<Params::MaxParts>::Value, true>;
     
     enum {
         ERROR_NO_PARTS = -1, // must be -1

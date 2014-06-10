@@ -37,23 +37,23 @@ struct TypeListIndexHelper;
 
 template <typename Head, typename Tail, typename Predicate>
 struct TypeListIndexHelper<Head, Tail, Predicate, true> {
-    static const int value = 0;
+    static const int Value = 0;
 };
 
 template <typename Head, typename Tail, typename Predicate>
 struct TypeListIndexHelper<Head, Tail, Predicate, false> {
-    static const int tail_index = TypeListIndex<Tail, Predicate>::value;
-    static const int value = (tail_index >= 0) + tail_index;
+    static const int tail_index = TypeListIndex<Tail, Predicate>::Value;
+    static const int Value = (tail_index >= 0) + tail_index;
 };
 
 template <typename Head, typename Tail, typename Predicate>
 struct TypeListIndex<ConsTypeList<Head, Tail>, Predicate> {
-    static const int value = TypeListIndexHelper<Head, Tail, Predicate, Predicate::template Call<Head>::Type::value>::value;
+    static const int Value = TypeListIndexHelper<Head, Tail, Predicate, Predicate::template Call<Head>::Type::Value>::Value;
 };
 
 template <typename Predicate>
 struct TypeListIndex<EmptyTypeList, Predicate> {
-    static const int value = -1;
+    static const int Value = -1;
 };
 
 #include <aprinter/EndNamespace.h>

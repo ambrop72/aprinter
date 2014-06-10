@@ -29,10 +29,10 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TType, TType Value>
+template <typename TType, TType TValue>
 struct WrapValue {
     typedef TType Type;
-    static constexpr Type value = Value;
+    static constexpr Type Value = TValue;
 };
 
 template <bool Value>

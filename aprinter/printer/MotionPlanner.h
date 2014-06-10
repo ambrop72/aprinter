@@ -118,16 +118,16 @@ private:
     using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    static const int NumAxes = TypeListLength<ParamsAxesList>::value;
+    static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     static_assert(NumAxes > 0, "");
-    static const int NumChannels = TypeListLength<ParamsChannelsList>::value;
-    using SegmentBufferSizeType = ChooseInt<BitsInInt<2 * LookaheadBufferSize>::value, false>; // twice for segments_add()
+    static const int NumChannels = TypeListLength<ParamsChannelsList>::Value;
+    using SegmentBufferSizeType = ChooseInt<BitsInInt<2 * LookaheadBufferSize>::Value, false>; // twice for segments_add()
     static const size_t StepperCommitBufferSize = 3 * StepperSegmentBufferSize;
     static const size_t StepperBackupBufferSize = 3 * (LookaheadBufferSize - LookaheadCommitCount);
-    using StepperCommitBufferSizeType = ChooseInt<BitsInInt<StepperCommitBufferSize>::value, false>;
-    using StepperBackupBufferSizeType = ChooseInt<BitsInInt<2 * StepperBackupBufferSize>::value, false>;
+    using StepperCommitBufferSizeType = ChooseInt<BitsInInt<StepperCommitBufferSize>::Value, false>;
+    using StepperBackupBufferSizeType = ChooseInt<BitsInInt<2 * StepperBackupBufferSize>::Value, false>;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
-    static const int TypeBits = BitsInInt<NumChannels>::value;
+    static const int TypeBits = BitsInInt<NumChannels>::Value;
     using AxisMaskType = ChooseInt<NumAxes + TypeBits, false>;
     static const AxisMaskType TypeMask = ((AxisMaskType)1 << TypeBits) - 1;
     using TheLinearPlanner = LinearPlanner<FpType>;
@@ -810,9 +810,9 @@ public:
         static_assert(ChannelSpec::BufferSize - LookaheadCommitCount > 1, "");
         static const size_t ChannelCommitBufferSize = ChannelSpec::BufferSize;
         static const size_t ChannelBackupBufferSize = LookaheadBufferSize - LookaheadCommitCount;
-        using ChannelCommitBufferSizeType = ChooseInt<BitsInInt<ChannelCommitBufferSize>::value, false>;
-        using ChannelBackupBufferSizeType = ChooseInt<BitsInInt<2 * ChannelBackupBufferSize>::value, false>;
-        using LookaheadSizeType = ChooseInt<BitsInInt<LookaheadBufferSize>::value, false>;
+        using ChannelCommitBufferSizeType = ChooseInt<BitsInInt<ChannelCommitBufferSize>::Value, false>;
+        using ChannelBackupBufferSizeType = ChooseInt<BitsInInt<2 * ChannelBackupBufferSize>::Value, false>;
+        using LookaheadSizeType = ChooseInt<BitsInInt<LookaheadBufferSize>::Value, false>;
         
         static void init (Context c)
         {

@@ -49,7 +49,7 @@ template <typename List>
 struct TypeListGetFunc {
     template <typename Index>
     struct Call {
-        using Type = TypeListGet<List, Index::value>;
+        using Type = TypeListGet<List, Index::Value>;
     };
 };
 

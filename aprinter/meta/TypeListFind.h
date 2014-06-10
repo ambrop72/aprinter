@@ -31,7 +31,7 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename List, typename Predicate>
-using TypeListFind = TypeListGet<List, TypeListIndex<List, Predicate>::value>;
+using TypeListFind = TypeListGet<List, TypeListIndex<List, Predicate>::Value>;
 
 #include <aprinter/EndNamespace.h>
 

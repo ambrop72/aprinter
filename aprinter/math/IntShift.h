@@ -73,7 +73,7 @@ public:
             (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 2) ? shift_s32_r2(op) :
             (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 1) ? shift_s32_r1(op) :
 #endif
-            (op / PowerOfTwo<OpType, ShiftCount>::value);
+            (op / PowerOfTwo<OpType, ShiftCount>::Value);
     }
 };
 
@@ -105,7 +105,7 @@ public:
             (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 14) ? shift_s32_l14(op) :
             (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 15) ? shift_s32_l15(op) :
 #endif
-            (op * PowerOfTwo<ResType, ShiftCount>::value);
+            (op * PowerOfTwo<ResType, ShiftCount>::Value);
     }
 };
 

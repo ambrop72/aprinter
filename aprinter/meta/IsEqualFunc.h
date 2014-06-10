@@ -34,7 +34,7 @@ template <typename T>
 struct IsEqualFunc {
     template <typename U>
     struct Call {
-        typedef WrapBool<TypesAreEqual<U, T>::value> Type;
+        typedef WrapBool<TypesAreEqual<U, T>::Value> Type;
     };
 };
 

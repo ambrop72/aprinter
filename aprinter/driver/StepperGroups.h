@@ -68,12 +68,12 @@ private:
     template <int GroupIndex, typename Dummy = void>
     struct FirstStepperInGroup {
         using PreviousGroup = Group<(GroupIndex - 1)>;
-        static int const value = PreviousGroup::FirstStepperIndex + PreviousGroup::NumSteppers;
+        static int const Value = PreviousGroup::FirstStepperIndex + PreviousGroup::NumSteppers;
     };
     
     template <typename Dummy>
     struct FirstStepperInGroup<0, Dummy> {
-        static int const value = 0;
+        static int const Value = 0;
     };
     
     using StepperDefList = TypeListFold<MapTypeList<GroupParamsList, GetMemberType_StepperDefList>, EmptyTypeList, JoinTwoTypeListsSwapped>;
@@ -85,8 +85,8 @@ public:
         friend StepperGroups;
         using GroupParams = TypeListGet<GroupParamsList, GroupIndex>;
         using GroupStepperDefList = typename GroupParams::StepperDefList;
-        static int const FirstStepperIndex = FirstStepperInGroup<GroupIndex>::value;
-        static int const NumSteppers = TypeListLength<GroupStepperDefList>::value;
+        static int const FirstStepperIndex = FirstStepperInGroup<GroupIndex>::Value;
+        static int const NumSteppers = TypeListLength<GroupStepperDefList>::Value;
         using GroupSteppersList = TypeListRange<typename TheSteppers::SteppersList, FirstStepperIndex, NumSteppers>;
         
     public:

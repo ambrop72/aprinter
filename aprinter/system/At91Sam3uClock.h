@@ -154,7 +154,7 @@ private:
     using MyTcsTuple = IndexElemTuple<TcsList, MyTc>;
     
     template <typename TcSpec>
-    using FindTc = MyTc<TypeListIndex<TcsList, IsEqualFunc<TcSpec>>::value>;
+    using FindTc = MyTc<TypeListIndex<TcsList, IsEqualFunc<TcSpec>>::Value>;
     
 public:
     static void init (Context c)
@@ -372,8 +372,8 @@ struct At91Sam3uClockInterruptTimerService {
 
 #define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(tcspec, comp, timer, context) \
 static_assert( \
-    TypesAreEqual<timer::TcSpec, tcspec>::value  && \
-    TypesAreEqual<timer::Comp, comp>::value, \
+    TypesAreEqual<timer::TcSpec, tcspec>::Value  && \
+    TypesAreEqual<timer::Comp, comp>::Value, \
     "Incorrect TCXY macro used" \
 ); \
 template <> \

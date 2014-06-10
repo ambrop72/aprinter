@@ -237,8 +237,8 @@ template <typename ParentObject, typename Loop, typename FastEventList>
 class BusyEventLoopExtra {
     friend Loop;
     
-    static const int NumFastEvents = TypeListLength<FastEventList>::value;
-    using FastEventSizeType = ChooseInt<MaxValue(1, BitsInInt<NumFastEvents>::value), false>;
+    static const int NumFastEvents = TypeListLength<FastEventList>::Value;
+    using FastEventSizeType = ChooseInt<MaxValue(1, BitsInInt<NumFastEvents>::Value), false>;
     
     struct FastEventState {
         bool not_triggered;
@@ -248,7 +248,7 @@ class BusyEventLoopExtra {
     template <typename EventSpec>
     static constexpr FastEventSizeType get_event_index ()
     {
-        return TypeListIndex<FastEventList, IsEqualFunc<EventSpec>>::value;
+        return TypeListIndex<FastEventList, IsEqualFunc<EventSpec>>::Value;
     }
     
 public:

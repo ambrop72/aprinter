@@ -76,10 +76,10 @@ private:
 #endif
     
 public:
-    static int const value =
-        HasAtomicContextTag::template Call<ThisContext>::Type::value ? CONTEXT_ATOMIC :
+    static int const Value =
+        HasAtomicContextTag::template Call<ThisContext>::Type::Value ? CONTEXT_ATOMIC :
 #if !defined(AMBROLIB_AVR)
-        HasInterruptContextTag::template Call<ThisContext>::Type::value ? CONTEXT_INTERRUPT :
+        HasInterruptContextTag::template Call<ThisContext>::Type::Value ? CONTEXT_INTERRUPT :
 #endif
         CONTEXT_NORMAL;
 };
@@ -117,24 +117,24 @@ private:
     
 public:
     template <typename ThisContext>
-    using EnterContext = typename LockHelper<ThisContext, GetContextType<ThisContext>::value>::EnterContext;
+    using EnterContext = typename LockHelper<ThisContext, GetContextType<ThisContext>::Value>::EnterContext;
     
     template <typename ThisContext>
     inline static EnterContext<ThisContext> makeContext (ThisContext c)
     {
-        return LockHelper<ThisContext, GetContextType<ThisContext>::value>::makeContext(c);
+        return LockHelper<ThisContext, GetContextType<ThisContext>::Value>::makeContext(c);
     }
     
     template <typename ThisContext>
     inline static void enterLock (ThisContext c)
     {
-        return LockHelper<ThisContext, GetContextType<ThisContext>::value>::enterLock(c);
+        return LockHelper<ThisContext, GetContextType<ThisContext>::Value>::enterLock(c);
     }
     
     template <typename ThisContext>
     inline static void exitLock (ThisContext c)
     {
-        return LockHelper<ThisContext, GetContextType<ThisContext>::value>::exitLock(c);
+        return LockHelper<ThisContext, GetContextType<ThisContext>::Value>::exitLock(c);
     }
 };
 

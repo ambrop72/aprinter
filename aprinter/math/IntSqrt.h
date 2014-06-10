@@ -62,7 +62,7 @@ public:
     {
         TempType op = op_arg;
         TempType res = 0;
-        TempType one = PowerOfTwo<TempType, (TempBits - 2)>::value;
+        TempType one = PowerOfTwo<TempType, (TempBits - 2)>::Value;
         
         while (one > op) {
             one >>= 2;
@@ -101,14 +101,14 @@ private:
         struct Work {
             static ResType call (TempType op, TempType res)
             {
-                TempType one = PowerOfTwo<TempType, (TempBits - 2 - (2 * I::value))>::value;
+                TempType one = PowerOfTwo<TempType, (TempBits - 2 - (2 * I::Value))>::Value;
                 if (op >= res + one) {
                     op -= res + one;
                     res = (res >> 1) + one;
                 } else {
                     res >>= 1;
                 }
-                return Work<WrapInt<(I::value + 1)>>::call(op, res);
+                return Work<WrapInt<(I::Value + 1)>>::call(op, res);
             }
         };
         
@@ -128,14 +128,14 @@ private:
     struct DefaultSqrt<false, Dummy0> {
         static ResType call (OpType op_arg)
         {
-            return Work<WrapInt<0>>::call(op_arg, PowerOfTwo<TempType, TempBits - 2>::value);
+            return Work<WrapInt<0>>::call(op_arg, PowerOfTwo<TempType, TempBits - 2>::Value);
         }
         
         template <typename I, typename Dummy = void>
         struct Work {
             static ResType call (TempType op, TempType res)
             {
-                static const TempType one = PowerOfTwo<TempType, TempBits - 2 - I::value>::value;
+                static const TempType one = PowerOfTwo<TempType, TempBits - 2 - I::Value>::Value;
                 static const TempType prev_one = one << 1;
                 static const TempType next_one = one >> 1;
                 static const TempType res_add_nobit = (TempType)(next_one - one);
@@ -147,7 +147,7 @@ private:
                     res += res_add_nobit;
                 }
                 op <<= 1;
-                return Work<WrapInt<(I::value + 1)>>::call(op, res);
+                return Work<WrapInt<(I::Value + 1)>>::call(op, res);
             }
         };
         
@@ -159,12 +159,12 @@ private:
                     if (Round) {
                         op -= res;
                     }
-                    res += PowerOfTwo<TempType, (TempBits / 2)>::value;
+                    res += PowerOfTwo<TempType, (TempBits / 2)>::Value;
                 }
                 if (Round) {
                     op <<= 1;
                     if (op > res) {
-                        res += PowerOfTwo<TempType, (TempBits / 2)>::value;
+                        res += PowerOfTwo<TempType, (TempBits / 2)>::Value;
                     }
                 }
                 return res >> (TempBits / 2);

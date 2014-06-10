@@ -31,7 +31,7 @@ template <typename ValueType, template<ValueType> class Template>
 struct ValueTemplateFunc {
     template <typename U>
     struct Call {
-        typedef Template<U::value> Type;
+        typedef Template<U::Value> Type;
     };
 };
 

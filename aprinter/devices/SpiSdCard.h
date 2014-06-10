@@ -46,7 +46,7 @@ private:
     struct SpiHandler;
     
     static const int SpiMaxCommands = MaxValue(6, 6 * MaxCommands);
-    static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::value;
+    static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
     using SpiCommandSizeType = typename TheSpi::CommandSizeType;
     

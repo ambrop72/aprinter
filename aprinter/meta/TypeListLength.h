@@ -34,12 +34,12 @@ struct TypeListLength;
 
 template <>
 struct TypeListLength<EmptyTypeList> {
-    static const int value = 0;
+    static const int Value = 0;
 };
 
 template <typename Head, typename Tail>
 struct TypeListLength<ConsTypeList<Head, Tail>> {
-    static const int value = 1 + TypeListLength<Tail>::value;
+    static const int Value = 1 + TypeListLength<Tail>::Value;
 };
 
 #include <aprinter/EndNamespace.h>

@@ -168,7 +168,7 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = true;
 #endif
-        o->m_consumer_id = TypeListIndex<typename ConsumersList::List, IsEqualFunc<TheConsumer>>::value;
+        o->m_consumer_id = TypeListIndex<typename ConsumersList::List, IsEqualFunc<TheConsumer>>::Value;
         o->m_current_command = first_command;
         Stepper::setDir(c, o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
         o->m_notdecel = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));

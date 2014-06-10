@@ -50,7 +50,7 @@ class Mk20Adc {
     static_assert(ADiv >= 0 && ADiv <= 3, "");
     
 private:
-    static const int NumPins = TypeListLength<ParamsPinsList>::value;
+    static const int NumPins = TypeListLength<ParamsPinsList>::Value;
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_isr, handle_isr)
     
@@ -97,7 +97,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        static const int PinIndex = TypeListIndex<ParamsPinsList, IsEqualFunc<Pin>>::value;
+        static const int PinIndex = TypeListIndex<ParamsPinsList, IsEqualFunc<Pin>>::Value;
         
         uint16_t value;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -156,7 +156,7 @@ private:
     struct AdcPin {
         struct Object;
         using Pin = TypeListGet<ParamsPinsList, PinIndex>;
-        static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
+        static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::Value;
         static const int NextPinIndex = (PinIndex + 1) % NumPins;
         
         static void init (Context c)

@@ -56,7 +56,7 @@ private:
     
     static int const NumDevChannels = 6;
     static int const SpiMaxCommands = 2;
-    static int const SpiCommandBits = BitsInInt<SpiMaxCommands>::value;
+    static int const SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
     
 public:

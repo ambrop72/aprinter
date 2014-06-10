@@ -209,7 +209,7 @@ public:
         static_assert(PowerExp - Exp >= 0, "");
         static_assert(PowerExp - Exp < NumBits, "");
         
-        return FixedPoint::importBits(PowerOfTwo<IntType, PowerExp - Exp>::value);
+        return FixedPoint::importBits(PowerOfTwo<IntType, PowerExp - Exp>::Value);
     }
     
     FixedPoint<NumBits, false, Exp> absVal () const
@@ -253,7 +253,7 @@ private:
         static FixedPoint call (FpType op)
         {
             using SingedIntType = ChooseInt<NumBits, true>;
-            constexpr FpType FpHigh = FloatIntRoundLimit<FpType, SingedIntType, NumBits>::value;
+            constexpr FpType FpHigh = FloatIntRoundLimit<FpType, SingedIntType, NumBits>::Value;
             constexpr FpType FpLow = Signed ? -FpHigh : 0.0f;
             
             if (Exp != 0) {
@@ -280,7 +280,7 @@ private:
                 op = ldexp(op, -Exp);
             }
             long int a = lround(op);
-            if (a == MinusPowerOfTwo<long int, LongIntBits>::value) {
+            if (a == MinusPowerOfTwo<long int, LongIntBits>::Value) {
                 if (FloatSignBit(op)) {
                     a = BoundedIntType::minIntValue();
                 } else {

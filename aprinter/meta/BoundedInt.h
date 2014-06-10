@@ -51,12 +51,12 @@ public:
     
     static constexpr IntType minIntValue ()
     {
-        return Signed ? -PowerOfTwoMinusOne<IntType, NumBits>::value : 0;
+        return Signed ? -PowerOfTwoMinusOne<IntType, NumBits>::Value : 0;
     }
     
     static constexpr IntType maxIntValue ()
     {
-        return PowerOfTwoMinusOne<IntType, NumBits>::value;
+        return PowerOfTwoMinusOne<IntType, NumBits>::Value;
     }
     
     static constexpr BoundedInt minValue ()

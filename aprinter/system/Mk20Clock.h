@@ -177,7 +177,7 @@ public:
     struct Object;
     using TimeType = uint32_t;
     
-    static constexpr TimeType prescale_divide = PowerOfTwo<TimeType, Prescale>::value;
+    static constexpr TimeType prescale_divide = PowerOfTwo<TimeType, Prescale>::Value;
     
     static constexpr double time_unit = (double)prescale_divide / F_BUS;
     static constexpr double time_freq = (double)F_BUS / prescale_divide;
@@ -200,7 +200,7 @@ private:
             static_assert(NumBits <= 16, "");
             
             static uint8_t const FtmPrescale = Prescale - PrescaleReduce;
-            static uint16_t const TopVal = PowerOfTwoMinusOne<uint16_t, NumBits>::value;
+            static uint16_t const TopVal = PowerOfTwoMinusOne<uint16_t, NumBits>::Value;
             static bool const SupportsTimer = true;
             
             template <int ChannelIndex>
@@ -288,7 +288,7 @@ private:
     using MyFtmsList = IndexElemList<FtmsList, MyFtm>;
     
     template <typename Ftm>
-    using FindFtm = MyFtm<TypeListIndex<FtmsList, ComposeFunctions<IsEqualFunc<Ftm>, GetMemberType_Ftm>>::value>;
+    using FindFtm = MyFtm<TypeListIndex<FtmsList, ComposeFunctions<IsEqualFunc<Ftm>, GetMemberType_Ftm>>::Value>;
     
 public:
     static void init (Context c)
@@ -495,7 +495,7 @@ struct Mk20ClockInterruptTimerService {
 
 #define AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(ftm, channel_index, timer, context) \
 static_assert( \
-    TypesAreEqual<timer::Ftm, ftm>::value && \
+    TypesAreEqual<timer::Ftm, ftm>::Value && \
     timer::ChannelIndex == channel_index, \
     "Incorrect INTERRUPT_TIMER_GLOBAL macro used" \
 ); \
@@ -526,7 +526,7 @@ private:
     using ChannelPin = TypeListFind<typename Channel::PinsList, ComposeFunctions<IsEqualFunc<Pin>, GetMemberType_Pin>>;
     
 public:
-    using DutyCycleType = ChooseInt<BitsInInt<(TheMyFtm::TheModeHelper::TopVal + 1)>::value, false>;
+    using DutyCycleType = ChooseInt<BitsInInt<(TheMyFtm::TheModeHelper::TopVal + 1)>::Value, false>;
     static DutyCycleType const MaxDutyCycle = TheMyFtm::TheModeHelper::TopVal + 1;
     
     static void init (Context c)

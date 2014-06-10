@@ -472,7 +472,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using TransformParams = typename Params::TransformParams;
     using ParamsHeatersList = typename Params::HeatersList;
     using ParamsFansList = typename Params::FansList;
-    static const int NumAxes = TypeListLength<ParamsAxesList>::value;
+    static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
@@ -973,7 +973,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static_assert(MaxCommandSize > 0, "");
         static_assert(BufferBaseSize >= BlockSize + (MaxCommandSize - 1), "");
         static const size_t WrapExtraSize = MaxCommandSize - 1;
-        using ParserSizeType = ChooseInt<BitsInInt<MaxCommandSize>::value, false>;
+        using ParserSizeType = ChooseInt<BitsInInt<MaxCommandSize>::Value, false>;
         using TheSdCard = typename Params::SdCardParams::SdCardService::template SdCard<Context, Object, 1, SdCardInitHandler, SdCardCommandHandler>;
         using TheGcodeParser = typename Params::SdCardParams::template GcodeParserTemplate<Context, Object, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
         using SdCardReadState = typename TheSdCard::ReadState;
@@ -1109,7 +1109,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             
-            if (TypesAreEqual<CommandChannel, TheChannelCommon>::value) {
+            if (TypesAreEqual<CommandChannel, TheChannelCommon>::Value) {
                 return true;
             }
             if (CommandChannel::TheGcodeParser::getCmdNumber(c) == 21) {
@@ -1491,7 +1491,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 ((typename StepFixedType::IntType)o->m_end_pos.bitsValue() - (typename StepFixedType::IntType)new_end_pos.bitsValue())
             );
             if (AMBRO_UNLIKELY(move.bitsValue() != 0)) {
-                if (AddDistance::value && AxisSpec::IsCartesian) {
+                if (AddDistance::Value && AxisSpec::IsCartesian) {
                     FpType delta = move.template fpValue<FpType>() * (FpType)(1.0 / DistConversion::value());
                     *distance_squared += delta * delta;
                 }
@@ -1678,8 +1678,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using TheTransformAlg = typename TransformParams::template TransformAlg<typename TransformParams::TransformAlgParams, FpType>;
         using TheSplitter = typename TheTransformAlg::Splitter;
         static int const NumVirtAxes = TheTransformAlg::NumAxes;
-        static_assert(TypeListLength<ParamsVirtAxesList>::value == NumVirtAxes, "");
-        static_assert(TypeListLength<ParamsPhysAxesList>::value == NumVirtAxes, "");
+        static_assert(TypeListLength<ParamsVirtAxesList>::Value == NumVirtAxes, "");
+        static_assert(TypeListLength<ParamsPhysAxesList>::Value == NumVirtAxes, "");
         
         struct PhysReqPosSrc {
             Context m_c;
@@ -1774,7 +1774,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void mark_phys_moved (Context c)
         {
             auto *o = Object::self(c);
-            if (IsPhysAxisTransformPhys<WrapInt<PhysAxisIndex>>::value) {
+            if (IsPhysAxisTransformPhys<WrapInt<PhysAxisIndex>>::Value) {
                 o->virt_update_pending = true;
             }
         }
@@ -1906,7 +1906,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             struct Object;
             using VirtAxisParams = TypeListGet<ParamsVirtAxesList, VirtAxisIndex>;
             static int const AxisName = VirtAxisParams::Name;
-            static int const PhysAxisIndex = FindAxis<TypeListGet<ParamsPhysAxesList, VirtAxisIndex>::value>::value;
+            static int const PhysAxisIndex = FindAxis<TypeListGet<ParamsPhysAxesList, VirtAxisIndex>::Value>::Value;
             using ThePhysAxis = Axis<PhysAxisIndex>;
             static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
@@ -2163,7 +2163,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 IsEqualFunc<PhysAxisIndex>,
                 GetMemberType_WrappedPhysAxisIndex
             >
-        >::value >= 0)>;
+        >::Value >= 0)>;
         
         using SecondaryAxisIndices = FilterTypeList<
             SequenceList<NumAxes>,
@@ -2172,11 +2172,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 TemplateFunc<IsPhysAxisTransformPhys>
             >
         >;
-        static int const NumSecondaryAxes = TypeListLength<SecondaryAxisIndices>::value;
+        static int const NumSecondaryAxes = TypeListLength<SecondaryAxisIndices>::Value;
         
         template <int SecondaryAxisIndex>
         struct SecondaryAxis {
-            static int const AxisIndex = TypeListGet<SecondaryAxisIndices, SecondaryAxisIndex>::value;
+            static int const AxisIndex = TypeListGet<SecondaryAxisIndices, SecondaryAxisIndex>::Value;
             using TheAxis = Axis<AxisIndex>;
             
             static void prepare_split (Context c, FpType *distance_squared)
@@ -2250,7 +2250,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     static int const NumPhysVirtAxes = NumAxes + TransformFeature::NumVirtAxes;
     using PhysVirtAxisMaskType = ChooseInt<NumPhysVirtAxes, false>;
-    static PhysVirtAxisMaskType const PhysAxisMask = PowerOfTwoMinusOne<PhysVirtAxisMaskType, NumAxes>::value;
+    static PhysVirtAxisMaskType const PhysAxisMask = PowerOfTwoMinusOne<PhysVirtAxisMaskType, NumAxes>::Value;
     
     template <bool IsVirt, int PhysVirtAxisIndex>
     struct GetPhysVirtAxisHelper {
@@ -2387,12 +2387,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         // compute the ADC readings corresponding to MinSafeTemp and MaxSafeTemp
         template <typename Temp>
         struct TempToAdcAbs {
-            using Result = AMBRO_WRAP_DOUBLE((TheFormula::template TempToAdc<Temp>::Result::value() * PowerOfTwo<double, AdcFixedType::num_bits>::value));
+            using Result = AMBRO_WRAP_DOUBLE((TheFormula::template TempToAdc<Temp>::Result::value() * PowerOfTwo<double, AdcFixedType::num_bits>::Value));
         };
         using InfAdcValueFp = typename TempToAdcAbs<typename HeaterSpec::MaxSafeTemp>::Result;
         using SupAdcValueFp = typename TempToAdcAbs<typename HeaterSpec::MinSafeTemp>::Result;
         static_assert(InfAdcValueFp::value() > 1, "");
-        static_assert(SupAdcValueFp::value() < PowerOfTwoMinusOne<AdcIntType, AdcFixedType::num_bits>::value, "");
+        static_assert(SupAdcValueFp::value() < PowerOfTwoMinusOne<AdcIntType, AdcFixedType::num_bits>::Value, "");
         static constexpr AdcIntType InfAdcValue = InfAdcValueFp::value();
         static constexpr AdcIntType SupAdcValue = SupAdcValueFp::value();
         
@@ -2425,7 +2425,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static FpType adc_to_temp (AdcFixedType adc_value)
         {
-            FpType adc_fp = adc_value.template fpValue<FpType>() + (FpType)(0.5 / PowerOfTwo<double, AdcFixedType::num_bits>::value);
+            FpType adc_fp = adc_value.template fpValue<FpType>() + (FpType)(0.5 / PowerOfTwo<double, AdcFixedType::num_bits>::Value);
             return TheFormula::adc_to_temp(adc_fp);
         }
         
@@ -2685,7 +2685,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 TheChannelCommon::finishCommand(c);
                 PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
                 PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
-                payload->type = TypeListLength<ParamsHeatersList>::value + FanIndex;
+                payload->type = TypeListLength<ParamsHeatersList>::Value + FanIndex;
                 ThePwm::computeDutyCycle(target, &UnionGetElem<FanIndex>(&payload->fans)->duty);
                 ThePlanner::channelCommandDone(c, 1);
                 submitted_planner_command(c);
@@ -2735,8 +2735,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::Enabled) {
         struct Object;
         using ProbeParams = typename Params::ProbeParams;
-        static const int NumPoints = TypeListLength<typename ProbeParams::ProbePoints>::value;
-        static const int ProbeAxisIndex = FindPhysVirtAxis<Params::ProbeParams::ProbeAxis>::value;
+        static const int NumPoints = TypeListLength<typename ProbeParams::ProbePoints>::Value;
+        static const int ProbeAxisIndex = FindPhysVirtAxis<Params::ProbeParams::ProbeAxis>::Value;
         
         static void init (Context c)
         {
@@ -2770,7 +2770,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <int PlatformAxisIndex>
         struct AxisHelper {
             using PlatformAxis = TypeListGet<typename ProbeParams::PlatformAxesList, PlatformAxisIndex>;
-            static const int AxisIndex = FindPhysVirtAxis<PlatformAxis::value>::value;
+            static const int AxisIndex = FindPhysVirtAxis<PlatformAxis::Value>::Value;
             using AxisProbeOffset = TypeListGet<typename ProbeParams::ProbePlatformOffset, PlatformAxisIndex>;
             
             static void add_axis (Context c, MoveBuildState *s, uint8_t point_index)
@@ -3509,7 +3509,7 @@ public: // private, see comment on top
         ob->debugAccess(c);
         
         ListForOneBoolOffset<HeatersList, 0>(payload->type, LForeach_channel_callback(), c, &payload->heaters) ||
-        ListForOneBoolOffset<FansList, TypeListLength<ParamsHeatersList>::value>(payload->type, LForeach_channel_callback(), c, &payload->fans);
+        ListForOneBoolOffset<FansList, TypeListLength<ParamsHeatersList>::Value>(payload->type, LForeach_channel_callback(), c, &payload->fans);
     }
     
     template <int AxisIndex>

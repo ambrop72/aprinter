@@ -41,28 +41,28 @@
 
 template <typename T>
 struct IsFpType {
-    static bool const value = false;
+    static bool const Value = false;
 };
 
 template <>
 struct IsFpType<float> {
-    static bool const value = true;
+    static bool const Value = true;
 };
 
 template <>
 struct IsFpType<double> {
-    static bool const value = true;
+    static bool const Value = true;
 };
 
 template <typename T>
 struct IsFloat {
-    static bool const value = TypesAreEqual<T, float>::value;
+    static bool const Value = TypesAreEqual<T, float>::Value;
 };
 
 template <typename T>
 bool FloatIsPosOrPosZero (T x)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
     return (signbit(x) == 0 && !isnan(x));
 }
@@ -70,7 +70,7 @@ bool FloatIsPosOrPosZero (T x)
 template <typename T>
 T FloatMakePosOrPosZero (T x)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
     if (!(x > 0.0f)) {
         x = 0.0f;
@@ -81,7 +81,7 @@ T FloatMakePosOrPosZero (T x)
 template <typename T>
 bool FloatIsNan (T x)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
     return isnan(x);
 }
@@ -146,7 +146,7 @@ static void FloatToStrSoft (double x, char *s, int prec_approx = 6, bool pretty 
 template <typename T>
 bool FloatSignBit (T x)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
 #ifdef AMBROLIB_AVR
     static_assert(sizeof(x) == 4, "");
@@ -161,90 +161,90 @@ bool FloatSignBit (T x)
 template <typename T>
 T FloatSqrt (T x)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
-    return IsFloat<T>::value ? sqrtf(x) : sqrt(x);
+    return IsFloat<T>::Value ? sqrtf(x) : sqrt(x);
 }
 
 template <typename T>
 T StrToFloat (char const *nptr, char **endptr)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
 #ifdef AMBROLIB_AVR
     return strtod(nptr, endptr);
 #else
-    return IsFloat<T>::value ? strtof(nptr, endptr) : strtod(nptr, endptr);
+    return IsFloat<T>::Value ? strtof(nptr, endptr) : strtod(nptr, endptr);
 #endif
 }
 
 template <typename T>
 T FloatLdexp (T x, int exp)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
-    return IsFloat<T>::value ? ldexpf(x, exp) : ldexp(x, exp);
+    return IsFloat<T>::Value ? ldexpf(x, exp) : ldexp(x, exp);
 }
 
 template <typename T>
 T FloatRound (T x)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
-    return IsFloat<T>::value ? roundf(x) : round(x);
+    return IsFloat<T>::Value ? roundf(x) : round(x);
 }
 
 template <typename T>
 T FloatCeil (T x)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
-    return IsFloat<T>::value ? ceilf(x) : ceil(x);
+    return IsFloat<T>::Value ? ceilf(x) : ceil(x);
 }
 
 template <typename T>
 T FloatAbs (T x)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
-    return IsFloat<T>::value ? fabsf(x) : fabs(x);
+    return IsFloat<T>::Value ? fabsf(x) : fabs(x);
 }
 
 template <typename T>
 T FloatLog (T x)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
-    return IsFloat<T>::value ? logf(x) : log(x);
+    return IsFloat<T>::Value ? logf(x) : log(x);
 }
 
 template <typename T>
 T FloatExp (T x)
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
-    return IsFloat<T>::value ? expf(x) : exp(x);
+    return IsFloat<T>::Value ? expf(x) : exp(x);
 }
 
 template <typename T1, typename T2>
-using FloatPromote = If<(IsFloat<T1>::value && IsFloat<T2>::value), float, double>;
+using FloatPromote = If<(IsFloat<T1>::Value && IsFloat<T2>::Value), float, double>;
 
 template <typename T1, typename T2>
 FloatPromote<T1, T2> FloatMin (T1 x, T2 y)
 {
-    static_assert(IsFpType<T1>::value, "");
-    static_assert(IsFpType<T2>::value, "");
+    static_assert(IsFpType<T1>::Value, "");
+    static_assert(IsFpType<T2>::Value, "");
     
-    return IsFloat<FloatPromote<T1, T2>>::value ? fminf(x, y) : fmin(x, y);
+    return IsFloat<FloatPromote<T1, T2>>::Value ? fminf(x, y) : fmin(x, y);
 }
 
 template <typename T1, typename T2>
 FloatPromote<T1, T2> FloatMax (T1 x, T2 y)
 {
-    static_assert(IsFpType<T1>::value, "");
-    static_assert(IsFpType<T2>::value, "");
+    static_assert(IsFpType<T1>::Value, "");
+    static_assert(IsFpType<T2>::Value, "");
     
-    return IsFloat<FloatPromote<T1, T2>>::value ? fmaxf(x, y) : fmax(x, y);
+    return IsFloat<FloatPromote<T1, T2>>::Value ? fmaxf(x, y) : fmax(x, y);
 }
 
 struct FloatIdentity {};
@@ -252,31 +252,31 @@ struct FloatIdentity {};
 template <typename T2>
 T2 FloatMin (FloatIdentity, T2 y)
 {
-    static_assert(IsFpType<T2>::value, "");
+    static_assert(IsFpType<T2>::Value, "");
     return y;
 }
 
 template <typename T2>
 T2 FloatMax (FloatIdentity, T2 y)
 {
-    static_assert(IsFpType<T2>::value, "");
+    static_assert(IsFpType<T2>::Value, "");
     return y;
 }
 
 template <typename T>
 T FloatPositiveIntegerRange ()
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
-    return FloatLdexp<T>(1.0f, (IsFloat<T>::value ? FLT_MANT_DIG : DBL_MANT_DIG));
+    return FloatLdexp<T>(1.0f, (IsFloat<T>::Value ? FLT_MANT_DIG : DBL_MANT_DIG));
 }
 
 template <typename T>
 T FloatSignedIntegerRange ()
 {
-    static_assert(IsFpType<T>::value, "");
+    static_assert(IsFpType<T>::Value, "");
     
-    return FloatLdexp<T>(1.0f, (IsFloat<T>::value ? FLT_MANT_DIG : DBL_MANT_DIG) - 1);
+    return FloatLdexp<T>(1.0f, (IsFloat<T>::Value ? FLT_MANT_DIG : DBL_MANT_DIG) - 1);
 }
 
 #define APRINTER_DEFINE_INT_ROUND_HELPER_START \
@@ -297,11 +297,11 @@ struct FloatRoundImpl;
 
 template <typename Dummy>
 struct FloatRoundImpl<4, Dummy> {
-    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(lroundf(0)), int32_t>::value, "");
-    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(lround(0)), int32_t>::value, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(lroundf(0)), int32_t>::Value, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(lround(0)), int32_t>::Value, "");
 #if !defined(AMBROLIB_AVR)
-    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(llroundf(0)), int64_t>::value, "");
-    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(llround(0)), int64_t>::value, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(llroundf(0)), int64_t>::Value, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(llround(0)), int64_t>::Value, "");
 #endif
     
     APRINTER_DEFINE_INT_ROUND_HELPER_START
@@ -319,8 +319,8 @@ struct FloatRoundImpl<4, Dummy> {
 
 template <typename Dummy>
 struct FloatRoundImpl<8, Dummy> {
-    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(lroundf(0)), int64_t>::value, "");
-    static_assert(TypesAreEqual<Dummy, void>::value && TypesAreEqual<decltype(lround(0)), int64_t>::value, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(lroundf(0)), int64_t>::Value, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(lround(0)), int64_t>::Value, "");
     
     APRINTER_DEFINE_INT_ROUND_HELPER_START
     APRINTER_DEFINE_INT_ROUND_HELPER(float, int8_t, lroundf)
@@ -336,7 +336,7 @@ struct FloatRoundImpl<8, Dummy> {
 template <typename IntType, typename FpType>
 IntType FloatIntRound (FpType x)
 {
-    static_assert(IsFpType<FpType>::value, "");
+    static_assert(IsFpType<FpType>::Value, "");
     static_assert(IntTypeInfo<IntType>::Signed, "");
     
     return FloatRoundImpl<sizeof(long int)>::template FloatIntRoundHelper<FpType, IntType>::call(x);
@@ -344,7 +344,7 @@ IntType FloatIntRound (FpType x)
 
 template <typename FpType, typename IntType, int Bits>
 class FloatIntRoundLimit {
-    static constexpr IntType MaxInt = PowerOfTwoMinusOne<IntType, Bits>::value;
+    static constexpr IntType MaxInt = PowerOfTwoMinusOne<IntType, Bits>::Value;
     static constexpr FpType FpPower = __builtin_ldexp(1.0, Bits);
     
     static constexpr FpType helper (IntType x)
@@ -353,7 +353,7 @@ class FloatIntRoundLimit {
     }
     
 public:
-    static constexpr FpType value = helper(MaxInt);
+    static constexpr FpType Value = helper(MaxInt);
 };
 
 #include <aprinter/EndNamespace.h>

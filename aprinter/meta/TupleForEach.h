@@ -118,7 +118,7 @@ struct TupleForOneHelper<Tuple<ConsTypeList<Head, Tail>>, Offset, Ret, IndexType
     template <typename Func, typename... Args>
     AMBRO_ALWAYS_INLINE static Ret call_always (IndexType index, TupleType *tuple, Func func, Args... args)
     {
-        if (AMBRO_LIKELY((index == Offset || TypesAreEqual<TailTupleType, Tuple<EmptyTypeList>>::value))) {
+        if (AMBRO_LIKELY((index == Offset || TypesAreEqual<TailTupleType, Tuple<EmptyTypeList>>::Value))) {
             return func(tuple->getHead(), args...);
         }
         return TupleForOneHelper<TailTupleType, Offset + 1, Ret, IndexType>::call_always(index, tuple->getTail(), func, args...);

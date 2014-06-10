@@ -119,7 +119,7 @@ class At91SamAdc {
     static_assert(AdcPrescal >= 0, "");
     static_assert(AdcPrescal <= 255, "");
     
-    static const int NumPins = TypeListLength<ParamsPinsList>::value;
+    static const int NumPins = TypeListLength<ParamsPinsList>::Value;
     
 #if defined(__SAM3X8E__)
     using AdcList = MakeTypeList<
@@ -260,7 +260,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        static int const PinIndex = TypeListIndex<FlatPinsList, IsEqualFunc<Pin>>::value;
+        static int const PinIndex = TypeListIndex<FlatPinsList, IsEqualFunc<Pin>>::Value;
         return FixedType::importBits(AdcPin<PinIndex>::get_value(c));
     }
     
@@ -374,7 +374,7 @@ private:
         };
         
         using Pin = typename TheHelper::RealPin;
-        static int const AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
+        static int const AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::Value;
         
         struct Object : public ObjBase<AdcPin, typename At91SamAdc::Object, MakeTypeList<
             TheHelper
@@ -385,8 +385,8 @@ private:
     using FlatPinsList = MapTypeList<PinsList, GetMemberType_Pin>;
     
     template <typename ListElem, typename AccumValue>
-    using MaxAdcIndexFoldFunc = WrapInt<MaxValue(AccumValue::value, ListElem::AdcIndex)>;
-    static int const MaxAdcIndex = TypeListFold<PinsList, WrapInt<0>, MaxAdcIndexFoldFunc>::value;
+    using MaxAdcIndexFoldFunc = WrapInt<MaxValue(AccumValue::Value, ListElem::AdcIndex)>;
+    static int const MaxAdcIndex = TypeListFold<PinsList, WrapInt<0>, MaxAdcIndexFoldFunc>::Value;
     
 public:
     struct Object : public ObjBase<At91SamAdc, ParentObject, JoinTypeLists<

@@ -29,12 +29,12 @@
 
 template <typename T1, typename T2>
 struct TypesAreEqual {
-    static const bool value = false;
+    static const bool Value = false;
 };
 
 template <typename T>
 struct TypesAreEqual<T, T> {
-    static const bool value = true;
+    static const bool Value = true;
 };
 
 #include <aprinter/EndNamespace.h>

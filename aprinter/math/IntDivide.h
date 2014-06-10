@@ -62,17 +62,17 @@ private:
     static ResType default_divide (Op1Type op1, Op2Type op2)
     {
         if (SupportZero && op2 == 0) {
-            return (op1 < 0) ? -PowerOfTwoMinusOne<ResType, ResSatBits>::value :
+            return (op1 < 0) ? -PowerOfTwoMinusOne<ResType, ResSatBits>::Value :
                    (op1 == 0) ? 0 :
-                   PowerOfTwoMinusOne<ResType, ResSatBits>::value;
+                   PowerOfTwoMinusOne<ResType, ResSatBits>::Value;
         }
-        TempResType res = (((TempResType)op1 * PowerOfTwo<TempResType, LeftShift>::value) / (TempType2)op2);
+        TempResType res = (((TempResType)op1 * PowerOfTwo<TempResType, LeftShift>::Value) / (TempType2)op2);
         if (ResSatBits < NumBits1 + LeftShift) {
-            if (res > PowerOfTwoMinusOne<ResType, ResSatBits>::value) {
-                res = PowerOfTwoMinusOne<ResType, ResSatBits>::value;
+            if (res > PowerOfTwoMinusOne<ResType, ResSatBits>::Value) {
+                res = PowerOfTwoMinusOne<ResType, ResSatBits>::Value;
             } else if (Signed1 || Signed2) {
-                if (res < -PowerOfTwoMinusOne<ResType, ResSatBits>::value) {
-                    res = -PowerOfTwoMinusOne<ResType, ResSatBits>::value;
+                if (res < -PowerOfTwoMinusOne<ResType, ResSatBits>::Value) {
+                    res = -PowerOfTwoMinusOne<ResType, ResSatBits>::Value;
                 }
             }
         }

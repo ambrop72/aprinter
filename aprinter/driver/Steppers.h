@@ -64,7 +64,7 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
     
-    static int const NumSteppers = TypeListLength<StepperDefsList>::value;
+    static int const NumSteppers = TypeListLength<StepperDefsList>::Value;
     using MaskType = ChooseInt<NumSteppers, false>;
     
 public:
@@ -81,7 +81,7 @@ public:
         using TheWrappedMask = WrapValue<MaskType, TheMask>;
         
         template <typename X, typename Y>
-        using OrMaskFunc = WrapValue<MaskType, (X::value | Y::value)>;
+        using OrMaskFunc = WrapValue<MaskType, (X::Value | Y::Value)>;
         
         // workaround clang bug
         template <int X>
@@ -91,7 +91,7 @@ public:
             MapTypeList<
                 FilterTypeList<
                     MapTypeList<
-                        SequenceList<TypeListLength<StepperDefsList>::value>,
+                        SequenceList<TypeListLength<StepperDefsList>::Value>,
                         ValueTemplateFunc<int, Stepper_>
                     >,
                     ComposeFunctions<
@@ -103,7 +103,7 @@ public:
             >,
             WrapValue<MaskType, 0>,
             OrMaskFunc
-        >::value;
+        >::Value;
         
         static bool const SharesEnable = (SameEnableMask != TheMask);
         

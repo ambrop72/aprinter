@@ -98,7 +98,7 @@ using Stm32f4Clock__Comp4 = Stm32f4Clock__Comp<offsetof(TIM_TypeDef, CCMR2), 8, 
 
 template <typename Context, typename ParentObject, uint16_t Prescale, typename ParamsTcsList>
 class Stm32f4Clock {
-    static_assert(TypeListLength<ParamsTcsList>::value > 0, "Need at least one timer.");
+    static_assert(TypeListLength<ParamsTcsList>::Value > 0, "Need at least one timer.");
     static_assert(TypeListGet<ParamsTcsList, 0>::Is32Bit, "First timer must be 32-bit.");
     
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
@@ -169,7 +169,7 @@ private:
     using MyTcsList = IndexElemList<ParamsTcsList, MyTc>;
     
     template <typename TcSpec>
-    using FindTc = MyTc<TypeListIndex<ParamsTcsList, IsEqualFunc<TcSpec>>::value>;
+    using FindTc = MyTc<TypeListIndex<ParamsTcsList, IsEqualFunc<TcSpec>>::Value>;
     
 public:
     static void init (Context c)
@@ -385,8 +385,8 @@ using Stm32f4ClockInterruptTimer_TC2C = Stm32f4ClockInterruptTimer<Position, Con
 
 #define AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(tcspec, comp, timer, context) \
 static_assert( \
-    TypesAreEqual<RemoveReference<decltype(timer)>::TcSpec, tcspec>::value  && \
-    TypesAreEqual<RemoveReference<decltype(timer)>::Comp, comp>::value, \
+    TypesAreEqual<RemoveReference<decltype(timer)>::TcSpec, tcspec>::Value  && \
+    TypesAreEqual<RemoveReference<decltype(timer)>::Comp, comp>::Value, \
     "Incorrect TCXY macro used" \
 ); \
 template <> \

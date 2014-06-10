@@ -31,12 +31,12 @@
 
 template <uintmax_t N>
 struct BitsInInt {
-    static const int value = 1 + BitsInInt<N / 2>::value;
+    static const int Value = 1 + BitsInInt<N / 2>::Value;
 };
 
 template <>
 struct BitsInInt<0> {
-    static const int value = 0;
+    static const int Value = 0;
 };
 
 #include <aprinter/EndNamespace.h>

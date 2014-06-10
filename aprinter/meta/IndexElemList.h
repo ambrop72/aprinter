@@ -39,7 +39,7 @@ using IndexElemListCount = MapTypeList<
 >;
 
 template <typename List, template<int> class ElemTemplate>
-using IndexElemList = IndexElemListCount<TypeListLength<List>::value, ElemTemplate>;
+using IndexElemList = IndexElemListCount<TypeListLength<List>::Value, ElemTemplate>;
 
 #include <aprinter/EndNamespace.h>
 

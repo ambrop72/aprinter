@@ -63,7 +63,7 @@ class AvrSpi {
         If<(Params::SpiSpeedDiv == 2), SpiSpeed<true, false, false>,
         void>>>>>>>;
     
-    static_assert(!TypesAreEqual<TheSpeed, void>::value, "Unsupported SpiSpeedDiv.");
+    static_assert(!TypesAreEqual<TheSpeed, void>::Value, "Unsupported SpiSpeedDiv.");
     
     using FastEvent = typename Context::EventLoop::template FastEventSpec<AvrSpi>;
     

@@ -54,7 +54,7 @@ struct FilterTypeListHelper<EmptyTypeList, Predicate> {
 
 template <typename Head, typename Tail, typename Predicate>
 struct FilterTypeListHelper<ConsTypeList<Head, Tail>, Predicate> {
-    typedef typename Private::FilterTypeListHelperHelper<Head, Tail, Predicate, Predicate::template Call<Head>::Type::value>::Type Type;
+    typedef typename Private::FilterTypeListHelperHelper<Head, Tail, Predicate, Predicate::template Call<Head>::Type::Value>::Type Type;
 };
 
 template <typename List, typename Predicate>

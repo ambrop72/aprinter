@@ -271,7 +271,7 @@ public:
     struct Object;
     using ClockTcSpec = TypeListGet<TcsList, 0>;
     using ClockTc = typename ClockTcSpec::Tc;
-    static_assert(TypesAreEqual<typename ClockTcSpec::Mode, AvrClockTcModeClock>::value, "First TC must be AvrClockTcModeClock.");
+    static_assert(TypesAreEqual<typename ClockTcSpec::Mode, AvrClockTcModeClock>::Value, "First TC must be AvrClockTcModeClock.");
     static_assert(!ClockTc::Is8Bit, "First TC must be 16-bit.");
     static uint16_t const PrescaleDivide = TPrescaleDivide;
     
@@ -366,7 +366,7 @@ private:
     using MyTcsList = IndexElemList<TcsList, MyTc>;
     
     template <typename Tc>
-    using FindTc = MyTc<TypeListIndex<MyTcsList, ComposeFunctions<IsEqualFunc<Tc>, GetMemberType_Tc>>::value>;
+    using FindTc = MyTc<TypeListIndex<MyTcsList, ComposeFunctions<IsEqualFunc<Tc>, GetMemberType_Tc>>::Value>;
     
 public:
     static void init (Context c)
@@ -444,7 +444,7 @@ public:
     
 private:
     using MyTc = typename Clock::template FindTc<Tc>;
-    static_assert(TypesAreEqual<typename MyTc::TcSpec::Mode, AvrClockTcModeClock>::value, "TC must be AvrClockTcModeClock.");
+    static_assert(TypesAreEqual<typename MyTc::TcSpec::Mode, AvrClockTcModeClock>::Value, "TC must be AvrClockTcModeClock.");
     static_assert(!Tc::Is8Bit, "");
     
 public:
@@ -662,7 +662,7 @@ public:
     
 private:
     using MyTc = typename Clock::template FindTc<Tc>;
-    static_assert(TypesAreEqual<typename MyTc::TcSpec::Mode, AvrClockTcModeClock>::value, "TC must be AvrClockTcModeClock.");
+    static_assert(TypesAreEqual<typename MyTc::TcSpec::Mode, AvrClockTcModeClock>::Value, "TC must be AvrClockTcModeClock.");
     static_assert(Tc::Is8Bit, "");
     
 public:
@@ -881,14 +881,14 @@ public:
 };
 
 #define AMBRO_AVR_CLOCK_ISRS(FirstTcNum, Clock, context) \
-static_assert(TypesAreEqual<Clock::ClockTc, AvrClockTc##FirstTcNum>::value, "Incorrect FirstTcNum specified in AMBRO_AVR_CLOCK_ISRS."); \
+static_assert(TypesAreEqual<Clock::ClockTc, AvrClockTc##FirstTcNum>::Value, "Incorrect FirstTcNum specified in AMBRO_AVR_CLOCK_ISRS."); \
 ISR(TIMER##FirstTcNum##_OVF_vect) \
 { \
     Clock::clock_timer_ovf_isr(MakeAtomicContext((context))); \
 }
 
 #define AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(TcNum, ChannelLetter, Timer, context) \
-static_assert(TypesAreEqual<Timer::TcChannel, AvrClockTcChannel##TcNum##ChannelLetter>::value, "Incorrect AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS macro used."); \
+static_assert(TypesAreEqual<Timer::TcChannel, AvrClockTcChannel##TcNum##ChannelLetter>::Value, "Incorrect AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS macro used."); \
 ISR(TIMER##TcNum##_COMP##ChannelLetter##_vect) \
 { \
     Timer::timer_comp_isr(MakeAtomicContext((context))); \
@@ -914,7 +914,7 @@ private:
     using MyTc = typename Clock::template FindTc<Tc>;
     static_assert(MyTc::TheModeHelper::IsPwmMode, "TC must be configured in PWM mode.");
     static_assert(Tc::Is8Bit, "TC must be 8-bit.");
-    static_assert(TypesAreEqual<Pin, TypeMapGet<AvrClock__PinMap, TcChannel>>::value, "Invalid Pin specified.");
+    static_assert(TypesAreEqual<Pin, TypeMapGet<AvrClock__PinMap, TcChannel>>::Value, "Invalid Pin specified.");
     static uint8_t const ComMask = (1 << TcChannel::com1) | (1 << TcChannel::com0);
     
 public:
@@ -990,12 +990,12 @@ private:
     using MyTc = typename Clock::template FindTc<Tc>;
     static_assert(MyTc::TheModeHelper::IsPwmMode, "TC must be configured in PWM mode.");
     static_assert(!Tc::Is8Bit, "TC must be 16-bit.");
-    static_assert(TypesAreEqual<Pin, TypeMapGet<AvrClock__PinMap, TcChannel>>::value, "Invalid Pin specified.");
+    static_assert(TypesAreEqual<Pin, TypeMapGet<AvrClock__PinMap, TcChannel>>::Value, "Invalid Pin specified.");
     static uint8_t const ComMask = (1 << TcChannel::com1) | (1 << TcChannel::com0);
     static uint32_t const PwmTopValPlus1 = (uint32_t)MyTc::TheModeHelper::PwmTopVal + 1;
     
 public:
-    using DutyCycleType = ChooseInt<BitsInInt<PwmTopValPlus1>::value>;
+    using DutyCycleType = ChooseInt<BitsInInt<PwmTopValPlus1>::Value>;
     static DutyCycleType const MaxDutyCycle = PwmTopValPlus1;
     
     static void init (Context c)

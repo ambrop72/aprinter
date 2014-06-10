@@ -55,7 +55,7 @@ struct AvrAdcGndPin {};
 template <typename Context, typename ParentObject, typename ParamsPinsList, int AdcRefSel, int AdcPrescaler>
 class AvrAdc {
 private:
-    static const int NumPins = TypeListLength<ParamsPinsList>::value;
+    static const int NumPins = TypeListLength<ParamsPinsList>::Value;
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_make_pin_mask, make_pin_mask)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_isr, handle_isr)
     
@@ -63,12 +63,12 @@ private:
     
     template <typename AdcPin>
     struct AdcPinMask {
-        static const MaskType value = 0;
+        static const MaskType Value = 0;
     };
     
     template <typename Pin1, typename Pin2, int Gain>
     struct AdcPinMask<AvrAdcDifferentialInput<Pin1, Pin2, Gain>> {
-        static const MaskType value = (AdcPinMask<Pin1>::value | AdcPinMask<Pin2>::value);
+        static const MaskType Value = (AdcPinMask<Pin1>::Value | AdcPinMask<Pin2>::Value);
     };
     
 #if defined(__AVR_ATmega164A__) || defined(__AVR_ATmega164PA__) || defined(__AVR_ATmega324A__) || \
@@ -112,7 +112,7 @@ private:
     
     template <int PortPinIndex>
     struct AdcPinMask<AvrPin<AvrPortA, PortPinIndex>> {
-        static const MaskType value = ((MaskType)1 << PortPinIndex);
+        static const MaskType Value = ((MaskType)1 << PortPinIndex);
     };
     
 #elif defined(__AVR_ATmega640__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega1281__) || \
@@ -186,12 +186,12 @@ private:
     
     template <int PortPinIndex>
     struct AdcPinMask<AvrPin<AvrPortF, PortPinIndex>> {
-        static const MaskType value = ((MaskType)1 << PortPinIndex);
+        static const MaskType Value = ((MaskType)1 << PortPinIndex);
     };
     
     template <int PortPinIndex>
     struct AdcPinMask<AvrPin<AvrPortK, PortPinIndex>> {
-        static const MaskType value = ((MaskType)1 << (8 + PortPinIndex));
+        static const MaskType Value = ((MaskType)1 << (8 + PortPinIndex));
     };
     
 #else
@@ -222,7 +222,7 @@ public:
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        static const int PinIndex = TypeListIndex<ParamsPinsList, IsEqualFunc<Pin>>::value;
+        static const int PinIndex = TypeListIndex<ParamsPinsList, IsEqualFunc<Pin>>::Value;
         
         uint16_t value;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -286,12 +286,12 @@ private:
     struct AdcPin {
         struct Object;
         using Pin = TypeListGet<ParamsPinsList, PinIndex>;
-        static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::value;
+        static const int AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::Value;
         static const int NextPinIndex = (PinIndex + 1) % NumPins;
         
         static MaskType make_pin_mask (MaskType accum)
         {
-            return (accum | AdcPinMask<Pin>::value);
+            return (accum | AdcPinMask<Pin>::Value);
         }
         
         static bool handle_isr (AtomicContext<Context> c)

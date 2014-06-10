@@ -32,7 +32,7 @@
 struct NotFunc {
     template <typename X>
     struct Call {
-        typedef WrapBool<(!X::value)> Type;
+        typedef WrapBool<(!X::Value)> Type;
     };
 };
 
