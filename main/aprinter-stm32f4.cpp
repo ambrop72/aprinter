@@ -535,7 +535,7 @@ using AdcPins = MakeTypeList<
     At91SamAdcSmoothPin<DuePinA2, AdcSmoothing>
 >;
 
-using AdcParams = At91Sam3xAdcParams<
+using AdcParams = At91SamAdcParams<
     AdcFreq,
     8, // AdcStartup
     3, // AdcSettling
@@ -621,7 +621,7 @@ AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC7, At91Sam3xClockCo
 AMBRO_AT91SAM3X_SERIAL_GLOBAL(*p.myprinter.getSerial(), MyContext())
 #endif
 AMBRO_AT91SAM3X_SPI_GLOBAL(*p.myprinter.getSdCard()->getSpi(), MyContext())
-AMBRO_AT91SAM3X_ADC_GLOBAL(p.myadc, MyContext())
+AMBRO_AT91SAM_ADC_GLOBAL(p.myadc, MyContext())
 #endif
 
 AMBRO_STM32F4_USB_GLOBAL(MyUsb, MyContext())

@@ -66,11 +66,13 @@ configure_sam3x() {
         -I"${ASF_DIR}/sam/utils/header_files"
         -I"${ASF_DIR}/sam/boards"
         -I"${ASF_DIR}/sam/drivers/pmc"
+        -I"${ASF_DIR}/sam/drivers/pio"
         -I"${ASF_DIR}/common/utils"
         -I"${ASF_DIR}/common/services/usb"
         -I"${ASF_DIR}/common/services/usb/udc"
         -I"${ASF_DIR}/common/services/clock"
         -I"${ASF_DIR}/common/services/sleepmgr"
+        -I"${ASF_DIR}/common/services/ioport"
         -I"${ASF_DIR}/common/services/usb/class/cdc"
         -I"${ASF_DIR}/common/services/usb/class/cdc/device"
         -I"${ASF_DIR}/common/boards"
@@ -106,6 +108,10 @@ configure_sam3x() {
         elif [ "$ARCH" = "sam3u" ]; then
             C_SOURCES+=(
                 "${ASF_DIR}/sam/drivers/udphs/udphs_device.c"
+            )
+        elif [ "$ARCH" = "sam3s" ]; then
+            C_SOURCES+=(
+                "${ASF_DIR}/sam/drivers/udp/udp_device.c"
             )
         fi
 

@@ -50,15 +50,16 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#if defined(__SAM3X8E__)
+struct At91SamAdcTempInput {};
+struct At91SamAdcUnsupportedInput {};
 
-struct At91Sam3xAdcTempInput {};
+#if defined(__SAM3X8E__) || defined(__SAM3S2A__)
 
 template <
     typename TAdcFreq, uint8_t TAdcStartup, uint8_t TAdcSettling, uint8_t TAdcTracking, uint8_t TAdcTransfer,
     typename TAvgParams
 >
-struct At91Sam3xAdcParams {
+struct At91SamAdcParams {
     using AdcFreq = TAdcFreq;
     static const uint8_t AdcStartup = TAdcStartup;
     static const uint8_t AdcSettling = TAdcSettling;
@@ -101,7 +102,7 @@ struct At91SamAdcSmoothPin {};
 
 template <typename Context, typename ParentObject, typename ParamsPinsList, typename Params>
 class At91SamAdc {
-#if defined(__SAM3X8E__)
+#if defined(__SAM3X8E__) || defined(__SAM3S2A__)
     static_assert(Params::AdcFreq::value() >= 1000000.0, "");
     static_assert(Params::AdcFreq::value() <= 20000000.0, "");
     static_assert(Params::AdcStartup < 16, "");
@@ -138,7 +139,34 @@ class At91SamAdc {
         At91SamPin<At91SamPioB, 19>,
         At91SamPin<At91SamPioB, 20>,
         At91SamPin<At91SamPioB, 21>,
-        At91Sam3xAdcTempInput
+        At91SamAdcTempInput
+    >;
+#elif defined(__SAM3S2A__)
+    using AdcList = MakeTypeList<
+        At91SamPin<At91SamPioA, 17>,
+        At91SamPin<At91SamPioA, 18>,
+        At91SamPin<At91SamPioA, 19>,
+        At91SamPin<At91SamPioA, 20>,
+        At91SamPin<At91SamPioB, 0>,
+        At91SamPin<At91SamPioB, 1>,
+        At91SamPin<At91SamPioB, 2>,
+        At91SamPin<At91SamPioB, 3>,
+        At91SamPin<At91SamPioA, 21>,
+        At91SamPin<At91SamPioA, 22>,
+#ifdef PIOC
+        At91SamPin<At91SamPioC, 13>,
+        At91SamPin<At91SamPioC, 15>,
+        At91SamPin<At91SamPioC, 12>,
+        At91SamPin<At91SamPioC, 29>,
+        At91SamPin<At91SamPioC, 30>,
+#else
+        At91SamAdcUnsupportedInput,
+        At91SamAdcUnsupportedInput,
+        At91SamAdcUnsupportedInput,
+        At91SamAdcUnsupportedInput,
+        At91SamAdcUnsupportedInput,
+#endif
+        At91SamAdcTempInput
     >;
 #elif defined(__SAM3U4E__)
     using AdcList = MakeTypeList<
@@ -198,7 +226,7 @@ public:
         if (NumPins > 0) {
             AvgFeature::init(c);
             ListForEachForward<PinsList>(LForeach_init(), c);
-#if defined(__SAM3X8E__)
+#if defined(__SAM3X8E__) || defined(__SAM3S2A__)
             pmc_enable_periph_clk(ID_ADC);
             ADC->ADC_CHDR = UINT32_MAX;
             ADC->ADC_CHER = ListForEachForwardAccRes<PinsList>(0, LForeach_make_pin_mask());
@@ -236,7 +264,7 @@ public:
         auto *o = Object::self(c);
         o->debugDeinit(c);
         if (NumPins > 0) {
-#if defined(__SAM3X8E__)
+#if defined(__SAM3X8E__) || defined(__SAM3S2A__)
             NVIC_DisableIRQ(ADC_IRQn);
             ADC->ADC_IDR = UINT32_MAX;
             NVIC_ClearPendingIRQ(ADC_IRQn);
@@ -267,7 +295,7 @@ public:
     static void adc_isr (InterruptContext<Context> c)
     {
         AvgFeature::work(c);
-#if defined(__SAM3X8E__)
+#if defined(__SAM3X8E__) || defined(__SAM3S2A__)
         ADC->ADC_CDR[MaxAdcIndex];
         ADC->ADC_CR = ADC_CR_START;
 #elif defined(__SAM3U4E__)
@@ -317,7 +345,7 @@ private:
             template <typename ThisContext>
             static uint16_t get_value (ThisContext c)
             {
-#if defined(__SAM3X8E__)
+#if defined(__SAM3X8E__) || defined(__SAM3S2A__)
                 return ADC->ADC_CDR[AdcIndex];
 #elif defined(__SAM3U4E__)
                 return ADC12B->ADC12B_CDR[AdcIndex];
@@ -346,7 +374,7 @@ private:
             {
                 auto *o = Object::self(c);
                 uint16_t cdr;
-#if defined(__SAM3X8E__)
+#if defined(__SAM3X8E__) || defined(__SAM3S2A__)
                 cdr = ADC->ADC_CDR[AdcIndex];
 #elif defined(__SAM3U4E__)
                 cdr = ADC12B->ADC12B_CDR[AdcIndex];
@@ -400,9 +428,9 @@ public:
 };
 
 
-#if defined(__SAM3X8E__)
+#if defined(__SAM3X8E__) || defined(__SAM3S2A__)
 
-#define AMBRO_AT91SAM3X_ADC_GLOBAL(adc, context) \
+#define AMBRO_AT91SAM_ADC_GLOBAL(adc, context) \
 extern "C" \
 __attribute__((used)) \
 void ADC_Handler (void) \

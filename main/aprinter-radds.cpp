@@ -572,7 +572,7 @@ using AdcPins = MakeTypeList<
     At91SamAdcSmoothPin<DuePinA1, AdcSmoothing>
 >;
 
-using AdcParams = At91Sam3xAdcParams<
+using AdcParams = At91SamAdcParams<
     AdcFreq,
     8, // AdcStartup
     3, // AdcSettling
@@ -661,7 +661,7 @@ AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC7, At91Sam3xClockCo
 AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())
 #endif
 AMBRO_AT91SAM3X_SPI_GLOBAL(MyPrinter::GetSdCard<>::GetSpi, MyContext())
-AMBRO_AT91SAM3X_ADC_GLOBAL(MyAdc, MyContext())
+AMBRO_AT91SAM_ADC_GLOBAL(MyAdc, MyContext())
 
 static void emergency (void)
 {

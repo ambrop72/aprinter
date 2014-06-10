@@ -118,6 +118,20 @@ target_4pi() {
 
 #####################################################################################
 
+TARGETS+=( "mlab" )
+target_mlab() {
+    PLATFORM=sam3x
+    ASF_BOARD=32
+    ARCH=sam3s
+    SUBARCH=2
+    SUBSUBARCH=a
+    USE_USB_SERIAL=1
+    BOSSA_PORT=${DEFAULT_BOSSA_PORT}
+    BOSSA_USE_USB=1
+}
+
+#####################################################################################
+
 TARGETS+=( "teensy3" )
 target_teensy3() {
     PLATFORM=teensy
