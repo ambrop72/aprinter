@@ -33,6 +33,7 @@ template <typename TType, TType TValue>
 struct WrapValue {
     typedef TType Type;
     static constexpr Type Value = TValue;
+    static constexpr Type value () { return TValue; }
 };
 
 template <bool Value>
