@@ -80,6 +80,10 @@ configure_sam3x() {
         -I"${ASF_DIR}"
         -I aprinter/platform/at91${ARCH}
     )
+    
+    if [ $AT91SAM_ADC_TRIGGER_ERRATUM -gt 0 ]; then
+        FLAGS_C_CXX+=(-DAT91SAMADC_TRIGGER_ERRATUM)
+    fi
 
     C_SOURCES+=(
         "${TEMPLATES_DIR}/exceptions.c"
@@ -124,7 +128,7 @@ configure_sam3x() {
             "${ASF_DIR}/common/services/clock/${ARCH}/sysclk.c"
         )
     fi
-
+    
     # define target functions
     INSTALL=install_sam3x
     RUNBUILD=build_sam3x

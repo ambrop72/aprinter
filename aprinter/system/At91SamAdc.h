@@ -226,6 +226,7 @@ public:
         if (NumPins > 0) {
             AvgFeature::init(c);
             ListForEachForward<PinsList>(LForeach_init(), c);
+            
 #if defined(__SAM3X8E__) || defined(__SAM3S2A__)
             pmc_enable_periph_clk(ID_ADC);
             ADC->ADC_CHDR = UINT32_MAX;
@@ -239,8 +240,13 @@ public:
             NVIC_ClearPendingIRQ(ADC_IRQn);
             NVIC_SetPriority(ADC_IRQn, INTERRUPT_PRIORITY);
             NVIC_EnableIRQ(ADC_IRQn);
+#ifdef AT91SAMADC_TRIGGER_ERRATUM
+            ADC->ADC_IER = ADC_IER_DRDY;
+#else
             ADC->ADC_IER = (uint32_t)1 << MaxAdcIndex;
+#endif
             ADC->ADC_CR = ADC_CR_START;
+            
 #elif defined(__SAM3U4E__)
             pmc_enable_periph_clk(ID_ADC12B);
             ADC12B->ADC12B_CHDR = UINT32_MAX;
@@ -294,6 +300,14 @@ public:
     
     static void adc_isr (InterruptContext<Context> c)
     {
+#ifdef AT91SAMADC_TRIGGER_ERRATUM
+        bool end = (ADC->ADC_ISR & ((uint32_t)1 << MaxAdcIndex));
+        ADC->ADC_LCDR;
+        ADC->ADC_CR = ADC_CR_START;
+        if (end) {
+            AvgFeature::work(c);
+        }
+#else
         AvgFeature::work(c);
 #if defined(__SAM3X8E__) || defined(__SAM3S2A__)
         ADC->ADC_CDR[MaxAdcIndex];
@@ -301,6 +315,7 @@ public:
 #elif defined(__SAM3U4E__)
         ADC12B->ADC12B_CDR[MaxAdcIndex];
         ADC12B->ADC12B_CR = ADC12B_CR_START;
+#endif
 #endif
     }
     
