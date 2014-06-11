@@ -408,7 +408,19 @@ using PrinterParams = PrinterMainParams<
     /*
      * Fans.
      */
-    MakeTypeList<>
+    MakeTypeList<
+        PrinterMainFanParams<
+            106, // SetMCommand
+            107, // OffMCommand
+            FanSpeedMultiply, // SpeedMultiply
+            SoftPwmService<
+                At91SamPin<At91SamPioA, 20>, // OutputPin
+                false, // OutputInvert
+                FanPulseInterval, // PulseInterval
+                At91Sam3uClockInterruptTimerService<At91Sam3uClockTC1, At91Sam3uClockCompC>  // TimerTemplate
+            >
+        >
+    >
 >;
 
 // need to list all used ADC pins here
@@ -485,6 +497,7 @@ AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClockCo
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClockCompB, MyPrinter::GetAxisTimer<3>, MyContext())
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClockCompB, MyPrinter::GetHeaterPwm<0>::TheTimer, MyContext())
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClockCompC, MyPrinter::GetHeaterPwm<1>::TheTimer, MyContext())
+AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClockCompC, MyPrinter::GetFanPwm<0>::TheTimer, MyContext())
 
 AMBRO_AT91SAM_ADC_GLOBAL(MyAdc, MyContext())
 
