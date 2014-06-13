@@ -81,7 +81,7 @@ configure_sam3x() {
         -I aprinter/platform/at91${ARCH}
     )
     
-    if [ $AT91SAM_ADC_TRIGGER_ERRATUM -gt 0 ]; then
+    if [ "$AT91SAM_ADC_TRIGGER_ERRATUM" = "1" ]; then
         FLAGS_C_CXX+=(-DAT91SAMADC_TRIGGER_ERRATUM)
     fi
 
