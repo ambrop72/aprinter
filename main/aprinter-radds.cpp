@@ -46,6 +46,7 @@ static void emergency (void);
 #include <aprinter/system/AsfUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/driver/AxisDriver.h>
+#include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/pwm/SoftPwm.h>
@@ -55,6 +56,8 @@ static void emergency (void);
 #include <aprinter/board/arduino_due_pins.h>
 
 using namespace APrinter;
+
+APRINTER_CONFIG_START
 
 using AdcFreq = AMBRO_WRAP_DOUBLE(1000000.0);
 using AdcAvgInterval = AMBRO_WRAP_DOUBLE(0.0025);
@@ -69,8 +72,8 @@ using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
 using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 80.0);
-using XDefaultMin = AMBRO_WRAP_DOUBLE(-53.0);
-using XDefaultMax = AMBRO_WRAP_DOUBLE(210.0);
+APRINTER_CONFIG_OPTION_DOUBLE(XMin, -53.0)
+APRINTER_CONFIG_OPTION_DOUBLE(XMax, 210.0)
 using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
 using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
 using XDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
@@ -83,8 +86,8 @@ using XDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 80.0);
-using YDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using YDefaultMax = AMBRO_WRAP_DOUBLE(157.0);
+APRINTER_CONFIG_OPTION_DOUBLE(YMin, 0.0)
+APRINTER_CONFIG_OPTION_DOUBLE(YMax, 157.0)
 using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
 using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(650.0);
 using YDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
@@ -97,8 +100,8 @@ using YDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
 using YDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
 
 using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 4000.0);
-using ZDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using ZDefaultMax = AMBRO_WRAP_DOUBLE(100.0);
+APRINTER_CONFIG_OPTION_DOUBLE(ZMin, 0.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ZMax, 100.0)
 using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
 using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
 using ZDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
@@ -111,16 +114,16 @@ using ZDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(2.0);
 using ZDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
 
 using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 928.0);
-using EDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
-using EDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
+APRINTER_CONFIG_OPTION_DOUBLE(EMin, -40000.0)
+APRINTER_CONFIG_OPTION_DOUBLE(EMax, 40000.0)
 using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
 using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
 
 using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 660.0);
-using UDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
-using UDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
+APRINTER_CONFIG_OPTION_DOUBLE(UMin, -40000.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UMax, 40000.0)
 using UDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
 using UDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
 using UDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
@@ -202,6 +205,8 @@ using ProbeP2Y = AMBRO_WRAP_DOUBLE(155.0);
 using ProbeP3X = AMBRO_WRAP_DOUBLE(205.0);
 using ProbeP3Y = AMBRO_WRAP_DOUBLE(83.0);
 
+APRINTER_CONFIG_END
+
 using PrinterParams = PrinterMainParams<
     /*
      * Common parameters.
@@ -273,8 +278,8 @@ using PrinterParams = PrinterMainParams<
             DuePin26, // EnablePin
             false, // InvertDir
             XDefaultStepsPerUnit, // StepsPerUnit
-            XDefaultMin, // Min
-            XDefaultMax, // Max
+            XMin, // Min
+            XMax, // Max
             XDefaultMaxSpeed, // MaxSpeed
             XDefaultMaxAccel, // MaxAccel
             XDefaultDistanceFactor, // DistanceFactor
@@ -308,8 +313,8 @@ using PrinterParams = PrinterMainParams<
             DuePin22, // EnablePin
             false, // InvertDir
             YDefaultStepsPerUnit, // StepsPerUnit
-            YDefaultMin, // Min
-            YDefaultMax, // Max
+            YMin, // Min
+            YMax, // Max
             YDefaultMaxSpeed, // MaxSpeed
             YDefaultMaxAccel, // MaxAccel
             YDefaultDistanceFactor, // DistanceFactor
@@ -343,8 +348,8 @@ using PrinterParams = PrinterMainParams<
             DuePin15, // EnablePin
             true, // InvertDir
             ZDefaultStepsPerUnit, // StepsPerUnit
-            ZDefaultMin, // Min
-            ZDefaultMax, // Max
+            ZMin, // Min
+            ZMax, // Max
             ZDefaultMaxSpeed, // MaxSpeed
             ZDefaultMaxAccel, // MaxAccel
             ZDefaultDistanceFactor, // DistanceFactor
@@ -378,8 +383,8 @@ using PrinterParams = PrinterMainParams<
             DuePinA8, // EnablePin
             false, // InvertDir
             EDefaultStepsPerUnit, // StepsPerUnit
-            EDefaultMin, // Min
-            EDefaultMax, // Max
+            EMin, // Min
+            EMax, // Max
             EDefaultMaxSpeed, // MaxSpeed
             EDefaultMaxAccel, // MaxAccel
             EDefaultDistanceFactor, // DistanceFactor
@@ -400,8 +405,8 @@ using PrinterParams = PrinterMainParams<
             DuePinA11, // EnablePin
             false, // InvertDir
             UDefaultStepsPerUnit, // StepsPerUnit
-            UDefaultMin, // Min
-            UDefaultMax, // Max
+            UMin, // Min
+            UMax, // Max
             UDefaultMaxSpeed, // MaxSpeed
             UDefaultMaxAccel, // MaxAccel
             UDefaultDistanceFactor, // DistanceFactor
@@ -601,14 +606,18 @@ struct Program;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
 using MyClock = At91Sam3xClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
+using MyConfigManager = ConfigManager<MyContext, Program, ConfigList>;
 using MyPins = At91SamPins<MyContext, Program>;
 using MyAdc = At91SamAdc<MyContext, Program, AdcPins, AdcParams>;
 using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
+
+APRINTER_CONFIG_FINALIZE(MyConfigManager)
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
     using Clock = MyClock;
     using EventLoop = MyLoop;
+    using Config = MyConfigManager;
     using Pins = MyPins;
     using Adc = MyAdc;
     
@@ -622,6 +631,7 @@ struct Program : public ObjBase<void, void, MakeTypeList<
     MyDebugObjectGroup,
     MyClock,
     MyLoop,
+    MyConfigManager,
     MyPins,
     MyAdc,
     MyPrinter,
@@ -724,6 +734,7 @@ int main ()
     MyDebugObjectGroup::init(c);
     MyClock::init(c);
     MyLoop::init(c);
+    MyConfigManager::init(c);
     MyPins::init(c);
     MyAdc::init(c);
     MyPrinter::init(c);

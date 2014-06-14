@@ -30,11 +30,14 @@
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/RemoveReference.h>
+#include <aprinter/meta/ConstexprMath.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename FullExpr>
-struct Expr {};
+struct Expr {
+    static FullExpr e ();
+};
 
 template <template<typename> class TResolveVariable, typename Extra>
 struct ExprState {
@@ -58,6 +61,9 @@ struct ConstantExpr : public Expr<ConstantExpr<TType, ValueProvider>> {
 
 template <typename Type, Type Value>
 using SimpleConstantExpr = ConstantExpr<Type, WrapValue<Type, Value>>;
+
+template <typename ValueProvider>
+using DoubleConstantExpr = ConstantExpr<double, ValueProvider>;
 
 template <typename TType, typename VariableId>
 struct VariableExpr : public Expr<VariableExpr<TType, VariableId>> {
@@ -177,6 +183,26 @@ struct ExprFuncCast {
 };
 template <typename TargetType, typename Op1>
 NaryExpr<ExprFuncCast<TargetType>, Op1> ExprCast (Op1);
+
+struct ExprFuncFmin {
+    template <typename Arg1, typename Arg2>
+    static constexpr auto call (Arg1 arg1, Arg2 arg2) -> double
+    {
+        return ConstexprFmin(arg1, arg2);
+    }
+};
+template <typename Op1, typename Op2>
+NaryExpr<ExprFuncFmin, Op1, Op2> ExprFmin (Op1, Op2);
+
+struct ExprFuncFmax {
+    template <typename Arg1, typename Arg2>
+    static constexpr auto call (Arg1 arg1, Arg2 arg2) -> double
+    {
+        return ConstexprFmax(arg1, arg2);
+    }
+};
+template <typename Op1, typename Op2>
+NaryExpr<ExprFuncFmax, Op1, Op2> ExprFmax (Op1, Op2);
 
 #include <aprinter/EndNamespace.h>
 
