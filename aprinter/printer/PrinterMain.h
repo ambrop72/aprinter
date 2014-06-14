@@ -1390,7 +1390,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             static FpType init_position (Context c)
             {
-                return HomingSpec::HomeDir ? (FpType)Context::Config::eval(c, MaxReqPos()) : (FpType)Context::Config::eval(c, MinReqPos());
+                return HomingSpec::HomeDir ? (FpType)MaxReqPos::eval(c) : (FpType)MinReqPos::eval(c);
             }
             
             template <typename ThisContext>
@@ -1438,7 +1438,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static FpType clamp_req_pos (Context c, FpType req)
         {
-            return FloatMax((FpType)Context::Config::eval(c, MinReqPos()), FloatMin((FpType)Context::Config::eval(c, MaxReqPos()), req));
+            return FloatMax((FpType)MinReqPos::eval(c), FloatMin((FpType)MaxReqPos::eval(c), req));
         }
         
         static void init (Context c)
@@ -1940,11 +1940,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             {
                 auto *axis = ThePhysAxis::Object::self(c);
                 auto *t = TransformFeature::Object::self(c);
-                if (AMBRO_UNLIKELY(!(axis->m_req_pos <= (FpType)Context::Config::eval(c, ThePhysAxis::MaxReqPos::e())))) {
-                    axis->m_req_pos = (FpType)Context::Config::eval(c, ThePhysAxis::MaxReqPos::e());
+                if (AMBRO_UNLIKELY(!(axis->m_req_pos <= (FpType)ThePhysAxis::MaxReqPos::eval(c)))) {
+                    axis->m_req_pos = (FpType)ThePhysAxis::MaxReqPos::eval(c);
                     t->virt_update_pending = true;
-                } else if (AMBRO_UNLIKELY(!(axis->m_req_pos >= (FpType)Context::Config::eval(c, ThePhysAxis::MinReqPos::e())))) {
-                    axis->m_req_pos = (FpType)Context::Config::eval(c, ThePhysAxis::MinReqPos::e());
+                } else if (AMBRO_UNLIKELY(!(axis->m_req_pos >= (FpType)ThePhysAxis::MinReqPos::eval(c)))) {
+                    axis->m_req_pos = (FpType)ThePhysAxis::MinReqPos::eval(c);
                     t->virt_update_pending = true;
                 }
             }

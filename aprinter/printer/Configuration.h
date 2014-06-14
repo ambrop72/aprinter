@@ -36,7 +36,7 @@ template <typename Option> struct ConfigOptionExprHelper; \
 APRINTER_START_LIST(ConfigList)
 
 #define APRINTER_CONFIG_OPTION_GENERIC(Name, Type, DefaultValue) \
-using Name##__Option = APrinter::ConfigOption<Type, DefaultValue>; \
+struct Name##__Option : public APrinter::ConfigOption<Type, DefaultValue> {}; \
 using Name = ConfigOptionExprHelper<Name##__Option>; \
 APRINTER_ADD_TO_LIST(ConfigList, Name##__Option)
 
@@ -64,10 +64,6 @@ struct ConfigOption {
 
 template <typename Context, typename ParentObject, typename ConfigList>
 class ConfigManager {
-    template <typename VariableId> struct DummyResolveVariable;
-    struct DummyExtra {};
-    using TheExprState = ExprState<DummyResolveVariable, DummyExtra>;
-    
 public:
     struct Object;
     
@@ -80,12 +76,6 @@ public:
     
     static void deinit (Context c)
     {
-    }
-    
-    template <typename TheOptionExpr>
-    static constexpr typename TheOptionExpr::Type eval (Context c, TheOptionExpr)
-    {
-        return TheOptionExpr::eval(TheExprState{});
     }
     
     struct Object : public ObjBase<ConfigManager, ParentObject, EmptyTypeList> {};

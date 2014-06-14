@@ -6,10 +6,9 @@
 
 using namespace APrinter;
 
-// Define variable identifiers.
-// These are just dummy types that identify variables.
-struct VarIdC;
-struct VarIdD;
+// Functions returning variable values.
+struct VarFuncC { static bool call () { return 1; } };
+struct VarFuncD { static char call () { return 0; } };
 
 // Define floating point constants.
 using FpValE = AMBRO_WRAP_DOUBLE(1.2);
@@ -22,26 +21,8 @@ using ConstantE = ConstantExpr<double, FpValE>;
 using ConstantF = ConstantExpr<double, FpValF>;
 
 // Define variable expressions.
-using VariableC = VariableExpr<bool, VarIdC>;
-using VariableD = VariableExpr<char, VarIdD>;
-
-// Dummy state passed to variable resolution.
-struct StateExtra {};
-
-// Define variable resolution.
-
-template <typename>
-struct ResolveVariable;
-
-template <>
-struct ResolveVariable<VarIdC> {
-    static bool resolve (StateExtra) { return 1; }
-};
-
-template <>
-struct ResolveVariable<VarIdD> {
-    static bool resolve (StateExtra) { return 0; }
-};
+using VariableC = VariableExpr<bool, VarFuncC>;
+using VariableD = VariableExpr<char, VarFuncD>;
 
 int main ()
 {
@@ -72,13 +53,11 @@ int main ()
     static_assert(TypesAreEqual<Test1::Type, double>::Value, "");
     static_assert(!Test1::IsConstexpr, "");
     
-    constexpr auto state = ExprState<ResolveVariable, StateExtra>{};
-    
     // Try some evaluations.
     // If an expression is constexpr, its eval function must be constexpr.
-    constexpr int aplusb = APlusB::eval(state);
-    constexpr double eplusf = EplusF::eval(state);
-    double test1 = Test1::eval(state);
+    constexpr int aplusb = APlusB::eval();
+    constexpr double eplusf = EplusF::eval();
+    double test1 = Test1::eval();
     
     printf("%d\n", aplusb);
     printf("%f\n", eplusf);

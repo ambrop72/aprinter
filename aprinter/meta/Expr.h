@@ -39,21 +39,13 @@ struct Expr {
     static FullExpr e ();
 };
 
-template <template<typename> class TResolveVariable, typename Extra>
-struct ExprState {
-    template <typename VariableId>
-    using ResolveVariable = TResolveVariable<VariableId>;
-    
-    Extra extra;
-};
-
 template <typename TType, typename ValueProvider>
 struct ConstantExpr : public Expr<ConstantExpr<TType, ValueProvider>> {
     using Type = TType;
     static bool const IsConstexpr = true;
     
-    template <typename State>
-    static constexpr Type eval (State state)
+    template <typename... Args>
+    static constexpr Type eval (Args... args)
     {
         return ValueProvider::value();
     }
@@ -65,15 +57,15 @@ using SimpleConstantExpr = ConstantExpr<Type, WrapValue<Type, Value>>;
 template <typename ValueProvider>
 using DoubleConstantExpr = ConstantExpr<double, ValueProvider>;
 
-template <typename TType, typename VariableId>
-struct VariableExpr : public Expr<VariableExpr<TType, VariableId>> {
+template <typename TType, typename EvalFunc>
+struct VariableExpr : public Expr<VariableExpr<TType, EvalFunc>> {
     using Type = TType;
     static bool const IsConstexpr = false;
     
-    template <typename State>
-    static Type eval (State state)
+    template <typename... Args>
+    static Type eval (Args... args)
     {
-        return State::template ResolveVariable<VariableId>::resolve(state.extra);
+        return EvalFunc::call(args...);
     }
 };
 
@@ -95,10 +87,10 @@ struct ConstexprNaryExpr : public Expr<ConstexprNaryExpr<Func, Operands...>> {
     using Type = decltype(Func::call(typename Operands::Type()...));
     static bool const IsConstexpr = true;
     
-    template <typename State>
-    static constexpr Type eval (State state)
+    template <typename... Args>
+    static constexpr Type eval (Args... args)
     {
-        return Func::call(Operands::eval(state)...);
+        return Func::call(Operands::eval(args...)...);
     }
 };
 
@@ -107,10 +99,10 @@ struct RuntimeNaryExpr : public Expr<RuntimeNaryExpr<Func, Operands...>> {
     using Type = decltype(Func::call(typename Operands::Type()...));
     static bool const IsConstexpr = false;
     
-    template <typename State>
-    static Type eval (State state)
+    template <typename... Args>
+    static Type eval (Args... args)
     {
-        return Func::call(Operands::eval(state)...);
+        return Func::call(Operands::eval(args...)...);
     }
 };
 
