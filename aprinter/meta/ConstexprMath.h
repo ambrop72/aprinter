@@ -25,6 +25,8 @@
 #ifndef AMBROLIB_CONSTEXPR_MATH_H
 #define AMBROLIB_CONSTEXPR_MATH_H
 
+#include <math.h>
+
 #include <aprinter/BeginNamespace.h>
 
 static constexpr double ConstexprFmax (double a, double b)
