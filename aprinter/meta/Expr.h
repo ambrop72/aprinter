@@ -118,92 +118,83 @@ struct RuntimeNaryExpr : public Expr<RuntimeNaryExpr<Func, Operands...>> {
 template <typename Func, typename... Operands>
 using NaryExpr = If<Expr__IsConstexpr<Operands...>::Value, ConstexprNaryExpr<Func, Operands...>, RuntimeNaryExpr<Func, Operands...>>;
 
-#define APRINTER_DEFINE_UNARY_EXPR(Operator, Name) \
-struct ExprFunc##Name { \
+#define APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Name, Expr) \
+struct ExprFunc__##Name { \
     template <typename Arg1> \
-    static constexpr auto call (Arg1 arg1) -> RemoveReference<decltype(Operator arg1)> \
+    static constexpr auto call (Arg1 arg1) -> RemoveReference<decltype(Expr)> \
     { \
-        return Operator arg1; \
+        return (Expr); \
     } \
-}; \
-template <typename Op1> \
-NaryExpr<ExprFunc##Name, Op1> operator Operator (Expr<Op1>);
-
-APRINTER_DEFINE_UNARY_EXPR(+, UnaryPlus)
-APRINTER_DEFINE_UNARY_EXPR(-, UnaryMinus)
-APRINTER_DEFINE_UNARY_EXPR(!, LogicalNegation)
-APRINTER_DEFINE_UNARY_EXPR(~, BitwiseNot)
-
-#define APRINTER_DEFINE_BINARY_EXPR(Operator, Name) \
-struct ExprFunc##Name { \
-    template <typename Arg1, typename Arg2> \
-    static constexpr auto call (Arg1 arg1, Arg2 arg2) -> RemoveReference<decltype(arg1 Operator arg2)> \
-    { \
-        return arg1 Operator arg2; \
-    } \
-}; \
-template <typename Op1, typename Op2> \
-NaryExpr<ExprFunc##Name, Op1, Op2> operator Operator (Expr<Op1>, Expr<Op2>);
-
-APRINTER_DEFINE_BINARY_EXPR(+,  Addition)
-APRINTER_DEFINE_BINARY_EXPR(-,  Subtraction)
-APRINTER_DEFINE_BINARY_EXPR(*,  Multiplication)
-APRINTER_DEFINE_BINARY_EXPR(/,  Division)
-APRINTER_DEFINE_BINARY_EXPR(%,  Modulo)
-APRINTER_DEFINE_BINARY_EXPR(==, EqualTo)
-APRINTER_DEFINE_BINARY_EXPR(!=, NotEqualTo)
-APRINTER_DEFINE_BINARY_EXPR(>,  GreaterThan)
-APRINTER_DEFINE_BINARY_EXPR(<,  LessThan)
-APRINTER_DEFINE_BINARY_EXPR(>=, GreaterThenOrEqualTo)
-APRINTER_DEFINE_BINARY_EXPR(<=, LessThanOrEqualTo)
-APRINTER_DEFINE_BINARY_EXPR(&&, LogicalAnd)
-APRINTER_DEFINE_BINARY_EXPR(||, LogicalOr)
-APRINTER_DEFINE_BINARY_EXPR(&,  BitwiseAnd)
-APRINTER_DEFINE_BINARY_EXPR(|,  BitwiseOr)
-APRINTER_DEFINE_BINARY_EXPR(^,  BitwiseXor)
-APRINTER_DEFINE_BINARY_EXPR(<<, BitwiseLeftShift)
-APRINTER_DEFINE_BINARY_EXPR(>>, BitwiseRightShift)
-
-struct ExprFuncIf {
-    template <typename Arg1, typename Arg2, typename Arg3>
-    static constexpr auto call (Arg1 arg1, Arg2 arg2, Arg3 arg3) -> RemoveReference<decltype(arg1 ? arg2 : arg3)>
-    {
-        return arg1 ? arg2 : arg3;
-    }
 };
+
+#define APRINTER_DEFINE_BINARY_EXPR_FUNC_CLASS(Name, Expr) \
+struct ExprFunc__##Name { \
+    template <typename Arg1, typename Arg2> \
+    static constexpr auto call (Arg1 arg1, Arg2 arg2) -> RemoveReference<decltype(Expr)> \
+    { \
+        return (Expr); \
+    } \
+};
+
+#define APRINTER_DEFINE_TERNARY_EXPR_FUNC_CLASS(Name, Expr) \
+struct ExprFunc__##Name { \
+    template <typename Arg1, typename Arg2, typename Arg3> \
+    static constexpr auto call (Arg1 arg1, Arg2 arg2, Arg3 arg3) -> RemoveReference<decltype(Expr)> \
+    { \
+        return (Expr); \
+    } \
+};
+
+#define APRINTER_DEFINE_UNARY_EXPR_OPERATOR(Operator, Name) \
+APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Name, Operator arg1) \
+template <typename Op1> \
+NaryExpr<ExprFunc__##Name, Op1> operator Operator (Expr<Op1>);
+
+#define APRINTER_DEFINE_BINARY_EXPR_OPERATOR(Operator, Name) \
+APRINTER_DEFINE_BINARY_EXPR_FUNC_CLASS(Name, arg1 Operator arg2) \
+template <typename Op1, typename Op2> \
+NaryExpr<ExprFunc__##Name, Op1, Op2> operator Operator (Expr<Op1>, Expr<Op2>);
+
+#define APRINTER_DEFINE_BINARY_EXPR_FUNC(Name, Func) \
+APRINTER_DEFINE_BINARY_EXPR_FUNC_CLASS(Name, Func(arg1, arg2)) \
+template <typename Op1, typename Op2> \
+NaryExpr<ExprFunc__##Name, Op1, Op2> Expr##Name (Op1, Op2);
+
+APRINTER_DEFINE_UNARY_EXPR_OPERATOR(+, UnaryPlus)
+APRINTER_DEFINE_UNARY_EXPR_OPERATOR(-, UnaryMinus)
+APRINTER_DEFINE_UNARY_EXPR_OPERATOR(!, LogicalNegation)
+APRINTER_DEFINE_UNARY_EXPR_OPERATOR(~, BitwiseNot)
+
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(+,  Addition)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(-,  Subtraction)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(*,  Multiplication)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(/,  Division)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(%,  Modulo)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(==, EqualTo)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(!=, NotEqualTo)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(>,  GreaterThan)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(<,  LessThan)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(>=, GreaterThenOrEqualTo)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(<=, LessThanOrEqualTo)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(&&, LogicalAnd)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(||, LogicalOr)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(&,  BitwiseAnd)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(|,  BitwiseOr)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(^,  BitwiseXor)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(<<, BitwiseLeftShift)
+APRINTER_DEFINE_BINARY_EXPR_OPERATOR(>>, BitwiseRightShift)
+
+APRINTER_DEFINE_BINARY_EXPR_FUNC(Fmin, ConstexprFmin)
+APRINTER_DEFINE_BINARY_EXPR_FUNC(Fmax, ConstexprFmax)
+
+APRINTER_DEFINE_TERNARY_EXPR_FUNC_CLASS(If, arg1 ? arg2 : arg3)
 template <typename Op1, typename Op2, typename Op3>
-NaryExpr<ExprFuncIf, Op1, Op2, Op3> ExprIf (Op1, Op2, Op3);
+NaryExpr<ExprFunc__If, Op1, Op2, Op3> ExprIf (Op1, Op2, Op3);
 
 template <typename TargetType>
-struct ExprFuncCast {
-    template <typename Arg1>
-    static constexpr auto call (Arg1 arg1) -> RemoveReference<decltype((TargetType)arg1)>
-    {
-        return (TargetType)arg1;
-    }
-};
+APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Cast, (TargetType)arg1)
 template <typename TargetType, typename Op1>
-NaryExpr<ExprFuncCast<TargetType>, Op1> ExprCast (Op1);
-
-struct ExprFuncFmin {
-    template <typename Arg1, typename Arg2>
-    static constexpr auto call (Arg1 arg1, Arg2 arg2) -> double
-    {
-        return ConstexprFmin(arg1, arg2);
-    }
-};
-template <typename Op1, typename Op2>
-NaryExpr<ExprFuncFmin, Op1, Op2> ExprFmin (Op1, Op2);
-
-struct ExprFuncFmax {
-    template <typename Arg1, typename Arg2>
-    static constexpr auto call (Arg1 arg1, Arg2 arg2) -> double
-    {
-        return ConstexprFmax(arg1, arg2);
-    }
-};
-template <typename Op1, typename Op2>
-NaryExpr<ExprFuncFmax, Op1, Op2> ExprFmax (Op1, Op2);
+NaryExpr<ExprFunc__Cast<TargetType>, Op1> ExprCast (Op1);
 
 template <typename Type, Type Value>
 SimpleConstantExpr<Type, Value> ExprConst ();
