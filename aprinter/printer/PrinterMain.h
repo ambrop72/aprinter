@@ -1303,11 +1303,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using SpeedConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value() / TimeConversion::value());
         using AccelConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value() / (TimeConversion::value() * TimeConversion::value()));
         
-        using MinReqPosLimit = AMBRO_WRAP_DOUBLE(AbsStepFixedType::minValue().fpValueConstexpr() / DistConversion::value());
-        using MaxReqPosLimit = AMBRO_WRAP_DOUBLE(AbsStepFixedType::maxValue().fpValueConstexpr() / DistConversion::value());
+        using MinReqPosLimit = APRINTER_FP_CONST_EXPR(AbsStepFixedType::minValue().fpValueConstexpr() / DistConversion::value());
+        using MaxReqPosLimit = APRINTER_FP_CONST_EXPR(AbsStepFixedType::maxValue().fpValueConstexpr() / DistConversion::value());
         
-        using MinReqPos = decltype(ExprFmax(AxisSpec::DefaultMin::e(), DoubleConstantExpr<MinReqPosLimit>::e()));
-        using MaxReqPos = decltype(ExprFmin(AxisSpec::DefaultMax::e(), DoubleConstantExpr<MaxReqPosLimit>::e()));
+        using MinReqPos = decltype(ExprFmax(AxisSpec::DefaultMin::e(), MinReqPosLimit()));
+        using MaxReqPos = decltype(ExprFmin(AxisSpec::DefaultMax::e(), MaxReqPosLimit()));
         
         using PlannerMaxSpeedRec = AMBRO_WRAP_DOUBLE(1.0 / (AxisSpec::DefaultMaxSpeed::value() * SpeedConversion::value()));
         using PlannerMaxAccelRec = AMBRO_WRAP_DOUBLE(1.0 / (AxisSpec::DefaultMaxAccel::value() * AccelConversion::value()));
@@ -1407,8 +1407,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             static void init (Context c) {}
             static void deinit (Context c) {}
             static void start_phys_homing (Context c) {}
-            using InitPositionVal = AMBRO_WRAP_DOUBLE(0.0);
-            using InitPosition = DoubleConstantExpr<InitPositionVal>;
+            using InitPosition = APRINTER_FP_CONST_EXPR(0.0);
             template <typename ThisContext>
             static bool endstop_is_triggered (ThisContext c) { return false; }
             struct Object {};

@@ -57,6 +57,15 @@ using SimpleConstantExpr = ConstantExpr<Type, WrapValue<Type, Value>>;
 template <typename ValueProvider>
 using DoubleConstantExpr = ConstantExpr<double, ValueProvider>;
 
+#define APRINTER_FP_CONST_EXPR__HELPER1(the_value, counter) \
+struct APrinterExprFpConst__##counter : public APrinter::DoubleConstantExpr<APrinterExprFpConst__##counter> { \
+    static constexpr double value () { return (the_value); } \
+}
+
+#define APRINTER_FP_CONST_EXPR__HELPER2(the_value, counter) APRINTER_FP_CONST_EXPR__HELPER1((the_value), counter)
+
+#define APRINTER_FP_CONST_EXPR(the_value) APRINTER_FP_CONST_EXPR__HELPER2((the_value), __COUNTER__)
+
 template <typename TType, typename EvalFunc>
 struct VariableExpr : public Expr<VariableExpr<TType, EvalFunc>> {
     using Type = TType;
