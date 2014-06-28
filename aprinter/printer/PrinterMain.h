@@ -1389,7 +1389,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 axis->m_state = AXIS_STATE_HOMING;
             }
             
-            using InitPosition = decltype(ExprIf(SimpleConstantExpr<bool, HomingSpec::HomeDir>(), MaxReqPos(), MinReqPos()));
+            using InitPosition = decltype(ExprIf(ExprBoolConst<HomingSpec::HomeDir>(), MaxReqPos(), MinReqPos()));
             
             template <typename ThisContext>
             static bool endstop_is_triggered (ThisContext c)

@@ -205,6 +205,12 @@ struct ExprFuncFmax {
 template <typename Op1, typename Op2>
 NaryExpr<ExprFuncFmax, Op1, Op2> ExprFmax (Op1, Op2);
 
+template <typename Type, Type Value>
+SimpleConstantExpr<Type, Value> ExprConst ();
+
+template <bool Value>
+SimpleConstantExpr<bool, Value> ExprBoolConst ();
+
 #include <aprinter/EndNamespace.h>
 
 #endif
