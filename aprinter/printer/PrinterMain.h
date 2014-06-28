@@ -66,6 +66,7 @@
 #include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/Expr.h>
+#include <aprinter/meta/JoinTypeListList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -453,6 +454,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ConfigExprs, ConfigExprs)
     
     struct PlannerUnionPlanner;
     struct PlannerUnionHoming;
@@ -1442,7 +1444,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void init (Context c)
         {
             auto *o = Object::self(c);
-            Cache::init(c);
             TheAxisDriver::init(c);
             o->m_state = AXIS_STATE_OTHER;
             HomingFeature::init(c);
@@ -1456,7 +1457,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             HomingFeature::deinit(c);
             TheAxisDriver::deinit(c);
-            Cache::deinit(c);
         }
         
         static void start_phys_homing (Context c)
@@ -1552,10 +1552,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using CMaxReqPos = decltype(ExprCast<FpType>(MaxReqPos()));
         using CInitPosition = decltype(ExprCast<FpType>(HomingFeature::InitPosition::e()));
         
-        using Cache = ConfigCache<Context, Object, MakeTypeList<CMinReqPos, CMaxReqPos, CInitPosition>>;
+        using ConfigExprs = MakeTypeList<CMinReqPos, CMaxReqPos, CInitPosition>;
         
         struct Object : public ObjBase<Axis, typename PrinterMain::Object, MakeTypeList<
-            Cache,
             TheAxisDriver,
             HomingFeature,
             MicroStepFeature
@@ -3008,6 +3007,7 @@ public:
     {
         auto *ob = Object::self(c);
         
+        Cache::init(c);
         ob->unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
         ob->disable_timer.init(c, PrinterMain::disable_timer_handler);
         ob->force_timer.init(c, PrinterMain::force_timer_handler);
@@ -3057,6 +3057,7 @@ public:
         ob->force_timer.deinit(c);
         ob->disable_timer.deinit(c);
         ob->unlocked_timer.deinit(c);
+        Cache::deinit(c);
     }
     
     using GetWatchdog = TheWatchdog;
@@ -3701,6 +3702,9 @@ public: // private, see comment on top
         struct Object : public ObjBase<PlannerUnionHoming, typename PlannerUnion::Object, HomingStateList> {};
     };
     
+    using ConfigExprs = JoinTypeListList<MapTypeList<AxesList, GetMemberType_ConfigExprs>>;
+    using Cache = ConfigCache<Context, Object, ConfigExprs>;
+    
     struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_pull_handler) {};
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_finished_handler) {};
@@ -3730,7 +3734,8 @@ public:
             TransformFeature,
             ProbeFeature,
             CurrentFeature,
-            PlannerUnion
+            PlannerUnion,
+            Cache
         >
     >>,
         public DebugObject<Context, void>
