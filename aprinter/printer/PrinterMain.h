@@ -79,6 +79,7 @@
 #include <aprinter/printer/BinaryGcodeParser.h>
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/printer/TemperatureObserver.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -1342,7 +1343,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                     
                     Homer::deinit(c);
-                    axis->m_req_pos = init_position(c);
+                    axis->m_req_pos = Cache::get(c, CInitPosition());
                     axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * (FpType)DistConversion::value());
                     axis->m_state = AXIS_STATE_OTHER;
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
@@ -1388,10 +1389,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 axis->m_state = AXIS_STATE_HOMING;
             }
             
-            static FpType init_position (Context c)
-            {
-                return HomingSpec::HomeDir ? (FpType)MaxReqPos::eval(c) : (FpType)MinReqPos::eval(c);
-            }
+            using InitPosition = decltype(ExprIf(SimpleConstantExpr<bool, HomingSpec::HomeDir>(), MaxReqPos(), MinReqPos()));
             
             template <typename ThisContext>
             static bool endstop_is_triggered (ThisContext c)
@@ -1409,7 +1407,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             static void init (Context c) {}
             static void deinit (Context c) {}
             static void start_phys_homing (Context c) {}
-            static FpType init_position (Context c) { return 0.0f; }
+            using InitPositionVal = AMBRO_WRAP_DOUBLE(0.0);
+            using InitPosition = DoubleConstantExpr<InitPositionVal>;
             template <typename ThisContext>
             static bool endstop_is_triggered (ThisContext c) { return false; }
             struct Object {};
@@ -1438,17 +1437,18 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static FpType clamp_req_pos (Context c, FpType req)
         {
-            return FloatMax((FpType)MinReqPos::eval(c), FloatMin((FpType)MaxReqPos::eval(c), req));
+            return FloatMax(Cache::get(c, CMinReqPos()), FloatMin(Cache::get(c, CMaxReqPos()), req));
         }
         
         static void init (Context c)
         {
             auto *o = Object::self(c);
+            Cache::init(c);
             TheAxisDriver::init(c);
             o->m_state = AXIS_STATE_OTHER;
             HomingFeature::init(c);
             MicroStepFeature::init(c);
-            o->m_req_pos = HomingFeature::init_position(c);
+            o->m_req_pos = Cache::get(c, CInitPosition());
             o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * (FpType)DistConversion::value());
             o->m_relative_positioning = false;
         }
@@ -1457,6 +1457,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             HomingFeature::deinit(c);
             TheAxisDriver::deinit(c);
+            Cache::deinit(c);
         }
         
         static void start_phys_homing (Context c)
@@ -1548,7 +1549,14 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         using EventLoopFastEvents = typename HomingFeature::EventLoopFastEvents;
         
+        using CMinReqPos = decltype(ExprCast<FpType>(MinReqPos()));
+        using CMaxReqPos = decltype(ExprCast<FpType>(MaxReqPos()));
+        using CInitPosition = decltype(ExprCast<FpType>(HomingFeature::InitPosition::e()));
+        
+        using Cache = ConfigCache<Context, Object, MakeTypeList<CMinReqPos, CMaxReqPos, CInitPosition>>;
+        
         struct Object : public ObjBase<Axis, typename PrinterMain::Object, MakeTypeList<
+            Cache,
             TheAxisDriver,
             HomingFeature,
             MicroStepFeature

@@ -30,6 +30,20 @@
 #include <aprinter/meta/TypeListBuilder.h>
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/Object.h>
+#include <aprinter/meta/EnableIf.h>
+#include <aprinter/meta/IndexElemList.h>
+#include <aprinter/meta/FilterTypeList.h>
+#include <aprinter/meta/TemplateFunc.h>
+#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/NotFunc.h>
+#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/If.h>
+#include <aprinter/meta/TypeListIndex.h>
+#include <aprinter/meta/IsEqualFunc.h>
+#include <aprinter/meta/ListForEach.h>
+#include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/base/DebugObject.h>
 
 #define APRINTER_CONFIG_START \
 template <typename Option> struct ConfigOptionExprHelper; \
@@ -79,6 +93,91 @@ public:
     }
     
     struct Object : public ObjBase<ConfigManager, ParentObject, EmptyTypeList> {};
+};
+
+template <typename Context, typename ParentObject, typename ExprsList>
+class ConfigCache {
+public:
+    struct Object;
+    
+private:
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_update, update)
+    
+    template <typename TheExpr>
+    using ExprIsConstexpr = WrapBool<TheExpr::IsConstexpr>;
+    using ExprIsConstexprFunc = TemplateFunc<ExprIsConstexpr>;
+    using ConstexprExprsList = FilterTypeList<ExprsList, ExprIsConstexprFunc>;
+    using CachedExprsList = FilterTypeList<ExprsList, ComposeFunctions<NotFunc, ExprIsConstexprFunc>>;
+    
+    template <int CachedExprIndex>
+    struct CachedExprState {
+        using TheExpr = TypeListGet<CachedExprsList, CachedExprIndex>;
+        using Type = typename TheExpr::Type;
+        
+        static void update (Context c)
+        {
+            auto *o = Object::self(c);
+            o->value = TheExpr::eval(c);
+        }
+        
+        static Type call (Context c)
+        {
+            auto *o = Object::self(c);
+            return o->value;
+        }
+        
+        struct Object : public ObjBase<CachedExprState, typename ConfigCache::Object, EmptyTypeList> {
+            Type value;
+        };
+    };
+    
+    using CachedExprStateList = IndexElemList<CachedExprsList, CachedExprState>;
+    
+    template <typename TheExpr>
+    struct CheckExpr {
+        static_assert(TypeListIndex<ExprsList, IsEqualFunc<TheExpr>>::Value >= 0, "Expression is not in cache.");
+        using Expr = TheExpr;
+    };
+    
+public:
+    static void init (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        ListForEachForward<CachedExprStateList>(Foreach_update(), c);
+        
+        o->debugInit(c);
+    }
+    
+    static void deinit (Context c)
+    {
+        auto *o = Object::self(c);
+        o->debugDeinit(c);
+    }
+    
+    template <typename TheExpr>
+    using GetExpr = If<
+        CheckExpr<TheExpr>::Expr::IsConstexpr,
+        TheExpr,
+        VariableExpr<
+            typename TheExpr::Type,
+            CachedExprState<TypeListIndex<CachedExprsList, IsEqualFunc<TheExpr>>::Value>
+        >
+    >;
+    
+    template <typename TheExpr>
+    static GetExpr<TheExpr> getExpr (TheExpr);
+    
+    template <typename TheExpr>
+    static typename GetExpr<TheExpr>::Type get (Context c, TheExpr)
+    {
+        return GetExpr<TheExpr>::eval(c);
+    }
+    
+public:
+    struct Object : public ObjBase<ConfigCache, ParentObject, CachedExprStateList>,
+        public DebugObject<Context, void>
+    {};
 };
 
 #include <aprinter/EndNamespace.h>
