@@ -30,7 +30,6 @@
 #include <aprinter/meta/TypeListBuilder.h>
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/Object.h>
-#include <aprinter/meta/EnableIf.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
@@ -42,7 +41,6 @@
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/ComposeFunctions.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>
 
 #define APRINTER_CONFIG_START \
@@ -72,36 +70,6 @@ struct ConfigOption {
     using DefaultValue = TDefaultValue;
     
     static constexpr Identity i = Identity{};
-};
-
-template <typename Context, typename ParentObject, typename ConfigList>
-class ConstexprConfigManager {
-public:
-    struct Object;
-    
-private:
-    template <typename Option>
-    using OptionExpr = ConstantExpr<typename Option::Type, typename Option::DefaultValue>;
-    
-public:
-    static void init (Context c)
-    {
-    }
-    
-    static void deinit (Context c)
-    {
-    }
-    
-    template <typename Option>
-    static OptionExpr<Option> e (Option);
-    
-public:
-    struct Object : public ObjBase<ConstexprConfigManager, ParentObject, EmptyTypeList> {};
-};
-
-struct ConstexprConfigManagerService {
-    template <typename Context, typename ParentObject, typename ConfigList>
-    using ConfigManager = ConstexprConfigManager<Context, ParentObject, ConfigList>;
 };
 
 template <typename Context, typename ParentObject, typename ExprsList>

@@ -46,13 +46,13 @@ static void emergency (void);
 #include <aprinter/system/AsfUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/driver/AxisDriver.h>
-#include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/AxisHomer.h>
 #include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
+#include <aprinter/printer/config_manager/ConstexprConfigManager.h>
 #include <aprinter/board/arduino_due_pins.h>
 
 using namespace APrinter;
