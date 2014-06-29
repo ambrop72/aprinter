@@ -126,6 +126,29 @@ private:
         >
     >;
     
+    template <bool IsConstexpr, typename TheGetExpr>
+    struct GetHelper;
+    
+    template <typename TheGetExpr>
+    struct GetHelper<true, TheGetExpr> {
+        static constexpr typename TheGetExpr::Type value ()
+        {
+            return TheGetExpr::value();
+        }
+        
+        static typename TheGetExpr::Type eval (Context c);
+    };
+    
+    template <typename TheGetExpr>
+    struct GetHelper<false, TheGetExpr> {
+        static typename TheGetExpr::Type value ();
+        
+        static typename TheGetExpr::Type eval (Context c)
+        {
+            return TheGetExpr::eval(c);
+        }
+    };
+    
 public:
     static void init (Context c)
     {
@@ -145,10 +168,13 @@ public:
     template <typename TheExpr>
     static GetExpr<TheExpr> getExpr (TheExpr);
     
+    template <typename TheExpr>
+    static GetHelper<GetExpr<TheExpr>::IsConstexpr, GetExpr<TheExpr>> getHelper (TheExpr);
+    
     #define APRINTER_CFG(TheConfigCache, TheExpr, c) ( \
         decltype(TheConfigCache::getExpr(TheExpr()))::IsConstexpr ? \
-        decltype(TheConfigCache::getExpr(TheExpr()))::value() : \
-        decltype(TheConfigCache::getExpr(TheExpr()))::eval((c)) \
+        decltype(TheConfigCache::getHelper(TheExpr()))::value() : \
+        decltype(TheConfigCache::getHelper(TheExpr()))::eval(c) \
     )
     
 public:
