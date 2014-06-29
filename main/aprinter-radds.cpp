@@ -53,6 +53,7 @@ static void emergency (void);
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/config_manager/ConstexprConfigManager.h>
+#include <aprinter/printer/config_manager/RuntimeConfigManager.h>
 #include <aprinter/board/arduino_due_pins.h>
 
 using namespace APrinter;
@@ -266,7 +267,7 @@ using PrinterParams = PrinterMainParams<
         >
     >,
     PrinterMainNoCurrentParams,
-    ConstexprConfigManagerService,
+    RuntimeConfigManagerService,
     ConfigList,
     
     /*
