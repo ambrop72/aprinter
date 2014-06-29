@@ -266,6 +266,8 @@ using PrinterParams = PrinterMainParams<
         >
     >,
     PrinterMainNoCurrentParams,
+    ConstexprConfigManagerService,
+    ConfigList,
     
     /*
      * Axes.
@@ -606,18 +608,14 @@ struct Program;
 using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
 using MyClock = At91Sam3xClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
-using MyConfigManager = ConfigManager<MyContext, Program, ConfigList>;
 using MyPins = At91SamPins<MyContext, Program>;
 using MyAdc = At91SamAdc<MyContext, Program, AdcPins, AdcParams>;
 using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
-
-APRINTER_CONFIG_FINALIZE(MyConfigManager)
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
     using Clock = MyClock;
     using EventLoop = MyLoop;
-    using Config = MyConfigManager;
     using Pins = MyPins;
     using Adc = MyAdc;
     
@@ -631,7 +629,6 @@ struct Program : public ObjBase<void, void, MakeTypeList<
     MyDebugObjectGroup,
     MyClock,
     MyLoop,
-    MyConfigManager,
     MyPins,
     MyAdc,
     MyPrinter,
@@ -734,7 +731,6 @@ int main ()
     MyDebugObjectGroup::init(c);
     MyClock::init(c);
     MyLoop::init(c);
-    MyConfigManager::init(c);
     MyPins::init(c);
     MyAdc::init(c);
     MyPrinter::init(c);

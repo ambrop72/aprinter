@@ -46,13 +46,11 @@
 #include <aprinter/base/DebugObject.h>
 
 #define APRINTER_CONFIG_START \
-template <typename Option> struct ConfigOptionExprHelper; \
 APRINTER_START_LIST(ConfigList)
 
 #define APRINTER_CONFIG_OPTION_GENERIC(Name, Type, DefaultValue) \
-struct Name##__Option : public APrinter::ConfigOption<Type, DefaultValue> {}; \
-using Name = ConfigOptionExprHelper<Name##__Option>; \
-APRINTER_ADD_TO_LIST(ConfigList, Name##__Option)
+struct Name : public APrinter::ConfigOption<Name, Type, DefaultValue> {}; \
+APRINTER_ADD_TO_LIST(ConfigList, Name)
 
 #define APRINTER_CONFIG_OPTION_SIMPLE(Name, Type, DefaultValue) \
 using Name##__DefaultValue = APrinter::WrapValue<Type, (DefaultValue)>; \
@@ -65,25 +63,27 @@ APRINTER_CONFIG_OPTION_GENERIC(Name, double, Name##__DefaultValue)
 #define APRINTER_CONFIG_END \
 APRINTER_END_LIST(ConfigList)
 
-#define APRINTER_CONFIG_FINALIZE(TheConfigManager) \
-template <typename Option> struct ConfigOptionExprHelper : public TheConfigManager::OptionExpr<Option> {};
-
 #include <aprinter/BeginNamespace.h>
 
-template <typename TType, typename TDefaultValue>
+template <typename TIdentity, typename TType, typename TDefaultValue>
 struct ConfigOption {
+    using Identity = TIdentity;
     using Type = TType;
     using DefaultValue = TDefaultValue;
+    
+    static constexpr Identity i = Identity{};
 };
 
 template <typename Context, typename ParentObject, typename ConfigList>
-class ConfigManager {
+class ConstexprConfigManager {
 public:
     struct Object;
     
+private:
     template <typename Option>
     using OptionExpr = ConstantExpr<typename Option::Type, typename Option::DefaultValue>;
     
+public:
     static void init (Context c)
     {
     }
@@ -92,7 +92,16 @@ public:
     {
     }
     
-    struct Object : public ObjBase<ConfigManager, ParentObject, EmptyTypeList> {};
+    template <typename Option>
+    static OptionExpr<Option> e (Option);
+    
+public:
+    struct Object : public ObjBase<ConstexprConfigManager, ParentObject, EmptyTypeList> {};
+};
+
+struct ConstexprConfigManagerService {
+    template <typename Context, typename ParentObject, typename ConfigList>
+    using ConfigManager = ConstexprConfigManager<Context, ParentObject, ConfigList>;
 };
 
 template <typename Context, typename ParentObject, typename ExprsList>

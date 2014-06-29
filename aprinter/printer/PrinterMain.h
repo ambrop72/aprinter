@@ -93,6 +93,8 @@ template <
     typename TEventChannelTimerService,
     typename TWatchdogService,
     typename TSdCardParams, typename TProbeParams, typename TCurrentParams,
+    typename TConfigManagerService,
+    typename TConfigList,
     typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList,
     typename TLasersList = EmptyTypeList
 >
@@ -114,6 +116,8 @@ struct PrinterMainParams {
     using SdCardParams = TSdCardParams;
     using ProbeParams = TProbeParams;
     using CurrentParams = TCurrentParams;
+    using ConfigManagerService = TConfigManagerService;
+    using ConfigList = TConfigList;
     using AxesList = TAxesList;
     using TransformParams = TTransformParams;
     using HeatersList = THeatersList;
@@ -478,6 +482,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using ParamsFansList = typename Params::FansList;
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     
+    using Config = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     
@@ -1308,8 +1313,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using MinReqPosLimit = APRINTER_FP_CONST_EXPR(AbsStepFixedType::minValue().fpValueConstexpr() / DistConversion::value());
         using MaxReqPosLimit = APRINTER_FP_CONST_EXPR(AbsStepFixedType::maxValue().fpValueConstexpr() / DistConversion::value());
         
-        using MinReqPos = decltype(ExprFmax(AxisSpec::DefaultMin::e(), MinReqPosLimit()));
-        using MaxReqPos = decltype(ExprFmin(AxisSpec::DefaultMax::e(), MaxReqPosLimit()));
+        using MinReqPos = decltype(ExprFmax(Config::e(AxisSpec::DefaultMin::i), MinReqPosLimit()));
+        using MaxReqPos = decltype(ExprFmin(Config::e(AxisSpec::DefaultMax::i), MaxReqPosLimit()));
         
         using PlannerMaxSpeedRec = AMBRO_WRAP_DOUBLE(1.0 / (AxisSpec::DefaultMaxSpeed::value() * SpeedConversion::value()));
         using PlannerMaxAccelRec = AMBRO_WRAP_DOUBLE(1.0 / (AxisSpec::DefaultMaxAccel::value() * AccelConversion::value()));
@@ -1345,7 +1350,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                     
                     Homer::deinit(c);
-                    axis->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
+                    axis->m_req_pos = APRINTER_CFG(Cache, CInitPosition, c);
                     axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * (FpType)DistConversion::value());
                     axis->m_state = AXIS_STATE_OTHER;
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
@@ -1438,7 +1443,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static FpType clamp_req_pos (Context c, FpType req)
         {
-            return FloatMax(APRINTER_CFG(Config, CMinReqPos, c), FloatMin(APRINTER_CFG(Config, CMaxReqPos, c), req));
+            return FloatMax(APRINTER_CFG(Cache, CMinReqPos, c), FloatMin(APRINTER_CFG(Cache, CMaxReqPos, c), req));
         }
         
         static void init (Context c)
@@ -1448,7 +1453,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             o->m_state = AXIS_STATE_OTHER;
             HomingFeature::init(c);
             MicroStepFeature::init(c);
-            o->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
+            o->m_req_pos = APRINTER_CFG(Cache, CInitPosition, c);
             o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * (FpType)DistConversion::value());
             o->m_relative_positioning = false;
         }
@@ -3008,6 +3013,7 @@ public:
         auto *ob = Object::self(c);
         
         Config::init(c);
+        Cache::init(c);
         ob->unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
         ob->disable_timer.init(c, PrinterMain::disable_timer_handler);
         ob->force_timer.init(c, PrinterMain::force_timer_handler);
@@ -3057,8 +3063,11 @@ public:
         ob->force_timer.deinit(c);
         ob->disable_timer.deinit(c);
         ob->unlocked_timer.deinit(c);
+        Cache::deinit(c);
         Config::deinit(c);
     }
+    
+    using GetConfigManager = Config;
     
     using GetWatchdog = TheWatchdog;
     
@@ -3703,7 +3712,7 @@ public: // private, see comment on top
     };
     
     using ConfigExprs = JoinTypeListList<MapTypeList<AxesList, GetMemberType_ConfigExprs>>;
-    using Config = ConfigCache<Context, Object, ConfigExprs>;
+    using Cache = ConfigCache<Context, Object, ConfigExprs>;
     
     struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_pull_handler) {};
@@ -3726,6 +3735,8 @@ public:
         HeatersList,
         FansList,
         MakeTypeList<
+            Config,
+            Cache,
             TheWatchdog,
             TheBlinker,
             TheSteppers,
@@ -3734,8 +3745,7 @@ public:
             TransformFeature,
             ProbeFeature,
             CurrentFeature,
-            PlannerUnion,
-            Config
+            PlannerUnion
         >
     >>,
         public DebugObject<Context, void>
