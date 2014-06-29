@@ -26,6 +26,7 @@
 #define APRINTER_RUNTIME_CONFIG_MANAGER_H
 
 #include <stdint.h>
+#include <string.h>
 
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/Object.h>
@@ -67,9 +68,9 @@ private:
         }
         
         template <typename CommandChannel>
-        static bool get_value_cmd (Context c, WrapType<CommandChannel> cc, uint32_t index)
+        static bool get_value_cmd (Context c, WrapType<CommandChannel> cc, char const *name)
         {
-            if (index != ConfigOptionIndex) {
+            if (strcmp(TheConfigOption::name(), name) != 0) {
                 return true;
             }
             TypeSpecific<Type>::get_value_cmd(c, cc);
@@ -77,9 +78,9 @@ private:
         }
         
         template <typename CommandChannel>
-        static bool set_value_cmd (Context c, WrapType<CommandChannel> cc, uint32_t index)
+        static bool set_value_cmd (Context c, WrapType<CommandChannel> cc, char const *name)
         {
-            if (index != ConfigOptionIndex) {
+            if (strcmp(TheConfigOption::name(), name) != 0) {
                 return true;
             }
             TypeSpecific<Type>::set_value_cmd(c, cc);
@@ -130,8 +131,8 @@ public:
     static bool checkCommand (Context c, WrapType<CommandChannel> cc)
     {
         if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::GetConfigMCommand) {
-            uint32_t index = CommandChannel::get_command_param_uint32(c, 'I', -1);
-            if (ListForEachForwardInterruptible<ConfigOptionStateList>(Foreach_get_value_cmd(), c, cc, index)) {
+            char const *name = CommandChannel::get_command_param_str(c, 'I', "");
+            if (ListForEachForwardInterruptible<ConfigOptionStateList>(Foreach_get_value_cmd(), c, cc, name)) {
                 CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
             } else {
                 CommandChannel::reply_append_ch(c, '\n');
@@ -140,8 +141,8 @@ public:
             return false;
         }
         if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::SetConfigMCommand) {
-            uint32_t index = CommandChannel::get_command_param_uint32(c, 'I', -1);
-            if (ListForEachForwardInterruptible<ConfigOptionStateList>(Foreach_set_value_cmd(), c, cc, index)) {
+            char const *name = CommandChannel::get_command_param_str(c, 'I', "");
+            if (ListForEachForwardInterruptible<ConfigOptionStateList>(Foreach_set_value_cmd(), c, cc, name)) {
                 CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
             }
             CommandChannel::finishCommand(c);

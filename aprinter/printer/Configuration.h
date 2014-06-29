@@ -47,7 +47,8 @@
 APRINTER_START_LIST(ConfigList)
 
 #define APRINTER_CONFIG_OPTION_GENERIC(Name, Type, DefaultValue) \
-struct Name : public APrinter::ConfigOption<Name, Type, DefaultValue> {}; \
+struct Name##__OptionName { static char const * name () { return #Name; } }; \
+struct Name : public APrinter::ConfigOption<Name, Type, DefaultValue, Name##__OptionName> {}; \
 APRINTER_ADD_TO_LIST(ConfigList, Name)
 
 #define APRINTER_CONFIG_OPTION_SIMPLE(Name, Type, DefaultValue) \
@@ -63,13 +64,14 @@ APRINTER_END_LIST(ConfigList)
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TIdentity, typename TType, typename TDefaultValue>
+template <typename TIdentity, typename TType, typename TDefaultValue, typename TOptionName>
 struct ConfigOption {
     using Identity = TIdentity;
     using Type = TType;
     using DefaultValue = TDefaultValue;
     
     static constexpr Identity i = Identity{};
+    static char const * name () { return TOptionName::name(); }
 };
 
 template <typename Context, typename ParentObject, typename ExprsList>

@@ -299,6 +299,16 @@ public:
         return strtoul(part->data, NULL, 10);
     }
     
+    static char const * getPartStringValue (Context c, PartRef part)
+    {
+        auto *o = Object::self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        AMBRO_ASSERT(o->m_command.num_parts >= 0)
+        
+        return part->data;
+    }
+    
     static char * getBuffer (Context c)
     {
         auto *o = Object::self(c);

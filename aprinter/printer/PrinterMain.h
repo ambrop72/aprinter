@@ -724,6 +724,19 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return TheGcodeParser::template getPartFpValue<FpType>(c, part);
         }
         
+        static char const * get_command_param_str (Context c, char code, char const *default_value)
+        {
+            GcodeParserPartRef part;
+            if (!find_command_param(c, code, &part)) {
+                return default_value;
+            }
+            char const *str = TheGcodeParser::getPartStringValue(c, part);
+            if (!str) {
+                return default_value;
+            }
+            return str;
+        }
+        
         static bool find_command_param_fp (Context c, char code, FpType *out)
         {
             GcodeParserPartRef part;

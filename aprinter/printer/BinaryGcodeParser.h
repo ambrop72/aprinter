@@ -351,6 +351,16 @@ public:
         }
     }
     
+    static char const * getPartStringValue (Context c, PartRef part)
+    {
+        auto *o = Object::self(c);
+        o->debugAccess(c);
+        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        AMBRO_ASSERT(o->m_num_parts >= 0)
+        
+        return NULL;
+    }
+    
 private:
     enum {STATE_NOCMD, STATE_HEADER, STATE_HEADER_LONG, STATE_INDEX, STATE_PAYLOAD};
     
