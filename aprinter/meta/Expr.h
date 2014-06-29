@@ -122,9 +122,17 @@ using NaryExpr = If<
     RuntimeNaryExpr<Func, Operands...>
 >;
 
+template <typename TheFpConstExpr>
+struct Expr__FpConstValueProvider {
+    static constexpr double value ()
+    {
+        return TheFpConstExpr::expr__fp_const_value();
+    };
+};
+
 #define APRINTER_FP_CONST_EXPR__HELPER1(the_value, counter) \
-struct APrinterExprFpConst__##counter : public APrinter::DoubleConstantExpr<APrinterExprFpConst__##counter> { \
-    static constexpr double value () { return (the_value); } \
+struct APrinterExprFpConst__##counter : public APrinter::DoubleConstantExpr<APrinter::Expr__FpConstValueProvider<APrinterExprFpConst__##counter>> { \
+    static constexpr double expr__fp_const_value () { return (the_value); } \
 }
 
 #define APRINTER_FP_CONST_EXPR__HELPER2(the_value, counter) APRINTER_FP_CONST_EXPR__HELPER1(the_value, counter)
