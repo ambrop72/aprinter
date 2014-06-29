@@ -25,6 +25,8 @@
 #ifndef APRINTER_RUNTIME_CONFIG_MANAGER_H
 #define APRINTER_RUNTIME_CONFIG_MANAGER_H
 
+#include <stdint.h>
+
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/TypeListGet.h>
@@ -32,16 +34,20 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IsEqualFunc.h>
+#include <aprinter/meta/WrapType.h>
+#include <aprinter/base/ProgramMemory.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ConfigOptionsList>
+template <typename Context, typename ParentObject, typename ConfigOptionsList, typename Params>
 class RuntimeConfigManager {
 public:
     struct Object;
     
 private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_value_cmd, get_value_cmd)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_set_value_cmd, set_value_cmd)
     
     template <int ConfigOptionIndex>
     struct ConfigOptionState {
@@ -59,6 +65,46 @@ private:
             auto *o = Object::self(c);
             return o->value;
         }
+        
+        template <typename CommandChannel>
+        static bool get_value_cmd (Context c, WrapType<CommandChannel> cc, uint32_t index)
+        {
+            if (index != ConfigOptionIndex) {
+                return true;
+            }
+            TypeSpecific<Type>::get_value_cmd(c, cc);
+            return false;
+        }
+        
+        template <typename CommandChannel>
+        static bool set_value_cmd (Context c, WrapType<CommandChannel> cc, uint32_t index)
+        {
+            if (index != ConfigOptionIndex) {
+                return true;
+            }
+            TypeSpecific<Type>::set_value_cmd(c, cc);
+            return false;
+        }
+        
+        template <typename TheType, typename Dummy = void>
+        struct TypeSpecific;
+        
+        template <typename Dummy>
+        struct TypeSpecific<double, Dummy> {
+            template <typename CommandChannel>
+            static void get_value_cmd (Context c, WrapType<CommandChannel>)
+            {
+                auto *o = Object::self(c);
+                CommandChannel::reply_append_fp(c, o->value);
+            }
+            
+            template <typename CommandChannel>
+            static void set_value_cmd (Context c, WrapType<CommandChannel>)
+            {
+                auto *o = Object::self(c);
+                o->value = CommandChannel::get_command_param_fp(c, 'V', TheConfigOption::DefaultValue::value());
+            }
+        };
         
         struct Object : public ObjBase<ConfigOptionState, typename RuntimeConfigManager::Object, EmptyTypeList> {
             Type value;
@@ -80,6 +126,30 @@ public:
     {
     }
     
+    template <typename CommandChannel>
+    static bool checkCommand (Context c, WrapType<CommandChannel> cc)
+    {
+        if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::GetConfigMCommand) {
+            uint32_t index = CommandChannel::get_command_param_uint32(c, 'I', -1);
+            if (ListForEachForwardInterruptible<ConfigOptionStateList>(Foreach_get_value_cmd(), c, cc, index)) {
+                CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
+            } else {
+                CommandChannel::reply_append_ch(c, '\n');
+            }
+            CommandChannel::finishCommand(c);
+            return false;
+        }
+        if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::SetConfigMCommand) {
+            uint32_t index = CommandChannel::get_command_param_uint32(c, 'I', -1);
+            if (ListForEachForwardInterruptible<ConfigOptionStateList>(Foreach_set_value_cmd(), c, cc, index)) {
+                CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
+            }
+            CommandChannel::finishCommand(c);
+            return false;
+        }
+        return true;
+    }
+    
     template <typename Option>
     static OptionExpr<Option> e (Option);
     
@@ -87,9 +157,16 @@ public:
     struct Object : public ObjBase<RuntimeConfigManager, ParentObject, ConfigOptionStateList> {};
 };
 
+template <
+    int TGetConfigMCommand,
+    int TSetConfigMCommand
+>
 struct RuntimeConfigManagerService {
+    static int const GetConfigMCommand = TGetConfigMCommand;
+    static int const SetConfigMCommand = TSetConfigMCommand;
+    
     template <typename Context, typename ParentObject, typename ConfigOptionsList>
-    using ConfigManager = RuntimeConfigManager<Context, ParentObject, ConfigOptionsList>;
+    using ConfigManager = RuntimeConfigManager<Context, ParentObject, ConfigOptionsList, RuntimeConfigManagerService>;
 };
 
 #include <aprinter/EndNamespace.h>

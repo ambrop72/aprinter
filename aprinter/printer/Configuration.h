@@ -165,6 +165,14 @@ public:
         o->debugDeinit(c);
     }
     
+    static void update (Context c)
+    {
+        auto *o = Object::self(c);
+        o->debugAccess(c);
+        
+        ListForEachForward<CachedExprStateList>(Foreach_update(), c);
+    }
+    
     template <typename TheExpr>
     static GetExpr<TheExpr> getExpr (TheExpr);
     

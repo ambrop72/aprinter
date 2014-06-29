@@ -27,6 +27,7 @@
 
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/Object.h>
+#include <aprinter/meta/WrapType.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -46,6 +47,12 @@ public:
     
     static void deinit (Context c)
     {
+    }
+    
+    template <typename CommandChannel>
+    static bool checkCommand (Context c, WrapType<CommandChannel>)
+    {
+        return true;
     }
     
     template <typename Option>

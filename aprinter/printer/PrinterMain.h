@@ -3149,7 +3149,8 @@ public: // private, see comment on top
                         ListForEachForwardInterruptible<FansList>(LForeach_check_command(), c, cc) &&
                         SdCardFeature::check_command(c, cc) &&
                         ProbeFeature::check_command(c, cc) &&
-                        CurrentFeature::check_command(c, cc)
+                        CurrentFeature::check_command(c, cc) &&
+                        Config::checkCommand(c, cc)
                     ) {
                         goto unknown_command;
                     }
@@ -3240,6 +3241,14 @@ public: // private, see comment on top
                     ListForEachForward<HeatersList>(LForeach_append_adc_value(), c, cc);
                     TheChannelCommon::reply_append_ch(c, '\n');
                     return TheChannelCommon::finishCommand(c, true);
+                } break;
+                
+                case 927: { // apply configuration
+                    if (!TheChannelCommon::tryUnplannedCommand(c)) {
+                        return;
+                    }
+                    Cache::update(c);
+                    return TheChannelCommon::finishCommand(c);
                 } break;
             } break;
             

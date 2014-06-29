@@ -267,7 +267,10 @@ using PrinterParams = PrinterMainParams<
         >
     >,
     PrinterMainNoCurrentParams,
-    RuntimeConfigManagerService,
+    RuntimeConfigManagerService<
+        925, // GetConfigMCommand
+        926 // SetConfigMCommand
+    >,
     ConfigList,
     
     /*
