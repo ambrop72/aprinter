@@ -139,6 +139,16 @@ private:
         using Expr = TheExpr;
     };
     
+    template <typename TheExpr>
+    using GetExpr = If<
+        CheckExpr<TheExpr>::Expr::IsConstexpr,
+        TheExpr,
+        VariableExpr<
+            typename TheExpr::Type,
+            CachedExprState<TypeListIndex<CachedExprsList, IsEqualFunc<TheExpr>>::Value>
+        >
+    >;
+    
 public:
     static void init (Context c)
     {
@@ -156,23 +166,13 @@ public:
     }
     
     template <typename TheExpr>
-    using GetExpr = If<
-        CheckExpr<TheExpr>::Expr::IsConstexpr,
-        TheExpr,
-        VariableExpr<
-            typename TheExpr::Type,
-            CachedExprState<TypeListIndex<CachedExprsList, IsEqualFunc<TheExpr>>::Value>
-        >
-    >;
-    
-    template <typename TheExpr>
     static GetExpr<TheExpr> getExpr (TheExpr);
     
-    template <typename TheExpr>
-    static typename GetExpr<TheExpr>::Type get (Context c, TheExpr)
-    {
-        return GetExpr<TheExpr>::eval(c);
-    }
+    #define APRINTER_CFG(TheConfigCache, TheExpr, c) ( \
+        decltype(TheConfigCache::getExpr(TheExpr()))::IsConstexpr ? \
+        decltype(TheConfigCache::getExpr(TheExpr()))::value() : \
+        decltype(TheConfigCache::getExpr(TheExpr()))::eval((c)) \
+    )
     
 public:
     struct Object : public ObjBase<ConfigCache, ParentObject, CachedExprStateList>,

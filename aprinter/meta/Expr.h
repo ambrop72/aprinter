@@ -26,7 +26,6 @@
 #define APRINTER_EXPR_H
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeListReverse.h>
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/RemoveReference.h>
@@ -44,10 +43,15 @@ struct ConstantExpr : public Expr<ConstantExpr<TType, ValueProvider>> {
     using Type = TType;
     static bool const IsConstexpr = true;
     
-    template <typename... Args>
-    static constexpr Type eval (Args... args)
+    static constexpr Type value ()
     {
         return ValueProvider::value();
+    }
+    
+    template <typename... Args>
+    static Type eval (Args... args)
+    {
+        return value();
     }
 };
 
@@ -70,15 +74,15 @@ struct VariableExpr : public Expr<VariableExpr<TType, EvalFunc>> {
 };
 
 template <typename... Operands>
-struct Expr__IsConstexpr;
+struct Expr__OperandsAreConstexpr;
 
 template <typename Operand, typename... TailOperands>
-struct Expr__IsConstexpr<Operand, TailOperands...> {
-    static bool const Value = (Operand::IsConstexpr && Expr__IsConstexpr<TailOperands...>::Value);
+struct Expr__OperandsAreConstexpr<Operand, TailOperands...> {
+    static bool const Value = (Operand::IsConstexpr && Expr__OperandsAreConstexpr<TailOperands...>::Value);
 };
 
 template <>
-struct Expr__IsConstexpr<> {
+struct Expr__OperandsAreConstexpr<> {
     static bool const Value = true;
 };
 
@@ -87,10 +91,15 @@ struct ConstexprNaryExpr : public Expr<ConstexprNaryExpr<Func, Operands...>> {
     using Type = decltype(Func::call(typename Operands::Type()...));
     static bool const IsConstexpr = true;
     
-    template <typename... Args>
-    static constexpr Type eval (Args... args)
+    static constexpr Type value ()
     {
-        return Func::call(Operands::eval(args...)...);
+        return Func::call(Operands::value()...);
+    }
+    
+    template <typename... Args>
+    static Type eval (Args... args)
+    {
+        return value();
     }
 };
 
@@ -107,16 +116,20 @@ struct RuntimeNaryExpr : public Expr<RuntimeNaryExpr<Func, Operands...>> {
 };
 
 template <typename Func, typename... Operands>
-using NaryExpr = If<Expr__IsConstexpr<Operands...>::Value, ConstexprNaryExpr<Func, Operands...>, RuntimeNaryExpr<Func, Operands...>>;
+using NaryExpr = If<
+    Expr__OperandsAreConstexpr<Operands...>::Value,
+    ConstexprNaryExpr<Func, Operands...>,
+    RuntimeNaryExpr<Func, Operands...>
+>;
 
 #define APRINTER_FP_CONST_EXPR__HELPER1(the_value, counter) \
 struct APrinterExprFpConst__##counter : public APrinter::DoubleConstantExpr<APrinterExprFpConst__##counter> { \
     static constexpr double value () { return (the_value); } \
 }
 
-#define APRINTER_FP_CONST_EXPR__HELPER2(the_value, counter) APRINTER_FP_CONST_EXPR__HELPER1((the_value), counter)
+#define APRINTER_FP_CONST_EXPR__HELPER2(the_value, counter) APRINTER_FP_CONST_EXPR__HELPER1(the_value, counter)
 
-#define APRINTER_FP_CONST_EXPR(the_value) APRINTER_FP_CONST_EXPR__HELPER2((the_value), __COUNTER__)
+#define APRINTER_FP_CONST_EXPR(the_value) APRINTER_FP_CONST_EXPR__HELPER2(the_value, __COUNTER__)
 
 #define APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Name, EvalExpr) \
 struct ExprFunc__##Name { \

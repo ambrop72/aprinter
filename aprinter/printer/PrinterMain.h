@@ -1345,7 +1345,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                     
                     Homer::deinit(c);
-                    axis->m_req_pos = Config::get(c, CInitPosition());
+                    axis->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
                     axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * (FpType)DistConversion::value());
                     axis->m_state = AXIS_STATE_OTHER;
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
@@ -1438,7 +1438,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static FpType clamp_req_pos (Context c, FpType req)
         {
-            return FloatMax(Config::get(c, CMinReqPos()), FloatMin(Config::get(c, CMaxReqPos()), req));
+            return FloatMax(APRINTER_CFG(Config, CMinReqPos, c), FloatMin(APRINTER_CFG(Config, CMaxReqPos, c), req));
         }
         
         static void init (Context c)
@@ -1448,7 +1448,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             o->m_state = AXIS_STATE_OTHER;
             HomingFeature::init(c);
             MicroStepFeature::init(c);
-            o->m_req_pos = Config::get(c, CInitPosition());
+            o->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
             o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * (FpType)DistConversion::value());
             o->m_relative_positioning = false;
         }
