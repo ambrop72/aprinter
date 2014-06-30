@@ -152,8 +152,6 @@ public:
     
     using GetSpi = TheSpi;
     
-    using EventLoopFastEvents = typename TheSpi::EventLoopFastEvents;
-    
 private:
     using SsPin = typename Params::SsPin;
     

@@ -119,7 +119,6 @@ public:
     }
     
     using TheAxisDriverConsumer = typename Planner::template TheAxisDriverConsumer<0>;
-    using EventLoopFastEvents = typename Planner::EventLoopFastEvents;
     
 private:
     static void planner_pull_handler (Context c)

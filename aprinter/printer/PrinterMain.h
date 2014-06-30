@@ -454,11 +454,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(TForeach_init, init)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
-    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_EventLoopFastEvents, EventLoopFastEvents)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ConfigExprs, ConfigExprs)
+    APRINTER_DECLARE_COLLECTIBLE(Collectible_EventLoopFastEvents, EventLoopFastEvents)
     
     struct PlannerUnionPlanner;
     struct PlannerUnionHoming;
@@ -1273,7 +1273,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct SdCardInitHandler : public AMBRO_WFUNC_TD(&SdCardFeature::sd_card_init_handler) {};
         struct SdCardCommandHandler : public AMBRO_WFUNC_TD(&SdCardFeature::sd_card_command_handler) {};
         
-        using EventLoopFastEvents = typename TheSdCard::EventLoopFastEvents;
         using SdChannelCommonList = MakeTypeList<TheChannelCommon>;
         
         struct Object : public ObjBase<SdCardFeature, typename PrinterMain::Object, MakeTypeList<
@@ -1296,7 +1295,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void deinit (Context c) {}
         template <typename TheChannelCommon>
         static bool check_command (Context c, WrapType<TheChannelCommon>) { return true; }
-        using EventLoopFastEvents = EmptyTypeList;
         using SdChannelCommonList = EmptyTypeList;
         struct Object {};
     };
@@ -1382,8 +1380,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             using AxisDriverConsumersList = MakeTypeList<typename HomingState::Homer::TheAxisDriverConsumer>;
             
-            using EventLoopFastEvents = typename HomingState::Homer::EventLoopFastEvents;
-            
             static void init (Context c)
             {
                 HomerGlobal::init(c);
@@ -1423,7 +1419,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         } AMBRO_STRUCT_ELSE(HomingFeature) {
             struct HomingState { struct Object {}; };
             using AxisDriverConsumersList = EmptyTypeList;
-            using EventLoopFastEvents = EmptyTypeList;
             static void init (Context c) {}
             static void deinit (Context c) {}
             static void start_phys_homing (Context c) {}
@@ -1563,8 +1558,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             Stepper::emergency();
         }
-        
-        using EventLoopFastEvents = typename HomingFeature::EventLoopFastEvents;
         
         using CMinReqPos = decltype(ExprCast<FpType>(MinReqPos()));
         using CMaxReqPos = decltype(ExprCast<FpType>(MaxReqPos()));
@@ -2984,8 +2977,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return true;
         }
         
-        using EventLoopFastEvents = typename Current::EventLoopFastEvents;
-        
         template <int CurrentAxisIndex>
         struct CurrentAxis {
             using CurrentAxisParams = TypeListGet<ParamsCurrentAxesList, CurrentAxisIndex>;
@@ -3016,7 +3007,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void deinit (Context c) {}
         template <typename TheChannelCommon>
         static bool check_command (Context c, WrapType<TheChannelCommon>) { return true; }
-        using EventLoopFastEvents = EmptyTypeList;
         struct Object {};
     };
     
@@ -3114,23 +3104,7 @@ public:
         ListForEachForward<FansList>(LForeach_emergency());
     }
     
-    using EventLoopFastEvents = JoinTypeLists<
-        typename CurrentFeature::EventLoopFastEvents,
-        JoinTypeLists<
-            typename SdCardFeature::EventLoopFastEvents,
-            JoinTypeLists<
-                typename SerialFeature::TheSerial::EventLoopFastEvents,
-                JoinTypeLists<
-                    typename ThePlanner::EventLoopFastEvents,
-                    TypeListFold<
-                        MapTypeList<AxesList, GetMemberType_EventLoopFastEvents>,
-                        EmptyTypeList,
-                        JoinTwoTypeLists
-                    >
-                >
-            >
-        >
-    >;
+    using EventLoopFastEvents = ObjCollectWithoutSelf<PrinterMain, Collectible_EventLoopFastEvents>;
     
 public: // private, see comment on top
     static TimeType time_from_real (FpType t)

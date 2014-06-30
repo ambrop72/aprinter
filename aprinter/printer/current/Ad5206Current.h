@@ -103,8 +103,6 @@ public:
     
     using GetSpi = TheSpi;
     
-    using EventLoopFastEvents = typename TheSpi::EventLoopFastEvents;
-    
 private:
     static void spi_handler (Context c)
     {
