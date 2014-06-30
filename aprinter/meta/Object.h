@@ -35,7 +35,15 @@
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/HasMemberTypeFunc.h>
 #include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/If.h>
+#include <aprinter/meta/JoinTypeLists.h>
+#include <aprinter/meta/JoinTypeListList.h>
+#include <aprinter/meta/MapTypeList.h>
+#include <aprinter/meta/TemplateFunc.h>
+#include <aprinter/meta/IfFunc.h>
+#include <aprinter/meta/ConstantFunc.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -84,6 +92,49 @@ struct ObjUnionBase : public Union<MapTypeList<TNestedClassesList, ObjectPrivate
         return UnionGetElem<TypeListIndex<NestedClassesList, IsEqualFunc<NestedClass>>::Value>(static_cast<NestedClassesUnion *>(this));
     }
 };
+
+#define APRINTER_DECLARE_COLLECTIBLE(ClassName, CollectibleName) \
+struct ClassName { \
+    AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Has, CollectibleName) \
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Get, CollectibleName) \
+};
+
+AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Obj__HasMemberType_NestedClassesList, NestedClassesList)
+AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Obj__GetMemberType_NestedClassesList, NestedClassesList)
+
+template <typename TheClass, typename Collectible, bool WithoutSelf>
+struct Obj__ConnectHelper {
+    template <typename TheChildClass>
+    using CollectChild = typename Obj__ConnectHelper<TheChildClass, Collectible, false>::Result;
+    
+    using Result = JoinTypeLists<
+        If<
+            WithoutSelf,
+            EmptyTypeList,
+            typename IfFunc<
+                typename Collectible::Has,
+                typename Collectible::Get,
+                ConstantFunc<EmptyTypeList>
+            >::template Call<TheClass>::Type
+        >,
+        JoinTypeListList<
+            MapTypeList<
+                typename IfFunc<
+                    Obj__HasMemberType_NestedClassesList,
+                    Obj__GetMemberType_NestedClassesList,
+                    ConstantFunc<EmptyTypeList>
+                >::template Call<typename TheClass::Object>::Type,
+                TemplateFunc<CollectChild>
+            >
+        >
+    >;
+};
+
+template <typename TheClass, typename Collectible>
+using ObjCollect = typename Obj__ConnectHelper<TheClass, Collectible, false>::Result;
+
+template <typename TheClass, typename Collectible>
+using ObjCollectWithoutSelf = typename Obj__ConnectHelper<TheClass, Collectible, true>::Result;
 
 #include <aprinter/EndNamespace.h>
 
