@@ -103,9 +103,9 @@ AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Obj__HasMemberType_NestedClassesList, NestedC
 AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Obj__GetMemberType_NestedClassesList, NestedClassesList)
 
 template <typename TheClass, typename Collectible, bool WithoutSelf>
-struct Obj__ConnectHelper {
+struct Obj__CollectHelper {
     template <typename TheChildClass>
-    using CollectChild = typename Obj__ConnectHelper<TheChildClass, Collectible, false>::Result;
+    using CollectChild = typename Obj__CollectHelper<TheChildClass, Collectible, false>::Result;
     
     using Result = JoinTypeLists<
         If<
@@ -131,10 +131,10 @@ struct Obj__ConnectHelper {
 };
 
 template <typename TheClass, typename Collectible>
-using ObjCollect = typename Obj__ConnectHelper<TheClass, Collectible, false>::Result;
+using ObjCollect = typename Obj__CollectHelper<TheClass, Collectible, false>::Result;
 
 template <typename TheClass, typename Collectible>
-using ObjCollectWithoutSelf = typename Obj__ConnectHelper<TheClass, Collectible, true>::Result;
+using ObjCollectWithoutSelf = typename Obj__CollectHelper<TheClass, Collectible, true>::Result;
 
 #include <aprinter/EndNamespace.h>
 
