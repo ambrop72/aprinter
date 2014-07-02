@@ -457,8 +457,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
-    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ConfigExprs, ConfigExprs)
     APRINTER_DECLARE_COLLECTIBLE(Collectible_EventLoopFastEvents, EventLoopFastEvents)
+    APRINTER_DECLARE_COLLECTIBLE(Collectible_ConfigExprs, ConfigExprs)
     
     struct PlannerUnionPlanner;
     struct PlannerUnionHoming;
@@ -470,6 +470,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     struct PlannerChannelCallback;
     template <int AxisIndex> struct PlannerPrestepCallback;
     template <int AxisIndex> struct AxisDriverConsumersList;
+    struct DelayedConfigExprs;
     
     using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
@@ -483,6 +484,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     
     using Config = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList>;
+    using Cache = ConfigCache<Context, Object, DelayedConfigExprs>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     
@@ -514,7 +516,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
-    using TimeConversion = AMBRO_WRAP_DOUBLE(Clock::time_freq);
+    using TimeConversion = APRINTER_FP_CONST_EXPR(Clock::time_freq);
     
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
@@ -1317,18 +1319,18 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using WrappedAxisName = WrapInt<AxisName>;
         using HomingSpec = typename AxisSpec::Homing;
         
-        using DistConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value());
-        using SpeedConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value() / TimeConversion::value());
-        using AccelConversion = AMBRO_WRAP_DOUBLE(AxisSpec::DefaultStepsPerUnit::value() / (TimeConversion::value() * TimeConversion::value()));
+        using DistConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i));
+        using SpeedConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i) / TimeConversion());
+        using AccelConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i) / (TimeConversion() * TimeConversion()));
         
-        using MinReqPosLimit = APRINTER_FP_CONST_EXPR(AbsStepFixedType::minValue().fpValueConstexpr() / DistConversion::value());
-        using MaxReqPosLimit = APRINTER_FP_CONST_EXPR(AbsStepFixedType::maxValue().fpValueConstexpr() / DistConversion::value());
+        using AbsStepFixedTypeMin = APRINTER_FP_CONST_EXPR(AbsStepFixedType::minValue().fpValueConstexpr());
+        using AbsStepFixedTypeMax = APRINTER_FP_CONST_EXPR(AbsStepFixedType::maxValue().fpValueConstexpr());
         
-        using MinReqPos = decltype(ExprFmax(Config::e(AxisSpec::DefaultMin::i), MinReqPosLimit()));
-        using MaxReqPos = decltype(ExprFmin(Config::e(AxisSpec::DefaultMax::i), MaxReqPosLimit()));
+        using MinReqPos = decltype(ExprFmax(Config::e(AxisSpec::DefaultMin::i), AbsStepFixedTypeMin() / DistConversion()));
+        using MaxReqPos = decltype(ExprFmin(Config::e(AxisSpec::DefaultMax::i), AbsStepFixedTypeMax() / DistConversion()));
         
-        using PlannerMaxSpeedRec = AMBRO_WRAP_DOUBLE(1.0 / (AxisSpec::DefaultMaxSpeed::value() * SpeedConversion::value()));
-        using PlannerMaxAccelRec = AMBRO_WRAP_DOUBLE(1.0 / (AxisSpec::DefaultMaxAccel::value() * AccelConversion::value()));
+        using PlannerMaxSpeedRec = decltype(ExprRec(Config::e(AxisSpec::DefaultMaxSpeed::i) * SpeedConversion()));
+        using PlannerMaxAccelRec = decltype(ExprRec(Config::e(AxisSpec::DefaultMaxAccel::i) * AccelConversion()));
         
         template <typename ThePrinterMain = PrinterMain>
         struct Lazy {
@@ -1339,8 +1341,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             struct Object;
             
             using HomerInstance = typename HomingSpec::HomerService::template Instance<
-                Context, FpType, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
-                Params::LookaheadBufferSize, typename AxisSpec::DefaultMaxAccel,
+                Context, Config, Cache, FpType, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
+                Params::LookaheadBufferSize, decltype(Config::e(AxisSpec::DefaultMaxAccel::i)),
                 DistConversion, TimeConversion, HomingSpec::HomeDir
             >;
             
@@ -1362,7 +1364,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     
                     Homer::deinit(c);
                     axis->m_req_pos = APRINTER_CFG(Cache, CInitPosition, c);
-                    axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * (FpType)DistConversion::value());
+                    axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * APRINTER_CFG(Cache, CDistConversion, c));
                     axis->m_state = AXIS_STATE_OTHER;
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
                     mob->m_homing_rem_axes &= ~Lazy<>::AxisMask;
@@ -1462,7 +1464,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             HomingFeature::init(c);
             MicroStepFeature::init(c);
             o->m_req_pos = APRINTER_CFG(Cache, CInitPosition, c);
-            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * (FpType)DistConversion::value());
+            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Cache, CDistConversion, c));
             o->m_relative_positioning = false;
         }
         
@@ -1501,7 +1503,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void do_move (Context c, Src new_pos, AddDistance, FpType *distance_squared, FpType *total_steps, PlannerCmd *cmd)
         {
             auto *o = Object::self(c);
-            AbsStepFixedType new_end_pos = AbsStepFixedType::importFpSaturatedRound(new_pos.template get<AxisIndex>() * (FpType)DistConversion::value());
+            AbsStepFixedType new_end_pos = AbsStepFixedType::importFpSaturatedRound(new_pos.template get<AxisIndex>() * APRINTER_CFG(Cache, CDistConversion, c));
             bool dir = (new_end_pos >= o->m_end_pos);
             StepFixedType move = StepFixedType::importBits(dir ? 
                 ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)o->m_end_pos.bitsValue()) :
@@ -1509,7 +1511,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             );
             if (AMBRO_UNLIKELY(move.bitsValue() != 0)) {
                 if (AddDistance::Value && AxisSpec::IsCartesian) {
-                    FpType delta = move.template fpValue<FpType>() * (FpType)(1.0 / DistConversion::value());
+                    FpType delta = move.template fpValue<FpType>() * APRINTER_CFG(Cache, CDistConversionRec, c);
                     *distance_squared += delta * delta;
                 }
                 *total_steps += move.template fpValue<FpType>();
@@ -1525,7 +1527,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void limit_axis_move_speed (Context c, FpType time_freq_by_max_speed, PlannerCmd *cmd)
         {
             auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
-            FpType max_v_rec = time_freq_by_max_speed * (FpType)(1.0 / AxisSpec::DefaultStepsPerUnit::value());
+            FpType max_v_rec = time_freq_by_max_speed * APRINTER_CFG(Cache, CDistConversionRec, c);
             cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, mycmd->x.template fpValue<FpType>() * max_v_rec);
         }
         
@@ -1536,7 +1538,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             RemStepsType rem_steps = ThePlanner::template countAbortedRemSteps<AxisIndex, RemStepsType>(c);
             if (rem_steps != 0) {
                 o->m_end_pos.m_bits.m_int -= rem_steps;
-                o->m_req_pos = o->m_end_pos.template fpValue<FpType>() * (FpType)(1.0 / DistConversion::value());
+                o->m_req_pos = o->m_end_pos.template fpValue<FpType>() * APRINTER_CFG(Cache, CDistConversionRec, c);
                 TransformFeature::template mark_phys_moved<AxisIndex>(c);
             }
         }
@@ -1545,7 +1547,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             o->m_req_pos = clamp_req_pos(c, value);
-            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * (FpType)DistConversion::value());
+            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Cache, CDistConversion, c));
         }
         
         static void set_position (Context c, FpType value, bool *seen_virtual)
@@ -1559,11 +1561,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             Stepper::emergency();
         }
         
+        using CDistConversion = decltype(ExprCast<FpType>(DistConversion()));
+        using CDistConversionRec = decltype(ExprCast<FpType>(ExprRec(DistConversion())));
         using CMinReqPos = decltype(ExprCast<FpType>(MinReqPos()));
         using CMaxReqPos = decltype(ExprCast<FpType>(MaxReqPos()));
         using CInitPosition = decltype(ExprCast<FpType>(HomingFeature::InitPosition::e()));
         
-        using ConfigExprs = MakeTypeList<CMinReqPos, CMaxReqPos, CInitPosition>;
+        using ConfigExprs = MakeTypeList<CDistConversion, CDistConversionRec, CMinReqPos, CMaxReqPos, CInitPosition>;
         
         struct Object : public ObjBase<Axis, typename PrinterMain::Object, MakeTypeList<
             TheAxisDriver,
@@ -1594,8 +1598,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using MakePlannerAxisSpec = MotionPlannerAxisSpec<
         typename TheAxis::TheAxisDriver,
         TheAxis::AxisSpec::StepBits,
-        typename TheAxis::AxisSpec::DefaultDistanceFactor,
-        typename TheAxis::AxisSpec::DefaultCorneringDistance,
+        decltype(Config::e(TheAxis::AxisSpec::DefaultDistanceFactor::i)),
+        decltype(Config::e(TheAxis::AxisSpec::DefaultCorneringDistance::i)),
         typename TheAxis::PlannerMaxSpeedRec,
         typename TheAxis::PlannerMaxAccelRec,
         PlannerPrestepCallback<TheAxis::AxisIndex>
@@ -1957,11 +1961,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             {
                 auto *axis = ThePhysAxis::Object::self(c);
                 auto *t = TransformFeature::Object::self(c);
-                if (AMBRO_UNLIKELY(!(axis->m_req_pos <= (FpType)ThePhysAxis::MaxReqPos::eval(c)))) {
-                    axis->m_req_pos = (FpType)ThePhysAxis::MaxReqPos::eval(c);
+                if (AMBRO_UNLIKELY(!(axis->m_req_pos <= APRINTER_CFG(Cache, typename ThePhysAxis::CMaxReqPos, c)))) {
+                    axis->m_req_pos = APRINTER_CFG(Cache, typename ThePhysAxis::CMaxReqPos, c);
                     t->virt_update_pending = true;
-                } else if (AMBRO_UNLIKELY(!(axis->m_req_pos >= (FpType)ThePhysAxis::MinReqPos::eval(c)))) {
-                    axis->m_req_pos = (FpType)ThePhysAxis::MinReqPos::eval(c);
+                } else if (AMBRO_UNLIKELY(!(axis->m_req_pos >= APRINTER_CFG(Cache, typename ThePhysAxis::CMinReqPos, c)))) {
+                    axis->m_req_pos = APRINTER_CFG(Cache, typename ThePhysAxis::CMinReqPos, c);
                     t->virt_update_pending = true;
                 }
             }
@@ -2750,7 +2754,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, typename Params::EventChannelTimerService>>;
     using MotionPlannerAxes = MapTypeList<AxesList, TemplateFunc<MakePlannerAxisSpec>>;
     using MotionPlannerLasers = MapTypeList<LasersList, TemplateFunc<MakePlannerLaserSpec>>;
-    using ThePlanner = MotionPlanner<Context, typename PlannerUnionPlanner::Object, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels, MotionPlannerLasers>;
+    using ThePlanner = MotionPlanner<Context, typename PlannerUnionPlanner::Object, Cache, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels, MotionPlannerLasers>;
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
     AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::Enabled) {
@@ -3104,7 +3108,7 @@ public:
         ListForEachForward<FansList>(LForeach_emergency());
     }
     
-    using EventLoopFastEvents = ObjCollectWithoutSelf<PrinterMain, Collectible_EventLoopFastEvents>;
+    using EventLoopFastEvents = ObjCollect<PrinterMain, Collectible_EventLoopFastEvents, true>;
     
 public: // private, see comment on top
     static TimeType time_from_real (FpType t)
@@ -3707,9 +3711,6 @@ public: // private, see comment on top
         struct Object : public ObjBase<PlannerUnionHoming, typename PlannerUnion::Object, HomingStateList> {};
     };
     
-    using ConfigExprs = JoinTypeListList<MapTypeList<AxesList, GetMemberType_ConfigExprs>>;
-    using Cache = ConfigCache<Context, Object, ConfigExprs>;
-    
     struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_pull_handler) {};
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_finished_handler) {};
@@ -3721,6 +3722,17 @@ public: // private, see comment on top
         using List = JoinTypeLists<
             MakeTypeList<typename ThePlanner::template TheAxisDriverConsumer<AxisIndex>>,
             typename Axis<AxisIndex>::HomingFeature::AxisDriverConsumersList
+        >;
+    };
+    struct DelayedConfigExprs {
+        using List = ObjCollectList<
+            JoinTypeLists<
+                AxesList,
+                MakeTypeList<
+                    PlannerUnion
+                >
+            >,
+            Collectible_ConfigExprs
         >;
     };
     

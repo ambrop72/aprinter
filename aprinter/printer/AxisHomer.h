@@ -35,7 +35,9 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/ExprFixedPoint.h>
 #include <aprinter/printer/MotionPlanner.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -57,10 +59,12 @@ public:
 };
 
 template <
-    typename Context, typename ParentObject, typename TheGlobal, typename FpType,
+    typename Context, typename ParentObject, typename Config, typename Cache,
+    typename TheGlobal, typename FpType,
     typename TheAxisDriver, int PlannerStepBits, int StepperSegmentBufferSize,
     int MaxLookaheadBufferSize, typename MaxAccel, typename DistConversion,
-    typename TimeConversion, bool HomeDir, typename FinishedHandler, typename Params
+    typename TimeConversion, bool HomeDir, typename FinishedHandler,
+    typename Params
 >
 class AxisHomer {
 public:
@@ -76,20 +80,20 @@ private:
     static int const LookaheadBufferSize = MinValue(MaxLookaheadBufferSize, 3);
     static int const LookaheadCommitCount = 1;
     
-    using SpeedConversion = AMBRO_WRAP_DOUBLE(DistConversion::value() / TimeConversion::value());
-    using AccelConversion = AMBRO_WRAP_DOUBLE(DistConversion::value() / (TimeConversion::value() * TimeConversion::value()));
+    using SpeedConversion = decltype(DistConversion() / TimeConversion());
+    using AccelConversion = decltype(DistConversion() / (TimeConversion() * TimeConversion()));
     
-    using FastSteps = AMBRO_WRAP_DOUBLE(Params::FastMaxDist::value() * DistConversion::value());
-    using RetractSteps = AMBRO_WRAP_DOUBLE(Params::RetractDist::value() * DistConversion::value());
-    using SlowSteps = AMBRO_WRAP_DOUBLE(Params::SlowMaxDist::value() * DistConversion::value());
+    using FastSteps = decltype(Config::e(Params::FastMaxDist::i) * DistConversion());
+    using RetractSteps = decltype(Config::e(Params::RetractDist::i) * DistConversion());
+    using SlowSteps = decltype(Config::e(Params::SlowMaxDist::i) * DistConversion());
     
-    using PlannerMaxSpeedRec = AMBRO_WRAP_DOUBLE(0.0);
-    using PlannerMaxAccelRec = AMBRO_WRAP_DOUBLE(1.0 / (MaxAccel::value() * AccelConversion::value()));
-    using PlannerDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-    using PlannerCorneringDistance = AMBRO_WRAP_DOUBLE(1.0);
+    using PlannerMaxSpeedRec = APRINTER_FP_CONST_EXPR(0.0);
+    using PlannerMaxAccelRec = decltype(ExprRec(MaxAccel() * AccelConversion()));
+    using PlannerDistanceFactor = APRINTER_FP_CONST_EXPR(1.0);
+    using PlannerCorneringDistance = APRINTER_FP_CONST_EXPR(1.0);
     
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerMaxSpeedRec, PlannerMaxAccelRec, PlannerPrestepCallback>>;
-    using Planner = MotionPlanner<Context, Object, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
+    using Planner = MotionPlanner<Context, Object, Cache, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
@@ -138,18 +142,18 @@ private:
         switch (o->m_state) {
             case STATE_FAST: {
                 axis_cmd->dir = HomeDir;
-                axis_cmd->x = StepFixedType::template ConstImport<FastSteps>::value();
-                max_v_rec = (FpType)(1.0 / (Params::FastSpeed::value() * SpeedConversion::value()));
+                axis_cmd->x = APRINTER_CFG(Cache, CFixedStepsFast, c);
+                max_v_rec = APRINTER_CFG(Cache, CMaxVRecFast, c);
             } break;
             case STATE_RETRACT: {
                 axis_cmd->dir = !HomeDir;
-                axis_cmd->x = StepFixedType::template ConstImport<RetractSteps>::value();
-                max_v_rec = (FpType)(1.0 / (Params::RetractSpeed::value() * SpeedConversion::value()));
+                axis_cmd->x = APRINTER_CFG(Cache, CFixedStepsRetract, c);
+                max_v_rec = APRINTER_CFG(Cache, CMaxVRecRetract, c);
             } break;
             case STATE_SLOW: {
                 axis_cmd->dir = HomeDir;
-                axis_cmd->x = StepFixedType::template ConstImport<SlowSteps>::value();
-                max_v_rec = (FpType)(1.0 / (Params::SlowSpeed::value() * SpeedConversion::value()));
+                axis_cmd->x = APRINTER_CFG(Cache, CFixedStepsSlow, c);
+                max_v_rec = APRINTER_CFG(Cache, CMaxVRecSlow, c);
             } break;
         }
         cmd->axes.rel_max_v_rec = axis_cmd->x.template fpValue<FpType>() * max_v_rec;
@@ -207,6 +211,13 @@ private:
         return TheGlobal::endstop_is_triggered(c);
     }
     
+    using CMaxVRecFast = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::FastSpeed::i) * SpeedConversion())));
+    using CMaxVRecRetract = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::RetractSpeed::i) * SpeedConversion())));
+    using CMaxVRecSlow = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::SlowSpeed::i) * SpeedConversion())));
+    using CFixedStepsFast = decltype(ExprFixedPointImport<StepFixedType>(FastSteps()));
+    using CFixedStepsRetract = decltype(ExprFixedPointImport<StepFixedType>(RetractSteps()));
+    using CFixedStepsSlow = decltype(ExprFixedPointImport<StepFixedType>(SlowSteps()));
+    
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_pull_handler) {};
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_finished_handler) {};
     struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_aborted_handler) {};
@@ -214,6 +225,8 @@ private:
     struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_prestep_callback) {};
     
 public:
+    using ConfigExprs = MakeTypeList<CMaxVRecFast, CMaxVRecRetract, CMaxVRecSlow, CFixedStepsFast, CFixedStepsRetract, CFixedStepsSlow>;
+    
     struct Object : public ObjBase<AxisHomer, ParentObject, MakeTypeList<
         Planner
     >>,
@@ -241,9 +254,9 @@ struct AxisHomerService {
     using SlowSpeed = TSlowSpeed;
     
     template <
-        typename Context, typename FpType, int PlannerStepBits, int StepperSegmentBufferSize,
-        int MaxLookaheadBufferSize, typename MaxAccel, typename DistConversion,
-        typename TimeConversion, bool HomeDir
+        typename Context, typename Config, typename Cache, typename FpType, int PlannerStepBits,
+        int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename MaxAccel,
+        typename DistConversion, typename TimeConversion, bool HomeDir
     >
     struct Instance {
         template <typename ParentObject>
@@ -251,7 +264,7 @@ struct AxisHomerService {
         
         template <typename ParentObject, typename TheGlobal, typename TheAxisDriver, typename FinishedHandler>
         using Homer = AxisHomer<
-            Context, ParentObject, TheGlobal, FpType, TheAxisDriver, PlannerStepBits,
+            Context, ParentObject, Config, Cache, TheGlobal, FpType, TheAxisDriver, PlannerStepBits,
             StepperSegmentBufferSize, MaxLookaheadBufferSize, MaxAccel, DistConversion,
             TimeConversion, HomeDir, FinishedHandler, AxisHomerService
         >;

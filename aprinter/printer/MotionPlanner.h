@@ -54,6 +54,7 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/printer/LinearPlanner.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -101,7 +102,7 @@ struct MotionPlannerLaserSpec {
 };
 
 template <
-    typename Context, typename ParentObject, typename ParamsAxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
+    typename Context, typename ParentObject, typename Cache, typename ParamsAxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
     int LookaheadCommitCount, typename FpType,
     typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename UnderrunCallback,
     typename ParamsChannelsList = EmptyTypeList, typename ParamsLasersList = EmptyTypeList
@@ -513,17 +514,17 @@ public:
             axis_split->x_pos = new_x;
         }
         
-        static FpType compute_segment_buffer_entry_distance (FpType accum, Segment *entry)
+        static FpType compute_segment_buffer_entry_distance (FpType accum, Context c, Segment *entry)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return (accum + (axis_entry->x.template fpValue<FpType>() * axis_entry->x.template fpValue<FpType>()) * (FpType)(AxisSpec::DistanceFactor::value() * AxisSpec::DistanceFactor::value()));
+            return (accum + (axis_entry->x.template fpValue<FpType>() * axis_entry->x.template fpValue<FpType>()) * APRINTER_CFG(Cache, CDistanceFactorSquared, c));
         }
         
         static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return axis_entry->x.template fpValue<FpType>() * (FpType)AxisSpec::MaxSpeedRec::value();
+            return axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Cache, CMaxSpeedRec, c);
         }
         
         template <typename AccumType>
@@ -531,7 +532,7 @@ public:
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * (FpType)AxisSpec::MaxAccelRec::value());
+            return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Cache, CMaxAccelRec, c));
         }
         
         static void write_segment_buffer_entry_extra (Segment *entry, FpType rel_max_accel)
@@ -551,7 +552,7 @@ public:
             FpType m2 = prev_axis_entry->x.template fpValue<FpType>() * m->m_last_distance_rec;
             bool dir_changed = (entry->dir_and_type ^ prev_entry->dir_and_type) & TheAxisMask;
             FpType dm = (dir_changed ? (m1 + m2) : FloatAbs(m1 - m2));
-            return FloatMax(accum, dm * (FpType)(AxisSpec::MaxAccelRec::value() / (AxisSpec::CorneringDistance::value() * AxisSpec::DistanceFactor::value())));
+            return FloatMax(accum, dm * APRINTER_CFG(Cache, CCorneringSpeedComputationFactor, c));
         }
         
         template <typename TheMinTimeType>
@@ -666,6 +667,13 @@ public:
             auto *m = MotionPlanner::Object::self(c);
             return TupleGetElem<AxisIndex>(m->m_split_buffer.axes.axes());
         }
+        
+        using CDistanceFactorSquared = decltype(ExprCast<FpType>(AxisSpec::DistanceFactor::e() * AxisSpec::DistanceFactor::e()));
+        using CCorneringSpeedComputationFactor = decltype(ExprCast<FpType>(AxisSpec::MaxAccelRec::e() / (AxisSpec::CorneringDistance::e() * AxisSpec::DistanceFactor::e())));
+        using CMaxSpeedRec = decltype(ExprCast<FpType>(AxisSpec::MaxSpeedRec::e()));
+        using CMaxAccelRec = decltype(ExprCast<FpType>(AxisSpec::MaxAccelRec::e()));
+        
+        using ConfigExprs = MakeTypeList<CDistanceFactorSquared, CCorneringSpeedComputationFactor, CMaxSpeedRec, CMaxAccelRec>;
         
         struct Object : public ObjBase<Axis, typename TheCommon::Object, EmptyTypeList> {};
     };
@@ -1392,7 +1400,7 @@ private:
             if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
                 o->m_split_buffer.axes.split_pos++;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
-                FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), entry);
+                FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), c, entry);
                 entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
                 FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, entry);
                 FpType distance_squared_rec = 1.0f / distance_squared;

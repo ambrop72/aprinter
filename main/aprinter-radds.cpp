@@ -72,63 +72,63 @@ using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
-using XDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 80.0);
+APRINTER_CONFIG_OPTION_DOUBLE(XStepsPerUnit, 2.0 * 80.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XMin, -53.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XMax, 210.0)
-using XDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
-using XDefaultMaxAccel = AMBRO_WRAP_DOUBLE(1500.0);
-using XDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using XDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
-using XDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(280.0);
-using XDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
-using XDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
-using XDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
-using XDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
-using XDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
+APRINTER_CONFIG_OPTION_DOUBLE(XMaxSpeed, 300.0)
+APRINTER_CONFIG_OPTION_DOUBLE(XMaxAccel, 1500.0)
+APRINTER_CONFIG_OPTION_DOUBLE(XDistanceFactor, 1.0)
+APRINTER_CONFIG_OPTION_DOUBLE(XCorneringDistance, 40.0)
+APRINTER_CONFIG_OPTION_DOUBLE(XHomeFastMaxDist, 280.0)
+APRINTER_CONFIG_OPTION_DOUBLE(XHomeRetractDist, 3.0)
+APRINTER_CONFIG_OPTION_DOUBLE(XHomeSlowMaxDist, 5.0)
+APRINTER_CONFIG_OPTION_DOUBLE(XHomeFastSpeed, 40.0)
+APRINTER_CONFIG_OPTION_DOUBLE(XHomeRetractSpeed, 50.0)
+APRINTER_CONFIG_OPTION_DOUBLE(XHomeSlowSpeed, 5.0)
 
-using YDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 80.0);
+APRINTER_CONFIG_OPTION_DOUBLE(YStepsPerUnit, 2.0 * 80.0)
 APRINTER_CONFIG_OPTION_DOUBLE(YMin, 0.0)
 APRINTER_CONFIG_OPTION_DOUBLE(YMax, 157.0)
-using YDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(300.0);
-using YDefaultMaxAccel = AMBRO_WRAP_DOUBLE(650.0);
-using YDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using YDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
-using YDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(200.0);
-using YDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
-using YDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
-using YDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(40.0);
-using YDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(50.0);
-using YDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
+APRINTER_CONFIG_OPTION_DOUBLE(YMaxSpeed, 300.0)
+APRINTER_CONFIG_OPTION_DOUBLE(YMaxAccel, 650.0)
+APRINTER_CONFIG_OPTION_DOUBLE(YDistanceFactor, 1.0)
+APRINTER_CONFIG_OPTION_DOUBLE(YCorneringDistance, 40.0)
+APRINTER_CONFIG_OPTION_DOUBLE(YHomeFastMaxDist, 200.0)
+APRINTER_CONFIG_OPTION_DOUBLE(YHomeRetractDist, 3.0)
+APRINTER_CONFIG_OPTION_DOUBLE(YHomeSlowMaxDist, 5.0)
+APRINTER_CONFIG_OPTION_DOUBLE(YHomeFastSpeed, 40.0)
+APRINTER_CONFIG_OPTION_DOUBLE(YHomeRetractSpeed, 50.0)
+APRINTER_CONFIG_OPTION_DOUBLE(YHomeSlowSpeed, 5.0)
 
-using ZDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 4000.0);
+APRINTER_CONFIG_OPTION_DOUBLE(ZStepsPerUnit, 2.0 * 4000.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ZMin, 0.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ZMax, 100.0)
-using ZDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(3.0);
-using ZDefaultMaxAccel = AMBRO_WRAP_DOUBLE(30.0);
-using ZDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using ZDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
-using ZDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(101.0);
-using ZDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(0.8);
-using ZDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(1.2);
-using ZDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(2.0);
-using ZDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(2.0);
-using ZDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
+APRINTER_CONFIG_OPTION_DOUBLE(ZMaxSpeed, 3.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ZMaxAccel, 30.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ZDistanceFactor, 1.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ZCorneringDistance, 40.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ZHomeFastMaxDist, 101.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ZHomeRetractDist, 0.8)
+APRINTER_CONFIG_OPTION_DOUBLE(ZHomeSlowMaxDist, 1.2)
+APRINTER_CONFIG_OPTION_DOUBLE(ZHomeFastSpeed, 2.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ZHomeRetractSpeed, 2.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ZHomeSlowSpeed, 0.6)
 
-using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 928.0);
+APRINTER_CONFIG_OPTION_DOUBLE(EStepsPerUnit, 2.0 * 928.0)
 APRINTER_CONFIG_OPTION_DOUBLE(EMin, -40000.0)
 APRINTER_CONFIG_OPTION_DOUBLE(EMax, 40000.0)
-using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
-using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
-using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
+APRINTER_CONFIG_OPTION_DOUBLE(EMaxSpeed, 45.0)
+APRINTER_CONFIG_OPTION_DOUBLE(EMaxAccel, 250.0)
+APRINTER_CONFIG_OPTION_DOUBLE(EDistanceFactor, 1.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ECorneringDistance, 40.0)
 
-using UDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(2.0 * 660.0);
+APRINTER_CONFIG_OPTION_DOUBLE(UStepsPerUnit, 2.0 * 660.0)
 APRINTER_CONFIG_OPTION_DOUBLE(UMin, -40000.0)
 APRINTER_CONFIG_OPTION_DOUBLE(UMax, 40000.0)
-using UDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
-using UDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
-using UDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using UDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
+APRINTER_CONFIG_OPTION_DOUBLE(UMaxSpeed, 45.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UMaxAccel, 250.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UDistanceFactor, 1.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UCorneringDistance, 40.0)
 
 using ExtruderHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
 using ExtruderHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(100000.0);
@@ -283,25 +283,25 @@ using PrinterParams = PrinterMainParams<
             DuePin24, // StepPin
             DuePin26, // EnablePin
             false, // InvertDir
-            XDefaultStepsPerUnit, // StepsPerUnit
+            XStepsPerUnit, // StepsPerUnit
             XMin, // Min
             XMax, // Max
-            XDefaultMaxSpeed, // MaxSpeed
-            XDefaultMaxAccel, // MaxAccel
-            XDefaultDistanceFactor, // DistanceFactor
-            XDefaultCorneringDistance, // CorneringDistance
+            XMaxSpeed, // MaxSpeed
+            XMaxAccel, // MaxAccel
+            XDistanceFactor, // DistanceFactor
+            XCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 false, // HomeDir
                 AxisHomerService< // HomerService
                     DuePin28, // HomeEndPin
                     At91SamPinInputModePullUp, // HomeEndPinInputMode
                     false, // HomeEndInvert
-                    XDefaultHomeFastMaxDist, // HomeFastMaxDist
-                    XDefaultHomeRetractDist, // HomeRetractDist
-                    XDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                    XDefaultHomeFastSpeed, // HomeFastSpeed
-                    XDefaultHomeRetractSpeed, // HomeRetractSpeed
-                    XDefaultHomeSlowSpeed // HomeSlowSpeed
+                    XHomeFastMaxDist, // HomeFastMaxDist
+                    XHomeRetractDist, // HomeRetractDist
+                    XHomeSlowMaxDist, // HomeSlowMaxDist
+                    XHomeFastSpeed, // HomeFastSpeed
+                    XHomeRetractSpeed, // HomeRetractSpeed
+                    XHomeSlowSpeed // HomeSlowSpeed
                 >
             >,
             true, // EnableCartesianSpeedLimit
@@ -318,25 +318,25 @@ using PrinterParams = PrinterMainParams<
             DuePin17, // StepPin
             DuePin22, // EnablePin
             false, // InvertDir
-            YDefaultStepsPerUnit, // StepsPerUnit
+            YStepsPerUnit, // StepsPerUnit
             YMin, // Min
             YMax, // Max
-            YDefaultMaxSpeed, // MaxSpeed
-            YDefaultMaxAccel, // MaxAccel
-            YDefaultDistanceFactor, // DistanceFactor
-            YDefaultCorneringDistance, // CorneringDistance
+            YMaxSpeed, // MaxSpeed
+            YMaxAccel, // MaxAccel
+            YDistanceFactor, // DistanceFactor
+            YCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 false, // HomeDir
                 AxisHomerService< // HomerService
                     DuePin30, // HomeEndPin
                     At91SamPinInputModePullUp, // HomeEndPinInputMode
                     false, // HomeEndInvert
-                    YDefaultHomeFastMaxDist, // HomeFastMaxDist
-                    YDefaultHomeRetractDist, // HomeRetractDist
-                    YDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                    YDefaultHomeFastSpeed, // HomeFastSpeed
-                    YDefaultHomeRetractSpeed, // HomeRetractSpeed
-                    YDefaultHomeSlowSpeed // HomeSlowSpeed
+                    YHomeFastMaxDist, // HomeFastMaxDist
+                    YHomeRetractDist, // HomeRetractDist
+                    YHomeSlowMaxDist, // HomeSlowMaxDist
+                    YHomeFastSpeed, // HomeFastSpeed
+                    YHomeRetractSpeed, // HomeRetractSpeed
+                    YHomeSlowSpeed // HomeSlowSpeed
                 >
             >,
             true, // EnableCartesianSpeedLimit
@@ -353,25 +353,25 @@ using PrinterParams = PrinterMainParams<
             DuePin2, // StepPin
             DuePin15, // EnablePin
             true, // InvertDir
-            ZDefaultStepsPerUnit, // StepsPerUnit
+            ZStepsPerUnit, // StepsPerUnit
             ZMin, // Min
             ZMax, // Max
-            ZDefaultMaxSpeed, // MaxSpeed
-            ZDefaultMaxAccel, // MaxAccel
-            ZDefaultDistanceFactor, // DistanceFactor
-            ZDefaultCorneringDistance, // CorneringDistance
+            ZMaxSpeed, // MaxSpeed
+            ZMaxAccel, // MaxAccel
+            ZDistanceFactor, // DistanceFactor
+            ZCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
                 false, // HomeDir
                 AxisHomerService< // HomerService
                     DuePin32, // HomeEndPin
                     At91SamPinInputModePullUp, // HomeEndPinInputMode
                     false, // HomeEndInvert
-                    ZDefaultHomeFastMaxDist, // HomeFastMaxDist
-                    ZDefaultHomeRetractDist, // HomeRetractDist
-                    ZDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                    ZDefaultHomeFastSpeed, // HomeFastSpeed
-                    ZDefaultHomeRetractSpeed, // HomeRetractSpeed
-                    ZDefaultHomeSlowSpeed // HomeSlowSpeed
+                    ZHomeFastMaxDist, // HomeFastMaxDist
+                    ZHomeRetractDist, // HomeRetractDist
+                    ZHomeSlowMaxDist, // HomeSlowMaxDist
+                    ZHomeFastSpeed, // HomeFastSpeed
+                    ZHomeRetractSpeed, // HomeRetractSpeed
+                    ZHomeSlowSpeed // HomeSlowSpeed
                 >
             >,
             true, // EnableCartesianSpeedLimit
@@ -388,13 +388,13 @@ using PrinterParams = PrinterMainParams<
             DuePinA7, // StepPin
             DuePinA8, // EnablePin
             false, // InvertDir
-            EDefaultStepsPerUnit, // StepsPerUnit
+            EStepsPerUnit, // StepsPerUnit
             EMin, // Min
             EMax, // Max
-            EDefaultMaxSpeed, // MaxSpeed
-            EDefaultMaxAccel, // MaxAccel
-            EDefaultDistanceFactor, // DistanceFactor
-            EDefaultCorneringDistance, // CorneringDistance
+            EMaxSpeed, // MaxSpeed
+            EMaxAccel, // MaxAccel
+            EDistanceFactor, // DistanceFactor
+            ECorneringDistance, // CorneringDistance
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -410,13 +410,13 @@ using PrinterParams = PrinterMainParams<
             DuePinA10, // StepPin
             DuePinA11, // EnablePin
             false, // InvertDir
-            UDefaultStepsPerUnit, // StepsPerUnit
+            UStepsPerUnit, // StepsPerUnit
             UMin, // Min
             UMax, // Max
-            UDefaultMaxSpeed, // MaxSpeed
-            UDefaultMaxAccel, // MaxAccel
-            UDefaultDistanceFactor, // DistanceFactor
-            UDefaultCorneringDistance, // CorneringDistance
+            UMaxSpeed, // MaxSpeed
+            UMaxAccel, // MaxAccel
+            UDistanceFactor, // DistanceFactor
+            UCorneringDistance, // CorneringDistance
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits

@@ -41,6 +41,7 @@
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>
 
 #define APRINTER_CONFIG_START \
@@ -74,7 +75,7 @@ struct ConfigOption {
     static char const * name () { return TOptionName::name(); }
 };
 
-template <typename Context, typename ParentObject, typename ExprsList>
+template <typename Context, typename ParentObject, typename DelayedExprsList>
 class ConfigCache {
 public:
     struct Object;
@@ -82,11 +83,12 @@ public:
 private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_update, update)
     
+    using MyExprsList = typename DelayedExprsList::List;
     template <typename TheExpr>
     using ExprIsConstexpr = WrapBool<TheExpr::IsConstexpr>;
     using ExprIsConstexprFunc = TemplateFunc<ExprIsConstexpr>;
-    using ConstexprExprsList = FilterTypeList<ExprsList, ExprIsConstexprFunc>;
-    using CachedExprsList = FilterTypeList<ExprsList, ComposeFunctions<NotFunc, ExprIsConstexprFunc>>;
+    using ConstexprExprsList = FilterTypeList<MyExprsList, ExprIsConstexprFunc>;
+    using CachedExprsList = FilterTypeList<MyExprsList, ComposeFunctions<NotFunc, ExprIsConstexprFunc>>;
     
     template <int CachedExprIndex>
     struct CachedExprState {
@@ -114,7 +116,7 @@ private:
     
     template <typename TheExpr>
     struct CheckExpr {
-        static_assert(TypeListIndex<ExprsList, IsEqualFunc<TheExpr>>::Value >= 0, "Expression is not in cache.");
+        static_assert(TypeListIndex<MyExprsList, IsEqualFunc<TheExpr>>::Value >= 0, "Expression is not in cache.");
         using Expr = TheExpr;
     };
     

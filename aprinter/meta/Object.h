@@ -130,11 +130,22 @@ struct Obj__CollectHelper {
     >;
 };
 
-template <typename TheClass, typename Collectible>
-using ObjCollect = typename Obj__CollectHelper<TheClass, Collectible, false>::Result;
+template <typename TheClass, typename Collectible, bool WithoutSelf = false>
+using ObjCollect = typename Obj__CollectHelper<TheClass, Collectible, WithoutSelf>::Result;
 
-template <typename TheClass, typename Collectible>
-using ObjCollectWithoutSelf = typename Obj__CollectHelper<TheClass, Collectible, true>::Result;
+template <typename Collectible>
+struct Obj__CollectListHelper {
+    template <typename TheChildClass>
+    using Collect = ObjCollect<TheChildClass, Collectible, false>;
+};
+
+template <typename ClassList, typename Collectible>
+using ObjCollectList = JoinTypeListList<
+    MapTypeList<
+        ClassList,
+        TemplateFunc<Obj__CollectListHelper<Collectible>::template Collect>
+    >
+>;
 
 #include <aprinter/EndNamespace.h>
 
