@@ -88,12 +88,12 @@ struct Expr__OperandsAreConstexpr<> {
 
 template <typename Func, typename... Operands>
 struct ConstexprNaryExpr : public Expr<ConstexprNaryExpr<Func, Operands...>> {
-    using Type = decltype(Func::call(typename Operands::Type()...));
+    using Type = decltype(Func::template CallConstexpr<Operands...>::callConstexpr());
     static bool const IsConstexpr = true;
     
     static constexpr Type value ()
     {
-        return Func::call(Operands::value()...);
+        return Func::template CallConstexpr<Operands...>::callConstexpr();
     }
     
     template <typename... Args>
@@ -105,13 +105,13 @@ struct ConstexprNaryExpr : public Expr<ConstexprNaryExpr<Func, Operands...>> {
 
 template <typename Func, typename... Operands>
 struct RuntimeNaryExpr : public Expr<RuntimeNaryExpr<Func, Operands...>> {
-    using Type = decltype(Func::call(typename Operands::Type()...));
+    using Type = decltype(Func::callRuntime(typename Operands::Type()...));
     static bool const IsConstexpr = false;
     
     template <typename... Args>
     static Type eval (Args... args)
     {
-        return Func::call(Operands::eval(args...)...);
+        return Func::callRuntime(Operands::eval(args...)...);
     }
 };
 
@@ -139,57 +139,93 @@ struct APrinterExprFpConst__##counter : public APrinter::DoubleConstantExpr<APri
 
 #define APRINTER_FP_CONST_EXPR(the_value) APRINTER_FP_CONST_EXPR__HELPER2(the_value, __COUNTER__)
 
-#define APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Name, EvalExpr) \
+#define APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Name, EvalExprConstexpr, EvalExprRuntime) \
 struct ExprFunc__##Name { \
+    template <typename Op1> \
+    struct CallConstexpr { \
+        static constexpr auto arg1 = Op1::value(); \
+        static constexpr auto callConstexpr () -> decltype(EvalExprConstexpr) \
+        { \
+            return (EvalExprConstexpr); \
+        } \
+    }; \
     template <typename Arg1> \
-    static constexpr auto call (Arg1 arg1) -> RemoveReference<decltype(EvalExpr)> \
+    static auto callRuntime (Arg1 arg1) -> RemoveReference<decltype(EvalExprRuntime)> \
     { \
-        return (EvalExpr); \
+        return (EvalExprRuntime); \
     } \
 };
 
-#define APRINTER_DEFINE_BINARY_EXPR_FUNC_CLASS(Name, EvalExpr) \
+#define APRINTER_DEFINE_BINARY_EXPR_FUNC_CLASS(Name, EvalExprConstexpr, EvalExprRuntime) \
 struct ExprFunc__##Name { \
+    template <typename Op1, typename Op2> \
+    struct CallConstexpr { \
+        static constexpr auto arg1 = Op1::value(); \
+        static constexpr auto arg2 = Op2::value(); \
+        static constexpr auto callConstexpr () -> decltype(EvalExprConstexpr) \
+        { \
+            return (EvalExprConstexpr); \
+        } \
+    }; \
     template <typename Arg1, typename Arg2> \
-    static constexpr auto call (Arg1 arg1, Arg2 arg2) -> RemoveReference<decltype(EvalExpr)> \
+    static auto callRuntime (Arg1 arg1, Arg2 arg2) -> RemoveReference<decltype(EvalExprRuntime)> \
     { \
-        return (EvalExpr); \
+        return (EvalExprRuntime); \
     } \
 };
 
-#define APRINTER_DEFINE_TERNARY_EXPR_FUNC_CLASS(Name, EvalExpr) \
+#define APRINTER_DEFINE_TERNARY_EXPR_FUNC_CLASS(Name, EvalExprConstexpr, EvalExprRuntime) \
 struct ExprFunc__##Name { \
+    template <typename Op1, typename Op2, typename Op3> \
+    struct CallConstexpr { \
+        static constexpr auto arg1 = Op1::value(); \
+        static constexpr auto arg2 = Op2::value(); \
+        static constexpr auto arg3 = Op3::value(); \
+        static constexpr auto callConstexpr () -> decltype(EvalExprConstexpr) \
+        { \
+            return (EvalExprConstexpr); \
+        } \
+    }; \
     template <typename Arg1, typename Arg2, typename Arg3> \
-    static constexpr auto call (Arg1 arg1, Arg2 arg2, Arg3 arg3) -> RemoveReference<decltype(EvalExpr)> \
+    static auto callRuntime (Arg1 arg1, Arg2 arg2, Arg3 arg3) -> RemoveReference<decltype(EvalExprRuntime)> \
     { \
-        return (EvalExpr); \
+        return (EvalExprRuntime); \
     } \
 };
 
 #define APRINTER_DEFINE_UNARY_EXPR_OPERATOR(Operator, Name) \
-APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Name, Operator arg1) \
+APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Name, Operator arg1, Operator arg1) \
 template <typename Op1> \
 NaryExpr<ExprFunc__##Name, Op1> operator Operator (Expr<Op1>);
 
 #define APRINTER_DEFINE_BINARY_EXPR_OPERATOR(Operator, Name) \
-APRINTER_DEFINE_BINARY_EXPR_FUNC_CLASS(Name, arg1 Operator arg2) \
+APRINTER_DEFINE_BINARY_EXPR_FUNC_CLASS(Name, arg1 Operator arg2, arg1 Operator arg2) \
 template <typename Op1, typename Op2> \
 NaryExpr<ExprFunc__##Name, Op1, Op2> operator Operator (Expr<Op1>, Expr<Op2>);
 
-#define APRINTER_DEFINE_UNARY_EXPR_FUNC(Name, EvalExpr) \
-APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Name, EvalExpr) \
+#define APRINTER_DEFINE_UNARY_EXPR_FUNC_EXT(Name, EvalExprConstexpr, EvalExprRuntime) \
+APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Name, EvalExprConstexpr, EvalExprRuntime) \
 template <typename Op1> \
 NaryExpr<ExprFunc__##Name, Op1> Expr##Name (Op1);
 
-#define APRINTER_DEFINE_BINARY_EXPR_FUNC(Name, EvalExpr) \
-APRINTER_DEFINE_BINARY_EXPR_FUNC_CLASS(Name, EvalExpr) \
+#define APRINTER_DEFINE_BINARY_EXPR_FUNC_EXT(Name, EvalExprConstexpr, EvalExprRuntime) \
+APRINTER_DEFINE_BINARY_EXPR_FUNC_CLASS(Name, EvalExprConstexpr, EvalExprRuntime) \
 template <typename Op1, typename Op2> \
 NaryExpr<ExprFunc__##Name, Op1, Op2> Expr##Name (Op1, Op2);
 
-#define APRINTER_DEFINE_TERNARY_EXPR_FUNC(Name, EvalExpr) \
-APRINTER_DEFINE_TERNARY_EXPR_FUNC_CLASS(Name, EvalExpr) \
+#define APRINTER_DEFINE_TERNARY_EXPR_FUNC_EXT(Name, EvalExprConstexpr, EvalExprRuntime) \
+APRINTER_DEFINE_TERNARY_EXPR_FUNC_CLASS(Name, EvalExprConstexpr, EvalExprRuntime) \
 template <typename Op1, typename Op2, typename Op3> \
 NaryExpr<ExprFunc__##Name, Op1, Op2, Op3> Expr##Name (Op1, Op2, Op3);
+
+#define APRINTER_DEFINE_UNARY_EXPR_FUNC(Name, EvalExprConstexpr) \
+APRINTER_DEFINE_UNARY_EXPR_FUNC_EXT(Name, EvalExprConstexpr, EvalExprConstexpr)
+
+#define APRINTER_DEFINE_BINARY_EXPR_FUNC(Name, EvalExprConstexpr) \
+APRINTER_DEFINE_BINARY_EXPR_FUNC_EXT(Name, EvalExprConstexpr, EvalExprConstexpr)
+
+#define APRINTER_DEFINE_TERNARY_EXPR_FUNC(Name, EvalExprConstexpr) \
+APRINTER_DEFINE_TERNARY_EXPR_FUNC_EXT(Name, EvalExprConstexpr, EvalExprConstexpr)
 
 template <typename Type, Type Value>
 SimpleConstantExpr<Type, Value> ExprConst ();
@@ -203,9 +239,11 @@ APRINTER_DEFINE_UNARY_EXPR_OPERATOR(!, LogicalNegation)
 APRINTER_DEFINE_UNARY_EXPR_OPERATOR(~, BitwiseNot)
 
 template <typename TargetType>
-APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Cast, (TargetType)arg1)
+APRINTER_DEFINE_UNARY_EXPR_FUNC_CLASS(Cast, (TargetType)arg1, (TargetType)arg1)
 template <typename TargetType, typename Op1>
 NaryExpr<ExprFunc__Cast<TargetType>, Op1> ExprCast (Op1);
+
+APRINTER_DEFINE_UNARY_EXPR_FUNC(Rec, 1.0f / arg1)
 
 APRINTER_DEFINE_BINARY_EXPR_OPERATOR(+,  Addition)
 APRINTER_DEFINE_BINARY_EXPR_OPERATOR(-,  Subtraction)
