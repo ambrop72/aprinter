@@ -439,7 +439,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_adc_value, append_adc_value)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_channel_callback, channel_callback)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_config, print_config)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_run_for_state_command, run_for_state_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_add_axis, add_axis)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_current_axis, check_current_axis)
@@ -2398,8 +2397,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct ObserverHandler;
         
         using HeaterSpec = TypeListGet<ParamsHeatersList, HeaterIndex>;
-        using TheControl = typename HeaterSpec::ControlService::template Control<typename HeaterSpec::ControlInterval, FpType>;
-        using ControlConfig = typename TheControl::Config;
+        using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, Cache, typename HeaterSpec::ControlInterval, FpType>;
         using ThePwm = typename HeaterSpec::PwmService::template Pwm<Context, Object>;
         using TheObserver = TemperatureObserver<Context, Object, FpType, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
@@ -2429,7 +2427,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             o->m_enabled = false;
-            o->m_control_config = TheControl::makeDefaultConfig();
             TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
             o->m_control_event.init(c, Heater::control_event_handler);
             o->m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
@@ -2552,28 +2549,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 submitted_planner_command(c);
                 return false;
             }
-            if (TheChannelCommon::TheGcodeParser::getCmdNumber(c) == HeaterSpec::SetConfigMCommand && TheControl::SupportsConfig) {
-                if (!TheChannelCommon::tryUnplannedCommand(c)) {
-                    return false;
-                }
-                TheControl::setConfigCommand(c, cc, &o->m_control_config);
-                TheChannelCommon::finishCommand(c);
-                return false;
-            }
             return true;
-        }
-        
-        template <typename TheChannelCommon>
-        static void print_config (Context c, WrapType<TheChannelCommon> cc)
-        {
-            auto *o = Object::self(c);
-            
-            if (TheControl::SupportsConfig) {
-                TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR("M" ));
-                TheChannelCommon::reply_append_uint32(c, HeaterSpec::SetConfigMCommand);
-                TheControl::printConfig(c, cc, &o->m_control_config);
-                TheChannelCommon::reply_append_ch(c, '\n');
-            }
         }
         
         static void check_safety (Context c)
@@ -2638,10 +2614,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
             if (AMBRO_LIKELY(enabled)) {
                 if (!was_not_unset) {
-                    o->m_control.init();
+                    TheControl::init(c);
                 }
                 FpType sensor_value = adc_to_temp(adc_value);
-                FpType output = o->m_control.addMeasurement(sensor_value, target, &o->m_control_config);
+                FpType output = TheControl::addMeasurement(c, sensor_value, target);
                 PwmDutyCycleData duty;;
                 ThePwm::computeDutyCycle(output, &duty);
                 AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -2656,12 +2632,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct ObserverHandler : public AMBRO_WFUNC_TD(&Heater::observer_handler) {};
         
         struct Object : public ObjBase<Heater, typename PrinterMain::Object, MakeTypeList<
+            TheControl,
             ThePwm,
             TheObserver
         >> {
             bool m_enabled;
-            TheControl m_control;
-            ControlConfig m_control_config;
             FpType m_target;
             bool m_observing;
             typename Loop::QueuedEvent m_control_event;
@@ -3197,11 +3172,6 @@ public: // private, see comment on top
                     return TheChannelCommon::finishCommand(c, true);
                 } break;
                 
-                case 136: { // print heater config
-                    ListForEachForward<HeatersList>(LForeach_print_config(), c, cc);
-                    return TheChannelCommon::finishCommand(c);
-                } break;
-                
 #ifdef EVENTLOOP_BENCHMARK
                 case 916: { // reset benchmark time
                     if (!TheChannelCommon::tryUnplannedCommand(c)) {
@@ -3728,6 +3698,7 @@ public: // private, see comment on top
         using List = ObjCollectList<
             JoinTypeLists<
                 AxesList,
+                HeatersList,
                 MakeTypeList<
                     PlannerUnion
                 >

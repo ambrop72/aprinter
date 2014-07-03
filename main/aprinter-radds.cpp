@@ -139,12 +139,12 @@ using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
 using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
 using ExtruderHeaterControlInterval = ExtruderHeaterPulseInterval;
-using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
-using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
-using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
-using ExtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
-using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.4);
-using ExtruderHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.7);
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidP, 0.047)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidI, 0.0006)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidD, 0.17)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidIStateMin, 0.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidIStateMax, 0.4)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidDHistory, 0.7)
 using ExtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using ExtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
 using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
@@ -158,12 +158,12 @@ using UxtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using UxtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
 using UxtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
 using UxtruderHeaterControlInterval = UxtruderHeaterPulseInterval;
-using UxtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
-using UxtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
-using UxtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
-using UxtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
-using UxtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.4);
-using UxtruderHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.7);
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidP, 0.047)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidI, 0.0006)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidD, 0.17)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidIStateMin, 0.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidIStateMax, 0.4)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidDHistory, 0.7)
 using UxtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using UxtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
 using UxtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
@@ -177,12 +177,12 @@ using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
 using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
 using BedHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.3);
-using BedHeaterPidP = AMBRO_WRAP_DOUBLE(1.0);
-using BedHeaterPidI = AMBRO_WRAP_DOUBLE(0.012);
-using BedHeaterPidD = AMBRO_WRAP_DOUBLE(2.5);
-using BedHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
-using BedHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(1.0);
-using BedHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.8);
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidP, 1.0)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidI, 0.012)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidD, 2.5)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidIStateMin, 0.0)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidIStateMax, 1.0)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidDHistory, 0.8)
 using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
 using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);

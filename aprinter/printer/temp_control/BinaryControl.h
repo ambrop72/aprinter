@@ -26,44 +26,29 @@
 #define AMBROLIB_BINARY_CONTROL_H
 
 #include <aprinter/meta/WrapType.h>
+#include <aprinter/meta/Object.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename MeasurementInterval, typename FpType, typename Params>
+template <typename Context, typename ParentObject, typename Config, typename Cache, typename MeasurementInterval, typename FpType, typename Params>
 class BinaryControl {
 public:
-    static const bool SupportsConfig = false;
-    
-    struct Config {};
-    
-    static Config makeDefaultConfig ()
-    {
-        return Config();
-    }
-    
-    template <typename Context, typename TheChannelCommon>
-    static void setConfigCommand (Context c, WrapType<TheChannelCommon>, Config *config)
+    static void init (Context c)
     {
     }
     
-    template <typename Context, typename TheChannelCommon>
-    static void printConfig (Context c, WrapType<TheChannelCommon>, Config const *config)
-    {
-    }
-    
-    void init ()
-    {
-    }
-    
-    FpType addMeasurement (FpType value, FpType target, Config const *config)
+    static FpType addMeasurement (Context c, FpType value, FpType target)
     {
         return (value < target) ? 1.0f : 0.0f;
     }
+    
+public:
+    struct Object : public ObjBase<BinaryControl, ParentObject, EmptyTypeList> {};
 };
 
 struct BinaryControlService {
-    template <typename MeasurementInterval, typename FpType>
-    using Control = BinaryControl<MeasurementInterval, FpType, BinaryControlService>;
+    template <typename Context, typename ParentObject, typename Config, typename Cache, typename MeasurementInterval, typename FpType>
+    using Control = BinaryControl<Context, ParentObject, Config, Cache, MeasurementInterval, FpType, BinaryControlService>;
 };
 
 #include <aprinter/EndNamespace.h>

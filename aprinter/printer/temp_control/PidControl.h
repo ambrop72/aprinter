@@ -26,101 +26,58 @@
 #define AMBROLIB_PID_CONTROL_H
 
 #include <aprinter/math/FloatTools.h>
-#include <aprinter/meta/WrapType.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/base/Likely.h>
-#include <aprinter/base/Inline.h>
-#include <aprinter/base/ProgramMemory.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename MeasurementInterval, typename FpType, typename Params>
+template <typename Context, typename ParentObject, typename Config, typename Cache, typename MeasurementInterval, typename FpType, typename Params>
 class PidControl {
-public:
-    static const bool SupportsConfig = true;
+    using One = APRINTER_FP_CONST_EXPR(1.0);
+    using MeasurementIntervalExpr = APRINTER_FP_CONST_EXPR(MeasurementInterval::value());
     
-    struct Config {
-        FpType p;
-        FpType i;
-        FpType d;
-        FpType istatemin;
-        FpType istatemax;
-        FpType dhistory;
-        FpType c5;
+    using CIntegralFactor = decltype(ExprCast<FpType>(MeasurementIntervalExpr() * Config::e(Params::I::i)));
+    using CIStateMin = decltype(ExprCast<FpType>(Config::e(Params::IStateMin::i)));
+    using CIStateMax = decltype(ExprCast<FpType>(Config::e(Params::IStateMax::i)));
+    using CDHistory = decltype(ExprCast<FpType>(Config::e(Params::DHistory::i)));
+    using CC5 = decltype(ExprCast<FpType>((One() - Config::e(Params::DHistory::i)) * Config::e(Params::D::i) / MeasurementIntervalExpr()));
+    using CP = decltype(ExprCast<FpType>(Config::e(Params::P::i)));
+    
+public:
+    static void init (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        o->first = true;
+        o->integral = 0.0f;
+        o->derivative = 0.0f;
+    }
+    
+    static FpType addMeasurement (Context c, FpType value, FpType target)
+    {
+        auto *o = Object::self(c);
+        
+        FpType err = target - value;
+        if (AMBRO_LIKELY(!o->first)) {
+            o->integral += APRINTER_CFG(Cache, CIntegralFactor, c) * err;
+            o->integral = FloatMax(APRINTER_CFG(Cache, CIStateMin, c), FloatMin(APRINTER_CFG(Cache, CIStateMax, c), o->integral));
+            o->derivative = (APRINTER_CFG(Cache, CDHistory, c) * o->derivative) + (APRINTER_CFG(Cache, CC5, c) * (o->last - value));
+        }
+        o->first = false;
+        o->last = value;
+        return (APRINTER_CFG(Cache, CP, c) * err) + o->integral + o->derivative;
+    }
+    
+public:
+    struct Object : public ObjBase<PidControl, ParentObject, EmptyTypeList> {
+        bool first;
+        FpType last;
+        FpType integral;
+        FpType derivative;
     };
     
-    static Config makeDefaultConfig ()
-    {
-        return makeConfig((FpType)Params::P::value(), (FpType)Params::I::value(), (FpType)Params::D::value(), (FpType)Params::IStateMin::value(), (FpType)Params::IStateMax::value(), (FpType)Params::DHistory::value());
-    }
-    
-    template <typename Context, typename TheChannelCommon>
-    static void setConfigCommand (Context c, WrapType<TheChannelCommon>, Config *config)
-    {
-        *config = makeConfig(
-            TheChannelCommon::get_command_param_fp(c, 'P', config->p),
-            TheChannelCommon::get_command_param_fp(c, 'I', config->i),
-            TheChannelCommon::get_command_param_fp(c, 'D', config->d),
-            TheChannelCommon::get_command_param_fp(c, 'M', config->istatemin),
-            TheChannelCommon::get_command_param_fp(c, 'A', config->istatemax),
-            TheChannelCommon::get_command_param_fp(c, 'H', config->dhistory)
-        );
-    }
-    
-    template <typename Context, typename TheChannelCommon>
-    static void printConfig (Context c, WrapType<TheChannelCommon>, Config const *config)
-    {
-        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" P"));
-        TheChannelCommon::reply_append_fp(c, config->p);
-        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" I"));
-        TheChannelCommon::reply_append_fp(c, config->i);
-        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" D"));
-        TheChannelCommon::reply_append_fp(c, config->d);
-        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" M"));
-        TheChannelCommon::reply_append_fp(c, config->istatemin);
-        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" A"));
-        TheChannelCommon::reply_append_fp(c, config->istatemax);
-        TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR(" H"));
-        TheChannelCommon::reply_append_fp(c, config->dhistory);
-    }
-    
-    void init ()
-    {
-        m_first = true;
-        m_integral = 0.0f;
-        m_derivative = 0.0f;
-    }
-    
-    FpType addMeasurement (FpType value, FpType target, Config const *config)
-    {
-        FpType err = target - value;
-        if (AMBRO_LIKELY(!m_first)) {
-            m_integral += ((FpType)MeasurementInterval::value() * config->i) * err;
-            m_integral = FloatMax(config->istatemin, FloatMin(config->istatemax, m_integral));
-            m_derivative = (config->dhistory * m_derivative) + (config->c5 * (m_last - value));
-        }
-        m_first = false;
-        m_last = value;
-        return (config->p * err) + m_integral + m_derivative;
-    }
-    
-private:
-    static Config makeConfig (FpType p, FpType i, FpType d, FpType istatemin, FpType istatemax, FpType dhistory)
-    {
-        Config c;
-        c.p = p;
-        c.i = i;
-        c.d = d;
-        c.istatemin = istatemin;
-        c.istatemax = istatemax;
-        c.dhistory = dhistory;
-        c.c5 = (1.0f - dhistory) * d * (FpType)(1.0 / MeasurementInterval::value());
-        return c;
-    }
-    
-    bool m_first;
-    FpType m_last;
-    FpType m_integral;
-    FpType m_derivative;
+    using ConfigExprs = MakeTypeList<CIntegralFactor, CIStateMin, CIStateMax, CDHistory, CC5, CP>;
 };
 
 template <
@@ -135,8 +92,8 @@ struct PidControlService {
     using IStateMax = TIStateMax;
     using DHistory = TDHistory;
     
-    template <typename MeasurementInterval, typename FpType>
-    using Control = PidControl<MeasurementInterval, FpType, PidControlService>;
+    template <typename Context, typename ParentObject, typename Config, typename Cache, typename MeasurementInterval, typename FpType>
+    using Control = PidControl<Context, ParentObject, Config, Cache, MeasurementInterval, FpType, PidControlService>;
 };
 
 #include <aprinter/EndNamespace.h>
