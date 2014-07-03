@@ -63,6 +63,12 @@ APRINTER_CONFIG_OPTION_GENERIC(Name, double, Name##__DefaultValue)
 #define APRINTER_CONFIG_END \
 APRINTER_END_LIST(ConfigList)
 
+#define APRINTER_CFG(TheConfig, TheExpr, c) ( \
+    decltype(TheConfig::getExpr(TheExpr()))::IsConstexpr ? \
+    decltype(TheConfig::getHelper(TheExpr()))::value() : \
+    decltype(TheConfig::getHelper(TheExpr()))::eval(c) \
+)
+
 #include <aprinter/BeginNamespace.h>
 
 template <typename TIdentity, typename TType, typename TDefaultValue, typename TOptionName>
@@ -183,16 +189,22 @@ public:
     template <typename TheExpr>
     static GetHelper<GetExpr<TheExpr>::IsConstexpr, GetExpr<TheExpr>> getHelper (TheExpr);
     
-    #define APRINTER_CFG(TheConfigCache, TheExpr, c) ( \
-        decltype(TheConfigCache::getExpr(TheExpr()))::IsConstexpr ? \
-        decltype(TheConfigCache::getHelper(TheExpr()))::value() : \
-        decltype(TheConfigCache::getHelper(TheExpr()))::eval(c) \
-    )
-    
 public:
     struct Object : public ObjBase<ConfigCache, ParentObject, CachedExprStateList>,
         public DebugObject<Context, void>
     {};
+};
+
+template <typename TheConfigManager, typename TheConfigCache>
+struct ConfigFramework {
+    template <typename Option>
+    static decltype(TheConfigManager::e(Option())) e (Option);
+    
+    template <typename TheExpr, typename TheConfigCacheLazy = TheConfigCache>
+    static decltype(TheConfigCacheLazy::getExpr(TheExpr())) getExpr (TheExpr);
+    
+    template <typename TheExpr, typename TheConfigCacheLazy = TheConfigCache>
+    static decltype(TheConfigCacheLazy::getHelper(TheExpr())) getHelper (TheExpr);
 };
 
 #include <aprinter/EndNamespace.h>

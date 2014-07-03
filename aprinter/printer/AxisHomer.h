@@ -59,7 +59,7 @@ public:
 };
 
 template <
-    typename Context, typename ParentObject, typename Config, typename Cache,
+    typename Context, typename ParentObject, typename Config,
     typename TheGlobal, typename FpType,
     typename TheAxisDriver, int PlannerStepBits, int StepperSegmentBufferSize,
     int MaxLookaheadBufferSize, typename MaxAccel, typename DistConversion,
@@ -93,7 +93,7 @@ private:
     using PlannerCorneringDistance = APRINTER_FP_CONST_EXPR(1.0);
     
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerMaxSpeedRec, PlannerMaxAccelRec, PlannerPrestepCallback>>;
-    using Planner = MotionPlanner<Context, Object, Cache, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
+    using Planner = MotionPlanner<Context, Object, Config, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
@@ -142,18 +142,18 @@ private:
         switch (o->m_state) {
             case STATE_FAST: {
                 axis_cmd->dir = HomeDir;
-                axis_cmd->x = APRINTER_CFG(Cache, CFixedStepsFast, c);
-                max_v_rec = APRINTER_CFG(Cache, CMaxVRecFast, c);
+                axis_cmd->x = APRINTER_CFG(Config, CFixedStepsFast, c);
+                max_v_rec = APRINTER_CFG(Config, CMaxVRecFast, c);
             } break;
             case STATE_RETRACT: {
                 axis_cmd->dir = !HomeDir;
-                axis_cmd->x = APRINTER_CFG(Cache, CFixedStepsRetract, c);
-                max_v_rec = APRINTER_CFG(Cache, CMaxVRecRetract, c);
+                axis_cmd->x = APRINTER_CFG(Config, CFixedStepsRetract, c);
+                max_v_rec = APRINTER_CFG(Config, CMaxVRecRetract, c);
             } break;
             case STATE_SLOW: {
                 axis_cmd->dir = HomeDir;
-                axis_cmd->x = APRINTER_CFG(Cache, CFixedStepsSlow, c);
-                max_v_rec = APRINTER_CFG(Cache, CMaxVRecSlow, c);
+                axis_cmd->x = APRINTER_CFG(Config, CFixedStepsSlow, c);
+                max_v_rec = APRINTER_CFG(Config, CMaxVRecSlow, c);
             } break;
         }
         cmd->axes.rel_max_v_rec = axis_cmd->x.template fpValue<FpType>() * max_v_rec;
@@ -254,7 +254,7 @@ struct AxisHomerService {
     using SlowSpeed = TSlowSpeed;
     
     template <
-        typename Context, typename Config, typename Cache, typename FpType, int PlannerStepBits,
+        typename Context, typename Config, typename FpType, int PlannerStepBits,
         int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename MaxAccel,
         typename DistConversion, typename TimeConversion, bool HomeDir
     >
@@ -264,7 +264,7 @@ struct AxisHomerService {
         
         template <typename ParentObject, typename TheGlobal, typename TheAxisDriver, typename FinishedHandler>
         using Homer = AxisHomer<
-            Context, ParentObject, Config, Cache, TheGlobal, FpType, TheAxisDriver, PlannerStepBits,
+            Context, ParentObject, Config, TheGlobal, FpType, TheAxisDriver, PlannerStepBits,
             StepperSegmentBufferSize, MaxLookaheadBufferSize, MaxAccel, DistConversion,
             TimeConversion, HomeDir, FinishedHandler, AxisHomerService
         >;

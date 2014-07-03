@@ -482,8 +482,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using ParamsFansList = typename Params::FansList;
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     
-    using Config = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList>;
-    using Cache = ConfigCache<Context, Object, DelayedConfigExprs>;
+    using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList>;
+    using TheConfigCache = ConfigCache<Context, Object, DelayedConfigExprs>;
+    using Config = ConfigFramework<TheConfigManager, TheConfigCache>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     
@@ -1340,7 +1341,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             struct Object;
             
             using HomerInstance = typename HomingSpec::HomerService::template Instance<
-                Context, Config, Cache, FpType, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
+                Context, Config, FpType, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
                 Params::LookaheadBufferSize, decltype(Config::e(AxisSpec::DefaultMaxAccel::i)),
                 DistConversion, TimeConversion, HomingSpec::HomeDir
             >;
@@ -1362,8 +1363,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                     
                     Homer::deinit(c);
-                    axis->m_req_pos = APRINTER_CFG(Cache, CInitPosition, c);
-                    axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * APRINTER_CFG(Cache, CDistConversion, c));
+                    axis->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
+                    axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
                     axis->m_state = AXIS_STATE_OTHER;
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
                     mob->m_homing_rem_axes &= ~Lazy<>::AxisMask;
@@ -1452,7 +1453,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static FpType clamp_req_pos (Context c, FpType req)
         {
-            return FloatMax(APRINTER_CFG(Cache, CMinReqPos, c), FloatMin(APRINTER_CFG(Cache, CMaxReqPos, c), req));
+            return FloatMax(APRINTER_CFG(Config, CMinReqPos, c), FloatMin(APRINTER_CFG(Config, CMaxReqPos, c), req));
         }
         
         static void init (Context c)
@@ -1462,8 +1463,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             o->m_state = AXIS_STATE_OTHER;
             HomingFeature::init(c);
             MicroStepFeature::init(c);
-            o->m_req_pos = APRINTER_CFG(Cache, CInitPosition, c);
-            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Cache, CDistConversion, c));
+            o->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
+            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
             o->m_relative_positioning = false;
         }
         
@@ -1502,7 +1503,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void do_move (Context c, Src new_pos, AddDistance, FpType *distance_squared, FpType *total_steps, PlannerCmd *cmd)
         {
             auto *o = Object::self(c);
-            AbsStepFixedType new_end_pos = AbsStepFixedType::importFpSaturatedRound(new_pos.template get<AxisIndex>() * APRINTER_CFG(Cache, CDistConversion, c));
+            AbsStepFixedType new_end_pos = AbsStepFixedType::importFpSaturatedRound(new_pos.template get<AxisIndex>() * APRINTER_CFG(Config, CDistConversion, c));
             bool dir = (new_end_pos >= o->m_end_pos);
             StepFixedType move = StepFixedType::importBits(dir ? 
                 ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)o->m_end_pos.bitsValue()) :
@@ -1510,7 +1511,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             );
             if (AMBRO_UNLIKELY(move.bitsValue() != 0)) {
                 if (AddDistance::Value && AxisSpec::IsCartesian) {
-                    FpType delta = move.template fpValue<FpType>() * APRINTER_CFG(Cache, CDistConversionRec, c);
+                    FpType delta = move.template fpValue<FpType>() * APRINTER_CFG(Config, CDistConversionRec, c);
                     *distance_squared += delta * delta;
                 }
                 *total_steps += move.template fpValue<FpType>();
@@ -1526,7 +1527,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void limit_axis_move_speed (Context c, FpType time_freq_by_max_speed, PlannerCmd *cmd)
         {
             auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
-            FpType max_v_rec = time_freq_by_max_speed * APRINTER_CFG(Cache, CDistConversionRec, c);
+            FpType max_v_rec = time_freq_by_max_speed * APRINTER_CFG(Config, CDistConversionRec, c);
             cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, mycmd->x.template fpValue<FpType>() * max_v_rec);
         }
         
@@ -1537,7 +1538,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             RemStepsType rem_steps = ThePlanner::template countAbortedRemSteps<AxisIndex, RemStepsType>(c);
             if (rem_steps != 0) {
                 o->m_end_pos.m_bits.m_int -= rem_steps;
-                o->m_req_pos = o->m_end_pos.template fpValue<FpType>() * APRINTER_CFG(Cache, CDistConversionRec, c);
+                o->m_req_pos = o->m_end_pos.template fpValue<FpType>() * APRINTER_CFG(Config, CDistConversionRec, c);
                 TransformFeature::template mark_phys_moved<AxisIndex>(c);
             }
         }
@@ -1546,7 +1547,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             o->m_req_pos = clamp_req_pos(c, value);
-            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Cache, CDistConversion, c));
+            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
         }
         
         static void set_position (Context c, FpType value, bool *seen_virtual)
@@ -1960,11 +1961,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             {
                 auto *axis = ThePhysAxis::Object::self(c);
                 auto *t = TransformFeature::Object::self(c);
-                if (AMBRO_UNLIKELY(!(axis->m_req_pos <= APRINTER_CFG(Cache, typename ThePhysAxis::CMaxReqPos, c)))) {
-                    axis->m_req_pos = APRINTER_CFG(Cache, typename ThePhysAxis::CMaxReqPos, c);
+                if (AMBRO_UNLIKELY(!(axis->m_req_pos <= APRINTER_CFG(Config, typename ThePhysAxis::CMaxReqPos, c)))) {
+                    axis->m_req_pos = APRINTER_CFG(Config, typename ThePhysAxis::CMaxReqPos, c);
                     t->virt_update_pending = true;
-                } else if (AMBRO_UNLIKELY(!(axis->m_req_pos >= APRINTER_CFG(Cache, typename ThePhysAxis::CMinReqPos, c)))) {
-                    axis->m_req_pos = APRINTER_CFG(Cache, typename ThePhysAxis::CMinReqPos, c);
+                } else if (AMBRO_UNLIKELY(!(axis->m_req_pos >= APRINTER_CFG(Config, typename ThePhysAxis::CMinReqPos, c)))) {
+                    axis->m_req_pos = APRINTER_CFG(Config, typename ThePhysAxis::CMinReqPos, c);
                     t->virt_update_pending = true;
                 }
             }
@@ -2397,7 +2398,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct ObserverHandler;
         
         using HeaterSpec = TypeListGet<ParamsHeatersList, HeaterIndex>;
-        using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, Cache, typename HeaterSpec::ControlInterval, FpType>;
+        using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, typename HeaterSpec::ControlInterval, FpType>;
         using ThePwm = typename HeaterSpec::PwmService::template Pwm<Context, Object>;
         using TheObserver = TemperatureObserver<Context, Object, FpType, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
@@ -2729,7 +2730,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, typename Params::EventChannelTimerService>>;
     using MotionPlannerAxes = MapTypeList<AxesList, TemplateFunc<MakePlannerAxisSpec>>;
     using MotionPlannerLasers = MapTypeList<LasersList, TemplateFunc<MakePlannerLaserSpec>>;
-    using ThePlanner = MotionPlanner<Context, typename PlannerUnionPlanner::Object, Cache, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels, MotionPlannerLasers>;
+    using ThePlanner = MotionPlanner<Context, typename PlannerUnionPlanner::Object, Config, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels, MotionPlannerLasers>;
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
     AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::Enabled) {
@@ -2994,8 +2995,8 @@ public:
     {
         auto *ob = Object::self(c);
         
-        Config::init(c);
-        Cache::init(c);
+        TheConfigManager::init(c);
+        TheConfigCache::init(c);
         ob->unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
         ob->disable_timer.init(c, PrinterMain::disable_timer_handler);
         ob->force_timer.init(c, PrinterMain::force_timer_handler);
@@ -3045,8 +3046,8 @@ public:
         ob->force_timer.deinit(c);
         ob->disable_timer.deinit(c);
         ob->unlocked_timer.deinit(c);
-        Cache::deinit(c);
-        Config::deinit(c);
+        TheConfigCache::deinit(c);
+        TheConfigManager::deinit(c);
     }
     
     using GetConfigManager = Config;
@@ -3116,7 +3117,7 @@ public: // private, see comment on top
                         SdCardFeature::check_command(c, cc) &&
                         ProbeFeature::check_command(c, cc) &&
                         CurrentFeature::check_command(c, cc) &&
-                        Config::checkCommand(c, cc)
+                        TheConfigManager::checkCommand(c, cc)
                     ) {
                         goto unknown_command;
                     }
@@ -3208,7 +3209,7 @@ public: // private, see comment on top
                     if (!TheChannelCommon::tryUnplannedCommand(c)) {
                         return;
                     }
-                    Cache::update(c);
+                    TheConfigCache::update(c);
                     return TheChannelCommon::finishCommand(c);
                 } break;
             } break;
@@ -3714,8 +3715,8 @@ public:
         HeatersList,
         FansList,
         MakeTypeList<
-            Config,
-            Cache,
+            TheConfigManager,
+            TheConfigCache,
             TheWatchdog,
             TheBlinker,
             TheSteppers,

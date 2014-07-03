@@ -30,7 +30,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Config, typename Cache, typename MeasurementInterval, typename FpType, typename Params>
+template <typename Context, typename ParentObject, typename Config, typename MeasurementInterval, typename FpType, typename Params>
 class BinaryControl {
 public:
     static void init (Context c)
@@ -47,8 +47,8 @@ public:
 };
 
 struct BinaryControlService {
-    template <typename Context, typename ParentObject, typename Config, typename Cache, typename MeasurementInterval, typename FpType>
-    using Control = BinaryControl<Context, ParentObject, Config, Cache, MeasurementInterval, FpType, BinaryControlService>;
+    template <typename Context, typename ParentObject, typename Config, typename MeasurementInterval, typename FpType>
+    using Control = BinaryControl<Context, ParentObject, Config, MeasurementInterval, FpType, BinaryControlService>;
 };
 
 #include <aprinter/EndNamespace.h>

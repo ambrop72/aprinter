@@ -102,7 +102,7 @@ struct MotionPlannerLaserSpec {
 };
 
 template <
-    typename Context, typename ParentObject, typename Cache, typename ParamsAxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
+    typename Context, typename ParentObject, typename Config, typename ParamsAxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
     int LookaheadCommitCount, typename FpType,
     typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename UnderrunCallback,
     typename ParamsChannelsList = EmptyTypeList, typename ParamsLasersList = EmptyTypeList
@@ -517,14 +517,14 @@ public:
         static FpType compute_segment_buffer_entry_distance (FpType accum, Context c, Segment *entry)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return (accum + (axis_entry->x.template fpValue<FpType>() * axis_entry->x.template fpValue<FpType>()) * APRINTER_CFG(Cache, CDistanceFactorSquared, c));
+            return (accum + (axis_entry->x.template fpValue<FpType>() * axis_entry->x.template fpValue<FpType>()) * APRINTER_CFG(Config, CDistanceFactorSquared, c));
         }
         
         static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Cache, CMaxSpeedRec, c);
+            return axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Config, CMaxSpeedRec, c);
         }
         
         template <typename AccumType>
@@ -532,7 +532,7 @@ public:
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Cache, CMaxAccelRec, c));
+            return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Config, CMaxAccelRec, c));
         }
         
         static void write_segment_buffer_entry_extra (Segment *entry, FpType rel_max_accel)
@@ -552,7 +552,7 @@ public:
             FpType m2 = prev_axis_entry->x.template fpValue<FpType>() * m->m_last_distance_rec;
             bool dir_changed = (entry->dir_and_type ^ prev_entry->dir_and_type) & TheAxisMask;
             FpType dm = (dir_changed ? (m1 + m2) : FloatAbs(m1 - m2));
-            return FloatMax(accum, dm * APRINTER_CFG(Cache, CCorneringSpeedComputationFactor, c));
+            return FloatMax(accum, dm * APRINTER_CFG(Config, CCorneringSpeedComputationFactor, c));
         }
         
         template <typename TheMinTimeType>

@@ -32,7 +32,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Config, typename Cache, typename MeasurementInterval, typename FpType, typename Params>
+template <typename Context, typename ParentObject, typename Config, typename MeasurementInterval, typename FpType, typename Params>
 class PidControl {
     using One = APRINTER_FP_CONST_EXPR(1.0);
     using MeasurementIntervalExpr = APRINTER_FP_CONST_EXPR(MeasurementInterval::value());
@@ -60,13 +60,13 @@ public:
         
         FpType err = target - value;
         if (AMBRO_LIKELY(!o->first)) {
-            o->integral += APRINTER_CFG(Cache, CIntegralFactor, c) * err;
-            o->integral = FloatMax(APRINTER_CFG(Cache, CIStateMin, c), FloatMin(APRINTER_CFG(Cache, CIStateMax, c), o->integral));
-            o->derivative = (APRINTER_CFG(Cache, CDHistory, c) * o->derivative) + (APRINTER_CFG(Cache, CC5, c) * (o->last - value));
+            o->integral += APRINTER_CFG(Config, CIntegralFactor, c) * err;
+            o->integral = FloatMax(APRINTER_CFG(Config, CIStateMin, c), FloatMin(APRINTER_CFG(Config, CIStateMax, c), o->integral));
+            o->derivative = (APRINTER_CFG(Config, CDHistory, c) * o->derivative) + (APRINTER_CFG(Config, CC5, c) * (o->last - value));
         }
         o->first = false;
         o->last = value;
-        return (APRINTER_CFG(Cache, CP, c) * err) + o->integral + o->derivative;
+        return (APRINTER_CFG(Config, CP, c) * err) + o->integral + o->derivative;
     }
     
 public:
@@ -92,8 +92,8 @@ struct PidControlService {
     using IStateMax = TIStateMax;
     using DHistory = TDHistory;
     
-    template <typename Context, typename ParentObject, typename Config, typename Cache, typename MeasurementInterval, typename FpType>
-    using Control = PidControl<Context, ParentObject, Config, Cache, MeasurementInterval, FpType, PidControlService>;
+    template <typename Context, typename ParentObject, typename Config, typename MeasurementInterval, typename FpType>
+    using Control = PidControl<Context, ParentObject, Config, MeasurementInterval, FpType, PidControlService>;
 };
 
 #include <aprinter/EndNamespace.h>
