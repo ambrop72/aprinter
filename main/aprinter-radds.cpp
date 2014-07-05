@@ -67,11 +67,11 @@ static uint16_t const AdcSmoothing = 0.95 * 65536.0;
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
-using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
-using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
+APRINTER_CONFIG_OPTION_DOUBLE(MaxStepsPerCycle, 0.0017)
+APRINTER_CONFIG_OPTION_DOUBLE(ForceTimeout, 0.1)
 APRINTER_CONFIG_OPTION_DOUBLE(InactiveTime, 8.0 * 60.0)
 
 APRINTER_CONFIG_OPTION_BOOL(XInvertDir, false)
