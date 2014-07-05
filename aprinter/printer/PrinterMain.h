@@ -2398,27 +2398,29 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct ObserverHandler;
         
         using HeaterSpec = TypeListGet<ParamsHeatersList, HeaterIndex>;
-        using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, typename HeaterSpec::ControlInterval, FpType>;
+        using ControlInterval = decltype(Config::e(HeaterSpec::ControlInterval::i));
+        using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType>;
         using ThePwm = typename HeaterSpec::PwmService::template Pwm<Context, Object>;
         using TheObserver = TemperatureObserver<Context, Object, FpType, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
-        using TheFormula = typename HeaterSpec::Formula::template Inner<FpType>;
+        using TheFormula = typename HeaterSpec::Formula::template Formula<Context, Object, Config, FpType>;
         using AdcFixedType = typename Context::Adc::FixedType;
         using AdcIntType = typename AdcFixedType::IntType;
         
-        static const TimeType ControlIntervalTicks = HeaterSpec::ControlInterval::value() / Clock::time_unit;
-        
         // compute the ADC readings corresponding to MinSafeTemp and MaxSafeTemp
+        using AdcRange = APRINTER_FP_CONST_EXPR((PowerOfTwo<double, AdcFixedType::num_bits>::Value));
         template <typename Temp>
-        struct TempToAdcAbs {
-            using Result = AMBRO_WRAP_DOUBLE((TheFormula::template TempToAdc<Temp>::Result::value() * PowerOfTwo<double, AdcFixedType::num_bits>::Value));
-        };
-        using InfAdcValueFp = typename TempToAdcAbs<typename HeaterSpec::MaxSafeTemp>::Result;
-        using SupAdcValueFp = typename TempToAdcAbs<typename HeaterSpec::MinSafeTemp>::Result;
-        static_assert(InfAdcValueFp::value() > 1, "");
-        static_assert(SupAdcValueFp::value() < PowerOfTwoMinusOne<AdcIntType, AdcFixedType::num_bits>::Value, "");
-        static constexpr AdcIntType InfAdcValue = InfAdcValueFp::value();
-        static constexpr AdcIntType SupAdcValue = SupAdcValueFp::value();
+        static auto TempToAdcAbs (Temp) -> decltype(TheFormula::TempToAdc(Temp()) * AdcRange());
+        using AdcFpLowLimit = APRINTER_FP_CONST_EXPR(1.0 + 0.1);
+        using AdcFpHighLimit = APRINTER_FP_CONST_EXPR((PowerOfTwoMinusOne<AdcIntType, AdcFixedType::num_bits>::Value - 0.1));
+        using InfAdcValueFp = decltype(ExprFmax(AdcFpLowLimit(), TempToAdcAbs(Config::e(HeaterSpec::MaxSafeTemp::i))));
+        using SupAdcValueFp = decltype(ExprFmin(AdcFpHighLimit(), TempToAdcAbs(Config::e(HeaterSpec::MinSafeTemp::i))));
+        
+        using CMinSafeTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::MinSafeTemp::i)));
+        using CMaxSafeTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::MaxSafeTemp::i)));
+        using CInfAdcValue = decltype(ExprCast<AdcIntType>(InfAdcValueFp()));
+        using CSupAdcValue = decltype(ExprCast<AdcIntType>(SupAdcValueFp()));
+        using CControlIntervalTicks = decltype(ExprCast<TimeType>(ControlInterval() * TimeConversion()));
         
         struct ChannelPayload {
             FpType target;
@@ -2430,7 +2432,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             o->m_enabled = false;
             TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
             o->m_control_event.init(c, Heater::control_event_handler);
-            o->m_control_event.appendAt(c, time + (TimeType)(0.6 * ControlIntervalTicks));
+            o->m_control_event.appendAt(c, time + (APRINTER_CFG(Config, CControlIntervalTicks, c) / 2));
             o->m_was_not_unset = false;
             ThePwm::init(c, time);
             o->m_observing = false;
@@ -2446,10 +2448,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             o->m_control_event.deinit(c);
         }
         
-        static FpType adc_to_temp (AdcFixedType adc_value)
+        static FpType adc_to_temp (Context c, AdcFixedType adc_value)
         {
             FpType adc_fp = adc_value.template fpValue<FpType>() + (FpType)(0.5 / PowerOfTwo<double, AdcFixedType::num_bits>::Value);
-            return TheFormula::adc_to_temp(adc_fp);
+            return TheFormula::adcToTemp(c, adc_fp);
         }
         
         template <typename ThisContext>
@@ -2458,14 +2460,14 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
         }
         
-        static bool adc_is_unsafe (AdcFixedType adc_value)
+        static bool adc_is_unsafe (Context c, AdcFixedType adc_value)
         {
-            return (adc_value.bitsValue() <= InfAdcValue || adc_value.bitsValue() >= SupAdcValue);
+            return (adc_value.bitsValue() <= APRINTER_CFG(Config, CInfAdcValue, c) || adc_value.bitsValue() >= APRINTER_CFG(Config, CSupAdcValue, c));
         }
         
         static FpType get_temp (Context c)
         {
-            return adc_to_temp(get_adc(c));
+            return adc_to_temp(c, get_adc(c));
         }
         
         template <typename TheChannelCommon>
@@ -2522,7 +2524,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     return false;
                 }
                 FpType target = TheChannelCommon::get_command_param_fp(c, 'S', 0.0f);
-                if (target >= (FpType)HeaterSpec::MinSafeTemp::value() && target <= (FpType)HeaterSpec::MaxSafeTemp::value()) {
+                if (target >= APRINTER_CFG(Config, CMinSafeTemp, c) && target <= APRINTER_CFG(Config, CMaxSafeTemp, c)) {
                     set(c, target);
                 } else {
                     unset(c);
@@ -2539,7 +2541,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 }
                 FpType target = TheChannelCommon::get_command_param_fp(c, 'S', 0.0f);
                 TheChannelCommon::finishCommand(c);
-                if (!(target >= (FpType)HeaterSpec::MinSafeTemp::value() && target <= (FpType)HeaterSpec::MaxSafeTemp::value())) {
+                if (!(target >= APRINTER_CFG(Config, CMinSafeTemp, c) && target <= APRINTER_CFG(Config, CMaxSafeTemp, c))) {
                     target = NAN;
                 }
                 PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
@@ -2556,7 +2558,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void check_safety (Context c)
         {
             AdcFixedType adc_value = get_adc(c);
-            if (adc_is_unsafe(adc_value)) {
+            if (adc_is_unsafe(c, adc_value)) {
                 unset(c);
             }
         }
@@ -2597,10 +2599,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             
-            o->m_control_event.appendAfterPrevious(c, ControlIntervalTicks);
+            o->m_control_event.appendAfterPrevious(c, APRINTER_CFG(Config, CControlIntervalTicks, c));
             
             AdcFixedType adc_value = get_adc(c);
-            if (adc_is_unsafe(adc_value)) {
+            if (adc_is_unsafe(c, adc_value)) {
                 unset(c);
             }
             
@@ -2617,7 +2619,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (!was_not_unset) {
                     TheControl::init(c);
                 }
-                FpType sensor_value = adc_to_temp(adc_value);
+                FpType sensor_value = adc_to_temp(c, adc_value);
                 FpType output = TheControl::addMeasurement(c, sensor_value, target);
                 PwmDutyCycleData duty;;
                 ThePwm::computeDutyCycle(output, &duty);
@@ -2635,7 +2637,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct Object : public ObjBase<Heater, typename PrinterMain::Object, MakeTypeList<
             TheControl,
             ThePwm,
-            TheObserver
+            TheObserver,
+            TheFormula
         >> {
             bool m_enabled;
             FpType m_target;
@@ -2643,6 +2646,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             typename Loop::QueuedEvent m_control_event;
             bool m_was_not_unset;
         };
+        
+        using ConfigExprs = MakeTypeList<CMinSafeTemp, CMaxSafeTemp, CInfAdcValue, CSupAdcValue, CControlIntervalTicks>;
     };
     
     template <int FanIndex>

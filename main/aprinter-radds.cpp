@@ -130,15 +130,14 @@ APRINTER_CONFIG_OPTION_DOUBLE(UMaxAccel, 250.0)
 APRINTER_CONFIG_OPTION_DOUBLE(UDistanceFactor, 1.0)
 APRINTER_CONFIG_OPTION_DOUBLE(UCorneringDistance, 40.0)
 
-using ExtruderHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
-using ExtruderHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(100000.0);
-using ExtruderHeaterThermistorBeta = AMBRO_WRAP_DOUBLE(3960.0);
-using ExtruderHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
-using ExtruderHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(300.0);
-using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
-using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
-using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
-using ExtruderHeaterControlInterval = ExtruderHeaterPulseInterval;
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorResistorR, 4700.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorR0, 100000.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorBeta, 3960.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorMinTemp, 10.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorMaxTemp, 300.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterMinSafeTemp, 20.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterMaxSafeTemp, 280.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterControlInterval, 0.2)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidP, 0.047)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidI, 0.0006)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidD, 0.17)
@@ -148,16 +147,16 @@ APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidDHistory, 0.7)
 using ExtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using ExtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
 using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
+using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
 
-using UxtruderHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
-using UxtruderHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(100000.0);
-using UxtruderHeaterThermistorBeta = AMBRO_WRAP_DOUBLE(3960.0);
-using UxtruderHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
-using UxtruderHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(300.0);
-using UxtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
-using UxtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
-using UxtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
-using UxtruderHeaterControlInterval = UxtruderHeaterPulseInterval;
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorResistorR, 4700.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorR0, 100000.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorBeta, 3960.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorMinTemp, 10.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorMaxTemp, 300.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterMinSafeTemp, 20.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterMaxSafeTemp, 280.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterControlInterval, 0.2)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidP, 0.047)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidI, 0.0006)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidD, 0.17)
@@ -167,16 +166,16 @@ APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidDHistory, 0.7)
 using UxtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using UxtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
 using UxtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
+using UxtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
 
-using BedHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
-using BedHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(10000.0);
-using BedHeaterThermistorBeta = AMBRO_WRAP_DOUBLE(3480.0);
-using BedHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
-using BedHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(150.0);
-using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
-using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
-using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
-using BedHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.3);
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorResistorR, 4700.0)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorR0, 10000.0)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorBeta, 3480.0)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorMinTemp, 10.0)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorMaxTemp, 150.0)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterMinSafeTemp, 20.0)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterMaxSafeTemp, 120.0)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterControlInterval, 0.3)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidP, 1.0)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidI, 0.012)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidD, 2.5)
@@ -186,6 +185,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidDHistory, 0.8)
 using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
 using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
 using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
+using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
 
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
@@ -443,7 +443,7 @@ using PrinterParams = PrinterMainParams<
             109, // WaitMCommand
             301, // SetConfigMCommand
             DuePinA0, // AdcPin
-            GenericThermistor< // Thermistor
+            GenericThermistorService< // Thermistor
                 ExtruderHeaterThermistorResistorR,
                 ExtruderHeaterThermistorR0,
                 ExtruderHeaterThermistorBeta,
@@ -479,7 +479,7 @@ using PrinterParams = PrinterMainParams<
             190, // WaitMCommand
             304, // SetConfigMCommand
             DuePinA4, // AdcPin
-            GenericThermistor< // Thermistor
+            GenericThermistorService< // Thermistor
                 BedHeaterThermistorResistorR,
                 BedHeaterThermistorR0,
                 BedHeaterThermistorBeta,
@@ -515,7 +515,7 @@ using PrinterParams = PrinterMainParams<
             409, // WaitMCommand
             402, // SetConfigMCommand
             DuePinA1, // AdcPin
-            GenericThermistor< // Thermistor
+            GenericThermistorService< // Thermistor
                 UxtruderHeaterThermistorResistorR,
                 UxtruderHeaterThermistorR0,
                 UxtruderHeaterThermistorBeta,

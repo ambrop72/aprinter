@@ -35,13 +35,12 @@
 template <typename Context, typename ParentObject, typename Config, typename MeasurementInterval, typename FpType, typename Params>
 class PidControl {
     using One = APRINTER_FP_CONST_EXPR(1.0);
-    using MeasurementIntervalExpr = APRINTER_FP_CONST_EXPR(MeasurementInterval::value());
     
-    using CIntegralFactor = decltype(ExprCast<FpType>(MeasurementIntervalExpr() * Config::e(Params::I::i)));
+    using CIntegralFactor = decltype(ExprCast<FpType>(MeasurementInterval() * Config::e(Params::I::i)));
     using CIStateMin = decltype(ExprCast<FpType>(Config::e(Params::IStateMin::i)));
     using CIStateMax = decltype(ExprCast<FpType>(Config::e(Params::IStateMax::i)));
     using CDHistory = decltype(ExprCast<FpType>(Config::e(Params::DHistory::i)));
-    using CC5 = decltype(ExprCast<FpType>((One() - Config::e(Params::DHistory::i)) * Config::e(Params::D::i) / MeasurementIntervalExpr()));
+    using CC5 = decltype(ExprCast<FpType>((One() - Config::e(Params::DHistory::i)) * Config::e(Params::D::i) / MeasurementInterval()));
     using CP = decltype(ExprCast<FpType>(Config::e(Params::P::i)));
     
 public:

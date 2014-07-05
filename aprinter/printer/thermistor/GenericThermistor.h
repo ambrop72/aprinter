@@ -25,45 +25,66 @@
 #ifndef AMBROLIB_GENERIC_THERMISTOR_H
 #define AMBROLIB_GENERIC_THERMISTOR_H
 
-#include <math.h>
-
-#include <aprinter/meta/WrapDouble.h>
 #include <aprinter/math/FloatTools.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    typename ResistorR,
-    typename ThermistorR0,
-    typename ThermistorBeta,
-    typename MinTemp,
-    typename MaxTemp
->
-struct GenericThermistor {
-    template <typename FpType>
-    class Inner {
-        using RInf = AMBRO_WRAP_DOUBLE(ThermistorR0::value() * __builtin_exp(-ThermistorBeta::value() / 298.15));
-        
-    public:
-        template <typename Temp>
-        class TempToAdc {
-            using FracThermistor = AMBRO_WRAP_DOUBLE((RInf::value() * __builtin_exp(ThermistorBeta::value() / (Temp::value() + 273.15))) / ResistorR::value());
-        public:
-            using Result = AMBRO_WRAP_DOUBLE(FracThermistor::value() / (1.0 + FracThermistor::value()));
-        };
-        
-        static FpType adc_to_temp (FpType adc)
-        {
-            if (!(adc >= (FpType)TempToAdc<MaxTemp>::Result::value())) {
-                return INFINITY;
-            }
-            if (!(adc <= (FpType)TempToAdc<MinTemp>::Result::value())) {
-                return -INFINITY;
-            }
-            FpType frac_thermistor = (adc / (1.0f - adc));
-            return ((FpType)ThermistorBeta::value() / (FloatLog(frac_thermistor) + (FpType)__builtin_log(ResistorR::value() / RInf::value()))) - 273.15f;
+template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
+class GenericThermistor {
+    using One = APRINTER_FP_CONST_EXPR(1.0);
+    using RoomTemp = APRINTER_FP_CONST_EXPR(298.15);
+    using ZeroCelsiusTemp = APRINTER_FP_CONST_EXPR(273.15);
+    
+    using RInf = decltype(Config::e(Params::ThermistorR0::i) * ExprExp(-Config::e(Params::ThermistorBeta::i) / RoomTemp()));
+    
+    template <typename Temp>
+    static auto FracThermistor (Temp) -> decltype((RInf() * ExprExp(Config::e(Params::ThermistorBeta::i) / (Temp() + ZeroCelsiusTemp()))) / Config::e(Params::ResistorR::i));
+    
+public:
+    template <typename Temp>
+    static auto TempToAdc (Temp) -> decltype(FracThermistor(Temp()) / (One() + FracThermistor(Temp())));
+    
+    static FpType adcToTemp (Context c, FpType adc)
+    {
+        if (!(adc >= APRINTER_CFG(Config, CAdcMaxTemp, c))) {
+            return INFINITY;
         }
-    };
+        if (!(adc <= APRINTER_CFG(Config, CAdcMinTemp, c))) {
+            return -INFINITY;
+        }
+        FpType frac_thermistor = (adc / (1.0f - adc));
+        return (APRINTER_CFG(Config, CThermistorBeta, c) / (FloatLog(frac_thermistor) + APRINTER_CFG(Config, CLogRByRInf, c))) - 273.15f;
+    }
+    
+private:
+    using CAdcMinTemp = decltype(ExprCast<FpType>(TempToAdc(Config::e(Params::MinTemp::i))));
+    using CAdcMaxTemp = decltype(ExprCast<FpType>(TempToAdc(Config::e(Params::MaxTemp::i))));
+    using CThermistorBeta = decltype(ExprCast<FpType>(Config::e(Params::ThermistorBeta::i)));
+    using CLogRByRInf = decltype(ExprCast<FpType>(ExprLog(Config::e(Params::ResistorR::i) / RInf())));
+    
+public:
+    struct Object {};
+    
+    using ConfigExprs = MakeTypeList<CAdcMinTemp, CAdcMaxTemp, CThermistorBeta, CLogRByRInf>;
+};
+
+template <
+    typename TResistorR,
+    typename TThermistorR0,
+    typename TThermistorBeta,
+    typename TMinTemp,
+    typename TMaxTemp
+>
+struct GenericThermistorService {
+    using ResistorR = TResistorR;
+    using ThermistorR0 = TThermistorR0;
+    using ThermistorBeta = TThermistorBeta;
+    using MinTemp = TMinTemp;
+    using MaxTemp = TMaxTemp;
+    
+    template <typename Context, typename ParentObject, typename Config, typename FpType>
+    using Formula = GenericThermistor<Context, ParentObject, Config, FpType, GenericThermistorService>;
 };
 
 #include <aprinter/EndNamespace.h>

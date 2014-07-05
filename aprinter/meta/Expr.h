@@ -244,6 +244,8 @@ template <typename TargetType, typename Op1>
 NaryExpr<ExprFunc__Cast<TargetType>, Op1> ExprCast (Op1);
 
 APRINTER_DEFINE_UNARY_EXPR_FUNC(Rec, 1.0f / arg1)
+APRINTER_DEFINE_UNARY_EXPR_FUNC(Exp, __builtin_exp(arg1))
+APRINTER_DEFINE_UNARY_EXPR_FUNC(Log, __builtin_log(arg1))
 
 APRINTER_DEFINE_BINARY_EXPR_OPERATOR(+,  Addition)
 APRINTER_DEFINE_BINARY_EXPR_OPERATOR(-,  Subtraction)
