@@ -454,7 +454,6 @@ using PrinterParams = PrinterMainParams<
             'T', // Name
             104, // SetMCommand
             109, // WaitMCommand
-            301, // SetConfigMCommand
             DuePinA0, // AdcPin
             GenericThermistorService< // Thermistor
                 ExtruderHeaterThermistorResistorR,
@@ -490,7 +489,6 @@ using PrinterParams = PrinterMainParams<
             'B', // Name
             140, // SetMCommand
             190, // WaitMCommand
-            304, // SetConfigMCommand
             DuePinA4, // AdcPin
             GenericThermistorService< // Thermistor
                 BedHeaterThermistorResistorR,
@@ -526,7 +524,6 @@ using PrinterParams = PrinterMainParams<
             'U', // Name
             404, // SetMCommand
             409, // WaitMCommand
-            402, // SetConfigMCommand
             DuePinA1, // AdcPin
             GenericThermistorService< // Thermistor
                 UxtruderHeaterThermistorResistorR,

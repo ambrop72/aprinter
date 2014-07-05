@@ -263,7 +263,7 @@ struct PrinterMainVirtualHomingParams {
 };
 
 template <
-    char TName, int TSetMCommand, int TWaitMCommand, int TSetConfigMCommand,
+    char TName, int TSetMCommand, int TWaitMCommand,
     typename TAdcPin,
     typename TFormula,
     typename TMinSafeTemp, typename TMaxSafeTemp,
@@ -276,7 +276,6 @@ struct PrinterMainHeaterParams {
     static char const Name = TName;
     static int const SetMCommand = TSetMCommand;
     static int const WaitMCommand = TWaitMCommand;
-    static int const SetConfigMCommand = TSetConfigMCommand;
     using AdcPin = TAdcPin;
     using Formula = TFormula;
     using MinSafeTemp = TMinSafeTemp;
