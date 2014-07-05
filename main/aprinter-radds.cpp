@@ -48,6 +48,7 @@ static void emergency (void);
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/AxisHomer.h>
+#include <aprinter/printer/TemperatureObserver.h>
 #include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
@@ -144,9 +145,9 @@ APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidD, 0.17)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidIStateMin, 0.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidIStateMax, 0.4)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidDHistory, 0.7)
-using ExtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
-using ExtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
-using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverInterval, 0.5)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverTolerance, 3.0)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverMinTime, 3.0)
 using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
 
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorResistorR, 4700.0)
@@ -163,9 +164,9 @@ APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidD, 0.17)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidIStateMin, 0.0)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidIStateMax, 0.4)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidDHistory, 0.7)
-using UxtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
-using UxtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
-using UxtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterObserverInterval, 0.5)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterObserverTolerance, 3.0)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterObserverMinTime, 3.0)
 using UxtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
 
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorResistorR, 4700.0)
@@ -182,9 +183,9 @@ APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidD, 2.5)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidIStateMin, 0.0)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidIStateMax, 1.0)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidDHistory, 0.8)
-using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
-using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
-using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverInterval, 0.5)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverTolerance, 1.5)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverMinTime, 3.0)
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
 
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
@@ -461,7 +462,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterPidIStateMax, // PidIStateMax
                 ExtruderHeaterPidDHistory // PidDHistory
             >,
-            TemperatureObserverParams<
+            TemperatureObserverService<
                 ExtruderHeaterObserverInterval, // ObserverInterval
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
@@ -497,7 +498,7 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterPidIStateMax, // PidIStateMax
                 BedHeaterPidDHistory // PidDHistory
             >,
-            TemperatureObserverParams<
+            TemperatureObserverService<
                 BedHeaterObserverInterval, // ObserverInterval
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
@@ -533,7 +534,7 @@ using PrinterParams = PrinterMainParams<
                 UxtruderHeaterPidIStateMax, // PidIStateMax
                 UxtruderHeaterPidDHistory // PidDHistory
             >,
-            TemperatureObserverParams<
+            TemperatureObserverService<
                 UxtruderHeaterObserverInterval, // ObserverInterval
                 UxtruderHeaterObserverTolerance, // ObserverTolerance
                 UxtruderHeaterObserverMinTime // ObserverMinTime

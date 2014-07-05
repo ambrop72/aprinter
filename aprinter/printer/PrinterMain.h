@@ -79,7 +79,6 @@
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/BinaryGcodeParser.h>
 #include <aprinter/printer/MotionPlanner.h>
-#include <aprinter/printer/TemperatureObserver.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -270,7 +269,7 @@ template <
     typename TMinSafeTemp, typename TMaxSafeTemp,
     typename TControlInterval,
     typename TControlService,
-    typename TTheTemperatureObserverParams,
+    typename TObserverService,
     typename TPwmService
 >
 struct PrinterMainHeaterParams {
@@ -284,7 +283,7 @@ struct PrinterMainHeaterParams {
     using MaxSafeTemp = TMaxSafeTemp;
     using ControlInterval = TControlInterval;
     using ControlService = TControlService;
-    using TheTemperatureObserverParams = TTheTemperatureObserverParams;
+    using ObserverService = TObserverService;
     using PwmService = TPwmService;
 };
 
@@ -2401,7 +2400,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using ControlInterval = decltype(Config::e(HeaterSpec::ControlInterval::i));
         using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType>;
         using ThePwm = typename HeaterSpec::PwmService::template Pwm<Context, Object>;
-        using TheObserver = TemperatureObserver<Context, Object, FpType, typename HeaterSpec::TheTemperatureObserverParams, ObserverGetValueCallback, ObserverHandler>;
+        using TheObserver = typename HeaterSpec::ObserverService::template Observer<Context, Object, Config, FpType, ObserverGetValueCallback, ObserverHandler>;
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
         using TheFormula = typename HeaterSpec::Formula::template Formula<Context, Object, Config, FpType>;
         using AdcFixedType = typename Context::Adc::FixedType;

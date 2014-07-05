@@ -25,30 +25,18 @@
 #ifndef AMBROLIB_TEMPERATURE_OBSERVER_H
 #define AMBROLIB_TEMPERATURE_OBSERVER_H
 
-#include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/BitsInInt.h>
+#include <stdint.h>
+
 #include <aprinter/meta/Object.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    typename TSampleInterval,
-    typename TValueTolerance,
-    typename TMinTime
->
-struct TemperatureObserverParams {
-    using SampleInterval = TSampleInterval;
-    using ValueTolerance = TValueTolerance;
-    using MinTime = TMinTime;
-};
-
-template <typename Context, typename ParentObject, typename FpType, typename Params, typename GetValueCallback, typename Handler>
+template <typename Context, typename ParentObject, typename Config, typename FpType, typename GetValueCallback, typename Handler, typename Params>
 class TemperatureObserver {
 public:
-    struct Object;
-    
     static void init (Context c, FpType target)
     {
         auto *o = Object::self(c);
@@ -72,27 +60,32 @@ public:
 private:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    static const TimeType IntervalTicks = Params::SampleInterval::value() * Clock::time_freq;
-    static const int MinIntervals = (Params::MinTime::value() / Params::SampleInterval::value()) + 2.0;
-    using IntervalsType = ChooseInt<BitsInInt<MinIntervals>::Value, false>;
+    using SampleInterval = decltype(Config::e(Params::SampleInterval::i));
+    using TimeFreq = APRINTER_FP_CONST_EXPR(Clock::time_freq);
+    using Two = APRINTER_FP_CONST_EXPR(2.0);
+    using IntervalsMax = APRINTER_FP_CONST_EXPR(65535.0);
+    
+    using CIntervalTicks = decltype(ExprCast<TimeType>(SampleInterval() * TimeFreq()));
+    using CMinIntervals = decltype(ExprCast<uint16_t>(ExprFmin(IntervalsMax(), (Config::e(Params::MinTime::i) / SampleInterval()) + Two())));
+    using CValueTolerance = decltype(ExprCast<FpType>(Config::e(Params::ValueTolerance::i)));
     
     static void event_handler (typename Context::EventLoop::QueuedEvent *, Context c)
     {
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        o->m_event.appendAfterPrevious(c, IntervalTicks);
+        o->m_event.appendAfterPrevious(c, APRINTER_CFG(Config, CIntervalTicks, c));
         
         FpType value = GetValueCallback::call(c);
-        bool in_range = FloatAbs(value - o->m_target) < (FpType)Params::ValueTolerance::value();
+        bool in_range = FloatAbs(value - o->m_target) < APRINTER_CFG(Config, CValueTolerance, c);
         
         if (!in_range) {
             o->m_intervals = 0;
-        } else if (o->m_intervals != MinIntervals) {
+        } else if (o->m_intervals < APRINTER_CFG(Config, CMinIntervals, c)) {
             o->m_intervals++;
         }
         
-        return Handler::call(c, o->m_intervals == MinIntervals);
+        return Handler::call(c, o->m_intervals >= APRINTER_CFG(Config, CMinIntervals, c));
     }
     
 public:
@@ -101,8 +94,24 @@ public:
     {
         typename Context::EventLoop::QueuedEvent m_event;
         FpType m_target;
-        IntervalsType m_intervals;
+        uint16_t m_intervals;
     };
+    
+    using ConfigExprs = MakeTypeList<CIntervalTicks, CMinIntervals, CValueTolerance>;
+};
+
+template <
+    typename TSampleInterval,
+    typename TValueTolerance,
+    typename TMinTime
+>
+struct TemperatureObserverService {
+    using SampleInterval = TSampleInterval;
+    using ValueTolerance = TValueTolerance;
+    using MinTime = TMinTime;
+    
+    template <typename Context, typename ParentObject, typename Config, typename FpType, typename GetValueCallback, typename Handler>
+    using Observer = TemperatureObserver<Context, ParentObject, Config, FpType, GetValueCallback, Handler, TemperatureObserverService>;
 };
 
 #include <aprinter/EndNamespace.h>
