@@ -84,7 +84,7 @@
 #include <aprinter/BeginNamespace.h>
 
 template <
-    typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TDefaultInactiveTime,
+    typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TInactiveTime,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
     int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSize,
     int TLookaheadCommitCount,
@@ -101,7 +101,7 @@ struct PrinterMainParams {
     using Serial = TSerial;
     using LedPin = TLedPin;
     using LedBlinkInterval = TLedBlinkInterval;
-    using DefaultInactiveTime = TDefaultInactiveTime;
+    using InactiveTime = TInactiveTime;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using MaxStepsPerCycle = TMaxStepsPerCycle;
     static int const StepperSegmentBufferSize = TStepperSegmentBufferSize;
@@ -516,6 +516,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
     using TimeConversion = APRINTER_FP_CONST_EXPR(Clock::time_freq);
+    
+    using CInactiveTimeTicks = decltype(ExprCast<TimeType>(Config::e(Params::InactiveTime::i) * TimeConversion()));
+    
+    using MyConfigExprs = MakeTypeList<CInactiveTimeTicks>;
     
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
@@ -3016,7 +3020,6 @@ public:
         ListForEachForward<FansList>(LForeach_init(), c);
         ProbeFeature::init(c);
         CurrentFeature::init(c);
-        ob->inactive_time = (FpType)(Params::DefaultInactiveTime::value() * TimeConversion::value());
         ob->time_freq_by_max_speed = 0.0f;
         ob->underrun_count = 0;
         ob->locked = false;
@@ -3144,16 +3147,8 @@ public: // private, see comment on top
                     if (!TheChannelCommon::tryUnplannedCommand(c)) {
                         return;
                     }
-                    FpType inactive_time;
-                    if (TheChannelCommon::find_command_param_fp(c, 'S', &inactive_time)) {
-                        ob->inactive_time = time_from_real(inactive_time);
-                        if (ob->disable_timer.isSet(c)) {
-                            ob->disable_timer.appendAt(c, ob->last_active_time + ob->inactive_time);
-                        }
-                    } else {
-                        ListForEachForward<AxesList>(LForeach_disable_stepper(), c);
-                        ob->disable_timer.unset(c);
-                    }
+                    ListForEachForward<AxesList>(LForeach_disable_stepper(), c);
+                    ob->disable_timer.unset(c);
                     return TheChannelCommon::finishCommand(c);
                 } break;
                 
@@ -3344,8 +3339,8 @@ public: // private, see comment on top
     {
         auto *ob = Object::self(c);
         
-        ob->last_active_time = Clock::getTime(c);
-        ob->disable_timer.appendAt(c, ob->last_active_time + ob->inactive_time);
+        TimeType now = Clock::getTime(c);
+        ob->disable_timer.appendAt(c, now + APRINTER_CFG(Config, CInactiveTimeTicks, c));
         TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
     }
     
@@ -3700,15 +3695,18 @@ public: // private, see comment on top
         >;
     };
     struct DelayedConfigExprs {
-        using List = ObjCollectList<
-            JoinTypeLists<
-                AxesList,
-                HeatersList,
-                MakeTypeList<
-                    PlannerUnion
-                >
-            >,
-            Collectible_ConfigExprs
+        using List = JoinTypeLists<
+            MyConfigExprs,
+            ObjCollectList<
+                JoinTypeLists<
+                    AxesList,
+                    HeatersList,
+                    MakeTypeList<
+                        PlannerUnion
+                    >
+                >,
+                Collectible_ConfigExprs
+            >
         >;
     };
     
@@ -3737,8 +3735,6 @@ public:
         typename Loop::QueuedEvent unlocked_timer;
         typename Loop::QueuedEvent disable_timer;
         typename Loop::QueuedEvent force_timer;
-        TimeType inactive_time;
-        TimeType last_active_time;
         FpType time_freq_by_max_speed;
         uint32_t underrun_count;
         bool locked;

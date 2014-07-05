@@ -66,12 +66,13 @@ using AdcAvgInterval = AMBRO_WRAP_DOUBLE(0.0025);
 static uint16_t const AdcSmoothing = 0.95 * 65536.0;
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
-using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(8.0 * 60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
 using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
+
+APRINTER_CONFIG_OPTION_DOUBLE(InactiveTime, 8.0 * 60.0)
 
 APRINTER_CONFIG_OPTION_DOUBLE(XStepsPerUnit, 2.0 * 80.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XMin, -53.0)
@@ -226,7 +227,7 @@ using PrinterParams = PrinterMainParams<
     >,
     DuePin37, // LedPin
     LedBlinkInterval, // LedBlinkInterval
-    DefaultInactiveTime, // DefaultInactiveTime
+    InactiveTime,
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
     32, // StepperSegmentBufferSize
