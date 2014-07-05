@@ -63,7 +63,7 @@ template <
     typename TheGlobal, typename FpType,
     typename TheAxisDriver, int PlannerStepBits, int StepperSegmentBufferSize,
     int MaxLookaheadBufferSize, typename MaxAccel, typename DistConversion,
-    typename TimeConversion, bool HomeDir, typename FinishedHandler,
+    typename TimeConversion, typename HomeDir, typename FinishedHandler,
     typename Params
 >
 class AxisHomer {
@@ -141,17 +141,17 @@ private:
         FpType max_v_rec;
         switch (o->m_state) {
             case STATE_FAST: {
-                axis_cmd->dir = HomeDir;
+                axis_cmd->dir = APRINTER_CFG(Config, CHomeDir, c);
                 axis_cmd->x = APRINTER_CFG(Config, CFixedStepsFast, c);
                 max_v_rec = APRINTER_CFG(Config, CMaxVRecFast, c);
             } break;
             case STATE_RETRACT: {
-                axis_cmd->dir = !HomeDir;
+                axis_cmd->dir = !APRINTER_CFG(Config, CHomeDir, c);
                 axis_cmd->x = APRINTER_CFG(Config, CFixedStepsRetract, c);
                 max_v_rec = APRINTER_CFG(Config, CMaxVRecRetract, c);
             } break;
             case STATE_SLOW: {
-                axis_cmd->dir = HomeDir;
+                axis_cmd->dir = APRINTER_CFG(Config, CHomeDir, c);
                 axis_cmd->x = APRINTER_CFG(Config, CFixedStepsSlow, c);
                 max_v_rec = APRINTER_CFG(Config, CMaxVRecSlow, c);
             } break;
@@ -217,6 +217,7 @@ private:
     using CFixedStepsFast = decltype(ExprFixedPointImport<StepFixedType>(FastSteps()));
     using CFixedStepsRetract = decltype(ExprFixedPointImport<StepFixedType>(RetractSteps()));
     using CFixedStepsSlow = decltype(ExprFixedPointImport<StepFixedType>(SlowSteps()));
+    using CHomeDir = decltype(ExprCast<bool>(HomeDir()));
     
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_pull_handler) {};
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_finished_handler) {};
@@ -225,7 +226,7 @@ private:
     struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_prestep_callback) {};
     
 public:
-    using ConfigExprs = MakeTypeList<CMaxVRecFast, CMaxVRecRetract, CMaxVRecSlow, CFixedStepsFast, CFixedStepsRetract, CFixedStepsSlow>;
+    using ConfigExprs = MakeTypeList<CMaxVRecFast, CMaxVRecRetract, CMaxVRecSlow, CFixedStepsFast, CFixedStepsRetract, CFixedStepsSlow, CHomeDir>;
     
     struct Object : public ObjBase<AxisHomer, ParentObject, MakeTypeList<
         Planner
@@ -256,7 +257,7 @@ struct AxisHomerService {
     template <
         typename Context, typename Config, typename FpType, int PlannerStepBits,
         int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename MaxAccel,
-        typename DistConversion, typename TimeConversion, bool HomeDir
+        typename DistConversion, typename TimeConversion, typename HomeDir
     >
     struct Instance {
         template <typename ParentObject>

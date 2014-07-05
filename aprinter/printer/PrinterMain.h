@@ -200,12 +200,12 @@ struct PrinterMainNoHomingParams {
 };
 
 template <
-    bool THomeDir,
+    typename THomeDir,
     typename THomerService
 >
 struct PrinterMainHomingParams {
     static bool const Enabled = true;
-    static bool const HomeDir = THomeDir;
+    using HomeDir = THomeDir;
     using HomerService = THomerService;
 };
 
@@ -1346,7 +1346,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             using HomerInstance = typename HomingSpec::HomerService::template Instance<
                 Context, Config, FpType, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
                 Params::LookaheadBufferSize, decltype(Config::e(AxisSpec::DefaultMaxAccel::i)),
-                DistConversion, TimeConversion, HomingSpec::HomeDir
+                DistConversion, TimeConversion, decltype(Config::e(HomingSpec::HomeDir::i))
             >;
             
             using HomerGlobal = typename HomerInstance::template HomerGlobal<Object>;
@@ -1410,7 +1410,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 axis->m_state = AXIS_STATE_HOMING;
             }
             
-            using InitPosition = decltype(ExprIf(ExprBoolConst<HomingSpec::HomeDir>(), MaxReqPos(), MinReqPos()));
+            using InitPosition = decltype(ExprIf(Config::e(HomingSpec::HomeDir::i), MaxReqPos(), MinReqPos()));
             
             template <typename ThisContext>
             static bool endstop_is_triggered (ThisContext c)
