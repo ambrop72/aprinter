@@ -45,7 +45,7 @@ struct StepperGroupParams {
     using StepperDefList = TStepperDefList;
 };
 
-template <typename Context, typename ParentObject, typename GroupParamsList>
+template <typename Context, typename ParentObject, typename Config, typename GroupParamsList>
 class StepperGroups {
 public:
     struct Object;
@@ -77,7 +77,7 @@ private:
     };
     
     using StepperDefList = TypeListFold<MapTypeList<GroupParamsList, GetMemberType_StepperDefList>, EmptyTypeList, JoinTwoTypeListsSwapped>;
-    using TheSteppers = Steppers<Context, Object, StepperDefList>;
+    using TheSteppers = Steppers<Context, Object, Config, StepperDefList>;
     
 public:
     template <int GroupIndex>

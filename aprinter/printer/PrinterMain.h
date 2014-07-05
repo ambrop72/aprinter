@@ -140,7 +140,7 @@ struct PrinterMainSerialParams {
 
 template <
     char TName,
-    typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir,
+    typename TDirPin, typename TStepPin, typename TEnablePin, typename TInvertDir,
     typename TDefaultStepsPerUnit, typename TDefaultMin, typename TDefaultMax,
     typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
@@ -153,7 +153,7 @@ struct PrinterMainAxisParams {
     using DirPin = TDirPin;
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
-    static bool const InvertDir = TInvertDir;
+    using InvertDir = TInvertDir;
     using DefaultStepsPerUnit = TDefaultStepsPerUnit;
     using DefaultMin = TDefaultMin;
     using DefaultMax = TDefaultMax;
@@ -170,13 +170,13 @@ struct PrinterMainAxisParams {
 };
 
 template <
-    typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir
+    typename TDirPin, typename TStepPin, typename TEnablePin, typename TInvertDir
 >
 struct PrinterMainSlaveStepperParams {
     using DirPin = TDirPin;
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
-    static bool const InvertDir = TInvertDir;
+    using InvertDir = TInvertDir;
 };
 
 struct PrinterMainNoMicroStepParams {
@@ -492,7 +492,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         typename TheSlaveStepper::DirPin,
         typename TheSlaveStepper::StepPin,
         typename TheSlaveStepper::EnablePin,
-        TheSlaveStepper::InvertDir
+        decltype(Config::e(TheSlaveStepper::InvertDir::i))
     >;
     
     template <typename TheAxis>
@@ -503,7 +503,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     typename TheAxis::DirPin,
                     typename TheAxis::StepPin,
                     typename TheAxis::EnablePin,
-                    TheAxis::InvertDir
+                    decltype(Config::e(TheAxis::InvertDir::i))
                 >
             >,
             MapTypeList<typename TheAxis::SlaveSteppersList, TemplateFunc<MakeSlaveStepperDef>>
@@ -511,7 +511,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     >;
     
     using StepperGroupParamsList = MapTypeList<ParamsAxesList, TemplateFunc<MakeStepperGroupParams>>;
-    using TheSteppers = StepperGroups<Context, Object, StepperGroupParamsList>;
+    using TheSteppers = StepperGroups<Context, Object, Config, StepperGroupParamsList>;
     
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
@@ -3702,6 +3702,7 @@ public: // private, see comment on top
                     AxesList,
                     HeatersList,
                     MakeTypeList<
+                        TheSteppers,
                         PlannerUnion
                     >
                 >,

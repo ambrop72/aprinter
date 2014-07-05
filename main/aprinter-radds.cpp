@@ -74,6 +74,7 @@ using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
 APRINTER_CONFIG_OPTION_DOUBLE(InactiveTime, 8.0 * 60.0)
 
+APRINTER_CONFIG_OPTION_BOOL(XInvertDir, false)
 APRINTER_CONFIG_OPTION_DOUBLE(XStepsPerUnit, 2.0 * 80.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XMin, -53.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XMax, 210.0)
@@ -88,6 +89,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(XHomeFastSpeed, 40.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeRetractSpeed, 50.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeSlowSpeed, 5.0)
 
+APRINTER_CONFIG_OPTION_BOOL(YInvertDir, false)
 APRINTER_CONFIG_OPTION_DOUBLE(YStepsPerUnit, 2.0 * 80.0)
 APRINTER_CONFIG_OPTION_DOUBLE(YMin, 0.0)
 APRINTER_CONFIG_OPTION_DOUBLE(YMax, 157.0)
@@ -102,6 +104,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(YHomeFastSpeed, 40.0)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeRetractSpeed, 50.0)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeSlowSpeed, 5.0)
 
+APRINTER_CONFIG_OPTION_BOOL(ZInvertDir, true)
 APRINTER_CONFIG_OPTION_DOUBLE(ZStepsPerUnit, 2.0 * 4000.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ZMin, 0.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ZMax, 100.0)
@@ -116,6 +119,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(ZHomeFastSpeed, 2.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeRetractSpeed, 2.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeSlowSpeed, 0.6)
 
+APRINTER_CONFIG_OPTION_BOOL(EInvertDir, false)
 APRINTER_CONFIG_OPTION_DOUBLE(EStepsPerUnit, 2.0 * 928.0)
 APRINTER_CONFIG_OPTION_DOUBLE(EMin, -40000.0)
 APRINTER_CONFIG_OPTION_DOUBLE(EMax, 40000.0)
@@ -124,6 +128,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(EMaxAccel, 250.0)
 APRINTER_CONFIG_OPTION_DOUBLE(EDistanceFactor, 1.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ECorneringDistance, 40.0)
 
+APRINTER_CONFIG_OPTION_BOOL(UInvertDir, false)
 APRINTER_CONFIG_OPTION_DOUBLE(UStepsPerUnit, 2.0 * 660.0)
 APRINTER_CONFIG_OPTION_DOUBLE(UMin, -40000.0)
 APRINTER_CONFIG_OPTION_DOUBLE(UMax, 40000.0)
@@ -284,7 +289,7 @@ using PrinterParams = PrinterMainParams<
             DuePin23, // DirPin
             DuePin24, // StepPin
             DuePin26, // EnablePin
-            false, // InvertDir
+            XInvertDir,
             XStepsPerUnit, // StepsPerUnit
             XMin, // Min
             XMax, // Max
@@ -319,7 +324,7 @@ using PrinterParams = PrinterMainParams<
             DuePin16, // DirPin
             DuePin17, // StepPin
             DuePin22, // EnablePin
-            false, // InvertDir
+            YInvertDir,
             YStepsPerUnit, // StepsPerUnit
             YMin, // Min
             YMax, // Max
@@ -354,7 +359,7 @@ using PrinterParams = PrinterMainParams<
             DuePin3, // DirPin
             DuePin2, // StepPin
             DuePin15, // EnablePin
-            true, // InvertDir
+            ZInvertDir,
             ZStepsPerUnit, // StepsPerUnit
             ZMin, // Min
             ZMax, // Max
@@ -389,7 +394,7 @@ using PrinterParams = PrinterMainParams<
             DuePinA6, // DirPin
             DuePinA7, // StepPin
             DuePinA8, // EnablePin
-            false, // InvertDir
+            EInvertDir,
             EStepsPerUnit, // StepsPerUnit
             EMin, // Min
             EMax, // Max
@@ -411,7 +416,7 @@ using PrinterParams = PrinterMainParams<
             DuePinA9, // DirPin
             DuePinA10, // StepPin
             DuePinA11, // EnablePin
-            false, // InvertDir
+            UInvertDir,
             UStepsPerUnit, // StepsPerUnit
             UMin, // Min
             UMax, // Max

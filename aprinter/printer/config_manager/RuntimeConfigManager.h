@@ -107,6 +107,23 @@ private:
             }
         };
         
+        template <typename Dummy>
+        struct TypeSpecific<bool, Dummy> {
+            template <typename CommandChannel>
+            static void get_value_cmd (Context c, WrapType<CommandChannel>)
+            {
+                auto *o = Object::self(c);
+                CommandChannel::reply_append_uint8(c, o->value);
+            }
+            
+            template <typename CommandChannel>
+            static void set_value_cmd (Context c, WrapType<CommandChannel>)
+            {
+                auto *o = Object::self(c);
+                o->value = CommandChannel::get_command_param_uint32(c, 'V', TheConfigOption::DefaultValue::value());
+            }
+        };
+        
         struct Object : public ObjBase<ConfigOptionState, typename RuntimeConfigManager::Object, EmptyTypeList> {
             Type value;
         };

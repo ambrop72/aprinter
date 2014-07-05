@@ -26,8 +26,6 @@
 #define AMBROLIB_STEPPERS_H
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/Tuple.h>
-#include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/IsEqualFunc.h>
@@ -35,34 +33,35 @@
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/SequenceList.h>
 #include <aprinter/meta/TypeListLength.h>
-#include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/ValueTemplateFunc.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/TupleForEach.h>
+#include <aprinter/meta/IndexElemList.h>
+#include <aprinter/meta/ListForEach.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TDirPin, typename TStepPin, typename TEnablePin, bool TInvertDir>
+template <typename TDirPin, typename TStepPin, typename TEnablePin, typename TInvertDir>
 struct StepperDef {
     using DirPin = TDirPin;
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
-    static const bool InvertDir = TInvertDir;
+    using InvertDir = TInvertDir;
 };
 
-template <typename Context, typename ParentObject, typename StepperDefsList>
+template <typename Context, typename ParentObject, typename Config, typename StepperDefsList>
 class Steppers {
 public:
     struct Object;
     
 private:
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
     
     static int const NumSteppers = TypeListLength<StepperDefsList>::Value;
     using MaskType = ChooseInt<NumSteppers, false>;
@@ -107,6 +106,8 @@ public:
         
         static bool const SharesEnable = (SameEnableMask != TheMask);
         
+        using CInvertDir = decltype(ExprCast<bool>(ThisDef::InvertDir::e()));
+        
     public:
         static void enable (Context c)
         {
@@ -137,7 +138,7 @@ public:
         {
             auto *s = Steppers::Object::self(c);
             s->debugAccess(c);
-            Context::Pins::template set<typename ThisDef::DirPin>(c, maybe_invert_dir(dir));
+            Context::Pins::template set<typename ThisDef::DirPin>(c, maybe_invert_dir(c, dir));
         }
         
         template <typename ThisContext>
@@ -161,15 +162,19 @@ public:
             Context::Pins::template emergencySet<typename ThisDef::EnablePin>(true);
         }
         
+        struct Object {};
+        
+        using ConfigExprs = MakeTypeList<CInvertDir>;
+        
     public: // private, workaround gcc bug
-        static bool maybe_invert_dir (bool dir)
+        static bool maybe_invert_dir (Context c, bool dir)
         {
-            return (ThisDef::InvertDir) ? !dir : dir;
+            return APRINTER_CFG(Config, CInvertDir, c) ? !dir : dir;
         }
         
         static void init (Context c)
         {
-            Context::Pins::template set<typename ThisDef::DirPin>(c, maybe_invert_dir(false));
+            Context::Pins::template set<typename ThisDef::DirPin>(c, maybe_invert_dir(c, false));
             Context::Pins::template set<typename ThisDef::StepPin>(c, false);
             Context::Pins::template set<typename ThisDef::EnablePin>(c, true);
             Context::Pins::template setOutput<typename ThisDef::DirPin>(c);
@@ -187,8 +192,7 @@ public:
     {
         auto *o = Object::self(c);
         o->mask = 0;
-        SteppersTuple dummy;
-        TupleForEachForward(&dummy, Foreach_init(), c);
+        ListForEachForward<SteppersList>(Foreach_init(), c);
         o->debugInit(c);
     }
     
@@ -196,17 +200,13 @@ public:
     {
         auto *o = Object::self(c);
         o->debugDeinit(c);
-        SteppersTuple dummy;
-        TupleForEachReverse(&dummy, Foreach_deinit(), c);
+        ListForEachForward<SteppersList>(Foreach_deinit(), c);
     }
     
-private:
-    using SteppersTuple = IndexElemTuple<StepperDefsList, Stepper>;
-    
 public:
-    using SteppersList = typename SteppersTuple::ElemTypes;
+    using SteppersList = IndexElemList<StepperDefsList, Stepper>;
     
-    struct Object : public ObjBase<Steppers, ParentObject, EmptyTypeList>,
+    struct Object : public ObjBase<Steppers, ParentObject, SteppersList>,
         public DebugObject<Context, void>
     {
         MaskType mask;

@@ -56,6 +56,9 @@ APRINTER_ADD_TO_LIST(ConfigList, Name)
 using Name##__DefaultValue = APrinter::WrapValue<Type, (DefaultValue)>; \
 APRINTER_CONFIG_OPTION_GENERIC(Name, Type, Name##__DefaultValue)
 
+#define APRINTER_CONFIG_OPTION_BOOL(Name, DefaultValue) \
+APRINTER_CONFIG_OPTION_SIMPLE(Name, bool, DefaultValue)
+
 #define APRINTER_CONFIG_OPTION_DOUBLE(Name, DefaultValue) \
 using Name##__DefaultValue = AMBRO_WRAP_DOUBLE(DefaultValue); \
 APRINTER_CONFIG_OPTION_GENERIC(Name, double, Name##__DefaultValue)
