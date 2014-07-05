@@ -41,8 +41,10 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename Params>
+template <typename Context, typename Config, typename Params>
 class AxisHomerGlobal {
+    using CSwitchInvert = decltype(ExprCast<bool>(Config::e(Params::SwitchInvert::i)));
+    
 public:
     static void init (Context c)
     {
@@ -52,10 +54,12 @@ public:
     template <typename ThisContext>
     static bool endstop_is_triggered (ThisContext c)
     {
-        return (Context::Pins::template get<typename Params::SwitchPin>(c) != Params::SwitchInvert);
+        return (Context::Pins::template get<typename Params::SwitchPin>(c) != APRINTER_CFG(Config, CSwitchInvert, c));
     }
     
     struct Object {};
+    
+    using ConfigExprs = MakeTypeList<CSwitchInvert>;
 };
 
 template <
@@ -239,14 +243,14 @@ public:
 };
 
 template <
-    typename TSwitchPin, typename TSwitchPinInputMode, bool TSwitchInvert,
+    typename TSwitchPin, typename TSwitchPinInputMode, typename TSwitchInvert,
     typename TFastMaxDist, typename TRetractDist, typename TSlowMaxDist,
     typename TFastSpeed, typename TRetractSpeed, typename TSlowSpeed
 >
 struct AxisHomerService {
     using SwitchPin = TSwitchPin;
     using SwitchPinInputMode = TSwitchPinInputMode;
-    static bool const SwitchInvert = TSwitchInvert;
+    using SwitchInvert = TSwitchInvert;
     using FastMaxDist = TFastMaxDist;
     using RetractDist = TRetractDist;
     using SlowMaxDist = TSlowMaxDist;
@@ -261,7 +265,7 @@ struct AxisHomerService {
     >
     struct Instance {
         template <typename ParentObject>
-        using HomerGlobal = AxisHomerGlobal<Context, AxisHomerService>;
+        using HomerGlobal = AxisHomerGlobal<Context, Config, AxisHomerService>;
         
         template <typename ParentObject, typename TheGlobal, typename TheAxisDriver, typename FinishedHandler>
         using Homer = AxisHomer<

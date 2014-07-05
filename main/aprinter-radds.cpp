@@ -83,6 +83,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(XMaxAccel, 1500.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XDistanceFactor, 1.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XCorneringDistance, 40.0)
 APRINTER_CONFIG_OPTION_BOOL(XHomeDir, false)
+APRINTER_CONFIG_OPTION_BOOL(XHomeEndInvert, false)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeFastMaxDist, 280.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeRetractDist, 3.0)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeSlowMaxDist, 5.0)
@@ -99,6 +100,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(YMaxAccel, 650.0)
 APRINTER_CONFIG_OPTION_DOUBLE(YDistanceFactor, 1.0)
 APRINTER_CONFIG_OPTION_DOUBLE(YCorneringDistance, 40.0)
 APRINTER_CONFIG_OPTION_BOOL(YHomeDir, false)
+APRINTER_CONFIG_OPTION_BOOL(YHomeEndInvert, false)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeFastMaxDist, 200.0)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeRetractDist, 3.0)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeSlowMaxDist, 5.0)
@@ -115,6 +117,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(ZMaxAccel, 30.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ZDistanceFactor, 1.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ZCorneringDistance, 40.0)
 APRINTER_CONFIG_OPTION_BOOL(ZHomeDir, false)
+APRINTER_CONFIG_OPTION_BOOL(ZHomeEndInvert, false)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeFastMaxDist, 101.0)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeRetractDist, 0.8)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeSlowMaxDist, 1.2)
@@ -305,7 +308,7 @@ using PrinterParams = PrinterMainParams<
                 AxisHomerService< // HomerService
                     DuePin28, // HomeEndPin
                     At91SamPinInputModePullUp, // HomeEndPinInputMode
-                    false, // HomeEndInvert
+                    XHomeEndInvert,
                     XHomeFastMaxDist, // HomeFastMaxDist
                     XHomeRetractDist, // HomeRetractDist
                     XHomeSlowMaxDist, // HomeSlowMaxDist
@@ -340,7 +343,7 @@ using PrinterParams = PrinterMainParams<
                 AxisHomerService< // HomerService
                     DuePin30, // HomeEndPin
                     At91SamPinInputModePullUp, // HomeEndPinInputMode
-                    false, // HomeEndInvert
+                    YHomeEndInvert,
                     YHomeFastMaxDist, // HomeFastMaxDist
                     YHomeRetractDist, // HomeRetractDist
                     YHomeSlowMaxDist, // HomeSlowMaxDist
@@ -375,7 +378,7 @@ using PrinterParams = PrinterMainParams<
                 AxisHomerService< // HomerService
                     DuePin32, // HomeEndPin
                     At91SamPinInputModePullUp, // HomeEndPinInputMode
-                    false, // HomeEndInvert
+                    ZHomeEndInvert,
                     ZHomeFastMaxDist, // HomeFastMaxDist
                     ZHomeRetractDist, // HomeRetractDist
                     ZHomeSlowMaxDist, // HomeSlowMaxDist
