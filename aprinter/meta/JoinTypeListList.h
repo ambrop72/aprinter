@@ -32,7 +32,7 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename Lists>
-using JoinTypeListList = TypeListFold<Lists, EmptyTypeList, JoinTwoTypeLists>;
+using JoinTypeListList = TypeListFoldRight<Lists, EmptyTypeList, JoinTwoTypeLists>;
 
 #include <aprinter/EndNamespace.h>
 
