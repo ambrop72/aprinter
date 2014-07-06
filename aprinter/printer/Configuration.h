@@ -42,26 +42,27 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/TypeList.h>
 #include <aprinter/base/DebugObject.h>
 
 #define APRINTER_CONFIG_START \
 APRINTER_START_LIST(ConfigList)
 
-#define APRINTER_CONFIG_OPTION_GENERIC(Name, Type, DefaultValue) \
+#define APRINTER_CONFIG_OPTION_GENERIC(Name, Type, DefaultValue, Properties) \
 struct Name##__OptionName { static char const * name () { return #Name; } }; \
-struct Name : public APrinter::ConfigOption<Name, Type, DefaultValue, Name##__OptionName> {}; \
+struct Name : public APrinter::ConfigOption<Name, Type, DefaultValue, Name##__OptionName, Properties> {}; \
 APRINTER_ADD_TO_LIST(ConfigList, Name)
 
-#define APRINTER_CONFIG_OPTION_SIMPLE(Name, Type, DefaultValue) \
+#define APRINTER_CONFIG_OPTION_SIMPLE(Name, Type, DefaultValue, Properties) \
 using Name##__DefaultValue = APrinter::WrapValue<Type, (DefaultValue)>; \
-APRINTER_CONFIG_OPTION_GENERIC(Name, Type, Name##__DefaultValue)
+APRINTER_CONFIG_OPTION_GENERIC(Name, Type, Name##__DefaultValue, Properties)
 
-#define APRINTER_CONFIG_OPTION_BOOL(Name, DefaultValue) \
-APRINTER_CONFIG_OPTION_SIMPLE(Name, bool, DefaultValue)
+#define APRINTER_CONFIG_OPTION_BOOL(Name, DefaultValue, Properties) \
+APRINTER_CONFIG_OPTION_SIMPLE(Name, bool, DefaultValue, Properties)
 
-#define APRINTER_CONFIG_OPTION_DOUBLE(Name, DefaultValue) \
+#define APRINTER_CONFIG_OPTION_DOUBLE(Name, DefaultValue, Properties) \
 using Name##__DefaultValue = AMBRO_WRAP_DOUBLE(DefaultValue); \
-APRINTER_CONFIG_OPTION_GENERIC(Name, double, Name##__DefaultValue)
+APRINTER_CONFIG_OPTION_GENERIC(Name, double, Name##__DefaultValue, Properties)
 
 #define APRINTER_CONFIG_END \
 APRINTER_END_LIST(ConfigList)
@@ -74,15 +75,23 @@ APRINTER_END_LIST(ConfigList)
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TIdentity, typename TType, typename TDefaultValue, typename TOptionName>
+template <typename TIdentity, typename TType, typename TDefaultValue, typename TOptionName, typename TProperties>
 struct ConfigOption {
     using Identity = TIdentity;
     using Type = TType;
     using DefaultValue = TDefaultValue;
+    using Properties = TProperties;
     
     static constexpr Identity i = Identity{};
     static char const * name () { return TOptionName::name(); }
 };
+
+using ConfigNoProperties = EmptyTypeList;
+
+template <typename... Properties>
+using ConfigProperties = MakeTypeList<Properties...>;
+
+struct ConfigPropertyConstant {};
 
 template <typename Context, typename ParentObject, typename DelayedExprsList>
 class ConfigCache {

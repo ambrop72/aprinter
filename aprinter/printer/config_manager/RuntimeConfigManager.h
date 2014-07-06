@@ -36,7 +36,12 @@
 #include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/WrapType.h>
+#include <aprinter/meta/FilterTypeList.h>
+#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/TemplateFunc.h>
+#include <aprinter/meta/IfFunc.h>
 #include <aprinter/base/ProgramMemory.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -50,9 +55,14 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_value_cmd, get_value_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_set_value_cmd, set_value_cmd)
     
+    template <typename TheOption>
+    using OptionIsNotConstant = WrapBool<(TypeListIndex<typename TheOption::Properties, IsEqualFunc<ConfigPropertyConstant>>::Value < 0)>;
+    
+    using RuntimeConfigOptionsList = FilterTypeList<ConfigOptionsList, TemplateFunc<OptionIsNotConstant>>;
+    
     template <int ConfigOptionIndex>
     struct ConfigOptionState {
-        using TheConfigOption = TypeListGet<ConfigOptionsList, ConfigOptionIndex>;
+        using TheConfigOption = TypeListGet<RuntimeConfigOptionsList, ConfigOptionIndex>;
         using Type = typename TheConfigOption::Type;
         
         static void init (Context c)
@@ -129,10 +139,20 @@ private:
         };
     };
     
-    using ConfigOptionStateList = IndexElemList<ConfigOptionsList, ConfigOptionState>;
+    using ConfigOptionStateList = IndexElemList<RuntimeConfigOptionsList, ConfigOptionState>;
     
     template <typename Option>
-    using OptionExpr = VariableExpr<typename Option::Type, ConfigOptionState<TypeListIndex<ConfigOptionsList, IsEqualFunc<Option>>::Value>>;
+    using OptionExprRuntime = VariableExpr<typename Option::Type, ConfigOptionState<TypeListIndex<RuntimeConfigOptionsList, IsEqualFunc<Option>>::Value>>;
+    
+    template <typename Option>
+    using OptionExprConstant = ConstantExpr<typename Option::Type, typename Option::DefaultValue>;
+    
+    template <typename Option>
+    using OptionExpr = typename IfFunc<
+        TemplateFunc<OptionIsNotConstant>,
+        TemplateFunc<OptionExprRuntime>,
+        TemplateFunc<OptionExprConstant>
+    >::template Call<Option>::Type;
     
 public:
     static void init (Context c)
