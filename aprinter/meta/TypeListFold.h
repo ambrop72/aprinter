@@ -45,6 +45,22 @@ struct TypeListFoldHelper<ConsTypeList<Head, Tail>, Value, FoldFunc> {
 template <typename List, typename InitialValue, template<typename ListElem, typename AccumValue> class FoldFunc>
 using TypeListFold = typename TypeListFoldHelper<List, InitialValue, FoldFunc>::Type;
 
+template <typename List, typename Value, template<typename, typename> class FoldFunc>
+struct TypeListFoldRightHelper;
+
+template <typename Value, template<typename, typename> class FoldFunc>
+struct TypeListFoldRightHelper<EmptyTypeList, Value, FoldFunc> {
+    using Type = Value;
+};
+
+template <typename Head, typename Tail, typename Value, template<typename, typename> class FoldFunc>
+struct TypeListFoldRightHelper<ConsTypeList<Head, Tail>, Value, FoldFunc> {
+    using Type = FoldFunc<Head, typename TypeListFoldRightHelper<Tail, Value, FoldFunc>::Type>;
+};
+
+template <typename List, typename InitialValue, template<typename ListElem, typename AccumValue> class FoldFunc>
+using TypeListFoldRight = typename TypeListFoldRightHelper<List, InitialValue, FoldFunc>::Type;
+
 #include <aprinter/EndNamespace.h>
 
 #endif
