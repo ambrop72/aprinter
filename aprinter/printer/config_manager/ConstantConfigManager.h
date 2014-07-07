@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_CONSTEXPR_CONFIG_MANAGER_H
-#define APRINTER_CONSTEXPR_CONFIG_MANAGER_H
+#ifndef APRINTER_CONSTANT_CONFIG_MANAGER_H
+#define APRINTER_CONSTANT_CONFIG_MANAGER_H
 
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/Object.h>
@@ -32,7 +32,7 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename ParentObject, typename ConfigList>
-class ConstexprConfigManager {
+class ConstantConfigManager {
 public:
     struct Object;
     
@@ -59,12 +59,12 @@ public:
     static OptionExpr<Option> e (Option);
     
 public:
-    struct Object : public ObjBase<ConstexprConfigManager, ParentObject, EmptyTypeList> {};
+    struct Object : public ObjBase<ConstantConfigManager, ParentObject, EmptyTypeList> {};
 };
 
-struct ConstexprConfigManagerService {
+struct ConstantConfigManagerService {
     template <typename Context, typename ParentObject, typename ConfigList>
-    using ConfigManager = ConstexprConfigManager<Context, ParentObject, ConfigList>;
+    using ConfigManager = ConstantConfigManager<Context, ParentObject, ConfigList>;
 };
 
 #include <aprinter/EndNamespace.h>
