@@ -36,14 +36,11 @@
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/HasMemberTypeFunc.h>
-#include <aprinter/meta/TypeListGet.h>
-#include <aprinter/meta/If.h>
-#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/JoinTypeListList.h>
-#include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/IfFunc.h>
 #include <aprinter/meta/ConstantFunc.h>
+#include <aprinter/meta/WrapValue.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -102,50 +99,36 @@ struct ClassName { \
 AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Obj__HasMemberType_NestedClassesList, NestedClassesList)
 AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Obj__GetMemberType_NestedClassesList, NestedClassesList)
 
-template <typename TheClass, typename Collectible, bool WithoutSelf>
+template <typename ClassList, typename Collectible, bool WithoutRoots, typename CurrentList>
 struct Obj__CollectHelper {
-    template <typename TheChildClass>
-    using CollectChild = typename Obj__CollectHelper<TheChildClass, Collectible, false>::Result;
-    
-    using Result = JoinTypeLists<
-        If<
-            WithoutSelf,
-            EmptyTypeList,
-            typename IfFunc<
+    template<typename TheClass, typename TheCurrentList>
+    using CollectClass = ConsTypeList<
+        typename IfFunc<
+            ConstantFunc<WrapBool<WithoutRoots>>,
+            ConstantFunc<EmptyTypeList>,
+            IfFunc<
                 typename Collectible::Has,
                 typename Collectible::Get,
                 ConstantFunc<EmptyTypeList>
-            >::template Call<TheClass>::Type
-        >,
-        JoinTypeListList<
-            MapTypeList<
-                typename IfFunc<
-                    Obj__HasMemberType_NestedClassesList,
-                    Obj__GetMemberType_NestedClassesList,
-                    ConstantFunc<EmptyTypeList>
-                >::template Call<typename TheClass::Object>::Type,
-                TemplateFunc<CollectChild>
             >
-        >
+        >::template Call<TheClass>::Type,
+        typename Obj__CollectHelper<
+            typename IfFunc<
+                Obj__HasMemberType_NestedClassesList,
+                Obj__GetMemberType_NestedClassesList,
+                ConstantFunc<EmptyTypeList>
+            >::template Call<typename TheClass::Object>::Type,
+            Collectible,
+            false,
+            TheCurrentList
+        >::Result
     >;
+    
+    using Result = TypeListFoldRight<ClassList, CurrentList, CollectClass>;
 };
 
-template <typename TheClass, typename Collectible, bool WithoutSelf = false>
-using ObjCollect = typename Obj__CollectHelper<TheClass, Collectible, WithoutSelf>::Result;
-
-template <typename Collectible>
-struct Obj__CollectListHelper {
-    template <typename TheChildClass>
-    using Collect = ObjCollect<TheChildClass, Collectible, false>;
-};
-
-template <typename ClassList, typename Collectible>
-using ObjCollectList = JoinTypeListList<
-    MapTypeList<
-        ClassList,
-        TemplateFunc<Obj__CollectListHelper<Collectible>::template Collect>
-    >
->;
+template <typename ClassList, typename Collectible, bool WithoutRoots = false>
+using ObjCollect = JoinTypeListList<typename Obj__CollectHelper<ClassList, Collectible, WithoutRoots, EmptyTypeList>::Result>;
 
 #include <aprinter/EndNamespace.h>
 

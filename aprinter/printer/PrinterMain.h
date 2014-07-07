@@ -3094,7 +3094,7 @@ public:
         ListForEachForward<FansList>(LForeach_emergency());
     }
     
-    using EventLoopFastEvents = ObjCollect<PrinterMain, Collectible_EventLoopFastEvents, true>;
+    using EventLoopFastEvents = ObjCollect<MakeTypeList<PrinterMain>, Collectible_EventLoopFastEvents, true>;
     
 public: // private, see comment on top
     static TimeType time_from_real (FpType t)
@@ -3700,7 +3700,7 @@ public: // private, see comment on top
     struct DelayedConfigExprs {
         using List = JoinTypeLists<
             MyConfigExprs,
-            ObjCollectList<
+            ObjCollect<
                 JoinTypeLists<
                     AxesList,
                     HeatersList,
