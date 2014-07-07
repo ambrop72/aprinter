@@ -26,6 +26,7 @@
 #define AMBROLIB_MAP_TYPE_LIST_H
 
 #include <aprinter/meta/TypeList.h>
+#include <aprinter/meta/FuncCall.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -39,7 +40,7 @@ struct MapTypeListHelper<EmptyTypeList, Func> {
 
 template <typename Head, typename Tail, typename Func>
 struct MapTypeListHelper<ConsTypeList<Head, Tail>, Func> {
-    typedef ConsTypeList<typename Func::template Call<Head>::Type, typename MapTypeListHelper<Tail, Func>::Type> Type;
+    typedef ConsTypeList<FuncCall<Func, Head>, typename MapTypeListHelper<Tail, Func>::Type> Type;
 };
 
 template <typename List, typename Func>

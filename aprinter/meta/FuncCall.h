@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2014 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,40 +22,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_TYPE_LIST_INDEX_H
-#define AMBROLIB_TYPE_LIST_INDEX_H
-
-#include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/FuncCall.h>
+#ifndef AMBROLIB_FUNC_CALL_H
+#define AMBROLIB_FUNC_CALL_H
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename List, typename Predicate>
-struct TypeListIndex;
-
-template <typename Head, typename Tail, typename Predicate, bool Satisfies>
-struct TypeListIndexHelper;
-
-template <typename Head, typename Tail, typename Predicate>
-struct TypeListIndexHelper<Head, Tail, Predicate, true> {
-    static const int Value = 0;
-};
-
-template <typename Head, typename Tail, typename Predicate>
-struct TypeListIndexHelper<Head, Tail, Predicate, false> {
-    static const int tail_index = TypeListIndex<Tail, Predicate>::Value;
-    static const int Value = (tail_index >= 0) + tail_index;
-};
-
-template <typename Head, typename Tail, typename Predicate>
-struct TypeListIndex<ConsTypeList<Head, Tail>, Predicate> {
-    static const int Value = TypeListIndexHelper<Head, Tail, Predicate, FuncCall<Predicate, Head>::Value>::Value;
-};
-
-template <typename Predicate>
-struct TypeListIndex<EmptyTypeList, Predicate> {
-    static const int Value = -1;
-};
+template <typename Func, typename Arg>
+using FuncCall = typename Func::template Call<Arg>::Type;
 
 #include <aprinter/EndNamespace.h>
 

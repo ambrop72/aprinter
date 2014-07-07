@@ -26,6 +26,7 @@
 #define AMBROLIB_INTERRUPT_LOCK_H
 
 #include <aprinter/meta/HasMemberTypeFunc.h>
+#include <aprinter/meta/FuncCall.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -77,9 +78,9 @@ private:
     
 public:
     static int const Value =
-        HasAtomicContextTag::template Call<ThisContext>::Type::Value ? CONTEXT_ATOMIC :
+        FuncCall<HasAtomicContextTag, ThisContext>::Value ? CONTEXT_ATOMIC :
 #if !defined(AMBROLIB_AVR)
-        HasInterruptContextTag::template Call<ThisContext>::Type::Value ? CONTEXT_INTERRUPT :
+        FuncCall<HasInterruptContextTag, ThisContext>::Value ? CONTEXT_INTERRUPT :
 #endif
         CONTEXT_NORMAL;
 };

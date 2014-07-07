@@ -26,6 +26,7 @@
 #define AMBROLIB_FILTER_TYPE_LIST_H
 
 #include <aprinter/meta/TypeList.h>
+#include <aprinter/meta/FuncCall.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -54,7 +55,7 @@ struct FilterTypeListHelper<EmptyTypeList, Predicate> {
 
 template <typename Head, typename Tail, typename Predicate>
 struct FilterTypeListHelper<ConsTypeList<Head, Tail>, Predicate> {
-    typedef typename Private::FilterTypeListHelperHelper<Head, Tail, Predicate, Predicate::template Call<Head>::Type::Value>::Type Type;
+    typedef typename Private::FilterTypeListHelperHelper<Head, Tail, Predicate, FuncCall<Predicate, Head>::Value>::Type Type;
 };
 
 template <typename List, typename Predicate>

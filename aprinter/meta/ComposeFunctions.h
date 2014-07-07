@@ -25,13 +25,15 @@
 #ifndef AMBROLIB_COMPOSE_FUNCTIONS_H
 #define AMBROLIB_COMPOSE_FUNCTIONS_H
 
+#include <aprinter/meta/FuncCall.h>
+
 #include <aprinter/BeginNamespace.h>
 
 template <typename Func1, typename Func2>
 struct ComposeFunctions {
     template <typename X>
     struct Call {
-        typedef typename Func1::template Call<typename Func2::template Call<X>::Type>::Type Type;
+        using Type = FuncCall<Func1, FuncCall<Func2, X>>;
     };
 };
 

@@ -40,6 +40,7 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/IfFunc.h>
+#include <aprinter/meta/FuncCall.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/printer/Configuration.h>
 
@@ -148,11 +149,14 @@ private:
     using OptionExprConstant = ConstantExpr<typename Option::Type, typename Option::DefaultValue>;
     
     template <typename Option>
-    using OptionExpr = typename IfFunc<
-        TemplateFunc<OptionIsNotConstant>,
-        TemplateFunc<OptionExprRuntime>,
-        TemplateFunc<OptionExprConstant>
-    >::template Call<Option>::Type;
+    using OptionExpr = FuncCall<
+        IfFunc<
+            TemplateFunc<OptionIsNotConstant>,
+            TemplateFunc<OptionExprRuntime>,
+            TemplateFunc<OptionExprConstant>
+        >,
+        Option
+    >;
     
 public:
     static void init (Context c)

@@ -41,6 +41,7 @@
 #include <aprinter/meta/IfFunc.h>
 #include <aprinter/meta/ConstantFunc.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/FuncCall.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -103,21 +104,27 @@ template <typename ClassList, typename Collectible, bool WithoutRoots, typename 
 struct Obj__CollectHelper {
     template<typename TheClass, typename TheCurrentList>
     using CollectClass = ConsTypeList<
-        typename IfFunc<
-            ConstantFunc<WrapBool<WithoutRoots>>,
-            ConstantFunc<EmptyTypeList>,
+        FuncCall<
             IfFunc<
-                typename Collectible::Has,
-                typename Collectible::Get,
-                ConstantFunc<EmptyTypeList>
-            >
-        >::template Call<TheClass>::Type,
+                ConstantFunc<WrapBool<WithoutRoots>>,
+                ConstantFunc<EmptyTypeList>,
+                IfFunc<
+                    typename Collectible::Has,
+                    typename Collectible::Get,
+                    ConstantFunc<EmptyTypeList>
+                >
+            >,
+            TheClass
+        >,
         typename Obj__CollectHelper<
-            typename IfFunc<
-                Obj__HasMemberType_NestedClassesList,
-                Obj__GetMemberType_NestedClassesList,
-                ConstantFunc<EmptyTypeList>
-            >::template Call<typename TheClass::Object>::Type,
+            FuncCall<
+                IfFunc<
+                    Obj__HasMemberType_NestedClassesList,
+                    Obj__GetMemberType_NestedClassesList,
+                    ConstantFunc<EmptyTypeList>
+                >,
+                typename TheClass::Object
+            >,
             Collectible,
             false,
             TheCurrentList

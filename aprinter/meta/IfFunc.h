@@ -26,6 +26,7 @@
 #define AMBROLIB_IF_FUNC_H
 
 #include <aprinter/meta/If.h>
+#include <aprinter/meta/FuncCall.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -33,7 +34,7 @@ template <typename CondFunc, typename TrueFunc, typename FalseFunc>
 struct IfFunc {
     template <typename X>
     struct Call {
-        using Type = typename If<CondFunc::template Call<X>::Type::Value, TrueFunc, FalseFunc>::template Call<X>::Type;
+        using Type = FuncCall<If<FuncCall<CondFunc, X>::Value, TrueFunc, FalseFunc>, X>;
     };
 };
 
