@@ -46,15 +46,17 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ConfigOptionsList, typename Params>
+template <typename Context, typename ParentObject, typename TConfigOptionsList, typename Params>
 class RuntimeConfigManager {
 public:
     struct Object;
+    using ConfigOptionsList = TConfigOptionsList;
     
 private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_value_cmd, get_value_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_set_value_cmd, set_value_cmd)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_reset_config, reset_config)
     
     template <typename TheOption>
     using OptionIsNotConstant = WrapBool<(TypeListIndex<typename TheOption::Properties, IsEqualFunc<ConfigPropertyConstant>>::Value < 0)>;
@@ -68,8 +70,7 @@ private:
         
         static void init (Context c)
         {
-            auto *o = Object::self(c);
-            o->value = TheConfigOption::DefaultValue::value();
+            reset_config(c);
         }
         
         static Type call (Context c)
@@ -96,6 +97,12 @@ private:
             }
             TypeSpecific<Type>::set_value_cmd(c, cc);
             return false;
+        }
+        
+        static void reset_config (Context c)
+        {
+            auto *o = Object::self(c);
+            o->value = TheConfigOption::DefaultValue::value();
         }
         
         template <typename TheType, typename Dummy = void>
@@ -189,6 +196,11 @@ public:
             CommandChannel::finishCommand(c);
             return false;
         }
+        if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::ResetAllConfigMCommand) {
+            ListForEachForward<ConfigOptionStateList>(Foreach_reset_config(), c);
+            CommandChannel::finishCommand(c);
+            return false;
+        }
         return true;
     }
     
@@ -201,11 +213,13 @@ public:
 
 template <
     int TGetConfigMCommand,
-    int TSetConfigMCommand
+    int TSetConfigMCommand,
+    int TResetAllConfigMCommand
 >
 struct RuntimeConfigManagerService {
     static int const GetConfigMCommand = TGetConfigMCommand;
     static int const SetConfigMCommand = TSetConfigMCommand;
+    static int const ResetAllConfigMCommand = TResetAllConfigMCommand;
     
     template <typename Context, typename ParentObject, typename ConfigOptionsList>
     using ConfigManager = RuntimeConfigManager<Context, ParentObject, ConfigOptionsList, RuntimeConfigManagerService>;

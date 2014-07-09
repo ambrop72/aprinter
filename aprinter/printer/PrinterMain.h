@@ -3207,7 +3207,7 @@ public: // private, see comment on top
                     return TheChannelCommon::finishCommand(c, true);
                 } break;
                 
-                case 927: { // apply configuration
+                case 930: { // apply configuration
                     if (!TheChannelCommon::tryUnplannedCommand(c)) {
                         return;
                     }
