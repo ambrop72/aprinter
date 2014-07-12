@@ -481,10 +481,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using ParamsFansList = typename Params::FansList;
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     
+    using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain>;
     using TheConfigCache = ConfigCache<Context, Object, DelayedConfigExprs>;
     using Config = ConfigFramework<TheConfigManager, TheConfigCache>;
-    using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     
     template <typename TheSlaveStepper>
@@ -3007,12 +3007,12 @@ public:
     {
         auto *ob = Object::self(c);
         
+        TheWatchdog::init(c);
         TheConfigManager::init(c);
         TheConfigCache::init(c);
         ob->unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
         ob->disable_timer.init(c, PrinterMain::disable_timer_handler);
         ob->force_timer.init(c, PrinterMain::force_timer_handler);
-        TheWatchdog::init(c);
         TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
         TheSteppers::init(c);
         SerialFeature::init(c);
@@ -3053,12 +3053,12 @@ public:
         SerialFeature::deinit(c);
         TheSteppers::deinit(c);
         TheBlinker::deinit(c);
-        TheWatchdog::deinit(c);
         ob->force_timer.deinit(c);
         ob->disable_timer.deinit(c);
         ob->unlocked_timer.deinit(c);
         TheConfigCache::deinit(c);
         TheConfigManager::deinit(c);
+        TheWatchdog::deinit(c);
     }
     
     using GetConfigManager = TheConfigManager;
@@ -3737,9 +3737,9 @@ public:
         HeatersList,
         FansList,
         MakeTypeList<
+            TheWatchdog,
             TheConfigManager,
             TheConfigCache,
-            TheWatchdog,
             TheBlinker,
             TheSteppers,
             SerialFeature,
