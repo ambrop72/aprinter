@@ -103,9 +103,9 @@ private:
     using OptionHelperOneArg = OptionHelper<OptionIndex>;
     using OptionHelperList = IndexElemList<OptionSpecList, OptionHelperOneArg>;
     
-    template <int RelBlockNumber>
-    struct BlockHelper {
-        static int const BlockNumber = Params::StartBlock + RelBlockNumber;
+    template <int WriteBlockNumber>
+    struct BlockWriteHelper {
+        static int const BlockNumber = Params::StartBlock + WriteBlockNumber;
         
         static void write (Context c)
         {
@@ -120,8 +120,8 @@ private:
     };
     
     using LastOption = OptionHelper<(TypeListLength<OptionHelperList>::Value - 1)>;
-    static size_t const NumUsedBlocks = LastOption::BlockNumber - Params::StartBlock + 1;
-    using BlockHelperList = IndexElemListCount<NumUsedBlocks, BlockHelper>;
+    static size_t const NumWriteBlocks = LastOption::BlockNumber - Params::StartBlock + 1;
+    using BlockWriteHelperList = IndexElemListCount<NumWriteBlocks, BlockWriteHelper>;
     
     enum State {STATE_IDLE, STATE_START_READING, STATE_START_WRITING, STATE_WRITING};
     
@@ -157,7 +157,7 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == STATE_IDLE)
         
-        o->current_block = -1;
+        o->write_current_block = -1;
         o->state = STATE_START_WRITING;
         o->event.prependNowNotAlready(c);
     }
@@ -174,12 +174,12 @@ private:
             o->state = STATE_IDLE;
             return Handler::call(c, false);
         }
-        o->current_block++;
-        if (o->current_block == NumUsedBlocks) {
+        o->write_current_block++;
+        if (o->write_current_block == NumWriteBlocks) {
             o->state = STATE_IDLE;
             return Handler::call(c, true);
         }
-        ListForOneOffset<BlockHelperList, 0>(o->current_block, Foreach_write(), c);
+        ListForOneOffset<BlockWriteHelperList, 0>(o->write_current_block, Foreach_write(), c);
     }
     
     static void event_handler (typename Loop::QueuedEvent *, Context c)
@@ -205,7 +205,7 @@ public:
     >> {
         typename Loop::QueuedEvent event;
         State state;
-        size_t current_block;
+        size_t write_current_block;
         uint32_t write_buffer[TheFlash::BlockSize / 4];
     };
 };
