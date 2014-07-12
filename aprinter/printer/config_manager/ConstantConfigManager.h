@@ -31,7 +31,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ConfigList>
+template <typename Context, typename ParentObject, typename ConfigOptionsList>
 class ConstantConfigManager {
 public:
     struct Object;
@@ -41,6 +41,8 @@ private:
     using OptionExpr = ConstantExpr<typename Option::Type, typename Option::DefaultValue>;
     
 public:
+    static bool const HasStore = false;
+    
     static void init (Context c)
     {
     }
@@ -63,8 +65,8 @@ public:
 };
 
 struct ConstantConfigManagerService {
-    template <typename Context, typename ParentObject, typename ConfigList>
-    using ConfigManager = ConstantConfigManager<Context, ParentObject, ConfigList>;
+    template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain, typename Handler>
+    using ConfigManager = ConstantConfigManager<Context, ParentObject, ConfigOptionsList>;
 };
 
 #include <aprinter/EndNamespace.h>
