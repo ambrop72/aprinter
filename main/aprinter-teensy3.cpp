@@ -46,114 +46,125 @@ static void emergency (void);
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/AxisHomer.h>
+#include <aprinter/printer/TemperatureObserver.h>
 #include <aprinter/printer/pwm/SoftPwm.h>
 #include <aprinter/printer/thermistor/GenericThermistor.h>
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
+#include <aprinter/printer/config_manager/ConstantConfigManager.h>
 #include <aprinter/printer/transform/DeltaTransform.h>
 #include <aprinter/board/teensy3_pins.h>
 
 using namespace APrinter;
 
+APRINTER_CONFIG_START
+
 static int const AdcADiv = 3;
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
-using DefaultInactiveTime = AMBRO_WRAP_DOUBLE(60.0);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
-using MaxStepsPerCycle = AMBRO_WRAP_DOUBLE(0.0017);
-using ForceTimeout = AMBRO_WRAP_DOUBLE(0.1);
 using TheAxisDriverPrecisionParams = AxisDriverDuePrecisionParams;
 using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
-using XMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
-using XMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
-using XMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+APRINTER_CONFIG_OPTION_DOUBLE(MaxStepsPerCycle, 0.0017, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ForceTimeout, 0.1, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(InactiveTime, 8.0 * 60.0, ConfigNoProperties)
 
-using YMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
-using YMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
-using YMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+using XMinPos = AMBRO_WRAP_DOUBLE(-INFINITY); 
+using XMaxPos = AMBRO_WRAP_DOUBLE(INFINITY); 
+using XMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY); 
 
-using ZMinPos = AMBRO_WRAP_DOUBLE(-INFINITY);
-using ZMaxPos = AMBRO_WRAP_DOUBLE(INFINITY);
-using ZMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY);
+using YMinPos = AMBRO_WRAP_DOUBLE(-INFINITY); 
+using YMaxPos = AMBRO_WRAP_DOUBLE(INFINITY); 
+using YMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY); 
 
-using ABCDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(100.0);
-using ABCDefaultMin = AMBRO_WRAP_DOUBLE(0.0);
-using ABCDefaultMax = AMBRO_WRAP_DOUBLE(360.0);
-using ABCDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(200.0);
-using ABCDefaultMaxAccel = AMBRO_WRAP_DOUBLE(9000.0);
-using ABCDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using ABCDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
-using ABCDefaultHomeFastMaxDist = AMBRO_WRAP_DOUBLE(363.0);
-using ABCDefaultHomeRetractDist = AMBRO_WRAP_DOUBLE(3.0);
-using ABCDefaultHomeSlowMaxDist = AMBRO_WRAP_DOUBLE(5.0);
-using ABCDefaultHomeFastSpeed = AMBRO_WRAP_DOUBLE(70.0);
-using ABCDefaultHomeRetractSpeed = AMBRO_WRAP_DOUBLE(70.0);
-using ABCDefaultHomeSlowSpeed = AMBRO_WRAP_DOUBLE(5.0);
+using ZMinPos = AMBRO_WRAP_DOUBLE(-INFINITY); 
+using ZMaxPos = AMBRO_WRAP_DOUBLE(INFINITY); 
+using ZMaxSpeed = AMBRO_WRAP_DOUBLE(INFINITY); 
 
-using EDefaultStepsPerUnit = AMBRO_WRAP_DOUBLE(928.0);
-using EDefaultMin = AMBRO_WRAP_DOUBLE(-40000.0);
-using EDefaultMax = AMBRO_WRAP_DOUBLE(40000.0);
-using EDefaultMaxSpeed = AMBRO_WRAP_DOUBLE(45.0);
-using EDefaultMaxAccel = AMBRO_WRAP_DOUBLE(250.0);
-using EDefaultDistanceFactor = AMBRO_WRAP_DOUBLE(1.0);
-using EDefaultCorneringDistance = AMBRO_WRAP_DOUBLE(40.0);
+APRINTER_CONFIG_OPTION_BOOL(ABCInvertDir, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCStepsPerUnit, 100.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCMin, 0.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCMax, 360.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCMaxSpeed, 200.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCMaxAccel, 9000.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCDistanceFactor, 1.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCCorneringDistance, 40.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(ABCHomeDir, true, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(ABCHomeEndInvert, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCHomeFastMaxDist, 363.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCHomeRetractDist, 3.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCHomeSlowMaxDist, 5.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCHomeFastSpeed, 70.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCHomeRetractSpeed, 70.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ABCHomeSlowSpeed, 5.0, ConfigNoProperties)
 
-using ExtruderHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
-using ExtruderHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(100000.0);
-using ExtruderHeaterThermistorBeta = AMBRO_WRAP_DOUBLE(3960.0);
-using ExtruderHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
-using ExtruderHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(300.0);
-using ExtruderHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
-using ExtruderHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(280.0);
+APRINTER_CONFIG_OPTION_BOOL(EInvertDir, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(EStepsPerUnit, 928.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(EMin, -40000.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(EMax, 40000.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(EMaxSpeed, 45.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(EMaxAccel, 250.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(EDistanceFactor, 1.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ECorneringDistance, 40.0, ConfigNoProperties)
+
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorResistorR, 4700.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorR0, 100000.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorBeta, 3960.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorMinTemp, 10.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorMaxTemp, 300.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterMinSafeTemp, 20.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterMaxSafeTemp, 280.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterControlInterval, 0.2, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidP, 0.047, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidI, 0.0006, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidD, 0.17, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidIStateMin, 0.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidIStateMax, 0.4, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidDHistory, 0.7, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverInterval, 0.5, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverTolerance, 3.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverMinTime, 3.0, ConfigNoProperties)
 using ExtruderHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.2);
-using ExtruderHeaterControlInterval = ExtruderHeaterPulseInterval;
-using ExtruderHeaterPidP = AMBRO_WRAP_DOUBLE(0.047);
-using ExtruderHeaterPidI = AMBRO_WRAP_DOUBLE(0.0006);
-using ExtruderHeaterPidD = AMBRO_WRAP_DOUBLE(0.17);
-using ExtruderHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
-using ExtruderHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(0.4);
-using ExtruderHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.7);
-using ExtruderHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
-using ExtruderHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(3.0);
-using ExtruderHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
-using BedHeaterThermistorResistorR = AMBRO_WRAP_DOUBLE(4700.0);
-using BedHeaterThermistorR0 = AMBRO_WRAP_DOUBLE(10000.0);
-using BedHeaterThermistorBeta = AMBRO_WRAP_DOUBLE(3480.0);
-using BedHeaterThermistorMinTemp = AMBRO_WRAP_DOUBLE(10.0);
-using BedHeaterThermistorMaxTemp = AMBRO_WRAP_DOUBLE(150.0);
-using BedHeaterMinSafeTemp = AMBRO_WRAP_DOUBLE(20.0);
-using BedHeaterMaxSafeTemp = AMBRO_WRAP_DOUBLE(120.0);
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorResistorR, 4700.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorR0, 10000.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorBeta, 3480.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorMinTemp, 10.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorMaxTemp, 150.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterMinSafeTemp, 20.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterMaxSafeTemp, 120.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterControlInterval, 0.3, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidP, 1.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidI, 0.012, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidD, 2.5, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidIStateMin, 0.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidIStateMax, 1.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidDHistory, 0.8, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverInterval, 0.5, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverTolerance, 1.5, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverMinTime, 3.0, ConfigNoProperties)
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
-using BedHeaterControlInterval = AMBRO_WRAP_DOUBLE(0.3);
-using BedHeaterPidP = AMBRO_WRAP_DOUBLE(1.0);
-using BedHeaterPidI = AMBRO_WRAP_DOUBLE(0.012);
-using BedHeaterPidD = AMBRO_WRAP_DOUBLE(2.5);
-using BedHeaterPidIStateMin = AMBRO_WRAP_DOUBLE(0.0);
-using BedHeaterPidIStateMax = AMBRO_WRAP_DOUBLE(1.0);
-using BedHeaterPidDHistory = AMBRO_WRAP_DOUBLE(0.8);
-using BedHeaterObserverInterval = AMBRO_WRAP_DOUBLE(0.5);
-using BedHeaterObserverTolerance = AMBRO_WRAP_DOUBLE(1.5);
-using BedHeaterObserverMinTime = AMBRO_WRAP_DOUBLE(3.0);
 
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
-using DeltaDiagonalRod = AMBRO_WRAP_DOUBLE(214.0);
-using DeltaSmoothRodOffset = AMBRO_WRAP_DOUBLE(145.0);
-using DeltaEffectorOffset = AMBRO_WRAP_DOUBLE(19.9);
-using DeltaCarriageOffset = AMBRO_WRAP_DOUBLE(19.5);
-using DeltaRadius = AMBRO_WRAP_DOUBLE(DeltaSmoothRodOffset::value() - DeltaEffectorOffset::value() - DeltaCarriageOffset::value());
-using DeltaSegmentsPerSecond = AMBRO_WRAP_DOUBLE(100.0);
-using DeltaMinSplitLength = AMBRO_WRAP_DOUBLE(0.1);
-using DeltaMaxSplitLength = AMBRO_WRAP_DOUBLE(4.0);
-using DeltaTower1X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.8660254037844386);
-using DeltaTower1Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5);
-using DeltaTower2X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.8660254037844386);
-using DeltaTower2Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5);
-using DeltaTower3X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.0);
-using DeltaTower3Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 1.0);
+using DeltaDiagonalRod = AMBRO_WRAP_DOUBLE(214.0); 
+using DeltaSmoothRodOffset = AMBRO_WRAP_DOUBLE(145.0); 
+using DeltaEffectorOffset = AMBRO_WRAP_DOUBLE(19.9); 
+using DeltaCarriageOffset = AMBRO_WRAP_DOUBLE(19.5); 
+using DeltaRadius = AMBRO_WRAP_DOUBLE(DeltaSmoothRodOffset::value() - DeltaEffectorOffset::value() - DeltaCarriageOffset::value()); 
+using DeltaSegmentsPerSecond = AMBRO_WRAP_DOUBLE(100.0); 
+using DeltaMinSplitLength = AMBRO_WRAP_DOUBLE(0.1); 
+using DeltaMaxSplitLength = AMBRO_WRAP_DOUBLE(4.0); 
+using DeltaTower1X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.8660254037844386); 
+using DeltaTower1Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5); 
+using DeltaTower2X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.8660254037844386); 
+using DeltaTower2Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5); 
+using DeltaTower3X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.0); 
+using DeltaTower3Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 1.0); 
+
+APRINTER_CONFIG_END
 
 using PrinterParams = PrinterMainParams<
     /*
@@ -168,7 +179,7 @@ using PrinterParams = PrinterMainParams<
     >,
     TeensyPin13, // LedPin
     LedBlinkInterval, // LedBlinkInterval
-    DefaultInactiveTime, // DefaultInactiveTime
+    InactiveTime, // InactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
     32, // StepperSegmentBufferSize
@@ -182,6 +193,8 @@ using PrinterParams = PrinterMainParams<
     PrinterMainNoSdCardParams,
     PrinterMainNoProbeParams,
     PrinterMainNoCurrentParams,
+    ConstantConfigManagerService,
+    ConfigList,
     
     /*
      * Axes.
@@ -192,26 +205,26 @@ using PrinterParams = PrinterMainParams<
             TeensyPin1, // DirPin
             TeensyPin0, // StepPin
             TeensyPin8, // EnablePin
-            true, // InvertDir
-            ABCDefaultStepsPerUnit, // StepsPerUnit
-            ABCDefaultMin, // Min
-            ABCDefaultMax, // Max
-            ABCDefaultMaxSpeed, // MaxSpeed
-            ABCDefaultMaxAccel, // MaxAccel
-            ABCDefaultDistanceFactor, // DistanceFactor
-            ABCDefaultCorneringDistance, // CorneringDistance
+            ABCInvertDir,
+            ABCStepsPerUnit, // StepsPerUnit
+            ABCMin, // Min
+            ABCMax, // Max
+            ABCMaxSpeed, // MaxSpeed
+            ABCMaxAccel, // MaxAccel
+            ABCDistanceFactor, // DistanceFactor
+            ABCCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                true, // HomeDir
+                ABCHomeDir,
                 AxisHomerService< // HomerService
                     TeensyPin12, // HomeEndPin
                     Mk20PinInputModePullUp, // HomeEndPinInputMode
-                    false, // HomeEndInvert
-                    ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
-                    ABCDefaultHomeRetractDist, // HomeRetractDist
-                    ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                    ABCDefaultHomeFastSpeed, // HomeFastSpeed
-                    ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
-                    ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                    ABCHomeEndInvert,
+                    ABCHomeFastMaxDist, // HomeFastMaxDist
+                    ABCHomeRetractDist, // HomeRetractDist
+                    ABCHomeSlowMaxDist, // HomeSlowMaxDist
+                    ABCHomeFastSpeed, // HomeFastSpeed
+                    ABCHomeRetractSpeed, // HomeRetractSpeed
+                    ABCHomeSlowSpeed // HomeSlowSpeed
                 >
             >,
             false, // EnableCartesianSpeedLimit
@@ -227,26 +240,26 @@ using PrinterParams = PrinterMainParams<
             TeensyPin3, // DirPin
             TeensyPin2, // StepPin
             TeensyPin9, // EnablePin
-            true, // InvertDir
-            ABCDefaultStepsPerUnit, // StepsPerUnit
-            ABCDefaultMin, // Min
-            ABCDefaultMax, // Max
-            ABCDefaultMaxSpeed, // MaxSpeed
-            ABCDefaultMaxAccel, // MaxAccel
-            ABCDefaultDistanceFactor, // DistanceFactor
-            ABCDefaultCorneringDistance, // CorneringDistance
+            ABCInvertDir,
+            ABCStepsPerUnit, // StepsPerUnit
+            ABCMin, // Min
+            ABCMax, // Max
+            ABCMaxSpeed, // MaxSpeed
+            ABCMaxAccel, // MaxAccel
+            ABCDistanceFactor, // DistanceFactor
+            ABCCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                true, // HomeDir
+                ABCHomeDir,
                 AxisHomerService< // HomerService
                     TeensyPin14, // HomeEndPin
                     Mk20PinInputModePullUp, // HomeEndPinInputMode
-                    false, // HomeEndInvert
-                    ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
-                    ABCDefaultHomeRetractDist, // HomeRetractDist
-                    ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                    ABCDefaultHomeFastSpeed, // HomeFastSpeed
-                    ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
-                    ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                    ABCHomeEndInvert,
+                    ABCHomeFastMaxDist, // HomeFastMaxDist
+                    ABCHomeRetractDist, // HomeRetractDist
+                    ABCHomeSlowMaxDist, // HomeSlowMaxDist
+                    ABCHomeFastSpeed, // HomeFastSpeed
+                    ABCHomeRetractSpeed, // HomeRetractSpeed
+                    ABCHomeSlowSpeed // HomeSlowSpeed
                 >
             >,
             false, // EnableCartesianSpeedLimit
@@ -262,26 +275,26 @@ using PrinterParams = PrinterMainParams<
             TeensyPin5, // DirPin
             TeensyPin4, // StepPin
             TeensyPin10, // EnablePin
-            false, // InvertDir
-            ABCDefaultStepsPerUnit, // StepsPerUnit
-            ABCDefaultMin, // Min
-            ABCDefaultMax, // Max
-            ABCDefaultMaxSpeed, // MaxSpeed
-            ABCDefaultMaxAccel, // MaxAccel
-            ABCDefaultDistanceFactor, // DistanceFactor
-            ABCDefaultCorneringDistance, // CorneringDistance
+            ABCInvertDir,
+            ABCStepsPerUnit, // StepsPerUnit
+            ABCMin, // Min
+            ABCMax, // Max
+            ABCMaxSpeed, // MaxSpeed
+            ABCMaxAccel, // MaxAccel
+            ABCDistanceFactor, // DistanceFactor
+            ABCCorneringDistance, // CorneringDistance
             PrinterMainHomingParams<
-                true, // HomeDir
+                ABCHomeDir,
                 AxisHomerService< // HomerService
                     TeensyPin15, // HomeEndPin
                     Mk20PinInputModePullUp, // HomeEndPinInputMode
-                    false, // HomeEndInvert
-                    ABCDefaultHomeFastMaxDist, // HomeFastMaxDist
-                    ABCDefaultHomeRetractDist, // HomeRetractDist
-                    ABCDefaultHomeSlowMaxDist, // HomeSlowMaxDist
-                    ABCDefaultHomeFastSpeed, // HomeFastSpeed
-                    ABCDefaultHomeRetractSpeed, // HomeRetractSpeed
-                    ABCDefaultHomeSlowSpeed // HomeSlowSpeed
+                    ABCHomeEndInvert,
+                    ABCHomeFastMaxDist, // HomeFastMaxDist
+                    ABCHomeRetractDist, // HomeRetractDist
+                    ABCHomeSlowMaxDist, // HomeSlowMaxDist
+                    ABCHomeFastSpeed, // HomeFastSpeed
+                    ABCHomeRetractSpeed, // HomeRetractSpeed
+                    ABCHomeSlowSpeed // HomeSlowSpeed
                 >
             >,
             false, // EnableCartesianSpeedLimit
@@ -297,14 +310,14 @@ using PrinterParams = PrinterMainParams<
             TeensyPin7, // DirPin
             TeensyPin6, // StepPin
             TeensyPin11, // EnablePin
-            true, // InvertDir
-            EDefaultStepsPerUnit, // StepsPerUnit
-            EDefaultMin, // Min
-            EDefaultMax, // Max
-            EDefaultMaxSpeed, // MaxSpeed
-            EDefaultMaxAccel, // MaxAccel
-            EDefaultDistanceFactor, // DistanceFactor
-            EDefaultCorneringDistance, // CorneringDistance
+            EInvertDir,
+            EStepsPerUnit, // StepsPerUnit
+            EMin, // Min
+            EMax, // Max
+            EMaxSpeed, // MaxSpeed
+            EMaxAccel, // MaxAccel
+            EDistanceFactor, // DistanceFactor
+            ECorneringDistance, // CorneringDistance
             PrinterMainNoHomingParams,
             false, // EnableCartesianSpeedLimit
             32, // StepBits
@@ -366,9 +379,8 @@ using PrinterParams = PrinterMainParams<
             'T', // Name
             104, // SetMCommand
             109, // WaitMCommand
-            301, // SetConfigMCommand
             TeensyPinA2, // AdcPin
-            GenericThermistor< // Thermistor
+            GenericThermistorService< // Thermistor
                 ExtruderHeaterThermistorResistorR,
                 ExtruderHeaterThermistorR0,
                 ExtruderHeaterThermistorBeta,
@@ -386,7 +398,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterPidIStateMax, // PidIStateMax
                 ExtruderHeaterPidDHistory // PidDHistory
             >,
-            TemperatureObserverParams<
+            TemperatureObserverService<
                 ExtruderHeaterObserverInterval, // ObserverInterval
                 ExtruderHeaterObserverTolerance, // ObserverTolerance
                 ExtruderHeaterObserverMinTime // ObserverMinTime
@@ -403,9 +415,8 @@ using PrinterParams = PrinterMainParams<
             'B', // Name
             140, // SetMCommand
             190, // WaitMCommand
-            304, // SetConfigMCommand
             NOOONE, // AdcPin
-            GenericThermistor< // Thermistor
+            GenericThermistorService< // Thermistor
                 BedHeaterThermistorResistorR,
                 BedHeaterThermistorR0,
                 BedHeaterThermistorBeta,
@@ -423,7 +434,7 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterPidIStateMax, // PidIStateMax
                 BedHeaterPidDHistory // PidDHistory
             >,
-            TemperatureObserverParams<
+            TemperatureObserverService<
                 BedHeaterObserverInterval, // ObserverInterval
                 BedHeaterObserverTolerance, // ObserverTolerance
                 BedHeaterObserverMinTime // ObserverMinTime
