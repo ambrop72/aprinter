@@ -43,6 +43,7 @@ static void emergency (void);
 #include <aprinter/system/At91SamWatchdog.h>
 #include <aprinter/system/At91Sam3xSerial.h>
 #include <aprinter/system/At91SamSpi.h>
+#include <aprinter/system/At91Sam3xFlash.h>
 #include <aprinter/system/AsfUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/driver/AxisDriver.h>
@@ -55,6 +56,7 @@ static void emergency (void);
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/config_manager/ConstantConfigManager.h>
 #include <aprinter/printer/config_manager/RuntimeConfigManager.h>
+#include <aprinter/printer/config_store/FlashConfigStore.h>
 #include <aprinter/board/arduino_due_pins.h>
 
 using namespace APrinter;
@@ -283,7 +285,14 @@ using PrinterParams = PrinterMainParams<
     RuntimeConfigManagerService<
         925, // GetConfigMCommand
         926, // SetConfigMCommand
-        927 // ResetAllConfigMCommand
+        927, // ResetAllConfigMCommand
+        928, // LoadConfigMCommand
+        929, // SaveConfigMCommand
+        FlashConfigStoreService<
+            At91Sam3xFlashService<At91Sam3xFlashDevice1>,
+            0, // StartBlock
+            64 // EndBlock
+        >
     >,
     ConfigList,
     
@@ -684,6 +693,7 @@ AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())
 #endif
 AMBRO_AT91SAM3X_SPI_GLOBAL(MyPrinter::GetSdCard<>::GetSpi, MyContext())
 AMBRO_AT91SAM_ADC_GLOBAL(MyAdc, MyContext())
+AMBRO_AT91SAM3X_FLASH_GLOBAL(1, MyPrinter::GetConfigManager::GetStore<>::GetFlash, MyContext())
 
 static void emergency (void)
 {

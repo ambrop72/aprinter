@@ -419,6 +419,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_continue_splitclear_helper, continue_splitclear_helper)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_report_height, report_height)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_finish_locked_helper, finish_locked_helper)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_run_for_locked_helper, run_for_locked_helper)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_continue_locking_helper, continue_locking_helper)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_continue_planned_helper, continue_planned_helper)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_continue_unplanned_helper, continue_unplanned_helper)
@@ -480,7 +481,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using ParamsFansList = typename Params::FansList;
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     
-    using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList>;
+    using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain>;
     using TheConfigCache = ConfigCache<Context, Object, DelayedConfigExprs>;
     using Config = ConfigFramework<TheConfigManager, TheConfigCache>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
@@ -3060,7 +3061,7 @@ public:
         TheConfigManager::deinit(c);
     }
     
-    using GetConfigManager = Config;
+    using GetConfigManager = TheConfigManager;
     
     using GetWatchdog = TheWatchdog;
     
@@ -3095,6 +3096,23 @@ public:
     }
     
     using EventLoopFastEvents = ObjCollect<MakeTypeList<PrinterMain>, Collectible_EventLoopFastEvents, true>;
+    
+    static void finish_locked (Context c)
+    {
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
+        
+        ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_finish_locked_helper());
+    }
+    
+    template <typename Func, typename... Args>
+    static void run_for_locked (Context c, Func func, Args... args)
+    {
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
+        
+        ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_run_for_locked_helper(), func, args...);
+    }
     
 public: // private, see comment on top
     static TimeType time_from_real (FpType t)
@@ -3307,12 +3325,10 @@ public: // private, see comment on top
         TheChannelCommon::finishCommand(c);
     }
     
-    static void finish_locked (Context c)
+    template <typename TheChannelCommon, typename Func, typename... Args>
+    static void run_for_locked_helper (Context c, WrapType<TheChannelCommon> cc, Func func, Args... args)
     {
-        auto *ob = Object::self(c);
-        AMBRO_ASSERT(ob->locked)
-        
-        ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKED, WrapType<PrinterMain>(), LForeach_finish_locked_helper());
+        func(c, cc, args...);
     }
     
     static void phys_homing_finished (Context c)

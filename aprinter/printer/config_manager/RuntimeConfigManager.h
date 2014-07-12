@@ -41,16 +41,22 @@
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/IfFunc.h>
 #include <aprinter/meta/FuncCall.h>
+#include <aprinter/meta/StructIf.h>
+#include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/JoinTypeLists.h>
+#include <aprinter/meta/WrapFunction.h>
 #include <aprinter/base/ProgramMemory.h>
+#include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename TConfigOptionsList, typename Params>
+struct RuntimeConfigManagerNoStoreService {};
+
+template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain, typename Params>
 class RuntimeConfigManager {
 public:
     struct Object;
-    using ConfigOptionsList = TConfigOptionsList;
     
 private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
@@ -61,8 +67,12 @@ private:
     template <typename TheOption>
     using OptionIsNotConstant = WrapBool<(TypeListIndex<typename TheOption::Properties, IsEqualFunc<ConfigPropertyConstant>>::Value < 0)>;
     
+    using StoreService = typename Params::StoreService;
+    
+public:
     using RuntimeConfigOptionsList = FilterTypeList<ConfigOptionsList, TemplateFunc<OptionIsNotConstant>>;
     
+private:
     template <int ConfigOptionIndex>
     struct ConfigOptionState {
         using TheConfigOption = TypeListGet<RuntimeConfigOptionsList, ConfigOptionIndex>;
@@ -150,7 +160,10 @@ private:
     using ConfigOptionStateList = IndexElemList<RuntimeConfigOptionsList, ConfigOptionState>;
     
     template <typename Option>
-    using OptionExprRuntime = VariableExpr<typename Option::Type, ConfigOptionState<TypeListIndex<RuntimeConfigOptionsList, IsEqualFunc<Option>>::Value>>;
+    using FindOptionState = ConfigOptionState<TypeListIndex<RuntimeConfigOptionsList, IsEqualFunc<Option>>::Value>;
+    
+    template <typename Option>
+    using OptionExprRuntime = VariableExpr<typename Option::Type, FindOptionState<Option>>;
     
     template <typename Option>
     using OptionExprConstant = ConstantExpr<typename Option::Type, typename Option::DefaultValue>;
@@ -165,14 +178,93 @@ private:
         Option
     >;
     
+    AMBRO_STRUCT_IF(StoreFeature, (!TypesAreEqual<StoreService, RuntimeConfigManagerNoStoreService>::Value)) {
+        struct StoreHandler;
+        struct Object;
+        using TheStore = typename StoreService::template Store<Context, Object, RuntimeConfigManager, StoreHandler>;
+        enum {STATE_IDLE, STATE_LOADING, STATE_SAVING};
+        
+        static void init (Context c)
+        {
+            auto *o = Object::self(c);
+            
+            TheStore::init(c);
+            o->state = STATE_IDLE;
+        }
+        
+        static void deinit (Context c)
+        {
+            TheStore::deinit(c);
+        }
+        
+        template <typename CommandChannel>
+        static bool checkCommand (Context c, WrapType<CommandChannel>)
+        {
+            auto *o = Object::self(c);
+            
+            auto cmd_num = CommandChannel::TheGcodeParser::getCmdNumber(c);
+            if (cmd_num == Params::LoadConfigMCommand || cmd_num == Params::SaveConfigMCommand) {
+                if (!CommandChannel::tryLockedCommand(c)) {
+                    return false;
+                }
+                AMBRO_ASSERT(o->state == STATE_IDLE)
+                if (cmd_num == Params::LoadConfigMCommand) {
+                    TheStore::startReading(c);
+                    o->state = STATE_LOADING;
+                } else {
+                    TheStore::startWriting(c);
+                    o->state = STATE_SAVING;
+                }
+                return false;
+            }
+            return true;
+        }
+        
+        static void store_handler (Context c, bool success)
+        {
+            ThePrinterMain::run_for_locked(c, FinishCommandHelper(), success);
+        }
+        
+        struct FinishCommandHelper {
+            template <typename CommandChannel>
+            void operator() (Context c, WrapType<CommandChannel>, bool success)
+            {
+                auto *o = Object::self(c);
+                AMBRO_ASSERT(o->state == STATE_LOADING || o->state == STATE_SAVING)
+                
+                if (!success) {
+                    CommandChannel::reply_append_pstr(c, AMBRO_PSTR("error:Store\n"));
+                }
+                o->state = STATE_IDLE;
+                CommandChannel::finishCommand(c);
+            }
+        };
+        
+        struct StoreHandler : public AMBRO_WFUNC_TD(&StoreFeature::store_handler) {};
+        
+        struct Object : public ObjBase<StoreFeature, typename RuntimeConfigManager::Object, MakeTypeList<
+            TheStore
+        >> {
+            uint8_t state;
+        };
+    } AMBRO_STRUCT_ELSE(StoreFeature) {
+        struct Object {};
+        static void init (Context c) {}
+        static void deinit (Context c) {}
+        template <typename CommandChannel>
+        static bool checkCommand (Context c, WrapType<CommandChannel> cc) { return true; }
+    };
+    
 public:
     static void init (Context c)
     {
         ListForEachForward<ConfigOptionStateList>(Foreach_init(), c);
+        StoreFeature::init(c);
     }
     
     static void deinit (Context c)
     {
+        StoreFeature::deinit(c);
     }
     
     template <typename CommandChannel>
@@ -201,28 +293,60 @@ public:
             CommandChannel::finishCommand(c);
             return false;
         }
-        return true;
+        return StoreFeature::checkCommand(c, cc);
+    }
+    
+    template <typename Option>
+    static void setOptionValue (Context c, Option, typename Option::Type value)
+    {
+        static_assert(OptionIsNotConstant<Option>::Value, "");
+        
+        auto *opt = FindOptionState<Option>::Object::self(c);
+        opt->value = value;
+    }
+    
+    template <typename Option>
+    static typename Option::Type getOptionValue (Context c, Option)
+    {
+        static_assert(OptionIsNotConstant<Option>::Value, "");
+        
+        auto *opt = FindOptionState<Option>::Object::self(c);
+        return opt->value;
     }
     
     template <typename Option>
     static OptionExpr<Option> e (Option);
     
+    template <typename TheStoreFeature = StoreFeature>
+    using GetStore = typename TheStoreFeature::TheStore;
+    
 public:
-    struct Object : public ObjBase<RuntimeConfigManager, ParentObject, ConfigOptionStateList> {};
+    struct Object : public ObjBase<RuntimeConfigManager, ParentObject, JoinTypeLists<
+        ConfigOptionStateList,
+        MakeTypeList<
+            StoreFeature
+        >
+    >> {};
 };
 
 template <
     int TGetConfigMCommand,
     int TSetConfigMCommand,
-    int TResetAllConfigMCommand
+    int TResetAllConfigMCommand,
+    int TLoadConfigMCommand,
+    int TSaveConfigMCommand,
+    typename TStoreService
 >
 struct RuntimeConfigManagerService {
     static int const GetConfigMCommand = TGetConfigMCommand;
     static int const SetConfigMCommand = TSetConfigMCommand;
     static int const ResetAllConfigMCommand = TResetAllConfigMCommand;
+    static int const LoadConfigMCommand = TLoadConfigMCommand;
+    static int const SaveConfigMCommand = TSaveConfigMCommand;
+    using StoreService = TStoreService;
     
-    template <typename Context, typename ParentObject, typename ConfigOptionsList>
-    using ConfigManager = RuntimeConfigManager<Context, ParentObject, ConfigOptionsList, RuntimeConfigManagerService>;
+    template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain>
+    using ConfigManager = RuntimeConfigManager<Context, ParentObject, ConfigOptionsList, ThePrinterMain, RuntimeConfigManagerService>;
 };
 
 #include <aprinter/EndNamespace.h>
