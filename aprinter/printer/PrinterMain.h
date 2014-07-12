@@ -460,6 +460,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     struct PlannerUnionPlanner;
     struct PlannerUnionHoming;
+    struct ConfigManagerHandler;
     struct BlinkerHandler;
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
@@ -482,7 +483,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
-    using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain>;
+    using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain, ConfigManagerHandler>;
     using TheConfigCache = ConfigCache<Context, Object, DelayedConfigExprs>;
     using Config = ConfigFramework<TheConfigManager, TheConfigCache>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
@@ -620,10 +621,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             if (o->m_state == COMMAND_LOCKED) {
                 AMBRO_ASSERT(mob->locked)
                 o->m_state = COMMAND_IDLE;
-                mob->locked = false;
-                if (!mob->unlocked_timer.isSet(c)) {
-                    mob->unlocked_timer.prependNowNotAlready(c);
-                }
+                unlock(c);
             }
         }
         
@@ -645,7 +643,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 return false;
             }
             o->m_state = COMMAND_LOCKED;
-            mob->locked = true;
+            lock(c);
             return true;
         }
         
@@ -3002,6 +3000,16 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct Object {};
     };
     
+    AMBRO_STRUCT_IF(LoadConfigFeature, TheConfigManager::HasStore) {
+        static void start_loading (Context c)
+        {
+            lock(c);
+            TheConfigManager::startOperation(c, TheConfigManager::OperationType::LOAD);
+        }
+    } AMBRO_STRUCT_ELSE(LoadConfigFeature) {
+        static void start_loading (Context c) {}
+    };
+    
 public:
     static void init (Context c)
     {
@@ -3031,6 +3039,8 @@ public:
         
         SerialFeature::TheChannelCommon::reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
         SerialFeature::TheChannelCommon::reply_poke(c);
+        
+        LoadConfigFeature::start_loading(c);
         
         ob->debugInit(c);
     }
@@ -3329,6 +3339,25 @@ public: // private, see comment on top
     static void run_for_locked_helper (Context c, WrapType<TheChannelCommon> cc, Func func, Args... args)
     {
         func(c, cc, args...);
+    }
+    
+    static void lock (Context c)
+    {
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(!ob->locked)
+        
+        ob->locked = true;
+    }
+    
+    static void unlock (Context c)
+    {
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
+        
+        ob->locked = false;
+        if (!ob->unlocked_timer.isSet(c)) {
+            ob->unlocked_timer.prependNowNotAlready(c);
+        }
     }
     
     static void phys_homing_finished (Context c)
@@ -3683,6 +3712,21 @@ public: // private, see comment on top
         ThePlanner::waitFinished(c);
     }
     
+    static void config_manager_handler (Context c, bool success)
+    {
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(TheConfigManager::HasStore)
+        AMBRO_ASSERT(ob->locked)
+        
+        if (success) {
+            TheConfigCache::update(c);
+        }
+        unlock(c);
+        auto msg = success ? AMBRO_PSTR("//LoadConfigOk\n") : AMBRO_PSTR("//LoadConfigErr\n");
+        SerialFeature::TheChannelCommon::reply_append_pstr(c, msg);
+        SerialFeature::TheChannelCommon::reply_poke(c);
+    }
+    
     struct PlannerUnion {
         struct Object : public ObjUnionBase<PlannerUnion, typename PrinterMain::Object, MakeTypeList<
             PlannerUnionPlanner,
@@ -3700,6 +3744,7 @@ public: // private, see comment on top
         struct Object : public ObjBase<PlannerUnionHoming, typename PlannerUnion::Object, HomingStateList> {};
     };
     
+    struct ConfigManagerHandler : public AMBRO_WFUNC_TD(&PrinterMain::config_manager_handler) {};
     struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
     struct PlannerPullHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_pull_handler) {};
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_finished_handler) {};

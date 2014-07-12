@@ -53,7 +53,7 @@
 
 struct RuntimeConfigManagerNoStoreService {};
 
-template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain, typename Params>
+template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain, typename Handler, typename Params>
 class RuntimeConfigManager {
 public:
     struct Object;
@@ -66,11 +66,12 @@ private:
     
     template <typename TheOption>
     using OptionIsNotConstant = WrapBool<(TypeListIndex<typename TheOption::Properties, IsEqualFunc<ConfigPropertyConstant>>::Value < 0)>;
-    
     using StoreService = typename Params::StoreService;
     
 public:
     using RuntimeConfigOptionsList = FilterTypeList<ConfigOptionsList, TemplateFunc<OptionIsNotConstant>>;
+    static bool const HasStore = !TypesAreEqual<StoreService, RuntimeConfigManagerNoStoreService>::Value;
+    enum class OperationType {LOAD, STORE};
     
 private:
     template <int ConfigOptionIndex>
@@ -178,9 +179,9 @@ private:
         Option
     >;
     
-    AMBRO_STRUCT_IF(StoreFeature, (!TypesAreEqual<StoreService, RuntimeConfigManagerNoStoreService>::Value)) {
-        struct StoreHandler;
+    AMBRO_STRUCT_IF(StoreFeature, HasStore) {
         struct Object;
+        struct StoreHandler;
         using TheStore = typename StoreService::template Store<Context, Object, RuntimeConfigManager, StoreHandler>;
         enum {STATE_IDLE, STATE_LOADING, STATE_SAVING};
         
@@ -207,45 +208,58 @@ private:
                 if (!CommandChannel::tryLockedCommand(c)) {
                     return false;
                 }
-                AMBRO_ASSERT(o->state == STATE_IDLE)
-                if (cmd_num == Params::LoadConfigMCommand) {
-                    TheStore::startReading(c);
-                    o->state = STATE_LOADING;
-                } else {
-                    TheStore::startWriting(c);
-                    o->state = STATE_SAVING;
-                }
+                OperationType type = (cmd_num == Params::LoadConfigMCommand) ? OperationType::LOAD : OperationType::STORE;
+                start_operation(c, type, true);
                 return false;
             }
             return true;
         }
         
+        static void start_operation (Context c, OperationType type, bool from_command)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->state == STATE_IDLE)
+            
+            if (type == OperationType::LOAD) {
+                TheStore::startReading(c);
+                o->state = STATE_LOADING;
+            } else {
+                TheStore::startWriting(c);
+                o->state = STATE_SAVING;
+            }
+            o->from_command = from_command;
+        }
+        
         static void store_handler (Context c, bool success)
         {
-            ThePrinterMain::run_for_locked(c, FinishCommandHelper(), success);
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->state == STATE_LOADING || o->state == STATE_SAVING)
+            
+            o->state = STATE_IDLE;
+            if (o->from_command) {
+                ThePrinterMain::run_for_locked(c, FinishCommandHelper(), success);
+            } else {
+                Handler::call(c, success);
+            }
         }
+        struct StoreHandler : public AMBRO_WFUNC_TD(&StoreFeature::store_handler) {};
         
         struct FinishCommandHelper {
             template <typename CommandChannel>
             void operator() (Context c, WrapType<CommandChannel>, bool success)
             {
-                auto *o = Object::self(c);
-                AMBRO_ASSERT(o->state == STATE_LOADING || o->state == STATE_SAVING)
-                
                 if (!success) {
                     CommandChannel::reply_append_pstr(c, AMBRO_PSTR("error:Store\n"));
                 }
-                o->state = STATE_IDLE;
                 CommandChannel::finishCommand(c);
             }
         };
-        
-        struct StoreHandler : public AMBRO_WFUNC_TD(&StoreFeature::store_handler) {};
         
         struct Object : public ObjBase<StoreFeature, typename RuntimeConfigManager::Object, MakeTypeList<
             TheStore
         >> {
             uint8_t state;
+            bool from_command;
         };
     } AMBRO_STRUCT_ELSE(StoreFeature) {
         struct Object {};
@@ -321,6 +335,12 @@ public:
         -1
     )>;
     
+    template <typename TheStoreFeature = StoreFeature>
+    static void startOperation (Context c, OperationType type)
+    {
+        return TheStoreFeature::start_operation(c, type, false);
+    }
+    
     template <typename Option>
     static OptionExpr<Option> e (Option);
     
@@ -352,8 +372,8 @@ struct RuntimeConfigManagerService {
     static int const SaveConfigMCommand = TSaveConfigMCommand;
     using StoreService = TStoreService;
     
-    template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain>
-    using ConfigManager = RuntimeConfigManager<Context, ParentObject, ConfigOptionsList, ThePrinterMain, RuntimeConfigManagerService>;
+    template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain, typename Handler>
+    using ConfigManager = RuntimeConfigManager<Context, ParentObject, ConfigOptionsList, ThePrinterMain, Handler, RuntimeConfigManagerService>;
 };
 
 #include <aprinter/EndNamespace.h>
