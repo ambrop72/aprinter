@@ -314,6 +314,13 @@ public:
         return opt->value;
     }
     
+    template <typename Type>
+    using GetTypeNumber = WrapInt<(
+        TypesAreEqual<Type, double>::Value ? 1 :
+        TypesAreEqual<Type, bool>::Value ? 2 :
+        -1
+    )>;
+    
     template <typename Option>
     static OptionExpr<Option> e (Option);
     
