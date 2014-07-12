@@ -57,6 +57,12 @@ private:
     static_assert(Params::StartBlock < Params::EndBlock, "");
     static_assert(Params::EndBlock <= TheFlash::NumBlocks, "");
     
+    static uint32_t const HeaderMagic = UINT32_C(0xAE83108C);
+    
+    struct Header {
+        uint32_t magic;
+    };
+    
     template <int OptionIndex, typename Dummy = void>
     struct OptionHelper {
         using Option = TypeListGet<OptionSpecList, OptionIndex>;
@@ -76,9 +82,7 @@ private:
         static void read (Context c)
         {
             Type value;
-            for (size_t i = 0; i < sizeof(Type); i++) {
-                ((uint8_t *)&value)[i] = TheFlash::getReadPointer()[FlashOffset + i];
-            }
+            read_flash(FlashOffset, sizeof(value), &value);
             ConfigManager::setOptionValue(c, Option(), value);
         }
         
@@ -88,40 +92,60 @@ private:
             auto *o = Object::self(c);
             if (BlockNumber == WriteBlockNumber) {
                 Type value = ConfigManager::getOptionValue(c, Option());
-                memcpy((uint8_t *)&o->write_buffer + BlockStartOffset, &value, sizeof(Type));
+                memcpy((uint8_t *)o->write_buffer + BlockStartOffset, &value, sizeof(Type));
             }
         }
     };
     
     template <typename Dummy>
     struct OptionHelper<(-1), Dummy> {
-        static size_t const BlockNumber = Params::StartBlock;
+        static size_t const BlockNumber = Params::StartBlock + 1;
         static size_t const BlockEndOffset = 0;
     };
     
     template <int OptionIndex>
     using OptionHelperOneArg = OptionHelper<OptionIndex>;
     using OptionHelperList = IndexElemList<OptionSpecList, OptionHelperOneArg>;
+    using LastOption = OptionHelper<(TypeListLength<OptionHelperList>::Value - 1)>;
+    static size_t const NumOptionBlocks = LastOption::BlockNumber - OptionHelper<(-1)>::BlockNumber + 1;
     
-    template <int WriteBlockNumber>
+    template <int WriteBlockNumber, typename Dummy = void>
     struct BlockWriteHelper {
+        static_assert(WriteBlockNumber >= 1, "");
+        static_assert(WriteBlockNumber < 1 + NumOptionBlocks, "");
         static int const BlockNumber = Params::StartBlock + WriteBlockNumber;
         
-        static void write (Context c)
+        static size_t write (Context c)
         {
-            auto *o = Object::self(c);
-            memset(&o->write_buffer, 0, sizeof(o->write_buffer));
             ListForEachForward<OptionHelperList>(Foreach_write(), c, WrapInt<BlockNumber>());
-            for (size_t i = 0; i < (TheFlash::BlockSize / 4); i++) {
-                TheFlash::getBlockWritePointer(c, BlockNumber)[i] = o->write_buffer[i];
-            }
-            TheFlash::startBlockWrite(c, BlockNumber);
+            return BlockNumber;
         }
     };
     
-    using LastOption = OptionHelper<(TypeListLength<OptionHelperList>::Value - 1)>;
-    static size_t const NumWriteBlocks = LastOption::BlockNumber - Params::StartBlock + 1;
-    using BlockWriteHelperList = IndexElemListCount<NumWriteBlocks, BlockWriteHelper>;
+    template <typename Dummy>
+    struct BlockWriteHelper<0, Dummy> {
+        static size_t write (Context c)
+        {
+            return Params::StartBlock;
+        }
+    };
+    
+    template <typename Dummy>
+    struct BlockWriteHelper<(1 + NumOptionBlocks), Dummy> {
+        static size_t write (Context c)
+        {
+            auto *o = Object::self(c);
+            Header header;
+            header.magic = HeaderMagic;
+            memcpy(o->write_buffer, &header, sizeof(header));
+            return Params::StartBlock;
+        }
+    };
+    
+    static size_t const NumWriteBlocks = 1 + NumOptionBlocks + 1;
+    template <int WriteBlockNumber>
+    using BlockWriteHelperOneArg = BlockWriteHelper<WriteBlockNumber>;
+    using BlockWriteHelperList = IndexElemListCount<NumWriteBlocks, BlockWriteHelperOneArg>;
     
     enum State {STATE_IDLE, STATE_START_READING, STATE_START_WRITING, STATE_WRITING};
     
@@ -165,6 +189,13 @@ public:
     using GetFlash = TheFlash;
     
 private:
+    static void read_flash (size_t offset, size_t size, void *dst)
+    {
+        for (size_t i = 0; i < size; i++) {
+            ((uint8_t *)dst)[i] = TheFlash::getReadPointer()[offset + i];
+        }
+    }
+    
     static void flash_handler (Context c, bool success)
     {
         auto *o = Object::self(c);
@@ -179,7 +210,12 @@ private:
             o->state = STATE_IDLE;
             return Handler::call(c, true);
         }
-        ListForOneOffset<BlockWriteHelperList, 0>(o->write_current_block, Foreach_write(), c);
+        memset(o->write_buffer, 0, sizeof(o->write_buffer));
+        size_t block_number = ListForOneOffset<BlockWriteHelperList, 0, size_t>(o->write_current_block, Foreach_write(), c);
+        for (size_t i = 0; i < (TheFlash::BlockSize / 4); i++) {
+            TheFlash::getBlockWritePointer(c, block_number)[i] = o->write_buffer[i];
+        }
+        TheFlash::startBlockWrite(c, block_number);
     }
     
     static void event_handler (typename Loop::QueuedEvent *, Context c)
@@ -187,14 +223,22 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == STATE_START_READING || o->state == STATE_START_WRITING)
         
-        if (o->state == STATE_START_READING) {
-            ListForEachForward<OptionHelperList>(Foreach_read(), c);
-            o->state = STATE_IDLE;
-            return Handler::call(c, true);
-        } else {
+        if (o->state == STATE_START_WRITING) {
             o->state = STATE_WRITING;
             return flash_handler(c, true);
         }
+        
+        bool success = false;
+        Header header;
+        read_flash(Params::StartBlock * TheFlash::BlockSize, sizeof(header), &header);
+        if (header.magic != HeaderMagic) {
+            goto fail;
+        }
+        ListForEachForward<OptionHelperList>(Foreach_read(), c);
+        success = true;
+    fail:
+        o->state = STATE_IDLE;
+        return Handler::call(c, success);
     }
     
     struct FlashHandler : public AMBRO_WFUNC_TD(&FlashConfigStore::flash_handler) {};
