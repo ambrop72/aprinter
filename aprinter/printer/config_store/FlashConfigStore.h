@@ -48,7 +48,6 @@ public:
 private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_read, read)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_write, write)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_write_next_block, write_next_block)
     
     struct FlashHandler;
     using Loop = typename Context::EventLoop;
@@ -118,13 +117,6 @@ private:
             }
             TheFlash::startBlockWrite(c, BlockNumber);
         }
-        
-        static void write_next_block (Context c, size_t the_rel_block_number)
-        {
-            if (RelBlockNumber == the_rel_block_number) {
-                write(c);
-            }
-        }
     };
     
     using LastOption = OptionHelper<(TypeListLength<OptionHelperList>::Value - 1)>;
@@ -187,7 +179,7 @@ private:
             o->state = STATE_IDLE;
             return Handler::call(c, true);
         }
-        ListForEachForward<BlockHelperList>(Foreach_write_next_block(), c, o->current_block);
+        ListForOneOffset<BlockHelperList, 0>(o->current_block, Foreach_write(), c);
     }
     
     static void event_handler (typename Loop::QueuedEvent *, Context c)
