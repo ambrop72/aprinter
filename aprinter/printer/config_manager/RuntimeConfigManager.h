@@ -45,6 +45,11 @@
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/WrapFunction.h>
+#include <aprinter/meta/DedummyIndexTemplate.h>
+#include <aprinter/meta/ConstexprHash.h>
+#include <aprinter/meta/ConstexprCrc32.h>
+#include <aprinter/meta/ConstexprString.h>
+#include <aprinter/meta/TypeListLength.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
@@ -67,17 +72,27 @@ private:
     template <typename TheOption>
     using OptionIsNotConstant = WrapBool<(TypeListIndex<typename TheOption::Properties, IsEqualFunc<ConfigPropertyConstant>>::Value < 0)>;
     using StoreService = typename Params::StoreService;
+    using FormatHasher = ConstexprHash<ConstexprCrc32>;
     
 public:
     using RuntimeConfigOptionsList = FilterTypeList<ConfigOptionsList, TemplateFunc<OptionIsNotConstant>>;
     static bool const HasStore = !TypesAreEqual<StoreService, RuntimeConfigManagerNoStoreService>::Value;
     enum class OperationType {LOAD, STORE};
     
+    template <typename Type>
+    using GetTypeNumber = WrapInt<(
+        TypesAreEqual<Type, double>::Value ? 1 :
+        TypesAreEqual<Type, bool>::Value ? 2 :
+        -1
+    )>;
+    
 private:
-    template <int ConfigOptionIndex>
+    template <int ConfigOptionIndex, typename Dummy0=void>
     struct ConfigOptionState {
         using TheConfigOption = TypeListGet<RuntimeConfigOptionsList, ConfigOptionIndex>;
         using Type = typename TheConfigOption::Type;
+        using PrevOption = ConfigOptionState<(ConfigOptionIndex - 1)>;
+        static constexpr FormatHasher CurrentHash = PrevOption::CurrentHash.addUint32(GetTypeNumber<Type>::Value).addString(TheConfigOption::name(), ConstexprStrlen(TheConfigOption::name()));
         
         static void init (Context c)
         {
@@ -158,7 +173,12 @@ private:
         };
     };
     
-    using ConfigOptionStateList = IndexElemList<RuntimeConfigOptionsList, ConfigOptionState>;
+    template <typename Dummy>
+    struct ConfigOptionState<(-1), Dummy> {
+        static constexpr FormatHasher CurrentHash = FormatHasher();
+    };
+    
+    using ConfigOptionStateList = IndexElemList<RuntimeConfigOptionsList, DedummyIndexTemplate<ConfigOptionState>::template Result>;
     
     template <typename Option>
     using FindOptionState = ConfigOptionState<TypeListIndex<RuntimeConfigOptionsList, IsEqualFunc<Option>>::Value>;
@@ -270,6 +290,8 @@ private:
     };
     
 public:
+    static constexpr uint32_t FormatHash = ConfigOptionState<(TypeListLength<ConfigOptionStateList>::Value - 1)>::CurrentHash.end();
+    
     static void init (Context c)
     {
         ListForEachForward<ConfigOptionStateList>(Foreach_init(), c);
@@ -327,13 +349,6 @@ public:
         auto *opt = FindOptionState<Option>::Object::self(c);
         return opt->value;
     }
-    
-    template <typename Type>
-    using GetTypeNumber = WrapInt<(
-        TypesAreEqual<Type, double>::Value ? 1 :
-        TypesAreEqual<Type, bool>::Value ? 2 :
-        -1
-    )>;
     
     template <typename TheStoreFeature = StoreFeature>
     static void startOperation (Context c, OperationType type)

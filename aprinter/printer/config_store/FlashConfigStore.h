@@ -36,9 +36,6 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/TypeListLength.h>
-#include <aprinter/meta/ConstexprHash.h>
-#include <aprinter/meta/ConstexprCrc32.h>
-#include <aprinter/meta/ConstexprString.h>
 #include <aprinter/meta/DedummyIndexTemplate.h>
 #include <aprinter/base/Assert.h>
 
@@ -57,7 +54,6 @@ private:
     using Loop = typename Context::EventLoop;
     using TheFlash = typename Params::FlashService::template Flash<Context, Object, FlashHandler>;
     using OptionSpecList = typename ConfigManager::RuntimeConfigOptionsList;
-    using FormatHasher = ConstexprHash<ConstexprCrc32>;
     
     static_assert(Params::StartBlock < Params::EndBlock, "");
     static_assert(Params::EndBlock <= TheFlash::NumBlocks, "");
@@ -81,7 +77,6 @@ private:
         static size_t const BlockStartOffset = UseNextBlock ? 0 : PrevOption::BlockEndOffset;
         static size_t const BlockEndOffset = BlockStartOffset + sizeof(Type);
         static size_t const FlashOffset = BlockNumber * TheFlash::BlockSize + BlockStartOffset;
-        static constexpr FormatHasher CurrentHash = PrevOption::CurrentHash.addUint32(ConfigManager::template GetTypeNumber<Type>::Value).addString(Option::name(), ConstexprStrlen(Option::name()));
         
         static_assert(BlockNumber < Params::EndBlock, "");
         static_assert(BlockEndOffset <= TheFlash::BlockSize, "");
@@ -108,13 +103,11 @@ private:
     struct OptionHelper<(-1), Dummy> {
         static size_t const BlockNumber = Params::StartBlock + 1;
         static size_t const BlockEndOffset = 0;
-        static constexpr FormatHasher CurrentHash = FormatHasher();
     };
     
     using OptionHelperList = IndexElemList<OptionSpecList, DedummyIndexTemplate<OptionHelper>::template Result>;
     using LastOption = OptionHelper<(TypeListLength<OptionHelperList>::Value - 1)>;
     static size_t const NumOptionBlocks = LastOption::BlockNumber - OptionHelper<(-1)>::BlockNumber + 1;
-    static constexpr uint32_t FormatHash = LastOption::CurrentHash.end();
     
     template <int WriteBlockNumber, typename Dummy = void>
     struct BlockWriteHelper {
@@ -144,7 +137,7 @@ private:
             auto *o = Object::self(c);
             Header header;
             header.magic = HeaderMagic;
-            header.format_hash = FormatHash;
+            header.format_hash = ConfigManager::FormatHash;
             memcpy(o->write_buffer, &header, sizeof(header));
             return Params::StartBlock;
         }
@@ -239,7 +232,7 @@ private:
         bool success = false;
         Header header;
         read_flash(Params::StartBlock * TheFlash::BlockSize, sizeof(header), &header);
-        if (header.magic != HeaderMagic || header.format_hash != FormatHash) {
+        if (header.magic != HeaderMagic || header.format_hash != ConfigManager::FormatHash) {
             goto fail;
         }
         ListForEachForward<OptionHelperList>(Foreach_read(), c);
