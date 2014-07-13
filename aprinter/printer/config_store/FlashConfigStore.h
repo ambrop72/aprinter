@@ -39,6 +39,7 @@
 #include <aprinter/meta/ConstexprHash.h>
 #include <aprinter/meta/ConstexprCrc32.h>
 #include <aprinter/meta/ConstexprString.h>
+#include <aprinter/meta/DedummyIndexTemplate.h>
 #include <aprinter/base/Assert.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -68,7 +69,7 @@ private:
         uint32_t format_hash;
     };
     
-    template <int OptionIndex, typename Dummy = void>
+    template <int OptionIndex, typename Dummy=void>
     struct OptionHelper {
         using Option = TypeListGet<OptionSpecList, OptionIndex>;
         using Type = typename Option::Type;
@@ -110,9 +111,7 @@ private:
         static constexpr FormatHasher CurrentHash = FormatHasher();
     };
     
-    template <int OptionIndex>
-    using OptionHelperOneArg = OptionHelper<OptionIndex>;
-    using OptionHelperList = IndexElemList<OptionSpecList, OptionHelperOneArg>;
+    using OptionHelperList = IndexElemList<OptionSpecList, DedummyIndexTemplate<OptionHelper>::template Result>;
     using LastOption = OptionHelper<(TypeListLength<OptionHelperList>::Value - 1)>;
     static size_t const NumOptionBlocks = LastOption::BlockNumber - OptionHelper<(-1)>::BlockNumber + 1;
     static constexpr uint32_t FormatHash = LastOption::CurrentHash.end();
