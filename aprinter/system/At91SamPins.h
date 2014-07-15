@@ -67,6 +67,9 @@ struct At91SamPinInputMode {
 using At91SamPinInputModeNormal = At91SamPinInputMode<false>;
 using At91SamPinInputModePullUp = At91SamPinInputMode<true>;
 
+struct At91SamPeriphA {};
+struct At91SamPeriphB {};
+
 template <typename Context, typename ParentObject>
 class At91SamPins {
     template <typename ThePio>
@@ -140,7 +143,7 @@ public:
     }
     
     template <typename Pin, typename ThisContext>
-    static void setPeripheralOutputA (ThisContext c)
+    static void setPeripheral (ThisContext c, At91SamPeriphA)
     {
         auto *o = Object::self(c);
         o->debugAccess(c);
@@ -152,7 +155,7 @@ public:
     }
     
     template <typename Pin, typename ThisContext>
-    static void setPeripheralOutputB (ThisContext c)
+    static void setPeripheral (ThisContext c, At91SamPeriphB)
     {
         auto *o = Object::self(c);
         o->debugAccess(c);

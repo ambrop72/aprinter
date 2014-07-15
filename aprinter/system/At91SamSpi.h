@@ -104,8 +104,8 @@ public:
         o->m_start = CommandSizeType::import(0);
         o->m_end = CommandSizeType::import(0);
         
-        Context::Pins::template setPeripheralOutputA<typename Device::SckPin>(c);
-        Context::Pins::template setPeripheralOutputA<typename Device::MosiPin>(c);
+        Context::Pins::template setPeripheral<typename Device::SckPin>(c, At91SamPeriphA());
+        Context::Pins::template setPeripheral<typename Device::MosiPin>(c, At91SamPeriphA());
         Context::Pins::template setInput<typename Device::MisoPin>(c);
         
         pmc_enable_periph_clk(Device::SpiId);
