@@ -51,6 +51,8 @@
 #include <aprinter/meta/ConstexprString.h>
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/StaticArray.h>
+#include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
@@ -65,14 +67,15 @@ public:
     struct Object;
     
 private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_value_cmd, get_value_cmd)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_set_value_cmd, set_value_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_reset_config, reset_config)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_set_cmd, get_set_cmd)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Type, Type)
     
     template <typename TheOption>
     using OptionIsNotConstant = WrapBool<(TypeListIndex<typename TheOption::Properties, IsEqualFunc<ConfigPropertyConstant>>::Value < 0)>;
     using StoreService = typename Params::StoreService;
     using FormatHasher = ConstexprHash<ConstexprCrc32>;
+    using SupportedTypesList = MakeTypeList<double, bool>;
     
 public:
     using RuntimeConfigOptionsList = FilterTypeList<ConfigOptionsList, TemplateFunc<OptionIsNotConstant>>;
@@ -121,43 +124,87 @@ private:
         }
     };
     
+    template <int TypeIndex>
+    struct TypeGeneral {
+        using Type = TypeListGet<SupportedTypesList, TypeIndex>;
+        using TheTypeSpecific = TypeSpecific<Type>;
+        using OptionsList = FilterTypeList<RuntimeConfigOptionsList, ComposeFunctions<IsEqualFunc<Type>, GetMemberType_Type>>;
+        static int const NumOptions = TypeListLength<OptionsList>::Value;
+        
+        template <typename Option>
+        using OptionIndex = TypeListIndex<OptionsList, IsEqualFunc<Option>>;
+        
+        template <int OptionIndex>
+        struct NameTableElem {
+            using TheConfigOption = TypeListGet<OptionsList, OptionIndex>;
+            static constexpr char const * value () { return TheConfigOption::name(); }
+        };
+        
+        template <int OptionIndex>
+        struct DefaultTableElem {
+            using TheConfigOption = TypeListGet<OptionsList, OptionIndex>;
+            static constexpr Type value () { return TheConfigOption::DefaultValue::value(); }
+        };
+        
+        using NameTable = StaticArray<char const *, NumOptions, NameTableElem>;
+        using DefaultTable = StaticArray<Type, NumOptions, DefaultTableElem>;
+        
+        static int find_option (char const *name)
+        {
+            for (int i = 0; i < NumOptions; i++) {
+                if (!strcmp(NameTable::data[i], name)) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+        
+        static void reset_config (Context c)
+        {
+            auto *o = Object::self(c);
+            for (int i = 0; i < NumOptions; i++) {
+                o->values[i] = DefaultTable::data[i];
+            }
+        }
+        
+        template <typename CommandChannel>
+        static bool get_set_cmd (Context c, WrapType<CommandChannel> cc, bool get_it, char const *name)
+        {
+            auto *o = Object::self(c);
+            int index = find_option(name);
+            if (index < 0) {
+                return true;
+            }
+            if (get_it) {
+                TheTypeSpecific::get_value_cmd(c, cc, o->values[index]);
+            } else {
+                TheTypeSpecific::set_value_cmd(c, cc, &o->values[index], DefaultTable::data[index]);
+            }
+            return false;
+        }
+        
+        struct Object : public ObjBase<TypeGeneral, typename RuntimeConfigManager::Object, EmptyTypeList> {
+            Type values[NumOptions];
+        };
+    };
+    
+    using TypeGeneralList = IndexElemList<SupportedTypesList, TypeGeneral>;
+    
     template <int ConfigOptionIndex, typename Dummy0=void>
     struct ConfigOptionState {
         using TheConfigOption = TypeListGet<RuntimeConfigOptionsList, ConfigOptionIndex>;
         using Type = typename TheConfigOption::Type;
         using PrevOption = ConfigOptionState<(ConfigOptionIndex - 1)>;
         static constexpr FormatHasher CurrentHash = PrevOption::CurrentHash.addUint32(GetTypeNumber<Type>::Value).addString(TheConfigOption::name(), ConstexprStrlen(TheConfigOption::name()));
-        using TheTypeSpecific = TypeSpecific<Type>;
+        using TheTypeGeneral = TypeGeneral<TypeListIndex<SupportedTypesList, IsEqualFunc<Type>>::Value>;
+        static int const GeneralIndex = TheTypeGeneral::template OptionIndex<TheConfigOption>::Value;
         
-        static void reset_config (Context c)
-        {
-            auto *o = Object::self(c);
-            o->value = TheConfigOption::DefaultValue::value();
-        }
+        static Type * value (Context c) { return &TheTypeGeneral::Object::self(c)->values[GeneralIndex]; }
         
         static Type call (Context c)
         {
-            auto *o = Object::self(c);
-            return o->value;
+            return *value(c);
         }
-        
-        template <typename CommandChannel>
-        static void get_value_cmd (Context c, WrapType<CommandChannel> cc)
-        {
-            auto *o = Object::self(c);
-            TheTypeSpecific::get_value_cmd(c, cc, o->value);
-        }
-        
-        template <typename CommandChannel>
-        static void set_value_cmd (Context c, WrapType<CommandChannel> cc)
-        {
-            auto *o = Object::self(c);
-            TheTypeSpecific::set_value_cmd(c, cc, &o->value, TheConfigOption::DefaultValue::value());
-        }
-        
-        struct Object : public ObjBase<ConfigOptionState, typename RuntimeConfigManager::Object, EmptyTypeList> {
-            Type value;
-        };
     };
     
     template <typename Dummy>
@@ -278,25 +325,7 @@ private:
     
     static void reset_all_config (Context c)
     {
-        ListForEachForward<ConfigOptionStateList>(Foreach_reset_config(), c);
-    }
-    
-    template <int ConfigOptionIndex>
-    struct OptionTableElemValue {
-        using TheConfigOption = TypeListGet<RuntimeConfigOptionsList, ConfigOptionIndex>;
-        static constexpr char const * value () { return TheConfigOption::name(); }
-    };
-    
-    using OptionTable = StaticArray<char const *, NumRuntimeOptions, OptionTableElemValue>;
-    
-    static int find_option (char const *name)
-    {
-        for (int i = 0; i < OptionTable::Length; i++) {
-            if (!strcmp(OptionTable::data[i], name)) {
-                return i;
-            }
-        }
-        return -1;
+        ListForEachForward<TypeGeneralList>(Foreach_reset_config(), c);
     }
     
 public:
@@ -318,17 +347,12 @@ public:
     {
         auto cmd_num = CommandChannel::TheGcodeParser::getCmdNumber(c);
         if (cmd_num == Params::GetConfigMCommand || cmd_num == Params::SetConfigMCommand) {
+            bool get_it = (cmd_num == Params::GetConfigMCommand);
             char const *name = CommandChannel::get_command_param_str(c, 'I', "");
-            int index = find_option(name);
-            if (index < 0) {
+            if (ListForEachForwardInterruptible<TypeGeneralList>(Foreach_get_set_cmd(), c, cc, get_it, name)) {
                 CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
-            } else {
-                if (cmd_num == Params::GetConfigMCommand) {
-                    ListForOneOffset<ConfigOptionStateList, 0>(index, Foreach_get_value_cmd(), c, cc);
-                    CommandChannel::reply_append_ch(c, '\n');
-                } else {
-                    ListForOneOffset<ConfigOptionStateList, 0>(index, Foreach_set_value_cmd(), c, cc);
-                }
+            } else if (get_it) {
+                CommandChannel::reply_append_ch(c, '\n');
             }
             CommandChannel::finishCommand(c);
             return false;
@@ -346,8 +370,7 @@ public:
     {
         static_assert(OptionIsNotConstant<Option>::Value, "");
         
-        auto *opt = FindOptionState<Option>::Object::self(c);
-        opt->value = value;
+        *FindOptionState<Option>::value(c) = value;
     }
     
     template <typename Option>
@@ -355,8 +378,7 @@ public:
     {
         static_assert(OptionIsNotConstant<Option>::Value, "");
         
-        auto *opt = FindOptionState<Option>::Object::self(c);
-        return opt->value;
+        return *FindOptionState<Option>::value(c);
     }
     
     template <typename TheStoreFeature = StoreFeature>
@@ -373,7 +395,7 @@ public:
     
 public:
     struct Object : public ObjBase<RuntimeConfigManager, ParentObject, JoinTypeLists<
-        ConfigOptionStateList,
+        TypeGeneralList,
         MakeTypeList<
             StoreFeature
         >
