@@ -50,6 +50,7 @@
 #include <aprinter/meta/ConstexprCrc32.h>
 #include <aprinter/meta/ConstexprString.h>
 #include <aprinter/meta/TypeListLength.h>
+#include <aprinter/meta/StaticArray.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
@@ -64,7 +65,6 @@ public:
     struct Object;
     
 private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_value_cmd, get_value_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_set_value_cmd, set_value_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_reset_config, reset_config)
@@ -76,6 +76,7 @@ private:
     
 public:
     using RuntimeConfigOptionsList = FilterTypeList<ConfigOptionsList, TemplateFunc<OptionIsNotConstant>>;
+    static int const NumRuntimeOptions = TypeListLength<RuntimeConfigOptionsList>::Value;
     static bool const HasStore = !TypesAreEqual<StoreService, RuntimeConfigManagerNoStoreService>::Value;
     enum class OperationType {LOAD, STORE};
     
@@ -87,16 +88,51 @@ public:
     )>;
     
 private:
+    template <typename TheType, typename Dummy=void>
+    struct TypeSpecific;
+    
+    template <typename Dummy>
+    struct TypeSpecific<double, Dummy> {
+        template <typename CommandChannel>
+        static void get_value_cmd (Context c, WrapType<CommandChannel>, double value)
+        {
+            CommandChannel::reply_append_fp(c, value);
+        }
+        
+        template <typename CommandChannel>
+        static void set_value_cmd (Context c, WrapType<CommandChannel>, double *value, double default_value)
+        {
+            *value = CommandChannel::get_command_param_fp(c, 'V', default_value);
+        }
+    };
+    
+    template <typename Dummy>
+    struct TypeSpecific<bool, Dummy> {
+        template <typename CommandChannel>
+        static void get_value_cmd (Context c, WrapType<CommandChannel>, bool value)
+        {
+            CommandChannel::reply_append_uint8(c, value);
+        }
+        
+        template <typename CommandChannel>
+        static void set_value_cmd (Context c, WrapType<CommandChannel>, bool *value, bool default_value)
+        {
+            *value = CommandChannel::get_command_param_uint32(c, 'V', default_value);
+        }
+    };
+    
     template <int ConfigOptionIndex, typename Dummy0=void>
     struct ConfigOptionState {
         using TheConfigOption = TypeListGet<RuntimeConfigOptionsList, ConfigOptionIndex>;
         using Type = typename TheConfigOption::Type;
         using PrevOption = ConfigOptionState<(ConfigOptionIndex - 1)>;
         static constexpr FormatHasher CurrentHash = PrevOption::CurrentHash.addUint32(GetTypeNumber<Type>::Value).addString(TheConfigOption::name(), ConstexprStrlen(TheConfigOption::name()));
+        using TheTypeSpecific = TypeSpecific<Type>;
         
-        static void init (Context c)
+        static void reset_config (Context c)
         {
-            reset_config(c);
+            auto *o = Object::self(c);
+            o->value = TheConfigOption::DefaultValue::value();
         }
         
         static Type call (Context c)
@@ -106,67 +142,18 @@ private:
         }
         
         template <typename CommandChannel>
-        static bool get_value_cmd (Context c, WrapType<CommandChannel> cc, char const *name)
+        static void get_value_cmd (Context c, WrapType<CommandChannel> cc)
         {
-            if (strcmp(TheConfigOption::name(), name) != 0) {
-                return true;
-            }
-            TypeSpecific<Type>::get_value_cmd(c, cc);
-            return false;
+            auto *o = Object::self(c);
+            TheTypeSpecific::get_value_cmd(c, cc, o->value);
         }
         
         template <typename CommandChannel>
-        static bool set_value_cmd (Context c, WrapType<CommandChannel> cc, char const *name)
-        {
-            if (strcmp(TheConfigOption::name(), name) != 0) {
-                return true;
-            }
-            TypeSpecific<Type>::set_value_cmd(c, cc);
-            return false;
-        }
-        
-        static void reset_config (Context c)
+        static void set_value_cmd (Context c, WrapType<CommandChannel> cc)
         {
             auto *o = Object::self(c);
-            o->value = TheConfigOption::DefaultValue::value();
+            TheTypeSpecific::set_value_cmd(c, cc, &o->value, TheConfigOption::DefaultValue::value());
         }
-        
-        template <typename TheType, typename Dummy = void>
-        struct TypeSpecific;
-        
-        template <typename Dummy>
-        struct TypeSpecific<double, Dummy> {
-            template <typename CommandChannel>
-            static void get_value_cmd (Context c, WrapType<CommandChannel>)
-            {
-                auto *o = Object::self(c);
-                CommandChannel::reply_append_fp(c, o->value);
-            }
-            
-            template <typename CommandChannel>
-            static void set_value_cmd (Context c, WrapType<CommandChannel>)
-            {
-                auto *o = Object::self(c);
-                o->value = CommandChannel::get_command_param_fp(c, 'V', TheConfigOption::DefaultValue::value());
-            }
-        };
-        
-        template <typename Dummy>
-        struct TypeSpecific<bool, Dummy> {
-            template <typename CommandChannel>
-            static void get_value_cmd (Context c, WrapType<CommandChannel>)
-            {
-                auto *o = Object::self(c);
-                CommandChannel::reply_append_uint8(c, o->value);
-            }
-            
-            template <typename CommandChannel>
-            static void set_value_cmd (Context c, WrapType<CommandChannel>)
-            {
-                auto *o = Object::self(c);
-                o->value = CommandChannel::get_command_param_uint32(c, 'V', TheConfigOption::DefaultValue::value());
-            }
-        };
         
         struct Object : public ObjBase<ConfigOptionState, typename RuntimeConfigManager::Object, EmptyTypeList> {
             Type value;
@@ -289,12 +276,35 @@ private:
         static bool checkCommand (Context c, WrapType<CommandChannel> cc) { return true; }
     };
     
+    static void reset_all_config (Context c)
+    {
+        ListForEachForward<ConfigOptionStateList>(Foreach_reset_config(), c);
+    }
+    
+    template <int ConfigOptionIndex>
+    struct OptionTableElemValue {
+        using TheConfigOption = TypeListGet<RuntimeConfigOptionsList, ConfigOptionIndex>;
+        static constexpr char const * value () { return TheConfigOption::name(); }
+    };
+    
+    using OptionTable = StaticArray<char const *, NumRuntimeOptions, OptionTableElemValue>;
+    
+    static int find_option (char const *name)
+    {
+        for (int i = 0; i < OptionTable::Length; i++) {
+            if (!strcmp(OptionTable::data[i], name)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    
 public:
     static constexpr uint32_t FormatHash = ConfigOptionState<(TypeListLength<ConfigOptionStateList>::Value - 1)>::CurrentHash.end();
     
     static void init (Context c)
     {
-        ListForEachForward<ConfigOptionStateList>(Foreach_init(), c);
+        reset_all_config(c);
         StoreFeature::init(c);
     }
     
@@ -308,9 +318,11 @@ public:
     {
         if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::GetConfigMCommand) {
             char const *name = CommandChannel::get_command_param_str(c, 'I', "");
-            if (ListForEachForwardInterruptible<ConfigOptionStateList>(Foreach_get_value_cmd(), c, cc, name)) {
+            int index = find_option(name);
+            if (index < 0) {
                 CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
             } else {
+                ListForOneOffset<ConfigOptionStateList, 0>(index, Foreach_get_value_cmd(), c, cc);
                 CommandChannel::reply_append_ch(c, '\n');
             }
             CommandChannel::finishCommand(c);
@@ -318,14 +330,17 @@ public:
         }
         if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::SetConfigMCommand) {
             char const *name = CommandChannel::get_command_param_str(c, 'I', "");
-            if (ListForEachForwardInterruptible<ConfigOptionStateList>(Foreach_set_value_cmd(), c, cc, name)) {
+            int index = find_option(name);
+            if (index < 0) {
                 CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
+            } else {
+                ListForOneOffset<ConfigOptionStateList, 0>(index, Foreach_set_value_cmd(), c, cc);
             }
             CommandChannel::finishCommand(c);
             return false;
         }
         if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::ResetAllConfigMCommand) {
-            ListForEachForward<ConfigOptionStateList>(Foreach_reset_config(), c);
+            reset_all_config(c);
             CommandChannel::finishCommand(c);
             return false;
         }
