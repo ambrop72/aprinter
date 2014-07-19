@@ -146,8 +146,8 @@ private:
             static constexpr Type value () { return TheConfigOption::DefaultValue::value(); }
         };
         
-        using NameTable = StaticArray<char const *, NumOptions, NameTableElem>;
-        using DefaultTable = StaticArray<Type, NumOptions, DefaultTableElem>;
+        using NameTable = StaticArray<char const * const, NumOptions, NameTableElem>;
+        using DefaultTable = StaticArray<Type const, NumOptions, DefaultTableElem>;
         
         static int find_option (char const *name)
         {
