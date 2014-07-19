@@ -316,30 +316,24 @@ public:
     template <typename CommandChannel>
     static bool checkCommand (Context c, WrapType<CommandChannel> cc)
     {
-        if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::GetConfigMCommand) {
+        auto cmd_num = CommandChannel::TheGcodeParser::getCmdNumber(c);
+        if (cmd_num == Params::GetConfigMCommand || cmd_num == Params::SetConfigMCommand) {
             char const *name = CommandChannel::get_command_param_str(c, 'I', "");
             int index = find_option(name);
             if (index < 0) {
                 CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
             } else {
-                ListForOneOffset<ConfigOptionStateList, 0>(index, Foreach_get_value_cmd(), c, cc);
-                CommandChannel::reply_append_ch(c, '\n');
+                if (cmd_num == Params::GetConfigMCommand) {
+                    ListForOneOffset<ConfigOptionStateList, 0>(index, Foreach_get_value_cmd(), c, cc);
+                    CommandChannel::reply_append_ch(c, '\n');
+                } else {
+                    ListForOneOffset<ConfigOptionStateList, 0>(index, Foreach_set_value_cmd(), c, cc);
+                }
             }
             CommandChannel::finishCommand(c);
             return false;
         }
-        if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::SetConfigMCommand) {
-            char const *name = CommandChannel::get_command_param_str(c, 'I', "");
-            int index = find_option(name);
-            if (index < 0) {
-                CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
-            } else {
-                ListForOneOffset<ConfigOptionStateList, 0>(index, Foreach_set_value_cmd(), c, cc);
-            }
-            CommandChannel::finishCommand(c);
-            return false;
-        }
-        if (CommandChannel::TheGcodeParser::getCmdNumber(c) == Params::ResetAllConfigMCommand) {
+        if (cmd_num == Params::ResetAllConfigMCommand) {
             reset_all_config(c);
             CommandChannel::finishCommand(c);
             return false;
