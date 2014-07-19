@@ -346,19 +346,18 @@ public:
     static bool checkCommand (Context c, WrapType<CommandChannel> cc)
     {
         auto cmd_num = CommandChannel::TheGcodeParser::getCmdNumber(c);
-        if (cmd_num == Params::GetConfigMCommand || cmd_num == Params::SetConfigMCommand) {
-            bool get_it = (cmd_num == Params::GetConfigMCommand);
-            char const *name = CommandChannel::get_command_param_str(c, 'I', "");
-            if (ListForEachForwardInterruptible<TypeGeneralList>(Foreach_get_set_cmd(), c, cc, get_it, name)) {
-                CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
-            } else if (get_it) {
-                CommandChannel::reply_append_ch(c, '\n');
+        if (cmd_num == Params::GetConfigMCommand || cmd_num == Params::SetConfigMCommand || cmd_num == Params::ResetAllConfigMCommand) {
+            if (cmd_num == Params::ResetAllConfigMCommand) {
+                reset_all_config(c);
+            } else {
+                bool get_it = (cmd_num == Params::GetConfigMCommand);
+                char const *name = CommandChannel::get_command_param_str(c, 'I', "");
+                if (ListForEachForwardInterruptible<TypeGeneralList>(Foreach_get_set_cmd(), c, cc, get_it, name)) {
+                    CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
+                } else if (get_it) {
+                    CommandChannel::reply_append_ch(c, '\n');
+                }
             }
-            CommandChannel::finishCommand(c);
-            return false;
-        }
-        if (cmd_num == Params::ResetAllConfigMCommand) {
-            reset_all_config(c);
             CommandChannel::finishCommand(c);
             return false;
         }
