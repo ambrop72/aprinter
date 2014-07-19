@@ -31,6 +31,9 @@
 
 #include <aprinter/meta/Object.h>
 #include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/PowerOfTwo.h>
+#include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -42,7 +45,7 @@
 #define APRINTER_AT91SAM_I2C_DEFINE_DEVICE(Index) \
 struct At91SamI2cDevice##Index { \
     static int const DeviceIndex = Index; \
-    static Twi volatile * dev () { return TWI##Index; } \
+    static Twi * dev () { return TWI##Index; } \
     static IRQn const Irq = TWI##Index##_IRQn; \
     static int const Id = ID_TWI##Index; \
     using TwckPin = APRINTER_AT91SAM_I2C_TWI##Index##_TWCK_PIN; \
@@ -77,17 +80,20 @@ APRINTER_AT91SAM_I2C_DEFINE_DEVICE(1)
 template <typename Context, typename ParentObject, typename Handler, typename Params>
 class At91SamI2c {
 public:
+    struct Object;
     using Device = typename Params::Device;
     
 private:
     static_assert(Params::Ckdiv < 8, "");
+    using ChldivFp = AMBRO_WRAP_DOUBLE(ConstexprRound(((F_MCK / Params::Freq::value()) - 4) / PowerOfTwo<double, Params::Ckdiv>::Value));
+    static_assert(ChldivFp::value() >= 0.0, "");
+    static_assert(ChldivFp::value() <= 255.0, "");
+    static uint8_t const Chldiv = ChldivFp::value();
+    
     using FastEvent = typename Context::EventLoop::template FastEventSpec<At91SamI2c>;
     enum {STATE_IDLE, STATE_WRITING, STATE_READING, STATE_DONE};
     
 public:
-    struct Object;
-    
-    
     static void init (Context c)
     {
         auto *o = Object::self(c);
@@ -100,7 +106,7 @@ public:
         o->state = STATE_IDLE;
         
         pmc_enable_periph_clk(Device::Id);
-        Device::dev()->TWI_CWGR = TWI_CWGR_CKDIV(Params::Ckdiv) | TWI_CWGR_CHDIV(Params::Chldiv) | TWI_CWGR_CLDIV(Params::Chldiv);
+        Device::dev()->TWI_CWGR = TWI_CWGR_CKDIV(Params::Ckdiv) | TWI_CWGR_CHDIV(Chldiv) | TWI_CWGR_CLDIV(Chldiv);
         Device::dev()->TWI_CR = TWI_CR_SVDIS | TWI_CR_MSEN;
         Device::dev()->TWI_IDR = UINT32_MAX;
         NVIC_ClearPendingIRQ(Device::Irq);
@@ -117,13 +123,14 @@ public:
         
         NVIC_DisableIRQ(Device::Irq);
         Device::dev()->TWI_IDR = UINT32_MAX;
+        Device::dev()->TWI_CR = TWI_CR_SWRST;
         NVIC_ClearPendingIRQ(Device::Irq);
         pmc_disable_periph_clk(Device::Id);
         
         Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
     
-    static void startWrite (Context c, uint8_t addr, uint8_t const *data, size_t length)
+    static void startWrite (Context c, uint8_t addr, uint8_t const *data, size_t length, uint8_t const *data2, size_t length2)
     {
         auto *o = Object::self(c);
         o->debugAccess(c);
@@ -131,15 +138,18 @@ public:
         AMBRO_ASSERT(addr < 128)
         AMBRO_ASSERT(length > 0)
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            o->state = STATE_WRITING;
-            o->success = true;
-            o->write_data = data;
-            o->write_length = length;
-        }
+        o->state = STATE_WRITING;
+        o->success = true;
+        o->write.data = data;
+        o->write.length = length;
+        o->write.data2 = data2;
+        o->write.length2 = length2;
+        
         Device::dev()->TWI_MMR = TWI_MMR_DADR(addr);
         Device::dev()->TWI_THR = data[0];
-        Device::dev()->TWI_IER = TWI_IER_TXRDY | TWI_IER_NACK;
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            Device::dev()->TWI_IER = TWI_IER_TXRDY | TWI_IER_NACK;
+        }
     }
     
     static void startRead (Context c, uint8_t addr, uint8_t *data, size_t length)
@@ -150,15 +160,16 @@ public:
         AMBRO_ASSERT(addr < 128)
         AMBRO_ASSERT(length > 0)
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            o->state = STATE_READING;
-            o->success = true;
-            o->read_data = data;
-            o->read_length = length;
-        }
+        o->state = STATE_READING;
+        o->success = true;
+        o->read.data = data;
+        o->read.length = length;
+        
         Device::dev()->TWI_MMR = TWI_MMR_DADR(addr) | TWI_MMR_MREAD;
         Device::dev()->TWI_CR = TWI_CR_START | ((length == 1) ? TWI_CR_STOP : 0);
-        Device::dev()->TWI_IER = TWI_IER_RXRDY | TWI_IER_NACK;
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            Device::dev()->TWI_IER = TWI_IER_RXRDY | TWI_IER_NACK;
+        }
     }
     
     static void twi_irq (InterruptContext<Context> c)
@@ -169,44 +180,47 @@ public:
         uint32_t sr = Device::dev()->TWI_SR;
         
         if (o->state == STATE_WRITING) {
-            if (o->write_length == 0) {
+            if (o->write.length == 0) {
                 if ((sr & TWI_SR_NACK) || !(sr & TWI_SR_TXCOMP)) {
-                    o->success = false;
+                    goto fail;
                 }
                 goto done;
+            }
+            if ((sr & TWI_SR_NACK) || !(sr & TWI_SR_TXRDY)) {
+                goto fail;
+            }
+            o->write.data++;
+            o->write.length--;
+            if (o->write.length == 0) {
+                o->write.data = o->write.data2;
+                o->write.length = o->write.length2;
+                o->write.length2 = 0;
+            }
+            if (o->write.length == 0) {
+                Device::dev()->TWI_CR = TWI_CR_STOP;
+                Device::dev()->TWI_IDR = UINT32_MAX;
+                Device::dev()->TWI_IER = TWI_IER_TXCOMP | TWI_IER_NACK;
             } else {
-                if ((sr & TWI_SR_NACK) || !(sr & TWI_SR_TXRDY)) {
-                    o->success = false;
-                    goto done;
-                }
-                o->write_data++;
-                o->write_length--;
-                if (o->write_length == 0) {
-                    Device::dev()->TWI_CR = TWI_CR_STOP;
-                    Device::dev()->TWI_IDR = UINT32_MAX;
-                    Device::dev()->TWI_IER = TWI_IER_TXCOMP | TWI_IER_NACK;
-                } else {
-                    Device::dev()->TWI_THR = o->write_data[0];
-                }
+                Device::dev()->TWI_THR = o->write.data[0];
             }
         } else {
             if ((sr & TWI_SR_NACK) || !(sr & TWI_SR_RXRDY)) {
-                o->success = false;
+                goto fail;
+            }
+            if (o->read.length == 2) {
+                Device::dev()->TWI_CR = TWI_CR_STOP;
+            }
+            o->read.data[0] = Device::dev()->TWI_RHR;
+            o->read.data++;
+            o->read.length--;
+            if (o->read.length == 0) {
                 goto done;
-            } else {
-                if (o->read_length == 2) {
-                    Device::dev()->TWI_CR = TWI_CR_STOP;
-                }
-                o->read_data[0] = Device::dev()->TWI_RHR;
-                o->read_data++;
-                o->read_length--;
-                if (o->read_length == 0) {
-                    goto done;
-                }
             }
         }
-        
         return;
+        
+    fail:
+        o->success = false;
     done:
         Device::dev()->TWI_IDR = UINT32_MAX;
         o->state = STATE_DONE;
@@ -232,18 +246,26 @@ public:
     {
         uint8_t state;
         bool success;
-        uint8_t const *write_data;
-        size_t write_length;
-        uint8_t *read_data;
-        size_t read_length;
+        union {
+            struct {
+                uint8_t const *data;
+                size_t length;
+                uint8_t const *data2;
+                size_t length2;
+            } write;
+            struct {
+                uint8_t *data;
+                size_t length;
+            } read;
+        };
     };
 };
 
-template <typename TDevice, uint8_t TCkdiv, uint8_t TChldiv>
+template <typename TDevice, uint8_t TCkdiv, typename TFreq>
 struct At91SamI2cService {
     using Device = TDevice;
     static uint8_t const Ckdiv = TCkdiv;
-    static uint8_t const Chldiv = TChldiv;
+    using Freq = TFreq;
     
     template <typename Context, typename ParentObject, typename Handler>
     using I2c = At91SamI2c<Context, ParentObject, Handler, At91SamI2cService>;
