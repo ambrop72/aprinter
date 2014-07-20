@@ -65,57 +65,6 @@ Ports have been completed for the following boards:
     For example, the configuration specifies a list of heaters, and it is trivial to add new heaters.
   * No reliance on inefficient libraries such as Arduino.
 
-## Using Build system
-
-The build system works as follows:
-
-    ./build.sh TARGET [param] ACTION [param]
-
-where `TARGET` is one of the targets defined in `config/targets.sh` and `ACTION` is any of:
-
- * `install`, `build`, `upload`, `clean`, `flush`.
-
-You can run one or several actions for each target, for example:
-
-    ./build.sh melzi build upload
-
-will compile the `melzi` target and upload it.
-
-The `install` action will install the necessary framework and tools in the `depends`
-directory, each download checked with a sha256 and not reinstalled if already present.
-The `flush` action will delete all those install dependencies, be careful, no warning 
-or confirmation is issued upon running that command.
-The `clean` action will remove all build files for the given build in the
-`build` directory.
-
-On Mac OS X `install` action may require `brew install wxmac` before.
-
-Some dependencies can be overridden from environment variables or `config/config.sh`. In particular:
-
- * `CUSTOM_AVR_GCC` and `CUSTOM_ARM_GCC` override the AVR and ARM toolchains, respectively.
-   This should be a prefix used to call the tools.
-   For example, `${CUSTOM_AVR_GCC}gcc` is called during AVR compilation.
- * `AVRDUDE` overrides the `avrdude` tool, used for upload to AVR boards.
-
-*Nota Bene*: 
-
- * NEVER RUN THIS SCRIPT AS ROOT!
- * Most of the build system will work only on Linux.
-   On other platforms, custom installation of dependencies and hacking the scripts will be necessary.
- * The AVR toolchain is a [binary by Atmel](http://www.atmel.com/tools/atmelavrtoolchainforlinux.aspx).
- * The ARM toolchain is a binary by the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) project.
- * The `-v` parameter (between targets and actions) will show the commands ran by the script.
- * The script has only been tested when ran from source directory root.
-
-## Extending the build system
-
-The build targets are defined in the file: `config/targets.sh`. If you want to
-add a new board with an existing architecture/platform, this is where it belongs.
-By default, the target will use the source file `aprinter-TARGET.cpp`,
-except if `SOURCE` is defined in the target, in which case it will use `aprinter-SOURCE.cpp`.
-
-Each target defines a `PLATFORM`, which defines which script in `scripts/` handles the target. For more information, see the source.
-
 ## Getting started
 
 The basic steps are:
@@ -189,6 +138,57 @@ The `M930` command does not alter the current set of configuration values in any
     (possibly lower, and you risk burning the heater in that case).
     Obviously, take safety precausions here. I'm not responsible if your house burns down as a result of
     using my software, or for any other damage.
+
+## Notes on the build systemm
+
+The build system works as follows:
+
+    ./build.sh TARGET [param] ACTION [param]
+
+where `TARGET` is one of the targets defined in `config/targets.sh` and `ACTION` is any of:
+
+ * `install`, `build`, `upload`, `clean`, `flush`.
+
+You can run one or several actions for each target, for example:
+
+    ./build.sh melzi build upload
+
+will compile the `melzi` target and upload it.
+
+The `install` action will install the necessary framework and tools in the `depends`
+directory, each download checked with a sha256 and not reinstalled if already present.
+The `flush` action will delete all those install dependencies, be careful, no warning 
+or confirmation is issued upon running that command.
+The `clean` action will remove all build files for the given build in the
+`build` directory.
+
+On Mac OS X `install` action may require `brew install wxmac` before.
+
+Some dependencies can be overridden from environment variables or `config/config.sh`. In particular:
+
+ * `CUSTOM_AVR_GCC` and `CUSTOM_ARM_GCC` override the AVR and ARM toolchains, respectively.
+   This should be a prefix used to call the tools.
+   For example, `${CUSTOM_AVR_GCC}gcc` is called during AVR compilation.
+ * `AVRDUDE` overrides the `avrdude` tool, used for upload to AVR boards.
+
+*Nota Bene*: 
+
+ * NEVER RUN THIS SCRIPT AS ROOT!
+ * Most of the build system will work only on Linux.
+   On other platforms, custom installation of dependencies and hacking the scripts will be necessary.
+ * The AVR toolchain is a [binary by Atmel](http://www.atmel.com/tools/atmelavrtoolchainforlinux.aspx).
+ * The ARM toolchain is a binary by the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) project.
+ * The `-v` parameter (between targets and actions) will show the commands ran by the script.
+ * The script has only been tested when ran from source directory root.
+
+## Extending the build system
+
+The build targets are defined in the file: `config/targets.sh`. If you want to
+add a new board with an existing architecture/platform, this is where it belongs.
+By default, the target will use the source file `aprinter-TARGET.cpp`,
+except if `SOURCE` is defined in the target, in which case it will use `aprinter-SOURCE.cpp`.
+
+Each target defines a `PLATFORM`, which defines which script in `scripts/` handles the target. For more information, see the source.
 
 ## SD card support
 
