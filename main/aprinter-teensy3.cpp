@@ -52,6 +52,7 @@ static void emergency (void);
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/config_manager/ConstantConfigManager.h>
+#include <aprinter/printer/config_manager/RuntimeConfigManager.h>
 #include <aprinter/printer/transform/DeltaTransform.h>
 #include <aprinter/board/teensy3_pins.h>
 
@@ -186,7 +187,9 @@ using PrinterParams = PrinterMainParams<
     PrinterMainNoSdCardParams,
     PrinterMainNoProbeParams,
     PrinterMainNoCurrentParams,
-    ConstantConfigManagerService,
+    RuntimeConfigManagerService<
+        RuntimeConfigManagerNoStoreService
+    >,
     ConfigList,
     
     /*
