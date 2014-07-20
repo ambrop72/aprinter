@@ -29,20 +29,20 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename FpType>
+template <typename Context, typename FpType>
 class CoreXyTransform {
 public:
     static int const NumAxes = 2;
     
     template <typename Src, typename Dst>
-    static void virtToPhys (Src virt, Dst out_phys)
+    static void virtToPhys (Context c, Src virt, Dst out_phys)
     {
         out_phys.template set<0>(virt.template get<0>() + virt.template get<1>());
         out_phys.template set<1>(virt.template get<0>() - virt.template get<1>());
     }
     
     template <typename Src, typename Dst>
-    static void physToVirt (Src phys, Dst out_virt)
+    static void physToVirt (Context c, Src phys, Dst out_virt)
     {
         out_virt.template set<0>(0.5f * (phys.template get<0>() + phys.template get<1>()));
         out_virt.template set<1>(0.5f * (phys.template get<0>() - phys.template get<1>()));
@@ -55,7 +55,7 @@ public:
 
 struct CoreXyTransformService {
     template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Transform = CoreXyTransform<FpType>;
+    using Transform = CoreXyTransform<Context, FpType>;
 };
 
 #include <aprinter/EndNamespace.h>

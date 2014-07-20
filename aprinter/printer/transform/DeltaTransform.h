@@ -32,6 +32,7 @@
 #include <aprinter/math/Vector3.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/DistanceSplitter.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -43,35 +44,34 @@ private:
         return x * x;
     }
     
-    using DiagonalRod2 = AMBRO_WRAP_DOUBLE(square(Params::DiagonalRod::value()));
     using MyVector = Vector3<FpType>;
     
 public:
     static int const NumAxes = 3;
     
     template <typename Src, typename Dst>
-    static void virtToPhys (Src virt, Dst out_phys)
+    static void virtToPhys (Context c, Src virt, Dst out_phys)
     {
-        out_phys.template set<0>(FloatSqrt((FpType)DiagonalRod2::value() - square((FpType)Params::Tower1X::value() - virt.template get<0>()) - square((FpType)Params::Tower1Y::value() - virt.template get<1>())) + virt.template get<2>());
-        out_phys.template set<1>(FloatSqrt((FpType)DiagonalRod2::value() - square((FpType)Params::Tower2X::value() - virt.template get<0>()) - square((FpType)Params::Tower2Y::value() - virt.template get<1>())) + virt.template get<2>());
-        out_phys.template set<2>(FloatSqrt((FpType)DiagonalRod2::value() - square((FpType)Params::Tower3X::value() - virt.template get<0>()) - square((FpType)Params::Tower3Y::value() - virt.template get<1>())) + virt.template get<2>());
+        out_phys.template set<0>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - square(APRINTER_CFG(Config, CTower1X, c) - virt.template get<0>()) - square(APRINTER_CFG(Config, CTower1Y, c) - virt.template get<1>())) + virt.template get<2>());
+        out_phys.template set<1>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - square(APRINTER_CFG(Config, CTower2X, c) - virt.template get<0>()) - square(APRINTER_CFG(Config, CTower2Y, c) - virt.template get<1>())) + virt.template get<2>());
+        out_phys.template set<2>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - square(APRINTER_CFG(Config, CTower3X, c) - virt.template get<0>()) - square(APRINTER_CFG(Config, CTower3Y, c) - virt.template get<1>())) + virt.template get<2>());
     }
     
     template <typename Src, typename Dst>
-    static void physToVirt (Src phys, Dst out_virt)
+    static void physToVirt (Context c, Src phys, Dst out_virt)
     {
-        MyVector p1 = MyVector::make((FpType)Params::Tower1X::value(), (FpType)Params::Tower1Y::value(), phys.template get<0>());
-        MyVector p2 = MyVector::make((FpType)Params::Tower2X::value(), (FpType)Params::Tower2Y::value(), phys.template get<1>());
-        MyVector p3 = MyVector::make((FpType)Params::Tower3X::value(), (FpType)Params::Tower3Y::value(), phys.template get<2>());
+        MyVector p1 = MyVector::make(APRINTER_CFG(Config, CTower1X, c), APRINTER_CFG(Config, CTower1Y, c), phys.template get<0>());
+        MyVector p2 = MyVector::make(APRINTER_CFG(Config, CTower2X, c), APRINTER_CFG(Config, CTower2Y, c), phys.template get<1>());
+        MyVector p3 = MyVector::make(APRINTER_CFG(Config, CTower3X, c), APRINTER_CFG(Config, CTower3Y, c), phys.template get<2>());
         MyVector normal = (p1 - p2).cross(p2 - p3);
         FpType k = 1.0f / normal.norm();
         FpType q = 0.5f * k;
         FpType a = q * (p2 - p3).norm() * (p1 - p2).dot(p1 - p3);
         FpType b = q * (p1 - p3).norm() * (p2 - p1).dot(p2 - p3);
-        FpType c = q * (p1 - p2).norm() * (p3 - p1).dot(p3 - p2);
-        MyVector pc = (p1 * a) + (p2 * b) + (p3 * c);
+        FpType cc = q * (p1 - p2).norm() * (p3 - p1).dot(p3 - p2);
+        MyVector pc = (p1 * a) + (p2 * b) + (p3 * cc);
         FpType r2 = 0.25f * k * (p1 - p2).norm() * (p2 - p3).norm() * (p3 - p1).norm();
-        FpType d = FloatSqrt(k * ((FpType)DiagonalRod2::value() - r2));
+        FpType d = FloatSqrt(k * (APRINTER_CFG(Config, CDiagonalRod2, c) - r2));
         MyVector ps = pc - (normal * d);
         out_virt.template set<0>(ps.m_v[0]);
         out_virt.template set<1>(ps.m_v[1]);
@@ -80,27 +80,42 @@ public:
     
     using Splitter = DistanceSplitter<typename Params::SplitterParams, FpType>;
     
+private:
+    using DiagonalRod = decltype(Config::e(Params::DiagonalRod::i));
+    using Radius = decltype(Config::e(Params::SmoothRodOffset::i) - Config::e(Params::EffectorOffset::i) - Config::e(Params::CarriageOffset::i));
+    
+    using Value1 = APRINTER_FP_CONST_EXPR(-0.8660254037844386);
+    using Value2 = APRINTER_FP_CONST_EXPR(-0.5);
+    using Value3 = APRINTER_FP_CONST_EXPR(0.8660254037844386);
+    using Value4 = APRINTER_FP_CONST_EXPR(0.0);
+    using Value5 = APRINTER_FP_CONST_EXPR(1.0);
+    
+    using CDiagonalRod2 = decltype(ExprCast<FpType>(DiagonalRod() * DiagonalRod()));
+    using CTower1X = decltype(ExprCast<FpType>(Radius() * Value1()));
+    using CTower1Y = decltype(ExprCast<FpType>(Radius() * Value2()));
+    using CTower2X = decltype(ExprCast<FpType>(Radius() * Value3()));
+    using CTower2Y = decltype(ExprCast<FpType>(Radius() * Value2()));
+    using CTower3X = decltype(ExprCast<FpType>(Radius() * Value4()));
+    using CTower3Y = decltype(ExprCast<FpType>(Radius() * Value5()));
+    
+public:
+    using ConfigExprs = MakeTypeList<CDiagonalRod2, CTower1X, CTower1Y, CTower2X, CTower2Y, CTower3X, CTower3Y>;
+    
     struct Object : public ObjBase<DeltaTransform, ParentObject, EmptyTypeList> {};
 };
 
 template <
     typename TDiagonalRod,
-    typename TTower1X,
-    typename TTower1Y,
-    typename TTower2X,
-    typename TTower2Y,
-    typename TTower3X,
-    typename TTower3Y,
+    typename TSmoothRodOffset,
+    typename TEffectorOffset,
+    typename TCarriageOffset,
     typename TSplitterParams
 >
 struct DeltaTransformService {
     using DiagonalRod = TDiagonalRod;
-    using Tower1X = TTower1X;
-    using Tower1Y = TTower1Y;
-    using Tower2X = TTower2X;
-    using Tower2Y = TTower2Y;
-    using Tower3X = TTower3X;
-    using Tower3Y = TTower3Y;
+    using SmoothRodOffset = TSmoothRodOffset;
+    using EffectorOffset = TEffectorOffset;
+    using CarriageOffset = TCarriageOffset;
     using SplitterParams = TSplitterParams;
     
     template <typename Context, typename ParentObject, typename Config, typename FpType>

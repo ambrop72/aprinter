@@ -1771,7 +1771,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void update_virt_from_phys (Context c)
         {
-            TheTransformAlg::physToVirt(PhysReqPosSrc{c}, VirtReqPosDst{c});
+            TheTransformAlg::physToVirt(c, PhysReqPosSrc{c}, VirtReqPosDst{c});
         }
         
         static void handle_virt_move (Context c, MoveBuildState *s, FpType time_freq_by_max_speed)
@@ -1784,7 +1784,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
             
             o->virt_update_pending = false;
-            TheTransformAlg::virtToPhys(VirtReqPosSrc{c}, PhysReqPosDst{c});
+            TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
             ListForEachForward<VirtAxesList>(LForeach_clamp_req_phys(), c);
             do_pending_virt_update(c);
             FpType distance_squared = 0.0f;
@@ -1870,7 +1870,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (o->splitter.pull(&rel_max_v_rec, &o->frac)) {
                     FpType virt_pos[NumVirtAxes];
                     ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, o->frac, virt_pos);
-                    TheTransformAlg::virtToPhys(ArraySrc{virt_pos}, PhysArrayDst{move_pos});
+                    TheTransformAlg::virtToPhys(c, ArraySrc{virt_pos}, PhysArrayDst{move_pos});
                     ListForEachForward<VirtAxesList>(LForeach_clamp_move_phys(), c, move_pos);
                     ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, o->frac, move_pos);
                 } else {
@@ -1914,7 +1914,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             if (seen_virtual) {
                 o->virt_update_pending = false;
-                TheTransformAlg::virtToPhys(VirtReqPosSrc{c}, PhysReqPosDst{c});
+                TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
                 ListForEachForward<VirtAxesList>(LForeach_finish_set_position(), c);
             }
             do_pending_virt_update(c);

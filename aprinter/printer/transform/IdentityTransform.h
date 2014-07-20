@@ -32,7 +32,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename FpType, typename Params>
+template <typename Context, typename FpType, typename Params>
 class IdentityTransform {
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_copy_coords, copy_coords)
     
@@ -40,14 +40,14 @@ public:
     static int const NumAxes = Params::NumAxes;
     
     template <typename Src, typename Dst>
-    static void virtToPhys (Src virt, Dst out_phys)
+    static void virtToPhys (Context c, Src virt, Dst out_phys)
     {
         HelperTuple dummy;
         TupleForEachForward(&dummy, Foreach_copy_coords(), virt, out_phys);
     }
     
     template <typename Src, typename Dst>
-    static void physToVirt (Src phys, Dst out_virt)
+    static void physToVirt (Context c, Src phys, Dst out_virt)
     {
         HelperTuple dummy;
         TupleForEachForward(&dummy, Foreach_copy_coords(), phys, out_virt);
@@ -77,7 +77,7 @@ struct IdentityTransformService {
     using SplitterParams = TSplitterParams;
     
     template <typename Context, typename ParentObject, typename Config, typename FpType>
-    using Transform = IdentityTransform<FpType, IdentityTransformService>;
+    using Transform = IdentityTransform<Context, FpType, IdentityTransformService>;
 };
 
 #include <aprinter/EndNamespace.h>

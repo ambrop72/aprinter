@@ -149,20 +149,13 @@ using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using FanPulseInterval = AMBRO_WRAP_DOUBLE(0.04);
 
-using DeltaDiagonalRod = AMBRO_WRAP_DOUBLE(214.0); 
-using DeltaSmoothRodOffset = AMBRO_WRAP_DOUBLE(145.0); 
-using DeltaEffectorOffset = AMBRO_WRAP_DOUBLE(19.9); 
-using DeltaCarriageOffset = AMBRO_WRAP_DOUBLE(19.5); 
-using DeltaRadius = AMBRO_WRAP_DOUBLE(DeltaSmoothRodOffset::value() - DeltaEffectorOffset::value() - DeltaCarriageOffset::value()); 
+APRINTER_CONFIG_OPTION_DOUBLE(DeltaDiagonalRod, 214.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(DeltaSmoothRodOffset, 145.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(DeltaEffectorOffset, 19.9, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(DeltaCarriageOffset, 19.5, ConfigNoProperties)
 using DeltaSegmentsPerSecond = AMBRO_WRAP_DOUBLE(100.0); 
 using DeltaMinSplitLength = AMBRO_WRAP_DOUBLE(0.1); 
 using DeltaMaxSplitLength = AMBRO_WRAP_DOUBLE(4.0); 
-using DeltaTower1X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.8660254037844386); 
-using DeltaTower1Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5); 
-using DeltaTower2X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.8660254037844386); 
-using DeltaTower2Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * -0.5); 
-using DeltaTower3X = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 0.0); 
-using DeltaTower3Y = AMBRO_WRAP_DOUBLE(DeltaRadius::value() * 1.0); 
 
 APRINTER_CONFIG_END
 
@@ -360,12 +353,9 @@ using PrinterParams = PrinterMainParams<
         DeltaSegmentsPerSecond,
         DeltaTransformService<
             DeltaDiagonalRod,
-            DeltaTower1X,
-            DeltaTower1Y,
-            DeltaTower2X,
-            DeltaTower2Y,
-            DeltaTower3X,
-            DeltaTower3Y,
+            DeltaSmoothRodOffset,
+            DeltaEffectorOffset,
+            DeltaCarriageOffset,
             DistanceSplitterParams<DeltaMinSplitLength, DeltaMaxSplitLength>
         >
     >,
