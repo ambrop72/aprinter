@@ -32,13 +32,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <int TNumAxes, typename TSplitterParams>
-struct IdentityTransformParams {
-    static int const NumAxes = TNumAxes;
-    using SplitterParams = TSplitterParams;
-};
-
-template <typename Params, typename FpType>
+template <typename FpType, typename Params>
 class IdentityTransform {
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_copy_coords, copy_coords)
     
@@ -72,6 +66,18 @@ private:
     };
     
     using HelperTuple = Tuple<IndexElemListCount<NumAxes, Helper>>;
+    
+public:
+    struct Object {};
+};
+
+template <int TNumAxes, typename TSplitterParams>
+struct IdentityTransformService {
+    static int const NumAxes = TNumAxes;
+    using SplitterParams = TSplitterParams;
+    
+    template <typename Context, typename ParentObject, typename Config, typename FpType>
+    using Transform = IdentityTransform<FpType, IdentityTransformService>;
 };
 
 #include <aprinter/EndNamespace.h>

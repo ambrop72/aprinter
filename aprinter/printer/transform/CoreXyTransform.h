@@ -29,9 +29,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-struct CoreXyTransformParams {};
-
-template <typename Params, typename FpType>
+template <typename FpType>
 class CoreXyTransform {
 public:
     static int const NumAxes = 2;
@@ -51,6 +49,13 @@ public:
     }
     
     using Splitter = NoSplitter<FpType>;
+    
+    struct Object {};
+};
+
+struct CoreXyTransformService {
+    template <typename Context, typename ParentObject, typename Config, typename FpType>
+    using Transform = CoreXyTransform<FpType>;
 };
 
 #include <aprinter/EndNamespace.h>

@@ -216,15 +216,14 @@ struct PrinterMainNoTransformParams {
 template <
     typename TVirtAxesList, typename TPhysAxesList,
     typename TSegmentsPerSecond,
-    template<typename, typename> class TTransformAlg, typename TTransformAlgParams
+    typename TTransformService
 >
 struct PrinterMainTransformParams {
     static bool const Enabled = true;
     using VirtAxesList = TVirtAxesList;
     using PhysAxesList = TPhysAxesList;
     using SegmentsPerSecond = TSegmentsPerSecond;
-    template <typename X, typename Y> using TransformAlg = TTransformAlg<X, Y>;
-    using TransformAlgParams = TTransformAlgParams;
+    using TransformService = TTransformService;
 };
 
 template <
@@ -1706,7 +1705,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct Object;
         using ParamsVirtAxesList = typename TransformParams::VirtAxesList;
         using ParamsPhysAxesList = typename TransformParams::PhysAxesList;
-        using TheTransformAlg = typename TransformParams::template TransformAlg<typename TransformParams::TransformAlgParams, FpType>;
+        using TheTransformAlg = typename TransformParams::TransformService::template Transform<Context, Object, Config, FpType>;
         using TheSplitter = typename TheTransformAlg::Splitter;
         static int const NumVirtAxes = TheTransformAlg::NumAxes;
         static_assert(TypeListLength<ParamsVirtAxesList>::Value == NumVirtAxes, "");
@@ -2175,6 +2174,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             };
             
             struct Object : public ObjBase<VirtAxis, typename TransformFeature::Object, MakeTypeList<
+                TheTransformAlg,
                 HomingFeature
             >>
             {

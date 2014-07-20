@@ -28,34 +28,14 @@
 #include <stdint.h>
 
 #include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/Object.h>
 #include <aprinter/math/Vector3.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/DistanceSplitter.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    typename TDiagonalRod,
-    typename TTower1X,
-    typename TTower1Y,
-    typename TTower2X,
-    typename TTower2Y,
-    typename TTower3X,
-    typename TTower3Y,
-    typename TSplitterParams
->
-struct DeltaTransformParams {
-    using DiagonalRod = TDiagonalRod;
-    using Tower1X = TTower1X;
-    using Tower1Y = TTower1Y;
-    using Tower2X = TTower2X;
-    using Tower2Y = TTower2Y;
-    using Tower3X = TTower3X;
-    using Tower3Y = TTower3Y;
-    using SplitterParams = TSplitterParams;
-};
-
-template <typename Params, typename FpType>
+template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
 class DeltaTransform {
 private:
     static constexpr FpType square (FpType x)
@@ -99,6 +79,32 @@ public:
     }
     
     using Splitter = DistanceSplitter<typename Params::SplitterParams, FpType>;
+    
+    struct Object : public ObjBase<DeltaTransform, ParentObject, EmptyTypeList> {};
+};
+
+template <
+    typename TDiagonalRod,
+    typename TTower1X,
+    typename TTower1Y,
+    typename TTower2X,
+    typename TTower2Y,
+    typename TTower3X,
+    typename TTower3Y,
+    typename TSplitterParams
+>
+struct DeltaTransformService {
+    using DiagonalRod = TDiagonalRod;
+    using Tower1X = TTower1X;
+    using Tower1Y = TTower1Y;
+    using Tower2X = TTower2X;
+    using Tower2Y = TTower2Y;
+    using Tower3X = TTower3X;
+    using Tower3Y = TTower3Y;
+    using SplitterParams = TSplitterParams;
+    
+    template <typename Context, typename ParentObject, typename Config, typename FpType>
+    using Transform = DeltaTransform<Context, ParentObject, Config, FpType, DeltaTransformService>;
 };
 
 #include <aprinter/EndNamespace.h>

@@ -358,8 +358,7 @@ using PrinterParams = PrinterMainParams<
         >,
         MakeTypeList<WrapInt<'A'>, WrapInt<'B'>, WrapInt<'C'>>,
         DeltaSegmentsPerSecond,
-        DeltaTransform,
-        DeltaTransformParams<
+        DeltaTransformService<
             DeltaDiagonalRod,
             DeltaTower1X,
             DeltaTower1Y,
