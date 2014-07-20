@@ -207,9 +207,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<Stm32f4Clock, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<Stm32f4Clock, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 #if 0

@@ -78,7 +78,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         Context::EventLoop::template resetFastEvent<SendFastEvent>(c);

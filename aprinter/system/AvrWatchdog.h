@@ -50,8 +50,6 @@ public:
     
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
         wdt_enable(Params::WatchdogPrescaler);
         
         TheDebugObject::init(c);
@@ -59,7 +57,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         wdt_disable();
@@ -68,16 +65,13 @@ public:
     template <typename ThisContext>
     static void reset (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         wdt_reset();
     }
     
 public:
-    struct Object : public ObjBase<AvrWatchdog, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<AvrWatchdog, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 template <int TWatchdogPrescaler>

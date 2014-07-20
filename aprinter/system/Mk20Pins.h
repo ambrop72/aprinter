@@ -78,14 +78,12 @@ private:
 public:
     static void init (Context c)
     {
-        auto *o = Object::self(c);
         SIM_SCGC5 |= SIM_SCGC5_PORTA | SIM_SCGC5_PORTB | SIM_SCGC5_PORTC | SIM_SCGC5_PORTD | SIM_SCGC5_PORTE;
         TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         SIM_SCGC5 &= ~(SIM_SCGC5_PORTA | SIM_SCGC5_PORTB | SIM_SCGC5_PORTC | SIM_SCGC5_PORTD | SIM_SCGC5_PORTE);
     }
@@ -93,7 +91,6 @@ public:
     template <typename Pin, typename Mode = Mk20PinInputModeNormal, typename ThisContext>
     static void setInput (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         uint32_t pcr = PORT_PCR_MUX(1);
@@ -113,7 +110,6 @@ public:
     template <typename Pin, typename Mode = Mk20PinOutputModeNormal, uint8_t AlternateFunction = 1, typename ThisContext>
     static void setOutput (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         Pin::Port::pcr0()[Pin::PinIndex] = PORT_PCR_MUX(AlternateFunction) | PORT_PCR_SRE | PORT_PCR_DSE;
@@ -126,7 +122,6 @@ public:
     template <typename Pin, typename ThisContext>
     static bool get (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         return (*Pin::Port::pdir() & (UINT32_C(1) << Pin::PinIndex));
@@ -135,7 +130,6 @@ public:
     template <typename Pin, typename ThisContext>
     static void set (ThisContext c, bool x)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         if (x) {
@@ -163,9 +157,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<Mk20Pins, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<Mk20Pins, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 #include <aprinter/EndNamespace.h>

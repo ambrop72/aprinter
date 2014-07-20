@@ -45,7 +45,6 @@ public:
     
     static void init (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::init(c);
         
         WDT->WDT_MR = WDT_MR_WDV(Params::Wdv) | WDT_MR_WDRSTEN | WDT_MR_WDD(Params::Wdv);
@@ -53,23 +52,19 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
     }
     
     template <typename ThisContext>
     static void reset (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         WDT->WDT_CR = WDT_CR_KEY(0xA5) | WDT_CR_WDRSTT;
     }
     
 public:
-    struct Object : public ObjBase<At91SamWatchdog, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<At91SamWatchdog, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 template <uint32_t TWdv>

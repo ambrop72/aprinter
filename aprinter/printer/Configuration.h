@@ -176,8 +176,6 @@ private:
 public:
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
         ListForEachForward<CachedExprStateList>(Foreach_update(), c);
         
         TheDebugObject::init(c);
@@ -185,13 +183,11 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
     }
     
     static void update (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         ListForEachForward<CachedExprStateList>(Foreach_update(), c);
@@ -207,9 +203,7 @@ public:
     struct Object : public ObjBase<ConfigCache, ParentObject, JoinTypeLists<
         CachedExprStateList,
         MakeTypeList<TheDebugObject>
-    >> {
-        char dummy;
-    };
+    >> {};
 };
 
 template <typename TheConfigManager, typename TheConfigCache>

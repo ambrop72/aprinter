@@ -443,9 +443,7 @@ public:
             TheDebugObject,
             AvgFeature
         >
-    >> {
-        char dummy;
-    };
+    >> {};
 };
 
 

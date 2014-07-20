@@ -225,9 +225,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<Stm32f4Pins, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<Stm32f4Pins, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 #include <aprinter/EndNamespace.h>

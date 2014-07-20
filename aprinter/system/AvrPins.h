@@ -156,20 +156,17 @@ private:
 public:
     static void init (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
     }
     
     template <typename Pin, typename Mode = AvrPinInputModeNormal, typename ThisContext>
     static void setInput (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         avrClearBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
@@ -183,7 +180,6 @@ public:
     template <typename Pin, typename ThisContext>
     static void setOutput (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         avrSetBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
@@ -192,7 +188,6 @@ public:
     template <typename Pin, typename ThisContext>
     static bool get (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         return (Pin::Port::getPin() & (1 << Pin::port_pin));
@@ -201,7 +196,6 @@ public:
     template <typename Pin, typename ThisContext>
     static void set (ThisContext c, bool x)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         if (x) {
@@ -222,9 +216,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<AvrPins, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<AvrPins, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 #include <aprinter/EndNamespace.h>

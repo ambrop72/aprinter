@@ -580,9 +580,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<Mk20ClockPwm, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<Mk20ClockPwm, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 template <typename Ftm, int ChannelIndex, typename Pin>

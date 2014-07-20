@@ -50,20 +50,17 @@ public:
     
     static void init (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
     }
     
     template <typename ThisContext>
     static void reset (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -73,9 +70,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<Mk20Watchdog, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<Mk20Watchdog, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 template <uint32_t TToval, uint8_t TPrescval>

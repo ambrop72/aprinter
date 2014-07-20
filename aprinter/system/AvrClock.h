@@ -385,7 +385,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         ListForEachReverse<MyTcsList>(Foreach_deinit(), c);
@@ -461,7 +460,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -678,7 +676,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -922,8 +919,6 @@ public:
     
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
         *TcChannel::ocr() = 0;
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -941,7 +936,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -954,7 +948,6 @@ public:
     template <typename ThisContext>
     static void setDutyCycle (ThisContext c, DutyCycleType duty_cycle)
     {
-        auto *o = Object::self(c);
         AMBRO_ASSERT(duty_cycle <= MaxDutyCycle)
         
         *TcChannel::ocr() = (duty_cycle < MaxDutyCycle) ? duty_cycle : (MaxDutyCycle - 1);
@@ -967,9 +960,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<AvrClock8BitPwm, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<AvrClock8BitPwm, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 template <typename TcChannel, typename Pin>
@@ -1000,8 +991,6 @@ public:
     
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
         *TcChannel::ocr() = 0;
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -1019,7 +1008,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -1032,7 +1020,6 @@ public:
     template <typename ThisContext>
     static void setDutyCycle (ThisContext c, DutyCycleType duty_cycle)
     {
-        auto *o = Object::self(c);
         AMBRO_ASSERT(duty_cycle <= MaxDutyCycle)
         
         uint16_t ocr_val = (duty_cycle < MaxDutyCycle) ? duty_cycle : (MaxDutyCycle - 1);
@@ -1048,9 +1035,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<AvrClock16BitPwm, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<AvrClock16BitPwm, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 template <typename TcChannel, typename Pin>

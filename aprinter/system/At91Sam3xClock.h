@@ -158,8 +158,6 @@ private:
 public:
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
         MyTcsTuple dummy;
         TupleForEachForward(&dummy, Foreach_init(), c);
         
@@ -168,7 +166,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         MyTcsTuple dummy;
@@ -178,7 +175,6 @@ public:
     template <typename ThisContext>
     static TimeType getTime (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         return MyTc<0>::ch()->TC_CV;
@@ -191,9 +187,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<At91Sam3xClock, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<At91Sam3xClock, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 #define AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(tcnum, clock, context) \
@@ -242,7 +236,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {

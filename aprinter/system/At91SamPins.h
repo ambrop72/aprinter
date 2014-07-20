@@ -87,7 +87,6 @@ private:
 public:
     static void init (Context c)
     {
-        auto *o = Object::self(c);
 #ifdef PIOA
         pmc_enable_periph_clk(ID_PIOA);
 #endif
@@ -105,7 +104,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
 #ifdef PIOD
         pmc_disable_periph_clk(ID_PIOD);
@@ -124,7 +122,6 @@ public:
     template <typename Pin, typename Mode = At91SamPinInputModeNormal, typename ThisContext>
     static void setInput (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         pio<typename Pin::Pio>()->PIO_ODR = (UINT32_C(1) << Pin::PinIndex);
@@ -139,7 +136,6 @@ public:
     template <typename Pin, typename ThisContext>
     static void setOutput (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         pio<typename Pin::Pio>()->PIO_OER = (UINT32_C(1) << Pin::PinIndex);
@@ -149,7 +145,6 @@ public:
     template <typename Pin, typename ThisContext>
     static void setPeripheral (ThisContext c, At91SamPeriphA)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -161,7 +156,6 @@ public:
     template <typename Pin, typename ThisContext>
     static void setPeripheral (ThisContext c, At91SamPeriphB)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -173,7 +167,6 @@ public:
     template <typename Pin, typename ThisContext>
     static bool get (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         return (pio<typename Pin::Pio>()->PIO_PDSR & (UINT32_C(1) << Pin::PinIndex));
@@ -182,7 +175,6 @@ public:
     template <typename Pin, typename ThisContext>
     static void set (ThisContext c, bool x)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         if (x) {
@@ -203,9 +195,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<At91SamPins, ParentObject, MakeTypeList<TheDebugObject>> {
-        char dummy;
-    };
+    struct Object : public ObjBase<At91SamPins, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
 #include <aprinter/EndNamespace.h>
