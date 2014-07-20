@@ -45,12 +45,13 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/ProgramMemory.h>
 
 #define APRINTER_CONFIG_START \
 APRINTER_START_LIST(ConfigList)
 
 #define APRINTER_CONFIG_OPTION_GENERIC(Name, Type, DefaultValue, Properties) \
-constexpr char const Name##__OptionName[] = #Name; \
+constexpr char AMBRO_PROGMEM const Name##__OptionName[] = #Name; \
 struct Name : public APrinter::ConfigOption<Name, Type, DefaultValue, Name##__OptionName, Properties> {}; \
 APRINTER_ADD_TO_LIST(ConfigList, Name)
 
@@ -76,7 +77,7 @@ APRINTER_END_LIST(ConfigList)
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TIdentity, typename TType, typename TDefaultValue, char const *TOptionName, typename TProperties>
+template <typename TIdentity, typename TType, typename TDefaultValue, char AMBRO_PROGMEM const *TOptionName, typename TProperties>
 struct ConfigOption {
     using Identity = TIdentity;
     using Type = TType;
@@ -84,7 +85,7 @@ struct ConfigOption {
     using Properties = TProperties;
     
     static constexpr Identity i = Identity{};
-    static constexpr char const * name () { return TOptionName; }
+    static constexpr char AMBRO_PROGMEM const * name () { return TOptionName; }
 };
 
 using ConfigNoProperties = EmptyTypeList;

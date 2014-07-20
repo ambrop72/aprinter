@@ -35,19 +35,23 @@
 
 #ifdef AMBROLIB_AVR
 
+#define AMBRO_PROGMEM PROGMEM
 #define AMBRO_PSTR(x) PSTR(x)
 #define AMBRO_PGM_P PGM_P
 #define AMBRO_PGM_MEMCPY memcpy_P
 #define AMBRO_PGM_STRLEN strlen_P
 #define AMBRO_PGM_SPRINTF sprintf_P
+#define AMBRO_PGM_STRCMP strcmp_P
 
 #else
 
+#define AMBRO_PROGMEM
 #define AMBRO_PSTR(x) (x)
 #define AMBRO_PGM_P char const *
 #define AMBRO_PGM_MEMCPY memcpy
 #define AMBRO_PGM_STRLEN strlen
 #define AMBRO_PGM_SPRINTF sprintf
+#define AMBRO_PGM_STRCMP strcmp
 
 #endif
 

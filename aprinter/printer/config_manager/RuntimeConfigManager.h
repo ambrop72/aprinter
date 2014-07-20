@@ -145,7 +145,7 @@ private:
         template <int OptionIndex>
         struct NameTableElem {
             using TheConfigOption = TypeListGet<OptionsList, OptionIndex>;
-            static constexpr char const * value () { return TheConfigOption::name(); }
+            static constexpr char AMBRO_PROGMEM const * value () { return TheConfigOption::name(); }
         };
         
         template <int OptionIndex>
@@ -154,13 +154,13 @@ private:
             static constexpr Type value () { return TheConfigOption::DefaultValue::value(); }
         };
         
-        using NameTable = StaticArray<char const * const, NumOptions, NameTableElem>;
+        using NameTable = StaticArray<char AMBRO_PROGMEM const * const, NumOptions, NameTableElem>;
         using DefaultTable = StaticArray<Type const, NumOptions, DefaultTableElem>;
         
         static int find_option (char const *name)
         {
             for (int i = 0; i < NumOptions; i++) {
-                if (!strcmp(NameTable::data[i], name)) {
+                if (!AMBRO_PGM_STRCMP(name, NameTable::data[i])) {
                     return i;
                 }
             }
