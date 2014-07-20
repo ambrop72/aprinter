@@ -45,6 +45,7 @@ static void emergency (void);
 #include <aprinter/system/AvrWatchdog.h>
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/system/AvrSpi.h>
+#include <aprinter/system/AvrEeprom.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
@@ -56,6 +57,8 @@ static void emergency (void);
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/config_manager/ConstantConfigManager.h>
+#include <aprinter/printer/config_manager/RuntimeConfigManager.h>
+#include <aprinter/printer/config_store/EepromConfigStore.h>
 #include <aprinter/board/arduino_mega_pins.h>
 
 using namespace APrinter;
@@ -67,20 +70,20 @@ using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using TheAxisDriverPrecisionParams = AxisDriverAvrPrecisionParams;
 using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE(0.002);
 
-APRINTER_CONFIG_OPTION_DOUBLE(MaxStepsPerCycle, 0.00137, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ForceTimeout, 0.1, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(MaxStepsPerCycle, 0.00137, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(ForceTimeout, 0.1, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(InactiveTime, 8.0 * 60.0, ConfigNoProperties)
 
-APRINTER_CONFIG_OPTION_BOOL(XInvertDir, true, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(XInvertDir, true, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(XStepsPerUnit, 80.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XMin, -53.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XMax, 210.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XMaxSpeed, 300.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XMaxAccel, 1500.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(XDistanceFactor, 1.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(XDistanceFactor, 1.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(XCorneringDistance, 40.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_BOOL(XHomeDir, false, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_BOOL(XHomeEndInvert, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(XHomeDir, false, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_BOOL(XHomeEndInvert, false, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeFastMaxDist, 280.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeRetractDist, 3.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeSlowMaxDist, 5.0, ConfigNoProperties)
@@ -88,16 +91,16 @@ APRINTER_CONFIG_OPTION_DOUBLE(XHomeFastSpeed, 40.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeRetractSpeed, 50.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeSlowSpeed, 5.0, ConfigNoProperties)
 
-APRINTER_CONFIG_OPTION_BOOL(YInvertDir, true, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(YInvertDir, true, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(YStepsPerUnit, 80.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YMin, 0.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YMax, 155.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YMaxSpeed, 300.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YMaxAccel, 650.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(YDistanceFactor, 1.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(YDistanceFactor, 1.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(YCorneringDistance, 40.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_BOOL(YHomeDir, false, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_BOOL(YHomeEndInvert, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(YHomeDir, false, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_BOOL(YHomeEndInvert, false, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeFastMaxDist, 200.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeRetractDist, 3.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeSlowMaxDist, 5.0, ConfigNoProperties)
@@ -105,16 +108,16 @@ APRINTER_CONFIG_OPTION_DOUBLE(YHomeFastSpeed, 40.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeRetractSpeed, 50.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeSlowSpeed, 5.0, ConfigNoProperties)
 
-APRINTER_CONFIG_OPTION_BOOL(ZInvertDir, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(ZInvertDir, false, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(ZStepsPerUnit, 4000.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZMin, 0.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZMax, 100.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZMaxSpeed, 3.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZMaxAccel, 30.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ZDistanceFactor, 1.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ZDistanceFactor, 1.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(ZCorneringDistance, 40.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_BOOL(ZHomeDir, false, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_BOOL(ZHomeEndInvert, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(ZHomeDir, false, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_BOOL(ZHomeEndInvert, false, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeFastMaxDist, 101.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeRetractDist, 0.8, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeSlowMaxDist, 1.2, ConfigNoProperties)
@@ -122,77 +125,77 @@ APRINTER_CONFIG_OPTION_DOUBLE(ZHomeFastSpeed, 2.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeRetractSpeed, 2.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeSlowSpeed, 0.6, ConfigNoProperties)
 
-APRINTER_CONFIG_OPTION_BOOL(EInvertDir, true, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(EInvertDir, true, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(EStepsPerUnit, 928.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(EMin, -40000.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(EMax, 40000.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(EMin, -40000.0, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(EMax, 40000.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(EMaxSpeed, 45.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(EMaxAccel, 250.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(EDistanceFactor, 1.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(EDistanceFactor, 1.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(ECorneringDistance, 40.0, ConfigNoProperties)
 
-APRINTER_CONFIG_OPTION_BOOL(UInvertDir, true, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(UInvertDir, true, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(UStepsPerUnit, 660.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UMin, -40000.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UMax, 40000.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(UMin, -40000.0, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(UMax, 40000.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(UMaxSpeed, 45.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(UMaxAccel, 250.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UDistanceFactor, 1.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(UDistanceFactor, 1.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(UCorneringDistance, 55.0, ConfigNoProperties)
 
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorResistorR, 4700.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorR0, 100000.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorBeta, 3960.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorMinTemp, 10.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorMaxTemp, 300.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorMinTemp, 10.0, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorMaxTemp, 300.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterMinSafeTemp, 20.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterMaxSafeTemp, 280.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterControlInterval, 0.2, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterControlInterval, 0.2, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidP, 0.047, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidI, 0.0006, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidD, 0.17, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidIStateMin, 0.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidIStateMin, 0.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidIStateMax, 0.4, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidDHistory, 0.7, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverInterval, 0.5, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverTolerance, 3.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverMinTime, 3.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterPidDHistory, 0.7, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverInterval, 0.5, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverTolerance, 3.0, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterObserverMinTime, 3.0, ConfigProperties<ConfigPropertyConstant>)
 
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorResistorR, 4700.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorR0, 100000.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorBeta, 3960.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorMinTemp, 10.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorMaxTemp, 300.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorMinTemp, 10.0, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterThermistorMaxTemp, 300.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterMinSafeTemp, 20.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterMaxSafeTemp, 280.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterControlInterval, 0.2, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterControlInterval, 0.2, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidP, 0.047, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidI, 0.0006, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidD, 0.17, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidIStateMin, 0.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidIStateMin, 0.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidIStateMax, 0.4, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidDHistory, 0.7, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterObserverInterval, 0.5, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterObserverTolerance, 3.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterObserverMinTime, 3.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterPidDHistory, 0.7, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterObserverInterval, 0.5, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterObserverTolerance, 3.0, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(UxtruderHeaterObserverMinTime, 3.0, ConfigProperties<ConfigPropertyConstant>)
 
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorResistorR, 4700.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorR0, 10000.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorBeta, 3480.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorMinTemp, 10.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorMaxTemp, 150.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorMinTemp, 10.0, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterThermistorMaxTemp, 150.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterMinSafeTemp, 20.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterMaxSafeTemp, 120.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterControlInterval, 0.3, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterControlInterval, 0.3, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidP, 1.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidI, 0.012, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidD, 2.5, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidIStateMin, 0.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidIStateMin, 0.0, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidIStateMax, 1.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidDHistory, 0.8, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverInterval, 0.5, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverTolerance, 1.5, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverMinTime, 3.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterPidDHistory, 0.8, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverInterval, 0.5, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverTolerance, 1.5, ConfigProperties<ConfigPropertyConstant>)
+APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverMinTime, 3.0, ConfigProperties<ConfigPropertyConstant>)
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
 
 using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
@@ -227,7 +230,7 @@ using PrinterParams = PrinterMainParams<
     PrinterMainSerialParams<
         UINT32_C(250000), // BaudRate
         7, // RecvBufferSizeExp
-        7, // SendBufferSizeExp
+        6, // SendBufferSizeExp
         GcodeParserParams<8>, // ReceiveBufferSizeExp
         AvrSerialService<true>
     >,
@@ -236,10 +239,10 @@ using PrinterParams = PrinterMainParams<
     InactiveTime, // InactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    27, // StepperSegmentBufferSize
-    27, // EventChannelBufferSize
-    15, // LookaheadBufferSize
-    9, // LookaheadCommitCount
+    26, // StepperSegmentBufferSize
+    26, // EventChannelBufferSize
+    10, // LookaheadBufferSize
+    5, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
     AvrClockInterruptTimerService<AvrClockTcChannel5C, EventChannelTimerClearance>, // EventChannelTimer
@@ -279,7 +282,15 @@ using PrinterParams = PrinterMainParams<
         >
     >,
     PrinterMainNoCurrentParams,
-    ConstantConfigManagerService,
+    RuntimeConfigManagerService<
+        EepromConfigStoreService<
+            AvrEepromService<
+                16 // FakeBlockSize
+            >,
+            0, // StartBlock
+            256 // EndBlock
+        >
+    >,
     ConfigList,
     
     /*
@@ -645,6 +656,7 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(5, A, MyPrinter::GetHeaterPwm<1>::TheTimer,
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(5, C, MyPrinter::GetEventChannelTimer, MyContext())
 AMBRO_AVR_SPI_ISRS(MyPrinter::GetSdCard<>::GetSpi, MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
+AMBRO_AVR_EEPROM_ISRS(MyPrinter::GetConfigManager::GetStore<>::GetEeprom, MyContext())
 
 FILE uart_output;
 
