@@ -6,8 +6,10 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
 
 ## Implemented features (possibly with bugs)
 
-  * Highly configurable (at compile time) design. Extra heaters, fans and axes can be added easily, and
-    PWM frequencies for heaters and fans are individually adjustable.
+  * Highly configurable design. Extra heaters, fans and axes can be added easily, and
+    PWM frequencies for heaters and fans are individually adjustable unless hardware PWM is used.
+  * Runtime configuration system, and configuration storate to EEPROM.
+    Availability depends on chip/board.
   * Delta robot support. Additionally, new geometries can be added easily by defining a transform class.
     Performance will be sub-optimal when using Delta on AVR platforms.
   * SD card printing (reading of sequential blocks only, no filesystem or partition support).
@@ -38,7 +40,6 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
 ## Planned features (in the approximate order of priority):
 
   * Porting to more platforms (LPC, STM32).
-  * Runtime configurability and settings in EEPROM.
   * SD card FAT32 support and write support.
 
 ## Hardware requirements
@@ -144,9 +145,36 @@ not start (LED doesn't blink), press the reset button.
 
 ## Configuration
 
-Most configuration is specified in the main file of the firmware. There is no support for EEPROM or other forms of runtime configuration (except for PID parameters, try M136). After chaning any configuration, you need to recompile and reflash the firmware.
+Most configuration is specified in the main file of the firmware. After chaning any configuration in the main file, you need to recompile and reflash the firmware for the changes to take affect.
 
-For information about specific types of configuration, see the sections about SD cards and multiple extruders.
+Some degree of runtime configurability is implemented. This is in the form of named configuration values, as defined in the main file.
+
+Boards where runtime configuration is enabled: RADDS, RAMPS-FD, RAMPS, 4pi, Teensy 3.
+Boards where configuration save/load is also supported: RADDS, RAMPS-FD, RAMPS, 4pi (uses flash which is erased by programming).
+
+Board-specific notes:
+
+  * RAMPS-FD: Needs I2C EEPROM, not present on old boards.
+  * RAMPS: Due to lack of RAM, some configuration options are not configurable at runtime.
+  * 4pi: The internal flash is used for storage, which gets erased every time the device is programmed.
+  * Teensy 3: The chip has EEPROM but the driver is not yet written.
+
+Runtime configuration commands:
+
+  * Get option value: `M925 I<option>`
+    Example: `M925 IXMin`
+  * Set option value: `M926 I<option> V<value>`
+    Example: `M926 IXMin V-20`
+    For boolean option, the values are 0 and 1.
+    Omit the V argument to set the option to the default value.
+  * Set all options to defaults: `M927`
+  * Load configuration from storage: `M928`
+  * Save configuration to storage: `M929`
+  * Apply configuration: `M930`
+
+After changing any configuration (either directly with `M926` or by loading an entire configuration with `M928`), the configuration needs to be applied with `M930`. Only then will the changes take effect. However, when the firmware starts up, the stored configuration is automatically loaded and applied, as if `M928` followed by `M930` was done.
+
+The `M930` command does not alter the current set of configuration values in any way. Rather, it recomputes a set of values in RAM which are derived from the configuration values. This is a one-way operation, there is no way to see what the current applied configuration is.
 
 ## Testing it
 
