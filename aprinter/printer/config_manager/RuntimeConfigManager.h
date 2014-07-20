@@ -77,6 +77,12 @@ private:
     using FormatHasher = ConstexprHash<ConstexprCrc32>;
     using SupportedTypesList = MakeTypeList<double, bool>;
     
+    template <typename Type>
+    struct GetTypeIndex {
+        static int const Value = TypeListIndex<SupportedTypesList, IsEqualFunc<Type>>::Value;
+        static_assert(Value >= 0, "");
+    };
+    
 public:
     using RuntimeConfigOptionsList = FilterTypeList<ConfigOptionsList, TemplateFunc<OptionIsNotConstant>>;
     static int const NumRuntimeOptions = TypeListLength<RuntimeConfigOptionsList>::Value;
@@ -84,11 +90,7 @@ public:
     enum class OperationType {LOAD, STORE};
     
     template <typename Type>
-    using GetTypeNumber = WrapInt<(
-        TypesAreEqual<Type, double>::Value ? 1 :
-        TypesAreEqual<Type, bool>::Value ? 2 :
-        -1
-    )>;
+    using GetTypeNumber = WrapInt<1 + GetTypeIndex<Type>::Value>;
     
 private:
     template <typename TheType, typename Dummy=void>
@@ -196,7 +198,7 @@ private:
         using Type = typename TheConfigOption::Type;
         using PrevOption = ConfigOptionState<(ConfigOptionIndex - 1)>;
         static constexpr FormatHasher CurrentHash = PrevOption::CurrentHash.addUint32(GetTypeNumber<Type>::Value).addString(TheConfigOption::name(), ConstexprStrlen(TheConfigOption::name()));
-        using TheTypeGeneral = TypeGeneral<TypeListIndex<SupportedTypesList, IsEqualFunc<Type>>::Value>;
+        using TheTypeGeneral = TypeGeneral<GetTypeIndex<Type>::Value>;
         static int const GeneralIndex = TheTypeGeneral::template OptionIndex<TheConfigOption>::Value;
         
         static Type * value (Context c) { return &TheTypeGeneral::Object::self(c)->values[GeneralIndex]; }
