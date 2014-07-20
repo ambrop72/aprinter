@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_STEPPER_GROUPS_H
 #define AMBROLIB_STEPPER_GROUPS_H
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListLength.h>

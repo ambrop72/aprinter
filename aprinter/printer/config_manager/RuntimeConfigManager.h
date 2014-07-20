@@ -29,7 +29,7 @@
 #include <string.h>
 
 #include <aprinter/meta/Expr.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>

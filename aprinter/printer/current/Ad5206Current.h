@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListGet.h>

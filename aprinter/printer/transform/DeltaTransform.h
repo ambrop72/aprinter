@@ -28,7 +28,7 @@
 #include <stdint.h>
 
 #include <aprinter/meta/WrapDouble.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/math/Vector3.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/DistanceSplitter.h>

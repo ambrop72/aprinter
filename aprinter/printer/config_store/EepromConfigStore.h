@@ -29,7 +29,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/IndexElemList.h>

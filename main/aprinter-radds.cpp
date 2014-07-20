@@ -33,7 +33,7 @@ static void emergency (void);
 #define AMBROLIB_ABORT_ACTION { while (1); }
 
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/At91Sam3xClock.h>

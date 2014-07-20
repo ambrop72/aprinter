@@ -35,7 +35,7 @@
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/math/StoredNumber.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>

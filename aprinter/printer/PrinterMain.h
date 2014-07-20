@@ -59,7 +59,7 @@
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/PowerOfTwo.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/WrapType.h>
 #include <aprinter/meta/TupleForEach.h>

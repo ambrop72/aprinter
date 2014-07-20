@@ -26,7 +26,7 @@
 #define APRINTER_CONSTANT_CONFIG_MANAGER_H
 
 #include <aprinter/meta/Expr.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/WrapType.h>
 
 #include <aprinter/BeginNamespace.h>

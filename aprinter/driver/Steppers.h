@@ -33,7 +33,7 @@
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/SequenceList.h>
 #include <aprinter/meta/TypeListLength.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/ValueTemplateFunc.h>
 #include <aprinter/meta/ChooseInt.h>

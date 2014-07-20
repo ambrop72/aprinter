@@ -29,7 +29,7 @@
 #include <avr/wdt.h>
 
 #include <aprinter/meta/PowerOfTwo.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>

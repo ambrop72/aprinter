@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/TypeListIndex.h>

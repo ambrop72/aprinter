@@ -37,7 +37,7 @@
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>

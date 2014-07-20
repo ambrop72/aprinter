@@ -32,7 +32,7 @@
 #include <usb_regs.h>
 #include <usb_defines.h>
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/DebugObject.h>

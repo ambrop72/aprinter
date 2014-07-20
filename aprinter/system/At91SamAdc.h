@@ -35,7 +35,7 @@
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/MapTypeList.h>

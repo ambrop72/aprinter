@@ -30,7 +30,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/If.h>

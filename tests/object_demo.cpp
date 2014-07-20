@@ -1,6 +1,6 @@
 #include <stdio.h>
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 
 using namespace APrinter;
 

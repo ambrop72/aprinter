@@ -29,7 +29,7 @@
 #include <stddef.h>
 #include <sam/drivers/pmc/pmc.h>
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/BoundedInt.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>

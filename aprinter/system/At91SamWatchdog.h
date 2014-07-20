@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_AT91SAM_WATCHDOG_H
 #define AMBROLIB_AT91SAM_WATCHDOG_H
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 
 #include <aprinter/BeginNamespace.h>

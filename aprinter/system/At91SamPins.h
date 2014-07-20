@@ -28,7 +28,7 @@
 #include <stdint.h>
 #include <sam/drivers/pmc/pmc.h>
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>

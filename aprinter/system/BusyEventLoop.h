@@ -32,7 +32,7 @@
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IsEqualFunc.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/MinMax.h>

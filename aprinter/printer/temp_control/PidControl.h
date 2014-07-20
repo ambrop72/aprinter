@@ -26,7 +26,7 @@
 #define AMBROLIB_PID_CONTROL_H
 
 #include <aprinter/math/FloatTools.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/printer/Configuration.h>
 

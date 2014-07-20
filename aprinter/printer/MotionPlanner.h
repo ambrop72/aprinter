@@ -38,7 +38,7 @@
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/TupleGet.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/Union.h>

@@ -29,7 +29,7 @@
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/TypeListBuilder.h>
 #include <aprinter/meta/Expr.h>
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>

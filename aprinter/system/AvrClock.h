@@ -31,7 +31,7 @@
 #include <avr/interrupt.h>
 #include <avr/sfr_defs.h>
 
-#include <aprinter/meta/Object.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
