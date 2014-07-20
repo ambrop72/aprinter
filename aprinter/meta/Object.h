@@ -42,6 +42,9 @@
 #include <aprinter/meta/ConstantFunc.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/FuncCall.h>
+#include <aprinter/meta/FilterTypeList.h>
+#include <aprinter/meta/IsEmpty.h>
+#include <aprinter/meta/ComposeFunctions.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -49,16 +52,29 @@ AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Obj__GetMemberType_Object, Object)
 AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Obj__HasMemberType_NestedClassesList, NestedClassesList)
 AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Obj__GetMemberType_NestedClassesList, NestedClassesList)
 
+template <typename NestedClassesList>
+using Obj__NonemptyClasses = FilterTypeList<
+    NestedClassesList,
+    ComposeFunctions<IsNotEmptyFunc, Obj__GetMemberType_Object>
+>;
+
+template <typename NestedClassesList>
+using Obj__ChildObjects = MapTypeList<
+    Obj__NonemptyClasses<NestedClassesList>,
+    Obj__GetMemberType_Object
+>;
+
 template <typename TClass, typename TParentObject, typename TNestedClassesList>
-struct ObjBase : public Tuple<MapTypeList<TNestedClassesList, Obj__GetMemberType_Object>> {
+struct ObjBase : public Tuple<Obj__ChildObjects<TNestedClassesList>> {
     using Class = TClass;
     using ParentObject = TParentObject;
     using NestedClassesList = TNestedClassesList;
-    using NestedClassesTuple = Tuple<MapTypeList<TNestedClassesList, Obj__GetMemberType_Object>>;
+    using NestedClassesTuple = Tuple<Obj__ChildObjects<TNestedClassesList>>;
     
     template <typename Context, typename DelayClass = Class>
     static typename DelayClass::Object * self (Context c)
     {
+        static_assert(IsNotEmpty<typename DelayClass::Object>::Value, "Cannot call Object::self() on empty object.");
         ParentObject *parent_object = ParentObject::self(c);
         return parent_object->template get_nested_object<Class>(c);
     }
@@ -66,20 +82,21 @@ struct ObjBase : public Tuple<MapTypeList<TNestedClassesList, Obj__GetMemberType
     template <typename NestedClass, typename Context>
     typename NestedClass::Object * get_nested_object (Context c)
     {
-        return TupleGetElem<TypeListIndex<NestedClassesList, IsEqualFunc<NestedClass>>::Value>(static_cast<NestedClassesTuple *>(this));
+        return TupleGetElem<TypeListIndex<Obj__NonemptyClasses<NestedClassesList>, IsEqualFunc<NestedClass>>::Value>(static_cast<NestedClassesTuple *>(this));
     }
 };
 
 template <typename TClass, typename TParentObject, typename TNestedClassesList>
-struct ObjUnionBase : public Union<MapTypeList<TNestedClassesList, Obj__GetMemberType_Object>> {
+struct ObjUnionBase : public Union<Obj__ChildObjects<TNestedClassesList>> {
     using Class = TClass;
     using ParentObject = TParentObject;
     using NestedClassesList = TNestedClassesList;
-    using NestedClassesUnion = Union<MapTypeList<TNestedClassesList, Obj__GetMemberType_Object>>;
+    using NestedClassesUnion = Union<Obj__ChildObjects<TNestedClassesList>>;
     
     template <typename Context, typename DelayClass = Class>
     static typename DelayClass::Object * self (Context c)
     {
+        static_assert(IsNotEmpty<typename DelayClass::Object>::Value, "Cannot call Object::self() on empty object.");
         ParentObject *parent_object = ParentObject::self(c);
         return parent_object->template get_nested_object<Class>(c);
     }
@@ -87,7 +104,7 @@ struct ObjUnionBase : public Union<MapTypeList<TNestedClassesList, Obj__GetMembe
     template <typename NestedClass, typename Context>
     typename NestedClass::Object * get_nested_object (Context c)
     {
-        return UnionGetElem<TypeListIndex<NestedClassesList, IsEqualFunc<NestedClass>>::Value>(static_cast<NestedClassesUnion *>(this));
+        return UnionGetElem<TypeListIndex<Obj__NonemptyClasses<NestedClassesList>, IsEqualFunc<NestedClass>>::Value>(static_cast<NestedClassesUnion *>(this));
     }
 };
 

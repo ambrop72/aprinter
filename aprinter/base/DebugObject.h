@@ -41,16 +41,16 @@ public:
     
     static void init (Context c)
     {
-        auto *o = Object::self(c);
 #ifdef AMBROLIB_ASSERTIONS
+        auto *o = Object::self(c);
         o->m_count = 0;
 #endif
     }
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
 #ifdef AMBROLIB_ASSERTIONS
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_count == 0)
 #endif
     }
@@ -69,8 +69,8 @@ public:
     template <typename ThisContext>
     void debugInit (ThisContext c)
     {
-        auto *go = Context::DebugGroup::Object::self(c);
 #ifdef AMBROLIB_ASSERTIONS
+        auto *go = Context::DebugGroup::Object::self(c);
         m_magic = getMagic();
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             go->m_count++;
@@ -81,8 +81,8 @@ public:
     template <typename ThisContext>
     void debugDeinit (ThisContext c)
     {
-        auto *go = Context::DebugGroup::Object::self(c);
 #ifdef AMBROLIB_ASSERTIONS
+        auto *go = Context::DebugGroup::Object::self(c);
         AMBRO_ASSERT(m_magic == getMagic())
         m_magic = 0;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {

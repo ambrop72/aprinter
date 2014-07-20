@@ -582,7 +582,9 @@ public:
 public:
     struct Object : public ObjBase<Mk20ClockPwm, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 template <typename Ftm, int ChannelIndex, typename Pin>

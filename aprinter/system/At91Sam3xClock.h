@@ -191,7 +191,9 @@ public:
 public:
     struct Object : public ObjBase<At91Sam3xClock, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 #define AMBRO_AT91SAM3X_CLOCK_TC_GLOBAL(tcnum, clock, context) \

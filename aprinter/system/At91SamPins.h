@@ -201,7 +201,9 @@ public:
 public:
     struct Object : public ObjBase<At91SamPins, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 #include <aprinter/EndNamespace.h>

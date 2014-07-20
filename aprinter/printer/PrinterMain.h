@@ -2687,7 +2687,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void init (Context c)
         {
-            auto *o = Object::self(c);
             TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
             ThePwm::init(c, time);
         }
@@ -2731,7 +2730,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename ThisContext, typename TheChannelPayloadUnion>
         static void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
         {
-            auto *o = Object::self(c);
             ChannelPayload *payload = UnionGetElem<FanIndex>(payload_union);
             ThePwm::setDutyCycle(c, payload->duty);
         }

@@ -204,7 +204,9 @@ public:
 public:
     struct Object : public ObjBase<ConfigCache, ParentObject, CachedExprStateList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 template <typename TheConfigManager, typename TheConfigCache>

@@ -970,7 +970,9 @@ public:
 public:
     struct Object : public ObjBase<AvrClock8BitPwm, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 template <typename TcChannel, typename Pin>
@@ -1050,7 +1052,9 @@ public:
 public:
     struct Object : public ObjBase<AvrClock16BitPwm, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 template <typename TcChannel, typename Pin>

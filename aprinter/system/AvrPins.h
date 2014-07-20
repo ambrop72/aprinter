@@ -220,7 +220,9 @@ public:
 public:
     struct Object : public ObjBase<AvrPins, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 #include <aprinter/EndNamespace.h>

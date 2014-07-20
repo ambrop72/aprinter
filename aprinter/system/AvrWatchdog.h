@@ -72,7 +72,9 @@ public:
 public:
     struct Object : public ObjBase<AvrWatchdog, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 template <int TWatchdogPrescaler>

@@ -223,7 +223,9 @@ private:
 public:
     struct Object : public ObjBase<Stm32f4Pins, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 #include <aprinter/EndNamespace.h>

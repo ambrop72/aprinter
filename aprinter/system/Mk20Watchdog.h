@@ -74,7 +74,9 @@ public:
 public:
     struct Object : public ObjBase<Mk20Watchdog, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 template <uint32_t TToval, uint8_t TPrescval>

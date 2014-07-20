@@ -439,7 +439,9 @@ public:
         >
     >>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 

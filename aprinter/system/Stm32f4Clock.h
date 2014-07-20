@@ -207,7 +207,9 @@ public:
 public:
     struct Object : public ObjBase<Stm32f4Clock, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 #if 0

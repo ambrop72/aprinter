@@ -161,7 +161,9 @@ public:
 public:
     struct Object : public ObjBase<Mk20Pins, ParentObject, EmptyTypeList>,
         public DebugObject<Context, void>
-    {};
+    {
+        char dummy;
+    };
 };
 
 #include <aprinter/EndNamespace.h>
