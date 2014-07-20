@@ -203,21 +203,21 @@ APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverTolerance, 1.5, ConfigNoPropertie
 APRINTER_CONFIG_OPTION_DOUBLE(BedHeaterObserverMinTime, 3.0, ConfigNoProperties)
 using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
 
-using ProbeOffsetX = AMBRO_WRAP_DOUBLE(-18.0);
-using ProbeOffsetY = AMBRO_WRAP_DOUBLE(-31.0);
-using ProbeStartHeight = AMBRO_WRAP_DOUBLE(17.0);
-using ProbeLowHeight = AMBRO_WRAP_DOUBLE(5.0);
-using ProbeRetractDist = AMBRO_WRAP_DOUBLE(1.0);
-using ProbeMoveSpeed = AMBRO_WRAP_DOUBLE(120.0);
-using ProbeFastSpeed = AMBRO_WRAP_DOUBLE(2.0);
-using ProbeRetractSpeed = AMBRO_WRAP_DOUBLE(3.0);
-using ProbeSlowSpeed = AMBRO_WRAP_DOUBLE(0.6);
-using ProbeP1X = AMBRO_WRAP_DOUBLE(0.0);
-using ProbeP1Y = AMBRO_WRAP_DOUBLE(31.0);
-using ProbeP2X = AMBRO_WRAP_DOUBLE(0.0);
-using ProbeP2Y = AMBRO_WRAP_DOUBLE(155.0);
-using ProbeP3X = AMBRO_WRAP_DOUBLE(205.0);
-using ProbeP3Y = AMBRO_WRAP_DOUBLE(83.0);
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeOffsetX, -18.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeOffsetY, -31.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeStartHeight, 17.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeLowHeight, 5.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeRetractDist, 1.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeMoveSpeed, 120.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeFastSpeed, 2.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeRetractSpeed, 3.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeSlowSpeed, 0.6, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeP1X, 0.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeP1Y, 31.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeP2X, 0.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeP2Y, 155.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeP3X, 205.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeP3Y, 83.0, ConfigNoProperties)
 
 APRINTER_CONFIG_OPTION_DOUBLE(CurrentConversionFactor, 100.0 / 743.0, ConfigNoProperties)
 

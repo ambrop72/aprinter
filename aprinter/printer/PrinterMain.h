@@ -2787,8 +2787,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             static void add_axis (Context c, MoveBuildState *s, uint8_t point_index)
             {
-                FpType coord = ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_coord());
-                move_add_axis<AxisIndex>(c, s, coord + (FpType)AxisProbeOffset::value());
+                FpType coord = ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_coord(), c);
+                move_add_axis<AxisIndex>(c, s, coord + APRINTER_CFG(Config, CAxisProbeOffset, c));
             }
             
             template <int PointIndex>
@@ -2796,13 +2796,20 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 using Point = TypeListGet<typename ProbeParams::ProbePoints, PointIndex>;
                 using PointCoord = TypeListGet<Point, PlatformAxisIndex>;
                 
-                static FpType get_coord ()
-                {
-                    return (FpType)PointCoord::value();
-                }
+                static FpType get_coord (Context c) { return APRINTER_CFG(Config, CPointCoord, c); }
+                
+                using CPointCoord = decltype(ExprCast<FpType>(Config::e(PointCoord::i)));
+                using ConfigExprs = MakeTypeList<CPointCoord>;
+                
+                struct Object : public ObjBase<PointHelper, typename AxisHelper::Object, EmptyTypeList> {};
             };
             
             using PointHelperList = IndexElemList<typename ProbeParams::ProbePoints, PointHelper>;
+            
+            using CAxisProbeOffset = decltype(ExprCast<FpType>(Config::e(AxisProbeOffset::i)));
+            using ConfigExprs = MakeTypeList<CAxisProbeOffset>;
+            
+            struct Object : public ObjBase<AxisHelper, typename ProbeFeature::Object, PointHelperList> {};
         };
         
         using AxisHelperList = IndexElemList<typename ProbeParams::PlatformAxesList, AxisHelper>;
@@ -2825,24 +2832,24 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 switch (o->m_point_state) {
                     case 0: {
                         ListForEachForward<AxisHelperList>(LForeach_add_axis(), c, &s, o->m_current_point);
-                        height = (FpType)ProbeParams::ProbeStartHeight::value();
-                        time_freq_by_speed = (FpType)(TimeConversion::value() / ProbeParams::ProbeMoveSpeed::value());
+                        height = APRINTER_CFG(Config, CProbeStartHeight, c);
+                        time_freq_by_speed = APRINTER_CFG(Config, CProbeMoveSpeedFactor, c);
                     } break;
                     case 1: {
-                        height = (FpType)ProbeParams::ProbeLowHeight::value();
-                        time_freq_by_speed = (FpType)(TimeConversion::value() / ProbeParams::ProbeFastSpeed::value());
+                        height = APRINTER_CFG(Config, CProbeLowHeight, c);
+                        time_freq_by_speed = APRINTER_CFG(Config, CProbeFastSpeedFactor, c);
                     } break;
                     case 2: {
-                        height = get_height(c) + (FpType)ProbeParams::ProbeRetractDist::value();
-                        time_freq_by_speed = (FpType)(TimeConversion::value() / ProbeParams::ProbeRetractSpeed::value());
+                        height = get_height(c) + APRINTER_CFG(Config, CProbeRetractDist, c);
+                        time_freq_by_speed = APRINTER_CFG(Config, CProbeRetractSpeedFactor, c);
                     } break;
                     case 3: {
-                        height = (FpType)ProbeParams::ProbeLowHeight::value();
-                        time_freq_by_speed = (FpType)(TimeConversion::value() / ProbeParams::ProbeSlowSpeed::value());
+                        height = APRINTER_CFG(Config, CProbeLowHeight, c);
+                        time_freq_by_speed = APRINTER_CFG(Config, CProbeSlowSpeedFactor, c);
                     } break;
                     case 4: {
-                        height = (FpType)ProbeParams::ProbeStartHeight::value();
-                        time_freq_by_speed = (FpType)(TimeConversion::value() / ProbeParams::ProbeRetractSpeed::value());
+                        height = APRINTER_CFG(Config, CProbeStartHeight, c);
+                        time_freq_by_speed = APRINTER_CFG(Config, CProbeRetractSpeedFactor, c);
                     } break;
                 }
                 move_add_axis<ProbeAxisIndex>(c, &s, height);
@@ -2916,7 +2923,17 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheChannelCommon::reply_poke(c);
         }
         
-        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, EmptyTypeList> {
+        using CProbeStartHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeStartHeight::i)));
+        using CProbeLowHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeLowHeight::i)));
+        using CProbeRetractDist = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeRetractDist::i)));
+        using CProbeMoveSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeMoveSpeed::i)));
+        using CProbeFastSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeFastSpeed::i)));
+        using CProbeRetractSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeRetractSpeed::i)));
+        using CProbeSlowSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeSlowSpeed::i)));
+        
+        using ConfigExprs = MakeTypeList<CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor, CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor>;
+        
+        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, AxisHelperList> {
             ProbePlannerClient planner_client;
             uint8_t m_current_point;
             uint8_t m_point_state;
@@ -3783,6 +3800,7 @@ public: // private, see comment on top
                     HeatersList,
                     MakeTypeList<
                         TheSteppers,
+                        ProbeFeature,
                         CurrentFeature,
                         PlannerUnion
                     >
