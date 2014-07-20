@@ -117,6 +117,7 @@ configure_arm() {
         -DNDEBUG
         -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
         -I.
+        -Wfatal-errors
         -ffunction-sections -fdata-sections
     )
     FLAGS_LD=(

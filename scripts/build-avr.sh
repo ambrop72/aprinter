@@ -87,7 +87,7 @@ configure_avr() {
         -fno-math-errno -fno-trapping-math
         -ffunction-sections -fdata-sections -Wl,--gc-sections \
         -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS \
-        -DAMBROLIB_AVR -I.
+        -DAMBROLIB_AVR -I. -Wfatal-errors
         ${CXXFLAGS}
     )
     
