@@ -287,11 +287,6 @@ using PrinterParams = PrinterMainParams<
     >,
     PrinterMainNoCurrentParams,
     RuntimeConfigManagerService<
-        925, // GetConfigMCommand
-        926, // SetConfigMCommand
-        927, // ResetAllConfigMCommand
-        928, // LoadConfigMCommand
-        929, // SaveConfigMCommand
         EepromConfigStoreService<
             I2cEepromService<
                 At91SamI2cService<

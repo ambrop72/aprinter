@@ -83,6 +83,12 @@ private:
         static_assert(Value >= 0, "");
     };
     
+    static int const GetConfigMCommand = 925;
+    static int const SetConfigMCommand = 926;
+    static int const ResetAllConfigMCommand = 927;
+    static int const LoadConfigMCommand = 928;
+    static int const SaveConfigMCommand = 929;
+    
 public:
     using RuntimeConfigOptionsList = FilterTypeList<ConfigOptionsList, TemplateFunc<OptionIsNotConstant>>;
     static int const NumRuntimeOptions = TypeListLength<RuntimeConfigOptionsList>::Value;
@@ -260,11 +266,11 @@ private:
             auto *o = Object::self(c);
             
             auto cmd_num = CommandChannel::TheGcodeParser::getCmdNumber(c);
-            if (cmd_num == Params::LoadConfigMCommand || cmd_num == Params::SaveConfigMCommand) {
+            if (cmd_num == LoadConfigMCommand || cmd_num == SaveConfigMCommand) {
                 if (!CommandChannel::tryLockedCommand(c)) {
                     return false;
                 }
-                OperationType type = (cmd_num == Params::LoadConfigMCommand) ? OperationType::LOAD : OperationType::STORE;
+                OperationType type = (cmd_num == LoadConfigMCommand) ? OperationType::LOAD : OperationType::STORE;
                 start_operation(c, type, true);
                 return false;
             }
@@ -348,11 +354,11 @@ public:
     static bool checkCommand (Context c, WrapType<CommandChannel> cc)
     {
         auto cmd_num = CommandChannel::TheGcodeParser::getCmdNumber(c);
-        if (cmd_num == Params::GetConfigMCommand || cmd_num == Params::SetConfigMCommand || cmd_num == Params::ResetAllConfigMCommand) {
-            if (cmd_num == Params::ResetAllConfigMCommand) {
+        if (cmd_num == GetConfigMCommand || cmd_num == SetConfigMCommand || cmd_num == ResetAllConfigMCommand) {
+            if (cmd_num == ResetAllConfigMCommand) {
                 reset_all_config(c);
             } else {
-                bool get_it = (cmd_num == Params::GetConfigMCommand);
+                bool get_it = (cmd_num == GetConfigMCommand);
                 char const *name = CommandChannel::get_command_param_str(c, 'I', "");
                 if (ListForEachForwardInterruptible<TypeGeneralList>(Foreach_get_set_cmd(), c, cc, get_it, name)) {
                     CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
@@ -404,19 +410,9 @@ public:
 };
 
 template <
-    int TGetConfigMCommand,
-    int TSetConfigMCommand,
-    int TResetAllConfigMCommand,
-    int TLoadConfigMCommand,
-    int TSaveConfigMCommand,
     typename TStoreService
 >
 struct RuntimeConfigManagerService {
-    static int const GetConfigMCommand = TGetConfigMCommand;
-    static int const SetConfigMCommand = TSetConfigMCommand;
-    static int const ResetAllConfigMCommand = TResetAllConfigMCommand;
-    static int const LoadConfigMCommand = TLoadConfigMCommand;
-    static int const SaveConfigMCommand = TSaveConfigMCommand;
     using StoreService = TStoreService;
     
     template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain, typename Handler>
