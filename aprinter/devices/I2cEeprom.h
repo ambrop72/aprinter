@@ -43,6 +43,7 @@ public:
     
 private:
     static_assert(Params::Size % Params::BlockSize == 0, "");
+    static_assert(Params::Size <= UINT32_C(65536), "");
     struct I2cHandler;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
@@ -52,7 +53,7 @@ private:
     enum {STATE_IDLE, STATE_READ_SEEK, STATE_READ_READ, STATE_WRITE_TRANSFER, STATE_WRITE_POLL};
     
 public:
-    using SizeType = uint16_t;
+    using SizeType = uint32_t;
     static SizeType const Size = Params::Size;
     static SizeType const BlockSize = Params::BlockSize;
     static SizeType const NumBlocks = Size / BlockSize;
@@ -198,15 +199,15 @@ public:
 template <
     typename TI2cService,
     uint8_t TI2cAddr,
-    uint16_t TSize,
-    uint16_t TBlockSize,
+    uint32_t TSize,
+    uint32_t TBlockSize,
     typename TWriteTimeout
 >
 struct I2cEepromService {
     using I2cService = TI2cService;
     static uint8_t const I2cAddr = TI2cAddr;
-    static uint16_t const Size = TSize;
-    static uint16_t const BlockSize = TBlockSize;
+    static uint32_t const Size = TSize;
+    static uint32_t const BlockSize = TBlockSize;
     using WriteTimeout = TWriteTimeout;
     
     template <typename Context, typename ParentObject, typename Handler>
