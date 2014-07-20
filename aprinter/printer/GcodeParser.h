@@ -53,6 +53,11 @@ class GcodeParser {
     
 public:
     struct Object;
+    
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     using BufferSizeType = TBufferSizeType;
     using PartsSizeType = ChooseInt<BitsInInt<Params::MaxParts>::Value, true>;
     
@@ -93,19 +98,19 @@ public:
         auto *o = Object::self(c);
         o->m_state = STATE_NOCMD;
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
     }
     
     static bool haveCommand (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return (o->m_state != STATE_NOCMD);
     }
@@ -113,7 +118,7 @@ public:
     static void startCommand (Context c, char *buffer, int8_t assume_error)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(buffer)
         AMBRO_ASSERT(assume_error <= 0)
@@ -128,7 +133,7 @@ public:
     static bool extendCommand (Context c, BufferSizeType avail)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state != STATE_NOCMD)
         AMBRO_ASSERT(avail >= o->m_command.length)
         
@@ -212,7 +217,7 @@ public:
     static void resetCommand (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state != STATE_NOCMD)
         
         o->m_state = STATE_NOCMD;
@@ -221,7 +226,7 @@ public:
     static BufferSizeType getLength (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         
         return o->m_command.length;
@@ -230,7 +235,7 @@ public:
     static PartsSizeType getNumParts (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         
         return o->m_command.num_parts;
@@ -239,7 +244,7 @@ public:
     static char getCmdCode (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_command.num_parts >= 0)
         
@@ -249,7 +254,7 @@ public:
     static uint16_t getCmdNumber (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_command.num_parts >= 0)
         
@@ -259,7 +264,7 @@ public:
     static PartRef getPart (Context c, PartsSizeType i)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_command.num_parts >= 0)
         AMBRO_ASSERT(i >= 0)
@@ -271,7 +276,7 @@ public:
     static char getPartCode (Context c, PartRef part)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_command.num_parts >= 0)
         
@@ -282,7 +287,7 @@ public:
     static FpType getPartFpValue (Context c, PartRef part)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_command.num_parts >= 0)
         
@@ -292,7 +297,7 @@ public:
     static uint32_t getPartUint32Value (Context c, PartRef part)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_command.num_parts >= 0)
         
@@ -302,7 +307,7 @@ public:
     static char const * getPartStringValue (Context c, PartRef part)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         AMBRO_ASSERT(o->m_command.num_parts >= 0)
         
@@ -312,7 +317,7 @@ public:
     static char * getBuffer (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state != STATE_NOCMD)
         
         return o->m_buffer;
@@ -321,7 +326,7 @@ public:
     static Command * getCmd (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_NOCMD)
         
         return &o->m_command;
@@ -466,8 +471,7 @@ private:
     };
     
 public:
-    struct Object : public ObjBase<GcodeParser, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>,
+    struct Object : public ObjBase<GcodeParser, ParentObject, MakeTypeList<TheDebugObject>>,
         public ExtraMembers<ParserType>
     {
         uint8_t m_state;

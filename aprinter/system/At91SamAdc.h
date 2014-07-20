@@ -218,6 +218,11 @@ class At91SamAdc {
     
 public:
     struct Object;
+    
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     using FixedType = FixedPoint<12, false, -12>;
     
     static void init (Context c)
@@ -262,13 +267,13 @@ public:
 #endif
             
         }
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         if (NumPins > 0) {
 #if defined(__SAM3X8E__) || defined(__SAM3S2A__)
             NVIC_DisableIRQ(ADC_IRQn);
@@ -292,7 +297,7 @@ public:
     static FixedType getValue (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         static int const PinIndex = TypeListIndex<FlatPinsList, IsEqualFunc<Pin>>::Value;
         return FixedType::importBits(AdcPin<PinIndex>::get_value(c));
@@ -435,11 +440,10 @@ public:
     struct Object : public ObjBase<At91SamAdc, ParentObject, JoinTypeLists<
         PinsList,
         MakeTypeList<
+            TheDebugObject,
             AvgFeature
         >
-    >>,
-        public DebugObject<Context, void>
-    {
+    >> {
         char dummy;
     };
 };

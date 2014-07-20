@@ -64,6 +64,7 @@ public:
     using TimeFixedType = FixedPoint<Params::PrecisionParams::TimeBits, false, 0>;
     
 private:
+    using TheDebugObject = DebugObject<Context, Object>;
     using RequestedInterval = AMBRO_WRAP_DOUBLE(Params::AdjustmentInterval::value() / Clock::time_unit);
     static uintmax_t const MaxCount = 2 + (1.01 * TimeFixedType::maxValue().bitsValue() / RequestedInterval::value());
     using CountFixedType = FixedPoint<BitsInInt<MaxCount>::Value, false, 0>;
@@ -110,13 +111,13 @@ public:
 #endif
         PowerInterface::setPower(c, PowerFixedType::importBits(0));
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         AMBRO_ASSERT(!o->m_running)
         
         TheTimer::deinit(c);
@@ -125,7 +126,7 @@ public:
     static void start (Context c, TimeType start_time, Command *first_command)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(first_command)
         
@@ -141,7 +142,7 @@ public:
     static void stop (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         TheTimer::unset(c);
         PowerInterface::setPower(c, PowerFixedType::importBits(0));
@@ -186,10 +187,9 @@ private:
     
 public:
     struct Object : public ObjBase<LaserDriver, ParentObject, MakeTypeList<
+        TheDebugObject,
         TheTimer
-    >>,
-        public DebugObject<Context, void>
-    {
+    >> {
 #ifdef AMBROLIB_ASSERTIONS
         bool m_running;
 #endif

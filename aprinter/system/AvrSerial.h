@@ -50,6 +50,11 @@ private:
     
 public:
     struct Object;
+    
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     using RecvSizeType = BoundedInt<RecvBufferBits, false>;
     using SendSizeType = BoundedInt<SendBufferBits, false>;
     
@@ -78,13 +83,13 @@ public:
             UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
         }
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             UCSR0C = 0;
@@ -101,7 +106,7 @@ public:
     static RecvSizeType recvQuery (Context c, bool *out_overrun)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(out_overrun)
         
         RecvSizeType end;
@@ -118,7 +123,7 @@ public:
     static char * recvGetChunkPtr (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return (o->m_recv_buffer + o->m_recv_start.value());
     }
@@ -126,7 +131,7 @@ public:
     static void recvConsume (Context c, RecvSizeType amount)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             AMBRO_ASSERT(amount <= recv_avail(o->m_recv_start, o->m_recv_end))
@@ -137,7 +142,7 @@ public:
     static void recvClearOverrun (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_recv_overrun)
         
         o->m_recv_overrun = false;
@@ -154,7 +159,7 @@ public:
     static void recvForceEvent (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
     }
@@ -162,7 +167,7 @@ public:
     static SendSizeType sendQuery (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         SendSizeType start;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -175,7 +180,7 @@ public:
     static SendSizeType sendGetChunkLen (Context c, SendSizeType rem_length)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         if (o->m_send_end.value() > 0 && rem_length > BoundedModuloNegative(o->m_send_end)) {
             rem_length = BoundedModuloNegative(o->m_send_end);
@@ -187,7 +192,7 @@ public:
     static char * sendGetChunkPtr (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return (o->m_send_buffer + o->m_send_end.value());
     }
@@ -195,7 +200,7 @@ public:
     static void sendProvide (Context c, SendSizeType amount)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             AMBRO_ASSERT(amount <= send_avail(o->m_send_start, o->m_send_end))
@@ -208,13 +213,13 @@ public:
     static void sendPoke (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
     }
     
     static void sendRequestEvent (Context c, SendSizeType min_amount)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(min_amount > SendSizeType::import(0))
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -231,7 +236,7 @@ public:
     static void sendCancelEvent (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             o->m_send_event = BoundedModuloInc(o->m_send_end);
@@ -303,7 +308,7 @@ private:
     static void recv_event_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         RecvHandler::call(c);
     }
@@ -311,15 +316,13 @@ private:
     static void send_event_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         SendHandler::call(c);
     }
     
 public:
-    struct Object : public ObjBase<AvrSerial, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<AvrSerial, ParentObject, MakeTypeList<TheDebugObject>> {
         RecvSizeType m_recv_start;
         RecvSizeType m_recv_end;
         bool m_recv_overrun;

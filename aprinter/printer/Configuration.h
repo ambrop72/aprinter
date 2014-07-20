@@ -43,6 +43,7 @@
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/TypeList.h>
+#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/base/DebugObject.h>
 
 #define APRINTER_CONFIG_START \
@@ -101,6 +102,7 @@ public:
 private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_update, update)
     
+    using TheDebugObject = DebugObject<Context, Object>;
     using MyExprsList = typename DelayedExprsList::List;
     template <typename TheExpr>
     using ExprIsConstexpr = WrapBool<TheExpr::IsConstexpr>;
@@ -178,19 +180,19 @@ public:
         
         ListForEachForward<CachedExprStateList>(Foreach_update(), c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
     }
     
     static void update (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         ListForEachForward<CachedExprStateList>(Foreach_update(), c);
     }
@@ -202,9 +204,10 @@ public:
     static GetHelper<GetExpr<TheExpr>::IsConstexpr, GetExpr<TheExpr>> getHelper (TheExpr);
     
 public:
-    struct Object : public ObjBase<ConfigCache, ParentObject, CachedExprStateList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<ConfigCache, ParentObject, JoinTypeLists<
+        CachedExprStateList,
+        MakeTypeList<TheDebugObject>
+    >> {
         char dummy;
     };
 };

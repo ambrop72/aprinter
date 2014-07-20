@@ -114,6 +114,8 @@ public:
     static constexpr double time_freq = (double)F_TIMERS1 / prescale_divide;
     
 private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
     template <int TTcIndex>
     struct MyTc {
         static int const TcIndex = TTcIndex;
@@ -178,13 +180,13 @@ public:
         
         ListForEachForward<MyTcsList>(LForeach_init(), c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         ListForEachReverse<MyTcsList>(LForeach_deinit(), c);
     }
@@ -193,7 +195,7 @@ public:
     static TimeType getTime (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return MyTc<0>::TcSpec::tim()->CNT;
     }
@@ -205,9 +207,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<Stm32f4Clock, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<Stm32f4Clock, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };
@@ -246,7 +246,7 @@ public:
     static void init (Context c)
     {
         Stm32f4ClockInterruptTimer *o = self(c);
-        o->debugInit(c);
+        TheDebugObject::init(c);
         
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
@@ -256,7 +256,7 @@ public:
     static void deinit (Context c)
     {
         Stm32f4ClockInterruptTimer *o = self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             ch()->TC_IDR = CpMask;
@@ -267,7 +267,7 @@ public:
     static void setFirst (ThisContext c, TimeType time)
     {
         Stm32f4ClockInterruptTimer *o = self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(!(ch()->TC_IMR & CpMask))
         
@@ -314,7 +314,7 @@ public:
     static void unset (ThisContext c)
     {
         Stm32f4ClockInterruptTimer *o = self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             ch()->TC_IDR = CpMask;

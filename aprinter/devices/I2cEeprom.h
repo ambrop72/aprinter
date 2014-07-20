@@ -47,6 +47,7 @@ private:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     static TimeType const WriteTimeoutTicks = Params::WriteTimeout::value() / Clock::time_unit;
+    using TheDebugObject = DebugObject<Context, Object>;
     using TheI2c = typename Params::I2cService::template I2c<Context, Object, I2cHandler>;
     enum {STATE_IDLE, STATE_READ_SEEK, STATE_READ_READ, STATE_WRITE_TRANSFER, STATE_WRITE_POLL};
     
@@ -63,13 +64,13 @@ public:
         TheI2c::init(c);
         o->state = STATE_IDLE;
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         TheI2c::deinit(c);
     }
@@ -77,7 +78,7 @@ public:
     static void startRead (Context c, SizeType offset, uint8_t *data, size_t length)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_IDLE)
         AMBRO_ASSERT(offset <= Size)
         AMBRO_ASSERT(length <= Size - offset)
@@ -96,7 +97,7 @@ public:
     static void startWrite (Context c, SizeType offset, uint8_t const *data, size_t length)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_IDLE)
         AMBRO_ASSERT(offset <= Size)
         AMBRO_ASSERT(length <= Size - offset)
@@ -119,7 +120,7 @@ private:
     static void i2c_handler (Context c, bool success)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_READ_SEEK || o->state == STATE_READ_READ || o->state == STATE_WRITE_TRANSFER || o->state == STATE_WRITE_POLL)
         
         if (!success && o->state != STATE_WRITE_POLL) {
@@ -173,10 +174,9 @@ private:
 
 public:
     struct Object : public ObjBase<I2cEeprom, ParentObject, MakeTypeList<
+        TheDebugObject,
         TheI2c
-    >>,
-        public DebugObject<Context, void>
-    {
+    >> {
         uint8_t state;
         bool success;
         uint8_t addr_buf[2];

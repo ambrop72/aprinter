@@ -100,6 +100,8 @@ private:
     using Planner = MotionPlanner<Context, Object, Config, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     
+    using TheDebugObject = DebugObject<Context, Object>;
+    
     enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
     
 public:
@@ -113,13 +115,13 @@ public:
         o->m_state = STATE_FAST;
         o->m_command_sent = false;
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         if (o->m_state != STATE_END) {
             Planner::deinit(c);
@@ -132,7 +134,7 @@ private:
     static void planner_pull_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state != STATE_END)
         
         if (o->m_command_sent) {
@@ -173,7 +175,7 @@ private:
     static void planner_finished_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state != STATE_END)
         AMBRO_ASSERT(o->m_command_sent)
         
@@ -192,7 +194,7 @@ private:
     static void planner_aborted_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_FAST || o->m_state == STATE_SLOW)
         
         Planner::deinit(c);
@@ -233,10 +235,9 @@ public:
     using ConfigExprs = MakeTypeList<CMaxVRecFast, CMaxVRecRetract, CMaxVRecSlow, CFixedStepsFast, CFixedStepsRetract, CFixedStepsSlow, CHomeDir>;
     
     struct Object : public ObjBase<AxisHomer, ParentObject, MakeTypeList<
+        TheDebugObject,
         Planner
-    >>,
-        public DebugObject<Context, void>
-    {
+    >> {
         uint8_t m_state;
         bool m_command_sent;
     };

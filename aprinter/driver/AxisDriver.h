@@ -107,6 +107,10 @@ public:
     using CommandCallbackContext = typename TimerInstance::HandlerContext;
     using TMulStored = StoredNumber<TimeMulFixedType::num_bits, TimeMulFixedType::is_signed>;
     
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     struct Command {
         DirStepFixedType dir_x;
         decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) a_mul;
@@ -136,13 +140,13 @@ public:
         o->m_running = false;
 #endif
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         AMBRO_ASSERT(!o->m_running)
         
         TimerInstance::deinit(c);
@@ -151,7 +155,7 @@ public:
     static void setPrestepCallbackEnabled (Context c, bool enabled)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!o->m_running)
         
         o->m_prestep_callback_enabled = enabled;
@@ -161,7 +165,7 @@ public:
     static void start (Context c, TimeType start_time, Command *first_command)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(first_command)
         
@@ -202,7 +206,7 @@ public:
     static void stop (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         TimerInstance::unset(c);
 #ifdef AMBROLIB_ASSERTIONS
@@ -213,7 +217,7 @@ public:
     static StepFixedType getAbortedCmdSteps (Context c, bool *dir)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!o->m_running)
         
         *dir = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
@@ -353,10 +357,9 @@ private:
     
 public:
     struct Object : public ObjBase<AxisDriver, ParentObject, MakeTypeList<
+        TheDebugObject,
         TimerInstance
-    >>,
-        public DebugObject<Context, void>
-    {
+    >> {
 #ifdef AMBROLIB_ASSERTIONS
         bool m_running;
 #endif

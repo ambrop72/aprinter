@@ -55,6 +55,10 @@ public:
     using RecvSizeType = BoundedInt<RecvBufferBits, false>;
     using SendSizeType = BoundedInt<SendBufferBits, false>;
     
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     static void init (Context c, uint32_t baud)
     {
         auto *o = Object::self(c);
@@ -69,13 +73,13 @@ public:
         
         Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         Context::EventLoop::template resetFastEvent<RecvFastEvent>(c);
     }
@@ -83,7 +87,7 @@ public:
     static RecvSizeType recvQuery (Context c, bool *out_overrun)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(out_overrun)
         
         *out_overrun = (o->m_recv_end == BoundedModuloDec(o->m_recv_start));
@@ -93,7 +97,7 @@ public:
     static char * recvGetChunkPtr (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return (o->m_recv_buffer + o->m_recv_start.value());
     }
@@ -101,7 +105,7 @@ public:
     static void recvConsume (Context c, RecvSizeType amount)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_ASSERT(amount <= recv_avail(o->m_recv_start, o->m_recv_end))
         o->m_recv_start = BoundedModuloAdd(o->m_recv_start, amount);
@@ -110,14 +114,14 @@ public:
     static void recvClearOverrun (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_recv_end == BoundedModuloDec(o->m_recv_start))
     }
     
     static void recvForceEvent (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         o->m_recv_force = true;
     }
@@ -125,7 +129,7 @@ public:
     static SendSizeType sendQuery (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return send_avail(o->m_send_start, o->m_send_end);
     }
@@ -133,7 +137,7 @@ public:
     static SendSizeType sendGetChunkLen (Context c, SendSizeType rem_length)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         if (o->m_send_end.value() > 0 && rem_length > BoundedModuloNegative(o->m_send_end)) {
             rem_length = BoundedModuloNegative(o->m_send_end);
@@ -144,7 +148,7 @@ public:
     static char * sendGetChunkPtr (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return (o->m_send_buffer + o->m_send_end.value());
     }
@@ -152,7 +156,7 @@ public:
     static void sendProvide (Context c, SendSizeType amount)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(amount <= send_avail(o->m_send_start, o->m_send_end))
         
         o->m_send_end = BoundedModuloAdd(o->m_send_end, amount);
@@ -161,7 +165,7 @@ public:
     static void sendPoke (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         // we don't really care if we lose data here
         while (o->m_send_start != o->m_send_end) {
@@ -187,7 +191,7 @@ private:
     static void recv_event_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
         RecvSizeType virtual_start = BoundedModuloDec(o->m_recv_start);
@@ -208,9 +212,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<TeensyUsbSerial, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<TeensyUsbSerial, ParentObject, MakeTypeList<TheDebugObject>> {
         RecvSizeType m_recv_start;
         RecvSizeType m_recv_end;
         bool m_recv_force;

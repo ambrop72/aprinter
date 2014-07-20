@@ -72,17 +72,21 @@ class Mk20Pins {
 public:
     struct Object;
     
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
         SIM_SCGC5 |= SIM_SCGC5_PORTA | SIM_SCGC5_PORTB | SIM_SCGC5_PORTC | SIM_SCGC5_PORTD | SIM_SCGC5_PORTE;
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         SIM_SCGC5 &= ~(SIM_SCGC5_PORTA | SIM_SCGC5_PORTB | SIM_SCGC5_PORTC | SIM_SCGC5_PORTD | SIM_SCGC5_PORTE);
     }
     
@@ -90,7 +94,7 @@ public:
     static void setInput (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         uint32_t pcr = PORT_PCR_MUX(1);
         if (Mode::PullEnable) {
@@ -110,7 +114,7 @@ public:
     static void setOutput (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         Pin::Port::pcr0()[Pin::PinIndex] = PORT_PCR_MUX(AlternateFunction) | PORT_PCR_SRE | PORT_PCR_DSE;
         
@@ -123,7 +127,7 @@ public:
     static bool get (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return (*Pin::Port::pdir() & (UINT32_C(1) << Pin::PinIndex));
     }
@@ -132,7 +136,7 @@ public:
     static void set (ThisContext c, bool x)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         if (x) {
             *Pin::Port::psor() = (UINT32_C(1) << Pin::PinIndex);
@@ -159,9 +163,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<Mk20Pins, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<Mk20Pins, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };

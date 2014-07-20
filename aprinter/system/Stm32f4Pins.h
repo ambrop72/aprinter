@@ -79,6 +79,10 @@ class Stm32f4Pins {
 public:
     struct Object;
     
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
@@ -95,13 +99,13 @@ public:
         RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOJ, ENABLE);
         RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOK, ENABLE);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOK, DISABLE);
         RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOJ, DISABLE);
@@ -120,7 +124,7 @@ public:
     static void setInput (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             set_moder<Pin, 0>();
@@ -132,7 +136,7 @@ public:
     static void setOutput (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             set_optyper<Pin, Mode::Optyper>();
@@ -145,7 +149,7 @@ public:
     static void setAlternateFunction (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             set_af<Pin, AfNumber>();
@@ -158,7 +162,7 @@ public:
     static bool get (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return (Pin::Port::gpio()->IDR & (UINT32_C(1) << Pin::PinIndex));
     }
@@ -167,7 +171,7 @@ public:
     static void set (ThisContext c, bool x)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         if (x) {
             Pin::Port::gpio()->BSRRL = (UINT32_C(1) << Pin::PinIndex);
@@ -221,9 +225,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<Stm32f4Pins, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<Stm32f4Pins, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };

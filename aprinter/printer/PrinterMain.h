@@ -482,6 +482,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using ParamsFansList = typename Params::FansList;
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     
+    using TheDebugObject = DebugObject<Context, Object>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain, ConfigManagerHandler>;
     using TheConfigCache = ConfigCache<Context, Object, DelayedConfigExprs>;
@@ -3089,13 +3090,13 @@ public:
         
         LoadConfigFeature::start_loading(c);
         
-        ob->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *ob = Object::self(c);
-        ob->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         if (ob->planner_state != PLANNER_NONE) {
             ThePlanner::deinit(c);
@@ -3180,7 +3181,7 @@ public: // private, see comment on top
     static void blinker_handler (Context c)
     {
         auto *ob = Object::self(c);
-        ob->debugAccess(c);
+        TheDebugObject::access(c);
         
         ListForEachForward<HeatersList>(LForeach_check_safety(), c);
         TheWatchdog::reset(c);
@@ -3473,7 +3474,7 @@ public: // private, see comment on top
     static void unlocked_timer_handler (typename Loop::QueuedEvent *, Context c)
     {
         auto *ob = Object::self(c);
-        ob->debugAccess(c);
+        TheDebugObject::access(c);
         
         if (!ob->locked) {
             ListForEachForwardInterruptible<ChannelCommonList>(LForeach_run_for_state_command(), c, COMMAND_LOCKING, WrapType<PrinterMain>(), LForeach_continue_locking_helper());
@@ -3483,7 +3484,7 @@ public: // private, see comment on top
     static void disable_timer_handler (typename Loop::QueuedEvent *, Context c)
     {
         auto *ob = Object::self(c);
-        ob->debugAccess(c);
+        TheDebugObject::access(c);
         
         ListForEachForward<AxesList>(LForeach_disable_stepper(), c);
     }
@@ -3491,7 +3492,7 @@ public: // private, see comment on top
     static void force_timer_handler (typename Loop::QueuedEvent *, Context c)
     {
         auto *ob = Object::self(c);
-        ob->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         
@@ -3515,7 +3516,7 @@ public: // private, see comment on top
     static void planner_pull_handler (Context c)
     {
         auto *ob = Object::self(c);
-        ob->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(ob->planner_state != PLANNER_NONE)
         AMBRO_ASSERT(!ob->m_planning_pull_pending)
         
@@ -3553,7 +3554,7 @@ public: // private, see comment on top
     static void planner_finished_handler (Context c)
     {
         auto *ob = Object::self(c);
-        ob->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(ob->planner_state != PLANNER_NONE)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         AMBRO_ASSERT(ob->planner_state != PLANNER_WAITING)
@@ -3576,7 +3577,7 @@ public: // private, see comment on top
     static void planner_aborted_handler (Context c)
     {
         auto *ob = Object::self(c);
-        ob->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_CUSTOM)
         
         ListForEachForward<AxesList>(LForeach_fix_aborted_pos(), c);
@@ -3593,7 +3594,7 @@ public: // private, see comment on top
     static void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)
     {
         auto *ob = Object::self(c);
-        ob->debugAccess(c);
+        TheDebugObject::access(c);
         
         ListForOneBoolOffset<HeatersList, 0>(payload->type, LForeach_channel_callback(), c, &payload->heaters) ||
         ListForOneBoolOffset<FansList, TypeListLength<ParamsHeatersList>::Value>(payload->type, LForeach_channel_callback(), c, &payload->fans);
@@ -3833,6 +3834,7 @@ public:
         HeatersList,
         FansList,
         MakeTypeList<
+            TheDebugObject,
             TheWatchdog,
             TheConfigManager,
             TheConfigCache,
@@ -3845,9 +3847,7 @@ public:
             CurrentFeature,
             PlannerUnion
         >
-    >>,
-        public DebugObject<Context, void>
-    {
+    >> {
         typename Loop::QueuedEvent unlocked_timer;
         typename Loop::QueuedEvent disable_timer;
         typename Loop::QueuedEvent force_timer;

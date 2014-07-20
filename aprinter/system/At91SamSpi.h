@@ -94,6 +94,11 @@ class At91SamSpiBase {
     
 public:
     struct Object;
+    
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     using CommandSizeType = BoundedInt<CommandBufferBits, false>;
     
     static void init (Context c)
@@ -117,13 +122,13 @@ public:
         NVIC_EnableIRQ(Device::SpiIrq);
         Device::spi()->SPI_CR = SPI_CR_SPIEN;
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         NVIC_DisableIRQ(Device::SpiIrq);
         Device::spi()->SPI_CR = SPI_CR_SPIDIS;
@@ -140,7 +145,7 @@ public:
     static void cmdReadBuffer (Context c, uint8_t *data, size_t length, uint8_t send_byte)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!is_full(c))
         AMBRO_ASSERT(length > 0)
         
@@ -155,7 +160,7 @@ public:
     static void cmdReadUntilDifferent (Context c, uint8_t target_byte, uint8_t max_extra_length, uint8_t send_byte, uint8_t *data)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!is_full(c))
         
         Command *cmd = &o->m_buffer[o->m_end.value()];
@@ -170,7 +175,7 @@ public:
     static void cmdWriteBuffer (Context c, uint8_t first_byte, uint8_t const *data, size_t length)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!is_full(c))
         
         Command *cmd = &o->m_buffer[o->m_end.value()];
@@ -184,7 +189,7 @@ public:
     static void cmdWriteByte (Context c, uint8_t byte, size_t extra_count)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!is_full(c))
         
         Command *cmd = &o->m_buffer[o->m_end.value()];
@@ -197,7 +202,7 @@ public:
     static CommandSizeType getEndIndex (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return o->m_end;
     }
@@ -205,7 +210,7 @@ public:
     static bool indexReached (Context c, CommandSizeType index)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         CommandSizeType start = get_start(c);
         return (BoundedModuloSubtract(o->m_end, start) <= BoundedModuloSubtract(o->m_end, index));
@@ -214,7 +219,7 @@ public:
     static bool endReached (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         CommandSizeType start = get_start(c);
         return (start == o->m_end);
@@ -223,7 +228,7 @@ public:
     static void unsetEvent (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
@@ -288,7 +293,7 @@ private:
     static void event_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return Handler::call(c);
     }
@@ -328,9 +333,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<At91SamSpiBase, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<At91SamSpiBase, ParentObject, MakeTypeList<TheDebugObject>> {
         CommandSizeType m_start;
         CommandSizeType m_end;
         Command *m_current;

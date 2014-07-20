@@ -81,6 +81,10 @@ class At91SamPins {
 public:
     struct Object;
     
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
@@ -96,13 +100,13 @@ public:
 #ifdef PIOD
         pmc_enable_periph_clk(ID_PIOD);
 #endif
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
 #ifdef PIOD
         pmc_disable_periph_clk(ID_PIOD);
 #endif
@@ -121,7 +125,7 @@ public:
     static void setInput (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         pio<typename Pin::Pio>()->PIO_ODR = (UINT32_C(1) << Pin::PinIndex);
         pio<typename Pin::Pio>()->PIO_PER = (UINT32_C(1) << Pin::PinIndex);
@@ -136,7 +140,7 @@ public:
     static void setOutput (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         pio<typename Pin::Pio>()->PIO_OER = (UINT32_C(1) << Pin::PinIndex);
         pio<typename Pin::Pio>()->PIO_PER = (UINT32_C(1) << Pin::PinIndex);
@@ -146,7 +150,7 @@ public:
     static void setPeripheral (ThisContext c, At91SamPeriphA)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             pio<typename Pin::Pio>()->PIO_ABSR &= ~(UINT32_C(1) << Pin::PinIndex);
@@ -158,7 +162,7 @@ public:
     static void setPeripheral (ThisContext c, At91SamPeriphB)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             pio<typename Pin::Pio>()->PIO_ABSR |= (UINT32_C(1) << Pin::PinIndex);
@@ -170,7 +174,7 @@ public:
     static bool get (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return (pio<typename Pin::Pio>()->PIO_PDSR & (UINT32_C(1) << Pin::PinIndex));
     }
@@ -179,7 +183,7 @@ public:
     static void set (ThisContext c, bool x)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         if (x) {
             pio<typename Pin::Pio>()->PIO_SODR = (UINT32_C(1) << Pin::PinIndex);
@@ -199,9 +203,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<At91SamPins, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<At91SamPins, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };

@@ -36,12 +36,17 @@ class At91SamWatchdog {
     
 public:
     struct Object;
+    
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     static constexpr double WatchdogTime = Params::Wdv / (F_SCLK / 128.0);
     
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        o->debugInit(c);
+        TheDebugObject::init(c);
         
         WDT->WDT_MR = WDT_MR_WDV(Params::Wdv) | WDT_MR_WDRSTEN | WDT_MR_WDD(Params::Wdv);
     }
@@ -49,22 +54,20 @@ public:
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
     }
     
     template <typename ThisContext>
     static void reset (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         WDT->WDT_CR = WDT_CR_KEY(0xA5) | WDT_CR_WDRSTT;
     }
     
 public:
-    struct Object : public ObjBase<At91SamWatchdog, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<At91SamWatchdog, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };

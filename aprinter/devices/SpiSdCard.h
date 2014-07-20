@@ -47,6 +47,7 @@ private:
     
     static const int SpiMaxCommands = MaxValue(6, 6 * MaxCommands);
     static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
+    using TheDebugObject = DebugObject<Context, Object>;
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
     using SpiCommandSizeType = typename TheSpi::CommandSizeType;
     
@@ -65,13 +66,13 @@ public:
         Context::Pins::template set<SsPin>(c, true);
         Context::Pins::template setOutput<SsPin>(c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         Context::Pins::template set<SsPin>(c, true);
         if (o->m_state != STATE_INACTIVE) {
@@ -82,7 +83,7 @@ public:
     static void activate (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_INACTIVE)
         
         TheSpi::init(c);
@@ -93,7 +94,7 @@ public:
     static void deactivate (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state != STATE_INACTIVE)
         
         deactivate_common(c);
@@ -102,7 +103,7 @@ public:
     static uint32_t getCapacityBlocks (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
         
         return o->m_capacity_blocks;
@@ -111,7 +112,7 @@ public:
     static void queueReadBlock (Context c, uint32_t block, uint8_t *data1, size_t data1_len, uint8_t *data2, ReadState *state)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
         AMBRO_ASSERT(block < o->m_capacity_blocks)
         AMBRO_ASSERT(data1_len > 0)
@@ -131,7 +132,7 @@ public:
     static bool checkReadBlock (Context c, ReadState *state, bool *out_error)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
         
         if (!TheSpi::indexReached(c, state->spi_end_index)) {
@@ -144,7 +145,7 @@ public:
     static void unsetEvent (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
         
         TheSpi::unsetEvent(c);
@@ -225,7 +226,7 @@ private:
     static void spi_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state != STATE_INACTIVE)
         
         if (AMBRO_LIKELY(o->m_state == STATE_RUNNING)) {
@@ -344,10 +345,9 @@ private:
     
 public:
     struct Object : public ObjBase<SpiSdCard, ParentObject, MakeTypeList<
+        TheDebugObject,
         TheSpi
-    >>,
-        public DebugObject<Context, void>
-    {
+    >> {
         uint8_t m_state;
         union {
             uint8_t m_count;

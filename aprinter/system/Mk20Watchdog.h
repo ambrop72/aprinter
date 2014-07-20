@@ -37,33 +37,34 @@
 template <typename Context, typename ParentObject, typename TParams>
 class Mk20Watchdog {
 public:
+    struct Object;
     using Params = TParams;
     
 private:
     static_assert(Params::Toval >= 4, "");
     static_assert(Params::Prescval < 8, "");
+    using TheDebugObject = DebugObject<Context, Object>;
     
 public:
-    struct Object;
     static constexpr double WatchdogTime = Params::Toval / (1000.0 / (Params::Prescval + 1));
     
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
     }
     
     template <typename ThisContext>
     static void reset (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             WDOG_REFRESH = UINT16_C(0xA602);
@@ -72,9 +73,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<Mk20Watchdog, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<Mk20Watchdog, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };

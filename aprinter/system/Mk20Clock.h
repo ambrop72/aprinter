@@ -183,6 +183,8 @@ public:
     static constexpr double time_freq = (double)F_BUS / prescale_divide;
     
 private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
     template <int FtmIndex>
     struct MyFtm {
         using FtmSpec = TypeListGet<FtmsList, FtmIndex>;
@@ -300,13 +302,13 @@ public:
         ListForEachForward<MyFtmsList>(Foreach_init(), c);
         ListForEachForward<MyFtmsList>(Foreach_init_start(), c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         ListForEachReverse<MyFtmsList>(Foreach_deinit(), c);
     }
@@ -337,9 +339,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<Mk20Clock, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<Mk20Clock, ParentObject, MakeTypeList<TheDebugObject>> {
         uint32_t m_offset;
     };
 };
@@ -366,12 +366,13 @@ private:
     using TheMyFtm = typename Clock::template FindFtm<Ftm>;
     static_assert(TheMyFtm::TheModeHelper::SupportsTimer, "InterruptTimer requires a ModeClock FTM.");
     using Channel = TypeListGet<typename Ftm::Channels, ChannelIndex>;
+    using TheDebugObject = DebugObject<Context, Object>;
     
 public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        o->debugInit(c);
+        TheDebugObject::init(c);
         
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
@@ -381,7 +382,7 @@ public:
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Channel::csc() = 0;
@@ -392,7 +393,7 @@ public:
     static void setFirst (ThisContext c, TimeType time)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(!(*Channel::csc() & FTM_CSC_CHIE))
         
@@ -436,7 +437,7 @@ public:
     static void unset (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Channel::csc() = 0;
@@ -477,9 +478,7 @@ private:
     static const TimeType clearance = MaxValue<TimeType>((128 / Clock::prescale_divide) + 2, ExtraClearance::value() * Clock::time_freq);
     
 public:
-    struct Object : public ObjBase<Mk20ClockInterruptTimer, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<Mk20ClockInterruptTimer, ParentObject, MakeTypeList<TheDebugObject>> {
         TimeType m_time;
 #ifdef AMBROLIB_ASSERTIONS
         bool m_running;
@@ -524,6 +523,7 @@ private:
     static_assert(TheMyFtm::TheModeHelper::TopVal < UINT16_C(0xFFFF), "TopVal must be less than 0xFFFF.");
     using Channel = TypeListGet<typename Ftm::Channels, ChannelIndex>;
     using ChannelPin = TypeListFind<typename Channel::PinsList, ComposeFunctions<IsEqualFunc<Pin>, GetMemberType_Pin>>;
+    using TheDebugObject = DebugObject<Context, Object>;
     
 public:
     using DutyCycleType = ChooseInt<BitsInInt<(TheMyFtm::TheModeHelper::TopVal + 1)>::Value, false>;
@@ -545,13 +545,13 @@ public:
         // Enable output on pin.
         Context::Pins::template setOutput<Pin, Mk20PinOutputModeNormal, ChannelPin::AlternateFunction>(c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         // Set pin to low.
         Context::Pins::template set<Pin>(c, false);
@@ -580,9 +580,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<Mk20ClockPwm, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<Mk20ClockPwm, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };

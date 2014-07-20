@@ -200,19 +200,24 @@ private:
     
 public:
     struct Object;
+    
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     using FixedType = FixedPoint<10, false, -10>;
     
     static void init (Context c)
     {
         auto *o = Object::self(c);
         AdcMaybe<NumPins>::init(c);
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         AdcMaybe<NumPins>::deinit(c);
     }
     
@@ -220,7 +225,7 @@ public:
     static FixedType getValue (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         static const int PinIndex = TypeListIndex<ParamsPinsList, IsEqualFunc<Pin>>::Value;
         
@@ -325,9 +330,10 @@ private:
     using PinsList = IndexElemList<ParamsPinsList, AdcPin>;
     
 public:
-    struct Object : public ObjBase<AvrAdc, ParentObject, PinsList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<AvrAdc, ParentObject, JoinTypeLists<
+        PinsList,
+        MakeTypeList<TheDebugObject>
+    >> {
         uint8_t m_current_pin;
         bool m_finished;
     };

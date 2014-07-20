@@ -43,6 +43,11 @@ private:
     
 public:
     struct Object;
+    
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using TheTimer = typename Params::TimerService::template InterruptTimer<Context, Object, TimerHandler>;
@@ -64,13 +69,13 @@ public:
         Context::Pins::template setOutput<typename Params::Pin>(c);
         TheTimer::setFirst(c, start_time);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         TheTimer::deinit(c);
         Context::Pins::template set<typename Params::Pin>(c, Params::Invert);
@@ -146,10 +151,9 @@ private:
     
 public:
     struct Object : public ObjBase<SoftPwm, ParentObject, MakeTypeList<
+        TheDebugObject,
         TheTimer
-    >>,
-        public DebugObject<Context, void>
-    {
+    >> {
         DutyCycleData m_duty;
         bool m_state;
         TimeType m_start_time;

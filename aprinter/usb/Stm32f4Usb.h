@@ -70,6 +70,10 @@ private:
 public:
     struct Object;
     
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     enum State {
         STATE_WAITING_RESET = 0,
         STATE_WAITING_ENUM = 1,
@@ -162,13 +166,13 @@ public:
         NVIC_SetPriority(Info::Irq, INTERRUPT_PRIORITY);
         NVIC_EnableIRQ(Info::Irq);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         NVIC_DisableIRQ(Info::Irq);
         
@@ -376,7 +380,7 @@ private:
     static void event_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         
     }
@@ -445,9 +449,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<Stm32f4Usb, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<Stm32f4Usb, ParentObject, MakeTypeList<TheDebugObject>> {
         State state;
         UsbSetupPacket setup_packet;
         uint8_t data[1024];

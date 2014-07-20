@@ -37,6 +37,12 @@
 template <typename Context, typename ParentObject, typename Config, typename FpType, typename GetValueCallback, typename Handler, typename Params>
 class TemperatureObserver {
 public:
+    struct Object;
+    
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     static void init (Context c, FpType target)
     {
         auto *o = Object::self(c);
@@ -46,13 +52,13 @@ public:
         o->m_intervals = 0;
         o->m_event.appendNowNotAlready(c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         o->m_event.deinit(c);
     }
@@ -72,7 +78,7 @@ private:
     static void event_handler (typename Context::EventLoop::QueuedEvent *, Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         o->m_event.appendAfterPrevious(c, APRINTER_CFG(Config, CIntervalTicks, c));
         
@@ -89,9 +95,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<TemperatureObserver, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<TemperatureObserver, ParentObject, MakeTypeList<TheDebugObject>> {
         typename Context::EventLoop::QueuedEvent m_event;
         FpType m_target;
         uint16_t m_intervals;

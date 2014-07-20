@@ -41,6 +41,7 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
+#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/printer/Configuration.h>
 
@@ -65,6 +66,7 @@ private:
     
     static int const NumSteppers = TypeListLength<StepperDefsList>::Value;
     using MaskType = ChooseInt<NumSteppers, false>;
+    using TheDebugObject = DebugObject<Context, Object>;
     
 public:
     template <int StepperIndex>
@@ -112,7 +114,7 @@ public:
         static void enable (Context c)
         {
             auto *s = Steppers::Object::self(c);
-            s->debugAccess(c);
+            TheDebugObject::access(c);
             if (SharesEnable) {
                 s->mask |= TheMask;
             }
@@ -122,7 +124,7 @@ public:
         static void disable (Context c)
         {
             auto *s = Steppers::Object::self(c);
-            s->debugAccess(c);
+            TheDebugObject::access(c);
             if (SharesEnable) {
                 s->mask &= ~TheMask;
                 if (!(s->mask & SameEnableMask)) {
@@ -136,24 +138,21 @@ public:
         template <typename ThisContext>
         static void setDir (ThisContext c, bool dir)
         {
-            auto *s = Steppers::Object::self(c);
-            s->debugAccess(c);
+            TheDebugObject::access(c);
             Context::Pins::template set<typename ThisDef::DirPin>(c, maybe_invert_dir(c, dir));
         }
         
         template <typename ThisContext>
         static void stepOn (ThisContext c)
         {
-            auto *s = Steppers::Object::self(c);
-            s->debugAccess(c);
+            TheDebugObject::access(c);
             Context::Pins::template set<typename ThisDef::StepPin>(c, true);
         }
         
         template <typename ThisContext>
         static void stepOff (ThisContext c)
         {
-            auto *s = Steppers::Object::self(c);
-            s->debugAccess(c);
+            TheDebugObject::access(c);
             Context::Pins::template set<typename ThisDef::StepPin>(c, false);
         }
         
@@ -193,22 +192,23 @@ public:
         auto *o = Object::self(c);
         o->mask = 0;
         ListForEachForward<SteppersList>(Foreach_init(), c);
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         ListForEachForward<SteppersList>(Foreach_deinit(), c);
     }
     
 public:
     using SteppersList = IndexElemList<StepperDefsList, Stepper>;
     
-    struct Object : public ObjBase<Steppers, ParentObject, SteppersList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<Steppers, ParentObject, JoinTypeLists<
+        SteppersList,
+        MakeTypeList<TheDebugObject>
+    >> {
         MaskType mask;
     };
 };

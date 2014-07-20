@@ -62,6 +62,9 @@ public:
     typedef BusyEventLoopQueuedEvent<BusyEventLoop> QueuedEvent;
     using FastHandlerType = void (*) (Context);
     
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
 public:
     static void init (Context c)
     {
@@ -79,20 +82,20 @@ public:
         o->m_bench_time = 0;
 #endif
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         AMBRO_ASSERT(o->m_queued_event_list.isEmpty())
     }
     
     static void run (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         while (1) {
             for (typename Delay::Extra::FastEventSizeType i = 0; i < Delay::Extra::NumFastEvents; i++) {
@@ -165,7 +168,7 @@ public:
     static void initFastEvent (Context c, FastHandlerType handler)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         Delay::extra(c)->m_fast_events[Delay::Extra::template get_event_index<EventSpec>()].handler = handler;
     }
@@ -174,7 +177,7 @@ public:
     static void resetFastEvent (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         Delay::extra(c)->m_fast_events[Delay::Extra::template get_event_index<EventSpec>()].not_triggered = true;
     }
@@ -183,7 +186,7 @@ public:
     static void triggerFastEvent (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             Delay::extra(c)->m_fast_events[Delay::Extra::template get_event_index<EventSpec>()].not_triggered = false;
@@ -218,9 +221,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<BusyEventLoop, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<BusyEventLoop, ParentObject, MakeTypeList<TheDebugObject>> {
 #ifdef AMBROLIB_SUPPORT_QUIT
         bool m_quitting;
 #endif
@@ -272,12 +273,12 @@ public:
         m_handler = handler;
         Loop::QueuedEventList::markRemoved(this);
         
-        this->debugInit(c);
+        //this->debugInit(c);
     }
     
     void deinit (Context c)
     {
-        this->debugDeinit(c);
+        //this->debugDeinit(c);
         auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
@@ -287,7 +288,7 @@ public:
     
     void appendAt (Context c, TimeType time)
     {
-        this->debugAccess(c);
+        //this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
@@ -299,7 +300,7 @@ public:
     
     void appendAfterPrevious (Context c, TimeType after_time)
     {
-        this->debugAccess(c);
+        //this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
         
@@ -309,7 +310,7 @@ public:
     
     void appendNowNotAlready (Context c)
     {
-        this->debugAccess(c);
+        //this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
@@ -319,7 +320,7 @@ public:
     
     void prependNowNotAlready (Context c)
     {
-        this->debugAccess(c);
+        //this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
@@ -329,7 +330,7 @@ public:
     
     void unset (Context c)
     {
-        this->debugAccess(c);
+        //this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
@@ -340,7 +341,7 @@ public:
     
     bool isSet (Context c)
     {
-        this->debugAccess(c);
+        //this->debugAccess(c);
         
         return !Loop::QueuedEventList::isRemoved(this);
     }

@@ -60,6 +60,7 @@ private:
     static int const NumDevChannels = 6;
     static int const SpiMaxCommands = 2;
     static int const SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
+    using TheDebugObject = DebugObject<Context, Object>;
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
     
     template <int ChannelIndex>
@@ -85,13 +86,13 @@ public:
             o->m_pending[i] = false;
         }
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         TheSpi::deinit();
         Context::Pins::template set<typename Params::SsPin>(c, true);
@@ -101,7 +102,7 @@ public:
     static void setCurrent (Context c, FpType current_ma)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         using TheChannelHelper = ChannelHelper<ChannelIndex>;
         uint8_t const dev_channel = TheChannelHelper::ChannelParams::DevChannelIndex;
@@ -119,7 +120,7 @@ private:
     static void spi_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_current_channel != 0xFF)
         AMBRO_ASSERT(TheSpi::endReached(c))
         
@@ -159,11 +160,10 @@ public:
     struct Object : public ObjBase<Ad5206Current, ParentObject, JoinTypeLists<
         ChannelHelperList,
         MakeTypeList<
+            TheDebugObject,
             TheSpi
         >
-    >>,
-        public DebugObject<Context, void>
-    {
+    >> {
         TheSpi m_spi;
         uint8_t m_current_channel;
         bool m_delaying;

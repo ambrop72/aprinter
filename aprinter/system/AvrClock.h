@@ -280,6 +280,8 @@ public:
     static constexpr double time_freq = (double)F_CPU / PrescaleDivide;
     
 private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init_start, init_start)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
@@ -378,13 +380,13 @@ public:
         ListForEachForward<MyTcsList>(Foreach_init(), c);
         ListForEachForward<MyTcsList>(Foreach_init_start(), c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         ListForEachReverse<MyTcsList>(Foreach_deinit(), c);
     }
@@ -393,7 +395,7 @@ public:
     static TimeType getTime (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         uint32_t now;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -425,9 +427,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<AvrClock, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<AvrClock, ParentObject, MakeTypeList<TheDebugObject>> {
         uint16_t m_offset;
     };
 };
@@ -443,6 +443,7 @@ public:
     using Tc = typename TcChannel::Tc;
     
 private:
+    using TheDebugObject = DebugObject<Context, Object>;
     using MyTc = typename Clock::template FindTc<Tc>;
     static_assert(TypesAreEqual<typename MyTc::TcSpec::Mode, AvrClockTcModeClock>::Value, "TC must be AvrClockTcModeClock.");
     static_assert(!Tc::Is8Bit, "");
@@ -451,7 +452,7 @@ public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        o->debugInit(c);
+        TheDebugObject::init(c);
         
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
@@ -461,7 +462,7 @@ public:
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Tc::timsk() &= ~(1 << TcChannel::ocie);
@@ -472,7 +473,7 @@ public:
     static void setFirst (ThisContext c, TimeType time)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(!(*Tc::timsk() & (1 << TcChannel::ocie)))
         
@@ -584,7 +585,7 @@ public:
     static void unset (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Tc::timsk() &= ~(1 << TcChannel::ocie);
@@ -640,9 +641,7 @@ private:
     static const TimeType minus_clearance = -clearance;
     
 public:
-    struct Object : public ObjBase<AvrClock16BitInterruptTimer, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<AvrClock16BitInterruptTimer, ParentObject, MakeTypeList<TheDebugObject>> {
         TimeType m_time;
 #ifdef AMBROLIB_ASSERTIONS
         bool m_running;
@@ -661,6 +660,7 @@ public:
     using Tc = typename TcChannel::Tc;
     
 private:
+    using TheDebugObject = DebugObject<Context, Object>;
     using MyTc = typename Clock::template FindTc<Tc>;
     static_assert(TypesAreEqual<typename MyTc::TcSpec::Mode, AvrClockTcModeClock>::Value, "TC must be AvrClockTcModeClock.");
     static_assert(Tc::Is8Bit, "");
@@ -669,7 +669,7 @@ public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        o->debugInit(c);
+        TheDebugObject::init(c);
         
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
@@ -679,7 +679,7 @@ public:
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Tc::timsk() &= ~(1 << TcChannel::ocie);
@@ -690,7 +690,7 @@ public:
     static void setFirst (ThisContext c, TimeType time)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(!(*Tc::timsk() & (1 << TcChannel::ocie)))
         
@@ -749,7 +749,7 @@ public:
     static void setNext (HandlerContext c, TimeType time)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_running)
         AMBRO_ASSERT(*Tc::timsk() & (1 << TcChannel::ocie))
         
@@ -799,7 +799,7 @@ public:
     static void unset (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Tc::timsk() &= ~(1 << TcChannel::ocie);
@@ -855,9 +855,7 @@ private:
     static const TimeType minus_clearance = -clearance;
     
 public:
-    struct Object : public ObjBase<AvrClock8BitInterruptTimer, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<AvrClock8BitInterruptTimer, ParentObject, MakeTypeList<TheDebugObject>> {
         TimeType m_time;
 #ifdef AMBROLIB_ASSERTIONS
         bool m_running;
@@ -910,6 +908,7 @@ public:
     using Clock = typename Context::Clock;
     
 private:
+    using TheDebugObject = DebugObject<Context, Object>;
     using Tc = typename TcChannel::Tc;
     using MyTc = typename Clock::template FindTc<Tc>;
     static_assert(MyTc::TheModeHelper::IsPwmMode, "TC must be configured in PWM mode.");
@@ -937,13 +936,13 @@ public:
         Context::Pins::template set<Pin>(c, false);
         Context::Pins::template setOutput<Pin>(c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Tc::tccra() &= ~ComMask;
@@ -968,9 +967,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<AvrClock8BitPwm, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<AvrClock8BitPwm, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };
@@ -988,6 +985,7 @@ public:
     using Clock = typename Context::Clock;
     
 private:
+    using TheDebugObject = DebugObject<Context, Object>;
     using Tc = typename TcChannel::Tc;
     using MyTc = typename Clock::template FindTc<Tc>;
     static_assert(MyTc::TheModeHelper::IsPwmMode, "TC must be configured in PWM mode.");
@@ -1016,13 +1014,13 @@ public:
         Context::Pins::template set<Pin>(c, false);
         Context::Pins::template setOutput<Pin>(c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Tc::tccra() &= ~ComMask;
@@ -1050,9 +1048,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<AvrClock16BitPwm, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<AvrClock16BitPwm, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };

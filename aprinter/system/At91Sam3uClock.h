@@ -105,6 +105,8 @@ public:
     static constexpr double time_freq = (double)F_MCK / prescale_divide;
     
 private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
     template <int TTcIndex>
     struct MyTc {
         static int const TcIndex = TTcIndex;
@@ -166,13 +168,13 @@ public:
         MyTcsTuple dummy;
         TupleForEachForward(&dummy, Foreach_init(), c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         MyTcsTuple dummy;
         TupleForEachReverse(&dummy, Foreach_deinit(), c);
@@ -204,9 +206,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<At91Sam3uClock, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<At91Sam3uClock, ParentObject, MakeTypeList<TheDebugObject>> {
         uint16_t m_offset;
     };
 };
@@ -234,6 +234,7 @@ public:
     using Comp = TComp;
     
 private:
+    using TheDebugObject = DebugObject<Context, Object>;
     using TheMyTc = typename Clock::template FindTc<TcSpec>;
     static const uint32_t CpMask = Comp::CpMask;
     
@@ -241,7 +242,7 @@ public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        o->debugInit(c);
+        TheDebugObject::init(c);
         
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
@@ -251,7 +252,7 @@ public:
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             ch()->TC_IDR = CpMask;
@@ -262,7 +263,7 @@ public:
     static void setFirst (ThisContext c, TimeType time)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(!o->m_running)
         AMBRO_ASSERT(!(ch()->TC_IMR & CpMask))
         
@@ -309,7 +310,7 @@ public:
     static void unset (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             ch()->TC_IDR = CpMask;
@@ -354,9 +355,7 @@ private:
     static const TimeType clearance = MaxValue<TimeType>((64 / Clock::prescale_divide) + 2, ExtraClearance::value() * Clock::time_freq);
     
 public:
-    struct Object : public ObjBase<At91Sam3uClockInterruptTimer, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<At91Sam3uClockInterruptTimer, ParentObject, MakeTypeList<TheDebugObject>> {
         TimeType m_time;
 #ifdef AMBROLIB_ASSERTIONS
         bool m_running;

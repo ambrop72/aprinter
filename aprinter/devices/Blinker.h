@@ -38,6 +38,11 @@ class Blinker
 {
 public:
     struct Object;
+    
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     
@@ -53,13 +58,13 @@ public:
         Context::Pins::template set<Pin>(c, o->state);
         Context::Pins::template setOutput<Pin>(c);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         o->timer.deinit(c);
     }
@@ -67,7 +72,7 @@ public:
     static void setInterval (Context c, TimeType interval)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         o->interval = interval;
     }
@@ -78,7 +83,7 @@ private:
     static void timer_handler (typename Loop::QueuedEvent *, Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         o->state = !o->state;
         Context::Pins::template set<Pin>(c, o->state);
@@ -89,9 +94,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<Blinker, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<Blinker, ParentObject, MakeTypeList<TheDebugObject>> {
         TimeType interval;
         TimeType next_time;
         bool state;

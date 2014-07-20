@@ -65,6 +65,10 @@ private:
 public:
     struct Object;
     
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     static int const DeviceIndex = Device::DeviceIndex;
     
     static size_t const BlockSize = Device::PageSize;
@@ -83,13 +87,13 @@ public:
         NVIC_SetPriority(Device::Irq, INTERRUPT_PRIORITY);
         NVIC_EnableIRQ(Device::Irq);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         NVIC_DisableIRQ(Device::Irq);
         Device::efc()->EEFC_FMR &= ~EEFC_FMR_FRDY;
@@ -101,7 +105,7 @@ public:
     static uint32_t volatile * getBlockWritePointer (Context c, size_t block_index)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(block_index < NumBlocks)
         
         return (uint32_t volatile *)Device::dataPtr();
@@ -110,7 +114,7 @@ public:
     static void startBlockWrite (Context c, size_t block_index)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(block_index < NumBlocks)
         AMBRO_ASSERT(!o->writing)
         
@@ -140,7 +144,7 @@ private:
     static void event_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->writing)
         
         o->writing = false;
@@ -148,9 +152,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<At91Sam3xFlash, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<At91Sam3xFlash, ParentObject, MakeTypeList<TheDebugObject>> {
         bool writing;
         bool success;
     };

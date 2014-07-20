@@ -150,23 +150,27 @@ class AvrPins {
 public:
     struct Object;
     
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
     }
     
     template <typename Pin, typename Mode = AvrPinInputModeNormal, typename ThisContext>
     static void setInput (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         avrClearBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
         if (Mode::PullUp) {
@@ -180,7 +184,7 @@ public:
     static void setOutput (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         avrSetBitReg<Pin::Port::ddr_io_addr, Pin::port_pin>(c);
     }
@@ -189,7 +193,7 @@ public:
     static bool get (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         return (Pin::Port::getPin() & (1 << Pin::port_pin));
     }
@@ -198,7 +202,7 @@ public:
     static void set (ThisContext c, bool x)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         if (x) {
             avrSetBitReg<Pin::Port::port_io_addr, Pin::port_pin>(c);
@@ -218,9 +222,7 @@ public:
     }
     
 public:
-    struct Object : public ObjBase<AvrPins, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<AvrPins, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };

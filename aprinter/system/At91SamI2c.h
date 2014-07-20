@@ -91,6 +91,7 @@ private:
     static uint8_t const Chldiv = ChldivFp::value();
     
     using FastEvent = typename Context::EventLoop::template FastEventSpec<At91SamI2c>;
+    using TheDebugObject = DebugObject<Context, Object>;
     enum {STATE_IDLE, STATE_WRITING, STATE_READING, STATE_DONE};
     
 public:
@@ -113,13 +114,13 @@ public:
         NVIC_SetPriority(Device::Irq, INTERRUPT_PRIORITY);
         NVIC_EnableIRQ(Device::Irq);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         NVIC_DisableIRQ(Device::Irq);
         Device::dev()->TWI_IDR = UINT32_MAX;
@@ -133,7 +134,7 @@ public:
     static void startWrite (Context c, uint8_t addr, uint8_t const *data, size_t length, uint8_t const *data2, size_t length2)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_IDLE)
         AMBRO_ASSERT(addr < 128)
         AMBRO_ASSERT(length > 0)
@@ -155,7 +156,7 @@ public:
     static void startRead (Context c, uint8_t addr, uint8_t *data, size_t length)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_IDLE)
         AMBRO_ASSERT(addr < 128)
         AMBRO_ASSERT(length > 0)
@@ -233,7 +234,7 @@ private:
     static void event_handler (Context c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_DONE)
         
         o->state = STATE_IDLE;
@@ -241,9 +242,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<At91SamI2c, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<At91SamI2c, ParentObject, MakeTypeList<TheDebugObject>> {
         uint8_t state;
         bool success;
         union {

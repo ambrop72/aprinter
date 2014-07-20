@@ -41,6 +41,11 @@ class AvrWatchdog {
     
 public:
     struct Object;
+    
+private:
+    using TheDebugObject = DebugObject<Context, Object>;
+    
+public:
     static constexpr double WatchdogTime = PowerOfTwoFunc<double>(11 + Params::WatchdogPrescaler) / 131072.0;
     
     static void init (Context c)
@@ -49,13 +54,13 @@ public:
         
         wdt_enable(Params::WatchdogPrescaler);
         
-        o->debugInit(c);
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
-        o->debugDeinit(c);
+        TheDebugObject::deinit(c);
         
         wdt_disable();
     }
@@ -64,15 +69,13 @@ public:
     static void reset (ThisContext c)
     {
         auto *o = Object::self(c);
-        o->debugAccess(c);
+        TheDebugObject::access(c);
         
         wdt_reset();
     }
     
 public:
-    struct Object : public ObjBase<AvrWatchdog, ParentObject, EmptyTypeList>,
-        public DebugObject<Context, void>
-    {
+    struct Object : public ObjBase<AvrWatchdog, ParentObject, MakeTypeList<TheDebugObject>> {
         char dummy;
     };
 };
