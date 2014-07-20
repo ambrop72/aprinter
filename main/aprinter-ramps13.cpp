@@ -239,10 +239,10 @@ using PrinterParams = PrinterMainParams<
     InactiveTime, // InactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    26, // StepperSegmentBufferSize
-    26, // EventChannelBufferSize
+    28, // StepperSegmentBufferSize
+    28, // EventChannelBufferSize
     10, // LookaheadBufferSize
-    5, // LookaheadCommitCount
+    6, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
     AvrClockInterruptTimerService<AvrClockTcChannel5C, EventChannelTimerClearance>, // EventChannelTimer
