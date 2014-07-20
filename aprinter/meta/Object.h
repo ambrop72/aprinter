@@ -45,16 +45,16 @@
 
 #include <aprinter/BeginNamespace.h>
 
-namespace ObjectPrivate {
-    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Object, Object)
-}
+AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Obj__GetMemberType_Object, Object)
+AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Obj__HasMemberType_NestedClassesList, NestedClassesList)
+AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Obj__GetMemberType_NestedClassesList, NestedClassesList)
 
 template <typename TClass, typename TParentObject, typename TNestedClassesList>
-struct ObjBase : public Tuple<MapTypeList<TNestedClassesList, ObjectPrivate::GetMemberType_Object>> {
+struct ObjBase : public Tuple<MapTypeList<TNestedClassesList, Obj__GetMemberType_Object>> {
     using Class = TClass;
     using ParentObject = TParentObject;
     using NestedClassesList = TNestedClassesList;
-    using NestedClassesTuple = Tuple<MapTypeList<TNestedClassesList, ObjectPrivate::GetMemberType_Object>>;
+    using NestedClassesTuple = Tuple<MapTypeList<TNestedClassesList, Obj__GetMemberType_Object>>;
     
     template <typename Context, typename DelayClass = Class>
     static typename DelayClass::Object * self (Context c)
@@ -71,11 +71,11 @@ struct ObjBase : public Tuple<MapTypeList<TNestedClassesList, ObjectPrivate::Get
 };
 
 template <typename TClass, typename TParentObject, typename TNestedClassesList>
-struct ObjUnionBase : public Union<MapTypeList<TNestedClassesList, ObjectPrivate::GetMemberType_Object>> {
+struct ObjUnionBase : public Union<MapTypeList<TNestedClassesList, Obj__GetMemberType_Object>> {
     using Class = TClass;
     using ParentObject = TParentObject;
     using NestedClassesList = TNestedClassesList;
-    using NestedClassesUnion = Union<MapTypeList<TNestedClassesList, ObjectPrivate::GetMemberType_Object>>;
+    using NestedClassesUnion = Union<MapTypeList<TNestedClassesList, Obj__GetMemberType_Object>>;
     
     template <typename Context, typename DelayClass = Class>
     static typename DelayClass::Object * self (Context c)
@@ -96,9 +96,6 @@ struct ClassName { \
     AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Has, CollectibleName) \
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Get, CollectibleName) \
 };
-
-AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Obj__HasMemberType_NestedClassesList, NestedClassesList)
-AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Obj__GetMemberType_NestedClassesList, NestedClassesList)
 
 template <typename ClassList, typename Collectible, bool WithoutRoots, typename CurrentList>
 struct Obj__CollectHelper {
