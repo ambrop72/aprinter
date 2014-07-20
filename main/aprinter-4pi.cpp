@@ -43,6 +43,7 @@ static void emergency (void);
 #include <aprinter/system/At91SamWatchdog.h>
 #include <aprinter/system/AsfUsbSerial.h>
 #include <aprinter/system/At91SamSpi.h>
+#include <aprinter/system/At91Sam3xFlash.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/AxisHomer.h>
@@ -52,6 +53,8 @@ static void emergency (void);
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/config_manager/ConstantConfigManager.h>
+#include <aprinter/printer/config_manager/RuntimeConfigManager.h>
+#include <aprinter/printer/config_store/FlashConfigStore.h>
 #include <aprinter/printer/microstep/A4982MicroStep.h>
 #include <aprinter/printer/current/Ad5206Current.h>
 
@@ -281,7 +284,15 @@ using PrinterParams = PrinterMainParams<
             At91SamSpiService<At91Sam3uSpiDevice> // SpiService
         >
     >,
-    ConstantConfigManagerService,
+    RuntimeConfigManagerService<
+        FlashConfigStoreService<
+            At91Sam3xFlashService<
+                At91Sam3xFlashDevice1
+            >,
+            0, // StartBlock
+            512 // EndBlock
+        >
+    >,
     ConfigList,
     
     /*
@@ -669,6 +680,7 @@ AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClockCo
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC1, At91Sam3uClockCompB, MyPrinter::GetAxisTimer<3>, MyContext())
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC2, At91Sam3uClockCompB, MyPrinter::GetHeaterPwm<0>::TheTimer, MyContext())
 AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC0, At91Sam3uClockCompC, MyPrinter::GetHeaterPwm<1>::TheTimer, MyContext())
+AMBRO_AT91SAM3X_FLASH_GLOBAL(1, MyPrinter::GetConfigManager::GetStore<>::GetFlash, MyContext())
 
 AMBRO_AT91SAM3U_ADC_GLOBAL(MyAdc, MyContext())
 AMBRO_AT91SAM3U_SPI_GLOBAL(MyPrinter::GetCurrent<>::GetSpi, MyContext())
