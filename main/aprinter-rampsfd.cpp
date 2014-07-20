@@ -43,9 +43,10 @@ static void emergency (void);
 #include <aprinter/system/At91SamWatchdog.h>
 #include <aprinter/system/At91Sam3xSerial.h>
 #include <aprinter/system/At91SamSpi.h>
-#include <aprinter/system/At91Sam3xFlash.h>
+#include <aprinter/system/At91SamI2c.h>
 #include <aprinter/system/AsfUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
+#include <aprinter/devices/I2cEeprom.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 #include <aprinter/printer/AxisHomer.h>
@@ -56,7 +57,7 @@ static void emergency (void);
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/config_manager/ConstantConfigManager.h>
 #include <aprinter/printer/config_manager/RuntimeConfigManager.h>
-#include <aprinter/printer/config_store/FlashConfigStore.h>
+#include <aprinter/printer/config_store/EepromConfigStore.h>
 #include <aprinter/board/arduino_due_pins.h>
 
 using namespace APrinter;
@@ -66,6 +67,9 @@ APRINTER_CONFIG_START
 using AdcFreq = AMBRO_WRAP_DOUBLE(1000000.0);
 using AdcAvgInterval = AMBRO_WRAP_DOUBLE(0.0025);
 static uint16_t const AdcSmoothing = 0.95 * 65536.0;
+
+using I2cFreq = AMBRO_WRAP_DOUBLE(100000.0);
+using I2cEepromWriteTimeout = AMBRO_WRAP_DOUBLE(1.0);
 
 using LedBlinkInterval = AMBRO_WRAP_DOUBLE(0.5);
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
@@ -288,10 +292,20 @@ using PrinterParams = PrinterMainParams<
         927, // ResetAllConfigMCommand
         928, // LoadConfigMCommand
         929, // SaveConfigMCommand
-        FlashConfigStoreService<
-            At91Sam3xFlashService<At91Sam3xFlashDevice1>,
+        EepromConfigStoreService<
+            I2cEepromService<
+                At91SamI2cService<
+                    At91SamI2cDevice1,
+                    2,
+                    I2cFreq
+                >,
+                80, // I2cAddr
+                65536, // Size
+                128, // BlockSize
+                I2cEepromWriteTimeout
+            >,
             0, // StartBlock
-            64 // EndBlock
+            512 // EndBlock
         >
     >,
     ConfigList,
@@ -693,7 +707,7 @@ AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())
 #endif
 AMBRO_AT91SAM3X_SPI_GLOBAL(MyPrinter::GetSdCard<>::GetSpi, MyContext())
 AMBRO_AT91SAM_ADC_GLOBAL(MyAdc, MyContext())
-AMBRO_AT91SAM3X_FLASH_GLOBAL(1, MyPrinter::GetConfigManager::GetStore<>::GetFlash, MyContext())
+AMBRO_AT91SAM_I2C_GLOBAL(1, MyPrinter::GetConfigManager::GetStore<>::GetEeprom::GetI2c, MyContext())
 
 static void emergency (void)
 {
