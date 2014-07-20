@@ -29,6 +29,7 @@
 
 #include <aprinter/meta/TypeSequence.h>
 #include <aprinter/meta/TypeSequenceMakeInt.h>
+#include <aprinter/base/ProgramMemory.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -36,14 +37,28 @@ template <typename, template<int> class, typename>
 struct StaticArrayHelper;
 
 template <typename ElemType, template<int> class ElemValue, typename... Indices>
-struct StaticArrayHelper<ElemType, ElemValue, TypeSequence<Indices...>>
+class StaticArrayHelper<ElemType, ElemValue, TypeSequence<Indices...>>
 {
+public:
     static size_t const Length = sizeof...(Indices);
-    static ElemType data[Length];
+    
+    static ElemType readAt (size_t index)
+    {
+#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
+        ElemType elem;
+        AMBRO_PGM_MEMCPY(&elem, &data[index], sizeof(elem));
+        return elem;
+#else
+        return data[index];
+#endif
+    }
+    
+private:
+    static ElemType AMBRO_PROGMEM const data[Length];
 };
 
 template <typename ElemType, template<int> class ElemValue, typename... Indices>
-ElemType StaticArrayHelper<ElemType, ElemValue, TypeSequence<Indices...>>::data[] = { ElemValue<Indices::Value>::value()...};
+ElemType AMBRO_PROGMEM const StaticArrayHelper<ElemType, ElemValue, TypeSequence<Indices...>>::data[] = {ElemValue<Indices::Value>::value()...};
 
 template <typename ElemType, int Size, template<int> class ElemValue>
 using StaticArray = StaticArrayHelper<ElemType, ElemValue, TypeSequenceMakeInt<Size>>;

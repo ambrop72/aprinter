@@ -35,6 +35,7 @@
 
 #ifdef AMBROLIB_AVR
 
+#define AMBRO_HAS_NONTRANSPARENT_PROGMEM 1
 #define AMBRO_PROGMEM PROGMEM
 #define AMBRO_PSTR(x) PSTR(x)
 #define AMBRO_PGM_P PGM_P
@@ -45,6 +46,7 @@
 
 #else
 
+#define AMBRO_HAS_NONTRANSPARENT_PROGMEM 0
 #define AMBRO_PROGMEM
 #define AMBRO_PSTR(x) (x)
 #define AMBRO_PGM_P char const *

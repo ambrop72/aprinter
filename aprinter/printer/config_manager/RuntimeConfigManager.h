@@ -154,13 +154,13 @@ private:
             static constexpr Type value () { return TheConfigOption::DefaultValue::value(); }
         };
         
-        using NameTable = StaticArray<char AMBRO_PROGMEM const * const, NumOptions, NameTableElem>;
-        using DefaultTable = StaticArray<Type const, NumOptions, DefaultTableElem>;
+        using NameTable = StaticArray<char AMBRO_PROGMEM const *, NumOptions, NameTableElem>;
+        using DefaultTable = StaticArray<Type, NumOptions, DefaultTableElem>;
         
         static int find_option (char const *name)
         {
             for (int i = 0; i < NumOptions; i++) {
-                if (!AMBRO_PGM_STRCMP(name, NameTable::data[i])) {
+                if (!AMBRO_PGM_STRCMP(name, NameTable::readAt(i))) {
                     return i;
                 }
             }
@@ -171,7 +171,7 @@ private:
         {
             auto *o = Object::self(c);
             for (int i = 0; i < NumOptions; i++) {
-                o->values[i] = DefaultTable::data[i];
+                o->values[i] = DefaultTable::readAt(i);
             }
         }
         
@@ -186,7 +186,7 @@ private:
             if (get_it) {
                 TheTypeSpecific::get_value_cmd(c, cc, o->values[index]);
             } else {
-                TheTypeSpecific::set_value_cmd(c, cc, &o->values[index], DefaultTable::data[index]);
+                TheTypeSpecific::set_value_cmd(c, cc, &o->values[index], DefaultTable::readAt(index));
             }
             return false;
         }
