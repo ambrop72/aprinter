@@ -306,6 +306,18 @@ you will want to pass:
 
 If the fans are not equally powerful, you can adjust the `SpeedMultiplier` to scale the speed of specific fans.
 
+## Delta geomoetry
+
+For delta, consult the `aprinter-teensy3.cpp` main file as an example. Briefly, you need to do the following:
+
+- Add the cartesian axis configuration options at the top of the file (`XMinPos`...`ZMaxSpeed`).
+- Replace the existing X,Y,Z axis configuration options with a common set of options for A,B,C tower axes (`ABCInvertDir`...`ABCHomeSlowSpeed`).
+- Add the delta transform configuration options (`DeltaDiagonalRod`...`DeltaMaxSplitLength`).
+- Change your `PrinterMainAxisParams` X,Y,Z axis configuration to A,B,C. This includes the axis name and all the configuration option names. Make sure to set `EnableCartesianSpeedLimit` to false.
+- Add the transform configuration, by replacing `PrinterMainNoTransformParams` with what is in that place in the example.
+
+*NOTE*: Delta will not work well on AVR based platforms due to lack of CPU speed and RAM.
+
 ## Slave steppers
 
 Slave steppers are extra steppers assigned to an axis. They will be driven synchronously with the main stepper for the axis.
