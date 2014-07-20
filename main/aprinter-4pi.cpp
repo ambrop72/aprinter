@@ -88,7 +88,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(XHomeSlowMaxDist, 5.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeFastSpeed, 40.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeRetractSpeed, 50.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeSlowSpeed, 5.0, ConfigNoProperties)
-using XCurrent = AMBRO_WRAP_DOUBLE(128.0);
+APRINTER_CONFIG_OPTION_DOUBLE(XCurrent, 128.0, ConfigNoProperties)
 
 APRINTER_CONFIG_OPTION_BOOL(YInvertDir, true, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YStepsPerUnit, 80.0, ConfigNoProperties)
@@ -106,7 +106,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(YHomeSlowMaxDist, 5.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeFastSpeed, 40.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeRetractSpeed, 50.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeSlowSpeed, 5.0, ConfigNoProperties)
-using YCurrent = AMBRO_WRAP_DOUBLE(128.0);
+APRINTER_CONFIG_OPTION_DOUBLE(YCurrent, 128.0, ConfigNoProperties)
 
 APRINTER_CONFIG_OPTION_BOOL(ZInvertDir, false, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZStepsPerUnit, 4000.0, ConfigNoProperties)
@@ -124,7 +124,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(ZHomeSlowMaxDist, 1.2, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeFastSpeed, 2.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeRetractSpeed, 2.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeSlowSpeed, 0.6, ConfigNoProperties)
-using ZCurrent = AMBRO_WRAP_DOUBLE(128.0);
+APRINTER_CONFIG_OPTION_DOUBLE(ZCurrent, 128.0, ConfigNoProperties)
 
 APRINTER_CONFIG_OPTION_BOOL(EInvertDir, true, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(EStepsPerUnit, 928.0, ConfigNoProperties)
@@ -134,7 +134,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(EMaxSpeed, 45.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(EMaxAccel, 250.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(EDistanceFactor, 1.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ECorneringDistance, 40.0, ConfigNoProperties)
-using ECurrent = AMBRO_WRAP_DOUBLE(128.0);
+APRINTER_CONFIG_OPTION_DOUBLE(ECurrent, 128.0, ConfigNoProperties)
 
 APRINTER_CONFIG_OPTION_BOOL(UInvertDir, true, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(UStepsPerUnit, 660.0, ConfigNoProperties)
@@ -144,7 +144,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(UMaxSpeed, 45.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(UMaxAccel, 250.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(UDistanceFactor, 1.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(UCorneringDistance, 40.0, ConfigNoProperties)
-using UCurrent = AMBRO_WRAP_DOUBLE(128.0);
+APRINTER_CONFIG_OPTION_DOUBLE(UCurrent, 128.0, ConfigNoProperties)
 
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorResistorR, 4700.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ExtruderHeaterThermistorR0, 100000.0, ConfigNoProperties)
@@ -219,7 +219,7 @@ using ProbeP2Y = AMBRO_WRAP_DOUBLE(155.0);
 using ProbeP3X = AMBRO_WRAP_DOUBLE(205.0);
 using ProbeP3Y = AMBRO_WRAP_DOUBLE(83.0);
 
-using CurrentConversionFactor = AMBRO_WRAP_DOUBLE(100.0 / 743.0);
+APRINTER_CONFIG_OPTION_DOUBLE(CurrentConversionFactor, 100.0 / 743.0, ConfigNoProperties)
 
 APRINTER_CONFIG_END
 

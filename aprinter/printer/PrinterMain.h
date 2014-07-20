@@ -450,6 +450,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_automatic_energy, handle_automatic_energy)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_planner_cmd, write_planner_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_apply_default, apply_default)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(TForeach_init, init)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
@@ -2939,17 +2940,22 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename ChannelAxisParams>
         using MakeCurrentChannel = typename ChannelAxisParams::Params;
         using CurrentChannelsList = MapTypeList<ParamsCurrentAxesList, TemplateFunc<MakeCurrentChannel>>;
-        using Current = typename CurrentParams::CurrentService::template Current<Context, Object, CurrentChannelsList>;
+        using Current = typename CurrentParams::CurrentService::template Current<Context, Object, Config, FpType, CurrentChannelsList>;
         
         static void init (Context c)
         {
             Current::init(c);
-            ListForEachForward<CurrentAxesList>(LForeach_init(), c);
+            apply_default(c);
         }
         
         static void deinit (Context c)
         {
             Current::deinit(c);
+        }
+        
+        static void apply_default (Context c)
+        {
+            ListForEachForward<CurrentAxesList>(LForeach_apply_default(), c);
         }
         
         template <typename TheChannelCommon>
@@ -2971,9 +2977,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct CurrentAxis {
             using CurrentAxisParams = TypeListGet<ParamsCurrentAxesList, CurrentAxisIndex>;
             
-            static void init (Context c)
+            static void apply_default (Context c)
             {
-                Current::template setCurrent<CurrentAxisIndex>(c, CurrentAxisParams::DefaultCurrent::value());
+                Current::template setCurrent<CurrentAxisIndex>(c, APRINTER_CFG(Config, CCurrent, c));
             }
             
             template <typename TheChannelCommon>
@@ -2985,16 +2991,25 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 }
                 return true;
             }
+            
+            using CCurrent = decltype(ExprCast<FpType>(Config::e(CurrentAxisParams::DefaultCurrent::i)));
+            using ConfigExprs = MakeTypeList<CCurrent>;
+            
+            struct Object : public ObjBase<CurrentAxis, typename CurrentFeature::Object, EmptyTypeList> {};
         };
         
         using CurrentAxesList = IndexElemList<ParamsCurrentAxesList, CurrentAxis>;
         
-        struct Object : public ObjBase<CurrentFeature, typename PrinterMain::Object, MakeTypeList<
-            Current
+        struct Object : public ObjBase<CurrentFeature, typename PrinterMain::Object, JoinTypeLists<
+            CurrentAxesList,
+            MakeTypeList<
+                Current
+            >
         >> {};
     } AMBRO_STRUCT_ELSE(CurrentFeature) {
         static void init (Context c) {}
         static void deinit (Context c) {}
+        static void apply_default (Context c) {}
         template <typename TheChannelCommon>
         static bool check_command (Context c, WrapType<TheChannelCommon>) { return true; }
         struct Object {};
@@ -3240,6 +3255,7 @@ public: // private, see comment on top
                         return;
                     }
                     TheConfigCache::update(c);
+                    CurrentFeature::apply_default(c);
                     return TheChannelCommon::finishCommand(c);
                 } break;
             } break;
@@ -3767,6 +3783,7 @@ public: // private, see comment on top
                     HeatersList,
                     MakeTypeList<
                         TheSteppers,
+                        CurrentFeature,
                         PlannerUnion
                     >
                 >,

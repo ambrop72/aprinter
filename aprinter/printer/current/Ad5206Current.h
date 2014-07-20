@@ -32,8 +32,11 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/JoinTypeLists.h>
+#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -46,7 +49,7 @@ struct Ad5206CurrentChannelParams {
     using ConversionFactor = TConversionFactor;
 };
 
-template <typename Context, typename ParentObject, typename ChannelsList, typename Params>
+template <typename Context, typename ParentObject, typename Config, typename FpType, typename ChannelsList, typename Params>
 class Ad5206Current {
 public:
     struct Object;
@@ -58,6 +61,15 @@ private:
     static int const SpiMaxCommands = 2;
     static int const SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
+    
+    template <int ChannelIndex>
+    struct ChannelHelper {
+        using ChannelParams = TypeListGet<ChannelsList, ChannelIndex>;
+        using CChannelConversionFactor = decltype(ExprCast<FpType>(Config::e(ChannelParams::ConversionFactor::i)));
+        using ConfigExprs = MakeTypeList<CChannelConversionFactor>;
+        struct Object : public ObjBase<ChannelHelper, typename Ad5206Current::Object, EmptyTypeList> {};
+    };
+    using ChannelHelperList = IndexElemList<ChannelsList, ChannelHelper>;
     
 public:
     static void init (Context c)
@@ -86,15 +98,15 @@ public:
     }
     
     template <int ChannelIndex>
-    static void setCurrent (Context c, float current_ma)
+    static void setCurrent (Context c, FpType current_ma)
     {
         auto *o = Object::self(c);
         o->debugAccess(c);
         
-        using ChannelParams = TypeListGet<ChannelsList, ChannelIndex>;
-        uint8_t const dev_channel = ChannelParams::DevChannelIndex;
+        using TheChannelHelper = ChannelHelper<ChannelIndex>;
+        uint8_t const dev_channel = TheChannelHelper::ChannelParams::DevChannelIndex;
         static_assert(dev_channel < 6, "");
-        o->m_data[dev_channel] = FixedPoint<8, false, 0>::importFpSaturatedRound(current_ma * (float)ChannelParams::ConversionFactor::value()).bitsValue();
+        o->m_data[dev_channel] = FixedPoint<8, false, 0>::importFpSaturatedRound(current_ma * APRINTER_CFG(Config, typename TheChannelHelper::CChannelConversionFactor, c)).bitsValue();
         o->m_pending[dev_channel] = true;
         if (o->m_current_channel == 0xFF) {
             send_command(c, dev_channel);
@@ -144,8 +156,11 @@ private:
     struct SpiHandler : public AMBRO_WFUNC_TD(&Ad5206Current::spi_handler) {};
     
 public:
-    struct Object : public ObjBase<Ad5206Current, ParentObject, MakeTypeList<
-        TheSpi
+    struct Object : public ObjBase<Ad5206Current, ParentObject, JoinTypeLists<
+        ChannelHelperList,
+        MakeTypeList<
+            TheSpi
+        >
     >>,
         public DebugObject<Context, void>
     {
@@ -166,8 +181,8 @@ struct Ad5206CurrentService {
     using SsPin = TSsPin;
     using SpiService = TSpiService;
     
-    template <typename Context, typename ParentObject, typename ChannelsList>
-    using Current = Ad5206Current<Context, ParentObject, ChannelsList, Ad5206CurrentService>;
+    template <typename Context, typename ParentObject, typename Config, typename FpType, typename ChannelsList>
+    using Current = Ad5206Current<Context, ParentObject, Config, FpType, ChannelsList, Ad5206CurrentService>;
 };
 
 #include <aprinter/EndNamespace.h>
