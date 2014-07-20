@@ -243,7 +243,7 @@ struct PrinterMainNoVirtualHomingParams {
 };
 
 template <
-    typename TEndPin, typename TEndPinInputMode, bool TEndInvert, bool THomeDir,
+    typename TEndPin, typename TEndPinInputMode, typename TEndInvert, typename THomeDir,
     typename TFastExtraDist, typename TRetractDist, typename TSlowExtraDist,
     typename TFastSpeed, typename TRetractSpeed, typename TSlowSpeed
 >
@@ -251,8 +251,8 @@ struct PrinterMainVirtualHomingParams {
     static bool const Enabled = true;
     using EndPin = TEndPin;
     using EndPinInputMode = TEndPinInputMode;
-    static bool const EndInvert = TEndInvert;
-    static bool const HomeDir = THomeDir;
+    using EndInvert = TEndInvert;
+    using HomeDir = THomeDir;
     using FastExtraDist = TFastExtraDist;
     using RetractDist = TRetractDist;
     using SlowExtraDist = TSlowExtraDist;
@@ -1958,7 +1958,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             {
                 auto *o = Object::self(c);
                 auto *t = TransformFeature::Object::self(c);
-                o->m_req_pos = clamp_virt_pos(req);
+                o->m_req_pos = clamp_virt_pos(c, req);
                 t->splitting = true;
             }
             
@@ -2003,7 +2003,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             static void set_position (Context c, FpType value, bool *seen_virtual)
             {
                 auto *o = Object::self(c);
-                o->m_req_pos = clamp_virt_pos(value);
+                o->m_req_pos = clamp_virt_pos(c, value);
                 *seen_virtual = true;
             }
             
@@ -2021,12 +2021,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             static FpType limit_virt_axis_speed (FpType accum, Context c)
             {
                 auto *o = Object::self(c);
-                return FloatMax(accum, FloatAbs(o->m_delta) * (FpType)(TimeConversion::value() / VirtAxisParams::MaxSpeed::value()));
+                return FloatMax(accum, FloatAbs(o->m_delta) * APRINTER_CFG(Config, CMaxSpeedFactor, c));
             }
             
-            static FpType clamp_virt_pos (FpType req)
+            static FpType clamp_virt_pos (Context c, FpType req)
             {
-                return FloatMax(VirtAxisParams::MinPos::value(), FloatMin(VirtAxisParams::MaxPos::value(), req));
+                return FloatMax(APRINTER_CFG(Config, CMinPos, c), FloatMin(APRINTER_CFG(Config, CMaxPos, c), req));
             }
             
             static bool start_virt_homing (Context c)
@@ -2053,7 +2053,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 template <typename ThisContext>
                 static bool endstop_is_triggered (ThisContext c)
                 {
-                    return (Context::Pins::template get<typename HomingSpec::EndPin>(c) != HomingSpec::EndInvert);
+                    return (Context::Pins::template get<typename HomingSpec::EndPin>(c) != APRINTER_CFG(Config, CEndInvert, c));
                 }
                 
                 static bool start_virt_homing (Context c)
@@ -2064,7 +2064,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     if (!(mo->m_homing_rem_axes & Lazy<>::AxisMask)) {
                         return true;
                     }
-                    set_position(c, home_start_pos());
+                    set_position(c, home_start_pos(c));
                     custom_planner_init(c, &o->planner_client, true);
                     o->state = 0;
                     o->command_sent = false;
@@ -2085,19 +2085,19 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     set_position_end(c, &s);
                 }
                 
-                static FpType home_start_pos ()
+                static FpType home_start_pos (Context c)
                 {
-                    return HomingSpec::HomeDir ? VirtAxisParams::MinPos::value() : VirtAxisParams::MaxPos::value();
+                    return APRINTER_CFG(Config, CHomeDir, c) ? APRINTER_CFG(Config, CMinPos, c) : APRINTER_CFG(Config, CMaxPos, c);
                 }
                 
-                static FpType home_end_pos ()
+                static FpType home_end_pos (Context c)
                 {
-                    return HomingSpec::HomeDir ? VirtAxisParams::MaxPos::value() : VirtAxisParams::MinPos::value();
+                    return APRINTER_CFG(Config, CHomeDir, c) ? APRINTER_CFG(Config, CMaxPos, c) : APRINTER_CFG(Config, CMinPos, c);
                 }
                 
-                static FpType home_dir ()
+                static FpType home_dir (Context c)
                 {
-                    return HomingSpec::HomeDir ? 1.0f : -1.0f;
+                    return APRINTER_CFG(Config, CHomeDir, c) ? 1.0f : -1.0f;
                 }
                 
                 struct VirtHomingPlannerClient : public PlannerClient {
@@ -2115,16 +2115,16 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                         FpType speed;
                         switch (o->state) {
                             case 0: {
-                                position = home_end_pos() + home_dir() * HomingSpec::FastExtraDist::value();
-                                speed = HomingSpec::FastSpeed::value();
+                                position = home_end_pos(c) + home_dir(c) * APRINTER_CFG(Config, CFastExtraDist, c);
+                                speed = APRINTER_CFG(Config, CFastSpeed, c);
                             } break;
                             case 1: {
-                                position = home_end_pos() - home_dir() * HomingSpec::RetractDist::value();
-                                speed = HomingSpec::RetractSpeed::value();
+                                position = home_end_pos(c) - home_dir(c) * APRINTER_CFG(Config, CRetractDist, c);
+                                speed = APRINTER_CFG(Config, CRetractSpeed, c);
                             } break;
                             case 2: {
-                                position = home_end_pos() + home_dir() * HomingSpec::SlowExtraDist::value();
-                                speed = HomingSpec::SlowSpeed::value();
+                                position = home_end_pos(c) + home_dir(c) * APRINTER_CFG(Config, CSlowExtraDist, c);
+                                speed = APRINTER_CFG(Config, CSlowSpeed, c);
                             } break;
                         }
                         move_add_axis<(NumAxes + VirtAxisIndex)>(c, &s, position);
@@ -2141,7 +2141,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                         
                         custom_planner_deinit(c);
                         if (o->state != 1) {
-                            set_position(c, home_end_pos());
+                            set_position(c, home_end_pos(c));
                         }
                         o->state++;
                         o->command_sent = false;
@@ -2158,6 +2158,17 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     }
                 };
                 
+                using CEndInvert = decltype(ExprCast<bool>(Config::e(HomingSpec::EndInvert::i)));
+                using CHomeDir = decltype(ExprCast<bool>(Config::e(HomingSpec::HomeDir::i)));
+                using CFastExtraDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::FastExtraDist::i)));
+                using CRetractDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::RetractDist::i)));
+                using CSlowExtraDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::SlowExtraDist::i)));
+                using CFastSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::FastSpeed::i)));
+                using CRetractSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::RetractSpeed::i)));
+                using CSlowSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::SlowSpeed::i)));
+                
+                using ConfigExprs = MakeTypeList<CEndInvert, CHomeDir, CFastExtraDist, CRetractDist, CSlowExtraDist, CFastSpeed, CRetractSpeed, CSlowSpeed>;
+                
                 struct Object : public ObjBase<HomingFeature, typename VirtAxis::Object, EmptyTypeList> {
                     VirtHomingPlannerClient planner_client;
                     uint8_t state;
@@ -2172,6 +2183,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 static bool prestep_callback (CallbackContext c) { return true; }
                 struct Object {};
             };
+            
+            using CMinPos = decltype(ExprCast<FpType>(Config::e(VirtAxisParams::MinPos::i)));
+            using CMaxPos = decltype(ExprCast<FpType>(Config::e(VirtAxisParams::MaxPos::i)));
+            using CMaxSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(VirtAxisParams::MaxSpeed::i)));
+            
+            using ConfigExprs = MakeTypeList<CMinPos, CMaxPos, CMaxSpeedFactor>;
             
             struct Object : public ObjBase<VirtAxis, typename TransformFeature::Object, MakeTypeList<
                 TheTransformAlg,
@@ -3800,6 +3817,7 @@ public: // private, see comment on top
                     HeatersList,
                     MakeTypeList<
                         TheSteppers,
+                        TransformFeature,
                         ProbeFeature,
                         CurrentFeature,
                         PlannerUnion
