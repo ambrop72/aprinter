@@ -15,6 +15,6 @@ using TheArray = StaticArray<double, 10, ElemValue>;
 int main ()
 {
     for (size_t i = 0; i < TheArray::Length; i++) {
-        printf("%f\n", TheArray::data[i]);
+        printf("%f\n", TheArray::readAt(i));
     }
 }
