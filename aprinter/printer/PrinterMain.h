@@ -1362,16 +1362,17 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 
                 static void homer_finished_handler (Context c, bool success)
                 {
+                    auto *hf = HomingFeature::Object::self(c);
                     auto *axis = Axis::Object::self(c);
                     auto *mob = PrinterMain::Object::self(c);
-                    AMBRO_ASSERT(axis->m_state == AXIS_STATE_HOMING)
+                    AMBRO_ASSERT(hf->homing)
                     AMBRO_ASSERT(mob->locked)
                     AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                     
                     Homer::deinit(c);
                     axis->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
                     axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
-                    axis->m_state = AXIS_STATE_OTHER;
+                    hf->homing = false;
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
                     mob->m_homing_rem_axes &= ~Lazy<>::AxisMask;
                     if (!(mob->m_homing_rem_axes & PhysAxisMask)) {
@@ -1390,27 +1391,29 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             static void init (Context c)
             {
+                auto *o = Object::self(c);
                 HomerGlobal::init(c);
+                o->homing = false;
             }
             
             static void deinit (Context c)
             {
-                auto *axis = Axis::Object::self(c);
-                if (axis->m_state == AXIS_STATE_HOMING) {
+                auto *o = Object::self(c);
+                if (o->homing) {
                     HomingState::Homer::deinit(c);
                 }
             }
             
             static void start_phys_homing (Context c)
             {
-                auto *axis = Axis::Object::self(c);
+                auto *o = Object::self(c);
                 auto *mob = PrinterMain::Object::self(c);
-                AMBRO_ASSERT(axis->m_state == AXIS_STATE_OTHER)
+                AMBRO_ASSERT(!o->homing)
                 AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                 
                 Stepper::enable(c);
                 HomingState::Homer::init(c);
-                axis->m_state = AXIS_STATE_HOMING;
+                o->homing = true;
             }
             
             using InitPosition = decltype(ExprIf(Config::e(HomingSpec::HomeDir::i), MaxReqPos(), MinReqPos()));
@@ -1423,7 +1426,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             struct Object : public ObjBase<HomingFeature, typename Axis::Object, MakeTypeList<
                 HomerGlobal
-            >> {};
+            >> {
+                bool homing;
+            };
         } AMBRO_STRUCT_ELSE(HomingFeature) {
             struct HomingState { struct Object {}; };
             using AxisDriverConsumersList = EmptyTypeList;
@@ -1455,8 +1460,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             struct Object {};
         };
         
-        enum {AXIS_STATE_OTHER, AXIS_STATE_HOMING};
-        
         static FpType clamp_req_pos (Context c, FpType req)
         {
             return FloatMax(APRINTER_CFG(Config, CMinReqPos, c), FloatMin(APRINTER_CFG(Config, CMaxReqPos, c), req));
@@ -1466,7 +1469,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             TheAxisDriver::init(c);
-            o->m_state = AXIS_STATE_OTHER;
             HomingFeature::init(c);
             MicroStepFeature::init(c);
             o->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
@@ -1581,7 +1583,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             MicroStepFeature
         >>
         {
-            uint8_t m_state;
             AbsStepFixedType m_end_pos;
             FpType m_req_pos;
             FpType m_old_pos;
