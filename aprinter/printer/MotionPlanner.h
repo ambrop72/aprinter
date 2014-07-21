@@ -49,6 +49,7 @@
 #include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
@@ -1177,7 +1178,7 @@ private:
             v = TheLinearPlanner::push(&entry->lp_seg, &state[i], v);
         } while (i != 0);
         
-        SegmentBufferSizeType commit_count = (o->m_segments_length < LookaheadCommitCount) ? o->m_segments_length : LookaheadCommitCount;
+        SegmentBufferSizeType commit_count = MinValue(o->m_segments_length, (SegmentBufferSizeType)LookaheadCommitCount);
         
         o->m_new_to_backup = false;
         ListForEachForward<AxisCommonList>(LForeach_start_commands(), c);
