@@ -515,10 +515,11 @@ public:
             axis_split->x_pos = new_x;
         }
         
-        static FpType compute_segment_buffer_entry_distance (FpType accum, Context c, Segment *entry)
+        template <typename AccumType>
+        static FpType compute_segment_buffer_entry_distance (AccumType accum, Context c, Segment *entry)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return (accum + (axis_entry->x.template fpValue<FpType>() * axis_entry->x.template fpValue<FpType>()) * APRINTER_CFG(Config, CDistanceFactorSquared, c));
+            return FloatMax(accum, FloatAbs(axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Config, CDistanceFactor, c)));
         }
         
         static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry)
@@ -536,10 +537,10 @@ public:
             return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Config, CMaxAccelRec, c));
         }
         
-        static void write_segment_buffer_entry_extra (Segment *entry, FpType rel_max_accel)
+        static void write_segment_buffer_entry_extra (Segment *entry, FpType half_rel_max_accel)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            entry->axes.half_accel[AxisIndex] = 0.5f * rel_max_accel * axis_entry->x.template fpValue<FpType>();
+            entry->axes.half_accel[AxisIndex] = half_rel_max_accel * axis_entry->x.template fpValue<FpType>();
         }
         
         template <typename AccumType>
@@ -669,12 +670,12 @@ public:
             return TupleGetElem<AxisIndex>(m->m_split_buffer.axes.axes());
         }
         
-        using CDistanceFactorSquared = decltype(ExprCast<FpType>(AxisSpec::DistanceFactor::e() * AxisSpec::DistanceFactor::e()));
+        using CDistanceFactor = decltype(ExprCast<FpType>(AxisSpec::DistanceFactor::e()));
         using CCorneringSpeedComputationFactor = decltype(ExprCast<FpType>(AxisSpec::MaxAccelRec::e() / (AxisSpec::CorneringDistance::e() * AxisSpec::DistanceFactor::e())));
         using CMaxSpeedRec = decltype(ExprCast<FpType>(AxisSpec::MaxSpeedRec::e()));
         using CMaxAccelRec = decltype(ExprCast<FpType>(AxisSpec::MaxAccelRec::e()));
         
-        using ConfigExprs = MakeTypeList<CDistanceFactorSquared, CCorneringSpeedComputationFactor, CMaxSpeedRec, CMaxAccelRec>;
+        using ConfigExprs = MakeTypeList<CDistanceFactor, CCorneringSpeedComputationFactor, CMaxSpeedRec, CMaxAccelRec>;
         
         struct Object : public ObjBase<Axis, typename TheCommon::Object, EmptyTypeList> {};
     };
@@ -1401,18 +1402,18 @@ private:
             if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
                 o->m_split_buffer.axes.split_pos++;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
-                FpType distance_squared = ListForEachForwardAccRes<AxesList>(0.0f, LForeach_compute_segment_buffer_entry_distance(), c, entry);
+                FpType distance = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_distance(), c, entry);
                 entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
                 FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, entry);
-                FpType distance_squared_rec = 1.0f / distance_squared;
-                FpType distance_rec = FloatSqrt(distance_squared_rec);
-                FpType rel_max_accel = 1.0f / rel_max_accel_rec;
+                FpType distance_squared = distance * distance;
+                FpType distance_rec = 1.0f / distance;
+                FpType half_rel_max_accel = 0.5f / rel_max_accel_rec;
                 FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
-                FpType a_x = 2 * rel_max_accel * distance_squared;
-                FpType a_x_rec = 0.5f * rel_max_accel_rec * distance_squared_rec;
+                FpType a_x = 4 * half_rel_max_accel * distance_squared;
+                FpType a_x_rec = 1.0f / a_x;
                 TheLinearPlanner::initSegment(&entry->lp_seg, max_v, a_x, a_x_rec);
                 entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
-                ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, rel_max_accel);
+                ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, half_rel_max_accel);
                 ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
