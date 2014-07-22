@@ -143,6 +143,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_split_count, compute_split_count)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_icmd_zero, check_icmd_zero)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment_buffer_entry, write_segment_buffer_entry)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_compute_state, compute_compute_state)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_distance, compute_segment_buffer_entry_distance)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_speed, compute_segment_buffer_entry_speed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_accel, compute_segment_buffer_entry_accel)
@@ -161,6 +162,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_command, gen_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fixup_split, fixup_split)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheCommon, TheCommon)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ComputeState, ComputeState)
     
 public:
     template <int ChannelIndex>
@@ -274,6 +276,7 @@ private:
         using TheStepper = typename TheAxis::TheStepper;
         using StepperCommand = typename TheStepper::Command;
         using StepperCommandCallbackContext = typename TheStepper::CommandCallbackContext;
+        using ComputeState = typename TheAxis::ComputeState;
         
         static void init (Context c, bool prestep_callback_enabled)
         {
@@ -302,9 +305,16 @@ private:
             TheAxis::commandDone_assert_impl(c);
         }
         
-        static FpType compute_segment_buffer_entry_speed (FpType accum, Context c, Segment *entry)
+        template <typename TheComputeStateTuple>
+        static void compute_compute_state (Context c, Segment *entry, TheComputeStateTuple *cst)
         {
-            return FloatMax(accum, TheAxis::compute_segment_buffer_entry_speed_impl(c, entry));
+            TheAxis::compute_compute_state_impl(c, entry, cst);
+        }
+        
+        template <typename TheComputeStateTuple>
+        static FpType compute_segment_buffer_entry_speed (FpType accum, Context c, Segment *entry, TheComputeStateTuple const *cst)
+        {
+            return FloatMax(accum, TheAxis::compute_segment_buffer_entry_speed_impl(c, entry, cst));
         }
 
         static bool have_commit_space (bool accum, Context c)
@@ -452,9 +462,14 @@ public:
         static bool const IsFirst = (AxisIndex == 0);
         using StepperStepFixedType = typename TheAxisDriver::StepFixedType;
         using StepperAccelFixedType = typename TheAxisDriver::AccelFixedType;
-        using StepperCommand = typename TheCommon::StepperCommand;
         using TheAxisSegment = AxisSegment<AxisIndex>;
         static const AxisMaskType TheAxisMask = (AxisMaskType)1 << (AxisIndex + TypeBits);
+        
+        struct ComputeState {
+            FpType x;
+        };
+        
+        using StepperCommand = typename TheCommon::StepperCommand;
         
         static void init_impl (Context c, bool prestep_callback_enabled)
         {
@@ -515,32 +530,40 @@ public:
             axis_split->x_pos = new_x;
         }
         
-        template <typename AccumType>
-        static FpType compute_segment_buffer_entry_distance (AccumType accum, Context c, Segment *entry)
+        template <typename TheComputeStateTuple>
+        static void compute_compute_state_impl (Context c, Segment *entry, TheComputeStateTuple *cst)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return FloatMax(accum, FloatAbs(axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Config, CDistanceFactor, c)));
+            ComputeState *cs = TupleFindElem<ComputeState>(cst);
+            cs->x = axis_entry->x.template fpValue<FpType>();
         }
         
-        static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry)
+        template <typename AccumType, typename TheComputeStateTuple>
+        static FpType compute_segment_buffer_entry_distance (AccumType accum, Context c, TheComputeStateTuple const *cst)
         {
-            TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Config, CMaxSpeedRec, c);
+            ComputeState const *cs = TupleFindElem<ComputeState>(cst);
+            return FloatMax(accum, cs->x * APRINTER_CFG(Config, CDistanceFactor, c));
         }
         
-        template <typename AccumType>
-        static FpType compute_segment_buffer_entry_accel (AccumType accum, Context c, Segment *entry)
+        template <typename TheComputeStateTuple>
+        static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry, TheComputeStateTuple const *cst)
         {
-            TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            return FloatMax(accum, axis_entry->x.template fpValue<FpType>() * APRINTER_CFG(Config, CMaxAccelRec, c));
+            ComputeState const *cs = TupleFindElem<ComputeState>(cst);
+            return cs->x * APRINTER_CFG(Config, CMaxSpeedRec, c);
         }
         
-        static void write_segment_buffer_entry_extra (Segment *entry, FpType half_rel_max_accel)
+        template <typename AccumType, typename TheComputeStateTuple>
+        static FpType compute_segment_buffer_entry_accel (AccumType accum, Context c, TheComputeStateTuple const *cst)
         {
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            entry->axes.half_accel[AxisIndex] = half_rel_max_accel * axis_entry->x.template fpValue<FpType>();
+            ComputeState const *cs = TupleFindElem<ComputeState>(cst);
+            return FloatMax(accum, cs->x * APRINTER_CFG(Config, CMaxAccelRec, c));
+        }
+        
+        template <typename TheComputeStateTuple>
+        static void write_segment_buffer_entry_extra (Segment *entry, FpType half_rel_max_accel, TheComputeStateTuple const *cst)
+        {
+            ComputeState const *cs = TupleFindElem<ComputeState>(cst);
+            entry->axes.half_accel[AxisIndex] = half_rel_max_accel * cs->x;
         }
         
         template <typename AccumType>
@@ -696,9 +719,12 @@ public:
         using TheCommon = AxisCommon<Laser>;
         using TheStepper = TheLaserDriver;
         static bool const IsFirst = false;
-        using StepperCommand = typename TheCommon::StepperCommand;
         using TheLaserSegment = LaserSegment<LaserIndex>;
         static TimeType const AdjustmentIntervalTicks = LaserSpec::TheLaserDriverService::AdjustmentInterval::value() / Clock::time_unit;
+        
+        struct ComputeState {};
+        
+        using StepperCommand = typename TheCommon::StepperCommand;
         
         static void init_impl (Context c, bool prestep_callback_enabled)
         {
@@ -729,7 +755,13 @@ public:
             laser_split->x *= m->m_split_buffer.axes.split_frac;
         }
         
-        static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry)
+        template <typename TheComputeStateTuple>
+        static void compute_compute_state_impl (Context c, Segment *entry, TheComputeStateTuple *cst)
+        {
+        }
+        
+        template <typename TheComputeStateTuple>
+        static FpType compute_segment_buffer_entry_speed_impl (Context c, Segment *entry, TheComputeStateTuple const *cst)
         {
             TheLaserSplitBuffer *laser_split = get_laser_split(c);
             
@@ -1012,6 +1044,8 @@ private:
     template <typename TheAxisCommon, typename AccumType>
     using MinTimeTypeHelper = FixedIntersectTypes<typename TheAxisCommon::TheStepper::TimeFixedType, AccumType>;
     using MinTimeType = TypeListFold<AxisCommonList, FixedIdentity, MinTimeTypeHelper>;
+    
+    using ComputeStateTuple = Tuple<MapTypeList<AxisCommonList, GetMemberType_ComputeState>>;
     
 public:
     static void init (Context c, bool prestep_callback_enabled)
@@ -1402,19 +1436,21 @@ private:
             if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
                 o->m_split_buffer.axes.split_pos++;
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
-                FpType distance = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_distance(), c, entry);
-                entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry);
-                FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, entry);
-                FpType distance_squared = distance * distance;
+                ComputeStateTuple cst;
+                ListForEachForward<AxisCommonList>(LForeach_compute_compute_state(), c, entry, &cst);
+                entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry, &cst);
+                FpType distance = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_distance(), c, &cst);
+                FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, &cst);
                 FpType distance_rec = 1.0f / distance;
+                entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
                 FpType half_rel_max_accel = 0.5f / rel_max_accel_rec;
+                ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
+                ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, half_rel_max_accel, &cst);
+                FpType distance_squared = distance * distance;
                 FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
                 FpType a_x = 4 * half_rel_max_accel * distance_squared;
                 FpType a_x_rec = 1.0f / a_x;
                 TheLinearPlanner::initSegment(&entry->lp_seg, max_v, a_x, a_x_rec);
-                entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
-                ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, half_rel_max_accel);
-                ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
                     if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
