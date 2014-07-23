@@ -1074,6 +1074,7 @@ public:
         o->m_segments_length = 0;
         o->m_staging_time = 0;
         o->m_staging_v_squared = 0.0f;
+        o->m_staging_v = 0.0f;
         o->m_split_buffer.type = 0xFF;
         o->m_state = STATE_BUFFERING;
         o->m_waiting = false;
@@ -1235,7 +1236,7 @@ private:
         
         TimeType time = o->m_staging_time;
         v = o->m_staging_v_squared;
-        FpType v_start = FloatSqrt(v);
+        FpType v_start = o->m_staging_v;
         
         do {
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
@@ -1277,6 +1278,7 @@ private:
                 o->m_new_to_backup = true;
                 o->m_staging_time = time;
                 o->m_staging_v_squared = v;
+                o->m_staging_v = v_start;
             }
         } while (i != o->m_segments_length);
         
@@ -1386,6 +1388,7 @@ private:
                 o->m_segments_staging_length = 0;
                 o->m_staging_time = 0;
                 o->m_staging_v_squared = 0.0f;
+                o->m_staging_v = 0.0f;
                 o->m_current_backup = false;
                 Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
                 ListForEachForward<AxisCommonList>(LForeach_stopped_stepping(), c);
@@ -1511,6 +1514,7 @@ public:
         SegmentBufferSizeType m_segments_length;
         TimeType m_staging_time;
         FpType m_staging_v_squared;
+        FpType m_staging_v;
         uint8_t m_state;
         bool m_waiting;
         bool m_aborted;
