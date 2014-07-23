@@ -129,6 +129,7 @@ private:
     using StepperCommitBufferSizeType = ChooseInt<BitsInInt<StepperCommitBufferSize>::Value, false>;
     using StepperBackupBufferSizeType = ChooseInt<BitsInInt<2 * StepperBackupBufferSize>::Value, false>;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
+    using CallbackFastEvent = typename Context::EventLoop::template FastEventSpec<StepperFastEvent>;
     static const int TypeBits = BitsInInt<NumChannels>::Value;
     using AxisMaskType = ChooseInt<NumAxes + TypeBits, false>;
     static const AxisMaskType TypeMask = ((AxisMaskType)1 << TypeBits) - 1;
@@ -1066,8 +1067,8 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->m_pull_finished_event.init(c, MotionPlanner::pull_finished_event_handler);
         Context::EventLoop::template initFastEvent<StepperFastEvent>(c, MotionPlanner::stepper_event_handler);
+        Context::EventLoop::template initFastEvent<CallbackFastEvent>(c, MotionPlanner::callback_event_handler);
         o->m_segments_start = 0;
         o->m_segments_staging_length = 0;
         o->m_segments_length = 0;
@@ -1084,7 +1085,7 @@ public:
 #endif
         ListForEachForward<AxisCommonList>(LForeach_init(), c, prestep_callback_enabled);
         ListForEachForward<ChannelsList>(LForeach_init(), c);
-        o->m_pull_finished_event.prependNowNotAlready(c);
+        Context::EventLoop::template triggerFastEvent<CallbackFastEvent>(c);
     }
     
     static void deinit (Context c)
@@ -1093,8 +1094,8 @@ public:
         
         ListForEachReverse<ChannelsList>(LForeach_deinit(), c);
         ListForEachReverse<AxisCommonList>(LForeach_deinit(), c);
+        Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
         Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
-        o->m_pull_finished_event.deinit(c);
     }
     
     static SplitBuffer * getBuffer (Context c)
@@ -1118,7 +1119,7 @@ public:
         AMBRO_ASSERT(!ListForEachForwardAccRes<AxesList>(true, LForeach_check_icmd_zero(), c))
         
         o->m_waiting = false;
-        o->m_pull_finished_event.unset(c);
+        Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
 #ifdef AMBROLIB_ASSERTIONS
         o->m_pulling = false;
 #endif
@@ -1148,7 +1149,7 @@ public:
         AMBRO_ASSERT(channel_index_plus_one <= NumChannels)
         
         o->m_waiting = false;
-        o->m_pull_finished_event.unset(c);
+        Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
 #ifdef AMBROLIB_ASSERTIONS
         o->m_pulling = false;
 #endif
@@ -1166,12 +1167,11 @@ public:
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
         
         o->m_waiting = false;
-        o->m_pull_finished_event.unset(c);
 #ifdef AMBROLIB_ASSERTIONS
         o->m_pulling = false;
 #endif
         
-        o->m_pull_finished_event.prependNowNotAlready(c);
+        Context::EventLoop::template triggerFastEvent<CallbackFastEvent>(c);
     }
     
     static void waitFinished (Context c)
@@ -1205,7 +1205,7 @@ public:
         AMBRO_WFUNC_T(&Axis<AxisIndex>::stepper_prestep_callback)
     >;
     
-    using EventLoopFastEvents = MakeTypeList<StepperFastEvent>;
+    using EventLoopFastEvents = MakeTypeList<StepperFastEvent, CallbackFastEvent>;
     
 private:
     static bool plan (Context c)
@@ -1318,7 +1318,7 @@ private:
         ListForEachForward<ChannelsList>(LForeach_start_stepping(), c, start_time);
     }
     
-    static void pull_finished_event_handler (typename Loop::QueuedEvent *, Context c)
+    static void callback_event_handler (Context c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_state != STATE_ABORTED)
@@ -1374,7 +1374,7 @@ private:
                 ListForEachForward<ChannelsList>(LForeach_abort(), c);
                 Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
                 o->m_state = STATE_ABORTED;
-                o->m_pull_finished_event.unset(c);
+                Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
                 return AbortedHandler::call(c);
             }
             
@@ -1397,7 +1397,7 @@ private:
         if (AMBRO_UNLIKELY(o->m_waiting)) {
             if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
                 if (o->m_segments_length == 0) {
-                    o->m_pull_finished_event.prependNowNotAlready(c);
+                    Context::EventLoop::template triggerFastEvent<CallbackFastEvent>(c);
                     return;
                 }
                 if (o->m_segments_staging_length != o->m_segments_length && planner_have_commit_space(c)) {
@@ -1487,7 +1487,7 @@ private:
             o->m_segments_length++;
             
             if (AMBRO_LIKELY(o->m_split_buffer.type == 0xFF)) {
-                o->m_pull_finished_event.prependNowNotAlready(c);
+                Context::EventLoop::template triggerFastEvent<CallbackFastEvent>(c);
             }
         }
     }
@@ -1506,7 +1506,6 @@ public:
         AxisCommonList,
         ChannelsList
     >> {
-        typename Loop::QueuedEvent m_pull_finished_event;
         SegmentBufferSizeType m_segments_start;
         SegmentBufferSizeType m_segments_staging_length;
         SegmentBufferSizeType m_segments_length;
