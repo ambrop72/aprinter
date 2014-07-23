@@ -44,7 +44,7 @@ public:
     struct Object;
     
 private:
-#if defined(__AVR_ATmega2560__)
+#if defined(__AVR_ATmega2560__) || defined(__AVR_ATmega1284P__)
     static uint16_t const EepromSize = UINT16_C(4096);
 #else
 #error Your device is not supported by AvrEeprom

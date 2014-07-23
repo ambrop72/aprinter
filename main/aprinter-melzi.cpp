@@ -45,6 +45,7 @@ static void emergency (void);
 #include <aprinter/system/AvrWatchdog.h>
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/system/AvrSpi.h>
+#include <aprinter/system/AvrEeprom.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
@@ -56,6 +57,8 @@ static void emergency (void);
 #include <aprinter/printer/temp_control/PidControl.h>
 #include <aprinter/printer/temp_control/BinaryControl.h>
 #include <aprinter/printer/config_manager/ConstantConfigManager.h>
+#include <aprinter/printer/config_manager/RuntimeConfigManager.h>
+#include <aprinter/printer/config_store/EepromConfigStore.h>
 
 using namespace APrinter;
 
@@ -70,7 +73,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(MaxStepsPerCycle, 0.00137, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ForceTimeout, 0.1, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(InactiveTime, 8.0 * 60.0, ConfigNoProperties)
 
-APRINTER_CONFIG_OPTION_BOOL(XInvertDir, true, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(XInvertDir, true, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(XStepsPerUnit, 80.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XMin, -53.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XMax, 210.0, ConfigNoProperties)
@@ -79,7 +82,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(XMaxAccel, 1500.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XDistanceFactor, 1.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XCorneringDistance, 40.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_BOOL(XHomeDir, false, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_BOOL(XHomeEndInvert, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(XHomeEndInvert, false, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeFastMaxDist, 280.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeRetractDist, 3.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeSlowMaxDist, 5.0, ConfigNoProperties)
@@ -87,7 +90,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(XHomeFastSpeed, 40.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeRetractSpeed, 50.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(XHomeSlowSpeed, 5.0, ConfigNoProperties)
 
-APRINTER_CONFIG_OPTION_BOOL(YInvertDir, true, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(YInvertDir, true, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(YStepsPerUnit, 80.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YMin, 0.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YMax, 155.0, ConfigNoProperties)
@@ -96,7 +99,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(YMaxAccel, 650.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YDistanceFactor, 1.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YCorneringDistance, 40.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_BOOL(YHomeDir, false, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_BOOL(YHomeEndInvert, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(YHomeEndInvert, false, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeFastMaxDist, 200.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeRetractDist, 3.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeSlowMaxDist, 5.0, ConfigNoProperties)
@@ -104,7 +107,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(YHomeFastSpeed, 40.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeRetractSpeed, 50.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(YHomeSlowSpeed, 5.0, ConfigNoProperties)
 
-APRINTER_CONFIG_OPTION_BOOL(ZInvertDir, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(ZInvertDir, false, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(ZStepsPerUnit, 4000.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZMin, 0.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZMax, 100.0, ConfigNoProperties)
@@ -113,7 +116,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(ZMaxAccel, 30.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZDistanceFactor, 1.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZCorneringDistance, 40.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_BOOL(ZHomeDir, false, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_BOOL(ZHomeEndInvert, false, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(ZHomeEndInvert, false, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeFastMaxDist, 101.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeRetractDist, 0.8, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeSlowMaxDist, 1.2, ConfigNoProperties)
@@ -121,7 +124,7 @@ APRINTER_CONFIG_OPTION_DOUBLE(ZHomeFastSpeed, 2.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeRetractSpeed, 2.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ZHomeSlowSpeed, 0.6, ConfigNoProperties)
 
-APRINTER_CONFIG_OPTION_BOOL(EInvertDir, true, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_BOOL(EInvertDir, true, ConfigProperties<ConfigPropertyConstant>)
 APRINTER_CONFIG_OPTION_DOUBLE(EStepsPerUnit, 928.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(EMin, -40000.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(EMax, 40000.0, ConfigNoProperties)
@@ -211,7 +214,15 @@ using PrinterParams = PrinterMainParams<
     >,
     PrinterMainNoProbeParams,
     PrinterMainNoCurrentParams,
-    ConstantConfigManagerService,
+    RuntimeConfigManagerService<
+        EepromConfigStoreService<
+            AvrEepromService<
+                16 // FakeBlockSize
+            >,
+            0, // StartBlock
+            256 // EndBlock
+        >
+    >,
     ConfigList,
     
     /*
@@ -511,6 +522,7 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(2, A, MyPrinter::GetEventChannelTimer, MyCo
 AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(2, B, MyPrinter::GetFanPwm<0>::TheTimer, MyContext())
 AMBRO_AVR_SPI_ISRS(MyPrinter::GetSdCard<>::GetSpi, MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
+AMBRO_AVR_EEPROM_ISRS(MyPrinter::GetConfigManager::GetStore<>::GetEeprom, MyContext())
 
 FILE uart_output;
 
