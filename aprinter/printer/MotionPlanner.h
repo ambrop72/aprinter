@@ -148,7 +148,9 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_speed, compute_segment_buffer_entry_speed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_accel, compute_segment_buffer_entry_accel)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment_buffer_entry_extra, write_segment_buffer_entry_extra)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_x_by_distance, compute_x_by_distance)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_cornering_speed, compute_segment_buffer_cornering_speed)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_save_x_by_distance, save_x_by_distance)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_have_commit_space, have_commit_space)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_commands, start_commands)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_segment_stepper_commands, gen_segment_stepper_commands)
@@ -566,18 +568,28 @@ public:
             entry->axes.half_accel[AxisIndex] = half_rel_max_accel * cs->x;
         }
         
-        template <typename AccumType>
-        static FpType compute_segment_buffer_cornering_speed (AccumType accum, Context c, Segment *entry, FpType entry_distance_rec, Segment *prev_entry)
+        template <typename TheComputeStateTuple>
+        static void compute_x_by_distance (TheComputeStateTuple const *cst, FpType distance_rec, FpType *x_by_distance)
         {
-            auto *m = MotionPlanner::Object::self(c);
-            TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
-            TheAxisSegment *prev_axis_entry = TupleGetElem<AxisIndex>(prev_entry->axes.axes());
-            FpType m1 = axis_entry->x.template fpValue<FpType>() * entry_distance_rec;
-            FpType m2 = prev_axis_entry->x.template fpValue<FpType>() * m->m_last_distance_rec;
+            ComputeState const *cs = TupleFindElem<ComputeState>(cst);
+            x_by_distance[AxisIndex] = cs->x * distance_rec;
+        }
+        
+        template <typename AccumType>
+        static FpType compute_segment_buffer_cornering_speed (AccumType accum, Context c, Segment *entry, Segment *prev_entry, FpType const *x_by_distance)
+        {
+            auto *o = Object::self(c);
+            FpType m1 = x_by_distance[AxisIndex];
+            FpType m2 = o->last_x_by_distance;
             bool dir_changed = (entry->dir_and_type ^ prev_entry->dir_and_type) & TheAxisMask;
             FpType dm = (dir_changed ? (m1 + m2) : FloatAbs(m1 - m2));
             return FloatMax(accum, dm * APRINTER_CFG(Config, CCorneringSpeedComputationFactor, c));
+        }
+        
+        static void save_x_by_distance (Context c, FpType const *x_by_distance)
+        {
+            auto *o = Object::self(c);
+            o->last_x_by_distance = x_by_distance[AxisIndex];
         }
         
         template <typename TheMinTimeType>
@@ -700,7 +712,9 @@ public:
         
         using ConfigExprs = MakeTypeList<CDistanceFactor, CCorneringSpeedComputationFactor, CMaxSpeedRec, CMaxAccelRec>;
         
-        struct Object : public ObjBase<Axis, typename TheCommon::Object, EmptyTypeList> {};
+        struct Object : public ObjBase<Axis, typename TheCommon::Object, EmptyTypeList> {
+            FpType last_x_by_distance;
+        };
     };
     
     template <int LaserIndex>
@@ -1446,6 +1460,8 @@ private:
                 FpType half_rel_max_accel = 0.5f / rel_max_accel_rec;
                 ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, half_rel_max_accel, &cst);
+                FpType x_by_distance[NumAxes];
+                ListForEachForward<AxesList>(LForeach_compute_x_by_distance(), &cst, distance_rec, x_by_distance);
                 FpType distance_squared = distance * distance;
                 FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
                 FpType a_x = 4 * half_rel_max_accel * distance_squared;
@@ -1454,12 +1470,12 @@ private:
                 for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
                     Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
                     if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
-                        FpType limit = 1.0f / ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_cornering_speed(), c, entry, distance_rec, prev_entry);
+                        FpType limit = 1.0f / ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_cornering_speed(), c, entry, prev_entry, x_by_distance);
                         TheLinearPlanner::applySegmentJunction(&prev_entry->lp_seg, &entry->lp_seg, limit);
                         break;
                     }
                 }
-                o->m_last_distance_rec = distance_rec;
+                ListForEachForward<AxesList>(LForeach_save_x_by_distance(), c, x_by_distance);
                 if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
                     o->m_split_buffer.type = 0xFF;
                 }
@@ -1496,7 +1512,6 @@ public:
         SegmentBufferSizeType m_segments_length;
         TimeType m_staging_time;
         FpType m_staging_v_squared;
-        FpType m_last_distance_rec;
         uint8_t m_state;
         bool m_waiting;
         bool m_aborted;
