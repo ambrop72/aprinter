@@ -92,8 +92,11 @@ configure_avr() {
     )
     
     AVRDUDE_FLAGS=(
-        -p $MCU -D -P $AVRDUDE_PORT -b $AVRDUDE_BAUDRATE -c $AVRDUDE_PROGRAMMER
+        -p $MCU -P $AVRDUDE_PORT -b $AVRDUDE_BAUDRATE -c $AVRDUDE_PROGRAMMER
     )
+    if [ "$AVRDUDE_ERASE" != 1 ]; then
+        AVRDUDE_FLAGS=("${AVRDUDE_FLAGS[@]}" -D)
+    fi
     
     INSTALL=install_avr
     RUNBUILD=build_avr
