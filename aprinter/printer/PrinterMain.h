@@ -450,6 +450,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_planner_cmd, write_planner_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_apply_default, apply_default)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_begin_move, begin_move)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(TForeach_init, init)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
@@ -530,7 +531,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
     
-    struct MoveBuildState;
     struct SetPositionState;
     
     template <typename ChannelParentObject, typename Channel>
@@ -1497,12 +1497,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             Stepper::disable(c);
         }
         
-        static void update_new_pos (Context c, MoveBuildState *s, FpType req)
+        static void update_new_pos (Context c, FpType req)
         {
             auto *o = Object::self(c);
+            auto *mo = PrinterMain::Object::self(c);
             o->m_req_pos = clamp_req_pos(c, req);
             if (AxisSpec::IsCartesian) {
-                s->seen_cartesian = true;
+                mo->move_seen_cartesian = true;
             }
             TransformFeature::template mark_phys_moved<AxisIndex>(c);
         }
@@ -1634,13 +1635,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
         
         template <typename TheChannelCommon>
-        static bool collect_new_pos (Context c, WrapType<TheChannelCommon>, MoveBuildState *s, typename TheChannelCommon::GcodeParserPartRef part)
+        static bool collect_new_pos (Context c, WrapType<TheChannelCommon>, typename TheChannelCommon::GcodeParserPartRef part)
         {
             auto *o = Object::self(c);
             char code = TheChannelCommon::TheGcodeParser::getPartCode(c, part);
             if (AMBRO_UNLIKELY(code == LaserSpec::Name)) {
                 FpType energy = TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part);
-                move_add_laser<LaserIndex>(c, s, energy);
+                move_add_laser<LaserIndex>(c, energy);
                 return false;
             }
             if (AMBRO_UNLIKELY(code== LaserSpec::DensityName)) {
@@ -1650,12 +1651,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return true;
         }
         
-        static void handle_automatic_energy (Context c, MoveBuildState *s, FpType distance)
+        static void handle_automatic_energy (Context c, FpType distance)
         {
             auto *o = Object::self(c);
-            auto *le = TupleGetElem<LaserIndex>(s->laser_extra());
-            if (!le->energy_specified) {
-                le->energy = FloatMakePosOrPosZero(o->density * distance);
+            if (!o->move_energy_specified) {
+                o->move_energy = FloatMakePosOrPosZero(o->density * distance);
             }
         }
         
@@ -1664,6 +1664,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *mycmd = TupleGetElem<LaserIndex>(cmd->axes.lasers());
             mycmd->x = src.template get<LaserIndex>() * (FpType)(1.0 / LaserSpec::LaserPower::value());
+        }
+        
+        static void begin_move (Context c)
+        {
+            auto *o = Object::self(c);
+            o->move_energy = 0.0f;
+            o->move_energy_specified = false;
         }
         
         static void emergency ()
@@ -1685,6 +1692,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             ThePwm
         >> {
             FpType density;
+            FpType move_energy;
+            bool move_energy_specified;
         };
     };
     
@@ -1776,7 +1785,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheTransformAlg::physToVirt(c, PhysReqPosSrc{c}, VirtReqPosDst{c});
         }
         
-        static void handle_virt_move (Context c, MoveBuildState *s, FpType time_freq_by_max_speed)
+        static void handle_virt_move (Context c, FpType time_freq_by_max_speed)
         {
             auto *o = Object::self(c);
             auto *mob = PrinterMain::Object::self(c);
@@ -1793,8 +1802,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             ListForEachForward<VirtAxesList>(LForeach_prepare_split(), c, &distance_squared);
             ListForEachForward<SecondaryAxesList>(LForeach_prepare_split(), c, &distance_squared);
             FpType distance = FloatSqrt(distance_squared);
-            ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, s, distance);
-            ListForEachForward<LaserSplitsList>(LForeach_prepare_split(), c, s);
+            ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, distance);
+            ListForEachForward<LaserSplitsList>(LForeach_prepare_split(), c);
             FpType base_max_v_rec = ListForEachForwardAccRes<VirtAxesList>(distance * time_freq_by_max_speed, LForeach_limit_virt_axis_speed(), c);
             FpType min_segments_by_distance = (FpType)(TransformParams::SegmentsPerSecond::value() * Clock::time_unit) * time_freq_by_max_speed;
             o->splitter.start(distance, base_max_v_rec, min_segments_by_distance);
@@ -1956,7 +1965,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 HomingFeature::init(c);
             }
             
-            static void update_new_pos (Context c, MoveBuildState *s, FpType req)
+            static void update_new_pos (Context c, FpType req)
             {
                 auto *o = Object::self(c);
                 auto *t = TransformFeature::Object::self(c);
@@ -2111,8 +2120,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                         if (o->command_sent) {
                             return custom_planner_wait_finished(c);
                         }
-                        MoveBuildState s;
-                        move_begin(c, &s);
+                        move_begin(c);
                         FpType position;
                         FpType speed;
                         switch (o->state) {
@@ -2129,8 +2137,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                                 speed = APRINTER_CFG(Config, CSlowSpeed, c);
                             } break;
                         }
-                        move_add_axis<(NumAxes + VirtAxisIndex)>(c, &s, position);
-                        move_end(c, &s, (FpType)TimeConversion::value() / speed);
+                        move_add_axis<(NumAxes + VirtAxisIndex)>(c, position);
+                        move_end(c, (FpType)TimeConversion::value() / speed);
                         o->command_sent = true;
                     }
                     
@@ -2258,10 +2266,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct LaserSplit {
             struct Object;
             
-            static void prepare_split (Context c, MoveBuildState *s)
+            static void prepare_split (Context c)
             {
                 auto *o = Object::self(c);
-                o->energy = TupleGetElem<LaserIndex>(s->laser_extra())->energy;
+                auto *laser = Laser<LaserIndex>::Object::self(c);
+                o->energy = laser->move_energy;
             }
             
             struct Object : public ObjBase<LaserSplit, typename TransformFeature::Object, EmptyTypeList> {
@@ -2284,7 +2293,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     } AMBRO_STRUCT_ELSE(TransformFeature) {
         static int const NumVirtAxes = 0;
         static void init (Context c) {}
-        static void handle_virt_move (Context c, MoveBuildState *s, FpType time_freq_by_max_speed) {}
+        static void handle_virt_move (Context c, FpType time_freq_by_max_speed) {}
         template <int PhysAxisIndex>
         static void mark_phys_moved (Context c) {}
         static void do_pending_virt_update (Context c) {}
@@ -2327,13 +2336,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             axis->m_old_pos = axis->m_req_pos;
         }
         
-        static void update_new_pos (Context c, MoveBuildState *s, FpType req)
+        static void update_new_pos (Context c, FpType req)
         {
-            TheAxis::update_new_pos(c, s, req);
+            TheAxis::update_new_pos(c, req);
         }
         
         template <typename TheChannelCommon>
-        static bool collect_new_pos (Context c, WrapType<TheChannelCommon>, MoveBuildState *s, typename TheChannelCommon::GcodeParserPartRef part)
+        static bool collect_new_pos (Context c, WrapType<TheChannelCommon>, typename TheChannelCommon::GcodeParserPartRef part)
         {
             auto *axis = TheAxis::Object::self(c);
             if (AMBRO_UNLIKELY(TheChannelCommon::TheGcodeParser::getPartCode(c, part) == TheAxis::AxisName)) {
@@ -2341,7 +2350,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (axis->m_relative_positioning) {
                     req += axis->m_old_pos;
                 }
-                update_new_pos(c, s, req);
+                update_new_pos(c, req);
                 return false;
             }
             return true;
@@ -2802,10 +2811,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             static const int AxisIndex = FindPhysVirtAxis<PlatformAxis::Value>::Value;
             using AxisProbeOffset = TypeListGet<typename ProbeParams::ProbePlatformOffset, PlatformAxisIndex>;
             
-            static void add_axis (Context c, MoveBuildState *s, uint8_t point_index)
+            static void add_axis (Context c, uint8_t point_index)
             {
                 FpType coord = ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_coord(), c);
-                move_add_axis<AxisIndex>(c, s, coord + APRINTER_CFG(Config, CAxisProbeOffset, c));
+                move_add_axis<AxisIndex>(c, coord + APRINTER_CFG(Config, CAxisProbeOffset, c));
             }
             
             template <int PointIndex>
@@ -2842,13 +2851,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     custom_planner_wait_finished(c);
                     return;
                 }
-                MoveBuildState s;
-                move_begin(c, &s);
+                move_begin(c);
                 FpType height;
                 FpType time_freq_by_speed;
                 switch (o->m_point_state) {
                     case 0: {
-                        ListForEachForward<AxisHelperList>(LForeach_add_axis(), c, &s, o->m_current_point);
+                        ListForEachForward<AxisHelperList>(LForeach_add_axis(), c, o->m_current_point);
                         height = APRINTER_CFG(Config, CProbeStartHeight, c);
                         time_freq_by_speed = APRINTER_CFG(Config, CProbeMoveSpeedFactor, c);
                     } break;
@@ -2869,8 +2877,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                         time_freq_by_speed = APRINTER_CFG(Config, CProbeRetractSpeedFactor, c);
                     } break;
                 }
-                move_add_axis<ProbeAxisIndex>(c, &s, height);
-                move_end(c, &s, time_freq_by_speed);
+                move_add_axis<ProbeAxisIndex>(c, height);
+                move_end(c, time_freq_by_speed);
                 o->m_command_sent = true;
             }
             
@@ -3303,13 +3311,12 @@ public: // private, see comment on top
                     if (!TheChannelCommon::tryPlannedCommand(c)) {
                         return;
                     }
-                    MoveBuildState s;
-                    move_begin(c, &s);
+                    move_begin(c);
                     auto num_parts = TheChannelCommon::TheGcodeParser::getNumParts(c);
                     for (typename TheChannelCommon::GcodePartsSizeType i = 0; i < num_parts; i++) {
                         typename TheChannelCommon::GcodeParserPartRef part = TheChannelCommon::TheGcodeParser::getPart(c, i);
-                        if (ListForEachForwardInterruptible<PhysVirtAxisHelperList>(LForeach_collect_new_pos(), c, cc, &s, part) &&
-                            ListForEachForwardInterruptible<LasersList>(LForeach_collect_new_pos(), c, cc, &s, part)
+                        if (ListForEachForwardInterruptible<PhysVirtAxisHelperList>(LForeach_collect_new_pos(), c, cc, part) &&
+                            ListForEachForwardInterruptible<LasersList>(LForeach_collect_new_pos(), c, cc, part)
                         ) {
                             if (TheChannelCommon::TheGcodeParser::getPartCode(c, part) == 'F') {
                                 ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(TheChannelCommon::TheGcodeParser::template getPartFpValue<FpType>(c, part));
@@ -3317,7 +3324,7 @@ public: // private, see comment on top
                         }
                     }
                     TheChannelCommon::finishCommand(c);
-                    move_end(c, &s, ob->time_freq_by_max_speed);
+                    move_end(c, ob->time_freq_by_max_speed);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -3609,44 +3616,26 @@ public: // private, see comment on top
             TransformFeature::prestep_callback(c);
     }
     
-    template <typename TheLaser>
-    struct MoveBuildLaserExtra {
-        FpType energy;
-        bool energy_specified;
-        
-        void init ()
-        {
-            energy = 0.0f;
-            energy_specified = false;
-        }
-    };
-    
-    using MoveBuildLaserExtraTuple = Tuple<MapTypeList<LasersList, TemplateFunc<MoveBuildLaserExtra>>>;
-    
-    struct MoveBuildState : public MoveBuildLaserExtraTuple {
-        MoveBuildLaserExtraTuple * laser_extra () { return this; }
-        bool seen_cartesian;
-    };
-    
-    static void move_begin (Context c, MoveBuildState *s)
+    static void move_begin (Context c)
     {
+        auto *ob = Object::self(c);
         ListForEachForward<PhysVirtAxisHelperList>(LForeach_init_new_pos(), c);
-        s->seen_cartesian = false;
-        TupleForEachForward(s->laser_extra(), TForeach_init());
+        ob->move_seen_cartesian = false;
+        ListForEachForward<LasersList>(LForeach_begin_move(), c);
     }
     
     template <int PhysVirtAxisIndex>
-    static void move_add_axis (Context c, MoveBuildState *s, FpType value)
+    static void move_add_axis (Context c, FpType value)
     {
-        PhysVirtAxisHelper<PhysVirtAxisIndex>::update_new_pos(c, s, value);
+        PhysVirtAxisHelper<PhysVirtAxisIndex>::update_new_pos(c, value);
     }
     
     template <int LaserIndex>
-    static void move_add_laser (Context c, MoveBuildState *s, FpType energy)
+    static void move_add_laser (Context c, FpType energy)
     {
-        auto *le = TupleGetElem<LaserIndex>(s->laser_extra());
-        le->energy = FloatMakePosOrPosZero(energy);
-        le->energy_specified = true;
+        auto *laser = Laser<LaserIndex>::Object::self(c);
+        laser->move_energy = FloatMakePosOrPosZero(energy);
+        laser->move_energy_specified = true;
     }
     
     struct ReqPosSrc {
@@ -3656,12 +3645,12 @@ public: // private, see comment on top
     };
     
     struct LaserExtraSrc {
-        MoveBuildState *s;
+        Context m_c;
         template <int LaserIndex>
-        FpType get () { return TupleGetElem<LaserIndex>(s->laser_extra())->energy; }
+        FpType get () { return Laser<LaserIndex>::Object::self(m_c)->move_energy; }
     };
     
-    static void move_end (Context c, MoveBuildState *s, FpType time_freq_by_max_speed)
+    static void move_end (Context c, FpType time_freq_by_max_speed)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING || ob->planner_state == PLANNER_CUSTOM)
@@ -3669,7 +3658,7 @@ public: // private, see comment on top
         AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
         
         if (TransformFeature::is_splitting(c)) {
-            TransformFeature::handle_virt_move(c, s, time_freq_by_max_speed);
+            TransformFeature::handle_virt_move(c, time_freq_by_max_speed);
             return;
         }
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
@@ -3679,14 +3668,14 @@ public: // private, see comment on top
         TransformFeature::do_pending_virt_update(c);
         if (total_steps != 0.0f) {
             cmd->axes.rel_max_v_rec = total_steps * APRINTER_CFG(Config, CStepSpeedLimitFactor, c);
-            if (s->seen_cartesian) {
+            if (ob->move_seen_cartesian) {
                 FpType distance = FloatSqrt(distance_squared);
                 cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, distance * time_freq_by_max_speed);
-                ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, s, distance);
+                ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, distance);
             } else {
                 ListForEachForward<AxesList>(LForeach_limit_axis_move_speed(), c, time_freq_by_max_speed, cmd);
             }
-            ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserExtraSrc{s}, cmd);
+            ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserExtraSrc{c}, cmd);
             ThePlanner::axesCommandDone(c);
         } else {
             ThePlanner::emptyDone(c);
@@ -3859,6 +3848,7 @@ public:
         PlannerClient *planner_client;
         bool m_planning_pull_pending;
         PhysVirtAxisMaskType m_homing_rem_axes;
+        bool move_seen_cartesian;
     };
 };
 
