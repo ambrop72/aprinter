@@ -149,9 +149,9 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_speed, compute_segment_buffer_entry_speed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_accel, compute_segment_buffer_entry_accel)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment_buffer_entry_extra, write_segment_buffer_entry_extra)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_x_by_distance, compute_x_by_distance)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_cornering_speed, compute_segment_buffer_cornering_speed)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_save_x_by_distance, save_x_by_distance)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_cornering_start, cornering_start)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_cornering_calc, cornering_calc)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_cornering_end, cornering_end)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_have_commit_space, have_commit_space)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_commands, start_commands)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_segment_stepper_commands, gen_segment_stepper_commands)
@@ -476,7 +476,10 @@ public:
         
         static void init_impl (Context c, bool prestep_callback_enabled)
         {
+            auto *o = Object::self(c);
             TheAxisDriver::setPrestepCallbackEnabled(c, prestep_callback_enabled);
+            o->last_x_by_distance = 0.0f;
+            o->last_dir = false;
         }
         
         static void deinit_impl (Context c)
@@ -570,27 +573,28 @@ public:
         }
         
         template <typename TheComputeStateTuple>
-        static void compute_x_by_distance (TheComputeStateTuple const *cst, FpType distance_rec, FpType *x_by_distance)
+        static void cornering_start (TheComputeStateTuple const *cst, FpType distance_rec, FpType *x_by_distance)
         {
             ComputeState const *cs = TupleFindElem<ComputeState>(cst);
             x_by_distance[AxisIndex] = cs->x * distance_rec;
         }
         
         template <typename AccumType>
-        static FpType compute_segment_buffer_cornering_speed (AccumType accum, Context c, Segment *entry, Segment *prev_entry, FpType const *x_by_distance)
+        static FpType cornering_calc (AccumType accum, Context c, Segment const *entry, FpType const *x_by_distance)
         {
             auto *o = Object::self(c);
             FpType m1 = x_by_distance[AxisIndex];
             FpType m2 = o->last_x_by_distance;
-            bool dir_changed = (entry->dir_and_type ^ prev_entry->dir_and_type) & TheAxisMask;
-            FpType dm = (dir_changed ? (m1 + m2) : FloatAbs(m1 - m2));
+            bool dir_same = (bool)(entry->dir_and_type & TheAxisMask) == o->last_dir;
+            FpType dm = (dir_same ? FloatAbs(m1 - m2) : (m1 + m2));
             return FloatMax(accum, dm * APRINTER_CFG(Config, CCorneringSpeedComputationFactor, c));
         }
         
-        static void save_x_by_distance (Context c, FpType const *x_by_distance)
+        static void cornering_end (Context c, Segment const *entry, FpType const *x_by_distance)
         {
             auto *o = Object::self(c);
             o->last_x_by_distance = x_by_distance[AxisIndex];
+            o->last_dir = (entry->dir_and_type & TheAxisMask);
         }
         
         template <typename TheMinTimeType>
@@ -715,6 +719,7 @@ public:
         
         struct Object : public ObjBase<Axis, typename TheCommon::Object, EmptyTypeList> {
             FpType last_x_by_distance;
+            bool last_dir;
         };
     };
     
@@ -1075,6 +1080,7 @@ public:
         o->m_staging_time = 0;
         o->m_staging_v_squared = 0.0f;
         o->m_staging_v = 0.0f;
+        o->m_last_max_v = 0.0f;
         o->m_split_buffer.type = 0xFF;
         o->m_state = STATE_BUFFERING;
         o->m_waiting = false;
@@ -1464,21 +1470,15 @@ private:
                 ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, half_rel_max_accel, &cst);
                 FpType x_by_distance[NumAxes];
-                ListForEachForward<AxesList>(LForeach_compute_x_by_distance(), &cst, distance_rec, x_by_distance);
+                ListForEachForward<AxesList>(LForeach_cornering_start(), &cst, distance_rec, x_by_distance);
+                FpType cornering_max_v = 1.0f / ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_cornering_calc(), c, entry, x_by_distance);
+                ListForEachForward<AxesList>(LForeach_cornering_end(), c, entry, x_by_distance);
                 FpType distance_squared = distance * distance;
                 FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
                 FpType a_x = 4 * half_rel_max_accel * distance_squared;
                 FpType a_x_rec = 1.0f / a_x;
-                TheLinearPlanner::initSegment(&entry->lp_seg, max_v, a_x, a_x_rec);
-                for (SegmentBufferSizeType i = o->m_segments_length; i > 0; i--) {
-                    Segment *prev_entry = &o->m_segments[segments_add(o->m_segments_start, i - 1)];
-                    if (AMBRO_LIKELY((prev_entry->dir_and_type & TypeMask) == 0)) {
-                        FpType limit = 1.0f / ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_cornering_speed(), c, entry, prev_entry, x_by_distance);
-                        TheLinearPlanner::applySegmentJunction(&prev_entry->lp_seg, &entry->lp_seg, limit);
-                        break;
-                    }
-                }
-                ListForEachForward<AxesList>(LForeach_save_x_by_distance(), c, x_by_distance);
+                TheLinearPlanner::initSegment(&entry->lp_seg, o->m_last_max_v, cornering_max_v, max_v, a_x, a_x_rec);
+                o->m_last_max_v = max_v;
                 if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
                     o->m_split_buffer.type = 0xFF;
                 }
@@ -1515,6 +1515,7 @@ public:
         TimeType m_staging_time;
         FpType m_staging_v_squared;
         FpType m_staging_v;
+        FpType m_last_max_v;
         uint8_t m_state;
         bool m_waiting;
         bool m_aborted;

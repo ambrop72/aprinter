@@ -38,7 +38,7 @@ struct LinearPlanner {
         friend LinearPlanner;
         FpType a_x;
         FpType max_v;
-        FpType max_end_v;
+        FpType max_start_v;
         FpType a_x_rec;
         FpType two_max_v_minus_a_x;
     };
@@ -58,49 +58,45 @@ struct LinearPlanner {
     {
         segment->a_x = 0.0f;
         segment->max_v = INFINITY;
-        segment->max_end_v = INFINITY;
+        segment->max_start_v = INFINITY;
         segment->a_x_rec = INFINITY;
         segment->two_max_v_minus_a_x = INFINITY;
     }
     
-    static void initSegment (SegmentData *segment, FpType max_v, FpType a_x, FpType a_x_rec)
+    static void initSegment (SegmentData *segment, FpType prev_max_v, FpType max_start_v, FpType max_v, FpType a_x, FpType a_x_rec)
     {
+        AMBRO_ASSERT(FloatIsPosOrPosZero(prev_max_v))
+        AMBRO_ASSERT(FloatIsPosOrPosZero(max_start_v))
         AMBRO_ASSERT(FloatIsPosOrPosZero(max_v))
         AMBRO_ASSERT(FloatIsPosOrPosZero(a_x))
         AMBRO_ASSERT(FloatIsPosOrPosZero(a_x_rec))
         
         segment->max_v = max_v;
-        segment->max_end_v = max_v;
+        segment->max_start_v = FloatMin(prev_max_v, FloatMin(max_start_v, max_v));
         segment->a_x = a_x;
         segment->a_x_rec = a_x_rec;
         segment->two_max_v_minus_a_x = 2 * max_v - a_x;
-    }
-    
-    static void applySegmentJunction (SegmentData *segment, SegmentData *next_segment, FpType max_junction_v)
-    {
-        AMBRO_ASSERT(FloatIsPosOrPosZero(max_junction_v))
-        
-        segment->max_end_v = FloatMin(segment->max_end_v, FloatMin(next_segment->max_v, max_junction_v));
     }
     
     static FpType push (SegmentData *segment, SegmentState *s, FpType end_v)
     {
         AMBRO_ASSERT(FloatIsPosOrPosZero(segment->a_x))
         AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_v))
-        AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_end_v))
-        AMBRO_ASSERT(segment->max_end_v <= segment->max_v)
+        AMBRO_ASSERT(FloatIsPosOrPosZero(segment->max_start_v))
+        AMBRO_ASSERT(segment->max_start_v <= segment->max_v)
         AMBRO_ASSERT(FloatIsPosOrPosZero(end_v))
+        AMBRO_ASSERT(end_v <= segment->max_v)
         
-        s->end_v = FloatMin(segment->max_end_v, end_v);
-        return s->end_v + segment->a_x;
+        s->end_v = end_v;
+        return FloatMin(segment->max_start_v, end_v + segment->a_x);
     }
 
     static FpType pull (SegmentData *segment, SegmentState *s, FpType start_v, SegmentResult *result)
     {
-        AMBRO_ASSERT(s->end_v <= segment->max_end_v)
+        AMBRO_ASSERT(s->end_v <= segment->max_v)
         AMBRO_ASSERT(FloatIsPosOrPosZero(start_v))
+        AMBRO_ASSERT(start_v <= segment->max_start_v)
         AMBRO_ASSERT(start_v <= s->end_v + segment->a_x)
-        AMBRO_ASSERT(start_v <= segment->max_v)
         
         FpType end_v = s->end_v;
         

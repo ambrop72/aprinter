@@ -58,15 +58,14 @@ static void test_path (Path path)
 {
     AMBRO_ASSERT_FORCE(path.num_segs <= max_path_len)
     
+    FpType prev_max_v = 0.0f;
     for (size_t i = 0; i < path.num_segs; i++) {
         Segment const *seg = &path.segs[i];
         FpType max_v = seg->max_speed_squared;
         FpType a_x = seg->two_max_accel * seg->distance;
         FpType a_x_rec = 1.0f / a_x;
-        TheLinearPlanner::initSegment(&lp_sd[i], max_v, a_x, a_x_rec);
-        if (i > 0) {
-            TheLinearPlanner::applySegmentJunction(&lp_sd[i - 1], &lp_sd[i], INFINITY);
-        }
+        TheLinearPlanner::initSegment(&lp_sd[i], prev_max_v, INFINITY, max_v, a_x, a_x_rec);
+        prev_max_v = max_v;
     }
     
     FpType v = 0.0;
