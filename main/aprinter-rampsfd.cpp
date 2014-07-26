@@ -716,10 +716,10 @@ extern "C" {
         return -1;
     }
     
-#ifndef USB_SERIAL
     __attribute__((used))
     int _write (int file, char *ptr, int len)
     {
+#ifndef USB_SERIAL
         if (interrupts_enabled()) {
             MyPrinter::GetSerial::sendWaitFinished(MyContext());
         }
@@ -727,9 +727,9 @@ extern "C" {
             while (!(UART->UART_SR & UART_SR_TXRDY));
             UART->UART_THR = *(uint8_t *)&ptr[i];
         }
+#endif
         return len;
     }
-#endif
     
     __attribute__((used))
     int _close (int file)
