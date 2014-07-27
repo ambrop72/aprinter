@@ -149,9 +149,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_speed, compute_segment_buffer_entry_speed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_accel, compute_segment_buffer_entry_accel)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment_buffer_entry_extra, write_segment_buffer_entry_extra)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_cornering_start, cornering_start)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_cornering_calc, cornering_calc)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_cornering_end, cornering_end)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_do_junction_limit, do_junction_limit)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_have_commit_space, have_commit_space)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_commands, start_commands)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_segment_stepper_commands, gen_segment_stepper_commands)
@@ -571,29 +569,19 @@ public:
             entry->axes.half_accel[AxisIndex] = half_rel_max_accel * cs->x;
         }
         
-        template <typename TheComputeStateTuple>
-        static void cornering_start (TheComputeStateTuple const *cst, FpType distance_rec, FpType *x_by_distance)
-        {
-            ComputeState const *cs = TupleFindElem<ComputeState>(cst);
-            x_by_distance[AxisIndex] = cs->x * distance_rec;
-        }
-        
-        template <typename AccumType>
-        static FpType cornering_calc (AccumType accum, Context c, Segment const *entry, FpType const *x_by_distance)
+        template <typename AccumType, typename TheComputeStateTuple>
+        static FpType do_junction_limit (AccumType accum, Context c, Segment const *entry, FpType distance_rec, TheComputeStateTuple const *cst)
         {
             auto *o = Object::self(c);
             auto *mo = MotionPlanner::Object::self(c);
-            FpType m1 = x_by_distance[AxisIndex];
+            ComputeState const *cs = TupleFindElem<ComputeState>(cst);
+            
             FpType m2 = o->last_x_by_distance;
+            FpType m1 = cs->x * distance_rec;
+            o->last_x_by_distance = m1;
             bool dir_changed = (entry->dir_and_type ^ mo->m_last_dir_and_type) & TheAxisMask;
             FpType dm = (dir_changed ? (m1 + m2) : FloatAbs(m1 - m2));
             return FloatMax(accum, dm * APRINTER_CFG(Config, CCorneringSpeedComputationFactor, c));
-        }
-        
-        static void cornering_end (Context c, FpType const *x_by_distance)
-        {
-            auto *o = Object::self(c);
-            o->last_x_by_distance = x_by_distance[AxisIndex];
         }
         
         template <typename TheMinTimeType>
@@ -1468,16 +1456,13 @@ private:
                 FpType half_rel_max_accel = 0.5f / rel_max_accel_rec;
                 ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
                 ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, half_rel_max_accel, &cst);
-                FpType x_by_distance[NumAxes];
-                ListForEachForward<AxesList>(LForeach_cornering_start(), &cst, distance_rec, x_by_distance);
-                FpType cornering_max_v = 1.0f / ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_cornering_calc(), c, entry, x_by_distance);
-                ListForEachForward<AxesList>(LForeach_cornering_end(), c, x_by_distance);
+                FpType junction_max_v_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_do_junction_limit(), c, entry, distance_rec, &cst);
                 o->m_last_dir_and_type = entry->dir_and_type;
                 FpType distance_squared = distance * distance;
                 FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
                 FpType a_x = 4 * half_rel_max_accel * distance_squared;
                 FpType a_x_rec = 1.0f / a_x;
-                TheLinearPlanner::initSegment(&entry->lp_seg, o->m_last_max_v, cornering_max_v, max_v, a_x, a_x_rec);
+                TheLinearPlanner::initSegment(&entry->lp_seg, o->m_last_max_v, 1.0f / junction_max_v_rec, max_v, a_x, a_x_rec);
                 o->m_last_max_v = max_v;
                 if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
                     o->m_split_buffer.type = 0xFF;
