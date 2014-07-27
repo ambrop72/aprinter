@@ -1157,10 +1157,8 @@ public:
         AMBRO_ASSERT(o->m_pulling)
         AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
         
-        if (!o->m_waiting) {
-            o->m_waiting = true;
-            Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
-        }
+        o->m_waiting = true;
+        Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
     }
     
     template <int AxisIndex, typename StepsType>
