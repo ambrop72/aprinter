@@ -59,6 +59,27 @@
 
 #include <aprinter/BeginNamespace.h>
 
+static char RuntimeConfigManager__tolower (char c)
+{
+    return (c >= 'A' && c <= 'Z') ? (c + 32) : c;
+}
+
+static bool RuntimeConfigManager__compare_option (char const *name, ProgPtr<char> optname)
+{
+    while (1) {
+        char c = RuntimeConfigManager__tolower(*name);
+        char d = RuntimeConfigManager__tolower(*optname);
+        if (c != d) {
+            return false;
+        }
+        if (c == '\0') {
+            return true;
+        }
+        ++name;
+        ++optname;
+    }
+}
+
 struct RuntimeConfigManagerNoStoreService {};
 
 template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain, typename Handler, typename Params>
@@ -145,7 +166,7 @@ private:
         template <int OptionIndex>
         struct NameTableElem {
             using TheConfigOption = TypeListGet<OptionsList, OptionIndex>;
-            static constexpr char AMBRO_PROGMEM const * value () { return TheConfigOption::name(); }
+            static constexpr ProgPtr<char> value () { return ProgPtr<char>::Make(TheConfigOption::name()); }
         };
         
         template <int OptionIndex>
@@ -154,13 +175,13 @@ private:
             static constexpr Type value () { return TheConfigOption::DefaultValue::value(); }
         };
         
-        using NameTable = StaticArray<char AMBRO_PROGMEM const *, NumOptions, NameTableElem>;
+        using NameTable = StaticArray<ProgPtr<char>, NumOptions, NameTableElem>;
         using DefaultTable = StaticArray<Type, NumOptions, DefaultTableElem>;
         
         static int find_option (char const *name)
         {
             for (int i = 0; i < NumOptions; i++) {
-                if (!AMBRO_PGM_STRCMP(name, NameTable::readAt(i))) {
+                if (RuntimeConfigManager__compare_option(name, NameTable::readAt(i))) {
                     return i;
                 }
             }

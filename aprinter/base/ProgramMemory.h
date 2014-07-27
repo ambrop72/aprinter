@@ -43,6 +43,7 @@
 #define AMBRO_PGM_STRLEN strlen_P
 #define AMBRO_PGM_SPRINTF sprintf_P
 #define AMBRO_PGM_STRCMP strcmp_P
+#define AMBRO_PGM_READBYTE(x) (pgm_read_byte((x)))
 
 #else
 
@@ -54,8 +55,42 @@
 #define AMBRO_PGM_STRLEN strlen
 #define AMBRO_PGM_SPRINTF sprintf
 #define AMBRO_PGM_STRCMP strcmp
+#define AMBRO_PGM_READBYTE(x) (*(unsigned char const *)(x))
 
 #endif
+
+template <typename T>
+class ProgPtr {
+public:
+    static constexpr ProgPtr Make (T const *ptr)
+    {
+        return ProgPtr{ptr};
+    }
+    
+    T operator* () const
+    {
+#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
+        T val;
+        if (sizeof(T) == 1) {
+            *(unsigned char *)&val = AMBRO_PGM_READBYTE(m_ptr);
+        } else {
+            AMBRO_PGM_MEMCPY(&val, m_ptr, sizeof(T));
+        }
+        return val;
+#else
+        return *m_ptr;
+#endif
+    }
+    
+    ProgPtr & operator++ ()
+    {
+        m_ptr++;
+        return *this;
+    }
+    
+public:
+    T const *m_ptr;
+};
 
 #include <aprinter/EndNamespace.h>
 
