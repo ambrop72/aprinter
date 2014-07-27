@@ -280,16 +280,16 @@ private:
                 op = ldexp(op, -Exp);
             }
             long int a = lround(op);
-            if (a == MinusPowerOfTwo<long int, LongIntBits>::Value) {
+            if (AMBRO_UNLIKELY((a == MinusPowerOfTwo<long int, LongIntBits>::Value))) {
                 if (FloatSignBit(op)) {
                     a = BoundedIntType::minIntValue();
                 } else {
                     a = BoundedIntType::maxIntValue();
                 }
             } else if (NumBits < LongIntBits) {
-                if (a < BoundedIntType::minIntValue()) {
+                if (AMBRO_UNLIKELY(a < BoundedIntType::minIntValue())) {
                     a = BoundedIntType::minIntValue();
-                } else if (a > BoundedIntType::maxIntValue()) {
+                } else if (AMBRO_UNLIKELY(a > BoundedIntType::maxIntValue())) {
                     a = BoundedIntType::maxIntValue();
                 }
             }
