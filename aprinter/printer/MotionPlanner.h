@@ -1191,15 +1191,13 @@ private:
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) { AMBRO_ASSERT(planner_have_commit_space(c)) }
 #endif
         
-        typename TheLinearPlanner::SegmentState state[LookaheadBufferSize];
-        
         SegmentBufferSizeType i = o->m_segments_length;
         FpType v = 0.0f;
         do {
             i--;
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
             if (AMBRO_LIKELY((entry->dir_and_type & TypeMask) == 0)) {
-                v = TheLinearPlanner::push(&entry->axes.lp_seg, &state[i], v);
+                v = TheLinearPlanner::push(&entry->axes.lp_seg, &o->m_segment_state[i], v);
             }
         } while (i != 0);
         
@@ -1217,7 +1215,7 @@ private:
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
             if (AMBRO_LIKELY((entry->dir_and_type & TypeMask) == 0)) {
                 typename TheLinearPlanner::SegmentResult result;
-                v = TheLinearPlanner::pull(&entry->axes.lp_seg, &state[i], v, &result);
+                v = TheLinearPlanner::pull(&entry->axes.lp_seg, &o->m_segment_state[i], v, &result);
                 FpType v_end = FloatSqrt(v);
                 FpType v_const = FloatSqrt(result.const_v);
                 FpType t0_double = (v_const - v_start) * entry->axes.max_accel_rec;
@@ -1498,6 +1496,7 @@ public:
 #endif
         SplitBuffer m_split_buffer;
         Segment m_segments[LookaheadBufferSize];
+        typename TheLinearPlanner::SegmentState m_segment_state[LookaheadBufferSize];
     };
 };
 
