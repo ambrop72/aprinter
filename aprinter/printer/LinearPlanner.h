@@ -54,15 +54,6 @@ struct LinearPlanner {
         FpType const_v;
     };
     
-    static void initDummySegment (SegmentData *segment)
-    {
-        segment->a_x = 0.0f;
-        segment->max_v = INFINITY;
-        segment->max_start_v = INFINITY;
-        segment->a_x_rec = INFINITY;
-        segment->two_max_v_minus_a_x = INFINITY;
-    }
-    
     static void initSegment (SegmentData *segment, FpType prev_max_v, FpType max_start_v, FpType max_v, FpType a_x, FpType a_x_rec)
     {
         AMBRO_ASSERT(FloatIsPosOrPosZero(prev_max_v))

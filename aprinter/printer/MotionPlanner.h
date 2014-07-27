@@ -254,6 +254,7 @@ private:
     };
     
     struct SegmentAxesPart : public SegmentAxesHelper, public SegmentLasersHelper {
+        typename TheLinearPlanner::SegmentData lp_seg;
         FpType max_accel_rec;
         FpType rel_max_speed_rec;
         FpType half_accel[NumAxes];
@@ -261,7 +262,6 @@ private:
     
     struct Segment {
         AxisMaskType dir_and_type;
-        typename TheLinearPlanner::SegmentData lp_seg;
         union {
             SegmentAxesPart axes;
             IndexElemUnion<ParamsChannelsList, ChannelSegment> channels;
@@ -1198,7 +1198,9 @@ private:
         do {
             i--;
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
-            v = TheLinearPlanner::push(&entry->lp_seg, &state[i], v);
+            if (AMBRO_LIKELY((entry->dir_and_type & TypeMask) == 0)) {
+                v = TheLinearPlanner::push(&entry->axes.lp_seg, &state[i], v);
+            }
         } while (i != 0);
         
         SegmentBufferSizeType commit_count = MinValue(o->m_segments_length, (SegmentBufferSizeType)LookaheadCommitCount);
@@ -1213,9 +1215,9 @@ private:
         
         do {
             Segment *entry = &o->m_segments[segments_add(o->m_segments_start, i)];
-            typename TheLinearPlanner::SegmentResult result;
-            v = TheLinearPlanner::pull(&entry->lp_seg, &state[i], v, &result);
             if (AMBRO_LIKELY((entry->dir_and_type & TypeMask) == 0)) {
+                typename TheLinearPlanner::SegmentResult result;
+                v = TheLinearPlanner::pull(&entry->axes.lp_seg, &state[i], v, &result);
                 FpType v_end = FloatSqrt(v);
                 FpType v_const = FloatSqrt(result.const_v);
                 FpType t0_double = (v_const - v_start) * entry->axes.max_accel_rec;
@@ -1445,13 +1447,12 @@ private:
                 FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
                 FpType a_x = 4 * half_rel_max_accel * distance_squared;
                 FpType a_x_rec = 1.0f / a_x;
-                TheLinearPlanner::initSegment(&entry->lp_seg, o->m_last_max_v, 1.0f / junction_max_v_rec, max_v, a_x, a_x_rec);
+                TheLinearPlanner::initSegment(&entry->axes.lp_seg, o->m_last_max_v, 1.0f / junction_max_v_rec, max_v, a_x, a_x_rec);
                 o->m_last_max_v = max_v;
                 if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
                     o->m_split_buffer.type = 0xFF;
                 }
             } else {
-                TheLinearPlanner::initDummySegment(&entry->lp_seg);
                 ListForOneOffset<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_write_segment(), c, entry);
                 o->m_split_buffer.type = 0xFF;
             }
