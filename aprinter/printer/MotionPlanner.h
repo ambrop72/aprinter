@@ -1255,9 +1255,9 @@ private:
             }
         } while (i != o->m_segments_length);
         
-        bool ok = true;
-        
+        bool ok;
         if (AMBRO_UNLIKELY(o->m_state == STATE_BUFFERING)) {
+            ok = true;
             ListForEachForward<AxisCommonList>(LForeach_do_commit(), c);
             ListForEachForward<ChannelsList>(LForeach_do_commit_cold(), c);
             o->m_current_backup = !o->m_current_backup;
