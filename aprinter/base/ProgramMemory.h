@@ -82,10 +82,20 @@ public:
 #endif
     }
     
+    ProgPtr operator+ (size_t i) const
+    {
+        return Make(m_ptr + i);
+    }
+    
     ProgPtr & operator++ ()
     {
         m_ptr++;
         return *this;
+    }
+    
+    T operator[] (size_t i) const
+    {
+        return (operator+(i)).operator*();
     }
     
 public:

@@ -44,13 +44,7 @@ public:
     
     static ElemType readAt (size_t index)
     {
-#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
-        ElemType elem;
-        AMBRO_PGM_MEMCPY(&elem, &data[index], sizeof(elem));
-        return elem;
-#else
-        return data[index];
-#endif
+        return ProgPtr<ElemType>::Make(data)[index];
     }
     
 private:
