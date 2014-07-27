@@ -1371,7 +1371,6 @@ private:
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_planned = false;
 #endif
-                Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
                 UnderrunCallback::call(c);
             }
         }
