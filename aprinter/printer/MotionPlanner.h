@@ -479,7 +479,6 @@ public:
             auto *o = Object::self(c);
             TheAxisDriver::setPrestepCallbackEnabled(c, prestep_callback_enabled);
             o->last_x_by_distance = 0.0f;
-            o->last_dir = false;
         }
         
         static void deinit_impl (Context c)
@@ -583,18 +582,18 @@ public:
         static FpType cornering_calc (AccumType accum, Context c, Segment const *entry, FpType const *x_by_distance)
         {
             auto *o = Object::self(c);
+            auto *mo = MotionPlanner::Object::self(c);
             FpType m1 = x_by_distance[AxisIndex];
             FpType m2 = o->last_x_by_distance;
-            bool dir_same = (bool)(entry->dir_and_type & TheAxisMask) == o->last_dir;
-            FpType dm = (dir_same ? FloatAbs(m1 - m2) : (m1 + m2));
+            bool dir_changed = (entry->dir_and_type ^ mo->m_last_dir_and_type) & TheAxisMask;
+            FpType dm = (dir_changed ? (m1 + m2) : FloatAbs(m1 - m2));
             return FloatMax(accum, dm * APRINTER_CFG(Config, CCorneringSpeedComputationFactor, c));
         }
         
-        static void cornering_end (Context c, Segment const *entry, FpType const *x_by_distance)
+        static void cornering_end (Context c, FpType const *x_by_distance)
         {
             auto *o = Object::self(c);
             o->last_x_by_distance = x_by_distance[AxisIndex];
-            o->last_dir = (entry->dir_and_type & TheAxisMask);
         }
         
         template <typename TheMinTimeType>
@@ -719,7 +718,6 @@ public:
         
         struct Object : public ObjBase<Axis, typename TheCommon::Object, EmptyTypeList> {
             FpType last_x_by_distance;
-            bool last_dir;
         };
     };
     
@@ -1081,6 +1079,7 @@ public:
         o->m_staging_v_squared = 0.0f;
         o->m_staging_v = 0.0f;
         o->m_last_max_v = 0.0f;
+        o->m_last_dir_and_type = 0;
         o->m_split_buffer.type = 0xFF;
         o->m_state = STATE_BUFFERING;
         o->m_waiting = false;
@@ -1472,7 +1471,8 @@ private:
                 FpType x_by_distance[NumAxes];
                 ListForEachForward<AxesList>(LForeach_cornering_start(), &cst, distance_rec, x_by_distance);
                 FpType cornering_max_v = 1.0f / ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_cornering_calc(), c, entry, x_by_distance);
-                ListForEachForward<AxesList>(LForeach_cornering_end(), c, entry, x_by_distance);
+                ListForEachForward<AxesList>(LForeach_cornering_end(), c, x_by_distance);
+                o->m_last_dir_and_type = entry->dir_and_type;
                 FpType distance_squared = distance * distance;
                 FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
                 FpType a_x = 4 * half_rel_max_accel * distance_squared;
@@ -1516,6 +1516,7 @@ public:
         FpType m_staging_v_squared;
         FpType m_staging_v;
         FpType m_last_max_v;
+        AxisMaskType m_last_dir_and_type;
         uint8_t m_state;
         bool m_waiting;
         bool m_aborted;
