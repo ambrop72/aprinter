@@ -604,13 +604,13 @@ public:
             
             bool dir = entry->dir_and_type & TheAxisMask;
             if (x0.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperAccelFixedType::importFpSaturatedRound(entry->axes.half_accel[AxisIndex] * t0_squared)));
+                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperStepFixedType::importFpSaturatedRound(entry->axes.half_accel[AxisIndex] * t0_squared)));
             }
             if (!skip1) {
                 TheCommon::gen_stepper_command(c, dir, x1, t1, StepperAccelFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperAccelFixedType::importFpSaturatedRound(entry->axes.half_accel[AxisIndex] * t2_squared)));
+                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperStepFixedType::importFpSaturatedRound(entry->axes.half_accel[AxisIndex] * t2_squared)));
             }
         }
         
