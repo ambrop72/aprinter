@@ -158,7 +158,6 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_do_commit_hot, do_commit_hot)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_stepping, start_stepping)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_is_busy, is_busy)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stopped_stepping, stopped_stepping)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment, write_segment)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_command, gen_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fixup_split, fixup_split)
@@ -284,8 +283,6 @@ private:
             auto *o = Object::self(c);
             o->m_commit_start = 0;
             o->m_commit_end = 0;
-            o->m_backup_start = 0;
-            o->m_backup_end = 0;
             o->m_busy = false;
             TheAxis::init_impl(c, prestep_callback_enabled);
         }
@@ -381,13 +378,6 @@ private:
         {
             auto *o = Object::self(c);
             return (accum || o->m_busy);
-        }
-        
-        static void stopped_stepping (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_backup_start = 0;
-            o->m_backup_end = 0;
         }
         
         static bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand **cmd)
@@ -867,8 +857,6 @@ public:
             auto *o = Object::self(c);
             o->m_commit_start = 0;
             o->m_commit_end = 0;
-            o->m_backup_start = 0;
-            o->m_backup_end = 0;
             o->m_busy = false;
             TheTimer::init(c);
         }
@@ -971,13 +959,6 @@ public:
             return (accum || o->m_busy);
         }
         
-        static void stopped_stepping (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_backup_start = 0;
-            o->m_backup_end = 0;
-        }
-        
         static bool timer_handler (typename TheTimer::HandlerContext c)
         {
             auto *o = Object::self(c);
@@ -1076,6 +1057,7 @@ public:
         o->m_current_backup = false;
 #ifdef AMBROLIB_ASSERTIONS
         o->m_pulling = false;
+        o->m_planned = false;
 #endif
         ListForEachForward<AxisCommonList>(LForeach_init(), c, prestep_callback_enabled);
         ListForEachForward<ChannelsList>(LForeach_init(), c);
@@ -1296,6 +1278,9 @@ private:
             o->m_segments_start = segments_add(o->m_segments_start, commit_count);
             o->m_segments_length -= commit_count;
             o->m_segments_staging_length = o->m_segments_length;
+#ifdef AMBROLIB_ASSERTIONS
+            o->m_planned = true;
+#endif
         }
         return ok;
     }
@@ -1305,6 +1290,7 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
         AMBRO_ASSERT(!o->m_syncing)
+        AMBRO_ASSERT(o->m_planned)
         
         o->m_state = STATE_STEPPING;
         TimeType start_time = Clock::getTime(c) + (TimeType)(0.05 * Context::Clock::time_freq);
@@ -1382,10 +1368,10 @@ private:
                 o->m_staging_time = 0;
                 o->m_staging_v_squared = 0.0f;
                 o->m_staging_v = 0.0f;
-                o->m_current_backup = false;
+#ifdef AMBROLIB_ASSERTIONS
+                o->m_planned = false;
+#endif
                 Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
-                ListForEachForward<AxisCommonList>(LForeach_stopped_stepping(), c);
-                ListForEachForward<ChannelsList>(LForeach_stopped_stepping(), c);
                 UnderrunCallback::call(c);
             }
         }
@@ -1510,6 +1496,7 @@ public:
         bool m_new_to_backup;
 #ifdef AMBROLIB_ASSERTIONS
         bool m_pulling;
+        bool m_planned;
 #endif
         SplitBuffer m_split_buffer;
         Segment m_segments[LookaheadBufferSize];
