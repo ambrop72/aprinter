@@ -37,6 +37,10 @@
 #include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
 
+#ifdef AMBROLIB_AVR
+#include <aprinter/avr-asm-ops/fpround.h>
+#endif
+
 #include <aprinter/BeginNamespace.h>
 
 struct FixedIdentity {};
@@ -110,7 +114,7 @@ public:
     static FixedPoint importFpSaturatedRoundInline (FpType op)
     {
 #ifdef AMBROLIB_AVR
-        using Impl = If<(NumBits <= LongIntBits), ImportFpImpl_AvrLround, ImportFpImpl_FpRound>;
+        using Impl = If<(!Signed && NumBits <= 32), ImportFpImpl_AvrFpRound, If<(NumBits <= LongIntBits), ImportFpImpl_AvrLround, ImportFpImpl_FpRound>>;
 #else
         using Impl = If<(NumBits != 32 && NumBits != 64), ImportFpImpl_IntRound, ImportFpImpl_FpRound>;
 #endif
@@ -292,6 +296,21 @@ private:
                 } else if (AMBRO_UNLIKELY(a > BoundedIntType::maxIntValue())) {
                     a = BoundedIntType::maxIntValue();
                 }
+            }
+            return importBits(a);
+        }
+    };
+    
+    struct ImportFpImpl_AvrFpRound {
+        AMBRO_ALWAYS_INLINE
+        static FixedPoint call (float op)
+        {
+            if (Exp != 0) {
+                op = ldexp(op, -Exp);
+            }
+            uint32_t a = fpround_u32(op);
+            if (AMBRO_UNLIKELY(a > BoundedIntType::maxIntValue())) {
+                a = BoundedIntType::maxIntValue();
             }
             return importBits(a);
         }
