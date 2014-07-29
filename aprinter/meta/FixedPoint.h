@@ -308,10 +308,7 @@ private:
             if (Exp != 0) {
                 op = ldexp(op, -Exp);
             }
-            uint32_t a = fpround_u32(op);
-            if (AMBRO_UNLIKELY(a > BoundedIntType::maxIntValue())) {
-                a = BoundedIntType::maxIntValue();
-            }
+            uint32_t a = fpround_u32<NumBits>(op);
             return importBits(a);
         }
     };

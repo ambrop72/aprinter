@@ -27,8 +27,18 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/PowerOfTwo.h>
+
+#include <aprinter/BeginNamespace.h>
+
+template <int SaturateBits>
 static uint32_t fpround_u32 (float op)
 {
+    static_assert(SaturateBits >= 1, "");
+    static_assert(SaturateBits <= 32, "");
+    
+    static uint32_t const MaxValue = PowerOfTwoMinusOne<uint32_t, SaturateBits>::Value;
+    
     uint32_t res;
     uint8_t exp;
     asm(
@@ -43,9 +53,12 @@ static uint32_t fpround_u32 (float op)
         "cpi %[exp],126\n"
         "brcs underflow_%=\n"
         
+        "cpi %[exp],%[satbits]+127\n"
+        "brcc overflow_%=\n"
+        "ror %C[op]\n"
+        
         "cpi %[exp],134\n"
         "brcc right_shift_zero_or_one_byte_or_left_shift_%=\n"
-        "ror %C[op]\n"
         
         "mov %A[op],%C[op]\n"
         "clr %B[op]\n"
@@ -74,6 +87,10 @@ static uint32_t fpround_u32 (float op)
         "right_shift_two_bytes_round_%=:\n"
         "lsr %A[op]\n"
         "adc %A[op],__zero_reg__\n"
+        ".if %[satbits]<8\n"
+        "cpi %A[op],%[max0]\n"
+        "brcc overflow_%=\n"
+        ".endif\n"
         "jmp end_%=\n"
         
         "underflow_%=:\n"
@@ -82,10 +99,16 @@ static uint32_t fpround_u32 (float op)
         "movw %C[op],%A[op]\n"
         "jmp end_%=\n"
         
+        "overflow_%=:\n"
+        "ldi %A[op],%[max0]\n"
+        "ldi %B[op],%[max1]\n"
+        "ldi %C[op],%[max2]\n"
+        "ldi %D[op],%[max3]\n"
+        "jmp end_%=\n"
+        
         "right_shift_zero_or_one_byte_or_left_shift_%=:\n"
         "cpi %[exp],150\n"
         "brcc left_shift_%=\n"
-        "ror %C[op]\n"
         "cpi %[exp],142\n"
         "brcs right_shift_one_byte_%=\n"
         
@@ -131,18 +154,17 @@ static uint32_t fpround_u32 (float op)
         "adc %A[op],__zero_reg__\n"
         "adc %B[op],__zero_reg__\n"
         "adc %C[op],__zero_reg__\n"
-        "jmp end_%=\n"
-        
-        "overflow_%=:\n"
-        "ldi %A[op],0xFF\n"
-        "ldi %B[op],0xFF\n"
-        "movw %C[op],%A[op]\n"
+        ".if %[satbits]<24\n"
+        "cpi %A[op],%[max0]\n"
+        "ldi %[exp],%[max1]\n"
+        "cpc %B[op],%[exp]\n"
+        "ldi %[exp],%[max2]\n"
+        "cpc %C[op],%[exp]\n"
+        "brcc overflow2_%=\n"
+        ".endif\n"
         "jmp end_%=\n"
         
         "left_shift_%=:\n"
-        "cpi %[exp],32+127\n"
-        "brcc overflow_%=\n"
-        "ror %C[op]\n"
         "subi %[exp],150\n"
         "breq end_%=\n"
         "left_shift_again_%=:\n"
@@ -153,6 +175,11 @@ static uint32_t fpround_u32 (float op)
         "subi %[exp],1\n"
         "brne left_shift_again_%=\n"
         "jmp end_%=\n"
+        
+        ".if %[satbits]<24\n"
+        "overflow2_%=:\n"
+        "jmp overflow_%=\n"
+        ".endif\n"
         
         "right_shift_one_byte_%=:\n"
         "mov %A[op],%B[op]\n"
@@ -191,14 +218,27 @@ static uint32_t fpround_u32 (float op)
         "ror %A[op]\n"
         "adc %A[op],__zero_reg__\n"
         "adc %B[op],__zero_reg__\n"
+        ".if %[satbits]<16\n"
+        "cpi %A[op],%[max0]\n"
+        "ldi %[exp],%[max1]\n"
+        "cpc %B[op],%[exp]\n"
+        "brcc overflow2_%=\n"
+        ".endif\n"
         
         "end_%=:\n"
         
         : [op] "=&d" (res),
           [exp] "=&d" (exp)
-        : "[op]" (op)
+        : "[op]" (op),
+          [satbits] "n" (SaturateBits),
+          [max0] "n" ((MaxValue >> 0) & 0xFF),
+          [max1] "n" ((MaxValue >> 8) & 0xFF),
+          [max2] "n" ((MaxValue >> 16) & 0xFF),
+          [max3] "n" ((MaxValue >> 24) & 0xFF)
     );
     return res;
 }
+
+#include <aprinter/EndNamespace.h>
 
 #endif
