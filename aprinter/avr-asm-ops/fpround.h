@@ -40,15 +40,12 @@ static uint32_t fpround_u32 (float op)
         "rol %[exp]\n"
         "clr %D[op]\n"
         
-        "cpi %[exp],150\n"
-        "brcc left_shift_%=\n"
-        
-        "ror %C[op]\n"
         "cpi %[exp],126\n"
         "brcs underflow_%=\n"
         
         "cpi %[exp],134\n"
-        "brcc right_shift_zero_or_one_byte_%=\n"
+        "brcc right_shift_zero_or_one_byte_or_left_shift_%=\n"
+        "ror %C[op]\n"
         
         "mov %A[op],%C[op]\n"
         "clr %B[op]\n"
@@ -64,7 +61,10 @@ static uint32_t fpround_u32 (float op)
         "adc %A[op],__zero_reg__\n"
         "jmp end_%=\n"
         
-        "right_shift_zero_or_one_byte_%=:\n"
+        "right_shift_zero_or_one_byte_or_left_shift_%=:\n"
+        "cpi %[exp],150\n"
+        "brcc left_shift_%=\n"
+        "ror %C[op]\n"
         "cpi %[exp],142\n"
         "brcs right_shift_one_byte_%=\n"
         
