@@ -46,6 +46,14 @@ static uint32_t fpround_u32 (float op)
         "ror %C[op]\n"
         "cpi %[exp],126\n"
         "brcs underflow_%=\n"
+        
+        "cpi %[exp],134\n"
+        "brcs right_shift_two_bytes_%=\n"
+        
+        "cpi %[exp],142\n"
+        "brcs right_shift_one_byte_%=\n"
+        
+        "right_shift_%=:\n"
         "subi %[exp],149\n"
         "breq round_%=\n"
         "right_shift_again_%=:\n"
@@ -78,6 +86,20 @@ static uint32_t fpround_u32 (float op)
         "subi %[exp],1\n"
         "brne left_shift_again_%=\n"
         "jmp end_%=\n"
+        
+        "right_shift_two_bytes_%=:\n"
+        "mov %A[op],%C[op]\n"
+        "clr %B[op]\n"
+        "clr %C[op]\n"
+        "subi %[exp],-16\n"
+        "jmp right_shift_%=\n"
+        
+        "right_shift_one_byte_%=:\n"
+        "mov %A[op],%B[op]\n"
+        "mov %B[op],%C[op]\n"
+        "clr %C[op]\n"
+        "subi %[exp],-8\n"
+        "jmp right_shift_%=\n"
         
         "overflow_%=:\n"
         "ldi %A[op],0xFF\n"
