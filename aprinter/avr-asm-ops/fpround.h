@@ -91,20 +91,20 @@ static uint32_t fpround_u32 (float op)
         "cpi %A[op],%[max0]\n"
         "brcc overflow_%=\n"
         ".endif\n"
-        "jmp end_%=\n"
+        "rjmp end_%=\n"
         
         "underflow_%=:\n"
         "clr %A[op]\n"
         "clr %B[op]\n"
         "movw %C[op],%A[op]\n"
-        "jmp end_%=\n"
+        "rjmp end_%=\n"
         
         "overflow_%=:\n"
         "ldi %A[op],%[max0]\n"
         "ldi %B[op],%[max1]\n"
         "ldi %C[op],%[max2]\n"
         "ldi %D[op],%[max3]\n"
-        "jmp end_%=\n"
+        "rjmp end_%=\n"
         
         "right_shift_zero_or_one_byte_or_left_shift_%=:\n"
         "cpi %[exp],150\n"
@@ -162,7 +162,7 @@ static uint32_t fpround_u32 (float op)
         "cpc %C[op],%[exp]\n"
         "brcc overflow2_%=\n"
         ".endif\n"
-        "jmp end_%=\n"
+        "rjmp end_%=\n"
         
         "left_shift_%=:\n"
         "subi %[exp],150\n"
@@ -174,11 +174,11 @@ static uint32_t fpround_u32 (float op)
         "rol %D[op]\n"
         "subi %[exp],1\n"
         "brne left_shift_again_%=\n"
-        "jmp end_%=\n"
+        "rjmp end_%=\n"
         
         ".if %[satbits]<24\n"
         "overflow2_%=:\n"
-        "jmp overflow_%=\n"
+        "rjmp overflow_%=\n"
         ".endif\n"
         
         "right_shift_one_byte_%=:\n"
