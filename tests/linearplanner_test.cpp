@@ -63,8 +63,7 @@ static void test_path (Path path)
         Segment const *seg = &path.segs[i];
         FpType max_v = seg->max_speed_squared;
         FpType a_x = seg->two_max_accel * seg->distance;
-        FpType a_x_rec = 1.0f / a_x;
-        TheLinearPlanner::initSegment(&lp_sd[i], prev_max_v, INFINITY, max_v, a_x, a_x_rec);
+        TheLinearPlanner::initSegment(&lp_sd[i], prev_max_v, INFINITY, max_v, a_x);
         prev_max_v = max_v;
     }
     

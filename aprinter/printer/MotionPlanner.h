@@ -1443,8 +1443,7 @@ private:
                 FpType distance_squared = distance * distance;
                 FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
                 FpType a_x = 4 * half_rel_max_accel * distance_squared;
-                FpType a_x_rec = 1.0f / a_x;
-                TheLinearPlanner::initSegment(&entry->axes.lp_seg, o->m_last_max_v, 1.0f / junction_max_v_rec, max_v, a_x, a_x_rec);
+                TheLinearPlanner::initSegment(&entry->axes.lp_seg, o->m_last_max_v, 1.0f / junction_max_v_rec, max_v, a_x);
                 o->m_last_max_v = max_v;
                 if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
                     o->m_split_buffer.type = 0xFF;

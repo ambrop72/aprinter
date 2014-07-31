@@ -54,7 +54,7 @@ struct LinearPlanner {
         FpType const_v;
     };
     
-    static void initSegment (SegmentData *segment, FpType prev_max_v, FpType max_start_v, FpType max_v, FpType a_x, FpType a_x_rec)
+    static void initSegment (SegmentData *segment, FpType prev_max_v, FpType max_start_v, FpType max_v, FpType a_x)
     {
         AMBRO_ASSERT(FloatIsPosOrPosZero(prev_max_v))
         AMBRO_ASSERT(FloatIsPosOrPosZero(max_start_v))
@@ -65,7 +65,7 @@ struct LinearPlanner {
         segment->max_v = max_v;
         segment->max_start_v = FloatMin(prev_max_v, FloatMin(max_start_v, max_v));
         segment->a_x = a_x;
-        segment->a_x_rec = a_x_rec;
+        segment->a_x_rec = 1.0f / a_x;
         segment->two_max_v_minus_a_x = 2 * max_v - a_x;
     }
     
