@@ -39,6 +39,7 @@
 
 #ifdef AMBROLIB_AVR
 #include <aprinter/avr-asm-ops/fpround.h>
+#include <aprinter/avr-asm-ops/fpfromint.h>
 #endif
 
 #include <aprinter/BeginNamespace.h>
@@ -124,11 +125,13 @@ public:
     template <typename FpType>
     FpType fpValue () const
     {
-        if (Exp == 0) {
-            return bitsValue();
-        } else {
-            return FloatLdexp<FpType>(bitsValue(), Exp);
-        }
+        IntType bits = bitsValue();
+#ifdef AMBROLIB_AVR
+        FpType fp = (!Signed && NumBits <= 32) ? fpfromint_u32(bits) : (FpType)bits;
+#else
+        FpType fp = bits;
+#endif
+        return (exp == 0) ? fp : FloatLdexp(fp, Exp);
     }
     
     constexpr double fpValueConstexpr () const
