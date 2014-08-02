@@ -60,7 +60,6 @@ struct LinearPlanner {
         AMBRO_ASSERT(FloatIsPosOrPosZero(max_start_v))
         AMBRO_ASSERT(FloatIsPosOrPosZero(max_v))
         AMBRO_ASSERT(FloatIsPosOrPosZero(a_x))
-        AMBRO_ASSERT(FloatIsPosOrPosZero(a_x_rec))
         
         segment->max_v = max_v;
         segment->max_start_v = FloatMin(prev_max_v, FloatMin(max_start_v, max_v));
