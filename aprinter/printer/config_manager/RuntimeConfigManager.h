@@ -125,31 +125,31 @@ private:
     
     template <typename Dummy>
     struct TypeSpecific<double, Dummy> {
-        template <typename CommandChannel>
-        static void get_value_cmd (Context c, WrapType<CommandChannel>, double value)
+        template <typename TheCommand>
+        static void get_value_cmd (Context c, TheCommand *cmd, double value)
         {
-            CommandChannel::reply_append_fp(c, value);
+            cmd->reply_append_fp(c, value);
         }
         
-        template <typename CommandChannel>
-        static void set_value_cmd (Context c, WrapType<CommandChannel>, double *value, double default_value)
+        template <typename TheCommand>
+        static void set_value_cmd (Context c, TheCommand *cmd, double *value, double default_value)
         {
-            *value = CommandChannel::get_command_param_fp(c, 'V', default_value);
+            *value = cmd->get_command_param_fp(c, 'V', default_value);
         }
     };
     
     template <typename Dummy>
     struct TypeSpecific<bool, Dummy> {
-        template <typename CommandChannel>
-        static void get_value_cmd (Context c, WrapType<CommandChannel>, bool value)
+        template <typename TheCommand>
+        static void get_value_cmd (Context c, TheCommand *cmd, bool value)
         {
-            CommandChannel::reply_append_uint8(c, value);
+            cmd->reply_append_uint8(c, value);
         }
         
-        template <typename CommandChannel>
-        static void set_value_cmd (Context c, WrapType<CommandChannel>, bool *value, bool default_value)
+        template <typename TheCommand>
+        static void set_value_cmd (Context c, TheCommand *cmd, bool *value, bool default_value)
         {
-            *value = CommandChannel::get_command_param_uint32(c, 'V', default_value);
+            *value = cmd->get_command_param_uint32(c, 'V', default_value);
         }
     };
     
@@ -196,8 +196,8 @@ private:
             }
         }
         
-        template <typename CommandChannel>
-        static bool get_set_cmd (Context c, WrapType<CommandChannel> cc, bool get_it, char const *name)
+        template <typename TheCommand>
+        static bool get_set_cmd (Context c, TheCommand *cmd, bool get_it, char const *name)
         {
             auto *o = Object::self(c);
             int index = find_option(name);
@@ -205,9 +205,9 @@ private:
                 return true;
             }
             if (get_it) {
-                TheTypeSpecific::get_value_cmd(c, cc, o->values[index]);
+                TheTypeSpecific::get_value_cmd(c, cmd, o->values[index]);
             } else {
-                TheTypeSpecific::set_value_cmd(c, cc, &o->values[index], DefaultTable::readAt(index));
+                TheTypeSpecific::set_value_cmd(c, cmd, &o->values[index], DefaultTable::readAt(index));
             }
             return false;
         }
@@ -281,14 +281,14 @@ private:
             TheStore::deinit(c);
         }
         
-        template <typename CommandChannel>
-        static bool checkCommand (Context c, WrapType<CommandChannel>)
+        template <typename TheCommand>
+        static bool checkCommand (Context c, TheCommand *cmd)
         {
             auto *o = Object::self(c);
             
-            auto cmd_num = CommandChannel::TheGcodeParser::getCmdNumber(c);
+            auto cmd_num = cmd->getCmdNumber(c);
             if (cmd_num == LoadConfigMCommand || cmd_num == SaveConfigMCommand) {
-                if (!CommandChannel::tryLockedCommand(c)) {
+                if (!cmd->tryLockedCommand(c)) {
                     return false;
                 }
                 OperationType type = (cmd_num == LoadConfigMCommand) ? OperationType::LOAD : OperationType::STORE;
@@ -320,23 +320,16 @@ private:
             
             o->state = STATE_IDLE;
             if (o->from_command) {
-                ThePrinterMain::run_for_locked(c, FinishCommandHelper(), success);
+                auto *cmd = ThePrinterMain::get_locked(c);
+                if (!success) {
+                    cmd->reply_append_pstr(c, AMBRO_PSTR("error:Store\n"));
+                }
+                cmd->finishCommand(c);
             } else {
                 Handler::call(c, success);
             }
         }
         struct StoreHandler : public AMBRO_WFUNC_TD(&StoreFeature::store_handler) {};
-        
-        struct FinishCommandHelper {
-            template <typename CommandChannel>
-            void operator() (Context c, WrapType<CommandChannel>, bool success)
-            {
-                if (!success) {
-                    CommandChannel::reply_append_pstr(c, AMBRO_PSTR("error:Store\n"));
-                }
-                CommandChannel::finishCommand(c);
-            }
-        };
         
         struct Object : public ObjBase<StoreFeature, typename RuntimeConfigManager::Object, MakeTypeList<
             TheStore
@@ -348,8 +341,8 @@ private:
         struct Object {};
         static void init (Context c) {}
         static void deinit (Context c) {}
-        template <typename CommandChannel>
-        static bool checkCommand (Context c, WrapType<CommandChannel> cc) { return true; }
+        template <typename TheCommand>
+        static bool checkCommand (Context c, TheCommand *cmd) { return true; }
     };
     
     static void reset_all_config (Context c)
@@ -371,26 +364,26 @@ public:
         StoreFeature::deinit(c);
     }
     
-    template <typename CommandChannel>
-    static bool checkCommand (Context c, WrapType<CommandChannel> cc)
+    template <typename TheCommand>
+    static bool checkCommand (Context c, TheCommand *cmd)
     {
-        auto cmd_num = CommandChannel::TheGcodeParser::getCmdNumber(c);
+        auto cmd_num = cmd->getCmdNumber(c);
         if (cmd_num == GetConfigMCommand || cmd_num == SetConfigMCommand || cmd_num == ResetAllConfigMCommand) {
             if (cmd_num == ResetAllConfigMCommand) {
                 reset_all_config(c);
             } else {
                 bool get_it = (cmd_num == GetConfigMCommand);
-                char const *name = CommandChannel::get_command_param_str(c, 'I', "");
-                if (ListForEachForwardInterruptible<TypeGeneralList>(Foreach_get_set_cmd(), c, cc, get_it, name)) {
-                    CommandChannel::reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
+                char const *name = cmd->get_command_param_str(c, 'I', "");
+                if (ListForEachForwardInterruptible<TypeGeneralList>(Foreach_get_set_cmd(), c, cmd, get_it, name)) {
+                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
                 } else if (get_it) {
-                    CommandChannel::reply_append_ch(c, '\n');
+                    cmd->reply_append_ch(c, '\n');
                 }
             }
-            CommandChannel::finishCommand(c);
+            cmd->finishCommand(c);
             return false;
         }
-        return StoreFeature::checkCommand(c, cc);
+        return StoreFeature::checkCommand(c, cmd);
     }
     
     template <typename Option>

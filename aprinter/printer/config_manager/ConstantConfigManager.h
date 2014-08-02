@@ -51,8 +51,8 @@ public:
     {
     }
     
-    template <typename CommandChannel>
-    static bool checkCommand (Context c, WrapType<CommandChannel>)
+    template <typename TheCommand>
+    static bool checkCommand (Context c, TheCommand *cmd)
     {
         return true;
     }
