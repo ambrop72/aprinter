@@ -110,6 +110,7 @@ Board-specific notes:
 
 Runtime configuration commands:
 
+  * Print current configuration: `M924`.
   * Get option value: `M925 I<option>`
     Example: `M925 IXMin`
   * Set option value: `M926 I<option> V<value>`
