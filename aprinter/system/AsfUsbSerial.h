@@ -50,14 +50,13 @@ private:
     
 public:
     struct Object;
-    
+    using RecvSizeType = BoundedInt<RecvBufferBits, false>;
+    using SendSizeType = BoundedInt<SendBufferBits, false>;
+        
 private:
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:
-    using RecvSizeType = BoundedInt<RecvBufferBits, false>;
-    using SendSizeType = BoundedInt<SendBufferBits, false>;
-    
     static void init (Context c, uint32_t baud)
     {
         auto *o = Object::self(c);
@@ -68,8 +67,10 @@ public:
         o->m_recv_force = false;
         
         Context::EventLoop::template initFastEvent<SendFastEvent>(c, AsfUsbSerial::send_event_handler);
+        o->m_send_avail_event.init(c, AsfUsbSerial::send_avail_event_handler);
         o->m_send_start = SendSizeType::import(0);
         o->m_send_end = SendSizeType::import(0);
+        o->m_send_event = SendSizeType::import(0);
         
         Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
         
@@ -78,8 +79,10 @@ public:
     
     static void deinit (Context c)
     {
+        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
+        o->m_send_avail_event.deinit(c);
         Context::EventLoop::template resetFastEvent<SendFastEvent>(c);
         Context::EventLoop::template resetFastEvent<RecvFastEvent>(c);
     }
@@ -173,9 +176,23 @@ public:
         }
     }
     
+    static void sendRequestEvent (Context c, SendSizeType min_amount)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        
+        o->m_send_event = min_amount;
+        o->m_send_avail_event.unset(c);
+        if (o->m_send_event > SendSizeType::import(0)) {
+            o->m_send_avail_event.prependNowNotAlready(c);
+        }
+    }
+    
     using EventLoopFastEvents = MakeTypeList<RecvFastEvent, SendFastEvent>;
     
 private:
+    using Loop = typename Context::EventLoop;
+    
     static RecvSizeType recv_avail (RecvSizeType start, RecvSizeType end)
     {
         return BoundedModuloSubtract(end, start);
@@ -239,7 +256,23 @@ private:
             }
             udi_cdc_write_buf(o->m_send_buffer + o->m_send_start.value(), bytes);
             o->m_send_start = BoundedModuloAdd(o->m_send_start, SendSizeType::import(bytes));
+            if (o->m_send_event > SendSizeType::import(0)) {
+                o->m_send_avail_event.unset(c);
+                o->m_send_avail_event.prependNowNotAlready(c);
+            }
         } while (o->m_send_start != o->m_send_end);
+    }
+    
+    static void send_avail_event_handler (typename Loop::QueuedEvent *, Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->m_send_event > SendSizeType::import(0))
+        
+        if (send_avail(o->m_send_start, o->m_send_end) >= o->m_send_event) {
+            o->m_send_event = SendSizeType::import(0);
+            SendHandler::call(c);
+        }
     }
     
 public:
@@ -248,8 +281,10 @@ public:
         RecvSizeType m_recv_end;
         bool m_recv_force;
         char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
+        typename Loop::QueuedEvent m_send_avail_event;
         SendSizeType m_send_start;
         SendSizeType m_send_end;
+        SendSizeType m_send_event;
         char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
     };
 };

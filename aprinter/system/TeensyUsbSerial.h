@@ -49,6 +49,7 @@ template <typename Context, typename ParentObject, int RecvBufferBits, int SendB
 class TeensyUsbSerial {
 private:
     using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<TeensyUsbSerial>;
+    using SendFastEvent = typename Context::EventLoop::template FastEventSpec<RecvFastEvent>;
     
 public:
     struct Object;
@@ -68,8 +69,11 @@ public:
         o->m_recv_end = RecvSizeType::import(0);
         o->m_recv_force = false;
         
+        Context::EventLoop::template initFastEvent<SendFastEvent>(c, TeensyUsbSerial::send_event_handler);
+        o->m_send_avail_event.init(c, TeensyUsbSerial::send_avail_event_handler);
         o->m_send_start = SendSizeType::import(0);
         o->m_send_end = SendSizeType::import(0);
+        o->m_send_event = SendSizeType::import(0);
         
         Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
         
@@ -81,6 +85,8 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
+        o->m_send_avail_event.deinit(c);
+        Context::EventLoop::template resetFastEvent<SendFastEvent>(c);
         Context::EventLoop::template resetFastEvent<RecvFastEvent>(c);
     }
     
@@ -167,17 +173,29 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        // we don't really care if we lose data here
-        while (o->m_send_start != o->m_send_end) {
-            SendSizeType amount = (o->m_send_end < o->m_send_start) ? BoundedModuloNegative(o->m_send_start) : BoundedUnsafeSubtract(o->m_send_end, o->m_send_start);
-            usb_serial_write(o->m_send_buffer + o->m_send_start.value(), amount.value());
-            o->m_send_start = BoundedModuloAdd(o->m_send_start, amount);
+        if (o->m_send_start != o->m_send_end) {
+            Context::EventLoop::template resetFastEvent<SendFastEvent>(c);
+            do_send(c);
+        }
+    }
+    
+    static void sendRequestEvent (Context c, SendSizeType min_amount)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        
+        o->m_send_event = min_amount;
+        o->m_send_avail_event.unset(c);
+        if (o->m_send_event > SendSizeType::import(0)) {
+            o->m_send_avail_event.prependNowNotAlready(c);
         }
     }
     
     using EventLoopFastEvents = MakeTypeList<RecvFastEvent>;
     
 private:
+    using Loop = typename Context::EventLoop;
+    
     static RecvSizeType recv_avail (RecvSizeType start, RecvSizeType end)
     {
         return BoundedModuloSubtract(end, start);
@@ -211,14 +229,61 @@ private:
         }
     }
     
+    static void send_event_handler (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->m_send_start != o->m_send_end)
+        
+        do_send(c);
+    }
+    
+    static void do_send (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->m_send_start != o->m_send_end)
+        
+        do {
+            SendSizeType amount = (o->m_send_end < o->m_send_start) ? BoundedModuloNegative(o->m_send_start) : BoundedUnsafeSubtract(o->m_send_end, o->m_send_start);
+            uint32_t bytes = usb_serial_write_buffer_free();
+            if (bytes == 0) {
+                Context::EventLoop::template triggerFastEvent<SendFastEvent>(c);
+                return;
+            }
+            if (bytes > amount.value()) {
+                bytes = amount.value();
+            }
+            usb_serial_write(o->m_send_buffer + o->m_send_start.value(), bytes);
+            o->m_send_start = BoundedModuloAdd(o->m_send_start, SendSizeType::import(bytes));
+            if (o->m_send_event > SendSizeType::import(0)) {
+                o->m_send_avail_event.unset(c);
+                o->m_send_avail_event.prependNowNotAlready(c);
+            }
+        } while (o->m_send_start != o->m_send_end);
+    }
+    
+    static void send_avail_event_handler (typename Loop::QueuedEvent *, Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->m_send_event > SendSizeType::import(0))
+        
+        if (send_avail(o->m_send_start, o->m_send_end) >= o->m_send_event) {
+            o->m_send_event = SendSizeType::import(0);
+            SendHandler::call(c);
+        }
+    }
+    
 public:
     struct Object : public ObjBase<TeensyUsbSerial, ParentObject, MakeTypeList<TheDebugObject>> {
         RecvSizeType m_recv_start;
         RecvSizeType m_recv_end;
         bool m_recv_force;
         char m_recv_buffer[2 * ((size_t)RecvSizeType::maxIntValue() + 1)];
+        typename Loop::QueuedEvent m_send_avail_event;
         SendSizeType m_send_start;
         SendSizeType m_send_end;
+        SendSizeType m_send_event;
         char m_send_buffer[(size_t)SendSizeType::maxIntValue() + 1];
     };
 };

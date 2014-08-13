@@ -69,8 +69,8 @@ public:
         
         Context::EventLoop::template initFastEvent<SendFastEvent>(c, AvrSerial::send_event_handler);
         o->m_send_start = SendSizeType::import(0);
-        o->m_send_end = SendSizeType::import(0);;
-        o->m_send_event = BoundedModuloInc(o->m_send_end);
+        o->m_send_end = SendSizeType::import(0);
+        o->m_send_event = SendSizeType::import(0);
         
         uint32_t d = (Params::DoubleSpeed ? 8 : 16) * baud;
         uint32_t ubrr = (((2 * (uint32_t)F_CPU) + d) / (2 * d)) - 1;
@@ -205,7 +205,6 @@ public:
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             AMBRO_ASSERT(amount <= send_avail(o->m_send_start, o->m_send_end))
             o->m_send_end = BoundedModuloAdd(o->m_send_end, amount);
-            o->m_send_event = BoundedModuloAdd(o->m_send_event, amount);
             UCSR0B |= (1 << UDRIE0);
         }
     }
@@ -220,27 +219,10 @@ public:
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(min_amount > SendSizeType::import(0))
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            if (send_avail(o->m_send_start, o->m_send_end) >= min_amount) {
-                o->m_send_event = BoundedModuloInc(o->m_send_end);
-                Context::EventLoop::template triggerFastEvent<SendFastEvent>(lock_c);
-            } else {
-                o->m_send_event = BoundedModuloAdd(BoundedModuloInc(o->m_send_end), min_amount);
-                Context::EventLoop::template resetFastEvent<SendFastEvent>(c);
-            }
-        }
-    }
-    
-    static void sendCancelEvent (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            o->m_send_event = BoundedModuloInc(o->m_send_end);
-            Context::EventLoop::template resetFastEvent<SendFastEvent>(c);
+            o->m_send_event = min_amount;
+            Context::EventLoop::template triggerFastEvent<SendFastEvent>(lock_c);
         }
     }
     
@@ -286,8 +268,7 @@ public:
             UCSR0B &= ~(1 << UDRIE0);
         }
         
-        if (o->m_send_start == o->m_send_event) {
-            o->m_send_event = BoundedModuloInc(o->m_send_end);
+        if (o->m_send_event != SendSizeType::import(0)) {
             Context::EventLoop::template triggerFastEvent<SendFastEvent>(c);
         }
     }
@@ -318,7 +299,16 @@ private:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        SendHandler::call(c);
+        bool report;
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            report = (o->m_send_event != SendSizeType::import(0) && send_avail(o->m_send_start, o->m_send_end) >= o->m_send_event);
+            if (report) {
+                o->m_send_event = SendSizeType::import(0);
+            }
+        }
+        if (report) {
+            SendHandler::call(c);
+        }
     }
     
 public:

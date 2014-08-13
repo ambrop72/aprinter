@@ -90,6 +90,7 @@ public:
 private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_reset_config, reset_config)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_set_cmd, get_set_cmd)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_dump_options_helper, dump_options_helper)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Type, Type)
     
     template <typename TheOption>
@@ -104,11 +105,14 @@ private:
         static_assert(Value >= 0, "");
     };
     
+    static int const DumpConfigMCommand = 924;
     static int const GetConfigMCommand = 925;
     static int const SetConfigMCommand = 926;
     static int const ResetAllConfigMCommand = 927;
     static int const LoadConfigMCommand = 928;
     static int const SaveConfigMCommand = 929;
+    
+    static int const MaxDumpLineLen = 60;
     
 public:
     using RuntimeConfigOptionsList = FilterTypeList<ConfigOptionsList, TemplateFunc<OptionIsNotConstant>>;
@@ -120,19 +124,19 @@ public:
     using GetTypeNumber = WrapInt<1 + GetTypeIndex<Type>::Value>;
     
 private:
+    using CommandType = typename ThePrinterMain::CommandType;
+    
     template <typename TheType, typename Dummy=void>
     struct TypeSpecific;
     
     template <typename Dummy>
     struct TypeSpecific<double, Dummy> {
-        template <typename TheCommand>
-        static void get_value_cmd (Context c, TheCommand *cmd, double value)
+        static void get_value_cmd (Context c, CommandType *cmd, double value)
         {
             cmd->reply_append_fp(c, value);
         }
         
-        template <typename TheCommand>
-        static void set_value_cmd (Context c, TheCommand *cmd, double *value, double default_value)
+        static void set_value_cmd (Context c, CommandType *cmd, double *value, double default_value)
         {
             *value = cmd->get_command_param_fp(c, 'V', default_value);
         }
@@ -140,25 +144,25 @@ private:
     
     template <typename Dummy>
     struct TypeSpecific<bool, Dummy> {
-        template <typename TheCommand>
-        static void get_value_cmd (Context c, TheCommand *cmd, bool value)
+        static void get_value_cmd (Context c, CommandType *cmd, bool value)
         {
             cmd->reply_append_uint8(c, value);
         }
         
-        template <typename TheCommand>
-        static void set_value_cmd (Context c, TheCommand *cmd, bool *value, bool default_value)
+        static void set_value_cmd (Context c, CommandType *cmd, bool *value, bool default_value)
         {
             *value = cmd->get_command_param_uint32(c, 'V', default_value);
         }
     };
     
-    template <int TypeIndex>
+    template <int TypeIndex, typename Dummy=void>
     struct TypeGeneral {
         using Type = TypeListGet<SupportedTypesList, TypeIndex>;
         using TheTypeSpecific = TypeSpecific<Type>;
         using OptionsList = FilterTypeList<RuntimeConfigOptionsList, ComposeFunctions<IsEqualFunc<Type>, GetMemberType_Type>>;
+        using PrevTypeGeneral = TypeGeneral<(TypeIndex - 1)>;
         static int const NumOptions = TypeListLength<OptionsList>::Value;
+        static int const OptionCounter = PrevTypeGeneral::OptionCounter + NumOptions;
         
         template <typename Option>
         using OptionIndex = TypeListIndex<OptionsList, IsEqualFunc<Option>>;
@@ -196,8 +200,7 @@ private:
             }
         }
         
-        template <typename TheCommand>
-        static bool get_set_cmd (Context c, TheCommand *cmd, bool get_it, char const *name)
+        static bool get_set_cmd (Context c, CommandType *cmd, bool get_it, char const *name)
         {
             auto *o = Object::self(c);
             int index = find_option(name);
@@ -212,12 +215,32 @@ private:
             return false;
         }
         
+        static bool dump_options_helper (Context c, CommandType *cmd, int global_option_index)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(global_option_index >= PrevTypeGeneral::OptionCounter)
+            
+            if (global_option_index < OptionCounter) {
+                int index = global_option_index - PrevTypeGeneral::OptionCounter;
+                cmd->reply_append_pstr(c, NameTable::readAt(index).m_ptr);
+                cmd->reply_append_pstr(c, AMBRO_PSTR(" V"));
+                TheTypeSpecific::get_value_cmd(c, cmd, o->values[index]);
+                return false;
+            }
+            return true;
+        }
+        
         struct Object : public ObjBase<TypeGeneral, typename RuntimeConfigManager::Object, EmptyTypeList> {
             Type values[NumOptions];
         };
     };
     
-    using TypeGeneralList = IndexElemList<SupportedTypesList, TypeGeneral>;
+    template <typename Dummy>
+    struct TypeGeneral<(-1), Dummy> {
+        static int const OptionCounter = 0;
+    };
+    
+    using TypeGeneralList = IndexElemList<SupportedTypesList, DedummyIndexTemplate<TypeGeneral>::template Result>;
     
     template <int ConfigOptionIndex, typename Dummy0=void>
     struct ConfigOptionState {
@@ -281,8 +304,7 @@ private:
             TheStore::deinit(c);
         }
         
-        template <typename TheCommand>
-        static bool checkCommand (Context c, TheCommand *cmd)
+        static bool checkCommand (Context c, CommandType *cmd)
         {
             auto *o = Object::self(c);
             
@@ -341,13 +363,43 @@ private:
         struct Object {};
         static void init (Context c) {}
         static void deinit (Context c) {}
-        template <typename TheCommand>
-        static bool checkCommand (Context c, TheCommand *cmd) { return true; }
+        static bool checkCommand (Context c, CommandType *cmd) { return true; }
     };
     
     static void reset_all_config (Context c)
     {
         ListForEachForward<TypeGeneralList>(Foreach_reset_config(), c);
+    }
+    
+    static void work_dump (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        CommandType *cmd = ThePrinterMain::get_locked(c);
+        if (o->dump_current_option == NumRuntimeOptions) {
+            goto finish;
+        }
+        if (!cmd->requestSendBufEvent(c, MaxDumpLineLen, RuntimeConfigManager::send_buf_event_handler)) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:Dump\n"));
+            goto finish;
+        }
+        return;
+    finish:
+        cmd->finishCommand(c);
+    }
+    
+    static void send_buf_event_handler (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->dump_current_option < NumRuntimeOptions)
+        
+        CommandType *cmd = ThePrinterMain::get_locked(c);
+        cmd->reply_append_pstr(c, AMBRO_PSTR("M926 I"));
+        ListForEachForwardInterruptible<TypeGeneralList>(Foreach_dump_options_helper(), c, cmd, o->dump_current_option);
+        cmd->reply_append_ch(c, '\n');
+        cmd->reply_poke(c);
+        o->dump_current_option++;
+        work_dump(c);
     }
     
 public:
@@ -364,9 +416,10 @@ public:
         StoreFeature::deinit(c);
     }
     
-    template <typename TheCommand>
-    static bool checkCommand (Context c, TheCommand *cmd)
+    static bool checkCommand (Context c, CommandType *cmd)
     {
+        auto *o = Object::self(c);
+        
         auto cmd_num = cmd->getCmdNumber(c);
         if (cmd_num == GetConfigMCommand || cmd_num == SetConfigMCommand || cmd_num == ResetAllConfigMCommand) {
             if (cmd_num == ResetAllConfigMCommand) {
@@ -381,6 +434,14 @@ public:
                 }
             }
             cmd->finishCommand(c);
+            return false;
+        }
+        if (cmd_num == DumpConfigMCommand) {
+            if (!cmd->tryLockedCommand(c)) {
+                return false;
+            }
+            o->dump_current_option = 0;
+            work_dump(c);
             return false;
         }
         return StoreFeature::checkCommand(c, cmd);
@@ -420,7 +481,9 @@ public:
         MakeTypeList<
             StoreFeature
         >
-    >> {};
+    >> {
+        int dump_current_option;
+    };
 };
 
 template <

@@ -40,6 +40,7 @@ class Command {
 public:
     using PartsSizeType = uint8_t;
     struct PartRef { void *ptr; };
+    using SendBufEventHandler = void (*) (Context);
     
     virtual void finishCommand (Context c, bool no_ok = false) = 0;
     virtual bool tryLockedCommand (Context c) = 0;
@@ -60,6 +61,9 @@ public:
     virtual void reply_append_buffer (Context c, char const *str, uint8_t length) = 0;
     virtual void reply_append_ch (Context c, char ch) = 0;
     virtual void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, uint8_t length) = 0;
+    
+    virtual bool requestSendBufEvent (Context c, size_t length, SendBufEventHandler handler) = 0;
+    virtual void cancelSendBufEvent (Context c) = 0;
     
     bool find_command_param (Context c, char code, PartRef *out_part)
     {

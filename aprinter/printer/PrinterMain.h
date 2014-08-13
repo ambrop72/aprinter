@@ -83,6 +83,8 @@
 
 #include <aprinter/BeginNamespace.h>
 
+#define PRINTERMAIN_SERIAL_OK_STR "ok\n"
+
 template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TInactiveTime,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
@@ -473,6 +475,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using ParamsHeatersList = typename Params::HeatersList;
     using ParamsFansList = typename Params::FansList;
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
+    using CommandType = Command<Context, FpType>;
     
     using TheDebugObject = DebugObject<Context, Object>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
@@ -524,7 +527,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     struct SetPositionState;
     
-    using TheCommand = Command<Context, FpType>;
+    using TheCommand = CommandType;
     using CommandPartRef = typename TheCommand::PartRef;
     
     template <typename ChannelParentObject, typename Channel>
@@ -545,6 +548,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             o->m_state = COMMAND_IDLE;
             o->m_cmd = false;
+            o->m_send_buf_event_handler = NULL;
         }
         
         static void startCommand (Context c)
@@ -608,6 +612,18 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             o->m_cmd = false;
         }
         
+        static void reportSendBufEventDirectly (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->m_state == COMMAND_LOCKED)
+            AMBRO_ASSERT(o->m_send_buf_event_handler)
+            
+            auto handler = o->m_send_buf_event_handler;
+            o->m_send_buf_event_handler = NULL;
+            
+            return handler(c);
+        }
+        
         template <int State>
         static bool get_command_in_state_helper (Context c, WrapInt<State>, TheCommand **out_cmd)
         {
@@ -627,6 +643,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 auto *mob = PrinterMain::Object::self(c);
                 AMBRO_ASSERT(o->m_cmd)
                 AMBRO_ASSERT(o->m_state == COMMAND_IDLE || o->m_state == COMMAND_LOCKED)
+                AMBRO_ASSERT(!o->m_send_buf_event_handler)
                 
                 Channel::finish_command_impl(c, no_ok);
                 o->m_cmd = false;
@@ -764,12 +781,38 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             {
                 Channel::reply_append_pbuffer_impl(c, pstr, length);
             }
+            
+            bool requestSendBufEvent (Context c, size_t length, typename TheCommand::SendBufEventHandler handler)
+            {
+                auto *o = Object::self(c);
+                AMBRO_ASSERT(o->m_state == COMMAND_LOCKED)
+                AMBRO_ASSERT(!o->m_send_buf_event_handler)
+                AMBRO_ASSERT(length > 0)
+                AMBRO_ASSERT(handler)
+                
+                if (!Channel::request_send_buf_event_impl(c, length)) {
+                    return false;
+                }
+                o->m_send_buf_event_handler = handler;
+                return true;
+            }
+            
+            void cancelSendBufEvent (Context c)
+            {
+                auto *o = Object::self(c);
+                AMBRO_ASSERT(o->m_state == COMMAND_LOCKED)
+                AMBRO_ASSERT(o->m_send_buf_event_handler)
+                
+                Channel::cancel_send_buf_event_impl(c);
+                o->m_send_buf_event_handler = NULL;
+            }
         };
         
         struct Object : public ObjBase<ChannelCommon, ChannelParentObject, EmptyTypeList> {
             CommandImpl m_cmd_impl;
             uint8_t m_state;
             bool m_cmd;
+            typename TheCommand::SendBufEventHandler m_send_buf_event_handler;
         };
     };
     
@@ -777,6 +820,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct Object;
         struct SerialRecvHandler;
         struct SerialSendHandler;
+        
+        static size_t const MaxFinishLen = sizeof(PRINTERMAIN_SERIAL_OK_STR) - 1;
         
         using TheSerial = typename Params::Serial::SerialService::template Serial<Context, Object, Params::Serial::RecvBufferSizeExp, Params::Serial::SendBufferSizeExp, SerialRecvHandler, SerialSendHandler>;
         using RecvSizeType = typename TheSerial::RecvSizeType;
@@ -827,6 +872,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void serial_send_handler (Context c)
         {
+            TheChannelCommon::reportSendBufEventDirectly(c);
         }
         
         static bool start_command_impl (Context c)
@@ -860,7 +906,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             AMBRO_ASSERT(cco->m_cmd)
             
             if (!no_ok) {
-                TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("ok\n"));
+                TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR(PRINTERMAIN_SERIAL_OK_STR));
             }
             TheSerial::sendPoke(c);
             TheSerial::recvConsume(c, RecvSizeType::import(TheGcodeParser::getLength(c)));
@@ -910,6 +956,20 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 *TheSerial::sendGetChunkPtr(c) = ch;
                 TheSerial::sendProvide(c, SendSizeType::import(1));
             }
+        }
+        
+        static bool request_send_buf_event_impl (Context c, size_t length)
+        {
+            if (length > SendSizeType::maxIntValue() - MaxFinishLen) {
+                return false;
+            }
+            TheSerial::sendRequestEvent(c, SendSizeType::import(length + MaxFinishLen));
+            return true;
+        }
+        
+        static void cancel_send_buf_event_impl (Context c)
+        {
+            TheSerial::sendRequestEvent(c, SendSizeType::import(0));
         }
         
         struct SerialRecvHandler : public AMBRO_WFUNC_TD(&SerialFeature::serial_recv_handler) {};
@@ -1173,6 +1233,15 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
         
         static void reply_append_ch_impl (Context c, char ch)
+        {
+        }
+        
+        static bool request_send_buf_event_impl (Context c, size_t length)
+        {
+            return false;
+        }
+        
+        static void cancel_send_buf_event_impl (Context c)
         {
         }
         
@@ -3061,7 +3130,7 @@ public:
     }
     
     using EventLoopFastEvents = ObjCollect<MakeTypeList<PrinterMain>, Collectible_EventLoopFastEvents, true>;
-    
+        
     static void finish_locked (Context c)
     {
         auto *ob = Object::self(c);
@@ -3071,7 +3140,7 @@ public:
         cmd->finishCommand(c);
     }
     
-    static TheCommand * get_locked (Context c)
+    static CommandType * get_locked (Context c)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
