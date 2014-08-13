@@ -68,7 +68,6 @@ configure_teensy() {
     C_SOURCES+=(
         "${TEENSY3}/mk20dx128.c"
         "${TEENSY3}/nonstd.c"
-        "${TEENSY3}/yield.c"
         "${TEENSY3}/usb_dev.c"
         "${TEENSY3}/usb_desc.c"
         "${TEENSY3}/usb_mem.c"
