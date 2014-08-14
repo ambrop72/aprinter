@@ -299,6 +299,8 @@ public:
         
         o->m_offset = 0;
         
+        memory_barrier();
+        
         ListForEachForward<MyFtmsList>(Foreach_init(), c);
         ListForEachForward<MyFtmsList>(Foreach_init_start(), c);
         
@@ -311,6 +313,8 @@ public:
         TheDebugObject::deinit(c);
         
         ListForEachReverse<MyFtmsList>(Foreach_deinit(), c);
+        
+        memory_barrier();
     }
     
     template <typename ThisContext>
@@ -384,9 +388,9 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            *Channel::csc() = 0;
-        }
+        *Channel::csc() = 0;
+        
+        memory_barrier();
     }
     
     template <typename ThisContext>
@@ -401,6 +405,8 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = true;
 #endif
+        
+        memory_barrier();
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = Clock::getTime(lock_c);
@@ -439,9 +445,9 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            *Channel::csc() = 0;
-        }
+        *Channel::csc() = 0;
+        
+        memory_barrier();
         
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;

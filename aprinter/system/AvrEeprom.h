@@ -77,9 +77,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            EECR = 0;
-        }
+        EECR = 0;
         
         Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }

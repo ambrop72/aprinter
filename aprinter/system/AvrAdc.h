@@ -252,6 +252,8 @@ private:
             o->m_current_pin = 0;
             o->m_finished = false;
             
+            memory_barrier();
+            
             MaskType mask = ListForEachForwardAccRes<PinsList>(0, LForeach_make_pin_mask());
             DIDR0 = mask;
 #ifdef DIDR2
@@ -278,6 +280,8 @@ private:
             DIDR2 = 0;
 #endif
             DIDR0 = 0;
+            
+            memory_barrier();
         }
     };
     

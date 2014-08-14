@@ -377,6 +377,8 @@ public:
         
         o->m_offset = 0;
         
+        memory_barrier();
+        
         ListForEachForward<MyTcsList>(Foreach_init(), c);
         ListForEachForward<MyTcsList>(Foreach_init_start(), c);
         
@@ -388,6 +390,8 @@ public:
         TheDebugObject::deinit(c);
         
         ListForEachReverse<MyTcsList>(Foreach_deinit(), c);
+        
+        memory_barrier();
     }
     
     template <typename ThisContext>
@@ -479,6 +483,8 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = true;
 #endif
+        
+        memory_barrier();
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             uint16_t now_high = Clock::Object::self(c)->m_offset;
@@ -587,10 +593,13 @@ public:
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Tc::timsk() &= ~(1 << TcChannel::ocie);
-#ifdef AMBROLIB_ASSERTIONS
-            o->m_running = false;
-#endif
         }
+        
+        memory_barrier();
+        
+#ifdef AMBROLIB_ASSERTIONS
+        o->m_running = false;
+#endif
     }
     
     static void timer_comp_isr (AtomicContext<Context> c)
@@ -696,6 +705,8 @@ public:
         o->m_running = true;
 #endif
         
+        memory_barrier();
+        
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             uint16_t now_high = Clock::Object::self(c)->m_offset;
             uint16_t now_low;
@@ -800,10 +811,13 @@ public:
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *Tc::timsk() &= ~(1 << TcChannel::ocie);
-#ifdef AMBROLIB_ASSERTIONS
-            o->m_running = false;
-#endif
         }
+        
+        memory_barrier();
+        
+#ifdef AMBROLIB_ASSERTIONS
+        o->m_running = false;
+#endif
     }
     
     static void timer_comp_isr (AtomicContext<Context> c)

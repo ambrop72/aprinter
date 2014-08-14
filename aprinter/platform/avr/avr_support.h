@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2014 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,27 +22,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_ARM_CORTEX_COMMON_H
-#define APRINTER_ARM_CORTEX_COMMON_H
+#ifndef APRINTER_AVR_SUPPORT_H
+#define APRINTER_AVR_SUPPORT_H
 
-#include <stdint.h>
-
-inline static void sei (void)
-{
-    asm volatile ("cpsie i" : : : "memory");
-}
-
-inline static void cli (void)
-{
-    asm volatile ("cpsid i" : : : "memory");
-}
-
-inline static bool interrupts_enabled (void)
-{
-    uint32_t tmp;
-    asm volatile ("mrs %[tmp],primask\n" : [tmp] "=&r" (tmp));
-    return !tmp;
-}
+#include <avr/interrupt.h>
 
 inline static void memory_barrier (void)
 {

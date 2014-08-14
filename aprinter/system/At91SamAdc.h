@@ -232,6 +232,8 @@ public:
             AvgFeature::init(c);
             ListForEachForward<PinsList>(LForeach_init(), c);
             
+            memory_barrier();
+            
 #if defined(__SAM3X8E__) || defined(__SAM3S2A__)
             pmc_enable_periph_clk(ID_ADC);
             ADC->ADC_CHDR = UINT32_MAX;
@@ -290,6 +292,8 @@ public:
             ADC12B->ADC12B_CHDR = UINT32_MAX;
             pmc_disable_periph_clk(ID_ADC12B);
 #endif
+            
+            memory_barrier();
         }
     }
     

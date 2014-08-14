@@ -121,6 +121,8 @@ public:
         Context::Pins::template setOutput<MosiPin>(c);
         Context::Pins::template setInput<MisoPin>(c);
         
+        memory_barrier();
+        
         SPCR = (1 << SPIE) | (1 << SPE) | (1 << MSTR) | (TheSpeed::Spr1 << SPR1) | (TheSpeed::Spr0 << SPR0);
         SPSR = (TheSpeed::Spi2x << SPI2X);
         
@@ -134,6 +136,8 @@ public:
         
         SPCR = 0;
         SPSR = 0;
+        
+        memory_barrier();
         
         Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
@@ -339,6 +343,7 @@ private:
         }
         if (was_idle) {
             o->m_current = &o->m_buffer[o->m_start.value()];
+            memory_barrier();
             SPDR = o->m_current->byte;
         }
     }

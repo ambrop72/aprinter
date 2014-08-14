@@ -165,6 +165,8 @@ public:
         
         o->m_offset = 0;
         
+        memory_barrier();
+        
         MyTcsTuple dummy;
         TupleForEachForward(&dummy, Foreach_init(), c);
         
@@ -178,6 +180,8 @@ public:
         
         MyTcsTuple dummy;
         TupleForEachReverse(&dummy, Foreach_deinit(), c);
+        
+        memory_barrier();
     }
     
     template <typename ThisContext>
@@ -254,9 +258,9 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            ch()->TC_IDR = CpMask;
-        }
+        ch()->TC_IDR = CpMask;
+        
+        memory_barrier();
     }
     
     template <typename ThisContext>
@@ -271,6 +275,8 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = true;
 #endif
+        
+        memory_barrier();
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = Clock::getTime(lock_c);
@@ -295,6 +301,7 @@ public:
         AMBRO_ASSERT((ch()->TC_IMR & CpMask))
         
         o->m_time = time;
+        
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             TimeType now = Clock::getTime(lock_c);
             now -= time;
@@ -312,9 +319,9 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            ch()->TC_IDR = CpMask;
-        }
+        ch()->TC_IDR = CpMask;
+        
+        memory_barrier();
         
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;

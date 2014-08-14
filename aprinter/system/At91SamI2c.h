@@ -106,6 +106,8 @@ public:
         
         o->state = STATE_IDLE;
         
+        memory_barrier();
+        
         pmc_enable_periph_clk(Device::Id);
         Device::dev()->TWI_CWGR = TWI_CWGR_CKDIV(Params::Ckdiv) | TWI_CWGR_CHDIV(Chldiv) | TWI_CWGR_CLDIV(Chldiv);
         Device::dev()->TWI_CR = TWI_CR_SVDIS | TWI_CR_MSEN;
@@ -128,6 +130,8 @@ public:
         NVIC_ClearPendingIRQ(Device::Irq);
         pmc_disable_periph_clk(Device::Id);
         
+        memory_barrier();
+        
         Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
     
@@ -146,11 +150,11 @@ public:
         o->write.data2 = data2;
         o->write.length2 = length2;
         
+        memory_barrier();
+        
         Device::dev()->TWI_MMR = TWI_MMR_DADR(addr);
         Device::dev()->TWI_THR = data[0];
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            Device::dev()->TWI_IER = TWI_IER_TXRDY | TWI_IER_NACK;
-        }
+        Device::dev()->TWI_IER = TWI_IER_TXRDY | TWI_IER_NACK;
     }
     
     static void startRead (Context c, uint8_t addr, uint8_t *data, size_t length)
@@ -166,11 +170,11 @@ public:
         o->read.data = data;
         o->read.length = length;
         
+        memory_barrier();
+        
         Device::dev()->TWI_MMR = TWI_MMR_DADR(addr) | TWI_MMR_MREAD;
         Device::dev()->TWI_CR = TWI_CR_START | ((length == 1) ? TWI_CR_STOP : 0);
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            Device::dev()->TWI_IER = TWI_IER_RXRDY | TWI_IER_NACK;
-        }
+        Device::dev()->TWI_IER = TWI_IER_RXRDY | TWI_IER_NACK;
     }
     
     static void twi_irq (InterruptContext<Context> c)

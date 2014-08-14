@@ -113,6 +113,8 @@ public:
         Context::Pins::template setPeripheral<typename Device::MosiPin>(c, At91SamPeriphA());
         Context::Pins::template setInput<typename Device::MisoPin>(c);
         
+        memory_barrier();
+        
         pmc_enable_periph_clk(Device::SpiId);
         Device::spi()->SPI_MR = SPI_MR_MSTR | SPI_MR_MODFDIS | SPI_MR_PCS(0);
         Device::spi()->SPI_CSR[0] = SPI_CSR_NCPHA | SPI_CSR_BITS_8_BIT | SPI_CSR_SCBR(255);
@@ -135,6 +137,8 @@ public:
         (void)Device::spi()->SPI_RDR;
         NVIC_ClearPendingIRQ(Device::SpiIrq);
         pmc_disable_periph_clk(Device::SpiId);
+        
+        memory_barrier();
         
         Context::Pins::template setInput<typename Device::MosiPin>(c);
         Context::Pins::template setInput<typename Device::SckPin>(c);
@@ -327,6 +331,7 @@ private:
         }
         if (was_idle) {
             o->m_current = &o->m_buffer[o->m_start.value()];
+            memory_barrier();
             Device::spi()->SPI_TDR = o->m_current->byte;
             Device::spi()->SPI_IER = SPI_IER_RDRF;
         }

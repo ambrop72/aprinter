@@ -118,9 +118,10 @@ public:
         AMBRO_ASSERT(block_index < NumBlocks)
         AMBRO_ASSERT(!o->writing)
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            o->writing = true;
-        }
+        o->writing = true;
+        
+        memory_barrier();
+        
         Device::efc()->EEFC_FCR = EEFC_FCR_FCMD(0x03) | EEFC_FCR_FARG(block_index) | EEFC_FCR_FKEY(0x5A);
         Device::efc()->EEFC_FMR |= EEFC_FMR_FRDY;
     }

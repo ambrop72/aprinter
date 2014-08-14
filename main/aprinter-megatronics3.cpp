@@ -26,7 +26,8 @@
 #include <stdio.h>
 
 #include <avr/io.h>
-#include <avr/interrupt.h>
+
+#include <aprinter/platform/avr/avr_support.h>
 
 static void emergency (void);
 

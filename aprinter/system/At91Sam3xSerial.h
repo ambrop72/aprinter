@@ -69,6 +69,8 @@ public:
         o->m_send_end = SendSizeType::import(0);
         o->m_send_event = SendSizeType::import(0);
         
+        memory_barrier();
+        
         pmc_enable_periph_clk(ID_UART);
         UART->UART_CR = UART_CR_RSTTX | UART_CR_RSTRX;
         PIOA->PIO_ODR = (UINT32_C(1) << 8);
@@ -96,6 +98,8 @@ public:
         UART->UART_CR = UART_CR_RSTTX | UART_CR_RSTRX;
         NVIC_ClearPendingIRQ(UART_IRQn);
         pmc_disable_periph_clk(ID_UART);
+        
+        memory_barrier();
         
         Context::EventLoop::template resetFastEvent<SendFastEvent>(c);
         Context::EventLoop::template resetFastEvent<RecvFastEvent>(c);
@@ -148,6 +152,8 @@ public:
         while ((UART->UART_SR & UART_SR_RXRDY)) {
             (void)UART->UART_RHR;
         }
+        
+        memory_barrier();
         
         UART->UART_IER = UART_IER_RXRDY;
     }

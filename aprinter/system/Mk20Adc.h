@@ -129,6 +129,8 @@ private:
             
             ListForEachForward<PinsList>(LForeach_init(), c);
             
+            memory_barrier();
+            
             SIM_SCGC6 |= SIM_SCGC6_ADC0;
             ADC0_CFG1 = ADC_CFG1_MODE(3) | ADC_CFG1_ADLSMP | ADC_CFG1_ADIV(ADiv);
             ADC0_CFG2 = ADC_CFG2_MUXSEL;
@@ -148,6 +150,8 @@ private:
             ADC0_SC1A = ADC_SC1_ADCH(0x1F);
             NVIC_CLEAR_PENDING(IRQ_ADC0);
             SIM_SCGC6 &= ~SIM_SCGC6_ADC0;
+            
+            memory_barrier();
         }
     };
     
