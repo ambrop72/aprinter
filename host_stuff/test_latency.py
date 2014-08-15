@@ -60,7 +60,7 @@ class Program (littlevent.close.Obj):
             data = data[(newline_pos + 1):]
             if len(response) > 0 and response[-1] == '\r':
                 response = response[:-1]
-            if response != 'ok':
+            if not response.startswith('ok'):
                 print('Unknown line received: >{}<'.format(response))
             else:
                 if self.writing:
