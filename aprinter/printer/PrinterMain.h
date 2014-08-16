@@ -1075,8 +1075,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
             o->m_sd_block++;
             size_t write_offset = buf_add(o->m_start, o->m_length);
-            if (write_offset < WrapExtraSize || write_offset > BufferBaseSize - BlockSize) {
-                memcpy(o->m_buffer + BufferBaseSize, o->m_buffer, WrapExtraSize);
+            if (write_offset < WrapExtraSize) {
+                memcpy(o->m_buffer + BufferBaseSize + write_offset, o->m_buffer + write_offset, MinValue(BlockSize, WrapExtraSize - write_offset));
+            }
+            if (BlockSize > BufferBaseSize - write_offset) {
+                memcpy(o->m_buffer + BufferBaseSize, o->m_buffer, MinValue(BlockSize - (BufferBaseSize - write_offset), WrapExtraSize));
             }
             o->m_length += BlockSize;
             if (can_read(c)) {
