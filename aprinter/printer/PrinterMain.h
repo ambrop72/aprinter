@@ -1054,6 +1054,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             auto *co = TheChannelCommon::Object::self(c);
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING || o->m_state == SDCARD_PAUSING)
+            buf_sanity(c);
             AMBRO_ASSERT(o->m_reading)
             AMBRO_ASSERT(can_read(c))
             
@@ -1091,6 +1092,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             auto *co = TheChannelCommon::Object::self(c);
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
+            buf_sanity(c);
             AMBRO_ASSERT(!co->m_cmd)
             AMBRO_ASSERT(!o->m_eof)
             
@@ -1208,6 +1210,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *co = TheChannelCommon::Object::self(c);
             AMBRO_ASSERT(co->m_cmd)
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
+            buf_sanity(c);
             AMBRO_ASSERT(!o->m_eof)
             AMBRO_ASSERT(TheGcodeParser::getLength(c) <= o->m_length)
             
@@ -1271,6 +1274,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             size_t write_offset = buf_add(o->m_start, o->m_length);
             size_t write_wrap_len = MinValue(BlockSize, BufferBaseSize - write_offset);
             TheSdCard::queueReadBlock(c, o->m_sd_block, o->m_buffer + write_offset, write_wrap_len, o->m_buffer, &o->m_read_state);
+        }
+        
+        static void buf_sanity (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->m_start < BufferBaseSize)
+            AMBRO_ASSERT(o->m_length <= BufferBaseSize)
         }
         
         struct SdCardInitHandler : public AMBRO_WFUNC_TD(&SdCardFeature::sd_card_init_handler) {};
