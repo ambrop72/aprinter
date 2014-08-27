@@ -151,7 +151,6 @@ configure_sam3x() {
 
 check_depends_sam3x() {
     check_depends_arm
-    check_build_tool "${BOSSAC}" "BOSSA command line tool (bossac)"
     [ -d "${ASF_DIR}" ] || fail "Atmel Software Framework missing"
 }
 
