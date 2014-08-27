@@ -45,6 +45,12 @@ configure_sam3x() {
 
     BOSSA_DIR=${DEPS}/bossa
 
+    if [ -n "$CUSTOM_BOSSAC" ]; then
+        BOSSAC=${CUSTOM_BOSSAC}
+    else
+        BOSSAC=${BOSSA_DIR}/bin/bossac
+    fi
+
     CMSIS_DIR=${ASF_DIR}/sam/utils/cmsis/${ARCH}
     TEMPLATES_DIR=${CMSIS_DIR}/source/templates
     LINKER_SCRIPT=${ASF_DIR}/sam/utils/linker_scripts/${ARCH}/${ARCH}${SUBARCH}/gcc/flash.ld
@@ -139,8 +145,8 @@ configure_sam3x() {
 
 check_depends_sam3x() {
     check_depends_arm
+    check_build_tool "${BOSSAC}" "BOSSA command line tool (bossac)"
     [ -d "${ASF_DIR}" ] || fail "Atmel Software Framework missing in dependences"
-    [ -f "${BOSSA_DIR}/bin/bossac" ] || fail "Missing Sam3x upload tool 'bossac'"
 }
 
 build_sam3x() {
@@ -167,7 +173,7 @@ upload_sam3x() {
             sleep 0.5
         fi
     fi
-    "${BOSSA_DIR}/bin/bossac" -p "${BOSSA_PORT#/dev/}" "${bossa_args[@]}" -i -e -w -v -b "${TARGET}.bin" -R
+    ( $V; "${BOSSAC}" -p "${BOSSA_PORT#/dev/}" "${bossa_args[@]}" -i -e -w -v -b "${TARGET}.bin" -R )
 }
 
 flush_sam3x() {
@@ -189,21 +195,23 @@ install_sam3x() {
     fi
     
     # install SAM3X flasher
-    if [ -f "${BOSSA_DIR}/bin/bossac" ]; then
-        echo "   [!] BOSSA already installed"
-    else
-        echo "   Installation of BOSSA"
-        (
-        [ -d "${BOSSA_DIR}" ] || git clone -b arduino https://github.com/shumatech/BOSSA "${BOSSA_DIR}"
-        cd "${BOSSA_DIR}"
+    if [ -z "$CUSTOM_BOSSAC" ]; then
+        if [ -f "${BOSSA_DIR}/bin/bossac" ]; then
+            echo "   [!] BOSSA already installed"
+        else
+            echo "   Installation of BOSSA"
+            (
+            [ -d "${BOSSA_DIR}" ] || git clone -b arduino https://github.com/shumatech/BOSSA "${BOSSA_DIR}"
+            cd "${BOSSA_DIR}"
 
-        if [ "${SYSARCH}" == "mac" ]; then
-            FIX_MAKEFILE="-Werror -Wno-error=unused-but-set-variable"
-            REPLACE_TO="-Wno-error"
-            sed -i '' "s/${FIX_MAKEFILE}/${REPLACE_TO}/g" "Makefile"
+            if [ "${SYSARCH}" == "mac" ]; then
+                FIX_MAKEFILE="-Werror -Wno-error=unused-but-set-variable"
+                REPLACE_TO="-Wno-error"
+                sed -i '' "s/${FIX_MAKEFILE}/${REPLACE_TO}/g" "Makefile"
+            fi
+
+            make strip-bossac
+            )
         fi
-
-        make strip-bossac
-        )
     fi
 }
