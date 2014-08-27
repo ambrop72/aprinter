@@ -40,8 +40,14 @@ sam3x_to_upper() {
 }
 
 configure_sam3x() {
-    ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86
-    ASF_DIR=${ASF_BASE_DIR}/xdk-asf-3.14.0
+    DEPS_ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86
+    DEPS_ASF_DIR=${DEPS_ASF_BASE_DIR}/xdk-asf-3.14.0
+    
+    if [ -n "$CUSTOM_ASF" ]; then
+        ASF_DIR=${CUSTOM_ASF}
+    else
+        ASF_DIR=${DEPS_ASF_DIR}
+    fi
 
     BOSSA_DIR=${DEPS}/bossa
 
@@ -146,7 +152,7 @@ configure_sam3x() {
 check_depends_sam3x() {
     check_depends_arm
     check_build_tool "${BOSSAC}" "BOSSA command line tool (bossac)"
-    [ -d "${ASF_DIR}" ] || fail "Atmel Software Framework missing in dependences"
+    [ -d "${ASF_DIR}" ] || fail "Atmel Software Framework missing"
 }
 
 build_sam3x() {
@@ -179,7 +185,7 @@ upload_sam3x() {
 flush_sam3x() {
     flush_arm
     echo "  Flushing SAM3X toolchain"
-    rm -rf "${ASF_BASE_DIR}"
+    rm -rf "${DEPS_ASF_BASE_DIR}"
     rm -rf "${BOSSA_DIR}"
 }
 
@@ -187,11 +193,13 @@ install_sam3x() {
     install_arm
 
     # install ASF
-    if [ -d "${ASF_DIR}" ]; then
-        echo "   [!] Atmel Software Framework already installed"
-    else
-        echo "   Installation of Atmel Software Framework"
-        retr_and_extract SAM3X_URL[@] SAM3X_CHECKSUM[@]
+    if [ -z "$CUSTOM_ASF" ]; then
+        if [ -d "${DEPS_ASF_DIR}" ]; then
+            echo "   [!] Atmel Software Framework already installed"
+        else
+            echo "   Installation of Atmel Software Framework"
+            retr_and_extract SAM3X_URL[@] SAM3X_CHECKSUM[@]
+        fi
     fi
     
     # install SAM3X flasher
