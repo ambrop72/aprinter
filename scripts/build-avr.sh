@@ -76,7 +76,6 @@ check_depends_avr() {
     check_build_tool "${AVR_CC}" "AVR compiler"
     check_build_tool "${AVR_OBJCOPY}" "AVR objcopy"
     check_build_tool "${AVR_SIZE}" "AVR size calculator"
-    check_build_tool "${AVRDUDE}" "AVR uploader 'avrdude'"
 }
 
 configure_avr() {
