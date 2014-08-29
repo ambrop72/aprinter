@@ -36,11 +36,16 @@ TEENSY_LOADER_CHECKSUM=(
 )
 
 configure_teensy() {
-    TEENSY_CORES=${DEPS}/teensy-cores
-    TEENSY_LOADER_DIR=${DEPS}/teensy_loader_cli
-    
-    TEENSY_LOADER=${TEENSY_LOADER_DIR}/teensy_loader_cli
+    DEPS_TEENSY_CORES=${DEPS}/teensy-cores
+    if [ -n "$CUSTOM_TEENSY_CORES" ]; then
+        TEENSY_CORES=${CUSTOM_TEENSY_CORES}
+    else
+        TEENSY_CORES=${DEPS_TEENSY_CORES}
+    fi
     TEENSY3=${TEENSY_CORES}/teensy3
+    
+    TEENSY_LOADER_DIR=${DEPS}/teensy_loader_cli
+    TEENSY_LOADER=${TEENSY_LOADER_DIR}/teensy_loader_cli
 
     if [[ "$TEENSY_VERSION" = 3.1 ]]; then
         CPU_DEF=__MK20DX256__
@@ -88,15 +93,14 @@ configure_teensy() {
 
 check_depends_teensy() {
     check_depends_arm
-    [ -d "${TEENSY_CORES}" ] || fail "Teensy3 Framework missing in dependences"
-    [ -e "${TEENSY_LOADER}" ] || fail "Teensy3 upload tool missing"
+    [ -d "${TEENSY3}" ] || fail "Teensy3 Framework missing in dependences"
 }
 
 flush_teensy() {
     flush_arm
     echo "  Flushing Teensy3 toolchain"
     ($V;
-    rm -rf "${TEENSY_CORES}"
+    rm -rf "${DEPS_TEENSY_CORES}"
     rm -rf "${TEENSY_LOADER_DIR}"
     )
 }
@@ -104,11 +108,13 @@ flush_teensy() {
 install_teensy() {
     install_arm
     
-    if [ -d "${TEENSY_CORES}" ]; then
-        echo "   [!] Teensy3 Framework already installed"
-    else
-        echo "   Installation of Teensy3 Framework"
-        git clone https://github.com/PaulStoffregen/cores "${TEENSY_CORES}"
+    if [ -z "$CUSTOM_TEENSY_CORES" ]; then
+        if [ -d "${DEPS_TEENSY_CORES}" ]; then
+            echo "   [!] Teensy3 Framework already installed"
+        else
+            echo "   Installation of Teensy3 Framework"
+            git clone https://github.com/PaulStoffregen/cores "${DEPS_TEENSY_CORES}"
+        fi
     fi
     
     if [ -e "${TEENSY_LOADER}" ]; then
