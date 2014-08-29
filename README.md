@@ -327,6 +327,9 @@ Actually, the only difference between the main stepper and slave steppers is the
 To add one or more slave steppers to an axis, specify them in the `PrinterMainAxisParams` after the microstep configuration, as follows.
 
 ```
+// Add this to the config definition section somewhere.
+APRINTER_CONFIG_OPTION_BOOL(XSlave1InvertDir, false, ConfigNoProperties)
+
 PrinterMainAxisParams<
     ...
     PrinterMainNoMicroStepParams, // Don't forget the comma.
@@ -335,7 +338,7 @@ PrinterMainAxisParams<
             DuePinA9, // DirPin
             DuePinA10, // StepPin
             DuePinA11, // EnablePin
-            false // InvertDir
+            XSlave1InvertDir // InvertDir
         >
         // Add more if you need. Don't forget a comma above.
     >
