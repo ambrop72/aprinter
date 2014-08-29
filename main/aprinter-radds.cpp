@@ -223,7 +223,9 @@ APRINTER_CONFIG_OPTION_DOUBLE(ProbeP1Y, 31.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ProbeP2X, 0.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ProbeP2Y, 155.0, ConfigNoProperties)
 APRINTER_CONFIG_OPTION_DOUBLE(ProbeP3X, 205.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(ProbeP3Y, 83.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeP3Y, 31.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeP4X, 205.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(ProbeP4Y, 155.0, ConfigNoProperties)
 
 APRINTER_CONFIG_END
 
@@ -282,7 +284,8 @@ using PrinterParams = PrinterMainParams<
         MakeTypeList< // ProbePoints
             MakeTypeList<ProbeP1X, ProbeP1Y>,
             MakeTypeList<ProbeP2X, ProbeP2Y>,
-            MakeTypeList<ProbeP3X, ProbeP3Y>
+            MakeTypeList<ProbeP3X, ProbeP3Y>,
+            MakeTypeList<ProbeP4X, ProbeP4Y>
         >
     >,
     PrinterMainNoCurrentParams,
