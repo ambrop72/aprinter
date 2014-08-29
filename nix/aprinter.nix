@@ -1,4 +1,4 @@
-{ stdenv, pkgs, gccAvrAtmel, gcc-arm-embedded, asf, teensyCores, buildName, boardName, mainText }:
+{ stdenv, writeText, bash, gccAvrAtmel, gcc-arm-embedded, asf, teensyCores, buildName, boardName, mainText }:
 
 let
     boardDefinitions = import ./boards.nix;
@@ -21,7 +21,7 @@ let
     
     needTeensyCores = board.platform == "teensy";
     
-    targetFile = pkgs.writeText "aprinter-nixbuild.sh" ''
+    targetFile = writeText "aprinter-nixbuild.sh" ''
         ${stdenv.lib.optionalString isAvr "CUSTOM_AVR_GCC=${gccAvrAtmel}/bin/avr-"}
         ${stdenv.lib.optionalString isArm "CUSTOM_ARM_GCC=${gcc-arm-embedded}/bin/arm-none-eabi-"}
         ${stdenv.lib.optionalString needAsf "CUSTOM_ASF=${asf}"}
@@ -29,11 +29,10 @@ let
         
         TARGETS+=( "nixbuild" )
         target_nixbuild() {
-        ${targetVarsText}
-        }
+        ${targetVarsText}}
     '';
     
-    mainFile = pkgs.writeText "aprinter-main.cpp" mainText;
+    mainFile = writeText "aprinter-main.cpp" mainText;
     
 in
 
@@ -49,8 +48,6 @@ stdenv.mkDerivation rec {
     
     src = stdenv.lib.cleanSource ./..;
     
-    buildInputs = [ targetFile ];
-    
     configurePhase = ''
         rm config/*
         ln -s ${targetFile} config/nixbuild.sh
@@ -58,7 +55,7 @@ stdenv.mkDerivation rec {
     '';
     
     buildPhase = ''
-        ./build.sh nixbuild build
+        ${bash}/bin/bash ./build.sh nixbuild build
     '';
     
     installPhase = ''
