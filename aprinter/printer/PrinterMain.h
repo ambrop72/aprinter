@@ -1627,7 +1627,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using ThePwm = typename LaserSpec::PwmService::template Pwm<Context, Object>;
         using TheDutyFormula = typename LaserSpec::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle>;
         
-        using PlannerMaxSpeedRec = AMBRO_WRAP_DOUBLE(TimeConversion::value() / (LaserSpec::MaxPower::value() / LaserSpec::LaserPower::value()));
+        using MaxPower = decltype(Config::e(LaserSpec::MaxPower::i));
+        using LaserPower = decltype(Config::e(LaserSpec::LaserPower::i));
+        using PlannerMaxSpeedRec = decltype(TimeConversion() / (MaxPower() / LaserPower()));
         
         static void init (Context c)
         {
@@ -1669,7 +1671,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void write_planner_cmd (Context c, Src src, PlannerCmd *cmd)
         {
             auto *mycmd = TupleGetElem<LaserIndex>(cmd->axes.lasers());
-            mycmd->x = src.template get<LaserIndex>() * (FpType)(1.0 / LaserSpec::LaserPower::value());
+            mycmd->x = src.template get<LaserIndex>() * APRINTER_CFG(Config, CLaserPowerRec, c);
         }
         
         static void begin_move (Context c)
@@ -1693,6 +1695,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 ThePwm::setDutyCycle(c, TheDutyFormula::powerToDuty(power));
             }
         };
+        
+        using CLaserPowerRec = decltype(ExprCast<FpType>(ExprRec(LaserPower())));
+        
+        using ConfigExprs = MakeTypeList<CLaserPowerRec>;
         
         struct Object : public ObjBase<Laser, typename PrinterMain::Object, MakeTypeList<
             ThePwm
@@ -3750,6 +3756,7 @@ public: // private, see comment on top
             ObjCollect<
                 JoinTypeLists<
                     AxesList,
+                    LasersList,
                     HeatersList,
                     MakeTypeList<
                         TheSteppers,

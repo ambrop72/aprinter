@@ -760,7 +760,7 @@ public:
         {
             TheLaserSplitBuffer *laser_split = get_laser_split(c);
             
-            return laser_split->x * (FpType)LaserSpec::MaxSpeedRec::value();
+            return laser_split->x * APRINTER_CFG(Config, CMaxSpeedRec, c);
         }
         
         static void write_segment_buffer_entry_extra (Context c, Segment *entry, FpType distance_rec)
@@ -820,6 +820,10 @@ public:
             auto *m = MotionPlanner::Object::self(c);
             return TupleGetElem<LaserIndex>(m->m_split_buffer.axes.lasers());
         }
+        
+        using CMaxSpeedRec = decltype(ExprCast<FpType>(LaserSpec::MaxSpeedRec::e()));
+        
+        using ConfigExprs = MakeTypeList<CMaxSpeedRec>;
         
         struct StepperCommandCallback : public AMBRO_WFUNC_TD(&TheCommon::stepper_command_callback) {};
         
