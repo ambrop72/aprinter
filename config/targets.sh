@@ -142,9 +142,9 @@ target_teensy3() {
 
 #####################################################################################
 
-TARGETS+=( "teensy3-corexy" )
-target_teensy3-corexy() {
-    SOURCE_NAME=teensy3-corexy
+TARGETS+=( "teensy3-corexy-laser" )
+target_teensy3-corexy-laser() {
+    SOURCE_NAME=teensy3-corexy-laser
     PLATFORM=teensy
     F_CPU=96000000
     TEENSY_VERSION=3.1

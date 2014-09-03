@@ -193,10 +193,8 @@ using BedHeaterPulseInterval = AMBRO_WRAP_DOUBLE(0.3);
 
 // Lasers.
 
-//APRINTER_CONFIG_OPTION_DOUBLE(LLaserPower, 100.0, ConfigNoProperties)
-//APRINTER_CONFIG_OPTION_DOUBLE(LMaxPower, 100.0, ConfigNoProperties)
-using LLaserPower = AMBRO_WRAP_DOUBLE(100.0);
-using LMaxPower = AMBRO_WRAP_DOUBLE(100.0);
+APRINTER_CONFIG_OPTION_DOUBLE(LLaserPower, 100.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(LMaxPower, 100.0, ConfigNoProperties)
 using LDutyAdjustmentInterval = AMBRO_WRAP_DOUBLE(1.0 / 200.0);
 
 using DummySegmentsPerSecond = AMBRO_WRAP_DOUBLE(0.0); 
