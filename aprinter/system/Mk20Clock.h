@@ -537,8 +537,6 @@ public:
     
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
         // Force channel output to low by abusing output compare mode.
         *Channel::cv() = 0;
         *Channel::csc() = 0;
@@ -556,7 +554,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         // Set pin to low.
@@ -571,7 +568,6 @@ public:
     template <typename ThisContext>
     static void setDutyCycle (ThisContext c, DutyCycleType duty_cycle)
     {
-        auto *o = Object::self(c);
         AMBRO_ASSERT(duty_cycle <= MaxDutyCycle)
         
         // Update duty cycle. This will be buffered until next
