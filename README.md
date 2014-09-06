@@ -100,15 +100,13 @@ Most configuration is specified in the main file of the firmware. After chaning 
 
 Some degree of runtime configurability is implemented. This is in the form of named configuration values, as defined in the main file.
 
-Boards where runtime configuration is enabled: RADDS, RAMPS-FD, RAMPS, 4pi, Teensy 3.
-Boards where configuration save/load is also supported: RADDS, RAMPS-FD, RAMPS, 4pi (uses flash which is erased by programming).
+Boards where runtime configuration is enabled: RADDS, RAMPS-FD, RAMPS, Melzi, 4pi, Teensy 3.
 
 Board-specific notes:
 
-  * RAMPS-FD: Needs I2C EEPROM, not present on old boards.
+  * RAMPS-FD: I2C EEPROM is used for storage, which is not present on old boards.
   * RAMPS: Due to lack of RAM, some configuration options are not configurable at runtime.
   * 4pi: The internal flash is used for storage, which gets erased every time the device is programmed.
-  * Teensy 3: The chip has EEPROM but the driver is not yet written.
 
 Runtime configuration commands:
 
