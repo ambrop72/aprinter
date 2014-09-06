@@ -74,7 +74,7 @@ done
 # main
 
 TARGETS_STR=$(IFS=\| ; echo "${TARGETS[*]}")
-USAGE="Usage: $0 (${TARGETS_STR}|all) [-v] (install|build|upload [-p <port>|-b <baudrate>|-B <bitrate>]|clean|flush)"
+USAGE="Usage: $0 (${TARGETS_STR}|all) [-v] (install|build|upload [-p <port>|-b <baudrate>|-B <bitrate>])"
 
 if [ $# -lt 2 ]; then
     echo $USAGE
@@ -113,14 +113,6 @@ while true; do
             shift;
             ACT+=("build")
             ;;
-        clean)
-            shift;
-            ACT+=("clean")
-            ;;
-        flush)
-            shift;
-            ACT+=("flush")
-            ;;
         upload)
             ACT+=("upload")
             shift;
@@ -154,17 +146,6 @@ if [ "$DEST" = "all" ]; then
             ${UPLOAD}
          )
     done
-    for DEST in ${TARGETS[@]}; do
-         in_array "clean" ${ACT[*]} && (
-            configure $DEST
-            ${CLEAN}
-         )
-         in_array "flush" ${ACT[*]} && (
-            configure $DEST
-            ${FLUSH}
-         )
-
-    done
 else
     configure $DEST
     in_array "install" ${ACT[*]} && (
@@ -175,12 +156,6 @@ else
     )
     in_array "upload" ${ACT[*]} && (
         ${UPLOAD}
-    )
-    in_array "clean" ${ACT[*]} && (
-        ${CLEAN}
-    )
-    in_array "flush" ${ACT[*]} && (
-        ${FLUSH}
     )
 fi
 

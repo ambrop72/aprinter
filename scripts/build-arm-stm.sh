@@ -85,8 +85,6 @@ configure_stm() {
     INSTALL=install_stm
     RUNBUILD=build_stm
     UPLOAD=upload_stm
-    CLEAN=clean_stm
-    FLUSH=flush_stm
     CHECK=check_depends_stm
 }
 
@@ -101,21 +99,6 @@ check_depends_stm() {
     [ -d "${STM32F4_DIR}" ] || fail "STM32F4 framework missing in dependences"
     [ -d "${STM_USB_DIR}" ] || fail "STM USB framework missing in dependences"
     [ -e "${STLINK}/st-flash" ] || fail "STM upload tool 'stlink' missing"
-}
-
-clean_stm() {
-    clean_arm
-    ($V; rm -f "${BUILD}/system_stm32f4xx-hacked.c")
-}
-
-flush_stm() {
-    flush_arm
-    echo "  Flushing STM32F4 toolchain"
-    ($V; 
-    rm -rf "${STM32F4_DIR}"
-    rm -rf "${STM_USB_DIR}"
-    rm -rf "${STLINK_DIR}"
-    )
 }
 
 install_stm() {

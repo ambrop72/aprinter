@@ -67,35 +67,10 @@ install_arm() {
     fi
 }
 
-flush_arm() {
-    clean
-    echo "  Deleting GCC-ARM install. Are you sure? (C-c to abort)"
-    read 
-    rm -rf "${ARM_GCC_PATH}"
-}
-
 check_depends_arm() {
     echo "   Checking depends"
     check_build_tool "${ARM_CC}" "ARM compiler"
     check_build_tool "${ARM_OBJCOPY}" "ARM objcopy"
-}
-
-clean_arm() {
-    clean
-    for file in "${C_SOURCES[@]}"; do
-        OBJ=${BUILD}/$(basename "${file}" .c).o
-        ($V; rm -f $OBJ)
-    done
-
-    for file in "${CXX_SOURCES[@]}"; do
-        OBJ=${BUILD}/$(basename "${file}" .cpp).o
-        ($V; rm -f $OBJ)
-    done
-
-    for file in "${ASM_SOURCES[@]}"; do
-        OBJ=${BUILD}/$(basename "${file}" .s).o
-        ($V; rm -f $OBJ)
-    done
 }
 
 configure_arm() {
@@ -131,9 +106,7 @@ configure_arm() {
 
     OBJS=()
 
-    FLUSH=flush_arm
     CHECK=check_depends_arm
-    CLEAN=clean_arm
 }
 
 build_arm() {

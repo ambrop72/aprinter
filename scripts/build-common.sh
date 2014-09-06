@@ -34,16 +34,6 @@ create_depends_dir() {
 
 # base actions functions
 
-clean() {
-    echo "  Clean all builds for ${TARGET}"
-    ($V; rm -f "${TARGET}"*)
-}
-
-flush() {
-    echo "  Flush all builds and depends for ${TARGET}"
-    clean
-}
-
 configure() {
     local target_name=$1
     echo "  Configuring for target ${target_name}"
@@ -53,8 +43,6 @@ configure() {
     : ${SOURCE_NAME:=${target_name}}
     SOURCE=$SPATH/aprinter-${SOURCE_NAME}.cpp
     TARGET=$BUILD/aprinter-${target_name}
-    CLEAN=clean
-    FLUSH=flush
     
     configure_${PLATFORM}
 }

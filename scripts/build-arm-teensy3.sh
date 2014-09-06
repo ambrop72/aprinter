@@ -87,22 +87,12 @@ configure_teensy() {
     INSTALL=install_teensy
     RUNBUILD=build_arm
     UPLOAD=upload_teensy
-    FLUSH=flush_teensy
     CHECK=check_depends_teensy
 }
 
 check_depends_teensy() {
     check_depends_arm
     [ -d "${TEENSY3}" ] || fail "Teensy3 Framework missing in dependences"
-}
-
-flush_teensy() {
-    flush_arm
-    echo "  Flushing Teensy3 toolchain"
-    ($V;
-    rm -rf "${DEPS_TEENSY_CORES}"
-    rm -rf "${TEENSY_LOADER_DIR}"
-    )
 }
 
 install_teensy() {

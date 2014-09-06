@@ -64,13 +64,6 @@ install_avr() {
     fi
 }
 
-flush_avr() {
-    clean
-    echo "  Deleting Atmel AVR toolchain install. Are you sure? (C-c to abort)"
-    read 
-    rm -rf "${ATMEL_AVR_GCC_PATH}"
-}
-
 check_depends_avr() {
     echo "   Checking depends"
     check_build_tool "${AVR_CC}" "AVR compiler"
@@ -100,7 +93,6 @@ configure_avr() {
     INSTALL=install_avr
     RUNBUILD=build_avr
     UPLOAD=upload_avr
-    FLUSH=flush_avr
     CHECK=check_depends_avr
 }
 

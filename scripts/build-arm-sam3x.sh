@@ -145,7 +145,6 @@ configure_sam3x() {
     INSTALL=install_sam3x
     RUNBUILD=build_sam3x
     UPLOAD=upload_sam3x
-    FLUSH=flush_sam3x
     CHECK=check_depends_sam3x
 }
 
@@ -179,13 +178,6 @@ upload_sam3x() {
         fi
     fi
     ( $V; "${BOSSAC}" -p "${BOSSA_PORT#/dev/}" "${bossa_args[@]}" -i -e -w -v -b "${TARGET}.bin" -R )
-}
-
-flush_sam3x() {
-    flush_arm
-    echo "  Flushing SAM3X toolchain"
-    rm -rf "${DEPS_ASF_BASE_DIR}"
-    rm -rf "${BOSSA_DIR}"
 }
 
 install_sam3x() {
