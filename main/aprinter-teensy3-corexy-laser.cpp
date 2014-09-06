@@ -41,6 +41,7 @@ static void emergency (void);
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/system/Mk20Adc.h>
 #include <aprinter/system/Mk20Watchdog.h>
+#include <aprinter/system/TeensyEeprom.h>
 #include <aprinter/system/TeensyUsbSerial.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/driver/AxisDriver.h>
@@ -57,6 +58,7 @@ static void emergency (void);
 #include <aprinter/printer/transform/CoreXyTransform.h>
 #include <aprinter/printer/microstep/A4988MicroStep.h>
 #include <aprinter/printer/duty_formula/LinearDutyFormula.h>
+#include <aprinter/printer/config_store/EepromConfigStore.h>
 #include <aprinter/board/teensy3_pins.h>
 
 using namespace APrinter;
@@ -229,7 +231,14 @@ using PrinterParams = PrinterMainParams<
     PrinterMainNoProbeParams,
     PrinterMainNoCurrentParams,
     RuntimeConfigManagerService<
-        RuntimeConfigManagerNoStoreService
+        EepromConfigStoreService<
+            TeensyEepromService<
+                2048, // Size
+                16 // FakeBlockSize
+            >,
+            0, // StartBlock
+            128 // EndBlock
+        >
     >,
     ConfigList,
     

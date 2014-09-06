@@ -77,6 +77,7 @@ configure_teensy() {
         "${TEENSY3}/usb_desc.c"
         "${TEENSY3}/usb_mem.c"
         "${TEENSY3}/usb_serial.c"
+        "aprinter/platform/teensy3/aprinter_teensy_eeprom.c"
     )
 
     CXX_SOURCES+=(
