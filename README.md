@@ -345,6 +345,65 @@ PrinterMainAxisParams<
 >
 ```
 
+## Laser support
+
+There is currently experimental support for lasers, more particularly,
+for a PWM output whose duty cycle proportional to the current speed.
+The laser configuration parameters are:
+
+- LaserPower [W]: The actual power of the laser at full duty cycle.
+  You don't strictly have to measure the power, this just serves as a
+  reference for everything else, you can use e.g. 1 or 100.
+- MaxPower [W]: An artificial limit of laser power. Use =LaserPower to
+  allow the laser to run at full duty cycle. But make sure it's not
+  greater than LaserPower, that will result in strange behavior.
+- DutyAdjustmentInterval [s]: Time interval for duty cycle adjustment
+  from timer interrupt (=1/frequency).
+
+A laser is configured in the main file as follows:
+
+```
+// Add to includes:
+#include <aprinter/driver/LaserDriver.h>
+#include <aprinter/printer/duty_formula/LinearDutyFormula.h>
+...
+// Add to configuration options:
+APRINTER_CONFIG_OPTION_DOUBLE(LLaserPower, 100.0, ConfigNoProperties)
+APRINTER_CONFIG_OPTION_DOUBLE(LMaxPower, 100.0, ConfigNoProperties)
+using LDutyAdjustmentInterval = AMBRO_WRAP_DOUBLE(1.0 / 200.0);
+...
+    // Add to PrinterParams, after the list of fans.
+    // Don't forget to add a comma after the fans.
+    /*
+     * Lasers.
+     */
+    MakeTypeList<
+        PrinterMainLaserParams<
+            'L', // Name
+            'M', // DensityName
+            LLaserPower,
+            LMaxPower,
+            // Use correct PWM here!
+            Mk20ClockPwmService<Mk20ClockFTM1, 1, TeensyPin17>,
+            LinearDutyFormulaService<
+                15 // PowerBits
+            >,
+            LaserDriverService<
+                // Use correct timer here!
+                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7>,
+                LDutyAdjustmentInterval,
+                LaserDriverDefaultPrecisionParams
+            >
+        >
+    >
+```
+
+In the g-code interface, *either* of the following parameters can be used in a `G0`/`G1` command to turn on the laser:
+- **L** - Total energy emmitted over the segment [W]. This is the low level interface to the laser.
+- **M** - Energy density over the segment [W/mm]. The value is multiplied by the segment length to obtain the effective energy for the segment.
+
+The energy density *M* is cached, so you can specify it in one command, and leave it out for any further commands where you want the same energy density. If *L* is specified, it takes precedence over *M* or its cached value, but it does not alter the *M* cached value.
+
 ## Output compare units
 
 Various features of the firmware, in particular, each axis, heater and fan,
