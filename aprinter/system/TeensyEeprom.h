@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/MakeTypeList.h>
@@ -39,7 +40,9 @@ extern "C" {
     void eeprom_initialize (void);
     void eeprom_read_block (void *buf, const void *addr, uint32_t len);
     int eeprom_is_ready (void);
-    int eeprom_write_byte_nonblock (uint32_t offset, uint8_t value);
+    void eeprom_write_byte_nonblock (uint32_t offset, uint8_t value);
+    void eeprom_write_word_nonblock (uint32_t offset, uint16_t value);
+    void eeprom_write_dword_nonblock (uint32_t offset, uint32_t value);
 }
 
 template <typename Context, typename ParentObject, typename Handler, typename Params>
@@ -129,10 +132,24 @@ private:
                 return;
             }
             if (o->length > 0) {
-                eeprom_write_byte_nonblock(o->offset, *o->write.data);
-                o->offset++;
-                o->length--;
-                o->write.data++;
+                SizeType bytes;
+                if (o->offset % 4 == 0 && o->length >= 4) {
+                    bytes = 4;
+                    uint32_t dword;
+                    memcpy(&dword, o->write.data, bytes);
+                    eeprom_write_dword_nonblock(o->offset, dword);
+                } else if (o->offset % 2 == 0 && o->length >= 2) {
+                    bytes = 2;
+                    uint16_t word;
+                    memcpy(&word, o->write.data, bytes);
+                    eeprom_write_word_nonblock(o->offset, word);
+                } else {
+                    bytes = 1;
+                    eeprom_write_byte_nonblock(o->offset, *o->write.data);
+                }
+                o->offset += bytes;
+                o->length -= bytes;
+                o->write.data += bytes;
                 Context::EventLoop::template triggerFastEvent<FastEvent>(c);
                 return;
             }
