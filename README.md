@@ -77,6 +77,7 @@ The basic steps are:
   * Locate the main source file corresponding to the target, which is `main/aprinter-SOURCE.cpp`.
     Here, `SOURCE` defaults to the target name if it is not defined in the target definition.
   * Examine the main file and adapt it to your liking.
+  * If you want to build using Nix, skip these remaining steps and see the Nix section. In this case, you are on your own with uploading the firmware.
   * To install the toolchain and other dependnecies: `./build.sh <target> install`
   * Note that for AVR, you will still need `avrdude` preinstalled.
   * To build: `./build.sh <target> build`
@@ -141,30 +142,42 @@ The `M930` command does not alter the current set of configuration values in any
     Obviously, take safety precausions here. I'm not responsible if your house burns down as a result of
     using my software, or for any other damage.
 
+## Building with Nix
+
+It is possible to build the firmware using the [Nix package manager](http://nixos.org/nix/).
+In this case, all you need is Nix running on Linux (either NixOS, or Nix installed on another Linux distro).
+Nix will take care of any build dependencies.
+
+To build with Nix, run this command from the directory below the `aprinter` source code directory:
+
+```
+nix-build -A <aprinterTarget> aprinter/nix
+```
+
+You need to pick the right `<aprinterTarget>` for you. Consult the file `nix/default.nix` for a list of targets.
+Generally, each target uses its own main source file (in the `main` subdirectory), coresponding to the name of the target.
+
+The result of the build will be available in the directory synlink `result`, created in the current directory.
+
+The special target `aprinterTestAll` will build all supported targets, which is useful for development.
+
+*NOTE*: If you call nix-build inside the source directory, it will still work, but the next build may take a long time because the result will be considered part of the source code.
+
 ## Notes on the build systemm
 
-The build system works as follows:
+The build system is invoked as follows:
 
-    ./build.sh TARGET [param] ACTION [param]
+    ./build.sh TARGET [param] ACTION...
 
 where `TARGET` is one of the targets defined in `config/targets.sh` and `ACTION` is any of:
 
- * `install`, `build`, `upload`, `clean`, `flush`.
+ * `install` - Download and build dependencies, into the `depends` subfolder.
+ * `build` - Build the firmware.
+ * `upload` - Upload the firmware to the microcontroller.
 
-You can run one or several actions for each target, for example:
+You can run one or several actions for each target, for example, to build then immediately upload:
 
-    ./build.sh melzi build upload
-
-will compile the `melzi` target and upload it.
-
-The `install` action will install the necessary framework and tools in the `depends`
-directory, each download checked with a sha256 and not reinstalled if already present.
-The `flush` action will delete all those install dependencies, be careful, no warning 
-or confirmation is issued upon running that command.
-The `clean` action will remove all build files for the given build in the
-`build` directory.
-
-On Mac OS X `install` action may require `brew install wxmac` before.
+    ./build.sh <target> build upload
 
 Some dependencies can be overridden from environment variables or `config/config.sh`. In particular:
 
@@ -173,24 +186,16 @@ Some dependencies can be overridden from environment variables or `config/config
    For example, `${CUSTOM_AVR_GCC}gcc` is called during AVR compilation.
  * `AVRDUDE` overrides the `avrdude` tool, used for upload to AVR boards.
 
-*Nota Bene*: 
+Other notes:
 
  * NEVER RUN THIS SCRIPT AS ROOT!
+ * On Mac OS X `install` action may require `brew install wxmac` before.
  * Most of the build system will work only on Linux.
    On other platforms, custom installation of dependencies and hacking the scripts will be necessary.
  * The AVR toolchain is a [binary by Atmel](http://www.atmel.com/tools/atmelavrtoolchainforlinux.aspx).
  * The ARM toolchain is a binary by the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) project.
  * The `-v` parameter (between targets and actions) will show the commands ran by the script.
- * The script has only been tested when ran from source directory root.
-
-## Extending the build system
-
-The build targets are defined in the file: `config/targets.sh`. If you want to
-add a new board with an existing architecture/platform, this is where it belongs.
-By default, the target will use the source file `aprinter-TARGET.cpp`,
-except if `SOURCE` is defined in the target, in which case it will use `aprinter-SOURCE.cpp`.
-
-Each target defines a `PLATFORM`, which defines which script in `scripts/` handles the target. For more information, see the source.
+ * The script will only work when ran from source directory root.
 
 ## SD card support
 
