@@ -20,6 +20,7 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
   * For use with multiple extruders, a g-code post-processor is provided to translate tool commands into
     motion of individual axes which the firmware understands. If you have a fan on each extruder, the post-processor can
     control the fans so that only the fan for the current extruder is on.
+  * Experimental support for lasers (PWM output with a duty cycle proportional to the current speed).
   * Constant-acceleration motion with look-ahead planning. To speed up calculations, the firmware will only
     calculate a new plan every LookaheadCommitCount commands. Effectively, this allows increasing
     the lookahead count without an asymptotic increase of processing time, only limited by the available RAM.
@@ -347,18 +348,18 @@ PrinterMainAxisParams<
 
 ## Laser support
 
-There is currently experimental support for lasers, more particularly,
-for a PWM output whose duty cycle proportional to the current speed.
+There is currently experimental support for lasers, more precisely,
+for a PWM output whose duty cycle is proportional to the current speed.
 The laser configuration parameters are:
 
-- LaserPower [W]: The actual power of the laser at full duty cycle.
+- `LaserPower` [W]: The actual power of the laser at full duty cycle.
   You don't strictly have to measure the power, this just serves as a
   reference for everything else, you can use e.g. 1 or 100.
-- MaxPower [W]: An artificial limit of laser power. Use =LaserPower to
+- `MaxPower` [W]: An artificial limit of laser power. Use =`LaserPower` to
   allow the laser to run at full duty cycle. But make sure it's not
-  greater than LaserPower, that will result in strange behavior.
-- DutyAdjustmentInterval [s]: Time interval for duty cycle adjustment
-  from timer interrupt (=1/frequency).
+  greater than `LaserPower`, that will result in strange behavior.
+- `DutyAdjustmentInterval` [s]: Time interval for duty cycle adjustment
+  from a timer interrupt (=1/frequency).
 
 A laser is configured in the main file as follows:
 
@@ -398,7 +399,7 @@ using LDutyAdjustmentInterval = AMBRO_WRAP_DOUBLE(1.0 / 200.0);
     >
 ```
 
-In the g-code interface, *either* of the following parameters can be used in a `G0`/`G1` command to turn on the laser:
+In the g-code interface, *either* of the following parameters can be used in a `G0`/`G1` command to control the laser:
 - **L** - Total energy emmitted over the segment [W]. This is the low level interface to the laser.
 - **M** - Energy density over the segment [W/mm]. The value is multiplied by the segment length to obtain the effective energy for the segment.
 
