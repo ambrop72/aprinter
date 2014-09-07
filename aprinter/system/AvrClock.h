@@ -602,6 +602,14 @@ public:
 #endif
     }
     
+    template <typename ThisContext>
+    static TimeType getLastSetTime (ThisContext c)
+    {
+        auto *o = Object::self(c);
+        
+        return o->m_time;
+    }
+    
     static void timer_comp_isr (AtomicContext<Context> c)
     {
         auto *o = Object::self(c);
@@ -818,6 +826,14 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
 #endif
+    }
+    
+    template <typename ThisContext>
+    static TimeType getLastSetTime (ThisContext c)
+    {
+        auto *o = Object::self(c);
+        
+        return o->m_time;
     }
     
     static void timer_comp_isr (AtomicContext<Context> c)

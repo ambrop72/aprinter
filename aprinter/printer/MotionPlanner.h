@@ -161,6 +161,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment, write_segment)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_gen_command, gen_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fixup_split, fixup_split)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_overload_occurred, overload_occurred)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheCommon, TheCommon)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ComputeState, ComputeState)
     
@@ -686,6 +687,13 @@ public:
             return TupleGetElem<AxisIndex>(m->m_split_buffer.axes.axes());
         }
         
+#ifdef AXISDRIVER_DETECT_OVERLOAD
+        static bool overload_occurred (bool accum, Context c)
+        {
+            return accum || TheAxisDriver::overloadOccurred(c);
+        }
+#endif
+        
         using CDistanceFactor = decltype(ExprCast<FpType>(AxisSpec::DistanceFactor::e()));
         using CCorneringSpeedComputationFactor = decltype(ExprCast<FpType>(AxisSpec::MaxAccelRec::e() / (AxisSpec::CorneringDistance::e() * AxisSpec::DistanceFactor::e())));
         using CMaxSpeedRec = decltype(ExprCast<FpType>(AxisSpec::MaxSpeedRec::e()));
@@ -1172,6 +1180,16 @@ public:
         
         return Axis<AxisIndex>::template axis_count_aborted_rem_steps<StepsType>(c);
     }
+    
+#ifdef AXISDRIVER_DETECT_OVERLOAD
+    static bool axisOverloadOccurred (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->m_state == STATE_BUFFERING)
+        
+        return ListForEachForwardAccRes<AxesList>(false, LForeach_overload_occurred(), c);
+    }
+#endif
     
     template <int ChannelIndex>
     using GetChannelTimer = typename Channel<ChannelIndex>::TheTimer;

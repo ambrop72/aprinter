@@ -3536,6 +3536,15 @@ public: // private, see comment on top
     {
         auto *ob = Object::self(c);
         ob->underrun_count++;
+        
+#ifdef AXISDRIVER_DETECT_OVERLOAD
+        if (ThePlanner::axisOverloadOccurred(c)) {
+            SerialFeature::TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("//AxisOverload\n"));
+        } else {
+            SerialFeature::TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("//NoOverload\n"));
+        }
+        SerialFeature::TheChannelCommon::impl(c)->reply_poke(c);
+#endif
     }
     
     static void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)

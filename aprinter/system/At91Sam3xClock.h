@@ -308,6 +308,14 @@ public:
 #endif
     }
     
+    template <typename ThisContext>
+    static TimeType getLastSetTime (ThisContext c)
+    {
+        auto *o = Object::self(c);
+        
+        return o->m_time;
+    }
+    
     static void irq_handler (InterruptContext<Context> c)
     {
         auto *o = Object::self(c);

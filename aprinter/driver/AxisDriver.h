@@ -139,6 +139,9 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
 #endif
+#ifdef AXISDRIVER_DETECT_OVERLOAD
+        o->m_overload = false;
+#endif
         
         TheDebugObject::init(c);
     }
@@ -200,6 +203,9 @@ public:
                 o->m_time = start_time;
             }
         }
+#ifdef AXISDRIVER_DETECT_OVERLOAD
+        o->m_overload = false;
+#endif
         TimerInstance::setFirst(c, timer_t);
     }
     
@@ -238,6 +244,17 @@ public:
         return StepFixedType::importBits(cmd->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
     }
     
+#ifdef AXISDRIVER_DETECT_OVERLOAD
+    static bool overloadOccurred (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(!o->m_running)
+        
+        return o->m_overload;
+    }
+#endif
+    
     using GetTimer = TimerInstance;
     
 private:
@@ -262,6 +279,12 @@ private:
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_running)
+        
+#ifdef AXISDRIVER_DETECT_OVERLOAD
+        if ((TimeType)(Clock::getTime(c) - TimerInstance::getLastSetTime(c)) >= (TimeType)(0.001 * Clock::time_freq)) {
+            o->m_overload = true;
+        }
+#endif
         
         Command *current_command = o->m_current_command;
         if (AMBRO_LIKELY(!o->m_notend)) {
@@ -373,6 +396,9 @@ public:
         TimeType m_time;
         decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) m_v0;
         bool m_prestep_callback_enabled;
+#ifdef AXISDRIVER_DETECT_OVERLOAD
+        bool m_overload;
+#endif
     };
 };
 
