@@ -1,4 +1,9 @@
-{ stdenv, writeText, bash, gccAvrAtmel, gcc-arm-embedded, asf, teensyCores, buildName, boardName, mainText }:
+{ stdenv, writeText, bash, gccAvrAtmel, gcc-arm-embedded, asf, teensyCores, buildName
+, boardName, mainText
+, assertionsEnabled ? false
+, eventLoopBenchmarkEnabled ? false
+, detectOverloadEnabled ? false
+}:
 
 let
     boardDefinitions = import ./boards.nix;
@@ -34,6 +39,12 @@ let
     
     mainFile = writeText "aprinter-main.cpp" mainText;
     
+    compileFlags = stdenv.lib.concatStringsSep " " [
+        (stdenv.lib.optionalString assertionsEnabled "-DAMBROLIB_ASSERTIONS")
+        (stdenv.lib.optionalString eventLoopBenchmarkEnabled "-DEVENTLOOP_BENCHMARK")
+        (stdenv.lib.optionalString detectOverloadEnabled "-DAXISDRIVER_DETECT_OVERLOAD")
+    ];
+    
 in
 
 assert isAvr -> gccAvrAtmel != null;
@@ -55,6 +66,9 @@ stdenv.mkDerivation rec {
     '';
     
     buildPhase = ''
+        echo "Compile flags: ${compileFlags}"
+        CFLAGS="${compileFlags}" \
+        CXXFLAGS="${compileFlags}" \
         ${bash}/bin/bash ./build.sh nixbuild build
     '';
     

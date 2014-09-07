@@ -6,6 +6,19 @@ rec {
     
     teensyCores = pkgs.callPackage ./teensy_cores.nix {};
     
+    /*
+        Extra options accepted by aprinterFunc:
+        
+        assertionsEnabled = true;
+        eventLoopBenchmarkEnabled = true;
+        detectOverloadEnabled = true;
+        
+        Either aprinterFunc can be modified to pass them, or .override can be used,
+        like this:
+        
+        aprinterTestMelziWithAssertions = aprinterTestMelzi.override { assertionsEnabled = true; };
+    */
+    
     aprinterFunc = aprinterConfig: pkgs.callPackage ./aprinter.nix (
         {
             inherit gccAvrAtmel asf teensyCores;
@@ -30,9 +43,11 @@ rec {
     aprinterTestTeensy3 = aprinterTestFunc "teensy3" {};
     aprinterTestCoreXyLaser = aprinterTestFunc "teensy3" { sourceName = "teensy3-corexy-laser"; };
     
-    aprinterTestAll = aprinterSymlinksFunc [
+    allTestTargets = [
         aprinterTestMelzi aprinterTestRamps13 aprinterTestMegatronics3
         aprinterTestRampsfd aprinterTestRadds aprinterTest4pi
         aprinterTestMlab aprinterTestTeensy3 aprinterTestCoreXyLaser
     ];
+    aprinterTestAll = aprinterSymlinksFunc allTestTargets;
+    aprinterTestAllDebug = aprinterSymlinksFunc (map (t: t.override { assertionsEnabled = true; }) allTestTargets);
 }
