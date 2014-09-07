@@ -261,7 +261,7 @@ public:
 
 template <typename Loop>
 class BusyEventLoopQueuedEvent
-: private DebugObject<typename Loop::Context, BusyEventLoopQueuedEvent<Loop>>
+: private SimpleDebugObject<typename Loop::Context>
 {
 public:
     typedef typename Loop::Context Context;
@@ -273,12 +273,12 @@ public:
         m_handler = handler;
         Loop::QueuedEventList::markRemoved(this);
         
-        //this->debugInit(c);
+        this->debugInit(c);
     }
     
     void deinit (Context c)
     {
-        //this->debugDeinit(c);
+        this->debugDeinit(c);
         auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
@@ -288,7 +288,7 @@ public:
     
     void appendAt (Context c, TimeType time)
     {
-        //this->debugAccess(c);
+        this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
@@ -300,7 +300,7 @@ public:
     
     void appendAfterPrevious (Context c, TimeType after_time)
     {
-        //this->debugAccess(c);
+        this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
         
@@ -310,7 +310,7 @@ public:
     
     void appendNowNotAlready (Context c)
     {
-        //this->debugAccess(c);
+        this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
@@ -320,7 +320,7 @@ public:
     
     void prependNowNotAlready (Context c)
     {
-        //this->debugAccess(c);
+        this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
         AMBRO_ASSERT(Loop::QueuedEventList::isRemoved(this))
@@ -330,7 +330,7 @@ public:
     
     void unset (Context c)
     {
-        //this->debugAccess(c);
+        this->debugAccess(c);
         auto *lo = Loop::Object::self(c);
         
         if (!Loop::QueuedEventList::isRemoved(this)) {
@@ -341,7 +341,7 @@ public:
     
     bool isSet (Context c)
     {
-        //this->debugAccess(c);
+        this->debugAccess(c);
         
         return !Loop::QueuedEventList::isRemoved(this);
     }

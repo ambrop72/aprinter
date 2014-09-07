@@ -61,16 +61,15 @@ public:
     };
 };
 
-template <typename Context, typename ParentObject>
-class DebugObject {
+template <typename Context>
+class SimpleDebugObject {
 public:
     template <typename ThisContext>
-    static void init (ThisContext c)
+    void debugInit (ThisContext c)
     {
 #ifdef AMBROLIB_ASSERTIONS
-        auto *o = Object::self(c);
         auto *go = Context::DebugGroup::Object::self(c);
-        o->magic = getMagic();
+        m_magic = getMagic();
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             go->m_count++;
         }
@@ -78,13 +77,12 @@ public:
     }
     
     template <typename ThisContext>
-    static void deinit (ThisContext c)
+    void debugDeinit (ThisContext c)
     {
 #ifdef AMBROLIB_ASSERTIONS
-        auto *o = Object::self(c);
         auto *go = Context::DebugGroup::Object::self(c);
-        AMBRO_ASSERT(o->magic == getMagic())
-        o->magic = 0;
+        AMBRO_ASSERT(m_magic == getMagic())
+        m_magic = 0;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             go->m_count--;
         }
@@ -92,11 +90,10 @@ public:
     }
     
     template <typename ThisContext>
-    static void access (ThisContext c)
+    void debugAccess (ThisContext c)
     {
 #ifdef AMBROLIB_ASSERTIONS
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(o->magic == getMagic())
+        AMBRO_ASSERT(m_magic == getMagic())
 #endif
     }
     
@@ -106,12 +103,44 @@ private:
         return UINT32_C(0x1c5c0678);
     }
     
-public:
-    struct Object : public ObjBase<DebugObject, ParentObject, EmptyTypeList> {
 #ifdef AMBROLIB_ASSERTIONS
-        uint32_t magic;
+    uint32_t m_magic;
 #endif
-    };
+};
+
+template <typename Context, typename ParentObject>
+class DebugObject {
+public:
+    template <typename ThisContext>
+    static void init (ThisContext c)
+    {
+#ifdef AMBROLIB_ASSERTIONS
+        Object::self(c)->debugInit(c);
+#endif
+    }
+    
+    template <typename ThisContext>
+    static void deinit (ThisContext c)
+    {
+#ifdef AMBROLIB_ASSERTIONS
+        Object::self(c)->debugDeinit(c);
+#endif
+    }
+    
+    template <typename ThisContext>
+    static void access (ThisContext c)
+    {
+#ifdef AMBROLIB_ASSERTIONS
+        Object::self(c)->debugAccess(c);
+#endif
+    }
+    
+public:
+    struct Object : public ObjBase<DebugObject, ParentObject, EmptyTypeList>
+#ifdef AMBROLIB_ASSERTIONS
+        , public SimpleDebugObject<Context>
+#endif
+    {};
 };
 
 #include <aprinter/EndNamespace.h>
