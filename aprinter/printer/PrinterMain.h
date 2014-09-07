@@ -1659,10 +1659,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return true;
         }
         
-        static void handle_automatic_energy (Context c, FpType distance)
+        static void handle_automatic_energy (Context c, FpType distance, bool is_positioning_move)
         {
             auto *o = Object::self(c);
-            if (!o->move_energy_specified) {
+            if (!o->move_energy_specified && !is_positioning_move) {
                 o->move_energy = FloatMakePosOrPosZero(o->density * distance);
             }
         }
@@ -1797,7 +1797,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheTransformAlg::physToVirt(c, PhysReqPosSrc{c}, VirtReqPosDst{c});
         }
         
-        static void handle_virt_move (Context c, FpType time_freq_by_max_speed)
+        static void handle_virt_move (Context c, FpType time_freq_by_max_speed, bool is_positioning_move)
         {
             auto *o = Object::self(c);
             auto *mob = PrinterMain::Object::self(c);
@@ -1814,7 +1814,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             ListForEachForward<VirtAxesList>(LForeach_prepare_split(), c, &distance_squared);
             ListForEachForward<SecondaryAxesList>(LForeach_prepare_split(), c, &distance_squared);
             FpType distance = FloatSqrt(distance_squared);
-            ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, distance);
+            ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, distance, is_positioning_move);
             ListForEachForward<LaserSplitsList>(LForeach_prepare_split(), c);
             FpType base_max_v_rec = ListForEachForwardAccRes<VirtAxesList>(distance * time_freq_by_max_speed, LForeach_limit_virt_axis_speed(), c);
             FpType min_segments_by_distance = (FpType)(TransformParams::SegmentsPerSecond::value() * Clock::time_unit) * time_freq_by_max_speed;
@@ -2294,7 +2294,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     } AMBRO_STRUCT_ELSE(TransformFeature) {
         static int const NumVirtAxes = 0;
         static void init (Context c) {}
-        static void handle_virt_move (Context c, FpType time_freq_by_max_speed) {}
+        static void handle_virt_move (Context c, FpType time_freq_by_max_speed, bool is_positioning_move) {}
         template <int PhysAxisIndex>
         static void mark_phys_moved (Context c) {}
         static void do_pending_virt_update (Context c) {}
@@ -3306,8 +3306,9 @@ public: // private, see comment on top
                             }
                         }
                     }
+                    bool is_positioning_move = (cmd->getCmdNumber(c) == 0);
                     cmd->finishCommand(c);
-                    move_end(c, ob->time_freq_by_max_speed);
+                    move_end(c, ob->time_freq_by_max_speed, is_positioning_move);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -3588,7 +3589,7 @@ public: // private, see comment on top
         FpType get () { return Laser<LaserIndex>::Object::self(m_c)->move_energy; }
     };
     
-    static void move_end (Context c, FpType time_freq_by_max_speed)
+    static void move_end (Context c, FpType time_freq_by_max_speed, bool is_positioning_move=true)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING || ob->planner_state == PLANNER_CUSTOM)
@@ -3596,7 +3597,7 @@ public: // private, see comment on top
         AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
         
         if (TransformFeature::is_splitting(c)) {
-            TransformFeature::handle_virt_move(c, time_freq_by_max_speed);
+            TransformFeature::handle_virt_move(c, time_freq_by_max_speed, is_positioning_move);
             return;
         }
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
@@ -3609,7 +3610,7 @@ public: // private, see comment on top
             if (ob->move_seen_cartesian) {
                 FpType distance = FloatSqrt(distance_squared);
                 cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, distance * time_freq_by_max_speed);
-                ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, distance);
+                ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, distance, is_positioning_move);
             } else {
                 ListForEachForward<AxesList>(LForeach_limit_axis_move_speed(), c, time_freq_by_max_speed, cmd);
             }
