@@ -31,6 +31,7 @@ def _merge_dicts (*dicts):
 class ConfigBase (object):
     def __init__ (self, **kwargs):
         self.title = _kwarg_maybe('title', kwargs)
+        self.title_key = _kwarg_maybe('title_key', kwargs)
         self.collapsed = _kwarg_maybe('collapsed', kwargs, False)
         self.disable_collapse = _kwarg_maybe('disable_collapse', kwargs, False)
         self.ident = _kwarg_maybe('ident', kwargs)
@@ -42,6 +43,9 @@ class ConfigBase (object):
             ({
                 'title': self.title
             } if self.title is not None else {}),
+            ({
+                'headerTemplate': 'return vars.self[{}];'.format(json.dumps(self.title_key))
+            } if self.title_key is not None else {}),
             ({
                 'id': self.ident
             } if self.ident is not None else {}),
