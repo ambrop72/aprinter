@@ -1,0 +1,55 @@
+var schema = $${SCHEMA};
+
+function aprinter_resolve_ref(target_arr, target_id_field, target_id) {
+    for (var index in target_arr) {
+        var target = target_arr[index];
+        if (target[target_id_field] == target_id) {
+            return target;
+        }
+    }
+    return null;
+}
+
+// Divs/textareas on the page
+var $output = document.getElementById('output');
+var $editor = document.getElementById('editor');
+var $validate = document.getElementById('validate');
+
+var jsoneditor;
+
+var reload = function() {
+    var startval = undefined;
+
+    if(jsoneditor) jsoneditor.destroy();
+    
+    jsoneditor = new JSONEditor($editor,{
+        schema: schema,
+        startval: startval,
+        disable_edit_json: true,
+        disable_properties: true,
+        template: "javascript",
+        theme: "bootstrap3",
+        iconlib: "bootstrap3"
+    });
+
+    // When the value of the editor changes, update the JSON output and validation message
+    jsoneditor.on('change',function() {
+        var json = jsoneditor.getValue();
+
+        $output.value = JSON.stringify(json,null,2);
+
+        var validation_errors = jsoneditor.validate();
+        // Show validation errors if there are any
+        if(validation_errors.length) {
+            $validate.value = JSON.stringify(validation_errors,null,2);
+        }
+        else {
+            $validate.value = 'valid';
+        }
+    });
+};
+
+// Start the schema and output textareas with initial values
+$output.value = '';
+
+reload();

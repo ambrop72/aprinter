@@ -36,6 +36,7 @@ class ConfigBase (object):
         self.disable_collapse = _kwarg_maybe('disable_collapse', kwargs, False)
         self.ident = _kwarg_maybe('ident', kwargs)
         self.enum = _kwarg_maybe('enum', kwargs)
+        self.no_header = _kwarg_maybe('no_header', kwargs, False)
         self.kwargs = kwargs
     
     def _json_schema (self):
@@ -59,6 +60,11 @@ class ConfigBase (object):
                     'disable_collapse': True
                 }
             } if self.disable_collapse else {}),
+            ({
+                'options': {
+                    'no_header': True
+                }
+            } if self.no_header else {}),
             ({
                 'enum': self.enum
             } if self.enum is not None else {}),
