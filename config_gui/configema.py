@@ -96,6 +96,8 @@ class Compound (ConfigBase):
     def __init__ (self, name, **kwargs):
         self.name = name
         self.attrs = _kwarg('attrs', kwargs)
+        if 'title' not in kwargs:
+            kwargs['title'] = name
         ConfigBase.__init__(self, **kwargs)
     
     def _json_extra (self):
@@ -135,20 +137,38 @@ class Compound (ConfigBase):
 class Array (ConfigBase):
     def __init__ (self, **kwargs):
         self.elem = _kwarg('elem', kwargs)
+        self.table = _kwarg_maybe('table', kwargs, False)
+        ConfigBase.__init__(self, **kwargs)
+    
+    def _json_extra (self):
+        return _merge_dicts(
+            {
+                'type': 'array',
+                'items': self.elem._json_schema()
+            },
+            ({
+                'format': 'table'
+            } if self.table else {})
+        )
+
+class OneOf (ConfigBase):
+    def __init__ (self, **kwargs):
+        self.choices = _kwarg('choices', kwargs)
         ConfigBase.__init__(self, **kwargs)
     
     def _json_extra (self):
         return {
-            'type': 'array',
-            'items': self.elem._json_schema()
+            'type': 'object',
+            'oneOf': [choice._json_schema() for choice in self.choices]
         }
 
 class Reference (ConfigBase):
     def __init__ (self, **kwargs):
         self.ref_array = _kwarg('ref_array', kwargs)
+        self.ref_array_descend = _kwarg_maybe('ref_array_descend', kwargs, [])
         self.ref_id_key = _kwarg('ref_id_key', kwargs)
         self.ref_name_key = _kwarg('ref_name_key', kwargs)
-        self.deref_key = _kwarg('deref_key', kwargs)
+        self.deref_key = _kwarg_maybe('deref_key', kwargs)
         ConfigBase.__init__(self, **kwargs)
     
     def _json_extra (self):
@@ -159,7 +179,7 @@ class Reference (ConfigBase):
             },
             'enumSource': [
                 {
-                    'source': 'watch_array',
+                    'sourceTemplate': 'return vars.watch_array{};'.format(''.join('[{}]'.format(json.dumps(attr)) for attr in self.ref_array_descend)),
                     'title': 'return vars.item[{}];'.format(json.dumps(self.ref_name_key)),
                     'value': 'return vars.item[{}];'.format(json.dumps(self.ref_id_key))
                 }
@@ -168,7 +188,7 @@ class Reference (ConfigBase):
     
     def _json_new_properties (self, container_id):
         assert container_id is not None
-        return {
+        return ({
             self.deref_key: {
                 'watch': {
                     'watch_array': self.ref_array,
@@ -179,4 +199,4 @@ class Reference (ConfigBase):
                     'derived': True
                 }
             }
-        }
+        } if self.deref_key is not None else {})

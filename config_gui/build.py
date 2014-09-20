@@ -7,20 +7,48 @@ import string
 import json
 import configema
 
+def simple_list(elem_title, value_title, **kwargs):
+    return configema.Array(table=True, elem=configema.Compound('elem', title=elem_title, attrs=[
+        configema.String(key='value', title=value_title)
+    ]), **kwargs)
+
+def interrupt_timer_choice(**kwargs):
+    return configema.Compound('interrupt_timer', ident='id_interrupt_timer_choice', attrs=[
+        configema.Reference(key='oc_unit', ref_array='id_configuration.board_data', ref_array_descend=['clock', 'avail_oc_units'], ref_id_key='value', ref_name_key='value', title='OC unit')
+    ], **kwargs)
+
 def editor():
     return configema.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, attrs=[
         configema.Array(key='configurations', title='Configurations', elem=configema.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsed=True, attrs=[
             configema.String(key='name', title='Name'),
             configema.Reference(key='board_id', ref_array='boards', ref_id_key='identifier', ref_name_key='name', deref_key='board_data', title='Board'),
+            interrupt_timer_choice(key='event_channel_timer', title='Event channel timer'),
             configema.Array(key='fans', title='Fans', elem=configema.Compound('fan', title='Fan', attrs=[
                 configema.Integer(key='x', title='X'),
                 configema.Integer(key='y', title='Y'),
             ]))
         ])),
-        configema.Array(key='boards', title='Boards', elem=configema.Compound('board', title='Board', title_key='name', collapsed=True, attrs=[
+        configema.Array(key='boards', title='Boards', elem=configema.Compound('board', title='Board', title_key='name', collapsed=True, ident='id_board', attrs=[
             configema.String(key='identifier', title='Identifier'),
             configema.String(key='name', title='Name'),
-            configema.String(key='clockImpl', title='Clock implementation', enum=['At91Sam3uClock', 'At91Sam3xClock', 'AvrClock', 'Mk20Clock'])
+            configema.OneOf(key='clock', title='Clock', collapsed=True, choices=[
+                configema.Compound('At91Sam3xClock', attrs=[
+                    configema.Integer(key='prescaler', title='Prescaler'),
+                    configema.String(key='primary_timer', title='Primary timer'),
+                    simple_list(key='avail_oc_units', title='Available output compare units', elem_title='OC unit', value_title='OC unit (e.g. TC0A)')
+                ])
+            ]),
+            configema.OneOf(key='adc', title='ADC', collapsed=True, choices=[
+                configema.Compound('At91SamAdc', attrs=[
+                    configema.Float(key='freq', title='Frequency'),
+                    configema.Float(key='avg_interval', title='Averaging interval'),
+                    configema.Float(key='smoothing', title='Smoothing factor'),
+                    configema.Integer(key='startup', title='Startup time'),
+                    configema.Integer(key='settling', title='Settling time'),
+                    configema.Integer(key='tracking', title='Tracking time'),
+                    configema.Integer(key='transfer', title='Transfer time')
+                ])
+            ])
         ]))
     ])
 
