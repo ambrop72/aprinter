@@ -92,6 +92,25 @@ class Float (ConfigBase):
             'type': 'number'
         }
 
+class Boolean (ConfigBase):
+    def __init__ (self, **kwargs):
+        self.false_title = _kwarg_maybe('false_title', kwargs, 'No')
+        self.true_title = _kwarg_maybe('true_title', kwargs, 'Yes')
+        self.first_value = _kwarg_maybe('first_value', kwargs, False)
+        ConfigBase.__init__(self, **kwargs)
+    
+    def _json_extra (self):
+        return {
+            'type': 'boolean',
+            'enum': self._order([False, True]),
+            'options': {
+                'enum_titles': self._order([self.false_title, self.true_title])
+            }
+        }
+    
+    def _order (self, x):
+        return list(reversed(x)) if self.first_value else x
+
 class Compound (ConfigBase):
     def __init__ (self, name, **kwargs):
         self.name = name
@@ -174,12 +193,12 @@ class Reference (ConfigBase):
     def _json_extra (self):
         return {
             'type': 'string',
-            'watch': {
+            'watch1': {
                 'watch_array': self.ref_array
             },
             'enumSource': [
                 {
-                    'sourceTemplate': 'return vars.watch_array{};'.format(''.join('[{}]'.format(json.dumps(attr)) for attr in self.ref_array_descend)),
+                    'sourceTemplate': 'if (typeof(vars.watch_array) == "undefined") return []; return {};'.format(self._array_expr()),
                     'title': 'return vars.item[{}];'.format(json.dumps(self.ref_name_key)),
                     'value': 'return vars.item[{}];'.format(json.dumps(self.ref_id_key))
                 }
@@ -190,13 +209,16 @@ class Reference (ConfigBase):
         assert container_id is not None
         return ({
             self.deref_key: {
-                'watch': {
+                'watch1': {
                     'watch_array': self.ref_array,
                     'watch_id': '{}.{}'.format(container_id, self.kwargs['key'])
                 },
-                'template': 'return aprinter_resolve_ref(vars.watch_array, {}, vars.watch_id);'.format(json.dumps(self.ref_id_key)),
+                'template': 'if (typeof(vars.watch_array) == "undefined") return null; return aprinter_resolve_ref({}, {}, vars.watch_id);'.format(self._array_expr(), json.dumps(self.ref_id_key)),
                 'options': {
                     'derived': True
                 }
             }
         } if self.deref_key is not None else {})
+    
+    def _array_expr (self):
+        return 'vars.watch_array{}'.format(''.join('[{}]'.format(json.dumps(attr)) for attr in self.ref_array_descend))
