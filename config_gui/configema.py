@@ -28,6 +28,19 @@ def _merge_dicts (*dicts):
                 res[key] = _merge_dicts(res[key], value)
     return res
 
+def _json_type_of (x):
+    if type(x) is dict:
+        return 'object'
+    if type(x) is list:
+        return 'array'
+    if type(x) is str:
+        return 'string'
+    if type(x) is int or type(x) is long:
+        return 'integer'
+    if type(x) is float:
+        return 'number'
+    raise TypeError('wrong type')
+
 class ConfigBase (object):
     def __init__ (self, **kwargs):
         self.title = _kwarg_maybe('title', kwargs)
@@ -181,6 +194,20 @@ class OneOf (ConfigBase):
             'oneOf': [choice._json_schema() for choice in self.choices]
         }
 
+class Constant (ConfigBase):
+    def __init__ (self, **kwargs):
+        self.value = _kwarg('value', kwargs)
+        ConfigBase.__init__(self, **kwargs)
+    
+    def _json_extra (self):
+        return {
+            'type': _json_type_of(self.value),
+            'enum': [self.value],
+            'options': {
+                'hidden': True
+            }
+        }
+
 class Reference (ConfigBase):
     def __init__ (self, **kwargs):
         self.ref_array = _kwarg('ref_array', kwargs)
@@ -198,7 +225,7 @@ class Reference (ConfigBase):
             },
             'enumSource': [
                 {
-                    'sourceTemplate': 'if (typeof(vars.watch_array) == "undefined") return []; return {};'.format(self._array_expr()),
+                    'sourceTemplate': 'if (!vars.watch_array) return []; return {};'.format(self._array_expr()),
                     'title': 'return vars.item[{}];'.format(json.dumps(self.ref_name_key)),
                     'value': 'return vars.item[{}];'.format(json.dumps(self.ref_id_key))
                 }
@@ -213,7 +240,7 @@ class Reference (ConfigBase):
                     'watch_array': self.ref_array,
                     'watch_id': '{}.{}'.format(container_id, self.kwargs['key'])
                 },
-                'template': 'if (typeof(vars.watch_array) == "undefined") return null; return aprinter_resolve_ref({}, {}, vars.watch_id);'.format(self._array_expr(), json.dumps(self.ref_id_key)),
+                'template': 'if (!vars.watch_array) return null; return aprinter_resolve_ref({}, {}, vars.watch_id);'.format(self._array_expr(), json.dumps(self.ref_id_key)),
                 'options': {
                     'derived': True
                 }
