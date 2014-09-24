@@ -87,12 +87,15 @@ The basic steps are:
 
 *Arduino Due.* Make sure you connect via the programming port while uploading.
 But switch to the native USB port for actual printer communication.
+If you want to use the programming port for communication, see below (this is needed for Udoo).
 Some Due clones have a problem resetting. If after uploading, the firmware does
 not start (LED doesn't blink), press the reset button.
 
 *RADDS.* On this board, pin 13 (Due's internal LED) is used for one of the FETs, and there is no LED on the RADDS itself. Due to this, the firmware defaults to pin 37 for the LED, where you can install one.
 
 *Teensy 3.* You need to press the button on the board before trying to upload, to put the board into bootloader mode.
+
+*Using the UART Serial.* On Atmel chips, the default is to use the native USB for communication. But it's possible to use the UART instead. Edit `config/targets.sh` and change `USE_USB_SERIAL` to 0 for your target. Alternatively, if you're compiling with Nix, edit `nix/default.nix` like so: `aprinterTestRadds = (aprinterTestFunc "radds" {}).override { forceUartSerial = true; };`.
 
 ## Configuration
 
