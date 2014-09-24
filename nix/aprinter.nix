@@ -3,6 +3,7 @@
 , assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false
 , detectOverloadEnabled ? false
+, forceUartSerial ? false
 }:
 
 let
@@ -12,7 +13,9 @@ let
     
     targetVars = {
         PLATFORM = board.platform;
-    } // board.targetVars;
+    } // (if board.platform == "sam3x" then {
+        USE_USB_SERIAL = if forceUartSerial then "0" else "1";
+    } else {}) // board.targetVars;
     
     targetVarsText = stdenv.lib.concatStrings (
         stdenv.lib.mapAttrsToList (name: value: "    ${name}=${value}\n") targetVars

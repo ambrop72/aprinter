@@ -30,7 +30,6 @@ rec {
             ARCH = "sam3x";
             SUBARCH = "8";
             SUBSUBARCH = "e";
-            USE_USB_SERIAL = "1";
         };
     };
     
@@ -45,7 +44,6 @@ rec {
             ARCH = "sam3u";
             SUBARCH = "4";
             SUBSUBARCH = "e";
-            USE_USB_SERIAL = "1";
         };
     };
     
@@ -57,7 +55,6 @@ rec {
             SUBARCH = "2";
             SUBSUBARCH = "a";
             AT91SAM_ADC_TRIGGER_ERRATUM = "1";
-            USE_USB_SERIAL = "1";
         };
     };
     

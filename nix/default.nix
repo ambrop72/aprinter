@@ -12,6 +12,7 @@ rec {
         assertionsEnabled = true;
         eventLoopBenchmarkEnabled = true;
         detectOverloadEnabled = true;
+        forceUartSerial = true;
         
         Either aprinterFunc can be modified to pass them, or .override can be used,
         like this:
