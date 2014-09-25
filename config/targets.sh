@@ -76,6 +76,9 @@ target_megatronics3() {
 
 TARGETS+=( "rampsfd_udoo" )
 target_rampsfd_udoo() {
+    if [ -e /dev/ttymxc3 ]; then
+        DEFAULT_BOSSA_PORT="/dev/ttymxc3"
+    fi
     SOURCE_NAME=rampsfd
     PLATFORM=sam3x
     ASF_BOARD=43
@@ -92,6 +95,9 @@ target_rampsfd_udoo() {
 
 TARGETS+=( "radds_udoo" )
 target_radds_udoo() {
+    if [ -e /dev/ttymxc3 ]; then
+        DEFAULT_BOSSA_PORT="/dev/ttymxc3"
+    fi
     SOURCE_NAME=radds
     PLATFORM=sam3x
     ASF_BOARD=43
