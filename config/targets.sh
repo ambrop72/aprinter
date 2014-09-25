@@ -74,6 +74,38 @@ target_megatronics3() {
 
 #####################################################################################
 
+TARGETS+=( "rampsfd_udoo" )
+target_rampsfd_udoo() {
+    SOURCE_NAME=rampsfd
+    PLATFORM=sam3x
+    ASF_BOARD=43
+    ARCH=sam3x
+    SUBARCH=8
+    SUBSUBARCH=e
+    USE_USB_SERIAL=0
+    BOSSA_PORT=${DEFAULT_BOSSA_PORT}
+    BOSSA_USE_USB=0
+    BOSSA_IS_ARDUINO_DUE=1
+}
+
+#####################################################################################
+
+TARGETS+=( "radds_udoo" )
+target_radds_udoo() {
+    SOURCE_NAME=radds
+    PLATFORM=sam3x
+    ASF_BOARD=43
+    ARCH=sam3x
+    SUBARCH=8
+    SUBSUBARCH=e
+    USE_USB_SERIAL=0
+    BOSSA_PORT=${DEFAULT_BOSSA_PORT}
+    BOSSA_USE_USB=0
+    BOSSA_IS_ARDUINO_DUE=1
+}
+
+#####################################################################################
+
 TARGETS+=( "rampsfd" )
 target_rampsfd() {
     PLATFORM=sam3x
