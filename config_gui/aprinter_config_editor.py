@@ -27,7 +27,7 @@ def pwm_choice(**kwargs):
     ], **kwargs)
 
 def platform_choice(**kwargs):
-    return ce.OneOf(collapsed=True, title='Platform', choices=[
+    return ce.OneOf(title='Platform', choices=[
         ce.Compound('At91Sam3x8e', attrs=[
             ce.Compound('At91Sam3xClock', key='clock', title='Clock', attrs=[
                 ce.Integer(key='prescaler', title='Prescaler'),

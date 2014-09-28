@@ -2,11 +2,7 @@
 var schema = $${SCHEMA};
 
 // The default configuration.
-var default_config = {
-  "_compoundName": "editor",
-  "boards": [],
-  "configurations": []
-};
+var default_config = $${DEFAULT};
 
 // Divs/textareas on the page
 var $output = document.getElementById('output');
@@ -100,7 +96,7 @@ var load = function() {
         if (JSON.stringify(get_config(true).value) == JSON.stringify(jsoneditor.getValue())) {
             return null;
         }
-        var message = 'There are unsaved configuration changes.';
+        var message = 'APrinter Configuration: There are unsaved configuration changes!';
         if (typeof evt == 'undefined') {
             evt = window.event;
         }

@@ -7,6 +7,14 @@ import string
 import json
 import aprinter_config_editor
 
+def read_file(path):
+    with open(path, 'rb') as f:
+        return f.read()
+
+def write_file(path, data):
+    with open(path, 'wb') as f:
+        f.write(data)
+
 class MyStringTemplate(string.Template):
     delimiter = '$$'
 
@@ -19,7 +27,7 @@ def main():
     
     # Build editor schema.
     the_editor = aprinter_config_editor.editor()
-    schema_json = json.dumps(the_editor._json_schema(), indent=2)
+    editor_schema = the_editor._json_schema()
     
     # Determine directories.
     src_dir = os.path.dirname(os.path.realpath(__file__))
@@ -41,11 +49,15 @@ def main():
     # Copy index.html.
     shutil.copyfile(os.path.join(src_dir, 'index.html'), os.path.join(dist_dir, 'index.html'))
     
+    # Read default configuration.
+    default_config = json.loads(read_file(os.path.join(src_dir, 'default_config.json')))
+    
     # Build and write init.js.
-    with open(os.path.join(src_dir, 'init.js'), 'rb') as f:
-        init_js_template = f.read()
-    init_js = MyStringTemplate(init_js_template).substitute({'SCHEMA': schema_json})
-    with open(os.path.join(dist_dir, 'init.js'), 'wb') as f:
-        f.write(init_js)
+    init_js_template = read_file(os.path.join(src_dir, 'init.js'))
+    init_js = MyStringTemplate(init_js_template).substitute({
+        'SCHEMA': json.dumps(editor_schema, indent=2),
+        'DEFAULT': json.dumps(default_config, indent=2)
+    })
+    write_file(os.path.join(dist_dir, 'init.js'), init_js)
 
 main()
