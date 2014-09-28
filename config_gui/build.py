@@ -42,7 +42,7 @@ def main():
     shutil.copyfile(os.path.join(src_dir, 'index.html'), os.path.join(dist_dir, 'index.html'))
     
     # Build and write init.js.
-    with open(os.path.join(src_dir, 'init.js.template'), 'rb') as f:
+    with open(os.path.join(src_dir, 'init.js'), 'rb') as f:
         init_js_template = f.read()
     init_js = MyStringTemplate(init_js_template).substitute({'SCHEMA': schema_json})
     with open(os.path.join(dist_dir, 'init.js'), 'wb') as f:

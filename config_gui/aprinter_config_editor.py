@@ -7,14 +7,14 @@ def simple_list(elem_title, value_title, **kwargs):
 
 def interrupt_timer_choice(**kwargs):
     return ce.Compound('interrupt_timer', ident='id_interrupt_timer_choice', collapsed=True, attrs=[
-        ce.Reference(key='oc_unit', ref_array='id_configuration.board_data', ref_array_descend=['clock', 'avail_oc_units'], ref_id_key='value', ref_name_key='value', title='Output compare unit', deref_key='lalal')
+        ce.Reference(key='oc_unit', ref_array='id_configuration.board_data', ref_array_descend=['platform', 'clock', 'avail_oc_units'], ref_id_key='value', ref_name_key='value', title='Output compare unit', deref_key='lalal')
     ], **kwargs)
 
 def pin_choice(**kwargs):
     return ce.String(**kwargs)
 
 def pin_input_mode_choice(**kwargs):
-    return ce.Reference(ref_array='id_configuration.board_data', ref_array_descend=['pins', 'output_modes'], ref_id_key='ident', ref_name_key='name', **kwargs)
+    return ce.Reference(ref_array='id_configuration.board_data', ref_array_descend=['platform', 'pins', 'output_modes'], ref_id_key='ident', ref_name_key='name', **kwargs)
 
 def pwm_choice(**kwargs):
     return ce.OneOf(collapsed=True, choices=[
@@ -23,6 +23,45 @@ def pwm_choice(**kwargs):
             ce.Boolean(key='OutputInvert', title='Output logic', false_title='Normal (On=High)', true_title='Inverted (On=Low)'),
             ce.Float(key='PulseInterval', title='PWM pulse duration'),
             interrupt_timer_choice(key='Timer', title='Soft PWM Timer')
+        ])
+    ], **kwargs)
+
+def platform_choice(**kwargs):
+    return ce.OneOf(collapsed=True, title='Platform', choices=[
+        ce.Compound('At91Sam3x8e', attrs=[
+            ce.Compound('At91Sam3xClock', key='clock', title='Clock', attrs=[
+                ce.Integer(key='prescaler', title='Prescaler'),
+                ce.String(key='primary_timer', title='Primary timer'),
+                ce.Constant(key='avail_oc_units', value=[
+                    {
+                        'value': 'TC{}{}'.format(n, l)
+                    } for n in range(9) for l in ('A', 'B', 'C')
+                ])
+            ]),
+            ce.Compound('At91SamAdc', key='adc', title='ADC', attrs=[
+                ce.Float(key='freq', title='Frequency'),
+                ce.Float(key='avg_interval', title='Averaging interval'),
+                ce.Float(key='smoothing', title='Smoothing factor'),
+                ce.Integer(key='startup', title='Startup time'),
+                ce.Integer(key='settling', title='Settling time'),
+                ce.Integer(key='tracking', title='Tracking time'),
+                ce.Integer(key='transfer', title='Transfer time')
+            ]),
+            ce.Compound('At91SamWatchdog', key='watchdog', title='Watchdog', attrs=[
+                ce.Integer(key='Wdv', title='Wdv')
+            ]),
+            ce.Compound('At91SamPins', key='pins', title='Pins', attrs=[
+                ce.Constant(key='output_modes', value=[
+                    {
+                        'ident': 'At91SamPinInputModeNormal',
+                        'name': 'Normal'
+                    },
+                    {
+                        'ident': 'At91SamPinInputModePullUp',
+                        'name': 'Pull-up'
+                    }
+                ])
+            ])
         ])
     ], **kwargs)
 
@@ -122,42 +161,6 @@ def editor():
         ce.Array(key='boards', title='Boards', elem=ce.Compound('board', title='Board', title_key='name', collapsed=True, ident='id_board', attrs=[
             ce.String(key='identifier', title='Identifier'),
             ce.String(key='name', title='Name'),
-            ce.OneOf(key='clock', title='Clock', collapsed=True, choices=[
-                ce.Compound('At91Sam3xClock', attrs=[
-                    ce.Integer(key='prescaler', title='Prescaler'),
-                    ce.String(key='primary_timer', title='Primary timer'),
-                    simple_list(key='avail_oc_units', title='Available output compare units', elem_title='OC unit', value_title='OC unit (e.g. TC0A)')
-                ])
-            ]),
-            ce.OneOf(key='adc', title='ADC', collapsed=True, choices=[
-                ce.Compound('At91SamAdc', attrs=[
-                    ce.Float(key='freq', title='Frequency'),
-                    ce.Float(key='avg_interval', title='Averaging interval'),
-                    ce.Float(key='smoothing', title='Smoothing factor'),
-                    ce.Integer(key='startup', title='Startup time'),
-                    ce.Integer(key='settling', title='Settling time'),
-                    ce.Integer(key='tracking', title='Tracking time'),
-                    ce.Integer(key='transfer', title='Transfer time')
-                ])
-            ]),
-            ce.OneOf(key='watchdog', title='Watchdog', collapsed=True, choices=[
-                ce.Compound('At91SamWatchdog', attrs=[
-                    ce.Integer(key='Wdv', title='Wdv')
-                ])
-            ]),
-            ce.OneOf(key='pins', title='Pins', collapsed=True, choices=[
-                ce.Compound('At91SamPins', attrs=[
-                    ce.Constant(key='output_modes', value=[
-                        {
-                            'ident': 'At91SamPinInputModeNormal',
-                            'name': 'Normal'
-                        },
-                        {
-                            'ident': 'At91SamPinInputModePullUp',
-                            'name': 'Pull-up'
-                        }
-                    ])
-                ])
-            ]),
+            platform_choice(key='platform'),
         ]))
     ])

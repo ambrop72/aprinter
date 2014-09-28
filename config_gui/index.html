@@ -9,26 +9,28 @@
     </style>
 </head>
 <body>
-
 <div class='container'>
     <div class='row'>
         <div class='span8 col-md-8 columns eight large-8'>
             <h2>APrinter Configuration Editor</h2>
             <p>Below you can edit configurations and boards.</p>
             <div id='editor'></div>
+                <div>
+                <p>You can save all data to your browser's local storage.</p>
+                <button class='btn btn-primary' id='save_data'>Save Data</button>
+                <button class='btn btn-primary' id='reload_data'>Load Last Saved Data</button>
+                <button class='btn btn-primary' id='load_defaults'>Load Default Data</button>
+            </div>
         </div>
         <div class='span4 col-md-4 columns four large-4'>
             <h2>JSON Output</h2>
             <textarea id='output' style='width: 100%; height: 300px; font-family: monospace;' class='form-control'></textarea>
-
             <h2>Validation</h2>
             <p>This will update whenever the form changes to show validation errors if there are any.</p>
             <textarea id='validate' style='width: 100%; height: 100px; font-family: monospace;' readonly disabled class='form-control'></textarea>
         </div>
     </div>
 </div>
-
 <script src="init.js"></script>
-
 </body>
 </html>
