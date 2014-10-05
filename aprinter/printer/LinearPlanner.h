@@ -25,8 +25,6 @@
 #ifndef AMBROLIB_LINEAR_PLANNER_H
 #define AMBROLIB_LINEAR_PLANNER_H
 
-#include <math.h>
-
 #include <aprinter/base/Assert.h>
 #include <aprinter/math/FloatTools.h>
 
