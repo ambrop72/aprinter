@@ -5,14 +5,15 @@ var schema = $${SCHEMA};
 var default_config = $${DEFAULT};
 
 // Divs/textareas on the page
-var $output = document.getElementById('output');
 var $editor = document.getElementById('editor');
-var $validate = document.getElementById('validate');
 
 // Buttons
 var $save_data_button = document.getElementById('save_data');
 var $reload_data_button = document.getElementById('reload_data');
 var $load_defaults_button = document.getElementById('load_defaults');
+var $export_data_button = document.getElementById('export_data');
+var $import_data_button = document.getElementById('import_data');
+var $import_data_file_input = document.getElementById('import_data_file');
 
 var jsoneditor;
 
@@ -54,21 +55,6 @@ var load = function() {
         theme: "bootstrap3",
         iconlib: "bootstrap3"
     });
-
-    // When the value of the editor changes, update the JSON output and validation message
-    jsoneditor.on('change', function() {
-        // Update the output.
-        var config_value = jsoneditor.getValue();
-        $output.value = JSON.stringify(config_value, null, 2);
-
-        // Show validation errors if there are any
-        var validation_errors = jsoneditor.validate();
-        if (validation_errors.length) {
-            $validate.value = JSON.stringify(validation_errors, null, 2);
-        } else {
-            $validate.value = 'valid';
-        }
-    });
     
     // When the save button is pressed, save the config data to local storage.
     $save_data_button.addEventListener('click', function() {
@@ -105,9 +91,26 @@ var load = function() {
         }
         return message;
     }
+    
+    // When the export button is pressed, trigger downloading of the configuration dump.
+    $export_data_button.addEventListener('click', function() {
+        var config_json = JSON.stringify(jsoneditor.getValue());
+        var blob = new Blob([config_json], {type: 'application/json;charset=utf-8'});
+        saveAs(blob, 'aprinter_config.json')
+    });
+    
+    $import_data_button.addEventListener('click', function() {
+        if (!$import_data_file_input.files[0]) {
+            alert('Please select a configuration file to import.');
+            return;
+        }
+        var reader = new FileReader();
+        reader.onload = function() {
+            var config = JSON.parse(this.result);
+            jsoneditor.setValue(config);
+        }
+        reader.readAsText($import_data_file_input.files[0]);
+    });
 };
-
-// Start the schema and output textareas with initial values
-$output.value = '';
 
 load();

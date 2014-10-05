@@ -1,36 +1,41 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <meta charset="utf-8" />
+    <meta charset='utf-8' />
     <title>APrinter Configuration</title>
-    <link href="bootstrap/css/bootstrap.css" rel="stylesheet">
-    <script src='json-editor/jsoneditor.js'></script>
+    <link href='bootstrap/css/bootstrap.css' rel='stylesheet'>
     <style>
     </style>
 </head>
 <body>
 <div class='container'>
     <div class='row'>
-        <div class='span8 col-md-8 columns eight large-8'>
+        <div class='col-md-12'>
             <h2>APrinter Configuration Editor</h2>
             <p>Below you can edit configurations and boards.</p>
             <div id='editor'></div>
-                <div>
-                <p>You can save all the data in the editor to your browser's local storage.</p>
+            <h2>Local Storage</h2>
+            <p>
                 <button class='btn btn-primary' id='save_data'>Save Data</button>
                 <button class='btn btn-primary' id='reload_data'>Load Last Saved Data</button>
+            </p>
+            <h2>Export and Import</h2>
+            <p>
+                <button class='btn btn-primary' id='export_data'>Export Data</button>
+            </p>
+            <p>
+                <input type='file' id='import_data_file'>
+                <button class='btn btn-primary' id='import_data'>Import Data</button>
+            </p>
+            <h2>Load Defaults</h2>
+            <p>
                 <button class='btn btn-primary' id='load_defaults'>Load Default Data</button>
-            </div>
-        </div>
-        <div class='span4 col-md-4 columns four large-4'>
-            <h2>JSON Output</h2>
-            <textarea id='output' style='width: 100%; height: 300px; font-family: monospace;' class='form-control'></textarea>
-            <h2>Validation</h2>
-            <p>This will update whenever the form changes to show validation errors if there are any.</p>
-            <textarea id='validate' style='width: 100%; height: 100px; font-family: monospace;' readonly disabled class='form-control'></textarea>
+            </p>
         </div>
     </div>
 </div>
-<script src="init.js"></script>
+<script src='json-editor/jsoneditor.js'></script>
+<script src='FileSaver.min.js'></script>
+<script src='init.js'></script>
 </body>
 </html>

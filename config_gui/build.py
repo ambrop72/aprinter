@@ -22,6 +22,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--json-editor-dist-dir', default='../../json-editor/dist')
     parser.add_argument('--bootstrap-dist-dir', default='../../bootstrap-3.2.0-dist')
+    parser.add_argument('--filesaver-dir', default='../../FileSaver.js')
     parser.add_argument('--rm', action='store_true')
     args = parser.parse_args()
     
@@ -43,8 +44,11 @@ def main():
     # Copy json-editor.
     shutil.copytree(args.json_editor_dist_dir, os.path.join(dist_dir, 'json-editor'))
     
-    # Coppy Bootstrap.
+    # Copy Bootstrap.
     shutil.copytree(args.bootstrap_dist_dir, os.path.join(dist_dir, 'bootstrap'))
+    
+    # Copy FileSaver.
+    shutil.copyfile(os.path.join(args.filesaver_dir, 'FileSaver.min.js'), os.path.join(dist_dir, 'FileSaver.min.js'))
     
     # Copy index.html.
     shutil.copyfile(os.path.join(src_dir, 'index.html'), os.path.join(dist_dir, 'index.html'))
@@ -55,8 +59,8 @@ def main():
     # Build and write init.js.
     init_js_template = read_file(os.path.join(src_dir, 'init.js'))
     init_js = MyStringTemplate(init_js_template).substitute({
-        'SCHEMA': json.dumps(editor_schema, indent=2),
-        'DEFAULT': json.dumps(default_config, indent=2)
+        'SCHEMA': json.dumps(editor_schema, separators=(',',':')),
+        'DEFAULT': json.dumps(default_config, separators=(',',':'))
     })
     write_file(os.path.join(dist_dir, 'init.js'), init_js)
 

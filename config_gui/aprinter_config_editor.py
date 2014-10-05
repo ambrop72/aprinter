@@ -22,6 +22,15 @@ def analog_input_choice(**kwargs):
 def pwm_output_choice(**kwargs):
     return ce.Reference(ref_array='id_configuration.board_data', ref_array_descend=['pwm_outputs'], ref_id_key='Name', ref_name_key='Name', **kwargs)
 
+def i2c_choice(**kwargs):
+    return ce.OneOf(disable_collapse=True, choices=[
+        ce.Compound('At91SamI2c', attrs=[
+            ce.String(key='Device'),
+            ce.Integer(key='Ckdiv'),
+            ce.Float(key='I2cFreq')
+        ])
+    ], **kwargs)
+
 def editor():
     return ce.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, attrs=[
         ce.Array(key='configurations', title='Configurations', elem=ce.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsed=True, attrs=[
@@ -100,10 +109,25 @@ def editor():
             ce.String(key='identifier', title='Identifier'),
             ce.String(key='name', title='Name'),
             pin_choice(key='LedPin', title='LED pin'),
-            ce.OneOf(key='config_manager', title='Runtime configuration', disable_collapse=True, choices=[
+            ce.OneOf(key='config_manager', title='Runtime configuration', collapsed=True, choices=[
                 ce.Compound('ConstantConfigManager', title='Disabled', attrs=[]),
-                ce.Compound('RuntimeConfigManagerService', title='Enabled', attrs=[
-                    
+                ce.Compound('RuntimeConfigManager', title='Enabled', attrs=[
+                    ce.OneOf(key='ConfigStore', title='Configuration storage', disable_collapse=True, choices=[
+                        ce.Compound('NoStore', title='None', attrs=[]),
+                        ce.Compound('EepromConfigStore', attrs=[
+                            ce.OneOf(key='Eeprom', title='EEPROM backend', disable_collapse=True, choices=[
+                                ce.Compound('I2cEeprom', attrs=[
+                                    i2c_choice(key='I2c', title='I2C backend'),
+                                    ce.Integer(key='I2cAddr'),
+                                    ce.Integer(key='Size'),
+                                    ce.Integer(key='BlockSize'),
+                                    ce.Float(key='WriteTimeout')
+                                ])
+                            ]),
+                            ce.Integer(key='StartBlock'),
+                            ce.Integer(key='EndBlock'),
+                        ])
+                    ])
                 ]),
             ]),
             ce.Compound('serial', key='serial', title='Serial parameters', collapsed=True, attrs=[
