@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='utf-8' />
+    <title>APrinter Configuration</title>
+    <link href='bootstrap/css/bootstrap.min.css' rel='stylesheet'>
+    <style>
+    </style>
+</head>
+<body>
+<div class='container'>
+    <div class='row'>
+        <div class='col-md-12'>
+            <h2>APrinter Configuration Editor</h2>
+            <p>Below you can edit configurations and boards.</p>
+            <div id='editor'></div>
+            <h2>Local Storage</h2>
+            <p>
+                <button class='btn btn-primary' id='save_data'>Save Data</button>
+                <button class='btn btn-primary' id='reload_data'>Load Last Saved Data</button>
+            </p>
+            <h2>Export and Import</h2>
+            <p>
+                <button class='btn btn-primary' id='export_data'>Export Data</button>
+            </p>
+            <p>
+                <input type='file' id='import_data_file'>
+                <button class='btn btn-primary' id='import_data'>Import Data</button>
+            </p>
+            <h2>Load Defaults</h2>
+            <p>
+                <button class='btn btn-primary' id='load_defaults'>Load Default Data</button>
+            </p>
+        </div>
+    </div>
+</div>
+<script src='json-editor/jsoneditor.min.js'></script>
+<script src='FileSaver.min.js'></script>
+<script src='init.js'></script>
+</body>
+</html>
