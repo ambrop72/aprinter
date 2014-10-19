@@ -31,6 +31,13 @@ def i2c_choice(**kwargs):
         ])
     ], **kwargs)
 
+def spi_choice(**kwargs):
+    return ce.OneOf(disable_collapse=True, choices=[
+        ce.Compound('At91SamSpi', attrs=[
+            ce.String(key='Device')
+        ])
+    ], **kwargs)
+
 def editor():
     return ce.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, attrs=[
         ce.Array(key='configurations', title='Configurations', elem=ce.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsed=True, attrs=[
@@ -134,7 +141,32 @@ def editor():
                 ce.Integer(key='BaudRate', title='Baud rate'),
                 ce.Integer(key='RecvBufferSizeExp', title='Receive buffer size (power of two exponent)'),
                 ce.Integer(key='SendBufferSizeExp', title='Send buffer size (power of two exponent)'),
-                ce.Integer(key='GcodeMaxParts', title='Max parts in GCode command')
+                ce.Integer(key='GcodeMaxParts', title='Max parts in GCode command'),
+                ce.OneOf(key='Service', title='Backend', disable_collapse=True, choices=[
+                    ce.Compound('AsfUsbSerial', title='AT91 USB', attrs=[]),
+                    ce.Compound('At91Sam3xSerial', title='AT91 UART', attrs=[])
+                ])
+            ]),
+            ce.OneOf(key='sdcard', title='SD card', collapsed=True, choices=[
+                ce.Compound('NoSdCard', title='Disabled', attrs=[]),
+                ce.Compound('SdCard', title='Enabled', attrs=[
+                    ce.Integer(key='BufferBaseSize', title='Buffer size'),
+                    ce.Integer(key='MaxCommandSize', title='Maximum command size'),
+                    ce.OneOf(key='GcodeParser', title='G-code parser', choices=[
+                        ce.Compound('TextGcodeParser', title='Text G-code parser', attrs=[
+                            ce.Integer(key='MaxParts', title='Maximum number of command parts')
+                        ]),
+                        ce.Compound('BinaryGcodeParser', title='Binary G-code parser', attrs=[
+                            ce.Integer(key='MaxParts', title='Maximum number of command parts')
+                        ])
+                    ]),
+                    ce.OneOf(key='SdCardService', title='Driver', collapsed=True, choices=[
+                        ce.Compound('SpiSdCard', title='SPI', attrs=[
+                            pin_choice(key='SsPin', title='SS pin'),
+                            spi_choice(key='SpiService', title='SPI driver')
+                        ])
+                    ])
+                ])
             ]),
             ce.Compound('performance', key='performance', title='Performance parameters', collapsed=True, attrs=[
                 ce.Float(key='MaxStepsPerCycle', title='Max steps per cycle'),
@@ -143,6 +175,8 @@ def editor():
                 ce.Integer(key='LookaheadBufferSize', title='Lookahead buffer size'),
                 ce.Integer(key='LookaheadCommitCount', title='Lookahead commit count'),
                 ce.String(key='FpType', enum=['float', 'double']),
+                ce.String(key='AxisDriverPrecisionParams', title='Stepping precision parameters', enum=['AxisDriverAvrPrecisionParams', 'AxisDriverDuePrecisionParams']),
+                ce.Float(key='EventChannelTimerClearance', title='Event channel timer clearance')
             ]),
             interrupt_timer_choice(key='EventChannelTimer', title='Event channel timer'),
             ce.Array(key='stepper_ports', title='Stepper ports', disable_collapse=True, elem=ce.Compound('stepper_port', title='Stepper port', title_key='Name', collapsed=True, attrs=[
