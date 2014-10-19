@@ -8,7 +8,7 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
 
   * Highly configurable design. Extra heaters, fans and axes can be added easily, and
     PWM frequencies for heaters and fans are individually adjustable unless hardware PWM is used.
-  * Runtime configuration system, and configuration storate to EEPROM.
+  * Runtime configuration system, and configuration storgte to EEPROM.
     Availability depends on chip/board.
   * Delta robot support. Additionally, new geometries can be added easily by defining a transform class.
     Performance will be sub-optimal when using Delta on AVR platforms.
@@ -24,8 +24,7 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
   * Constant-acceleration motion with look-ahead planning. To speed up calculations, the firmware will only
     calculate a new plan every LookaheadCommitCount commands. Effectively, this allows increasing
     the lookahead count without an asymptotic increase of processing time, only limited by the available RAM.
-  * Homing using min- or max-endstops. Can home multiple at once.
-    where only 115200 is supported due to unfavourable interrupt priorities.es in parallel.
+  * Homing using min- or max-endstops. Can home multiple axes in parallel.
   * Heater control using PID or on-off control. The thermistor tables need to be generated with a Python script.
     Each heater is configured with a Safe temperature range; aheater is turned off in case its temperature goes
     beyound the safe range.
