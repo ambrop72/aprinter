@@ -16,6 +16,7 @@ class GenState(object):
         self._aprinter_includes = []
         self._isrs = []
         self._clock = None
+        self._digital_inputs = {}
     
     def add_subst (self, key, val):
         self._subst[key] = val
@@ -45,6 +46,36 @@ class GenState(object):
         for it_config in config:
             return self._clock.add_interrupt_timer(it_config.get_string('oc_unit'), user, clearance, it_config.path())
     
+    def register_digital_input (self, di_config):
+        name = di_config.get_string('Name')
+        if name in self._digital_inputs:
+            di_config.path().error('Duplicate digital input name')
+        self._digital_inputs[name] = {'Pin':di_config.get_pin('Pin'), 'InputMode':di_config.get_identifier('InputMode')}
+    
+    def use_digital_input (self, config, key):
+        name = config.get_string(key)
+        if name not in self._digital_inputs:
+            config.key_path(key).error('Nonexistent digital input specified')
+        di = self._digital_inputs[name]
+        return '{}, {}'.format(di['Pin'], di['InputMode'])
+    
+    def use_spi (self, config, key, user):
+        spi_sel = config_common.Selection()
+        
+        @spi_sel.option('At91SamSpi')
+        def option(spi_config):
+            devices = {
+                'At91Sam3xSpiDevice':'AMBRO_AT91SAM3X_SPI_GLOBAL',
+                'At91Sam3uSpiDevice':'AMBRO_AT91SAM3U_SPI_GLOBAL'
+            }
+            dev = spi_config.get_identifier('Device')
+            if dev not in devices:
+                spi_config.path().error('Incorrect SPI device.')
+            self.add_isr('{}({}, MyContext())'.format(devices[dev], user))
+            return 'At91SamSpiService<{}>'.format(dev)
+        
+        return config.do_selection(key, spi_sel)
+    
     def add_automatic (self):
         self._clock.add_automatic()
         
@@ -65,6 +96,9 @@ class GenConfigReader(config_reader.ConfigReader):
     
     def get_int_constant (self, key):
         return str(self.get_int(key))
+    
+    def get_bool_constant (self, key):
+        return 'true' if self.get_bool(key) else 'false'
 
     def get_float_constant (self, key):
         return '{:.17E}'.format(self.get_float(key))
@@ -87,7 +121,7 @@ class GenConfigReader(config_reader.ConfigReader):
             except config_common.SelectionError:
                 config.path().error('Unknown choice.')
             return result
-
+    
 class At91Sam3xClock(object):
     def __init__ (self, gen, config):
         self._gen = gen
@@ -133,6 +167,9 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     gen.set_clock(platform.do_selection('clock', clock_sel))
                 
+                for digital_input in board_data.iter_list_config('digital_inputs'):
+                    gen.register_digital_input(digital_input)
+                
                 gen.add_subst('LedPin', board_data.get_identifier('LedPin'))
                 gen.add_subst('EventChannelTimer', gen.add_interrupt_timer(board_data.enter_config('EventChannelTimer'), user='MyPrinter::GetEventChannelTimer', clearance='EventChannelTimerClearance'))
                 
@@ -160,6 +197,7 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @serial_sel.option('At91Sam3xSerial')
                     def option(serial_service):
+                        gen.add_isr('AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())')
                         return 'At91Sam3xSerialService'
                     
                     gen.add_subst('SerialService', serial.do_selection('Service', serial_sel))
@@ -176,24 +214,75 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @sd_service_sel.option('SpiSdCard')
                     def option(spi_sd):
-                        return 'SpiSdCardService<{}, {}>'.format(spi_sd.get_pin('SsPin'), 'TBD')
+                        return 'SpiSdCardService<{}, {}>'.format(spi_sd.get_pin('SsPin'), gen.use_spi(spi_sd, 'SpiService', 'MyPrinter::GetSdCard<>::GetSpi'))
                     
-                    return 'PrinterMainSdCardParams<{}, {}, {}, {}>'.format(sdcard.do_selection('SdCardService', sd_service_sel), 'TBD, TBD', sdcard.get_int('BufferBaseSize'), sdcard.get_int('MaxCommandSize'))
+                    gcode_parser_sel = config_common.Selection()
+                    
+                    @gcode_parser_sel.option('TextGcodeParser')
+                    def option(parser):
+                        return 'FileGcodeParser, GcodeParserParams<{}>'.format(parser.get_int('MaxParts'))
+                    
+                    @gcode_parser_sel.option('BinaryGcodeParser')
+                    def option(parser):
+                        return 'BinaryGcodeParser, BinaryGcodeParserParams<{}>'.format(parser.get_int('MaxParts'))
+                    
+                    return 'PrinterMainSdCardParams<{}, {}, {}, {}>'.format(sdcard.do_selection('SdCardService', sd_service_sel), sdcard.do_selection('GcodeParser', gcode_parser_sel), sdcard.get_int('BufferBaseSize'), sdcard.get_int('MaxCommandSize'))
                 
                 gen.add_subst('SdCard', board_data.do_selection('sdcard', sdcard_sel))
-                
             
             gen.add_float_config('InactiveTime', config.get_float('InactiveTime'))
             
             for advanced in config.enter_config('advanced'):
                 gen.add_subst('LedBlinkInterval', advanced.get_float_constant('LedBlinkInterval'))
                 gen.add_float_config('ForceTimeout', advanced.get_float('ForceTimeout'))
+            
+            probe_sel = config_common.Selection()
+            
+            @probe_sel.option('NoProbe')
+            def option(probe):
+                return 'PrinterMainNoProbeParams'
+            
+            @probe_sel.option('Probe')
+            def option(probe):
+                gen.add_float_config('ProbeOffsetX', probe.get_float('OffsetX'))
+                gen.add_float_config('ProbeOffsetY', probe.get_float('OffsetY'))
+                gen.add_float_config('ProbeStartHeight', probe.get_float('StartHeight'))
+                gen.add_float_config('ProbeLowHeight', probe.get_float('LowHeight'))
+                gen.add_float_config('ProbeRetractDist', probe.get_float('RetractDist'))
+                gen.add_float_config('ProbeMoveSpeed', probe.get_float('MoveSpeed'))
+                gen.add_float_config('ProbeFastSpeed', probe.get_float('FastSpeed'))
+                gen.add_float_config('ProbeRetractSpeed', probe.get_float('RetractSpeed'))
+                gen.add_float_config('ProbeSlowSpeed', probe.get_float('SlowSpeed'))
+                
+                point_list = []
+                for (i, point) in enumerate(probe.iter_list_config('ProbePoints')):
+                    p = (point.get_float('X'), point.get_float('Y'))
+                    gen.add_float_config('ProbeP{}X'.format(i+1), p[0])
+                    gen.add_float_config('ProbeP{}Y'.format(i+1), p[1])
+                    point_list.append(p)
+                
+                return 'PrinterMainProbeParams<{}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}>'.format(
+                    'MakeTypeList<WrapInt<\'X\'>, WrapInt<\'Y\'>>',
+                    '\'Z\'',
+                    gen.use_digital_input(probe, 'ProbePin'),
+                    probe.get_bool_constant('InvertInput'),
+                    'MakeTypeList<ProbeOffsetX, ProbeOffsetY>',
+                    'ProbeStartHeight',
+                    'ProbeLowHeight',
+                    'ProbeRetractDist',
+                    'ProbeMoveSpeed',
+                    'ProbeFastSpeed',
+                    'ProbeRetractSpeed',
+                    'ProbeSlowSpeed',
+                    'MakeTypeList<{}>'.format(', '.join('MakeTypeList<ProbeP{}X, ProbeP{}Y>'.format(i+1, i+1) for i in range(len(point_list))))
+                )
+            
+            gen.add_subst('Probe', config.do_selection('probe', probe_sel))
     
     gen.add_automatic()
     
-    print(gen.get_subst())
-    
     main_text = config_common.RichTemplate(main_template).substitute(gen.get_subst())
+    
     print(main_text)
 
 def main():

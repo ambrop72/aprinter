@@ -110,7 +110,27 @@ def editor():
                 pwm_output_choice(key='pwm_output', title='PWM output'),
                 ce.Integer(key='SetMCommand', title='Set command M-number'),
                 ce.Integer(key='OffMCommand', title='Off command M-number'),
-            ]))
+            ])),
+            ce.OneOf(key='probe', title='Bed probing', collapsed=True, choices=[
+                ce.Compound('NoProbe', title='Disabled', attrs=[]),
+                ce.Compound('Probe', title='Enabled', ident='id_configuration_probe_probe', attrs=[
+                    digital_input_choice(key='ProbePin', title='Probe pin'),
+                    ce.Boolean(key='InvertInput', title='Invert input'),
+                    ce.Float(key='OffsetX', title='Probe offset (X)'),
+                    ce.Float(key='OffsetY', title='Probe offset (Y)'),
+                    ce.Float(key='StartHeight', title='Starting Z for probing a point'),
+                    ce.Float(key='LowHeight', title='Minimum Z to move down to'),
+                    ce.Float(key='RetractDist', title='Retraction distance'),
+                    ce.Float(key='MoveSpeed', title='Speed for moving to probe points'),
+                    ce.Float(key='FastSpeed', title='Fast (first) probing speed'),
+                    ce.Float(key='RetractSpeed', title='Retraction speed'),
+                    ce.Float(key='SlowSpeed', title='Slow (second) probing speed'),
+                    ce.Array(key='ProbePoints', title='Probe points', elem=ce.Compound('ProbePoint', title='Probe point', attrs=[
+                        ce.Float(key='X'),
+                        ce.Float(key='Y')
+                    ]))
+                ])
+            ])
         ])),
         ce.Array(key='boards', title='Boards', elem=ce.Compound('board', title='Board', title_key='name', collapsed=True, ident='id_board', attrs=[
             ce.String(key='identifier', title='Identifier'),

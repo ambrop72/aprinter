@@ -79,27 +79,7 @@ using PrinterParams = PrinterMainParams<
     $${FpType}, // FpType
     $${EventChannelTimer},
     $${SdCard},
-    PrinterMainProbeParams<
-        MakeTypeList<WrapInt<'X'>, WrapInt<'Y'>>, // PlatformAxesList
-        'Z', // ProbeAxis
-        DuePin38, // ProbePin,
-        At91SamPinInputModePullUp, // ProbePinInputMode
-        false, // ProbeInvert,
-        MakeTypeList<ProbeOffsetX, ProbeOffsetY>, // ProbePlatformOffset
-        ProbeStartHeight,
-        ProbeLowHeight,
-        ProbeRetractDist,
-        ProbeMoveSpeed,
-        ProbeFastSpeed,
-        ProbeRetractSpeed,
-        ProbeSlowSpeed,
-        MakeTypeList< // ProbePoints
-            MakeTypeList<ProbeP1X, ProbeP1Y>,
-            MakeTypeList<ProbeP2X, ProbeP2Y>,
-            MakeTypeList<ProbeP3X, ProbeP3Y>,
-            MakeTypeList<ProbeP4X, ProbeP4Y>
-        >
-    >,
+    $${Probe},
     PrinterMainNoCurrentParams,
     RuntimeConfigManagerService<
         EepromConfigStoreService<
