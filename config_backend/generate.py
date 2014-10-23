@@ -12,6 +12,7 @@ class GenState(object):
     def __init__ (self):
         self._subst = {}
         self._config_options = []
+        self._constants = []
         self._platform_includes = []
         self._aprinter_includes = []
         self._isrs = []
@@ -23,12 +24,18 @@ class GenState(object):
     
     def add_config (self, name, dtype, value):
         self._config_options.append({'name':name, 'dtype':dtype, 'value':value})
+        return name
     
     def add_float_config (self, name, value):
-        self.add_config(name, 'DOUBLE', '{:.17E}'.format(value))
+        return self.add_config(name, 'DOUBLE', '{:.17E}'.format(value))
     
     def add_bool_config (self, name, value):
-        self.add_config(name, 'BOOL', 'true' if value else 'false')
+        return self.add_config(name, 'BOOL', 'true' if value else 'false')
+    
+    def add_float_constant (self, config, key, name):
+        value = config.get_float(key)
+        self._constants.append({'name':name, 'value':'AMBRO_WRAP_DOUBLE({})'.format(value)})
+        return name
     
     def add_platform_include (self, inc_file):
         self._platform_includes.append(inc_file)
@@ -76,9 +83,26 @@ class GenState(object):
         
         return config.do_selection(key, spi_sel)
     
+    def use_i2c (self, config, key, user, username):
+        i2c_sel = config_common.Selection()
+        
+        @i2c_sel.option('At91SamI2c')
+        def option(i2c_config):
+            devices = {
+                'At91SamI2cDevice1':1,
+            }
+            dev = i2c_config.get_identifier('Device')
+            if dev not in devices:
+                i2c_config.path().error('Incorrect I2C device.')
+            self.add_isr('AMBRO_AT91SAM_I2C_GLOBAL({}, {}, MyContext())'.format(devices[dev], user))
+            return 'At91SamI2cService<{}, {}, {}>'.format(dev, i2c_config.get_int('Ckdiv'), self.add_float_constant(i2c_config, 'I2cFreq', '{}I2cFreq'.format(username)))
+        
+        return config.do_selection(key, i2c_sel)
+    
     def add_automatic (self):
         self._clock.add_automatic()
         
+        self.add_subst('EXTRA_CONSTANTS', ''.join('using {} = {};\n'.format(c['name'], c['value']) for c in self._constants))
         self.add_subst('EXTRA_CONFIG', ''.join('APRINTER_CONFIG_OPTION_{}({}, {}, ConfigNoProperties)\n'.format(c['dtype'], c['name'], c['value']) for c in self._config_options))
         self.add_subst('PLATFORM_INCLUDES', ''.join('#include <{}>\n'.format(inc) for inc in self._platform_includes))
         self.add_subst('EXTRA_APRINTER_INCLUDES', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in self._aprinter_includes))
@@ -175,7 +199,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 for performance in board_data.enter_config('performance'):
                     gen.add_subst('AxisDriverPrecisionParams', performance.get_identifier('AxisDriverPrecisionParams'))
-                    gen.add_subst('EventChannelTimerClearance', performance.get_float_constant('EventChannelTimerClearance'))
+                    gen.add_float_constant(performance, 'EventChannelTimerClearance', 'EventChannelTimerClearance')
                     gen.add_float_config('MaxStepsPerCycle', performance.get_float('MaxStepsPerCycle'))
                     gen.add_subst('StepperSegmentBufferSize', performance.get_int_constant('StepperSegmentBufferSize'))
                     gen.add_subst('EventChannelBufferSize', performance.get_int_constant('EventChannelBufferSize'))
@@ -229,11 +253,39 @@ def generate(config_root_data, cfg_name, main_template):
                     return 'PrinterMainSdCardParams<{}, {}, {}, {}>'.format(sdcard.do_selection('SdCardService', sd_service_sel), sdcard.do_selection('GcodeParser', gcode_parser_sel), sdcard.get_int('BufferBaseSize'), sdcard.get_int('MaxCommandSize'))
                 
                 gen.add_subst('SdCard', board_data.do_selection('sdcard', sdcard_sel))
+                
+                config_manager_sel = config_common.Selection()
+                
+                @config_manager_sel.option('ConstantConfigManager')
+                def option(config_manager):
+                    return 'ConstantConfigManagerService'
+                
+                @config_manager_sel.option('RuntimeConfigManager')
+                def option(config_manager):
+                    config_store_sel = config_common.Selection()
+                    
+                    @config_store_sel.option('NoStore')
+                    def option(config_store):
+                        return 'RuntimeConfigManagerNoStoreService'
+                    
+                    @config_store_sel.option('EepromConfigStore')
+                    def option(config_store):
+                        eeprom_sel = config_common.Selection()
+                        
+                        @eeprom_sel.option('I2cEeprom')
+                        def option(eeprom):
+                            return 'I2cEepromService<{}, {}, {}, {}, {}>'.format(gen.use_i2c(eeprom, 'I2c', 'MyPrinter::GetConfigManager::GetStore<>::GetEeprom::GetI2', 'ConfigEeprom'), eeprom.get_int('I2cAddr'), eeprom.get_int('Size'), eeprom.get_int('BlockSize'), gen.add_float_config('ConfigEepromWriteTimeout', eeprom.get_float('WriteTimeout')))
+                        
+                        return 'EepromConfigStoreService<{}, {}, {}>'.format(config_store.do_selection('Eeprom', eeprom_sel), config_store.get_int('StartBlock'), config_store.get_int('EndBlock'))
+                    
+                    return 'RuntimeConfigManagerService<{}>'.format(config_manager.do_selection('ConfigStore', config_store_sel))
+                
+                gen.add_subst('ConfigManager', board_data.do_selection('config_manager', config_manager_sel))
             
             gen.add_float_config('InactiveTime', config.get_float('InactiveTime'))
             
             for advanced in config.enter_config('advanced'):
-                gen.add_subst('LedBlinkInterval', advanced.get_float_constant('LedBlinkInterval'))
+                gen.add_float_constant(advanced, 'LedBlinkInterval', 'LedBlinkInterval')
                 gen.add_float_config('ForceTimeout', advanced.get_float('ForceTimeout'))
             
             probe_sel = config_common.Selection()

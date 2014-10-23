@@ -30,5 +30,5 @@ class Selection (object):
     
     def run (self, choice, *args, **kwargs):
         if choice not in self._options:
-            raise SelectionInvalidError()
+            raise SelectionError()
         return self._options[choice](*args, **kwargs)

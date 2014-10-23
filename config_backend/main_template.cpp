@@ -44,12 +44,12 @@ $${EXTRA_APRINTER_INCLUDES}
 
 using namespace APrinter;
 
-APRINTER_CONFIG_START
-
-using LedBlinkInterval = $${LedBlinkInterval};
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
 using TheAxisDriverPrecisionParams = $${AxisDriverPrecisionParams};
-using EventChannelTimerClearance = AMBRO_WRAP_DOUBLE($${EventChannelTimerClearance});
+
+$${EXTRA_CONSTANTS}
+
+APRINTER_CONFIG_START
 
 $${EXTRA_CONFIG}
 
@@ -81,23 +81,7 @@ using PrinterParams = PrinterMainParams<
     $${SdCard},
     $${Probe},
     PrinterMainNoCurrentParams,
-    RuntimeConfigManagerService<
-        EepromConfigStoreService<
-            I2cEepromService<
-                At91SamI2cService<
-                    At91SamI2cDevice1,
-                    2,
-                    I2cFreq
-                >,
-                80, // I2cAddr
-                32768, // Size
-                64, // BlockSize
-                I2cEepromWriteTimeout
-            >,
-            0, // StartBlock
-            512 // EndBlock
-        >
-    >,
+    $${ConfigManager},
     ConfigList,
     
     /*
