@@ -3243,6 +3243,13 @@ public: // private, see comment on top
                     return cmd->finishCommand(c, true);
                 } break;
                 
+                case 400: {
+                    if (!cmd->tryUnplannedCommand(c)) {
+                        return;
+                    }
+                    return cmd->finishCommand(c);
+                } break;
+                
 #ifdef EVENTLOOP_BENCHMARK
                 case 916: { // reset benchmark time
                     if (!cmd->tryUnplannedCommand(c)) {
