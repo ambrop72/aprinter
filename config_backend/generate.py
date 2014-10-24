@@ -112,12 +112,6 @@ class GenState(object):
         return self._subst
 
 class GenConfigReader(config_reader.ConfigReader):
-    def __init__ (self, obj, path):
-        config_reader.ConfigReader.__init__(self, obj, path)
-    
-    def config_factory (self, obj, path):
-        return GenConfigReader(obj, path)
-    
     def get_int_constant (self, key):
         return str(self.get_int(key))
     
@@ -330,6 +324,11 @@ def generate(config_root_data, cfg_name, main_template):
                 )
             
             gen.add_subst('Probe', config.do_selection('probe', probe_sel))
+            
+            for stepper in config.iter_list_config('steppers'):
+                name = stepper.get_string('Name')
+                
+                
     
     gen.add_automatic()
     
