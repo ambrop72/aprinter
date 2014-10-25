@@ -63,7 +63,7 @@ def editor():
                 ce.OneOf(key='homing', title='Homing', collapsed=True, choices=[
                     ce.Compound('no_homing', title='Disabled', attrs=[]),
                     ce.Compound('homing', title='Enabled', ident='id_board_steppers_homing', attrs=[
-                        ce.String(key='HomeDir', title='Homing direction', enum=['Negative', 'Positive']),
+                        ce.Boolean(key='HomeDir', title='Homing direction', false_title='Negative', true_title='Positive'),
                         digital_input_choice(key='HomeEndstopInput', title='Endstop digital input'),
                         ce.Boolean(key='HomeEndInvert', title='Invert endstop'),
                         ce.Float(key='HomeFastMaxDist', title='Maximum fast (initial) travel'),

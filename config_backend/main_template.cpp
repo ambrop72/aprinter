@@ -22,6 +22,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
+/*
+ * $${GENERATED_WARNING}
+ */
+
 #include <stdint.h>
 #include <stdio.h>
 
@@ -89,157 +93,7 @@ using PrinterParams = PrinterMainParams<
     /*
      * Axes.
      */
-    MakeTypeList<
-        PrinterMainAxisParams<
-            'X', // Name
-            DuePin23, // DirPin
-            DuePin24, // StepPin
-            DuePin26, // EnablePin
-            XInvertDir,
-            XStepsPerUnit, // StepsPerUnit
-            XMin, // Min
-            XMax, // Max
-            XMaxSpeed, // MaxSpeed
-            XMaxAccel, // MaxAccel
-            XDistanceFactor, // DistanceFactor
-            XCorneringDistance, // CorneringDistance
-            PrinterMainHomingParams<
-                XHomeDir,
-                AxisHomerService< // HomerService
-                    DuePin28, // HomeEndPin
-                    At91SamPinInputModePullUp, // HomeEndPinInputMode
-                    XHomeEndInvert,
-                    XHomeFastMaxDist, // HomeFastMaxDist
-                    XHomeRetractDist, // HomeRetractDist
-                    XHomeSlowMaxDist, // HomeSlowMaxDist
-                    XHomeFastSpeed, // HomeFastSpeed
-                    XHomeRetractSpeed, // HomeRetractSpeed
-                    XHomeSlowSpeed // HomeSlowSpeed
-                >
-            >,
-            true, // EnableCartesianSpeedLimit
-            32, // StepBits
-            AxisDriverService<
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC1, At91Sam3xClockCompA>, // StepperTimer,
-                TheAxisDriverPrecisionParams // PrecisionParams
-            >,
-            PrinterMainNoMicroStepParams
-        >,
-        PrinterMainAxisParams<
-            'Y', // Name
-            DuePin16, // DirPin
-            DuePin17, // StepPin
-            DuePin22, // EnablePin
-            YInvertDir,
-            YStepsPerUnit, // StepsPerUnit
-            YMin, // Min
-            YMax, // Max
-            YMaxSpeed, // MaxSpeed
-            YMaxAccel, // MaxAccel
-            YDistanceFactor, // DistanceFactor
-            YCorneringDistance, // CorneringDistance
-            PrinterMainHomingParams<
-                YHomeDir,
-                AxisHomerService< // HomerService
-                    DuePin30, // HomeEndPin
-                    At91SamPinInputModePullUp, // HomeEndPinInputMode
-                    YHomeEndInvert,
-                    YHomeFastMaxDist, // HomeFastMaxDist
-                    YHomeRetractDist, // HomeRetractDist
-                    YHomeSlowMaxDist, // HomeSlowMaxDist
-                    YHomeFastSpeed, // HomeFastSpeed
-                    YHomeRetractSpeed, // HomeRetractSpeed
-                    YHomeSlowSpeed // HomeSlowSpeed
-                >
-            >,
-            true, // EnableCartesianSpeedLimit
-            32, // StepBits
-            AxisDriverService<
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC2, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisDriverPrecisionParams // PrecisionParams
-            >,
-            PrinterMainNoMicroStepParams
-        >,
-        PrinterMainAxisParams<
-            'Z', // Name
-            DuePin3, // DirPin
-            DuePin2, // StepPin
-            DuePin15, // EnablePin
-            ZInvertDir,
-            ZStepsPerUnit, // StepsPerUnit
-            ZMin, // Min
-            ZMax, // Max
-            ZMaxSpeed, // MaxSpeed
-            ZMaxAccel, // MaxAccel
-            ZDistanceFactor, // DistanceFactor
-            ZCorneringDistance, // CorneringDistance
-            PrinterMainHomingParams<
-                ZHomeDir,
-                AxisHomerService< // HomerService
-                    DuePin32, // HomeEndPin
-                    At91SamPinInputModePullUp, // HomeEndPinInputMode
-                    ZHomeEndInvert,
-                    ZHomeFastMaxDist, // HomeFastMaxDist
-                    ZHomeRetractDist, // HomeRetractDist
-                    ZHomeSlowMaxDist, // HomeSlowMaxDist
-                    ZHomeFastSpeed, // HomeFastSpeed
-                    ZHomeRetractSpeed, // HomeRetractSpeed
-                    ZHomeSlowSpeed // HomeSlowSpeed
-                >
-            >,
-            true, // EnableCartesianSpeedLimit
-            32, // StepBits
-            AxisDriverService<
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC3, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisDriverPrecisionParams // PrecisionParams
-            >,
-            PrinterMainNoMicroStepParams
-        >,
-        PrinterMainAxisParams<
-            'E', // Name
-            DuePinA6, // DirPin
-            DuePinA7, // StepPin
-            DuePinA8, // EnablePin
-            EInvertDir,
-            EStepsPerUnit, // StepsPerUnit
-            EMin, // Min
-            EMax, // Max
-            EMaxSpeed, // MaxSpeed
-            EMaxAccel, // MaxAccel
-            EDistanceFactor, // DistanceFactor
-            ECorneringDistance, // CorneringDistance
-            PrinterMainNoHomingParams,
-            false, // EnableCartesianSpeedLimit
-            32, // StepBits
-            AxisDriverService<
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC4, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisDriverPrecisionParams // PrecisionParams
-            >,
-            PrinterMainNoMicroStepParams
-        >,
-        PrinterMainAxisParams<
-            'U', // Name
-            DuePinA9, // DirPin
-            DuePinA10, // StepPin
-            DuePinA11, // EnablePin
-            UInvertDir,
-            UStepsPerUnit, // StepsPerUnit
-            UMin, // Min
-            UMax, // Max
-            UMaxSpeed, // MaxSpeed
-            UMaxAccel, // MaxAccel
-            UDistanceFactor, // DistanceFactor
-            UCorneringDistance, // CorneringDistance
-            PrinterMainNoHomingParams,
-            false, // EnableCartesianSpeedLimit
-            32, // StepBits
-            AxisDriverService<
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC8, At91Sam3xClockCompA>, // StepperTimer
-                TheAxisDriverPrecisionParams // PrecisionParams
-            >,
-            PrinterMainNoMicroStepParams
-        >
-    >,
+    $${Steppers},
     
     /*
      * Transform and virtual axes.
@@ -249,6 +103,7 @@ using PrinterParams = PrinterMainParams<
     /*
      * Heaters.
      */
+    $${Heaters},
     MakeTypeList<
         PrinterMainHeaterParams<
             'T', // Name
