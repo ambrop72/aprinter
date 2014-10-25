@@ -104,113 +104,6 @@ using PrinterParams = PrinterMainParams<
      * Heaters.
      */
     $${Heaters},
-    MakeTypeList<
-        PrinterMainHeaterParams<
-            'T', // Name
-            104, // SetMCommand
-            109, // WaitMCommand
-            DuePinA0, // AdcPin
-            GenericThermistorService< // Thermistor
-                ExtruderHeaterThermistorResistorR,
-                ExtruderHeaterThermistorR0,
-                ExtruderHeaterThermistorBeta,
-                ExtruderHeaterThermistorMinTemp,
-                ExtruderHeaterThermistorMaxTemp
-            >,
-            ExtruderHeaterMinSafeTemp, // MinSafeTemp
-            ExtruderHeaterMaxSafeTemp, // MaxSafeTemp
-            ExtruderHeaterControlInterval, // ControlInterval
-            PidControlService<
-                ExtruderHeaterPidP, // PidP
-                ExtruderHeaterPidI, // PidI
-                ExtruderHeaterPidD, // PidD
-                ExtruderHeaterPidIStateMin, // PidIStateMin
-                ExtruderHeaterPidIStateMax, // PidIStateMax
-                ExtruderHeaterPidDHistory // PidDHistory
-            >,
-            TemperatureObserverService<
-                ExtruderHeaterObserverInterval, // ObserverInterval
-                ExtruderHeaterObserverTolerance, // ObserverTolerance
-                ExtruderHeaterObserverMinTime // ObserverMinTime
-            >,
-            SoftPwmService<
-                DuePin13, // OutputPin
-                false, // OutputInvert
-                ExtruderHeaterPulseInterval, // PulseInterval
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC5, At91Sam3xClockCompA> // TimerTemplate
-            >
-        >,
-        PrinterMainHeaterParams<
-            'B', // Name
-            140, // SetMCommand
-            190, // WaitMCommand
-            DuePinA4, // AdcPin
-            GenericThermistorService< // Thermistor
-                BedHeaterThermistorResistorR,
-                BedHeaterThermistorR0,
-                BedHeaterThermistorBeta,
-                BedHeaterThermistorMinTemp,
-                BedHeaterThermistorMaxTemp
-            >,
-            BedHeaterMinSafeTemp, // MinSafeTemp
-            BedHeaterMaxSafeTemp, // MaxSafeTemp
-            BedHeaterControlInterval, // ControlInterval
-            PidControlService<
-                BedHeaterPidP, // PidP
-                BedHeaterPidI, // PidI
-                BedHeaterPidD, // PidD
-                BedHeaterPidIStateMin, // PidIStateMin
-                BedHeaterPidIStateMax, // PidIStateMax
-                BedHeaterPidDHistory // PidDHistory
-            >,
-            TemperatureObserverService<
-                BedHeaterObserverInterval, // ObserverInterval
-                BedHeaterObserverTolerance, // ObserverTolerance
-                BedHeaterObserverMinTime // ObserverMinTime
-            >,
-            SoftPwmService<
-                DuePin7, // OutputPin
-                false, // OutputInvert
-                BedHeaterPulseInterval, // PulseInterval
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC5, At91Sam3xClockCompB> // TimerTemplate
-            >
-        >,
-        PrinterMainHeaterParams<
-            'U', // Name
-            404, // SetMCommand
-            409, // WaitMCommand
-            DuePinA1, // AdcPin
-            GenericThermistorService< // Thermistor
-                UxtruderHeaterThermistorResistorR,
-                UxtruderHeaterThermistorR0,
-                UxtruderHeaterThermistorBeta,
-                UxtruderHeaterThermistorMinTemp,
-                UxtruderHeaterThermistorMaxTemp
-            >,
-            UxtruderHeaterMinSafeTemp, // MinSafeTemp
-            UxtruderHeaterMaxSafeTemp, // MaxSafeTemp
-            UxtruderHeaterControlInterval, // ControlInterval
-            PidControlService<
-                UxtruderHeaterPidP, // PidP
-                UxtruderHeaterPidI, // PidI
-                UxtruderHeaterPidD, // PidD
-                UxtruderHeaterPidIStateMin, // PidIStateMin
-                UxtruderHeaterPidIStateMax, // PidIStateMax
-                UxtruderHeaterPidDHistory // PidDHistory
-            >,
-            TemperatureObserverService<
-                UxtruderHeaterObserverInterval, // ObserverInterval
-                UxtruderHeaterObserverTolerance, // ObserverTolerance
-                UxtruderHeaterObserverMinTime // ObserverMinTime
-            >,
-            SoftPwmService<
-                DuePin12, // OutputPin
-                false, // OutputInvert
-                UxtruderHeaterPulseInterval, // PulseInterval
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC6, At91Sam3xClockCompA> // TimerTemplate
-            >
-        >
-    >,
     
     /*
      * Fans.
@@ -241,6 +134,9 @@ using PrinterParams = PrinterMainParams<
     >
 >;
 
+$${ADC_CONFIG}
+
+/*
 // need to list all used ADC pins here
 using AdcPins = MakeTypeList<
     At91SamAdcSmoothPin<DuePinA0, AdcSmoothing>,
@@ -256,6 +152,7 @@ using AdcParams = At91SamAdcParams<
     1, // AdcTransfer
     At91SamAdcAvgParams<AdcAvgInterval>
 >;
+*/
 
 $${CLOCK_CONFIG}
 $${CLOCK_TCS}
@@ -268,7 +165,7 @@ using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
 using MyClock = $${CLOCK};
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
 using MyPins = At91SamPins<MyContext, Program>;
-using MyAdc = At91SamAdc<MyContext, Program, AdcPins, AdcParams>;
+using MyAdc = $${Adc};
 using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
 
 struct MyContext {

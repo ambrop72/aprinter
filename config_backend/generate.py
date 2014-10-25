@@ -33,9 +33,16 @@ class GenState(object):
     def add_bool_config (self, name, value):
         return self.add_config(name, 'BOOL', 'true' if value else 'false')
     
-    def add_float_constant (self, config, key, name):
-        value = config.get_float(key)
-        self._constants.append({'name':name, 'value':'AMBRO_WRAP_DOUBLE({})'.format(value)})
+    def add_float_constant (self, name, value):
+        self._constants.append({'type':'using', 'name':name, 'value':'AMBRO_WRAP_DOUBLE({:.17E})'.format(value)})
+        return name
+    
+    def add_int_constant (self, dtype, name, value):
+        m = re.match('\\A(u?)int(8|16|32|64)\\Z', dtype)
+        assert m
+        u = m.group(1)
+        b = m.group(2)
+        self._constants.append({'type':'static {}_t const'.format(dtype), 'name':name, 'value':'{}INT{}_C({})'.format(u.upper(), b, value)})
         return name
     
     def add_platform_include (self, inc_file):
@@ -78,7 +85,7 @@ class GenState(object):
             so.add_automatic()
         
         self.add_subst('GENERATED_WARNING', 'WARNING: This file was automatically generated!')
-        self.add_subst('EXTRA_CONSTANTS', ''.join('using {} = {};\n'.format(c['name'], c['value']) for c in self._constants))
+        self.add_subst('EXTRA_CONSTANTS', ''.join('{} {} = {};\n'.format(c['type'], c['name'], c['value']) for c in self._constants))
         self.add_subst('EXTRA_CONFIG', ''.join('APRINTER_CONFIG_OPTION_{}({}, {}, ConfigNoProperties)\n'.format(c['dtype'], c['name'], c['value']) for c in self._config_options))
         self.add_subst('PLATFORM_INCLUDES', ''.join('#include <{}>\n'.format(inc) for inc in self._platform_includes))
         self.add_subst('EXTRA_APRINTER_INCLUDES', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in self._aprinter_includes))
@@ -196,6 +203,38 @@ class At91Sam3xClock(object):
         for tc in tcs:
             self._gen.add_isr('AMBRO_AT91SAM3X_CLOCK_{}_GLOBAL(MyClock, MyContext())'.format(tc))
 
+
+def setup_adc (gen, config, key):
+    adc_sel = config_common.Selection()
+    
+    @adc_sel.option('At91SamAdc')
+    def option(adc_config):
+        return 'At91SamAdc<MyContext, Program, AdcPins, AdcParams>'
+    
+    return config.do_selection(key, adc_sel)
+
+'''
+class Adc(object):
+    def __init__ (self, gen, config):
+        self._config = config
+        self._pins = []
+    
+    def add_pin (self, pin):
+        self._pins.append(pin)
+    
+    def setup (self):
+        config = self._config
+        
+        adc_sel = 0
+
+class At91SamAdc(object):
+    def setup (self, gen, config, pins):
+        gen.add_aprinter_include('system/At91SamAdc.h')
+        gen.add_float_constant('AdcFreq', config.get_float('freq'))
+        gen.add_float_constant('AdcAvgInterval', config.get_float('avg_interval'))
+        gen.add_int_constant('uint16', 'AdcSmoothing', int(config.get_float('smoothing') * 65536.0))
+'''
+
 def use_digital_input (gen, config, key):
     di = gen.get_object('digital_input', config, key)
     return '{}, {}'.format(di.get_pin('Pin'), di.get_identifier('InputMode'))
@@ -237,7 +276,11 @@ def use_i2c (gen, config, key, user, username):
         if dev not in devices:
             i2c_config.path().error('Incorrect I2C device.')
         gen.add_isr('AMBRO_AT91SAM_I2C_GLOBAL({}, {}, MyContext())'.format(devices[dev], user))
-        return 'At91SamI2cService<{}, {}, {}>'.format(dev, i2c_config.get_int('Ckdiv'), gen.add_float_constant(i2c_config, 'I2cFreq', '{}I2cFreq'.format(username)))
+        return 'At91SamI2cService<{}, {}, {}>'.format(
+            dev,
+            i2c_config.get_int('Ckdiv'),
+            gen.add_float_constant('{}I2cFreq'.format(username), i2c_config.get_float('I2cFreq'))
+        )
     
     return config.do_selection(key, i2c_sel)
 
@@ -258,6 +301,10 @@ def generate(config_root_data, cfg_name, main_template):
                         return At91Sam3xClock(gen, clock)
                     
                     gen.register_singleton_object('clock', platform.do_selection('clock', clock_sel), platform.key_path('clock'))
+                    
+                    #gen.register_singleton_object('adc', 
+                    
+                    gen.add_subst('Adc', setup_adc(gen, platform, 'adc'))
                 
                 gen.register_objects('digital_input', board_data, 'digital_inputs')
                 gen.register_objects('stepper_port', board_data, 'stepper_ports')
@@ -268,7 +315,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 for performance in board_data.enter_config('performance'):
                     gen.add_subst('AxisDriverPrecisionParams', performance.get_identifier('AxisDriverPrecisionParams'))
-                    gen.add_float_constant(performance, 'EventChannelTimerClearance', 'EventChannelTimerClearance')
+                    gen.add_float_constant('EventChannelTimerClearance', performance.get_float('EventChannelTimerClearance'))
                     gen.add_float_config('MaxStepsPerCycle', performance.get_float('MaxStepsPerCycle'))
                     gen.add_subst('StepperSegmentBufferSize', performance.get_int_constant('StepperSegmentBufferSize'))
                     gen.add_subst('EventChannelBufferSize', performance.get_int_constant('EventChannelBufferSize'))
@@ -354,7 +401,7 @@ def generate(config_root_data, cfg_name, main_template):
             gen.add_float_config('InactiveTime', config.get_float('InactiveTime'))
             
             for advanced in config.enter_config('advanced'):
-                gen.add_float_constant(advanced, 'LedBlinkInterval', 'LedBlinkInterval')
+                gen.add_float_constant('LedBlinkInterval', advanced.get_float('LedBlinkInterval'))
                 gen.add_float_config('ForceTimeout', advanced.get_float('ForceTimeout'))
             
             probe_sel = config_common.Selection()
