@@ -134,25 +134,7 @@ using PrinterParams = PrinterMainParams<
     >
 >;
 
-$${ADC_CONFIG}
-
-/*
-// need to list all used ADC pins here
-using AdcPins = MakeTypeList<
-    At91SamAdcSmoothPin<DuePinA0, AdcSmoothing>,
-    At91SamAdcSmoothPin<DuePinA4, AdcSmoothing>,
-    At91SamAdcSmoothPin<DuePinA1, AdcSmoothing>
->;
-
-using AdcParams = At91SamAdcParams<
-    AdcFreq,
-    8, // AdcStartup
-    3, // AdcSettling
-    0, // AdcTracking
-    1, // AdcTransfer
-    At91SamAdcAvgParams<AdcAvgInterval>
->;
-*/
+$${AdcPins}
 
 $${CLOCK_CONFIG}
 $${CLOCK_TCS}
@@ -162,10 +144,15 @@ struct MyLoopExtraDelay;
 struct Program;
 
 using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
+
 using MyClock = $${CLOCK};
+
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
-using MyPins = At91SamPins<MyContext, Program>;
+
+using MyPins = $${Pins};
+
 using MyAdc = $${Adc};
+
 using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
 
 struct MyContext {
@@ -198,64 +185,16 @@ Program p;
 Program * Program::self (MyContext c) { return &p; }
 void MyContext::check () const {}
 
-$${ISRS}
+$${GlobalCode}
 
 static void emergency (void)
 {
     MyPrinter::emergency();
 }
 
-extern "C" {
-    __attribute__((used))
-    int _read (int file, char *ptr, int len)
-    {
-        return -1;
-    }
-    
-    __attribute__((used))
-    int _write (int file, char *ptr, int len)
-    {
-#ifndef USB_SERIAL
-        if (interrupts_enabled()) {
-            MyPrinter::GetSerial::sendWaitFinished(MyContext());
-        }
-        for (int i = 0; i < len; i++) {
-            while (!(UART->UART_SR & UART_SR_TXRDY));
-            UART->UART_THR = *(uint8_t *)&ptr[i];
-        }
-#endif
-        return len;
-    }
-    
-    __attribute__((used))
-    int _close (int file)
-    {
-        return -1;
-    }
-
-    __attribute__((used))
-    int _fstat (int file, struct stat * st)
-    {
-        return -1;
-    }
-
-    __attribute__((used))
-    int _isatty (int fd)
-    {
-        return 1;
-    }
-
-    __attribute__((used))
-    int _lseek (int file, int ptr, int dir)
-    {
-        return -1;
-    }
-}
-
 int main ()
 {
-    platform_init();
-    
+$${InitCalls}
     MyContext c;
     
     MyDebugObjectGroup::init(c);

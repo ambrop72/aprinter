@@ -16,9 +16,11 @@ class GenState(object):
         self._constants = []
         self._platform_includes = []
         self._aprinter_includes = []
-        self._isrs = []
         self._objects = {}
         self._singleton_objects = {}
+        self._finalize_actions = []
+        self._global_code = []
+        self._init_calls = []
     
     def add_subst (self, key, val, indent=-1):
         self._subst[key] = {'val':val, 'indent':indent}
@@ -51,9 +53,6 @@ class GenState(object):
     def add_aprinter_include (self, inc_file):
         self._aprinter_includes.append(inc_file)
     
-    def add_isr (self, isr):
-        self._isrs.append(isr)
-    
     def register_objects (self, kind, config, key):
         if kind not in self._objects:
             self._objects[kind] = {}
@@ -69,27 +68,42 @@ class GenState(object):
             config.key_path(key).error('Nonexistent {} specified'.format(kind))
         return self._objects[kind][name]
     
-    def register_singleton_object (self, kind, value, path):
-        if kind in self._singleton_objects:
-            path.error('Duplicate {} singleton.'.format(kind))
+    def register_singleton_object (self, kind, value):
+        assert kind not in self._singleton_objects
         self._singleton_objects[kind] = value
         return value
     
-    def get_singleton_object (self, kind, path):
-        if kind not in self._singleton_objects:
-            path.error('Unavailable {} singleton'.format(kind))
+    def get_singleton_object (self, kind):
+        assert kind in self._singleton_objects
         return self._singleton_objects[kind]
     
-    def add_automatic (self):
+    def add_global_code (self, priority, code):
+        self._global_code.append({'priority':priority, 'code':code})
+    
+    def add_isr (self, isr):
+        self.add_global_code(-1, isr)
+    
+    def add_init_call (self, priority, init_call):
+        self._init_calls.append({'priority':priority, 'init_call':init_call})
+    
+    def add_finalize_action (self, action):
+        self._finalize_actions.append(action)
+    
+    def finalize (self):
+        for action in reversed(self._finalize_actions):
+            action()
+        
         for so in self._singleton_objects.itervalues():
-            so.add_automatic()
+            if hasattr(so, 'finalize'):
+                so.finalize()
         
         self.add_subst('GENERATED_WARNING', 'WARNING: This file was automatically generated!')
         self.add_subst('EXTRA_CONSTANTS', ''.join('{} {} = {};\n'.format(c['type'], c['name'], c['value']) for c in self._constants))
         self.add_subst('EXTRA_CONFIG', ''.join('APRINTER_CONFIG_OPTION_{}({}, {}, ConfigNoProperties)\n'.format(c['dtype'], c['name'], c['value']) for c in self._config_options))
         self.add_subst('PLATFORM_INCLUDES', ''.join('#include <{}>\n'.format(inc) for inc in self._platform_includes))
         self.add_subst('EXTRA_APRINTER_INCLUDES', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in self._aprinter_includes))
-        self.add_subst('ISRS', ''.join('{}\n'.format(isr) for isr in self._isrs))
+        self.add_subst('GlobalCode', ''.join('{}\n'.format(gc['code']) for gc in sorted(self._global_code, key=lambda x: x['priority'])))
+        self.add_subst('InitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._init_calls, key=lambda x: x['priority'])))
     
     def get_subst (self):
         res = {}
@@ -195,7 +209,7 @@ class At91Sam3xClock(object):
         self._gen.add_isr('AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClock{}, At91Sam3xClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user))
         return 'At91Sam3xClockInterruptTimerService<At91Sam3xClock{}, At91Sam3xClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
     
-    def add_automatic (self):
+    def finalize (self):
         tcs = set(it['tc'] for it in self._interrupt_timers)
         tcs.add(self._primary_timer)
         tcs = sorted(tcs)
@@ -203,37 +217,50 @@ class At91Sam3xClock(object):
         for tc in tcs:
             self._gen.add_isr('AMBRO_AT91SAM3X_CLOCK_{}_GLOBAL(MyClock, MyContext())'.format(tc))
 
+def setup_pins (gen, config, key):
+    pins_sel = config_common.Selection()
+    
+    @pins_sel.option('At91SamPins')
+    def options(pin_config):
+        return TemplateExpr('At91SamPins', ['MyContext', 'Program'])
+    
+    gen.add_subst('Pins', config.do_selection(key, pins_sel), indent=0)
 
 def setup_adc (gen, config, key):
     adc_sel = config_common.Selection()
     
     @adc_sel.option('At91SamAdc')
     def option(adc_config):
-        return 'At91SamAdc<MyContext, Program, AdcPins, AdcParams>'
-    
-    return config.do_selection(key, adc_sel)
-
-'''
-class Adc(object):
-    def __init__ (self, gen, config):
-        self._config = config
-        self._pins = []
-    
-    def add_pin (self, pin):
-        self._pins.append(pin)
-    
-    def setup (self):
-        config = self._config
-        
-        adc_sel = 0
-
-class At91SamAdc(object):
-    def setup (self, gen, config, pins):
         gen.add_aprinter_include('system/At91SamAdc.h')
-        gen.add_float_constant('AdcFreq', config.get_float('freq'))
-        gen.add_float_constant('AdcAvgInterval', config.get_float('avg_interval'))
-        gen.add_int_constant('uint16', 'AdcSmoothing', int(config.get_float('smoothing') * 65536.0))
-'''
+        gen.add_float_constant('AdcFreq', adc_config.get_float('freq'))
+        gen.add_float_constant('AdcAvgInterval', adc_config.get_float('avg_interval'))
+        gen.add_int_constant('uint16', 'AdcSmoothing', int(adc_config.get_float('smoothing') * 65536.0))
+        
+        return {
+            'value_func': lambda: TemplateExpr('At91SamAdc', [
+                'MyContext', 'Program', 'AdcPins',
+                TemplateExpr('At91SamAdcParams', [
+                    'AdcFreq',
+                    adc_config.get_int('startup'),
+                    adc_config.get_int('settling'),
+                    adc_config.get_int('tracking'),
+                    adc_config.get_int('transfer'),
+                    'At91SamAdcAvgParams<AdcAvgInterval>'
+                ])
+            ]),
+            'pin_func': lambda pin: 'At91SamAdcSmoothPin<{}, AdcSmoothing>'.format(pin)
+        }
+    
+    result = config.do_selection(key, adc_sel)
+    
+    gen.register_singleton_object('adc_pins', [])
+    
+    def finalize():
+        adc_pins = gen.get_singleton_object('adc_pins')
+        gen.add_subst('Adc', result['value_func'](), indent=0)
+        gen.add_subst('AdcPins', 'using AdcPins = {};'.format(TemplateList([result['pin_func'](pin) for pin in adc_pins]).build(0)))
+    
+    gen.add_finalize_action(finalize)
 
 def use_digital_input (gen, config, key):
     di = gen.get_object('digital_input', config, key)
@@ -241,11 +268,13 @@ def use_digital_input (gen, config, key):
 
 def use_analog_input (gen, config, key):
     ai = gen.get_object('analog_input', config, key)
-    return '{}'.format(ai.get_pin('Pin'))
+    pin = ai.get_pin('Pin')
+    gen.get_singleton_object('adc_pins').append(pin)
+    return pin
 
 def use_interrupt_timer (gen, config, key, user, clearance=None):
     for it_config in config.enter_config(key):
-        return gen.get_singleton_object('clock', it_config.path()).add_interrupt_timer(it_config.get_string('oc_unit'), user, clearance, it_config.path())
+        return gen.get_singleton_object('clock').add_interrupt_timer(it_config.get_string('oc_unit'), user, clearance, it_config.path())
 
 def use_spi (gen, config, key, user):
     spi_sel = config_common.Selection()
@@ -293,6 +322,14 @@ def generate(config_root_data, cfg_name, main_template):
         
         for config in config_root.enter_elem_by_id('configurations', 'name', cfg_name):
             for board_data in config.enter_config('board_data'):
+                platform_sel = config_common.Selection()
+                
+                @platform_sel.option('At91Sam3x8e')
+                def option(platform):
+                    gen.add_init_call(-1, 'platform_init();')
+                
+                board_data.do_selection('platform', platform_sel)
+                
                 for platform in board_data.enter_config('platform'):
                     clock_sel = config_common.Selection()
                     
@@ -300,11 +337,10 @@ def generate(config_root_data, cfg_name, main_template):
                     def option(clock):
                         return At91Sam3xClock(gen, clock)
                     
-                    gen.register_singleton_object('clock', platform.do_selection('clock', clock_sel), platform.key_path('clock'))
+                    gen.register_singleton_object('clock', platform.do_selection('clock', clock_sel))
                     
-                    #gen.register_singleton_object('adc', 
-                    
-                    gen.add_subst('Adc', setup_adc(gen, platform, 'adc'))
+                    setup_adc(gen, platform, 'adc')
+                    setup_pins(gen, platform, 'pins')
                 
                 gen.register_objects('digital_input', board_data, 'digital_inputs')
                 gen.register_objects('stepper_port', board_data, 'stepper_ports')
@@ -333,11 +369,13 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @serial_sel.option('AsfUsbSerial')
                     def option(serial_service):
+                        gen.add_init_call(0, 'udc_start();')
                         return 'AsfUsbSerialService'
                     
                     @serial_sel.option('At91Sam3xSerial')
                     def option(serial_service):
                         gen.add_isr('AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())')
+                        gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<MyPrinter::GetSerial>, MyContext())')
                         return 'At91Sam3xSerialService'
                     
                     gen.add_subst('SerialService', serial.do_selection('Service', serial_sel))
@@ -545,7 +583,7 @@ def generate(config_root_data, cfg_name, main_template):
             
             gen.add_subst('Heaters', config.do_list('heaters', heater_cb), indent=1)
     
-    gen.add_automatic()
+    gen.finalize()
     
     main_text = config_common.RichTemplate(main_template).substitute(gen.get_subst())
     
