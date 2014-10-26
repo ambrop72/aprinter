@@ -91,7 +91,6 @@ class ConfigReader (object):
         assert type(obj) is dict
         self._obj = obj
         self._path = path
-        self._unused = set()
     
     def config_factory (self, obj, path):
         return type(self)(obj, path)
@@ -99,28 +98,15 @@ class ConfigReader (object):
     def config_type (self):
         return ConfigTypeConfig(self.config_factory)
     
-    def mark (self, key):
-        self._unused.discard(key)
-    
     def get (self, dtype, key):
         path = self.key_path(key)
         if key not in self._obj:
             path.error('Attribute missing.')
         val = dtype.read(path, self._obj[key])
-        self.mark(key)
         return val
     
     def enter (self):
-        with self:
-            yield self
-    
-    def __enter__ (self):
-        self._unused = set(self._obj.keys())
-        return self
-    
-    def __exit__ (self, exc_type, exc_value, traceback):
-        for key in self._unused:
-            self.key_path(key).warning('Attribute not used.')
+        yield self
     
     def path (self):
         return self._path
@@ -151,8 +137,7 @@ class ConfigReader (object):
     
     def iter_list_config (self, key):
         for config in self.get_list(self.config_type(), key):
-            with config:
-                yield config
+            yield config
     
     def get_elem_by_id (self, key, id_key, id_val):
         path = self.key_path(key)
@@ -173,5 +158,4 @@ def start (obj, root_name='config', config_reader_class=ConfigReader, **kwargs):
     path = ConfigPath(None, root_name)
     if type(obj) is not dict:
         path.error('Must be a dict.')
-    with config_reader_class(obj, path, **kwargs) as config:
-        yield config
+    yield config_reader_class(obj, path, **kwargs) 

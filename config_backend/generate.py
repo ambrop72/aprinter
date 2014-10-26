@@ -351,8 +351,6 @@ def generate(config_root_data, cfg_name, main_template):
     gen = GenState()
     
     for config_root in config_reader.start(config_root_data, config_reader_class=GenConfigReader):
-        config_root.mark('_compoundName')
-        config_root.mark('boards')
         
         for config in config_root.enter_elem_by_id('configurations', 'name', cfg_name):
             for board_data in config.enter_config('board_data'):
