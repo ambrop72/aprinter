@@ -54,6 +54,7 @@
 #include <aprinter/base/Likely.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/system/InterruptLock.h>
+#include <aprinter/driver/AxisDriverConsumer.h>
 #include <aprinter/printer/LinearPlanner.h>
 #include <aprinter/printer/Configuration.h>
 

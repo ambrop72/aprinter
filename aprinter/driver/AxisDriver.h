@@ -40,6 +40,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Inline.h>
+#include <aprinter/driver/AxisDriverConsumer.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -54,12 +55,6 @@
 #define AXIS_STEPPER_TMUL_EXPR_HELPER(args) AXIS_STEPPER_TMUL_EXPR(args)
 
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
-
-template <typename TCommandCallback, typename TPrestepCallback>
-struct AxisDriverConsumer {
-    using CommandCallback = TCommandCallback;
-    using PrestepCallback = TPrestepCallback;
-};
 
 template <
     int tstep_bits, int ttime_bits, int tq_div_shift,
