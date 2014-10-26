@@ -22,38 +22,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <errno.h>
-#include <sys/types.h>
-
 #include "at91sam3u_support.h"
-
-extern "C" {
-    __attribute__((used))
-    void _init (void)
-    {
-    }
-    
-    __attribute__((used))
-    caddr_t _sbrk (int incr)
-    {
-        extern char _end;
-        static char *heap_end = 0;
-        char *prev_heap_end;
-
-        if (heap_end == 0) {
-            heap_end = &_end;
-        }
-        prev_heap_end = heap_end;
-
-        if ((heap_end + incr) > &_end + HEAP_SIZE) {
-            errno = ENOMEM;
-            return (caddr_t)-1;
-        }
-        
-        heap_end += incr;
-        return (caddr_t)prev_heap_end;
-    }
-}
 
 extern "C" void udc_start (void);
 

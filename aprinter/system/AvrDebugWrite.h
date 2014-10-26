@@ -22,14 +22,24 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "at91sam3x_support.h"
+#ifndef APRINTER_AVR_DEBUG_WRITE_H
+#define APRINTER_AVR_DEBUG_WRITE_H
 
-extern "C" void udc_start (void);
+#include <stdio.h>
 
-void platform_init (void)
-{
-    SystemInit();
-#ifdef USB_SERIAL
-    udc_start();
-#endif
+#define APRINTER_SETUP_AVR_DEBUG_WRITE(Handler, context) \
+FILE aprinter_debug_output; \
+static int aprinter_debug_putchar (char ch, FILE *stream) \
+{ \
+    Handler(context, ch); \
+    return 1; \
+} \
+static void aprinter_init_avr_debug_write () \
+{ \
+    aprinter_debug_output.put = aprinter_debug_putchar; \
+    aprinter_debug_output.flags = _FDEV_SETUP_WRITE; \
+    stdout = &aprinter_debug_output; \
+    stderr = &aprinter_debug_output; \
 }
+
+#endif

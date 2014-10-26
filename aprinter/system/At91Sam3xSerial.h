@@ -337,6 +337,18 @@ void UART_Handler (void) \
     the_serial::uart_irq(MakeInterruptContext((context))); \
 }
 
+template <typename TheSerial, typename TheContext>
+void At91Sam3xSerial_DebugWrite (TheContext c, char const *ptr, size_t len)
+{
+    if (interrupts_enabled()) {
+        TheSerial::sendWaitFinished(c);
+    }
+    for (size_t i = 0; i < len; i++) {
+        while (!(UART->UART_SR & UART_SR_TXRDY));
+        UART->UART_THR = *(uint8_t *)&ptr[i];
+    }
+}
+
 #include <aprinter/EndNamespace.h>
 
 #endif

@@ -342,6 +342,14 @@ ISR(USART0_UDRE_vect) \
     avrserial::udre_isr(MakeAtomicContext(context)); \
 }
 
+template <typename TheSerial, typename TheContext>
+void AvrSerial_DebugPutChar (TheContext c, char ch)
+{
+    TheSerial::sendWaitFinished(c);
+    while (!(UCSR0A & (1 << UDRE0)));
+    UDR0 = ch;
+}
+
 #include <aprinter/EndNamespace.h>
 
 #endif

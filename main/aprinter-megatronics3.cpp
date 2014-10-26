@@ -46,6 +46,7 @@ static void emergency (void);
 #include <aprinter/system/AvrWatchdog.h>
 #include <aprinter/system/AvrSerial.h>
 #include <aprinter/system/AvrSpi.h>
+#include <aprinter/system/AvrDebugWrite.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
@@ -724,33 +725,17 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS(1, B, MyPrinter::GetEventChannelTimer, MyCo
 AMBRO_AVR_SPI_ISRS(MyPrinter::GetSdCard<>::GetSpi, MyContext())
 AMBRO_AVR_WATCHDOG_GLOBAL
 
-FILE uart_output;
-
-static int uart_putchar (char ch, FILE *stream)
-{
-    MyPrinter::GetSerial::sendWaitFinished(MyContext());
-    while (!(UCSR0A & (1 << UDRE0)));
-    UDR0 = ch;
-    return 1;
-}
-
-static void setup_uart_stdio ()
-{
-    uart_output.put = uart_putchar;
-    uart_output.flags = _FDEV_SETUP_WRITE;
-    stdout = &uart_output;
-    stderr = &uart_output;
-}
-
 static void emergency (void)
 {
     MyPrinter::emergency();
 }
 
+APRINTER_SETUP_AVR_DEBUG_WRITE(AvrSerial_DebugPutChar<MyPrinter::GetSerial>, MyContext())
+
 int main ()
 {
     sei();
-    setup_uart_stdio();
+    aprinter_init_avr_debug_write();
     
     MyContext c;
     

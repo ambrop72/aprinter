@@ -519,38 +519,6 @@ static void emergency (void)
     MyPrinter::emergency();
 }
 
-extern "C" {
-    __attribute__((used))
-    int _read (int file, char *ptr, int len)
-    {
-        return -1;
-    }
-
-    __attribute__((used))
-    int _close (int file)
-    {
-        return -1;
-    }
-
-    __attribute__((used))
-    int _fstat (int file, struct stat * st)
-    {
-        return -1;
-    }
-
-    __attribute__((used))
-    int _isatty (int fd)
-    {
-        return 1;
-    }
-
-    __attribute__((used))
-    int _lseek (int file, int ptr, int dir)
-    {
-        return -1;
-    }
-}
-
 int main ()
 {
     platform_init();

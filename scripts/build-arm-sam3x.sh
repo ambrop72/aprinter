@@ -102,7 +102,7 @@ configure_sam3x() {
         "${TEMPLATES_DIR}/system_${ARCH}.c"
         "${TEMPLATES_DIR}/gcc/startup_${ARCH}.c"
         "${ASF_DIR}/sam/drivers/pmc/pmc.c"
-        
+        "aprinter/platform/newlib_common.c"
     )
     CXX_SOURCES+=(
         "aprinter/platform/at91${ARCH}/at91${ARCH}_support.cpp"

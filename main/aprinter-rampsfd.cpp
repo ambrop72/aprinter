@@ -45,6 +45,7 @@ static void emergency (void);
 #include <aprinter/system/At91SamSpi.h>
 #include <aprinter/system/At91SamI2c.h>
 #include <aprinter/system/AsfUsbSerial.h>
+#include <aprinter/system/NewlibDebugWrite.h>
 #include <aprinter/devices/SpiSdCard.h>
 #include <aprinter/devices/I2cEeprom.h>
 #include <aprinter/driver/AxisDriver.h>
@@ -709,52 +710,9 @@ static void emergency (void)
     MyPrinter::emergency();
 }
 
-extern "C" {
-    __attribute__((used))
-    int _read (int file, char *ptr, int len)
-    {
-        return -1;
-    }
-    
-    __attribute__((used))
-    int _write (int file, char *ptr, int len)
-    {
 #ifndef USB_SERIAL
-        if (interrupts_enabled()) {
-            MyPrinter::GetSerial::sendWaitFinished(MyContext());
-        }
-        for (int i = 0; i < len; i++) {
-            while (!(UART->UART_SR & UART_SR_TXRDY));
-            UART->UART_THR = *(uint8_t *)&ptr[i];
-        }
+APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<MyPrinter::GetSerial>, MyContext())
 #endif
-        return len;
-    }
-    
-    __attribute__((used))
-    int _close (int file)
-    {
-        return -1;
-    }
-
-    __attribute__((used))
-    int _fstat (int file, struct stat * st)
-    {
-        return -1;
-    }
-
-    __attribute__((used))
-    int _isatty (int fd)
-    {
-        return 1;
-    }
-
-    __attribute__((used))
-    int _lseek (int file, int ptr, int dir)
-    {
-        return -1;
-    }
-}
 
 int main ()
 {

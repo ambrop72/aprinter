@@ -22,14 +22,15 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "at91sam3x_support.h"
+#ifndef APRINTER_NEWLIB_DEBUG_WRITE_H
+#define APRINTER_NEWLIB_DEBUG_WRITE_H
 
-extern "C" void udc_start (void);
-
-void platform_init (void)
-{
-    SystemInit();
-#ifdef USB_SERIAL
-    udc_start();
-#endif
+#define APRINTER_SETUP_NEWLIB_DEBUG_WRITE(Handler, context) \
+extern "C" \
+__attribute__((used)) \
+void aprinter_platform_debug_write (char const *ptr, size_t len) \
+{ \
+    return Handler(context, ptr, len); \
 }
+
+#endif
