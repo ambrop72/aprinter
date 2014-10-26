@@ -717,6 +717,9 @@ APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<MyPrinter::GetSeria
 int main ()
 {
     platform_init();
+#ifdef USB_SERIAL
+    udc_start();
+#endif
     
     MyContext c;
     

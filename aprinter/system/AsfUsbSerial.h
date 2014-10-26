@@ -41,6 +41,7 @@ extern "C" uint32_t udi_cdc_get_free_tx_buffer (void);
 extern "C" uint32_t udi_cdc_write_buf (const void* buf, uint32_t size);
 extern "C" uint32_t udi_cdc_get_nb_received_data (void);
 extern "C" uint32_t udi_cdc_read_buf (void* buf, uint32_t size);
+extern "C" void udc_start (void);
 
 template <typename Context, typename ParentObject, int RecvBufferBits, int SendBufferBits, typename RecvHandler, typename SendHandler, typename Params>
 class AsfUsbSerial {

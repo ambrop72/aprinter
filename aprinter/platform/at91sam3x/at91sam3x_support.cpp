@@ -24,12 +24,7 @@
 
 #include "at91sam3x_support.h"
 
-extern "C" void udc_start (void);
-
 void platform_init (void)
 {
     SystemInit();
-#ifdef USB_SERIAL
-    udc_start();
-#endif
 }

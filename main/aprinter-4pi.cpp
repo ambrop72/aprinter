@@ -693,6 +693,7 @@ static void emergency (void)
 int main ()
 {
     platform_init();
+    udc_start();
     
     MyContext c;
     

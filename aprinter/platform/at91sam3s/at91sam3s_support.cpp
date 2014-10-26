@@ -24,10 +24,7 @@
 
 #include "at91sam3s_support.h"
 
-extern "C" void udc_start (void);
-
 void platform_init (void)
 {
     SystemInit();
-    udc_start();
 }
