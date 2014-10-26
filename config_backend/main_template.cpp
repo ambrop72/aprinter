@@ -30,7 +30,6 @@
 #include <stdio.h>
 
 $${PLATFORM_INCLUDES}
-
 static void emergency (void);
 
 #define AMBROLIB_EMERGENCY_ACTION { cli(); emergency(); }
@@ -43,22 +42,19 @@ static void emergency (void);
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/InterruptLock.h>
-#include <aprinter/driver/AxisDriver.h>
 #include <aprinter/printer/PrinterMain.h>
 
-$${EXTRA_APRINTER_INCLUDES}
-
+$${AprinterIncludes}
 using namespace APrinter;
 
 using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
+using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
 using TheAxisDriverPrecisionParams = $${AxisDriverPrecisionParams};
 
 $${EXTRA_CONSTANTS}
-
 APRINTER_CONFIG_START
 
-$${EXTRA_CONFIG}
-
+$${ConfigOptions}
 APRINTER_CONFIG_END
 
 using PrinterParams = PrinterMainParams<
@@ -84,6 +80,7 @@ using PrinterParams = PrinterMainParams<
     ForceTimeout, // ForceTimeout
     $${FpType}, // FpType
     $${EventChannelTimer},
+    $${Watchdog},
     $${SdCard},
     $${Probe},
     PrinterMainNoCurrentParams,
@@ -108,30 +105,7 @@ using PrinterParams = PrinterMainParams<
     /*
      * Fans.
      */
-    MakeTypeList<
-        PrinterMainFanParams<
-            106, // SetMCommand
-            107, // OffMCommand
-            FanSpeedMultiply, // SpeedMultiply
-            SoftPwmService<
-                DuePin9, // OutputPin
-                false, // OutputInvert
-                FanPulseInterval, // PulseInterval
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC6, At91Sam3xClockCompB> // TimerTemplate
-            >
-        >,
-        PrinterMainFanParams<
-            406, // SetMCommand
-            407, // OffMCommand
-            FanSpeedMultiply, // SpeedMultiply
-            SoftPwmService<
-                DuePin8, // OutputPin
-                false, // OutputInvert
-                FanPulseInterval, // PulseInterval
-                At91Sam3xClockInterruptTimerService<At91Sam3xClockTC7, At91Sam3xClockCompA> // TimerTemplate
-            >
-        >
-    >
+    $${Fans}
 >;
 
 $${AdcPins}
@@ -186,7 +160,6 @@ Program * Program::self (MyContext c) { return &p; }
 void MyContext::check () const {}
 
 $${GlobalCode}
-
 static void emergency (void)
 {
     MyPrinter::emergency();

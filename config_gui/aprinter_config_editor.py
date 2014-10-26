@@ -38,6 +38,41 @@ def spi_choice(**kwargs):
         ])
     ], **kwargs)
 
+def at91sam3x_clock():
+    return ce.Compound('At91Sam3xClock', key='clock', title='Clock', collapsed=True, attrs=[
+        ce.Integer(key='prescaler', title='Prescaler'),
+        ce.String(key='primary_timer', title='Primary timer'),
+        ce.Constant(key='avail_oc_units', value=[
+            {
+                'value': 'TC{}{}'.format(n, l)
+            } for n in range(9) for l in ('A', 'B', 'C')
+        ])
+    ])
+
+def at91sam_adc():
+    return ce.Compound('At91SamAdc', key='adc', title='ADC', collapsed=True, attrs=[
+        ce.Float(key='freq', title='Frequency'),
+        ce.Float(key='avg_interval', title='Averaging interval'),
+        ce.Float(key='smoothing', title='Smoothing factor'),
+        ce.Integer(key='startup', title='Startup time'),
+        ce.Integer(key='settling', title='Settling time'),
+        ce.Integer(key='tracking', title='Tracking time'),
+        ce.Integer(key='transfer', title='Transfer time')
+    ])
+
+def at91sam_watchdog():
+    return ce.Compound('At91SamWatchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
+        ce.Integer(key='Wdv', title='Wdv')
+    ])
+
+def at91sam_pins():
+    return ce.Compound('At91SamPins', key='pins', title='Pins', collapsed=True, attrs=[
+        ce.Constant(key='input_modes', value=[
+            { 'ident': 'At91SamPinInputModeNormal', 'name': 'Normal' },
+            { 'ident': 'At91SamPinInputModePullUp', 'name': 'Pull-up' }
+        ])
+    ])
+
 def editor():
     return ce.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, attrs=[
         ce.Array(key='configurations', title='Configurations', elem=ce.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsed=True, attrs=[
@@ -228,34 +263,12 @@ def editor():
             ])),
             ce.OneOf(key='platform', title='Platform', disable_collapse=True, choices=[
                 ce.Compound('At91Sam3x8e', attrs=[
-                    ce.Compound('At91Sam3xClock', key='clock', title='Clock', collapsed=True, attrs=[
-                        ce.Integer(key='prescaler', title='Prescaler'),
-                        ce.String(key='primary_timer', title='Primary timer'),
-                        ce.Constant(key='avail_oc_units', value=[
-                            {
-                                'value': 'TC{}{}'.format(n, l)
-                            } for n in range(9) for l in ('A', 'B', 'C')
-                        ])
-                    ]),
-                    ce.Compound('At91SamAdc', key='adc', title='ADC', collapsed=True, attrs=[
-                        ce.Float(key='freq', title='Frequency'),
-                        ce.Float(key='avg_interval', title='Averaging interval'),
-                        ce.Float(key='smoothing', title='Smoothing factor'),
-                        ce.Integer(key='startup', title='Startup time'),
-                        ce.Integer(key='settling', title='Settling time'),
-                        ce.Integer(key='tracking', title='Tracking time'),
-                        ce.Integer(key='transfer', title='Transfer time')
-                    ]),
-                    ce.Compound('At91SamWatchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
-                        ce.Integer(key='Wdv', title='Wdv')
-                    ]),
-                    ce.Compound('At91SamPins', key='pins', title='Pins', collapsed=True, attrs=[
-                        ce.Constant(key='input_modes', value=[
-                            { 'ident': 'At91SamPinInputModeNormal', 'name': 'Normal' },
-                            { 'ident': 'At91SamPinInputModePullUp', 'name': 'Pull-up' }
-                        ])
-                    ])
+                    at91sam3x_clock(),
+                    at91sam_adc(),
+                    at91sam_watchdog(),
+                    at91sam_pins()
                 ])
-            ])
+            ]),
+            ce.Array(key='board_helper_includes', title='Board helper includes', disable_collapse=True, table=True, elem=ce.String(title='Name'))
         ]))
     ])

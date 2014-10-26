@@ -15,7 +15,7 @@ class GenState(object):
         self._config_options = []
         self._constants = []
         self._platform_includes = []
-        self._aprinter_includes = []
+        self._aprinter_includes = set()
         self._objects = {}
         self._singleton_objects = {}
         self._finalize_actions = []
@@ -51,7 +51,7 @@ class GenState(object):
         self._platform_includes.append(inc_file)
     
     def add_aprinter_include (self, inc_file):
-        self._aprinter_includes.append(inc_file)
+        self._aprinter_includes.add(inc_file)
     
     def register_objects (self, kind, config, key):
         if kind not in self._objects:
@@ -99,9 +99,9 @@ class GenState(object):
         
         self.add_subst('GENERATED_WARNING', 'WARNING: This file was automatically generated!')
         self.add_subst('EXTRA_CONSTANTS', ''.join('{} {} = {};\n'.format(c['type'], c['name'], c['value']) for c in self._constants))
-        self.add_subst('EXTRA_CONFIG', ''.join('APRINTER_CONFIG_OPTION_{}({}, {}, ConfigNoProperties)\n'.format(c['dtype'], c['name'], c['value']) for c in self._config_options))
+        self.add_subst('ConfigOptions', ''.join('APRINTER_CONFIG_OPTION_{}({}, {}, ConfigNoProperties)\n'.format(c['dtype'], c['name'], c['value']) for c in self._config_options))
         self.add_subst('PLATFORM_INCLUDES', ''.join('#include <{}>\n'.format(inc) for inc in self._platform_includes))
-        self.add_subst('EXTRA_APRINTER_INCLUDES', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in self._aprinter_includes))
+        self.add_subst('AprinterIncludes', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in sorted(self._aprinter_includes)))
         self.add_subst('GlobalCode', ''.join('{}\n'.format(gc['code']) for gc in sorted(self._global_code, key=lambda x: x['priority'])))
         self.add_subst('InitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._init_calls, key=lambda x: x['priority'])))
     
@@ -125,7 +125,7 @@ class GenConfigReader(config_reader.ConfigReader):
 
     def get_identifier (self, key, validate=None):
         val = self.get_string(key)
-        if not re.match('\\A[A-Za-z][A-Za-z0-9]{0,127}\\Z', val):
+        if not re.match('\\A[A-Za-z][A-Za-z0-9_]{0,127}\\Z', val):
             self.key_path(key).error('Incorrect format.')
         if validate is not None and not validate(val):
             self.key_path(key).error('Custom validation failed.')
@@ -222,9 +222,23 @@ def setup_pins (gen, config, key):
     
     @pins_sel.option('At91SamPins')
     def options(pin_config):
+        gen.add_aprinter_include('system/At91SamPins.h')
         return TemplateExpr('At91SamPins', ['MyContext', 'Program'])
     
     gen.add_subst('Pins', config.do_selection(key, pins_sel), indent=0)
+
+
+def setup_watchdog(gen, config, key):
+    watchdog_sel = config_common.Selection()
+    
+    @watchdog_sel.option('At91SamWatchdog')
+    def option(watchdog):
+        gen.add_aprinter_include('system/At91SamWatchdog.h')
+        return TemplateExpr('At91SamWatchdogService', [
+            watchdog.get_int('Wdv')
+        ])
+    
+    gen.add_subst('Watchdog', config.do_selection(key, watchdog_sel))
 
 def setup_adc (gen, config, key):
     adc_sel = config_common.Selection()
@@ -234,7 +248,8 @@ def setup_adc (gen, config, key):
         gen.add_aprinter_include('system/At91SamAdc.h')
         gen.add_float_constant('AdcFreq', adc_config.get_float('freq'))
         gen.add_float_constant('AdcAvgInterval', adc_config.get_float('avg_interval'))
-        gen.add_int_constant('uint16', 'AdcSmoothing', int(adc_config.get_float('smoothing') * 65536.0))
+        gen.add_int_constant('uint16', 'AdcSmoothing', max(0, min(65535, int(adc_config.get_float('smoothing') * 65536.0))))
+        gen.add_isr('AMBRO_AT91SAM_ADC_GLOBAL(MyAdc, MyContext())')
         
         return {
             'value_func': lambda: TemplateExpr('At91SamAdc', [
@@ -276,11 +291,29 @@ def use_interrupt_timer (gen, config, key, user, clearance=None):
     for it_config in config.enter_config(key):
         return gen.get_singleton_object('clock').add_interrupt_timer(it_config.get_string('oc_unit'), user, clearance, it_config.path())
 
+def use_pwm_output (gen, config, key, user, username):
+    pwm_output = gen.get_object('pwm_output', config, key)
+    
+    backend_sel = config_common.Selection()
+    
+    @backend_sel.option('SoftPwm')
+    def option(backend):
+        gen.add_aprinter_include('printer/pwm/SoftPwm.h')
+        return TemplateExpr('SoftPwmService', [
+            backend.get_pin('OutputPin'),
+            backend.get_bool('OutputInvert'),
+            gen.add_float_constant('{}PulseInterval'.format(username), backend.get_float('PulseInterval')),
+            use_interrupt_timer(gen, backend, 'Timer', '{}::TheTimer'.format(user))
+        ])
+    
+    return pwm_output.do_selection('Backend', backend_sel)
+
 def use_spi (gen, config, key, user):
     spi_sel = config_common.Selection()
     
     @spi_sel.option('At91SamSpi')
     def option(spi_config):
+        gen.add_aprinter_include('system/At91SamSpi.h')
         devices = {
             'At91Sam3xSpiDevice':'AMBRO_AT91SAM3X_SPI_GLOBAL',
             'At91Sam3uSpiDevice':'AMBRO_AT91SAM3U_SPI_GLOBAL'
@@ -298,6 +331,7 @@ def use_i2c (gen, config, key, user, username):
     
     @i2c_sel.option('At91SamI2c')
     def option(i2c_config):
+        gen.add_aprinter_include('system/At91SamI2c.h')
         devices = {
             'At91SamI2cDevice1':1,
         }
@@ -326,9 +360,15 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 @platform_sel.option('At91Sam3x8e')
                 def option(platform):
+                    gen.add_platform_include('aprinter/platform/at91sam3x/at91sam3x_support.h')
                     gen.add_init_call(-1, 'platform_init();')
                 
                 board_data.do_selection('platform', platform_sel)
+                
+                for helper_name in board_data.get_list(config_reader.ConfigTypeString(), 'board_helper_includes'):
+                    if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', helper_name):
+                        board_data.key_path('board_helper_includes').error('Invalid helper name.')
+                    gen.add_aprinter_include('board/{}.h'.format(helper_name))
                 
                 for platform in board_data.enter_config('platform'):
                     clock_sel = config_common.Selection()
@@ -339,12 +379,14 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     gen.register_singleton_object('clock', platform.do_selection('clock', clock_sel))
                     
-                    setup_adc(gen, platform, 'adc')
                     setup_pins(gen, platform, 'pins')
+                    setup_watchdog(gen, platform, 'watchdog')
+                    setup_adc(gen, platform, 'adc')
                 
                 gen.register_objects('digital_input', board_data, 'digital_inputs')
                 gen.register_objects('stepper_port', board_data, 'stepper_ports')
                 gen.register_objects('analog_input', board_data, 'analog_inputs')
+                gen.register_objects('pwm_output', board_data, 'pwm_outputs')
                 
                 gen.add_subst('LedPin', board_data.get_identifier('LedPin'))
                 gen.add_subst('EventChannelTimer', use_interrupt_timer(gen, board_data, 'EventChannelTimer', user='MyPrinter::GetEventChannelTimer', clearance='EventChannelTimerClearance'))
@@ -369,11 +411,14 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @serial_sel.option('AsfUsbSerial')
                     def option(serial_service):
+                        gen.add_aprinter_include('system/AsfUsbSerial.h')
                         gen.add_init_call(0, 'udc_start();')
                         return 'AsfUsbSerialService'
                     
                     @serial_sel.option('At91Sam3xSerial')
                     def option(serial_service):
+                        gen.add_aprinter_include('system/At91Sam3xSerial.h')
+                        gen.add_aprinter_include('system/NewlibDebugWrite.h')
                         gen.add_isr('AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())')
                         gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<MyPrinter::GetSerial>, MyContext())')
                         return 'At91Sam3xSerialService'
@@ -392,6 +437,7 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @sd_service_sel.option('SpiSdCard')
                     def option(spi_sd):
+                        gen.add_aprinter_include('devices/SpiSdCard.h')
                         return TemplateExpr('SpiSdCardService', [spi_sd.get_pin('SsPin'), use_spi(gen, spi_sd, 'SpiService', 'MyPrinter::GetSdCard<>::GetSpi')])
                     
                     gcode_parser_sel = config_common.Selection()
@@ -412,10 +458,13 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 @config_manager_sel.option('ConstantConfigManager')
                 def option(config_manager):
+                    gen.add_aprinter_include('printer/config_manager/ConstantConfigManager.h')
                     return 'ConstantConfigManagerService'
                 
                 @config_manager_sel.option('RuntimeConfigManager')
                 def option(config_manager):
+                    gen.add_aprinter_include('printer/config_manager/RuntimeConfigManager.h')
+                    
                     config_store_sel = config_common.Selection()
                     
                     @config_store_sel.option('NoStore')
@@ -424,11 +473,14 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @config_store_sel.option('EepromConfigStore')
                     def option(config_store):
+                        gen.add_aprinter_include('printer/config_store/EepromConfigStore.h')
+                        
                         eeprom_sel = config_common.Selection()
                         
                         @eeprom_sel.option('I2cEeprom')
                         def option(eeprom):
-                            return TemplateExpr('I2cEepromService', [use_i2c(gen, eeprom, 'I2c', 'MyPrinter::GetConfigManager::GetStore<>::GetEeprom::GetI2', 'ConfigEeprom'), eeprom.get_int('I2cAddr'), eeprom.get_int('Size'), eeprom.get_int('BlockSize'), gen.add_float_config('ConfigEepromWriteTimeout', eeprom.get_float('WriteTimeout'))])
+                            gen.add_aprinter_include('devices/I2cEeprom.h')
+                            return TemplateExpr('I2cEepromService', [use_i2c(gen, eeprom, 'I2c', 'MyPrinter::GetConfigManager::GetStore<>::GetEeprom::GetI2c', 'ConfigEeprom'), eeprom.get_int('I2cAddr'), eeprom.get_int('Size'), eeprom.get_int('BlockSize'), gen.add_float_constant('ConfigEepromWriteTimeout', eeprom.get_float('WriteTimeout'))])
                         
                         return TemplateExpr('EepromConfigStoreService', [config_store.do_selection('Eeprom', eeprom_sel), config_store.get_int('StartBlock'), config_store.get_int('EndBlock')])
                     
@@ -496,6 +548,8 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 @homing_sel.option('homing')
                 def option(homing):
+                    gen.add_aprinter_include('printer/AxisHomer.h')
+                    
                     return TemplateExpr('PrinterMainHomingParams', [
                         gen.add_bool_config('{}HomeDir'.format(name), homing.get_bool('HomeDir')),
                         TemplateExpr('AxisHomerService', [
@@ -511,6 +565,8 @@ def generate(config_root_data, cfg_name, main_template):
                     ])
                 
                 stepper_port = gen.get_object('stepper_port', stepper, 'stepper_port')
+                
+                gen.add_aprinter_include('driver/AxisDriver.h')
                 
                 return TemplateExpr('PrinterMainAxisParams', [
                     TemplateChar(name),
@@ -541,15 +597,17 @@ def generate(config_root_data, cfg_name, main_template):
                 name = heater.get_id_char('Name')
                 
                 for conversion in heater.enter_config('conversion'):
+                    gen.add_aprinter_include('printer/thermistor/GenericThermistor.h')
                     thermistor = TemplateExpr('GenericThermistorService', [
-                        gen.add_float_config('{}HeaterResistorR'.format(name), conversion.get_float('ResistorR')),
-                        gen.add_float_config('{}HeaterR0'.format(name), conversion.get_float('R0')),
-                        gen.add_float_config('{}HeaterBeta'.format(name), conversion.get_float('Beta')),
-                        gen.add_float_config('{}HeaterMinTemp'.format(name), conversion.get_float('MinTemp')),
-                        gen.add_float_config('{}HeaterMaxTemp'.format(name), conversion.get_float('MaxTemp')),
+                        gen.add_float_config('{}HeaterTempResistorR'.format(name), conversion.get_float('ResistorR')),
+                        gen.add_float_config('{}HeaterTempR0'.format(name), conversion.get_float('R0')),
+                        gen.add_float_config('{}HeaterTempBeta'.format(name), conversion.get_float('Beta')),
+                        gen.add_float_config('{}HeaterTempMinTemp'.format(name), conversion.get_float('MinTemp')),
+                        gen.add_float_config('{}HeaterTempMaxTemp'.format(name), conversion.get_float('MaxTemp')),
                     ])
                 
                 for control in heater.enter_config('control'):
+                    gen.add_aprinter_include('printer/temp_control/PidControl.h')
                     control_interval = control.get_float('ControlInterval')
                     control_service = TemplateExpr('PidControlService', [
                         gen.add_float_config('{}HeaterPidP'.format(name), control.get_float('PidP')),
@@ -561,6 +619,7 @@ def generate(config_root_data, cfg_name, main_template):
                     ])
                 
                 for observer in heater.enter_config('observer'):
+                    gen.add_aprinter_include('printer/TemperatureObserver.h')
                     observer_service = TemplateExpr('TemperatureObserverService', [
                         gen.add_float_config('{}HeaterObserverInterval'.format(name), observer.get_float('ObserverInterval')),
                         gen.add_float_config('{}HeaterObserverTolerance'.format(name), observer.get_float('ObserverTolerance')),
@@ -578,10 +637,22 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_float_config('{}HeaterControlInterval'.format(name), control_interval),
                     control_service,
                     observer_service,
-                    
+                    use_pwm_output(gen, heater, 'pwm_output', 'MyPrinter::GetHeaterPwm<{}>'.format(heater_index), '{}Heater'.format(name))
                 ])
             
             gen.add_subst('Heaters', config.do_list('heaters', heater_cb), indent=1)
+            
+            def fan_cb(fan, fan_index):
+                name = fan.get_id_char('Name')
+                
+                return TemplateExpr('PrinterMainFanParams', [
+                    fan.get_int('SetMCommand'),
+                    fan.get_int('OffMCommand'),
+                    'FanSpeedMultiply',
+                    use_pwm_output(gen, fan, 'pwm_output', 'MyPrinter::GetFanPwm<{}>'.format(fan_index), '{}Fan'.format(name))
+                ])
+            
+            gen.add_subst('Fans', config.do_list('fans', fan_cb), indent=1)
     
     gen.finalize()
     
