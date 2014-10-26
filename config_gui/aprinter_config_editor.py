@@ -75,6 +75,7 @@ def at91sam_pins():
 
 def editor():
     return ce.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, attrs=[
+        ce.Constant(key='version', value=1),
         ce.Array(key='configurations', title='Configurations', elem=ce.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsed=True, attrs=[
             ce.String(key='name', title='Name'),
             ce.Reference(key='board_id', ref_array='boards', ref_id_key='identifier', ref_name_key='name', deref_key='board_data', title='Board'),
@@ -170,6 +171,7 @@ def editor():
         ce.Array(key='boards', title='Boards', elem=ce.Compound('board', title='Board', title_key='name', collapsed=True, ident='id_board', attrs=[
             ce.String(key='identifier', title='Identifier'),
             ce.String(key='name', title='Name'),
+            ce.String(key='board_for_build', title='Board for building (see nix/boards.nix)'),
             pin_choice(key='LedPin', title='LED pin'),
             ce.OneOf(key='config_manager', title='Runtime configuration', collapsed=True, choices=[
                 ce.Compound('ConstantConfigManager', title='Disabled', attrs=[]),
@@ -269,6 +271,6 @@ def editor():
                     at91sam_pins()
                 ])
             ]),
-            ce.Array(key='board_helper_includes', title='Board helper includes', disable_collapse=True, table=True, elem=ce.String(title='Name'))
+            ce.Array(key='board_helper_includes', title='Board helper includes', disable_collapse=True, table=True, elem=ce.String(title='Name')),
         ]))
     ])

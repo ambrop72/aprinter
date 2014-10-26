@@ -353,7 +353,13 @@ def generate(config_root_data, cfg_name, main_template):
     for config_root in config_reader.start(config_root_data, config_reader_class=GenConfigReader):
         
         for config in config_root.enter_elem_by_id('configurations', 'name', cfg_name):
+            
             for board_data in config.enter_config('board_data'):
+                board_for_build = board_data.get_string('board_for_build')
+                if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', board_for_build):
+                    board_data.key_path('board_for_build').error('Incorrect format.')
+                gen.add_subst('BoardForBuild', board_for_build)
+                
                 platform_sel = config_common.Selection()
                 
                 @platform_sel.option('At91Sam3x8e')
@@ -654,14 +660,18 @@ def generate(config_root_data, cfg_name, main_template):
     
     gen.finalize()
     
-    main_text = config_common.RichTemplate(main_template).substitute(gen.get_subst())
-    
-    print(main_text)
+    return {
+        'main_source': config_common.RichTemplate(main_template).substitute(gen.get_subst()),
+        'board_for_build': board_for_build
+    }
 
 def main():
+    # Parse arguments.
     parser = argparse.ArgumentParser()
-    parser.add_argument('--config', required=True, type=argparse.FileType('r'))
+    parser.add_argument('--config', required=True)
     parser.add_argument('--cfg-name', required=True)
+    parser.add_argument('--output', required=True)
+    parser.add_argument('--nix', action='store_true')
     args = parser.parse_args()
     
     # Determine source dir.
@@ -671,6 +681,18 @@ def main():
     main_template = config_common.read_file(os.path.join(src_dir, 'main_template.cpp'))
     
     # Generate.
-    generate(json.load(args.config), args.cfg_name, main_template)
-
+    with config_common.use_input_file(args.config) as config_f:
+        result = generate(json.load(config_f), args.cfg_name, main_template)
+    
+    # Write results.
+    with config_common.use_output_file(args.output) as output_f:
+        if args.nix:
+            nix = 'with import (builtins.toPath (builtins.getEnv "APRINTER_NIX_DIR")); aprinterFunc {{ boardName = {}; buildName = builtins.getEnv "APRINTER_BUILD_NAME"; mainText = {}; }}'.format(
+                config_common.escape_string_for_nix(result['board_for_build']),
+                config_common.escape_string_for_nix(result['main_source'])
+            )
+            output_f.write(nix)
+        else:
+            output_f.write(result['main_source'])
+    
 main()
