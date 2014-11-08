@@ -461,7 +461,7 @@ at the cost of some overhead in the ISRs.
 
 Hardware PWM can be used for heaters, fans or lasers. In all cases a board-specific procedure needs to be followed where a `PWM_SERVICE` expression specifying the PWM configuration is constructed. This is described later, first the application of this to heaters, fans and lasers is shown.
 
-For heaters and fans, the PWM_SERVICE needs to be wrapped in HardPwmService before being used as the PwmService parameter in PrinterMainHeaterParams or PrinterMainFanParams, like this:
+For *heaters and fans*, the `PWM_SERVICE` needs to be wrapped in `HardPwmService` before being used as the PwmService parameter in `PrinterMainHeaterParams` or `PrinterMainFanParams`, like this:
 
 ```
 #include <aprinter/printer/pwm/HardPwm.h>
@@ -472,7 +472,7 @@ PrinterMainFanParams<
 >
 ```
 
-For lasers, the PWM_SERVICE is directly used as the PwmService parameter of PrinterMainLaserParams:
+On the other hand, for *lasers*, the `PWM_SERVICE` is directly used as the PwmService parameter of `PrinterMainLaserParams`:
 
 ```
 PrinterMainLaserParams<
@@ -508,9 +508,9 @@ int main ()
 ```
 
 - Select a PWM capable pin. Apparently these are pins 2-13.
-- Look into aprinter/board/arduino_due_pins.h and find the full name of the pin (e.g. for pin 8: At91SamPin<At91SamPioC, 22>).
-- Look into aprinter/system/At91Sam3xPwm.h and find the entry of the At91Sam3xPwmConnections list corresponding to this pin. Note the channel number and the connection type. These are the first and second elements (e.g. 5, 'L').
-- Use something like the following as PWM_SERVICE (adjust the prescaler/period as needed):
+- Look into `aprinter/board/arduino_due_pins.h` and find the full name of the pin (e.g. for pin 8: `At91SamPin<At91SamPioC, 22>`).
+- Look into `aprinter/system/At91Sam3xPwm.h` and find the entry of the `At91Sam3xPwmConnections` list corresponding to this pin. Note the channel number and the connection type. These are the first and second elements (e.g. 5, 'L').
+- Use something like the following as `PWM_SERVICE` (adjust the prescaler/period as needed):
 
 ```
 At91Sam3xPwmChannelService<
