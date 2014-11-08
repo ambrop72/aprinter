@@ -366,6 +366,8 @@ The laser configuration parameters are:
 - `DutyAdjustmentInterval` [s]: Time interval for duty cycle adjustment
   from a timer interrupt (=1/frequency).
 
+A prerequisite for configuring a laser is the availability of hardware PWM and its support by the firmware. See the section "Hardware PWM configuration" for more details.
+
 A laser is configured in the main file as follows:
 
 ```
@@ -389,7 +391,7 @@ using LDutyAdjustmentInterval = AMBRO_WRAP_DOUBLE(1.0 / 200.0);
             'M', // DensityName
             LLaserPower,
             LMaxPower,
-            // Use correct PWM here!
+            // Use correct hardware PWM service here!
             Mk20ClockPwmService<Mk20ClockFTM1, 1, TeensyPin17>,
             LinearDutyFormulaService<
                 15 // PowerBits
@@ -454,6 +456,71 @@ On atmega2560, those higher-priority TCs are `TC0` and `TC2`.
 As such, it is not possible to add any extra axes/heaters/fans.
 However, it would be easy to implement multiplexing so that one hardware OC units would act as two or more virtual OC units,
 at the cost of some overhead in the ISRs.
+
+## Hardware PWM configuration
+
+Hardware PWM can be used for heaters, fans or lasers. In all cases a board-specific procedure needs to be followed where a `PWM_SERVICE` expression specifying the PWM configuration is constructed. This is described later, first the application of this to heaters, fans and lasers is shown.
+
+For heaters and fans, the PWM_SERVICE needs to be wrapped in HardPwmService before being used as the PwmService parameter in PrinterMainHeaterParams or PrinterMainFanParams, like this:
+
+```
+#include <aprinter/printer/pwm/HardPwm.h>
+...
+PrinterMainFanParams<
+    ...
+    HardPwmService< PWM_SERVICE > // This is the PwmService argument
+>
+```
+
+For lasers, the PWM_SERVICE is directly used as the PwmService parameter of PrinterMainLaserParams:
+
+```
+PrinterMainLaserParams<
+    ...
+    PWM_SERVICE, // This is the PwmService argument
+    ...
+>
+```
+
+### Arduino Due
+
+- First there's some global setup needed:
+```
+#include <aprinter/system/At91Sam3xPwm.h>
+...
+using MyAdc = ...;
+using MyPwm = At91Sam3xPwm<MyContext, Program, At91Sam3xPwmParams<0, 0, 0, 0>>;
+using MyPrinter = ...;
+...
+struct MyContext {
+...
+    using Pwm = MyPwm;
+...
+};
+...
+int main ()
+{
+...
+    MyAdc::init(c);
+    MyPwm::init(c); // After MyAdc, before MyPrinter!
+    MyPrinter::init(c);
+...
+```
+
+- Select a PWM capable pin. Apparently these are pins 2-13.
+- Look into aprinter/board/arduino_due_pins.h and find the full name of the pin (e.g. for pin 8: At91SamPin<At91SamPioC, 22>).
+- Look into aprinter/system/At91Sam3xPwm.h and find the entry of the At91Sam3xPwmConnections list corresponding to this pin. Note the channel number and the connection type. These are the first and second elements (e.g. 5, 'L').
+- Use something like the following as PWM_SERVICE (adjust the prescaler/period as needed):
+
+```
+At91Sam3xPwmChannelService<
+    10, // Prescaler [0, 10]
+    1562, // Period [1, 16777215]. Frequency=(F_MCK/2^Prescaler/Period). 1562 gives ~50Hz
+    5, // PWM channel number
+    DuePin8, // Output pin
+    'L' // output connection type (L/H)
+>
+```
 
 ## RAM usage
 
