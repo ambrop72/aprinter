@@ -80,7 +80,7 @@ The basic steps are:
   * To install the toolchain and other dependnecies: `./build.sh <target> install`
   * Note that for AVR, you will still need `avrdude` preinstalled.
   * To build: `./build.sh <target> build`
-  * To upload: `./build.sh <target> upload`
+  * To upload (via the build system, see below if using Nix): `./build.sh <target> upload`
 
 *Melzi.* you will have to set the Debug jumper and play with the reset button to get the upload going.
 
@@ -95,6 +95,10 @@ not start (LED doesn't blink), press the reset button.
 *Teensy 3.* You need to press the button on the board before trying to upload, to put the board into bootloader mode.
 
 *Using the UART Serial.* On Atmel chips, the default is to use the native USB for communication. But it's possible to use the UART instead. Edit `config/targets.sh` and change `USE_USB_SERIAL` to 0 for your target. Alternatively, if you're compiling with Nix, edit `nix/default.nix` like so: `aprinterTestRadds = (aprinterTestFunc "radds" {}).override { forceUartSerial = true; };`.
+
+## Uploading
+
+*RAMPS.* `avrdude -p atmega2560 -P /dev/ttyACM0 -b 115200 -c stk500v2 -D -U "flash:w:$HOME/aprinter-build/aprinter-nixbuild.hex:i"`
 
 ## Configuration
 
@@ -151,17 +155,17 @@ Nix will take care of any build dependencies.
 To build with Nix, run this command from the directory below the `aprinter` source code directory:
 
 ```
-nix-build -A <aprinterTarget> aprinter/nix
+nix-build aprinter/nix -A <aprinterTarget> -o ~/aprinter-build
 ```
 
 You need to pick the right `<aprinterTarget>` for you. Consult the file `nix/default.nix` for a list of targets.
 Generally, each target uses its own main source file (in the `main` subdirectory), coresponding to the name of the target.
 
-The result of the build will be available in the directory synlink `result`, created in the current directory.
+The result of the build will be available in the directory symlink specified using `-o`.
 
 The special target `aprinterTestAll` will build all supported targets, which is useful for development.
 
-*NOTE*: If you call nix-build inside the source directory, it will still work, but the next build may take a long time because the result will be considered part of the source code.
+*NOTE*: Don't put the output (`-o`) within the source directory. If you do that the build output will be considered part of the source for the next build, and copying it will take a long time.
 
 ## Notes on the build systemm
 
