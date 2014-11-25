@@ -152,16 +152,16 @@ It is possible to build the firmware using the [Nix package manager](http://nixo
 In this case, all you need is Nix running on Linux (either NixOS, or Nix installed on another Linux distro).
 Nix will take care of any build dependencies.
 
-To build with Nix, run this command from the directory below the `aprinter` source code directory:
+To build with Nix, run this command from within the source code directory:
 
 ```
-nix-build aprinter/nix -A <aprinterTarget> -o ~/aprinter-build
+nix-build nix/ -A <aprinterTarget> -o ~/aprinter-build
 ```
 
 You need to pick the right `<aprinterTarget>` for you. Consult the file `nix/default.nix` for a list of targets.
 Generally, each target uses its own main source file (in the `main` subdirectory), coresponding to the name of the target.
 
-The result of the build will be available in the directory symlink specified using `-o`.
+The result of the build will be available in the directory (symlink) specified using `-o`.
 
 The special target `aprinterTestAll` will build all supported targets, which is useful for development.
 
