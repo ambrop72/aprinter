@@ -6,10 +6,12 @@ process main {
     # Define the parameters for the HTTP server.
     var([
         "listen_addr": {@ipv4, "127.0.0.1", "4000"},
-        "max_clients": "2",
-        "max_headers": "32",
+        "max_clients": "128",
+        "max_headers": "64",
         "max_line_len": "512",
-        "supported_methods": ["GET": ""]
+        "max_request_payload_len": "262144",
+        "supported_methods": ["GET": "", "POST": ""],
+        "server_name": "APrinter Compilation Service implemented in NCD"
     ]) options;
     
     # Define the HTTP request handler.
@@ -18,12 +20,46 @@ process main {
         alias(@_arg1) path;
         alias(@_arg2) headers;
         objref_arg(_arg3) callbacks;
+        objref_arg(_arg4) responses;
         
-        println("Request: ", @encode_value(method), " ", @encode_value(path), " ", @encode_value(headers));
-        
-        callbacks.set_status->call({"500 Error"});
-        callbacks.add_header->call({"Content-Type", "x-foo/bar"});
-        callbacks.headers_finished->call({});
+        # A little bit of hacking to handle errors without nesting.
+        var(@true) cont;
+        backtrack_point() abort;
+        If (cont) {
+            cont->set(@false);
+            
+            # Provide some warm and fuzzy text at /.
+            If (@val_equal(path, "/")) {
+                If (@not(@val_equal(method, "GET"))) {
+                    responses.method_not_allowed->call({});
+                    abort->go();
+                };
+                
+                value("") text;
+                text->append("Hello curious user! You have reached the APrinter Compilation Service Backend.\n\n");
+                text->append("Unfortunately there is nothing here to see.\n\n");
+                text->append("Unless you are interested in hot new programming languages.\n");
+                text->append("In that case you really should take a look at the source code of this software, ");
+                text->append("which is written in the NCD Programming Language :)");
+                
+                callbacks.add_payload->call({text});
+                abort->go();
+            };
+            
+            # Unsupported request path?
+            If (@not(@val_equal(path, "/compile"))) {
+                responses.not_found->call({});
+                abort->go();
+            };
+            
+            # If this is a GET request, provide some warm and fuzzy text.
+            If (@not(@val_equal(method, "POST"))) {
+                responses.method_not_allowed->call({});
+                abort->go();
+            };
+            
+            callbacks.add_payload->call({"Hello HTTP"});
+        };
     } request_handler;
     
     # Start the HTTP server.
