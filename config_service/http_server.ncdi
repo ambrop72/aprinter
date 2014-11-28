@@ -1,0 +1,197 @@
+include_guard "http_server"
+
+template http_server {
+    value(_arg0) options_map;
+    objref_arg(_arg1) request_handler;
+    
+    # Prepare options for consumption.
+    If (@true) {
+        options_map->get("listen_addr") listen_addr;
+        options_map->get("max_clients") max_clients;
+        options_map->get("max_headers") max_headers;
+        options_map->get("max_line_len") max_line_len;
+        options_map->get("supported_methods") supported_methods;
+    } options;
+    
+    # This is the list of connected clients.
+    # We use it to enforce the max-clients limit.
+    value({}) clients;
+    
+    # Set up the TCP listener.
+    sys.listen({@tcp, options.listen_addr}, @_http_client_proc, {});
+}
+
+template _http_client_proc {
+    alias(@_caller) server;
+    alias(@_socket) socket;
+    
+    # Informational messages for client connect/disconnect.
+    var(@concat(@encode_value(socket.client_addr), ": ")) prefix;
+    log_fr(@notice, {prefix, "Connected"}, {prefix, "Disconnected"});
+    
+    # Enforce max clients limit.
+    If (@num_greater_equal(server.clients.length, server.options.max_clients)) {
+        log(@warning, prefix, "Too many clients");
+        socket->close();
+    };
+    
+    # Keep track of all connected clients.
+    server.clients->insert_undo(["addr": socket.client_addr]) clients_entry;
+    
+    # Line splitting buffer.
+    value("") line;
+    
+    # Request parsing state.
+    var(@false) got_first_line;
+    var("") request_method;
+    var("") request_path;
+    value([]) request_headers;
+    
+    # Will backtrack here to read from socket again.
+    backtrack_point() read_again;
+    
+    # Read some data from the socket.
+    socket->read() data;
+    If (data.eof) {
+        socket->close();
+    };
+    
+    # Split the received data by newline.
+    explode("\n", data) parts;
+    value(parts) parts;
+    
+    # Append the first part to the line buffer.
+    parts->get("0") first_part;
+    line->append(first_part);
+    
+    # Will be iterating over the completed lines.
+    var("1") part_index;
+    backtrack_point() part_again;
+    
+    # Enforce the max-line-len limit.
+    If (@num_greater(line.length, server.options.max_line_len)) {
+        log(@warning, prefix, "Line too long");
+        socket->close();
+    };
+    
+    # Got a completed line in the line buffer?
+    If (@num_lesser(part_index, parts.length)) {
+        # Handle CRLF lines - get rid of CR.
+        If (@num_greater(line.length, "0")) {
+            var(@num_subtract(line.length, "1")) len_minus_one;
+            line->substr(len_minus_one) last_char;
+            If (@val_equal(last_char, "\r")) {
+                line->substr("0", len_minus_one) without_cr;
+                line->reset(without_cr);
+            };
+        };
+        
+        # Non-empty or empty line (end of request)?
+        If (@num_greater(line.length, "0")) {
+            If (@not(got_first_line)) {
+                # Split the first line by space into the three parts.
+                explode(" ", line, "3") first_row_parts;
+                value(first_row_parts) first_row_parts;
+                If (@num_different(first_row_parts.length, "3")) {
+                    log(@warning, prefix, "Bad first line");
+                    socket->close();
+                };
+                
+                # Fetch those parts.
+                first_row_parts->get("0") p0;
+                first_row_parts->get("1") p1;
+                first_row_parts->get("2") p2;
+                
+                # Check the protocol part.
+                If (@val_different(p2, "HTTP/1.1")) {
+                    log(@warning, prefix, "Bad protocol value in first line");
+                    socket->close();
+                };
+                
+                # Remember the first line data.
+                request_method->set(p0);
+                request_path->set(p1);
+                got_first_line->set(@true);
+            } Else {
+                # Enforce the max-headers limit.
+                If (@num_greater_equal(request_headers.length, server.options.max_headers)) {
+                    log(@warning, prefix, "Too many headers");
+                    socket->close();
+                };
+                
+                # Split the header into the name and value.
+                explode(": ", line, "2") header_parts;
+                value(header_parts) header_parts;
+                If (@num_different(header_parts.length, "2")) {
+                    log(@warning, prefix, "Bad header");
+                    socket->close();
+                };
+                
+                # Remember the header.
+                header_parts->get("0") p0;
+                header_parts->get("1") p1;
+                request_headers->insert(@tolower(p0), p1);
+            };
+        } Else {
+            # Check if we at least got the first line of the request.
+            If (@not(got_first_line)) {
+                log(@warning, prefix, "No lines in request");
+                socket->close();
+            };
+            
+            # Check if the user supports this request method.
+            server.options.supported_methods->try_get(request_method) method_entry;
+            If (@not(method_entry.exists)) {
+                println("TBD METHOD NOT SUPPORTED");
+            };
+            
+            # State for the reply to the request.
+            var("200 OK") reply_status;
+            value({}) reply_headers;
+            var(@false) reply_headers_sent;
+            
+            # Block for sending the headers.
+            Block {
+                If (@not(reply_headers_sent)) {
+                    reply_headers_sent->set(@true);
+                    println("SENDING headers");
+                };
+            } send_headers;
+            
+            # Define the callbacks for the request handler.
+            If (@true) {
+                Block {
+                    println("SET STATUS");
+                    reply_status->set(_arg0);
+                } set_status;
+                
+                Block {
+                    reply_headers->append({_arg0, _arg1});
+                } add_header;
+                
+                objref(^send_headers) headers_finished;
+            } callbacks;
+            
+            # Call the user's request handler.
+            server.options.request_handler->call({request_method, request_path, request_headers, ^callbacks});
+            
+            # Send the headers if not already.
+            send_headers->call({});
+            
+            # Reset the request parsing state.
+            got_first_line->set(@false);
+            request_method->set("");
+            request_path->set("");
+            request_headers->reset([]);
+        };
+        
+        # Continue with line processing.
+        parts->get(part_index) next_part;
+        line->reset(next_part);
+        part_index->set(@num_add(part_index, "1"));
+        part_again->go();
+    };
+    
+    # All newly read data was processed - read again.
+    read_again->go();
+}

@@ -1,0 +1,31 @@
+include "http_server.ncdi"
+
+process main {
+    log_fr(@notice, {"Init"}, {"Exit"});
+    
+    # Define the parameters for the HTTP server.
+    var([
+        "listen_addr": {@ipv4, "127.0.0.1", "4000"},
+        "max_clients": "2",
+        "max_headers": "32",
+        "max_line_len": "512",
+        "supported_methods": ["GET": ""]
+    ]) options;
+    
+    # Define the HTTP request handler.
+    Block {
+        alias(@_arg0) method;
+        alias(@_arg1) path;
+        alias(@_arg2) headers;
+        objref_arg(_arg3) callbacks;
+        
+        println("Request: ", @encode_value(method), " ", @encode_value(path), " ", @encode_value(headers));
+        
+        callbacks.set_status->call({"500 Error"});
+        callbacks.add_header->call({"Content-Type", "x-foo/bar"});
+        callbacks.headers_finished->call({});
+    } request_handler;
+    
+    # Start the HTTP server.
+    call(@http_server, {options, ^request_handler});
+}
