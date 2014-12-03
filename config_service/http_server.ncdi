@@ -176,6 +176,7 @@ template _http_client_proc {
             var(@true) have_content_type;
             value("") reply_payload;
             var(@true) have_payload;
+            var(@false) close_connection;
             
             # Define the callbacks for the request handler.
             If (@true) {
@@ -202,6 +203,11 @@ template _http_client_proc {
                 Block {
                     have_content_type->set(@false);
                 } no_content_type;
+                
+                Block {
+                    add_header->call({"Connection", "close"});
+                    close_connection->set(@true);
+                } connection_close;
             } callbacks;
 
             # Define some generic responses.
@@ -227,8 +233,11 @@ template _http_client_proc {
             
             # Check the HTTP version.
             If (@val_different(request_version_minor, "1")) {
+                callbacks.connection_close->call({});
                 responses.generic_error->call({"505 HTTP Version Not Supported"});
             } Else {
+                
+                
                 # Check if the user supports this request method.
                 server.options.supported_methods->try_get(request_method) method_entry;
                 If (@not(method_entry.exists)) {
@@ -275,6 +284,11 @@ template _http_client_proc {
             # Send the payload!
             If (have_payload) {
                 socket->write(reply_payload);
+            };
+            
+            # Close connection if desired.
+            If (close_connection) {
+                socket->close();
             };
             
             # Reset the request parsing state.
