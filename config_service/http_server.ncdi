@@ -41,7 +41,11 @@ template _http_client_proc {
     server.clients->insert_undo(["addr": socket.client_addr]) clients_entry;
     
     # Line splitting buffer.
-    value("") line;
+    value("") line_buffer;
+    
+    # Current parsing mode (line or fixed-length).
+    var(@false) parsing_fixed_length;
+    var("0") the_fixed_length;
     
     # Request parsing state.
     var(@false) got_first_line;
@@ -55,258 +59,277 @@ template _http_client_proc {
     backtrack_point() read_again;
     
     # Read some data from the socket.
-    socket->read() data;
-    If (data.eof) {
+    socket->read() read_data;
+    If (read_data.eof) {
         socket->close();
     };
     
-    # Split the received data by newline.
-    explode("\n", data) parts;
-    value(parts) parts;
+    # This holds the unparsed data. Will reduce it as we parse lines.
+    var(read_data) unparsed_data;
     
-    # Append the first part to the line buffer.
-    parts->get("0") first_part;
-    line->append(first_part);
+    # Will backtrack here to look for more lines.
+    backtrack_point() parse_again;
     
-    # Will be iterating over the completed lines.
-    var("1") part_index;
-    backtrack_point() part_again;
-    
-    # Enforce the max-line-len limit.
-    If (@num_greater(line.length, server.options.max_line_len)) {
-        log(@warning, prefix, "Line too long");
-        socket->close();
-    };
-    
-    # Got a completed line in the line buffer?
-    If (@num_lesser(part_index, parts.length)) {
-        # Handle CRLF lines - get rid of CR.
-        If (@num_greater(line.length, "0")) {
-            var(@num_subtract(line.length, "1")) len_minus_one;
-            line->substr(len_minus_one) last_char;
-            If (@val_equal(last_char, "\r")) {
-                line->substr("0", len_minus_one) without_cr;
-                line->reset(without_cr);
-            };
+    If (parsing_fixed_length) {
+        # Calculate how much more data we want.
+        var(@num_subtract(the_fixed_length, line_buffer.length)) remaining;
+        
+        # Append no more than the remaining amount to the line_buffer.
+        substr(unparsed_data, "0", remaining) new_data;
+        value(new_data) new_data;
+        line_buffer->append(new_data);
+        
+        # Remove this data from the unparsed_data.
+        substr(unparsed_data, new_data.length) rem_data;
+        unparsed_data->set(rem_data);
+        
+        # If not enough data yet, read again.
+        If (@num_lesser(line_buffer.length, the_fixed_length)) {
+            read_again->go();
+        };
+    } Else {
+        # Look for a newline in the data.
+        explode("\n", unparsed_data, "2") parts;
+        value(parts) parts;
+        
+        # Append the data before the newline to the line buffer.
+        parts->get("0") first_part;
+        line_buffer->append(first_part);
+        
+        # Enforce the max-line-len limit.
+        If (@num_greater(line_buffer.length, server.options.max_line_len)) {
+            log(@warning, prefix, "Line too long");
+            socket->close();
         };
         
-        # Non-empty or empty line (end of request)?
-        If (@num_greater(line.length, "0")) {
-            If (@not(got_first_line)) {
-                # Split the first line by space into the three parts.
-                explode(" ", line, "3") first_row_parts;
-                value(first_row_parts) first_row_parts;
-                If (@num_different(first_row_parts.length, "3")) {
-                    log(@warning, prefix, "Bad first line");
-                    socket->close();
-                };
-                
-                # Fetch those parts.
-                first_row_parts->get("0") p0;
-                first_row_parts->get("1") p1;
-                first_row_parts->get("2") p2;
-                
-                # Parse the HTTP version.
-                explode("/", p2) version_parts;
-                value(version_parts) version_parts;
-                If (@num_different(version_parts.length, "2")) {
-                    log(@warning, prefix, "Bad version (/)");
-                    socket->close();
-                };
-                version_parts->get("0") version_http;
-                version_parts->get("1") version_ver;
-                If (@val_different(version_http, "HTTP")) {
-                    log(@warning, prefix, "Bad version (HTTP)");
-                    socket->close();
-                };
-                explode(".", version_ver) ver_numparts;
-                value(ver_numparts) ver_numparts;
-                If (@val_different(ver_numparts.length, "2")) {
-                    log(@warning, prefix, "Bad version (.)");
-                    socket->close();
-                };
-                ver_numparts->get("0") major;
-                parse_number(major) major;
-                ver_numparts->get("1") minor;
-                parse_number(minor) minor;
-                If (@or(@not(major.succeeded), @not(minor.succeeded))) {
-                    log(@warning, prefix, "Bad version (N)");
-                    socket->close();
-                };
-                
-                # Remember the first line data.
-                request_method->set(p0);
-                request_path->set(p1);
-                request_version_major->set(major);
-                request_version_minor->set(minor);
-                got_first_line->set(@true);
-            } Else {
-                # Enforce the max-headers limit.
-                If (@num_greater_equal(request_headers.length, server.options.max_headers)) {
-                    log(@warning, prefix, "Too many headers");
-                    socket->close();
-                };
-                
-                # Split the header into the name and value.
-                explode(": ", line, "2") header_parts;
-                value(header_parts) header_parts;
-                If (@num_different(header_parts.length, "2")) {
-                    log(@warning, prefix, "Bad header");
-                    socket->close();
-                };
-                
-                # Remember the header.
-                header_parts->get("0") p0;
-                header_parts->get("1") p1;
-                request_headers->insert(@tolower(p0), p1);
+        # If no line yet, read again.
+        If (@num_equal(parts.length, "1")) {
+            read_again->go();
+        };
+        
+        # Prepare for the next line.
+        parts->get("1") next_part;
+        unparsed_data->set(next_part);
+    };
+    
+    # Expose the line and reset the line_buffer for future parsing.
+    value(line_buffer) line;
+    line_buffer->reset("");
+    
+    # Handle CRLF lines - get rid of CR.
+    If (@num_greater(line.length, "0")) {
+        var(@num_subtract(line.length, "1")) len_minus_one;
+        line->substr(len_minus_one) last_char;
+        If (@val_equal(last_char, "\r")) {
+            line->substr("0", len_minus_one) without_cr;
+            line->reset(without_cr);
+        };
+    };
+    
+    # Non-empty or empty line (end of request)?
+    If (@num_greater(line.length, "0")) {
+        If (@not(got_first_line)) {
+            # Split the first line by space into the three parts.
+            explode(" ", line, "3") first_row_parts;
+            value(first_row_parts) first_row_parts;
+            If (@num_different(first_row_parts.length, "3")) {
+                log(@warning, prefix, "Bad first line");
+                socket->close();
             };
+            
+            # Fetch those parts.
+            first_row_parts->get("0") p0;
+            first_row_parts->get("1") p1;
+            first_row_parts->get("2") p2;
+            
+            # Parse the HTTP version.
+            explode("/", p2) version_parts;
+            value(version_parts) version_parts;
+            If (@num_different(version_parts.length, "2")) {
+                log(@warning, prefix, "Bad version (/)");
+                socket->close();
+            };
+            version_parts->get("0") version_http;
+            version_parts->get("1") version_ver;
+            If (@val_different(version_http, "HTTP")) {
+                log(@warning, prefix, "Bad version (HTTP)");
+                socket->close();
+            };
+            explode(".", version_ver) ver_numparts;
+            value(ver_numparts) ver_numparts;
+            If (@val_different(ver_numparts.length, "2")) {
+                log(@warning, prefix, "Bad version (.)");
+                socket->close();
+            };
+            ver_numparts->get("0") major;
+            parse_number(major) major;
+            ver_numparts->get("1") minor;
+            parse_number(minor) minor;
+            If (@or(@not(major.succeeded), @not(minor.succeeded))) {
+                log(@warning, prefix, "Bad version (N)");
+                socket->close();
+            };
+            
+            # Remember the first line data.
+            request_method->set(p0);
+            request_path->set(p1);
+            request_version_major->set(major);
+            request_version_minor->set(minor);
+            got_first_line->set(@true);
         } Else {
-            # Check if we at least got the first line of the request.
-            If (@not(got_first_line)) {
-                log(@warning, prefix, "No lines in request");
+            # Enforce the max-headers limit.
+            If (@num_greater_equal(request_headers.length, server.options.max_headers)) {
+                log(@warning, prefix, "Too many headers");
                 socket->close();
             };
             
-            log(@notice, prefix, "Received request");
-            
-            # State for the reply to the request.
-            var("200 OK") reply_status;
-            value({}) reply_headers;
-            var("text/plain; charset=utf-8") content_type;
-            var(@true) have_content_type;
-            value("") reply_payload;
-            var(@true) have_payload;
-            var(@false) close_connection;
-            
-            # Define the callbacks for the request handler.
-            If (@true) {
-                Block {
-                    reply_status->set(_arg0);
-                } set_status;
-                
-                Block {
-                    content_type->set(_arg0);
-                } set_content_type;
-                
-                Block {
-                    reply_headers->append({_arg0, _arg1});
-                } add_header;
-                
-                Block {
-                    reply_payload->append(_arg0);
-                } add_payload;
-                
-                Block {
-                    have_payload->set(@false);
-                } no_payload;
-                
-                Block {
-                    have_content_type->set(@false);
-                } no_content_type;
-                
-                Block {
-                    add_header->call({"Connection", "close"});
-                    close_connection->set(@true);
-                } connection_close;
-            } callbacks;
-
-            # Define some generic responses.
-            If (@true) {
-                Block {
-                    var(_arg0) code;
-                    callbacks.set_status->call({code});
-                    callbacks.add_payload->call({code});
-                } generic_error;
-                
-                Block {
-                    generic_error->call({"405 Method Not Allowed"});
-                } method_not_allowed;
-                
-                Block {
-                    generic_error->call({"501 Not Implemented"});
-                } not_implemented;
-                
-                Block {
-                    generic_error->call({"404 Not Found"});
-                } not_found;
-            } responses;
-            
-            # Check the HTTP version.
-            If (@val_different(request_version_minor, "1")) {
-                callbacks.connection_close->call({});
-                responses.generic_error->call({"505 HTTP Version Not Supported"});
-            } Else {
-                
-                
-                # Check if the user supports this request method.
-                server.options.supported_methods->try_get(request_method) method_entry;
-                If (@not(method_entry.exists)) {
-                    responses.not_implemented->call({});
-                } Else {
-                    # Call the user's request handler.
-                    server.options.request_handler->call({request_method, request_path, request_headers, ^callbacks, ^responses});
-                };
-            };
-            
-            # Send the headers.
-            If (@true) {
-                # First line of response.
-                value(@concat("HTTP/1.1 ", reply_status, "\r\n")) response;
-                
-                # Some basic headers.
-                response->append(@concat("Server: ", server.options.server_name, "\r\n"));
-                If (have_content_type) {
-                    response->append(@concat("Content-Type: ", content_type, "\r\n"));
-                };
-                If (have_payload) {
-                    response->append(@concat("Content-Length: ", reply_payload.length, "\r\n"));
-                };
-                
-                # More headers.
-                var("0") i;
-                backtrack_point() again;
-                If (@num_lesser(i, reply_headers.length)) {
-                    reply_headers->get(i) header;
-                    header->get("0") name;
-                    header->get("1") value;
-                    response->append(@concat(name, ": ", value, "\r\n"));
-                    i->set(@num_add(i, "1"));
-                    again->go();
-                };
-                
-                # Empty line.
-                response->append("\r\n");
-                
-                # Send the headers!
-                socket->write(response);
-            };
-            
-            # Send the payload!
-            If (have_payload) {
-                socket->write(reply_payload);
-            };
-            
-            # Close connection if desired.
-            If (close_connection) {
+            # Split the header into the name and value.
+            explode(": ", line, "2") header_parts;
+            value(header_parts) header_parts;
+            If (@num_different(header_parts.length, "2")) {
+                log(@warning, prefix, "Bad header");
                 socket->close();
             };
             
-            # Reset the request parsing state.
-            got_first_line->set(@false);
-            request_method->set("");
-            request_path->set("");
-            request_version_major->set("");
-            request_version_minor->set("");
-            request_headers->reset([]);
+            # Remember the header.
+            header_parts->get("0") p0;
+            header_parts->get("1") p1;
+            request_headers->insert(@tolower(p0), p1);
+        };
+    } Else {
+        # Check if we at least got the first line of the request.
+        If (@not(got_first_line)) {
+            log(@warning, prefix, "No lines in request");
+            socket->close();
         };
         
-        # Continue with line processing.
-        parts->get(part_index) next_part;
-        line->reset(next_part);
-        part_index->set(@num_add(part_index, "1"));
-        part_again->go();
+        log(@notice, prefix, "Received request");
+        
+        # State for the reply to the request.
+        var("200 OK") reply_status;
+        value({}) reply_headers;
+        var("text/plain; charset=utf-8") content_type;
+        var(@true) have_content_type;
+        value("") reply_payload;
+        var(@true) have_payload;
+        var(@false) close_connection;
+        
+        # Define the callbacks for the request handler.
+        If (@true) {
+            Block {
+                reply_status->set(_arg0);
+            } set_status;
+            
+            Block {
+                content_type->set(_arg0);
+            } set_content_type;
+            
+            Block {
+                reply_headers->append({_arg0, _arg1});
+            } add_header;
+            
+            Block {
+                reply_payload->append(_arg0);
+            } add_payload;
+            
+            Block {
+                have_payload->set(@false);
+            } no_payload;
+            
+            Block {
+                have_content_type->set(@false);
+            } no_content_type;
+            
+            Block {
+                add_header->call("Connection", "close");
+                close_connection->set(@true);
+            } connection_close;
+        } callbacks;
+
+        # Define some generic responses.
+        If (@true) {
+            Block {
+                var(_arg0) code;
+                callbacks.set_status->call(code);
+                callbacks.add_payload->call(code);
+            } generic_error;
+            
+            Block {
+                generic_error->call("405 Method Not Allowed");
+            } method_not_allowed;
+            
+            Block {
+                generic_error->call("501 Not Implemented");
+            } not_implemented;
+            
+            Block {
+                generic_error->call("404 Not Found");
+            } not_found;
+        } responses;
+        
+        # Check the HTTP version.
+        If (@val_different(request_version_minor, "1")) {
+            callbacks.connection_close->call();
+            responses.generic_error->call("505 HTTP Version Not Supported");
+        } Else {
+            # Check if the user supports this request method.
+            server.options.supported_methods->try_get(request_method) method_entry;
+            If (@not(method_entry.exists)) {
+                responses.not_implemented->call();
+            } Else {
+                # Call the user's request handler.
+                server.options.request_handler->call(request_method, request_path, request_headers, ^callbacks, ^responses);
+            };
+        };
+        
+        # Send the headers.
+        If (@true) {
+            # First line of response.
+            value(@concat("HTTP/1.1 ", reply_status, "\r\n")) response;
+            
+            # Add some basic headers.
+            response->append(@concat("Server: ", server.options.server_name, "\r\n"));
+            If (have_content_type) {
+                response->append(@concat("Content-Type: ", content_type, "\r\n"));
+            };
+            If (have_payload) {
+                response->append(@concat("Content-Length: ", reply_payload.length, "\r\n"));
+            };
+            
+            # Add all the other headers.
+            var("0") i;
+            backtrack_point() again;
+            If (@num_lesser(i, reply_headers.length)) {
+                reply_headers->get(i) header;
+                header->get("0") name;
+                header->get("1") value;
+                response->append(@concat(name, ": ", value, "\r\n"));
+                i->set(@num_add(i, "1"));
+                again->go();
+            };
+            
+            # Add the empty line.
+            response->append("\r\n");
+            
+            # Send the reponse!
+            socket->write(response);
+        };
+        
+        # Send the payload!
+        If (have_payload) {
+            socket->write(reply_payload);
+        };
+        
+        # Close connection if desired.
+        If (close_connection) {
+            socket->close();
+        };
+        
+        # Reset the request parsing state.
+        got_first_line->set(@false);
+        request_headers->reset([]);
     };
     
-    # All newly read data was processed - read again.
-    read_again->go();
+    # Continue with data processing.
+    parse_again->go();
 }

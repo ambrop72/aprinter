@@ -31,7 +31,7 @@ process main {
             # Provide some warm and fuzzy text at /.
             If (@val_equal(path, "/")) {
                 If (@not(@val_equal(method, "GET"))) {
-                    responses.method_not_allowed->call({});
+                    responses.method_not_allowed->call();
                     abort->go();
                 };
                 
@@ -42,23 +42,23 @@ process main {
                 text->append("In that case you really should take a look at the source code of this software, ");
                 text->append("which is written in the NCD Programming Language :)");
                 
-                callbacks.add_payload->call({text});
+                callbacks.add_payload->call(text);
                 abort->go();
             };
             
             # Unsupported request path?
             If (@not(@val_equal(path, "/compile"))) {
-                responses.not_found->call({});
+                responses.not_found->call();
                 abort->go();
             };
             
             # If this is a GET request, provide some warm and fuzzy text.
             If (@not(@val_equal(method, "POST"))) {
-                responses.method_not_allowed->call({});
+                responses.method_not_allowed->call();
                 abort->go();
             };
             
-            callbacks.add_payload->call({"Hello HTTP"});
+            callbacks.add_payload->call("Hello HTTP");
         };
     } request_handler;
     
