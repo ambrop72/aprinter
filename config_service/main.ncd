@@ -19,8 +19,9 @@ process main {
         alias(@_arg0) method;
         alias(@_arg1) path;
         alias(@_arg2) headers;
-        objref_arg(_arg3) callbacks;
-        objref_arg(_arg4) responses;
+        alias(@_arg3) request_payload;
+        objref_arg(_arg4) callbacks;
+        objref_arg(_arg5) responses;
         
         # A little bit of hacking to handle errors without nesting.
         var(@true) cont;
@@ -58,7 +59,7 @@ process main {
                 abort->go();
             };
             
-            callbacks.add_payload->call("Hello HTTP");
+            callbacks.add_payload->call(@concat("You sent me the following data: ", request_payload));
         };
     } request_handler;
     
