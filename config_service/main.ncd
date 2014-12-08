@@ -10,6 +10,7 @@ process main {
         "max_headers": "64",
         "max_line_len": "512",
         "max_request_payload_len": "262144",
+        "inactivity_timeout": "20000",
         "supported_methods": ["GET": "", "POST": ""],
         "server_name": "APrinter Compilation Service implemented in NCD"
     ]) options;
@@ -53,8 +54,8 @@ process main {
                 abort->go();
             };
             
-            # If this is a GET request, provide some warm and fuzzy text.
-            If (@not(@val_equal(method, "POST"))) {
+            # Here we only support POST.
+            If (@val_different(method, "POST")) {
                 responses.method_not_allowed->call();
                 abort->go();
             };

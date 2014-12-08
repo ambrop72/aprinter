@@ -11,41 +11,89 @@ template http_server {
         options_map->get("max_headers") max_headers;
         options_map->get("max_line_len") max_line_len;
         options_map->get("max_request_payload_len") max_request_payload_len;
+        options_map->get("inactivity_timeout") inactivity_timeout;
         options_map->get("supported_methods") supported_methods;
         options_map->get("server_name") server_name;
     } options;
     
+    # Precompute some stuff.
+    If (@true) {
+        compile_search("\n") search_newline;
+        compile_search(": ") search_colsp;
+        compile_search(" ") search_space;
+        compile_search("/") search_slash;
+        compile_search(".") search_dot;
+        compile_search(";") search_semicolon;
+    } precomp;
+    
     # This is the list of connected clients.
     # We use it to enforce the max-clients limit.
     value({}) clients;
+    
+    # Reference point for the global stuff.
+    refhere() global;
     
     # Set up the TCP listener.
     sys.listen({@tcp, options.listen_addr}, @_http_client_proc, {});
 }
 
 template _http_client_proc {
-    objref(^_caller.options) options;
-    objref(^_caller.clients) clients;
+    objref(^_caller.global) global;
     alias(@_socket) socket;
     
-    # Informational messages for client connect/disconnect.
+    # Fetch the client address.
+    var(socket.client_addr) client_addr;
+    
+    # Prefix for log messages.
     var(@concat(@encode_value(socket.client_addr), ": ")) prefix;
+    
+    # Informational messages for client connect/disconnect.
     log_fr(@notice, {prefix, "Connected"}, {prefix, "Disconnected"});
     
-    # Enforce max clients limit.
-    If (@num_greater_equal(clients.length, options.max_clients)) {
+    # Enforce the max-clients limit.
+    If (@num_greater_equal(global.clients.length, global.options.max_clients)) {
         log(@warning, prefix, "Too many clients");
         socket->close();
     };
     
     # Keep track of all connected clients.
-    clients->insert_undo(["addr": socket.client_addr]) clients_entry;
+    global.clients->insert_undo(["addr": client_addr]);
     
     # Depend scope for communication with the request processing task.
     depend_scope() depsc;
     
-    # Spawn the request processing task.
-    spawn(@_http_request_task, {});
+    # Blocker for resetting the timeout.
+    blocker() timeout_blk;
+    timeout_blk->up();
+    
+    # Reference point for the client-specific stuff.
+    refhere() client;
+    
+    # Start the various client-specific tasks.
+    process_manager() mgr;
+    mgr->start(@_http_timeout_task, {});
+    mgr->start(@_http_parse_task, {});
+    mgr->start(@_http_request_task, {});
+}
+
+template _http_timeout_task {
+    objref(^_caller.client) client;
+    
+    # Will backtrack here when the timeout needs to be reset.
+    client.timeout_blk->use();
+    
+    # Wait for the timeout to expire.
+    sleep(client.global.options.inactivity_timeout);
+    
+    # Disconnect the client.
+    log(@notice, client.prefix, "Timed out");
+    client.socket->close();
+}
+
+template _http_parse_task {
+    objref(^_caller.client) client;
+    objref(^client.global) global;
+    objref(^global.precomp) precomp;
     
     # Line splitting buffer.
     value("") line_buffer;
@@ -58,9 +106,9 @@ template _http_client_proc {
     backtrack_point() read_again;
     
     # Read some data from the socket.
-    socket->read() read_data;
+    client.socket->read() read_data;
     If (read_data.eof) {
-        socket->close();
+        client.socket->close();
     };
     
     # This holds the unparsed data. Will reduce it as we parse lines.
@@ -88,7 +136,7 @@ template _http_client_proc {
         };
     } Else {
         # Look for a newline in the data.
-        explode("\n", unparsed_data, "2") parts;
+        precomp.search_newline->explode(unparsed_data, "2") parts;
         value(parts) parts;
         
         # Append the data before the newline to the line buffer.
@@ -96,9 +144,9 @@ template _http_client_proc {
         line_buffer->append(first_part);
         
         # Enforce the max-line-len limit.
-        If (@num_greater(line_buffer.length, options.max_line_len)) {
+        If (@num_greater(line_buffer.length, global.options.max_line_len)) {
             log(@warning, prefix, "Line too long");
-            socket->close();
+            client.socket->close();
         };
         
         # If no line yet, read again.
@@ -126,12 +174,14 @@ template _http_client_proc {
     };
     
     # Pass the line to the request processing task.
-    depsc->provide("line");
+    client.depsc->provide("line");
 }
 
 template _http_request_task {
-    alias("_caller") client;
-    objref(^client.options) options;
+    objref(^_caller.client) client;
+    objref(^client.global) global;
+    objref(^global.precomp) precomp;
+    objref(^global.options) options;
     
     # This block acks the current line and requests processing the next line.
     Block {
@@ -191,7 +241,7 @@ template _http_request_task {
         num_header_lines->set(@num_add(num_header_lines, "1"));
         
         # Split the header into the name and value.
-        explode(": ", header_line, "2") header_parts;
+        precomp.search_colsp->explode(header_line, "2") header_parts;
         value(header_parts) header_parts;
         If (@num_different(header_parts.length, "2")) {
             log(@warning, client.prefix, "Bad header");
@@ -228,7 +278,7 @@ template _http_request_task {
         If (@num_greater(line.length, "0")) {
             If (@not(got_first_line)) {
                 # Split the first line by space into the three parts.
-                explode(" ", line, "3") first_row_parts;
+                precomp.search_space->explode(line, "3") first_row_parts;
                 value(first_row_parts) first_row_parts;
                 If (@num_different(first_row_parts.length, "3")) {
                     log(@warning, client.prefix, "Bad first line");
@@ -241,7 +291,7 @@ template _http_request_task {
                 first_row_parts->get("2") p2;
                 
                 # Parse the HTTP version.
-                explode("/", p2) version_parts;
+                precomp.search_slash->explode(p2, "2") version_parts;
                 value(version_parts) version_parts;
                 If (@num_different(version_parts.length, "2")) {
                     log(@warning, client.prefix, "Bad version (/)");
@@ -253,9 +303,9 @@ template _http_request_task {
                     log(@warning, client.prefix, "Bad version (HTTP)");
                     client.socket->close();
                 };
-                explode(".", version_ver) ver_numparts;
+                precomp.search_dot->explode(version_ver, "2") ver_numparts;
                 value(ver_numparts) ver_numparts;
-                If (@val_different(ver_numparts.length, "2")) {
+                If (@num_different(ver_numparts.length, "2")) {
                     log(@warning, client.prefix, "Bad version (.)");
                     client.socket->close();
                 };
@@ -388,7 +438,7 @@ template _http_request_task {
                     get_line->call(^chunk_line);
                     
                     # Extract the length out of the chunk header (ignoring any chunk-extension).
-                    explode(";", chunk_line, "2") chunk_line_parts;
+                    precomp.search_semicolon->explode(chunk_line, "2") chunk_line_parts;
                     value(chunk_line_parts) chunk_line_parts;
                     chunk_line_parts->get("0") chunk_length_str;
                     
@@ -491,39 +541,39 @@ template _http_request_task {
         };
     };
     
-    # Send the headers.
-    If (@true) {
-        # First line of response.
-        value(@concat("HTTP/1.", reply_version_minor, " ", reply_status, "\r\n")) response;
-        
-        # Add some basic headers.
-        response->append(@concat("Server: ", options.server_name, "\r\n"));
-        response->append(@concat("Content-Type: ", content_type, "\r\n"));
-        response->append(@concat("Content-Length: ", reply_payload.length, "\r\n"));
-        
-        # Add all the other headers.
-        var("0") i;
-        backtrack_point() again;
-        If (@num_lesser(i, reply_headers.length)) {
-            reply_headers->get(i) header;
-            header->get("0") name;
-            header->get("1") value;
-            response->append(@concat(name, ": ", value, "\r\n"));
-            i->set(@num_add(i, "1"));
-            again->go();
-        };
-        
-        # Add the empty line.
-        response->append("\r\n");
-        
-        # Send the reponse!
-        client.socket->write(response);
+    # Reset the inactivity timeout.
+    client.timeout_blk->downup();
+    
+    # First line of response.
+    value(@concat("HTTP/1.", reply_version_minor, " ", reply_status, "\r\n")) response;
+    
+    # Add some basic headers.
+    response->append(@concat("Server: ", options.server_name, "\r\n"));
+    response->append(@concat("Content-Type: ", content_type, "\r\n"));
+    response->append(@concat("Content-Length: ", reply_payload.length, "\r\n"));
+    
+    # Add all the other headers.
+    var("0") i;
+    backtrack_point() again;
+    If (@num_lesser(i, reply_headers.length)) {
+        reply_headers->get(i) header;
+        header->get("0") name;
+        header->get("1") value;
+        response->append(@concat(name, ": ", value, "\r\n"));
+        i->set(@num_add(i, "1"));
+        again->go();
     };
+    
+    # Add the empty line.
+    response->append("\r\n");
+    
+    # Send the reponse!
+    client.socket->write(response);
     
     # Send the payload!
     client.socket->write(reply_payload);
     
-    # Close connection if desired.
+    # Close connection if we want to.
     If (close_connection) {
         client.socket->close();
     };
