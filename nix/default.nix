@@ -51,4 +51,6 @@ rec {
     ];
     aprinterTestAll = aprinterSymlinksFunc allTestTargets;
     aprinterTestAllDebug = aprinterSymlinksFunc (map (t: t.override { assertionsEnabled = true; }) allTestTargets);
+    
+    valvePlay = aprinterTestFunc "teensy3" { sourceName = "teensy3-valve"; };
 }

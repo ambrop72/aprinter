@@ -115,6 +115,16 @@ template _http_client_proc {
     value(line_buffer) line;
     line_buffer->reset("");
     
+    # Handle CRLF lines - get rid of CR.
+    If (@and(@not(parsing_fixed_length), @num_greater(line.length, "0"))) {
+        var(@num_subtract(line.length, "1")) len_minus_one;
+        line->substr(len_minus_one) last_char;
+        If (@val_equal(last_char, "\r")) {
+            line->substr("0", len_minus_one) without_cr;
+            line->reset(without_cr);
+        };
+    };
+    
     # Pass the line to the request processing task.
     depsc->provide("line");
 }
@@ -122,6 +132,38 @@ template _http_client_proc {
 template _http_request_task {
     alias("_caller") client;
     objref(^client.options) options;
+    
+    # This block acks the current line and requests processing the next line.
+    Block {
+        alias(@_arg0) parsing_fixed_length;
+        alias(@_arg1) the_fixed_length;
+        
+        var(@true) need_ack;
+        backtrack_point() line_acked;
+        If (need_ack) {
+            need_ack->set(@false);
+            client.depsc->depend({"line"}) line_event;
+            line_event.parsing_fixed_length->set(parsing_fixed_length);
+            line_event.the_fixed_length->set(the_fixed_length);
+            line_acked->rgo();
+            line_event.line_processed->go();
+            if("false");
+        };
+    } ack_line;
+    
+    # This block waits for a line and appends it to a value object.
+    Block {
+        objref_arg(_arg0) append_dest;
+        
+        var(@true) need_line;
+        backtrack_point() got_line;
+        If (need_line) {
+            need_line->set(@false);
+            client.depsc->depend({"line"}) line_event;
+            append_dest->append(line_event.line);
+            got_line->go();
+        };
+    } get_line;
     
     # Will backtrack here to proceed to the next request.
     backtrack_point() next_request;
@@ -133,6 +175,45 @@ template _http_request_task {
     var("") request_version_major;
     var("") request_version_minor;
     value([]) request_headers;
+    var("0") num_header_lines;
+    
+    # This block parses and remembers a header.
+    Block {
+        alias(@_arg0) header_line;
+        
+        # Enforce the max-headers limit.
+        If (@num_greater_equal(num_header_lines, options.max_headers)) {
+            log(@warning, client.prefix, "Too many headers");
+            client.socket->close();
+        };
+        
+        # Increment the header line counter.
+        num_header_lines->set(@num_add(num_header_lines, "1"));
+        
+        # Split the header into the name and value.
+        explode(": ", header_line, "2") header_parts;
+        value(header_parts) header_parts;
+        If (@num_different(header_parts.length, "2")) {
+            log(@warning, client.prefix, "Bad header");
+            client.socket->close();
+        };
+        header_parts->get("0") header_name_orig;
+        header_parts->get("1") header_value;
+        
+        # Uncaseify the header name.
+        var(@tolower(header_name_orig)) header_name;
+        
+        # Check if we already have this header.
+        request_headers->try_get(header_name) existing_header;
+        If (@not(existing_header.exists)) {
+            # Add it as a new header.
+            request_headers->insert(header_name, header_value);
+        } Else {
+            # Append it to the existing header, with a comma.
+            existing_header->append(",");
+            existing_header->append(header_value);
+        };
+    } handle_header;
     
     # Will backtrack when the request is read.
     var(@true) reading_request;
@@ -142,16 +223,6 @@ template _http_request_task {
         # Wait for a line.
         client.depsc->depend({"line"}) line_event;
         objref(^line_event.line) line;
-        
-        # Handle CRLF lines - get rid of CR.
-        If (@num_greater(line.length, "0")) {
-            var(@num_subtract(line.length, "1")) len_minus_one;
-            line->substr(len_minus_one) last_char;
-            If (@val_equal(last_char, "\r")) {
-                line->substr("0", len_minus_one) without_cr;
-                line->reset(without_cr);
-            };
-        };
         
         # Non-empty or empty line (end of request)?
         If (@num_greater(line.length, "0")) {
@@ -204,24 +275,8 @@ template _http_request_task {
                 request_version_minor->set(minor);
                 got_first_line->set(@true);
             } Else {
-                # Enforce the max-headers limit.
-                If (@num_greater_equal(request_headers.length, options.max_headers)) {
-                    log(@warning, client.prefix, "Too many headers");
-                    client.socket->close();
-                };
-                
-                # Split the header into the name and value.
-                explode(": ", line, "2") header_parts;
-                value(header_parts) header_parts;
-                If (@num_different(header_parts.length, "2")) {
-                    log(@warning, client.prefix, "Bad header");
-                    client.socket->close();
-                };
-                
-                # Remember the header.
-                header_parts->get("0") p0;
-                header_parts->get("1") p1;
-                request_headers->insert(@tolower(p0), p1);
+                # Handle the header.
+                handle_header->call(line);
             };
             
             # Achlowledge line (this immediately causes backtracking to line_event).
@@ -240,35 +295,15 @@ template _http_request_task {
         };
     };
     
-    # This code will ack the current line, allowing processing
-    # of received data to resume.
-    Block {
-        alias(@_arg0) parsing_fixed_length;
-        alias(@_arg1) the_fixed_length;
-        
-        var(@true) need_ack;
-        backtrack_point() line_acked;
-        If (need_ack) {
-            need_ack->set(@false);
-            client.depsc->depend({"line"}) line_event;
-            line_event.parsing_fixed_length->set(parsing_fixed_length);
-            line_event.the_fixed_length->set(the_fixed_length);
-            line_acked->rgo();
-            line_event.line_processed->go();
-            if("false");
-        };
-    } ack_line;
-    
     log(@notice, client.prefix, "Received request");
     
     # State for the reply to the request.
     var("200 OK") reply_status;
     value({}) reply_headers;
     var("text/plain; charset=utf-8") content_type;
-    var(@true) have_content_type;
     value("") reply_payload;
-    var(@true) have_payload;
     var(@false) close_connection;
+    var("0") reply_version_minor;
     
     # Define the callbacks for the request handler.
     If (@true) {
@@ -287,14 +322,6 @@ template _http_request_task {
         Block {
             reply_payload->append(_arg0);
         } add_payload;
-        
-        Block {
-            have_payload->set(@false);
-        } no_payload;
-        
-        Block {
-            have_content_type->set(@false);
-        } no_content_type;
         
         Block {
             add_header->call("Connection", "close");
@@ -324,69 +351,155 @@ template _http_request_task {
     } responses;
     
     # Check the HTTP version.
-    If (@val_different(request_version_minor, "1")) {
+    If (@num_different(request_version_major, "1")) {
+        # Need to close the connection after response.
         callbacks.connection_close->call();
         responses.generic_error->call("505 HTTP Version Not Supported");
     } Else {
-        # Will put any request payload here.
-        value("") request_payload;
-        
-        # Check if we have a content-length.
-        request_headers->try_get("content-length") req_content_length;
-        If (req_content_length.exists) {
-            # Parse the length.
-            parse_number(req_content_length) length_number;
-            If (@not(length_number.succeeded)) {
-                log(@warning, client.prefix, "Bad content-length");
-                client.socket->close();
-            };
-            
-            # Enforce the limit.
-            If (@num_greater(length_number, options.max_request_payload_len)) {
-                log(@warning, client.prefix, "Too large content-length");
-                client.socket->close();
-            };
-            
-            # Ack the line, requesting a fixed-line of the specified line.
-            ack_line->call(@true, length_number);
-            
-            # Wait for this fixed line to arrive.
-            var(@true) want_payload;
-            backtrack_point() got_payload;
-            If (want_payload) {
-                want_payload->set(@false);
-                client.depsc->depend({"line"}) line_event;
-                println("PL");
-                request_payload->reset(line_event.line);
-                got_payload->go();
-            };
-            
-            println("Received payload: ", request_payload);
+        # Adjust the minor HTTP version of the response.
+        If (@num_greater_equal(request_version_minor, "1")) {
+            reply_version_minor->set("1");
         };
         
-        # Check if the user supports this request method.
-        options.supported_methods->try_get(request_method) method_entry;
-        If (@not(method_entry.exists)) {
+        # Will put any request payload here.
+        value("") request_payload;
+        var(@false) bad_transfer_encoding;
+        var(@false) encoding_handled;
+        
+        # Check if we have transfer-encoding.
+        request_headers->try_get("transfer-encoding") req_te;
+        If (req_te.exists) {
+            var(@tolower(req_te)) req_low_te;
+            If (@val_different(req_low_te, "identity")) {
+                # We handle the encoding here and ignore content-length.
+                encoding_handled->set(@true);
+                
+                If (@val_different(req_low_te, "chunked")) {
+                    bad_transfer_encoding->set(@true);
+                } Else {
+                    # Will backtrack here for the next chunk.
+                    backtrack_point() next_chunk;
+                    
+                    # Ack the line, requesting the next (normal) line.
+                    ack_line->call(@false, "0");
+                    
+                    # Wait for the chunk prefix line to arrive.
+                    value("") chunk_line;
+                    get_line->call(^chunk_line);
+                    
+                    # Extract the length out of the chunk header (ignoring any chunk-extension).
+                    explode(";", chunk_line, "2") chunk_line_parts;
+                    value(chunk_line_parts) chunk_line_parts;
+                    chunk_line_parts->get("0") chunk_length_str;
+                    
+                    # Parse the chunk length.
+                    parse_hex_number(chunk_length_str) chunk_length;
+                    If (@not(chunk_length.succeeded)) {
+                        log(@warning, client.prefix, "Bad transfer length prefix");
+                        client.socket->close();
+                    };
+                    
+                    # Not last chunk?
+                    If (@num_greater(chunk_length, "0")) {
+                        # Enforce the payload size limit.
+                        If (@num_greater(chunk_length, @num_subtract(options.max_request_payload_len, request_payload.length))) {
+                            log(@warning, client.prefix, "Too much payload");
+                            client.socket->close();
+                        };
+                        
+                        # Ack the line, requesting fixed length.
+                        ack_line->call(@true, chunk_length);
+                        
+                        # Wait for the chunk to arrive.
+                        get_line->call(^request_payload);
+                        
+                        # Ack the line, requesting a normal line.
+                        ack_line->call(@false, "0");
+                        
+                        # Wait for the stupid CRLF to arrive.
+                        value("") chunk_end;
+                        get_line->call(^chunk_end);
+                        If (@val_different(chunk_end, "")) {
+                            log(@warning, client.prefix, "Bad chunk end");
+                            client.socket->close();
+                        };
+                        
+                        # Next chunk.
+                        next_chunk->go();
+                    };
+                    
+                    # Will backtrack here to read the next trailer line.
+                    backtrack_point() next_trailer_line;
+                    
+                    # Request a normal line.
+                    ack_line->call(@false, "0");
+                    
+                    # Wait for the line.
+                    value("") trailer_line;
+                    get_line->call(^trailer_line);
+                    
+                    # Not end of trailer?
+                    If (@num_greater(trailer_line.length, "0")) {
+                        # Handle the trailer line as a header.
+                        handle_header->call(trailer_line);
+                        
+                        # Expect more trailer lines.
+                        next_trailer_line->go();
+                    };
+                };
+            };
+        };
+        
+        If (@not(encoding_handled)) {
+            # Check if we have a content-length.
+            request_headers->try_get("content-length") req_content_length;
+            If (req_content_length.exists) {
+                # Parse the length.
+                parse_number(req_content_length) length_number;
+                If (@not(length_number.succeeded)) {
+                    log(@warning, client.prefix, "Bad content-length");
+                    client.socket->close();
+                };
+                
+                # Enforce the payload size limit.
+                If (@num_greater(length_number, options.max_request_payload_len)) {
+                    log(@warning, client.prefix, "Too much payload");
+                    client.socket->close();
+                };
+                
+                # Ack the line, requesting a fixed-line of the specified line.
+                ack_line->call(@true, length_number);
+                
+                # Wait for the payload to arrive.
+                get_line->call(^request_payload);
+            };
+        };
+        
+        # Handle bad transfer encoding.
+        If (bad_transfer_encoding) {
+            callbacks.connection_close->call();
             responses.not_implemented->call();
         } Else {
-            # Call the user's request handler.
-            options.request_handler->call(request_method, request_path, request_headers, request_payload, ^callbacks, ^responses);
+            # Check if the user supports this request method.
+            options.supported_methods->try_get(request_method) method_entry;
+            If (@not(method_entry.exists)) {
+                responses.not_implemented->call();
+            } Else {
+                # Call the user's request handler.
+                options.request_handler->call(request_method, request_path, request_headers, request_payload, ^callbacks, ^responses);
+            };
         };
     };
     
     # Send the headers.
     If (@true) {
         # First line of response.
-        value(@concat("HTTP/1.1 ", reply_status, "\r\n")) response;
+        value(@concat("HTTP/1.", reply_version_minor, " ", reply_status, "\r\n")) response;
         
         # Add some basic headers.
         response->append(@concat("Server: ", options.server_name, "\r\n"));
-        If (have_content_type) {
-            response->append(@concat("Content-Type: ", content_type, "\r\n"));
-        };
-        If (have_payload) {
-            response->append(@concat("Content-Length: ", reply_payload.length, "\r\n"));
-        };
+        response->append(@concat("Content-Type: ", content_type, "\r\n"));
+        response->append(@concat("Content-Length: ", reply_payload.length, "\r\n"));
         
         # Add all the other headers.
         var("0") i;
@@ -408,16 +521,14 @@ template _http_request_task {
     };
     
     # Send the payload!
-    If (have_payload) {
-        client.socket->write(reply_payload);
-    };
+    client.socket->write(reply_payload);
     
     # Close connection if desired.
     If (close_connection) {
         client.socket->close();
     };
     
-    # Ack the line.
+    # Ack the line, requesting a normal line.
     ack_line->call(@false, "0");
     
     # Proceed to handle the next request.
