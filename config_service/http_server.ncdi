@@ -66,6 +66,12 @@ template _http_client_proc {
     blocker() timeout_blk;
     timeout_blk->up();
     
+    # Block for logging a message and disconnecting the client.
+    Block {
+        log(_arg0, prefix, _arg1);
+        socket->close();
+    } err_disconnect;
+    
     # Reference point for the client-specific stuff.
     refhere() client;
     
@@ -86,8 +92,7 @@ template _http_timeout_task {
     sleep(client.global.options.inactivity_timeout);
     
     # Disconnect the client.
-    log(@notice, client.prefix, "Timed out");
-    client.socket->close();
+    client.err_disconnect->call(@warning, "Timed out");
 }
 
 template _http_parse_task {
@@ -145,8 +150,7 @@ template _http_parse_task {
         
         # Enforce the max-line-len limit.
         If (@num_greater(line_buffer.length, global.options.max_line_len)) {
-            log(@warning, prefix, "Line too long");
-            client.socket->close();
+            client.err_disconnect->call(@warning, "Line too long");
         };
         
         # If no line yet, read again.
@@ -233,8 +237,7 @@ template _http_request_task {
         
         # Enforce the max-headers limit.
         If (@num_greater_equal(num_header_lines, options.max_headers)) {
-            log(@warning, client.prefix, "Too many headers");
-            client.socket->close();
+            client.err_disconnect->call(@warning, "Too many headers");
         };
         
         # Increment the header line counter.
@@ -244,8 +247,7 @@ template _http_request_task {
         precomp.search_colsp->explode(header_line, "2") header_parts;
         value(header_parts) header_parts;
         If (@num_different(header_parts.length, "2")) {
-            log(@warning, client.prefix, "Bad header");
-            client.socket->close();
+            client.err_disconnect->call(@warning, "Bad header");
         };
         header_parts->get("0") header_name_orig;
         header_parts->get("1") header_value;
@@ -281,8 +283,7 @@ template _http_request_task {
                 precomp.search_space->explode(line, "3") first_row_parts;
                 value(first_row_parts) first_row_parts;
                 If (@num_different(first_row_parts.length, "3")) {
-                    log(@warning, client.prefix, "Bad first line");
-                    client.socket->close();
+                    client.err_disconnect->call(@warning, "Bad first line");
                 };
                 
                 # Fetch those parts.
@@ -294,28 +295,24 @@ template _http_request_task {
                 precomp.search_slash->explode(p2, "2") version_parts;
                 value(version_parts) version_parts;
                 If (@num_different(version_parts.length, "2")) {
-                    log(@warning, client.prefix, "Bad version (/)");
-                    client.socket->close();
+                    client.err_disconnect->call(@warning, "Bad version (/)");
                 };
                 version_parts->get("0") version_http;
                 version_parts->get("1") version_ver;
                 If (@val_different(version_http, "HTTP")) {
-                    log(@warning, client.prefix, "Bad version (HTTP)");
-                    client.socket->close();
+                    client.err_disconnect->call(@warning, "Bad version (HTTP)");
                 };
                 precomp.search_dot->explode(version_ver, "2") ver_numparts;
                 value(ver_numparts) ver_numparts;
                 If (@num_different(ver_numparts.length, "2")) {
-                    log(@warning, client.prefix, "Bad version (.)");
-                    client.socket->close();
+                    client.err_disconnect->call(@warning, "Bad version (.)");
                 };
                 ver_numparts->get("0") major;
                 parse_number(major) major;
                 ver_numparts->get("1") minor;
                 parse_number(minor) minor;
                 If (@or(@not(major.succeeded), @not(minor.succeeded))) {
-                    log(@warning, client.prefix, "Bad version (N)");
-                    client.socket->close();
+                    client.err_disconnect->call(@warning, "Bad version (N)");
                 };
                 
                 # Remember the first line data.
@@ -335,8 +332,7 @@ template _http_request_task {
         } Else {
             # Check if we at least got the first line of the request.
             If (@not(got_first_line)) {
-                log(@warning, client.prefix, "No lines in request");
-                client.socket->close();
+                client.err_disconnect->call(@warning, "No lines in request");
             };
             
             # Backtrack to handle the request.
@@ -445,16 +441,14 @@ template _http_request_task {
                     # Parse the chunk length.
                     parse_hex_number(chunk_length_str) chunk_length;
                     If (@not(chunk_length.succeeded)) {
-                        log(@warning, client.prefix, "Bad transfer length prefix");
-                        client.socket->close();
+                        client.err_disconnect->call(@warning, "Bad transfer length prefix");
                     };
                     
                     # Not last chunk?
                     If (@num_greater(chunk_length, "0")) {
                         # Enforce the payload size limit.
                         If (@num_greater(chunk_length, @num_subtract(options.max_request_payload_len, request_payload.length))) {
-                            log(@warning, client.prefix, "Too much payload");
-                            client.socket->close();
+                            client.err_disconnect->call(@warning, "Too much payload");
                         };
                         
                         # Ack the line, requesting fixed length.
@@ -470,8 +464,7 @@ template _http_request_task {
                         value("") chunk_end;
                         get_line->call(^chunk_end);
                         If (@val_different(chunk_end, "")) {
-                            log(@warning, client.prefix, "Bad chunk end");
-                            client.socket->close();
+                            client.err_disconnect->call(@warning, "Bad chunk end");
                         };
                         
                         # Next chunk.
@@ -507,14 +500,12 @@ template _http_request_task {
                 # Parse the length.
                 parse_number(req_content_length) length_number;
                 If (@not(length_number.succeeded)) {
-                    log(@warning, client.prefix, "Bad content-length");
-                    client.socket->close();
+                    client.err_disconnect->call(@warning, "Bad content-length");
                 };
                 
                 # Enforce the payload size limit.
                 If (@num_greater(length_number, options.max_request_payload_len)) {
-                    log(@warning, client.prefix, "Too much payload");
-                    client.socket->close();
+                    client.err_disconnect->call(@warning, "Too much payload");
                 };
                 
                 # Ack the line, requesting a fixed-line of the specified line.
