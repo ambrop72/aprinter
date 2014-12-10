@@ -351,6 +351,8 @@ def generate(config_root_data, cfg_name, main_template):
     gen = GenState()
     
     for config_root in config_reader.start(config_root_data, config_reader_class=GenConfigReader):
+        if cfg_name is None:
+            cfg_name = config_root.get_string('selected_config')
         
         for config in config_root.enter_elem_by_id('configurations', 'name', cfg_name):
             
@@ -669,7 +671,7 @@ def main():
     # Parse arguments.
     parser = argparse.ArgumentParser()
     parser.add_argument('--config', required=True)
-    parser.add_argument('--cfg-name', required=True)
+    parser.add_argument('--cfg-name')
     parser.add_argument('--output', required=True)
     parser.add_argument('--nix', action='store_true')
     args = parser.parse_args()
