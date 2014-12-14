@@ -29,10 +29,10 @@
 # SAM3X stuff
 
 SAM3X_URL=(
-    "http://www.atmel.com/images/asf-standalone-archive-3.14.0.86.zip"
+    "http://www.atmel.com/images/asf-standalone-archive-3.20.1.101.zip"
 )
 SAM3X_CHECKSUM=(
-    "9739afa2c8192bd181f2d4e50fa312dc4c943b7a6a093213e755c0c7de9c3ed3  asf-standalone-archive-3.14.0.86.zip"
+    "c9fecef57c9dd57bcc3a5265fba7382e022fa911bbf97ba2d14c2a6b92f1e8cc  asf-standalone-archive-3.20.1.101.zip"
 )
 
 sam3x_to_upper() {
@@ -40,8 +40,7 @@ sam3x_to_upper() {
 }
 
 configure_sam3x() {
-    DEPS_ASF_BASE_DIR=${DEPS}/asf-standalone-archive-3.14.0.86
-    DEPS_ASF_DIR=${DEPS_ASF_BASE_DIR}/xdk-asf-3.14.0
+    DEPS_ASF_DIR=${DEPS}/xdk-asf-3.20.1
     
     if [ -n "$CUSTOM_ASF" ]; then
         ASF_DIR=${CUSTOM_ASF}
@@ -135,7 +134,7 @@ configure_sam3x() {
             "${ASF_DIR}/sam/drivers/pmc/sleep.c"
             "${ASF_DIR}/common/utils/interrupt/interrupt_sam_nvic.c"
             "${ASF_DIR}/common/services/usb/udc/udc.c"
-            "${BUILD}/udi_cdc-hacked.c"
+            "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c"
             "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc_desc.c"
             "${ASF_DIR}/common/services/clock/${ARCH}/sysclk.c"
         )
@@ -154,9 +153,6 @@ check_depends_sam3x() {
 }
 
 build_sam3x() {
-    cp "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c" "${BUILD}/udi_cdc-hacked.c"
-    patch -p0 "${BUILD}/udi_cdc-hacked.c" < "${ROOT}/patches/asf-cdc-tx.patch"
-    
     build_arm
 }
 
