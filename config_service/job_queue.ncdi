@@ -1,0 +1,31 @@
+include_guard "job_queue"
+
+template job_queue {
+    var(_arg0) max_concurrent;
+
+    blocker() event_blk;
+    event_blk->up();
+    
+    value({}) active_list;
+}
+
+template job_queue_request {
+    objref_arg(_arg0) main;
+    
+    var(@true) need_wait;
+    backtrack_point() got_it;
+    If (need_wait) {
+        need_wait->set(@false);
+        
+        main.event_blk->use();
+        
+        If (@num_lesser(main.active_list.length, main.max_concurrent)) {
+            got_it->go();
+        };
+        
+        if(@false);
+    };
+    
+    main.event_blk->rdownup();
+    main.active_list->insert_undo(@dummy);
+}
