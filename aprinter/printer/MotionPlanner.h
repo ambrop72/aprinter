@@ -240,7 +240,6 @@ private:
     struct ChannelSegment {
         using ChannelSpec = TypeListGet<ParamsChannelsList, ChannelIndex>;
         using Payload = typename ChannelSpec::Payload;
-        using TheChannelCommand = ChannelCommand<ChannelIndex>;
         
         Payload payload;
     };
