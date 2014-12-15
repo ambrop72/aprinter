@@ -38,7 +38,9 @@ rec {
     aprinterTestRamps13 = aprinterTestFunc "ramps13" {};
     aprinterTestMegatronics3 = aprinterTestFunc "megatronics3" {};
     aprinterTestRampsfd = aprinterTestFunc "rampsfd" {};
+    aprinterTestRampsfdUart = aprinterTestRampsfd.override { forceUartSerial = true; };
     aprinterTestRadds = aprinterTestFunc "radds" {};
+    aprinterTestRaddsUart = aprinterTestRadds.override { forceUartSerial = true; };
     aprinterTest4pi = aprinterTestFunc "4pi" {};
     aprinterTestMlab = aprinterTestFunc "mlab" {};
     aprinterTestTeensy3 = aprinterTestFunc "teensy3" {};
@@ -46,8 +48,9 @@ rec {
     
     allTestTargets = [
         aprinterTestMelzi aprinterTestRamps13 aprinterTestMegatronics3
-        aprinterTestRampsfd aprinterTestRadds aprinterTest4pi
-        aprinterTestMlab aprinterTestTeensy3 aprinterTestCoreXyLaser
+        aprinterTestRampsfd aprinterTestRampsfdUart aprinterTestRadds
+        aprinterTestRaddsUart aprinterTest4pi aprinterTestMlab aprinterTestTeensy3
+        aprinterTestCoreXyLaser
     ];
     aprinterTestAll = aprinterSymlinksFunc allTestTargets;
     aprinterTestAllDebug = aprinterSymlinksFunc (map (t: t.override { assertionsEnabled = true; }) allTestTargets);

@@ -85,7 +85,7 @@ nix-build nix/ -A yourAprinterTarget -o ~/aprinter-build
 
 Some specific notes on building and basic configuration follow.
 
-*UART Serial on Arduino Due.* The default is to use the native USB for communication. But it's possible to use the UART instead. Edit `nix/default.nix` like so: `aprinterTestRadds = (aprinterTestFunc "radds" {}).override { forceUartSerial = true; };`.
+*UART Serial on Arduino Due.* The default is to use the native USB for communication. But it's possible to use the UART instead, by using the appropriate build target (e.g. aprinterTestRaddsUart).
 
 *LED on RADDS.* On this board, pin 13 (Due's internal LED) is used for one of the FETs, and there is no LED on the RADDS itself. Due to this, the firmware defaults to pin 37 for the LED, where you can install one.
 
