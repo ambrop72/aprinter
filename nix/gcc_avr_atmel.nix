@@ -1,10 +1,17 @@
 { stdenv, patchelf, glibc, gcc, fetchurl }:
-stdenv.mkDerivation {
+let
+  source_table = {
+    "i686-linux" = ["avr8-gnu-toolchain-3.4.5.1522-linux.any.x86.tar.gz" "9d73e7eb489a1ac4916810d8907dced3352e4a1b36d412ac8107078502143391"];
+    "x86_64-linux" = ["avr8-gnu-toolchain-3.4.5.1522-linux.any.x86_64.tar.gz" "988c82efff99380b88132f9e05a5ba1cf4a857ae2fbde5a8b0f783f625dce9a1"];
+  };
+  source_info = source_table.${stdenv.system};
+  
+in stdenv.mkDerivation {
   name = "gcc-avr-atmel1";
 
   src = fetchurl {
-    url = "http://www.atmel.com/images/avr8-gnu-toolchain-3.4.3.1072-linux.any.x86.tar.gz";
-    sha256 = "fa815c9e966b67353a16fb37b78e4b7d3e4eec72e8416f2d933a89262a46cbfb";
+    url = "http://www.atmel.com/images/${builtins.elemAt source_info 0}";
+    sha256 = builtins.elemAt source_info 1;
   };
 
   buildInputs = [ patchelf ];
@@ -16,14 +23,6 @@ stdenv.mkDerivation {
   installPhase = ''
     mkdir -pv $out
     cp -r ./* $out
-
-    for f in $(find $out); do
-      if [ -f "$f" ] && patchelf "$f" 2> /dev/null; then
-        patchelf --set-interpreter ${glibc}/lib/ld-linux.so.2 \
-                 --set-rpath $out/lib:${gcc}/lib \
-                 "$f" || true
-      fi
-    done
   '';
 
   meta = with stdenv.lib; {
