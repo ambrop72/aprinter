@@ -106,7 +106,20 @@ avrdude -p atmega1284p -P /dev/ttyUSB0 -b 57600 -c stk500v1 -D -U "flash:w:$HOME
 
 ### Arduino Due
 
-Make sure you connect via the programming port while uploading, but switch to the native USB port for actual printer communication (except if you specifically configured usage of the UART).
+Make sure you connect via the programming port while uploading (but switch to the native USB port for actual printer communication).
+
+First you need to set baud rate to 1200 to start the bootloader:
+
+```
+stty -F /dev/ttyACM0 1200
+```
+
+Then upload the firmware using BOSSA (you can use the GUI if you like instead).
+
+```
+bossac -p ttyACM0 -U false -i -e -w -v -b "$HOME/aprinter-build/aprinter-nixbuild.bin" -R 
+```
+
 Some Due clones have a problem resetting. If after uploading, the firmware does not start (LED doesn't blink), press the reset button.
 
 ### Teensy 3
