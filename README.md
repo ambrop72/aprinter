@@ -91,6 +91,11 @@ Some specific notes on building and basic configuration follow.
 
 ## Uploading
 
+Before you can upload, you need to install the uploading program, which depends on the type of microcontroller:
+- AVR: avrdude (install with `nix-env -i avrdude`).
+- Atmel ARM: BOSSA (intall with `nix-env -i bossa`).
+- Teensy 3: teensy-loader (install with `nix-env -i teensy-loader`).
+
 ### RAMPS
 ```
 avrdude -p atmega2560 -P /dev/ttyACM0 -b 115200 -c stk500v2 -D -U "flash:w:$HOME/aprinter-build/aprinter-nixbuild.hex:i"
