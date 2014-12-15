@@ -65,42 +65,59 @@ Ports have been completed for the following boards:
     For example, the configuration specifies a list of heaters, and it is trivial to add new heaters.
   * No reliance on inefficient libraries such as Arduino.
 
-## Getting started
+## Building
 
-The basic steps are:
+Building the firmware is officially supported via the [Nix package manager](http://nixos.org/nix/).
+All you need is Nix running on Linux (either NixOS, or Nix installed on another Linux distro).
+Nix will take care of any build dependencies.
 
-  * Find the target name you need to use.
-    The basic supported targets are `melzi`, `ramps13`, `rampsfd`, `radds`, `teensy`, `4pi`.
-    You can find more in `config/targets.sh`, including variants of those targets mentioned, as well as
-    targets in development. You may have to adjust some variables in the target definition.
-  * Locate the main source file corresponding to the target, which is `main/aprinter-SOURCE.cpp`.
-    Here, `SOURCE` defaults to the target name if it is not defined in the target definition.
-  * Examine the main file and adapt it to your liking.
-  * If you want to build using Nix, skip these remaining steps and see the Nix section. In this case, you are on your own with uploading the firmware.
-  * To install the toolchain and other dependnecies: `./build.sh <target> install`
-  * Note that for AVR, you will still need `avrdude` preinstalled.
-  * To build: `./build.sh <target> build`
-  * To upload (via the build system, see below if using Nix): `./build.sh <target> upload`
+First, you need to pick the right build target. Consult the file `nix/default.nix` for a list of targets (e.g. `aprinterTestRadds`, `aprinterTestRamps13`). Generally, each target uses its own main source file (in the `main` subdirectory), coresponding to the name of the target. It is important that you know the main source file which you will be using, as this is where most of the build-time configuration resides.
 
-*Melzi.* you will have to set the Debug jumper and play with the reset button to get the upload going.
+You should look over the configuration in the main file and adjust it to your liking. Note than when runtime configuration is available, many configuration parameters will be adjustable at runtime (and can possibly be saved on the board). 
 
-*Arduino Due.* Make sure you connect via the programming port while uploading.
-But switch to the native USB port for actual printer communication.
-If you want to use the programming port for communication, see below (this is needed for Udoo).
-Some Due clones have a problem resetting. If after uploading, the firmware does
-not start (LED doesn't blink), press the reset button.
+To build the firmware, run this command from within the source code directory. The result of the build will be available in the directory (symlink) specified using `-o`.
 
-*RADDS.* On this board, pin 13 (Due's internal LED) is used for one of the FETs, and there is no LED on the RADDS itself. Due to this, the firmware defaults to pin 37 for the LED, where you can install one.
+```
+nix-build nix/ -A yourAprinterTarget -o ~/aprinter-build
+```
 
-*Teensy 3.* You need to press the button on the board before trying to upload, to put the board into bootloader mode.
+*NOTE*: Don't put the build output (`-o`) within the source directory. If you do that the build output will be considered part of the source for the next build, and copying it will take a long time.
 
-*Using the UART Serial.* On Atmel chips, the default is to use the native USB for communication. But it's possible to use the UART instead. Edit `config/targets.sh` and change `USE_USB_SERIAL` to 0 for your target. Alternatively, if you're compiling with Nix, edit `nix/default.nix` like so: `aprinterTestRadds = (aprinterTestFunc "radds" {}).override { forceUartSerial = true; };`.
+Some specific notes on building and basic configuration follow.
+
+*UART Serial on Arduino Due.* The default is to use the native USB for communication. But it's possible to use the UART instead. Edit `nix/default.nix` like so: `aprinterTestRadds = (aprinterTestFunc "radds" {}).override { forceUartSerial = true; };`.
+
+*LED on RADDS.* On this board, pin 13 (Due's internal LED) is used for one of the FETs, and there is no LED on the RADDS itself. Due to this, the firmware defaults to pin 37 for the LED, where you can install one.
 
 ## Uploading
 
-*RAMPS.* `avrdude -p atmega2560 -P /dev/ttyACM0 -b 115200 -c stk500v2 -D -U "flash:w:$HOME/aprinter-build/aprinter-nixbuild.hex:i"`
+### RAMPS
+```
+avrdude -p atmega2560 -P /dev/ttyACM0 -b 115200 -c stk500v2 -D -U "flash:w:$HOME/aprinter-build/aprinter-nixbuild.hex:i"
+```
 
-## Configuration
+### Melzi
+
+You will have to set the Debug jumper and play with the reset button to get the upload going.
+
+```
+avrdude -p atmega1284p -P /dev/ttyUSB0 -b 57600 -c stk500v1 -D -U "flash:w:$HOME/aprinter-build/aprinter-nixbuild.hex:i"
+```
+
+### Arduino Due
+
+Make sure you connect via the programming port while uploading, but switch to the native USB port for actual printer communication (except if you specifically configured usage of the UART).
+Some Due clones have a problem resetting. If after uploading, the firmware does not start (LED doesn't blink), press the reset button.
+
+### Teensy 3
+
+You need to press the button on the board before trying to upload, to put the board into bootloader mode.
+
+```
+teensy-loader -mmcu=mk20dx128 "$HOME/aprinter-build/aprinter-nixbuild.hex"
+```
+
+## Runtime configuration
 
 Most configuration is specified in the main file of the firmware. After chaning any configuration in the main file, you need to recompile and reflash the firmware for the changes to take affect.
 
@@ -145,27 +162,6 @@ The `M930` command does not alter the current set of configuration values in any
     (possibly lower, and you risk burning the heater in that case).
     Obviously, take safety precausions here. I'm not responsible if your house burns down as a result of
     using my software, or for any other damage.
-
-## Building with Nix
-
-It is possible to build the firmware using the [Nix package manager](http://nixos.org/nix/).
-In this case, all you need is Nix running on Linux (either NixOS, or Nix installed on another Linux distro).
-Nix will take care of any build dependencies.
-
-To build with Nix, run this command from within the source code directory:
-
-```
-nix-build nix/ -A <aprinterTarget> -o ~/aprinter-build
-```
-
-You need to pick the right `<aprinterTarget>` for you. Consult the file `nix/default.nix` for a list of targets.
-Generally, each target uses its own main source file (in the `main` subdirectory), coresponding to the name of the target.
-
-The result of the build will be available in the directory (symlink) specified using `-o`.
-
-The special target `aprinterTestAll` will build all supported targets, which is useful for development.
-
-*NOTE*: Don't put the output (`-o`) within the source directory. If you do that the build output will be considered part of the source for the next build, and copying it will take a long time.
 
 ## Notes on the build systemm
 
