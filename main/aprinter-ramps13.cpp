@@ -241,10 +241,10 @@ using PrinterParams = PrinterMainParams<
     InactiveTime, // InactiveTime
     SpeedLimitMultiply, // SpeedLimitMultiply
     MaxStepsPerCycle, // MaxStepsPerCycle
-    28, // StepperSegmentBufferSize
-    28, // EventChannelBufferSize
+    24, // StepperSegmentBufferSize
+    24, // EventChannelBufferSize
     10, // LookaheadBufferSize
-    6, // LookaheadCommitCount
+    5, // LookaheadCommitCount
     ForceTimeout, // ForceTimeout
     double, // FpType
     AvrClockInterruptTimerService<AvrClockTcChannel5C, EventChannelTimerClearance>, // EventChannelTimer
@@ -260,7 +260,7 @@ using PrinterParams = PrinterMainParams<
         >,
         FileGcodeParser, // BINARY: BinaryGcodeParser
         GcodeParserParams<8>, // BINARY: BinaryGcodeParserParams<8>
-        960, // BufferBaseSize
+        1024, // BufferBaseSize
         100 // MaxCommandSize. BINARY: 43
     >,
     PrinterMainProbeParams<
