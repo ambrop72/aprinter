@@ -1,7 +1,7 @@
 from __future__ import print_function
 import sys
 import os
-sys.path.append(os.path.join(os.path.dirname(__file__), '../config_common'))
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../common'))
 import argparse
 import os
 import shutil
@@ -11,9 +11,9 @@ import aprinter_config_editor
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--json-editor-dist-dir', default='../../json-editor/dist')
-    parser.add_argument('--bootstrap-dist-dir', default='../../bootstrap-3.2.0-dist')
-    parser.add_argument('--filesaver-dir', default='../../FileSaver.js')
+    parser.add_argument('--json-editor-dist-dir', default='../../../json-editor/dist')
+    parser.add_argument('--bootstrap-dist-dir', default='../../../bootstrap-3.2.0-dist')
+    parser.add_argument('--filesaver-dir', default='../../../FileSaver.js')
     parser.add_argument('--rm', action='store_true')
     args = parser.parse_args()
     
