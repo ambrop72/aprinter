@@ -71,6 +71,8 @@ Building the firmware is officially supported via the [Nix package manager](http
 All you need is Nix running on Linux (either NixOS, or Nix installed on another Linux distro).
 Nix will take care of any build dependencies.
 
+*NOTE*: Using the Nix install script should be preferred to distribution-specific Nix packages. Those do not seem to be well supported. Note that Nix only installs files to a few directories (`/nix`, `~/.nix-*`), so it is easy to remove.
+
 First, you need to pick the right build target. Consult the file `nix/default.nix` for a list of targets (e.g. `aprinterTestRadds`, `aprinterTestRamps13`). Generally, each target uses its own main source file (in the `main` subdirectory), coresponding to the name of the target. It is important that you know the main source file which you will be using, as this is where most of the build-time configuration resides.
 
 You should look over the configuration in the main file and adjust it to your liking. Note than when runtime configuration is available, many configuration parameters will be adjustable at runtime (and can possibly be saved on the board). 
