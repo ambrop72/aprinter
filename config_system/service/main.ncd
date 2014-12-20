@@ -1,19 +1,28 @@
 include "http_server.ncdi"
+include "job_queue.ncdi"
+include "run_process_output.ncdi"
+include "temp_dir.ncdi"
 
 process main {
     log_fr(@notice, {"Init"}, {"Exit"});
     
-    # Define the parameters for the HTTP server.
-    var([
-        "listen_addr": {@ipv4, "127.0.0.1", "4000"},
-        "max_clients": "128",
-        "max_headers": "64",
-        "max_line_len": "512",
-        "max_request_payload_len": "262144",
-        "inactivity_timeout": "20000",
-        "supported_methods": ["GET": "", "POST": ""],
-        "server_name": "APrinter Compilation Service implemented in NCD"
-    ]) options;
+    # Read the configuration.
+    getargs() args;
+    value(args) args;
+    args->get("0") config_path;
+    file_read(config_path) config_contents;
+    parse_value(config_contents) config;
+    value(config) config;
+    
+    # Fetch stuff out of the configuration.
+    config->get("http_server") http_server_config;
+    config->get("max_concurrent_compiles") max_concurrent_compiles;
+    config->get("temp_dir") temp_dir;
+    config->get("mktemp") mktemp;
+    config->get("rm") rm;
+    
+    # Init the queue.
+    call(@job_queue, {max_concurrent_compiles}) queue;
     
     # Define the HTTP request handler.
     Block {
@@ -60,10 +69,34 @@ process main {
                 abort->go();
             };
             
-            callbacks.add_payload->call(@concat("You sent me the following data: ", request_payload));
+            # Create a temporary directory.
+            call(@temp_dir, {^callbacks.log, temp_dir, mktemp, rm}) temp_dir;
+            
+            # Creation failed?
+            If (@not(temp_dir.succeeded)) {
+                responses.internal_error->call();
+                abort->go();
+            };
+            
+            var(@true) build_do;
+            backtrack_point() build_done;
+            If (build_do) {
+                build_do->set(@false);
+                
+                # Wait in the queue until we're allowed to do the Compilation.
+                call(@job_queue_request, {^queue});
+                
+                callbacks.add_payload->call("Starting build\n");
+                
+                sleep("2000");
+                
+                build_done->go();
+            };
+            
+            callbacks.add_payload->call("Build completed\n");
         };
     } request_handler;
     
     # Start the HTTP server.
-    call(@http_server, {options, ^request_handler});
+    call(@http_server, {http_server_config, ^request_handler});
 }

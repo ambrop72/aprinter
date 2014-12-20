@@ -50,9 +50,14 @@ template _http_client_proc {
     # Informational messages for client connect/disconnect.
     log_fr(@notice, {prefix, "Connected"}, {prefix, "Disconnected"});
     
+    # Block for logging.
+    Block {
+        log(_arg0, prefix, _arg1);
+    } log;
+    
     # Enforce the max-clients limit.
     If (@num_greater_equal(global.clients.length, global.options.max_clients)) {
-        log(@warning, prefix, "Too many clients");
+        log->call(@warning, "Too many clients");
         socket->close();
     };
     
@@ -68,7 +73,7 @@ template _http_client_proc {
     
     # Block for logging a message and disconnecting the client.
     Block {
-        log(_arg0, prefix, _arg1);
+        log->call(_arg0, _arg1);
         socket->close();
     } err_disconnect;
     
@@ -341,7 +346,7 @@ template _http_request_task {
         };
     };
     
-    log(@notice, client.prefix, "Received request");
+    client.log->call(@notice, "Received request");
     
     # State for the reply to the request.
     var("200 OK") reply_status;
@@ -373,6 +378,8 @@ template _http_request_task {
             add_header->call("Connection", "close");
             close_connection->set(@true);
         } connection_close;
+        
+        objref(^client.log) log;
     } callbacks;
 
     # Define some generic responses.
@@ -394,6 +401,10 @@ template _http_request_task {
         Block {
             generic_error->call("404 Not Found");
         } not_found;
+        
+        Block {
+            generic_error->call("500 Internal Server Error");
+        } internal_error;
     } responses;
     
     # Check the HTTP version.

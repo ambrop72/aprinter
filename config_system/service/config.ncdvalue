@@ -1,0 +1,16 @@
+[
+    "http_server": [
+        "listen_addr": {"ipv4", "127.0.0.1", "4000"},
+        "max_clients": "128",
+        "max_headers": "64",
+        "max_line_len": "512",
+        "max_request_payload_len": "262144",
+        "inactivity_timeout": "20000",
+        "supported_methods": ["GET": "", "POST": ""],
+        "server_name": "APrinter Compilation Service implemented in NCD"
+    ],
+    "max_concurrent_compiles": "1",
+    "temp_dir": "/home/ambro/aprinter-service-temp",
+    "mktemp": "/run/current-system/sw/bin/mktemp",
+    "rm": "/run/current-system/sw/bin/rm"
+]
