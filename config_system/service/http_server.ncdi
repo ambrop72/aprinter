@@ -197,16 +197,13 @@ template _http_request_task {
         alias(@_arg0) parsing_fixed_length;
         alias(@_arg1) the_fixed_length;
         
-        var(@true) need_ack;
-        backtrack_point() line_acked;
-        If (need_ack) {
-            need_ack->set(@false);
+        Do {
             client.depsc->depend({"line"}) line_event;
             line_event.parsing_fixed_length->set(parsing_fixed_length);
             line_event.the_fixed_length->set(the_fixed_length);
-            line_acked->rgo();
+            _do->rbreak();
             line_event.line_processed->go();
-            if("false");
+            if(@false);
         };
     } ack_line;
     
@@ -214,13 +211,9 @@ template _http_request_task {
     Block {
         objref_arg(_arg0) append_dest;
         
-        var(@true) need_line;
-        backtrack_point() got_line;
-        If (need_line) {
-            need_line->set(@false);
+        Do {
             client.depsc->depend({"line"}) line_event;
             append_dest->append(line_event.line);
-            got_line->go();
         };
     } get_line;
     
@@ -272,11 +265,7 @@ template _http_request_task {
         };
     } handle_header;
     
-    # Will backtrack when the request is read.
-    var(@true) reading_request;
-    backtrack_point() request_done;
-    
-    If (reading_request) {
+    Do {
         # Wait for a line.
         client.depsc->depend({"line"}) line_event;
         objref(^line_event.line) line;
@@ -333,16 +322,12 @@ template _http_request_task {
             
             # Achlowledge line (this immediately causes backtracking to line_event).
             line_event.line_processed->go();
-            if("false"); # unreachable
-        } Else {
-            # Check if we at least got the first line of the request.
-            If (@not(got_first_line)) {
-                client.err_disconnect->call(@warning, "No lines in request");
-            };
-            
-            # Backtrack to handle the request.
-            reading_request->set(@false);
-            request_done->go();
+            if(@false); # unreachable
+        };
+        
+        # Check if we at least got the first line of the request.
+        If (@not(got_first_line)) {
+            client.err_disconnect->call(@warning, "No lines in request");
         };
     };
     

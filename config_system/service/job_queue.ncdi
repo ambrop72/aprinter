@@ -12,18 +12,11 @@ template job_queue {
 template job_queue_request {
     objref_arg(_arg0) main;
     
-    var(@true) need_wait;
-    backtrack_point() got_it;
-    If (need_wait) {
-        need_wait->set(@false);
-        
+    Do {
         main.event_blk->use();
-        
-        If (@num_lesser(main.active_list.length, main.max_concurrent)) {
-            got_it->go();
+        If (@num_greater_equal(main.active_list.length, main.max_concurrent)) {
+            if(@false);
         };
-        
-        if(@false);
     };
     
     main.event_blk->rdownup();

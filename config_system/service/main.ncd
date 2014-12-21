@@ -33,17 +33,12 @@ process main {
         objref_arg(_arg4) callbacks;
         objref_arg(_arg5) responses;
         
-        # A little bit of hacking to handle errors without nesting.
-        var(@true) cont;
-        backtrack_point() abort;
-        If (cont) {
-            cont->set(@false);
-            
+        Do {
             # Provide some warm and fuzzy text at /.
             If (@val_equal(path, "/")) {
                 If (@not(@val_equal(method, "GET"))) {
                     responses.method_not_allowed->call();
-                    abort->go();
+                    _do->break();
                 };
                 
                 value("") text;
@@ -54,46 +49,40 @@ process main {
                 text->append("which is written in the NCD Programming Language :)");
                 
                 callbacks.add_payload->call(text);
-                abort->go();
+                _do->break();
             };
             
             # Unsupported request path?
             If (@not(@val_equal(path, "/compile"))) {
                 responses.not_found->call();
-                abort->go();
+                _do->break();
             };
             
             # Here we only support POST.
             If (@val_different(method, "POST")) {
                 responses.method_not_allowed->call();
-                abort->go();
+                _do->break();
             };
             
+            callbacks.log->call(@notice, "compile request");
+                
             # Create a temporary directory.
             call(@temp_dir, {^callbacks.log, temp_dir, mktemp, rm}) temp_dir;
-            
-            # Creation failed?
             If (@not(temp_dir.succeeded)) {
                 responses.internal_error->call();
-                abort->go();
+                _do->break();
             };
             
-            var(@true) build_do;
-            backtrack_point() build_done;
-            If (build_do) {
-                build_do->set(@false);
-                
-                # Wait in the queue until we're allowed to do the Compilation.
-                call(@job_queue_request, {^queue});
-                
-                callbacks.add_payload->call("Starting build\n");
-                
-                sleep("2000");
-                
-                build_done->go();
-            };
+            # Wait in the queue until we're allowed to do the compilation.
+            call(@job_queue_request, {^queue});
             
-            callbacks.add_payload->call("Build completed\n");
+            callbacks.log->call(@notice, "compile started");
+            
+            # TBD
+            sleep("3000");
+            callbacks.add_payload->call("test\n");
+            
+            callbacks.log->call(@notice, "compile finished");
         };
     } request_handler;
     
