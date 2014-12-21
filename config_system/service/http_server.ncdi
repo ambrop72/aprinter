@@ -15,7 +15,7 @@ template http_server {
         options_map->get("server_name") server_name;
     } options;
     
-    # Precompute some stuff.
+    # Precompute search strings.
     If (@true) {
         compile_search("\n") search_newline;
         compile_search(": ") search_colsp;
@@ -66,12 +66,11 @@ template _http_client_proc {
     # Keep track of all connected clients.
     global.clients->insert_undo(["addr": client_addr]);
     
-    # Depend scope for communication with the request processing task.
+    # Depend scope for communication between tasks.
     depend_scope() depsc;
     
     # Blocker for resetting the timeout.
-    blocker() timeout_blk;
-    timeout_blk->up();
+    blocker(@true) timeout_blk;
     
     # Block for logging a message and disconnecting the client.
     Block {
@@ -394,12 +393,15 @@ template _http_request_task {
         } internal_error;
     } responses;
     
-    # Check the HTTP version.
-    If (@num_different(request_version_major, "1")) {
-        # Need to close the connection after response.
-        callbacks.connection_close->call();
-        responses.generic_error->call("505 HTTP Version Not Supported");
-    } Else {
+    Do {
+        # Check the HTTP version.
+        If (@num_different(request_version_major, "1")) {
+            # Need to close the connection after response.
+            callbacks.connection_close->call();
+            responses.generic_error->call("505 HTTP Version Not Supported");
+            _do->break();
+        };
+        
         # Adjust the minor HTTP version of the response.
         If (@num_greater_equal(request_version_minor, "1")) {
             reply_version_minor->set("1");
@@ -436,15 +438,19 @@ template _http_request_task {
             };
         };
         
-        # Determine if 100 Continue should be sent.
+        # Check the Expect header and determine if 100 Continue should be sent.
         var(@false) continue_needed;
-        If (@val_different(payload_kind, "none")) {
-            request_headers->try_get("expect") req_expect;
-            If (req_expect.exists) {
-                var(@tolower(req_expect)) req_expect_low;
-                If (@val_equal(req_expect_low, "100-continue")) {
-                    continue_needed->set(@true);
-                };
+        request_headers->try_get("expect") req_expect;
+        If (req_expect.exists) {
+            var(@tolower(req_expect)) req_expect_low;
+            If (@val_different(req_expect_low, "100-continue")) {
+                callbacks.connection_close->call();
+                responses.generic_error->call("417 Expectation Failed");
+                _do->break();
+            };
+            
+            If (@val_different(payload_kind, "none")) {
+                continue_needed->set(@true);
             };
         };
         
@@ -543,16 +549,18 @@ template _http_request_task {
         If (payload_error) {
             callbacks.connection_close->call();
             responses.not_implemented->call();
-        } Else {
-            # Check if the request method is supported.
-            global.supported_methods->try_get(request_method) method_entry;
-            If (@not(method_entry.exists)) {
-                responses.not_implemented->call();
-            } Else {
-                # Call the user's request handler.
-                options.request_handler->call(request_method, request_path, request_headers, request_payload, ^callbacks, ^responses);
-            };
+            _do->break();
         };
+        
+        # Check if the request method is supported.
+        global.supported_methods->try_get(request_method) method_entry;
+        If (@not(method_entry.exists)) {
+            responses.not_implemented->call();
+            _do->break();
+        };
+        
+        # Call the user's request handler.
+        options.request_handler->call(request_method, request_path, request_headers, request_payload, ^callbacks, ^responses);
     };
     
     # Reset the inactivity timeout.
