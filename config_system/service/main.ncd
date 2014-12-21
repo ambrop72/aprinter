@@ -1,6 +1,7 @@
 include "http_server.ncdi"
 include "job_queue.ncdi"
 include "run_process_output.ncdi"
+include "run_process_inout.ncdi"
 include "temp_dir.ncdi"
 
 process main {
@@ -17,9 +18,13 @@ process main {
     # Fetch stuff out of the configuration.
     config->get("http_server") http_server_config;
     config->get("max_concurrent_compiles") max_concurrent_compiles;
+    config->get("aprinter_src_dir") aprinter_src_dir;
     config->get("temp_dir") temp_dir;
     config->get("mktemp") mktemp;
     config->get("rm") rm;
+    config->get("sh") sh;
+    config->get("cat") cat;
+    config->get("python") python;
     
     # Init the queue.
     call(@job_queue, {max_concurrent_compiles}) queue;
@@ -66,6 +71,11 @@ process main {
             
             callbacks.log->call(@notice, "compile request");
                 
+            # Wait in the queue until we're allowed to do the compilation.
+            call(@job_queue_request, {^queue});
+            
+            callbacks.log->call(@notice, "compile started");
+            
             # Create a temporary directory.
             call(@temp_dir, {^callbacks.log, temp_dir, mktemp, rm}) temp_dir;
             If (@not(temp_dir.succeeded)) {
@@ -73,14 +83,19 @@ process main {
                 _do->break();
             };
             
-            # Wait in the queue until we're allowed to do the compilation.
-            call(@job_queue_request, {^queue});
+            # Build the command for the generate script.
+            concat(aprinter_src_dir, "/config_system/generator/generate.py") generate_path;
+            var({python, "-B", generate_path, "--config", "-", "--output", "-", "--nix"}) generate_cmd;
             
-            callbacks.log->call(@notice, "compile started");
+            println("CALL");
             
-            # TBD
-            sleep("3000");
-            callbacks.add_payload->call("test\n");
+            # Call the generate script.
+            call(@run_process_inout, {generate_cmd, request_payload}) generate_exec;
+            
+            println(generate_exec.succeeded);
+            println(generate_exec.output);
+            
+            # TBD ...
             
             callbacks.log->call(@notice, "compile finished");
         };

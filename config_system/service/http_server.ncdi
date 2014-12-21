@@ -12,7 +12,6 @@ template http_server {
         options_map->get("max_line_len") max_line_len;
         options_map->get("max_request_payload_len") max_request_payload_len;
         options_map->get("inactivity_timeout") inactivity_timeout;
-        options_map->get("supported_methods") supported_methods;
         options_map->get("server_name") server_name;
     } options;
     
@@ -25,6 +24,9 @@ template http_server {
         compile_search(".") search_dot;
         compile_search(";") search_semicolon;
     } precomp;
+    
+    # Supported methods.
+    value(["GET": "", "POST": ""]) supported_methods;
     
     # This is the list of connected clients.
     # We use it to enforce the max-clients limit.
@@ -403,122 +405,147 @@ template _http_request_task {
             reply_version_minor->set("1");
         };
         
-        # Will put any request payload here.
-        value("") request_payload;
-        var(@false) bad_transfer_encoding;
-        var(@false) encoding_handled;
+        # We will be determing the presence and encoding of the payload.
+        var("none") payload_kind;
+        var(@false) payload_error;
+        var("") payload_fixed_length;
         
-        # Check if we have transfer-encoding.
+        # Is it chunked?
         request_headers->try_get("transfer-encoding") req_te;
         If (req_te.exists) {
             var(@tolower(req_te)) req_low_te;
             If (@val_different(req_low_te, "identity")) {
-                # We handle the encoding here and ignore content-length.
-                encoding_handled->set(@true);
-                
-                If (@val_different(req_low_te, "chunked")) {
-                    bad_transfer_encoding->set(@true);
+                If (@val_equal(req_low_te, "chunked")) {
+                    payload_kind->set("chunked");
                 } Else {
-                    # Will backtrack here for the next chunk.
-                    backtrack_point() next_chunk;
-                    
-                    # Ack the line, requesting the next (normal) line.
-                    ack_line->call(@false, "0");
-                    
-                    # Wait for the chunk prefix line to arrive.
-                    value("") chunk_line;
-                    get_line->call(^chunk_line);
-                    
-                    # Extract the length out of the chunk header (ignoring any chunk-extension).
-                    precomp.search_semicolon->explode(chunk_line, "2") chunk_line_parts;
-                    value(chunk_line_parts) chunk_line_parts;
-                    chunk_line_parts->get("0") chunk_length_str;
-                    
-                    # Parse the chunk length.
-                    parse_hex_number(chunk_length_str) chunk_length;
-                    If (@not(chunk_length.succeeded)) {
-                        client.err_disconnect->call(@warning, "Bad transfer length prefix");
-                    };
-                    
-                    # Not last chunk?
-                    If (@num_greater(chunk_length, "0")) {
-                        # Enforce the payload size limit.
-                        If (@num_greater(chunk_length, @num_subtract(options.max_request_payload_len, request_payload.length))) {
-                            client.err_disconnect->call(@warning, "Too much payload");
-                        };
-                        
-                        # Ack the line, requesting fixed length.
-                        ack_line->call(@true, chunk_length);
-                        
-                        # Wait for the chunk to arrive.
-                        get_line->call(^request_payload);
-                        
-                        # Ack the line, requesting a normal line.
-                        ack_line->call(@false, "0");
-                        
-                        # Wait for the stupid CRLF to arrive.
-                        value("") chunk_end;
-                        get_line->call(^chunk_end);
-                        If (@val_different(chunk_end, "")) {
-                            client.err_disconnect->call(@warning, "Bad chunk end");
-                        };
-                        
-                        # Next chunk.
-                        next_chunk->go();
-                    };
-                    
-                    # Will backtrack here to read the next trailer line.
-                    backtrack_point() next_trailer_line;
-                    
-                    # Request a normal line.
-                    ack_line->call(@false, "0");
-                    
-                    # Wait for the line.
-                    value("") trailer_line;
-                    get_line->call(^trailer_line);
-                    
-                    # Not end of trailer?
-                    If (@num_greater(trailer_line.length, "0")) {
-                        # Handle the trailer line as a header.
-                        handle_header->call(trailer_line);
-                        
-                        # Expect more trailer lines.
-                        next_trailer_line->go();
-                    };
+                    payload_error->set(@true);
                 };
             };
         };
         
-        If (@not(encoding_handled)) {
-            # Check if we have a content-length.
+        # Is it fixed-length?
+        If (@and(@not(payload_error), @val_equal(payload_kind, "none"))) {
             request_headers->try_get("content-length") req_content_length;
             If (req_content_length.exists) {
-                # Parse the length.
                 parse_number(req_content_length) length_number;
                 If (@not(length_number.succeeded)) {
                     client.err_disconnect->call(@warning, "Bad content-length");
                 };
-                
-                # Enforce the payload size limit.
-                If (@num_greater(length_number, options.max_request_payload_len)) {
-                    client.err_disconnect->call(@warning, "Too much payload");
-                };
-                
-                # Ack the line, requesting a fixed-line of the specified line.
-                ack_line->call(@true, length_number);
-                
-                # Wait for the payload to arrive.
-                get_line->call(^request_payload);
+                payload_kind->set("fixed-length");
+                payload_fixed_length->set(length_number);
             };
         };
         
+        # Determine if 100 Continue should be sent.
+        var(@false) continue_needed;
+        If (@val_different(payload_kind, "none")) {
+            request_headers->try_get("expect") req_expect;
+            If (req_expect.exists) {
+                var(@tolower(req_expect)) req_expect_low;
+                If (@val_equal(req_expect_low, "100-continue")) {
+                    continue_needed->set(@true);
+                };
+            };
+        };
+        
+        # Start sending 100 Continue, if warranted.
+        spawn(@_http_continue_task, {}) continue_task;
+        
+        # Will put any received request payload here.
+        value("") request_payload;
+        
+        # Receive the payload if any.
+        If (@val_equal(payload_kind, "fixed-length")) {
+            # Enforce the payload size limit.
+            If (@num_greater(payload_fixed_length, options.max_request_payload_len)) {
+                client.err_disconnect->call(@warning, "Too much payload");
+            };
+            
+            # Ack the line, requesting a fixed-line of the specified line.
+            ack_line->call(@true, payload_fixed_length);
+            
+            # Wait for the payload to arrive.
+            get_line->call(^request_payload);
+        }
+        Elif (@val_equal(payload_kind, "chunked")) {
+            # Will backtrack here for the next chunk.
+            backtrack_point() next_chunk;
+            
+            # Ack the line, requesting the next (normal) line.
+            ack_line->call(@false, "0");
+            
+            # Wait for the chunk prefix line to arrive.
+            value("") chunk_line;
+            get_line->call(^chunk_line);
+            
+            # Extract the length out of the chunk header (ignoring any chunk-extension).
+            precomp.search_semicolon->explode(chunk_line, "2") chunk_line_parts;
+            value(chunk_line_parts) chunk_line_parts;
+            chunk_line_parts->get("0") chunk_length_str;
+            
+            # Parse the chunk length.
+            parse_hex_number(chunk_length_str) chunk_length;
+            If (@not(chunk_length.succeeded)) {
+                client.err_disconnect->call(@warning, "Bad transfer length prefix");
+            };
+            
+            # Not last chunk?
+            If (@num_greater(chunk_length, "0")) {
+                # Enforce the payload size limit.
+                If (@num_greater(chunk_length, @num_subtract(options.max_request_payload_len, request_payload.length))) {
+                    client.err_disconnect->call(@warning, "Too much payload");
+                };
+                
+                # Ack the line, requesting fixed length.
+                ack_line->call(@true, chunk_length);
+                
+                # Wait for the chunk to arrive.
+                get_line->call(^request_payload);
+                
+                # Ack the line, requesting a normal line.
+                ack_line->call(@false, "0");
+                
+                # Wait for the stupid CRLF to arrive.
+                value("") chunk_end;
+                get_line->call(^chunk_end);
+                If (@val_different(chunk_end, "")) {
+                    client.err_disconnect->call(@warning, "Bad chunk end");
+                };
+                
+                # Next chunk.
+                next_chunk->go();
+            };
+            
+            # Will backtrack here to read the next trailer line.
+            backtrack_point() next_trailer_line;
+            
+            # Request a normal line.
+            ack_line->call(@false, "0");
+            
+            # Wait for the line.
+            value("") trailer_line;
+            get_line->call(^trailer_line);
+            
+            # Not end of trailer?
+            If (@num_greater(trailer_line.length, "0")) {
+                # Handle the trailer line as a header.
+                handle_header->call(trailer_line);
+                
+                # Expect more trailer lines.
+                next_trailer_line->go();
+            };
+        };
+        
+        # Wait for continue sending to complete.
+        continue_task->join();
+        
         # Handle bad transfer encoding.
-        If (bad_transfer_encoding) {
+        If (payload_error) {
             callbacks.connection_close->call();
             responses.not_implemented->call();
         } Else {
-            # Check if the user supports this request method.
-            options.supported_methods->try_get(request_method) method_entry;
+            # Check if the request method is supported.
+            global.supported_methods->try_get(request_method) method_entry;
             If (@not(method_entry.exists)) {
                 responses.not_implemented->call();
             } Else {
@@ -570,4 +597,10 @@ template _http_request_task {
     
     # Proceed to handle the next request.
     next_request->go();
+}
+
+template _http_continue_task {
+    If (_caller.continue_needed) {
+        _caller.client.socket->write(@concat("HTTP/1.", _caller.reply_version_minor, " 100 Continue\r\n\r\n"));
+    };
 }

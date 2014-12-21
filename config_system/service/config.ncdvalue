@@ -6,11 +6,14 @@
         "max_line_len": "512",
         "max_request_payload_len": "262144",
         "inactivity_timeout": "20000",
-        "supported_methods": ["GET": "", "POST": ""],
         "server_name": "APrinter Compilation Service implemented in NCD"
     ],
     "max_concurrent_compiles": "1",
+    "aprinter_src_dir": "/home/ambro/dev/aprinter",
     "temp_dir": "/home/ambro/aprinter-service-temp",
     "mktemp": "/run/current-system/sw/bin/mktemp",
-    "rm": "/run/current-system/sw/bin/rm"
+    "rm": "/run/current-system/sw/bin/rm",
+    "sh": "/run/current-system/sw/bin/sh",
+    "cat": "/run/current-system/sw/bin/cat",
+    "python": "/run/current-system/sw/bin/python2.7"
 ]

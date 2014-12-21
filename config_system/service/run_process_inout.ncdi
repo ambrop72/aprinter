@@ -1,0 +1,62 @@
+include_guard "run_process_inout"
+
+template run_process_inout {
+    alias(@_arg0) command;
+    alias(@_arg1) input;
+    
+    # We collect the results here.
+    var(@false) succeeded;
+    value("") output;
+    
+    Do {
+        # Start child process.
+        sys.start_process(command, "rw", ["keep_stderr":"true"]) proc;
+        If (proc.is_error) {
+            _do->break();
+        };
+        
+        # Start input writing task.
+        spawn(@_run_process_inout_writing_task, {}) writing_task;
+        
+        # Get read pipe handle.
+        proc->read_pipe() read_pipe;
+        If (read_pipe.is_error) {
+            _do->break();
+        };
+        
+        # Read all contents.
+        backtrack_point() read_again;
+        read_pipe->read() read;
+        If (read.not_eof) {
+            output->append(read);
+            read_again->go();
+        };
+        
+        # Wait for writing to complete.
+        writing_task->join();
+        
+        # Wait for the process to terminate.
+        proc->wait() wait;
+        val_different(wait.exit_status, "0") not_ok;
+        If (not_ok) {
+            _do->break();
+        };
+        
+        # Assume success.
+        succeeded->set(@true);
+    };
+}
+
+template _run_process_inout_writing_task {
+    # Get write pipe handle.
+    _caller.proc->write_pipe() write_pipe;
+    If (write_pipe.is_error) {
+        _caller._do->break();
+    };
+    
+    # Write all contents.
+    write_pipe->write(_caller.input);
+    
+    # Close the write pipe.
+    write_pipe->close();
+}
