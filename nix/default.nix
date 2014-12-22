@@ -32,6 +32,7 @@ rec {
         inherit boardName;
         buildName = "test-${sourceName}";
         mainText = builtins.readFile ( ../main + "/aprinter-${sourceName}.cpp" );
+        desiredOutputs = [ "elf" "bin" "hex" ];
     };
     
     aprinterTestMelzi = aprinterTestFunc "melzi" {};

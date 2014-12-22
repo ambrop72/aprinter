@@ -1,5 +1,5 @@
 { stdenv, writeText, bash, gccAvrAtmel, gcc-arm-embedded, asf, teensyCores, buildName
-, boardName, mainText
+, boardName, mainText, desiredOutputs
 , assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false
 , detectOverloadEnabled ? false
@@ -77,8 +77,9 @@ stdenv.mkDerivation rec {
     
     installPhase = ''
         mkdir -p $out
-        cp build/aprinter-nixbuild.* $out/
-    '';
+    '' + stdenv.lib.concatStrings (map (outputType: ''
+        cp build/aprinter-nixbuild.${outputType} $out/
+    '') desiredOutputs);
     
     dontStrip = true;
     dontPatchELF = true;
