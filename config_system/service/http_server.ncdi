@@ -69,7 +69,8 @@ template _http_client_proc {
     # Depend scope for communication between tasks.
     depend_scope() depsc;
     
-    # Blocker for resetting the timeout.
+    # This supports control of the inactivity timeout.
+    var(@true) timeout_active;
     blocker(@true) timeout_blk;
     
     # Block for logging a message and disconnecting the client.
@@ -94,11 +95,13 @@ template _http_timeout_task {
     # Will backtrack here when the timeout needs to be reset.
     client.timeout_blk->use();
     
-    # Wait for the timeout to expire.
-    sleep(client.global.options.inactivity_timeout);
-    
-    # Disconnect the client.
-    client.err_disconnect->call(@warning, "Timed out");
+    If (client.timeout_active) {
+        # Wait for the timeout to expire.
+        sleep(client.global.options.inactivity_timeout);
+        
+        # Disconnect the client.
+        client.err_disconnect->call(@warning, "Timed out");
+    };
 }
 
 template _http_parse_task {
@@ -559,11 +562,16 @@ template _http_request_task {
             _do->break();
         };
         
+        # Disable the inactivity timeout.
+        client.timeout_active->set(@false);
+        client.timeout_blk->downup();
+        
         # Call the user's request handler.
         options.request_handler->call(request_method, request_path, request_headers, request_payload, ^callbacks, ^responses);
     };
     
-    # Reset the inactivity timeout.
+    # Reset/re-enable the inactivity timeout.
+    client.timeout_active->set(@true);
     client.timeout_blk->downup();
     
     # First line of response.

@@ -22,9 +22,10 @@ process main {
     config->get("temp_dir") temp_dir;
     config->get("mktemp") mktemp;
     config->get("rm") rm;
-    config->get("sh") sh;
-    config->get("cat") cat;
     config->get("python") python;
+    config->get("nixbuild") nixbuild;
+    config->get("tar") tar;
+    config->get("mkdir") mkdir;
     
     # Init the queue.
     call(@job_queue, {max_concurrent_compiles}) queue;
@@ -37,6 +38,31 @@ process main {
         alias(@_arg3) request_payload;
         objref_arg(_arg4) callbacks;
         objref_arg(_arg5) responses;
+        
+        # Buold the path to the io-helper.
+        concat(aprinter_src_dir, "/config_system/service/io_helper.py") io_helper;
+        
+        # This block is used to reply to the compile request.
+        Block {
+            alias(@_arg0) reply_success;
+            alias(@_arg1) reply_message;
+            alias(@_arg2) reply_data_file;
+            
+            # Call the command for building the reply in JSON format.
+            var({
+                python, "-B", io_helper, "--build-reply", "--build-reply-success", reply_success,
+                "--build-reply-message", reply_message, "--build-reply-data", reply_data_file,
+                "--build-reply-dst", "-"
+            }) build_reply_cmd;
+            call(@run_process_output, {build_reply_cmd}) build_reply_exec;
+            
+            If (@not(build_reply_exec.succeeded)) {
+                responses.internal_error->call();
+            } Else {
+                callbacks.set_content_type->call("application/json");
+                callbacks.add_payload->call(build_reply_exec.output);
+            };
+        } reply_compile;
         
         Do {
             # Provide some warm and fuzzy text at /.
@@ -79,23 +105,53 @@ process main {
             # Create a temporary directory.
             call(@temp_dir, {^callbacks.log, temp_dir, mktemp, rm}) temp_dir;
             If (@not(temp_dir.succeeded)) {
-                responses.internal_error->call();
+                reply_compile->call(@false, "Could not make a temp dir.", "");
                 _do->break();
             };
             
-            # Build the command for the generate script.
+            # Create a subfolder which we will archive.
+            concat(temp_dir.created_dir, "/aprinter-build") build_path;
+            run({mkdir, build_path}, {});
+            
+            # Run the generate script.
             concat(aprinter_src_dir, "/config_system/generator/generate.py") generate_path;
-            var({python, "-B", generate_path, "--config", "-", "--output", "-", "--nix"}) generate_cmd;
-            
-            println("CALL");
-            
-            # Call the generate script.
+            concat(aprinter_src_dir, "/nix") aprinter_nix_dir;
+            var({python, "-B", generate_path, "--config", "-", "--output", "-", "--nix", "--nix-dir", aprinter_nix_dir}) generate_cmd;
             call(@run_process_inout, {generate_cmd, request_payload}) generate_exec;
+            If (@not(generate_exec.succeeded)) {
+                reply_compile->call(@false, "Generate script execution failed.", "");
+                _do->break();
+            };
             
-            println(generate_exec.succeeded);
-            println(generate_exec.output);
+            # Run nix-build.
+            concat(build_path, "/result") result_path;
+            var({nixbuild, "-", "-o", result_path}) nixbuild_cmd;
+            call(@run_process_inout, {nixbuild_cmd, generate_exec.output}) nixbuild_exec;
+            If (@not(nixbuild_exec.succeeded)) {
+                reply_compile->call(@false, "Could not perform the build via nix-build.", "");
+                _do->break();
+            };
             
-            # TBD ...
+            # Add the configuration to the build folder.
+            concat(build_path, "/config.json") copy_config_path;
+            var({python, "-B", io_helper, "--write-file", "--write-file-src", "-", "--write-file-dst", copy_config_path}) copy_config_cmd;
+            call(@run_process_inout, {copy_config_cmd, request_payload}) copy_config_exec;
+            If (@not(copy_config_exec.succeeded)) {
+                reply_compile->call(@false, "Could not copy the build configuration.", "");
+                _do->break();
+            };
+            
+            # Produce the archive.
+            concat(temp_dir.created_dir, "/aprinter-build.tar.bz2") archive_path;
+            var({tar, "-cjf", archive_path, "-C", temp_dir.created_dir, "aprinter-build"}) archive_cmd;
+            call(@run_process_output, {archive_cmd}) archive_exec;
+            If (@not(archive_exec.succeeded)) {
+                reply_compile->call(@false, "Could not archive the build results.", "");
+                _do->break();
+            };
+            
+            # Reply with success and the build archive.
+            reply_compile->call(@true, "Compilation successful.", archive_path);
             
             callbacks.log->call(@notice, "compile finished");
         };

@@ -13,7 +13,8 @@
     "temp_dir": "/home/ambro/aprinter-service-temp",
     "mktemp": "/run/current-system/sw/bin/mktemp",
     "rm": "/run/current-system/sw/bin/rm",
-    "sh": "/run/current-system/sw/bin/sh",
-    "cat": "/run/current-system/sw/bin/cat",
-    "python": "/run/current-system/sw/bin/python2.7"
+    "python": "/run/current-system/sw/bin/python2.7",
+    "nixbuild": "/run/current-system/sw/bin/nix-build",
+    "tar": "/run/current-system/sw/bin/tar",
+    "mkdir": "/run/current-system/sw/bin/mkdir"
 ]

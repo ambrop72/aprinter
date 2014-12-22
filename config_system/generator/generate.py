@@ -679,6 +679,7 @@ def main():
     parser.add_argument('--cfg-name')
     parser.add_argument('--output', required=True)
     parser.add_argument('--nix', action='store_true')
+    parser.add_argument('--nix-dir')
     args = parser.parse_args()
     
     # Determine source dir.
@@ -694,7 +695,8 @@ def main():
     # Write results.
     with config_common.use_output_file(args.output) as output_f:
         if args.nix:
-            nix = 'with import (builtins.toPath (builtins.getEnv "APRINTER_NIX_DIR")); aprinterFunc {{ boardName = {}; buildName = builtins.getEnv "APRINTER_BUILD_NAME"; desiredOutputs = [{}]; mainText = {}; }}'.format(
+            nix = 'with import (builtins.toPath {}); aprinterFunc {{ boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; mainText = {}; }}'.format(
+                config_common.escape_string_for_nix(args.nix_dir),
                 config_common.escape_string_for_nix(result['board_for_build']),
                 config_common.escape_string_for_nix(result['output_type']),
                 config_common.escape_string_for_nix(result['main_source'])
