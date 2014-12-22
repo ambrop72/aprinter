@@ -173,6 +173,7 @@ def editor():
             ce.String(key='identifier', title='Identifier'),
             ce.String(key='name', title='Name'),
             ce.String(key='board_for_build', title='Board for building (see nix/boards.nix)'),
+            ce.String(key='output_type', title='Build output type', enum=['hex', 'bin']),
             pin_choice(key='LedPin', title='LED pin'),
             ce.OneOf(key='config_manager', title='Runtime configuration', collapsed=True, choices=[
                 ce.Compound('ConstantConfigManager', title='Disabled', attrs=[]),

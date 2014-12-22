@@ -362,6 +362,10 @@ def generate(config_root_data, cfg_name, main_template):
                     board_data.key_path('board_for_build').error('Incorrect format.')
                 gen.add_subst('BoardForBuild', board_for_build)
                 
+                output_type = board_data.get_string('output_type')
+                if output_type not in ('hex', 'bin'):
+                    board_data.key_path('output_type').error('Incorrect value.')
+                
                 platform_sel = config_common.Selection()
                 
                 @platform_sel.option('At91Sam3x8e')
@@ -664,7 +668,8 @@ def generate(config_root_data, cfg_name, main_template):
     
     return {
         'main_source': config_common.RichTemplate(main_template).substitute(gen.get_subst()),
-        'board_for_build': board_for_build
+        'board_for_build': board_for_build,
+        'output_type': output_type
     }
 
 def main():
@@ -689,8 +694,9 @@ def main():
     # Write results.
     with config_common.use_output_file(args.output) as output_f:
         if args.nix:
-            nix = 'with import (builtins.toPath (builtins.getEnv "APRINTER_NIX_DIR")); aprinterFunc {{ boardName = {}; buildName = builtins.getEnv "APRINTER_BUILD_NAME"; mainText = {}; }}'.format(
+            nix = 'with import (builtins.toPath (builtins.getEnv "APRINTER_NIX_DIR")); aprinterFunc {{ boardName = {}; buildName = builtins.getEnv "APRINTER_BUILD_NAME"; desiredOutputs = [{}]; mainText = {}; }}'.format(
                 config_common.escape_string_for_nix(result['board_for_build']),
+                config_common.escape_string_for_nix(result['output_type']),
                 config_common.escape_string_for_nix(result['main_source'])
             )
             output_f.write(nix)
