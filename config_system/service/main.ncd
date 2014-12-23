@@ -114,7 +114,11 @@ process main {
             
             # Create a subfolder which we will archive.
             concat(temp_dir.created_dir, "/aprinter-build") build_path;
-            run({mkdir, build_path}, {});
+            call(@run_process_output, {{mkdir, build_path}}) mkdir_build_path_exec;
+            If (@not(mkdir_build_path_exec.succeeded)) {
+                reply_compile->call(@false, "Could not mkdir the build path.", "");
+                _do->break();
+            };
             
             # Run the generate script.
             concat(aprinter_src_dir, "/config_system/generator/generate.py") generate_path;
@@ -136,8 +140,8 @@ process main {
                     _do->break();
                 };
             } Else {
-                call(@run_process_output, {{mkdir, result_path}}) mkdir_exec;
-                If (@not(mkdir_exec.succeeded)) {
+                call(@run_process_output, {{mkdir, result_path}}) mkdir_test_exec;
+                If (@not(mkdir_test_exec.succeeded)) {
                     reply_compile->call(@false, "Could not mkdir for build simulation.", "");
                     _do->break();
                 };
