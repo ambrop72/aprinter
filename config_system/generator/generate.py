@@ -56,7 +56,7 @@ class GenState(object):
     def register_objects (self, kind, config, key):
         if kind not in self._objects:
             self._objects[kind] = {}
-        for obj_config in config.iter_list_config(key):
+        for obj_config in config.iter_list_config(key, max_count=20):
             name = obj_config.get_string('Name')
             if name in self._objects[kind]:
                 obj_config.path().error('Duplicate {} name'.format(kind))
@@ -148,9 +148,9 @@ class GenConfigReader(config_reader.ConfigReader):
                 config.path().error('Unknown choice.')
             return result
     
-    def do_list (self, key, elem_cb):
+    def do_list (self, key, elem_cb, max_count):
         elems = []
-        for (i, config) in enumerate(self.iter_list_config(key)):
+        for (i, config) in enumerate(self.iter_list_config(key, max_count=max_count)):
             elems.append(elem_cb(config, i))
         return TemplateList(elems)
 
@@ -375,7 +375,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 board_data.do_selection('platform', platform_sel)
                 
-                for helper_name in board_data.get_list(config_reader.ConfigTypeString(), 'board_helper_includes'):
+                for helper_name in board_data.get_list(config_reader.ConfigTypeString(), 'board_helper_includes', max_count=20):
                     if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', helper_name):
                         board_data.key_path('board_helper_includes').error('Invalid helper name.')
                     gen.add_aprinter_include('board/{}.h'.format(helper_name))
@@ -523,7 +523,7 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.add_float_config('ProbeSlowSpeed', probe.get_float('SlowSpeed'))
                 
                 point_list = []
-                for (i, point) in enumerate(probe.iter_list_config('ProbePoints')):
+                for (i, point) in enumerate(probe.iter_list_config('ProbePoints', max_count=20)):
                     p = (point.get_float('X'), point.get_float('Y'))
                     gen.add_float_config('ProbeP{}X'.format(i+1), p[0])
                     gen.add_float_config('ProbeP{}Y'.format(i+1), p[1])
@@ -601,7 +601,7 @@ def generate(config_root_data, cfg_name, main_template):
                     'PrinterMainNoMicroStepParams'
                 ])
             
-            gen.add_subst('Steppers', config.do_list('steppers', stepper_cb), indent=1)
+            gen.add_subst('Steppers', config.do_list('steppers', stepper_cb, max_count=15), indent=1)
             
             def heater_cb(heater, heater_index):
                 name = heater.get_id_char('Name')
@@ -650,7 +650,7 @@ def generate(config_root_data, cfg_name, main_template):
                     use_pwm_output(gen, heater, 'pwm_output', 'MyPrinter::GetHeaterPwm<{}>'.format(heater_index), '{}Heater'.format(name))
                 ])
             
-            gen.add_subst('Heaters', config.do_list('heaters', heater_cb), indent=1)
+            gen.add_subst('Heaters', config.do_list('heaters', heater_cb, max_count=15), indent=1)
             
             def fan_cb(fan, fan_index):
                 name = fan.get_id_char('Name')
@@ -662,7 +662,7 @@ def generate(config_root_data, cfg_name, main_template):
                     use_pwm_output(gen, fan, 'pwm_output', 'MyPrinter::GetFanPwm<{}>'.format(fan_index), '{}Fan'.format(name))
                 ])
             
-            gen.add_subst('Fans', config.do_list('fans', fan_cb), indent=1)
+            gen.add_subst('Fans', config.do_list('fans', fan_cb, max_count=15), indent=1)
     
     gen.finalize()
     

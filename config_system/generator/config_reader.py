@@ -68,12 +68,15 @@ class ConfigTypeString (object):
         return res
 
 class ConfigTypeList (object):
-    def __init__ (self, elem_dtype):
+    def __init__ (self, elem_dtype, max_count=-1):
         self._elem_dtype = elem_dtype
+        self._max_count = max_count
     
     def read (self, path, val):
         if type(val) is not list:
             path.error('Must be a list.')
+        if self._max_count >= 0 and len(val) > self._max_count:
+            path.error('Too many elements (maximum is {}).'.format(self._max_count))
         res = [self._elem_dtype.read(ConfigPath(path, str(i)), elem) for (i, elem) in enumerate(val)]
         return res
 
@@ -126,8 +129,8 @@ class ConfigReader (object):
     def get_string (self, key):
         return self.get(ConfigTypeString(), key)
     
-    def get_list (self, elem_dtype, key):
-        return self.get(ConfigTypeList(elem_dtype), key)
+    def get_list (self, elem_dtype, key, **list_kwargs):
+        return self.get(ConfigTypeList(elem_dtype, **list_kwargs), key)
     
     def get_config (self, key):
         return self.get(self.config_type(), key)
@@ -135,8 +138,8 @@ class ConfigReader (object):
     def enter_config (self, key):
         return self.get_config(key).enter()
     
-    def iter_list_config (self, key):
-        for config in self.get_list(self.config_type(), key):
+    def iter_list_config (self, key, **list_kwargs):
+        for config in self.get_list(self.config_type(), key, **list_kwargs):
             yield config
     
     def get_elem_by_id (self, key, id_key, id_val):
