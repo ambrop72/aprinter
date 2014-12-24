@@ -1,19 +1,15 @@
+include_guard "aprinter_compile_service"
+
 include "http_server.ncdi"
 include "job_queue.ncdi"
 include "run_process_output.ncdi"
 include "run_process_inout.ncdi"
 include "temp_dir.ncdi"
 
-process main {
-    log_fr(@notice, {"Init"}, {"Exit"});
+template aprinter_compile_service {
+    value(_arg0) config;
     
-    # Read the configuration.
-    getargs() args;
-    value(args) args;
-    args->get("0") config_path;
-    file_read(config_path) config_contents;
-    parse_value(config_contents) config;
-    value(config) config;
+    log_fr(@notice, {"APrinter Compile Service Init"}, {"APrinter Compile Service Exit"});
     
     # Fetch stuff out of the configuration.
     config->get("http_server") http_server_config;

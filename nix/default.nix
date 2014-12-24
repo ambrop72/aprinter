@@ -78,4 +78,10 @@ rec {
     ];
     aprinterTestAll = aprinterSymlinksFunc allTestTargets;
     aprinterTestAllDebug = aprinterSymlinksFunc (map (t: t.override { assertionsEnabled = true; }) allTestTargets);
+    
+    /*
+        A simple setup of the configuration/compilation service, as as a single executable.
+        Not for public deployment!
+    */
+    aprinterPrivateService = pkgs.callPackage ./private_service.nix { inherit aprinterSource; };
 }
