@@ -1,5 +1,5 @@
-{ stdenv, writeText, bash, gccAvrAtmel, gcc-arm-embedded, asf, teensyCores, buildName
-, boardName, mainText, desiredOutputs
+{ stdenv, writeText, bash, gcc-arm-embedded, gccAvrAtmel, asf, teensyCores, aprinterSource
+, buildName, boardName, mainText, desiredOutputs
 , assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false
 , detectOverloadEnabled ? false
@@ -60,7 +60,7 @@ stdenv.mkDerivation rec {
     
     name = "aprinter-${buildName}";
     
-    src = stdenv.lib.cleanSource ./..;
+    src = aprinterSource;
     
     configurePhase = ''
         rm config/*
