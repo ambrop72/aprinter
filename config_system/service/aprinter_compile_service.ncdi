@@ -165,7 +165,7 @@ template aprinter_compile_service {
             # Produce the archive.
             var("aprinter-build.tar.bz2") archive_filename;
             concat(temp_dir.created_dir, "/", archive_filename) archive_path;
-            var({tar, "-cjf", archive_path, "-C", temp_dir.created_dir, "aprinter-build"}) archive_cmd;
+            var({tar, "-cjhf", archive_path, "-C", temp_dir.created_dir, "aprinter-build"}) archive_cmd;
             call(@run_process_output, {archive_cmd}) archive_exec;
             If (@not(archive_exec.succeeded)) {
                 reply_compile->call(@false, "Could not archive the build results.");
