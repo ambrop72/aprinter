@@ -558,6 +558,20 @@ $ avr-size aprinter.elf
 The number we're interested in here is the sum of `data` and `bss`. You should also reserve around 900 bytes for the stack. So, on atmega2560, your data+bss shoudln't exceed 7300 bytes. If you fall short, you can reduce your RAM usage by lowering `StepperSegmentBufferSize` and `EventChannelBufferSize` (preferably keeping them equal),
 as well as lowering `LookaheadBufferSize`. Alternatively, port your printer to Due/RAMPS-FD ;)
 
+## Configuration and Compilation Web Service
+
+A web service for graphical configuration and compilation is in development.
+It can be built and started locally as follows:
+
+```
+nix-build nix/ -A aprinterPrivateService -o ~/aprinter-service
+mkdir ~/aprinter-service-temp
+~/aprinter-service/bin/aprinter-private-service
+```
+
+Then navigate your browser to `http://127.0.0.1:4000/`. Only Chrome is tested.
+At the bottom of the page, there is a button which will compile whatever configuration is selected.
+
 ## Support
 
 If you need help or want to ask me a question, you can find me on Freenode IRC in #reprap (nick ambro718), or you can email me to ambrop7 at gmail dot com. If you have found a bug or have a feature request, you can use the issue tracker.
