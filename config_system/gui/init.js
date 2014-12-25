@@ -149,7 +149,7 @@ var load = function() {
                 } else {
                     var result = JSON.parse(compile_request.responseText);
                     if (!result.success) {
-                        alert("Compilation failed (compile error)!");
+                        alert("Compilation failed: " + result.message);
                     } else {
                         var blob = base64_to_blob(result.data, 'application/octet-stream');
                         saveAs(blob, result.filename)
