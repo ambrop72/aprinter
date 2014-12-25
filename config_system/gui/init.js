@@ -19,8 +19,18 @@ var $compile_start_button = document.getElementById('compile_start');
 // Global variables.
 var jsoneditor;
 
-// Helper functions for resolving references within the editor.
-function aprinter_resolve_ref(target_arr, target_id_field, target_id) {
+function ce_refarr(obj, attrs) {
+    var len = attrs.length;
+    for (var i = 0; i < len; i++) {
+        obj = obj[attrs[i]];
+        if (obj === null || typeof obj !== 'object') {
+            return [];
+        }
+    }
+    return obj;
+}
+
+function ce_deref(target_arr, target_id_field, target_id) {
     for (var index in target_arr) {
         var target = target_arr[index];
         if (target[target_id_field] == target_id) {

@@ -73,6 +73,37 @@ def at91sam_pins():
         ])
     ])
 
+def mk20_clock():
+    return ce.Compound('Mk20Clock', key='clock', title='Clock', collapsed=True, attrs=[
+        ce.Integer(key='prescaler', title='Prescaler'),
+        ce.String(key='primary_timer', title='Primary timer'),
+        ce.Constant(key='avail_oc_units', value=[
+            {
+                'value': 'FTM{}_{}'.format(i, j)
+            } for i in range(2) for j in range({0: 8, 1: 2}[i])
+        ])
+    ])
+
+def mk20_adc():
+    return ce.Compound('Mk20Adc', key='adc', title='ADC', collapsed=True, attrs=[
+        ce.Integer(key='AdcADiv', title='AdcADiv'),
+    ])
+
+def mk20_watchdog():
+    return ce.Compound('Mk20Watchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
+        ce.Integer(key='Toval', title='Timeout value'),
+        ce.Integer(key='Prescval', title='Presaler value'),
+    ])
+
+def mk20_pins():
+    return ce.Compound('Mk20Pins', key='pins', title='Pins', collapsed=True, attrs=[
+        ce.Constant(key='input_modes', value=[
+            { 'ident': 'Mk20PinInputModeNormal', 'name': 'Normal' },
+            { 'ident': 'Mk20PinInputModePullUp', 'name': 'Pull-up' },
+            { 'ident': 'Mk20PinInputModePullDown', 'name': 'Pull-down' },
+        ])
+    ])
+
 def editor():
     return ce.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, ident='id_editor', attrs=[
         ce.Constant(key='version', value=1),
@@ -188,7 +219,11 @@ def editor():
                                     ce.Integer(key='Size'),
                                     ce.Integer(key='BlockSize'),
                                     ce.Float(key='WriteTimeout')
-                                ])
+                                ]),
+                                ce.Compound('TeensyEeprom', attrs=[
+                                    ce.Integer(key='Size'),
+                                    ce.Integer(key='FakeBlockSize'),
+                                ]),
                             ]),
                             ce.Integer(key='StartBlock'),
                             ce.Integer(key='EndBlock'),
@@ -203,7 +238,8 @@ def editor():
                 ce.Integer(key='GcodeMaxParts', title='Max parts in GCode command'),
                 ce.OneOf(key='Service', title='Backend', disable_collapse=True, choices=[
                     ce.Compound('AsfUsbSerial', title='AT91 USB', attrs=[]),
-                    ce.Compound('At91Sam3xSerial', title='AT91 UART', attrs=[])
+                    ce.Compound('At91Sam3xSerial', title='AT91 UART', attrs=[]),
+                    ce.Compound('TeensyUsbSerial', title='Teensy3 USB', attrs=[]),
                 ])
             ]),
             ce.OneOf(key='sdcard', title='SD card', collapsed=True, choices=[
@@ -271,7 +307,13 @@ def editor():
                     at91sam_adc(),
                     at91sam_watchdog(),
                     at91sam_pins()
-                ])
+                ]),
+                ce.Compound('Teensy3', attrs=[
+                    mk20_clock(),
+                    mk20_adc(),
+                    mk20_watchdog(),
+                    mk20_pins(),
+                ]),
             ]),
             ce.Array(key='board_helper_includes', title='Board helper includes', disable_collapse=True, table=True, elem=ce.String(title='Name')),
         ]))

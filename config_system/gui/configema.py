@@ -225,7 +225,7 @@ class Reference (ConfigBase):
             },
             'enumSource': [
                 {
-                    'sourceTemplate': 'if (!vars.watch_array) return []; return {};'.format(self._array_expr()),
+                    'sourceTemplate': 'return {};'.format(self._array_expr()),
                     'title': 'return vars.item[{}];'.format(json.dumps(self.ref_name_key)),
                     'value': 'return vars.item[{}];'.format(json.dumps(self.ref_id_key))
                 }
@@ -240,7 +240,7 @@ class Reference (ConfigBase):
                     'watch_array': self.ref_array,
                     'watch_id': '{}.{}'.format(container_id, self.kwargs['key'])
                 },
-                'template': 'if (!vars.watch_array) return null; return aprinter_resolve_ref({}, {}, vars.watch_id);'.format(self._array_expr(), json.dumps(self.ref_id_key)),
+                'template': 'return ce_deref({},{},vars.watch_id);'.format(self._array_expr(), json.dumps(self.ref_id_key)),
                 'options': {
                     'derived': True
                 }
@@ -248,4 +248,4 @@ class Reference (ConfigBase):
         } if self.deref_key is not None else {})
     
     def _array_expr (self):
-        return 'vars.watch_array{}'.format(''.join('[{}]'.format(json.dumps(attr)) for attr in self.ref_array_descend))
+        return 'ce_refarr(vars,["watch_array"{}])'.format(''.join(',{}'.format(json.dumps(attr)) for attr in self.ref_array_descend))
