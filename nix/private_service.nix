@@ -1,4 +1,4 @@
-{ writeText, writeScriptBin, bash, coreutils, gnutar, python27Packages, nix, badvpn, lighttpd, aprinterSource
+{ writeText, writeScriptBin, bash, coreutils, gnutar, python27Packages, nix, ncd, lighttpd, aprinterSource
 , serviceHost ? "127.0.0.1"
 , servicePort ? 4000
 , backendPort ? 4001
@@ -31,8 +31,6 @@ let
     '';
     
     ncd_script = writeText "aprinter-private-service.ncd" ''
-        #!${badvpn}/bin/badvpn-ncd --loglevel notice
-        
         include "${aprinterSource}/config_system/service/aprinter_compile_service.ncdi"
         
         process main {
@@ -104,5 +102,5 @@ let
 in
 writeScriptBin "aprinter-private-service" ''
     #!${bash}/bin/bash
-    exec ${badvpn}/bin/badvpn-ncd --loglevel notice ${ncd_script}
+    exec ${ncd}/bin/badvpn-ncd --loglevel notice ${ncd_script}
 ''

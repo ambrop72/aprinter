@@ -80,8 +80,13 @@ rec {
     aprinterTestAllDebug = aprinterSymlinksFunc (map (t: t.override { assertionsEnabled = true; }) allTestTargets);
     
     /*
+        We need a specific version of NCD for the service.
+    */
+    ncd = pkgs.callPackage ./ncd.nix {};
+    
+    /*
         A simple setup of the configuration/compilation service, as as a single executable.
         Not for public deployment!
     */
-    aprinterPrivateService = pkgs.callPackage ./private_service.nix { inherit aprinterSource; };
+    aprinterPrivateService = pkgs.callPackage ./private_service.nix { inherit aprinterSource ncd; };
 }
