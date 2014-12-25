@@ -7,14 +7,16 @@ var default_config = {"_compoundName":"editor","version":1,"selected_config":"RA
 // Divs/textareas on the page
 var $editor = document.getElementById('editor');
 
-// Buttons
+// Buttons and other stuff
 var $save_data_button = document.getElementById('save_data');
 var $reload_data_button = document.getElementById('reload_data');
 var $load_defaults_button = document.getElementById('load_defaults');
 var $export_data_button = document.getElementById('export_data');
 var $import_data_button = document.getElementById('import_data');
 var $import_data_file_input = document.getElementById('import_data_file');
+var $compile_start_button = document.getElementById('compile_start');
 
+// Global variables.
 var jsoneditor;
 
 // Helper functions for resolving references within the editor.
@@ -39,6 +41,25 @@ function get_config(allow_default) {
     }
     var config_value = JSON.parse(config_json);
     return {ok: true, value: config_value};
+}
+
+function set_compile_status(running) {
+    $compile_start_button.disabled = running;
+    
+    var elems = document.getElementsByClassName("compile_progress");
+    for (var i = 0; i < elems.length; i++) {
+        elems[i].style.visibility = running ? "visible" : "hidden";
+    }
+}
+
+function base64_to_blob(input, content_type) {
+    var str = window.atob(input);
+    var ab = new ArrayBuffer(str.length);
+    var ia = new Uint8Array(ab);
+    for (var i = 0; i < str.length; i++) {
+        ia[i] = str.charCodeAt(i);
+    }
+    return new Blob([ia], {type: content_type});
 }
 
 var load = function() {
@@ -99,6 +120,7 @@ var load = function() {
         saveAs(blob, 'aprinter_config.json')
     });
     
+    // Import button handler.
     $import_data_button.addEventListener('click', function() {
         if (!$import_data_file_input.files[0]) {
             alert('Please select a configuration file to import.');
@@ -111,6 +133,35 @@ var load = function() {
         }
         reader.readAsText($import_data_file_input.files[0]);
     });
-};
+    
+    // Compile button handler.
+    $compile_start_button.addEventListener('click', function() {
+        var compile_request = new XMLHttpRequest();
+        compile_request.open("POST", "/compile", true);
+        compile_request.setRequestHeader("Content-type", "application/json; charset=utf-8")
+        
+        compile_request.onreadystatechange = function() {
+            if (compile_request.readyState == 4) {
+                set_compile_status(false);
+                
+                if (compile_request.status != 200) {
+                    alert("Compilation failed (request error)!");
+                } else {
+                    var result = JSON.parse(compile_request.responseText);
+                    if (!result.success) {
+                        alert("Compilation failed (compile error)!");
+                    } else {
+                        var blob = base64_to_blob(result.data, 'application/octet-stream');
+                        saveAs(blob, result.filename)
+                    }
+                }
+            }
+        }
+        
+        compile_request.send(JSON.stringify(jsoneditor.getValue()));
+        
+        set_compile_status(true);
+    });
+}
 
 load();

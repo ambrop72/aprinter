@@ -17,6 +17,7 @@ def main():
     parser.add_argument('--build-reply-success')
     parser.add_argument('--build-reply-message')
     parser.add_argument('--build-reply-data')
+    parser.add_argument('--build-reply-filename')
     parser.add_argument('--build-reply-dst')
     args = parser.parse_args()
     
@@ -37,6 +38,7 @@ def main():
         res['message'] = args.build_reply_message
         
         if args.build_reply_data is not None and len(args.build_reply_data) != 0:
+            res['filename'] = args.build_reply_filename
             with config_common.use_input_file(args.build_reply_data) as input_stream:
                 res['data'] = base64.b64encode(input_stream.read())
         

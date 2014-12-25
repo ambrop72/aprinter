@@ -41,8 +41,9 @@ def main():
     # Copy FileSaver.
     shutil.copyfile(os.path.join(args.filesaver_dir, 'FileSaver.min.js'), os.path.join(dist_dir, 'FileSaver.min.js'))
     
-    # Copy index.html.
-    shutil.copyfile(os.path.join(src_dir, 'index.html'), os.path.join(dist_dir, 'index.html'))
+    # Copy files.
+    for filename in ['index.html', 'Ajax-loader.gif']:
+        shutil.copyfile(os.path.join(src_dir, filename), os.path.join(dist_dir, filename))
     
     # Read default configuration.
     default_config = json.loads(config_common.read_file(os.path.join(src_dir, 'default_config.json')))

@@ -1,12 +1,15 @@
 { writeText, writeScriptBin, bash, coreutils, gnutar, python27Packages, nix, badvpn, lighttpd, aprinterSource
+, serviceHost ? "127.0.0.1"
 , servicePort ? 4000
 , backendPort ? 4001
 }:
 let
     lighttpd_config = writeText "aprinter-private-service-lighttpd.cfg" ''
+        server.modules += ("mod_proxy")
+        
         server.document-root = "${aprinterSource}/config_system/gui/dist" 
 
-        server.bind = "127.0.0.1"
+        server.bind = "${serviceHost}"
         server.port = ${toString servicePort}
 
         mimetype.assign = (
@@ -19,6 +22,12 @@ let
         )
 
         index-file.names = ( "index.html" )
+        
+        $HTTP["url"] =~ "^/compile$" {
+            proxy.server = ("" => (
+                ("host" => "127.0.0.1", "port" => ${toString backendPort})
+            ))
+        }
     '';
     
     ncd_script = writeText "aprinter-private-service.ncd" ''

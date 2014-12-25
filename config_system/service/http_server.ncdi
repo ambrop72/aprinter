@@ -405,9 +405,11 @@ template _http_request_task {
             _do->break();
         };
         
-        # Adjust the minor HTTP version of the response.
+        # Do version specific things.
         If (@num_greater_equal(request_version_minor, "1")) {
             reply_version_minor->set("1");
+        } Else {
+            callbacks.connection_close->call();
         };
         
         # We will be determing the presence and encoding of the payload.

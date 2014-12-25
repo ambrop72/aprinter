@@ -43,15 +43,25 @@ template aprinter_compile_service {
         
         # This block is used to reply to the compile request.
         Block {
-            alias(@_arg0) reply_success;
-            alias(@_arg1) reply_message;
-            alias(@_arg2) reply_data_file;
+            value(_args) args;
+            args->get("0") reply_success;
+            args->get("1") reply_message;
+            
+            # The other two arguments are optional.
+            var("") reply_data_file;
+            var("") reply_filename;
+            If (@num_equal(args.length, "4")) {
+                args->get("2") val;
+                reply_data_file->set(val);
+                args->get("3") val;
+                reply_filename->set(val);
+            };
             
             # Call the command for building the reply in JSON format.
             var({
                 python, "-B", io_helper, "--build-reply", "--build-reply-success", reply_success,
                 "--build-reply-message", reply_message, "--build-reply-data", reply_data_file,
-                "--build-reply-dst", "-"
+                "--build-reply-filename", reply_filename, "--build-reply-dst", "-"
             }) build_reply_cmd;
             call(@run_process_output, {build_reply_cmd}) build_reply_exec;
             
@@ -104,7 +114,7 @@ template aprinter_compile_service {
             # Create a temporary directory.
             call(@temp_dir, {^callbacks.log, temp_dir, mktemp, rm}) temp_dir;
             If (@not(temp_dir.succeeded)) {
-                reply_compile->call(@false, "Could not make a temp dir.", "");
+                reply_compile->call(@false, "Could not make a temp dir.");
                 _do->break();
             };
             
@@ -112,7 +122,7 @@ template aprinter_compile_service {
             concat(temp_dir.created_dir, "/aprinter-build") build_path;
             call(@run_process_output, {{mkdir, build_path}}) mkdir_build_path_exec;
             If (@not(mkdir_build_path_exec.succeeded)) {
-                reply_compile->call(@false, "Could not mkdir the build path.", "");
+                reply_compile->call(@false, "Could not mkdir the build path.");
                 _do->break();
             };
             
@@ -122,23 +132,23 @@ template aprinter_compile_service {
             var({python, "-B", generate_path, "--config", "-", "--output", "-", "--nix", "--nix-dir", aprinter_nix_dir}) generate_cmd;
             call(@run_process_inout, {generate_cmd, request_payload}) generate_exec;
             If (@not(generate_exec.succeeded)) {
-                reply_compile->call(@false, "Generate script execution failed.", "");
+                reply_compile->call(@false, "Generate script execution failed.");
                 _do->break();
             };
             
             # Run nix-build, or simulate.
             concat(build_path, "/result") result_path;
             If (@not(test_without_building)) {
-                var({nixbuild, "-", "-o", result_path}) nixbuild_cmd;
+                var({nixbuild, "-", "-o", result_path, "--no-build-output"}) nixbuild_cmd;
                 call(@run_process_inout, {nixbuild_cmd, generate_exec.output}) nixbuild_exec;
                 If (@not(nixbuild_exec.succeeded)) {
-                    reply_compile->call(@false, "Could not perform the build via nix-build.", "");
+                    reply_compile->call(@false, "Could not perform the build via nix-build.");
                     _do->break();
                 };
             } Else {
                 call(@run_process_output, {{mkdir, result_path}}) mkdir_test_exec;
                 If (@not(mkdir_test_exec.succeeded)) {
-                    reply_compile->call(@false, "Could not mkdir for build simulation.", "");
+                    reply_compile->call(@false, "Could not mkdir for build simulation.");
                     _do->break();
                 };
             };
@@ -148,21 +158,22 @@ template aprinter_compile_service {
             var({python, "-B", io_helper, "--write-file", "--write-file-src", "-", "--write-file-dst", copy_config_path}) copy_config_cmd;
             call(@run_process_inout, {copy_config_cmd, request_payload}) copy_config_exec;
             If (@not(copy_config_exec.succeeded)) {
-                reply_compile->call(@false, "Could not copy the build configuration.", "");
+                reply_compile->call(@false, "Could not copy the build configuration.");
                 _do->break();
             };
             
             # Produce the archive.
-            concat(temp_dir.created_dir, "/aprinter-build.tar.bz2") archive_path;
+            var("aprinter-build.tar.bz2") archive_filename;
+            concat(temp_dir.created_dir, "/", archive_filename) archive_path;
             var({tar, "-cjf", archive_path, "-C", temp_dir.created_dir, "aprinter-build"}) archive_cmd;
             call(@run_process_output, {archive_cmd}) archive_exec;
             If (@not(archive_exec.succeeded)) {
-                reply_compile->call(@false, "Could not archive the build results.", "");
+                reply_compile->call(@false, "Could not archive the build results.");
                 _do->break();
             };
             
             # Reply with success and the build archive.
-            reply_compile->call(@true, "Compilation successful.", archive_path);
+            reply_compile->call(@true, "Compilation successful.", archive_path, archive_filename);
             
             callbacks.log->call(@notice, "compile finished");
         };
