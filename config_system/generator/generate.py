@@ -190,32 +190,59 @@ class TemplateChar(object):
     def build (self, indent):
         return '\'{}\''.format(self._ch)
 
-class At91Sam3xClock(object):
-    def __init__ (self, gen, config):
+class CommonClock(object):
+    def __init__ (self, gen, config, clockdef):
         self._gen = gen
-        gen.add_aprinter_include('system/At91Sam3xClock.h')
-        gen.add_subst('CLOCK_CONFIG', 'static const int clock_timer_prescaler = {};'.format(config.get_int_constant('prescaler')))
-        gen.add_subst('CLOCK', 'At91Sam3xClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>')
-        self._primary_timer = config.get_identifier('primary_timer', lambda x: re.match('\\ATC[0-9]\\Z', x))
+        self._clockdef = clockdef
+        gen.add_aprinter_include(clockdef.INCLUDE)
+        gen.add_subst('CLOCK_CONFIG', clockdef.CLOCK_CONFIG(config))
+        gen.add_subst('CLOCK', clockdef.CLOCK_EXPR)
+        self._primary_timer = config.get_identifier('primary_timer', lambda x: re.match(clockdef.TIMER_RE, x))
         self._interrupt_timers = []
     
     def add_interrupt_timer (self, name, user, clearance, path):
-        m = re.match('\\A(TC[0-9])([A-C])\\Z', name)
+        m = re.match(self._clockdef.CHANNEL_RE, name)
         if m is None:
             path.error('Incorrect OC unit format.')
         it = {'tc':m.group(1), 'channel':m.group(2)}
         self._interrupt_timers.append(it)
         clearance_extra = ', {}'.format(clearance) if clearance is not None else ''
-        self._gen.add_isr('AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClock{}, At91Sam3xClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user))
-        return 'At91Sam3xClockInterruptTimerService<At91Sam3xClock{}, At91Sam3xClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
+        self._gen.add_isr(self._clockdef.INTERRUPT_TIMER_ISR(it, user))
+        return self._clockdef.INTERRUPT_TIMER_EXPR(it, clearance_extra)
     
     def finalize (self):
         tcs = set(it['tc'] for it in self._interrupt_timers)
         tcs.add(self._primary_timer)
         tcs = sorted(tcs)
-        self._gen.add_subst('CLOCK_TCS', 'using ClockTcsList = MakeTypeList<{}>;'.format(', '.join('At91Sam3xClock{}'.format(tc) for tc in tcs)))
+        self._gen.add_subst('CLOCK_TCS', 'using ClockTcsList = MakeTypeList<{}>;'.format(', '.join(self._clockdef.TIMER_EXPR(tc) for tc in tcs)))
         for tc in tcs:
-            self._gen.add_isr('AMBRO_AT91SAM3X_CLOCK_{}_GLOBAL(MyClock, MyContext())'.format(tc))
+            self._gen.add_isr(self._clockdef.TIMER_ISR(tc))
+
+class FunctionDefinedClass(object):
+    def __init__(self, function):
+        function(self)
+
+def At91Sam3xClockDef(x):
+    x.INCLUDE = 'system/At91Sam3xClock.h'
+    x.CLOCK_EXPR = 'At91Sam3xClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>'
+    x.TIMER_RE = '\\ATC[0-9]\\Z'
+    x.CHANNEL_RE = '\\A(TC[0-9])([A-C])\\Z'
+    x.CLOCK_CONFIG = lambda config: 'static int const clock_timer_prescaler = {};'.format(config.get_int_constant('prescaler'))
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3xClockInterruptTimerService<At91Sam3xClock{}, At91Sam3xClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClock{}, At91Sam3xClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.TIMER_EXPR = lambda tc: 'At91Sam3xClock{}'.format(tc)
+    x.TIMER_ISR = lambda tc: 'AMBRO_AT91SAM3X_CLOCK_{}_GLOBAL(MyClock, MyContext())'.format(tc)
+
+def Mk20ClockDef(x):
+    x.INCLUDE = 'system/Mk20Clock.h'
+    x.CLOCK_EXPR = 'Mk20Clock<MyContext, Program, clock_timer_prescaler, ClockTcsList>'
+    x.TIMER_RE = '\\AFTM[0-9]\\Z'
+    x.CHANNEL_RE = '\\A(FTM[0-9])_([0-9])\\Z'
+    x.CLOCK_CONFIG = lambda config: 'static int const clock_timer_prescaler = {};'.format(config.get_int_constant('prescaler'))
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Mk20ClockInterruptTimerService<Mk20Clock{}, {}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20Clock{}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.TIMER_EXPR = lambda tc: 'Mk20ClockFtmSpec<Mk20Clock{}>'.format(tc)
+    x.TIMER_ISR = lambda tc: 'AMBRO_MK20_CLOCK_FTM_GLOBAL({}, MyClock, MyContext())'.format(tc[3:])
 
 def setup_pins (gen, config, key):
     pins_sel = config_common.Selection()
@@ -224,6 +251,11 @@ def setup_pins (gen, config, key):
     def options(pin_config):
         gen.add_aprinter_include('system/At91SamPins.h')
         return TemplateExpr('At91SamPins', ['MyContext', 'Program'])
+    
+    @pins_sel.option('Mk20Pins')
+    def options(pin_config):
+        gen.add_aprinter_include('system/Mk20Pins.h')
+        return TemplateExpr('Mk20Pins', ['MyContext', 'Program'])
     
     gen.add_subst('Pins', config.do_selection(key, pins_sel), indent=0)
 
@@ -236,6 +268,14 @@ def setup_watchdog(gen, config, key):
         gen.add_aprinter_include('system/At91SamWatchdog.h')
         return TemplateExpr('At91SamWatchdogService', [
             watchdog.get_int('Wdv')
+        ])
+    
+    @watchdog_sel.option('Mk20Watchdog')
+    def option(watchdog):
+        gen.add_aprinter_include('system/Mk20Watchdog.h')
+        return TemplateExpr('Mk20WatchdogService', [
+            watchdog.get_int('Toval'),
+            watchdog.get_int('Prescval'),
         ])
     
     gen.add_subst('Watchdog', config.do_selection(key, watchdog_sel))
@@ -264,6 +304,17 @@ def setup_adc (gen, config, key):
                 ])
             ]),
             'pin_func': lambda pin: 'At91SamAdcSmoothPin<{}, AdcSmoothing>'.format(pin)
+        }
+    
+    @adc_sel.option('Mk20Adc')
+    def option(adc_config):
+        gen.add_aprinter_include('system/Mk20Adc.h')
+        gen.add_int_constant('int', 'AdcADiv', adc_config.get_int('AdcADiv'))
+        gen.add_isr('AMBRO_MK20_ADC_ISRS(MyAdc, MyContext())')
+        
+        return {
+            'value_func': lambda: TemplateExpr('Mk20Adc', ['MyContext', 'Program', 'AdcPins', 'AdcADiv']),
+            'pin_func': lambda pin: pin
         }
     
     result = config.do_selection(key, adc_sel)
@@ -373,6 +424,10 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_platform_include('aprinter/platform/at91sam3x/at91sam3x_support.h')
                     gen.add_init_call(-1, 'platform_init();')
                 
+                @platform_sel.option('Teensy3')
+                def option(platform):
+                    gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
+                
                 board_data.do_selection('platform', platform_sel)
                 
                 for helper_name in board_data.get_list(config_reader.ConfigTypeString(), 'board_helper_includes', max_count=20):
@@ -385,7 +440,11 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @clock_sel.option('At91Sam3xClock')
                     def option(clock):
-                        return At91Sam3xClock(gen, clock)
+                        return CommonClock(gen, clock, FunctionDefinedClass(At91Sam3xClockDef))
+                    
+                    @clock_sel.option('Mk20Clock')
+                    def option(clock):
+                        return CommonClock(gen, clock, FunctionDefinedClass(Mk20ClockDef))
                     
                     gen.register_singleton_object('clock', platform.do_selection('clock', clock_sel))
                     
@@ -432,6 +491,13 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_isr('AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())')
                         gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<MyPrinter::GetSerial>, MyContext())')
                         return 'At91Sam3xSerialService'
+                    
+                    @serial_sel.option('TeensyUsbSerial')
+                    def option(serial_service):
+                        gen.add_aprinter_include('system/TeensyUsbSerial.h')
+                        gen.add_global_code(0, 'extern "C" { void usb_init (void); }')
+                        gen.add_init_call(0, 'usb_init();')
+                        return 'TeensyUsbSerialService'
                     
                     gen.add_subst('SerialService', serial.do_selection('Service', serial_sel))
                 
@@ -491,6 +557,11 @@ def generate(config_root_data, cfg_name, main_template):
                         def option(eeprom):
                             gen.add_aprinter_include('devices/I2cEeprom.h')
                             return TemplateExpr('I2cEepromService', [use_i2c(gen, eeprom, 'I2c', 'MyPrinter::GetConfigManager::GetStore<>::GetEeprom::GetI2c', 'ConfigEeprom'), eeprom.get_int('I2cAddr'), eeprom.get_int('Size'), eeprom.get_int('BlockSize'), gen.add_float_constant('ConfigEepromWriteTimeout', eeprom.get_float('WriteTimeout'))])
+                        
+                        @eeprom_sel.option('TeensyEeprom')
+                        def option(eeprom):
+                            gen.add_aprinter_include('devices/TeensyEeprom.h')
+                            return TemplateExpr('TeensyEepromService', [eeprom.get_int('Size'), eeprom.get_int('FakeBlockSize')])
                         
                         return TemplateExpr('EepromConfigStoreService', [config_store.do_selection('Eeprom', eeprom_sel), config_store.get_int('StartBlock'), config_store.get_int('EndBlock')])
                     
