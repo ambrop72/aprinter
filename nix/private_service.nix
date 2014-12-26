@@ -2,6 +2,7 @@
 , serviceHost ? "127.0.0.1"
 , servicePort ? 4000
 , backendPort ? 4001
+, withBuildOutput ? true
 }:
 let
     lighttpd_config = writeText "aprinter-private-service-lighttpd.cfg" ''
@@ -76,6 +77,7 @@ let
                 ],
                 "max_concurrent_compiles": "1",
                 "aprinter_src_dir": "${aprinterSource}",
+                "with_build_output": ${if withBuildOutput then "@true" else "@false"},
                 "temp_dir": temp_dir,
                 "mktemp": "${coreutils}/bin/mktemp",
                 "rm": "${coreutils}/bin/rm",
