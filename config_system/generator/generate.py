@@ -260,7 +260,7 @@ def setup_pins (gen, config, key):
     gen.add_subst('Pins', config.do_selection(key, pins_sel), indent=0)
 
 
-def setup_watchdog(gen, config, key):
+def setup_watchdog(gen, config, key, user):
     watchdog_sel = config_common.Selection()
     
     @watchdog_sel.option('At91SamWatchdog')
@@ -273,6 +273,7 @@ def setup_watchdog(gen, config, key):
     @watchdog_sel.option('Mk20Watchdog')
     def option(watchdog):
         gen.add_aprinter_include('system/Mk20Watchdog.h')
+        gen.add_isr('AMBRO_MK20_WATCHDOG_GLOBAL({})'.format(user))
         return TemplateExpr('Mk20WatchdogService', [
             watchdog.get_int('Toval'),
             watchdog.get_int('Prescval'),
@@ -309,7 +310,7 @@ def setup_adc (gen, config, key):
     @adc_sel.option('Mk20Adc')
     def option(adc_config):
         gen.add_aprinter_include('system/Mk20Adc.h')
-        gen.add_int_constant('int', 'AdcADiv', adc_config.get_int('AdcADiv'))
+        gen.add_int_constant('int32', 'AdcADiv', adc_config.get_int('AdcADiv'))
         gen.add_isr('AMBRO_MK20_ADC_ISRS(MyAdc, MyContext())')
         
         return {
@@ -449,7 +450,7 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.register_singleton_object('clock', platform.do_selection('clock', clock_sel))
                     
                     setup_pins(gen, platform, 'pins')
-                    setup_watchdog(gen, platform, 'watchdog')
+                    setup_watchdog(gen, platform, 'watchdog', 'MyPrinter::GetWatchdog')
                     setup_adc(gen, platform, 'adc')
                 
                 gen.register_objects('digital_input', board_data, 'digital_inputs')
@@ -560,7 +561,7 @@ def generate(config_root_data, cfg_name, main_template):
                         
                         @eeprom_sel.option('TeensyEeprom')
                         def option(eeprom):
-                            gen.add_aprinter_include('devices/TeensyEeprom.h')
+                            gen.add_aprinter_include('system/TeensyEeprom.h')
                             return TemplateExpr('TeensyEepromService', [eeprom.get_int('Size'), eeprom.get_int('FakeBlockSize')])
                         
                         return TemplateExpr('EepromConfigStoreService', [config_store.do_selection('Eeprom', eeprom_sel), config_store.get_int('StartBlock'), config_store.get_int('EndBlock')])
