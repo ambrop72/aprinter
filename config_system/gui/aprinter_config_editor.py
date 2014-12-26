@@ -92,7 +92,7 @@ def mk20_adc():
 def mk20_watchdog():
     return ce.Compound('Mk20Watchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
         ce.Integer(key='Toval', title='Timeout value'),
-        ce.Integer(key='Prescval', title='Presaler value'),
+        ce.Integer(key='Prescval', title='Prescaler value'),
     ])
 
 def mk20_pins():
