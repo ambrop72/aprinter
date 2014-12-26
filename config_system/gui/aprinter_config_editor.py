@@ -108,9 +108,9 @@ def editor():
     return ce.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, ident='id_editor', attrs=[
         ce.Constant(key='version', value=1),
         ce.Reference(key='selected_config', title='Selected configuration (to compile)', ref_array='configurations', ref_id_key='name', ref_name_key='name'),
-        ce.Array(key='configurations', title='Configurations', elem=ce.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsed=True, attrs=[
+        ce.Array(key='configurations', title='Configurations', processing_order=-1, elem=ce.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsed=True, attrs=[
             ce.String(key='name', title='Name'),
-            ce.Reference(key='board_id', ref_array='boards', ref_id_key='identifier', ref_name_key='name', deref_key='board_data', title='Board'),
+            ce.Reference(key='board_id', ref_array='boards', ref_id_key='identifier', ref_name_key='name', deref_key='board_data', title='Board', processing_order=-1),
             ce.Float(key='InactiveTime', title='Inactive time'),
             ce.Compound('advanced', key='advanced', title='Advanced parameters', collapsed=True, attrs=[
                 ce.Float(key='LedBlinkInterval', title='LED blink interval'),
@@ -200,7 +200,7 @@ def editor():
                 ])
             ])
         ])),
-        ce.Array(key='boards', title='Boards', elem=ce.Compound('board', title='Board', title_key='name', collapsed=True, ident='id_board', attrs=[
+        ce.Array(key='boards', title='Boards', processing_order=-2, elem=ce.Compound('board', title='Board', title_key='name', collapsed=True, ident='id_board', attrs=[
             ce.String(key='identifier', title='Identifier'),
             ce.String(key='name', title='Name'),
             ce.String(key='board_for_build', title='Board for building (see nix/boards.nix)'),
