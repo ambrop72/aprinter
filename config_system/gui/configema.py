@@ -50,6 +50,7 @@ class ConfigBase (object):
         self.ident = _kwarg_maybe('ident', kwargs)
         self.enum = _kwarg_maybe('enum', kwargs)
         self.no_header = _kwarg_maybe('no_header', kwargs, False)
+        self.processing_order = _kwarg_maybe('processing_order', kwargs)
         self.kwargs = kwargs
     
     def _json_schema (self):
@@ -78,6 +79,9 @@ class ConfigBase (object):
                     'no_header': True
                 }
             } if self.no_header else {}),
+            ({
+                'processingOrder': self.processing_order
+            } if self.processing_order is not None else {}),
             ({
                 'enum': self.enum
             } if self.enum is not None else {}),

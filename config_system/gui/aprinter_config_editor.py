@@ -301,7 +301,7 @@ def editor():
                     ])
                 ])
             ])),
-            ce.OneOf(key='platform', title='Platform', disable_collapse=True, choices=[
+            ce.OneOf(key='platform', title='Platform', disable_collapse=True, processing_order=-1, choices=[
                 ce.Compound('At91Sam3x8e', attrs=[
                     at91sam3x_clock(),
                     at91sam_adc(),

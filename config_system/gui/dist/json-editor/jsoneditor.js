@@ -2912,13 +2912,16 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
     value = value || {};
     
     if(typeof value !== "object" || Array.isArray(value)) value = {};
+    
+    // Collect set-actions here so we can sort them.
+    var setActions = [];
 
     // First, set the values for all of the defined properties
     $each(this.cached_editors, function(i,editor) {
       // Value explicitly set
       if(typeof value[i] !== "undefined") {
         self.addObjectProperty(i);
-        editor.setValue(value[i],initial);
+        setActions.push({name: i, value: value[i]});
       }
       // Otherwise, remove value unless this is the initial set or it's required
       else if(!initial && !self.isRequired(editor)) {
@@ -2926,15 +2929,34 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
       }
       // Otherwise, set the value to the default
       else {
-        editor.setValue(editor.getDefault(),initial);
+        setActions.push({name: i, value: editor.getDefault()});
       }
     });
 
+    // Also try to set properties for which we don't have editors.
     $each(value, function(i,val) {
       if(!self.cached_editors[i]) {
         self.addObjectProperty(i);
-        if(self.editors[i]) self.editors[i].setValue(val,initial);
+        if(self.editors[i]) setActions.push({name: i, value: val});
       }
+    });
+    
+    // Add processingOrder to set-actions.
+    $each(setActions, function(ind,action) {
+      var i = action.name;
+      action.processingOrder = 0;
+      if (self.schema.properties && self.schema.properties[i] && typeof self.schema.properties[i].processingOrder !== "undefined") {
+        action.processingOrder = self.schema.properties[i].processingOrder;
+      }
+    });
+    
+    // Sort the set-actions.
+    setActions.sort(function(x,y) { return (x.processingOrder > y.processingOrder) - (x.processingOrder < y.processingOrder); });
+    
+    // Execute the set-actions.
+    $each(setActions, function(ind,action) {
+      var i = action.name;
+      self.cached_editors[i].setValue(action.value, initial);
     });
     
     this.refreshValue();
