@@ -264,6 +264,11 @@ JSONEditor.prototype = {
 
     return this.root.getValue();
   },
+  getFinalValue: function() {
+    if(!this.ready) throw "JSON Editor not ready yet.  Listen for 'ready' event before getting the value";
+
+    return this.root.getFinalValue();
+  },
   setValue: function(value) {
     if(!this.ready) throw "JSON Editor not ready yet.  Listen for 'ready' event before setting the value";
 
@@ -1580,6 +1585,9 @@ JSONEditor.AbstractEditor = Class.extend({
   getValue: function() {
     return this.value;
   },
+  getFinalValue: function() {
+    return this.getValue();
+  },
   refreshValue: function() {
 
   },
@@ -2807,6 +2815,18 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
     }
     return result;
   },
+  getFinalValue: function() {
+    var result = {};
+    for (var i in this.editors) {
+      if (!this.editors.hasOwnProperty(i)) {
+        continue;
+      }
+      if (!this.editors[i].schema.excludeFromFinalValue) {
+        result[i] = this.editors[i].getFinalValue();
+      }
+    }
+    return result;
+  },
   refreshValue: function() {
     this.value = {};
     var self = this;
@@ -3356,6 +3376,13 @@ JSONEditor.defaults.editors.array = JSONEditor.AbstractEditor.extend({
     self.onChange();
     
     // TODO: sortable
+  },
+  getFinalValue: function() {
+    var result = [];
+    $each(this.rows,function(i,editor) {
+      result[i] = editor.getFinalValue();
+    });
+    return result;
   },
   refreshValue: function(force) {
     var self = this;

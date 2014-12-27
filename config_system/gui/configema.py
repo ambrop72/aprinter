@@ -247,7 +247,8 @@ class Reference (ConfigBase):
                 'template': 'return ce_deref({},{},vars.watch_id);'.format(self._array_expr(), json.dumps(self.ref_id_key)),
                 'options': {
                     'derived': True
-                }
+                },
+                'excludeFromFinalValue': True
             }
         } if self.deref_key is not None else {})
     

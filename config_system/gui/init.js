@@ -62,6 +62,10 @@ function set_compile_status(running) {
     }
 }
 
+function get_string_value() {
+    return JSON.stringify(jsoneditor.getFinalValue());
+}
+
 function base64_to_blob(input, content_type) {
     var str = window.atob(input);
     var ab = new ArrayBuffer(str.length);
@@ -89,7 +93,7 @@ var load = function() {
     
     // When the save button is pressed, save the config data to local storage.
     $save_data_button.addEventListener('click', function() {
-        var config_json = JSON.stringify(jsoneditor.getValue());
+        var config_json = get_string_value();
         localStorage.setItem("aprinter_config", config_json);
     });
     
@@ -110,7 +114,7 @@ var load = function() {
     
     // If the window is about to be closed with unsaved data, ask for confirmation.
     window.onbeforeunload = function (evt) {
-        if (JSON.stringify(get_config(true).value) == JSON.stringify(jsoneditor.getValue())) {
+        if (JSON.stringify(get_config(true).value) == get_string_value()) {
             return null;
         }
         var message = 'APrinter Configuration: There are unsaved configuration changes!';
@@ -125,7 +129,7 @@ var load = function() {
     
     // When the export button is pressed, trigger downloading of the configuration dump.
     $export_data_button.addEventListener('click', function() {
-        var config_json = JSON.stringify(jsoneditor.getValue());
+        var config_json = get_string_value();
         var blob = new Blob([config_json], {type: 'application/json;charset=utf-8'});
         saveAs(blob, 'aprinter_config.json')
     });
@@ -168,8 +172,7 @@ var load = function() {
             }
         }
         
-        compile_request.send(JSON.stringify(jsoneditor.getValue()));
-        
+        compile_request.send(get_string_value());
         set_compile_status(true);
     });
 }
