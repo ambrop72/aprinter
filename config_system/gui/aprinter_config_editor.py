@@ -35,73 +35,101 @@ def spi_choice(**kwargs):
     return ce.OneOf(disable_collapse=True, choices=[
         ce.Compound('At91SamSpi', attrs=[
             ce.String(key='Device')
-        ])
+        ]),
+        ce.Compound('AvrSpi', attrs=[
+            ce.Integer(key='SpeedDiv')
+        ]),
     ], **kwargs)
 
-def at91sam3x_clock():
-    return ce.Compound('At91Sam3xClock', key='clock', title='Clock', collapsed=True, attrs=[
-        ce.Integer(key='prescaler', title='Prescaler'),
-        ce.String(key='primary_timer', title='Primary timer'),
-        ce.Constant(key='avail_oc_units', value=[
-            {
-                'value': 'TC{}{}'.format(n, l)
-            } for n in range(9) for l in ('A', 'B', 'C')
-        ])
+def platform_At91Sam3x8e():
+    return ce.Compound('At91Sam3x8e', attrs=[
+        ce.Compound('At91Sam3xClock', key='clock', title='Clock', collapsed=True, attrs=[
+            ce.Integer(key='prescaler', title='Prescaler'),
+            ce.String(key='primary_timer', title='Primary timer'),
+            ce.Constant(key='avail_oc_units', value=[
+                {
+                    'value': 'TC{}{}'.format(n, l)
+                } for n in range(9) for l in ('A', 'B', 'C')
+            ])
+        ]),
+        ce.Compound('At91SamAdc', key='adc', title='ADC', collapsed=True, attrs=[
+            ce.Float(key='freq', title='Frequency'),
+            ce.Float(key='avg_interval', title='Averaging interval'),
+            ce.Float(key='smoothing', title='Smoothing factor'),
+            ce.Integer(key='startup', title='Startup time'),
+            ce.Integer(key='settling', title='Settling time'),
+            ce.Integer(key='tracking', title='Tracking time'),
+            ce.Integer(key='transfer', title='Transfer time')
+        ]),
+        ce.Compound('At91SamWatchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
+            ce.Integer(key='Wdv', title='Wdv')
+        ]),
+        ce.Compound('At91SamPins', key='pins', title='Pins', collapsed=True, attrs=[
+            ce.Constant(key='input_modes', value=[
+                { 'ident': 'At91SamPinInputModeNormal', 'name': 'Normal' },
+                { 'ident': 'At91SamPinInputModePullUp', 'name': 'Pull-up' }
+            ])
+        ]),
     ])
 
-def at91sam_adc():
-    return ce.Compound('At91SamAdc', key='adc', title='ADC', collapsed=True, attrs=[
-        ce.Float(key='freq', title='Frequency'),
-        ce.Float(key='avg_interval', title='Averaging interval'),
-        ce.Float(key='smoothing', title='Smoothing factor'),
-        ce.Integer(key='startup', title='Startup time'),
-        ce.Integer(key='settling', title='Settling time'),
-        ce.Integer(key='tracking', title='Tracking time'),
-        ce.Integer(key='transfer', title='Transfer time')
+def platform_Teensy3():
+    return ce.Compound('Teensy3', attrs=[
+        ce.Compound('Mk20Clock', key='clock', title='Clock', collapsed=True, attrs=[
+            ce.Integer(key='prescaler', title='Prescaler'),
+            ce.String(key='primary_timer', title='Primary timer'),
+            ce.Constant(key='avail_oc_units', value=[
+                {
+                    'value': 'FTM{}_{}'.format(i, j)
+                } for i in range(2) for j in range({0: 8, 1: 2}[i])
+            ])
+        ]),
+        ce.Compound('Mk20Adc', key='adc', title='ADC', collapsed=True, attrs=[
+            ce.Integer(key='AdcADiv', title='AdcADiv'),
+        ]),
+        ce.Compound('Mk20Watchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
+            ce.Integer(key='Toval', title='Timeout value'),
+            ce.Integer(key='Prescval', title='Prescaler value'),
+        ]),
+        ce.Compound('Mk20Pins', key='pins', title='Pins', collapsed=True, attrs=[
+            ce.Constant(key='input_modes', value=[
+                { 'ident': 'Mk20PinInputModeNormal', 'name': 'Normal' },
+                { 'ident': 'Mk20PinInputModePullUp', 'name': 'Pull-up' },
+                { 'ident': 'Mk20PinInputModePullDown', 'name': 'Pull-down' },
+            ])
+        ]),
     ])
 
-def at91sam_watchdog():
-    return ce.Compound('At91SamWatchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
-        ce.Integer(key='Wdv', title='Wdv')
-    ])
-
-def at91sam_pins():
-    return ce.Compound('At91SamPins', key='pins', title='Pins', collapsed=True, attrs=[
-        ce.Constant(key='input_modes', value=[
-            { 'ident': 'At91SamPinInputModeNormal', 'name': 'Normal' },
-            { 'ident': 'At91SamPinInputModePullUp', 'name': 'Pull-up' }
-        ])
-    ])
-
-def mk20_clock():
-    return ce.Compound('Mk20Clock', key='clock', title='Clock', collapsed=True, attrs=[
-        ce.Integer(key='prescaler', title='Prescaler'),
-        ce.String(key='primary_timer', title='Primary timer'),
-        ce.Constant(key='avail_oc_units', value=[
-            {
-                'value': 'FTM{}_{}'.format(i, j)
-            } for i in range(2) for j in range({0: 8, 1: 2}[i])
-        ])
-    ])
-
-def mk20_adc():
-    return ce.Compound('Mk20Adc', key='adc', title='ADC', collapsed=True, attrs=[
-        ce.Integer(key='AdcADiv', title='AdcADiv'),
-    ])
-
-def mk20_watchdog():
-    return ce.Compound('Mk20Watchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
-        ce.Integer(key='Toval', title='Timeout value'),
-        ce.Integer(key='Prescval', title='Prescaler value'),
-    ])
-
-def mk20_pins():
-    return ce.Compound('Mk20Pins', key='pins', title='Pins', collapsed=True, attrs=[
-        ce.Constant(key='input_modes', value=[
-            { 'ident': 'Mk20PinInputModeNormal', 'name': 'Normal' },
-            { 'ident': 'Mk20PinInputModePullUp', 'name': 'Pull-up' },
-            { 'ident': 'Mk20PinInputModePullDown', 'name': 'Pull-down' },
-        ])
+def platform_Avr(variant):
+    if variant == 'ATmega2560':
+        timers = (range(6), lambda i: ('A', 'B') + (() if i in (0, 2) else ('C',)))
+    elif variant == 'ATmega1284p':
+        timers = (range(4), lambda i: ('A', 'B'))
+    else:
+        assert False
+    
+    return ce.Compound('AVR {}'.format(variant), attrs=[
+        ce.Compound('AvrClock', key='clock', title='Clock', collapsed=True, attrs=[
+            ce.Integer(key='PrescaleDivide', title='Prescaler (as division factor)'),
+            ce.String(key='primary_timer', title='Primary timer'),
+            ce.Constant(key='avail_oc_units', value=[
+                {
+                    'value': 'TC{}_{}'.format(i, j)
+                } for i in timers[0] for j in timers[1](i)
+            ])
+        ]),
+        ce.Compound('AvrAdc', key='adc', title='ADC', collapsed=True, attrs=[
+            ce.Integer(key='RefSel'),
+            ce.Integer(key='Prescaler'),
+        ]),
+        ce.Compound('AvrWatchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
+            ce.String(key='Timeout', title='Timeout (WDTO_*)'),
+        ]),
+        ce.Compound('AvrPins', key='pins', title='Pins', collapsed=True, attrs=[
+            ce.Constant(key='input_modes', value=[
+                { 'ident': 'AvrPinInputModeNormal', 'name': 'Normal' },
+                { 'ident': 'AvrPinInputModePullUp', 'name': 'Pull-up' },
+            ])
+        ]),
     ])
 
 def editor():
@@ -224,6 +252,9 @@ def editor():
                                     ce.Integer(key='Size'),
                                     ce.Integer(key='FakeBlockSize'),
                                 ]),
+                                ce.Compound('AvrEeprom', attrs=[
+                                    ce.Integer(key='FakeBlockSize'),
+                                ]),
                             ]),
                             ce.Integer(key='StartBlock'),
                             ce.Integer(key='EndBlock'),
@@ -240,6 +271,9 @@ def editor():
                     ce.Compound('AsfUsbSerial', title='AT91 USB', attrs=[]),
                     ce.Compound('At91Sam3xSerial', title='AT91 UART', attrs=[]),
                     ce.Compound('TeensyUsbSerial', title='Teensy3 USB', attrs=[]),
+                    ce.Compound('AvrSerial', title='AVR UART', attrs=[
+                        ce.Boolean(key='DoubleSpeed'),
+                    ]),
                 ])
             ]),
             ce.OneOf(key='sdcard', title='SD card', collapsed=True, choices=[
@@ -302,18 +336,10 @@ def editor():
                 ])
             ])),
             ce.OneOf(key='platform', title='Platform', disable_collapse=True, processing_order=-1, choices=[
-                ce.Compound('At91Sam3x8e', attrs=[
-                    at91sam3x_clock(),
-                    at91sam_adc(),
-                    at91sam_watchdog(),
-                    at91sam_pins()
-                ]),
-                ce.Compound('Teensy3', attrs=[
-                    mk20_clock(),
-                    mk20_adc(),
-                    mk20_watchdog(),
-                    mk20_pins(),
-                ]),
+                platform_At91Sam3x8e(),
+                platform_Teensy3(),
+                platform_Avr('ATmega2560'),
+                platform_Avr('ATmega1284p'),
             ]),
             ce.Array(key='board_helper_includes', title='Board helper includes', disable_collapse=True, table=True, elem=ce.String(title='Name')),
         ]))

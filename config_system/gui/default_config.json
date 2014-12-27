@@ -656,6 +656,283 @@
           "_compoundName": "stepper_port"
         }
       ]
+    },
+    {
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC5_C"
+      },
+      "LedPin": "MegaPin13",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Name": "T0",
+          "Pin": "MegaPinA13",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T1",
+          "Pin": "MegaPinA14",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T2",
+          "Pin": "MegaPinA15",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "board_for_build": "ramps13",
+      "board_helper_includes": [
+        "arduino_mega_pins"
+      ],
+      "config_manager": {
+        "ConfigStore": {
+          "Eeprom": {
+            "FakeBlockSize": 16,
+            "_compoundName": "AvrEeprom"
+          },
+          "EndBlock": 256,
+          "StartBlock": 0,
+          "_compoundName": "EepromConfigStore"
+        },
+        "_compoundName": "RuntimeConfigManager"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "X-",
+          "Pin": "MegaPin3",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "X+",
+          "Pin": "MegaPin2",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "Y-",
+          "Pin": "MegaPin14",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "Y+",
+          "Pin": "MegaPin15",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "Z-",
+          "Pin": "MegaPin18",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "Z+",
+          "Pin": "MegaPin19",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "identifier": "ramps13",
+      "name": "RAMPS 1.3",
+      "output_type": "hex",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 24,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 10,
+        "LookaheadCommitCount": 5,
+        "MaxStepsPerCycle": 0.00137,
+        "StepperSegmentBufferSize": 24,
+        "_compoundName": "performance"
+      },
+      "platform": {
+        "_compoundName": "AVR ATmega2560",
+        "adc": {
+          "Prescaler": 7,
+          "RefSel": 1,
+          "_compoundName": "AvrAdc"
+        },
+        "clock": {
+          "PrescaleDivide": 64,
+          "_compoundName": "AvrClock",
+          "avail_oc_units": [
+            {
+              "value": "TC0_A"
+            },
+            {
+              "value": "TC0_B"
+            },
+            {
+              "value": "TC1_A"
+            },
+            {
+              "value": "TC1_B"
+            },
+            {
+              "value": "TC1_C"
+            },
+            {
+              "value": "TC2_A"
+            },
+            {
+              "value": "TC2_B"
+            },
+            {
+              "value": "TC3_A"
+            },
+            {
+              "value": "TC3_B"
+            },
+            {
+              "value": "TC3_C"
+            },
+            {
+              "value": "TC4_A"
+            },
+            {
+              "value": "TC4_B"
+            },
+            {
+              "value": "TC4_C"
+            },
+            {
+              "value": "TC5_A"
+            },
+            {
+              "value": "TC5_B"
+            },
+            {
+              "value": "TC5_C"
+            }
+          ],
+          "primary_timer": "TC3"
+        },
+        "pins": {
+          "_compoundName": "AvrPins",
+          "input_modes": [
+            {
+              "ident": "AvrPinInputModeNormal",
+              "name": "Normal"
+            },
+            {
+              "ident": "AvrPinInputModePullUp",
+              "name": "Pull-up"
+            }
+          ]
+        },
+        "watchdog": {
+          "Timeout": "WDTO_2S",
+          "_compoundName": "AvrWatchdog"
+        }
+      },
+      "pwm_outputs": [
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "MegaPin8",
+            "PulseInterval": 0.3,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "lalal": {
+                "value": "TC5_A"
+              },
+              "oc_unit": "TC5_A"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "D8 (bed)",
+          "_compoundName": "pwm_output"
+        }
+      ],
+      "sdcard": {
+        "BufferBaseSize": 1024,
+        "GcodeParser": {
+          "MaxParts": 8,
+          "_compoundName": "TextGcodeParser"
+        },
+        "MaxCommandSize": 100,
+        "SdCardService": {
+          "SpiService": {
+            "SpeedDiv": 32,
+            "_compoundName": "AvrSpi"
+          },
+          "SsPin": "AvrPin<AvrPortB,0>",
+          "_compoundName": "SpiSdCard"
+        },
+        "_compoundName": "SdCard"
+      },
+      "serial": {
+        "BaudRate": 250000,
+        "GcodeMaxParts": 8,
+        "RecvBufferSizeExp": 7,
+        "SendBufferSizeExp": 6,
+        "Service": {
+          "DoubleSpeed": true,
+          "_compoundName": "AvrSerial"
+        },
+        "_compoundName": "serial"
+      },
+      "stepper_ports": [
+        {
+          "DirPin": "MegaPin55",
+          "EnablePin": "MegaPin38",
+          "Name": "X",
+          "StepPin": "MegaPin54",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC3_A"
+          },
+          "_compoundName": "stepper_port"
+        },
+        {
+          "DirPin": "MegaPin61",
+          "EnablePin": "MegaPin56",
+          "Name": "Y",
+          "StepPin": "MegaPin60",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC3_B"
+          },
+          "_compoundName": "stepper_port"
+        },
+        {
+          "DirPin": "MegaPin48",
+          "EnablePin": "MegaPin62",
+          "Name": "Z",
+          "StepPin": "MegaPin46",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC3_C"
+          },
+          "_compoundName": "stepper_port"
+        },
+        {
+          "DirPin": "MegaPin28",
+          "EnablePin": "MegaPin24",
+          "Name": "E0",
+          "StepPin": "MegaPin26",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC4_A"
+          },
+          "_compoundName": "stepper_port"
+        },
+        {
+          "DirPin": "MegaPin34",
+          "EnablePin": "MegaPin30",
+          "Name": "E1",
+          "StepPin": "MegaPin36",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC4_B"
+          },
+          "_compoundName": "stepper_port"
+        }
+      ]
     }
   ],
   "configurations": [
@@ -1093,6 +1370,154 @@
             "_compoundName": "no_homing"
           },
           "stepper_port": "E"
+        }
+      ]
+    },
+    {
+      "InactiveTime": 480,
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "board_id": "ramps13",
+      "fans": [],
+      "heaters": [
+        {
+          "MaxSafeTemp": 120,
+          "MinSafeTemp": 15,
+          "Name": "B",
+          "SetMCommand": 140,
+          "ThermistorInput": "T1",
+          "WaitMCommand": 190,
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.3,
+            "PidD": 2.5,
+            "PidDHistory": 0.8,
+            "PidI": 0.012,
+            "PidIStateMax": 1,
+            "PidIStateMin": 0,
+            "PidP": 1,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3480,
+            "MaxTemp": 150,
+            "MinTemp": 10,
+            "R0": 10000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 1.5,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "D8 (bed)"
+        }
+      ],
+      "name": "RAMPS 1.3 example",
+      "probe": {
+        "_compoundName": "NoProbe"
+      },
+      "steppers": [
+        {
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 1500,
+          "MaxPos": 210,
+          "MaxSpeed": 300,
+          "MinPos": -53,
+          "Name": "X",
+          "StepsPerUnit": 160,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "X-",
+            "HomeFastMaxDist": 200,
+            "HomeFastSpeed": 40,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "stepper_port": "X"
+        },
+        {
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 650,
+          "MaxPos": 155,
+          "MaxSpeed": 300,
+          "MinPos": 0,
+          "Name": "Y",
+          "StepsPerUnit": 160,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "Y-",
+            "HomeFastMaxDist": 200,
+            "HomeFastSpeed": 40,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "stepper_port": "Y"
+        },
+        {
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 30,
+          "MaxPos": 100,
+          "MaxSpeed": 3,
+          "MinPos": 0,
+          "Name": "Z",
+          "StepsPerUnit": 4000,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "Z-",
+            "HomeFastMaxDist": 101,
+            "HomeFastSpeed": 2,
+            "HomeRetractDist": 0.8,
+            "HomeRetractSpeed": 2,
+            "HomeSlowMaxDist": 1.2,
+            "HomeSlowSpeed": 0.6,
+            "_compoundName": "homing"
+          },
+          "stepper_port": "Z"
+        },
+        {
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": false,
+          "InvertDir": false,
+          "MaxAccel": 250,
+          "MaxPos": 40000,
+          "MaxSpeed": 45,
+          "MinPos": -40000,
+          "Name": "E",
+          "StepsPerUnit": 928,
+          "_compoundName": "stepper",
+          "homing": {
+            "_compoundName": "no_homing"
+          },
+          "stepper_port": "E0"
         }
       ]
     }
