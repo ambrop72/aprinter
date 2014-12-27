@@ -66,6 +66,10 @@ function get_string_value() {
     return JSON.stringify(jsoneditor.getFinalValue());
 }
 
+function get_pretty_string_value() {
+    return JSON.stringify(jsoneditor.getFinalValue(), undefined, 2);
+}
+
 function base64_to_blob(input, content_type) {
     var str = window.atob(input);
     var ab = new ArrayBuffer(str.length);
@@ -129,7 +133,7 @@ var load = function() {
     
     // When the export button is pressed, trigger downloading of the configuration dump.
     $export_data_button.addEventListener('click', function() {
-        var config_json = get_string_value();
+        var config_json = get_pretty_string_value();
         var blob = new Blob([config_json], {type: 'application/json;charset=utf-8'});
         saveAs(blob, 'aprinter_config.json')
     });
