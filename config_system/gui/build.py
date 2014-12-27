@@ -51,8 +51,8 @@ def main():
     # Build and write init.js.
     init_js_template = config_common.read_file(os.path.join(src_dir, 'init.js'))
     init_js = config_common.RichTemplate(init_js_template).substitute({
-        'SCHEMA': json.dumps(editor_schema, separators=(',',':')),
-        'DEFAULT': json.dumps(default_config, separators=(',',':'))
+        'SCHEMA': json.dumps(editor_schema, separators=(',',':'), sort_keys=True),
+        'DEFAULT': json.dumps(default_config, separators=(',',':'), sort_keys=True)
     })
     config_common.write_file(os.path.join(dist_dir, 'init.js'), init_js)
 
