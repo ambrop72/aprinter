@@ -10,6 +10,7 @@ var $editor = document.getElementById('editor');
 // Buttons and other stuff
 var $save_data_button = document.getElementById('save_data');
 var $reload_data_button = document.getElementById('reload_data');
+var $delete_saved_data_button = document.getElementById('delete_saved_data');
 var $load_defaults_button = document.getElementById('load_defaults');
 var $export_data_button = document.getElementById('export_data');
 var $import_data_button = document.getElementById('import_data');
@@ -110,6 +111,11 @@ var load = function() {
             return;
         }
         jsoneditor.setValue(get_config_res.value);
+    });
+    
+    // Handler for the delete-saved-data button.
+    $delete_saved_data_button.addEventListener('click', function() {
+        localStorage.removeItem("aprinter_config");
     });
     
     // When the load-defaults button is pressed, load the default config.
