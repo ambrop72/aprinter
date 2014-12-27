@@ -1,4 +1,5 @@
-{ writeText, writeScriptBin, bash, coreutils, gnutar, python27Packages, nix, ncd, lighttpd, aprinterSource
+{ writeText, writeScriptBin, bash, coreutils, p7zip, rsync
+, python27Packages, nix, ncd, lighttpd, aprinterSource
 , serviceHost ? "127.0.0.1"
 , servicePort ? 4000
 , backendPort ? 4001
@@ -83,8 +84,9 @@ let
                 "rm": "${coreutils}/bin/rm",
                 "python": "${python27Packages.python}/bin/python",
                 "nixbuild": "${nix}/bin/nix-build",
-                "tar": "${gnutar}/bin/tar",
-                "mkdir": "${coreutils}/bin/mkdir"
+                "7za": "${p7zip}/bin/7za",
+                "mkdir": "${coreutils}/bin/mkdir",
+                "rsync": "${rsync}/bin/rsync"
             ]) config;
             
             process_manager() mgr;

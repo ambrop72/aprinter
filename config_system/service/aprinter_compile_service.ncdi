@@ -21,8 +21,9 @@ template aprinter_compile_service {
     config->get("rm") rm;
     config->get("python") python;
     config->get("nixbuild") nixbuild;
-    config->get("tar") tar;
+    config->get("7za") p7za;
     config->get("mkdir") mkdir;
+    config->get("rsync") rsync;
     
     # Change this to disable actual building, for testing.
     var(@false) test_without_building;
@@ -119,14 +120,6 @@ template aprinter_compile_service {
                 _do->break();
             };
             
-            # Create a subfolder which we will archive.
-            concat(temp_dir.created_dir, "/aprinter-build") build_path;
-            call(@run_process_output, {{mkdir, build_path}}) mkdir_build_path_exec;
-            If (@not(mkdir_build_path_exec.succeeded)) {
-                reply_compile->call(@false, "Could not mkdir the build path.");
-                _do->break();
-            };
-            
             # Run the generate script.
             concat(aprinter_src_dir, "/config_system/generator/generate.py") generate_path;
             concat(aprinter_src_dir, "/nix") aprinter_nix_dir;
@@ -138,7 +131,7 @@ template aprinter_compile_service {
             };
             
             # Do the build...
-            concat(build_path, "/result") result_path;
+            concat(temp_dir.created_dir, "/result") result_path;
             If (@not(test_without_building)) {
                 # Compute nix-build command.
                 value({nixbuild, "-", "-o", result_path}) nixbuild_cmd;
@@ -161,9 +154,23 @@ template aprinter_compile_service {
                 };
             };
             
+            # Create a subfolder which we will archive.
+            concat(temp_dir.created_dir, "/aprinter-build") build_path;
+            call(@run_process_output, {{mkdir, build_path}}) mkdir_build_path_exec;
+            If (@not(mkdir_build_path_exec.succeeded)) {
+                reply_compile->call(@false, "Could not mkdir the build path.");
+                _do->break();
+            };
+            
+            # Copy the build to the build_path.
+            call(@run_process_output, {{rsync, "-rL", "--chmod=ugo=rwX", @concat(result_path, "/"), @concat(build_path, "/")}}) rsync_exec;
+            If (@not(rsync_exec.succeeded)) {
+                reply_compile->call(@false, "Could not copy the build using rsync.");
+                _do->break();
+            };
+            
             # Add the configuration to the build folder.
-            concat(build_path, "/config.json") copy_config_path;
-            var({python, "-B", io_helper, "--write-file", "--write-file-src", "-", "--write-file-dst", copy_config_path}) copy_config_cmd;
+            var({python, "-B", io_helper, "--write-file", "--write-file-src", "-", "--write-file-dst", @concat(build_path, "/config.json")}) copy_config_cmd;
             call(@run_process_inout, {copy_config_cmd, request_payload}) copy_config_exec;
             If (@not(copy_config_exec.succeeded)) {
                 reply_compile->call(@false, "Could not copy the build configuration.");
@@ -171,9 +178,9 @@ template aprinter_compile_service {
             };
             
             # Produce the archive.
-            var("aprinter-build.tar.bz2") archive_filename;
+            var("aprinter-build.zip") archive_filename;
             concat(temp_dir.created_dir, "/", archive_filename) archive_path;
-            var({tar, "-cjhf", archive_path, "-C", temp_dir.created_dir, "aprinter-build"}) archive_cmd;
+            var({p7za, "a", archive_path, build_path}) archive_cmd;
             call(@run_process_output, {archive_cmd}) archive_exec;
             If (@not(archive_exec.succeeded)) {
                 reply_compile->call(@false, "Could not archive the build results.");
