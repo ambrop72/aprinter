@@ -139,7 +139,6 @@ class Compound (ConfigBase):
     def _json_extra (self):
         return {
             'type': 'object',
-            'required': ['_compoundName'] + [param.kwargs['key'] for param in self.attrs],
             'additionalProperties': False,
             'properties': _merge_dicts(
                 {

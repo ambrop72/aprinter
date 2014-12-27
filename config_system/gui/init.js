@@ -90,6 +90,7 @@ var load = function() {
         startval: startval,
         disable_edit_json: true,
         disable_properties: true,
+        required_by_default: true,
         template: "javascript",
         theme: "bootstrap3",
         iconlib: "bootstrap3"
