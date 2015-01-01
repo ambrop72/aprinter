@@ -221,7 +221,7 @@ def editor():
                     ce.Float(key='FastSpeed', title='Fast (first) probing speed'),
                     ce.Float(key='RetractSpeed', title='Retraction speed'),
                     ce.Float(key='SlowSpeed', title='Slow (second) probing speed'),
-                    ce.Array(key='ProbePoints', title='Probe points', elem=ce.Compound('ProbePoint', title='Probe point', attrs=[
+                    ce.Array(key='ProbePoints', title='Probe points', disable_collapse=True, table=True, elem=ce.Compound('ProbePoint', title='Probe point', attrs=[
                         ce.Float(key='X'),
                         ce.Float(key='Y')
                     ]))
