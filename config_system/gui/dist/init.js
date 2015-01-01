@@ -64,11 +64,11 @@ function set_compile_status(running) {
 }
 
 function get_string_value() {
-    return JSON.stringify(jsoneditor.getFinalValue());
+    return JSON.stringify(jsoneditor.getValue());
 }
 
 function get_pretty_string_value() {
-    return JSON.stringify(jsoneditor.getFinalValue(), undefined, 2);
+    return JSON.stringify(jsoneditor.getValue(), undefined, 2);
 }
 
 function base64_to_blob(input, content_type) {
@@ -94,7 +94,8 @@ var load = function() {
         required_by_default: true,
         template: "javascript",
         theme: "bootstrap3",
-        iconlib: "bootstrap3"
+        iconlib: "bootstrap3",
+        trace_processing: false
     });
     
     // When the save button is pressed, save the config data to local storage.
