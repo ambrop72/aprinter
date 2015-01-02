@@ -3,7 +3,6 @@ import sys
 import os
 sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../common'))
 import argparse
-import os
 import shutil
 import json
 import config_common
