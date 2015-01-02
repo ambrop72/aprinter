@@ -78,7 +78,7 @@ stdenv.mkDerivation rec {
     installPhase = ''
         mkdir -p $out
     '' + stdenv.lib.concatStrings (map (outputType: ''
-        cp build/aprinter-nixbuild.${outputType} $out/
+        [ -e build/aprinter-nixbuild.${outputType} ] && cp build/aprinter-nixbuild.${outputType} $out/
     '') desiredOutputs);
     
     dontStrip = true;
