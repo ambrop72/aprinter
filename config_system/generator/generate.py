@@ -9,6 +9,8 @@ import string
 import config_common
 import config_reader
 
+IDENTIFIER_REGEX = '\\A[A-Za-z][A-Za-z0-9_]{0,127}\\Z'
+
 class GenState(object):
     def __init__ (self):
         self._subst = {}
@@ -125,7 +127,7 @@ class GenConfigReader(config_reader.ConfigReader):
 
     def get_identifier (self, key, validate=None):
         val = self.get_string(key)
-        if not re.match('\\A[A-Za-z][A-Za-z0-9_]{0,127}\\Z', val):
+        if not re.match(IDENTIFIER_REGEX, val):
             self.key_path(key).error('Incorrect format.')
         if validate is not None and not validate(val):
             self.key_path(key).error('Custom validation failed.')
@@ -136,9 +138,6 @@ class GenConfigReader(config_reader.ConfigReader):
         if val not in string.ascii_uppercase:
             self.key_path(key).error('Incorrect format.')
         return val
-    
-    def get_pin (self, key):
-        return self.get_identifier(key)
     
     def do_selection (self, key, sel_def):
         for config in self.enter_config(key):
@@ -191,13 +190,13 @@ class TemplateChar(object):
         return '\'{}\''.format(self._ch)
 
 class CommonClock(object):
-    def __init__ (self, gen, config, clockdef):
+    def __init__ (self, gen, config, clockdef_func):
         self._gen = gen
-        self._clockdef = clockdef
-        gen.add_aprinter_include(clockdef.INCLUDE)
-        gen.add_subst('CLOCK_CONFIG', clockdef.CLOCK_CONFIG(config))
-        gen.add_subst('CLOCK', clockdef.CLOCK_EXPR)
-        self._primary_timer = config.get_identifier('primary_timer', lambda x: re.match(clockdef.TIMER_RE, x))
+        self._clockdef = config_common.FunctionDefinedClass(clockdef_func)
+        gen.add_aprinter_include(self._clockdef.INCLUDE)
+        gen.add_subst('CLOCK_CONFIG', self._clockdef.CLOCK_CONFIG(config))
+        gen.add_subst('CLOCK', self._clockdef.CLOCK_EXPR)
+        self._primary_timer = config.get_identifier('primary_timer', lambda x: re.match(self._clockdef.TIMER_RE, x))
         self._interrupt_timers = []
     
     def add_interrupt_timer (self, name, user, clearance, path):
@@ -211,16 +210,16 @@ class CommonClock(object):
         return self._clockdef.INTERRUPT_TIMER_EXPR(it, clearance_extra)
     
     def finalize (self):
+        clock = {'primary_timer': self._primary_timer}
+        if hasattr(self._clockdef, 'CLOCK_ISR'):
+            self._gen.add_isr(self._clockdef.CLOCK_ISR(clock))
         tcs = set(it['tc'] for it in self._interrupt_timers)
         tcs.add(self._primary_timer)
         tcs = sorted(tcs)
         self._gen.add_subst('CLOCK_TCS', 'using ClockTcsList = MakeTypeList<{}>;'.format(', '.join(self._clockdef.TIMER_EXPR(tc) for tc in tcs)))
-        for tc in tcs:
-            self._gen.add_isr(self._clockdef.TIMER_ISR(tc))
-
-class FunctionDefinedClass(object):
-    def __init__(self, function):
-        function(self)
+        if hasattr(self._clockdef, 'TIMER_ISR'):
+            for tc in tcs:
+                self._gen.add_isr(self._clockdef.TIMER_ISR(tc))
 
 def At91Sam3xClockDef(x):
     x.INCLUDE = 'system/At91Sam3xClock.h'
@@ -244,23 +243,51 @@ def Mk20ClockDef(x):
     x.TIMER_EXPR = lambda tc: 'Mk20ClockFtmSpec<Mk20Clock{}>'.format(tc)
     x.TIMER_ISR = lambda tc: 'AMBRO_MK20_CLOCK_FTM_GLOBAL({}, MyClock, MyContext())'.format(tc[3:])
 
+def AvrClockDef(x):
+    x.INCLUDE = 'system/AvrClock.h'
+    x.CLOCK_EXPR = 'AvrClock<MyContext, Program, ClockPrescaleDivide, ClockTcsList>'
+    x.TIMER_RE = '\\ATC[0-9]\\Z'
+    x.CHANNEL_RE = '\\A(TC[0-9])_([A-Z])\\Z'
+    x.CLOCK_CONFIG = lambda config: 'static const int ClockPrescaleDivide = {};'.format(config.get_int_constant('PrescaleDivide'))
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'AvrClockInterruptTimerService<AvrClockTcChannel{}{}{}>'.format(it['tc'][2:], it['channel'][4:], clearance_extra)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, MyContext())'.format(it['tc'][2:], it['channel'][4:], user)
+    x.TIMER_EXPR = lambda tc: 'AvrClockTcSpec<AvrClockTc{}>'.format(tc[2:])
+    x.CLOCK_ISR = lambda clock: 'AMBRO_AVR_CLOCK_ISRS({}, MyClock, MyContext())'.format(clock['primary_timer'][2:])
+
 def setup_pins (gen, config, key):
+    pin_regexes = [IDENTIFIER_REGEX]
+    
     pins_sel = config_common.Selection()
     
     @pins_sel.option('At91SamPins')
     def options(pin_config):
         gen.add_aprinter_include('system/At91SamPins.h')
+        pin_regexes.append('\\AAt91SamPin<At91SamPio[A-Z],[0-9]{1,3}>\\Z')
         return TemplateExpr('At91SamPins', ['MyContext', 'Program'])
     
     @pins_sel.option('Mk20Pins')
     def options(pin_config):
         gen.add_aprinter_include('system/Mk20Pins.h')
+        pin_regexes.append('\\AMk20Pin<Mk20Port[A-Z],[0-9]{1,3}>\\Z')
         return TemplateExpr('Mk20Pins', ['MyContext', 'Program'])
     
+    @pins_sel.option('AvrPins')
+    def options(pin_config):
+        gen.add_aprinter_include('system/AvrPins.h')
+        pin_regexes.append('\\AAvrPin<AvrPort[A-Z],[0-9]{1,3}>\\Z')
+        return TemplateExpr('AvrPins', ['MyContext', 'Program'])
+    
     gen.add_subst('Pins', config.do_selection(key, pins_sel), indent=0)
+    
+    gen.register_singleton_object('pin_regexes', pin_regexes)
 
+def get_pin (gen, config, key):
+    pin = config.get_string(key)
+    if not any(re.match(pin_regex, pin) for pin_regex in gen.get_singleton_object('pin_regexes')):
+        config.key_path(key).error('Invalid pin value.')
+    return pin
 
-def setup_watchdog(gen, config, key, user):
+def setup_watchdog (gen, config, key, user):
     watchdog_sel = config_common.Selection()
     
     @watchdog_sel.option('At91SamWatchdog')
@@ -278,6 +305,16 @@ def setup_watchdog(gen, config, key, user):
             watchdog.get_int('Toval'),
             watchdog.get_int('Prescval'),
         ])
+    
+    @watchdog_sel.option('AvrWatchdog')
+    def option(watchdog):
+        wdto = watchdog.get_string('Timeout')
+        if not re.match('\\AWDTO_[0-9A-Z]{1,10}\\Z', wdto):
+            watchdog.key_path('Timeout').error('Incorrect value.')
+        
+        gen.add_aprinter_include('system/AvrWatchdog.h')
+        gen.add_isr('AMBRO_AVR_WATCHDOG_GLOBAL')
+        return TemplateExpr('AvrWatchdogService', [wdto])
     
     gen.add_subst('Watchdog', config.do_selection(key, watchdog_sel))
 
@@ -318,6 +355,17 @@ def setup_adc (gen, config, key):
             'pin_func': lambda pin: pin
         }
     
+    @adc_sel.option('AvrAdc')
+    def option(adc_config):
+        gen.add_aprinter_include('system/AvrAdc.h')
+        gen.add_int_constant('int32', 'AdcRefSel', adc_config.get_int('RefSel'))
+        gen.add_int_constant('int32', 'AdcPrescaler', adc_config.get_int('Prescaler'))
+        
+        return {
+            'value_func': lambda: TemplateExpr('AvrAdc', ['MyContext', 'Program', 'AdcPins', 'AdcRefSel', 'AdcPrescaler']),
+            'pin_func': lambda pin: pin
+        }
+    
     result = config.do_selection(key, adc_sel)
     
     gen.register_singleton_object('adc_pins', [])
@@ -331,11 +379,11 @@ def setup_adc (gen, config, key):
 
 def use_digital_input (gen, config, key):
     di = gen.get_object('digital_input', config, key)
-    return '{}, {}'.format(di.get_pin('Pin'), di.get_identifier('InputMode'))
+    return '{}, {}'.format(get_pin(gen, di, 'Pin'), di.get_identifier('InputMode'))
 
 def use_analog_input (gen, config, key):
     ai = gen.get_object('analog_input', config, key)
-    pin = ai.get_pin('Pin')
+    pin = get_pin(gen, ai, 'Pin')
     gen.get_singleton_object('adc_pins').append(pin)
     return pin
 
@@ -352,7 +400,7 @@ def use_pwm_output (gen, config, key, user, username):
     def option(backend):
         gen.add_aprinter_include('printer/pwm/SoftPwm.h')
         return TemplateExpr('SoftPwmService', [
-            backend.get_pin('OutputPin'),
+            get_pin(gen, backend, 'OutputPin'),
             backend.get_bool('OutputInvert'),
             gen.add_float_constant('{}PulseInterval'.format(username), backend.get_float('PulseInterval')),
             use_interrupt_timer(gen, backend, 'Timer', '{}::TheTimer'.format(user))
@@ -375,6 +423,12 @@ def use_spi (gen, config, key, user):
             spi_config.path().error('Incorrect SPI device.')
         gen.add_isr('{}({}, MyContext())'.format(devices[dev], user))
         return TemplateExpr('At91SamSpiService', [dev])
+    
+    @spi_sel.option('AvrSpi')
+    def option(spi_config):
+        gen.add_aprinter_include('system/AvrSpi.h')
+        gen.add_isr('AMBRO_AVR_SPI_ISRS({}, MyContext())'.format(user))
+        return TemplateExpr('AvrSpiService', [spi_config.get_int('SpeedDiv')])
     
     return config.do_selection(key, spi_sel)
 
@@ -430,6 +484,12 @@ def generate(config_root_data, cfg_name, main_template):
                 def option(platform):
                     gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
                 
+                @platform_sel.options(['AVR ATmega2560', 'AVR ATmega1284p'])
+                def option(platform_name, platform):
+                    gen.add_platform_include('avr/io.h')
+                    gen.add_platform_include('aprinter/platform/avr/avr_support.h')
+                    gen.add_init_call(-3, 'sei();')
+                
                 board_data.do_selection('platform', platform_sel)
                 
                 for helper_name in board_data.get_list(config_reader.ConfigTypeString(), 'board_helper_includes', max_count=20):
@@ -442,11 +502,15 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @clock_sel.option('At91Sam3xClock')
                     def option(clock):
-                        return CommonClock(gen, clock, FunctionDefinedClass(At91Sam3xClockDef))
+                        return CommonClock(gen, clock, At91Sam3xClockDef)
                     
                     @clock_sel.option('Mk20Clock')
                     def option(clock):
-                        return CommonClock(gen, clock, FunctionDefinedClass(Mk20ClockDef))
+                        return CommonClock(gen, clock, Mk20ClockDef)
+                    
+                    @clock_sel.option('AvrClock')
+                    def option(clock):
+                        return CommonClock(gen, clock, AvrClockDef)
                     
                     gen.register_singleton_object('clock', platform.do_selection('clock', clock_sel))
                     
@@ -501,6 +565,15 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_init_call(0, 'usb_init();')
                         return 'TeensyUsbSerialService'
                     
+                    @serial_sel.option('AvrSerial')
+                    def option(serial_service):
+                        gen.add_aprinter_include('system/AvrSerial.h')
+                        gen.add_aprinter_include('system/AvrDebugWrite.h')
+                        gen.add_isr('AMBRO_AVR_SERIAL_ISRS(MyPrinter::GetSerial, MyContext())')
+                        gen.add_global_code(0, 'APRINTER_SETUP_AVR_DEBUG_WRITE(AvrSerial_DebugPutChar<MyPrinter::GetSerial>, MyContext())')
+                        gen.add_init_call(-2, 'aprinter_init_avr_debug_write();')
+                        return TemplateExpr('AvrSerialService', [serial_service.get_bool('DoubleSpeed')])
+                    
                     gen.add_subst('SerialService', serial.do_selection('Service', serial_sel))
                 
                 sdcard_sel = config_common.Selection()
@@ -516,7 +589,7 @@ def generate(config_root_data, cfg_name, main_template):
                     @sd_service_sel.option('SpiSdCard')
                     def option(spi_sd):
                         gen.add_aprinter_include('devices/SpiSdCard.h')
-                        return TemplateExpr('SpiSdCardService', [spi_sd.get_pin('SsPin'), use_spi(gen, spi_sd, 'SpiService', 'MyPrinter::GetSdCard<>::GetSpi')])
+                        return TemplateExpr('SpiSdCardService', [get_pin(gen, spi_sd, 'SsPin'), use_spi(gen, spi_sd, 'SpiService', 'MyPrinter::GetSdCard<>::GetSpi')])
                     
                     gcode_parser_sel = config_common.Selection()
                     
@@ -564,6 +637,12 @@ def generate(config_root_data, cfg_name, main_template):
                         def option(eeprom):
                             gen.add_aprinter_include('system/TeensyEeprom.h')
                             return TemplateExpr('TeensyEepromService', [eeprom.get_int('Size'), eeprom.get_int('FakeBlockSize')])
+                        
+                        @eeprom_sel.option('AvrEeprom')
+                        def option(eeprom):
+                            gen.add_aprinter_include('system/AvrEeprom.h')
+                            gen.add_isr('AMBRO_AVR_EEPROM_ISRS(MyPrinter::GetConfigManager::GetStore<>::GetEeprom, MyContext())')
+                            return TemplateExpr('AvrEepromService', [eeprom.get_int('FakeBlockSize')])
                         
                         return TemplateExpr('EepromConfigStoreService', [config_store.do_selection('Eeprom', eeprom_sel), config_store.get_int('StartBlock'), config_store.get_int('EndBlock')])
                     
@@ -653,9 +732,9 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 return TemplateExpr('PrinterMainAxisParams', [
                     TemplateChar(name),
-                    stepper_port.get_pin('DirPin'),
-                    stepper_port.get_pin('StepPin'),
-                    stepper_port.get_pin('EnablePin'),
+                    get_pin(gen, stepper_port, 'DirPin'),
+                    get_pin(gen, stepper_port, 'StepPin'),
+                    get_pin(gen, stepper_port, 'EnablePin'),
                     gen.add_bool_config('{}InvertDir'.format(name), stepper.get_bool('InvertDir')),
                     gen.add_float_config('{}StepsPerUnit'.format(name), stepper.get_float('StepsPerUnit')),
                     gen.add_float_config('{}MinPos'.format(name), stepper.get_float('MinPos')),

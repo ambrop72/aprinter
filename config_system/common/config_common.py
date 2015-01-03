@@ -48,6 +48,15 @@ class Selection (object):
             return func
         return wrap
     
+    def options (self, names):
+        def wrap (func):
+            for name in names:
+                def wrapped_func (*args, **kwargs):
+                    return func(name, *args, **kwargs)
+                self._options[name] = wrapped_func
+            return func
+        return wrap
+    
     def run (self, choice, *args, **kwargs):
         if choice not in self._options:
             raise SelectionError()
@@ -55,3 +64,7 @@ class Selection (object):
 
 def escape_string_for_nix(data):
     return '"{}"'.format(''.join(('\\{}'.format(c) if c in ('"', '\\', '$') else c) for c in data))
+
+class FunctionDefinedClass(object):
+    def __init__(self, function):
+        function(self)
