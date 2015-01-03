@@ -1,117 +1,6 @@
 {
-  "_compoundName": "editor",
   "boards": [
     {
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC0A"
-      },
-      "LedPin": "DuePin37",
-      "_compoundName": "board",
-      "analog_inputs": [
-        {
-          "Name": "T0",
-          "Pin": "DuePinA0",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T1",
-          "Pin": "DuePinA1",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T2",
-          "Pin": "DuePinA2",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T3",
-          "Pin": "DuePinA3",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T4",
-          "Pin": "DuePinA4",
-          "_compoundName": "analog_input"
-        }
-      ],
-      "board_for_build": "arduino_due",
-      "board_helper_includes": [
-        "arduino_due_pins"
-      ],
-      "config_manager": {
-        "ConfigStore": {
-          "Eeprom": {
-            "BlockSize": 64,
-            "I2c": {
-              "Ckdiv": 2,
-              "Device": "At91SamI2cDevice1",
-              "I2cFreq": 100000,
-              "_compoundName": "At91SamI2c"
-            },
-            "I2cAddr": 80,
-            "Size": 32768,
-            "WriteTimeout": 1,
-            "_compoundName": "I2cEeprom"
-          },
-          "EndBlock": 512,
-          "StartBlock": 0,
-          "_compoundName": "EepromConfigStore"
-        },
-        "_compoundName": "RuntimeConfigManager"
-      },
-      "digital_inputs": [
-        {
-          "InputMode": "At91SamPinInputModePullUp",
-          "Name": "X-MIN",
-          "Pin": "DuePin28",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "At91SamPinInputModePullUp",
-          "Name": "Y-MIN",
-          "Pin": "DuePin30",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "At91SamPinInputModePullUp",
-          "Name": "Z-MIN",
-          "Pin": "DuePin32",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "At91SamPinInputModePullUp",
-          "Name": "X-MAX",
-          "Pin": "DuePin34",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "At91SamPinInputModePullUp",
-          "Name": "Y-MAX",
-          "Pin": "DuePin36",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "At91SamPinInputModePullUp",
-          "Name": "Z-MAX",
-          "Pin": "DuePin38",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "identifier": "radds",
-      "name": "RADDS",
-      "output_type": "bin",
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
-        "MaxStepsPerCycle": 0.0017,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
       "platform": {
         "_compoundName": "At91Sam3x8e",
         "adc": {
@@ -229,6 +118,116 @@
           "Wdv": 260,
           "_compoundName": "At91SamWatchdog"
         }
+      },
+      "identifier": "radds",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Name": "T0",
+          "Pin": "DuePinA0",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T1",
+          "Pin": "DuePinA1",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T2",
+          "Pin": "DuePinA2",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T3",
+          "Pin": "DuePinA3",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T4",
+          "Pin": "DuePinA4",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "board_for_build": "arduino_due",
+      "board_helper_includes": [
+        "arduino_due_pins"
+      ],
+      "config_manager": {
+        "ConfigStore": {
+          "Eeprom": {
+            "BlockSize": 64,
+            "I2c": {
+              "Ckdiv": 2,
+              "Device": "At91SamI2cDevice1",
+              "I2cFreq": 100000,
+              "_compoundName": "At91SamI2c"
+            },
+            "I2cAddr": 80,
+            "Size": 32768,
+            "WriteTimeout": 1,
+            "_compoundName": "I2cEeprom"
+          },
+          "EndBlock": 512,
+          "StartBlock": 0,
+          "_compoundName": "EepromConfigStore"
+        },
+        "_compoundName": "RuntimeConfigManager"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "X-MIN",
+          "Pin": "DuePin28",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Y-MIN",
+          "Pin": "DuePin30",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Z-MIN",
+          "Pin": "DuePin32",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "X-MAX",
+          "Pin": "DuePin34",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Y-MAX",
+          "Pin": "DuePin36",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Z-MAX",
+          "Pin": "DuePin38",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "LedPin": "DuePin37",
+      "name": "RADDS",
+      "output_type": "bin",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxStepsPerCycle": 0.0017,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
       },
       "pwm_outputs": [
         {
@@ -431,70 +430,6 @@
       ]
     },
     {
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "FTM0_0"
-      },
-      "LedPin": "TeensyPin13",
-      "_compoundName": "board",
-      "analog_inputs": [
-        {
-          "Name": "T",
-          "Pin": "TeensyPinA2",
-          "_compoundName": "analog_input"
-        }
-      ],
-      "board_for_build": "teensy3",
-      "board_helper_includes": [
-        "teensy3_pins"
-      ],
-      "config_manager": {
-        "ConfigStore": {
-          "Eeprom": {
-            "FakeBlockSize": 16,
-            "Size": 2048,
-            "_compoundName": "TeensyEeprom"
-          },
-          "EndBlock": 128,
-          "StartBlock": 0,
-          "_compoundName": "EepromConfigStore"
-        },
-        "_compoundName": "RuntimeConfigManager"
-      },
-      "digital_inputs": [
-        {
-          "InputMode": "Mk20PinInputModePullUp",
-          "Name": "X-min",
-          "Pin": "TeensyPin12",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "Mk20PinInputModePullUp",
-          "Name": "Y-min",
-          "Pin": "TeensyPin14",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "Mk20PinInputModePullUp",
-          "Name": "Z-min",
-          "Pin": "TeensyPin15",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "identifier": "teensy3",
-      "name": "Teensy 3",
-      "output_type": "hex",
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "float",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
-        "MaxStepsPerCycle": 0.0017,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
       "platform": {
         "_compoundName": "Teensy3",
         "adc": {
@@ -560,6 +495,70 @@
           "Toval": 2000,
           "_compoundName": "Mk20Watchdog"
         }
+      },
+      "identifier": "teensy3",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Name": "T",
+          "Pin": "TeensyPinA2",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "board_for_build": "teensy3",
+      "board_helper_includes": [
+        "teensy3_pins"
+      ],
+      "config_manager": {
+        "ConfigStore": {
+          "Eeprom": {
+            "FakeBlockSize": 16,
+            "Size": 2048,
+            "_compoundName": "TeensyEeprom"
+          },
+          "EndBlock": 128,
+          "StartBlock": 0,
+          "_compoundName": "EepromConfigStore"
+        },
+        "_compoundName": "RuntimeConfigManager"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": "Mk20PinInputModePullUp",
+          "Name": "X-min",
+          "Pin": "TeensyPin12",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "Mk20PinInputModePullUp",
+          "Name": "Y-min",
+          "Pin": "TeensyPin14",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "Mk20PinInputModePullUp",
+          "Name": "Z-min",
+          "Pin": "TeensyPin15",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "LedPin": "TeensyPin13",
+      "name": "Teensy 3",
+      "output_type": "hex",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "float",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxStepsPerCycle": 0.0017,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "FTM0_0"
       },
       "pwm_outputs": [
         {
@@ -658,97 +657,6 @@
       ]
     },
     {
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC5_C"
-      },
-      "LedPin": "MegaPin13",
-      "_compoundName": "board",
-      "analog_inputs": [
-        {
-          "Name": "T0",
-          "Pin": "MegaPinA13",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T1",
-          "Pin": "MegaPinA14",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T2",
-          "Pin": "MegaPinA15",
-          "_compoundName": "analog_input"
-        }
-      ],
-      "board_for_build": "ramps13",
-      "board_helper_includes": [
-        "arduino_mega_pins"
-      ],
-      "config_manager": {
-        "ConfigStore": {
-          "Eeprom": {
-            "FakeBlockSize": 16,
-            "_compoundName": "AvrEeprom"
-          },
-          "EndBlock": 256,
-          "StartBlock": 0,
-          "_compoundName": "EepromConfigStore"
-        },
-        "_compoundName": "RuntimeConfigManager"
-      },
-      "digital_inputs": [
-        {
-          "InputMode": "AvrPinInputModePullUp",
-          "Name": "X-",
-          "Pin": "MegaPin3",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "AvrPinInputModePullUp",
-          "Name": "X+",
-          "Pin": "MegaPin2",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "AvrPinInputModePullUp",
-          "Name": "Y-",
-          "Pin": "MegaPin14",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "AvrPinInputModePullUp",
-          "Name": "Y+",
-          "Pin": "MegaPin15",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "AvrPinInputModePullUp",
-          "Name": "Z-",
-          "Pin": "MegaPin18",
-          "_compoundName": "digital_input"
-        },
-        {
-          "InputMode": "AvrPinInputModePullUp",
-          "Name": "Z+",
-          "Pin": "MegaPin19",
-          "_compoundName": "digital_input"
-        }
-      ],
-      "identifier": "ramps13",
-      "name": "RAMPS 1.3",
-      "output_type": "hex",
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
-        "EventChannelBufferSize": 24,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
-        "LookaheadBufferSize": 10,
-        "LookaheadCommitCount": 5,
-        "MaxStepsPerCycle": 0.00137,
-        "StepperSegmentBufferSize": 24,
-        "_compoundName": "performance"
-      },
       "platform": {
         "_compoundName": "AVR ATmega2560",
         "adc": {
@@ -828,6 +736,97 @@
           "Timeout": "WDTO_2S",
           "_compoundName": "AvrWatchdog"
         }
+      },
+      "identifier": "ramps13",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Name": "T0",
+          "Pin": "MegaPinA13",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T1",
+          "Pin": "MegaPinA14",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T2",
+          "Pin": "MegaPinA15",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "board_for_build": "ramps13",
+      "board_helper_includes": [
+        "arduino_mega_pins"
+      ],
+      "config_manager": {
+        "ConfigStore": {
+          "Eeprom": {
+            "FakeBlockSize": 16,
+            "_compoundName": "AvrEeprom"
+          },
+          "EndBlock": 256,
+          "StartBlock": 0,
+          "_compoundName": "EepromConfigStore"
+        },
+        "_compoundName": "RuntimeConfigManager"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "X-",
+          "Pin": "MegaPin3",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "X+",
+          "Pin": "MegaPin2",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "Y-",
+          "Pin": "MegaPin14",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "Y+",
+          "Pin": "MegaPin15",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "Z-",
+          "Pin": "MegaPin18",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "Z+",
+          "Pin": "MegaPin19",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "LedPin": "MegaPin13",
+      "name": "RAMPS 1.3",
+      "output_type": "hex",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 24,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 10,
+        "LookaheadCommitCount": 5,
+        "MaxStepsPerCycle": 0.00137,
+        "StepperSegmentBufferSize": 24,
+        "_compoundName": "performance"
+      },
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC5_C"
       },
       "pwm_outputs": [
         {
@@ -933,10 +932,228 @@
           "_compoundName": "stepper_port"
         }
       ]
+    },
+    {
+      "platform": {
+        "_compoundName": "AVR ATmega1284p",
+        "adc": {
+          "Prescaler": 7,
+          "RefSel": 1,
+          "_compoundName": "AvrAdc"
+        },
+        "clock": {
+          "PrescaleDivide": 64,
+          "_compoundName": "AvrClock",
+          "avail_oc_units": [
+            {
+              "value": "TC0_A"
+            },
+            {
+              "value": "TC0_B"
+            },
+            {
+              "value": "TC1_A"
+            },
+            {
+              "value": "TC1_B"
+            },
+            {
+              "value": "TC2_A"
+            },
+            {
+              "value": "TC2_B"
+            },
+            {
+              "value": "TC3_A"
+            },
+            {
+              "value": "TC3_B"
+            }
+          ],
+          "primary_timer": "TC3"
+        },
+        "pins": {
+          "_compoundName": "AvrPins",
+          "input_modes": [
+            {
+              "ident": "AvrPinInputModeNormal",
+              "name": "Normal"
+            },
+            {
+              "ident": "AvrPinInputModePullUp",
+              "name": "Pull-up"
+            }
+          ]
+        },
+        "watchdog": {
+          "Timeout": "WDTO_2S",
+          "_compoundName": "AvrWatchdog"
+        }
+      },
+      "identifier": "melzi",
+      "_compoundName": "board",
+      "analog_inputs": [
+        {
+          "Name": "btemp",
+          "Pin": "AvrPin<AvrPortA,6>",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "etemp",
+          "Pin": "AvrPin<AvrPortA,7>",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "board_for_build": "melzi",
+      "board_helper_includes": [],
+      "config_manager": {
+        "ConfigStore": {
+          "Eeprom": {
+            "FakeBlockSize": 16,
+            "_compoundName": "AvrEeprom"
+          },
+          "EndBlock": 256,
+          "StartBlock": 0,
+          "_compoundName": "EepromConfigStore"
+        },
+        "_compoundName": "RuntimeConfigManager"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "X-stop",
+          "Pin": "AvrPin<AvrPortC,2>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "Y-stop",
+          "Pin": "AvrPin<AvrPortC,3>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "AvrPinInputModePullUp",
+          "Name": "Z-stop",
+          "Pin": "AvrPin<AvrPortC,4>",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "LedPin": "AvrPin<AvrPortA,4>",
+      "name": "Melzi",
+      "output_type": "hex",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 16,
+        "LookaheadCommitCount": 8,
+        "MaxStepsPerCycle": 0.00137,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC2_A"
+      },
+      "pwm_outputs": [
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "AvrPin<AvrPortB,4>",
+            "PulseInterval": 0.04,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "lalal": {
+                "value": "TC2_B"
+              },
+              "oc_unit": "TC2_B"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "fan",
+          "_compoundName": "pwm_output"
+        }
+      ],
+      "sdcard": {
+        "BufferBaseSize": 2048,
+        "GcodeParser": {
+          "MaxParts": 8,
+          "_compoundName": "TextGcodeParser"
+        },
+        "MaxCommandSize": 100,
+        "SdCardService": {
+          "SpiService": {
+            "SpeedDiv": 32,
+            "_compoundName": "AvrSpi"
+          },
+          "SsPin": "AvrPin<AvrPortA,0>",
+          "_compoundName": "SpiSdCard"
+        },
+        "_compoundName": "SdCard"
+      },
+      "serial": {
+        "BaudRate": 115200,
+        "GcodeMaxParts": 8,
+        "RecvBufferSizeExp": 7,
+        "SendBufferSizeExp": 8,
+        "Service": {
+          "DoubleSpeed": true,
+          "_compoundName": "AvrSerial"
+        },
+        "_compoundName": "serial"
+      },
+      "stepper_ports": [
+        {
+          "DirPin": "AvrPin<AvrPortC,5>",
+          "EnablePin": "AvrPin<AvrPortD,6>",
+          "Name": "X",
+          "StepPin": "AvrPin<AvrPortD,7>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC0_A"
+          },
+          "_compoundName": "stepper_port"
+        },
+        {
+          "DirPin": "AvrPin<AvrPortC,7>",
+          "EnablePin": "AvrPin<AvrPortD,6>",
+          "Name": "Y",
+          "StepPin": "AvrPin<AvrPortC,6>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC0_B"
+          },
+          "_compoundName": "stepper_port"
+        },
+        {
+          "DirPin": "AvrPin<AvrPortB,2>",
+          "EnablePin": "AvrPin<AvrPortA,5>",
+          "Name": "Z",
+          "StepPin": "AvrPin<AvrPortB,3>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC3_A"
+          },
+          "_compoundName": "stepper_port"
+        },
+        {
+          "DirPin": "AvrPin<AvrPortB,0>",
+          "EnablePin": "AvrPin<AvrPortD,6>",
+          "Name": "E",
+          "StepPin": "AvrPin<AvrPortB,1>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC3_B"
+          },
+          "_compoundName": "stepper_port"
+        }
+      ]
     }
   ],
   "configurations": [
     {
+      "board_id": "radds",
       "InactiveTime": 480,
       "_compoundName": "config",
       "advanced": {
@@ -944,7 +1161,6 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
-      "board_id": "radds",
       "fans": [
         {
           "Name": "E",
@@ -963,12 +1179,12 @@
       ],
       "heaters": [
         {
+          "WaitMCommand": 109,
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 15,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T0",
-          "WaitMCommand": 109,
+          "MinSafeTemp": 15,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -997,12 +1213,12 @@
           "pwm_output": "FET6 (extruder 1)"
         },
         {
+          "WaitMCommand": 190,
           "MaxSafeTemp": 120,
-          "MinSafeTemp": 15,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T4",
-          "WaitMCommand": 190,
+          "MinSafeTemp": 15,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.3,
@@ -1031,12 +1247,12 @@
           "pwm_output": "FET1 (bed)"
         },
         {
+          "WaitMCommand": 409,
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 15,
           "Name": "U",
           "SetMCommand": 404,
           "ThermistorInput": "T1",
-          "WaitMCommand": 409,
+          "MinSafeTemp": 15,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -1067,13 +1283,13 @@
       ],
       "name": "RADDS example",
       "probe": {
+        "ProbePin": "Z-MAX",
         "FastSpeed": 2,
-        "InvertInput": false,
         "LowHeight": 2,
         "MoveSpeed": 120,
         "OffsetX": -18,
         "OffsetY": -31,
-        "ProbePin": "Z-MAX",
+        "InvertInput": false,
         "ProbePoints": [
           {
             "X": 0,
@@ -1104,13 +1320,13 @@
       },
       "steppers": [
         {
+          "MaxSpeed": 300,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
-          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "MinPos": -53,
           "Name": "X",
           "StepsPerUnit": 160,
@@ -1130,13 +1346,13 @@
           "stepper_port": "X"
         },
         {
+          "MaxSpeed": 300,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 650,
           "MaxPos": 157,
-          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 160,
@@ -1156,13 +1372,13 @@
           "stepper_port": "Y"
         },
         {
+          "MaxSpeed": 3,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": true,
           "MaxAccel": 30,
           "MaxPos": 100,
-          "MaxSpeed": 3,
+          "DistanceFactor": 1,
           "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 8000,
@@ -1182,13 +1398,13 @@
           "stepper_port": "Z"
         },
         {
+          "MaxSpeed": 45,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 1856,
@@ -1199,13 +1415,13 @@
           "stepper_port": "E1"
         },
         {
+          "MaxSpeed": 45,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "MinPos": -40000,
           "Name": "U",
           "StepsPerUnit": 1320,
@@ -1218,6 +1434,7 @@
       ]
     },
     {
+      "board_id": "teensy3",
       "InactiveTime": 480,
       "_compoundName": "config",
       "advanced": {
@@ -1225,7 +1442,6 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
-      "board_id": "teensy3",
       "fans": [
         {
           "Name": "E",
@@ -1237,12 +1453,12 @@
       ],
       "heaters": [
         {
+          "WaitMCommand": 109,
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 15,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T",
-          "WaitMCommand": 109,
+          "MinSafeTemp": 15,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -1277,13 +1493,13 @@
       },
       "steppers": [
         {
+          "MaxSpeed": 300,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
-          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "MinPos": 0,
           "Name": "X",
           "StepsPerUnit": 160,
@@ -1303,13 +1519,13 @@
           "stepper_port": "X"
         },
         {
+          "MaxSpeed": 300,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
-          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 160,
@@ -1329,13 +1545,13 @@
           "stepper_port": "Y"
         },
         {
+          "MaxSpeed": 3,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 30,
           "MaxPos": 100,
-          "MaxSpeed": 3,
+          "DistanceFactor": 1,
           "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 8000,
@@ -1355,13 +1571,13 @@
           "stepper_port": "Z"
         },
         {
+          "MaxSpeed": 40,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "MaxSpeed": 40,
+          "DistanceFactor": 1,
           "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 1856,
@@ -1374,6 +1590,7 @@
       ]
     },
     {
+      "board_id": "ramps13",
       "InactiveTime": 480,
       "_compoundName": "config",
       "advanced": {
@@ -1381,16 +1598,15 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
-      "board_id": "ramps13",
       "fans": [],
       "heaters": [
         {
+          "WaitMCommand": 190,
           "MaxSafeTemp": 120,
-          "MinSafeTemp": 15,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T1",
-          "WaitMCommand": 190,
+          "MinSafeTemp": 15,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.3,
@@ -1425,13 +1641,13 @@
       },
       "steppers": [
         {
+          "MaxSpeed": 300,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
-          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "MinPos": -53,
           "Name": "X",
           "StepsPerUnit": 160,
@@ -1451,13 +1667,13 @@
           "stepper_port": "X"
         },
         {
+          "MaxSpeed": 300,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 650,
           "MaxPos": 155,
-          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 160,
@@ -1477,13 +1693,13 @@
           "stepper_port": "Y"
         },
         {
+          "MaxSpeed": 3,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 30,
           "MaxPos": 100,
-          "MaxSpeed": 3,
+          "DistanceFactor": 1,
           "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 4000,
@@ -1503,13 +1719,13 @@
           "stepper_port": "Z"
         },
         {
+          "MaxSpeed": 45,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 928,
@@ -1520,8 +1736,130 @@
           "stepper_port": "E0"
         }
       ]
+    },
+    {
+      "board_id": "melzi",
+      "InactiveTime": 480,
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "fan"
+        }
+      ],
+      "heaters": [],
+      "name": "Melzi example",
+      "probe": {
+        "_compoundName": "NoProbe"
+      },
+      "steppers": [
+        {
+          "MaxSpeed": 300,
+          "CorneringDistance": 40,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 1500,
+          "MaxPos": 200,
+          "DistanceFactor": 1,
+          "MinPos": 0,
+          "Name": "X",
+          "StepsPerUnit": 80,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "X-stop",
+            "HomeFastMaxDist": 200,
+            "HomeFastSpeed": 40,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "stepper_port": "X"
+        },
+        {
+          "MaxSpeed": 300,
+          "CorneringDistance": 40,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 1500,
+          "MaxPos": 200,
+          "DistanceFactor": 1,
+          "MinPos": 0,
+          "Name": "Y",
+          "StepsPerUnit": 80,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "Y-stop",
+            "HomeFastMaxDist": 200,
+            "HomeFastSpeed": 40,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "stepper_port": "Y"
+        },
+        {
+          "MaxSpeed": 3,
+          "CorneringDistance": 40,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 30,
+          "MaxPos": 100,
+          "DistanceFactor": 1,
+          "MinPos": 0,
+          "Name": "Z",
+          "StepsPerUnit": 4000,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "Z-stop",
+            "HomeFastMaxDist": 101,
+            "HomeFastSpeed": 2,
+            "HomeRetractDist": 0.8,
+            "HomeRetractSpeed": 2,
+            "HomeSlowMaxDist": 1.2,
+            "HomeSlowSpeed": 0.6,
+            "_compoundName": "homing"
+          },
+          "stepper_port": "Z"
+        },
+        {
+          "MaxSpeed": 45,
+          "CorneringDistance": 40,
+          "EnableCartesianSpeedLimit": false,
+          "InvertDir": false,
+          "MaxAccel": 250,
+          "MaxPos": 40000,
+          "DistanceFactor": 1,
+          "MinPos": -40000,
+          "Name": "E",
+          "StepsPerUnit": 928,
+          "_compoundName": "stepper",
+          "homing": {
+            "_compoundName": "no_homing"
+          },
+          "stepper_port": "E"
+        }
+      ]
     }
   ],
+  "_compoundName": "editor",
   "selected_config": "RADDS example",
   "version": 1
 }
