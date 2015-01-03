@@ -189,6 +189,26 @@ class TemplateChar(object):
     def build (self, indent):
         return '\'{}\''.format(self._ch)
 
+def setup_platform(gen, config, key):
+    platform_sel = config_common.Selection()
+    
+    @platform_sel.option('At91Sam3x8e')
+    def option(platform):
+        gen.add_platform_include('aprinter/platform/at91sam3x/at91sam3x_support.h')
+        gen.add_init_call(-1, 'platform_init();')
+    
+    @platform_sel.option('Teensy3')
+    def option(platform):
+        gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
+    
+    @platform_sel.options(['AVR ATmega2560', 'AVR ATmega1284p'])
+    def option(platform_name, platform):
+        gen.add_platform_include('avr/io.h')
+        gen.add_platform_include('aprinter/platform/avr/avr_support.h')
+        gen.add_init_call(-3, 'sei();')
+    
+    config.do_selection(key, platform_sel)
+
 class CommonClock(object):
     def __init__ (self, gen, config, clockdef_func):
         self._gen = gen
@@ -229,35 +249,52 @@ class CommonClock(object):
 def At91Sam3xClockDef(x):
     x.INCLUDE = 'system/At91Sam3xClock.h'
     x.CLOCK_EXPR = 'At91Sam3xClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>'
-    x.TIMER_RE = '\\A(TC[0-9])\\Z'
-    x.CHANNEL_RE = '\\A(TC[0-9])([A-C])\\Z'
+    x.TIMER_RE = '\\ATC([0-9])\\Z'
+    x.CHANNEL_RE = '\\ATC([0-9])([A-C])\\Z'
     x.CLOCK_CONFIG = lambda config: 'static int const clock_timer_prescaler = {};'.format(config.get_int_constant('prescaler'))
-    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3xClockInterruptTimerService<At91Sam3xClock{}, At91Sam3xClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
-    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClock{}, At91Sam3xClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
-    x.TIMER_EXPR = lambda tc: 'At91Sam3xClock{}'.format(tc)
-    x.TIMER_ISR = lambda tc: 'AMBRO_AT91SAM3X_CLOCK_{}_GLOBAL(MyClock, MyContext())'.format(tc)
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3xClockInterruptTimerService<At91Sam3xClockTC{}, At91Sam3xClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC{}, At91Sam3xClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.TIMER_EXPR = lambda tc: 'At91Sam3xClockTC{}'.format(tc)
+    x.TIMER_ISR = lambda tc: 'AMBRO_AT91SAM3X_CLOCK_TC{}_GLOBAL(MyClock, MyContext())'.format(tc)
 
 def Mk20ClockDef(x):
     x.INCLUDE = 'system/Mk20Clock.h'
     x.CLOCK_EXPR = 'Mk20Clock<MyContext, Program, clock_timer_prescaler, ClockTcsList>'
-    x.TIMER_RE = '\\A(FTM[0-9])\\Z'
-    x.CHANNEL_RE = '\\A(FTM[0-9])_([0-9])\\Z'
+    x.TIMER_RE = '\\AFTM([0-9])\\Z'
+    x.CHANNEL_RE = '\\AFTM([0-9])_([0-9])\\Z'
     x.CLOCK_CONFIG = lambda config: 'static int const clock_timer_prescaler = {};'.format(config.get_int_constant('prescaler'))
-    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Mk20ClockInterruptTimerService<Mk20Clock{}, {}{}>'.format(it['tc'], it['channel'], clearance_extra)
-    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20Clock{}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
-    x.TIMER_EXPR = lambda tc: 'Mk20ClockFtmSpec<Mk20Clock{}>'.format(tc)
-    x.TIMER_ISR = lambda tc: 'AMBRO_MK20_CLOCK_FTM_GLOBAL({}, MyClock, MyContext())'.format(tc[3:])
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Mk20ClockInterruptTimerService<Mk20ClockFTM{}, {}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM{}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.TIMER_EXPR = lambda tc: 'Mk20ClockFtmSpec<Mk20ClockFTM{}>'.format(tc)
+    x.TIMER_ISR = lambda tc: 'AMBRO_MK20_CLOCK_FTM_GLOBAL({}, MyClock, MyContext())'.format(tc)
 
 def AvrClockDef(x):
     x.INCLUDE = 'system/AvrClock.h'
     x.CLOCK_EXPR = 'AvrClock<MyContext, Program, ClockPrescaleDivide, ClockTcsList>'
-    x.TIMER_RE = '\\A(TC[0-9])\\Z'
-    x.CHANNEL_RE = '\\A(TC[0-9])_([A-Z])\\Z'
+    x.TIMER_RE = '\\ATC([0-9])\\Z'
+    x.CHANNEL_RE = '\\ATC([0-9])_([A-Z])\\Z'
     x.CLOCK_CONFIG = lambda config: 'static const int ClockPrescaleDivide = {};'.format(config.get_int_constant('PrescaleDivide'))
-    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'AvrClockInterruptTimerService<AvrClockTcChannel{}{}{}>'.format(it['tc'][2:], it['channel'], clearance_extra)
-    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, MyContext())'.format(it['tc'][2:], it['channel'], user)
-    x.TIMER_EXPR = lambda tc: 'AvrClockTcSpec<AvrClockTc{}>'.format(tc[2:])
-    x.CLOCK_ISR = lambda clock: 'AMBRO_AVR_CLOCK_ISRS({}, MyClock, MyContext())'.format(clock['primary_timer'][2:])
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'AvrClockInterruptTimerService<AvrClockTcChannel{}{}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.TIMER_EXPR = lambda tc: 'AvrClockTcSpec<AvrClockTc{}>'.format(tc)
+    x.CLOCK_ISR = lambda clock: 'AMBRO_AVR_CLOCK_ISRS({}, MyClock, MyContext())'.format(clock['primary_timer'])
+
+def setup_clock(gen, config, key):
+    clock_sel = config_common.Selection()
+    
+    @clock_sel.option('At91Sam3xClock')
+    def option(clock):
+        return CommonClock(gen, clock, At91Sam3xClockDef)
+    
+    @clock_sel.option('Mk20Clock')
+    def option(clock):
+        return CommonClock(gen, clock, Mk20ClockDef)
+    
+    @clock_sel.option('AvrClock')
+    def option(clock):
+        return CommonClock(gen, clock, AvrClockDef)
+    
+    gen.register_singleton_object('clock', config.do_selection(key, clock_sel))
 
 def setup_pins (gen, config, key):
     pin_regexes = [IDENTIFIER_REGEX]
@@ -460,6 +497,107 @@ def use_i2c (gen, config, key, user, username):
     
     return config.do_selection(key, i2c_sel)
 
+def use_eeprom(gen, config, key, user):
+    eeprom_sel = config_common.Selection()
+    
+    @eeprom_sel.option('I2cEeprom')
+    def option(eeprom):
+        gen.add_aprinter_include('devices/I2cEeprom.h')
+        return TemplateExpr('I2cEepromService', [use_i2c(gen, eeprom, 'I2c', '{}::GetI2c'.format(user), 'ConfigEeprom'), eeprom.get_int('I2cAddr'), eeprom.get_int('Size'), eeprom.get_int('BlockSize'), gen.add_float_constant('ConfigEepromWriteTimeout', eeprom.get_float('WriteTimeout'))])
+    
+    @eeprom_sel.option('TeensyEeprom')
+    def option(eeprom):
+        gen.add_aprinter_include('system/TeensyEeprom.h')
+        return TemplateExpr('TeensyEepromService', [eeprom.get_int('Size'), eeprom.get_int('FakeBlockSize')])
+    
+    @eeprom_sel.option('AvrEeprom')
+    def option(eeprom):
+        gen.add_aprinter_include('system/AvrEeprom.h')
+        gen.add_isr('AMBRO_AVR_EEPROM_ISRS({}, MyContext())'.format(user))
+        return TemplateExpr('AvrEepromService', [eeprom.get_int('FakeBlockSize')])
+    
+    return config.do_selection(key, eeprom_sel)
+
+def use_serial(gen, config, key, user):
+    serial_sel = config_common.Selection()
+    
+    @serial_sel.option('AsfUsbSerial')
+    def option(serial_service):
+        gen.add_aprinter_include('system/AsfUsbSerial.h')
+        gen.add_init_call(0, 'udc_start();')
+        return 'AsfUsbSerialService'
+    
+    @serial_sel.option('At91Sam3xSerial')
+    def option(serial_service):
+        gen.add_aprinter_include('system/At91Sam3xSerial.h')
+        gen.add_aprinter_include('system/NewlibDebugWrite.h')
+        gen.add_isr('AMBRO_AT91SAM3X_SERIAL_GLOBAL({}, MyContext())'.format(user))
+        gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<{}>, MyContext())'.format(user))
+        return 'At91Sam3xSerialService'
+    
+    @serial_sel.option('TeensyUsbSerial')
+    def option(serial_service):
+        gen.add_aprinter_include('system/TeensyUsbSerial.h')
+        gen.add_global_code(0, 'extern "C" { void usb_init (void); }')
+        gen.add_init_call(0, 'usb_init();')
+        return 'TeensyUsbSerialService'
+    
+    @serial_sel.option('AvrSerial')
+    def option(serial_service):
+        gen.add_aprinter_include('system/AvrSerial.h')
+        gen.add_aprinter_include('system/AvrDebugWrite.h')
+        gen.add_isr('AMBRO_AVR_SERIAL_ISRS({}, MyContext())'.format(user))
+        gen.add_global_code(0, 'APRINTER_SETUP_AVR_DEBUG_WRITE(AvrSerial_DebugPutChar<{}>, MyContext())'.format(user))
+        gen.add_init_call(-2, 'aprinter_init_avr_debug_write();')
+        return TemplateExpr('AvrSerialService', [serial_service.get_bool('DoubleSpeed')])
+    
+    return config.do_selection(key, serial_sel)
+
+def use_sdcard(gen, config, key, user):
+    sd_service_sel = config_common.Selection()
+
+    @sd_service_sel.option('SpiSdCard')
+    def option(spi_sd):
+        gen.add_aprinter_include('devices/SpiSdCard.h')
+        return TemplateExpr('SpiSdCardService', [
+            get_pin(gen, spi_sd, 'SsPin'),
+            use_spi(gen, spi_sd, 'SpiService', '{}::GetSpi'.format(user)),
+        ])
+
+    return config.do_selection(key, sd_service_sel)
+
+def use_config_manager(gen, config, key, user):
+    config_manager_sel = config_common.Selection()
+    
+    @config_manager_sel.option('ConstantConfigManager')
+    def option(config_manager):
+        gen.add_aprinter_include('printer/config_manager/ConstantConfigManager.h')
+        return 'ConstantConfigManagerService'
+    
+    @config_manager_sel.option('RuntimeConfigManager')
+    def option(config_manager):
+        gen.add_aprinter_include('printer/config_manager/RuntimeConfigManager.h')
+        
+        config_store_sel = config_common.Selection()
+        
+        @config_store_sel.option('NoStore')
+        def option(config_store):
+            return 'RuntimeConfigManagerNoStoreService'
+        
+        @config_store_sel.option('EepromConfigStore')
+        def option(config_store):
+            gen.add_aprinter_include('printer/config_store/EepromConfigStore.h')
+            
+            return TemplateExpr('EepromConfigStoreService', [
+                use_eeprom(gen, config_store, 'Eeprom', '{}::GetStore<>::GetEeprom'.format(user)),
+                config_store.get_int('StartBlock'),
+                config_store.get_int('EndBlock'),
+            ])
+        
+        return TemplateExpr('RuntimeConfigManagerService', [config_manager.do_selection('ConfigStore', config_store_sel)])
+    
+    return config.do_selection(key, config_manager_sel)
+
 def generate(config_root_data, cfg_name, main_template):
     gen = GenState()
     
@@ -480,50 +618,18 @@ def generate(config_root_data, cfg_name, main_template):
                 if output_type not in ('hex', 'bin'):
                     board_data.key_path('output_type').error('Incorrect value.')
                 
-                platform_sel = config_common.Selection()
+                setup_platform(gen, board_data, 'platform')
                 
-                @platform_sel.option('At91Sam3x8e')
-                def option(platform):
-                    gen.add_platform_include('aprinter/platform/at91sam3x/at91sam3x_support.h')
-                    gen.add_init_call(-1, 'platform_init();')
-                
-                @platform_sel.option('Teensy3')
-                def option(platform):
-                    gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
-                
-                @platform_sel.options(['AVR ATmega2560', 'AVR ATmega1284p'])
-                def option(platform_name, platform):
-                    gen.add_platform_include('avr/io.h')
-                    gen.add_platform_include('aprinter/platform/avr/avr_support.h')
-                    gen.add_init_call(-3, 'sei();')
-                
-                board_data.do_selection('platform', platform_sel)
+                for platform in board_data.enter_config('platform'):
+                    setup_clock(gen, platform, 'clock')
+                    setup_pins(gen, platform, 'pins')
+                    setup_watchdog(gen, platform, 'watchdog', 'MyPrinter::GetWatchdog')
+                    setup_adc(gen, platform, 'adc')
                 
                 for helper_name in board_data.get_list(config_reader.ConfigTypeString(), 'board_helper_includes', max_count=20):
                     if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', helper_name):
                         board_data.key_path('board_helper_includes').error('Invalid helper name.')
                     gen.add_aprinter_include('board/{}.h'.format(helper_name))
-                
-                for platform in board_data.enter_config('platform'):
-                    clock_sel = config_common.Selection()
-                    
-                    @clock_sel.option('At91Sam3xClock')
-                    def option(clock):
-                        return CommonClock(gen, clock, At91Sam3xClockDef)
-                    
-                    @clock_sel.option('Mk20Clock')
-                    def option(clock):
-                        return CommonClock(gen, clock, Mk20ClockDef)
-                    
-                    @clock_sel.option('AvrClock')
-                    def option(clock):
-                        return CommonClock(gen, clock, AvrClockDef)
-                    
-                    gen.register_singleton_object('clock', platform.do_selection('clock', clock_sel))
-                    
-                    setup_pins(gen, platform, 'pins')
-                    setup_watchdog(gen, platform, 'watchdog', 'MyPrinter::GetWatchdog')
-                    setup_adc(gen, platform, 'adc')
                 
                 gen.register_objects('digital_input', board_data, 'digital_inputs')
                 gen.register_objects('stepper_port', board_data, 'stepper_ports')
@@ -548,40 +654,7 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_subst('SerialRecvBufferSizeExp', serial.get_int_constant('RecvBufferSizeExp'))
                     gen.add_subst('SerialSendBufferSizeExp', serial.get_int_constant('SendBufferSizeExp'))
                     gen.add_subst('SerialGcodeMaxParts', serial.get_int_constant('GcodeMaxParts'))
-                    
-                    serial_sel = config_common.Selection()
-                    
-                    @serial_sel.option('AsfUsbSerial')
-                    def option(serial_service):
-                        gen.add_aprinter_include('system/AsfUsbSerial.h')
-                        gen.add_init_call(0, 'udc_start();')
-                        return 'AsfUsbSerialService'
-                    
-                    @serial_sel.option('At91Sam3xSerial')
-                    def option(serial_service):
-                        gen.add_aprinter_include('system/At91Sam3xSerial.h')
-                        gen.add_aprinter_include('system/NewlibDebugWrite.h')
-                        gen.add_isr('AMBRO_AT91SAM3X_SERIAL_GLOBAL(MyPrinter::GetSerial, MyContext())')
-                        gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<MyPrinter::GetSerial>, MyContext())')
-                        return 'At91Sam3xSerialService'
-                    
-                    @serial_sel.option('TeensyUsbSerial')
-                    def option(serial_service):
-                        gen.add_aprinter_include('system/TeensyUsbSerial.h')
-                        gen.add_global_code(0, 'extern "C" { void usb_init (void); }')
-                        gen.add_init_call(0, 'usb_init();')
-                        return 'TeensyUsbSerialService'
-                    
-                    @serial_sel.option('AvrSerial')
-                    def option(serial_service):
-                        gen.add_aprinter_include('system/AvrSerial.h')
-                        gen.add_aprinter_include('system/AvrDebugWrite.h')
-                        gen.add_isr('AMBRO_AVR_SERIAL_ISRS(MyPrinter::GetSerial, MyContext())')
-                        gen.add_global_code(0, 'APRINTER_SETUP_AVR_DEBUG_WRITE(AvrSerial_DebugPutChar<MyPrinter::GetSerial>, MyContext())')
-                        gen.add_init_call(-2, 'aprinter_init_avr_debug_write();')
-                        return TemplateExpr('AvrSerialService', [serial_service.get_bool('DoubleSpeed')])
-                    
-                    gen.add_subst('SerialService', serial.do_selection('Service', serial_sel))
+                    gen.add_subst('SerialService', use_serial(gen, serial, 'Service', 'MyPrinter::GetSerial'))
                 
                 sdcard_sel = config_common.Selection()
                 
@@ -591,13 +664,6 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 @sdcard_sel.option('SdCard')
                 def option(sdcard):
-                    sd_service_sel = config_common.Selection()
-                    
-                    @sd_service_sel.option('SpiSdCard')
-                    def option(spi_sd):
-                        gen.add_aprinter_include('devices/SpiSdCard.h')
-                        return TemplateExpr('SpiSdCardService', [get_pin(gen, spi_sd, 'SsPin'), use_spi(gen, spi_sd, 'SpiService', 'MyPrinter::GetSdCard<>::GetSpi')])
-                    
                     gcode_parser_sel = config_common.Selection()
                     
                     @gcode_parser_sel.option('TextGcodeParser')
@@ -608,54 +674,16 @@ def generate(config_root_data, cfg_name, main_template):
                     def option(parser):
                         return 'BinaryGcodeParser, BinaryGcodeParserParams<{}>'.format(parser.get_int('MaxParts'))
                     
-                    return TemplateExpr('PrinterMainSdCardParams', [sdcard.do_selection('SdCardService', sd_service_sel), sdcard.do_selection('GcodeParser', gcode_parser_sel), sdcard.get_int('BufferBaseSize'), sdcard.get_int('MaxCommandSize')])
+                    return TemplateExpr('PrinterMainSdCardParams', [
+                        use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetSdCard<>'),
+                        sdcard.do_selection('GcodeParser', gcode_parser_sel),
+                        sdcard.get_int('BufferBaseSize'),
+                        sdcard.get_int('MaxCommandSize'),
+                    ])
                 
                 gen.add_subst('SdCard', board_data.do_selection('sdcard', sdcard_sel), indent=1)
                 
-                config_manager_sel = config_common.Selection()
-                
-                @config_manager_sel.option('ConstantConfigManager')
-                def option(config_manager):
-                    gen.add_aprinter_include('printer/config_manager/ConstantConfigManager.h')
-                    return 'ConstantConfigManagerService'
-                
-                @config_manager_sel.option('RuntimeConfigManager')
-                def option(config_manager):
-                    gen.add_aprinter_include('printer/config_manager/RuntimeConfigManager.h')
-                    
-                    config_store_sel = config_common.Selection()
-                    
-                    @config_store_sel.option('NoStore')
-                    def option(config_store):
-                        return 'RuntimeConfigManagerNoStoreService'
-                    
-                    @config_store_sel.option('EepromConfigStore')
-                    def option(config_store):
-                        gen.add_aprinter_include('printer/config_store/EepromConfigStore.h')
-                        
-                        eeprom_sel = config_common.Selection()
-                        
-                        @eeprom_sel.option('I2cEeprom')
-                        def option(eeprom):
-                            gen.add_aprinter_include('devices/I2cEeprom.h')
-                            return TemplateExpr('I2cEepromService', [use_i2c(gen, eeprom, 'I2c', 'MyPrinter::GetConfigManager::GetStore<>::GetEeprom::GetI2c', 'ConfigEeprom'), eeprom.get_int('I2cAddr'), eeprom.get_int('Size'), eeprom.get_int('BlockSize'), gen.add_float_constant('ConfigEepromWriteTimeout', eeprom.get_float('WriteTimeout'))])
-                        
-                        @eeprom_sel.option('TeensyEeprom')
-                        def option(eeprom):
-                            gen.add_aprinter_include('system/TeensyEeprom.h')
-                            return TemplateExpr('TeensyEepromService', [eeprom.get_int('Size'), eeprom.get_int('FakeBlockSize')])
-                        
-                        @eeprom_sel.option('AvrEeprom')
-                        def option(eeprom):
-                            gen.add_aprinter_include('system/AvrEeprom.h')
-                            gen.add_isr('AMBRO_AVR_EEPROM_ISRS(MyPrinter::GetConfigManager::GetStore<>::GetEeprom, MyContext())')
-                            return TemplateExpr('AvrEepromService', [eeprom.get_int('FakeBlockSize')])
-                        
-                        return TemplateExpr('EepromConfigStoreService', [config_store.do_selection('Eeprom', eeprom_sel), config_store.get_int('StartBlock'), config_store.get_int('EndBlock')])
-                    
-                    return TemplateExpr('RuntimeConfigManagerService', [config_manager.do_selection('ConfigStore', config_store_sel)])
-                
-                gen.add_subst('ConfigManager', board_data.do_selection('config_manager', config_manager_sel), indent=1)
+                gen.add_subst('ConfigManager', use_config_manager(gen, board_data, 'config_manager', 'MyPrinter::GetConfigManager'))
             
             gen.add_float_config('InactiveTime', config.get_float('InactiveTime'))
             
