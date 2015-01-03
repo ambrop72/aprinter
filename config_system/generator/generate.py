@@ -196,8 +196,13 @@ class CommonClock(object):
         gen.add_aprinter_include(self._clockdef.INCLUDE)
         gen.add_subst('CLOCK_CONFIG', self._clockdef.CLOCK_CONFIG(config))
         gen.add_subst('CLOCK', self._clockdef.CLOCK_EXPR)
-        self._primary_timer = config.get_identifier('primary_timer', lambda x: re.match(self._clockdef.TIMER_RE, x))
         self._interrupt_timers = []
+        
+        primary_timer_str = config.get_string('primary_timer')
+        match = re.match(self._clockdef.TIMER_RE, primary_timer_str) 
+        if not match:
+            config.key_path('primary_timer').error('Incorrect value.')
+        self._primary_timer = match.group(1)
     
     def add_interrupt_timer (self, name, user, clearance, path):
         m = re.match(self._clockdef.CHANNEL_RE, name)
@@ -224,7 +229,7 @@ class CommonClock(object):
 def At91Sam3xClockDef(x):
     x.INCLUDE = 'system/At91Sam3xClock.h'
     x.CLOCK_EXPR = 'At91Sam3xClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>'
-    x.TIMER_RE = '\\ATC[0-9]\\Z'
+    x.TIMER_RE = '\\A(TC[0-9])\\Z'
     x.CHANNEL_RE = '\\A(TC[0-9])([A-C])\\Z'
     x.CLOCK_CONFIG = lambda config: 'static int const clock_timer_prescaler = {};'.format(config.get_int_constant('prescaler'))
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3xClockInterruptTimerService<At91Sam3xClock{}, At91Sam3xClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
@@ -235,7 +240,7 @@ def At91Sam3xClockDef(x):
 def Mk20ClockDef(x):
     x.INCLUDE = 'system/Mk20Clock.h'
     x.CLOCK_EXPR = 'Mk20Clock<MyContext, Program, clock_timer_prescaler, ClockTcsList>'
-    x.TIMER_RE = '\\AFTM[0-9]\\Z'
+    x.TIMER_RE = '\\A(FTM[0-9])\\Z'
     x.CHANNEL_RE = '\\A(FTM[0-9])_([0-9])\\Z'
     x.CLOCK_CONFIG = lambda config: 'static int const clock_timer_prescaler = {};'.format(config.get_int_constant('prescaler'))
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Mk20ClockInterruptTimerService<Mk20Clock{}, {}{}>'.format(it['tc'], it['channel'], clearance_extra)
@@ -246,11 +251,11 @@ def Mk20ClockDef(x):
 def AvrClockDef(x):
     x.INCLUDE = 'system/AvrClock.h'
     x.CLOCK_EXPR = 'AvrClock<MyContext, Program, ClockPrescaleDivide, ClockTcsList>'
-    x.TIMER_RE = '\\ATC[0-9]\\Z'
+    x.TIMER_RE = '\\A(TC[0-9])\\Z'
     x.CHANNEL_RE = '\\A(TC[0-9])_([A-Z])\\Z'
     x.CLOCK_CONFIG = lambda config: 'static const int ClockPrescaleDivide = {};'.format(config.get_int_constant('PrescaleDivide'))
-    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'AvrClockInterruptTimerService<AvrClockTcChannel{}{}{}>'.format(it['tc'][2:], it['channel'][4:], clearance_extra)
-    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, MyContext())'.format(it['tc'][2:], it['channel'][4:], user)
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'AvrClockInterruptTimerService<AvrClockTcChannel{}{}{}>'.format(it['tc'][2:], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, MyContext())'.format(it['tc'][2:], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'AvrClockTcSpec<AvrClockTc{}>'.format(tc[2:])
     x.CLOCK_ISR = lambda clock: 'AMBRO_AVR_CLOCK_ISRS({}, MyClock, MyContext())'.format(clock['primary_timer'][2:])
 
@@ -360,6 +365,7 @@ def setup_adc (gen, config, key):
         gen.add_aprinter_include('system/AvrAdc.h')
         gen.add_int_constant('int32', 'AdcRefSel', adc_config.get_int('RefSel'))
         gen.add_int_constant('int32', 'AdcPrescaler', adc_config.get_int('Prescaler'))
+        gen.add_isr('AMBRO_AVR_ADC_ISRS(MyAdc, MyContext())')
         
         return {
             'value_func': lambda: TemplateExpr('AvrAdc', ['MyContext', 'Program', 'AdcPins', 'AdcRefSel', 'AdcPrescaler']),
