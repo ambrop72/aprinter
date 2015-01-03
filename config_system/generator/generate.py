@@ -219,8 +219,8 @@ class CommonClock(object):
         if hasattr(self._clockdef, 'CLOCK_ISR'):
             self._gen.add_isr(self._clockdef.CLOCK_ISR(clock))
         tcs = set(it['tc'] for it in self._interrupt_timers)
-        tcs.add(self._primary_timer)
-        tcs = sorted(tcs)
+        tcs.remove(self._primary_timer)
+        tcs = [self._primary_timer] + sorted(tcs)
         self._gen.add_subst('CLOCK_TCS', 'using ClockTcsList = MakeTypeList<{}>;'.format(', '.join(self._clockdef.TIMER_EXPR(tc) for tc in tcs)))
         if hasattr(self._clockdef, 'TIMER_ISR'):
             for tc in tcs:
