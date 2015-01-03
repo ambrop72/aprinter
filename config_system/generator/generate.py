@@ -288,7 +288,8 @@ def setup_pins (gen, config, key):
 
 def get_pin (gen, config, key):
     pin = config.get_string(key)
-    if not any(re.match(pin_regex, pin) for pin_regex in gen.get_singleton_object('pin_regexes')):
+    pin_regexes = gen.get_singleton_object('pin_regexes')
+    if not any(re.match(pin_regex, pin) for pin_regex in pin_regexes):
         config.key_path(key).error('Invalid pin value.')
     return pin
 
@@ -529,7 +530,7 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.register_objects('analog_input', board_data, 'analog_inputs')
                 gen.register_objects('pwm_output', board_data, 'pwm_outputs')
                 
-                gen.add_subst('LedPin', board_data.get_identifier('LedPin'))
+                gen.add_subst('LedPin', get_pin(gen, board_data, 'LedPin'))
                 gen.add_subst('EventChannelTimer', use_interrupt_timer(gen, board_data, 'EventChannelTimer', user='MyPrinter::GetEventChannelTimer', clearance='EventChannelTimerClearance'))
                 
                 for performance in board_data.enter_config('performance'):
