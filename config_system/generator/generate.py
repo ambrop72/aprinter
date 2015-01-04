@@ -477,6 +477,28 @@ def setup_adc (gen, config, key):
     
     gen.add_finalize_action(finalize)
 
+def setup_pwm(gen, config, key):
+    pwm_sel = config_common.Selection()
+    
+    @pwm_sel.option('Disabled')
+    def option(pwm_config):
+        return None
+    
+    @pwm_sel.option('At91Sam3xPwm')
+    def option(pwm_config):
+        gen.add_aprinter_include('system/At91Sam3xPwm.h')
+        
+        return TemplateExpr('At91Sam3xPwm', ['MyContext', 'Program', TemplateExpr('At91Sam3xPwmParams', [
+            pwm_config.get_int('PreA'),
+            pwm_config.get_int('DivA'),
+            pwm_config.get_int('PreB'),
+            pwm_config.get_int('DivB'),
+        ])])
+    
+    pwm_expr = config.do_selection(key, pwm_sel)
+    if pwm_expr is not None:
+        gen.add_global_resource(25, 'MyPwm', pwm_expr, context_name='Pwm')
+
 def use_digital_input (gen, config, key):
     di = gen.get_object('digital_input', config, key)
     return '{}, {}'.format(get_pin(gen, di, 'Pin'), di.get_identifier('InputMode'))
@@ -522,6 +544,16 @@ def use_pwm_output (gen, config, key, user, username):
             return TemplateExpr('AvrClockPwmService', [
                 'AvrClockTcChannel{}{}'.format(oc_unit['tc'], oc_unit['channel']),
                 get_pin(gen, hard_driver, 'OutputPin'),
+            ])
+        
+        @hard_driver_sel.option('At91Sam3xPwmChannel')
+        def option(hard_driver):
+            return TemplateExpr('At91Sam3xPwmChannelService', [
+                hard_driver.get_int('ChannelPrescaler'),
+                hard_driver.get_int('ChannelPeriod'),
+                hard_driver.get_int('ChannelNumber'),
+                get_pin(gen, hard_driver, 'OutputPin'),
+                TemplateChar(hard_driver.get_identifier('Signal')),
             ])
         
         return TemplateExpr('HardPwmService', [
@@ -703,6 +735,8 @@ def generate(config_root_data, cfg_name, main_template):
                     setup_pins(gen, platform, 'pins')
                     watchdog_expr = setup_watchdog(gen, platform, 'watchdog', 'MyPrinter::GetWatchdog')
                     setup_adc(gen, platform, 'adc')
+                    if platform.has('pwm'):
+                        setup_pwm(gen, platform, 'pwm')
                 
                 for helper_name in board_data.get_list(config_reader.ConfigTypeString(), 'board_helper_includes', max_count=20):
                     if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', helper_name):

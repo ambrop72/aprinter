@@ -101,6 +101,9 @@ class ConfigReader (object):
     def config_type (self):
         return ConfigTypeConfig(self.config_factory)
     
+    def has (self, key):
+        return key in self._obj
+    
     def get (self, dtype, key):
         path = self.key_path(key)
         if key not in self._obj:

@@ -114,6 +114,13 @@
             }
           ]
         },
+        "pwm": {
+          "DivA": 0,
+          "DivB": 0,
+          "PreA": 0,
+          "PreB": 0,
+          "_compoundName": "At91Sam3xPwm"
+        },
         "watchdog": {
           "Wdv": 260,
           "_compoundName": "At91SamWatchdog"
@@ -330,6 +337,36 @@
             "_compoundName": "SoftPwm"
           },
           "Name": "FET2 (fan 2)",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "HardPwmDriver": {
+              "ChannelNumber": 4,
+              "ChannelPeriod": 1562,
+              "ChannelPrescaler": 10,
+              "OutputPin": "DuePin9",
+              "Signal": "L",
+              "_compoundName": "At91Sam3xPwmChannel"
+            },
+            "_compoundName": "HardPwm"
+          },
+          "Name": "FET3-HardPWM",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "HardPwmDriver": {
+              "ChannelNumber": 5,
+              "ChannelPeriod": 1562,
+              "ChannelPrescaler": 10,
+              "OutputPin": "DuePin8",
+              "Signal": "L",
+              "_compoundName": "At91Sam3xPwmChannel"
+            },
+            "_compoundName": "HardPwm"
+          },
+          "Name": "FET2-HardPWM",
           "_compoundName": "pwm_output"
         }
       ],

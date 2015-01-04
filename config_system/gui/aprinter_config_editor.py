@@ -73,6 +73,15 @@ def platform_At91Sam3x8e():
                 { 'ident': 'At91SamPinInputModePullUp', 'name': 'Pull-up' }
             ])
         ]),
+        ce.OneOf(key='pwm', title='PWM module', disable_collapse=True, choices=[
+            ce.Compound('Disabled', title='Disabled', disable_collapse=True, attrs=[]),
+            ce.Compound('At91Sam3xPwm', title='Enabled', disable_collapse=True, attrs=[
+                ce.Integer(key='PreA', title='Prescaler A'),
+                ce.Integer(key='DivA', title='Divisor A'),
+                ce.Integer(key='PreB', title='Prescaler B'),
+                ce.Integer(key='DivB', title='Divisor B'),
+            ]),
+        ]),
     ])
 
 def platform_Teensy3():
@@ -153,6 +162,13 @@ def hard_pwm_choice(**kwargs):
         ce.Compound('AvrClockPwm', ident='id_pwm_output', attrs=[
             oc_unit_choice(key='oc_unit'),
             pin_choice(key='OutputPin', title='Output pin (determined by OC unit)'),
+        ]),
+        ce.Compound('At91Sam3xPwmChannel', attrs=[
+            ce.Integer(key='ChannelPrescaler', title='Channel prescaler'),
+            ce.Integer(key='ChannelPeriod', title='Channel period value'),
+            ce.Integer(key='ChannelNumber', title='Channel number'),
+            pin_choice(key='OutputPin', title='Output pin (constrained by choice of channel/signal)'),
+            ce.String(key='Signal', title='Connection type (L/H)'),
         ]),
     ], **kwargs)
 
