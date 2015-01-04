@@ -59,37 +59,26 @@ struct MyLoopExtraDelay;
 struct Program;
 
 using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
-
 using MyClock = $${CLOCK};
-
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
-
-using MyPins = $${Pins};
-
-using MyAdc = $${Adc};
-
-using MyPrinter = $${Printer};
-
+$${GlobalResourceExprs}
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
     using Clock = MyClock;
     using EventLoop = MyLoop;
-    using Pins = MyPins;
-    using Adc = MyAdc;
-    
+
+$${GlobalResourceContextAliases}
     void check () const;
 };
 
-using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, typename MyPrinter::EventLoopFastEvents>;
+using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, typename $${FastEventRoot}::EventLoopFastEvents>;
 struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};
 
 struct Program : public ObjBase<void, void, MakeTypeList<
     MyDebugObjectGroup,
     MyClock,
     MyLoop,
-    MyPins,
-    MyAdc,
-    MyPrinter,
+$${GlobalResourceProgramChildren}
     MyLoopExtra
 >> {
     static Program * self (MyContext c);
@@ -103,7 +92,7 @@ void MyContext::check () const {}
 $${GlobalCode}
 static void emergency (void)
 {
-    MyPrinter::emergency();
+    $${EmergencyProvider}::emergency();
 }
 
 int main ()
@@ -114,9 +103,7 @@ $${InitCalls}
     MyDebugObjectGroup::init(c);
     MyClock::init(c);
     MyLoop::init(c);
-    MyPins::init(c);
-    MyAdc::init(c);
-    MyPrinter::init(c);
     
+$${GlobalResourceInit}
     MyLoop::run(c);
 }

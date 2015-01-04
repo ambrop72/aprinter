@@ -23,6 +23,7 @@ class GenState(object):
         self._finalize_actions = []
         self._global_code = []
         self._init_calls = []
+        self._global_resources = []
     
     def add_subst (self, key, val, indent=-1):
         self._subst[key] = {'val':val, 'indent':indent}
@@ -95,6 +96,9 @@ class GenState(object):
     def add_finalize_action (self, action):
         self._finalize_actions.append(action)
     
+    def add_global_resource (self, priority, name, expr, context_name=None):
+        self._global_resources.append({'priority':priority, 'name':name, 'expr':expr, 'context_name':context_name})
+    
     def finalize (self):
         for action in reversed(self._finalize_actions):
             action()
@@ -103,6 +107,8 @@ class GenState(object):
             if hasattr(so, 'finalize'):
                 so.finalize()
         
+        global_resources = sorted(self._global_resources, key=lambda x: x['priority'])
+        
         self.add_subst('GENERATED_WARNING', 'WARNING: This file was automatically generated!')
         self.add_subst('EXTRA_CONSTANTS', ''.join('{} {} = {};\n'.format(c['type'], c['name'], c['value']) for c in self._constants))
         self.add_subst('ConfigOptions', ''.join('APRINTER_CONFIG_OPTION_{}({}, {}, ConfigNoProperties)\n'.format(c['dtype'], c['name'], c['value']) for c in self._config_options))
@@ -110,6 +116,10 @@ class GenState(object):
         self.add_subst('AprinterIncludes', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in sorted(self._aprinter_includes)))
         self.add_subst('GlobalCode', ''.join('{}\n'.format(gc['code']) for gc in sorted(self._global_code, key=lambda x: x['priority'])))
         self.add_subst('InitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._init_calls, key=lambda x: x['priority'])))
+        self.add_subst('GlobalResourceExprs', ''.join('using {} = {};\n'.format(gr['name'], gr['expr'].build(indent=0)) for gr in global_resources))
+        self.add_subst('GlobalResourceContextAliases', ''.join('    using {} = {};\n'.format(gr['context_name'], gr['name']) for gr in global_resources if gr['context_name'] is not None))
+        self.add_subst('GlobalResourceProgramChildren', ''.join('    {},\n'.format(gr['name']) for gr in global_resources))
+        self.add_subst('GlobalResourceInit', ''.join('    {}::init(c);\n'.format(gr['name']) for gr in global_resources))
     
     def get_subst (self):
         res = {}
@@ -366,8 +376,7 @@ def setup_pins (gen, config, key):
         pin_regexes.append('\\AAvrPin<AvrPort[A-Z],[0-9]{1,3}>\\Z')
         return TemplateExpr('AvrPins', ['MyContext', 'Program'])
     
-    gen.add_subst('Pins', config.do_selection(key, pins_sel), indent=0)
-    
+    gen.add_global_resource(10, 'MyPins', config.do_selection(key, pins_sel), context_name='Pins')
     gen.register_singleton_object('pin_regexes', pin_regexes)
 
 def get_pin (gen, config, key):
@@ -464,7 +473,7 @@ def setup_adc (gen, config, key):
     def finalize():
         adc_pins = gen.get_singleton_object('adc_pins')
         pins_expr = TemplateList([result['pin_func'](pin) for pin in adc_pins])
-        gen.add_subst('Adc', result['value_func'](pins_expr), indent=0)
+        gen.add_global_resource(20, 'MyAdc', result['value_func'](pins_expr), context_name='Adc')
     
     gen.add_finalize_action(finalize)
 
@@ -943,7 +952,9 @@ def generate(config_root_data, cfg_name, main_template):
                 fans_expr,
             ])
             
-            gen.add_subst('Printer', TemplateExpr('PrinterMain', ['MyContext', 'Program', printer_params]), indent=0)
+            gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', printer_params]))
+            gen.add_subst('FastEventRoot', 'MyPrinter')
+            gen.add_subst('EmergencyProvider', 'MyPrinter')
     
     gen.finalize()
     
