@@ -398,7 +398,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
             HardPwmService<
-                AvrClock16BitPwmService<AvrClockTcChannel1A, AvrPin<AvrPortD, 5>>
+                AvrClockPwmService<AvrClockTcChannel1A, AvrPin<AvrPortD, 5>>
             >
         >,
         PrinterMainHeaterParams<
@@ -430,7 +430,7 @@ using PrinterParams = PrinterMainParams<
                 BedHeaterObserverMinTime // ObserverMinTime
             >,
             HardPwmService<
-                AvrClock16BitPwmService<AvrClockTcChannel1B, AvrPin<AvrPortD, 4>>
+                AvrClockPwmService<AvrClockTcChannel1B, AvrPin<AvrPortD, 4>>
             >
         >
     >,

@@ -488,7 +488,7 @@ using PrinterParams = PrinterMainParams<
                 ExtruderHeaterObserverMinTime // ObserverMinTime
             >,
             HardPwmService<
-                AvrClock8BitPwmService<AvrClockTcChannel2A, MegaPin10>
+                AvrClockPwmService<AvrClockTcChannel2A, MegaPin10>
             >
         >,
         PrinterMainHeaterParams<
@@ -555,7 +555,7 @@ using PrinterParams = PrinterMainParams<
                 UxtruderHeaterObserverMinTime // ObserverMinTime
             >,
             HardPwmService<
-                AvrClock8BitPwmService<AvrClockTcChannel2B, MegaPin9>
+                AvrClockPwmService<AvrClockTcChannel2B, MegaPin9>
             >
         >
     >,
@@ -569,7 +569,7 @@ using PrinterParams = PrinterMainParams<
             107, // OffMCommand
             FanSpeedMultiply, // SpeedMultiply
             HardPwmService<
-                AvrClock8BitPwmService<AvrClockTcChannel0B, MegaPin4>
+                AvrClockPwmService<AvrClockTcChannel0B, MegaPin4>
             >
         >,
         PrinterMainFanParams<
@@ -577,7 +577,7 @@ using PrinterParams = PrinterMainParams<
             407, // OffMCommand
             FanSpeedMultiply, // SpeedMultiply
             HardPwmService<
-                AvrClock16BitPwmService<AvrClockTcChannel1A, MegaPin11>
+                AvrClockPwmService<AvrClockTcChannel1A, MegaPin11>
             >
         >
     >
