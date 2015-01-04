@@ -216,35 +216,56 @@ class CommonClock(object):
         gen.add_aprinter_include(self._clockdef.INCLUDE)
         gen.add_subst('CLOCK_CONFIG', self._clockdef.CLOCK_CONFIG(config))
         gen.add_subst('CLOCK', self._clockdef.CLOCK_EXPR)
+        self._timers = self._load_timers(config)
         self._interrupt_timers = []
-        
-        primary_timer_str = config.get_string('primary_timer')
-        match = re.match(self._clockdef.TIMER_RE, primary_timer_str) 
-        if not match:
-            config.key_path('primary_timer').error('Incorrect value.')
-        self._primary_timer = match.group(1)
+        self._primary_timer = self.check_timer(config.get_string('primary_timer'), config.key_path('primary_timer'))
     
-    def add_interrupt_timer (self, name, user, clearance, path):
+    def _load_timers (self, config):
+        timers = {}
+        if hasattr(self._clockdef, 'handle_timer'):
+            for timer_config in config.iter_list_config('timers', max_count=20):
+                timer_id = self.check_timer(timer_config.get_string('Timer'), timer_config.key_path('Timer'))
+                if timer_id in timers:
+                    timer_config.path().error('Duplicate timer specified.')
+                timers[timer_id] = self._clockdef.handle_timer(self._gen, timer_id, timer_config)
+        return timers
+    
+    def check_timer (self, timer_name, path):
+        match = re.match(self._clockdef.TIMER_RE, timer_name) 
+        if not match:
+            path.error('Incorrect timer name.')
+        return match.group(1)
+    
+    def check_oc_unit (self, name, path):
         m = re.match(self._clockdef.CHANNEL_RE, name)
         if m is None:
             path.error('Incorrect OC unit format.')
-        it = {'tc':m.group(1), 'channel':m.group(2)}
+        return {'tc':m.group(1), 'channel':m.group(2)}
+    
+    def add_interrupt_timer (self, name, user, clearance, path):
+        it = self.check_oc_unit(name, path)
         self._interrupt_timers.append(it)
         clearance_extra = ', {}'.format(clearance) if clearance is not None else ''
         self._gen.add_isr(self._clockdef.INTERRUPT_TIMER_ISR(it, user))
         return self._clockdef.INTERRUPT_TIMER_EXPR(it, clearance_extra)
     
     def finalize (self):
-        clock = {'primary_timer': self._primary_timer}
+        auto_timers = (set(it['tc'] for it in self._interrupt_timers) | set([self._primary_timer])) - set(self._timers)
+        for timer_id in auto_timers:
+            self._timers[timer_id] = self._clockdef.TIMER_EXPR(timer_id)
+            if hasattr(self._clockdef, 'TIMER_ISR'):
+                self._gen.add_isr(self._clockdef.TIMER_ISR(timer_id))
+        
         if hasattr(self._clockdef, 'CLOCK_ISR'):
+            clock = {'primary_timer': self._primary_timer}
             self._gen.add_isr(self._clockdef.CLOCK_ISR(clock))
-        tcs = set(it['tc'] for it in self._interrupt_timers)
-        tcs.remove(self._primary_timer)
-        tcs = [self._primary_timer] + sorted(tcs)
-        self._gen.add_subst('CLOCK_TCS', 'using ClockTcsList = MakeTypeList<{}>;'.format(', '.join(self._clockdef.TIMER_EXPR(tc) for tc in tcs)))
-        if hasattr(self._clockdef, 'TIMER_ISR'):
-            for tc in tcs:
-                self._gen.add_isr(self._clockdef.TIMER_ISR(tc))
+        
+        temp_timers = set(self._timers)
+        temp_timers.remove(self._primary_timer)
+        ordered_timers = [self._primary_timer] + sorted(temp_timers)
+        
+        timers_expr = TemplateList([self._timers[timer_id] for timer_id in ordered_timers])
+        self._gen.add_subst('CLOCK_TCS', 'using ClockTcsList = {};'.format(timers_expr.build(0)))
 
 def At91Sam3xClockDef(x):
     x.INCLUDE = 'system/At91Sam3xClock.h'
@@ -278,6 +299,32 @@ def AvrClockDef(x):
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'AvrClockTcSpec<AvrClockTc{}>'.format(tc)
     x.CLOCK_ISR = lambda clock: 'AMBRO_AVR_CLOCK_ISRS({}, MyClock, MyContext())'.format(clock['primary_timer'])
+    
+    @config_common.assign_func(x, 'handle_timer')
+    def handle_timer(gen, timer_id, timer_config):
+        mode_sel = config_common.Selection()
+        
+        @mode_sel.option('AvrClockTcModeClock')
+        def option(mode):
+            return 'AvrClockTcModeClock'
+        
+        @mode_sel.option('AvrClockTcMode8BitPwm')
+        def option(mode):
+            return TemplateExpr('AvrClockTcMode8BitPwm', [
+                mode.get_int('PrescaleDivide'),
+            ])
+        
+        @mode_sel.option('AvrClockTcMode16BitPwm')
+        def option(mode):
+            return TemplateExpr('AvrClockTcMode16BitPwm', [
+                mode.get_int('PrescaleDivide'),
+                mode.get_int('TopVal'),
+            ])
+        
+        return TemplateExpr('AvrClockTcSpec', [
+            'AvrClockTc{}'.format(timer_id),
+            timer_config.do_selection('Mode', mode_sel),
+        ])
 
 def setup_clock(gen, config, key):
     clock_sel = config_common.Selection()
@@ -432,8 +479,10 @@ def use_analog_input (gen, config, key):
     return pin
 
 def use_interrupt_timer (gen, config, key, user, clearance=None):
+    clock = gen.get_singleton_object('clock')
+    
     for it_config in config.enter_config(key):
-        return gen.get_singleton_object('clock').add_interrupt_timer(it_config.get_string('oc_unit'), user, clearance, it_config.path())
+        return clock.add_interrupt_timer(it_config.get_string('oc_unit'), user, clearance, it_config.path())
 
 def use_pwm_output (gen, config, key, user, username):
     pwm_output = gen.get_object('pwm_output', config, key)
@@ -448,6 +497,26 @@ def use_pwm_output (gen, config, key, user, username):
             backend.get_bool('OutputInvert'),
             gen.add_float_constant('{}PulseInterval'.format(username), backend.get_float('PulseInterval')),
             use_interrupt_timer(gen, backend, 'Timer', '{}::TheTimer'.format(user))
+        ])
+    
+    @backend_sel.option('HardPwm')
+    def option(backend):
+        gen.add_aprinter_include('printer/pwm/HardPwm.h')
+        
+        hard_driver_sel = config_common.Selection()
+        
+        @hard_driver_sel.option('AvrClockPwm')
+        def option(hard_driver):
+            clock = gen.get_singleton_object('clock')
+            oc_unit = clock.check_oc_unit(hard_driver.get_string('oc_unit'), hard_driver.path())
+            
+            return TemplateExpr('AvrClockPwmService', [
+                'AvrClockTcChannel{}{}'.format(oc_unit['tc'], oc_unit['channel']),
+                get_pin(gen, hard_driver, 'OutputPin'),
+            ])
+        
+        return TemplateExpr('HardPwmService', [
+            backend.do_selection('HardPwmDriver', hard_driver_sel)
         ])
     
     return pwm_output.do_selection('Backend', backend_sel)

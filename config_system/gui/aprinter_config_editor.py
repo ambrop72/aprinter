@@ -5,9 +5,12 @@ def simple_list(elem_title, value_title, **kwargs):
         ce.String(key='value', title=value_title)
     ]), **kwargs)
 
+def oc_unit_choice(**kwargs):
+    return ce.Reference(ref_array='id_board.platform', ref_array_descend=['clock', 'avail_oc_units'], ref_id_key='value', ref_name_key='value', title='Output compare unit', deref_key='lalal', **kwargs)
+
 def interrupt_timer_choice(**kwargs):
     return ce.Compound('interrupt_timer', ident='id_interrupt_timer_choice', collapsed=True, attrs=[
-        ce.Reference(key='oc_unit', ref_array='id_board.platform', ref_array_descend=['clock', 'avail_oc_units'], ref_id_key='value', ref_name_key='value', title='Output compare unit', deref_key='lalal')
+        oc_unit_choice(key='oc_unit'),
     ], **kwargs)
 
 def pin_choice(**kwargs):
@@ -115,7 +118,20 @@ def platform_Avr(variant):
                 {
                     'value': 'TC{}_{}'.format(i, j)
                 } for i in timers[0] for j in timers[1](i)
-            ])
+            ]),
+            ce.Array(key='timers', title='Timer configuration', disable_collapse=True, elem=ce.Compound('Timer', title_key='Timer', collapsed=True, attrs=[
+                ce.String(key='Timer'),
+                ce.OneOf(key='Mode', title='Mode', disable_collapse=True, choices=[
+                    ce.Compound('AvrClockTcModeClock', title='Normal (for iterrupt-timers)', disable_collapse=True, attrs=[]),
+                    ce.Compound('AvrClockTcMode8BitPwm', title='PWM 8-bit (for Hard-PWM)', disable_collapse=True, attrs=[
+                        ce.Integer(key='PrescaleDivide'),
+                    ]),
+                    ce.Compound('AvrClockTcMode16BitPwm', title='PWM 16-bit (for Hard-PWM)', disable_collapse=True, attrs=[
+                        ce.Integer(key='PrescaleDivide'),
+                        ce.Integer(key='TopVal'),
+                    ]),
+                ]),
+            ]))
         ]),
         ce.Compound('AvrAdc', key='adc', title='ADC', collapsed=True, attrs=[
             ce.Integer(key='RefSel'),
@@ -131,6 +147,14 @@ def platform_Avr(variant):
             ])
         ]),
     ])
+
+def hard_pwm_choice(**kwargs):
+    return ce.OneOf(title='Hard-PWM driver', disable_collapse=True, choices=[
+        ce.Compound('AvrClockPwm', ident='id_pwm_output', attrs=[
+            oc_unit_choice(key='oc_unit'),
+            pin_choice(key='OutputPin', title='Output pin (determined by OC unit)'),
+        ]),
+    ], **kwargs)
 
 def editor():
     return ce.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, ident='id_editor', attrs=[
@@ -332,7 +356,10 @@ def editor():
                         ce.Boolean(key='OutputInvert', title='Output logic', false_title='Normal (On=High)', true_title='Inverted (On=Low)'),
                         ce.Float(key='PulseInterval', title='PWM pulse duration'),
                         interrupt_timer_choice(key='Timer', title='Soft PWM Timer')
-                    ])
+                    ]),
+                    ce.Compound('HardPwm', attrs=[
+                        hard_pwm_choice(key='HardPwmDriver'),
+                    ]),
                 ])
             ])),
             ce.OneOf(key='platform', title='Platform', disable_collapse=True, processing_order=-1, choices=[

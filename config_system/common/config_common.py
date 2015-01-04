@@ -68,3 +68,9 @@ def escape_string_for_nix(data):
 class FunctionDefinedClass(object):
     def __init__(self, function):
         function(self)
+
+def assign_func(where, key):
+    def wrap(func):
+        setattr(where, key, func)
+        return func
+    return wrap

@@ -717,7 +717,34 @@
               "value": "TC5_C"
             }
           ],
-          "primary_timer": "TC3"
+          "primary_timer": "TC3",
+          "timers": [
+            {
+              "Mode": {
+                "PrescaleDivide": 1024,
+                "_compoundName": "AvrClockTcMode8BitPwm"
+              },
+              "Timer": "TC0",
+              "_compoundName": "Timer"
+            },
+            {
+              "Mode": {
+                "PrescaleDivide": 1024,
+                "_compoundName": "AvrClockTcMode8BitPwm"
+              },
+              "Timer": "TC2",
+              "_compoundName": "Timer"
+            },
+            {
+              "Mode": {
+                "PrescaleDivide": 64,
+                "TopVal": 4095,
+                "_compoundName": "AvrClockTcMode16BitPwm"
+              },
+              "Timer": "TC1",
+              "_compoundName": "Timer"
+            }
+          ]
         },
         "pins": {
           "_compoundName": "AvrPins",
@@ -845,6 +872,66 @@
           },
           "Name": "D8 (bed)",
           "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "HardPwmDriver": {
+              "OutputPin": "MegaPin9",
+              "_compoundName": "AvrClockPwm",
+              "lalal": {
+                "value": "TC2_B"
+              },
+              "oc_unit": "TC2_B"
+            },
+            "_compoundName": "HardPwm"
+          },
+          "Name": "D9 (extrider 2)",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "HardPwmDriver": {
+              "OutputPin": "MegaPin10",
+              "_compoundName": "AvrClockPwm",
+              "lalal": {
+                "value": "TC2_A"
+              },
+              "oc_unit": "TC2_A"
+            },
+            "_compoundName": "HardPwm"
+          },
+          "Name": "D10 (extruder 1)",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "HardPwmDriver": {
+              "OutputPin": "MegaPin4",
+              "_compoundName": "AvrClockPwm",
+              "lalal": {
+                "value": "TC0_B"
+              },
+              "oc_unit": "TC0_B"
+            },
+            "_compoundName": "HardPwm"
+          },
+          "Name": "D4",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "HardPwmDriver": {
+              "OutputPin": "MegaPin11",
+              "_compoundName": "AvrClockPwm",
+              "lalal": {
+                "value": "TC1_A"
+              },
+              "oc_unit": "TC1_A"
+            },
+            "_compoundName": "HardPwm"
+          },
+          "Name": "D11",
+          "_compoundName": "pwm_output"
         }
       ],
       "sdcard": {
@@ -970,7 +1057,18 @@
               "value": "TC3_B"
             }
           ],
-          "primary_timer": "TC3"
+          "primary_timer": "TC3",
+          "timers": [
+            {
+              "Mode": {
+                "PrescaleDivide": 64,
+                "TopVal": 4095,
+                "_compoundName": "AvrClockTcMode16BitPwm"
+              },
+              "Timer": "TC1",
+              "_compoundName": "Timer"
+            }
+          ]
         },
         "pins": {
           "_compoundName": "AvrPins",
@@ -1072,6 +1170,36 @@
             "_compoundName": "SoftPwm"
           },
           "Name": "fan",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "HardPwmDriver": {
+              "OutputPin": "AvrPin<AvrPortD,4>",
+              "_compoundName": "AvrClockPwm",
+              "lalal": {
+                "value": "TC1_B"
+              },
+              "oc_unit": "TC1_B"
+            },
+            "_compoundName": "HardPwm"
+          },
+          "Name": "bed",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "HardPwmDriver": {
+              "OutputPin": "AvrPin<AvrPortD,5>",
+              "_compoundName": "AvrClockPwm",
+              "lalal": {
+                "value": "TC1_A"
+              },
+              "oc_unit": "TC1_A"
+            },
+            "_compoundName": "HardPwm"
+          },
+          "Name": "hot end",
           "_compoundName": "pwm_output"
         }
       ],
@@ -1598,7 +1726,15 @@
         "LedBlinkInterval": 0.5,
         "_compoundName": "advanced"
       },
-      "fans": [],
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "D4"
+        }
+      ],
       "heaters": [
         {
           "WaitMCommand": 190,
@@ -1633,6 +1769,40 @@
             "_compoundName": "observer"
           },
           "pwm_output": "D8 (bed)"
+        },
+        {
+          "WaitMCommand": 109,
+          "MaxSafeTemp": 280,
+          "Name": "T",
+          "SetMCommand": 104,
+          "ThermistorInput": "T0",
+          "MinSafeTemp": 15,
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.2,
+            "PidD": 0.17,
+            "PidDHistory": 0.7,
+            "PidI": 0.0006,
+            "PidIStateMax": 0.6,
+            "PidIStateMin": 0,
+            "PidP": 0.047,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3960,
+            "MaxTemp": 300,
+            "MinTemp": 10,
+            "R0": 100000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 3,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "D10 (extruder 1)"
         }
       ],
       "name": "RAMPS 1.3 example",
@@ -1755,7 +1925,76 @@
           "pwm_output": "fan"
         }
       ],
-      "heaters": [],
+      "heaters": [
+        {
+          "WaitMCommand": 109,
+          "MaxSafeTemp": 280,
+          "Name": "T",
+          "SetMCommand": 104,
+          "ThermistorInput": "etemp",
+          "MinSafeTemp": 15,
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.2,
+            "PidD": 0.17,
+            "PidDHistory": 0.7,
+            "PidI": 0.0006,
+            "PidIStateMax": 0.6,
+            "PidIStateMin": 0,
+            "PidP": 0.047,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3960,
+            "MaxTemp": 300,
+            "MinTemp": 10,
+            "R0": 100000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 3,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "hot end"
+        },
+        {
+          "WaitMCommand": 190,
+          "MaxSafeTemp": 120,
+          "Name": "B",
+          "SetMCommand": 140,
+          "ThermistorInput": "btemp",
+          "MinSafeTemp": 15,
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.2,
+            "PidD": 2.5,
+            "PidDHistory": 0.7,
+            "PidI": 0.012,
+            "PidIStateMax": 1,
+            "PidIStateMin": 0,
+            "PidP": 1,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3480,
+            "MaxTemp": 150,
+            "MinTemp": 10,
+            "R0": 10000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 1.5,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "bed"
+        }
+      ],
       "name": "Melzi example",
       "probe": {
         "_compoundName": "NoProbe"
