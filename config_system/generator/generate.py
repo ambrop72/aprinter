@@ -212,10 +212,9 @@ def setup_platform(gen, config, key):
 class CommonClock(object):
     def __init__ (self, gen, config, clockdef_func):
         self._gen = gen
+        self._config = config
         self._clockdef = config_common.FunctionDefinedClass(clockdef_func)
         gen.add_aprinter_include(self._clockdef.INCLUDE)
-        gen.add_subst('CLOCK_CONFIG', self._clockdef.CLOCK_CONFIG(config))
-        gen.add_subst('CLOCK', self._clockdef.CLOCK_EXPR)
         self._timers = self._load_timers(config)
         self._interrupt_timers = []
         self._primary_timer = self.check_timer(config.get_string('primary_timer'), config.key_path('primary_timer'))
@@ -263,16 +262,15 @@ class CommonClock(object):
         temp_timers = set(self._timers)
         temp_timers.remove(self._primary_timer)
         ordered_timers = [self._primary_timer] + sorted(temp_timers)
-        
         timers_expr = TemplateList([self._timers[timer_id] for timer_id in ordered_timers])
-        self._gen.add_subst('CLOCK_TCS', 'using ClockTcsList = {};'.format(timers_expr.build(0)))
+        
+        self._gen.add_subst('CLOCK', self._clockdef.CLOCK_EXPR(self._config, timers_expr), indent=0)
 
 def At91Sam3xClockDef(x):
     x.INCLUDE = 'system/At91Sam3xClock.h'
-    x.CLOCK_EXPR = 'At91Sam3xClock<MyContext, Program, clock_timer_prescaler, ClockTcsList>'
+    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('At91Sam3xClock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])([A-C])\\Z'
-    x.CLOCK_CONFIG = lambda config: 'static int const clock_timer_prescaler = {};'.format(config.get_int_constant('prescaler'))
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3xClockInterruptTimerService<At91Sam3xClockTC{}, At91Sam3xClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC{}, At91Sam3xClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'At91Sam3xClockTC{}'.format(tc)
@@ -280,10 +278,9 @@ def At91Sam3xClockDef(x):
 
 def Mk20ClockDef(x):
     x.INCLUDE = 'system/Mk20Clock.h'
-    x.CLOCK_EXPR = 'Mk20Clock<MyContext, Program, clock_timer_prescaler, ClockTcsList>'
+    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Mk20Clock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
     x.TIMER_RE = '\\AFTM([0-9])\\Z'
     x.CHANNEL_RE = '\\AFTM([0-9])_([0-9])\\Z'
-    x.CLOCK_CONFIG = lambda config: 'static int const clock_timer_prescaler = {};'.format(config.get_int_constant('prescaler'))
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Mk20ClockInterruptTimerService<Mk20ClockFTM{}, {}{}>'.format(it['tc'], it['channel'], clearance_extra)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM{}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'Mk20ClockFtmSpec<Mk20ClockFTM{}>'.format(tc)
@@ -291,10 +288,9 @@ def Mk20ClockDef(x):
 
 def AvrClockDef(x):
     x.INCLUDE = 'system/AvrClock.h'
-    x.CLOCK_EXPR = 'AvrClock<MyContext, Program, ClockPrescaleDivide, ClockTcsList>'
+    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('AvrClock', ['MyContext', 'Program', config.get_int_constant('PrescaleDivide'), timers])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])_([A-Z])\\Z'
-    x.CLOCK_CONFIG = lambda config: 'static const int ClockPrescaleDivide = {};'.format(config.get_int_constant('PrescaleDivide'))
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'AvrClockInterruptTimerService<AvrClockTcChannel{}{}{}>'.format(it['tc'], it['channel'], clearance_extra)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'AvrClockTcSpec<AvrClockTc{}>'.format(tc)
@@ -420,8 +416,8 @@ def setup_adc (gen, config, key):
         gen.add_isr('AMBRO_AT91SAM_ADC_GLOBAL(MyAdc, MyContext())')
         
         return {
-            'value_func': lambda: TemplateExpr('At91SamAdc', [
-                'MyContext', 'Program', 'AdcPins',
+            'value_func': lambda pins: TemplateExpr('At91SamAdc', [
+                'MyContext', 'Program', pins,
                 TemplateExpr('At91SamAdcParams', [
                     'AdcFreq',
                     adc_config.get_int('startup'),
@@ -441,7 +437,7 @@ def setup_adc (gen, config, key):
         gen.add_isr('AMBRO_MK20_ADC_ISRS(MyAdc, MyContext())')
         
         return {
-            'value_func': lambda: TemplateExpr('Mk20Adc', ['MyContext', 'Program', 'AdcPins', 'AdcADiv']),
+            'value_func': lambda pins: TemplateExpr('Mk20Adc', ['MyContext', 'Program', pins, 'AdcADiv']),
             'pin_func': lambda pin: pin
         }
     
@@ -453,7 +449,7 @@ def setup_adc (gen, config, key):
         gen.add_isr('AMBRO_AVR_ADC_ISRS(MyAdc, MyContext())')
         
         return {
-            'value_func': lambda: TemplateExpr('AvrAdc', ['MyContext', 'Program', 'AdcPins', 'AdcRefSel', 'AdcPrescaler']),
+            'value_func': lambda pins: TemplateExpr('AvrAdc', ['MyContext', 'Program', pins, 'AdcRefSel', 'AdcPrescaler']),
             'pin_func': lambda pin: pin
         }
     
@@ -463,8 +459,8 @@ def setup_adc (gen, config, key):
     
     def finalize():
         adc_pins = gen.get_singleton_object('adc_pins')
-        gen.add_subst('Adc', result['value_func'](), indent=0)
-        gen.add_subst('AdcPins', 'using AdcPins = {};'.format(TemplateList([result['pin_func'](pin) for pin in adc_pins]).build(0)))
+        pins_expr = TemplateList([result['pin_func'](pin) for pin in adc_pins])
+        gen.add_subst('Adc', result['value_func'](pins_expr), indent=0)
     
     gen.add_finalize_action(finalize)
 

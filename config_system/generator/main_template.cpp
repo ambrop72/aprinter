@@ -110,11 +110,6 @@ using PrinterParams = PrinterMainParams<
     $${Fans}
 >;
 
-$${AdcPins}
-
-$${CLOCK_CONFIG}
-$${CLOCK_TCS}
-
 struct MyContext;
 struct MyLoopExtraDelay;
 struct Program;
