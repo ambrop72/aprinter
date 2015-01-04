@@ -406,7 +406,7 @@ def setup_watchdog (gen, config, key, user):
         gen.add_isr('AMBRO_AVR_WATCHDOG_GLOBAL')
         return TemplateExpr('AvrWatchdogService', [wdto])
     
-    gen.add_subst('Watchdog', config.do_selection(key, watchdog_sel))
+    return config.do_selection(key, watchdog_sel)
 
 def setup_adc (gen, config, key):
     adc_sel = config_common.Selection()
@@ -692,7 +692,7 @@ def generate(config_root_data, cfg_name, main_template):
                 for platform in board_data.enter_config('platform'):
                     setup_clock(gen, platform, 'clock')
                     setup_pins(gen, platform, 'pins')
-                    setup_watchdog(gen, platform, 'watchdog', 'MyPrinter::GetWatchdog')
+                    watchdog_expr = setup_watchdog(gen, platform, 'watchdog', 'MyPrinter::GetWatchdog')
                     setup_adc(gen, platform, 'adc')
                 
                 for helper_name in board_data.get_list(config_reader.ConfigTypeString(), 'board_helper_includes', max_count=20):
@@ -705,25 +705,21 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.register_objects('analog_input', board_data, 'analog_inputs')
                 gen.register_objects('pwm_output', board_data, 'pwm_outputs')
                 
-                gen.add_subst('LedPin', get_pin(gen, board_data, 'LedPin'))
-                gen.add_subst('EventChannelTimer', use_interrupt_timer(gen, board_data, 'EventChannelTimer', user='MyPrinter::GetEventChannelTimer', clearance='EventChannelTimerClearance'))
+                led_pin_expr = get_pin(gen, board_data, 'LedPin')
+                event_channel_timer_expr = use_interrupt_timer(gen, board_data, 'EventChannelTimer', user='MyPrinter::GetEventChannelTimer', clearance='EventChannelTimerClearance')
                 
                 for performance in board_data.enter_config('performance'):
                     gen.add_typedef('TheAxisDriverPrecisionParams', performance.get_identifier('AxisDriverPrecisionParams'))
                     gen.add_float_constant('EventChannelTimerClearance', performance.get_float('EventChannelTimerClearance'))
-                    gen.add_float_config('MaxStepsPerCycle', performance.get_float('MaxStepsPerCycle'))
-                    gen.add_subst('StepperSegmentBufferSize', performance.get_int_constant('StepperSegmentBufferSize'))
-                    gen.add_subst('EventChannelBufferSize', performance.get_int_constant('EventChannelBufferSize'))
-                    gen.add_subst('LookaheadBufferSize', performance.get_int_constant('LookaheadBufferSize'))
-                    gen.add_subst('LookaheadCommitCount', performance.get_int_constant('LookaheadCommitCount'))
-                    gen.add_subst('FpType', performance.get_identifier('FpType', lambda x: x in ('float', 'double')))
                 
                 for serial in board_data.enter_config('serial'):
-                    gen.add_subst('SerialBaudRate', serial.get_int_constant('BaudRate'))
-                    gen.add_subst('SerialRecvBufferSizeExp', serial.get_int_constant('RecvBufferSizeExp'))
-                    gen.add_subst('SerialSendBufferSizeExp', serial.get_int_constant('SendBufferSizeExp'))
-                    gen.add_subst('SerialGcodeMaxParts', serial.get_int_constant('GcodeMaxParts'))
-                    gen.add_subst('SerialService', use_serial(gen, serial, 'Service', 'MyPrinter::GetSerial'))
+                    serial_expr = TemplateExpr('PrinterMainSerialParams', [
+                        'UINT32_C({})'.format(serial.get_int_constant('BaudRate')),
+                        serial.get_int_constant('RecvBufferSizeExp'),
+                        serial.get_int_constant('SendBufferSizeExp'),
+                        TemplateExpr('GcodeParserParams', [serial.get_int_constant('GcodeMaxParts')]),
+                        use_serial(gen, serial, 'Service', 'MyPrinter::GetSerial'),
+                    ])
                 
                 sdcard_sel = config_common.Selection()
                 
@@ -750,14 +746,12 @@ def generate(config_root_data, cfg_name, main_template):
                         sdcard.get_int('MaxCommandSize'),
                     ])
                 
-                gen.add_subst('SdCard', board_data.do_selection('sdcard', sdcard_sel), indent=1)
+                sdcard_expr = board_data.do_selection('sdcard', sdcard_sel)
                 
-                gen.add_subst('ConfigManager', use_config_manager(gen, board_data, 'config_manager', 'MyPrinter::GetConfigManager'))
+                config_manager_expr = use_config_manager(gen, board_data, 'config_manager', 'MyPrinter::GetConfigManager')
             
             gen.add_aprinter_include('printer/PrinterMain.h')
-            gen.add_float_constant('SpeedLimitMultiply', 1.0 / 60.0)
             gen.add_float_constant('FanSpeedMultiply', 1.0 / 255.0)
-            gen.add_float_config('InactiveTime', config.get_float('InactiveTime'))
             
             for advanced in config.enter_config('advanced'):
                 gen.add_float_constant('LedBlinkInterval', advanced.get_float('LedBlinkInterval'))
@@ -804,7 +798,7 @@ def generate(config_root_data, cfg_name, main_template):
                     TemplateList(['MakeTypeList<ProbeP{}X, ProbeP{}Y>'.format(i+1, i+1) for i in range(len(point_list))])
                 ])
             
-            gen.add_subst('Probe', config.do_selection('probe', probe_sel), indent=1)
+            probe_expr = config.do_selection('probe', probe_sel)
             
             def stepper_cb(stepper, stepper_index):
                 name = stepper.get_id_char('Name')
@@ -860,7 +854,7 @@ def generate(config_root_data, cfg_name, main_template):
                     'PrinterMainNoMicroStepParams'
                 ])
             
-            gen.add_subst('Steppers', config.do_list('steppers', stepper_cb, max_count=15), indent=1)
+            steppers_expr = config.do_list('steppers', stepper_cb, max_count=15)
             
             def heater_cb(heater, heater_index):
                 name = heater.get_id_char('Name')
@@ -909,7 +903,7 @@ def generate(config_root_data, cfg_name, main_template):
                     use_pwm_output(gen, heater, 'pwm_output', 'MyPrinter::GetHeaterPwm<{}>'.format(heater_index), '{}Heater'.format(name))
                 ])
             
-            gen.add_subst('Heaters', config.do_list('heaters', heater_cb, max_count=15), indent=1)
+            heaters_expr = config.do_list('heaters', heater_cb, max_count=15)
             
             def fan_cb(fan, fan_index):
                 name = fan.get_id_char('Name')
@@ -921,9 +915,35 @@ def generate(config_root_data, cfg_name, main_template):
                     use_pwm_output(gen, fan, 'pwm_output', 'MyPrinter::GetFanPwm<{}>'.format(fan_index), '{}Fan'.format(name))
                 ])
             
-            gen.add_subst('Fans', config.do_list('fans', fan_cb, max_count=15), indent=1)
+            fans_expr = config.do_list('fans', fan_cb, max_count=15)
             
-            gen.add_subst('Printer', TemplateExpr('PrinterMain', ['MyContext', 'Program', 'PrinterParams']), indent=0)
+            printer_params = TemplateExpr('PrinterMainParams', [
+                serial_expr,
+                led_pin_expr,
+                'LedBlinkInterval',
+                gen.add_float_config('InactiveTime', config.get_float('InactiveTime')),
+                gen.add_float_constant('SpeedLimitMultiply', 1.0 / 60.0),
+                gen.add_float_config('MaxStepsPerCycle', performance.get_float('MaxStepsPerCycle')),
+                performance.get_int_constant('StepperSegmentBufferSize'),
+                performance.get_int_constant('EventChannelBufferSize'),
+                performance.get_int_constant('LookaheadBufferSize'),
+                performance.get_int_constant('LookaheadCommitCount'),
+                'ForceTimeout',
+                performance.get_identifier('FpType', lambda x: x in ('float', 'double')),
+                event_channel_timer_expr,
+                watchdog_expr,
+                sdcard_expr,
+                probe_expr,
+                'PrinterMainNoCurrentParams',
+                config_manager_expr,
+                'ConfigList',
+                steppers_expr,
+                'PrinterMainNoTransformParams',
+                heaters_expr,
+                fans_expr,
+            ])
+            
+            gen.add_subst('Printer', TemplateExpr('PrinterMain', ['MyContext', 'Program', printer_params]), indent=0)
     
     gen.finalize()
     

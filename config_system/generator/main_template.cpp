@@ -54,57 +54,6 @@ APRINTER_CONFIG_START
 $${ConfigOptions}
 APRINTER_CONFIG_END
 
-using PrinterParams = PrinterMainParams<
-    /*
-     * Common parameters.
-     */
-    PrinterMainSerialParams<
-        UINT32_C($${SerialBaudRate}), // BaudRate,
-        $${SerialRecvBufferSizeExp}, // RecvBufferSizeExp
-        $${SerialSendBufferSizeExp}, // SendBufferSizeExp
-        GcodeParserParams<$${SerialGcodeMaxParts}>, // ReceiveBufferSizeExp
-        $${SerialService}
-    >,
-    $${LedPin}, // LedPin
-    LedBlinkInterval, // LedBlinkInterval
-    InactiveTime,
-    SpeedLimitMultiply, // SpeedLimitMultiply
-    MaxStepsPerCycle, // MaxStepsPerCycle
-    $${StepperSegmentBufferSize}, // StepperSegmentBufferSize
-    $${EventChannelBufferSize}, // EventChannelBufferSize
-    $${LookaheadBufferSize}, // LookaheadBufferSize
-    $${LookaheadCommitCount}, // LookaheadCommitCount
-    ForceTimeout, // ForceTimeout
-    $${FpType}, // FpType
-    $${EventChannelTimer},
-    $${Watchdog},
-    $${SdCard},
-    $${Probe},
-    PrinterMainNoCurrentParams,
-    $${ConfigManager},
-    ConfigList,
-    
-    /*
-     * Axes.
-     */
-    $${Steppers},
-    
-    /*
-     * Transform and virtual axes.
-     */
-    PrinterMainNoTransformParams,
-    
-    /*
-     * Heaters.
-     */
-    $${Heaters},
-    
-    /*
-     * Fans.
-     */
-    $${Fans}
->;
-
 struct MyContext;
 struct MyLoopExtraDelay;
 struct Program;
