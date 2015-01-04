@@ -41,6 +41,10 @@ class GenState(object):
         self._constants.append({'type':'using', 'name':name, 'value':'AMBRO_WRAP_DOUBLE({:.17E})'.format(value)})
         return name
     
+    def add_typedef (self, name, value):
+        self._constants.append({'type':'using', 'name':name, 'value':value})
+        return name
+    
     def add_int_constant (self, dtype, name, value):
         m = re.match('\\A(u?)int(8|16|32|64)\\Z', dtype)
         assert m
@@ -705,7 +709,7 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.add_subst('EventChannelTimer', use_interrupt_timer(gen, board_data, 'EventChannelTimer', user='MyPrinter::GetEventChannelTimer', clearance='EventChannelTimerClearance'))
                 
                 for performance in board_data.enter_config('performance'):
-                    gen.add_subst('AxisDriverPrecisionParams', performance.get_identifier('AxisDriverPrecisionParams'))
+                    gen.add_typedef('TheAxisDriverPrecisionParams', performance.get_identifier('AxisDriverPrecisionParams'))
                     gen.add_float_constant('EventChannelTimerClearance', performance.get_float('EventChannelTimerClearance'))
                     gen.add_float_config('MaxStepsPerCycle', performance.get_float('MaxStepsPerCycle'))
                     gen.add_subst('StepperSegmentBufferSize', performance.get_int_constant('StepperSegmentBufferSize'))
@@ -750,6 +754,9 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 gen.add_subst('ConfigManager', use_config_manager(gen, board_data, 'config_manager', 'MyPrinter::GetConfigManager'))
             
+            gen.add_aprinter_include('printer/PrinterMain.h')
+            gen.add_float_constant('SpeedLimitMultiply', 1.0 / 60.0)
+            gen.add_float_constant('FanSpeedMultiply', 1.0 / 255.0)
             gen.add_float_config('InactiveTime', config.get_float('InactiveTime'))
             
             for advanced in config.enter_config('advanced'):
@@ -915,6 +922,8 @@ def generate(config_root_data, cfg_name, main_template):
                 ])
             
             gen.add_subst('Fans', config.do_list('fans', fan_cb, max_count=15), indent=1)
+            
+            gen.add_subst('Printer', TemplateExpr('PrinterMain', ['MyContext', 'Program', 'PrinterParams']), indent=0)
     
     gen.finalize()
     

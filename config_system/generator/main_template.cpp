@@ -44,14 +44,9 @@ static void emergency (void);
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/InterruptLock.h>
-#include <aprinter/printer/PrinterMain.h>
 
 $${AprinterIncludes}
 using namespace APrinter;
-
-using SpeedLimitMultiply = AMBRO_WRAP_DOUBLE(1.0 / 60.0);
-using FanSpeedMultiply = AMBRO_WRAP_DOUBLE(1.0 / 255.0);
-using TheAxisDriverPrecisionParams = $${AxisDriverPrecisionParams};
 
 $${EXTRA_CONSTANTS}
 APRINTER_CONFIG_START
@@ -124,7 +119,7 @@ using MyPins = $${Pins};
 
 using MyAdc = $${Adc};
 
-using MyPrinter = PrinterMain<MyContext, Program, PrinterParams>;
+using MyPrinter = $${Printer};
 
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
