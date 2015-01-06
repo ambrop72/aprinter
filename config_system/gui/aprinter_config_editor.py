@@ -185,7 +185,7 @@ def editor():
                 ce.Float(key='ForceTimeout', title='Force motion timeout [s]', default=0.1),
             ]),
             ce.Array(key='steppers', title='Steppers', disable_collapse=True, elem=ce.Compound('stepper', title='Stepper', title_key='Name', collapsed=True, ident='id_configuration_stepper', attrs=[
-                ce.String(key='Name', title='Name (cartesian X/Y/Z, extruders E/U/V, delta A/B/C)', default='X'),
+                ce.String(key='Name', title='Name (cartesian X/Y/Z, extruders E/U/V, delta A/B/C)'),
                 ce.Reference(key='stepper_port', title='Stepper port', ref_array='id_configuration.board_data', ref_array_descend=['stepper_ports'], ref_id_key='Name', ref_name_key='Name'),
                 ce.Boolean(key='InvertDir', title='Invert direction', false_title='No (high StepPin is positive motion)', true_title='Yes (high StepPin is negative motion)', default=False),
                 ce.Float(key='StepsPerUnit', title='Steps per unit [1/mm]', default=80),
@@ -212,28 +212,28 @@ def editor():
                 ])
             ])),
             ce.Array(key='heaters', title='Heaters', disable_collapse=True, elem=ce.Compound('heater', title='Heater', title_key='Name', collapsed=True, ident='id_configuration_heater', attrs=[
-                ce.String(key='Name', title='Name (one char, T=extruder, B=bed'),
+                ce.String(key='Name', title='Name (single character, T=extruder, B=bed)'),
                 pwm_output_choice(key='pwm_output', title='PWM output'),
                 ce.Integer(key='SetMCommand', title='Set command M-number (extruder 104, bed 140)', default=104),
                 ce.Integer(key='WaitMCommand', title='Wait command M-number (extruder 109, bed 190)', default=109),
                 analog_input_choice(key='ThermistorInput', title='Thermistor analog input'),
-                ce.Float(key='MinSafeTemp', title='Minimum safe temperature [C]', default=15),
-                ce.Float(key='MaxSafeTemp', title='Maximum safe temperature [C]', default=280),
+                ce.Float(key='MinSafeTemp', title='Turn off if temperature is below [C]', default=15),
+                ce.Float(key='MaxSafeTemp', title='Turn off if temperature is above [C]', default=280),
                 ce.Compound('conversion', key='conversion', title='Conversion parameters', collapsed=True, attrs=[
-                    ce.Float(key='ResistorR', title='Resistor resistance [ohm]', default=4700),
+                    ce.Float(key='ResistorR', title='Series-resistor resistance [ohm]', default=4700),
                     ce.Float(key='R0', title='Thermistor resistance @25C [ohm]', default=100000),
                     ce.Float(key='Beta', title='Thermistor beta value [K]', default=3960),
-                    ce.Float(key='MinTemp', title='Minimum temperature [C]', default=10),
-                    ce.Float(key='MaxTemp', title='Maximum temperature [C]', default=300)
+                    ce.Float(key='MinTemp', title='Reliable measurements are above [C]', default=10),
+                    ce.Float(key='MaxTemp', title='Reliable measurements are below [C]', default=300)
                 ]),
-                ce.Compound('control', key='control', title='Control parameters', collapsed=True, attrs=[
-                    ce.Float(key='ControlInterval', title='Control interval [s]', default=0.2),
-                    ce.Float(key='PidP', title='PID proportional factor [1/K]', default=0.05),
-                    ce.Float(key='PidI', title='PID integral factor [1/(Ks)]', default=0.0005),
-                    ce.Float(key='PidD', title='PID derivative factor [s/K]', default=0.2),
-                    ce.Float(key='PidIStateMin', title='PID integral state min [1]', default=0.0),
-                    ce.Float(key='PidIStateMax', title='PID integral state max [1]', default=0.6),
-                    ce.Float(key='PidDHistory', title='PID derivative smoothing factor [1]', default=0.7)
+                ce.Compound('control', key='control', title='PID control parameters', collapsed=True, attrs=[
+                    ce.Float(key='ControlInterval', title='Invoke the PID control algorithm every [s]', default=0.2),
+                    ce.Float(key='PidP', title='Proportional factor [1/K]', default=0.05),
+                    ce.Float(key='PidI', title='Integral factor [1/(Ks)]', default=0.0005),
+                    ce.Float(key='PidD', title='Derivative factor [s/K]', default=0.2),
+                    ce.Float(key='PidIStateMin', title='Lower bound of the integral value [1]', default=0.0),
+                    ce.Float(key='PidIStateMax', title='Upper bound of the integral value [1]', default=0.6),
+                    ce.Float(key='PidDHistory', title='Smoothing factor for derivative estimation [1]', default=0.7)
                 ]),
                 ce.Compound('observer', key='observer', title='Temperature-reached semantics', collapsed=True, attrs=[
                     ce.Float(key='ObserverTolerance', title='The temperature must be within [K]', default=3),
@@ -242,7 +242,7 @@ def editor():
                 ])
             ])),
             ce.Array(key='fans', title='Fans', disable_collapse=True, elem=ce.Compound('fan', title='Fan', title_key='Name', collapsed=True, ident='id_configuration_fan', attrs=[
-                ce.String(key='Name', title='Name'),
+                ce.String(key='Name (single character, e.g. the same as corresponding extruder)', title='Name'),
                 pwm_output_choice(key='pwm_output', title='PWM output'),
                 ce.Integer(key='SetMCommand', title='Set-command M-number (106 for first fan)'),
                 ce.Integer(key='OffMCommand', title='Off-command M-number (107 for first fan)'),
@@ -250,7 +250,7 @@ def editor():
             ce.OneOf(key='probe', title='Bed probing', collapsed=True, choices=[
                 ce.Compound('NoProbe', title='Disabled', attrs=[]),
                 ce.Compound('Probe', title='Enabled', ident='id_configuration_probe_probe', attrs=[
-                    digital_input_choice(key='ProbePin', title='Probe pin'),
+                    digital_input_choice(key='ProbePin', title='Probe switch pin'),
                     ce.Boolean(key='InvertInput', title='Invert switch input', false_title='No (high signal is pressed)', true_title='Yes (low signal is pressed)'),
                     ce.Float(key='OffsetX', title='X-offset of probe from logical position [mm]', default=0),
                     ce.Float(key='OffsetY', title='Y-offset of probe from logical position [mm]', default=0),
