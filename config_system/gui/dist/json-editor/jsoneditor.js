@@ -2749,7 +2749,7 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
       }
       // Otherwise, set the value to the default
       else {
-        setActions.push({name: i, value: editor.getDefault()});
+        setActions.push({name: i});
       }
     });
 
@@ -2785,8 +2785,9 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
     $each(setActions, function(ind, action) {
       var i = action.name;
       self.addObjectProperty(i);
-      if (self.editors[i] && action.hasOwnProperty('value')) {
-        self.editors[i].setValue(action.value);
+      if (self.editors[i]) {
+        var set_value = action.hasOwnProperty('value') ? action.value : self.editors[i].getDefault();
+        self.editors[i].setValue(set_value);
       }
     });
     
