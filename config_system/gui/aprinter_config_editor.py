@@ -1,10 +1,5 @@
 import configema as ce
 
-def simple_list(elem_title, value_title, **kwargs):
-    return ce.Array(table=True, elem=ce.Compound('elem', title=elem_title, attrs=[
-        ce.String(key='value', title=value_title)
-    ]), **kwargs)
-
 def oc_unit_choice(**kwargs):
     return ce.Reference(ref_array='id_board.platform', ref_array_descend=['clock', 'avail_oc_units'], ref_id_key='value', ref_name_key='value', title='Output compare unit', deref_key='lalal', **kwargs)
 
