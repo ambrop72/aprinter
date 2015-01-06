@@ -51,6 +51,7 @@ class ConfigBase (object):
         self.enum = _kwarg_maybe('enum', kwargs)
         self.no_header = _kwarg_maybe('no_header', kwargs, False)
         self.processing_order = _kwarg_maybe('processing_order', kwargs)
+        self.default = _kwarg_maybe('default', kwargs)
         self.kwargs = kwargs
     
     def _json_schema (self):
@@ -85,6 +86,9 @@ class ConfigBase (object):
             ({
                 'enum': self.enum
             } if self.enum is not None else {}),
+            ({
+                'default': self.default
+            } if self.default is not None else {}),
             self._json_extra()
         )
     
