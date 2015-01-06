@@ -564,9 +564,9 @@ A web service for graphical configuration and compilation is in development.
 It can be built and started locally as follows:
 
 ```
-nix-build nix/ -A aprinterPrivateService -o ~/aprinter-service
+nix-build nix/ -A aprinterService -o ~/aprinter-service
 mkdir ~/aprinter-service-temp
-~/aprinter-service/bin/aprinter-private-service
+~/aprinter-service/bin/aprinter-service
 ```
 
 Then navigate your browser to `http://127.0.0.1:4000/`. Only Chrome is tested.

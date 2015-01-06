@@ -6,7 +6,7 @@
 , withBuildOutput ? true
 }:
 let
-    lighttpd_config = writeText "aprinter-private-service-lighttpd.cfg" ''
+    lighttpd_config = writeText "aprinter-service-lighttpd.cfg" ''
         server.modules += ("mod_proxy")
         
         server.document-root = "${aprinterSource}/config_system/gui/dist" 
@@ -32,7 +32,7 @@ let
         }
     '';
     
-    ncd_script = writeText "aprinter-private-service.ncd" ''
+    ncd_script = writeText "aprinter-service.ncd" ''
         include "${aprinterSource}/config_system/service/aprinter_compile_service.ncdi"
         
         process main {
@@ -104,7 +104,7 @@ let
     '';
 
 in
-writeScriptBin "aprinter-private-service" ''
+writeScriptBin "aprinter-service" ''
     #!${bash}/bin/bash
     exec ${ncd}/bin/badvpn-ncd --loglevel notice ${ncd_script}
 ''

@@ -86,7 +86,7 @@ rec {
     
     /*
         A simple setup of the configuration/compilation service, as as a single executable.
-        Not for public deployment!
+        Not designed for public deployment!
     */
-    aprinterPrivateService = pkgs.callPackage ./private_service.nix { inherit aprinterSource ncd; };
+    aprinterService = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
 }
