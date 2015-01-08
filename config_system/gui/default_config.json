@@ -126,7 +126,7 @@
           "_compoundName": "At91SamWatchdog"
         }
       },
-      "identifier": "radds",
+      "name": "RADDS",
       "_compoundName": "board",
       "analog_inputs": [
         {
@@ -219,7 +219,6 @@
         }
       ],
       "LedPin": "DuePin37",
-      "name": "RADDS",
       "output_type": "bin",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
@@ -533,7 +532,7 @@
           "_compoundName": "Mk20Watchdog"
         }
       },
-      "identifier": "teensy3",
+      "name": "Teensy 3",
       "_compoundName": "board",
       "analog_inputs": [
         {
@@ -580,7 +579,6 @@
         }
       ],
       "LedPin": "TeensyPin13",
-      "name": "Teensy 3",
       "output_type": "hex",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
@@ -801,7 +799,7 @@
           "_compoundName": "AvrWatchdog"
         }
       },
-      "identifier": "ramps13",
+      "name": "RAMPS 1.3",
       "_compoundName": "board",
       "analog_inputs": [
         {
@@ -875,7 +873,6 @@
         }
       ],
       "LedPin": "MegaPin13",
-      "name": "RAMPS 1.3",
       "output_type": "hex",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
@@ -1125,7 +1122,7 @@
           "_compoundName": "AvrWatchdog"
         }
       },
-      "identifier": "melzi",
+      "name": "Melzi",
       "_compoundName": "board",
       "analog_inputs": [
         {
@@ -1174,7 +1171,6 @@
         }
       ],
       "LedPin": "AvrPin<AvrPortA,4>",
-      "name": "Melzi",
       "output_type": "hex",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
@@ -1318,7 +1314,7 @@
   ],
   "configurations": [
     {
-      "board_id": "radds",
+      "board": "RADDS",
       "InactiveTime": 480,
       "_compoundName": "config",
       "advanced": {
@@ -1599,7 +1595,7 @@
       ]
     },
     {
-      "board_id": "teensy3",
+      "board": "Teensy 3",
       "InactiveTime": 480,
       "_compoundName": "config",
       "advanced": {
@@ -1755,7 +1751,7 @@
       ]
     },
     {
-      "board_id": "ramps13",
+      "board": "RAMPS 1.3",
       "InactiveTime": 480,
       "_compoundName": "config",
       "advanced": {
@@ -1945,7 +1941,7 @@
       ]
     },
     {
-      "board_id": "melzi",
+      "board": "Melzi",
       "InactiveTime": 480,
       "_compoundName": "config",
       "advanced": {

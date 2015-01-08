@@ -173,7 +173,7 @@ def editor():
         ce.Reference(key='selected_config', title='Selected configuration (to compile)', ref_array='configurations', ref_id_key='name', ref_name_key='name'),
         ce.Array(key='configurations', title='Configurations', processing_order=-1, elem=ce.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsed=True, attrs=[
             ce.String(key='name', title='Configuration name', default='New Configuration'),
-            ce.Reference(key='board_id', ref_array='boards', ref_id_key='identifier', ref_name_key='name', deref_key='board_data', title='Board', processing_order=-1),
+            ce.Reference(key='board', ref_array='boards', ref_id_key='name', ref_name_key='name', deref_key='board_data', title='Board', processing_order=-1),
             ce.Float(key='InactiveTime', title='Disable steppers after [s]', default=480),
             ce.Compound('advanced', key='advanced', title='Advanced parameters', collapsed=True, attrs=[
                 ce.Float(key='LedBlinkInterval', title='LED blink interval [s]', default=0.5),
@@ -237,7 +237,7 @@ def editor():
                 ])
             ])),
             ce.Array(key='fans', title='Fans', disable_collapse=True, elem=ce.Compound('fan', title='Fan', title_key='Name', collapsed=True, ident='id_configuration_fan', attrs=[
-                ce.String(key='Name (single character, e.g. the same as corresponding extruder)', title='Name'),
+                ce.String(key='Name', title='Name (single character, e.g. the same as corresponding extruder)'),
                 pwm_output_choice(key='pwm_output', title='PWM output'),
                 ce.Integer(key='SetMCommand', title='Set-command M-number (106 for first fan)'),
                 ce.Integer(key='OffMCommand', title='Off-command M-number (107 for first fan)'),
@@ -264,7 +264,6 @@ def editor():
             ])
         ])),
         ce.Array(key='boards', title='Boards', processing_order=-2, elem=ce.Compound('board', title='Board', title_key='name', collapsed=True, ident='id_board', attrs=[
-            ce.String(key='identifier', title='Identifier'),
             ce.String(key='name', title='Name'),
             ce.String(key='board_for_build', title='Board for building (see nix/boards.nix)'),
             ce.String(key='output_type', title='Build output type', enum=['hex', 'bin']),

@@ -716,9 +716,9 @@ def generate(config_root_data, cfg_name, main_template):
             cfg_name = config_root.get_string('selected_config')
         
         for config in config_root.enter_elem_by_id('configurations', 'name', cfg_name):
-            board_id = config.get_string('board_id')
+            board_name = config.get_string('board')
             
-            for board_data in config_root.enter_elem_by_id('boards', 'identifier', board_id):
+            for board_data in config_root.enter_elem_by_id('boards', 'name', board_name):
                 board_for_build = board_data.get_string('board_for_build')
                 if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', board_for_build):
                     board_data.key_path('board_for_build').error('Incorrect format.')
