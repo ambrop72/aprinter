@@ -170,10 +170,10 @@ def hard_pwm_choice(**kwargs):
 def editor():
     return ce.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, ident='id_editor', attrs=[
         ce.Constant(key='version', value=1),
-        ce.Reference(key='selected_config', title='Selected configuration (to compile)', ref_array='configurations', ref_id_key='name', ref_name_key='name'),
+        ce.Reference(key='selected_config', title='Selected configuration (to compile)', ref_array='id_editor.configurations', ref_id_key='name', ref_name_key='name'),
         ce.Array(key='configurations', title='Configurations', processing_order=-1, elem=ce.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsed=True, attrs=[
             ce.String(key='name', title='Configuration name', default='New Configuration'),
-            ce.Reference(key='board', ref_array='boards', ref_id_key='name', ref_name_key='name', deref_key='board_data', title='Board', processing_order=-1),
+            ce.Reference(key='board', ref_array='id_editor.boards', ref_id_key='name', ref_name_key='name', deref_key='board_data', title='Board', processing_order=-1),
             ce.Float(key='InactiveTime', title='Disable steppers after [s]', default=480),
             ce.Compound('advanced', key='advanced', title='Advanced parameters', collapsed=True, attrs=[
                 ce.Float(key='LedBlinkInterval', title='LED blink interval [s]', default=0.5),
