@@ -209,10 +209,10 @@ class Constant (ConfigBase):
     def _json_extra (self):
         return {
             'type': _json_type_of(self.value),
-            'enum': [self.value],
+            'constantValue': self.value,
             'options': {
-                'hidden': True
-            }
+                'derived': True,
+            },
         }
 
 class Reference (ConfigBase):
