@@ -147,11 +147,10 @@ class Compound (ConfigBase):
             'properties': _merge_dicts(
                 {
                     '_compoundName':  {
-                        'type': 'string',
-                        'enum': [self.name],
+                        'constantValue': self.name,
                         'options': {
                             'hidden': True
-                        }
+                        },
                     }
                 },
                 *(
@@ -197,8 +196,8 @@ class OneOf (ConfigBase):
     
     def _json_extra (self):
         return {
-            'type': 'object',
-            'oneOf': [choice._json_schema() for choice in self.choices]
+            'oneOf': [choice._json_schema() for choice in self.choices],
+            'selectKey': '_compoundName',
         }
 
 class Constant (ConfigBase):
@@ -208,10 +207,9 @@ class Constant (ConfigBase):
     
     def _json_extra (self):
         return {
-            'type': _json_type_of(self.value),
             'constantValue': self.value,
             'options': {
-                'derived': True,
+                'hidden': True
             },
         }
 
@@ -245,10 +243,7 @@ class Reference (ConfigBase):
                     'watch_array': self.ref_array,
                     'watch_id': '{}.{}'.format(container_id, self.kwargs['key'])
                 },
-                'template': 'return ce_deref({},{},vars.watch_id);'.format(self._array_expr(), json.dumps(self.ref_id_key)),
-                'options': {
-                    'derived': True
-                },
+                'valueTemplate': 'return ce_deref({},{},vars.watch_id);'.format(self._array_expr(), json.dumps(self.ref_id_key)),
                 'excludeFromFinalValue': True
             }
         } if self.deref_key is not None else {})
