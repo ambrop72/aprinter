@@ -153,8 +153,9 @@ var $extend = function(destination) {
   for(i=1; i<arguments.length; i++) {
     source = arguments[i];
     for (property in source) {
+      if(!source.hasOwnProperty(property)) continue;
       if(source[property] && $isplainobject(source[property])) {
-        destination[property] = destination[property] || {};
+        if(!destination.hasOwnProperty(property)) destination[property] = {};
         $extend(destination[property], source[property]);
       }
       else {
@@ -163,6 +164,69 @@ var $extend = function(destination) {
     }
   }
   return destination;
+};
+
+var $shallowCopy = function(obj) {
+  var res = {};
+  for (var property in obj) {
+    if (!obj.hasOwnProperty(property)) {
+      continue;
+    }
+    res[property] = obj[property];
+  }
+  return res;
+};
+
+var $isEmpty = function(obj) {
+  for (var property in obj) {
+    if (obj.hasOwnProperty(property)) {
+      return false;
+    }
+  }
+  return true;
+};
+
+var $extendPersistentArr = function(obj, sources, sources_start) {
+  // optimization for empty obj
+  if ($isEmpty(obj) && sources.length > sources_start) {
+    return $extendPersistentArr(sources[sources_start], sources, sources_start + 1);
+  }
+  
+  // we'll make a copy of obj the first time we need to change it
+  var copied = false;
+  
+  for (var i = sources_start; i < sources.length; i++) {
+    var source = sources[i];
+    
+    for (var property in source) {
+      if (!source.hasOwnProperty(property)) {
+        continue;
+      }
+      
+      // compute new value of this property
+      var new_value;
+      if (obj.hasOwnProperty(property) && $isplainobject(obj[property]) && $isplainobject(source[property])) {
+        new_value = $extendPersistentArr(obj[property], [source[property]], 0);
+      } else {
+        new_value = source[property];
+      }
+      
+      // possibly do the assigment of the new value to the old value
+      if (!obj.hasOwnProperty(property) || new_value !== obj[property]) {
+        if (!copied) {
+          obj = $shallowCopy(obj);
+          copied = true;
+        }
+        obj[property] = new_value;
+      }
+    }
+  }
+  
+  return obj;
+};
+
+var $extendPersistent = function(obj) {
+  return $extendPersistentArr(obj, arguments, 1);
 };
 
 var $each = function(obj,callback) {
@@ -196,9 +260,8 @@ var $triggerc = function(el,event) {
 };
 
 var JSONEditor = function(element,options) {
-  options = $extend({},JSONEditor.defaults.options,options||{});
   this.element = element;
-  this.options = options;
+  this.options = $extendPersistent(JSONEditor.defaults.options, options || {});
   this.init();
 };
 JSONEditor.prototype = {
@@ -246,6 +309,9 @@ JSONEditor.prototype = {
 
     // Fire ready event asynchronously
     window.requestAnimationFrame(function() {
+      if (!self.ready) {
+        return;
+      }
       self.validation_results = self.validator.validate(self.root.getValue());
       self.root.showValidationErrors(self.validation_results);
       self.trigger('ready');
@@ -332,8 +398,6 @@ JSONEditor.prototype = {
   getEditorClass: function(schema) {
     var classname;
 
-    schema = this.expandSchema(schema);
-
     $each(JSONEditor.defaults.resolvers,function(i,resolver) {
       var tmp = resolver(schema);
       if(tmp) {
@@ -350,7 +414,9 @@ JSONEditor.prototype = {
     return JSONEditor.defaults.editors[classname];
   },
   createEditor: function(editor_class, options) {
-    options = $extend({},editor_class.options||{},options);
+    if (editor_class.options) {
+      options = $extendPersistent(editor_class.options, options);
+    }
     return new editor_class(options);
   },
   onChange: function() {
@@ -363,7 +429,8 @@ JSONEditor.prototype = {
     
     window.requestAnimationFrame(function() {
       self.firing_change = false;
-      
+      if(!self.ready) return;
+
       // Validate and cache results
       self.validation_results = self.validator.validate(self.root.getValue());
       
@@ -470,156 +537,6 @@ JSONEditor.prototype = {
   },
   disable: function() {
     this.root.disable();
-  },
-  expandSchema: function(schema) {
-    var self = this;
-    var extended = $extend({},schema);
-    var i;
-
-    // Version 3 `type`
-    if(typeof schema.type === 'object') {
-      // Array of types
-      if(Array.isArray(schema.type)) {
-        $each(schema.type, function(key,value) {
-          // Schema
-          if(typeof value === 'object') {
-            schema.type[key] = self.expandSchema(value);
-          }
-        });
-      }
-      // Schema
-      else {
-        schema.type = self.expandSchema(schema.type);
-      }
-    }
-    // Version 3 `disallow`
-    if(typeof schema.disallow === 'object') {
-      // Array of types
-      if(Array.isArray(schema.disallow)) {
-        $each(schema.disallow, function(key,value) {
-          // Schema
-          if(typeof value === 'object') {
-            schema.disallow[key] = self.expandSchema(value);
-          }
-        });
-      }
-      // Schema
-      else {
-        schema.disallow = self.expandSchema(schema.disallow);
-      }
-    }
-    // Version 4 `anyOf`
-    if(schema.anyOf) {
-      $each(schema.anyOf, function(key,value) {
-        schema.anyOf[key] = self.expandSchema(value);
-      });
-    }
-    // Version 4 `dependencies` (schema dependencies)
-    if(schema.dependencies) {
-      $each(schema.dependencies,function(key,value) {
-        if(typeof value === "object" && !(Array.isArray(value))) {
-          schema.dependencies[key] = self.expandSchema(value);
-        }
-      });
-    }
-    // Version 4 `not`
-    if(schema.not) {
-      schema.not = this.expandSchema(schema.not);
-    }
-    
-    // allOf schemas should be merged into the parent
-    if(schema.allOf) {
-      for(i=0; i<schema.allOf.length; i++) {
-        extended = this.extendSchemas(extended,this.expandSchema(schema.allOf[i]));
-      }
-      delete extended.allOf;
-    }
-    // extends schemas should be merged into parent
-    if(schema.extends) {
-      // If extends is a schema
-      if(!(Array.isArray(schema.extends))) {
-        extended = this.extendSchemas(extended,this.expandSchema(schema.extends));
-      }
-      // If extends is an array of schemas
-      else {
-        for(i=0; i<schema.extends.length; i++) {
-          extended = this.extendSchemas(extended,this.expandSchema(schema.extends[i]));
-        }
-      }
-      delete extended.extends;
-    }
-    // parent should be merged into oneOf schemas
-    if(schema.oneOf) {
-      var tmp = $extend({},extended);
-      delete tmp.oneOf;
-      for(i=0; i<schema.oneOf.length; i++) {
-        extended.oneOf[i] = this.extendSchemas(this.expandSchema(schema.oneOf[i]),tmp);
-      }
-    }
-    
-    return extended;
-  },
-  extendSchemas: function(obj1, obj2) {
-    obj1 = $extend({},obj1);
-    obj2 = $extend({},obj2);
-
-    var self = this;
-    var extended = {};
-    $each(obj1, function(prop,val) {
-      // If this key is also defined in obj2, merge them
-      if(typeof obj2[prop] !== "undefined") {
-        // Required arrays should be unioned together
-        if(prop === 'required' && typeof val === "object" && Array.isArray(val)) {
-          // Union arrays and unique
-          extended.required = val.concat(obj2[prop]).reduce(function(p, c) {
-            if (p.indexOf(c) < 0) p.push(c);
-            return p;
-          }, []);
-        }
-        // Type should be intersected and is either an array or string
-        else if(prop === 'type') {
-          // Make sure we're dealing with arrays
-          if(typeof val !== "object") val = [val];
-          if(typeof obj2.type !== "object") obj2.type = [obj2.type];
-
-
-          extended.type = val.filter(function(n) {
-            return obj2.type.indexOf(n) !== -1;
-          });
-
-          // If there's only 1 type and it's a primitive, use a string instead of array
-          if(extended.type.length === 1 && typeof extended.type[0] === "string") {
-            extended.type = extended.type[0];
-          }
-        }
-        // All other arrays should be intersected (enum, etc.)
-        else if(typeof val === "object" && Array.isArray(val)){
-          extended[prop] = val.filter(function(n) {
-            return obj2[prop].indexOf(n) !== -1;
-          });
-        }
-        // Objects should be recursively merged
-        else if(typeof val === "object" && val !== null) {
-          extended[prop] = self.extendSchemas(val,obj2[prop]);
-        }
-        // Otherwise, use the first value
-        else {
-          extended[prop] = val;
-        }
-      }
-      // Otherwise, just use the one in obj1
-      else {
-        extended[prop] = val;
-      }
-    });
-    // Properties in obj2 that aren't in obj1
-    $each(obj2, function(prop,val) {
-      if(typeof obj1[prop] === "undefined") {
-        extended[prop] = val;
-      }
-    });
-
-    return extended;
   }
 };
 
@@ -1194,13 +1111,10 @@ JSONEditor.AbstractEditor = Class.extend({
     this.theme = this.jsoneditor.theme;
     this.template_engine = this.jsoneditor.template;
     this.iconlib = this.jsoneditor.iconlib;
+    this.schema = options.schema;
     
-    this.original_schema = options.schema;
-    this.schema = this.jsoneditor.expandSchema(this.original_schema);
+    this.options = $extendPersistent((options.schema.options || {}), options);
     
-    this.options = $extend({}, (this.options || {}), (options.schema.options || {}), options);
-    
-    if(!options.path && !this.schema.id) this.schema.id = 'root';
     this.path = options.path || 'root';
     this.formname = options.formname || this.path.replace(/\.([^.]+)/g,'[$1]');
     if(this.jsoneditor.options.form_name_root) this.formname = this.formname.replace(/^root\[/,this.jsoneditor.options.form_name_root+'[');
@@ -1234,7 +1148,6 @@ JSONEditor.AbstractEditor = Class.extend({
     
     // Watched fields
     this.watched = {};
-    if(this.schema.vars) this.schema.watch1 = this.schema.vars;
     this.watched_values = {};
     this.watch_listener = function() {
       self.withProcessingContext(function() {
@@ -1242,10 +1155,10 @@ JSONEditor.AbstractEditor = Class.extend({
       }, 'watch_listener');
     };
     
-    if(this.schema.watch1) {
-      for(var name in this.schema.watch1) {
-        if(!this.schema.watch1.hasOwnProperty(name)) continue;
-        var path = this.schema.watch1[name];
+    if(this.schema.hasOwnProperty('watch')) {
+      for(var name in this.schema.watch) {
+        if(!this.schema.watch.hasOwnProperty(name)) continue;
+        var path = this.schema.watch[name];
 
         // Get the ID of the first node and the path within.
         if (typeof path != 'string') throw "Watch path must be a string";
@@ -1343,7 +1256,7 @@ JSONEditor.AbstractEditor = Class.extend({
   onWatchedFieldChange: function() {
     var vars;
     if(this.header_template) {      
-      vars = $extend(this.getWatchedFieldValues(),{
+      vars = $extendPersistent(this.getWatchedFieldValues(), {
         key: this.key,
         i: this.key,
         i0: (this.key*1),
@@ -1768,9 +1681,6 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
     return $extend({},this.schema.default || {});
   },
   enable: function() {
-    if(this.editjson_button) this.editjson_button.disabled = false;
-    if(this.addproperty_button) this.addproperty_button.disabled = false;
-    
     this._super();
     if(this.editors) {
       for(var i in this.editors) {
@@ -1780,10 +1690,6 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
     }
   },
   disable: function() {
-    if(this.editjson_button) this.editjson_button.disabled = true;
-    if(this.addproperty_button) this.addproperty_button.disabled = true;
-    this.hideEditJSON();
-    
     this._super();
     if(this.editors) {
       for(var i in this.editors) {
@@ -1800,7 +1706,6 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
     var container = document.createElement('div');
     $each(this.computeOrder(), function(i,key) {
       var editor = self.editors[key];
-      if(editor.property_removed) return;
       var row = self.theme.getGridRow();
       container.appendChild(row);
       
@@ -1813,43 +1718,19 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
     this.row_container.innerHTML = '';
     this.row_container.appendChild(container);
   },
-  getPropertySchema: function(key) {
-    // Schema declared directly in properties
-    var schema = this.schema.properties[key] || {};
-    schema = $extend({},schema);
-    
-    // Any matching patternProperties should be merged in
-    if(this.schema.patternProperties) {
-      for(var i in this.schema.patternProperties) {
-        if(!this.schema.patternProperties.hasOwnProperty(i)) continue;
-        var regex = new RegExp(i);
-        if(regex.test(key)) {
-          schema.allOf = schema.allOf || [];
-          schema.allOf.push(this.schema.patternProperties[i]);
-        }
-      }
-    }
-    
-    return schema;
-  },
   buildImpl: function() {
     this.editors = {};
     var self = this;
 
-    this.schema.properties = this.schema.properties || {};
+    this.schema_properties = this.schema.properties || {};
 
     // If the object should be rendered as a table row
     if(this.options.table_row) {
       this.editor_holder = this.container;
     }
-    // If the object should be rendered as a table
-    else if(this.options.table) {
-      // TODO: table display format
-      throw "Not supported yet";
-    }
     // If the object should be rendered as a div
     else {
-      this.defaultProperties = this.schema.defaultProperties || Object.keys(this.schema.properties);
+      this.defaultProperties = this.schema.defaultProperties || Object.keys(this.schema_properties);
 
       this.header = document.createElement('span');
       this.header.textContent = this.getTitle();
@@ -1859,71 +1740,6 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
       }
       this.container.appendChild(this.title);
       this.container.style.position = 'relative';
-      
-      // Edit JSON modal
-      this.editjson_holder = this.theme.getModal();
-      this.editjson_textarea = this.theme.getTextareaInput();
-      this.editjson_textarea.style.height = '170px';
-      this.editjson_textarea.style.width = '300px';
-      this.editjson_textarea.style.display = 'block';
-      this.editjson_save = this.getButton('Save','save','Save');
-      this.editjson_save.addEventListener('click',function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        self.withProcessingContext(function() {
-          self.saveJSON();
-        }, 'editjson_save_click');
-      });
-      this.editjson_cancel = this.getButton('Cancel','cancel','Cancel');
-      this.editjson_cancel.addEventListener('click',function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        self.hideEditJSON();
-      });
-      this.editjson_holder.appendChild(this.editjson_textarea);
-      this.editjson_holder.appendChild(this.editjson_save);
-      this.editjson_holder.appendChild(this.editjson_cancel);
-      
-      // Manage Properties modal
-      this.addproperty_holder = this.theme.getModal();
-      this.addproperty_list = document.createElement('div');
-      this.addproperty_list.style.width = '295px';
-      this.addproperty_list.style.maxHeight = '160px';
-      this.addproperty_list.style.padding = '5px 0';
-      this.addproperty_list.style.overflowY = 'auto';
-      this.addproperty_list.style.overflowX = 'hidden';
-      this.addproperty_list.style.paddingLeft = '5px';
-      this.addproperty_add = this.getButton('add','add','add');
-      this.addproperty_input = this.theme.getFormInputField('text');
-      this.addproperty_input.setAttribute('placeholder','Property name...');
-      this.addproperty_input.style.width = '220px';
-      this.addproperty_input.style.marginBottom = '0';
-      this.addproperty_input.style.display = 'inline-block';
-      this.addproperty_add.addEventListener('click',function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        if(self.addproperty_input.value) {
-          if(self.editors[self.addproperty_input.value]) {
-            window.alert('there is already a property with that name');
-            return;
-          }
-          
-          self.withProcessingContext(function() {
-            self.addObjectProperty(self.addproperty_input.value);
-            if(self.editors[self.addproperty_input.value]) {
-              self.editors[self.addproperty_input.value].disable();
-            }
-            self.onChange();
-          }, 'addproperty_add');
-        }
-      });
-      this.addproperty_holder.appendChild(this.addproperty_list);
-      this.addproperty_holder.appendChild(this.addproperty_input);
-      this.addproperty_holder.appendChild(this.addproperty_add);
-      var spacer = document.createElement('div');
-      spacer.style.clear = 'both';
-      this.addproperty_holder.appendChild(spacer);
-      
       
       // Description
       if(this.schema.description) {
@@ -1946,11 +1762,7 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
 
       // Control buttons
       this.title_controls = this.theme.getHeaderButtonHolder();
-      this.editjson_controls = this.theme.getHeaderButtonHolder();
-      this.addproperty_controls = this.theme.getHeaderButtonHolder();
       this.title.appendChild(this.title_controls);
-      this.title.appendChild(this.editjson_controls);
-      this.title.appendChild(this.addproperty_controls);
 
       // Show/Hide button
       this.collapsed = false;
@@ -1983,35 +1795,6 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
       else if(this.jsoneditor.options.disable_collapse) {
         this.toggle_button.style.display = 'none';
       }
-      
-      // Edit JSON Button
-      this.editjson_button = this.getButton('JSON','edit','Edit JSON');
-      this.editjson_button.addEventListener('click',function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        self.toggleEditJSON();
-      });
-      this.editjson_controls.appendChild(this.editjson_button);
-      this.editjson_controls.appendChild(this.editjson_holder);
-      
-      // Edit JSON Buttton disabled
-      if(this.schema.options && typeof this.schema.options.disable_edit_json !== "undefined") {
-        if(this.schema.options.disable_edit_json) this.editjson_button.style.display = 'none';
-      }
-      else if(this.jsoneditor.options.disable_edit_json) {
-        this.editjson_button.style.display = 'none';
-      }
-      
-      // Object Properties Button
-      this.addproperty_button = this.getButton('Properties','edit','Object Properties');
-      this.addproperty_button.addEventListener('click',function(e) {
-        e.preventDefault();
-        e.stopPropagation();
-        self.toggleAddProperty();
-      });
-      this.addproperty_controls.appendChild(this.addproperty_button);
-      this.addproperty_controls.appendChild(this.addproperty_holder);
-      this.refreshAddProperties();
     }
     
     // Set the initial value, creating editors.
@@ -2029,129 +1812,12 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
       this.layoutEditors();
     }
   },
-  showEditJSON: function() {
-    if(!this.editjson_holder) return;
-    this.hideAddProperty();
-    
-    // Position the form directly beneath the button
-    // TODO: edge detection
-    this.editjson_holder.style.left = this.editjson_button.offsetLeft+"px";
-    this.editjson_holder.style.top = this.editjson_button.offsetTop + this.editjson_button.offsetHeight+"px";
-    
-    // Start the textarea with the current value
-    this.editjson_textarea.value = JSON.stringify(this.getValue(),null,2);
-    
-    // Disable the rest of the form while editing JSON
-    this.disable();
-    
-    this.editjson_holder.style.display = '';
-    this.editjson_button.disabled = false;
-    this.editing_json = true;
-  },
-  hideEditJSON: function() {
-    if(!this.editjson_holder) return;
-    if(!this.editing_json) return;
-    
-    this.editjson_holder.style.display = 'none';
-    this.enable();
-    this.editing_json = false;
-  },
-  saveJSON: function() {
-    if(!this.editjson_holder) return;
-    
-    var json;
-    try {
-      json = JSON.parse(this.editjson_textarea.value);
-    }
-    catch(e) {
-      window.alert('invalid JSON');
-      throw e;
-    }
-    
-    this.setValue(json);
-    this.hideEditJSON();
-  },
-  toggleEditJSON: function() {
-    if(this.editing_json) this.hideEditJSON();
-    else this.showEditJSON();
-  },
-  addPropertyCheckbox: function(key) {
-    var self = this;
-    var checkbox, label, control;
-    
-    checkbox = self.theme.getCheckbox();
-    checkbox.style.width = 'auto';
-    label = self.theme.getCheckboxLabel(key);
-    control = self.theme.getFormControl(label,checkbox);
-    control.style.paddingBottom = control.style.marginBottom = control.style.paddingTop = control.style.marginTop = 0;
-    control.style.height = 'auto';
-    //control.style.overflowY = 'hidden';
-    self.addproperty_list.appendChild(control);
-    
-    checkbox.checked = key in this.editors;
-    checkbox.addEventListener('change',function() {
-      self.withProcessingContext(function() {
-        if (checkbox.checked) {
-          self.addObjectProperty(key);
-        } else {
-          self.removeObjectProperty(key);
-        }
-        self.onChange();
-      }, 'addproperty_checkbox');
-    });
-    self.addproperty_checkboxes[key] = checkbox;
-    
-    return checkbox;
-  },
-  showAddProperty: function() {
-    if(!this.addproperty_holder) return;
-    this.hideEditJSON();
-    
-    // Position the form directly beneath the button
-    // TODO: edge detection
-    this.addproperty_holder.style.left = this.addproperty_button.offsetLeft+"px";
-    this.addproperty_holder.style.top = this.addproperty_button.offsetTop + this.addproperty_button.offsetHeight+"px";
-    
-    // Disable the rest of the form while editing JSON
-    this.disable();
-    
-    this.adding_property = true;
-    this.addproperty_button.disabled = false;
-    this.addproperty_holder.style.display = '';
-    this.refreshAddProperties();
-  },
-  hideAddProperty: function() {
-    if(!this.addproperty_holder) return;
-    if(!this.adding_property) return;
-    
-    this.addproperty_holder.style.display = 'none';
-    this.enable();
-    
-    this.adding_property = false;
-  },
-  toggleAddProperty: function() {
-    if(this.adding_property) this.hideAddProperty();
-    else this.showAddProperty();
-  },
-  removeObjectProperty: function(property) {
-    if(this.editors[property]) {
-      this.editors[property].destroy();
-      delete this.editors[property];
-      
-      this.refreshValue();
-      this.layoutEditors();
-    }
-  },
   addObjectProperty: function(name) {
     var self = this;
     
     // Property is already added
     if(this.editors[name]) return;
     
-    if(!this.canHaveAdditionalProperties() && (!this.schema.properties || !this.schema.properties[name])) {
-      return;
-    }
-
     var holder;
     var extra_opts = {};
     if (self.options.table_row) {
@@ -2162,10 +1828,10 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
       holder = self.theme.getChildEditorHolder();
     }
     
-    var schema = self.getPropertySchema(name);
+    var schema = self.schema_properties[name];
     var editor = self.jsoneditor.getEditorClass(schema);
     self.editor_holder.appendChild(holder);
-    self.editors[name] = self.jsoneditor.createEditor(editor, $extend({
+    self.editors[name] = self.jsoneditor.createEditor(editor, $extendPersistent({
       jsoneditor: self.jsoneditor,
       schema: schema,
       path: self.path+'.'+name,
@@ -2183,9 +1849,6 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
   onChildEditorChange: function(editor) {
     this.refreshValue();
     this.onChange();
-  },
-  canHaveAdditionalProperties: function() {
-    return this.schema.additionalProperties !== false && !this.jsoneditor.options.no_additional_properties;
   },
   destroy: function() {
     $each(this.editors, function(i,el) {
@@ -2221,97 +1884,6 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
       if(!this.editors.hasOwnProperty(i)) continue;
       this.value[i] = this.editors[i].getValue();
     }
-    
-    if(this.adding_property) this.refreshAddProperties();
-  },
-  refreshAddProperties: function() {
-    if(this.options.disable_properties || this.jsoneditor.options.disable_properties) {
-      this.addproperty_controls.style.display = 'none';
-      return;
-    }
-
-    var can_add = false, can_remove = false, num_props = 0, i, show_modal = false;
-    
-    // Get number of editors
-    for(i in this.editors) {
-      if(!this.editors.hasOwnProperty(i)) continue;
-      num_props++;
-    }
-    
-    // Determine if we can add back removed properties
-    can_add = this.canHaveAdditionalProperties() && !(typeof this.schema.maxProperties !== "undefined" && num_props >= this.schema.maxProperties);
-    
-    if(this.addproperty_checkboxes) {
-      this.addproperty_list.innerHTML = '';
-    }
-    this.addproperty_checkboxes = {};
-    
-    // Check for which editors can't be removed or added back
-    for(i in this.editors) {
-      if(!this.editors.hasOwnProperty(i)) continue;
-      
-      this.addPropertyCheckbox(i);
-      
-      if(this.isRequired(this.editors[i])) {
-        this.addproperty_checkboxes[i].disabled = true;
-      }
-      
-      if(typeof this.schema.minProperties !== "undefined" && num_props <= this.schema.minProperties) {
-        this.addproperty_checkboxes[i].disabled = this.addproperty_checkboxes[i].checked;
-        if(!this.addproperty_checkboxes[i].checked) show_modal = true;
-      }
-      else if(!(i in this.editors)) {
-        if(!can_add  && !this.schema.properties.hasOwnProperty(i)) {
-          this.addproperty_checkboxes[i].disabled = true;
-        }
-        else {
-          this.addproperty_checkboxes[i].disabled = false;
-          show_modal = true;
-        }
-      }
-      else {
-        show_modal = true;
-        can_remove = true;
-      }
-    }
-    
-    if(this.canHaveAdditionalProperties()) {
-      show_modal = true;
-    }
-    
-    // Additional addproperty checkboxes not tied to a current editor
-    for(i in this.schema.properties) {
-      if(!this.schema.properties.hasOwnProperty(i)) continue;
-      if(this.editors[i]) continue;
-      show_modal = true;
-      this.addPropertyCheckbox(i);
-      this.addproperty_checkboxes[i].disabled = !can_add;
-    }
-    
-    // If no editors can be added or removed, hide the modal button
-    if(!show_modal) {
-      this.hideAddProperty();
-      this.addproperty_controls.style.display = 'none';
-    }
-    // If additional properties are disabled
-    else if(!this.canHaveAdditionalProperties()) {
-      this.addproperty_add.style.display = 'none';
-      this.addproperty_input.style.display = 'none';
-    }
-    // If no new properties can be added
-    else if(!can_add) {
-      this.addproperty_add.disabled = true;
-    }
-    // If new properties can be added
-    else {
-      this.addproperty_add.disabled = false;
-    }
-  },
-  isRequired: function(editor) {
-    if(typeof editor.schema.required === "boolean") return editor.schema.required;
-    else if(Array.isArray(this.schema.required)) return this.schema.required.indexOf(editor.key) > -1;
-    else if(this.jsoneditor.options.required_by_default) return true;
-    else return false;
   },
   setValueImpl: function(value) {
     this.mySetValue(value, false);
@@ -2331,27 +1903,16 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
       if(typeof value[i] !== "undefined") {
         setActions.push({name: i, value: value[i]});
       }
-      // Otherwise, remove value unless this is the initial TBD set or it's required
-      else if(!initial && !self.isRequired(editor)) {
-        self.removeObjectProperty(i);
-      }
       // Otherwise, set the value to the default
       else {
         setActions.push({name: i});
       }
     });
 
-    // Also try to set properties for which we don't have editors.
-    $each(value, function(i,val) {
-      if(!self.editors.hasOwnProperty(i)) {
-        setActions.push({name: i, value: val});
-      }
-    });
-    
     // For the initial value, we need to make sure we actually have the editors.
     if (initial) {
-      $each(self.schema.properties, function(i, schema) {
-        if (!self.editors.hasOwnProperty(i) && !value.hasOwnProperty(i)) {
+      $each(self.schema_properties, function(i, schema) {
+        if (!self.editors.hasOwnProperty(i)) {
           setActions.push({name: i});
         }
       });
@@ -2361,8 +1922,8 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
     $each(setActions, function(ind,action) {
       var i = action.name;
       action.processingOrder = 0;
-      if (self.schema.properties && self.schema.properties[i] && typeof self.schema.properties[i].processingOrder !== "undefined") {
-        action.processingOrder = self.schema.properties[i].processingOrder;
+      if (self.schema_properties && self.schema_properties[i] && typeof self.schema_properties[i].processingOrder !== "undefined") {
+        action.processingOrder = self.schema_properties[i].processingOrder;
       }
     });
     
@@ -2373,10 +1934,8 @@ JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
     $each(setActions, function(ind, action) {
       var i = action.name;
       self.addObjectProperty(i);
-      if (self.editors[i]) {
-        var set_value = action.hasOwnProperty('value') ? action.value : self.editors[i].getDefault();
-        self.editors[i].setValue(set_value);
-      }
+      var set_value = action.hasOwnProperty('value') ? action.value : self.editors[i].getDefault();
+      self.editors[i].setValue(set_value);
     });
     
     this.refreshValue();
@@ -2532,61 +2091,19 @@ JSONEditor.defaults.editors.array = JSONEditor.AbstractEditor.extend({
   },
   getItemTitle: function() {
     if(!this.item_title) {
-      if(this.schema.items && !Array.isArray(this.schema.items)) {
-        this.item_title = this.schema.items.title || 'item';
-      }
-      else {
-        this.item_title = 'item';
-      }
+      this.item_title = this.schema.items.title || 'item';
     }
     return this.item_title;
   },
-  getItemSchema: function(i) {
-    if(Array.isArray(this.schema.items)) {
-      if(i >= this.schema.items.length) {
-        if(this.schema.additionalItems===true) {
-          return {};
-        }
-        else if(this.schema.additionalItems) {
-          return $extend({},this.schema.additionalItems);
-        }
-      }
-      else {
-        return $extend({},this.schema.items[i]);
-      }
-    }
-    else if(this.schema.items) {
-      return $extend({},this.schema.items);
-    }
-    else {
-      return {};
-    }
-  },
-  getItemInfo: function(i) {
-    var schema = this.getItemSchema(i);
-    
-    // Check if it's cached
-    this.item_info = this.item_info || {};
-    var stringified = JSON.stringify(schema);
-    if(typeof this.item_info[stringified] !== "undefined") return this.item_info[stringified];
-    
-    this.item_info[stringified] = {
-      title: schema.title || "item",
-      'default': schema.default,
-      child_editors: schema.properties || schema.items
-    };
-    
-    return this.item_info[stringified];
-  },
   getElementEditor: function(i) {
-    var item_info = this.getItemInfo(i);
-    var schema = this.getItemSchema(i);
-    schema.title = item_info.title+' '+(i+1);
+    var schema = $extendPersistent(this.schema.items, {
+      title: this.getItemTitle() + ' ' + (i + 1)
+    });
 
     var editor = this.jsoneditor.getEditorClass(schema);
 
     var holder;
-    if(item_info.child_editors) {
+    if(schema.properties || schema.items) {
       holder = this.theme.getChildEditorHolder();
     }
     else {
@@ -2638,33 +2155,12 @@ JSONEditor.defaults.editors.array = JSONEditor.AbstractEditor.extend({
     row.destroy();
     if(holder.parentNode) holder.parentNode.removeChild(holder);
   },
-  getMax: function() {
-    if((Array.isArray(this.schema.items)) && this.schema.additionalItems === false) {
-      return Math.min(this.schema.items.length,this.schema.maxItems || Infinity);
-    }
-    else {
-      return this.schema.maxItems || Infinity;
-    }
-  },
   setValueImpl: function(value) {
     // Update the array's value, adding/removing rows when necessary
     value = value || [];
     
     if(!(Array.isArray(value))) value = [value];
     
-    var serialized = JSON.stringify(value);
-    if(serialized === this.serialized) return;
-
-    // Make sure value has between minItems and maxItems items in it
-    if(this.schema.minItems) {
-      while(value.length < this.schema.minItems) {
-        value.push(this.getItemInfo(value.length).default);
-      }
-    }
-    if(this.getMax() && value.length > this.getMax()) {
-      value = value.slice(0,this.getMax());
-    }
-
     var self = this;
     $each(value,function(i,val) {
       if (self.rows[i]) {
@@ -2713,9 +2209,6 @@ JSONEditor.defaults.editors.array = JSONEditor.AbstractEditor.extend({
   refreshButtons: function() {
     var self = this;
     
-    // If we currently have minItems items in the array
-    var minItems = this.schema.minItems && this.schema.minItems >= this.rows.length;
-    
     var need_row_buttons = false;
     $each(this.rows,function(i,editor) {
       // Hide the move down button for the last row
@@ -2729,15 +2222,9 @@ JSONEditor.defaults.editors.array = JSONEditor.AbstractEditor.extend({
         }
       }
 
-      // Hide the delete button if we have minItems items
       if(editor.delete_button) {
-        if(minItems) {
-          editor.delete_button.style.display = 'none';
-        }
-        else {
-          need_row_buttons = true;
-          editor.delete_button.style.display = '';
-        }
+        need_row_buttons = true;
+        editor.delete_button.style.display = '';
       }
       
       if (self.refreshButtonsExtraEditor(i, editor)) {
@@ -2747,21 +2234,15 @@ JSONEditor.defaults.editors.array = JSONEditor.AbstractEditor.extend({
     
     var controls_needed = false;
     
-    if (this.rows.length === 0 || minItems || this.hide_delete_buttons) {
+    if (this.rows.length === 0 || this.hide_delete_buttons) {
       this.remove_all_rows_button.style.display = 'none';
     } else {
       this.remove_all_rows_button.style.display = '';
       controls_needed = true;
     }
 
-    // If there are maxItems in the array, hide the add button beneath the rows
-    if((this.getMax() && this.getMax() <= this.rows.length) || this.hide_add_button){
-      this.add_row_button.style.display = 'none';
-    }
-    else {
-      this.add_row_button.style.display = '';
-      controls_needed = true;
-    } 
+    this.add_row_button.style.display = '';
+    controls_needed = true;
     
     self.refreshButtonsExtra(need_row_buttons, controls_needed);
   },
@@ -3068,8 +2549,8 @@ JSONEditor.defaults.editors.table = JSONEditor.defaults.editors.array.extend({
     return this.item_title;
   },
   getElementEditor: function(i) {
-    var schema_copy = $extend({},this.schema.items);
-    var editor = this.jsoneditor.getEditorClass(schema_copy, this.jsoneditor);
+    var schema = this.schema.items;
+    var editor = this.jsoneditor.getEditorClass(schema);
     var row = this.row_holder.appendChild(this.theme.getTableRow());
     var holder = row;
     if(!this.item_has_child_editors) {
@@ -3079,7 +2560,7 @@ JSONEditor.defaults.editors.table = JSONEditor.defaults.editors.array.extend({
 
     var ret = this.jsoneditor.createEditor(editor,{
       jsoneditor: this.jsoneditor,
-      schema: schema_copy,
+      schema: schema,
       container: holder,
       path: this.path+'.'+i,
       parent: this,
@@ -3108,25 +2589,11 @@ JSONEditor.defaults.editors.table = JSONEditor.defaults.editors.array.extend({
     // Update the array's value, adding/removing rows when necessary
     value = value || [];
 
-    // Make sure value has between minItems and maxItems items in it
-    if(this.schema.minItems) {
-      while(value.length < this.schema.minItems) {
-        value.push(this.getItemDefault());
-      }
-    }
-    if(this.schema.maxItems && value.length > this.schema.maxItems) {
-      value = value.slice(0,this.schema.maxItems);
-    }
-    
-    var serialized = JSON.stringify(value);
-    if(serialized === this.serialized) return;
-
     var numrows_changed = false;
 
     var self = this;
     $each(value,function(i,val) {
       if(self.rows[i]) {
-        // TODO: don't set the row's value if it hasn't changed
         self.rows[i].setValue(val);
       }
       else {
@@ -3186,7 +2653,6 @@ JSONEditor.defaults.editors.table = JSONEditor.defaults.editors.array.extend({
       // Get the value for this editor
       self.value[i] = editor.getValue();
     });
-    this.serialized = JSON.stringify(this.value);
   },
   addRow: function(value) {
     this.addRowBase(value, false, function(row) { return row.table_controls; });
@@ -3243,20 +2709,19 @@ JSONEditor.defaults.editors.multiple = JSONEditor.AbstractEditor.extend({
     var holder = self.theme.getChildEditorHolder();
     self.editor_holder.appendChild(holder);
 
-    var schema;
-    
+    var schema_ext = [];
     if(typeof type === "string") {
-      schema = $extend({},self.schema);
-      schema.type = type;
+      schema_ext.push({type: type});
     }
     else {
-      schema = $extend({},self.schema,type);
+      schema_ext.push(type);
 
       // If we need to merge `required` arrays
-      if(type.required && Array.isArray(type.required) && self.schema.required && Array.isArray(self.schema.required)) {
-        schema.required = self.schema.required.concat(type.required);
+      if(type.required && Array.isArray(type.required) && self.child_schema.required && Array.isArray(self.child_schema.required)) {
+        schema_ext.push({required: self.child_schema.required.concat(type.required)});
       }
     }
+    var schema = $extendPersistentArr(self.child_schema, schema_ext, 0);
 
     var editor_class = self.jsoneditor.getEditorClass(schema);
 
@@ -3286,14 +2751,15 @@ JSONEditor.defaults.editors.multiple = JSONEditor.AbstractEditor.extend({
     this.editor = null;
     this.validators = [];
     this.value = null;
-
+    this.child_schema = $shallowCopy(this.schema);
+    
     if(this.schema.oneOf) {
       this.oneOf = true;
       this.types = this.schema.oneOf;
       $each(this.types,function(i,oneof) {
         //self.types[i] = self.jsoneditor.expandSchema(oneof);
       });
-      delete this.schema.oneOf;
+      delete this.child_schema.oneOf;
     }
     else {
       if(!this.schema.type || this.schema.type === "any") {
@@ -3318,7 +2784,7 @@ JSONEditor.defaults.editors.multiple = JSONEditor.AbstractEditor.extend({
       else {
         this.types = [this.schema.type];
       }
-      delete this.schema.type;
+      delete this.child_schema.type;
     }
 
     this.display_text = this.getDisplayText(this.types);
@@ -3349,20 +2815,19 @@ JSONEditor.defaults.editors.multiple = JSONEditor.AbstractEditor.extend({
 
     this.switcher_options = this.theme.getSwitcherOptions(this.switcher);
     $each(this.types,function(i,type) {
-      var schema;
-      
+      var schema_ext = [];
       if(typeof type === "string") {
-        schema = $extend({},self.schema);
-        schema.type = type;
+        schema_ext.push({type: type});
       }
       else {
-        schema = $extend({},self.schema,type);
-
+        schema_ext.push(type);
+        
         // If we need to merge `required` arrays
-        if(type.required && Array.isArray(type.required) && self.schema.required && Array.isArray(self.schema.required)) {
-          schema.required = self.schema.required.concat(type.required);
+        if(type.required && Array.isArray(type.required) && self.child_schema.required && Array.isArray(self.child_schema.required)) {
+          schema_ext.push({required: self.child_schema.required.concat(type.required)});
         }
       }
+      var schema = $extendPersistentArr(self.child_schema, schema_ext, 0);
 
       self.validators[i] = new JSONEditor.Validator(self.jsoneditor,schema);
     });
@@ -3492,63 +2957,9 @@ JSONEditor.defaults.editors.select = JSONEditor.AbstractEditor.extend({
     }
     // Dynamic Enum
     else if(this.schema.enumSource) {
-      this.enumSource = [];
-      this.enum_display = [];
-      this.enum_options = [];
-      this.enum_values = [];
-      
-      // Shortcut declaration for using a single array
-      if(!(Array.isArray(this.schema.enumSource))) {
-        if(this.schema.enumValue) {
-          this.enumSource = [
-            {
-              source: this.schema.enumSource,
-              value: this.schema.enumValue
-            }
-          ];
-        }
-        else {
-          this.enumSource = [
-            {
-              source: this.schema.enumSource
-            }
-          ];
-        }
-      }
-      else {
-        for(i=0; i<this.schema.enumSource.length; i++) {
-          // Shorthand for watched variable
-          if(typeof this.schema.enumSource[i] === "string") {
-            this.enumSource[i] = {
-              source: this.schema.enumSource[i]
-            };
-          }
-          // Make a copy of the schema
-          else if(!(Array.isArray(this.schema.enumSource[i]))) {
-            this.enumSource[i] = $extend({},this.schema.enumSource[i]);
-          }
-          else {
-            this.enumSource[i] = this.schema.enumSource[i];
-          }
-        }
-      }
-      
-      // Now, enumSource is an array of sources
-      // Walk through this array and fix up the values
-      for(i=0; i<this.enumSource.length; i++) {
-        if(this.enumSource[i].value) {
-          this.enumSource[i].value = this.jsoneditor.compileTemplate(this.enumSource[i].value, this.template_engine);
-        }
-        if(this.enumSource[i].title) {
-          this.enumSource[i].title = this.jsoneditor.compileTemplate(this.enumSource[i].title, this.template_engine);
-        }
-        if(this.enumSource[i].filter) {
-          this.enumSource[i].filter = this.jsoneditor.compileTemplate(this.enumSource[i].filter, this.template_engine);
-        }
-        if(this.enumSource[i].sourceTemplate) {
-          this.enumSource[i].sourceTemplate = this.jsoneditor.compileTemplate(this.enumSource[i].sourceTemplate, this.template_engine);
-        }
-      }
+      this.enum_source_template = this.jsoneditor.compileTemplate(this.schema.enumSource.sourceTemplate, this.template_engine);
+      this.enum_value_template = this.jsoneditor.compileTemplate(this.schema.enumSource.value, this.template_engine);
+      this.enum_title_template = this.jsoneditor.compileTemplate(this.schema.enumSource.title, this.template_engine);
     }
     // Other, not supported
     else {
@@ -3598,79 +3009,18 @@ JSONEditor.defaults.editors.select = JSONEditor.AbstractEditor.extend({
     }, 'input_change');
   },
   onWatchedFieldChange: function() {
-    var self = this, vars, j;
-    
     // If this editor uses a dynamic select box
-    if(this.enumSource) {
-      vars = this.getWatchedFieldValues();
+    if (this.enum_source_template) {
+      var vars = this.getWatchedFieldValues();
+      
+      var items = this.enum_source_template(vars);
+      
       var select_options = [];
       var select_titles = [];
-      
-      for(var i=0; i<this.enumSource.length; i++) {
-        var src = this.enumSource[i];
-        
-        // Constant values
-        if(Array.isArray(src)) {
-          select_options = select_options.concat(src);
-          select_titles = select_titles.concat(src);
-        }
-        // A watched field
-        else if(src.sourceTemplate || vars[src.source]) {
-          var items;
-          if(src.sourceTemplate) {
-            items = src.sourceTemplate($extend({},vars));
-          } else {
-            items = vars[src.source];
-          }
-          
-          // Only use a predefined part of the array
-          if(src.slice) {
-            items = Array.prototype.slice.apply(items,src.slice);
-          }
-          // Filter the items
-          if(src.filter) {
-            var new_items = [];
-            for(j=0; j<items.length; j++) {
-              if(src.filter($extend({},vars,{i:j,item:items[j]}))) new_items.push(items[j]);
-            }
-            items = new_items;
-          }
-          
-          var item_titles = [];
-          var item_values = [];
-          for(j=0; j<items.length; j++) {
-            var item = items[j];
-            
-            // Rendered value
-            if(src.value) {
-              item_values[j] = src.value($extend({},vars,{
-                i: j,
-                item: item
-              }));
-            }
-            // Use value directly
-            else {
-              item_values[j] = items[j];
-            }
-            
-            // Rendered title
-            if(src.title) {
-              item_titles[j] = src.title($extend({},vars,{
-                i: j,
-                item: item
-              }));
-            }
-            // Use value as the title also
-            else {
-              item_titles[j] = item_values[j];
-            }
-          }
-          
-          // TODO: sort
-          
-          select_options = select_options.concat(item_values);
-          select_titles = select_titles.concat(item_titles);
-        }
+      for (var j = 0; j < items.length; j++) {
+        var item_vars = {watch_vars: vars, i: j, item: items[j]};
+        select_options[j] = this.enum_value_template(item_vars);
+        select_titles[j] = this.enum_title_template(item_vars);
       }
       
       var prev_value = this.value;
@@ -3753,6 +3103,13 @@ JSONEditor.AbstractTheme = Class.extend({
   getContainer: function() {
     return document.createElement('div');
   },
+  getFloatRightLinkHolder: function() {
+    var el = document.createElement('div');
+    el.style = el.style || {};
+    el.style.cssFloat = 'right';
+    el.style.marginLeft = '10px';
+    return el;
+  },
   getModal: function() {
     var el = document.createElement('div');
     el.style.backgroundColor = 'white';
@@ -3778,6 +3135,12 @@ JSONEditor.AbstractTheme = Class.extend({
   },
   setGridColumnSize: function(el,size) {
     
+  },
+  getLink: function(text) {
+    var el = document.createElement('a');
+    el.setAttribute('href','#');
+    el.appendChild(document.createTextNode(text));
+    return el;
   },
   disableHeader: function(header) {
     header.style.color = '#ccc';
@@ -3816,6 +3179,25 @@ JSONEditor.AbstractTheme = Class.extend({
     var el = this.getFormInputField('checkbox');
     el.style.display = 'inline-block';
     el.style.width = 'auto';
+    return el;
+  },
+  getMultiCheckboxHolder: function(controls,label,description) {
+    var el = document.createElement('div');
+
+    if(label) {
+      label.style.display = 'block';
+      el.appendChild(label);
+    }
+
+    for(var i in controls) {
+      if(!controls.hasOwnProperty(i)) continue;
+      controls[i].style.display = 'inline-block';
+      controls[i].style.marginRight = '20px';
+      el.appendChild(controls[i]);
+    }
+
+    if(description) el.appendChild(description);
+
     return el;
   },
   getSelectInput: function(options) {
@@ -4030,6 +3412,28 @@ JSONEditor.AbstractTheme = Class.extend({
   },
   addTab: function(holder, tab) {
     holder.children[0].appendChild(tab);
+  },
+  getBlockLink: function() {
+    var link = document.createElement('a');
+    link.style.display = 'block';
+    return link;
+  },
+  getBlockLinkHolder: function() {
+    var el = document.createElement('div');
+    return el;
+  },
+  getLinksHolder: function() {
+    var el = document.createElement('div');
+    return el;
+  },
+  createMediaLink: function(holder,link,media) {
+    holder.appendChild(link);
+    media.style.width='100%';
+    holder.appendChild(media);
+  },
+  createImageLink: function(holder,link,image) {
+    holder.appendChild(link);
+    link.appendChild(image);
   }
 });
 
@@ -4453,8 +3857,8 @@ JSONEditor.defaults.themes.foundation = JSONEditor.AbstractTheme.extend({
     input.group.className += ' error';
     
     if(!input.errmsg) {
-      input.insertAdjacentHTML('afterend','<small class="errormsg"></small>');
-      input.errmsg = input.parentNode.getElementsByClassName('errormsg')[0];
+      input.insertAdjacentHTML('afterend','<small class="error"></small>');
+      input.errmsg = input.parentNode.getElementsByClassName('error')[0];
     }
     else {
       input.errmsg.style.display = '';

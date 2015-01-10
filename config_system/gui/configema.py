@@ -227,23 +227,21 @@ class Reference (ConfigBase):
     def _json_extra (self):
         return {
             'type': 'string',
-            'watch1': {
+            'watch': {
                 'watch_array': self.ref_array
             },
-            'enumSource': [
-                {
-                    'sourceTemplate': 'return {};'.format(self._array_expr()),
-                    'title': 'return vars.item[{}];'.format(json.dumps(self.ref_name_key)),
-                    'value': 'return vars.item[{}];'.format(json.dumps(self.ref_id_key))
-                }
-            ]
+            'enumSource': {
+                'sourceTemplate': 'return {};'.format(self._array_expr()),
+                'title': 'return vars.item[{}];'.format(json.dumps(self.ref_name_key)),
+                'value': 'return vars.item[{}];'.format(json.dumps(self.ref_id_key)),
+            },
         }
     
     def _json_new_properties (self, container_id):
         assert container_id is not None
         return ({
             self.deref_key: {
-                'watch1': {
+                'watch': {
                     'watch_array': self.ref_array,
                     'watch_id': '{}.{}'.format(container_id, self.kwargs['key'])
                 },
