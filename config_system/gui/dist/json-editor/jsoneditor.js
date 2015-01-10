@@ -80,48 +80,6 @@ var Class;
   return Class;
 })();
 
-// CustomEvent constructor polyfill
-// From MDN
-(function () {
-  function CustomEvent ( event, params ) {
-    params = params || { bubbles: false, cancelable: false, detail: undefined };
-    var evt = document.createEvent( 'CustomEvent' );
-    evt.initCustomEvent( event, params.bubbles, params.cancelable, params.detail );
-    return evt;
-  }
-
-  CustomEvent.prototype = window.Event.prototype;
-
-  window.CustomEvent = CustomEvent;
-})();
-
-// requestAnimationFrame polyfill by Erik Möller. fixes from Paul Irish and Tino Zijdel
-// MIT license
-(function() {
-    var lastTime = 0;
-    var vendors = ['ms', 'moz', 'webkit', 'o'];
-    for(var x = 0; x < vendors.length && !window.requestAnimationFrame; ++x) {
-        window.requestAnimationFrame = window[vendors[x]+'RequestAnimationFrame'];
-        window.cancelAnimationFrame = window[vendors[x]+'CancelAnimationFrame'] || 
-                                      window[vendors[x]+'CancelRequestAnimationFrame'];
-    }
- 
-    if (!window.requestAnimationFrame)
-        window.requestAnimationFrame = function(callback, element) {
-            var currTime = new Date().getTime();
-            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
-            var id = window.setTimeout(function() { callback(currTime + timeToCall); }, 
-              timeToCall);
-            lastTime = currTime + timeToCall;
-            return id;
-        };
- 
-    if (!window.cancelAnimationFrame)
-        window.cancelAnimationFrame = function(id) {
-            clearTimeout(id);
-        };
-}());
-
 // Array.isArray polyfill
 // From MDN
 (function() {
@@ -146,24 +104,6 @@ var $isplainobject = function( obj ) {
   for ( key in obj ) {}
 
   return key === undefined || obj.hasOwnProperty(key);
-};
-
-var $extend = function(destination) {
-  var source, i,property;
-  for(i=1; i<arguments.length; i++) {
-    source = arguments[i];
-    for (property in source) {
-      if(!source.hasOwnProperty(property)) continue;
-      if(source[property] && $isplainobject(source[property])) {
-        if(!destination.hasOwnProperty(property)) destination[property] = {};
-        $extend(destination[property], source[property]);
-      }
-      else {
-        destination[property] = source[property];
-      }
-    }
-  }
-  return destination;
 };
 
 var $shallowCopy = function(obj) {
@@ -413,11 +353,11 @@ JSONEditor.prototype = {
     }
     self.firing_change = true;
     
-    window.requestAnimationFrame(function() {
+    window.setTimeout(function() {
       if(self.destroyed) return;
       self.firing_change = false;
       self.trigger('change');
-    });
+    }, 0);
   },
   onChange: function() {
     var self = this;
@@ -803,63 +743,6 @@ JSONEditor.AbstractEditor = Class.extend({
   },
   isEnabled: function() {
     return !this.disabled;
-  },
-  getDisplayText: function(arr) {
-    var disp = [];
-    var used = {};
-    
-    // Determine how many times each attribute name is used.
-    // This helps us pick the most distinct display text for the schemas.
-    $each(arr,function(i,el) {
-      if(el.title) {
-        used[el.title] = used[el.title] || 0;
-        used[el.title]++;
-      }
-      if(el.description) {
-        used[el.description] = used[el.description] || 0;
-        used[el.description]++;
-      }
-      if(el.format) {
-        used[el.format] = used[el.format] || 0;
-        used[el.format]++;
-      }
-      if(el.type) {
-        used[el.type] = used[el.type] || 0;
-        used[el.type]++;
-      }
-    });
-    
-    // Determine display text for each element of the array
-    $each(arr,function(i,el)  {
-      var name;
-      
-      // If it's a simple string
-      if(typeof el === "string") name = el;
-      // Object
-      else if(el.title && used[el.title]<=1) name = el.title;
-      else if(el.format && used[el.format]<=1) name = el.format;
-      else if(el.type && used[el.type]<=1) name = el.type;
-      else if(el.description && used[el.description]<=1) name = el.descripton;
-      else if(el.title) name = el.title;
-      else if(el.format) name = el.format;
-      else if(el.type) name = el.type;
-      else if(el.description) name = el.description;
-      else if(JSON.stringify(el).length < 50) name = JSON.stringify(el);
-      else name = "type";
-      
-      disp.push(name);
-    });
-    
-    // Replace identical display text with "text 1", "text 2", etc.
-    var inc = {};
-    $each(disp,function(i,name) {
-      inc[name] = inc[name] || 0;
-      inc[name]++;
-      
-      if(used[name] > 1) disp[i] = name + " " + inc[name];
-    });
-    
-    return disp;
   }
 });
 
@@ -1020,7 +903,7 @@ JSONEditor.defaults.editors.integer = JSONEditor.defaults.editors.number.extend(
 
 JSONEditor.defaults.editors.object = JSONEditor.AbstractEditor.extend({
   getDefault: function() {
-    return $extend({},this.schema.default || {});
+    return this.schema.default || {};
   },
   enable: function() {
     this._super();
@@ -1627,7 +1510,7 @@ JSONEditor.defaults.editors.array = JSONEditor.AbstractEditor.extend({
     }
 
     if(i<=0) return;
-    var rows = self.getValue();
+    var rows = self.value.slice();
     var tmp = rows[i-1];
     rows[i-1] = rows[i];
     rows[i] = tmp;
@@ -1792,9 +1675,6 @@ JSONEditor.defaults.editors.table = JSONEditor.defaults.editors.array.extend({
     // Set initial value.
     this.setValueImpl([]);
   },
-  getItemDefault: function() {
-    return $extend({},{default:this.item_default}).default;
-  },
   getItemTitle: function() {
     return this.item_title;
   },
@@ -1948,8 +1828,6 @@ JSONEditor.defaults.editors.multiple = JSONEditor.AbstractEditor.extend({
 
     self.editor.setValue(self.value);
     
-    self.editor.container.style.display = '';
-    
     self.refreshValue();
   },
   buildChildEditor: function(i) {
@@ -1992,10 +1870,11 @@ JSONEditor.defaults.editors.multiple = JSONEditor.AbstractEditor.extend({
     this.type = 0;
     this.editor = null;
     this.value = null;
-    this.display_text = this.getDisplayText(this.child_schemas);
-    
-    // collect the values of the selectKey from the child schemas
     this.select_values = [];
+    
+    var select_titles = [];
+    var select_indices = [];
+    
     $each(this.child_schemas, function(i, schema) {
       var selectValue = $getNested(schema, 'properties', self.select_key, 'constantValue');
       if ($isUndefined(selectValue)) {
@@ -2003,6 +1882,9 @@ JSONEditor.defaults.editors.multiple = JSONEditor.AbstractEditor.extend({
         throw "'multiple' editor requires each 'oneOf' schema to have properties.(selectKey).constantValue";
       }
       self.select_values.push(selectValue);
+      select_indices.push(i);
+      var title = $has(schema, 'title') ? schema.title : selectValue;
+      select_titles.push(title);
     });
     
     var container = this.container;
@@ -2010,14 +1892,15 @@ JSONEditor.defaults.editors.multiple = JSONEditor.AbstractEditor.extend({
     this.header = this.label = this.theme.getFormInputLabel(this.getTitle());
     this.container.appendChild(this.header);
 
-    this.switcher = this.theme.getSwitcher(this.display_text);
+    this.switcher = this.theme.getSwitcher(select_indices);
+    this.theme.setSwitcherOptions(this.switcher, select_indices, select_titles);
     container.appendChild(this.switcher);
     this.switcher.addEventListener('change',function(e) {
       e.preventDefault();
       e.stopPropagation();
       
       self.withProcessingContext(function() {
-        self.switchEditor(self.display_text.indexOf(self.switcher.value));
+        self.switchEditor(self.switcher.value);
         self.onChange();
       }, 'switcher_input');
     });
@@ -2053,7 +1936,7 @@ JSONEditor.defaults.editors.multiple = JSONEditor.AbstractEditor.extend({
       });
     }
     
-    self.switcher.value = self.display_text[type];
+    self.switcher.value = type;
     
     this.value = val;
     this.switchEditor(type);
@@ -3571,7 +3454,7 @@ JSONEditor.defaults.templates.javascript = function() {
 JSONEditor.defaults.theme = 'html';
 
 // Set the default template engine
-JSONEditor.defaults.template = 'default';
+JSONEditor.defaults.template = 'javascript';
 
 // Default options when initializing JSON Editor
 JSONEditor.defaults.options = {};
@@ -3598,131 +3481,6 @@ JSONEditor.defaults.translate = function(key, variables) {
 JSONEditor.defaults.default_language = 'en';
 JSONEditor.defaults.language = JSONEditor.defaults.default_language;
 JSONEditor.defaults.languages.en = {
-  /**
-   * When a property is not set
-   */
-  error_notset: "Property must be set",
-  /**
-   * When a string must not be empty
-   */
-  error_notempty: "Value required",
-  /**
-   * When a value is not one of the enumerated values
-   */
-  error_enum: "Value must be one of the enumerated values",
-  /**
-   * When a value doesn't validate any schema of a 'anyOf' combination
-   */
-  error_anyOf: "Value must validate against at least one of the provided schemas",
-  /**
-   * When a value doesn't validate
-   * @variables This key takes one variable: The number of schemas the value does not validate
-   */
-  error_oneOf: 'Value must validate against exactly one of the provided schemas. It currently validates against {{0}} of the schemas.',
-  /**
-   * When a value does not validate a 'not' schema
-   */
-  error_not: "Value must not validate against the provided schema",
-  /**
-   * When a value does not match any of the provided types
-   */
-  error_type_union: "Value must be one of the provided types",
-  /**
-   * When a value does not match the given type
-   * @variables This key takes one variable: The type the value should be of
-   */
-  error_type: "Value must be of type {{0}}",
-  /**
-   *  When the value validates one of the disallowed types
-   */
-  error_disallow_union: "Value must not be one of the provided disallowed types",
-  /**
-   *  When the value validates a disallowed type
-   * @variables This key takes one variable: The type the value should not be of
-   */
-  error_disallow: "Value must not be of type {{0}}",
-  /**
-   * When a value is not a multiple of or divisible by a given number
-   * @variables This key takes one variable: The number mentioned above
-   */
-  error_multipleOf: "Value must be a multiple of {{0}}",
-  /**
-   * When a value is greater than it's supposed to be (exclusive)
-   * @variables This key takes one variable: The maximum
-   */
-  error_maximum_excl: "Value must be less than {{0}}",
-  /**
-   * When a value is greater than it's supposed to be (inclusive
-   * @variables This key takes one variable: The maximum
-   */
-  error_maximum_incl: "Value must at most {{0}}",
-  /**
-   * When a value is lesser than it's supposed to be (exclusive)
-   * @variables This key takes one variable: The minimum
-   */
-  error_minimum_excl: "Value must be greater than {{0}}",
-  /**
-   * When a value is lesser than it's supposed to be (inclusive)
-   * @variables This key takes one variable: The minimum
-   */
-  error_minimum_incl: "Value must be at least {{0}}",
-  /**
-   * When a value have too many characters
-   * @variables This key takes one variable: The maximum character count
-   */
-  error_maxLength: "Value must be at most {{0}} characters long",
-  /**
-   * When a value does not have enough characters
-   * @variables This key takes one variable: The minimum character count
-   */
-  error_minLength: "Value must be at least {{0}} characters long",
-  /**
-   * When a value does not match a given pattern
-   */
-  error_pattern: "Value must match the provided pattern",
-  /**
-   * When an array has additional items whereas it is not supposed to
-   */
-  error_additionalItems: "No additional items allowed in this array",
-  /**
-   * When there are to many items in an array
-   * @variables This key takes one variable: The maximum item count
-   */
-  error_maxItems: "Value must have at most {{0}} items",
-  /**
-   * When there are not enough items in an array
-   * @variables This key takes one variable: The minimum item count
-   */
-  error_minItems: "Value must have at least {{0}} items",
-  /**
-   * When an array is supposed to have unique items but has duplicates
-   */
-  error_uniqueItems: "Array must have unique items",
-  /**
-   * When there are too many properties in an object
-   * @variables This key takes one variable: The maximum property count
-   */
-  error_maxProperties: "Object must have at most {{0}} properties",
-  /**
-   * When there are not enough properties in an object
-   * @variables This key takes one variable: The minimum property count
-   */
-  error_minProperties: "Object must have at least {{0}} properties",
-  /**
-   * When a required property is not defined
-   * @variables This key takes one variable: The name of the missing property
-   */
-  error_required: "Object is missing the required property '{{0}}'",
-  /**
-   * When there is an additional property is set whereas there should be none
-   * @variables This key takes one variable: The name of the additional property
-   */
-  error_additional_properties: "No additional properties allowed, but property {{0}} is set",
-  /**
-   * When a dependency is not resolved
-   * @variables This key takes one variable: The name of the missing property for the dependency
-   */
-  error_dependency: "Must have property {{0}}"
 };
 
 // Default per-editor options
