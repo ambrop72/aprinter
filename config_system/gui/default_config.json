@@ -1,132 +1,150 @@
 {
   "boards": [
     {
-      "platform": {
-        "_compoundName": "At91Sam3x8e",
-        "adc": {
-          "_compoundName": "At91SamAdc",
-          "avg_interval": 0.0025,
-          "freq": 1000000,
-          "settling": 3,
-          "smoothing": 0.95,
-          "startup": 8,
-          "tracking": 0,
-          "transfer": 1
+      "platform_config": {
+        "platform": {
+          "_compoundName": "At91Sam3x8e",
+          "adc": {
+            "_compoundName": "At91SamAdc",
+            "avg_interval": 0.0025,
+            "freq": 1000000,
+            "settling": 3,
+            "smoothing": 0.95,
+            "startup": 8,
+            "tracking": 0,
+            "transfer": 1
+          },
+          "clock": {
+            "_compoundName": "At91Sam3xClock",
+            "avail_oc_units": [
+              {
+                "value": "TC0A"
+              },
+              {
+                "value": "TC0B"
+              },
+              {
+                "value": "TC0C"
+              },
+              {
+                "value": "TC1A"
+              },
+              {
+                "value": "TC1B"
+              },
+              {
+                "value": "TC1C"
+              },
+              {
+                "value": "TC2A"
+              },
+              {
+                "value": "TC2B"
+              },
+              {
+                "value": "TC2C"
+              },
+              {
+                "value": "TC3A"
+              },
+              {
+                "value": "TC3B"
+              },
+              {
+                "value": "TC3C"
+              },
+              {
+                "value": "TC4A"
+              },
+              {
+                "value": "TC4B"
+              },
+              {
+                "value": "TC4C"
+              },
+              {
+                "value": "TC5A"
+              },
+              {
+                "value": "TC5B"
+              },
+              {
+                "value": "TC5C"
+              },
+              {
+                "value": "TC6A"
+              },
+              {
+                "value": "TC6B"
+              },
+              {
+                "value": "TC6C"
+              },
+              {
+                "value": "TC7A"
+              },
+              {
+                "value": "TC7B"
+              },
+              {
+                "value": "TC7C"
+              },
+              {
+                "value": "TC8A"
+              },
+              {
+                "value": "TC8B"
+              },
+              {
+                "value": "TC8C"
+              }
+            ],
+            "prescaler": 3,
+            "primary_timer": "TC0"
+          },
+          "pins": {
+            "_compoundName": "At91SamPins",
+            "input_modes": [
+              {
+                "ident": "At91SamPinInputModeNormal",
+                "name": "Normal"
+              },
+              {
+                "ident": "At91SamPinInputModePullUp",
+                "name": "Pull-up"
+              }
+            ]
+          },
+          "pwm": {
+            "DivA": 0,
+            "DivB": 0,
+            "PreA": 0,
+            "PreB": 0,
+            "_compoundName": "At91Sam3xPwm"
+          },
+          "watchdog": {
+            "Wdv": 260,
+            "_compoundName": "At91SamWatchdog"
+          }
         },
-        "clock": {
-          "_compoundName": "At91Sam3xClock",
-          "avail_oc_units": [
-            {
-              "value": "TC0A"
-            },
-            {
-              "value": "TC0B"
-            },
-            {
-              "value": "TC0C"
-            },
-            {
-              "value": "TC1A"
-            },
-            {
-              "value": "TC1B"
-            },
-            {
-              "value": "TC1C"
-            },
-            {
-              "value": "TC2A"
-            },
-            {
-              "value": "TC2B"
-            },
-            {
-              "value": "TC2C"
-            },
-            {
-              "value": "TC3A"
-            },
-            {
-              "value": "TC3B"
-            },
-            {
-              "value": "TC3C"
-            },
-            {
-              "value": "TC4A"
-            },
-            {
-              "value": "TC4B"
-            },
-            {
-              "value": "TC4C"
-            },
-            {
-              "value": "TC5A"
-            },
-            {
-              "value": "TC5B"
-            },
-            {
-              "value": "TC5C"
-            },
-            {
-              "value": "TC6A"
-            },
-            {
-              "value": "TC6B"
-            },
-            {
-              "value": "TC6C"
-            },
-            {
-              "value": "TC7A"
-            },
-            {
-              "value": "TC7B"
-            },
-            {
-              "value": "TC7C"
-            },
-            {
-              "value": "TC8A"
-            },
-            {
-              "value": "TC8B"
-            },
-            {
-              "value": "TC8C"
-            }
-          ],
-          "prescaler": 3,
-          "primary_timer": "TC0"
-        },
-        "pins": {
-          "_compoundName": "At91SamPins",
-          "input_modes": [
-            {
-              "ident": "At91SamPinInputModeNormal",
-              "name": "Normal"
-            },
-            {
-              "ident": "At91SamPinInputModePullUp",
-              "name": "Pull-up"
-            }
-          ]
-        },
-        "pwm": {
-          "DivA": 0,
-          "DivB": 0,
-          "PreA": 0,
-          "PreB": 0,
-          "_compoundName": "At91Sam3xPwm"
-        },
-        "watchdog": {
-          "Wdv": 260,
-          "_compoundName": "At91SamWatchdog"
-        }
+        "_compoundName": "PlatformConfig",
+        "board_for_build": "arduino_due",
+        "board_helper_includes": [
+          "arduino_due_pins"
+        ],
+        "output_type": "bin"
       },
-      "name": "RADDS",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxStepsPerCycle": 0.0017,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
       "_compoundName": "board",
       "analog_inputs": [
         {
@@ -155,31 +173,6 @@
           "_compoundName": "analog_input"
         }
       ],
-      "board_for_build": "arduino_due",
-      "board_helper_includes": [
-        "arduino_due_pins"
-      ],
-      "config_manager": {
-        "ConfigStore": {
-          "Eeprom": {
-            "BlockSize": 64,
-            "I2c": {
-              "Ckdiv": 2,
-              "Device": "At91SamI2cDevice1",
-              "I2cFreq": 100000,
-              "_compoundName": "At91SamI2c"
-            },
-            "I2cAddr": 80,
-            "Size": 32768,
-            "WriteTimeout": 1,
-            "_compoundName": "I2cEeprom"
-          },
-          "EndBlock": 512,
-          "StartBlock": 0,
-          "_compoundName": "EepromConfigStore"
-        },
-        "_compoundName": "RuntimeConfigManager"
-      },
       "digital_inputs": [
         {
           "InputMode": "At91SamPinInputModePullUp",
@@ -218,19 +211,8 @@
           "_compoundName": "digital_input"
         }
       ],
+      "name": "RADDS",
       "LedPin": "DuePin37",
-      "output_type": "bin",
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
-        "MaxStepsPerCycle": 0.0017,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
       "EventChannelTimer": {
         "_compoundName": "interrupt_timer",
         "oc_unit": "TC0A"
@@ -369,22 +351,49 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "sdcard": {
-        "BufferBaseSize": 2048,
-        "GcodeParser": {
-          "MaxParts": 8,
-          "_compoundName": "TextGcodeParser"
-        },
-        "MaxCommandSize": 256,
-        "SdCardService": {
-          "SpiService": {
-            "Device": "At91Sam3xSpiDevice",
-            "_compoundName": "At91SamSpi"
+      "runtime_config": {
+        "_compoundName": "RuntimeConfig",
+        "config_manager": {
+          "ConfigStore": {
+            "Eeprom": {
+              "BlockSize": 64,
+              "I2c": {
+                "Ckdiv": 2,
+                "Device": "At91SamI2cDevice1",
+                "I2cFreq": 100000,
+                "_compoundName": "At91SamI2c"
+              },
+              "I2cAddr": 80,
+              "Size": 32768,
+              "WriteTimeout": 1,
+              "_compoundName": "I2cEeprom"
+            },
+            "EndBlock": 512,
+            "StartBlock": 0,
+            "_compoundName": "EepromConfigStore"
           },
-          "SsPin": "DuePin4",
-          "_compoundName": "SpiSdCard"
-        },
-        "_compoundName": "SdCard"
+          "_compoundName": "RuntimeConfigManager"
+        }
+      },
+      "sdcard_config": {
+        "_compoundName": "SdCardConfig",
+        "sdcard": {
+          "BufferBaseSize": 2048,
+          "GcodeParser": {
+            "MaxParts": 8,
+            "_compoundName": "TextGcodeParser"
+          },
+          "MaxCommandSize": 256,
+          "SdCardService": {
+            "SpiService": {
+              "Device": "At91Sam3xSpiDevice",
+              "_compoundName": "At91SamSpi"
+            },
+            "SsPin": "DuePin4",
+            "_compoundName": "SpiSdCard"
+          },
+          "_compoundName": "SdCard"
+        }
       },
       "serial": {
         "BaudRate": 115200,
@@ -466,73 +475,91 @@
       ]
     },
     {
-      "platform": {
-        "_compoundName": "Teensy3",
-        "adc": {
-          "AdcADiv": 3,
-          "_compoundName": "Mk20Adc"
+      "platform_config": {
+        "platform": {
+          "_compoundName": "Teensy3",
+          "adc": {
+            "AdcADiv": 3,
+            "_compoundName": "Mk20Adc"
+          },
+          "clock": {
+            "_compoundName": "Mk20Clock",
+            "avail_oc_units": [
+              {
+                "value": "FTM0_0"
+              },
+              {
+                "value": "FTM0_1"
+              },
+              {
+                "value": "FTM0_2"
+              },
+              {
+                "value": "FTM0_3"
+              },
+              {
+                "value": "FTM0_4"
+              },
+              {
+                "value": "FTM0_5"
+              },
+              {
+                "value": "FTM0_6"
+              },
+              {
+                "value": "FTM0_7"
+              },
+              {
+                "value": "FTM1_0"
+              },
+              {
+                "value": "FTM1_1"
+              }
+            ],
+            "prescaler": 4,
+            "primary_timer": "FTM0"
+          },
+          "pins": {
+            "_compoundName": "Mk20Pins",
+            "input_modes": [
+              {
+                "ident": "Mk20PinInputModeNormal",
+                "name": "Normal"
+              },
+              {
+                "ident": "Mk20PinInputModePullUp",
+                "name": "Pull-up"
+              },
+              {
+                "ident": "Mk20PinInputModePullDown",
+                "name": "Pull-down"
+              }
+            ]
+          },
+          "watchdog": {
+            "Prescval": 0,
+            "Toval": 2000,
+            "_compoundName": "Mk20Watchdog"
+          }
         },
-        "clock": {
-          "_compoundName": "Mk20Clock",
-          "avail_oc_units": [
-            {
-              "value": "FTM0_0"
-            },
-            {
-              "value": "FTM0_1"
-            },
-            {
-              "value": "FTM0_2"
-            },
-            {
-              "value": "FTM0_3"
-            },
-            {
-              "value": "FTM0_4"
-            },
-            {
-              "value": "FTM0_5"
-            },
-            {
-              "value": "FTM0_6"
-            },
-            {
-              "value": "FTM0_7"
-            },
-            {
-              "value": "FTM1_0"
-            },
-            {
-              "value": "FTM1_1"
-            }
-          ],
-          "prescaler": 4,
-          "primary_timer": "FTM0"
-        },
-        "pins": {
-          "_compoundName": "Mk20Pins",
-          "input_modes": [
-            {
-              "ident": "Mk20PinInputModeNormal",
-              "name": "Normal"
-            },
-            {
-              "ident": "Mk20PinInputModePullUp",
-              "name": "Pull-up"
-            },
-            {
-              "ident": "Mk20PinInputModePullDown",
-              "name": "Pull-down"
-            }
-          ]
-        },
-        "watchdog": {
-          "Prescval": 0,
-          "Toval": 2000,
-          "_compoundName": "Mk20Watchdog"
-        }
+        "_compoundName": "PlatformConfig",
+        "board_for_build": "teensy3",
+        "board_helper_includes": [
+          "teensy3_pins"
+        ],
+        "output_type": "hex"
       },
-      "name": "Teensy 3",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "float",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxStepsPerCycle": 0.0017,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
       "_compoundName": "board",
       "analog_inputs": [
         {
@@ -541,23 +568,6 @@
           "_compoundName": "analog_input"
         }
       ],
-      "board_for_build": "teensy3",
-      "board_helper_includes": [
-        "teensy3_pins"
-      ],
-      "config_manager": {
-        "ConfigStore": {
-          "Eeprom": {
-            "FakeBlockSize": 16,
-            "Size": 2048,
-            "_compoundName": "TeensyEeprom"
-          },
-          "EndBlock": 128,
-          "StartBlock": 0,
-          "_compoundName": "EepromConfigStore"
-        },
-        "_compoundName": "RuntimeConfigManager"
-      },
       "digital_inputs": [
         {
           "InputMode": "Mk20PinInputModePullUp",
@@ -578,19 +588,8 @@
           "_compoundName": "digital_input"
         }
       ],
+      "name": "Teensy 3",
       "LedPin": "TeensyPin13",
-      "output_type": "hex",
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "float",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
-        "MaxStepsPerCycle": 0.0017,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
       "EventChannelTimer": {
         "_compoundName": "interrupt_timer",
         "oc_unit": "FTM0_0"
@@ -631,8 +630,27 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "sdcard": {
-        "_compoundName": "NoSdCard"
+      "runtime_config": {
+        "_compoundName": "RuntimeConfig",
+        "config_manager": {
+          "ConfigStore": {
+            "Eeprom": {
+              "FakeBlockSize": 16,
+              "Size": 2048,
+              "_compoundName": "TeensyEeprom"
+            },
+            "EndBlock": 128,
+            "StartBlock": 0,
+            "_compoundName": "EepromConfigStore"
+          },
+          "_compoundName": "RuntimeConfigManager"
+        }
+      },
+      "sdcard_config": {
+        "_compoundName": "SdCardConfig",
+        "sdcard": {
+          "_compoundName": "NoSdCard"
+        }
       },
       "serial": {
         "BaudRate": 0,
@@ -692,114 +710,132 @@
       ]
     },
     {
-      "platform": {
-        "_compoundName": "AVR ATmega2560",
-        "adc": {
-          "Prescaler": 7,
-          "RefSel": 1,
-          "_compoundName": "AvrAdc"
-        },
-        "clock": {
-          "PrescaleDivide": 64,
-          "_compoundName": "AvrClock",
-          "avail_oc_units": [
-            {
-              "value": "TC0_A"
-            },
-            {
-              "value": "TC0_B"
-            },
-            {
-              "value": "TC1_A"
-            },
-            {
-              "value": "TC1_B"
-            },
-            {
-              "value": "TC1_C"
-            },
-            {
-              "value": "TC2_A"
-            },
-            {
-              "value": "TC2_B"
-            },
-            {
-              "value": "TC3_A"
-            },
-            {
-              "value": "TC3_B"
-            },
-            {
-              "value": "TC3_C"
-            },
-            {
-              "value": "TC4_A"
-            },
-            {
-              "value": "TC4_B"
-            },
-            {
-              "value": "TC4_C"
-            },
-            {
-              "value": "TC5_A"
-            },
-            {
-              "value": "TC5_B"
-            },
-            {
-              "value": "TC5_C"
-            }
-          ],
-          "primary_timer": "TC3",
-          "timers": [
-            {
-              "Mode": {
-                "PrescaleDivide": 1024,
-                "_compoundName": "AvrClockTcMode8BitPwm"
+      "platform_config": {
+        "platform": {
+          "_compoundName": "AVR ATmega2560",
+          "adc": {
+            "Prescaler": 7,
+            "RefSel": 1,
+            "_compoundName": "AvrAdc"
+          },
+          "clock": {
+            "PrescaleDivide": 64,
+            "_compoundName": "AvrClock",
+            "avail_oc_units": [
+              {
+                "value": "TC0_A"
               },
-              "Timer": "TC0",
-              "_compoundName": "Timer"
-            },
-            {
-              "Mode": {
-                "PrescaleDivide": 1024,
-                "_compoundName": "AvrClockTcMode8BitPwm"
+              {
+                "value": "TC0_B"
               },
-              "Timer": "TC2",
-              "_compoundName": "Timer"
-            },
-            {
-              "Mode": {
-                "PrescaleDivide": 64,
-                "TopVal": 4095,
-                "_compoundName": "AvrClockTcMode16BitPwm"
+              {
+                "value": "TC1_A"
               },
-              "Timer": "TC1",
-              "_compoundName": "Timer"
-            }
-          ]
+              {
+                "value": "TC1_B"
+              },
+              {
+                "value": "TC1_C"
+              },
+              {
+                "value": "TC2_A"
+              },
+              {
+                "value": "TC2_B"
+              },
+              {
+                "value": "TC3_A"
+              },
+              {
+                "value": "TC3_B"
+              },
+              {
+                "value": "TC3_C"
+              },
+              {
+                "value": "TC4_A"
+              },
+              {
+                "value": "TC4_B"
+              },
+              {
+                "value": "TC4_C"
+              },
+              {
+                "value": "TC5_A"
+              },
+              {
+                "value": "TC5_B"
+              },
+              {
+                "value": "TC5_C"
+              }
+            ],
+            "primary_timer": "TC3",
+            "timers": [
+              {
+                "Mode": {
+                  "PrescaleDivide": 1024,
+                  "_compoundName": "AvrClockTcMode8BitPwm"
+                },
+                "Timer": "TC0",
+                "_compoundName": "Timer"
+              },
+              {
+                "Mode": {
+                  "PrescaleDivide": 1024,
+                  "_compoundName": "AvrClockTcMode8BitPwm"
+                },
+                "Timer": "TC2",
+                "_compoundName": "Timer"
+              },
+              {
+                "Mode": {
+                  "PrescaleDivide": 64,
+                  "TopVal": 4095,
+                  "_compoundName": "AvrClockTcMode16BitPwm"
+                },
+                "Timer": "TC1",
+                "_compoundName": "Timer"
+              }
+            ]
+          },
+          "pins": {
+            "_compoundName": "AvrPins",
+            "input_modes": [
+              {
+                "ident": "AvrPinInputModeNormal",
+                "name": "Normal"
+              },
+              {
+                "ident": "AvrPinInputModePullUp",
+                "name": "Pull-up"
+              }
+            ]
+          },
+          "watchdog": {
+            "Timeout": "WDTO_2S",
+            "_compoundName": "AvrWatchdog"
+          }
         },
-        "pins": {
-          "_compoundName": "AvrPins",
-          "input_modes": [
-            {
-              "ident": "AvrPinInputModeNormal",
-              "name": "Normal"
-            },
-            {
-              "ident": "AvrPinInputModePullUp",
-              "name": "Pull-up"
-            }
-          ]
-        },
-        "watchdog": {
-          "Timeout": "WDTO_2S",
-          "_compoundName": "AvrWatchdog"
-        }
+        "_compoundName": "PlatformConfig",
+        "board_for_build": "ramps13",
+        "board_helper_includes": [
+          "arduino_mega_pins"
+        ],
+        "output_type": "hex"
       },
-      "name": "RAMPS 1.3",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 24,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 10,
+        "LookaheadCommitCount": 5,
+        "MaxStepsPerCycle": 0.00137,
+        "StepperSegmentBufferSize": 24,
+        "_compoundName": "performance"
+      },
       "_compoundName": "board",
       "analog_inputs": [
         {
@@ -818,22 +854,6 @@
           "_compoundName": "analog_input"
         }
       ],
-      "board_for_build": "ramps13",
-      "board_helper_includes": [
-        "arduino_mega_pins"
-      ],
-      "config_manager": {
-        "ConfigStore": {
-          "Eeprom": {
-            "FakeBlockSize": 16,
-            "_compoundName": "AvrEeprom"
-          },
-          "EndBlock": 256,
-          "StartBlock": 0,
-          "_compoundName": "EepromConfigStore"
-        },
-        "_compoundName": "RuntimeConfigManager"
-      },
       "digital_inputs": [
         {
           "InputMode": "AvrPinInputModePullUp",
@@ -872,19 +892,8 @@
           "_compoundName": "digital_input"
         }
       ],
+      "name": "RAMPS 1.3",
       "LedPin": "MegaPin13",
-      "output_type": "hex",
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
-        "EventChannelBufferSize": 24,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
-        "LookaheadBufferSize": 10,
-        "LookaheadCommitCount": 5,
-        "MaxStepsPerCycle": 0.00137,
-        "StepperSegmentBufferSize": 24,
-        "_compoundName": "performance"
-      },
       "EventChannelTimer": {
         "_compoundName": "interrupt_timer",
         "oc_unit": "TC5_C"
@@ -968,22 +977,40 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "sdcard": {
-        "BufferBaseSize": 1024,
-        "GcodeParser": {
-          "MaxParts": 8,
-          "_compoundName": "TextGcodeParser"
-        },
-        "MaxCommandSize": 100,
-        "SdCardService": {
-          "SpiService": {
-            "SpeedDiv": 32,
-            "_compoundName": "AvrSpi"
+      "runtime_config": {
+        "_compoundName": "RuntimeConfig",
+        "config_manager": {
+          "ConfigStore": {
+            "Eeprom": {
+              "FakeBlockSize": 16,
+              "_compoundName": "AvrEeprom"
+            },
+            "EndBlock": 256,
+            "StartBlock": 0,
+            "_compoundName": "EepromConfigStore"
           },
-          "SsPin": "AvrPin<AvrPortB,0>",
-          "_compoundName": "SpiSdCard"
-        },
-        "_compoundName": "SdCard"
+          "_compoundName": "RuntimeConfigManager"
+        }
+      },
+      "sdcard_config": {
+        "_compoundName": "SdCardConfig",
+        "sdcard": {
+          "BufferBaseSize": 1024,
+          "GcodeParser": {
+            "MaxParts": 8,
+            "_compoundName": "TextGcodeParser"
+          },
+          "MaxCommandSize": 100,
+          "SdCardService": {
+            "SpiService": {
+              "SpeedDiv": 32,
+              "_compoundName": "AvrSpi"
+            },
+            "SsPin": "AvrPin<AvrPortB,0>",
+            "_compoundName": "SpiSdCard"
+          },
+          "_compoundName": "SdCard"
+        }
       },
       "serial": {
         "BaudRate": 250000,
@@ -1055,74 +1082,90 @@
       ]
     },
     {
-      "platform": {
-        "_compoundName": "AVR ATmega1284p",
-        "adc": {
-          "Prescaler": 7,
-          "RefSel": 1,
-          "_compoundName": "AvrAdc"
-        },
-        "clock": {
-          "PrescaleDivide": 64,
-          "_compoundName": "AvrClock",
-          "avail_oc_units": [
-            {
-              "value": "TC0_A"
-            },
-            {
-              "value": "TC0_B"
-            },
-            {
-              "value": "TC1_A"
-            },
-            {
-              "value": "TC1_B"
-            },
-            {
-              "value": "TC2_A"
-            },
-            {
-              "value": "TC2_B"
-            },
-            {
-              "value": "TC3_A"
-            },
-            {
-              "value": "TC3_B"
-            }
-          ],
-          "primary_timer": "TC3",
-          "timers": [
-            {
-              "Mode": {
-                "PrescaleDivide": 64,
-                "TopVal": 4095,
-                "_compoundName": "AvrClockTcMode16BitPwm"
+      "platform_config": {
+        "platform": {
+          "_compoundName": "AVR ATmega1284p",
+          "adc": {
+            "Prescaler": 7,
+            "RefSel": 1,
+            "_compoundName": "AvrAdc"
+          },
+          "clock": {
+            "PrescaleDivide": 64,
+            "_compoundName": "AvrClock",
+            "avail_oc_units": [
+              {
+                "value": "TC0_A"
               },
-              "Timer": "TC1",
-              "_compoundName": "Timer"
-            }
-          ]
+              {
+                "value": "TC0_B"
+              },
+              {
+                "value": "TC1_A"
+              },
+              {
+                "value": "TC1_B"
+              },
+              {
+                "value": "TC2_A"
+              },
+              {
+                "value": "TC2_B"
+              },
+              {
+                "value": "TC3_A"
+              },
+              {
+                "value": "TC3_B"
+              }
+            ],
+            "primary_timer": "TC3",
+            "timers": [
+              {
+                "Mode": {
+                  "PrescaleDivide": 64,
+                  "TopVal": 4095,
+                  "_compoundName": "AvrClockTcMode16BitPwm"
+                },
+                "Timer": "TC1",
+                "_compoundName": "Timer"
+              }
+            ]
+          },
+          "pins": {
+            "_compoundName": "AvrPins",
+            "input_modes": [
+              {
+                "ident": "AvrPinInputModeNormal",
+                "name": "Normal"
+              },
+              {
+                "ident": "AvrPinInputModePullUp",
+                "name": "Pull-up"
+              }
+            ]
+          },
+          "watchdog": {
+            "Timeout": "WDTO_2S",
+            "_compoundName": "AvrWatchdog"
+          }
         },
-        "pins": {
-          "_compoundName": "AvrPins",
-          "input_modes": [
-            {
-              "ident": "AvrPinInputModeNormal",
-              "name": "Normal"
-            },
-            {
-              "ident": "AvrPinInputModePullUp",
-              "name": "Pull-up"
-            }
-          ]
-        },
-        "watchdog": {
-          "Timeout": "WDTO_2S",
-          "_compoundName": "AvrWatchdog"
-        }
+        "_compoundName": "PlatformConfig",
+        "board_for_build": "melzi",
+        "board_helper_includes": [],
+        "output_type": "hex"
       },
-      "name": "Melzi",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 16,
+        "LookaheadCommitCount": 8,
+        "MaxStepsPerCycle": 0.00137,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
       "_compoundName": "board",
       "analog_inputs": [
         {
@@ -1136,20 +1179,6 @@
           "_compoundName": "analog_input"
         }
       ],
-      "board_for_build": "melzi",
-      "board_helper_includes": [],
-      "config_manager": {
-        "ConfigStore": {
-          "Eeprom": {
-            "FakeBlockSize": 16,
-            "_compoundName": "AvrEeprom"
-          },
-          "EndBlock": 256,
-          "StartBlock": 0,
-          "_compoundName": "EepromConfigStore"
-        },
-        "_compoundName": "RuntimeConfigManager"
-      },
       "digital_inputs": [
         {
           "InputMode": "AvrPinInputModePullUp",
@@ -1170,19 +1199,8 @@
           "_compoundName": "digital_input"
         }
       ],
+      "name": "Melzi",
       "LedPin": "AvrPin<AvrPortA,4>",
-      "output_type": "hex",
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
-        "LookaheadBufferSize": 16,
-        "LookaheadCommitCount": 8,
-        "MaxStepsPerCycle": 0.00137,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
       "EventChannelTimer": {
         "_compoundName": "interrupt_timer",
         "oc_unit": "TC2_A"
@@ -1236,22 +1254,40 @@
           "_compoundName": "pwm_output"
         }
       ],
-      "sdcard": {
-        "BufferBaseSize": 2048,
-        "GcodeParser": {
-          "MaxParts": 8,
-          "_compoundName": "TextGcodeParser"
-        },
-        "MaxCommandSize": 100,
-        "SdCardService": {
-          "SpiService": {
-            "SpeedDiv": 32,
-            "_compoundName": "AvrSpi"
+      "runtime_config": {
+        "_compoundName": "RuntimeConfig",
+        "config_manager": {
+          "ConfigStore": {
+            "Eeprom": {
+              "FakeBlockSize": 16,
+              "_compoundName": "AvrEeprom"
+            },
+            "EndBlock": 256,
+            "StartBlock": 0,
+            "_compoundName": "EepromConfigStore"
           },
-          "SsPin": "AvrPin<AvrPortA,0>",
-          "_compoundName": "SpiSdCard"
-        },
-        "_compoundName": "SdCard"
+          "_compoundName": "RuntimeConfigManager"
+        }
+      },
+      "sdcard_config": {
+        "_compoundName": "SdCardConfig",
+        "sdcard": {
+          "BufferBaseSize": 2048,
+          "GcodeParser": {
+            "MaxParts": 8,
+            "_compoundName": "TextGcodeParser"
+          },
+          "MaxCommandSize": 100,
+          "SdCardService": {
+            "SpiService": {
+              "SpeedDiv": 32,
+              "_compoundName": "AvrSpi"
+            },
+            "SsPin": "AvrPin<AvrPortA,0>",
+            "_compoundName": "SpiSdCard"
+          },
+          "_compoundName": "SdCard"
+        }
       },
       "serial": {
         "BaudRate": 115200,
@@ -1443,41 +1479,44 @@
         }
       ],
       "name": "RADDS example",
-      "probe": {
-        "ProbePin": "Z-MAX",
-        "FastSpeed": 2,
-        "LowHeight": 2,
-        "MoveSpeed": 120,
-        "OffsetX": -18,
-        "OffsetY": -31,
-        "InvertInput": false,
-        "ProbePoints": [
-          {
-            "X": 0,
-            "Y": 31,
-            "_compoundName": "ProbePoint"
-          },
-          {
-            "X": 0,
-            "Y": 155,
-            "_compoundName": "ProbePoint"
-          },
-          {
-            "X": 205,
-            "Y": 31,
-            "_compoundName": "ProbePoint"
-          },
-          {
-            "X": 205,
-            "Y": 155,
-            "_compoundName": "ProbePoint"
-          }
-        ],
-        "RetractDist": 1,
-        "RetractSpeed": 3,
-        "SlowSpeed": 0.6,
-        "StartHeight": 9,
-        "_compoundName": "Probe"
+      "probe_config": {
+        "_compoundName": "ProbeConfig",
+        "probe": {
+          "ProbePin": "Z-MAX",
+          "FastSpeed": 2,
+          "LowHeight": 2,
+          "MoveSpeed": 120,
+          "OffsetX": -18,
+          "OffsetY": -31,
+          "InvertInput": false,
+          "ProbePoints": [
+            {
+              "X": 0,
+              "Y": 31,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "X": 0,
+              "Y": 155,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "X": 205,
+              "Y": 31,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "X": 205,
+              "Y": 155,
+              "_compoundName": "ProbePoint"
+            }
+          ],
+          "RetractDist": 1,
+          "RetractSpeed": 3,
+          "SlowSpeed": 0.6,
+          "StartHeight": 9,
+          "_compoundName": "Probe"
+        }
       },
       "steppers": [
         {
@@ -1649,8 +1688,11 @@
         }
       ],
       "name": "Teensy 3 example",
-      "probe": {
-        "_compoundName": "NoProbe"
+      "probe_config": {
+        "_compoundName": "ProbeConfig",
+        "probe": {
+          "_compoundName": "NoProbe"
+        }
       },
       "steppers": [
         {
@@ -1839,8 +1881,11 @@
         }
       ],
       "name": "RAMPS 1.3 example",
-      "probe": {
-        "_compoundName": "NoProbe"
+      "probe_config": {
+        "_compoundName": "ProbeConfig",
+        "probe": {
+          "_compoundName": "NoProbe"
+        }
       },
       "steppers": [
         {
@@ -2029,8 +2074,11 @@
         }
       ],
       "name": "Melzi example",
-      "probe": {
-        "_compoundName": "NoProbe"
+      "probe_config": {
+        "_compoundName": "ProbeConfig",
+        "probe": {
+          "_compoundName": "NoProbe"
+        }
       },
       "steppers": [
         {

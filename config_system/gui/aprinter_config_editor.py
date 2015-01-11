@@ -1,7 +1,7 @@
 import configema as ce
 
 def oc_unit_choice(**kwargs):
-    return ce.Reference(ref_array='id_board.platform', ref_array_descend=['clock', 'avail_oc_units'], ref_id_key='value', ref_name_key='value', title='Output compare unit', deref_key='lalal', **kwargs)
+    return ce.Reference(ref_array='id_board.platform_config.platform', ref_array_descend=['clock', 'avail_oc_units'], ref_id_key='value', ref_name_key='value', title='Output compare unit', deref_key='lalal', **kwargs)
 
 def interrupt_timer_choice(**kwargs):
     return ce.Compound('interrupt_timer', ident='id_interrupt_timer_choice', attrs=[
@@ -242,58 +242,72 @@ def editor():
                 ce.Integer(key='SetMCommand', title='Set-command M-number (106 for first fan)'),
                 ce.Integer(key='OffMCommand', title='Off-command M-number (107 for first fan)'),
             ])),
-            ce.OneOf(key='probe', title='Bed probing', choices=[
-                ce.Compound('NoProbe', title='Disabled', disable_collapse=True, attrs=[]),
-                ce.Compound('Probe', title='Enabled', ident='id_configuration_probe_probe', disable_collapse=True, attrs=[
-                    digital_input_choice(key='ProbePin', title='Probe switch pin'),
-                    ce.Boolean(key='InvertInput', title='Invert switch input', false_title='No (high signal is pressed)', true_title='Yes (low signal is pressed)'),
-                    ce.Float(key='OffsetX', title='X-offset of probe from logical position [mm]', default=0),
-                    ce.Float(key='OffsetY', title='Y-offset of probe from logical position [mm]', default=0),
-                    ce.Float(key='StartHeight', title='Starting Z for probing a point [mm]', default=10),
-                    ce.Float(key='LowHeight', title='Minimum Z to move down to [mm]', default=2),
-                    ce.Float(key='RetractDist', title='Retraction distance [mm]', default=1),
-                    ce.Float(key='MoveSpeed', title='Speed for moving to probe points [mm/s]', default=200),
-                    ce.Float(key='FastSpeed', title='Fast probing speed [mm/s]', default=2),
-                    ce.Float(key='RetractSpeed', title='Retraction speed [mm/s]', default=10),
-                    ce.Float(key='SlowSpeed', title='Slow probing speed [mm/s]', default=0.5),
-                    ce.Array(key='ProbePoints', title='Coordinates of probing points', disable_collapse=True, table=True, elem=ce.Compound('ProbePoint', title='Probe point', attrs=[
-                        ce.Float(key='X'),
-                        ce.Float(key='Y')
-                    ]))
+            ce.Compound('ProbeConfig', key='probe_config', title='Bed probing configuration', collapsed=True, attrs=[
+                ce.OneOf(key='probe', title='Bed probing', choices=[
+                    ce.Compound('NoProbe', title='Disabled', disable_collapse=True, attrs=[]),
+                    ce.Compound('Probe', title='Enabled', ident='id_configuration_probe_probe', disable_collapse=True, attrs=[
+                        digital_input_choice(key='ProbePin', title='Probe switch pin'),
+                        ce.Boolean(key='InvertInput', title='Invert switch input', false_title='No (high signal is pressed)', true_title='Yes (low signal is pressed)'),
+                        ce.Float(key='OffsetX', title='X-offset of probe from logical position [mm]', default=0),
+                        ce.Float(key='OffsetY', title='Y-offset of probe from logical position [mm]', default=0),
+                        ce.Float(key='StartHeight', title='Starting Z for probing a point [mm]', default=10),
+                        ce.Float(key='LowHeight', title='Minimum Z to move down to [mm]', default=2),
+                        ce.Float(key='RetractDist', title='Retraction distance [mm]', default=1),
+                        ce.Float(key='MoveSpeed', title='Speed for moving to probe points [mm/s]', default=200),
+                        ce.Float(key='FastSpeed', title='Fast probing speed [mm/s]', default=2),
+                        ce.Float(key='RetractSpeed', title='Retraction speed [mm/s]', default=10),
+                        ce.Float(key='SlowSpeed', title='Slow probing speed [mm/s]', default=0.5),
+                        ce.Array(key='ProbePoints', title='Coordinates of probing points', disable_collapse=True, table=True, elem=ce.Compound('ProbePoint', title='Point', attrs=[
+                            ce.Float(key='X'),
+                            ce.Float(key='Y')
+                        ]))
+                    ])
                 ])
-            ])
+            ]),
         ])),
         ce.Array(key='boards', title='Boards', processing_order=-2, elem=ce.Compound('board', title='Board', title_key='name', collapsed=True, ident='id_board', attrs=[
-            ce.String(key='name', title='Name'),
-            ce.String(key='board_for_build', title='Board for building (see nix/boards.nix)'),
-            ce.String(key='output_type', title='Build output type', enum=['hex', 'bin']),
+            ce.String(key='name', title='Name (modifying will break references from configurations and lose data)'),
+            ce.Compound('PlatformConfig', key='platform_config', title='Platform configuration', collapsed=True, processing_order=-1, attrs=[
+                ce.String(key='board_for_build', title='Board for building (see nix/boards.nix)'),
+                ce.String(key='output_type', title='Build output type', enum=['hex', 'bin']),
+                ce.Array(key='board_helper_includes', title='Board helper includes', disable_collapse=True, table=True, elem=ce.String(title='Name')),
+                ce.OneOf(key='platform', title='Platform', processing_order=-1, choices=[
+                    platform_At91Sam3x8e(),
+                    platform_Teensy3(),
+                    platform_Avr('ATmega2560'),
+                    platform_Avr('ATmega1284p'),
+                ]),
+            ]),
             pin_choice(key='LedPin', title='LED pin'),
-            ce.OneOf(key='config_manager', title='Runtime configuration', choices=[
-                ce.Compound('ConstantConfigManager', title='Disabled', disable_collapse=True, attrs=[]),
-                ce.Compound('RuntimeConfigManager', title='Enabled', disable_collapse=True, attrs=[
-                    ce.OneOf(key='ConfigStore', title='Configuration storage', choices=[
-                        ce.Compound('NoStore', title='None', disable_collapse=True, attrs=[]),
-                        ce.Compound('EepromConfigStore', disable_collapse=True, attrs=[
-                            ce.OneOf(key='Eeprom', title='EEPROM backend', choices=[
-                                ce.Compound('I2cEeprom', disable_collapse=True, attrs=[
-                                    i2c_choice(key='I2c', title='I2C backend'),
-                                    ce.Integer(key='I2cAddr'),
-                                    ce.Integer(key='Size'),
-                                    ce.Integer(key='BlockSize'),
-                                    ce.Float(key='WriteTimeout')
+            interrupt_timer_choice(key='EventChannelTimer', title='Event channel timer', disable_collapse=True),
+            ce.Compound('RuntimeConfig', key='runtime_config', title='Runtime configuration', collapsed=True, attrs=[
+                ce.OneOf(key='config_manager', title='Runtime configuration', choices=[
+                    ce.Compound('ConstantConfigManager', title='Disabled', disable_collapse=True, attrs=[]),
+                    ce.Compound('RuntimeConfigManager', title='Enabled', disable_collapse=True, attrs=[
+                        ce.OneOf(key='ConfigStore', title='Configuration storage', choices=[
+                            ce.Compound('NoStore', title='None', disable_collapse=True, attrs=[]),
+                            ce.Compound('EepromConfigStore', disable_collapse=True, attrs=[
+                                ce.Integer(key='StartBlock'),
+                                ce.Integer(key='EndBlock'),
+                                ce.OneOf(key='Eeprom', title='EEPROM backend', choices=[
+                                    ce.Compound('I2cEeprom', disable_collapse=True, attrs=[
+                                        i2c_choice(key='I2c', title='I2C backend'),
+                                        ce.Integer(key='I2cAddr'),
+                                        ce.Integer(key='Size'),
+                                        ce.Integer(key='BlockSize'),
+                                        ce.Float(key='WriteTimeout')
+                                    ]),
+                                    ce.Compound('TeensyEeprom', disable_collapse=True, attrs=[
+                                        ce.Integer(key='Size'),
+                                        ce.Integer(key='FakeBlockSize'),
+                                    ]),
+                                    ce.Compound('AvrEeprom', disable_collapse=True, attrs=[
+                                        ce.Integer(key='FakeBlockSize'),
+                                    ]),
                                 ]),
-                                ce.Compound('TeensyEeprom', disable_collapse=True, attrs=[
-                                    ce.Integer(key='Size'),
-                                    ce.Integer(key='FakeBlockSize'),
-                                ]),
-                                ce.Compound('AvrEeprom', disable_collapse=True, attrs=[
-                                    ce.Integer(key='FakeBlockSize'),
-                                ]),
-                            ]),
-                            ce.Integer(key='StartBlock'),
-                            ce.Integer(key='EndBlock'),
+                            ])
                         ])
-                    ])
+                    ]),
                 ]),
             ]),
             ce.Compound('serial', key='serial', title='Serial parameters', collapsed=True, attrs=[
@@ -310,26 +324,28 @@ def editor():
                     ]),
                 ])
             ]),
-            ce.OneOf(key='sdcard', title='SD card', choices=[
-                ce.Compound('NoSdCard', title='Disabled', disable_collapse=True,attrs=[]),
-                ce.Compound('SdCard', title='Enabled', disable_collapse=True, attrs=[
-                    ce.Integer(key='BufferBaseSize', title='Buffer size'),
-                    ce.Integer(key='MaxCommandSize', title='Maximum command size'),
-                    ce.OneOf(key='GcodeParser', title='G-code parser', choices=[
-                        ce.Compound('TextGcodeParser', title='Text G-code parser', disable_collapse=True, attrs=[
-                            ce.Integer(key='MaxParts', title='Maximum number of command parts')
+            ce.Compound('SdCardConfig', key='sdcard_config', title='SD card configuration', collapsed=True, attrs=[
+                ce.OneOf(key='sdcard', title='SD card', choices=[
+                    ce.Compound('NoSdCard', title='Disabled', disable_collapse=True,attrs=[]),
+                    ce.Compound('SdCard', title='Enabled', disable_collapse=True, attrs=[
+                        ce.Integer(key='BufferBaseSize', title='Buffer size'),
+                        ce.Integer(key='MaxCommandSize', title='Maximum command size'),
+                        ce.OneOf(key='GcodeParser', title='G-code parser', choices=[
+                            ce.Compound('TextGcodeParser', title='Text G-code parser', disable_collapse=True, attrs=[
+                                ce.Integer(key='MaxParts', title='Maximum number of command parts')
+                            ]),
+                            ce.Compound('BinaryGcodeParser', title='Binary G-code parser', disable_collapse=True, attrs=[
+                                ce.Integer(key='MaxParts', title='Maximum number of command parts')
+                            ])
                         ]),
-                        ce.Compound('BinaryGcodeParser', title='Binary G-code parser', disable_collapse=True, attrs=[
-                            ce.Integer(key='MaxParts', title='Maximum number of command parts')
-                        ])
-                    ]),
-                    ce.OneOf(key='SdCardService', title='Driver', choices=[
-                        ce.Compound('SpiSdCard', title='SPI', disable_collapse=True, attrs=[
-                            pin_choice(key='SsPin', title='SS pin'),
-                            spi_choice(key='SpiService', title='SPI driver')
+                        ce.OneOf(key='SdCardService', title='Driver', choices=[
+                            ce.Compound('SpiSdCard', title='SPI', disable_collapse=True, attrs=[
+                                pin_choice(key='SsPin', title='SS pin'),
+                                spi_choice(key='SpiService', title='SPI driver')
+                            ])
                         ])
                     ])
-                ])
+                ]),
             ]),
             ce.Compound('performance', key='performance', title='Performance parameters', collapsed=True, attrs=[
                 ce.Float(key='MaxStepsPerCycle', title='Max steps per cycle'),
@@ -341,7 +357,6 @@ def editor():
                 ce.String(key='AxisDriverPrecisionParams', title='Stepping precision parameters', enum=['AxisDriverAvrPrecisionParams', 'AxisDriverDuePrecisionParams']),
                 ce.Float(key='EventChannelTimerClearance', title='Event channel timer clearance')
             ]),
-            interrupt_timer_choice(key='EventChannelTimer', title='Event channel timer', disable_collapse=True),
             ce.Array(key='stepper_ports', title='Stepper ports', disable_collapse=True, elem=ce.Compound('stepper_port', title='Stepper port', title_key='Name', collapsed=True, attrs=[
                 ce.String(key='Name', title='Name'),
                 pin_choice(key='DirPin', title='Direction pin'),
@@ -352,7 +367,7 @@ def editor():
             ce.Array(key='digital_inputs', title='Digital inputs', disable_collapse=True, elem=ce.Compound('digital_input', title='Digital input', title_key='Name', collapsed=True, ident='id_board_digital_inputs', attrs=[
                 ce.String(key='Name', title='Name'),
                 pin_choice(key='Pin', title='Pin'),
-                ce.Reference(key='InputMode', title='Input mode', ref_array='id_board.platform', ref_array_descend=['pins', 'input_modes'], ref_id_key='ident', ref_name_key='name')
+                ce.Reference(key='InputMode', title='Input mode', ref_array='id_board.platform_config.platform', ref_array_descend=['pins', 'input_modes'], ref_id_key='ident', ref_name_key='name')
             ])),
             ce.Array(key='analog_inputs', title='Analog inputs', disable_collapse=True, elem=ce.Compound('analog_input', title='Analog input', title_key='Name', collapsed=True, attrs=[
                 ce.String(key='Name', title='Name'),
@@ -372,12 +387,5 @@ def editor():
                     ]),
                 ])
             ])),
-            ce.OneOf(key='platform', title='Platform', processing_order=-1, choices=[
-                platform_At91Sam3x8e(),
-                platform_Teensy3(),
-                platform_Avr('ATmega2560'),
-                platform_Avr('ATmega1284p'),
-            ]),
-            ce.Array(key='board_helper_includes', title='Board helper includes', disable_collapse=True, table=True, elem=ce.String(title='Name')),
         ]))
     ])

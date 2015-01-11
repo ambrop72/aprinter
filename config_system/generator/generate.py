@@ -719,29 +719,30 @@ def generate(config_root_data, cfg_name, main_template):
             board_name = config.get_string('board')
             
             for board_data in config_root.enter_elem_by_id('boards', 'name', board_name):
-                board_for_build = board_data.get_string('board_for_build')
-                if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', board_for_build):
-                    board_data.key_path('board_for_build').error('Incorrect format.')
-                gen.add_subst('BoardForBuild', board_for_build)
-                
-                output_type = board_data.get_string('output_type')
-                if output_type not in ('hex', 'bin'):
-                    board_data.key_path('output_type').error('Incorrect value.')
-                
-                setup_platform(gen, board_data, 'platform')
-                
-                for platform in board_data.enter_config('platform'):
-                    setup_clock(gen, platform, 'clock')
-                    setup_pins(gen, platform, 'pins')
-                    watchdog_expr = setup_watchdog(gen, platform, 'watchdog', 'MyPrinter::GetWatchdog')
-                    setup_adc(gen, platform, 'adc')
-                    if platform.has('pwm'):
-                        setup_pwm(gen, platform, 'pwm')
-                
-                for helper_name in board_data.get_list(config_reader.ConfigTypeString(), 'board_helper_includes', max_count=20):
-                    if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', helper_name):
-                        board_data.key_path('board_helper_includes').error('Invalid helper name.')
-                    gen.add_aprinter_include('board/{}.h'.format(helper_name))
+                for platform_config in board_data.enter_config('platform_config'):
+                    board_for_build = platform_config.get_string('board_for_build')
+                    if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', board_for_build):
+                        platform_config.key_path('board_for_build').error('Incorrect format.')
+                    gen.add_subst('BoardForBuild', board_for_build)
+                    
+                    output_type = platform_config.get_string('output_type')
+                    if output_type not in ('hex', 'bin'):
+                        platform_config.key_path('output_type').error('Incorrect value.')
+                    
+                    setup_platform(gen, platform_config, 'platform')
+                    
+                    for platform in platform_config.enter_config('platform'):
+                        setup_clock(gen, platform, 'clock')
+                        setup_pins(gen, platform, 'pins')
+                        watchdog_expr = setup_watchdog(gen, platform, 'watchdog', 'MyPrinter::GetWatchdog')
+                        setup_adc(gen, platform, 'adc')
+                        if platform.has('pwm'):
+                            setup_pwm(gen, platform, 'pwm')
+                    
+                    for helper_name in platform_config.get_list(config_reader.ConfigTypeString(), 'board_helper_includes', max_count=20):
+                        if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', helper_name):
+                            platform_config.key_path('board_helper_includes').error('Invalid helper name.')
+                        gen.add_aprinter_include('board/{}.h'.format(helper_name))
                 
                 gen.register_objects('digital_input', board_data, 'digital_inputs')
                 gen.register_objects('stepper_port', board_data, 'stepper_ports')
@@ -789,9 +790,9 @@ def generate(config_root_data, cfg_name, main_template):
                         sdcard.get_int('MaxCommandSize'),
                     ])
                 
-                sdcard_expr = board_data.do_selection('sdcard', sdcard_sel)
+                sdcard_expr = board_data.get_config('sdcard_config').do_selection('sdcard', sdcard_sel)
                 
-                config_manager_expr = use_config_manager(gen, board_data, 'config_manager', 'MyPrinter::GetConfigManager')
+                config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
             
             gen.add_aprinter_include('printer/PrinterMain.h')
             gen.add_float_constant('FanSpeedMultiply', 1.0 / 255.0)
@@ -841,7 +842,7 @@ def generate(config_root_data, cfg_name, main_template):
                     TemplateList(['MakeTypeList<ProbeP{}X, ProbeP{}Y>'.format(i+1, i+1) for i in range(len(point_list))])
                 ])
             
-            probe_expr = config.do_selection('probe', probe_sel)
+            probe_expr = config.get_config('probe_config').do_selection('probe', probe_sel)
             
             def stepper_cb(stepper, stepper_index):
                 name = stepper.get_id_char('Name')
