@@ -77,12 +77,6 @@ retr_and_extract() {
     done
 
     checksum cs[@]
-    extract files[@]
-    )
-}
-
-extract() {
-    declare -a files=("${!1}")
 
     for f in "${files[@]}"; do
         echo "   Extraction of $f"
@@ -104,6 +98,7 @@ extract() {
                 ;;
         esac
     done
+    )
 }
 
 # http://stackoverflow.com/a/15736713/1290438
