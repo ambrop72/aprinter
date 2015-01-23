@@ -41,6 +41,10 @@ else
     GCCARM_CHECKSUM=""
 fi
 
+GCCARM_URL=(
+    "https://launchpad.net/gcc-arm-embedded/4.8/4.8-2014-q1-update/+download/gcc-arm-none-eabi-${GCCARM_CURRENT}-${GCCARM_RELEASE}-${SYSARCH}.tar.bz2" 
+)
+
 ARM_GCC_PATH="${ROOT}/depends/gcc-arm-none-eabi-${GCCARM_CURRENT}"
 
 if [ -n "${CUSTOM_ARM_GCC}" ]; then
@@ -51,10 +55,6 @@ fi
 
 ARM_CC=${ARM_GCC_PREFIX}gcc
 ARM_OBJCOPY=${ARM_GCC_PREFIX}objcopy
-
-GCCARM_URL=(
-    "https://launchpad.net/gcc-arm-embedded/4.8/4.8-2013-q4-major/+download/gcc-arm-none-eabi-${GCCARM_CURRENT}-${GCCARM_RELEASE}-${SYSARCH}.tar.bz2" 
-)
 
 install_arm() {
     if [ -z "${CUSTOM_ARM_GCC}" ]; then
