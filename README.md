@@ -8,9 +8,9 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
 
   * Highly configurable design. Extra heaters, fans and axes can be added easily, and
     PWM frequencies for heaters and fans are individually adjustable unless hardware PWM is used.
-  * Runtime configuration system, and configuration storgte to EEPROM.
+  * Runtime configuration system, and configuration storage to EEPROM.
     Availability depends on chip/board.
-  * Delta robot support. Additionally, new geometries can be added easily by defining a transform class.
+  * Delta robot and CoreXY support. Additionally, new geometries can be added easily by defining a transform class.
     Performance will be sub-optimal when using Delta on AVR platforms.
   * SD card printing (reading of sequential blocks only, no filesystem or partition support).
   * Optionally supports a custom packed g-code format for SD printing.
@@ -25,7 +25,7 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
     calculate a new plan every LookaheadCommitCount commands. Effectively, this allows increasing
     the lookahead count without an asymptotic increase of processing time, only limited by the available RAM.
   * Homing using min- or max-endstops. Can home multiple axes in parallel.
-  * Heater control using PID or on-off control. The thermistor tables need to be generated with a Python script.
+  * Heater control using PID. There are no thermistor tables, you simply configure the thermistor parameters.
     Each heater is configured with a Safe temperature range; aheater is turned off in case its temperature goes
     beyound the safe range.
   * Fan control (any number of fans).
@@ -82,6 +82,9 @@ To build the firmware, run this command from within the source code directory. T
 ```
 nix-build nix/ -A yourAprinterTarget -o ~/aprinter-build
 ```
+
+The build process **needs a lot of RAM (~2GB)**. If you have too little, the build may mysteriously hang.
+If you're building in a virtual machine, it's best if you give it at least 4GB.
 
 *NOTE*: Don't put the build output (`-o`) within the source directory. If you do that the build output will be considered part of the source for the next build, and copying it will take a long time.
 
@@ -183,35 +186,35 @@ The `M930` command does not alter the current set of configuration values in any
     Obviously, take safety precausions here. I'm not responsible if your house burns down as a result of
     using my software, or for any other damage.
 
-## Notes on the build systemm
+## Building without Nix
 
-The build system is invoked as follows:
+**This is not well supported and may disappear in the future!**
+Please consider using Nix instead, and contact me if you have problems with it.
 
-    ./build.sh TARGET [param] ACTION...
+In the commands below, `<TARGET>` is one of the targets defined in `config/targets.sh`.
 
-where `TARGET` is one of the targets defined in `config/targets.sh` and `ACTION` is any of:
+To install build dependencies automatically (into the `depends` folder):
 
- * `install` - Download and build dependencies, into the `depends` subfolder.
- * `build` - Build the firmware.
- * `upload` - Upload the firmware to the microcontroller.
+```
+./build.sh <TARGET> install
+```
 
-You can run one or several actions for each target, for example, to build then immediately upload:
+To build the firmware (into the `build` folder):
 
-    ./build.sh <target> build upload
+```
+./build.sh <TARGET> build
+```
 
-Some dependencies can be overridden from environment variables or `config/config.sh`. In particular:
+Finally, the script can help with uploading the firmware:
 
- * `CUSTOM_AVR_GCC` and `CUSTOM_ARM_GCC` override the AVR and ARM toolchains, respectively.
-   This should be a prefix used to call the tools.
-   For example, `${CUSTOM_AVR_GCC}gcc` is called during AVR compilation.
- * `AVRDUDE` overrides the `avrdude` tool, used for upload to AVR boards.
+```
+./build.sh <TARGET> upload
+```
 
-Other notes:
-
- * NEVER RUN THIS SCRIPT AS ROOT!
- * On Mac OS X `install` action may require `brew install wxmac` before.
+Notes notes:
  * Most of the build system will work only on Linux.
    On other platforms, custom installation of dependencies and hacking the scripts will be necessary.
+ * On Mac OS X `install` action may require `brew install wxmac` before.
  * The AVR toolchain is a [binary by Atmel](http://www.atmel.com/tools/atmelavrtoolchainforlinux.aspx).
  * The ARM toolchain is a binary by the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) project.
  * The `-v` parameter (between targets and actions) will show the commands ran by the script.
@@ -457,14 +460,7 @@ AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(*p.myprinter.getAxisStepper<3>()->g
 
 For heaters and fans, as wellas for Due as opposed to AVR, consult the existing assignments in your main file. 
 
-For AVR based boards, if you have used an OC unit of a previously unused TC (e.g. you used `TC0_OCA`, and `TC0_OCB` was not already assigned), you will need to initialize this TC in the `main` function, by adding this line after the existing similar lines:
-
-```
-    p.myclock.initTC0(c);
-```
-
-On AT91SAM3XE (Due), something similar is generally needed,
-but since all the TCs are already used in the default configuration, you don't need to do anything.
+If you have used an OC unit of a previously unused TC, you will also need to add this TC to the `ClockTcsList`.
 
 **WARNING.** On AVR, it is imperative that the interrupt priorities of the OC ISRs are considered.
 Basically, you should avoid using TCs with higher priority than the USART RX ISR,
