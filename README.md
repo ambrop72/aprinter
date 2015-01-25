@@ -132,6 +132,8 @@ bossac -p ttyACM0 -U false -i -e -w -v -b "$HOME/aprinter-build/aprinter-nixbuil
 
 Some Due clones have a problem resetting. If after uploading, the firmware does not start (LED doesn't blink), press the reset button.
 
+*NOTE*: You need to **use the native USB port** to connect. The programming port is only used for uploading.
+
 ### Teensy 3
 
 You need to press the button on the board before trying to upload, to put the board into bootloader mode.
