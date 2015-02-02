@@ -167,6 +167,57 @@ def hard_pwm_choice(**kwargs):
         ]),
     ], **kwargs)
 
+def homing_params(**kwargs):
+    return ce.OneOf(title='Homing', choices=[
+        ce.Compound('no_homing', title='Disabled', disable_collapse=True, attrs=[]),
+        ce.Compound('homing', title='Enabled', ident='id_board_steppers_homing', disable_collapse=True, attrs=[
+            ce.Boolean(key='HomeDir', title='Homing direction', false_title='Negative', true_title='Positive', default=False),
+            digital_input_choice(key='HomeEndstopInput', title='Endstop digital input'),
+            ce.Boolean(key='HomeEndInvert', title='Invert endstop', false_title='No (high signal is pressed)', true_title='Yes (low signal is pressed)', default=False),
+            ce.Float(key='HomeFastMaxDist', title='Maximum fast travel [mm] (use more than abs(MinPos-MaxPos))', default=250),
+            ce.Float(key='HomeRetractDist', title='Retraction travel [mm]', default=3),
+            ce.Float(key='HomeSlowMaxDist', title='Maximum slow travel [mm] (use more than RetractionTravel)', default=5),
+            ce.Float(key='HomeFastSpeed', title='Fast speed [mm/s]', default=40),
+            ce.Float(key='HomeRetractSpeed', title='Retraction speed [mm/s]', default=50),
+            ce.Float(key='HomeSlowSpeed', title='Slow speed [mm/s]', default=5)
+        ])
+    ], **kwargs)
+
+def make_transform_type(transform_type, transform_title, segments_per_sec_relevant, stepper_defs, axis_defs, specific_params):
+    assert len(stepper_defs) == len(axis_defs)
+    
+    return ce.Compound(transform_type, title=transform_title, disable_collapse=True, attrs=(
+        specific_params +
+        (
+            [ce.Float(key='SegmentsPerSecond', title='Max segments per second', default=100)] if segments_per_sec_relevant else
+            [ce.Constant(key='SegmentsPerSecond', value=0)]
+        ) +
+        [
+            ce.Constant(key='DimensionCount', value=len(stepper_defs)),
+            ce.Compound('Steppers', key='Steppers', title='Stepper mapping', disable_collapse=True, attrs=[
+                ce.Compound('TransformStepperParams', key='TransformStepper{}'.format(i), title=stepper_def['title'], collapsed=True, attrs=[
+                    ce.String(key='StepperName', title='Name of stepper to use', default=stepper_def['default_name']),
+                ])
+                for (i, stepper_def) in enumerate(stepper_defs)
+            ]),
+            ce.Compound('CartesianAxes', key='CartesianAxes', title='Cartesian axes', disable_collapse=True, attrs=[
+                ce.Compound('VirtualAxisParams', key='VirtualAxis{}'.format(i), title='Cartesian axis {}'.format(axis_def['axis_name']), collapsed=True, attrs=(
+                    [
+                        ce.Constant(key='Name', value=axis_def['axis_name']),
+                        ce.Float(key='MinPos', title='Minimum position [mm]', default=0),
+                        ce.Float(key='MaxPos', title='Maximum position [mm]', default=200),
+                        ce.Float(key='MaxSpeed', title='Maximum speed [mm/s]', default=300),
+                    ] +
+                    (
+                        [homing_params(key='homing')] if axis_def['homing_allowed'] else
+                        [ce.Constant(key='homing', value={'_compoundName': 'no_homing'})]
+                    )
+                ))
+                for (i, axis_def) in enumerate(axis_defs)
+            ]),
+        ]
+    ))
+
 def editor():
     return ce.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, ident='id_editor', attrs=[
         ce.Constant(key='version', value=1),
@@ -191,21 +242,42 @@ def editor():
                 ce.Float(key='DistanceFactor', title='Distance factor [1]', default=1),
                 ce.Float(key='CorneringDistance', title='Cornering distance [step]', default=40),
                 ce.Boolean(key='EnableCartesianSpeedLimit', title='Is cartesian (Yes for X/Y/Z, No for extruders)', default=True),
-                ce.OneOf(key='homing', title='Homing', choices=[
-                    ce.Compound('no_homing', title='Disabled', disable_collapse=True, attrs=[]),
-                    ce.Compound('homing', title='Enabled', ident='id_board_steppers_homing', disable_collapse=True, attrs=[
-                        ce.Boolean(key='HomeDir', title='Homing direction', false_title='Negative', true_title='Positive', default=False),
-                        digital_input_choice(key='HomeEndstopInput', title='Endstop digital input'),
-                        ce.Boolean(key='HomeEndInvert', title='Invert endstop', false_title='No (high signal is pressed)', true_title='Yes (low signal is pressed)', default=False),
-                        ce.Float(key='HomeFastMaxDist', title='Maximum fast travel [mm] (use more than abs(MinPos-MaxPos))', default=250),
-                        ce.Float(key='HomeRetractDist', title='Retraction travel [mm]', default=3),
-                        ce.Float(key='HomeSlowMaxDist', title='Maximum slow travel [mm] (use more than RetractionTravel)', default=5),
-                        ce.Float(key='HomeFastSpeed', title='Fast speed [mm/s]', default=40),
-                        ce.Float(key='HomeRetractSpeed', title='Retraction speed [mm/s]', default=50),
-                        ce.Float(key='HomeSlowSpeed', title='Slow speed [mm/s]', default=5)
-                    ])
-                ])
+                homing_params(key='homing'),
             ])),
+            ce.OneOf(key='transform', title='Coordinate transformation', choices=[
+                ce.Compound('NoTransform', title='None (cartesian)', disable_collapse=True, attrs=[]),
+                make_transform_type(transform_type='CoreXY', transform_title='CoreXY/H-bot', segments_per_sec_relevant=False,
+                    stepper_defs=[
+                        {'default_name': 'A', 'title': 'First stepper'},
+                        {'default_name': 'B', 'title': 'Second stepper'},
+                    ],
+                    axis_defs=[
+                        {'axis_name': 'X', 'homing_allowed': True},
+                        {'axis_name': 'Y', 'homing_allowed': True},
+                    ],
+                    specific_params=[]
+                ),
+                make_transform_type(transform_type='Delta', transform_title='Delta', segments_per_sec_relevant=True,
+                    stepper_defs=[
+                        {'default_name': 'A', 'title': 'Tower-1 stepper (bottom-left)'},
+                        {'default_name': 'B', 'title': 'Tower-2 stepper (bottom-right)'},
+                        {'default_name': 'C', 'title': 'Tower-3 stepper (top)'},
+                    ],
+                    axis_defs=[
+                        {'axis_name': 'X', 'homing_allowed': False},
+                        {'axis_name': 'Y', 'homing_allowed': False},
+                        {'axis_name': 'Z', 'homing_allowed': False},
+                    ],
+                    specific_params=[
+                        ce.Float(key='DiagnalRod', title='Diagonal rod length [mm]', default=214),
+                        ce.Float(key='SmoothRodOffset', title='Smooth rod offset [mm]', default=145),
+                        ce.Float(key='EffectorOffset', title='Effector offset [mm]', default=19.9),
+                        ce.Float(key='CarriageOffset', title='Carriage offset [mm]', default=19.5),
+                        ce.Float(key='MinSplitLength', title='Minimum segment length for splitting [mm]', default=0.1),
+                        ce.Float(key='MaxSplitLength', title='Maximum segment length for splitting [mm]', default=4.0),
+                    ]
+                ),
+            ]),
             ce.Array(key='heaters', title='Heaters', disable_collapse=True, elem=ce.Compound('heater', title='Heater', title_key='Name', collapsed=True, ident='id_configuration_heater', attrs=[
                 ce.String(key='Name', title='Name (single character, T=extruder, B=bed)'),
                 pwm_output_choice(key='pwm_output', title='PWM output'),

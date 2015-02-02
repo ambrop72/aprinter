@@ -171,6 +171,17 @@ class GenConfigReader(config_reader.ConfigReader):
         for (i, config) in enumerate(self.iter_list_config(key, max_count=max_count)):
             elems.append(elem_cb(config, i))
         return TemplateList(elems)
+    
+    def do_keyed_list (self, count_key, elems_key, elem_key_prefix, elem_cb, min_count, max_count):
+        count = self.get_int(count_key)
+        if not min_count <= count <= max_count:
+            self.path().error('Incorrect {}.'.format(count_key))
+        elems = []
+        elems_config = self.get_config(elems_key)
+        for i in range(count):
+            elem_config = elems_config.get_config('{}{}'.format(elem_key_prefix, i))
+            elems.append(elem_cb(elem_config, i))
+        return TemplateList(elems)
 
 class TemplateExpr(object):
     def __init__ (self, name, args):
@@ -954,6 +965,90 @@ def generate(config_root_data, cfg_name, main_template):
             
             heaters_expr = config.do_list('heaters', heater_cb, max_count=15)
             
+            transform_sel = selection.Selection()
+            
+            @transform_sel.option('NoTransform')
+            def option(transform):
+                return 'PrinterMainNoTransformParams'
+            
+            @transform_sel.default()
+            def default(transform_type, transform):
+                def virtual_axis_cb(virtual_axis, virtual_axis_index):
+                    name = virtual_axis.get_id_char('Name')
+                    
+                    homing_sel = selection.Selection()
+                    
+                    @homing_sel.option('no_homing')
+                    def option(homing):
+                        return 'PrinterMainNoVirtualHomingParams'
+                    
+                    @homing_sel.option('homing')
+                    def option(homing):
+                        return TemplateExpr('PrinterMainVirtualHomingParams', [
+                            use_digital_input(gen, homing, 'HomeEndstopInput'),
+                            gen.add_bool_config('{}HomeEndInvert'.format(name), homing.get_bool('HomeEndInvert')),
+                            gen.add_bool_config('{}HomeDir'.format(name), homing.get_bool('HomeDir')),
+                            gen.add_float_config('{}HomeFastMaxDist'.format(name), homing.get_float('HomeFastMaxDist')),
+                            gen.add_float_config('{}HomeRetractDist'.format(name), homing.get_float('HomeRetractDist')),
+                            gen.add_float_config('{}HomeSlowMaxDist'.format(name), homing.get_float('HomeSlowMaxDist')),
+                            gen.add_float_config('{}HomeFastSpeed'.format(name), homing.get_float('HomeFastSpeed')),
+                            gen.add_float_config('{}HomeRetractSpeed'.format(name), homing.get_float('HomeRetractSpeed')),
+                            gen.add_float_config('{}HomeSlowSpeed'.format(name), homing.get_float('HomeSlowSpeed')),
+                        ])
+                    
+                    return TemplateExpr('PrinterMainVirtualAxisParams', [
+                        TemplateChar(name),
+                        gen.add_float_config('{}MinPos'.format(name), virtual_axis.get_float('MinPos')),
+                        gen.add_float_config('{}MaxPos'.format(name), virtual_axis.get_float('MaxPos')),
+                        gen.add_float_config('{}MaxSpeed'.format(name), virtual_axis.get_float('MaxSpeed')),
+                        virtual_axis.do_selection('homing', homing_sel),
+                    ])
+                
+                def transform_stepper_cb(transform_stepper, transform_stepper_index):
+                    stepper_name = transform_stepper.get_id_char('StepperName')
+                    try:
+                        stepper_generator = config.enter_elem_by_id('steppers', 'Name', stepper_name)
+                    except config_reader.ConfigError:
+                        transform_stepper.path().error('Unknown stepper \'{}\' referenced.'.format(stepper_name))
+                    
+                    for stepper in stepper_generator:
+                        if stepper.get_bool('EnableCartesianSpeedLimit'):
+                            stepper.key_path('EnableCartesianSpeedLimit').error('Stepper involved coordinate transform may not be cartesian.')
+                    
+                    return TemplateExpr('WrapInt', [TemplateChar(stepper_name)])
+                
+                transform_type_sel = selection.Selection()
+                
+                @transform_type_sel.option('CoreXY')
+                def option():
+                    gen.add_aprinter_include('printer/transform/CoreXyTransform.h')
+                    
+                    return 'CoreXyTransformService'
+                
+                @transform_type_sel.option('Delta')
+                def option():
+                    gen.add_aprinter_include('printer/transform/DeltaTransform.h')
+                    
+                    return TemplateExpr('DeltaTransformService', [
+                        gen.add_float_config('DeltaDiagonalRod', transform.get_float('DiagnalRod')),
+                        gen.add_float_config('DeltaSmoothRodOffset', transform.get_float('SmoothRodOffset')),
+                        gen.add_float_config('DeltaEffectorOffset', transform.get_float('EffectorOffset')),
+                        gen.add_float_config('DeltaCarriageOffset', transform.get_float('CarriageOffset')),
+                        TemplateExpr('DistanceSplitterParams', [
+                            gen.add_float_constant('DeltaMinSplitLength', transform.get_float('MinSplitLength')),
+                            gen.add_float_constant('DeltaMaxSplitLength', transform.get_float('MaxSplitLength')),
+                        ]),
+                    ])
+                
+                return TemplateExpr('PrinterMainTransformParams', [
+                    transform.do_keyed_list('DimensionCount', 'CartesianAxes', 'VirtualAxis', virtual_axis_cb, 1, 3),
+                    transform.do_keyed_list('DimensionCount', 'Steppers', 'TransformStepper', transform_stepper_cb, 1, 3),
+                    gen.add_float_constant('SegmentsPerSecond', transform.get_float('SegmentsPerSecond')),
+                    transform_type_sel.run(transform_type),
+                ])
+            
+            transform_expr = config.do_selection('transform', transform_sel)
+            
             def fan_cb(fan, fan_index):
                 name = fan.get_id_char('Name')
                 
@@ -987,7 +1082,7 @@ def generate(config_root_data, cfg_name, main_template):
                 config_manager_expr,
                 'ConfigList',
                 steppers_expr,
-                'PrinterMainNoTransformParams',
+                transform_expr,
                 heaters_expr,
                 fans_expr,
             ])
