@@ -1,11 +1,12 @@
 from __future__ import print_function
 import sys
 import os
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../common'))
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../utils'))
 import argparse
 import shutil
 import json
-import config_common
+import file_utils
+import rich_template
 import aprinter_config_editor
 
 def main():
@@ -21,7 +22,7 @@ def main():
     editor_schema = the_editor._json_schema()
     
     # Determine directories.
-    src_dir = config_common.file_dir(__file__)
+    src_dir = file_utils.file_dir(__file__)
     dist_dir = os.path.join(src_dir, 'dist')
     
     # Remove dist dir.
@@ -45,14 +46,14 @@ def main():
         shutil.copyfile(os.path.join(src_dir, filename), os.path.join(dist_dir, filename))
     
     # Read default configuration.
-    default_config = json.loads(config_common.read_file(os.path.join(src_dir, 'default_config.json')))
+    default_config = json.loads(file_utils.read_file(os.path.join(src_dir, 'default_config.json')))
     
     # Build and write init.js.
-    init_js_template = config_common.read_file(os.path.join(src_dir, 'init.js'))
-    init_js = config_common.RichTemplate(init_js_template).substitute({
+    init_js_template = file_utils.read_file(os.path.join(src_dir, 'init.js'))
+    init_js = rich_template.RichTemplate(init_js_template).substitute({
         'SCHEMA': json.dumps(editor_schema, separators=(',',':'), sort_keys=True),
         'DEFAULT': json.dumps(default_config, separators=(',',':'), sort_keys=True)
     })
-    config_common.write_file(os.path.join(dist_dir, 'init.js'), init_js)
+    file_utils.write_file(os.path.join(dist_dir, 'init.js'), init_js)
 
 main()

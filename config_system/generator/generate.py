@@ -1,13 +1,18 @@
 from __future__ import print_function
 import sys
 import os
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../common'))
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../utils'))
 import argparse
 import json
 import re
 import string
-import config_common
 import config_reader
+import selection
+import function_defined
+import assign_func
+import rich_template
+import file_utils
+import nix_utils
 
 IDENTIFIER_REGEX = '\\A[A-Za-z][A-Za-z0-9_]{0,127}\\Z'
 
@@ -157,7 +162,7 @@ class GenConfigReader(config_reader.ConfigReader):
         for config in self.enter_config(key):
             try:
                 result = sel_def.run(config.get_string('_compoundName'), config)
-            except config_common.SelectionError:
+            except selection.SelectionError:
                 config.path().error('Unknown choice.')
             return result
     
@@ -204,7 +209,7 @@ class TemplateChar(object):
         return '\'{}\''.format(self._ch)
 
 def setup_platform(gen, config, key):
-    platform_sel = config_common.Selection()
+    platform_sel = selection.Selection()
     
     @platform_sel.option('At91Sam3x8e')
     def option(platform):
@@ -227,7 +232,7 @@ class CommonClock(object):
     def __init__ (self, gen, config, clockdef_func):
         self._gen = gen
         self._config = config
-        self._clockdef = config_common.FunctionDefinedClass(clockdef_func)
+        self._clockdef = function_defined.FunctionDefinedClass(clockdef_func)
         gen.add_aprinter_include(self._clockdef.INCLUDE)
         self._timers = self._load_timers(config)
         self._interrupt_timers = []
@@ -310,9 +315,9 @@ def AvrClockDef(x):
     x.TIMER_EXPR = lambda tc: 'AvrClockTcSpec<AvrClockTc{}>'.format(tc)
     x.CLOCK_ISR = lambda clock: 'AMBRO_AVR_CLOCK_ISRS({}, MyClock, MyContext())'.format(clock['primary_timer'])
     
-    @config_common.assign_func(x, 'handle_timer')
+    @assign_func.assign_func(x, 'handle_timer')
     def handle_timer(gen, timer_id, timer_config):
-        mode_sel = config_common.Selection()
+        mode_sel = selection.Selection()
         
         @mode_sel.option('AvrClockTcModeClock')
         def option(mode):
@@ -337,7 +342,7 @@ def AvrClockDef(x):
         ])
 
 def setup_clock(gen, config, key):
-    clock_sel = config_common.Selection()
+    clock_sel = selection.Selection()
     
     @clock_sel.option('At91Sam3xClock')
     def option(clock):
@@ -356,7 +361,7 @@ def setup_clock(gen, config, key):
 def setup_pins (gen, config, key):
     pin_regexes = [IDENTIFIER_REGEX]
     
-    pins_sel = config_common.Selection()
+    pins_sel = selection.Selection()
     
     @pins_sel.option('At91SamPins')
     def options(pin_config):
@@ -387,7 +392,7 @@ def get_pin (gen, config, key):
     return pin
 
 def setup_watchdog (gen, config, key, user):
-    watchdog_sel = config_common.Selection()
+    watchdog_sel = selection.Selection()
     
     @watchdog_sel.option('At91SamWatchdog')
     def option(watchdog):
@@ -418,7 +423,7 @@ def setup_watchdog (gen, config, key, user):
     return config.do_selection(key, watchdog_sel)
 
 def setup_adc (gen, config, key):
-    adc_sel = config_common.Selection()
+    adc_sel = selection.Selection()
     
     @adc_sel.option('At91SamAdc')
     def option(adc_config):
@@ -478,7 +483,7 @@ def setup_adc (gen, config, key):
     gen.add_finalize_action(finalize)
 
 def setup_pwm(gen, config, key):
-    pwm_sel = config_common.Selection()
+    pwm_sel = selection.Selection()
     
     @pwm_sel.option('Disabled')
     def option(pwm_config):
@@ -518,7 +523,7 @@ def use_interrupt_timer (gen, config, key, user, clearance=None):
 def use_pwm_output (gen, config, key, user, username):
     pwm_output = gen.get_object('pwm_output', config, key)
     
-    backend_sel = config_common.Selection()
+    backend_sel = selection.Selection()
     
     @backend_sel.option('SoftPwm')
     def option(backend):
@@ -534,7 +539,7 @@ def use_pwm_output (gen, config, key, user, username):
     def option(backend):
         gen.add_aprinter_include('printer/pwm/HardPwm.h')
         
-        hard_driver_sel = config_common.Selection()
+        hard_driver_sel = selection.Selection()
         
         @hard_driver_sel.option('AvrClockPwm')
         def option(hard_driver):
@@ -563,7 +568,7 @@ def use_pwm_output (gen, config, key, user, username):
     return pwm_output.do_selection('Backend', backend_sel)
 
 def use_spi (gen, config, key, user):
-    spi_sel = config_common.Selection()
+    spi_sel = selection.Selection()
     
     @spi_sel.option('At91SamSpi')
     def option(spi_config):
@@ -587,7 +592,7 @@ def use_spi (gen, config, key, user):
     return config.do_selection(key, spi_sel)
 
 def use_i2c (gen, config, key, user, username):
-    i2c_sel = config_common.Selection()
+    i2c_sel = selection.Selection()
     
     @i2c_sel.option('At91SamI2c')
     def option(i2c_config):
@@ -608,7 +613,7 @@ def use_i2c (gen, config, key, user, username):
     return config.do_selection(key, i2c_sel)
 
 def use_eeprom(gen, config, key, user):
-    eeprom_sel = config_common.Selection()
+    eeprom_sel = selection.Selection()
     
     @eeprom_sel.option('I2cEeprom')
     def option(eeprom):
@@ -629,7 +634,7 @@ def use_eeprom(gen, config, key, user):
     return config.do_selection(key, eeprom_sel)
 
 def use_serial(gen, config, key, user):
-    serial_sel = config_common.Selection()
+    serial_sel = selection.Selection()
     
     @serial_sel.option('AsfUsbSerial')
     def option(serial_service):
@@ -664,7 +669,7 @@ def use_serial(gen, config, key, user):
     return config.do_selection(key, serial_sel)
 
 def use_sdcard(gen, config, key, user):
-    sd_service_sel = config_common.Selection()
+    sd_service_sel = selection.Selection()
 
     @sd_service_sel.option('SpiSdCard')
     def option(spi_sd):
@@ -677,7 +682,7 @@ def use_sdcard(gen, config, key, user):
     return config.do_selection(key, sd_service_sel)
 
 def use_config_manager(gen, config, key, user):
-    config_manager_sel = config_common.Selection()
+    config_manager_sel = selection.Selection()
     
     @config_manager_sel.option('ConstantConfigManager')
     def option(config_manager):
@@ -688,7 +693,7 @@ def use_config_manager(gen, config, key, user):
     def option(config_manager):
         gen.add_aprinter_include('printer/config_manager/RuntimeConfigManager.h')
         
-        config_store_sel = config_common.Selection()
+        config_store_sel = selection.Selection()
         
         @config_store_sel.option('NoStore')
         def option(config_store):
@@ -765,7 +770,7 @@ def generate(config_root_data, cfg_name, main_template):
                         use_serial(gen, serial, 'Service', 'MyPrinter::GetSerial'),
                     ])
                 
-                sdcard_sel = config_common.Selection()
+                sdcard_sel = selection.Selection()
                 
                 @sdcard_sel.option('NoSdCard')
                 def option(sdcard):
@@ -773,7 +778,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 @sdcard_sel.option('SdCard')
                 def option(sdcard):
-                    gcode_parser_sel = config_common.Selection()
+                    gcode_parser_sel = selection.Selection()
                     
                     @gcode_parser_sel.option('TextGcodeParser')
                     def option(parser):
@@ -801,7 +806,7 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.add_float_constant('LedBlinkInterval', advanced.get_float('LedBlinkInterval'))
                 gen.add_float_config('ForceTimeout', advanced.get_float('ForceTimeout'))
             
-            probe_sel = config_common.Selection()
+            probe_sel = selection.Selection()
             
             @probe_sel.option('NoProbe')
             def option(probe):
@@ -847,7 +852,7 @@ def generate(config_root_data, cfg_name, main_template):
             def stepper_cb(stepper, stepper_index):
                 name = stepper.get_id_char('Name')
                 
-                homing_sel = config_common.Selection()
+                homing_sel = selection.Selection()
                 
                 @homing_sel.option('no_homing')
                 def option(homing):
@@ -994,7 +999,7 @@ def generate(config_root_data, cfg_name, main_template):
     gen.finalize()
     
     return {
-        'main_source': config_common.RichTemplate(main_template).substitute(gen.get_subst()),
+        'main_source': rich_template.RichTemplate(main_template).substitute(gen.get_subst()),
         'board_for_build': board_for_build,
         'output_type': output_type
     }
@@ -1010,23 +1015,23 @@ def main():
     args = parser.parse_args()
     
     # Determine source dir.
-    src_dir = config_common.file_dir(__file__)
+    src_dir = file_utils.file_dir(__file__)
     
     # Read main template file.
-    main_template = config_common.read_file(os.path.join(src_dir, 'main_template.cpp'))
+    main_template = file_utils.read_file(os.path.join(src_dir, 'main_template.cpp'))
     
     # Generate.
-    with config_common.use_input_file(args.config) as config_f:
+    with file_utils.use_input_file(args.config) as config_f:
         result = generate(json.load(config_f), args.cfg_name, main_template)
     
     # Write results.
-    with config_common.use_output_file(args.output) as output_f:
+    with file_utils.use_output_file(args.output) as output_f:
         if args.nix:
             nix = 'with import (builtins.toPath {}); aprinterFunc {{ boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; mainText = {}; }}'.format(
-                config_common.escape_string_for_nix(args.nix_dir),
-                config_common.escape_string_for_nix(result['board_for_build']),
-                config_common.escape_string_for_nix(result['output_type']),
-                config_common.escape_string_for_nix(result['main_source'])
+                nix_utils.escape_string_for_nix(args.nix_dir),
+                nix_utils.escape_string_for_nix(result['board_for_build']),
+                nix_utils.escape_string_for_nix(result['output_type']),
+                nix_utils.escape_string_for_nix(result['main_source'])
             )
             output_f.write(nix)
         else:

@@ -1,12 +1,12 @@
 from __future__ import print_function
 import sys
 import os
-sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../common'))
+sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../utils'))
 import argparse
 import base64
 import json
 import collections
-import config_common
+import file_utils
 
 def main():
     parser = argparse.ArgumentParser()
@@ -22,8 +22,8 @@ def main():
     args = parser.parse_args()
     
     if args.write_file:
-        with config_common.use_input_file(args.write_file_src) as input_stream:
-            with config_common.use_output_file(args.write_file_dst) as output_stream:
+        with file_utils.use_input_file(args.write_file_src) as input_stream:
+            with file_utils.use_output_file(args.write_file_dst) as output_stream:
                 while True:
                     data = input_stream.read(2**15)
                     if len(data) == 0:
@@ -39,10 +39,10 @@ def main():
         
         if args.build_reply_data is not None and len(args.build_reply_data) != 0:
             res['filename'] = args.build_reply_filename
-            with config_common.use_input_file(args.build_reply_data) as input_stream:
+            with file_utils.use_input_file(args.build_reply_data) as input_stream:
                 res['data'] = base64.b64encode(input_stream.read())
         
-        with config_common.use_output_file(args.build_reply_dst) as output_stream:
+        with file_utils.use_output_file(args.build_reply_dst) as output_stream:
             json.dump(res, output_stream)
     
     else:
