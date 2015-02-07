@@ -421,8 +421,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_virt_homing, start_virt_homing)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prestep_callback, prestep_callback)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_homing_mask, update_homing_mask)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_enable_stepper, enable_stepper)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_disable_stepper, disable_stepper)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_enable_disable_stepper, enable_disable_stepper)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_enable_disable_stepper_specific, enable_disable_stepper_specific)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_do_move, do_move)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_limit_axis_move_speed, limit_axis_move_speed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fix_aborted_pos, fix_aborted_pos)
@@ -1494,14 +1494,20 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             HomingFeature::start_phys_homing(c);
         }
         
-        static void enable_stepper (Context c)
+        static void enable_disable_stepper (Context c, bool enable)
         {
-            Stepper::enable(c);
+            if (enable) {
+                Stepper::enable(c);
+            } else {
+                Stepper::disable(c);
+            }
         }
         
-        static void disable_stepper (Context c)
+        static void enable_disable_stepper_specific (Context c, bool enable, TheCommand *cmd, CommandPartRef part)
         {
-            Stepper::disable(c);
+            if (cmd->getPartCode(c, part) == AxisName) {
+                enable_disable_stepper(c, enable);
+            }
         }
         
         static void update_new_pos (Context c, FpType req)
@@ -3204,21 +3210,21 @@ public: // private, see comment on top
                 case 110: // set line number
                     return cmd->finishCommand(c);
                 
-                case 17: {
+                case 17: { // enable steppers (all steppers if no args, or specific ones)
                     if (!cmd->tryUnplannedCommand(c)) {
                         return;
                     }
-                    ListForEachForward<AxesList>(LForeach_enable_stepper(), c);
+                    enable_disable_command_common(c, true, cmd);
                     now_inactive(c);
                     return cmd->finishCommand(c);
                 } break;
                 
-                case 18: // disable steppers or set timeout
+                case 18: // disable steppers (all steppers if no args, or specific ones)
                 case 84: {
                     if (!cmd->tryUnplannedCommand(c)) {
                         return;
                     }
-                    ListForEachForward<AxesList>(LForeach_disable_stepper(), c);
+                    enable_disable_command_common(c, false, cmd);
                     ob->disable_timer.unset(c);
                     return cmd->finishCommand(c);
                 } break;
@@ -3464,7 +3470,7 @@ public: // private, see comment on top
         auto *ob = Object::self(c);
         TheDebugObject::access(c);
         
-        ListForEachForward<AxesList>(LForeach_disable_stepper(), c);
+        ListForEachForward<AxesList>(LForeach_enable_disable_stepper(), c, false);
     }
     
     static void force_timer_handler (typename Loop::QueuedEvent *, Context c)
@@ -3734,6 +3740,18 @@ public: // private, see comment on top
             }
         }
         return cmd;
+    }
+    
+    static void enable_disable_command_common (Context c, bool enable, TheCommand *cmd)
+    {
+        auto num_parts = cmd->getNumParts(c);
+        if (num_parts == 0) {
+            ListForEachForward<AxesList>(LForeach_enable_disable_stepper(), c, enable);
+        } else {
+            for (decltype(num_parts) i = 0; i < num_parts; i++) {
+                ListForEachForward<AxesList>(LForeach_enable_disable_stepper_specific(), c, enable, cmd, cmd->getPart(c, i));
+            }
+        }
     }
     
     struct PlannerUnion {
