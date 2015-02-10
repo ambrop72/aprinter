@@ -306,7 +306,7 @@ def editor():
                 ce.Integer(key='SetMCommand', title='Set command M-number (extruder 104, bed 140)', default=104),
                 ce.Integer(key='WaitMCommand', title='Wait command M-number (extruder 109, bed 190)', default=109),
                 analog_input_choice(key='ThermistorInput', title='Thermistor analog input'),
-                ce.Float(key='MinSafeTemp', title='Turn off if temperature is below [C]', default=15),
+                ce.Float(key='MinSafeTemp', title='Turn off if temperature is below [C]', default=10),
                 ce.Float(key='MaxSafeTemp', title='Turn off if temperature is above [C]', default=280),
                 ce.Compound('conversion', key='conversion', title='Conversion parameters', disable_collapse=True, attrs=[
                     ce.Float(key='ResistorR', title='Series-resistor resistance [ohm]', default=4700),

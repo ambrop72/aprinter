@@ -1381,7 +1381,7 @@
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T0",
-          "MinSafeTemp": 15,
+          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -1415,7 +1415,7 @@
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T4",
-          "MinSafeTemp": 15,
+          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.3,
@@ -1449,7 +1449,7 @@
           "Name": "U",
           "SetMCommand": 404,
           "ThermistorInput": "T1",
-          "MinSafeTemp": 15,
+          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -1661,7 +1661,7 @@
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T",
-          "MinSafeTemp": 15,
+          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -1823,7 +1823,7 @@
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T1",
-          "MinSafeTemp": 15,
+          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.3,
@@ -1857,7 +1857,7 @@
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T0",
-          "MinSafeTemp": 15,
+          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -2019,7 +2019,7 @@
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "etemp",
-          "MinSafeTemp": 15,
+          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -2053,7 +2053,7 @@
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "btemp",
-          "MinSafeTemp": 15,
+          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
