@@ -65,6 +65,24 @@ function ce_deref(target_arr, target_id_field, target_id) {
     return null;
 }
 
+function ce_copyhelper(rows, row, name_key, name_suffix) {
+    var name = row[name_key];
+    while (true) {
+        name = name + name_suffix;
+        var exists = false;
+        for (var i = 0; i < rows.length; i++) {
+            if (rows[i][name_key] === name) {
+                exists = true;
+            }
+        }
+        if (!exists) {
+            var ext = {};
+            ext[name_key] = name;
+            return JSONEditor_utils.extend(row, ext);
+        }
+    }
+}
+
 // Function to get config from local storage or default.
 function get_config(allow_default) {
     var config_json = localStorage.getItem("aprinter_config");
@@ -113,8 +131,6 @@ var load = function() {
     jsoneditor = new JSONEditor($editor, {
         schema: schema,
         startval: startval,
-        theme: "bootstrap3",
-        iconlib: "bootstrap3",
         trace_processing: false
     });
     

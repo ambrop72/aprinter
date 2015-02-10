@@ -198,6 +198,8 @@ class Array (ConfigBase):
     def __init__ (self, **kwargs):
         self.elem = _kwarg('elem', kwargs)
         self.table = _kwarg_maybe('table', kwargs, False)
+        self.copy_name_key = _kwarg_maybe('copy_name_key', kwargs)
+        self.copy_name_suffix = _kwarg_maybe('copy_name_suffix', kwargs, ' (copy)')
         ConfigBase.__init__(self, **kwargs)
     
     def _json_extra (self):
@@ -208,7 +210,10 @@ class Array (ConfigBase):
             },
             ({
                 'format': 'table'
-            } if self.table else {})
+            } if self.table else {}),
+            ({
+                'copyTemplate': 'return ce_copyhelper(vars.rows,vars.row,{},{});'.format(json.dumps(self.copy_name_key), json.dumps(self.copy_name_suffix))
+            } if self.copy_name_key is not None else {}),
         )
 
 class OneOf (ConfigBase):
