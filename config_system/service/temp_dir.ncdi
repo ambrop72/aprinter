@@ -22,6 +22,8 @@
 
 include_guard "temp_dir"
 
+include "run_process_output.ncdi"
+
 template temp_dir {
     objref_arg(_arg0) log;
     alias(@_arg1) temp_base_dir;
