@@ -1,4 +1,4 @@
-{ writeText, writeScriptBin, bash, coreutils, p7zip, rsync
+{ stdenv, writeText, writeScriptBin, bash, coreutils, p7zip, rsync, unzip
 , python27Packages, nix, ncd, lighttpd, aprinterSource
 , serviceHost ? "127.0.0.1"
 , servicePort ? 4000
@@ -6,10 +6,19 @@
 , withBuildOutput ? true
 }:
 let
+    gui_dist = stdenv.mkDerivation {
+        name = "aprinter-gui-dist";
+        unpackPhase = "true";
+        nativeBuildInputs = [python27Packages.python unzip rsync];
+        installPhase = ''
+            python -B "${aprinterSource}"/config_system/gui/build.py --out-dir "$out"
+        '';
+    };
+    
     lighttpd_config = writeText "aprinter-service-lighttpd.cfg" ''
         server.modules += ("mod_proxy")
         
-        server.document-root = "${aprinterSource}/config_system/gui/dist" 
+        server.document-root = "${gui_dist}" 
 
         server.bind = "${serviceHost}"
         server.port = ${toString servicePort}

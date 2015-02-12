@@ -27,16 +27,15 @@ sys.path.insert(1, os.path.join(os.path.dirname(__file__), '../utils'))
 import argparse
 import shutil
 import json
+import subprocess
 import file_utils
 import rich_template
 import aprinter_config_editor
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('--json-editor-dist-dir', default='../../../json-editor/dist')
-    parser.add_argument('--bootstrap-dist-dir', default='../../../bootstrap-3.2.0-dist')
-    parser.add_argument('--filesaver-dir', default='../../../FileSaver.js')
     parser.add_argument('--rm', action='store_true')
+    parser.add_argument('--out-dir')
     args = parser.parse_args()
     
     # Build editor schema.
@@ -45,7 +44,11 @@ def main():
     
     # Determine directories.
     src_dir = file_utils.file_dir(__file__)
-    dist_dir = os.path.join(src_dir, 'dist')
+    libs_dir = os.path.join(src_dir, 'libs')
+    if args.out_dir is not None:
+        dist_dir = args.out_dir
+    else:
+        dist_dir = os.path.join(src_dir, 'dist')
     
     # Remove dist dir.
     if args.rm and os.path.isdir(dist_dir):
@@ -55,13 +58,14 @@ def main():
     os.mkdir(dist_dir)
     
     # Copy json-editor.
-    shutil.copytree(args.json_editor_dist_dir, os.path.join(dist_dir, 'json-editor'))
-    
-    # Copy Bootstrap.
-    shutil.copytree(args.bootstrap_dist_dir, os.path.join(dist_dir, 'bootstrap'))
+    shutil.copyfile(os.path.join(libs_dir, 'jsoneditor.min.js'), os.path.join(dist_dir, 'jsoneditor.js'))
     
     # Copy FileSaver.
-    shutil.copyfile(os.path.join(args.filesaver_dir, 'FileSaver.min.js'), os.path.join(dist_dir, 'FileSaver.min.js'))
+    shutil.copyfile(os.path.join(libs_dir, 'FileSaver.min.js'), os.path.join(dist_dir, 'FileSaver.js'))
+    
+    # Copy Bootstrap.
+    subprocess.call(['unzip', '-q', os.path.join(libs_dir, 'bootstrap-3.3.2-dist.zip'), '-d', dist_dir])
+    os.rename(os.path.join(dist_dir, 'bootstrap-3.3.2-dist'), os.path.join(dist_dir, 'bootstrap'))
     
     # Copy files.
     for filename in ['index.html', 'Ajax-loader.gif']:
