@@ -40,6 +40,8 @@ var $export_data_button = document.getElementById('export_data');
 var $import_data_button = document.getElementById('import_data');
 var $import_data_file_input = document.getElementById('import_data_file');
 var $compile_start_button = document.getElementById('compile_start');
+var $error_modal_label = document.getElementById('error_modal_label');
+var $error_modal_body = document.getElementById('error_modal_body');
 
 // Global variables.
 var jsoneditor;
@@ -211,11 +213,13 @@ var load = function() {
                 } else {
                     var result = JSON.parse(compile_request.responseText);
                     if (!result.success) {
-                        var msg = "Compilation failed: " + result.message;
+                        $error_modal_label.innerText = "Compilation failed: " + result.message;
+                        var msg = "";
                         if (result.hasOwnProperty('error')) {
-                            msg += "\n\n" + result.error;
+                            msg = result.error;
                         }
-                        alert(msg);
+                        $error_modal_body.innerText = msg;
+                        $('#error_modal').modal({});
                     } else {
                         var blob = base64_to_blob(result.data, 'application/octet-stream');
                         saveAs(blob, result.filename)

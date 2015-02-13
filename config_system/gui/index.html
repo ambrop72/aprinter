@@ -7,6 +7,10 @@
     <style>
     .compile_progress {
     }
+    .modal-large {
+        width: 100%;
+        max-width: 1000px;
+    }
     </style>
 </head>
 <body>
@@ -43,8 +47,25 @@
         </div>
     </div>
 </div>
+<div class="modal fade" id="error_modal" tabindex="-1" role="dialog" aria-labelledby="error_modal_label" aria-hidden="true">
+  <div class="modal-dialog modal-large">
+    <div class="modal-content">
+      <div class="modal-header">
+        <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+        <h4 class="modal-title" id="error_modal_label"></h4>
+      </div>
+      <div class="modal-body" id="error_modal_body">
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-default" data-dismiss="modal">Close</button>
+      </div>
+    </div>
+  </div>
+</div>
 <script src='jsoneditor.js'></script>
 <script src='FileSaver.js'></script>
+<script src='jquery.js'></script>
+<script src='bootstrap/js/bootstrap.min.js'></script>
 <script src='init.js'></script>
 </body>
 </html>

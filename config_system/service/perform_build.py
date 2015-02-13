@@ -24,7 +24,7 @@ def run_process(cmd, input_str, description):
         raise
     status = proc.wait()
     if status != 0:
-        raise ProcessError('Execution of {} failed.'.format(description), error)
+        raise ProcessError(description, error)
     return output
 
 def run_process_limited(args, cmd, input_str, description):
@@ -66,19 +66,19 @@ def main():
         generate_path = os.path.join(args.aprinter_src_dir, 'config_system/generator/generate.py')
         aprinter_nix_dir = os.path.join(args.aprinter_src_dir, 'nix')
         cmd = [args.python, '-B', generate_path, '--config', '-', '--output', '-', '--nix', '--nix-dir', aprinter_nix_dir]
-        nix_expr = run_process_limited(args, cmd, request, 'the generate script')
+        nix_expr = run_process_limited(args, cmd, request, 'Failed to interpret the configuration.')
         
         # Do the build...
         result_path = os.path.join(args.temp_dir, 'result')
         nixbuild_cmd = [args.nix_build, '-', '-o', result_path]
-        run_process_limited(args, nixbuild_cmd, nix_expr, 'nix-build')
+        run_process_limited(args, nixbuild_cmd, nix_expr, 'Failed to compile the source code.')
         
         # Create a subfolder which we will archive.
         build_path = os.path.join(args.temp_dir, 'aprinter-build')
-        run_process_limited(args, [args.mkdir, build_path], '', 'mkdir')
+        run_process_limited(args, [args.mkdir, build_path], '', 'The mkdir failed!?')
         
         # Copy the build to the build_path.
-        run_process_limited(args, [args.rsync, '-rL', '--chmod=ugo=rwX', '{}/'.format(result_path), '{}/'.format(build_path)], '', 'rsync')
+        run_process_limited(args, [args.rsync, '-rL', '--chmod=ugo=rwX', '{}/'.format(result_path), '{}/'.format(build_path)], '', 'The rsync failed!?')
         
         # Add the configuration to the build folder.
         with open(os.path.join(build_path, 'config.json'), 'wb') as output_stream:
@@ -88,7 +88,7 @@ def main():
         archive_filename = 'aprinter-build.zip'
         archive_path = os.path.join(args.temp_dir, archive_filename)
         archive_cmd = [args.p7za, 'a', archive_path, build_path]
-        run_process_limited(args, archive_cmd, '', 'p7za')
+        run_process_limited(args, archive_cmd, '', 'The p7za failed!?')
         
         # Read the archive contents.
         with open(archive_path, 'rb') as input_stream:

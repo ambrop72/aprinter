@@ -57,11 +57,10 @@ def main():
     # Create dist dir.
     os.mkdir(dist_dir)
     
-    # Copy json-editor.
+    # Copy JS libraries.
     shutil.copyfile(os.path.join(libs_dir, 'jsoneditor.min.js'), os.path.join(dist_dir, 'jsoneditor.js'))
-    
-    # Copy FileSaver.
     shutil.copyfile(os.path.join(libs_dir, 'FileSaver.min.js'), os.path.join(dist_dir, 'FileSaver.js'))
+    shutil.copyfile(os.path.join(libs_dir, 'jquery-1.11.2.min.js'), os.path.join(dist_dir, 'jquery.js'))
     
     # Copy Bootstrap.
     subprocess.call(['unzip', '-q', os.path.join(libs_dir, 'bootstrap-3.3.2-dist.zip'), '-d', dist_dir])
