@@ -3,6 +3,7 @@
 , serviceHost ? "127.0.0.1"
 , servicePort ? 4000
 , backendPort ? 4001
+, stderrTruncateBytes ? 6000
 }:
 let
     gui_dist = stdenv.mkDerivation {
@@ -87,13 +88,17 @@ let
                 "max_concurrent_compiles": "1",
                 "aprinter_src_dir": "${aprinterSource}",
                 "temp_dir": temp_dir,
+                "stderr_truncate_bytes": "${toString stderrTruncateBytes}",
                 "mktemp": "${coreutils}/bin/mktemp",
                 "rm": "${coreutils}/bin/rm",
                 "python": "${python27Packages.python}/bin/python",
                 "nixbuild": "${nix}/bin/nix-build",
                 "7za": "${p7zip}/bin/7za",
                 "mkdir": "${coreutils}/bin/mkdir",
-                "rsync": "${rsync}/bin/rsync"
+                "rsync": "${rsync}/bin/rsync",
+                "bash": "${bash}/bin/bash",
+                "head": "${coreutils}/bin/head",
+                "cat": "${coreutils}/bin/cat"
             ]) config;
             
             process_manager() mgr;

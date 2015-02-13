@@ -37,6 +37,7 @@ template aprinter_compile_service {
     config->get("max_concurrent_compiles") max_concurrent_compiles;
     config->get("aprinter_src_dir") aprinter_src_dir;
     config->get("temp_dir") temp_dir;
+    config->get("stderr_truncate_bytes") stderr_truncate_bytes;
     config->get("mktemp") mktemp;
     config->get("rm") rm;
     config->get("python") python;
@@ -44,6 +45,9 @@ template aprinter_compile_service {
     config->get("7za") p7za;
     config->get("mkdir") mkdir;
     config->get("rsync") rsync;
+    config->get("bash") bash;
+    config->get("head") head;
+    config->get("cat") cat;
     
     # Init the queue.
     call(@job_queue, {max_concurrent_compiles}) queue;
@@ -110,11 +114,15 @@ template aprinter_compile_service {
                 "--request-file", "-",
                 "--response-file", "-",
                 "--temp-dir", temp_dir.created_dir,
+                "--stderr-truncate-bytes", stderr_truncate_bytes,
                 "--python", python,
                 "--nix-build", nixbuild,
                 "--mkdir", mkdir,
                 "--rsync", rsync,
-                "--p7za", p7za
+                "--p7za", p7za,
+                "--bash", bash,
+                "--head", head,
+                "--cat", cat
             }) perform_build_cmd;
             call(@run_process_inout, {perform_build_cmd, request_payload}) perform_build_exec;
             If (@not(perform_build_exec.succeeded)) {
