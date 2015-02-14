@@ -37,6 +37,9 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/DedummyIndexTemplate.h>
+#include <aprinter/meta/IsEqualFunc.h>
+#include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/base/Assert.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -50,6 +53,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_read, read)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_write, write)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_block_number, get_block_number)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_BlockNumberType, BlockNumberType)
     
     struct EepromHandler;
     using Loop = typename Context::EventLoop;
@@ -77,31 +81,26 @@ private:
         
         static bool const UseNextBlock = PrevOption::BlockEndOffset + sizeof(Type) > TheEeprom::BlockSize;
         static int const BlockNumber = PrevOption::BlockNumber + UseNextBlock;
+        using BlockNumberType = WrapInt<BlockNumber>;
         static int const BlockStartOffset = UseNextBlock ? 0 : PrevOption::BlockEndOffset;
         static int const BlockEndOffset = BlockStartOffset + sizeof(Type);
         
         static_assert(BlockNumber < Params::EndBlock, "");
         static_assert(BlockEndOffset <= TheEeprom::BlockSize, "");
         
-        template <int WriteBlockNumber>
-        static void write (Context c, WrapInt<WriteBlockNumber>)
+        static void write (Context c)
         {
             auto *o = Object::self(c);
-            if (WriteBlockNumber == BlockNumber) {
-                Type value = ConfigManager::getOptionValue(c, Option());
-                memcpy(o->buffer + BlockStartOffset, &value, sizeof(Type));
-            }
+            Type value = ConfigManager::getOptionValue(c, Option());
+            memcpy(o->buffer + BlockStartOffset, &value, sizeof(Type));
         }
         
-        template <int ReadBlockNumber>
-        static void read (Context c, WrapInt<ReadBlockNumber>)
+        static void read (Context c)
         {
             auto *o = Object::self(c);
-            if (ReadBlockNumber == BlockNumber) {
-                Type value;
-                memcpy(&value, o->buffer + BlockStartOffset, sizeof(Type));
-                ConfigManager::setOptionValue(c, Option(), value);
-            }
+            Type value;
+            memcpy(&value, o->buffer + BlockStartOffset, sizeof(Type));
+            ConfigManager::setOptionValue(c, Option(), value);
         }
     };
     
@@ -115,6 +114,9 @@ private:
     using LastOption = OptionHelper<(TypeListLength<OptionHelperList>::Value - 1)>;
     static int const NumOptionBlocks = LastOption::BlockNumber - OptionHelper<(-1)>::BlockNumber + 1;
     
+    template <int BlockNumber>
+    using OptionsForBlock = FilterTypeList<OptionHelperList, ComposeFunctions<IsEqualFunc<WrapInt<BlockNumber>>, GetMemberType_BlockNumberType>>;
+    
     template <int WriteBlockNumber, typename Dummy=void>
     struct BlockWriteHelper {
         static_assert(WriteBlockNumber >= 1, "");
@@ -123,7 +125,7 @@ private:
         
         static int write (Context c)
         {
-            ListForEachForward<OptionHelperList>(Foreach_write(), c, WrapInt<BlockNumber>());
+            ListForEachForward<OptionsForBlock<BlockNumber>>(Foreach_write(), c);
             return BlockNumber;
         }
     };
@@ -162,7 +164,7 @@ private:
         
         static bool read (Context c)
         {
-            ListForEachForward<OptionHelperList>(Foreach_read(), c, WrapInt<BlockNumber>());
+            ListForEachForward<OptionsForBlock<BlockNumber>>(Foreach_read(), c);
             return true;
         }
     };
