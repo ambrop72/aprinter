@@ -188,9 +188,9 @@ class GenConfigReader(config_reader.ConfigReader):
                 config.path().error('Unknown choice.')
             return result
     
-    def do_list (self, key, elem_cb, max_count):
+    def do_list (self, key, elem_cb, min_count=-1, max_count=-1):
         elems = []
-        for (i, config) in enumerate(self.iter_list_config(key, max_count=max_count)):
+        for (i, config) in enumerate(self.iter_list_config(key, min_count=min_count, max_count=max_count)):
             elems.append(elem_cb(config, i))
         return TemplateList(elems)
     
@@ -858,7 +858,7 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.add_float_config('ProbeSlowSpeed', probe.get_float('SlowSpeed'))
                 
                 point_list = []
-                for (i, point) in enumerate(probe.iter_list_config('ProbePoints', max_count=20)):
+                for (i, point) in enumerate(probe.iter_list_config('ProbePoints', min_count=1, max_count=20)):
                     p = (point.get_float('X'), point.get_float('Y'))
                     gen.add_float_config('ProbeP{}X'.format(i+1), p[0])
                     gen.add_float_config('ProbeP{}Y'.format(i+1), p[1])
@@ -936,7 +936,7 @@ def generate(config_root_data, cfg_name, main_template):
                     'PrinterMainNoMicroStepParams'
                 ])
             
-            steppers_expr = config.do_list('steppers', stepper_cb, max_count=15)
+            steppers_expr = config.do_list('steppers', stepper_cb, min_count=1, max_count=15)
             
             def heater_cb(heater, heater_index):
                 name = heater.get_id_char('Name')

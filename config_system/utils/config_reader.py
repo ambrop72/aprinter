@@ -90,13 +90,16 @@ class ConfigTypeString (object):
         return res
 
 class ConfigTypeList (object):
-    def __init__ (self, elem_dtype, max_count=-1):
+    def __init__ (self, elem_dtype, min_count=-1, max_count=-1):
         self._elem_dtype = elem_dtype
+        self._min_count = min_count
         self._max_count = max_count
     
     def read (self, path, val):
         if type(val) is not list:
             path.error('Must be a list.')
+        if self._min_count >= 0 and len(val) < self._min_count:
+            path.error('Too few elements (minimum is {}).'.format(self._min_count))
         if self._max_count >= 0 and len(val) > self._max_count:
             path.error('Too many elements (maximum is {}).'.format(self._max_count))
         res = [self._elem_dtype.read(ConfigPath(path, str(i)), elem) for (i, elem) in enumerate(val)]
