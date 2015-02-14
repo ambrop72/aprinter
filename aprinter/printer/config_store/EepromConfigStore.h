@@ -37,9 +37,7 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/DedummyIndexTemplate.h>
-#include <aprinter/meta/IsEqualFunc.h>
-#include <aprinter/meta/ComposeFunctions.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/TypeListReverse.h>
 #include <aprinter/base/Assert.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -53,7 +51,6 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_read, read)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_write, write)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_block_number, get_block_number)
-    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_BlockNumberType, BlockNumberType)
     
     struct EepromHandler;
     using Loop = typename Context::EventLoop;
@@ -80,13 +77,16 @@ private:
         static_assert(sizeof(Type) <= TheEeprom::BlockSize, "");
         
         static bool const UseNextBlock = PrevOption::BlockEndOffset + sizeof(Type) > TheEeprom::BlockSize;
-        static int const BlockNumber = PrevOption::BlockNumber + UseNextBlock;
-        using BlockNumberType = WrapInt<BlockNumber>;
+        static int const RelBlockNumber = PrevOption::RelBlockNumber + UseNextBlock;
+        static int const BlockNumber = (Params::StartBlock + 1) + RelBlockNumber;
         static int const BlockStartOffset = UseNextBlock ? 0 : PrevOption::BlockEndOffset;
         static int const BlockEndOffset = BlockStartOffset + sizeof(Type);
         
         static_assert(BlockNumber < Params::EndBlock, "");
         static_assert(BlockEndOffset <= TheEeprom::BlockSize, "");
+        
+        using PrevOptionLists = If<UseNextBlock, ConsTypeList<typename PrevOption::BlockOptionList, typename PrevOption::PrevOptionLists>, typename PrevOption::PrevOptionLists>;
+        using BlockOptionList = ConsTypeList<OptionHelper<OptionIndex>, If<UseNextBlock, EmptyTypeList, typename PrevOption::BlockOptionList>>;
         
         static void write (Context c)
         {
@@ -106,27 +106,31 @@ private:
     
     template <typename Dummy>
     struct OptionHelper<(-1), Dummy> {
-        static int const BlockNumber = Params::StartBlock + 1;
+        static int const RelBlockNumber = 0;
         static int const BlockEndOffset = 0;
+        
+        using PrevOptionLists = EmptyTypeList;
+        using BlockOptionList = EmptyTypeList;
     };
     
     using OptionHelperList = IndexElemList<OptionSpecList, DedummyIndexTemplate<OptionHelper>::template Result>;
     using LastOption = OptionHelper<(TypeListLength<OptionHelperList>::Value - 1)>;
-    static int const NumOptionBlocks = LastOption::BlockNumber - OptionHelper<(-1)>::BlockNumber + 1;
+    static int const NumOptionBlocks = LastOption::RelBlockNumber + 1;
     
-    template <int BlockNumber>
-    using OptionsForBlock = FilterTypeList<OptionHelperList, ComposeFunctions<IsEqualFunc<WrapInt<BlockNumber>>, GetMemberType_BlockNumberType>>;
+    using BlockOptionLists = ConsTypeList<typename LastOption::BlockOptionList, typename LastOption::PrevOptionLists>;
+    
+    template <int RelBlockNumber>
+    using OptionsForBlock = TypeListReverse<TypeListGet<BlockOptionLists, (NumOptionBlocks - 1 - RelBlockNumber)>>;
     
     template <int WriteBlockNumber, typename Dummy=void>
     struct BlockWriteHelper {
         static_assert(WriteBlockNumber >= 1, "");
         static_assert(WriteBlockNumber < 1 + NumOptionBlocks, "");
-        static int const BlockNumber = Params::StartBlock + WriteBlockNumber;
         
         static int write (Context c)
         {
-            ListForEachForward<OptionsForBlock<BlockNumber>>(Foreach_write(), c);
-            return BlockNumber;
+            ListForEachForward<OptionsForBlock<(WriteBlockNumber - 1)>>(Foreach_write(), c);
+            return Params::StartBlock + WriteBlockNumber;
         }
     };
     
@@ -158,13 +162,12 @@ private:
     struct BlockReadHelper {
         static_assert(ReadBlockNumber >= 1, "");
         static_assert(ReadBlockNumber < 1 + NumOptionBlocks, "");
-        static int const BlockNumber = Params::StartBlock + ReadBlockNumber;
         
-        static int get_block_number () { return BlockNumber; }
+        static int get_block_number () { return Params::StartBlock + ReadBlockNumber; }
         
         static bool read (Context c)
         {
-            ListForEachForward<OptionsForBlock<BlockNumber>>(Foreach_read(), c);
+            ListForEachForward<OptionsForBlock<(ReadBlockNumber - 1)>>(Foreach_read(), c);
             return true;
         }
     };
