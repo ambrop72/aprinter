@@ -32,6 +32,7 @@
 #include <aprinter/meta/Modulo.h>
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/base/Likely.h>
 
 #ifdef AMBROLIB_AVR
 #include <aprinter/avr-asm-ops/sqrt_26_large.h>
@@ -102,7 +103,7 @@ private:
             static ResType call (TempType op, TempType res)
             {
                 TempType one = PowerOfTwo<TempType, (TempBits - 2 - (2 * I::Value))>::Value;
-                if (op >= res + one) {
+                if (AMBRO_LIKELY(op >= res + one)) {
                     op -= res + one;
                     res = (res >> 1) + one;
                 } else {
@@ -140,7 +141,7 @@ private:
                 static const TempType next_one = one >> 1;
                 static const TempType res_add_nobit = (TempType)(next_one - one);
                 static const TempType res_add_bit = (TempType)(res_add_nobit + prev_one);
-                if (op >= res) {
+                if (AMBRO_LIKELY(op >= res)) {
                     op -= res;
                     res += res_add_bit;
                 } else {
