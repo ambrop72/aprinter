@@ -42,11 +42,12 @@
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/IsEqualFunc.h>
-#include <aprinter/meta/TypeMap.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/TypeDict.h>
+#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -190,37 +191,37 @@ APRINTER_DEFINE_AVR_16BIT_TC_CHANNEL(5, C)
     defined(__AVR_ATmega324PA__) || defined(__AVR_ATmega644A__) || defined(__AVR_ATmega644PA__) || \
     defined(__AVR_ATmega128__) || defined(__AVR_ATmega1284P__)
 
-using AvrClock__PinMap = MakeTypeMap<
-    TypeMapEntry<AvrClockTcChannel0A, AvrPin<AvrPortB, 3>>,
-    TypeMapEntry<AvrClockTcChannel0B, AvrPin<AvrPortB, 4>>,
-    TypeMapEntry<AvrClockTcChannel1A, AvrPin<AvrPortD, 5>>,
-    TypeMapEntry<AvrClockTcChannel1B, AvrPin<AvrPortD, 4>>,
-    TypeMapEntry<AvrClockTcChannel2A, AvrPin<AvrPortD, 7>>,
-    TypeMapEntry<AvrClockTcChannel2B, AvrPin<AvrPortD, 6>>,
-    TypeMapEntry<AvrClockTcChannel3A, AvrPin<AvrPortB, 6>>,
-    TypeMapEntry<AvrClockTcChannel3B, AvrPin<AvrPortB, 7>>
+using AvrClock__PinMap = MakeTypeList<
+    TypeDictEntry<AvrClockTcChannel0A, AvrPin<AvrPortB, 3>>,
+    TypeDictEntry<AvrClockTcChannel0B, AvrPin<AvrPortB, 4>>,
+    TypeDictEntry<AvrClockTcChannel1A, AvrPin<AvrPortD, 5>>,
+    TypeDictEntry<AvrClockTcChannel1B, AvrPin<AvrPortD, 4>>,
+    TypeDictEntry<AvrClockTcChannel2A, AvrPin<AvrPortD, 7>>,
+    TypeDictEntry<AvrClockTcChannel2B, AvrPin<AvrPortD, 6>>,
+    TypeDictEntry<AvrClockTcChannel3A, AvrPin<AvrPortB, 6>>,
+    TypeDictEntry<AvrClockTcChannel3B, AvrPin<AvrPortB, 7>>
 >;
 
 #elif defined(__AVR_ATmega640__) || defined(__AVR_ATmega1280__) || defined(__AVR_ATmega1281__) || \
     defined(__AVR_ATmega2560__) || defined(__AVR_ATmega2561__)
 
-using AvrClock__PinMap = MakeTypeMap<
-    TypeMapEntry<AvrClockTcChannel0A, AvrPin<AvrPortB, 7>>,
-    TypeMapEntry<AvrClockTcChannel0B, AvrPin<AvrPortG, 5>>,
-    TypeMapEntry<AvrClockTcChannel1A, AvrPin<AvrPortB, 5>>,
-    TypeMapEntry<AvrClockTcChannel1B, AvrPin<AvrPortB, 6>>,
-    TypeMapEntry<AvrClockTcChannel1C, AvrPin<AvrPortB, 7>>,
-    TypeMapEntry<AvrClockTcChannel2A, AvrPin<AvrPortB, 4>>,
-    TypeMapEntry<AvrClockTcChannel2B, AvrPin<AvrPortH, 6>>,
-    TypeMapEntry<AvrClockTcChannel3A, AvrPin<AvrPortE, 3>>,
-    TypeMapEntry<AvrClockTcChannel3B, AvrPin<AvrPortE, 4>>,
-    TypeMapEntry<AvrClockTcChannel3C, AvrPin<AvrPortE, 5>>,
-    TypeMapEntry<AvrClockTcChannel4A, AvrPin<AvrPortH, 3>>,
-    TypeMapEntry<AvrClockTcChannel4B, AvrPin<AvrPortH, 4>>,
-    TypeMapEntry<AvrClockTcChannel4C, AvrPin<AvrPortH, 5>>,
-    TypeMapEntry<AvrClockTcChannel5A, AvrPin<AvrPortL, 3>>,
-    TypeMapEntry<AvrClockTcChannel5B, AvrPin<AvrPortL, 4>>,
-    TypeMapEntry<AvrClockTcChannel5C, AvrPin<AvrPortL, 5>>
+using AvrClock__PinMap = MakeTypeList<
+    TypeDictEntry<AvrClockTcChannel0A, AvrPin<AvrPortB, 7>>,
+    TypeDictEntry<AvrClockTcChannel0B, AvrPin<AvrPortG, 5>>,
+    TypeDictEntry<AvrClockTcChannel1A, AvrPin<AvrPortB, 5>>,
+    TypeDictEntry<AvrClockTcChannel1B, AvrPin<AvrPortB, 6>>,
+    TypeDictEntry<AvrClockTcChannel1C, AvrPin<AvrPortB, 7>>,
+    TypeDictEntry<AvrClockTcChannel2A, AvrPin<AvrPortB, 4>>,
+    TypeDictEntry<AvrClockTcChannel2B, AvrPin<AvrPortH, 6>>,
+    TypeDictEntry<AvrClockTcChannel3A, AvrPin<AvrPortE, 3>>,
+    TypeDictEntry<AvrClockTcChannel3B, AvrPin<AvrPortE, 4>>,
+    TypeDictEntry<AvrClockTcChannel3C, AvrPin<AvrPortE, 5>>,
+    TypeDictEntry<AvrClockTcChannel4A, AvrPin<AvrPortH, 3>>,
+    TypeDictEntry<AvrClockTcChannel4B, AvrPin<AvrPortH, 4>>,
+    TypeDictEntry<AvrClockTcChannel4C, AvrPin<AvrPortH, 5>>,
+    TypeDictEntry<AvrClockTcChannel5A, AvrPin<AvrPortL, 3>>,
+    TypeDictEntry<AvrClockTcChannel5B, AvrPin<AvrPortL, 4>>,
+    TypeDictEntry<AvrClockTcChannel5C, AvrPin<AvrPortL, 5>>
 >;
 
 #else
@@ -933,7 +934,7 @@ private:
     using Tc = typename TcChannel::Tc;
     using MyTc = typename Clock::template FindTc<Tc>;
     static_assert(MyTc::TheModeHelper::IsPwmMode, "TC must be configured in PWM mode.");
-    static_assert(TypesAreEqual<Pin, TypeMapGet<AvrClock__PinMap, TcChannel>>::Value, "Invalid Pin specified.");
+    static_assert(TypesAreEqual<Pin, typename TypeDictFind<AvrClock__PinMap, TcChannel>::Result>::Value, "Invalid Pin specified.");
     static uint8_t const ComMask = (1 << TcChannel::com1) | (1 << TcChannel::com0);
     
     template <bool Is8Bit, typename Dummy=void>

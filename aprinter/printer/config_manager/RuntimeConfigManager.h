@@ -33,7 +33,6 @@
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/WrapType.h>
 #include <aprinter/meta/FilterTypeList.h>
@@ -95,16 +94,13 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Type, Type)
     
     template <typename TheOption>
-    using OptionIsNotConstant = WrapBool<(TypeListIndex<typename TheOption::Properties, IsEqualFunc<ConfigPropertyConstant>>::Value < 0)>;
+    using OptionIsNotConstant = WrapBool<(!TypeDictListFind<typename TheOption::Properties, ConfigPropertyConstant>::Found)>;
     using StoreService = typename Params::StoreService;
     using FormatHasher = ConstexprHash<ConstexprCrc32>;
     using SupportedTypesList = MakeTypeList<double, bool>;
     
     template <typename Type>
-    struct GetTypeIndex {
-        static int const Value = TypeListIndex<SupportedTypesList, IsEqualFunc<Type>>::Value;
-        static_assert(Value >= 0, "");
-    };
+    using GetTypeIndex = TypeDictListIndex<SupportedTypesList, Type>;
     
     static int const DumpConfigMCommand = 924;
     static int const GetConfigMCommand = 925;

@@ -29,9 +29,8 @@
 
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/Tuple.h>
-#include <aprinter/meta/TypeListIndex.h>
-#include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/RemoveConst.h>
+#include <aprinter/meta/TypeDictList.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -81,9 +80,9 @@ auto TupleGetElem (TupleType *tuple) -> decltype(TupleGet<RemoveConst<TupleType>
 }
 
 template <typename ElemType, typename TupleType>
-auto TupleFindElem (TupleType *tuple) -> decltype(TupleGetElem<TypeListIndex<typename TupleType::ElemTypes, IsEqualFunc<ElemType>>::Value>(tuple))
+auto TupleFindElem (TupleType *tuple) -> decltype(TupleGetElem<TypeDictListIndex<typename TupleType::ElemTypes, ElemType>::Value>(tuple))
 {
-    return TupleGetElem<TypeListIndex<typename TupleType::ElemTypes, IsEqualFunc<ElemType>>::Value>(tuple);
+    return TupleGetElem<TypeDictListIndex<typename TupleType::ElemTypes, ElemType>::Value>(tuple);
 }
 
 #include <aprinter/EndNamespace.h>

@@ -30,8 +30,6 @@
 
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/IndexElemList.h>
-#include <aprinter/meta/TypeListIndex.h>
-#include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/MakeTypeList.h>
@@ -44,6 +42,7 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/JoinTypeLists.h>
+#include <aprinter/meta/TypeDictList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
@@ -303,7 +302,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        static int const PinIndex = TypeListIndex<FlatPinsList, IsEqualFunc<Pin>>::Value;
+        static int const PinIndex = TypeDictListIndex<FlatPinsList, Pin>::Value;
         return FixedType::importBits(AdcPin<PinIndex>::get_value(c));
     }
     
@@ -426,7 +425,7 @@ private:
         };
         
         using Pin = typename TheHelper::RealPin;
-        static int const AdcIndex = TypeListIndex<AdcList, IsEqualFunc<Pin>>::Value;
+        static int const AdcIndex = TypeDictListIndex<AdcList, Pin>::Value;
         
         struct Object : public ObjBase<AdcPin, typename At91SamAdc::Object, MakeTypeList<
             TheHelper
