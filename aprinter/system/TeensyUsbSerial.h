@@ -191,7 +191,7 @@ public:
         }
     }
     
-    using EventLoopFastEvents = MakeTypeList<RecvFastEvent>;
+    using EventLoopFastEvents = MakeTypeList<RecvFastEvent, SendFastEvent>;
     
 private:
     using Loop = typename Context::EventLoop;
