@@ -53,6 +53,7 @@
 #include <aprinter/meta/StaticArray.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/TypeDictList.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
@@ -165,7 +166,7 @@ private:
         static int const OptionCounter = PrevTypeGeneral::OptionCounter + NumOptions;
         
         template <typename Option>
-        using OptionIndex = TypeListIndex<OptionsList, IsEqualFunc<Option>>;
+        using OptionIndex = TypeDictListIndex<OptionsList, Option>;
         
         template <int OptionIndex>
         struct NameTableElem {
@@ -266,8 +267,10 @@ private:
     
     using ConfigOptionStateList = IndexElemList<RuntimeConfigOptionsList, DedummyIndexTemplate<ConfigOptionState>::template Result>;
     
+    using LastOptionState = ConfigOptionState<(TypeListLength<ConfigOptionStateList>::Value - 1)>;
+    
     template <typename Option>
-    using FindOptionState = ConfigOptionState<TypeListIndex<RuntimeConfigOptionsList, IsEqualFunc<Option>>::Value>;
+    using FindOptionState = ConfigOptionState<TypeDictListIndex<RuntimeConfigOptionsList, Option>::Value>;
     
     template <typename Option>
     using OptionExprRuntime = VariableExpr<typename Option::Type, FindOptionState<Option>>;
@@ -403,7 +406,7 @@ private:
     }
     
 public:
-    static constexpr uint32_t FormatHash = ConfigOptionState<(TypeListLength<ConfigOptionStateList>::Value - 1)>::CurrentHash.end();
+    static constexpr uint32_t FormatHash = LastOptionState::CurrentHash.end();
     
     static void init (Context c)
     {

@@ -37,13 +37,14 @@
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/TypeListGet.h>
 #include <aprinter/meta/If.h>
-#include <aprinter/meta/TypeListIndex.h>
-#include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/JoinTypeLists.h>
+#include <aprinter/meta/TypeDictList.h>
+#include <aprinter/meta/ConstantFunc.h>
+#include <aprinter/meta/FuncCall.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/ProgramMemory.h>
 
@@ -137,18 +138,24 @@ private:
     
     template <typename TheExpr>
     struct CheckExpr {
-        static_assert(TypeListIndex<MyExprsList, IsEqualFunc<TheExpr>>::Value >= 0, "Expression is not in cache.");
+        static_assert(TypeDictListFind<MyExprsList, TheExpr>::Found, "Expression is not in cache.");
         using Expr = TheExpr;
     };
     
     template <typename TheExpr>
-    using GetExpr = If<
-        CheckExpr<TheExpr>::Expr::IsConstexpr,
-        TheExpr,
-        VariableExpr<
-            typename TheExpr::Type,
-            CachedExprState<TypeListIndex<CachedExprsList, IsEqualFunc<TheExpr>>::Value>
-        >
+    using GetExprVariableHelper = VariableExpr<
+        typename TheExpr::Type,
+        CachedExprState<TypeDictListIndex<CachedExprsList, TheExpr>::Value>
+    >;
+    
+    template <typename TheExpr>
+    using GetExpr = FuncCall<
+        IfFunc<
+            ConstantFunc<WrapBool<CheckExpr<TheExpr>::Expr::IsConstexpr>>,
+            ConstantFunc<TheExpr>,
+            TemplateFunc<GetExprVariableHelper>
+        >,
+        TheExpr
     >;
     
     template <bool IsConstexpr, typename TheGetExpr>
