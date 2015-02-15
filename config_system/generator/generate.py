@@ -1123,29 +1123,34 @@ def generate(config_root_data, cfg_name, main_template):
 
 def main():
     # Parse arguments.
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--config', required=True)
-    parser.add_argument('--cfg-name')
-    parser.add_argument('--output', required=True)
-    parser.add_argument('--nix', action='store_true')
-    parser.add_argument('--nix-dir')
+    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument('--config', help='JSON configuration file to use.')
+    parser.add_argument('--cfg-name', help='Build this configuration instead of the one specified in the configuration file.')
+    parser.add_argument('--output', default='-', help='File to write the output to (C++ code or Nix expression).')
+    parser.add_argument('--nix', action='store_true', help='Output a Nix expression.')
+    parser.add_argument('--nix-dir', help='The Nix directory of the APrinter source.')
     args = parser.parse_args()
     
     # Determine source dir.
     src_dir = file_utils.file_dir(__file__)
     
+    # Read the configuration.
+    config = args.config if args.config is not None else os.path.join(src_dir, '..', 'gui', 'default_config.json')
+    with file_utils.use_input_file(config) as config_f:
+        config_data = json.load(config_f)
+    
     # Read main template file.
     main_template = file_utils.read_file(os.path.join(src_dir, 'main_template.cpp'))
     
     # Generate.
-    with file_utils.use_input_file(args.config) as config_f:
-        result = generate(json.load(config_f), args.cfg_name, main_template)
+    result = generate(config_data, args.cfg_name, main_template)
     
     # Write results.
     with file_utils.use_output_file(args.output) as output_f:
         if args.nix:
+            nix_dir = args.nix_dir if args.nix_dir is not None else os.path.join(src_dir, '..', '..', 'nix')
             nix = 'with import (builtins.toPath {}); aprinterFunc {{ boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; mainText = {}; }}'.format(
-                nix_utils.escape_string_for_nix(args.nix_dir),
+                nix_utils.escape_string_for_nix(nix_dir),
                 nix_utils.escape_string_for_nix(result['board_for_build']),
                 nix_utils.escape_string_for_nix(result['output_type']),
                 nix_utils.escape_string_for_nix(result['main_source'])
