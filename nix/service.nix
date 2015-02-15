@@ -111,7 +111,7 @@ let
         }
         
         template static_content_service {
-            daemon({"${lighttpd}/bin/lighttpd", "-D", "-f", "${lighttpd_config}"}, ["keep_stderr": @true]);
+            daemon({"${lighttpd}/sbin/lighttpd", "-D", "-f", "${lighttpd_config}"}, ["keep_stderr": @true]);
         }
     '';
 
