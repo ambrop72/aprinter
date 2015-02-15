@@ -125,6 +125,12 @@ function base64_to_blob(input, content_type) {
     return new Blob([ia], {type: content_type});
 }
 
+function show_error_dialog(header, contents) {
+    $error_modal_label.innerText = header;
+    $error_modal_body.innerText = contents;
+    $('#error_modal').modal({});
+}
+
 var load = function() {
     // Get initial configuration from local storage, if any.
     var startval = get_config(true).value;
@@ -209,17 +215,20 @@ var load = function() {
                 set_compile_status(false);
                 
                 if (compile_request.status != 200) {
-                    alert("Compilation failed (request error)!");
+                    var header = "Compilation failed: ";
+                    if (compile_request.status == 0) {
+                        header += "communication error";
+                    } else {
+                        header += "HTTP error " + compile_request.status.toString();
+                    }
+                    var contents = compile_request.responseText !== null ? compile_request.responseText : "";
+                    show_error_dialog(header, contents);
                 } else {
                     var result = JSON.parse(compile_request.responseText);
                     if (!result.success) {
-                        $error_modal_label.innerText = "Compilation failed: " + result.message;
-                        var msg = "";
-                        if (result.hasOwnProperty('error')) {
-                            msg = result.error;
-                        }
-                        $error_modal_body.innerText = msg;
-                        $('#error_modal').modal({});
+                        var header = "Compilation failed: " + result.message;
+                        var contents = result.hasOwnProperty('error') ? result.error : "";
+                        show_error_dialog(header, contents);
                     } else {
                         var blob = base64_to_blob(result.data, 'application/octet-stream');
                         saveAs(blob, result.filename)
