@@ -31,16 +31,13 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListGet.h>
-#include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
-#include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/PowerOfTwo.h>
-#include <aprinter/meta/TypeListFind.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>
@@ -290,7 +287,7 @@ private:
     using MyFtmsList = IndexElemList<FtmsList, MyFtm>;
     
     template <typename Ftm>
-    using FindFtm = MyFtm<TypeListIndex<FtmsList, ComposeFunctions<IsEqualFunc<Ftm>, GetMemberType_Ftm>>::Value>;
+    using FindFtm = MyFtm<TypeDictListIndexMapped<FtmsList, GetMemberType_Ftm, Ftm>::Value>;
     
 public:
     static void init (Context c)
@@ -536,7 +533,7 @@ private:
     using TheMyFtm = typename Clock::template FindFtm<Ftm>;
     static_assert(TheMyFtm::TheModeHelper::TopVal < UINT16_C(0xFFFF), "TopVal must be less than 0xFFFF.");
     using Channel = TypeListGet<typename Ftm::Channels, ChannelIndex>;
-    using ChannelPin = TypeListFind<typename Channel::PinsList, ComposeFunctions<IsEqualFunc<Pin>, GetMemberType_Pin>>;
+    using ChannelPin = TypeDictListGetMapped<typename Channel::PinsList, GetMemberType_Pin, Pin>;
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:

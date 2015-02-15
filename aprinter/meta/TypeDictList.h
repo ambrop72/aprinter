@@ -28,6 +28,8 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeDict.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/MapTypeList.h>
+#include <aprinter/meta/TypeListGet.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -57,6 +59,15 @@ using TypeDictListFind = TypeDictFind<typename Private::TypeDictListMapHelper<0,
 
 template <typename List, typename Value>
 using TypeDictListIndex = typename TypeDictListFind<List, Value>::Result;
+
+template <typename List, typename Func, typename FuncValue>
+using TypeDictListFindMapped = TypeDictListFind<MapTypeList<List, Func>, FuncValue>;
+
+template <typename List, typename Func, typename FuncValue>
+using TypeDictListIndexMapped = typename TypeDictListFindMapped<List, Func, FuncValue>::Result;
+
+template <typename List, typename Func, typename FuncValue>
+using TypeDictListGetMapped = TypeListGet<List, TypeDictListIndexMapped<List, Func, FuncValue>::Value>;
 
 #include <aprinter/EndNamespace.h>
 

@@ -38,10 +38,7 @@
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/TypeListIndex.h>
-#include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
-#include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>
@@ -363,7 +360,7 @@ private:
     using MyTcsList = IndexElemList<TcsList, MyTc>;
     
     template <typename Tc>
-    using FindTc = MyTc<TypeListIndex<MyTcsList, ComposeFunctions<IsEqualFunc<Tc>, GetMemberType_Tc>>::Value>;
+    using FindTc = MyTc<TypeDictListIndexMapped<MyTcsList, GetMemberType_Tc, Tc>::Value>;
     
 public:
     static void init (Context c)

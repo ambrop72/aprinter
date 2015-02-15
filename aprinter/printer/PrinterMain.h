@@ -53,7 +53,6 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/TypeListIndex.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/FilterTypeList.h>
@@ -66,6 +65,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/JoinTypeListList.h>
+#include <aprinter/meta/TypeDictList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -1607,12 +1607,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using AxesList = IndexElemList<ParamsAxesList, Axis>;
     
     template <int AxisName>
-    using FindAxis = TypeListIndex<
+    using FindAxis = TypeDictListIndexMapped<
         AxesList,
-        ComposeFunctions<
-            IsEqualFunc<WrapInt<AxisName>>,
-            GetMemberType_WrappedAxisName
-        >
+        GetMemberType_WrappedAxisName,
+        WrapInt<AxisName>
     >;
     
     template <typename TheAxis>
@@ -2222,13 +2220,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using VirtAxesList = IndexElemList<ParamsVirtAxesList, VirtAxis>;
         
         template <typename PhysAxisIndex>
-        using IsPhysAxisTransformPhys = WrapBool<(TypeListIndex<
+        using IsPhysAxisTransformPhys = WrapBool<TypeDictListFindMapped<
             VirtAxesList,
-            ComposeFunctions<
-                IsEqualFunc<PhysAxisIndex>,
-                GetMemberType_WrappedPhysAxisIndex
-            >
-        >::Value >= 0)>;
+            GetMemberType_WrappedPhysAxisIndex,
+            PhysAxisIndex
+        >::Found>;
         
         using SecondaryAxisIndices = FilterTypeList<
             SequenceList<NumAxes>,
@@ -2419,12 +2415,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using PhysVirtAxisHelperList = IndexElemListCount<NumPhysVirtAxes, PhysVirtAxisHelper>;
     
     template <int AxisName>
-    using FindPhysVirtAxis = TypeListIndex<
+    using FindPhysVirtAxis = TypeDictListIndexMapped<
         PhysVirtAxisHelperList,
-        ComposeFunctions<
-            IsEqualFunc<WrapInt<AxisName>>,
-            GetMemberType_WrappedAxisName
-        >
+        GetMemberType_WrappedAxisName,
+        WrapInt<AxisName>
     >;
     
     template <int HeaterIndex>
