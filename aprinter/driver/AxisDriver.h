@@ -56,19 +56,20 @@
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
 template <
-    int tstep_bits, int ttime_bits, int tq_div_shift,
-    int ttime_mul_bits, int tdiscriminant_prec
+    int tstep_bits, int ttime_bits,
+    int ttime_mul_bits, int tdiscriminant_prec,
+    int trel_t_extra_prec
 >
 struct AxisDriverPrecisionParams {
     static const int step_bits = tstep_bits;
     static const int time_bits = ttime_bits;
-    static const int q_div_shift = tq_div_shift;
     static const int time_mul_bits = ttime_mul_bits;
     static const int discriminant_prec = tdiscriminant_prec;
+    static const int rel_t_extra_prec = trel_t_extra_prec;
 };
 
-using AxisDriverAvrPrecisionParams = AxisDriverPrecisionParams<11, 22, 16, 24, 1>;
-using AxisDriverDuePrecisionParams = AxisDriverPrecisionParams<11, 26, 16, 26, 1>;
+using AxisDriverAvrPrecisionParams = AxisDriverPrecisionParams<11, 22, 24, 1, 0>;
+using AxisDriverDuePrecisionParams = AxisDriverPrecisionParams<11, 28, 28, 3, 4>;
 
 template <typename Context, typename ParentObject, typename Stepper, typename ConsumersList, typename Params>
 class AxisDriver {
@@ -76,14 +77,11 @@ private:
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_command_callback, call_command_callback)
     AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_prestep_callback, call_prestep_callback)
     
-    // DON'T TOUCH!
-    // These were chosen carefully for speed, and some operations
-    // were written in assembly specifically for use here.
     static const int step_bits = Params::PrecisionParams::step_bits;
     static const int time_bits = Params::PrecisionParams::time_bits;
-    static const int q_div_shift = Params::PrecisionParams::q_div_shift;
     static const int time_mul_bits = Params::PrecisionParams::time_mul_bits;
     static const int discriminant_prec = Params::PrecisionParams::discriminant_prec;
+    static const int rel_t_extra_prec = Params::PrecisionParams::rel_t_extra_prec;
     static const int amul_shift = 2 * (1 + discriminant_prec);
     
     struct TimerHandler;
@@ -341,7 +339,7 @@ private:
         
         auto q = (o->m_v0 + FixedSquareRoot<true>(o->m_discriminant, OptionForceInline())).template shift<-1>();
         
-        auto t_frac = FixedFracDivide(o->m_pos, q, OptionForceInline());
+        auto t_frac = FixedFracDivide<rel_t_extra_prec>(o->m_pos, q, OptionForceInline());
         
         auto t_mul = TimeMulFixedType::importBits(TMulStored::retrieve(current_command->t_mul_stored));
         TimeFixedType t = FixedResMultiply(t_mul, t_frac);

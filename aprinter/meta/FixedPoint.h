@@ -408,10 +408,10 @@ typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, NumB
     return FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, NumBits2, NumBits1 + NumBits2, SupportZero>::call(op1, op2);
 }
 
-template <bool SupportZero = true, int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2, typename Option = int>
-__attribute__((always_inline)) inline typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, NumBits2, NumBits2 + Exp2 - Exp1, SupportZero>::ResultType FixedFracDivide (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2, Option opt = 0)
+template <int ExtraPrec = 0, bool SupportZero = true, int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2, typename Option = int>
+__attribute__((always_inline)) inline typename FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, NumBits2 + ExtraPrec, NumBits2 + ExtraPrec + Exp2 - Exp1, SupportZero>::ResultType FixedFracDivide (FixedPoint<NumBits1, Signed1, Exp1> op1, FixedPoint<NumBits2, Signed2, Exp2> op2, Option opt = 0)
 {
-    return FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, NumBits2, NumBits2 + Exp2 - Exp1, SupportZero>::call(op1, op2, opt);
+    return FixedPointDivide<NumBits1, Signed1, Exp1, NumBits2, Signed2, Exp2, NumBits2 + ExtraPrec, NumBits2 + ExtraPrec + Exp2 - Exp1, SupportZero>::call(op1, op2, opt);
 }
 
 template <int ResExp, int ResSatBits, bool SupportZero, int NumBits1, bool Signed1, int Exp1, int NumBits2, bool Signed2, int Exp2>
