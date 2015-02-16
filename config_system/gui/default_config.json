@@ -134,45 +134,6 @@
         ],
         "output_type": "bin"
       },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
-        "MaxStepsPerCycle": 0.0017,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
-      "_compoundName": "board",
-      "analog_inputs": [
-        {
-          "Name": "T0",
-          "Pin": "DuePinA0",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T1",
-          "Pin": "DuePinA1",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T2",
-          "Pin": "DuePinA2",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T3",
-          "Pin": "DuePinA3",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T4",
-          "Pin": "DuePinA4",
-          "_compoundName": "analog_input"
-        }
-      ],
       "digital_inputs": [
         {
           "InputMode": "At91SamPinInputModePullUp",
@@ -211,12 +172,33 @@
           "_compoundName": "digital_input"
         }
       ],
-      "name": "RADDS",
-      "LedPin": "DuePin37",
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC0A"
-      },
+      "analog_inputs": [
+        {
+          "Name": "T0",
+          "Pin": "DuePinA0",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T1",
+          "Pin": "DuePinA1",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T2",
+          "Pin": "DuePinA2",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T3",
+          "Pin": "DuePinA3",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T4",
+          "Pin": "DuePinA4",
+          "_compoundName": "analog_input"
+        }
+      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -351,6 +333,25 @@
           "_compoundName": "pwm_output"
         }
       ],
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxStepsPerCycle": 0.0017,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
+      "laser_ports": [],
+      "name": "RADDS",
+      "LedPin": "DuePin37",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
+      },
+      "_compoundName": "board",
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -549,25 +550,6 @@
         ],
         "output_type": "hex"
       },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "float",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
-        "MaxStepsPerCycle": 0.0017,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
-      "_compoundName": "board",
-      "analog_inputs": [
-        {
-          "Name": "T",
-          "Pin": "TeensyPinA2",
-          "_compoundName": "analog_input"
-        }
-      ],
       "digital_inputs": [
         {
           "InputMode": "Mk20PinInputModePullUp",
@@ -588,12 +570,13 @@
           "_compoundName": "digital_input"
         }
       ],
-      "name": "Teensy 3",
-      "LedPin": "TeensyPin13",
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "FTM0_0"
-      },
+      "analog_inputs": [
+        {
+          "Name": "T",
+          "Pin": "TeensyPinA2",
+          "_compoundName": "analog_input"
+        }
+      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -630,6 +613,25 @@
           "_compoundName": "pwm_output"
         }
       ],
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "float",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxStepsPerCycle": 0.0017,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
+      "laser_ports": [],
+      "name": "Teensy 3",
+      "LedPin": "TeensyPin13",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "FTM0_0"
+      },
+      "_compoundName": "board",
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -825,35 +827,6 @@
         ],
         "output_type": "hex"
       },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
-        "EventChannelBufferSize": 24,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
-        "LookaheadBufferSize": 10,
-        "LookaheadCommitCount": 5,
-        "MaxStepsPerCycle": 0.00137,
-        "StepperSegmentBufferSize": 24,
-        "_compoundName": "performance"
-      },
-      "_compoundName": "board",
-      "analog_inputs": [
-        {
-          "Name": "T0",
-          "Pin": "MegaPinA13",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T1",
-          "Pin": "MegaPinA14",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "T2",
-          "Pin": "MegaPinA15",
-          "_compoundName": "analog_input"
-        }
-      ],
       "digital_inputs": [
         {
           "InputMode": "AvrPinInputModePullUp",
@@ -892,12 +865,23 @@
           "_compoundName": "digital_input"
         }
       ],
-      "name": "RAMPS 1.3",
-      "LedPin": "MegaPin13",
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC5_C"
-      },
+      "analog_inputs": [
+        {
+          "Name": "T0",
+          "Pin": "MegaPinA13",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T1",
+          "Pin": "MegaPinA14",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T2",
+          "Pin": "MegaPinA15",
+          "_compoundName": "analog_input"
+        }
+      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -977,6 +961,25 @@
           "_compoundName": "pwm_output"
         }
       ],
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 24,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 10,
+        "LookaheadCommitCount": 5,
+        "MaxStepsPerCycle": 0.00137,
+        "StepperSegmentBufferSize": 24,
+        "_compoundName": "performance"
+      },
+      "laser_ports": [],
+      "name": "RAMPS 1.3",
+      "LedPin": "MegaPin13",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC5_C"
+      },
+      "_compoundName": "board",
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -1155,30 +1158,6 @@
         "board_helper_includes": [],
         "output_type": "hex"
       },
-      "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
-        "LookaheadBufferSize": 16,
-        "LookaheadCommitCount": 8,
-        "MaxStepsPerCycle": 0.00137,
-        "StepperSegmentBufferSize": 32,
-        "_compoundName": "performance"
-      },
-      "_compoundName": "board",
-      "analog_inputs": [
-        {
-          "Name": "btemp",
-          "Pin": "AvrPin<AvrPortA,6>",
-          "_compoundName": "analog_input"
-        },
-        {
-          "Name": "etemp",
-          "Pin": "AvrPin<AvrPortA,7>",
-          "_compoundName": "analog_input"
-        }
-      ],
       "digital_inputs": [
         {
           "InputMode": "AvrPinInputModePullUp",
@@ -1199,12 +1178,18 @@
           "_compoundName": "digital_input"
         }
       ],
-      "name": "Melzi",
-      "LedPin": "AvrPin<AvrPortA,4>",
-      "EventChannelTimer": {
-        "_compoundName": "interrupt_timer",
-        "oc_unit": "TC2_A"
-      },
+      "analog_inputs": [
+        {
+          "Name": "btemp",
+          "Pin": "AvrPin<AvrPortA,6>",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "etemp",
+          "Pin": "AvrPin<AvrPortA,7>",
+          "_compoundName": "analog_input"
+        }
+      ],
       "pwm_outputs": [
         {
           "Backend": {
@@ -1254,6 +1239,25 @@
           "_compoundName": "pwm_output"
         }
       ],
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 16,
+        "LookaheadCommitCount": 8,
+        "MaxStepsPerCycle": 0.00137,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
+      "laser_ports": [],
+      "name": "Melzi",
+      "LedPin": "AvrPin<AvrPortA,4>",
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC2_A"
+      },
+      "_compoundName": "board",
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -1351,29 +1355,6 @@
   "configurations": [
     {
       "board": "RADDS",
-      "fans": [
-        {
-          "Name": "E",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
-          "_compoundName": "fan",
-          "pwm_output": "FET3 (fan 1)"
-        },
-        {
-          "Name": "U",
-          "OffMCommand": 407,
-          "SetMCommand": 406,
-          "_compoundName": "fan",
-          "pwm_output": "FET2 (fan 2)"
-        }
-      ],
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "_compoundName": "config",
       "heaters": [
         {
           "WaitMCommand": 109,
@@ -1478,6 +1459,30 @@
           "pwm_output": "FET5 (extruder 2)"
         }
       ],
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "FET3 (fan 1)"
+        },
+        {
+          "Name": "U",
+          "OffMCommand": 407,
+          "SetMCommand": 406,
+          "_compoundName": "fan",
+          "pwm_output": "FET2 (fan 2)"
+        }
+      ],
+      "_compoundName": "config",
+      "lasers": [],
       "name": "RADDS example",
       "probe_config": {
         "_compoundName": "ProbeConfig",
@@ -1638,22 +1643,6 @@
     },
     {
       "board": "Teensy 3",
-      "fans": [
-        {
-          "Name": "E",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
-          "_compoundName": "fan",
-          "pwm_output": "Fan"
-        }
-      ],
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "_compoundName": "config",
       "heaters": [
         {
           "WaitMCommand": 109,
@@ -1690,6 +1679,23 @@
           "pwm_output": "Extruder"
         }
       ],
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "Fan"
+        }
+      ],
+      "_compoundName": "config",
+      "lasers": [],
       "name": "Teensy 3 example",
       "probe_config": {
         "_compoundName": "ProbeConfig",
@@ -1800,22 +1806,6 @@
     },
     {
       "board": "RAMPS 1.3",
-      "fans": [
-        {
-          "Name": "E",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
-          "_compoundName": "fan",
-          "pwm_output": "D4"
-        }
-      ],
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "_compoundName": "config",
       "heaters": [
         {
           "WaitMCommand": 190,
@@ -1886,6 +1876,23 @@
           "pwm_output": "D10 (extruder 1)"
         }
       ],
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "D4"
+        }
+      ],
+      "_compoundName": "config",
+      "lasers": [],
       "name": "RAMPS 1.3 example",
       "probe_config": {
         "_compoundName": "ProbeConfig",
@@ -1996,22 +2003,6 @@
     },
     {
       "board": "Melzi",
-      "fans": [
-        {
-          "Name": "E",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
-          "_compoundName": "fan",
-          "pwm_output": "fan"
-        }
-      ],
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "_compoundName": "config",
       "heaters": [
         {
           "WaitMCommand": 109,
@@ -2082,6 +2073,23 @@
           "pwm_output": "bed"
         }
       ],
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "fan"
+        }
+      ],
+      "_compoundName": "config",
+      "lasers": [],
       "name": "Melzi example",
       "probe_config": {
         "_compoundName": "ProbeConfig",

@@ -23,7 +23,7 @@
 import configema as ce
 
 def oc_unit_choice(**kwargs):
-    return ce.Reference(ref_array='id_board.platform_config.platform', ref_array_descend=['clock', 'avail_oc_units'], ref_id_key='value', ref_name_key='value', title='Output compare unit', deref_key='lalal', **kwargs)
+    return ce.Reference(ref_array={'base': 'id_board.platform_config.platform', 'descend': ['clock', 'avail_oc_units']}, ref_id_key='value', ref_name_key='value', title='Output compare unit', deref_key='lalal', **kwargs)
 
 def interrupt_timer_choice(**kwargs):
     return ce.Compound('interrupt_timer', ident='id_interrupt_timer_choice', attrs=[
@@ -34,13 +34,13 @@ def pin_choice(**kwargs):
     return ce.String(**kwargs)
 
 def digital_input_choice(**kwargs):
-    return ce.Reference(ref_array='id_configuration.board_data', ref_array_descend=['digital_inputs'], ref_id_key='Name', ref_name_key='Name', **kwargs)
+    return ce.Reference(ref_array={'base': 'id_configuration.board_data', 'descend': ['digital_inputs']}, ref_id_key='Name', ref_name_key='Name', **kwargs)
 
 def analog_input_choice(**kwargs):
-    return ce.Reference(ref_array='id_configuration.board_data', ref_array_descend=['analog_inputs'], ref_id_key='Name', ref_name_key='Name', **kwargs)
+    return ce.Reference(ref_array={'base': 'id_configuration.board_data', 'descend': ['analog_inputs']}, ref_id_key='Name', ref_name_key='Name', **kwargs)
 
-def pwm_output_choice(**kwargs):
-    return ce.Reference(ref_array='id_configuration.board_data', ref_array_descend=['pwm_outputs'], ref_id_key='Name', ref_name_key='Name', **kwargs)
+def pwm_output_choice(context, **kwargs):
+    return ce.Reference(ref_array=context.board_ref(['pwm_outputs']), ref_id_key='Name', ref_name_key='Name', **kwargs)
 
 def i2c_choice(**kwargs):
     return ce.OneOf(choices=[
@@ -240,13 +240,24 @@ def make_transform_type(transform_type, transform_title, segments_per_sec_releva
         ]
     ))
 
+class ConfigurationContext(object):
+    def board_ref(self, what):
+        return {'base': 'id_configuration.board_data', 'descend': what}
+
+class BoardContext(object):
+    def board_ref(self, what):
+        return {'base': 'id_board.{}'.format(what[0]), 'descend': what[1:]}
+
+configuration_context = ConfigurationContext()
+board_context = BoardContext()
+
 def editor():
     return ce.Compound('editor', title='Configuration editor', disable_collapse=True, no_header=True, ident='id_editor', attrs=[
         ce.Constant(key='version', value=1),
-        ce.Reference(key='selected_config', title='Selected configuration (to compile)', ref_array='id_editor.configurations', ref_id_key='name', ref_name_key='name'),
+        ce.Reference(key='selected_config', title='Selected configuration (to compile)', ref_array={'base': 'id_editor.configurations', 'descend': []}, ref_id_key='name', ref_name_key='name'),
         ce.Array(key='configurations', title='Configurations', processing_order=-1, copy_name_key='name', elem=ce.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsed=True, attrs=[
             ce.String(key='name', title='Configuration name', default='New Configuration'),
-            ce.Reference(key='board', ref_array='id_editor.boards', ref_id_key='name', ref_name_key='name', deref_key='board_data', title='Board', processing_order=-1),
+            ce.Reference(key='board', ref_array={'base': 'id_editor.boards', 'descend': []}, ref_id_key='name', ref_name_key='name', deref_key='board_data', title='Board', processing_order=-1),
             ce.Float(key='InactiveTime', title='Disable steppers after [s]', default=480),
             ce.Compound('advanced', key='advanced', title='Advanced parameters', collapsed=True, attrs=[
                 ce.Float(key='LedBlinkInterval', title='LED blink interval [s]', default=0.5),
@@ -254,7 +265,7 @@ def editor():
             ]),
             ce.Array(key='steppers', title='Steppers', disable_collapse=True, copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('stepper', title='Stepper', title_key='Name', collapsed=True, ident='id_configuration_stepper', attrs=[
                 ce.String(key='Name', title='Name (cartesian X/Y/Z, extruders E/U/V, delta A/B/C)'),
-                ce.Reference(key='stepper_port', title='Stepper port', ref_array='id_configuration.board_data', ref_array_descend=['stepper_ports'], ref_id_key='Name', ref_name_key='Name'),
+                ce.Reference(key='stepper_port', title='Stepper port', ref_array={'base': 'id_configuration.board_data', 'descend': ['stepper_ports']}, ref_id_key='Name', ref_name_key='Name'),
                 ce.Boolean(key='InvertDir', title='Invert direction', false_title='No (high StepPin is positive motion)', true_title='Yes (high StepPin is negative motion)', default=False),
                 ce.Float(key='StepsPerUnit', title='Steps per unit [1/mm]', default=80),
                 ce.Float(key='MinPos', title='Minimum position [mm] (~-40000 for extruders)', default=0),
@@ -302,7 +313,7 @@ def editor():
             ]),
             ce.Array(key='heaters', title='Heaters', disable_collapse=True, copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('heater', title='Heater', title_key='Name', collapsed=True, ident='id_configuration_heater', attrs=[
                 ce.String(key='Name', title='Name (single character, T=extruder, B=bed)'),
-                pwm_output_choice(key='pwm_output', title='PWM output'),
+                pwm_output_choice(configuration_context, key='pwm_output', title='PWM output'),
                 ce.Integer(key='SetMCommand', title='Set command M-number (extruder 104, bed 140)', default=104),
                 ce.Integer(key='WaitMCommand', title='Wait command M-number (extruder 109, bed 190)', default=109),
                 analog_input_choice(key='ThermistorInput', title='Thermistor analog input'),
@@ -332,7 +343,7 @@ def editor():
             ])),
             ce.Array(key='fans', title='Fans', disable_collapse=True, copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('fan', title='Fan', title_key='Name', collapsed=True, ident='id_configuration_fan', attrs=[
                 ce.String(key='Name', title='Name (single character, e.g. the same as corresponding extruder)'),
-                pwm_output_choice(key='pwm_output', title='PWM output'),
+                pwm_output_choice(configuration_context, key='pwm_output', title='PWM output'),
                 ce.Integer(key='SetMCommand', title='Set-command M-number (106 for first fan)'),
                 ce.Integer(key='OffMCommand', title='Off-command M-number (107 for first fan)'),
             ])),
@@ -358,10 +369,18 @@ def editor():
                     ])
                 ])
             ]),
+            ce.Array(key='lasers', title='Lasers', disable_collapse=True, copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('laser', title='Laser', title_key='Name', collapsed=True, ident='id_configuration_laser', attrs=[
+                ce.String(key='Name', title='Name (single letter)', default='L'),
+                ce.Reference(key='laser_port', title='Laser port', ref_array={'base': 'id_configuration.board_data', 'descend': ['laser_ports']}, ref_id_key='Name', ref_name_key='Name'),
+                ce.String(key='DensityName', title='Density-control name (single letter)', default='M'),
+                ce.Float(key='LaserPower', title='Laser power [Energy/s]', default=100),
+                ce.Float(key='MaxPower', title='Maximum power [Energy/s] (values <LaserPower limit laser output)', default=100),
+                ce.Float(key='AdjustmentInterval', title='Output adjustment interval [s]', default=0.005),
+            ])),
         ])),
         ce.Array(key='boards', title='Boards', processing_order=-2, copy_name_key='name', elem=ce.Compound('board', title='Board', title_key='name', collapsed=True, ident='id_board', attrs=[
             ce.String(key='name', title='Name (modifying will break references from configurations and lose data)'),
-            ce.Compound('PlatformConfig', key='platform_config', title='Platform configuration', collapsed=True, processing_order=-1, attrs=[
+            ce.Compound('PlatformConfig', key='platform_config', title='Platform configuration', collapsed=True, processing_order=-10, attrs=[
                 ce.String(key='board_for_build', title='Board for building (see nix/boards.nix)'),
                 ce.String(key='output_type', title='Build output type', enum=['hex', 'bin']),
                 ce.Array(key='board_helper_includes', title='Board helper includes', disable_collapse=True, table=True, elem=ce.String(title='Name')),
@@ -458,16 +477,16 @@ def editor():
                 pin_choice(key='EnablePin', title='Enable pin'),
                 interrupt_timer_choice(key='StepperTimer', title='Stepper timer', disable_collapse=True),
             ])),
-            ce.Array(key='digital_inputs', title='Digital inputs', disable_collapse=True, copy_name_key='Name', elem=ce.Compound('digital_input', title='Digital input', title_key='Name', collapsed=True, ident='id_board_digital_inputs', attrs=[
+            ce.Array(key='digital_inputs', title='Digital inputs', disable_collapse=True, copy_name_key='Name', processing_order=-8, elem=ce.Compound('digital_input', title='Digital input', title_key='Name', collapsed=True, ident='id_board_digital_inputs', attrs=[
                 ce.String(key='Name', title='Name'),
                 pin_choice(key='Pin', title='Pin'),
-                ce.Reference(key='InputMode', title='Input mode', ref_array='id_board.platform_config.platform', ref_array_descend=['pins', 'input_modes'], ref_id_key='ident', ref_name_key='name')
+                ce.Reference(key='InputMode', title='Input mode', ref_array={'base': 'id_board.platform_config.platform', 'descend': ['pins', 'input_modes']}, ref_id_key='ident', ref_name_key='name')
             ])),
-            ce.Array(key='analog_inputs', title='Analog inputs', disable_collapse=True, copy_name_key='Name', elem=ce.Compound('analog_input', title='Analog input', title_key='Name', collapsed=True, attrs=[
+            ce.Array(key='analog_inputs', title='Analog inputs', disable_collapse=True, copy_name_key='Name', processing_order=-7, elem=ce.Compound('analog_input', title='Analog input', title_key='Name', collapsed=True, attrs=[
                 ce.String(key='Name', title='Name'),
                 pin_choice(key='Pin', title='Pin'),
             ])),
-            ce.Array(key='pwm_outputs', title='PWM outputs', disable_collapse=True, copy_name_key='Name', elem=ce.Compound('pwm_output', title='PWM output', title_key='Name', collapsed=True, attrs=[
+            ce.Array(key='pwm_outputs', title='PWM outputs', disable_collapse=True, copy_name_key='Name', processing_order=-6, elem=ce.Compound('pwm_output', title='PWM output', title_key='Name', collapsed=True, attrs=[
                 ce.String(key='Name', title='Name'),
                 ce.OneOf(key='Backend', title='Backend', choices=[
                     ce.Compound('SoftPwm', disable_collapse=True, attrs=[
@@ -480,6 +499,11 @@ def editor():
                         hard_pwm_choice(key='HardPwmDriver'),
                     ]),
                 ])
+            ])),
+            ce.Array(key='laser_ports', title='Laser ports', disable_collapse=True, copy_name_key='Name', elem=ce.Compound('laser_port', title='Laser port', title_key='Name', collapsed=True, ident='id_laser_port', attrs=[
+                ce.String(key='Name', title='Name', default='Laser'),
+                pwm_output_choice(board_context, key='pwm_output', title='PWM output (must be hard-PWM)'),
+                interrupt_timer_choice(key='LaserTimer', title='Output adjustment timer', disable_collapse=True),
             ])),
         ]))
     ])

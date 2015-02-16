@@ -553,13 +553,16 @@ def use_interrupt_timer (gen, config, key, user, clearance=None):
     for it_config in config.enter_config(key):
         return clock.add_interrupt_timer(it_config.get_string('oc_unit'), user, clearance, it_config.path())
 
-def use_pwm_output (gen, config, key, user, username):
+def use_pwm_output (gen, config, key, user, username, hard=False):
     pwm_output = gen.get_object('pwm_output', config, key)
     
     backend_sel = selection.Selection()
     
     @backend_sel.option('SoftPwm')
     def option(backend):
+        if hard:
+            config.path().error('Only Hard PWM is allowed here.')
+        
         gen.add_aprinter_include('printer/pwm/SoftPwm.h')
         return TemplateExpr('SoftPwmService', [
             get_pin(gen, backend, 'OutputPin'),
@@ -594,8 +597,13 @@ def use_pwm_output (gen, config, key, user, username):
                 TemplateChar(hard_driver.get_identifier('Signal')),
             ])
         
+        hard_pwm_expr = backend.do_selection('HardPwmDriver', hard_driver_sel)
+        
+        if hard:
+            return hard_pwm_expr
+        
         return TemplateExpr('HardPwmService', [
-            backend.do_selection('HardPwmDriver', hard_driver_sel)
+            hard_pwm_expr
         ])
     
     return pwm_output.do_selection('Backend', backend_sel)
@@ -786,6 +794,7 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.register_objects('stepper_port', board_data, 'stepper_ports')
                 gen.register_objects('analog_input', board_data, 'analog_inputs')
                 gen.register_objects('pwm_output', board_data, 'pwm_outputs')
+                gen.register_objects('laser_port', board_data, 'laser_ports')
                 
                 led_pin_expr = get_pin(gen, board_data, 'LedPin')
                 event_channel_timer_expr = use_interrupt_timer(gen, board_data, 'EventChannelTimer', user='MyPrinter::GetEventChannelTimer', clearance='EventChannelTimerClearance')
@@ -1083,6 +1092,29 @@ def generate(config_root_data, cfg_name, main_template):
             
             fans_expr = config.do_list('fans', fan_cb, max_count=15)
             
+            def laser_cb(laser, laser_index):
+                gen.add_aprinter_include('driver/LaserDriver.h')
+                gen.add_aprinter_include('printer/duty_formula/LinearDutyFormula.h')
+                
+                name = laser.get_id_char('Name')
+                laser_port = gen.get_object('laser_port', laser, 'laser_port')
+                
+                return TemplateExpr('PrinterMainLaserParams', [
+                    TemplateChar(name),
+                    TemplateChar(laser.get_id_char('DensityName')),
+                    gen.add_float_config('{}LaserPower'.format(name), laser.get_float('LaserPower')),
+                    gen.add_float_config('{}MaxPower'.format(name), laser.get_float('MaxPower')),
+                    use_pwm_output(gen, laser_port, 'pwm_output', '', '', hard=True),
+                    TemplateExpr('LinearDutyFormulaService', [15]),
+                    TemplateExpr('LaserDriverService', [
+                        use_interrupt_timer(gen, laser_port, 'LaserTimer', user='MyPrinter::GetLaserDriver<{}>::TheTimer'.format(laser_index)),
+                        gen.add_float_constant('{}AdjustmentInterval'.format(name), laser.get_float('AdjustmentInterval')),
+                        'LaserDriverDefaultPrecisionParams',
+                    ]),
+                ])
+            
+            lasers_expr = config.do_list('lasers', laser_cb, max_count=15)
+            
             printer_params = TemplateExpr('PrinterMainParams', [
                 serial_expr,
                 led_pin_expr,
@@ -1107,6 +1139,7 @@ def generate(config_root_data, cfg_name, main_template):
                 transform_expr,
                 heaters_expr,
                 fans_expr,
+                lasers_expr,
             ])
             
             gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', printer_params]))

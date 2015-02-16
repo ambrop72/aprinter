@@ -243,7 +243,6 @@ class Constant (ConfigBase):
 class Reference (ConfigBase):
     def __init__ (self, **kwargs):
         self.ref_array = _kwarg('ref_array', kwargs)
-        self.ref_array_descend = _kwarg_maybe('ref_array_descend', kwargs, [])
         self.ref_id_key = _kwarg('ref_id_key', kwargs)
         self.ref_name_key = _kwarg('ref_name_key', kwargs)
         self.deref_key = _kwarg_maybe('deref_key', kwargs)
@@ -253,7 +252,7 @@ class Reference (ConfigBase):
         return {
             'type': 'string',
             'watch': {
-                'watch_array': self.ref_array
+                'watch_array': self.ref_array['base']
             },
             'enumSource': {
                 'sourceTemplate': 'return {};'.format(self._array_expr()),
@@ -267,7 +266,7 @@ class Reference (ConfigBase):
         return ({
             self.deref_key: {
                 'watch': {
-                    'watch_array': self.ref_array,
+                    'watch_array': self.ref_array['base'],
                     'watch_id': '{}.{}'.format(container_id, self.kwargs['key'])
                 },
                 'valueTemplate': 'return ce_deref({},{},vars.watch_id);'.format(self._array_expr(), json.dumps(self.ref_id_key)),
@@ -276,4 +275,4 @@ class Reference (ConfigBase):
         } if self.deref_key is not None else {})
     
     def _array_expr (self):
-        return 'ce_refarr(vars,["watch_array"{}])'.format(''.join(',{}'.format(json.dumps(attr)) for attr in self.ref_array_descend))
+        return 'ce_refarr(vars,["watch_array"{}])'.format(''.join(',{}'.format(json.dumps(attr)) for attr in self.ref_array['descend']))
