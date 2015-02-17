@@ -51,7 +51,7 @@ template <typename List1, typename List2>
 using JoinTwoTypeListsSwapped = typename JoinTypeListsHelper<List2, List1>::Type;
 
 template <typename... Lists>
-using JoinTypeLists = TypeListFold<MakeTypeList<Lists...>, EmptyTypeList, JoinTwoTypeLists>;
+using JoinTypeLists = TypeListFoldRight<MakeTypeList<Lists...>, EmptyTypeList, JoinTwoTypeLists>;
 
 #include <aprinter/EndNamespace.h>
 
