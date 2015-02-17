@@ -117,9 +117,6 @@ public:
     static bool const HasStore = !TypesAreEqual<StoreService, RuntimeConfigManagerNoStoreService>::Value;
     enum class OperationType {LOAD, STORE};
     
-    template <typename Type>
-    using GetTypeNumber = WrapInt<1 + GetTypeIndex<Type>::Value>;
-    
 private:
     using CommandType = typename ThePrinterMain::CommandType;
     
@@ -244,7 +241,7 @@ private:
         using TheConfigOption = TypeListGet<RuntimeConfigOptionsList, ConfigOptionIndex>;
         using Type = typename TheConfigOption::Type;
         using PrevOption = ConfigOptionState<(ConfigOptionIndex - 1)>;
-        static constexpr FormatHasher CurrentHash = PrevOption::CurrentHash.addUint32(GetTypeNumber<Type>::Value).addString(TheConfigOption::name(), ConstexprStrlen(TheConfigOption::name()));
+        static constexpr FormatHasher CurrentHash = PrevOption::CurrentHash.addUint32(GetTypeIndex<Type>::Value).addString(TheConfigOption::name(), ConstexprStrlen(TheConfigOption::name()));
         using TheTypeGeneral = TypeGeneral<GetTypeIndex<Type>::Value>;
         static int const GeneralIndex = TheTypeGeneral::template OptionIndex<TheConfigOption>::Value;
         
