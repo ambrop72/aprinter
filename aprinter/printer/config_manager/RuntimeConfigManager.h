@@ -34,7 +34,6 @@
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/IsEqualFunc.h>
-#include <aprinter/meta/WrapType.h>
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/TemplateFunc.h>
@@ -53,6 +52,7 @@
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/TypeDictList.h>
+#include <aprinter/meta/TypeListFold.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
@@ -236,16 +236,16 @@ private:
     
     using TypeGeneralList = IndexElemList<SupportedTypesList, DedummyIndexTemplate<TypeGeneral>::template Result>;
     
-    template <int ConfigOptionIndex, typename Dummy0=void>
-    struct ConfigOptionState {
-        using TheConfigOption = TypeListGet<RuntimeConfigOptionsList, ConfigOptionIndex>;
-        using Type = typename TheConfigOption::Type;
-        using PrevOption = ConfigOptionState<(ConfigOptionIndex - 1)>;
-        static constexpr FormatHasher CurrentHash = PrevOption::CurrentHash.addUint32(GetTypeIndex<Type>::Value).addString(TheConfigOption::name(), ConstexprStrlen(TheConfigOption::name()));
+    template <typename Option>
+    struct OptionHelper {
+        using Type = typename Option::Type;
         using TheTypeGeneral = TypeGeneral<GetTypeIndex<Type>::Value>;
-        static int const GeneralIndex = TheTypeGeneral::template OptionIndex<TheConfigOption>::Value;
+        static int const GeneralIndex = TheTypeGeneral::template OptionIndex<Option>::Value;
         
-        static Type * value (Context c) { return &TheTypeGeneral::Object::self(c)->values[GeneralIndex]; }
+        static Type * value (Context c)
+        {
+            return &TheTypeGeneral::Object::self(c)->values[GeneralIndex];
+        }
         
         static Type call (Context c)
         {
@@ -253,18 +253,19 @@ private:
         }
     };
     
-    template <typename Dummy>
-    struct ConfigOptionState<(-1), Dummy> {
+    struct HashInitial {
         static constexpr FormatHasher CurrentHash = FormatHasher();
     };
     
-    using LastOptionState = ConfigOptionState<(NumRuntimeOptions - 1)>;
+    template <typename Option, typename PrevHash>
+    struct HashStep {
+        static constexpr FormatHasher CurrentHash = PrevHash::CurrentHash.addUint32(GetTypeIndex<typename Option::Type>::Value).addString(Option::name(), ConstexprStrlen(Option::name()));
+    };
+    
+    using HashFinal = TypeListFold<RuntimeConfigOptionsList, HashInitial, HashStep>;
     
     template <typename Option>
-    using FindOptionState = ConfigOptionState<TypeDictListIndex<RuntimeConfigOptionsList, Option>::Value>;
-    
-    template <typename Option>
-    using OptionExprRuntime = VariableExpr<typename Option::Type, FindOptionState<Option>>;
+    using OptionExprRuntime = VariableExpr<typename Option::Type, OptionHelper<Option>>;
     
     template <typename Option>
     using OptionExprConstant = ConstantExpr<typename Option::Type, typename Option::DefaultValue>;
@@ -397,7 +398,7 @@ private:
     }
     
 public:
-    static constexpr uint32_t FormatHash = LastOptionState::CurrentHash.end();
+    static constexpr uint32_t FormatHash = HashFinal::CurrentHash.end();
     
     static void init (Context c)
     {
@@ -446,7 +447,7 @@ public:
     {
         static_assert(OptionIsNotConstant<Option>::Value, "");
         
-        *FindOptionState<Option>::value(c) = value;
+        *OptionHelper<Option>::value(c) = value;
     }
     
     template <typename Option>
@@ -454,7 +455,7 @@ public:
     {
         static_assert(OptionIsNotConstant<Option>::Value, "");
         
-        return *FindOptionState<Option>::value(c);
+        return *OptionHelper<Option>::value(c);
     }
     
     template <typename TheStoreFeature = StoreFeature>
