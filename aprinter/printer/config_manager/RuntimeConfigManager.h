@@ -258,9 +258,7 @@ private:
         static constexpr FormatHasher CurrentHash = FormatHasher();
     };
     
-    using ConfigOptionStateList = IndexElemList<RuntimeConfigOptionsList, DedummyIndexTemplate<ConfigOptionState>::template Result>;
-    
-    using LastOptionState = ConfigOptionState<(TypeListLength<ConfigOptionStateList>::Value - 1)>;
+    using LastOptionState = ConfigOptionState<(NumRuntimeOptions - 1)>;
     
     template <typename Option>
     using FindOptionState = ConfigOptionState<TypeDictListIndex<RuntimeConfigOptionsList, Option>::Value>;
