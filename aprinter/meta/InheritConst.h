@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2015 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,64 +22,25 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_TUPLE_H
-#define AMBROLIB_TUPLE_H
+#ifndef AMBROLIB_INHERIT_CONST_H
+#define AMBROLIB_INHERIT_CONST_H
 
-#include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeDict.h>
-#include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/RemoveConst.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename List>
-struct Tuple;
-
-template <>
-struct Tuple<EmptyTypeList> {
-    using ElemTypes = EmptyTypeList;
-    
-    static int const Size = 0;
-    using RightIndexDict = EmptyTypeList;
+template <typename InheritFromType, typename TargetType>
+struct InheritConstHelper {
+    using Result = RemoveConst<TargetType>;
 };
 
-template <typename TElemType, typename TTailTypes>
-struct Tuple<ConsTypeList<TElemType, TTailTypes>>
-: public Tuple<TTailTypes>
-{
-    using ElemTypes = ConsTypeList<TElemType, TTailTypes>;
-    
-    using ElemType = TElemType;
-    using TailTypes = TTailTypes;
-    using TailTupleType = Tuple<TTailTypes>;
-    
-    static int const Size = 1 + TailTupleType::Size;
-    using RightIndexDict = ConsTypeList<
-        TypeDictEntry<WrapInt<TailTupleType::Size>, Tuple<ElemTypes>>,
-        typename TailTupleType::RightIndexDict
-    >;
-    
-    ElemType * getHead ()
-    {
-        return &elem;
-    }
-    
-    ElemType const * getHead () const
-    {
-        return &elem;
-    }
-    
-    TailTupleType * getTail ()
-    {
-        return static_cast<TailTupleType *>(this);
-    }
-    
-    TailTupleType const * getTail () const
-    {
-        return static_cast<TailTupleType const *>(this);
-    }
-    
-    ElemType elem;
+template <typename InheritFromType, typename TargetType>
+struct InheritConstHelper<InheritFromType const, TargetType> {
+    using Result = TargetType const;
 };
+
+template <typename InheritFromType, typename TargetType>
+using InheritConst = typename InheritConstHelper<InheritFromType, TargetType>::Result;
 
 #include <aprinter/EndNamespace.h>
 

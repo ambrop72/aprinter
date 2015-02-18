@@ -27,56 +27,31 @@
 
 #include <stddef.h>
 
-#include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/Tuple.h>
-#include <aprinter/meta/RemoveConst.h>
+#include <aprinter/meta/InheritConst.h>
 #include <aprinter/meta/TypeDictList.h>
+#include <aprinter/meta/WrapValue.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TheTuple, int Index>
-struct TupleGet;
-
-template <typename Head, typename Tail, int Index>
-struct TupleGet<Tuple<ConsTypeList<Head, Tail>>, Index> {
-    typedef Tuple<ConsTypeList<Head, Tail>> ThisTupleType;
-    typedef TupleGet<Tuple<Tail>, Index - 1> TargetTupleGet;
-    
-    typedef typename TargetTupleGet::ElemType ElemType;
-    typedef typename TargetTupleGet::TupleType TupleType;
-    
-    static ElemType * getElem (ThisTupleType *tuple)
-    {
-        return TargetTupleGet::getElem(tuple->getTail());
-    }
-    
-    static ElemType const * getElem (ThisTupleType const *tuple)
-    {
-        return TargetTupleGet::getElem(tuple->getTail());
-    }
-};
-
-template <typename Head, typename Tail>
-struct TupleGet<Tuple<ConsTypeList<Head, Tail>>, 0> {
-    typedef Tuple<ConsTypeList<Head, Tail>> ThisTupleType;
-    typedef Head ElemType;
-    typedef Tuple<ConsTypeList<Head, Tail>> TupleType;
-    
-    static ElemType * getElem (ThisTupleType *tuple)
-    {
-        return tuple->getHead();
-    }
-    
-    static ElemType const * getElem (ThisTupleType const *tuple)
-    {
-        return tuple->getHead();
-    }
-};
-
 template <int Index, typename TupleType>
-auto TupleGetElem (TupleType *tuple) -> decltype(TupleGet<RemoveConst<TupleType>, Index>::getElem(tuple))
+auto TupleGetElem (TupleType *tuple) ->
+    InheritConst<
+        TupleType,
+        typename TypeDictFindNoDupl<
+            typename TupleType::RightIndexDict,
+            WrapInt<(TupleType::Size - 1 - Index)>
+        >::Result::ElemType
+    > *
 {
-    return TupleGet<RemoveConst<TupleType>, Index>::getElem(tuple);
+    return static_cast<
+        InheritConst<
+            TupleType,
+            typename TypeDictFindNoDupl<
+                typename TupleType::RightIndexDict,
+                WrapInt<(TupleType::Size - 1 - Index)>
+            >::Result
+        > *
+    >(tuple)->getHead();
 }
 
 template <typename ElemType, typename TupleType>
