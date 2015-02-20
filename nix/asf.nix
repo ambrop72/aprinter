@@ -13,10 +13,14 @@ stdenv.mkDerivation rec {
     nativeBuildInputs = [ unzip ];
     
     installPhase = ''
+        # Extract it and move stuff so we have it in the root.
         mkdir -p "$out"/EXTRACT
         unzip -q ${source} -d "$out"/EXTRACT
         mv "$out"/EXTRACT/*xdk-asf*/* "$out"/
         rm -rf "$out"/EXTRACT
+        
+        # Fix __always_inline conflicts with gcc-arm-embedded headers.
+        find "$out" \( -name '*.h' -o -name '*.c' \) -exec sed -i 's/__always_inline\(\s\|$\)/__asf_always_inline\1/g' {} \;
     '';
     
     dontStrip = true;
