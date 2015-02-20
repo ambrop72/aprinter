@@ -30,7 +30,7 @@
 
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/IsEqualFunc.h>
@@ -287,7 +287,7 @@ private:
     using MyFtmsList = IndexElemList<FtmsList, MyFtm>;
     
     template <typename Ftm>
-    using FindFtm = MyFtm<TypeDictListIndexMapped<FtmsList, GetMemberType_Ftm, Ftm>::Value>;
+    using FindFtm = MyFtm<TypeListIndexMapped<FtmsList, GetMemberType_Ftm, Ftm>::Value>;
     
 public:
     static void init (Context c)
@@ -533,7 +533,7 @@ private:
     using TheMyFtm = typename Clock::template FindFtm<Ftm>;
     static_assert(TheMyFtm::TheModeHelper::TopVal < UINT16_C(0xFFFF), "TopVal must be less than 0xFFFF.");
     using Channel = TypeListGet<typename Ftm::Channels, ChannelIndex>;
-    using ChannelPin = TypeDictListGetMapped<typename Channel::PinsList, GetMemberType_Pin, Pin>;
+    using ChannelPin = TypeListGetMapped<typename Channel::PinsList, GetMemberType_Pin, Pin>;
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:

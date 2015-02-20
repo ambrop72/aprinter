@@ -35,14 +35,13 @@
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/NotFunc.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/JoinTypeLists.h>
-#include <aprinter/meta/TypeDictList.h>
 #include <aprinter/meta/ConstantFunc.h>
 #include <aprinter/meta/FuncCall.h>
 #include <aprinter/base/DebugObject.h>
@@ -138,14 +137,14 @@ private:
     
     template <typename TheExpr>
     struct CheckExpr {
-        static_assert(TypeDictListFind<MyExprsList, TheExpr>::Found, "Expression is not in cache.");
+        static_assert(TypeListFind<MyExprsList, TheExpr>::Found, "Expression is not in cache.");
         using Expr = TheExpr;
     };
     
     template <typename TheExpr>
     using GetExprVariableHelper = VariableExpr<
         typename TheExpr::Type,
-        CachedExprState<TypeDictListIndex<CachedExprsList, TheExpr>::Value>
+        CachedExprState<TypeListIndex<CachedExprsList, TheExpr>::Value>
     >;
     
     template <typename TheExpr>

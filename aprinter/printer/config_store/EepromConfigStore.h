@@ -31,11 +31,10 @@
 
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/DedummyIndexTemplate.h>
 #include <aprinter/meta/TypeListReverse.h>
 #include <aprinter/base/Assert.h>

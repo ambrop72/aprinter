@@ -30,10 +30,9 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/Options.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/TypeDictList.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/StoredNumber.h>
 #include <aprinter/base/DebugObject.h>
@@ -167,7 +166,7 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = true;
 #endif
-        o->m_consumer_id = TypeDictListIndex<typename ConsumersList::List, TheConsumer>::Value;
+        o->m_consumer_id = TypeListIndex<typename ConsumersList::List, TheConsumer>::Value;
         o->m_current_command = first_command;
         Stepper::setDir(c, o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
         o->m_notdecel = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));

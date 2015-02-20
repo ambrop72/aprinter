@@ -34,7 +34,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypesAreEqual.h>
@@ -360,7 +360,7 @@ private:
     using MyTcsList = IndexElemList<TcsList, MyTc>;
     
     template <typename Tc>
-    using FindTc = MyTc<TypeDictListIndexMapped<MyTcsList, GetMemberType_Tc, Tc>::Value>;
+    using FindTc = MyTc<TypeListIndexMapped<MyTcsList, GetMemberType_Tc, Tc>::Value>;
     
 public:
     static void init (Context c)

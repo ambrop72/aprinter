@@ -30,11 +30,10 @@
 
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/TypeDict.h>
@@ -169,7 +168,7 @@ private:
     using MyTcsList = IndexElemList<ParamsTcsList, MyTc>;
     
     template <typename TcSpec>
-    using FindTc = MyTc<TypeDictListIndex<ParamsTcsList, TcSpec>::Value>;
+    using FindTc = MyTc<TypeListIndex<ParamsTcsList, TcSpec>::Value>;
     
 public:
     static void init (Context c)

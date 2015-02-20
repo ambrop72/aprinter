@@ -30,7 +30,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/IndexElemList.h>

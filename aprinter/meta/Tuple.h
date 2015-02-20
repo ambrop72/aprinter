@@ -26,8 +26,6 @@
 #define AMBROLIB_TUPLE_H
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeDict.h>
-#include <aprinter/meta/WrapValue.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -37,9 +35,6 @@ struct Tuple;
 template <>
 struct Tuple<EmptyTypeList> {
     using ElemTypes = EmptyTypeList;
-    
-    static int const Size = 0;
-    using RightIndexDict = EmptyTypeList;
 };
 
 template <typename TElemType, typename TTailTypes>
@@ -51,12 +46,6 @@ struct Tuple<ConsTypeList<TElemType, TTailTypes>>
     using ElemType = TElemType;
     using TailTypes = TTailTypes;
     using TailTupleType = Tuple<TTailTypes>;
-    
-    static int const Size = 1 + TailTupleType::Size;
-    using RightIndexDict = ConsTypeList<
-        TypeDictEntry<WrapInt<TailTupleType::Size>, Tuple<ElemTypes>>,
-        typename TailTupleType::RightIndexDict
-    >;
     
     ElemType * getHead ()
     {

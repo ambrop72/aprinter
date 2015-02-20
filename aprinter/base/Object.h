@@ -43,7 +43,7 @@
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/IsEmpty.h>
 #include <aprinter/meta/ComposeFunctions.h>
-#include <aprinter/meta/TypeDictList.h>
+#include <aprinter/meta/TypeListUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -81,7 +81,7 @@ struct ObjBase : public Tuple<Obj__ChildObjects<TNestedClassesList>> {
     template <typename NestedClass, typename Context>
     typename NestedClass::Object * get_nested_object (Context c)
     {
-        return TupleGetElem<TypeDictListIndex<Obj__NonemptyClasses<NestedClassesList>, NestedClass>::Value>(static_cast<NestedClassesTuple *>(this));
+        return TupleGetElem<TypeListIndex<Obj__NonemptyClasses<NestedClassesList>, NestedClass>::Value>(static_cast<NestedClassesTuple *>(this));
     }
 };
 
@@ -103,7 +103,7 @@ struct ObjUnionBase : public Union<Obj__ChildObjects<TNestedClassesList>> {
     template <typename NestedClass, typename Context>
     typename NestedClass::Object * get_nested_object (Context c)
     {
-        return UnionGetElem<TypeDictListIndex<Obj__NonemptyClasses<NestedClassesList>, NestedClass>::Value>(static_cast<NestedClassesUnion *>(this));
+        return UnionGetElem<TypeListIndex<Obj__NonemptyClasses<NestedClassesList>, NestedClass>::Value>(static_cast<NestedClassesUnion *>(this));
     }
 };
 

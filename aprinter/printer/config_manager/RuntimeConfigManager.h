@@ -30,7 +30,7 @@
 
 #include <aprinter/meta/Expr.h>
 #include <aprinter/base/Object.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/IsEqualFunc.h>
@@ -47,11 +47,9 @@
 #include <aprinter/meta/ConstexprHash.h>
 #include <aprinter/meta/ConstexprCrc32.h>
 #include <aprinter/meta/ConstexprString.h>
-#include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/StaticArray.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>
-#include <aprinter/meta/TypeDictList.h>
 #include <aprinter/meta/TypeListFold.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
@@ -94,13 +92,13 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Type, Type)
     
     template <typename TheOption>
-    using OptionIsNotConstant = WrapBool<(!TypeDictListFind<typename TheOption::Properties, ConfigPropertyConstant>::Found)>;
+    using OptionIsNotConstant = WrapBool<(!TypeListFind<typename TheOption::Properties, ConfigPropertyConstant>::Found)>;
     using StoreService = typename Params::StoreService;
     using FormatHasher = ConstexprHash<ConstexprCrc32>;
     using SupportedTypesList = MakeTypeList<double, bool>;
     
     template <typename Type>
-    using GetTypeIndex = TypeDictListIndex<SupportedTypesList, Type>;
+    using GetTypeIndex = TypeListIndex<SupportedTypesList, Type>;
     
     static int const DumpConfigMCommand = 924;
     static int const GetConfigMCommand = 925;
@@ -159,7 +157,7 @@ private:
         static int const OptionCounter = PrevTypeGeneral::OptionCounter + NumOptions;
         
         template <typename Option>
-        using OptionIndex = TypeDictListIndex<OptionsList, Option>;
+        using OptionIndex = TypeListIndex<OptionsList, Option>;
         
         template <int OptionIndex>
         struct NameTableElem {

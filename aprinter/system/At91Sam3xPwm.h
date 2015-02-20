@@ -30,8 +30,7 @@
 #include <sam/drivers/pmc/pmc.h>
 
 #include <aprinter/base/Object.h>
-#include <aprinter/meta/TypeListGet.h>
-#include <aprinter/meta/TypeListLength.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>

@@ -28,8 +28,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeListLength.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/MapTypeList.h>
@@ -76,7 +75,7 @@ private:
         static int const Value = 0;
     };
     
-    using StepperDefList = TypeListFold<MapTypeList<GroupParamsList, GetMemberType_StepperDefList>, EmptyTypeList, JoinTwoTypeListsSwapped>;
+    using StepperDefList = TypeListFoldRight<MapTypeList<GroupParamsList, GetMemberType_StepperDefList>, EmptyTypeList, JoinTwoTypeLists>;
     using TheSteppers = Steppers<Context, Object, Config, StepperDefList>;
     
 public:

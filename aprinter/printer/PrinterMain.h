@@ -34,13 +34,12 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/MakeTypeList.h>
@@ -65,7 +64,6 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/JoinTypeListList.h>
-#include <aprinter/meta/TypeDictList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -1607,7 +1605,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using AxesList = IndexElemList<ParamsAxesList, Axis>;
     
     template <int AxisName>
-    using FindAxis = TypeDictListIndexMapped<
+    using FindAxis = TypeListIndexMapped<
         AxesList,
         GetMemberType_WrappedAxisName,
         WrapInt<AxisName>
@@ -2220,7 +2218,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using VirtAxesList = IndexElemList<ParamsVirtAxesList, VirtAxis>;
         
         template <typename PhysAxisIndex>
-        using IsPhysAxisTransformPhys = WrapBool<TypeDictListFindMapped<
+        using IsPhysAxisTransformPhys = WrapBool<TypeListFindMapped<
             VirtAxesList,
             GetMemberType_WrappedPhysAxisIndex,
             PhysAxisIndex
@@ -2415,7 +2413,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using PhysVirtAxisHelperList = IndexElemListCount<NumPhysVirtAxes, PhysVirtAxisHelper>;
     
     template <int AxisName>
-    using FindPhysVirtAxis = TypeDictListIndexMapped<
+    using FindPhysVirtAxis = TypeListIndexMapped<
         PhysVirtAxisHelperList,
         GetMemberType_WrappedAxisName,
         WrapInt<AxisName>

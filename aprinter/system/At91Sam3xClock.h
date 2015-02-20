@@ -31,15 +31,13 @@
 
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/TupleGet.h>
-#include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapDouble.h>
-#include <aprinter/meta/TypeDictList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -152,7 +150,7 @@ private:
     using MyTcsTuple = IndexElemTuple<TcsList, MyTc>;
     
     template <typename TcSpec>
-    using FindTc = MyTc<TypeDictListIndex<TcsList, TcSpec>::Value>;
+    using FindTc = MyTc<TypeListIndex<TcsList, TcSpec>::Value>;
     
 public:
     static void init (Context c)

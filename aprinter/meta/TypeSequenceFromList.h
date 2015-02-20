@@ -27,8 +27,7 @@
 
 #include <aprinter/meta/TypeSequence.h>
 #include <aprinter/meta/TypeSequenceMakeInt.h>
-#include <aprinter/meta/TypeListGet.h>
-#include <aprinter/meta/TypeListLength.h>
+#include <aprinter/meta/TypeListUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

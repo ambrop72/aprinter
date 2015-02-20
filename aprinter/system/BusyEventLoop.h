@@ -29,13 +29,12 @@
 #include <stddef.h>
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeListLength.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapType.h>
-#include <aprinter/meta/TypeDictList.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -248,7 +247,7 @@ class BusyEventLoopExtra {
     template <typename EventSpec>
     static constexpr FastEventSizeType get_event_index ()
     {
-        return TypeDictListIndex<FastEventList, EventSpec>::Value;
+        return TypeListIndex<FastEventList, EventSpec>::Value;
     }
     
 public:

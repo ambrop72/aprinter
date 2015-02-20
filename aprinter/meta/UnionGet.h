@@ -36,9 +36,9 @@ template <typename TheUnion, int Index>
 struct UnionGet;
 
 template <typename Head, typename Tail, int Index>
-struct UnionGet<Union<ConsTypeList<Head, Tail>>, Index> {
+struct UnionGet<ConsTypeList<Head, Tail>, Index> {
     typedef Union<ConsTypeList<Head, Tail>> ThisUnionType;
-    typedef UnionGet<Union<Tail>, Index - 1> TargetUnionGet;
+    typedef UnionGet<Tail, Index - 1> TargetUnionGet;
     
     typedef typename TargetUnionGet::ElemType ElemType;
     typedef typename TargetUnionGet::UnionType UnionType;
@@ -55,7 +55,7 @@ struct UnionGet<Union<ConsTypeList<Head, Tail>>, Index> {
 };
 
 template <typename Head, typename Tail>
-struct UnionGet<Union<ConsTypeList<Head, Tail>>, 0> {
+struct UnionGet<ConsTypeList<Head, Tail>, 0> {
     typedef Union<ConsTypeList<Head, Tail>> ThisUnionType;
     typedef Head ElemType;
     typedef Union<ConsTypeList<Head, Tail>> UnionType;
@@ -72,9 +72,9 @@ struct UnionGet<Union<ConsTypeList<Head, Tail>>, 0> {
 };
 
 template <int Index, typename UnionType>
-auto UnionGetElem (UnionType *tuple) -> decltype(UnionGet<UnionType, Index>::getElem(tuple))
+auto UnionGetElem (UnionType *tuple) -> decltype(UnionGet<typename UnionType::ElemTypes, Index>::getElem(tuple))
 {
-    return UnionGet<UnionType, Index>::getElem(tuple);
+    return UnionGet<typename UnionType::ElemTypes, Index>::getElem(tuple);
 }
 
 #include <aprinter/EndNamespace.h>

@@ -26,13 +26,12 @@
 #define AMBROLIB_STEPPERS_H
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/SequenceList.h>
-#include <aprinter/meta/TypeListLength.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/ValueTemplateFunc.h>

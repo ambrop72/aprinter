@@ -32,8 +32,7 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/TypeListGet.h>
-#include <aprinter/meta/TypeListLength.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/IndexElemList.h>

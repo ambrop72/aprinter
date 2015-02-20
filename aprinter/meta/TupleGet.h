@@ -28,8 +28,9 @@
 #include <stddef.h>
 
 #include <aprinter/meta/InheritConst.h>
-#include <aprinter/meta/TypeDictList.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/Tuple.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -37,27 +38,29 @@ template <int Index, typename TupleType>
 auto TupleGetElem (TupleType *tuple) ->
     InheritConst<
         TupleType,
-        typename TypeDictFindNoDupl<
-            typename TupleType::RightIndexDict,
-            WrapInt<(TupleType::Size - 1 - Index)>
-        >::Result::ElemType
+        TypeListGet<
+            typename TupleType::ElemTypes,
+            Index
+        >
     > *
 {
     return static_cast<
         InheritConst<
             TupleType,
-            typename TypeDictFindNoDupl<
-                typename TupleType::RightIndexDict,
-                WrapInt<(TupleType::Size - 1 - Index)>
-            >::Result
+            Tuple<
+                typename TypeDictFindNoDupl<
+                    TypeDictMakeIndexToSublistMap<typename TupleType::ElemTypes>,
+                    WrapInt<Index>
+                >::Result
+            >
         > *
     >(tuple)->getHead();
 }
 
 template <typename ElemType, typename TupleType>
-auto TupleFindElem (TupleType *tuple) -> decltype(TupleGetElem<TypeDictListIndex<typename TupleType::ElemTypes, ElemType>::Value>(tuple))
+auto TupleFindElem (TupleType *tuple) -> decltype(TupleGetElem<TypeListIndex<typename TupleType::ElemTypes, ElemType>::Value>(tuple))
 {
-    return TupleGetElem<TypeDictListIndex<typename TupleType::ElemTypes, ElemType>::Value>(tuple);
+    return TupleGetElem<TypeListIndex<typename TupleType::ElemTypes, ElemType>::Value>(tuple);
 }
 
 #include <aprinter/EndNamespace.h>

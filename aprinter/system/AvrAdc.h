@@ -30,12 +30,10 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 
-#include <aprinter/meta/TypeListGet.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
-#include <aprinter/meta/TypeListLength.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/TypeDictList.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
@@ -226,7 +224,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        static const int PinIndex = TypeDictListIndex<ParamsPinsList, Pin>::Value;
+        static const int PinIndex = TypeListIndex<ParamsPinsList, Pin>::Value;
         
         uint16_t value;
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -294,7 +292,7 @@ private:
     struct AdcPin {
         struct Object;
         using Pin = TypeListGet<ParamsPinsList, PinIndex>;
-        static const int AdcIndex = TypeDictListIndex<AdcList, Pin>::Value;
+        static const int AdcIndex = TypeListIndex<AdcList, Pin>::Value;
         static const int NextPinIndex = (PinIndex + 1) % NumPins;
         
         static MaskType make_pin_mask (MaskType accum)
