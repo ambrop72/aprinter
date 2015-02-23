@@ -558,8 +558,11 @@ as well as lowering `LookaheadBufferSize`. Alternatively, port your printer to D
 
 ## Configuration and Compilation Web Service
 
-A web service for graphical configuration and compilation is in development.
-It can be built and started locally as follows:
+A web service for graphical configuration and compilation of the firmware is in development.
+It is available publicly [on this address](http://52.10.217.225/).
+This is the simplest way to configure and build the firmware, and works with any operating system.
+
+However, you can easily start the service locally, as follows:
 
 ```
 nix-build nix/ -A aprinterService -o ~/aprinter-service
@@ -567,8 +570,15 @@ mkdir ~/aprinter-service-temp
 ~/aprinter-service/bin/aprinter-service
 ```
 
-Then navigate your browser to `http://127.0.0.1:4000/`. Only Chrome is tested.
-At the bottom of the page, there is a button which will compile whatever configuration is selected.
+Then navigate your browser to `http://127.0.0.1:4000/`.
+
+Instructions for using the web service:
+- Define a "configuration" - either modify or copy an existing configuration.
+- Make changes to the configuration.
+- Select this configuration in the combo box at the top.
+- At the bottom of the page, press the compile button.
+- Wait some time for the compilation to complete. You will receive a zip with the firmware image.
+- Extract the zip and upload the firmware image to your board.
 
 ## Support
 
