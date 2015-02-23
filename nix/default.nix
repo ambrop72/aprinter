@@ -1,4 +1,5 @@
-with import <nixpkgs> {};
+{ pkgs ? (import <nixpkgs> {}) }:
+with pkgs;
 rec {
     /* This is where the APrinter source is taken from. */
     aprinterSource = stdenv.lib.cleanSource ./..;
