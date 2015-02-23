@@ -86,8 +86,12 @@ rec {
     ncd = pkgs.callPackage ./ncd.nix {};
     
     /*
-        A simple setup of the configuration/compilation service, as as a single executable.
-        Not designed for public deployment!
+        Expose service stuff to allow proper deployment.
     */
-    aprinterService = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
+    aprinterServiceExprs = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
+    
+    /*
+        A simple setup of the configuration/compilation service, as as a single executable.
+    */
+    aprinterService = aprinterServiceExprs.withHttpServer;
 }

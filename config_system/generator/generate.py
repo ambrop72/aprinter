@@ -1182,7 +1182,7 @@ def main():
     with file_utils.use_output_file(args.output) as output_f:
         if args.nix:
             nix_dir = args.nix_dir if args.nix_dir is not None else os.path.join(src_dir, '..', '..', 'nix')
-            nix = 'with import (builtins.toPath {}); aprinterFunc {{ boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; mainText = {}; }}'.format(
+            nix = 'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{ boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; mainText = {}; }}'.format(
                 nix_utils.escape_string_for_nix(nix_dir),
                 nix_utils.escape_string_for_nix(result['board_for_build']),
                 nix_utils.escape_string_for_nix(result['output_type']),

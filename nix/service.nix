@@ -15,6 +15,14 @@ let
         '';
     };
     
+    lighttpd_proxy_config = ''
+        $HTTP["url"] =~ "^/compile$" {
+            proxy.server = ("" => (
+                ("host" => "127.0.0.1", "port" => ${toString backendPort})
+            ))
+        }
+    '';
+    
     lighttpd_config = writeText "aprinter-service-lighttpd.cfg" ''
         server.modules += ("mod_proxy")
         
@@ -34,14 +42,10 @@ let
 
         index-file.names = ( "index.html" )
         
-        $HTTP["url"] =~ "^/compile$" {
-            proxy.server = ("" => (
-                ("host" => "127.0.0.1", "port" => ${toString backendPort})
-            ))
-        }
+        ${lighttpd_proxy_config}
     '';
     
-    ncd_script = writeText "aprinter-service.ncd" ''
+    ncd_script = withHttpServer: writeText "aprinter-service.ncd" ''
         include "${aprinterSource}/config_system/service/aprinter_compile_service.ncdi"
         
         process main {
@@ -103,20 +107,29 @@ let
             
             process_manager() mgr;
             mgr->start(@compile_service, {});
-            mgr->start(@static_content_service, {});
+            ${if !withHttpServer then "" else "mgr->start(@static_content_service, {});"}
         }
         
         template compile_service {
             call(@aprinter_compile_service, {_caller.config});
         }
         
-        template static_content_service {
-            daemon({"${lighttpd}/sbin/lighttpd", "-D", "-f", "${lighttpd_config}"}, ["keep_stderr": @true]);
-        }
+        ${if !withHttpServer then "" else ''
+            template static_content_service {
+                daemon({"${lighttpd}/sbin/lighttpd", "-D", "-f", "${lighttpd_config}"}, ["keep_stderr": @true]);
+            }
+        ''}
+    '';
+    
+    executable = withHttpServer: writeScriptBin "aprinter-service" ''
+        #!${bash}/bin/bash
+        exec ${ncd}/bin/badvpn-ncd --loglevel notice ${ncd_script withHttpServer}
     '';
 
 in
-writeScriptBin "aprinter-service" ''
-    #!${bash}/bin/bash
-    exec ${ncd}/bin/badvpn-ncd --loglevel notice ${ncd_script}
-''
+{
+    inherit gui_dist;
+    inherit lighttpd_proxy_config;
+    withHttpServer = executable true;
+    withoutHttpServer = executable false;
+}
