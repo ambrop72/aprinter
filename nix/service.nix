@@ -1,5 +1,7 @@
 { stdenv, writeText, writeScriptBin, bash, coreutils, p7zip, rsync, unzip
 , python27Packages, nix, ncd, lighttpd, aprinterSource
+, withHttpServer ? true
+, ncdArgs ? "--loglevel notice"
 , serviceHost ? "127.0.0.1"
 , servicePort ? 4000
 , backendPort ? 4001
@@ -45,7 +47,7 @@ let
         ${lighttpd_proxy_config}
     '';
     
-    ncd_script = withHttpServer: writeText "aprinter-service.ncd" ''
+    ncd_script = writeText "aprinter-service.ncd" ''
         include "${aprinterSource}/config_system/service/aprinter_compile_service.ncdi"
         
         process main {
@@ -121,15 +123,14 @@ let
         ''}
     '';
     
-    executable = withHttpServer: writeScriptBin "aprinter-service" ''
+    service = writeScriptBin "aprinter-service" ''
         #!${bash}/bin/bash
-        exec ${ncd}/bin/badvpn-ncd --loglevel notice ${ncd_script withHttpServer}
+        exec ${ncd}/bin/badvpn-ncd ${ncdArgs} ${ncd_script}
     '';
 
 in
 {
     inherit gui_dist;
     inherit lighttpd_proxy_config;
-    withHttpServer = executable true;
-    withoutHttpServer = executable false;
+    inherit service;
 }

@@ -86,12 +86,10 @@ rec {
     ncd = pkgs.callPackage ./ncd.nix {};
     
     /*
-        Expose service stuff to allow proper deployment.
+        The configuration/compilation web service.
+        This default package is suitable for local use from command line.
+        If you want to deploy the service, use service-deployment.nix.
     */
     aprinterServiceExprs = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
-    
-    /*
-        A simple setup of the configuration/compilation service, as as a single executable.
-    */
-    aprinterService = aprinterServiceExprs.withHttpServer;
+    aprinterService = aprinterServiceExprs.service;
 }
