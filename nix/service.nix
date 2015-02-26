@@ -125,7 +125,7 @@ let
     
     service = writeScriptBin "aprinter-service" ''
         #!${bash}/bin/bash
-        exec ${ncd}/bin/badvpn-ncd ${ncdArgs} ${ncd_script}
+        exec -a badvpn-ncd ${ncd}/bin/badvpn-ncd ${ncdArgs} ${ncd_script}
     '';
 
 in
