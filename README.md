@@ -65,34 +65,41 @@ Ports have been completed for the following boards:
     For example, the configuration specifies a list of heaters, and it is trivial to add new heaters.
   * No reliance on inefficient libraries such as Arduino.
 
-## Building
+## APrinter Web Service
 
-Building the firmware is officially supported via the [Nix package manager](http://nixos.org/nix/).
-All you need is Nix running on Linux (either NixOS, or Nix installed on another Linux distro).
-Nix will take care of any build dependencies.
+The easiest way to get started is using the public web service,
+available at [www.aprinter.eu](http://www.aprinter.eu/).
+The service allows you to configure the firmware, and will build it at your request.
+It should work with any modern web browser, and the only step that needs to be done
+locally is uploading the firmware to the board.
 
-*NOTE*: Using the Nix install script should be preferred to distribution-specific Nix packages. Those do not seem to be well supported. Note that Nix only installs files to a few directories (`/nix`, `~/.nix-*`), so it is easy to remove.
-
-First, you need to pick the right build target. Consult the file `nix/default.nix` for a list of targets (e.g. `aprinterTestRadds`, `aprinterTestRamps13`). Generally, each target uses its own main source file (in the `main` subdirectory), coresponding to the name of the target. It is important that you know the main source file which you will be using, as this is where most of the build-time configuration resides.
-
-You should look over the configuration in the main file and adjust it to your liking. Note than when runtime configuration is available, many configuration parameters will be adjustable at runtime (and can possibly be saved on the board). 
-
-To build the firmware, run this command from within the source code directory. The result of the build will be available in the directory (symlink) specified using `-o`.
+If you want to, you can run the service locally, as described next.
+A prerequisite is the [Nix package manager](http://nixos.org/nix/) running on Linux.
+The service will then be available at `http://127.0.0.1:4000/`.
 
 ```
-nix-build nix/ -A yourAprinterTarget -o ~/aprinter-build
+nix-build nix/ -A aprinterService -o ~/aprinter-service
+mkdir ~/aprinter-service-temp
+~/aprinter-service/bin/aprinter-service
 ```
 
-The build process **needs a lot of RAM (~2GB)**. If you have too little, the build may mysteriously hang.
-If you're building in a virtual machine, it's best if you give it at least 4GB.
+Instructions for using the web service:
+- Define a "configuration" - either modify or copy an existing configuration.
+- Make changes to the configuration.
+- Select this configuration in the combo box at the top.
+- At the bottom of the page, press the compile button.
+- Wait some time for the compilation to complete. You will receive a zip with the firmware image.
+- Extract the zip and upload the firmware image to your board.
 
-*NOTE*: Don't put the build output (`-o`) within the source directory. If you do that the build output will be considered part of the source for the next build, and copying it will take a long time.
+## Building manually
 
-Some specific notes on building and basic configuration follow.
+It is possible to build without using the web service, given a JSON configuration file.
+This file would usually be produced by the web GUI, but you're free to manage it manually.
+Again, the prerequisite for building is the [Nix package manager](http://nixos.org/nix/) on Linux.
 
-*UART Serial on Arduino Due.* The default is to use the native USB for communication. But it's possible to use the UART instead, by using the appropriate build target (e.g. aprinterTestRaddsUart).
-
-*LED on RADDS.* On this board, pin 13 (Due's internal LED) is used for one of the FETs, and there is no LED on the RADDS itself. Due to this, the firmware defaults to pin 37 for the LED, where you can install one.
+```
+python -B config_system/generator/generate.py --nix --config path_to_config.json | nix-build - -o ~/aprinter-service
+```
 
 ## Uploading
 
@@ -133,6 +140,9 @@ bossac -p ttyACM0 -U false -i -e -w -v -b "$HOME/aprinter-build/aprinter-nixbuil
 Some Due clones have a problem resetting. If after uploading, the firmware does not start (LED doesn't blink), press the reset button.
 
 *NOTE*: You need to **use the native USB port** to connect. The programming port is only used for uploading.
+However, it is possible to configure the firmware to use the programming port for communication.
+To do that in the web GUI, expand the specific board definition (in the Boards list), expand "Serial parameters" and for the "Backend",
+choose "AT91 UART".
 
 ### Teensy 3
 
@@ -182,55 +192,17 @@ The `M930` command does not alter the current set of configuration values in any
   * Try homing and some basic motion.
   * Check the current temperatures (M105).
   * Only try turning on the heaters once you've verified that the temperatures are being reported correctly.
-    Be aware that if you generate a thermistor table with the wrong beta value,
+    Be aware that if you have configured the wrong beta value,
     the room teperature will be reported correctly, but other temperatures will be incorrect
     (possibly lower, and you risk burning the heater in that case).
     Obviously, take safety precausions here. I'm not responsible if your house burns down as a result of
     using my software, or for any other damage.
-
-## Building without Nix
-
-**This is not well supported and may disappear in the future!**
-Please consider using Nix instead, and contact me if you have problems with it.
-
-In the commands below, `<TARGET>` is one of the targets defined in `config/targets.sh`.
-
-To install build dependencies automatically (into the `depends` folder):
-
-```
-./build.sh <TARGET> install
-```
-
-To build the firmware (into the `build` folder):
-
-```
-./build.sh <TARGET> build
-```
-
-Finally, the script can help with uploading the firmware:
-
-```
-./build.sh <TARGET> upload
-```
-
-Notes notes:
- * Most of the build system will work only on Linux.
-   On other platforms, custom installation of dependencies and hacking the scripts will be necessary.
- * On Mac OS X `install` action may require `brew install wxmac` before.
- * The AVR toolchain is a [binary by Atmel](http://www.atmel.com/tools/atmelavrtoolchainforlinux.aspx).
- * The ARM toolchain is a binary by the [gcc-arm-embedded](https://launchpad.net/gcc-arm-embedded) project.
- * The `-v` parameter (between targets and actions) will show the commands ran by the script.
- * The script will only work when ran from source directory root.
 
 ## SD card support
 
 The firmware supports reading G-code from an SD card. However, the G-code needs to be written directly to the SD card in sequential blocks, starting with the first block (where the partition table would normally reside).
 
 SD card support is working and enabled by default on all three supported boards (RAMPS1.4, Melzi, RAMPS-FD).
-
-**WARNING.** If you have enabled SD card after it wasn't enabled in the your configuration,
-you should [check your RAM usage](README.md#ram-usage).
-If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters starting fires).
 
 Once you boot a firmware with SD support enabled, you will have the following commands available:
 
@@ -254,17 +226,7 @@ The `DeTool.py` postprocessor can also prepare the g-code for SD card printing; 
 When printing from SD, the firmware can optionally read a custom packed form of gcode, to improve space and processing efficiency. The packing format [is documented](encoding.txt).
 
 The choice between plain text and packed gcode needs to be made at compile time. By default, plain text is used.
-To switched to reading packed gcode, adjust the SD card configuration as follows:
-
-```
-    PrinterMainSdCardParams<
-        ...
-        BinaryGcodeParser,
-        BinaryGcodeParserParams<8>,
-        2, // BufferBlocks
-        43 // MaxCommandSize
-    >,
-```
+To configure packed gcode in the web GUI, go to your Board, "SD card configuration" and set "G-code parser" to "Binary G-code parser".
 
 To pack a gcode file, use the `aprinter_encode.py` script, as follows.
 
@@ -286,19 +248,11 @@ All axes, heaters and fans are independent, and the firmware does not know anyth
 
 The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands, but more about that will be explained later.
 
-The default main files for RAMPS1.4 and RAMPS-FD already support two extruders.
-If you want more axes, heaters or fans, specify them the same way that the existing ones are specified.
-However, you will need to allocate a hardware *output compare unit* for each axis/heater/fan
-that you wish to add. For more information, consult the [OC units section](README.md#output-compare-units).
-
-**WARNING.** After you have enabled new axes or other features, you should [check your RAM usage](README.md#ram-usage).
-If there isn't enough RAM available, the firmware will manfunction in unexpected ways, including causing physical damage (axes crashing, heaters starting fires).
-
-**NOTE.** If you do something wrong when modifying your main file,
-the result will most likely be an error message several megabytes long.
-Yes, that's the price of doing the kind of metaprogramming used in this code.
-Don't try to read the message, and instead focus on the code.
-If you give up, [ask me for help](README.md#support).
+Note that the ability to define new devices depends on the particular board.
+In the web GUI, if there is an available "port" (stepper port, PWM output),
+it is just a matter of adding a device to the Configuration section.
+Otherwise it may or may not be possible to add a new port, based on hardware availability
+(timer units, PWM channels).
 
 ## The DeTool g-code postprocessor
 
@@ -338,19 +292,52 @@ you will want to pass:
 
 If the fans are not equally powerful, you can adjust the `SpeedMultiplier` to scale the speed of specific fans.
 
-## Delta geomoetry
+## Coordinate transformation
 
-For delta, consult the `aprinter-teensy3.cpp` main file as an example. Briefly, you need to do the following:
-
-- Add the cartesian axis configuration options at the top of the file (`XMinPos`...`ZMaxSpeed`).
-- Replace the existing X,Y,Z axis configuration options with a common set of options for A,B,C tower axes (`ABCInvertDir`...`ABCHomeSlowSpeed`).
-- Add the delta transform configuration options (`DeltaDiagonalRod`...`DeltaMaxSplitLength`).
-- Change your `PrinterMainAxisParams` X,Y,Z axis configuration to A,B,C. This includes the axis name and all the configuration option names. Make sure to set `EnableCartesianSpeedLimit` to false.
-- Add the transform configuration, by replacing `PrinterMainNoTransformParams` with what is in that place in the example.
+APrinter has generic support for non-cartesian coordinate systems.
+Currently, delta (towers) and CoreXY/H-bot are supported out of the box.
 
 *NOTE*: Delta will not work well on AVR based platforms due to lack of CPU speed and RAM.
+CoreXY may or may not.
+
+Generally, the transformation is configured as follows in the web GUI:
+
+- In the Steppers list, define the steppers (actuators) that are involved in the transform,
+  with names that are *not* cartesian axes (delta: A, B, C, CoreXY: A, B).
+  Make that for each such stepper, "Is cartesian" is set to No.
+  Set the position limits correctly (see the sub-section next).
+  For delta, enable homing for all three steppers, for CoreXY disable homing for both.
+- Define any remaining cartesian steppers. So for CoreXY that would be Z, and none for delta.
+  Of course extruders still belong to the Steppers list.
+- In the "Coordinate transformation" section, select your particular transformation type.
+  More configuration is made available.
+- Set up the "Stepper mapping" to map the transformation to the steppers defined earlier.
+  Type the stepper name letter to map a stepper.
+  Note that you are free to define the mapping in any order, to achieve correct motion.
+  Which is a bit tricky woth CoreXY - you may also have to invert stepper direction.
+- Set the transformation-type specific parameters. The delta-related parameters mean exactly
+  the same as for Marlin, so no further explanation will be given here.
+- Configure the cartesian axes. Currently this is just position limits and maximum speed.
+  But, for CoreXY, you have the option of enabling homing for cartesian axes
+  (which is a different concept than stepper-specific homing).
+
+### Stepper configuration
+
+Steppers involved in the coordinate transform have their own configuration which is generally the same as for other steppers.
+In particular they need to be defined the position limits.
+
+For CoreXY, the position limits should not constrain motion as defined by the limits of the cartesian axes.
+The following formulas give the minimum required stepper limits to support the cartesian limits
+(assuming no reordering of steppers): Arange = [Xmin + Ymin, Xmax + Ymax], Brange = [Xmin - Ymax, Xmax - Ymin].
+
+For delta, the stepper limits should be configured appropriately for the machine.
+It helps to know that the A/B/C stepper positions are actually cartesian Z coordinates
+of assemblies on the towers, and that the maximum position limit corresponds to
+meeting the endstop at the top.
 
 ## Slave steppers
+
+TBD: This feature has not yet been ported to the web GUI.
 
 Slave steppers are extra steppers assigned to an axis. They will be driven synchronously with the main stepper for the axis.
 Actually, the only difference between the main stepper and slave steppers is the way they are specified in the configuration.
@@ -393,193 +380,24 @@ The laser configuration parameters are:
 
 A prerequisite for configuring a laser is the availability of hardware PWM and its support by the firmware. See the section "Hardware PWM configuration" for more details.
 
-A laser is configured in the main file as follows:
+A laser is configured in the web GUI as follows:
 
-```
-// Add to includes:
-#include <aprinter/driver/LaserDriver.h>
-#include <aprinter/printer/duty_formula/LinearDutyFormula.h>
-...
-// Add to configuration options:
-APRINTER_CONFIG_OPTION_DOUBLE(LLaserPower, 100.0, ConfigNoProperties)
-APRINTER_CONFIG_OPTION_DOUBLE(LMaxPower, 100.0, ConfigNoProperties)
-using LDutyAdjustmentInterval = AMBRO_WRAP_DOUBLE(1.0 / 200.0);
-...
-    // Add to PrinterParams, after the list of fans.
-    // Don't forget to add a comma after the fans.
-    /*
-     * Lasers.
-     */
-    MakeTypeList<
-        PrinterMainLaserParams<
-            'L', // Name
-            'M', // DensityName
-            LLaserPower,
-            LMaxPower,
-            // Use correct hardware PWM service here!
-            Mk20ClockPwmService<Mk20ClockFTM1, 1, TeensyPin17>,
-            LinearDutyFormulaService<
-                15 // PowerBits
-            >,
-            LaserDriverService<
-                // Use correct timer here!
-                Mk20ClockInterruptTimerService<Mk20ClockFTM0, 7>,
-                LDutyAdjustmentInterval,
-                LaserDriverDefaultPrecisionParams
-            >
-        >
-    >
-```
+- In the Board section, add a "Laser port". Give it a name (anything), select the PWM output.
+  This must be a hardware PWM output.
+  Also select an available timer unit. This is not exactly easy since the timer allocations
+  are spread throughout the Board configuration (Event channel timer, stepper timers,
+  timers for software PWM outputs).
+- In the Configuration section, add a Laser. The default values here should be usable.
+  But make sure your new "Laser port" is selected.
 
 In the g-code interface, *either* of the following parameters can be used in a `G0`/`G1` command to control the laser:
 - **L** - Total energy emmitted over the segment [W]. This is the low level interface to the laser.
 - **M** - Energy density over the segment [W/mm]. The value is multiplied by the segment length to obtain the effective energy for the segment.
 
-The energy density *M* is cached, so you can specify it in one command, and leave it out for any further commands where you want the same energy density. If *L* is specified, it takes precedence over *M* or its cached value, but it does not alter the *M* cached value.
-
-## Output compare units
-
-Various features of the firmware, in particular, each axis, heater and fan,
-require the allocation of a timer output compare unit of the microcontroller.
-The output compare units are are internally used to raise interrupts at programmed times, which, for example,
-send step signals to a stepper motor driver, or toggle a pin to perform software PWM control of a heater or fan.
-
-The firmware is designed in a way that makes it very easy to assign OC units to features that require them.
-Each feature has a parameter in its configuration expression, called `TimerTemplate`,
-which specifies the OC unit to be used. The available OC units depend on the particular microcontroller.
-For example:
-
-- On atmega1284p (Melzi), there's 8 OC units available, named `AvrClockInterruptTimer_TC{0,1,2,3}_OC{A,B}`.
-- On atmega2560 (RAMPS), there's 16 OC units available, named `AvrClockInterruptTimer_TC{{0,2}_OC{A,B},{1,3,4,5}_OC{A,B,C}}`.
-- On AT91SAM3X8E (Due), there's 27 OC units available, named `At91Sam3xClockInterruptTimer_TC[0-8][A-C]`.
-
-In addition to specifying the OC unit in the `TimerTemplate` parameter, a corresponding `ISRS` or `GLOBAL` macro needs the be invoked in order to set up the interrupt handler. For example, if `AvrClockInterruptTimer_TC4_OCA` is used
-for the axis at index 3 (indices start from zero), the corresponding `ISRS` macro invocation is:
-
-```
-AMBRO_AVR_CLOCK_INTERRUPT_TIMER_TC4_OCA_ISRS(*p.myprinter.getAxisStepper<3>()->getTimer(), MyContext())
-```
-
-For heaters and fans, as wellas for Due as opposed to AVR, consult the existing assignments in your main file. 
-
-If you have used an OC unit of a previously unused TC, you will also need to add this TC to the `ClockTcsList`.
-
-**WARNING.** On AVR, it is imperative that the interrupt priorities of the OC ISRs are considered.
-Basically, you should avoid using TCs with higher priority than the USART RX ISR,
-or risk received bytes being randomly dropped, causing print failure when printing from USB.
-If that is not possible, at least use those TCs for simple tasks such as fan control, and perhaps heater control.
-On atmega2560, those higher-priority TCs are `TC0` and `TC2`.
-
-**NOTE.** On boards based on atmega1284p, all available output compare units are already assined.
-As such, it is not possible to add any extra axes/heaters/fans.
-However, it would be easy to implement multiplexing so that one hardware OC units would act as two or more virtual OC units,
-at the cost of some overhead in the ISRs.
-
-## Hardware PWM configuration
-
-Hardware PWM can be used for heaters, fans or lasers. In all cases a board-specific procedure needs to be followed where a `PWM_SERVICE` expression specifying the PWM configuration is constructed. This is described later, first the application of this to heaters, fans and lasers is shown.
-
-For *heaters and fans*, the `PWM_SERVICE` needs to be wrapped in `HardPwmService` before being used as the PwmService parameter in `PrinterMainHeaterParams` or `PrinterMainFanParams`, like this:
-
-```
-#include <aprinter/printer/pwm/HardPwm.h>
-...
-PrinterMainFanParams<
-    ...
-    HardPwmService< PWM_SERVICE > // This is the PwmService argument
->
-```
-
-On the other hand, for *lasers*, the `PWM_SERVICE` is directly used as the PwmService parameter of `PrinterMainLaserParams`:
-
-```
-PrinterMainLaserParams<
-    ...
-    PWM_SERVICE, // This is the PwmService argument
-    ...
->
-```
-
-### Arduino Due
-
-- First there's some global setup needed:
-```
-#include <aprinter/system/At91Sam3xPwm.h>
-...
-using MyAdc = ...;
-using MyPwm = At91Sam3xPwm<MyContext, Program, At91Sam3xPwmParams<0, 0, 0, 0>>;
-using MyPrinter = ...;
-...
-struct MyContext {
-...
-    using Pwm = MyPwm;
-...
-};
-...
-int main ()
-{
-...
-    MyAdc::init(c);
-    MyPwm::init(c); // After MyAdc, before MyPrinter!
-    MyPrinter::init(c);
-...
-```
-
-- Select a PWM capable pin. Apparently these are pins 2-13.
-- Look into `aprinter/board/arduino_due_pins.h` and find the full name of the pin (e.g. for pin 8: `At91SamPin<At91SamPioC, 22>`).
-- Look into `aprinter/system/At91Sam3xPwm.h` and find the entry of the `At91Sam3xPwmConnections` list corresponding to this pin. Note the channel number and the connection type. These are the first and second elements (e.g. 5, 'L').
-- Use something like the following as `PWM_SERVICE` (adjust the prescaler/period as needed):
-
-```
-At91Sam3xPwmChannelService<
-    10, // Prescaler [0, 10]
-    1562, // Period [1, 16777215]. Frequency=(F_MCK/2^Prescaler/Period). 1562 gives ~50Hz
-    5, // PWM channel number
-    DuePin8, // Output pin
-    'L' // output connection type (L/H)
->
-```
-
-## RAM usage
-
-If you add new functionality to your configuration,
-it is a good idea to check if your microcontroller still has enough RAM.
-This is mostly a problem on atmega2560, with only 8KiB RAM; the atmega1284p has 16KiB, and AT91SAM3X8E has 96KiB.
-In any case, the RAM usage can be checked using the `size` program of your cross compilation toolchain. For example:
-
-```
-$ avr-size aprinter.elf 
-   text	   data	    bss	    dec	    hex	filename
- 108890	     10	   7285	 116185	  1c5d9	aprinter.elf
-```
-
-The number we're interested in here is the sum of `data` and `bss`. You should also reserve around 900 bytes for the stack. So, on atmega2560, your data+bss shoudln't exceed 7300 bytes. If you fall short, you can reduce your RAM usage by lowering `StepperSegmentBufferSize` and `EventChannelBufferSize` (preferably keeping them equal),
-as well as lowering `LookaheadBufferSize`. Alternatively, port your printer to Due/RAMPS-FD ;)
-
-## Configuration and Compilation Web Service
-
-A web service for graphical configuration and compilation of the firmware is in development.
-It is available publicly [on this address](http://52.10.217.225/).
-This is the simplest way to configure and build the firmware, and works with any operating system.
-
-However, you can easily start the service locally, as follows:
-
-```
-nix-build nix/ -A aprinterService -o ~/aprinter-service
-mkdir ~/aprinter-service-temp
-~/aprinter-service/bin/aprinter-service
-```
-
-Then navigate your browser to `http://127.0.0.1:4000/`.
-
-Instructions for using the web service:
-- Define a "configuration" - either modify or copy an existing configuration.
-- Make changes to the configuration.
-- Select this configuration in the combo box at the top.
-- At the bottom of the page, press the compile button.
-- Wait some time for the compilation to complete. You will receive a zip with the firmware image.
-- Extract the zip and upload the firmware image to your board.
+The energy density *M* is cached, so you can specify it in one command, and leave it out for any further commands where you want the same energy density.
+If *L* is specified, it takes precedence over *M* or its cached value, but it does not alter the *M* cached value.
 
 ## Support
 
-If you need help or want to ask me a question, you can find me on Freenode IRC in #reprap (nick ambro718), or you can email me to ambrop7 at gmail dot com. If you have found a bug or have a feature request, you can use the issue tracker.
+If you need help or want to ask me a question, you can find me on Freenode IRC in #reprap (nick ambro718),
+or you can email me to ambrop7 at gmail dot com. If you have found a bug or have a feature request, you can use the issue tracker.
