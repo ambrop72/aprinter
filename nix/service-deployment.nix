@@ -11,7 +11,7 @@ in
         
         aprinterServicePkg = aprinterExprs.aprinterServiceExprs.override {
             withHttpServer = false;
-            ncdArgs = "--logger syslog --loglevel notice";
+            ncdArgs = "--logger syslog --loglevel notice --signal-exit-code 0";
             serviceHost = "0.0.0.0";
             servicePort = 80;
         };
