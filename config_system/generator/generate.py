@@ -211,7 +211,7 @@ class TemplateExpr(object):
         self._args = args
     
     def build (self, indent):
-        if indent == -1:
+        if indent == -1 or len(self._args) == 0:
             initiator = ''
             separator = ', '
             terminator = ''
@@ -920,7 +920,20 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 stepper_port = gen.get_object('stepper_port', stepper, 'stepper_port')
                 
+                if stepper_port.get_config('StepperTimer').get_string('_compoundName') != 'interrupt_timer':
+                    stepper.key_path('stepper_port').error('Selected stepper port must have a timer unit defined.')
+                
                 gen.add_aprinter_include('driver/AxisDriver.h')
+                
+                def slave_steppers_cb(slave_stepper, slave_stepper_index):
+                    slave_stepper_port = gen.get_object('stepper_port', slave_stepper, 'stepper_port')
+                    
+                    return TemplateExpr('PrinterMainSlaveStepperParams', [
+                        get_pin(gen, slave_stepper_port, 'DirPin'),
+                        get_pin(gen, slave_stepper_port, 'StepPin'),
+                        get_pin(gen, slave_stepper_port, 'EnablePin'),
+                        gen.add_bool_config('{}S{}InvertDir'.format(name, 1 + slave_stepper_index), slave_stepper.get_bool('InvertDir')),
+                    ])
                 
                 return TemplateExpr('PrinterMainAxisParams', [
                     TemplateChar(name),
@@ -942,7 +955,8 @@ def generate(config_root_data, cfg_name, main_template):
                         use_interrupt_timer(gen, stepper_port, 'StepperTimer', user='MyPrinter::GetAxisTimer<{}>'.format(stepper_index)),
                         'TheAxisDriverPrecisionParams'
                     ]),
-                    'PrinterMainNoMicroStepParams'
+                    'PrinterMainNoMicroStepParams',
+                    stepper.do_list('slave_steppers', slave_steppers_cb, max_count=10),
                 ])
             
             steppers_expr = config.do_list('steppers', stepper_cb, min_count=1, max_count=15)

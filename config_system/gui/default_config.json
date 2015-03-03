@@ -207,9 +207,6 @@
             "PulseInterval": 0.3,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "lalal": {
-                "value": "TC7A"
-              },
               "oc_unit": "TC7A"
             },
             "_compoundName": "SoftPwm"
@@ -224,9 +221,6 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "lalal": {
-                "value": "TC7B"
-              },
               "oc_unit": "TC7B"
             },
             "_compoundName": "SoftPwm"
@@ -241,9 +235,6 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "lalal": {
-                "value": "TC7C"
-              },
               "oc_unit": "TC7C"
             },
             "_compoundName": "SoftPwm"
@@ -258,9 +249,6 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "lalal": {
-                "value": "TC8A"
-              },
               "oc_unit": "TC8A"
             },
             "_compoundName": "SoftPwm"
@@ -275,9 +263,6 @@
             "PulseInterval": 0.04,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "lalal": {
-                "value": "TC8B"
-              },
               "oc_unit": "TC8B"
             },
             "_compoundName": "SoftPwm"
@@ -292,9 +277,6 @@
             "PulseInterval": 0.04,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "lalal": {
-                "value": "TC8C"
-              },
               "oc_unit": "TC8C"
             },
             "_compoundName": "SoftPwm"
@@ -585,9 +567,6 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "lalal": {
-                "value": "FTM0_5"
-              },
               "oc_unit": "FTM0_5"
             },
             "_compoundName": "SoftPwm"
@@ -602,9 +581,6 @@
             "PulseInterval": 0.04,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "lalal": {
-                "value": "FTM0_6"
-              },
               "oc_unit": "FTM0_6"
             },
             "_compoundName": "SoftPwm"
@@ -890,9 +866,6 @@
             "PulseInterval": 0.3,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "lalal": {
-                "value": "TC5_A"
-              },
               "oc_unit": "TC5_A"
             },
             "_compoundName": "SoftPwm"
@@ -905,9 +878,6 @@
             "HardPwmDriver": {
               "OutputPin": "MegaPin9",
               "_compoundName": "AvrClockPwm",
-              "lalal": {
-                "value": "TC2_B"
-              },
               "oc_unit": "TC2_B"
             },
             "_compoundName": "HardPwm"
@@ -920,9 +890,6 @@
             "HardPwmDriver": {
               "OutputPin": "MegaPin10",
               "_compoundName": "AvrClockPwm",
-              "lalal": {
-                "value": "TC2_A"
-              },
               "oc_unit": "TC2_A"
             },
             "_compoundName": "HardPwm"
@@ -935,9 +902,6 @@
             "HardPwmDriver": {
               "OutputPin": "MegaPin4",
               "_compoundName": "AvrClockPwm",
-              "lalal": {
-                "value": "TC0_B"
-              },
               "oc_unit": "TC0_B"
             },
             "_compoundName": "HardPwm"
@@ -950,9 +914,6 @@
             "HardPwmDriver": {
               "OutputPin": "MegaPin11",
               "_compoundName": "AvrClockPwm",
-              "lalal": {
-                "value": "TC1_A"
-              },
               "oc_unit": "TC1_A"
             },
             "_compoundName": "HardPwm"
@@ -1198,9 +1159,6 @@
             "PulseInterval": 0.04,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "lalal": {
-                "value": "TC2_B"
-              },
               "oc_unit": "TC2_B"
             },
             "_compoundName": "SoftPwm"
@@ -1213,9 +1171,6 @@
             "HardPwmDriver": {
               "OutputPin": "AvrPin<AvrPortD,4>",
               "_compoundName": "AvrClockPwm",
-              "lalal": {
-                "value": "TC1_B"
-              },
               "oc_unit": "TC1_B"
             },
             "_compoundName": "HardPwm"
@@ -1228,9 +1183,6 @@
             "HardPwmDriver": {
               "OutputPin": "AvrPin<AvrPortD,5>",
               "_compoundName": "AvrClockPwm",
-              "lalal": {
-                "value": "TC1_A"
-              },
               "oc_unit": "TC1_A"
             },
             "_compoundName": "HardPwm"
@@ -1525,14 +1477,14 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": -53,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
+          "MaxSpeed": 300,
           "DistanceFactor": 1,
-          "MinPos": -53,
           "Name": "X",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1548,17 +1500,18 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "X"
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 650,
           "MaxPos": 157,
+          "MaxSpeed": 300,
           "DistanceFactor": 1,
-          "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1574,17 +1527,18 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "Y"
         },
         {
-          "MaxSpeed": 3,
+          "MinPos": 0,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": true,
           "MaxAccel": 30,
           "MaxPos": 100,
+          "MaxSpeed": 3,
           "DistanceFactor": 1,
-          "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
@@ -1600,40 +1554,43 @@
             "HomeSlowSpeed": 0.6,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "Z"
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
+          "MaxSpeed": 45,
           "DistanceFactor": 1,
-          "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 1856,
           "_compoundName": "stepper",
           "homing": {
             "_compoundName": "no_homing"
           },
+          "slave_steppers": [],
           "stepper_port": "E1"
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
+          "MaxSpeed": 45,
           "DistanceFactor": 1,
-          "MinPos": -40000,
           "Name": "U",
           "StepsPerUnit": 1320,
           "_compoundName": "stepper",
           "homing": {
             "_compoundName": "no_homing"
           },
+          "slave_steppers": [],
           "stepper_port": "E2"
         }
       ],
@@ -1705,14 +1662,14 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
+          "MaxSpeed": 300,
           "DistanceFactor": 1,
-          "MinPos": 0,
           "Name": "X",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1728,17 +1685,18 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "X"
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
+          "MaxSpeed": 300,
           "DistanceFactor": 1,
-          "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1754,17 +1712,18 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "Y"
         },
         {
-          "MaxSpeed": 3,
+          "MinPos": 0,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 30,
           "MaxPos": 100,
+          "MaxSpeed": 3,
           "DistanceFactor": 1,
-          "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
@@ -1780,23 +1739,25 @@
             "HomeSlowSpeed": 0.5,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "Z"
         },
         {
-          "MaxSpeed": 40,
+          "MinPos": -40000,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
+          "MaxSpeed": 40,
           "DistanceFactor": 1,
-          "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 1856,
           "_compoundName": "stepper",
           "homing": {
             "_compoundName": "no_homing"
           },
+          "slave_steppers": [],
           "stepper_port": "E"
         }
       ],
@@ -1902,14 +1863,14 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": -53,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
+          "MaxSpeed": 300,
           "DistanceFactor": 1,
-          "MinPos": -53,
           "Name": "X",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1925,17 +1886,18 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "X"
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 650,
           "MaxPos": 155,
+          "MaxSpeed": 300,
           "DistanceFactor": 1,
-          "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1951,17 +1913,18 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "Y"
         },
         {
-          "MaxSpeed": 3,
+          "MinPos": 0,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 30,
           "MaxPos": 100,
+          "MaxSpeed": 3,
           "DistanceFactor": 1,
-          "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 4000,
           "_compoundName": "stepper",
@@ -1977,23 +1940,25 @@
             "HomeSlowSpeed": 0.6,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "Z"
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
+          "MaxSpeed": 45,
           "DistanceFactor": 1,
-          "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 928,
           "_compoundName": "stepper",
           "homing": {
             "_compoundName": "no_homing"
           },
+          "slave_steppers": [],
           "stepper_port": "E0"
         }
       ],
@@ -2099,14 +2064,14 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
+          "MaxSpeed": 300,
           "DistanceFactor": 1,
-          "MinPos": 0,
           "Name": "X",
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
@@ -2122,17 +2087,18 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "X"
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
+          "MaxSpeed": 300,
           "DistanceFactor": 1,
-          "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
@@ -2148,17 +2114,18 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "Y"
         },
         {
-          "MaxSpeed": 3,
+          "MinPos": 0,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 30,
           "MaxPos": 100,
+          "MaxSpeed": 3,
           "DistanceFactor": 1,
-          "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 4000,
           "_compoundName": "stepper",
@@ -2174,23 +2141,25 @@
             "HomeSlowSpeed": 0.6,
             "_compoundName": "homing"
           },
+          "slave_steppers": [],
           "stepper_port": "Z"
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
+          "MaxSpeed": 45,
           "DistanceFactor": 1,
-          "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 928,
           "_compoundName": "stepper",
           "homing": {
             "_compoundName": "no_homing"
           },
+          "slave_steppers": [],
           "stepper_port": "E"
         }
       ],

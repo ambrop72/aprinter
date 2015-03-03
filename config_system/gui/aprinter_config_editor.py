@@ -23,7 +23,7 @@
 import configema as ce
 
 def oc_unit_choice(**kwargs):
-    return ce.Reference(ref_array={'base': 'id_board.platform_config.platform', 'descend': ['clock', 'avail_oc_units']}, ref_id_key='value', ref_name_key='value', title='Output compare unit', deref_key='lalal', **kwargs)
+    return ce.Reference(ref_array={'base': 'id_board.platform_config.platform', 'descend': ['clock', 'avail_oc_units']}, ref_id_key='value', ref_name_key='value', title='Output compare unit', **kwargs)
 
 def interrupt_timer_choice(**kwargs):
     return ce.Compound('interrupt_timer', ident='id_interrupt_timer_choice', attrs=[
@@ -240,6 +240,9 @@ def make_transform_type(transform_type, transform_title, segments_per_sec_releva
         ]
     ))
 
+def stepper_port_reference(context):
+    return ce.Reference(key='stepper_port', title='Stepper port', ref_array=context.board_ref(['stepper_ports']), ref_id_key='Name', ref_name_key='Name')
+
 class ConfigurationContext(object):
     def board_ref(self, what):
         return {'base': 'id_configuration.board_data', 'descend': what}
@@ -265,7 +268,11 @@ def editor():
             ]),
             ce.Array(key='steppers', title='Steppers', disable_collapse=True, copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('stepper', title='Stepper', title_key='Name', collapsed=True, ident='id_configuration_stepper', attrs=[
                 ce.String(key='Name', title='Name (cartesian X/Y/Z, extruders E/U/V, delta A/B/C)'),
-                ce.Reference(key='stepper_port', title='Stepper port', ref_array={'base': 'id_configuration.board_data', 'descend': ['stepper_ports']}, ref_id_key='Name', ref_name_key='Name'),
+                stepper_port_reference(configuration_context),
+                ce.Array(key='slave_steppers', title='Slave steppers', disable_collapse=True, table=True, elem=ce.Compound('slave_stepper', ident='id_slave_stepper', title='Slave stepper', attrs=[
+                    stepper_port_reference(configuration_context),
+                    ce.Boolean(key='InvertDir', title='Invert direction', default=False),
+                ])),
                 ce.Boolean(key='InvertDir', title='Invert direction', false_title='No (high StepPin is positive motion)', true_title='Yes (high StepPin is negative motion)', default=False),
                 ce.Float(key='StepsPerUnit', title='Steps per unit [1/mm]', default=80),
                 ce.Float(key='MinPos', title='Minimum position [mm] (~-40000 for extruders)', default=0),
@@ -475,7 +482,10 @@ def editor():
                 pin_choice(key='DirPin', title='Direction pin'),
                 pin_choice(key='StepPin', title='Step pin'),
                 pin_choice(key='EnablePin', title='Enable pin'),
-                interrupt_timer_choice(key='StepperTimer', title='Stepper timer', disable_collapse=True),
+                ce.OneOf(key='StepperTimer', title='Stepper timer', choices=[
+                    interrupt_timer_choice(title='Defined', disable_collapse=True),
+                    ce.Compound('NoTimer', title='Not defined (for slave steppers only)', disable_collapse=True, attrs=[]),
+                ]),
             ])),
             ce.Array(key='digital_inputs', title='Digital inputs', disable_collapse=True, copy_name_key='Name', processing_order=-8, elem=ce.Compound('digital_input', title='Digital input', title_key='Name', collapsed=True, ident='id_board_digital_inputs', attrs=[
                 ce.String(key='Name', title='Name'),
