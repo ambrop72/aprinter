@@ -269,11 +269,11 @@ def editor():
             ce.Array(key='steppers', title='Steppers', disable_collapse=True, copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('stepper', title='Stepper', title_key='Name', collapsed=True, ident='id_configuration_stepper', attrs=[
                 ce.String(key='Name', title='Name (cartesian X/Y/Z, extruders E/U/V, delta A/B/C)'),
                 stepper_port_reference(configuration_context),
+                ce.Boolean(key='InvertDir', title='Invert direction', false_title='No (high StepPin is positive motion)', true_title='Yes (high StepPin is negative motion)', default=False),
                 ce.Array(key='slave_steppers', title='Slave steppers', disable_collapse=True, table=True, elem=ce.Compound('slave_stepper', ident='id_slave_stepper', title='Slave stepper', attrs=[
                     stepper_port_reference(configuration_context),
                     ce.Boolean(key='InvertDir', title='Invert direction', default=False),
                 ])),
-                ce.Boolean(key='InvertDir', title='Invert direction', false_title='No (high StepPin is positive motion)', true_title='Yes (high StepPin is negative motion)', default=False),
                 ce.Float(key='StepsPerUnit', title='Steps per unit [1/mm]', default=80),
                 ce.Float(key='MinPos', title='Minimum position [mm] (~-40000 for extruders)', default=0),
                 ce.Float(key='MaxPos', title='Maximum position [mm] (~40000 for extruders)', default=200),
