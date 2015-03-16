@@ -35,51 +35,7 @@ rec {
             inherit gccAvrAtmel asf teensyCores aprinterSource;
         } // aprinterConfig
     );
-    
-    /*
-        This function can be used to build multiple APrinter build targets,
-        and put the results into a directory, with a subdirectory for each
-        target.
-    */
-    aprinterSymlinksFunc = aprinterBuilds: pkgs.callPackage ./symlinks.nix { inherit aprinterBuilds; };
-    
-    /*
-        Shortcut to aprinterFunc for defining the common supported targets.
-    */
-    aprinterTestFunc = boardName: { sourceName ? boardName }: aprinterFunc {
-        inherit boardName;
-        buildName = "test-${sourceName}";
-        mainText = builtins.readFile ( ../main + "/aprinter-${sourceName}.cpp" );
-        desiredOutputs = [ "elf" "bin" "hex" ];
-    };
-    
-    /*
-        Supported targets.
-    */
-    aprinterTestMelzi = aprinterTestFunc "melzi" {};
-    aprinterTestRamps13 = aprinterTestFunc "ramps13" {};
-    aprinterTestMegatronics3 = aprinterTestFunc "megatronics3" {};
-    aprinterTestRampsfd = aprinterTestFunc "rampsfd" {};
-    aprinterTestRampsfdUart = aprinterTestRampsfd.override { forceUartSerial = true; };
-    aprinterTestRadds = aprinterTestFunc "radds" {};
-    aprinterTestRaddsUart = aprinterTestRadds.override { forceUartSerial = true; };
-    aprinterTest4pi = aprinterTestFunc "4pi" {};
-    aprinterTestMlab = aprinterTestFunc "mlab" {};
-    aprinterTestTeensy3 = aprinterTestFunc "teensy3" {};
-    aprinterTestCoreXyLaser = aprinterTestFunc "teensy3" { sourceName = "teensy3-corexy-laser"; };
-    
-    /*
-        Shortcuts for building all targets, possibly with assertions enabled.
-    */
-    allTestTargets = [
-        aprinterTestMelzi aprinterTestRamps13 aprinterTestMegatronics3
-        aprinterTestRampsfd aprinterTestRampsfdUart aprinterTestRadds
-        aprinterTestRaddsUart aprinterTest4pi aprinterTestMlab aprinterTestTeensy3
-        aprinterTestCoreXyLaser
-    ];
-    aprinterTestAll = aprinterSymlinksFunc allTestTargets;
-    aprinterTestAllDebug = aprinterSymlinksFunc (map (t: t.override { assertionsEnabled = true; }) allTestTargets);
-    
+        
     /*
         We need a specific version of NCD for the service.
     */

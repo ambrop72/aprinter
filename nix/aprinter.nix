@@ -65,6 +65,7 @@ stdenv.mkDerivation rec {
     configurePhase = ''
         rm config/*
         ln -s ${targetFile} config/nixbuild.sh
+        mkdir -p main
         ln -s ${mainFile} main/aprinter-nixbuild.cpp
     '';
     

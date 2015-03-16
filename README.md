@@ -47,10 +47,14 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
 Ports have been completed for the following boards:
 
   * Melzi (atmega1284p only),
-  * RAMPS 1.0, 1.1/1.2 or 1.3/1.4 (only RAMPS 1.4 with atmega2560 is tested),
-  * RAMPS-FD, RADDS or other setup based on Arduino Due.
-  * 4pi.
+  * RAMPS 1.3/1.4 (only RAMPS 1.4 with atmega2560 is tested),
+  * RAMPS-FD(*), RADDS.
+  * 4pi(*).
   * Teensy 3 (no standard board, needs manual wiring).
+
+The (*) mark means that the board is supported by the firmware code but is currently unavailable
+due to a lack of support in the web configuration system. If you want to try the firmware on one of these
+boards, plase contact me and I will try to add the support.
 
 ## Coding style
 
@@ -154,11 +158,10 @@ teensy-loader -mmcu=mk20dx128 "$HOME/aprinter-build/aprinter-nixbuild.hex"
 
 ## Runtime configuration
 
-Most configuration is specified in the main file of the firmware. After chaning any configuration in the main file, you need to recompile and reflash the firmware for the changes to take affect.
-
-Some degree of runtime configurability is implemented. This is in the form of named configuration values, as defined in the main file.
-
-Boards where runtime configuration is enabled: RADDS, RAMPS-FD, RAMPS, Melzi, 4pi, Teensy 3.
+When runtime configuration is available, the values of many parameters can be adjusted at runtime, and the values specified in
+the web GUI are used as defaults only.
+Notable things that cannot be configured at runtime are various structural aspects such as the presence of devices/features
+and hardware mapping of features (including pins).
 
 Board-specific notes:
 
@@ -183,20 +186,6 @@ Runtime configuration commands:
 After changing any configuration (either directly with `M926` or by loading an entire configuration with `M928`), the configuration needs to be applied with `M930`. Only then will the changes take effect. However, when the firmware starts up, the stored configuration is automatically loaded and applied, as if `M928` followed by `M930` was done.
 
 The `M930` command does not alter the current set of configuration values in any way. Rather, it recomputes a set of values in RAM which are derived from the configuration values. This is a one-way operation, there is no way to see what the current applied configuration is.
-
-## Testing it
-
-  * Connect to the printer with Pronterface, and make sure you use the right baud rate.
-    Find the right one in your main file. For native USB serial (Teensy 3, Arduino Due, 4pi), the baud rate
-    doesn't matter.
-  * Try homing and some basic motion.
-  * Check the current temperatures (M105).
-  * Only try turning on the heaters once you've verified that the temperatures are being reported correctly.
-    Be aware that if you have configured the wrong beta value,
-    the room teperature will be reported correctly, but other temperatures will be incorrect
-    (possibly lower, and you risk burning the heater in that case).
-    Obviously, take safety precausions here. I'm not responsible if your house burns down as a result of
-    using my software, or for any other damage.
 
 ## SD card support
 
@@ -337,31 +326,12 @@ meeting the endstop at the top.
 
 ## Slave steppers
 
-TBD: This feature has not yet been ported to the web GUI.
-
 Slave steppers are extra steppers assigned to an axis. They will be driven synchronously with the main stepper for the axis.
 Actually, the only difference between the main stepper and slave steppers is the way they are specified in the configuration.
 
-To add one or more slave steppers to an axis, specify them in the `PrinterMainAxisParams` after the microstep configuration, as follows.
-
-```
-// Add this to the config definition section somewhere.
-APRINTER_CONFIG_OPTION_BOOL(XSlave1InvertDir, false, ConfigNoProperties)
-
-PrinterMainAxisParams<
-    ...
-    PrinterMainNoMicroStepParams, // Don't forget the comma.
-    MakeTypeList<
-        PrinterMainSlaveStepperParams<
-            DuePinA9, // DirPin
-            DuePinA10, // StepPin
-            DuePinA11, // EnablePin
-            XSlave1InvertDir // InvertDir
-        >
-        // Add more if you need. Don't forget a comma above.
-    >
->
-```
+In the web GUI, slave steppers can be added in the Stepper section for a particular stepper.
+If there is no existing suitable stepper port definition, you will need to add one in the Board configuration.
+When doing this, note that for slave steppers, the "Stepper timer" does not need to be defined (set it to "Not defined").
 
 ## Laser support
 
