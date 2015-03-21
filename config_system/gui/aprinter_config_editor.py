@@ -61,6 +61,19 @@ def spi_choice(**kwargs):
         ]),
     ], **kwargs)
 
+def watchdog_at91sam():
+    return ce.Compound('At91SamWatchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
+        ce.Integer(key='Wdv', title='Wdv')
+    ])
+
+def pins_at91sam():
+    return ce.Compound('At91SamPins', key='pins', title='Pins', collapsed=True, attrs=[
+        ce.Constant(key='input_modes', value=[
+            { 'ident': 'At91SamPinInputModeNormal', 'name': 'Normal' },
+            { 'ident': 'At91SamPinInputModePullUp', 'name': 'Pull-up' }
+        ])
+    ])
+
 def platform_At91Sam3x8e():
     return ce.Compound('At91Sam3x8e', disable_collapse=True, attrs=[
         ce.Compound('At91Sam3xClock', key='clock', title='Clock', collapsed=True, attrs=[
@@ -81,15 +94,8 @@ def platform_At91Sam3x8e():
             ce.Integer(key='tracking', title='Tracking time'),
             ce.Integer(key='transfer', title='Transfer time')
         ]),
-        ce.Compound('At91SamWatchdog', key='watchdog', title='Watchdog', collapsed=True, attrs=[
-            ce.Integer(key='Wdv', title='Wdv')
-        ]),
-        ce.Compound('At91SamPins', key='pins', title='Pins', collapsed=True, attrs=[
-            ce.Constant(key='input_modes', value=[
-                { 'ident': 'At91SamPinInputModeNormal', 'name': 'Normal' },
-                { 'ident': 'At91SamPinInputModePullUp', 'name': 'Pull-up' }
-            ])
-        ]),
+        watchdog_at91sam(),
+        pins_at91sam(),
         ce.OneOf(key='pwm', title='PWM module', choices=[
             ce.Compound('Disabled', title='Disabled', disable_collapse=True, attrs=[]),
             ce.Compound('At91Sam3xPwm', title='Enabled', disable_collapse=True, attrs=[
@@ -99,6 +105,28 @@ def platform_At91Sam3x8e():
                 ce.Integer(key='DivB', title='Divisor B'),
             ]),
         ]),
+    ])
+
+def platform_At91Sam3u4e():
+    return ce.Compound('At91Sam3u4e', disable_collapse=True, attrs=[
+        ce.Compound('At91Sam3uClock', key='clock', title='Clock', collapsed=True, attrs=[
+            ce.Integer(key='prescaler', title='Prescaler'),
+            ce.String(key='primary_timer', title='Primary timer'),
+            ce.Constant(key='avail_oc_units', value=[
+                {
+                    'value': 'TC{}{}'.format(n, l)
+                } for n in range(3) for l in ('A', 'B', 'C')
+            ])
+        ]),
+        ce.Compound('At91Sam3uAdc', key='adc', title='ADC', collapsed=True, attrs=[
+            ce.Float(key='freq', title='Frequency'),
+            ce.Float(key='avg_interval', title='Averaging interval'),
+            ce.Float(key='smoothing', title='Smoothing factor'),
+            ce.Integer(key='startup', title='Startup time'),
+            ce.Integer(key='shtim', title='Sample and Hold time'),
+        ]),
+        watchdog_at91sam(),
+        pins_at91sam(),
     ])
 
 def platform_Teensy3():
@@ -243,6 +271,35 @@ def make_transform_type(transform_type, transform_title, segments_per_sec_releva
 def stepper_port_reference(context):
     return ce.Reference(key='stepper_port', title='Stepper port', ref_array=context.board_ref(['stepper_ports']), ref_id_key='Name', ref_name_key='Name')
 
+def microstep_choice(**kwargs):
+    return ce.OneOf(choices=[
+        ce.Compound('A4982', disable_collapse=True, attrs=[
+            pin_choice(key='Ms1Pin', title='MS1 output pin'),
+            pin_choice(key='Ms2Pin', title='MS2 output pin'),
+        ]),
+        ce.Compound('A4988', disable_collapse=True, attrs=[
+            pin_choice(key='Ms1Pin', title='MS1 output pin'),
+            pin_choice(key='Ms2Pin', title='MS2 output pin'),
+            pin_choice(key='Ms3Pin', title='MS3 output pin'),
+        ]),
+    ], **kwargs)
+
+def current_driver_choice(**kwargs):
+    return ce.OneOf(choices=[
+        ce.Compound('Ad5206Current', title='AD5206', disable_collapse=True, attrs=[
+            pin_choice(key='SsPin', title='SS pin'),
+            spi_choice(key='SpiService', title='SPI driver'),
+        ]),
+    ], **kwargs)
+
+def current_driver_channel_choice(**kwargs):
+    return ce.OneOf(choices=[
+        ce.Compound('Ad5206CurrentChannelParams', title='AD5206 channel', disable_collapse=True, attrs=[
+            ce.Integer(key='DevChannelIndex', title='Device channel index'),
+            ce.Float(key='ConversionFactor', title='Current conversion factor'),
+        ]),
+    ], **kwargs)
+
 class ConfigurationContext(object):
     def board_ref(self, what):
         return {'base': 'id_configuration.board_data', 'descend': what}
@@ -274,6 +331,8 @@ def editor():
                     stepper_port_reference(configuration_context),
                     ce.Boolean(key='InvertDir', title='Invert direction', default=False),
                 ])),
+                ce.Integer(key='MicroSteps', title='Micro-steps (if board supports micro-step configuration)', default=0),
+                ce.Float(key='Current', title='Motor current (if board supports current control) [mA]', default=0),
                 ce.Float(key='StepsPerUnit', title='Steps per unit [1/mm]', default=80),
                 ce.Float(key='MinPos', title='Minimum position [mm] (~-40000 for extruders)', default=0),
                 ce.Float(key='MaxPos', title='Maximum position [mm] (~40000 for extruders)', default=200),
@@ -393,6 +452,7 @@ def editor():
                 ce.Array(key='board_helper_includes', title='Board helper includes', disable_collapse=True, table=True, elem=ce.String(title='Name')),
                 ce.OneOf(key='platform', title='Platform', processing_order=-1, choices=[
                     platform_At91Sam3x8e(),
+                    platform_At91Sam3u4e(),
                     platform_Teensy3(),
                     platform_Avr('ATmega2560'),
                     platform_Avr('ATmega1284p'),
@@ -477,6 +537,14 @@ def editor():
                 ce.String(key='AxisDriverPrecisionParams', title='Stepping precision parameters', enum=['AxisDriverAvrPrecisionParams', 'AxisDriverDuePrecisionParams']),
                 ce.Float(key='EventChannelTimerClearance', title='Event channel timer clearance')
             ]),
+            ce.Compound('CurrentConfig', key='current_config', title='Motor current control', collapsed=True, attrs=[
+                ce.OneOf(key='current', title='Current control', choices=[
+                    ce.Compound('NoCurrent', title='Disabled', disable_collapse=True, attrs=[]),
+                    ce.Compound('Current', title='Enabled', disable_collapse=True, attrs=[
+                        current_driver_choice(key='current_driver', title='Current control driver'),
+                    ]),
+                ]),
+            ]),
             ce.Array(key='stepper_ports', title='Stepper ports', disable_collapse=True, copy_name_key='Name', elem=ce.Compound('stepper_port', title='Stepper port', title_key='Name', collapsed=True, attrs=[
                 ce.String(key='Name', title='Name'),
                 pin_choice(key='DirPin', title='Direction pin'),
@@ -485,6 +553,18 @@ def editor():
                 ce.OneOf(key='StepperTimer', title='Stepper timer', choices=[
                     interrupt_timer_choice(title='Defined', disable_collapse=True),
                     ce.Compound('NoTimer', title='Not defined (for slave steppers only)', disable_collapse=True, attrs=[]),
+                ]),
+                ce.OneOf(key='microstep', title='Micro-stepping', choices=[
+                    ce.Compound('NoMicroStep', title='Not controlled (hardwired/none)', disable_collapse=True, attrs=[]),
+                    ce.Compound('MicroStep', title='Controlled', disable_collapse=True, attrs=[
+                        microstep_choice(key='MicroStepDriver', title='Stepper driver chip'),
+                    ]),
+                ]),
+                ce.OneOf(key='current', title='Motor current control', choices=[
+                    ce.Compound('NoCurrent', title='Not controlled', disable_collapse=True, attrs=[]),
+                    ce.Compound('Current', title='Controlled', disable_collapse=True, attrs=[
+                        current_driver_channel_choice(key='DriverChannelParams', title='Driver-specific parameters'),
+                    ]),
                 ]),
             ])),
             ce.Array(key='digital_inputs', title='Digital inputs', disable_collapse=True, copy_name_key='Name', processing_order=-8, elem=ce.Compound('digital_input', title='Digital input', title_key='Name', collapsed=True, ident='id_board_digital_inputs', attrs=[

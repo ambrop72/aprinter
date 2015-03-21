@@ -315,6 +315,10 @@
           "_compoundName": "pwm_output"
         }
       ],
+      "name": "RADDS",
+      "_compoundName": "board",
+      "laser_ports": [],
+      "LedPin": "DuePin37",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelBufferSize": 32,
@@ -326,14 +330,16 @@
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
-      "laser_ports": [],
-      "name": "RADDS",
-      "LedPin": "DuePin37",
       "EventChannelTimer": {
         "_compoundName": "interrupt_timer",
         "oc_unit": "TC0A"
       },
-      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -398,7 +404,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1A"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "DuePin16",
@@ -409,7 +421,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2A"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "DuePin3",
@@ -420,7 +438,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3A"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "DuePinA6",
@@ -431,7 +455,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC4A"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "DuePinA9",
@@ -442,7 +472,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC5A"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "DuePin53",
@@ -453,7 +489,341 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC6A"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        }
+      ]
+    },
+    {
+      "platform_config": {
+        "platform": {
+          "_compoundName": "At91Sam3u4e",
+          "adc": {
+            "_compoundName": "At91Sam3uAdc",
+            "avg_interval": 0.0025,
+            "freq": 1000000,
+            "shtim": 15,
+            "smoothing": 0.95,
+            "startup": 255
+          },
+          "clock": {
+            "_compoundName": "At91Sam3uClock",
+            "avail_oc_units": [
+              {
+                "value": "TC0A"
+              },
+              {
+                "value": "TC0B"
+              },
+              {
+                "value": "TC0C"
+              },
+              {
+                "value": "TC1A"
+              },
+              {
+                "value": "TC1B"
+              },
+              {
+                "value": "TC1C"
+              },
+              {
+                "value": "TC2A"
+              },
+              {
+                "value": "TC2B"
+              },
+              {
+                "value": "TC2C"
+              }
+            ],
+            "prescaler": 3,
+            "primary_timer": "TC0"
+          },
+          "pins": {
+            "_compoundName": "At91SamPins",
+            "input_modes": [
+              {
+                "ident": "At91SamPinInputModeNormal",
+                "name": "Normal"
+              },
+              {
+                "ident": "At91SamPinInputModePullUp",
+                "name": "Pull-up"
+              }
+            ]
+          },
+          "watchdog": {
+            "Wdv": 260,
+            "_compoundName": "At91SamWatchdog"
+          }
+        },
+        "_compoundName": "PlatformConfig",
+        "board_for_build": "4pi",
+        "board_helper_includes": [],
+        "output_type": "bin"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "X-MIN",
+          "Pin": "At91SamPin<At91SamPioB,16>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Y-MIN",
+          "Pin": "At91SamPin<At91SamPioA,17>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Z-MIN",
+          "Pin": "At91SamPin<At91SamPioC,17>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "X-MAX",
+          "Pin": "At91SamPin<At91SamPioC,15>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Y-MAX",
+          "Pin": "At91SamPin<At91SamPioC,17>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Z-MAX",
+          "Pin": "At91SamPin<At91SamPioC,18>",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "analog_inputs": [
+        {
+          "Name": "T0",
+          "Pin": "At91SamPin<At91SamPioC,16>",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T1",
+          "Pin": "At91SamPin<At91SamPioB,4>",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T2",
+          "Pin": "At91SamPin<At91SamPioA,30>",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T3",
+          "Pin": "At91SamPin<At91SamPioB,3>",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "pwm_outputs": [
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "At91SamPin<At91SamPioA,20>",
+            "PulseInterval": 0.3,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TC0C"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "Heated Bed",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "At91SamPin<At91SamPioA,21>",
+            "PulseInterval": 0.2,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TC2B"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "Hot End 1",
+          "_compoundName": "pwm_output"
+        }
+      ],
+      "name": "4pi",
+      "_compoundName": "board",
+      "laser_ports": [],
+      "LedPin": "At91SamPin<At91SamPioC,22>",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxStepsPerCycle": 0.0017,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
+      },
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "Current",
+          "current_driver": {
+            "SpiService": {
+              "Device": "At91Sam3uSpiDevice",
+              "_compoundName": "At91SamSpi"
+            },
+            "SsPin": "At91SamPin<At91SamPioA,16>",
+            "_compoundName": "Ad5206Current"
+          }
+        }
+      },
+      "runtime_config": {
+        "_compoundName": "RuntimeConfig",
+        "config_manager": {
+          "ConfigStore": {
+            "_compoundName": "NoStore"
+          },
+          "_compoundName": "RuntimeConfigManager"
+        }
+      },
+      "sdcard_config": {
+        "_compoundName": "SdCardConfig",
+        "sdcard": {
+          "_compoundName": "NoSdCard"
+        }
+      },
+      "serial": {
+        "BaudRate": 115200,
+        "GcodeMaxParts": 16,
+        "RecvBufferSizeExp": 8,
+        "SendBufferSizeExp": 9,
+        "Service": {
+          "_compoundName": "AsfUsbSerial"
+        },
+        "_compoundName": "serial"
+      },
+      "stepper_ports": [
+        {
+          "DirPin": "At91SamPin<At91SamPioB,8>",
+          "EnablePin": "At91SamPin<At91SamPioC,31>",
+          "Name": "X",
+          "StepPin": "At91SamPin<At91SamPioC,28>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC1A"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "DriverChannelParams": {
+              "ConversionFactor": 0.1346,
+              "DevChannelIndex": 3,
+              "_compoundName": "Ad5206CurrentChannelParams"
+            },
+            "_compoundName": "Current"
+          },
+          "microstep": {
+            "MicroStepDriver": {
+              "Ms1Pin": "At91SamPin<At91SamPioC,30>",
+              "Ms2Pin": "At91SamPin<At91SamPioC,29>",
+              "_compoundName": "A4982"
+            },
+            "_compoundName": "MicroStep"
+          }
+        },
+        {
+          "DirPin": "At91SamPin<At91SamPioA,31>",
+          "EnablePin": "At91SamPin<At91SamPioA,22>",
+          "Name": "Y",
+          "StepPin": "At91SamPin<At91SamPioC,23>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC2A"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "DriverChannelParams": {
+              "ConversionFactor": 0.1346,
+              "DevChannelIndex": 1,
+              "_compoundName": "Ad5206CurrentChannelParams"
+            },
+            "_compoundName": "Current"
+          },
+          "microstep": {
+            "MicroStepDriver": {
+              "Ms1Pin": "At91SamPin<At91SamPioC,11>",
+              "Ms2Pin": "At91SamPin<At91SamPioC,10>",
+              "_compoundName": "A4982"
+            },
+            "_compoundName": "MicroStep"
+          }
+        },
+        {
+          "DirPin": "At91SamPin<At91SamPioC,27>",
+          "EnablePin": "At91SamPin<At91SamPioB,7>",
+          "Name": "Z",
+          "StepPin": "At91SamPin<At91SamPioA,27>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC0B"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "DriverChannelParams": {
+              "ConversionFactor": 0.1346,
+              "DevChannelIndex": 0,
+              "_compoundName": "Ad5206CurrentChannelParams"
+            },
+            "_compoundName": "Current"
+          },
+          "microstep": {
+            "MicroStepDriver": {
+              "Ms1Pin": "At91SamPin<At91SamPioB,6>",
+              "Ms2Pin": "At91SamPin<At91SamPioB,5>",
+              "_compoundName": "A4982"
+            },
+            "_compoundName": "MicroStep"
+          }
+        },
+        {
+          "DirPin": "At91SamPin<At91SamPioB,2>",
+          "EnablePin": "At91SamPin<At91SamPioB,13>",
+          "Name": "E",
+          "StepPin": "At91SamPin<At91SamPioC,26>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC1B"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "DriverChannelParams": {
+              "ConversionFactor": 0.1346,
+              "DevChannelIndex": 2,
+              "_compoundName": "Ad5206CurrentChannelParams"
+            },
+            "_compoundName": "Current"
+          },
+          "microstep": {
+            "MicroStepDriver": {
+              "Ms1Pin": "At91SamPin<At91SamPioB,12>",
+              "Ms2Pin": "At91SamPin<At91SamPioB,11>",
+              "_compoundName": "A4982"
+            },
+            "_compoundName": "MicroStep"
+          }
         }
       ]
     },
@@ -589,6 +959,10 @@
           "_compoundName": "pwm_output"
         }
       ],
+      "name": "Teensy 3",
+      "_compoundName": "board",
+      "laser_ports": [],
+      "LedPin": "TeensyPin13",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelBufferSize": 32,
@@ -600,14 +974,16 @@
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
-      "laser_ports": [],
-      "name": "Teensy 3",
-      "LedPin": "TeensyPin13",
       "EventChannelTimer": {
         "_compoundName": "interrupt_timer",
         "oc_unit": "FTM0_0"
       },
-      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -650,7 +1026,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_1"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "TeensyPin3",
@@ -661,7 +1043,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_2"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "TeensyPin5",
@@ -672,7 +1060,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_3"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "TeensyPin7",
@@ -683,7 +1077,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_4"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         }
       ]
     },
@@ -922,6 +1322,10 @@
           "_compoundName": "pwm_output"
         }
       ],
+      "name": "RAMPS 1.3",
+      "_compoundName": "board",
+      "laser_ports": [],
+      "LedPin": "MegaPin13",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
         "EventChannelBufferSize": 24,
@@ -933,14 +1337,16 @@
         "StepperSegmentBufferSize": 24,
         "_compoundName": "performance"
       },
-      "laser_ports": [],
-      "name": "RAMPS 1.3",
-      "LedPin": "MegaPin13",
       "EventChannelTimer": {
         "_compoundName": "interrupt_timer",
         "oc_unit": "TC5_C"
       },
-      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -997,7 +1403,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_A"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "MegaPin61",
@@ -1008,7 +1420,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_B"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "MegaPin48",
@@ -1019,7 +1437,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_C"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "MegaPin28",
@@ -1030,7 +1454,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC4_A"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "MegaPin34",
@@ -1041,7 +1471,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC4_B"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         }
       ]
     },
@@ -1191,6 +1627,10 @@
           "_compoundName": "pwm_output"
         }
       ],
+      "name": "Melzi",
+      "_compoundName": "board",
+      "laser_ports": [],
+      "LedPin": "AvrPin<AvrPortA,4>",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
         "EventChannelBufferSize": 32,
@@ -1202,14 +1642,16 @@
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
-      "laser_ports": [],
-      "name": "Melzi",
-      "LedPin": "AvrPin<AvrPortA,4>",
       "EventChannelTimer": {
         "_compoundName": "interrupt_timer",
         "oc_unit": "TC2_A"
       },
-      "_compoundName": "board",
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
       "runtime_config": {
         "_compoundName": "RuntimeConfig",
         "config_manager": {
@@ -1266,7 +1708,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0_A"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "AvrPin<AvrPortC,7>",
@@ -1277,7 +1725,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0_B"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "AvrPin<AvrPortB,2>",
@@ -1288,7 +1742,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_A"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         },
         {
           "DirPin": "AvrPin<AvrPortB,0>",
@@ -1299,7 +1759,13 @@
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_B"
           },
-          "_compoundName": "stepper_port"
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
         }
       ]
     }
@@ -1477,14 +1943,16 @@
       },
       "steppers": [
         {
-          "MinPos": -53,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": -53,
           "Name": "X",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1504,14 +1972,16 @@
           "stepper_port": "X"
         },
         {
-          "MinPos": 0,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 650,
           "MaxPos": 157,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1531,14 +2001,16 @@
           "stepper_port": "Y"
         },
         {
-          "MinPos": 0,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": true,
           "MaxAccel": 30,
           "MaxPos": 100,
           "MaxSpeed": 3,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
@@ -1558,14 +2030,16 @@
           "stepper_port": "Z"
         },
         {
-          "MinPos": -40000,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 1856,
           "_compoundName": "stepper",
@@ -1576,14 +2050,16 @@
           "stepper_port": "E1"
         },
         {
-          "MinPos": -40000,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": -40000,
           "Name": "U",
           "StepsPerUnit": 1320,
           "_compoundName": "stepper",
@@ -1592,6 +2068,240 @@
           },
           "slave_steppers": [],
           "stepper_port": "E2"
+        }
+      ],
+      "transform": {
+        "_compoundName": "NoTransform"
+      }
+    },
+    {
+      "board": "4pi",
+      "heaters": [
+        {
+          "WaitMCommand": 109,
+          "MaxSafeTemp": 280,
+          "Name": "T",
+          "SetMCommand": 104,
+          "ThermistorInput": "T1",
+          "MinSafeTemp": 10,
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.2,
+            "PidD": 0.17,
+            "PidDHistory": 0.7,
+            "PidI": 0.0006,
+            "PidIStateMax": 0.6,
+            "PidIStateMin": 0,
+            "PidP": 0.047,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3960,
+            "MaxTemp": 300,
+            "MinTemp": 10,
+            "R0": 100000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 3,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "Hot End 1"
+        },
+        {
+          "WaitMCommand": 190,
+          "MaxSafeTemp": 120,
+          "Name": "B",
+          "SetMCommand": 140,
+          "ThermistorInput": "T0",
+          "MinSafeTemp": 10,
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.3,
+            "PidD": 2.5,
+            "PidDHistory": 0.8,
+            "PidI": 0.012,
+            "PidIStateMax": 1,
+            "PidIStateMin": 0,
+            "PidP": 1,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3480,
+            "MaxTemp": 150,
+            "MinTemp": 10,
+            "R0": 10000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 1.5,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "Heated Bed"
+        }
+      ],
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "fans": [],
+      "_compoundName": "config",
+      "lasers": [],
+      "name": "4pi example",
+      "probe_config": {
+        "_compoundName": "ProbeConfig",
+        "probe": {
+          "ProbePin": "Z-MAX",
+          "FastSpeed": 2,
+          "LowHeight": 2,
+          "MoveSpeed": 120,
+          "OffsetX": -18,
+          "OffsetY": -31,
+          "InvertInput": false,
+          "ProbePoints": [
+            {
+              "X": 0,
+              "Y": 31,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "X": 0,
+              "Y": 155,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "X": 205,
+              "Y": 31,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "X": 205,
+              "Y": 155,
+              "_compoundName": "ProbePoint"
+            }
+          ],
+          "RetractDist": 1,
+          "RetractSpeed": 3,
+          "SlowSpeed": 0.6,
+          "StartHeight": 9,
+          "_compoundName": "Probe"
+        }
+      },
+      "steppers": [
+        {
+          "MicroSteps": 16,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 1500,
+          "MaxPos": 210,
+          "MaxSpeed": 300,
+          "Current": 128,
+          "MinPos": -53,
+          "Name": "X",
+          "StepsPerUnit": 160,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "X-MIN",
+            "HomeFastMaxDist": 280,
+            "HomeFastSpeed": 40,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "X"
+        },
+        {
+          "MicroSteps": 16,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 650,
+          "MaxPos": 157,
+          "MaxSpeed": 300,
+          "Current": 128,
+          "MinPos": 0,
+          "Name": "Y",
+          "StepsPerUnit": 160,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "Y-MIN",
+            "HomeFastMaxDist": 200,
+            "HomeFastSpeed": 40,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "Y"
+        },
+        {
+          "MicroSteps": 16,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": true,
+          "MaxAccel": 30,
+          "MaxPos": 100,
+          "MaxSpeed": 3,
+          "Current": 128,
+          "MinPos": 0,
+          "Name": "Z",
+          "StepsPerUnit": 8000,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "Z-MIN",
+            "HomeFastMaxDist": 101,
+            "HomeFastSpeed": 2,
+            "HomeRetractDist": 0.8,
+            "HomeRetractSpeed": 2,
+            "HomeSlowMaxDist": 1.2,
+            "HomeSlowSpeed": 0.6,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "Z"
+        },
+        {
+          "MicroSteps": 16,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": false,
+          "InvertDir": false,
+          "MaxAccel": 250,
+          "MaxPos": 40000,
+          "MaxSpeed": 45,
+          "Current": 128,
+          "MinPos": -40000,
+          "Name": "E",
+          "StepsPerUnit": 1856,
+          "_compoundName": "stepper",
+          "homing": {
+            "_compoundName": "no_homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "E"
         }
       ],
       "transform": {
@@ -1662,14 +2372,16 @@
       },
       "steppers": [
         {
-          "MinPos": 0,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": 0,
           "Name": "X",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1689,14 +2401,16 @@
           "stepper_port": "X"
         },
         {
-          "MinPos": 0,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1716,14 +2430,16 @@
           "stepper_port": "Y"
         },
         {
-          "MinPos": 0,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 30,
           "MaxPos": 100,
           "MaxSpeed": 3,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
@@ -1743,14 +2459,16 @@
           "stepper_port": "Z"
         },
         {
-          "MinPos": -40000,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 40,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 1856,
           "_compoundName": "stepper",
@@ -1863,14 +2581,16 @@
       },
       "steppers": [
         {
-          "MinPos": -53,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": -53,
           "Name": "X",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1890,14 +2610,16 @@
           "stepper_port": "X"
         },
         {
-          "MinPos": 0,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 650,
           "MaxPos": 155,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -1917,14 +2639,16 @@
           "stepper_port": "Y"
         },
         {
-          "MinPos": 0,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 30,
           "MaxPos": 100,
           "MaxSpeed": 3,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 4000,
           "_compoundName": "stepper",
@@ -1944,14 +2668,16 @@
           "stepper_port": "Z"
         },
         {
-          "MinPos": -40000,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 928,
           "_compoundName": "stepper",
@@ -2064,14 +2790,16 @@
       },
       "steppers": [
         {
-          "MinPos": 0,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": 0,
           "Name": "X",
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
@@ -2091,14 +2819,16 @@
           "stepper_port": "X"
         },
         {
-          "MinPos": 0,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
           "MaxSpeed": 300,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": 0,
           "Name": "Y",
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
@@ -2118,14 +2848,16 @@
           "stepper_port": "Y"
         },
         {
-          "MinPos": 0,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
           "InvertDir": false,
           "MaxAccel": 30,
           "MaxPos": 100,
           "MaxSpeed": 3,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": 0,
           "Name": "Z",
           "StepsPerUnit": 4000,
           "_compoundName": "stepper",
@@ -2145,14 +2877,16 @@
           "stepper_port": "Z"
         },
         {
-          "MinPos": -40000,
+          "MicroSteps": 0,
           "CorneringDistance": 40,
+          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": false,
           "MaxAccel": 250,
           "MaxPos": 40000,
           "MaxSpeed": 45,
-          "DistanceFactor": 1,
+          "Current": 0,
+          "MinPos": -40000,
           "Name": "E",
           "StepsPerUnit": 928,
           "_compoundName": "stepper",

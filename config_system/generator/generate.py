@@ -249,6 +249,11 @@ def setup_platform(gen, config, key):
         gen.add_platform_include('aprinter/platform/at91sam3x/at91sam3x_support.h')
         gen.add_init_call(-1, 'platform_init();')
     
+    @platform_sel.option('At91Sam3u4e')
+    def option(platform):
+        gen.add_platform_include('aprinter/platform/at91sam3u/at91sam3u_support.h')
+        gen.add_init_call(-1, 'platform_init();')
+    
     @platform_sel.option('Teensy3')
     def option(platform):
         gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
@@ -328,6 +333,16 @@ def At91Sam3xClockDef(x):
     x.TIMER_EXPR = lambda tc: 'At91Sam3xClockTC{}'.format(tc)
     x.TIMER_ISR = lambda tc: 'AMBRO_AT91SAM3X_CLOCK_TC{}_GLOBAL(MyClock, MyContext())'.format(tc)
 
+def At91Sam3uClockDef(x):
+    x.INCLUDE = 'system/At91Sam3uClock.h'
+    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('At91Sam3uClock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
+    x.TIMER_RE = '\\ATC([0-9])\\Z'
+    x.CHANNEL_RE = '\\ATC([0-9])([A-C])\\Z'
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3uClockInterruptTimerService<At91Sam3uClockTC{}, At91Sam3uClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC{}, At91Sam3uClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.TIMER_EXPR = lambda tc: 'At91Sam3uClockTC{}'.format(tc)
+    x.TIMER_ISR = lambda tc: 'AMBRO_AT91SAM3U_CLOCK_TC{}_GLOBAL(MyClock, MyContext())'.format(tc)
+
 def Mk20ClockDef(x):
     x.INCLUDE = 'system/Mk20Clock.h'
     x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Mk20Clock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
@@ -380,6 +395,10 @@ def setup_clock(gen, config, key):
     @clock_sel.option('At91Sam3xClock')
     def option(clock):
         return CommonClock(gen, clock, At91Sam3xClockDef)
+    
+    @clock_sel.option('At91Sam3uClock')
+    def option(clock):
+        return CommonClock(gen, clock, At91Sam3uClockDef)
     
     @clock_sel.option('Mk20Clock')
     def option(clock):
@@ -475,6 +494,27 @@ def setup_adc (gen, config, key):
                     adc_config.get_int('settling'),
                     adc_config.get_int('tracking'),
                     adc_config.get_int('transfer'),
+                    'At91SamAdcAvgParams<AdcAvgInterval>'
+                ])
+            ]),
+            'pin_func': lambda pin: 'At91SamAdcSmoothPin<{}, AdcSmoothing>'.format(pin)
+        }
+    
+    @adc_sel.option('At91Sam3uAdc')
+    def option(adc_config):
+        gen.add_aprinter_include('system/At91SamAdc.h')
+        gen.add_float_constant('AdcFreq', adc_config.get_float('freq'))
+        gen.add_float_constant('AdcAvgInterval', adc_config.get_float('avg_interval'))
+        gen.add_int_constant('uint16', 'AdcSmoothing', max(0, min(65535, int(adc_config.get_float('smoothing') * 65536.0))))
+        gen.add_isr('AMBRO_AT91SAM3U_ADC_GLOBAL(MyAdc, MyContext())')
+        
+        return {
+            'value_func': lambda pins: TemplateExpr('At91SamAdc', [
+                'MyContext', 'Program', pins,
+                TemplateExpr('At91Sam3uAdcParams', [
+                    'AdcFreq',
+                    adc_config.get_int('startup'),
+                    adc_config.get_int('shtim'),
                     'At91SamAdcAvgParams<AdcAvgInterval>'
                 ])
             ]),
@@ -754,6 +794,56 @@ def use_config_manager(gen, config, key, user):
     
     return config.do_selection(key, config_manager_sel)
 
+def use_microstep(gen, config, key):
+    ms_driver_sel = selection.Selection()
+    
+    @ms_driver_sel.option('A4982')
+    def option(ms_driver_config):
+        gen.add_aprinter_include('printer/microstep/A4982MicroStep.h')
+        
+        return 'A4982MicroStep, A4982MicroStepParams<{}, {}>'.format(
+            get_pin(gen, ms_driver_config, 'Ms1Pin'),
+            get_pin(gen, ms_driver_config, 'Ms2Pin'),
+        )
+    
+    @ms_driver_sel.option('A4988')
+    def option(ms_driver_config):
+        gen.add_aprinter_include('printer/microstep/A4988MicroStep.h')
+        
+        return 'A4988MicroStep, A4988MicroStepParams<{}, {}>'.format(
+            get_pin(gen, ms_driver_config, 'Ms1Pin'),
+            get_pin(gen, ms_driver_config, 'Ms2Pin'),
+            get_pin(gen, ms_driver_config, 'Ms3Pin'),
+        )
+    
+    return config.do_selection(key, ms_driver_sel)
+
+def use_current_driver(gen, config, key, user):
+    current_driver_sel = selection.Selection()
+    
+    @current_driver_sel.option('Ad5206Current')
+    def option(current_driver):
+        gen.add_aprinter_include('printer/current/Ad5206Current.h')
+        
+        return TemplateExpr('Ad5206CurrentService', [
+            get_pin(gen, current_driver, 'SsPin'),
+            use_spi(gen, current_driver, 'SpiService', '{}::GetSpi'.format(user)),
+        ])
+    
+    return config.do_selection(key, current_driver_sel)
+
+def use_current_driver_channel(gen, config, key, name):
+    current_driver_channel_sel = selection.Selection()
+    
+    @current_driver_channel_sel.option('Ad5206CurrentChannelParams')
+    def option(current_driver_channel):
+        return TemplateExpr('Ad5206CurrentChannelParams', [
+            current_driver_channel.get_int('DevChannelIndex'),
+            gen.add_float_config('{}CurrentConversionFactor'.format(name), current_driver_channel.get_float('ConversionFactor'))
+        ])
+    
+    return config.do_selection(key, current_driver_channel_sel)
+
 def generate(config_root_data, cfg_name, main_template):
     gen = GenState()
     
@@ -840,6 +930,8 @@ def generate(config_root_data, cfg_name, main_template):
                 sdcard_expr = board_data.get_config('sdcard_config').do_selection('sdcard', sdcard_sel)
                 
                 config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
+                
+                current_config = board_data.get_config('current_config')
             
             gen.add_aprinter_include('printer/PrinterMain.h')
             gen.add_float_constant('FanSpeedMultiply', 1.0 / 255.0)
@@ -891,6 +983,8 @@ def generate(config_root_data, cfg_name, main_template):
             
             probe_expr = config.get_config('probe_config').do_selection('probe', probe_sel)
             
+            current_control_channel_list = []
+            
             def stepper_cb(stepper, stepper_index):
                 name = stepper.get_id_char('Name')
                 
@@ -935,6 +1029,36 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_bool_config('{}S{}InvertDir'.format(name, 1 + slave_stepper_index), slave_stepper.get_bool('InvertDir')),
                     ])
                 
+                microstep_sel = selection.Selection()
+                
+                @microstep_sel.option('NoMicroStep')
+                def option(microstep_config):
+                    return 'PrinterMainNoMicroStepParams'
+                
+                @microstep_sel.option('MicroStep')
+                def option(microstep_config):
+                    return TemplateExpr('PrinterMainMicroStepParams', [
+                        use_microstep(gen, microstep_config, 'MicroStepDriver'),
+                        stepper.get_int('MicroSteps'),
+                    ])
+                
+                stepper_current_sel = selection.Selection()
+                
+                @stepper_current_sel.option('NoCurrent')
+                def option(stepper_current_config):
+                    pass
+                
+                @stepper_current_sel.option('Current')
+                def option(stepper_current_config):
+                    stepper_current_expr = TemplateExpr('PrinterMainCurrentAxis', [
+                        TemplateChar(name),
+                        gen.add_float_config('{}Current'.format(name), stepper.get_float('Current')),
+                        use_current_driver_channel(gen, stepper_current_config, 'DriverChannelParams', name),
+                    ])
+                    current_control_channel_list.append(stepper_current_expr)
+                
+                stepper_port.do_selection('current', stepper_current_sel)
+                
                 return TemplateExpr('PrinterMainAxisParams', [
                     TemplateChar(name),
                     get_pin(gen, stepper_port, 'DirPin'),
@@ -955,7 +1079,7 @@ def generate(config_root_data, cfg_name, main_template):
                         use_interrupt_timer(gen, stepper_port, 'StepperTimer', user='MyPrinter::GetAxisTimer<{}>'.format(stepper_index)),
                         'TheAxisDriverPrecisionParams'
                     ]),
-                    'PrinterMainNoMicroStepParams',
+                    stepper_port.do_selection('microstep', microstep_sel),
                     stepper.do_list('slave_steppers', slave_steppers_cb, max_count=10),
                 ])
             
@@ -1129,6 +1253,19 @@ def generate(config_root_data, cfg_name, main_template):
             
             lasers_expr = config.do_list('lasers', laser_cb, max_count=15)
             
+            current_sel = selection.Selection()
+            
+            @current_sel.option('NoCurrent')
+            def option(current):
+                return 'PrinterMainNoCurrentParams'
+            
+            @current_sel.option('Current')
+            def option(current):
+                return TemplateExpr('PrinterMainCurrentParams', [
+                    TemplateList(current_control_channel_list),
+                    use_current_driver(gen, current, 'current_driver', 'MyPrinter::GetCurrent<>')
+                ])
+            
             printer_params = TemplateExpr('PrinterMainParams', [
                 serial_expr,
                 led_pin_expr,
@@ -1146,7 +1283,7 @@ def generate(config_root_data, cfg_name, main_template):
                 watchdog_expr,
                 sdcard_expr,
                 probe_expr,
-                'PrinterMainNoCurrentParams',
+                current_config.do_selection('current', current_sel),
                 config_manager_expr,
                 'ConfigList',
                 steppers_expr,
