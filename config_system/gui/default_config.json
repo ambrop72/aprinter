@@ -327,6 +327,7 @@
         "LookaheadBufferSize": 28,
         "LookaheadCommitCount": 10,
         "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
@@ -684,6 +685,7 @@
         "LookaheadBufferSize": 28,
         "LookaheadCommitCount": 10,
         "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": true,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
@@ -1021,6 +1023,7 @@
         "LookaheadBufferSize": 28,
         "LookaheadCommitCount": 10,
         "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
@@ -1384,6 +1387,7 @@
         "LookaheadBufferSize": 10,
         "LookaheadCommitCount": 5,
         "MaxStepsPerCycle": 0.00137,
+        "OptimizeForSize": false,
         "StepperSegmentBufferSize": 24,
         "_compoundName": "performance"
       },
@@ -1689,6 +1693,7 @@
         "LookaheadBufferSize": 16,
         "LookaheadCommitCount": 8,
         "MaxStepsPerCycle": 0.00137,
+        "OptimizeForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },

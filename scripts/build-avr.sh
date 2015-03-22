@@ -74,8 +74,9 @@ check_depends_avr() {
 configure_avr() {
     echo "  Configuring AVR build"
 
+    FLAGS_OPT=( -O$( [[ $OPTIMIZE_FOR_SIZE = "1" ]] && echo s || echo 3 ) )
     CXXFLAGS=(
-        -std=c++11 -mmcu=${MCU} -DF_CPU=${F_CPU} -DNDEBUG -O3 -fwhole-program \
+        -std=c++11 -mmcu=${MCU} -DF_CPU=${F_CPU} -DNDEBUG "${FLAGS_OPT[@]}" -fwhole-program \
         -fno-math-errno -fno-trapping-math
         -ffunction-sections -fdata-sections -Wl,--gc-sections \
         -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS \

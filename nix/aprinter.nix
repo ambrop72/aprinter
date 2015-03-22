@@ -1,5 +1,5 @@
 { stdenv, writeText, bash, gcc-arm-embedded, gccAvrAtmel, asf, teensyCores, aprinterSource
-, buildName, boardName, mainText, desiredOutputs
+, buildName, boardName, mainText, desiredOutputs, optimizeForSize
 , assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false
 , detectOverloadEnabled ? false
@@ -13,6 +13,7 @@ let
     
     targetVars = {
         PLATFORM = board.platform;
+        OPTIMIZE_FOR_SIZE = if optimizeForSize then "1" else "0";
     } // (if board.platform == "sam3x" then {
         USE_USB_SERIAL = if forceUartSerial then "0" else "1";
     } else {}) // board.targetVars;

@@ -545,7 +545,8 @@ def editor():
                 ce.Integer(key='LookaheadCommitCount', title='Lookahead commit count'),
                 ce.String(key='FpType', enum=['float', 'double']),
                 ce.String(key='AxisDriverPrecisionParams', title='Stepping precision parameters', enum=['AxisDriverAvrPrecisionParams', 'AxisDriverDuePrecisionParams']),
-                ce.Float(key='EventChannelTimerClearance', title='Event channel timer clearance')
+                ce.Float(key='EventChannelTimerClearance', title='Event channel timer clearance'),
+                ce.Boolean(key='OptimizeForSize', title='Optimize compilation for program size', default=False),
             ]),
             ce.Compound('CurrentConfig', key='current_config', title='Motor current control', collapsed=True, attrs=[
                 ce.OneOf(key='current', title='Current control', choices=[

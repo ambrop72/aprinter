@@ -915,6 +915,7 @@ def generate(config_root_data, cfg_name, main_template):
                 for performance in board_data.enter_config('performance'):
                     gen.add_typedef('TheAxisDriverPrecisionParams', performance.get_identifier('AxisDriverPrecisionParams'))
                     gen.add_float_constant('EventChannelTimerClearance', performance.get_float('EventChannelTimerClearance'))
+                    optimize_for_size = performance.get_bool('OptimizeForSize')
                 
                 for serial in board_data.enter_config('serial'):
                     serial_expr = TemplateExpr('PrinterMainSerialParams', [
@@ -1325,7 +1326,8 @@ def generate(config_root_data, cfg_name, main_template):
     return {
         'main_source': rich_template.RichTemplate(main_template).substitute(gen.get_subst()),
         'board_for_build': board_for_build,
-        'output_type': output_type
+        'output_type': output_type,
+        'optimize_for_size': optimize_for_size,
     }
 
 def main():
@@ -1356,10 +1358,11 @@ def main():
     with file_utils.use_output_file(args.output) as output_f:
         if args.nix:
             nix_dir = args.nix_dir if args.nix_dir is not None else os.path.join(src_dir, '..', '..', 'nix')
-            nix = 'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{ boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; mainText = {}; }}'.format(
+            nix = 'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{ boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; optimizeForSize = {}; mainText = {}; }}'.format(
                 nix_utils.escape_string_for_nix(nix_dir),
                 nix_utils.escape_string_for_nix(result['board_for_build']),
                 nix_utils.escape_string_for_nix(result['output_type']),
+                ('true' if result['optimize_for_size'] else 'false'),
                 nix_utils.escape_string_for_nix(result['main_source'])
             )
             output_f.write(nix)
