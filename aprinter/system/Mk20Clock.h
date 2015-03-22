@@ -45,6 +45,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
+#include <aprinter/base/Optimize.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/system/Mk20Pins.h>
 
@@ -212,6 +213,7 @@ private:
             
             using ChannelsList = IndexElemList<Channels, Channel>;
             
+            AMBRO_OPTIMIZE_SPEED
             static void handle_irq (InterruptContext<Context> c)
             {
                 if (FtmIndex == 0) {
@@ -391,6 +393,7 @@ public:
     }
     
     template <typename ThisContext>
+    AMBRO_OPTIMIZE_SPEED
     static void setFirst (ThisContext c, TimeType time)
     {
         auto *o = Object::self(c);
@@ -418,6 +421,7 @@ public:
         }
     }
     
+    AMBRO_OPTIMIZE_SPEED
     static void setNext (HandlerContext c, TimeType time)
     {
         auto *o = Object::self(c);
@@ -437,6 +441,7 @@ public:
     }
     
     template <typename ThisContext>
+    AMBRO_OPTIMIZE_SPEED
     static void unset (ThisContext c)
     {
         auto *o = Object::self(c);
@@ -459,6 +464,7 @@ public:
         return o->m_time;
     }
     
+    AMBRO_OPTIMIZE_SPEED
     static void irq_handler (InterruptContext<Context> c, TimeType irq_time)
     {
         auto *o = Object::self(c);

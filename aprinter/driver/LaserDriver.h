@@ -37,6 +37,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Inline.h>
+#include <aprinter/base/Optimize.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -81,6 +82,7 @@ public:
         bool is_accel;
     };
     
+    AMBRO_OPTIMIZE_SPEED
     AMBRO_ALWAYS_INLINE
     static void generate_command (TimeFixedType duration, FpType v_start, FpType v_end, Command *cmd)
     {
@@ -152,6 +154,7 @@ public:
     }
     
 private:
+    AMBRO_OPTIMIZE_SPEED
     static bool timer_callback (typename TheTimer::HandlerContext c)
     {
         auto *o = Object::self(c);

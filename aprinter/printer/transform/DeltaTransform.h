@@ -29,6 +29,7 @@
 
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/base/Object.h>
+#include <aprinter/base/Optimize.h>
 #include <aprinter/math/Vector3.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/DistanceSplitter.h>
@@ -50,6 +51,7 @@ public:
     static int const NumAxes = 3;
     
     template <typename Src, typename Dst>
+    AMBRO_OPTIMIZE_SPEED
     static void virtToPhys (Context c, Src virt, Dst out_phys)
     {
         out_phys.template set<0>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - square(APRINTER_CFG(Config, CTower1X, c) - virt.template get<0>()) - square(APRINTER_CFG(Config, CTower1Y, c) - virt.template get<1>())) + virt.template get<2>());

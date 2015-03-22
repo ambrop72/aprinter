@@ -51,6 +51,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/base/Optimize.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/driver/AxisDriverConsumer.h>
@@ -380,6 +381,7 @@ private:
             return (accum || o->m_busy);
         }
         
+        AMBRO_OPTIMIZE_SPEED
         static bool stepper_command_callback (StepperCommandCallbackContext c, StepperCommand **cmd)
         {
             auto *o = Object::self(c);
@@ -504,6 +506,7 @@ public:
             return (accum && axis_split->x.bitsValue() == 0);
         }
         
+        AMBRO_OPTIMIZE_SPEED
         static void write_segment_buffer_entry (Context c, Segment *entry)
         {
             auto *m = MotionPlanner::Object::self(c);
@@ -559,6 +562,7 @@ public:
         }
         
         template <typename AccumType, typename TheComputeStateTuple>
+        AMBRO_OPTIMIZE_SPEED
         static FpType do_junction_limit (AccumType accum, Context c, Segment const *entry, FpType distance_rec, TheComputeStateTuple const *cst)
         {
             auto *o = Object::self(c);
@@ -574,6 +578,7 @@ public:
         }
         
         template <typename TheMinTimeType>
+        AMBRO_OPTIMIZE_SPEED
         static void gen_segment_stepper_commands (Context c, Segment *entry, FpType frac_x0, FpType frac_x2, TheMinTimeType t0, TheMinTimeType t2, TheMinTimeType t1, FpType t0_squared, FpType t2_squared)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
@@ -618,6 +623,7 @@ public:
             TheAxisDriver::template start<TheAxisDriverConsumer<AxisIndex>>(c, start_time, cmd);
         }
         
+        AMBRO_OPTIMIZE_SPEED
         static bool stepper_prestep_callback (StepperCommandCallbackContext c)
         {
             auto *m = MotionPlanner::Object::self(c);
@@ -779,6 +785,7 @@ public:
         }
         
         template <typename TheTheMinTimeType>
+        AMBRO_OPTIMIZE_SPEED
         static void gen_segment_stepper_commands (Context c, Segment *entry, TheTheMinTimeType t0, TheTheMinTimeType t2, TheTheMinTimeType t1, FpType v_start, FpType v_end, FpType v_const)
         {
             TheLaserSegment *laser_segment = TupleGetElem<LaserIndex>(entry->axes.lasers());
@@ -969,6 +976,7 @@ public:
             return (accum || o->m_busy);
         }
         
+        AMBRO_OPTIMIZE_SPEED
         static bool timer_handler (typename TheTimer::HandlerContext c)
         {
             auto *o = Object::self(c);
@@ -1094,6 +1102,7 @@ public:
         return &o->m_split_buffer;
     }
     
+    AMBRO_OPTIMIZE_SPEED
     static void axesCommandDone (Context c)
     {
         auto *o = Object::self(c);
@@ -1202,6 +1211,7 @@ public:
     using EventLoopFastEvents = MakeTypeList<StepperFastEvent, CallbackFastEvent>;
     
 private:
+    AMBRO_OPTIMIZE_SPEED
     static bool plan (Context c)
     {
         auto *o = Object::self(c);
@@ -1317,6 +1327,7 @@ private:
         ListForEachForward<ChannelsList>(LForeach_start_stepping(), c, start_time);
     }
     
+    AMBRO_OPTIMIZE_SPEED
     static void callback_event_handler (Context c)
     {
         auto *o = Object::self(c);
@@ -1341,6 +1352,7 @@ private:
         }
     }
     
+    AMBRO_OPTIMIZE_SPEED
     AMBRO_ALWAYS_INLINE static bool planner_have_commit_space (Context c)
     {
         return
@@ -1348,6 +1360,7 @@ private:
             ListForEachForwardAccRes<ChannelsList>(true, LForeach_have_commit_space(), c);
     }
     
+    AMBRO_OPTIMIZE_SPEED
     AMBRO_ALWAYS_INLINE static bool planner_is_busy (Context c)
     {
         return
@@ -1355,6 +1368,7 @@ private:
             ListForEachForwardAccRes<ChannelsList>(false, LForeach_is_busy(), c);
     }
     
+    AMBRO_OPTIMIZE_SPEED
     static void stepper_event_handler (Context c)
     {
         auto *o = Object::self(c);
@@ -1481,6 +1495,7 @@ private:
         }
     }
     
+    AMBRO_OPTIMIZE_SPEED
     static SegmentBufferSizeType segments_add (SegmentBufferSizeType i, SegmentBufferSizeType j)
     {
         SegmentBufferSizeType res = i + j;

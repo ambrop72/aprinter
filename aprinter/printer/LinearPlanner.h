@@ -26,6 +26,7 @@
 #define AMBROLIB_LINEAR_PLANNER_H
 
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Optimize.h>
 #include <aprinter/math/FloatTools.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -52,6 +53,7 @@ struct LinearPlanner {
         FpType const_v;
     };
     
+    AMBRO_OPTIMIZE_SPEED
     static void initSegment (SegmentData *segment, FpType prev_max_v, FpType max_start_v, FpType max_v, FpType a_x)
     {
         AMBRO_ASSERT(FloatIsPosOrPosZero(prev_max_v))
@@ -66,6 +68,7 @@ struct LinearPlanner {
         segment->two_max_v_minus_a_x = 2 * max_v - a_x;
     }
     
+    AMBRO_OPTIMIZE_SPEED
     static FpType push (SegmentData *segment, SegmentState *s, FpType end_v)
     {
         AMBRO_ASSERT(FloatIsPosOrPosZero(segment->a_x))
@@ -79,6 +82,7 @@ struct LinearPlanner {
         return FloatMin(segment->max_start_v, end_v + segment->a_x);
     }
 
+    AMBRO_OPTIMIZE_SPEED
     static FpType pull (SegmentData *segment, SegmentState *s, FpType start_v, SegmentResult *result)
     {
         AMBRO_ASSERT(s->end_v <= segment->max_v)
