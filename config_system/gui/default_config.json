@@ -650,11 +650,25 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC2B"
+              "oc_unit": "TC1C"
             },
             "_compoundName": "SoftPwm"
           },
           "Name": "Hot End 1",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "At91SamPin<At91SamPioA,23>",
+            "PulseInterval": 0.2,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TC2C"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "Hot End 2",
           "_compoundName": "pwm_output"
         }
       ],
@@ -820,6 +834,33 @@
             "MicroStepDriver": {
               "Ms1Pin": "At91SamPin<At91SamPioB,12>",
               "Ms2Pin": "At91SamPin<At91SamPioB,11>",
+              "_compoundName": "A4982"
+            },
+            "_compoundName": "MicroStep"
+          }
+        },
+        {
+          "DirPin": "At91SamPin<At91SamPioC,25>",
+          "EnablePin": "At91SamPin<At91SamPioC,13>",
+          "Name": "U",
+          "StepPin": "At91SamPin<At91SamPioB,1>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC2B"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "DriverChannelParams": {
+              "ConversionFactor": 0.1346,
+              "DevChannelIndex": 5,
+              "_compoundName": "Ad5206CurrentChannelParams"
+            },
+            "_compoundName": "Current"
+          },
+          "microstep": {
+            "MicroStepDriver": {
+              "Ms1Pin": "At91SamPin<At91SamPioB,0>",
+              "Ms2Pin": "At91SamPin<At91SamPioC,24>",
               "_compoundName": "A4982"
             },
             "_compoundName": "MicroStep"
@@ -2112,6 +2153,40 @@
           "pwm_output": "Hot End 1"
         },
         {
+          "WaitMCommand": 409,
+          "MaxSafeTemp": 280,
+          "Name": "U",
+          "SetMCommand": 404,
+          "ThermistorInput": "T2",
+          "MinSafeTemp": 10,
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.2,
+            "PidD": 0.17,
+            "PidDHistory": 0.7,
+            "PidI": 0.0006,
+            "PidIStateMax": 0.6,
+            "PidIStateMin": 0,
+            "PidP": 0.047,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3960,
+            "MaxTemp": 300,
+            "MinTemp": 10,
+            "R0": 100000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 3,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "Hot End 2"
+        },
+        {
           "WaitMCommand": 190,
           "MaxSafeTemp": 120,
           "Name": "B",
@@ -2302,6 +2377,26 @@
           },
           "slave_steppers": [],
           "stepper_port": "E"
+        },
+        {
+          "MicroSteps": 16,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": false,
+          "InvertDir": false,
+          "MaxAccel": 250,
+          "MaxPos": 40000,
+          "MaxSpeed": 45,
+          "Current": 128,
+          "MinPos": -40000,
+          "Name": "U",
+          "StepsPerUnit": 1856,
+          "_compoundName": "stepper",
+          "homing": {
+            "_compoundName": "no_homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "U"
         }
       ],
       "transform": {
