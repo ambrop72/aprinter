@@ -712,7 +712,30 @@ def use_eeprom(gen, config, key, user):
         gen.add_isr('AMBRO_AVR_EEPROM_ISRS({}, MyContext())'.format(user))
         return TemplateExpr('AvrEepromService', [eeprom.get_int('FakeBlockSize')])
     
+    @eeprom_sel.option('FlashWrapper')
+    def option(eeprom):
+        gen.add_aprinter_include('devices/FlashWrapper.h')
+        return TemplateExpr('FlashWrapperService', [
+            use_flash(gen, eeprom, 'FlashDriver', '{}::GetFlash'.format(user)),
+        ])
+    
     return config.do_selection(key, eeprom_sel)
+
+def use_flash(gen, config, key, user):
+    flash_sel = selection.Selection()
+    
+    @flash_sel.option('At91SamFlash')
+    def option(flash):
+        device_index = flash.get_int('DeviceIndex')
+        if not (0 <= device_index < 10):
+            flash.key_path('DeviceIndex').error('Invalid device index.')
+        gen.add_aprinter_include('system/At91Sam3xFlash.h')
+        gen.add_isr('AMBRO_AT91SAM3X_FLASH_GLOBAL({}, {}, MyContext())'.format(device_index, user))
+        return TemplateExpr('At91Sam3xFlashService', [
+            'At91Sam3xFlashDevice{}'.format(device_index)
+        ])
+    
+    return config.do_selection(key, flash_sel)
 
 def use_serial(gen, config, key, user):
     serial_sel = selection.Selection()

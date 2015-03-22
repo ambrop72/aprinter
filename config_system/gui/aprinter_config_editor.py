@@ -300,6 +300,13 @@ def current_driver_channel_choice(**kwargs):
         ]),
     ], **kwargs)
 
+def flash_choice(**kwargs):
+    return ce.OneOf(choices=[
+        ce.Compound('At91SamFlash', title='AT91 flash', disable_collapse=True, attrs=[
+            ce.Integer(key='DeviceIndex', title='Flash device index'),
+        ]),
+    ], **kwargs)
+
 class ConfigurationContext(object):
     def board_ref(self, what):
         return {'base': 'id_configuration.board_data', 'descend': what}
@@ -483,6 +490,9 @@ def editor():
                                     ]),
                                     ce.Compound('AvrEeprom', disable_collapse=True, attrs=[
                                         ce.Integer(key='FakeBlockSize'),
+                                    ]),
+                                    ce.Compound('FlashWrapper', disable_collapse=True, attrs=[
+                                        flash_choice(key='FlashDriver', title='Flash driver'),
                                     ]),
                                 ]),
                             ])

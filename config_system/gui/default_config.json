@@ -709,7 +709,16 @@
         "_compoundName": "RuntimeConfig",
         "config_manager": {
           "ConfigStore": {
-            "_compoundName": "NoStore"
+            "Eeprom": {
+              "FlashDriver": {
+                "DeviceIndex": 1,
+                "_compoundName": "At91SamFlash"
+              },
+              "_compoundName": "FlashWrapper"
+            },
+            "EndBlock": 512,
+            "StartBlock": 0,
+            "_compoundName": "EepromConfigStore"
           },
           "_compoundName": "RuntimeConfigManager"
         }
