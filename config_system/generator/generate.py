@@ -777,10 +777,13 @@ def use_sdcard(gen, config, key, user):
 
     @sd_service_sel.option('SpiSdCard')
     def option(spi_sd):
+        gen.add_aprinter_include('printer/input/SdCardInput.h')
         gen.add_aprinter_include('devices/SpiSdCard.h')
-        return TemplateExpr('SpiSdCardService', [
-            get_pin(gen, spi_sd, 'SsPin'),
-            use_spi(gen, spi_sd, 'SpiService', '{}::GetSpi'.format(user)),
+        return TemplateExpr('SdCardInputService', [
+            TemplateExpr('SpiSdCardService', [
+                get_pin(gen, spi_sd, 'SsPin'),
+                use_spi(gen, spi_sd, 'SpiService', '{}::GetSdCard::GetSpi'.format(user)),
+            ]),
         ])
 
     return config.do_selection(key, sd_service_sel)
@@ -945,7 +948,7 @@ def generate(config_root_data, cfg_name, main_template):
                         return 'BinaryGcodeParser, BinaryGcodeParserParams<{}>'.format(parser.get_int('MaxParts'))
                     
                     return TemplateExpr('PrinterMainSdCardParams', [
-                        use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetSdCard<>'),
+                        use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetInput<>'),
                         sdcard.do_selection('GcodeParser', gcode_parser_sel),
                         sdcard.get_int('BufferBaseSize'),
                         sdcard.get_int('MaxCommandSize'),

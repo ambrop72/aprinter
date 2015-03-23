@@ -79,6 +79,7 @@
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/Command.h>
+#include <aprinter/printer/InputCommon.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -303,7 +304,7 @@ struct PrinterMainNoSdCardParams {
 };
 
 template <
-    typename TSdCardService,
+    typename TInputService,
     template<typename, typename, typename, typename> class TGcodeParserTemplate,
     typename TTheGcodeParserParams,
     size_t TBufferBaseSize,
@@ -311,7 +312,7 @@ template <
 >
 struct PrinterMainSdCardParams {
     static bool const Enabled = true;
-    using SdCardService = TSdCardService;
+    using InputService = TInputService;
     template <typename X, typename Y, typename Z, typename W> using GcodeParserTemplate = TGcodeParserTemplate<X, Y, Z, W>;
     using TheGcodeParserParams = TTheGcodeParserParams;
     static size_t const BufferBaseSize = TBufferBaseSize;
@@ -986,26 +987,24 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     AMBRO_STRUCT_IF(SdCardFeature, Params::SdCardParams::Enabled) {
         struct Object;
-        struct SdCardInitHandler;
-        struct SdCardCommandHandler;
+        struct InputActivateHandler;
+        struct InputReadHandler;
         
+        using TheInput = typename Params::SdCardParams::InputService::template Input<Context, Object, InputClientParams<InputActivateHandler, InputReadHandler>>;
         static const size_t BufferBaseSize = Params::SdCardParams::BufferBaseSize;
         static const size_t MaxCommandSize = Params::SdCardParams::MaxCommandSize;
-        static const size_t BlockSize = 512;
         static_assert(MaxCommandSize > 0, "");
-        static_assert(BufferBaseSize >= BlockSize + (MaxCommandSize - 1), "");
+        static_assert(BufferBaseSize >= TheInput::NeedBufAvail + (MaxCommandSize - 1), "");
         static const size_t WrapExtraSize = MaxCommandSize - 1;
         using ParserSizeType = ChooseInt<BitsInInt<MaxCommandSize>::Value, false>;
-        using TheSdCard = typename Params::SdCardParams::SdCardService::template SdCard<Context, Object, 1, SdCardInitHandler, SdCardCommandHandler>;
         using TheGcodeParser = typename Params::SdCardParams::template GcodeParserTemplate<Context, Object, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
-        using SdCardReadState = typename TheSdCard::ReadState;
         using TheChannelCommon = ChannelCommon<Object, SdCardFeature>;
         enum {SDCARD_NONE, SDCARD_INITING, SDCARD_INITED, SDCARD_RUNNING, SDCARD_PAUSING};
         
         static void init (Context c)
         {
             auto *o = Object::self(c);
-            TheSdCard::init(c);
+            TheInput::init(c);
             TheChannelCommon::init(c);
             o->m_next_event.init(c, SdCardFeature::next_event_handler);
             o->m_state = SDCARD_NONE;
@@ -1018,10 +1017,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 TheGcodeParser::deinit(c);
             }
             o->m_next_event.deinit(c);
-            TheSdCard::deinit(c);
+            TheInput::deinit(c);
         }
         
-        static void sd_card_init_handler (Context c, uint8_t error_code)
+        static void input_activate_handler (Context c, uint8_t error_code)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->m_state == SDCARD_INITING)
@@ -1033,7 +1032,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 TheGcodeParser::init(c);
                 o->m_start = 0;
                 o->m_length = 0;
-                o->m_sd_block = 0;
             }
             
             TheCommand *cmd = get_locked(c);
@@ -1041,46 +1039,41 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 cmd->reply_append_pstr(c, AMBRO_PSTR("SD error "));
                 cmd->reply_append_uint8(c, error_code);
             } else {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("SD blocks "));
-                cmd->reply_append_uint32(c, TheSdCard::getCapacityBlocks(c));
+                cmd->reply_append_pstr(c, AMBRO_PSTR("SD inited"));
             }
             cmd->reply_append_ch(c, '\n');
             cmd->finishCommand(c);
         }
+        struct InputActivateHandler : public AMBRO_WFUNC_TD(&SdCardFeature::input_activate_handler) {};
         
-        static void sd_card_command_handler (Context c)
+        static void input_read_handler (Context c, bool error, size_t bytes_read)
         {
             auto *o = Object::self(c);
             auto *co = TheChannelCommon::Object::self(c);
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING || o->m_state == SDCARD_PAUSING)
             buf_sanity(c);
             AMBRO_ASSERT(o->m_reading)
-            AMBRO_ASSERT(can_read(c))
             
-            bool error;
-            if (!TheSdCard::checkReadBlock(c, &o->m_read_state, &error)) {
-                return;
+            o->m_reading = false;
+            if (!error) {
+                size_t write_offset = buf_add(o->m_start, o->m_length);
+                if (write_offset < WrapExtraSize) {
+                    memcpy(o->m_buffer + BufferBaseSize + write_offset, o->m_buffer + write_offset, MinValue(bytes_read, WrapExtraSize - write_offset));
+                }
+                if (bytes_read > BufferBaseSize - write_offset) {
+                    memcpy(o->m_buffer + BufferBaseSize, o->m_buffer, MinValue(bytes_read - (BufferBaseSize - write_offset), WrapExtraSize));
+                }
+                o->m_length += bytes_read;
             }
-            TheSdCard::unsetEvent(c);
             if (o->m_state == SDCARD_PAUSING) {
                 o->m_state = SDCARD_INITED;
                 return finish_locked(c);
             }
-            o->m_reading = false;
             if (error) {
                 SerialFeature::TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("//SdRdEr\n"));
                 SerialFeature::TheChannelCommon::impl(c)->reply_poke(c);
                 return start_read(c);
             }
-            o->m_sd_block++;
-            size_t write_offset = buf_add(o->m_start, o->m_length);
-            if (write_offset < WrapExtraSize) {
-                memcpy(o->m_buffer + BufferBaseSize + write_offset, o->m_buffer + write_offset, MinValue(BlockSize, WrapExtraSize - write_offset));
-            }
-            if (BlockSize > BufferBaseSize - write_offset) {
-                memcpy(o->m_buffer + BufferBaseSize, o->m_buffer, MinValue(BlockSize - (BufferBaseSize - write_offset), WrapExtraSize));
-            }
-            o->m_length += BlockSize;
             if (can_read(c)) {
                 start_read(c);
             }
@@ -1088,6 +1081,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 o->m_next_event.prependNowNotAlready(c);
             }
         }
+        struct InputReadHandler : public AMBRO_WFUNC_TD(&SdCardFeature::input_read_handler) {};
         
         static void next_event_handler (typename Loop::QueuedEvent *, Context c)
         {
@@ -1114,7 +1108,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 eof_str = AMBRO_PSTR("//SdLnEr\n");
                 goto eof;
             }
-            if (o->m_sd_block == TheSdCard::getCapacityBlocks(c)) {
+            if (TheInput::eofReached(c)) {
                 eof_str = AMBRO_PSTR("//SdEnd\n");
                 goto eof;
             }
@@ -1140,7 +1134,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     cmd->finishCommand(c);
                     return false;
                 }
-                TheSdCard::activate(c);
+                TheInput::activate(c);
                 o->m_state = SDCARD_INITING;
                 return false;
             }
@@ -1158,7 +1152,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 o->m_state = SDCARD_NONE;
                 o->m_next_event.unset(c);
                 TheChannelCommon::maybeCancelLockingCommand(c);
-                TheSdCard::deactivate(c);
+                TheInput::deactivate(c);
                 return false;
             }
             if (cmd->getCmdNumber(c) == 24) {
@@ -1253,7 +1247,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static bool can_read (Context c)
         {
             auto *o = Object::self(c);
-            return (BufferBaseSize - o->m_length >= BlockSize && o->m_sd_block < TheSdCard::getCapacityBlocks(c));
+            return TheInput::canRead(c, BufferBaseSize - o->m_length);
         }
         
         static size_t buf_add (size_t start, size_t count)
@@ -1274,8 +1268,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             o->m_reading = true;
             size_t write_offset = buf_add(o->m_start, o->m_length);
-            size_t write_wrap_len = MinValue(BlockSize, BufferBaseSize - write_offset);
-            TheSdCard::queueReadBlock(c, o->m_sd_block, o->m_buffer + write_offset, write_wrap_len, o->m_buffer, &o->m_read_state);
+            TheInput::startRead(c, BufferBaseSize - o->m_length, BufferBaseSize - write_offset, o->m_buffer + write_offset, o->m_buffer);
         }
         
         static void buf_sanity (Context c)
@@ -1285,24 +1278,19 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             AMBRO_ASSERT(o->m_length <= BufferBaseSize)
         }
         
-        struct SdCardInitHandler : public AMBRO_WFUNC_TD(&SdCardFeature::sd_card_init_handler) {};
-        struct SdCardCommandHandler : public AMBRO_WFUNC_TD(&SdCardFeature::sd_card_command_handler) {};
-        
         using SdChannelCommonList = MakeTypeList<TheChannelCommon>;
         
         struct Object : public ObjBase<SdCardFeature, typename PrinterMain::Object, MakeTypeList<
-            TheSdCard,
+            TheInput,
             TheChannelCommon,
             TheGcodeParser
         >> {
             typename Loop::QueuedEvent m_next_event;
             uint8_t m_state;
-            SdCardReadState m_read_state;
             size_t m_start;
             size_t m_length;
             bool m_eof;
             bool m_reading;
-            uint32_t m_sd_block;
             uint8_t m_buffer[BufferBaseSize + WrapExtraSize];
         };
     } AMBRO_STRUCT_ELSE(SdCardFeature) {
@@ -3135,7 +3123,7 @@ public:
     using GetEventChannelTimer = typename ThePlanner::template GetChannelTimer<0>;
     
     template <typename TSdCardFeatue = SdCardFeature>
-    using GetSdCard = typename TSdCardFeatue::TheSdCard;
+    using GetInput = typename TSdCardFeatue::TheInput;
     
     template <typename TCurrentFeatue = CurrentFeature>
     using GetCurrent = typename TCurrentFeatue::Current;
