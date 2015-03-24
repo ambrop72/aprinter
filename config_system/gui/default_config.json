@@ -503,6 +503,465 @@
     {
       "platform_config": {
         "platform": {
+          "_compoundName": "At91Sam3x8e",
+          "adc": {
+            "_compoundName": "At91SamAdc",
+            "avg_interval": 0.0025,
+            "freq": 1000000,
+            "settling": 3,
+            "smoothing": 0.95,
+            "startup": 8,
+            "tracking": 0,
+            "transfer": 1
+          },
+          "clock": {
+            "_compoundName": "At91Sam3xClock",
+            "avail_oc_units": [
+              {
+                "value": "TC0A"
+              },
+              {
+                "value": "TC0B"
+              },
+              {
+                "value": "TC0C"
+              },
+              {
+                "value": "TC1A"
+              },
+              {
+                "value": "TC1B"
+              },
+              {
+                "value": "TC1C"
+              },
+              {
+                "value": "TC2A"
+              },
+              {
+                "value": "TC2B"
+              },
+              {
+                "value": "TC2C"
+              },
+              {
+                "value": "TC3A"
+              },
+              {
+                "value": "TC3B"
+              },
+              {
+                "value": "TC3C"
+              },
+              {
+                "value": "TC4A"
+              },
+              {
+                "value": "TC4B"
+              },
+              {
+                "value": "TC4C"
+              },
+              {
+                "value": "TC5A"
+              },
+              {
+                "value": "TC5B"
+              },
+              {
+                "value": "TC5C"
+              },
+              {
+                "value": "TC6A"
+              },
+              {
+                "value": "TC6B"
+              },
+              {
+                "value": "TC6C"
+              },
+              {
+                "value": "TC7A"
+              },
+              {
+                "value": "TC7B"
+              },
+              {
+                "value": "TC7C"
+              },
+              {
+                "value": "TC8A"
+              },
+              {
+                "value": "TC8B"
+              },
+              {
+                "value": "TC8C"
+              }
+            ],
+            "prescaler": 3,
+            "primary_timer": "TC0"
+          },
+          "pins": {
+            "_compoundName": "At91SamPins",
+            "input_modes": [
+              {
+                "ident": "At91SamPinInputModeNormal",
+                "name": "Normal"
+              },
+              {
+                "ident": "At91SamPinInputModePullUp",
+                "name": "Pull-up"
+              }
+            ]
+          },
+          "pwm": {
+            "DivA": 0,
+            "DivB": 0,
+            "PreA": 0,
+            "PreB": 0,
+            "_compoundName": "At91Sam3xPwm"
+          },
+          "watchdog": {
+            "Wdv": 260,
+            "_compoundName": "At91SamWatchdog"
+          }
+        },
+        "_compoundName": "PlatformConfig",
+        "board_for_build": "arduino_due",
+        "board_helper_includes": [
+          "arduino_due_pins"
+        ],
+        "output_type": "bin"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "X-MIN",
+          "Pin": "DuePin22",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Y-MIN",
+          "Pin": "DuePin24",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Z-MIN",
+          "Pin": "DuePin26",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "X-MAX",
+          "Pin": "DuePin30",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Y-MAX",
+          "Pin": "DuePin38",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": "At91SamPinInputModePullUp",
+          "Name": "Z-MAX",
+          "Pin": "DuePin34",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "analog_inputs": [
+        {
+          "Name": "T0",
+          "Pin": "DuePinA0",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T1",
+          "Pin": "DuePinA1",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T2",
+          "Pin": "DuePinA2",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "T3",
+          "Pin": "DuePinA3",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "pwm_outputs": [
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "DuePin8",
+            "PulseInterval": 0.3,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TC7A"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "FET1/D8 (bed)",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "DuePin9",
+            "PulseInterval": 0.2,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TC7B"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "FET2/D9 (extruder 1)",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "DuePin10",
+            "PulseInterval": 0.2,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TC7C"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "FET3/D10 (extruder 2)",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "DuePin11",
+            "PulseInterval": 0.2,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TC8A"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "FET4 (extruder 3)",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "DuePin12",
+            "PulseInterval": 0.04,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TC8B"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "FET5 (fan 1)",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "DuePin2",
+            "PulseInterval": 0.04,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TC8C"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "FET6 (fan 2)",
+          "_compoundName": "pwm_output"
+        }
+      ],
+      "name": "RAMPS-FD",
+      "_compoundName": "board",
+      "laser_ports": [],
+      "LedPin": "DuePin13",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TC0A"
+      },
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "runtime_config": {
+        "_compoundName": "RuntimeConfig",
+        "config_manager": {
+          "ConfigStore": {
+            "Eeprom": {
+              "FlashDriver": {
+                "DeviceIndex": 1,
+                "_compoundName": "At91SamFlash"
+              },
+              "_compoundName": "FlashWrapper"
+            },
+            "EndBlock": 512,
+            "StartBlock": 0,
+            "_compoundName": "EepromConfigStore"
+          },
+          "_compoundName": "RuntimeConfigManager"
+        }
+      },
+      "sdcard_config": {
+        "_compoundName": "SdCardConfig",
+        "sdcard": {
+          "BufferBaseSize": 2048,
+          "GcodeParser": {
+            "MaxParts": 8,
+            "_compoundName": "TextGcodeParser"
+          },
+          "MaxCommandSize": 256,
+          "SdCardService": {
+            "SpiService": {
+              "Device": "At91Sam3xSpiDevice",
+              "_compoundName": "At91SamSpi"
+            },
+            "SsPin": "DuePin4",
+            "_compoundName": "SpiSdCard"
+          },
+          "_compoundName": "SdCard"
+        }
+      },
+      "serial": {
+        "BaudRate": 115200,
+        "GcodeMaxParts": 16,
+        "RecvBufferSizeExp": 8,
+        "SendBufferSizeExp": 9,
+        "Service": {
+          "_compoundName": "AsfUsbSerial"
+        },
+        "_compoundName": "serial"
+      },
+      "stepper_ports": [
+        {
+          "DirPin": "DuePinA8",
+          "EnablePin": "DuePin48",
+          "Name": "X",
+          "StepPin": "DuePinA9",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC1A"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        },
+        {
+          "DirPin": "DuePinA10",
+          "EnablePin": "DuePin46",
+          "Name": "Y",
+          "StepPin": "DuePinA11",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC2A"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        },
+        {
+          "DirPin": "DuePinA12",
+          "EnablePin": "DuePin44",
+          "Name": "Z",
+          "StepPin": "DuePinA13",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC3A"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        },
+        {
+          "DirPin": "DuePin28",
+          "EnablePin": "DuePin42",
+          "Name": "E0",
+          "StepPin": "DuePin36",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC4A"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        },
+        {
+          "DirPin": "DuePin41",
+          "EnablePin": "DuePin39",
+          "Name": "E1",
+          "StepPin": "DuePin43",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC5A"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        },
+        {
+          "DirPin": "DuePin47",
+          "EnablePin": "DuePin45",
+          "Name": "E2",
+          "StepPin": "DuePin32",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TC6A"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        }
+      ]
+    },
+    {
+      "platform_config": {
+        "platform": {
           "_compoundName": "At91Sam3u4e",
           "adc": {
             "_compoundName": "At91Sam3uAdc",
@@ -2123,6 +2582,276 @@
           },
           "slave_steppers": [],
           "stepper_port": "E2"
+        }
+      ],
+      "transform": {
+        "_compoundName": "NoTransform"
+      }
+    },
+    {
+      "board": "RAMPS-FD",
+      "heaters": [
+        {
+          "WaitMCommand": 109,
+          "MaxSafeTemp": 280,
+          "Name": "T",
+          "SetMCommand": 104,
+          "ThermistorInput": "T1",
+          "MinSafeTemp": 10,
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.2,
+            "PidD": 0.17,
+            "PidDHistory": 0.7,
+            "PidI": 0.0006,
+            "PidIStateMax": 0.6,
+            "PidIStateMin": 0,
+            "PidP": 0.047,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3960,
+            "MaxTemp": 300,
+            "MinTemp": 10,
+            "R0": 100000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 3,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "FET2/D9 (extruder 1)"
+        },
+        {
+          "WaitMCommand": 190,
+          "MaxSafeTemp": 120,
+          "Name": "B",
+          "SetMCommand": 140,
+          "ThermistorInput": "T0",
+          "MinSafeTemp": 10,
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.3,
+            "PidD": 2.5,
+            "PidDHistory": 0.8,
+            "PidI": 0.012,
+            "PidIStateMax": 1,
+            "PidIStateMin": 0,
+            "PidP": 1,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3480,
+            "MaxTemp": 150,
+            "MinTemp": 10,
+            "R0": 10000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 1.5,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "FET1/D8 (bed)"
+        },
+        {
+          "WaitMCommand": 409,
+          "MaxSafeTemp": 280,
+          "Name": "U",
+          "SetMCommand": 404,
+          "ThermistorInput": "T2",
+          "MinSafeTemp": 10,
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.2,
+            "PidD": 0.17,
+            "PidDHistory": 0.7,
+            "PidI": 0.0006,
+            "PidIStateMax": 0.6,
+            "PidIStateMin": 0,
+            "PidP": 0.047,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3960,
+            "MaxTemp": 300,
+            "MinTemp": 10,
+            "R0": 100000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 5,
+            "ObserverTolerance": 5,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "FET3/D10 (extruder 2)"
+        }
+      ],
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "FET5 (fan 1)"
+        },
+        {
+          "Name": "U",
+          "OffMCommand": 407,
+          "SetMCommand": 406,
+          "_compoundName": "fan",
+          "pwm_output": "FET6 (fan 2)"
+        }
+      ],
+      "_compoundName": "config",
+      "lasers": [],
+      "name": "RAMPS-FD example",
+      "probe_config": {
+        "_compoundName": "ProbeConfig",
+        "probe": {
+          "_compoundName": "NoProbe"
+        }
+      },
+      "steppers": [
+        {
+          "MicroSteps": 0,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 1500,
+          "MaxPos": 210,
+          "MaxSpeed": 300,
+          "Current": 0,
+          "MinPos": -53,
+          "Name": "X",
+          "StepsPerUnit": 160,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "X-MIN",
+            "HomeFastMaxDist": 280,
+            "HomeFastSpeed": 40,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "X"
+        },
+        {
+          "MicroSteps": 0,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 650,
+          "MaxPos": 157,
+          "MaxSpeed": 300,
+          "Current": 0,
+          "MinPos": 0,
+          "Name": "Y",
+          "StepsPerUnit": 160,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "Y-MIN",
+            "HomeFastMaxDist": 200,
+            "HomeFastSpeed": 40,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "Y"
+        },
+        {
+          "MicroSteps": 0,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": true,
+          "MaxAccel": 30,
+          "MaxPos": 100,
+          "MaxSpeed": 3,
+          "Current": 0,
+          "MinPos": 0,
+          "Name": "Z",
+          "StepsPerUnit": 8000,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "Z-MIN",
+            "HomeFastMaxDist": 101,
+            "HomeFastSpeed": 2,
+            "HomeRetractDist": 0.8,
+            "HomeRetractSpeed": 2,
+            "HomeSlowMaxDist": 1.2,
+            "HomeSlowSpeed": 0.6,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "Z"
+        },
+        {
+          "MicroSteps": 0,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": false,
+          "InvertDir": false,
+          "MaxAccel": 250,
+          "MaxPos": 40000,
+          "MaxSpeed": 45,
+          "Current": 0,
+          "MinPos": -40000,
+          "Name": "E",
+          "StepsPerUnit": 1856,
+          "_compoundName": "stepper",
+          "homing": {
+            "_compoundName": "no_homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "E0"
+        },
+        {
+          "MicroSteps": 0,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": false,
+          "InvertDir": false,
+          "MaxAccel": 250,
+          "MaxPos": 40000,
+          "MaxSpeed": 45,
+          "Current": 0,
+          "MinPos": -40000,
+          "Name": "U",
+          "StepsPerUnit": 1320,
+          "_compoundName": "stepper",
+          "homing": {
+            "_compoundName": "no_homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "E1"
         }
       ],
       "transform": {
