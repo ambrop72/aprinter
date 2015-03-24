@@ -42,6 +42,7 @@ static void emergency (void);
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Assert.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/InterruptLock.h>
 
@@ -93,6 +94,11 @@ $${GlobalCode}
 static void emergency (void)
 {
     $${EmergencyProvider}::emergency();
+}
+
+extern "C" __attribute__((used)) void __cxa_pure_virtual(void)
+{
+    AMBRO_ASSERT_ABORT("pure virtual function call")
 }
 
 int main ()

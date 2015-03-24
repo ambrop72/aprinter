@@ -46,20 +46,23 @@
 #endif
 
 #if defined(AMBROLIB_NO_PRINT)
-#define AMBRO_ASSERT_PRINT_ACTION
+#define AMBRO_ASSERT_PRINT_ACTION(str)
 #elif defined(AMBROLIB_AVR)
-#define AMBRO_ASSERT_PRINT_ACTION puts_P(PSTR("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)));
+#define AMBRO_ASSERT_PRINT_ACTION(str) puts_P(PSTR(str));
 #else
-#define AMBRO_ASSERT_PRINT_ACTION puts("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__));
+#define AMBRO_ASSERT_PRINT_ACTION(str) puts(str);
 #endif
+
+#define AMBRO_ASSERT_ABORT(msg) \
+    { \
+        AMBRO_ASSERT_EMERGENCY_ACTION \
+        AMBRO_ASSERT_PRINT_ACTION(msg) \
+        AMBRO_ASSERT_ABORT_ACTION \
+    }
 
 #define AMBRO_ASSERT_FORCE(e) \
     { \
-        if (!(e)) { \
-            AMBRO_ASSERT_EMERGENCY_ACTION \
-            AMBRO_ASSERT_PRINT_ACTION \
-            AMBRO_ASSERT_ABORT_ACTION \
-        } \
+        if (!(e)) AMBRO_ASSERT_ABORT("BUG " __FILE__ ":" AMBRO_STRINGIFY(__LINE__)) \
     }
 
 #ifdef AMBROLIB_ASSERTIONS
