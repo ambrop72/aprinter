@@ -52,6 +52,9 @@ private:
     using SpiCommandSizeType = typename TheSpi::CommandSizeType;
     
 public:
+    using BlockIndexType = uint32_t;
+    static size_t const BlockSize = 512;
+    
     class ReadState {
         friend SpiSdCard;
         uint8_t buf[6];
@@ -100,7 +103,7 @@ public:
         deactivate_common(c);
     }
     
-    static uint32_t getCapacityBlocks (Context c)
+    static BlockIndexType getCapacityBlocks (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -109,7 +112,7 @@ public:
         return o->m_capacity_blocks;
     }
     
-    static void queueReadBlock (Context c, uint32_t block, uint8_t *data1, size_t data1_len, uint8_t *data2, ReadState *state)
+    static void queueReadBlock (Context c, BlockIndexType block, uint8_t *data1, size_t data1_len, uint8_t *data2, ReadState *state)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
