@@ -991,7 +991,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct InputActivateHandler;
         struct InputReadHandler;
         
-        using TheInput = typename Params::SdCardParams::InputService::template Input<Context, Object, InputClientParams<InputActivateHandler, InputReadHandler>>;
+        using TheInput = typename Params::SdCardParams::InputService::template Input<Context, Object, InputClientParams<PrinterMain, InputActivateHandler, InputReadHandler>>;
         static const size_t BufferBaseSize = Params::SdCardParams::BufferBaseSize;
         static const size_t MaxCommandSize = Params::SdCardParams::MaxCommandSize;
         static_assert(MaxCommandSize > 0, "");
@@ -1193,7 +1193,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 }
                 return false;
             }
-            return true;
+            return TheInput::checkCommand(c, cmd);
         }
         
         static bool start_command_impl (Context c)

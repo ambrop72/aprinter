@@ -121,6 +121,11 @@ public:
         o->state = STATE_READING;
     }
     
+    static bool checkCommand (Context c, typename ClientParams::ThePrinterMain::CommandType *cmd)
+    {
+        return true;
+    }
+    
     using GetSdCard = TheSdCard;
     
 private:

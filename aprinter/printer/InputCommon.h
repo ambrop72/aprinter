@@ -27,8 +27,9 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TActivateHandler, typename TReadHandler>
+template <typename TThePrinterMain, typename TActivateHandler, typename TReadHandler>
 struct InputClientParams {
+    using ThePrinterMain = TThePrinterMain;
     using ActivateHandler = TActivateHandler;
     using ReadHandler = TReadHandler;
 };
