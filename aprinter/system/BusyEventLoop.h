@@ -41,6 +41,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/Optimize.h>
+#include <aprinter/base/Callback.h>
 #include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -125,7 +126,7 @@ public:
                     o->m_queued_event_list.remove(ev);
                     QueuedEventList::markRemoved(ev);
                     bench_start_measuring(c);
-                    ev->m_handler(ev, c);
+                    ev->m_handler(c);
                     c.check();
                     bench_stop_measuring(c);
 #ifdef AMBROLIB_SUPPORT_QUIT
@@ -266,7 +267,7 @@ class BusyEventLoopQueuedEvent
 public:
     typedef typename Loop::Context Context;
     typedef typename Loop::TimeType TimeType;
-    typedef void (*HandlerType) (BusyEventLoopQueuedEvent *, Context);
+    using HandlerType = Callback<void(Context c)>;
     
     void init (Context c, HandlerType handler)
     {

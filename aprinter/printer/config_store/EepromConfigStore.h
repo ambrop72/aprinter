@@ -29,7 +29,6 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
@@ -37,6 +36,8 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/DedummyIndexTemplate.h>
 #include <aprinter/meta/TypeListReverse.h>
+#include <aprinter/base/Object.h>
+#include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -193,7 +194,7 @@ public:
         auto *o = Object::self(c);
         
         TheEeprom::init(c);
-        o->event.init(c, EepromConfigStore::event_handler);
+        o->event.init(c, APRINTER_CB_STATFUNC_T(&EepromConfigStore::event_handler));
         o->state = STATE_IDLE;
     }
     
@@ -284,7 +285,7 @@ private:
     }
     struct EepromHandler : public AMBRO_WFUNC_TD(&EepromConfigStore::eeprom_handler) {};
     
-    static void event_handler (typename Loop::QueuedEvent *, Context c)
+    static void event_handler (Context c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == STATE_START_WRITING || o->state == STATE_START_READING)

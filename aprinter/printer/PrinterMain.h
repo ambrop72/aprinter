@@ -70,6 +70,7 @@
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Optimize.h>
+#include <aprinter/base/Callback.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/devices/Blinker.h>
@@ -1006,7 +1007,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             TheInput::init(c);
             TheChannelCommon::init(c);
-            o->m_next_event.init(c, SdCardFeature::next_event_handler);
+            o->m_next_event.init(c, APRINTER_CB_STATFUNC_T(&SdCardFeature::next_event_handler));
             o->m_state = SDCARD_NONE;
         }
         
@@ -1083,7 +1084,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
         struct InputReadHandler : public AMBRO_WFUNC_TD(&SdCardFeature::input_read_handler) {};
         
-        static void next_event_handler (typename Loop::QueuedEvent *, Context c)
+        static void next_event_handler (Context c)
         {
             auto *o = Object::self(c);
             auto *co = TheChannelCommon::Object::self(c);
@@ -2451,7 +2452,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             o->m_enabled = false;
             TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
-            o->m_control_event.init(c, Heater::control_event_handler);
+            o->m_control_event.init(c, APRINTER_CB_STATFUNC_T(&Heater::control_event_handler));
             o->m_control_event.appendAt(c, time + (APRINTER_CFG(Config, CControlIntervalTicks, c) / 2));
             o->m_was_not_unset = false;
             ThePwm::init(c, time);
@@ -2612,7 +2613,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
         }
         
-        static void control_event_handler (typename Loop::QueuedEvent *, Context c)
+        static void control_event_handler (Context c)
         {
             auto *o = Object::self(c);
             
@@ -3052,9 +3053,9 @@ public:
         TheWatchdog::init(c);
         TheConfigManager::init(c);
         TheConfigCache::init(c);
-        ob->unlocked_timer.init(c, PrinterMain::unlocked_timer_handler);
-        ob->disable_timer.init(c, PrinterMain::disable_timer_handler);
-        ob->force_timer.init(c, PrinterMain::force_timer_handler);
+        ob->unlocked_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::unlocked_timer_handler));
+        ob->disable_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::disable_timer_handler));
+        ob->force_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::force_timer_handler));
         TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
         TheSteppers::init(c);
         SerialFeature::init(c);
@@ -3438,7 +3439,7 @@ public: // private, see comment on top
         ob->force_timer.appendAt(c, force_time);
     }
     
-    static void unlocked_timer_handler (typename Loop::QueuedEvent *, Context c)
+    static void unlocked_timer_handler (Context c)
     {
         auto *ob = Object::self(c);
         TheDebugObject::access(c);
@@ -3451,7 +3452,7 @@ public: // private, see comment on top
         }
     }
     
-    static void disable_timer_handler (typename Loop::QueuedEvent *, Context c)
+    static void disable_timer_handler (Context c)
     {
         auto *ob = Object::self(c);
         TheDebugObject::access(c);
@@ -3459,7 +3460,7 @@ public: // private, see comment on top
         ListForEachForward<AxesList>(LForeach_enable_disable_stepper(), c, false);
     }
     
-    static void force_timer_handler (typename Loop::QueuedEvent *, Context c)
+    static void force_timer_handler (Context c)
     {
         auto *ob = Object::self(c);
         TheDebugObject::access(c);

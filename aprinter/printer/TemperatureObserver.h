@@ -30,6 +30,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Callback.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -47,7 +48,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->m_event.init(c, &TemperatureObserver::event_handler);
+        o->m_event.init(c, APRINTER_CB_STATFUNC_T(&TemperatureObserver::event_handler));
         o->m_target = target;
         o->m_intervals = 0;
         o->m_event.appendNowNotAlready(c);
@@ -75,7 +76,7 @@ private:
     using CMinIntervals = decltype(ExprCast<uint16_t>(ExprFmin(IntervalsMax(), (Config::e(Params::MinTime::i) / SampleInterval()) + Two())));
     using CValueTolerance = decltype(ExprCast<FpType>(Config::e(Params::ValueTolerance::i)));
     
-    static void event_handler (typename Context::EventLoop::QueuedEvent *, Context c)
+    static void event_handler (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);

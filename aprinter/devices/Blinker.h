@@ -30,6 +30,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Callback.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -52,7 +53,7 @@ public:
         o->interval = interval;
         o->next_time = Clock::getTime(c);
         o->state = false;
-        o->timer.init(c, Blinker::timer_handler);
+        o->timer.init(c, APRINTER_CB_STATFUNC_T(&Blinker::timer_handler));
         o->timer.appendAt(c, o->next_time);
         
         Context::Pins::template set<Pin>(c, o->state);
@@ -80,7 +81,7 @@ public:
 private:
     using Loop = typename Context::EventLoop;
     
-    static void timer_handler (typename Loop::QueuedEvent *, Context c)
+    static void timer_handler (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);

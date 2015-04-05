@@ -87,7 +87,7 @@ configure_arm() {
         -std=c99
     )
     FLAGS_CXX=(
-        -std=c++11
+        -std=c++11 -fno-access-control
     )
     FLAGS_C_CXX=(
         -DNDEBUG

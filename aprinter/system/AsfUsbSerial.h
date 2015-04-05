@@ -34,6 +34,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Callback.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -68,7 +69,7 @@ public:
         o->m_recv_force = false;
         
         Context::EventLoop::template initFastEvent<SendFastEvent>(c, AsfUsbSerial::send_event_handler);
-        o->m_send_avail_event.init(c, AsfUsbSerial::send_avail_event_handler);
+        o->m_send_avail_event.init(c, APRINTER_CB_STATFUNC_T(&AsfUsbSerial::send_avail_event_handler));
         o->m_send_start = SendSizeType::import(0);
         o->m_send_end = SendSizeType::import(0);
         o->m_send_event = SendSizeType::import(0);
@@ -264,7 +265,7 @@ private:
         } while (o->m_send_start != o->m_send_end);
     }
     
-    static void send_avail_event_handler (typename Loop::QueuedEvent *, Context c)
+    static void send_avail_event_handler (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
