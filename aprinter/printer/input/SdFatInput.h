@@ -64,6 +64,12 @@ private:
         LISTING_STATE_CHDIR,
         LISTING_STATE_OPEN
     };
+    enum FileState {
+        FILE_STATE_INACTIVE,
+        FILE_STATE_PAUSED,
+        FILE_STATE_RUNNING,
+        FILE_STATE_READING
+    };
     
     static size_t const ReplyRequestExtra = 24;
     
@@ -76,6 +82,8 @@ public:
         
         TheBlockAccess::init(c);
         o->init_state = INIT_STATE_INACTIVE;
+        o->listing_state = LISTING_STATE_INACTIVE;
+        o->file_state = FILE_STATE_INACTIVE;
         
         TheDebugObject::init(c);
     }
@@ -104,38 +112,66 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state != INIT_STATE_INACTIVE)
-        // due to locking in all of M20,M22,M23 we cannot be listing at this point
-        AMBRO_ASSERT(o->init_state != INIT_STATE_DONE || o->listing_state == LISTING_STATE_INACTIVE)
+        AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE) // due to locking in all of M20,M22,M23
         
         cleanup(c);
-        o->init_state = INIT_STATE_INACTIVE;
+    }
+    
+    static bool startingIo (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->file_state == FILE_STATE_INACTIVE || o->file_state == FILE_STATE_PAUSED)
+        
+        if (o->file_state != FILE_STATE_PAUSED) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:FileNotOpened\n"));
+            return false;
+        }
+        
+        o->file_state = FILE_STATE_RUNNING;
+        return true;
+    }
+    
+    static void pausingIo (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->file_state == FILE_STATE_RUNNING) // not FILE_STATE_READING!
+        
+        o->file_state = FILE_STATE_PAUSED;
     }
     
     static bool eofReached (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
+        AMBRO_ASSERT(o->file_state == FILE_STATE_RUNNING || o->file_state == FILE_STATE_READING)
         
-        //
-        return false;
+        return o->file_eof;
     }
     
     static bool canRead (Context c, size_t buf_avail)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
+        AMBRO_ASSERT(o->file_state == FILE_STATE_RUNNING)
         
-        //
-        return false;
+        return (!o->file_eof && buf_avail >= TheBlockAccess::BlockSize);
     }
     
     static void startRead (Context c, size_t buf_avail, size_t buf_wrap, uint8_t *buf1, uint8_t *buf2)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
+        AMBRO_ASSERT(o->file_state == FILE_STATE_RUNNING)
+        AMBRO_ASSERT(!o->file_eof)
+        AMBRO_ASSERT(buf_avail >= TheBlockAccess::BlockSize)
+        AMBRO_ASSERT(buf_wrap > 0)
         
-        AMBRO_ASSERT(0)
-        //
+        o->file_reader.requestBlock(c, WrapBuffer(buf_wrap, (char *)buf1, (char *)buf2));
+        o->file_state = FILE_STATE_READING;
     }
     
     static bool checkCommand (Context c, typename ThePrinterMain::CommandType *cmd)
@@ -168,18 +204,20 @@ public:
                         break;
                     }
                     
+                    uint8_t listing_state;
                     char const *find_name;
                     if ((find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
-                        o->listing_state = LISTING_STATE_CHDIR;
+                        listing_state = LISTING_STATE_CHDIR;
                     }
                     else if ((find_name = cmd->get_command_param_str(c, 'F', nullptr))) {
-                        o->listing_state = LISTING_STATE_OPEN;
+                        listing_state = LISTING_STATE_OPEN;
                     }
                     else {
                         cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadParams\n"));
                         break;
                     }
                     
+                    o->listing_state = listing_state;
                     o->listing_u.open_or_chdir.find_name = find_name;
                     o->listing_u.open_or_chdir.entry_found = false;
                 }
@@ -196,25 +234,6 @@ public:
         return true;
     }
     
-    static bool startingIo (Context c, typename ThePrinterMain::CommandType *cmd)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
-        
-        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:TBD\n"));
-        return false;
-    }
-    
-    static void pausingIo (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
-        
-        
-    }
-    
     using GetSdCard = typename TheBlockAccess::GetSd;
     
 private:
@@ -222,8 +241,11 @@ private:
     {
         auto *o = Object::self(c);
         
-        if (o->init_state == INIT_STATE_DONE && o->listing_state != LISTING_STATE_INACTIVE) {
+        if (o->listing_state != LISTING_STATE_INACTIVE) {
             o->dir_lister.deinit(c);
+        }
+        if (o->file_state != FILE_STATE_INACTIVE) {
+            o->file_reader.deinit(c);
         }
         if (o->init_state >= INIT_STATE_INIT_FS) {
             TheFs::deinit(c);
@@ -231,6 +253,10 @@ private:
         if (o->init_state >= INIT_STATE_ACTIVATE_SD) {
             TheBlockAccess::deactivate(c);
         }
+        
+        o->init_state = INIT_STATE_INACTIVE;
+        o->listing_state = LISTING_STATE_INACTIVE;
+        o->file_state = FILE_STATE_INACTIVE;
     }
     
     static void block_access_activate_handler (Context c, uint8_t error_code)
@@ -253,13 +279,13 @@ private:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_INIT_FS)
+        AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
+        AMBRO_ASSERT(o->file_state == FILE_STATE_INACTIVE)
         
         if (error_code) {
             cleanup(c);
-            o->init_state = INIT_STATE_INACTIVE;
         } else {
             o->init_state = INIT_STATE_DONE;
-            o->listing_state = LISTING_STATE_INACTIVE;
             o->current_directory = TheFs::getRootEntry(c);
         }
         return ClientParams::ActivateHandler::call(c, error_code);
@@ -282,8 +308,7 @@ private:
                     AMBRO_ASSERT(!o->listing_u.dirlist.cur_name)
                     
                     // ReplyRequestExtra is to make sure we have space for a possible error reply at the end
-                    size_t name_len = strlen(name);
-                    size_t req_len = (2 + name_len + 1) + ReplyRequestExtra;
+                    size_t req_len = (2 + strlen(name) + 1) + ReplyRequestExtra;
                     if (!cmd->requestSendBufEvent(c, req_len, SdFatInput::send_buf_event_handler)) {
                         o->listing_u.dirlist.length_error = true;
                         break;
@@ -292,17 +317,9 @@ private:
                     o->listing_u.dirlist.cur_name = name;
                     o->listing_u.dirlist.cur_is_dir = (entry.getType() == TheFs::ENTRYTYPE_DIR);
                     return;
-                }
-                else if (o->listing_state == LISTING_STATE_CHDIR) {
-                    if (compare_filename_equal(name, o->listing_u.open_or_chdir.find_name) && entry.getType() == TheFs::ENTRYTYPE_DIR) {
-                        o->current_directory = entry;
-                        o->listing_u.open_or_chdir.entry_found = true;
-                        stop_listing = true;
-                    }
-                }
-                else { // o->listing_state == LISTING_STATE_OPEN
-                    if (compare_filename_equal(name, o->listing_u.open_or_chdir.find_name) && entry.getType() == TheFs::ENTRYTYPE_FILE) {
-                        // TBD
+                } else {
+                    typename TheFs::EntryType expectedType = (o->listing_state == LISTING_STATE_CHDIR) ? TheFs::ENTRYTYPE_DIR : TheFs::ENTRYTYPE_FILE;
+                    if (entry.getType() == expectedType && compare_filename_equal(name, o->listing_u.open_or_chdir.find_name)) {
                         o->listing_u.open_or_chdir.entry_found = true;
                         stop_listing = true;
                     }
@@ -316,20 +333,44 @@ private:
         }
         
         AMBRO_PGM_P errstr = nullptr;
-        if (is_error) {
-            errstr = AMBRO_PSTR("error:InputOutput\n");
-        } else {
+        do {
+            if (is_error) {
+                errstr = AMBRO_PSTR("error:InputOutput\n");
+                break;
+            }
+            
             if (o->listing_state == LISTING_STATE_DIRLIST) {
                 if (o->listing_u.dirlist.length_error) {
                     errstr = AMBRO_PSTR("error:NameTooLong\n");
                 }
-            }
-            else {
+            } else {
                 if (!o->listing_u.open_or_chdir.entry_found) {
                     errstr = AMBRO_PSTR("error:NotFound\n");
+                    break;
+                }
+                
+                if (o->listing_state == LISTING_STATE_CHDIR) {
+                    o->current_directory = entry;
+                } else {
+                    if (o->file_state >= FILE_STATE_RUNNING) {
+                        errstr = AMBRO_PSTR("error:SdPrintRunning\n");
+                        break;
+                    }
+                    
+                    if (o->file_state != FILE_STATE_INACTIVE) {
+                        o->file_reader.deinit(c);
+                    }
+                    o->file_reader.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::file_reader_handler));
+                    o->file_state = FILE_STATE_PAUSED;
+                    o->file_eof = false;
+                    
+                    // A non-obvious precondition for clearing the command buffer is that it does not contain
+                    // a command currently possessing the printer lock. This is guaranteed because this command
+                    // here takes the lock.
+                    ClientParams::ClearBufferHandler::call(c);
                 }
             }
-        }
+        } while (0);
         
         if (errstr) {
             cmd->reply_append_pstr(c, errstr);
@@ -363,6 +404,21 @@ private:
         return Params::CaseInsensFileName ? AsciiCaseInsensStringEqual(str1, str2) : !strcmp(str1, str2);
     }
     
+    static void file_reader_handler (Context c, bool is_error, size_t length)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->file_state == FILE_STATE_READING)
+        AMBRO_ASSERT(!o->file_eof)
+        
+        if (!is_error && length == 0) {
+            o->file_eof = true;
+        }
+        o->file_state = FILE_STATE_RUNNING;
+        return ClientParams::ReadHandler::call(c, is_error, length);
+    }
+    
 public:
     struct Object : public ObjBase<SdFatInput, ParentObject, MakeTypeList<
         TheDebugObject,
@@ -371,8 +427,11 @@ public:
     >> {
         uint8_t init_state;
         uint8_t listing_state;
+        uint8_t file_state;
+        bool file_eof;
         typename TheFs::FsEntry current_directory;
         typename TheFs::DirLister dir_lister;
+        typename TheFs::FileReader file_reader;
         union {
             struct {
                 char const *cur_name;

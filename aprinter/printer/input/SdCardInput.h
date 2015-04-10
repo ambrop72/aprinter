@@ -90,6 +90,15 @@ public:
         o->state = STATE_INACTIVE;
     }
     
+    static bool startingIo (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        return true;
+    }
+    
+    static void pausingIo (Context c)
+    {
+    }
+    
     static bool eofReached (Context c)
     {
         auto *o = Object::self(c);
@@ -125,15 +134,6 @@ public:
     static bool checkCommand (Context c, typename ThePrinterMain::CommandType *cmd)
     {
         return true;
-    }
-    
-    static bool startingIo (Context c, typename ThePrinterMain::CommandType *cmd)
-    {
-        return true;
-    }
-    
-    static void pausingIo (Context c)
-    {
     }
     
     using GetSdCard = TheSdCard;

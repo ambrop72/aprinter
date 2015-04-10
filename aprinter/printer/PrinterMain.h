@@ -990,8 +990,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct Object;
         struct InputActivateHandler;
         struct InputReadHandler;
+        struct InputClearBufferHandler;
         
-        using TheInput = typename Params::SdCardParams::InputService::template Input<Context, Object, InputClientParams<PrinterMain, InputActivateHandler, InputReadHandler>>;
+        using TheInput = typename Params::SdCardParams::InputService::template Input<Context, Object, InputClientParams<PrinterMain, InputActivateHandler, InputReadHandler, InputClearBufferHandler>>;
         static const size_t BufferBaseSize = Params::SdCardParams::BufferBaseSize;
         static const size_t MaxCommandSize = Params::SdCardParams::MaxCommandSize;
         static_assert(MaxCommandSize > 0, "");
@@ -1084,6 +1085,20 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
         }
         struct InputReadHandler : public AMBRO_WFUNC_TD(&SdCardFeature::input_read_handler) {};
+        
+        static void input_clear_buffer_handler (Context c)
+        {
+            auto *o = Object::self(c);
+            auto *co = TheChannelCommon::Object::self(c);
+            AMBRO_ASSERT(o->m_state == SDCARD_INITED)
+            
+            TheChannelCommon::maybeCancelLockingCommand(c);
+            TheGcodeParser::deinit(c);
+            TheGcodeParser::init(c);
+            o->m_start = 0;
+            o->m_length = 0;
+        }
+        struct InputClearBufferHandler : public AMBRO_WFUNC_TD(&SdCardFeature::input_clear_buffer_handler) {};
         
         static void next_event_handler (Context c)
         {
