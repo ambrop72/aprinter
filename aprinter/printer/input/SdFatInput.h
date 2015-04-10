@@ -184,7 +184,7 @@ public:
                     o->entry_found = false;
                 }
                 
-                o->dir_lister.init(c, o->current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
+                o->dir_lister.init(c, o->current_directory, &o->fs_buffer, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
                 o->dir_lister.requestEntry(c);
                 return false;
             } while (0);
@@ -243,7 +243,7 @@ private:
             o->init_state = INIT_STATE_INACTIVE;
             return ClientParams::ActivateHandler::call(c, error_code);
         }
-        TheFs::init(c);
+        TheFs::init(c, &o->fs_buffer);
         o->init_state = INIT_STATE_INIT_FS;
     }
     struct BlockAccessActivateHandler : public AMBRO_WFUNC_TD(&SdFatInput::block_access_activate_handler) {};
@@ -378,6 +378,7 @@ public:
         bool dir_list_length_error;
         bool entry_found;
         char const *dir_list_find_filename;
+        typename TheFs::SharedBuffer fs_buffer;
     };
 };
 

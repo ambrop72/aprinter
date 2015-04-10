@@ -34,6 +34,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/WrapBuffer.h>
+#include <aprinter/base/Assert.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
 #include <aprinter/BeginNamespace.h>

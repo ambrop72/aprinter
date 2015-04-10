@@ -78,15 +78,18 @@ public:
         ClusterIndexType cluster_index;
     };
     
-    static void init (Context c)
+    struct SharedBuffer {
+        char buffer[BlockSize];
+    };
+    
+    static void init (Context c, SharedBuffer *init_buffer)
     {
         auto *o = Object::self(c);
         
+        o->init_buffer = init_buffer;
         o->init_block_user.init(c, APRINTER_CB_STATFUNC_T(&FatFs::init_block_read_handler));
-        
         o->state = FS_STATE_INIT;
-        // TBD check block index
-        o->init_block_user.startRead(c, 0, WrapBuffer(o->buffer));
+        o->init_block_user.startRead(c, 0, WrapBuffer(o->init_buffer->buffer));
         
         TheDebugObject::init(c);
     }
@@ -119,11 +122,12 @@ public:
     public:
         using DirListerHandler = Callback<void(Context c, bool is_error, char const *name, FsEntry entry)>;
         
-        void init (Context c, FsEntry dir_entry, DirListerHandler handler)
+        void init (Context c, FsEntry dir_entry, SharedBuffer *buffer, DirListerHandler handler)
         {
             TheDebugObject::access(c);
             AMBRO_ASSERT(dir_entry.type == ENTRYTYPE_DIR)
             
+            m_buffer = buffer;
             m_handler = handler;
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&DirLister::event_handler, this));
             m_reader.init(c, dir_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&DirLister::reader_handler, this));
@@ -157,7 +161,7 @@ public:
             AMBRO_ASSERT(m_state == DIRLISTER_STATE_EVENT)
             AMBRO_ASSERT(m_block_entry_pos < DirEntriesPerBlock)
             
-            char const *entry_ptr = m_buffer + (m_block_entry_pos * 32);
+            char const *entry_ptr = m_buffer->buffer + (m_block_entry_pos * 32);
             uint8_t first_byte =    ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0x0);
             uint8_t attrs =         ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xB);
             uint8_t type_byte =     ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xC);
@@ -295,7 +299,7 @@ public:
         void next_entry (Context c)
         {
             if (m_block_entry_pos == DirEntriesPerBlock) {
-                m_reader.requestBlock(c, WrapBuffer(m_buffer));
+                m_reader.requestBlock(c, WrapBuffer(m_buffer->buffer));
                 m_state = DIRLISTER_STATE_READING;
             } else {
                 m_event.appendNowNotAlready(c);
@@ -303,6 +307,7 @@ public:
             }
         }
         
+        SharedBuffer *m_buffer;
         DirListerHandler m_handler;
         typename Context::EventLoop::QueuedEvent m_event;
         BaseReader m_reader;
@@ -311,7 +316,6 @@ public:
         int8_t m_vfat_seq;
         uint8_t m_vfat_csum;
         size_t m_filename_pos;
-        char m_buffer[BlockSize];
         char m_filename[Params::MaxFileNameSize + 1];
     };
     
@@ -395,20 +399,21 @@ private:
                 goto error;
             }
             
-            o->sector_size =          ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->buffer + 0xB);
-            o->sectors_per_cluster =  ReadBinaryInt<uint8_t,  BinaryLittleEndian>(o->buffer + 0xD);
-            o->num_reserved_sectors = ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->buffer + 0xE);
-            o->num_fats =             ReadBinaryInt<uint8_t,  BinaryLittleEndian>(o->buffer + 0x10);
-            uint16_t max_root =       ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->buffer + 0x11);
-            o->sectors_per_fat =      ReadBinaryInt<uint32_t, BinaryLittleEndian>(o->buffer + 0x24);
-            o->root_cluster =         ReadBinaryInt<uint32_t, BinaryLittleEndian>(o->buffer + 0x2C);
-            uint8_t sig =             ReadBinaryInt<uint8_t,  BinaryLittleEndian>(o->buffer + 0x42);
+            char *buffer = o->init_buffer->buffer;
+            uint16_t sector_size =     ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0xB);
+            o->sectors_per_cluster =   ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0xD);
+            o->num_reserved_sectors =  ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0xE);
+            o->num_fats =              ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x10);
+            uint16_t max_root =        ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0x11);
+            uint32_t sectors_per_fat = ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x24);
+            o->root_cluster =          ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x2C);
+            uint8_t sig =              ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x42);
             
-            if (o->sector_size == 0 || o->sector_size % BlockSize != 0) {
+            if (sector_size == 0 || sector_size % BlockSize != 0) {
                 error_code = 22;
                 goto error;
             }
-            o->blocks_per_sector = o->sector_size / BlockSize;
+            o->blocks_per_sector = sector_size / BlockSize;
             
             if (o->sectors_per_cluster > UINT16_MAX / o->blocks_per_sector) {
                 error_code = 23;
@@ -416,7 +421,7 @@ private:
             }
             o->blocks_per_cluster = o->blocks_per_sector * o->sectors_per_cluster;
             
-            if ((uint32_t)o->num_reserved_sectors * o->sector_size < 0x47) {
+            if ((uint32_t)o->num_reserved_sectors * sector_size < 0x47) {
                 error_code = 24;
                 goto error;
             }
@@ -441,14 +446,14 @@ private:
                 goto error;
             }
             
-            uint16_t entries_per_sector = o->sector_size / 4;
-            if (o->sectors_per_fat == 0 || o->sectors_per_fat > UINT32_MAX / entries_per_sector) {
+            uint16_t entries_per_sector = sector_size / 4;
+            if (sectors_per_fat == 0 || sectors_per_fat > UINT32_MAX / entries_per_sector) {
                 error_code = 29;
                 goto error;
             }
-            o->num_fat_entries = (ClusterIndexType)o->sectors_per_fat * entries_per_sector;
+            o->num_fat_entries = (ClusterIndexType)sectors_per_fat * entries_per_sector;
             
-            o->fat_end_sectors = (SectorIndexType)o->num_reserved_sectors + (SectorIndexType)o->num_fats * o->sectors_per_fat;
+            o->fat_end_sectors = (SectorIndexType)o->num_reserved_sectors + (SectorIndexType)o->num_fats * sectors_per_fat;
             
             if (o->fat_end_sectors > get_capacity_sectors(c)) {
                 error_code = 29;
@@ -583,7 +588,7 @@ private:
                 if (!get_fat_entry_block_idx(c, m_current_cluster, &entry_block_idx)) {
                     goto report;
                 }
-                m_block_user.startRead(c, entry_block_idx, WrapBuffer(m_buffer));
+                m_block_user.startRead(c, entry_block_idx, m_req_buf);
                 m_state = BASEREAD_STATE_READING_FAT;
                 return;
             }
@@ -615,7 +620,9 @@ private:
             
             if (m_state == BASEREAD_STATE_READING_FAT) {
                 size_t block_offset = (size_t)4 * (m_current_cluster % FatEntriesPerBlock);
-                m_current_cluster = ReadBinaryInt<uint32_t, BinaryLittleEndian>(m_buffer + block_offset);
+                char cluster_number_buf[4];
+                m_req_buf.copyOut(block_offset, 4, cluster_number_buf);
+                m_current_cluster = ReadBinaryInt<uint32_t, BinaryLittleEndian>(cluster_number_buf);
                 m_block_in_cluster = 0;
                 m_state = BASEREAD_STATE_REQEVENT;
                 m_event.appendNowNotAlready(c);
@@ -637,26 +644,23 @@ private:
         ClusterIndexType m_current_cluster;
         ClusterBlockIndexType m_block_in_cluster;
         WrapBuffer m_req_buf;
-        char m_buffer[BlockSize];
     };
     
 public:
     struct Object : public ObjBase<FatFs, ParentObject, MakeTypeList<
         TheDebugObject
     >> {
+        SharedBuffer *init_buffer;
         BlockAccessUser init_block_user;
         uint8_t state;
-        uint16_t sector_size;
         uint8_t sectors_per_cluster;
         uint16_t num_reserved_sectors;
         uint8_t num_fats;
-        uint32_t sectors_per_fat;
         ClusterIndexType root_cluster;
         uint16_t blocks_per_sector;
         ClusterBlockIndexType blocks_per_cluster;
         ClusterIndexType num_fat_entries;
         SectorIndexType fat_end_sectors;
-        char buffer[BlockSize];
     };
 };
 

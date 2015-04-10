@@ -26,6 +26,9 @@
 #define AMBROLIB_WRAP_BUFFER_H
 
 #include <stddef.h>
+#include <string.h>
+
+#include <aprinter/meta/MinMax.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -37,6 +40,22 @@ struct WrapBuffer {
     
     inline WrapBuffer (char *ptr)
     : wrap(-1), ptr1(ptr), ptr2(nullptr) {}
+    
+    inline void copyOut (size_t offset, size_t length, char *dst) const
+    {
+        if (length > 0) {
+            if (offset < wrap) {
+                size_t to_copy = MinValue(length, wrap - offset);
+                memcpy(dst, ptr1 + offset, to_copy);
+                offset += to_copy;
+                length -= to_copy;
+                dst += to_copy;
+            }
+            if (length > 0) {
+                memcpy(dst, ptr2 + (offset - wrap), length);
+            }
+        }
+    }
     
     size_t wrap;
     char *ptr1;

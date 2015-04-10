@@ -108,6 +108,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
+        AMBRO_ASSERT(o->m_capacity_blocks > 0)
         
         return o->m_capacity_blocks;
     }
@@ -322,6 +323,9 @@ private:
                     uint32_t blocknr = (uint32_t)(c_size + 1) * mult;
                     uint16_t block_len = (uint16_t)1 << read_bl_len;
                     o->m_capacity_blocks = blocknr * (block_len / 512);
+                }
+                if (o->m_capacity_blocks == 0) {
+                    return error(c, 9);
                 }
                 o->m_state = STATE_RUNNING;
                 return InitHandler::call(c, 0);
