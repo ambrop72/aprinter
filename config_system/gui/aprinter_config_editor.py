@@ -518,6 +518,13 @@ def editor():
                 ce.OneOf(key='sdcard', title='SD card', choices=[
                     ce.Compound('NoSdCard', title='Disabled', disable_collapse=True,attrs=[]),
                     ce.Compound('SdCard', title='Enabled', disable_collapse=True, attrs=[
+                        ce.OneOf(key='FsType', title='Filesystem type', choices=[
+                            ce.Compound('Raw', title='None (raw data on device)', disable_collapse=True, attrs=[]),
+                            ce.Compound('Fat32', title='FAT32', disable_collapse=True, attrs=[
+                                ce.Integer(key='MaxFileNameSize', title='Maximum filename size', default=32),
+                                ce.Boolean(key='CaseInsensFileName', title='Case-insensitive filename matching', default=True),
+                            ]),
+                        ]),
                         ce.Integer(key='BufferBaseSize', title='Buffer size'),
                         ce.Integer(key='MaxCommandSize', title='Maximum command size'),
                         ce.OneOf(key='GcodeParser', title='G-code parser', choices=[

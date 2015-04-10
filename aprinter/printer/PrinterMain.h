@@ -1067,6 +1067,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 o->m_length += bytes_read;
             }
             if (o->m_state == SDCARD_PAUSING) {
+                TheInput::pausingIo(c);
                 o->m_state = SDCARD_INITED;
                 return finish_locked(c);
             }
@@ -1160,19 +1161,24 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (!cmd->tryUnplannedCommand(c)) {
                     return false;
                 }
+                do {
+                    if (o->m_state != SDCARD_INITED) {
+                        break;
+                    }
+                    if (!TheInput::startingIo(c, cmd)) {
+                        break;
+                    }
+                    o->m_state = SDCARD_RUNNING;
+                    o->m_eof = false;
+                    o->m_reading = false;
+                    if (can_read(c)) {
+                        start_read(c);
+                    }
+                    if (!TheChannelCommon::maybeResumeLockingCommand(c)) {
+                        o->m_next_event.prependNowNotAlready(c);
+                    }
+                } while (0);
                 cmd->finishCommand(c);
-                if (o->m_state != SDCARD_INITED) {
-                    return false;
-                }
-                o->m_state = SDCARD_RUNNING;
-                o->m_eof = false;
-                o->m_reading = false;
-                if (can_read(c)) {
-                    start_read(c);
-                }
-                if (!TheChannelCommon::maybeResumeLockingCommand(c)) {
-                    o->m_next_event.prependNowNotAlready(c);
-                }
                 return false;
             }
             if (cmd->getCmdNumber(c) == 25) {
@@ -1188,6 +1194,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (o->m_reading) {
                     o->m_state = SDCARD_PAUSING;
                 } else {
+                    TheInput::pausingIo(c);
                     o->m_state = SDCARD_INITED;
                     cmd->finishCommand(c);
                 }

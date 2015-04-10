@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include <aprinter/meta/WrapFunction.h>
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
@@ -59,6 +60,7 @@ private:
     static size_t const DirEntriesPerBlock = BlockSize / 32;
     static_assert(Params::MaxFileNameSize >= 12, "");
     enum {FS_STATE_INIT, FS_STATE_READY, FS_STATE_FAILED};
+    class BaseReader;
     
 public:
     enum EntryType {ENTRYTYPE_DIR, ENTRYTYPE_FILE};
@@ -103,7 +105,11 @@ public:
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == FS_STATE_READY)
         
-        return FsEntry{ENTRYTYPE_DIR, 0, o->root_cluster};
+        FsEntry entry;
+        entry.type = ENTRYTYPE_DIR;
+        entry.file_size = 0;
+        entry.cluster_index = o->root_cluster;
+        return entry;
     }
     
     class DirLister {
@@ -146,6 +152,7 @@ public:
     private:
         void event_handler (Context c)
         {
+            auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == DIRLISTER_STATE_EVENT)
             AMBRO_ASSERT(m_block_entry_pos < DirEntriesPerBlock)
@@ -170,7 +177,7 @@ public:
                     // Start collection.
                     m_vfat_seq = entry_vfat_seq;
                     m_vfat_csum = checksum_byte;
-                    m_filename_pos = 0;
+                    m_filename_pos = Params::MaxFileNameSize;
                 }
                 
                 if (entry_vfat_seq > 0 && m_vfat_seq != -1 && entry_vfat_seq == m_vfat_seq && checksum_byte == m_vfat_csum) {
@@ -179,17 +186,25 @@ public:
                     memcpy(name_data + 0, entry_ptr + 0x1, 10);
                     memcpy(name_data + 10, entry_ptr + 0xE, 12);
                     memcpy(name_data + 22, entry_ptr + 0x1C, 4);
+                    size_t chunk_len = 0;
                     for (size_t i = 0; i < sizeof(name_data); i += 2) {
                         uint16_t ch = ReadBinaryInt<uint16_t, BinaryLittleEndian>(name_data + i);
+                        if (ch == 0) {
+                            break;
+                        }
                         char enc_buf[4];
                         int enc_len = Utf8EncodeChar(ch, enc_buf);
-                        if (enc_len <= Params::MaxFileNameSize - m_filename_pos) {
-                            memcpy(m_filename + m_filename_pos, enc_buf, enc_len);
-                            m_filename_pos += enc_len;
+                        if (enc_len > m_filename_pos - chunk_len) {
+                            goto cancel_vfat;
                         }
+                        memcpy(m_filename + chunk_len, enc_buf, enc_len);
+                        chunk_len += enc_len;
                     }
-                    m_vfat_seq = entry_vfat_seq - 1;
+                    memmove(m_filename + (m_filename_pos - chunk_len), m_filename, chunk_len);
+                    m_filename_pos -= chunk_len;
+                    m_vfat_seq--;
                 } else {
+                cancel_vfat:
                     // Cancel any collection.
                     m_vfat_seq = -1;
                 }
@@ -217,14 +232,17 @@ public:
             uint32_t file_size = ReadBinaryInt<uint32_t, BinaryLittleEndian>(entry_ptr + 0x1C);
             
             ClusterIndexType first_cluster =
-                ReadBinaryInt<uint16_t, BinaryLittleEndian>(entry_ptr + 0x1A) ||
+                ReadBinaryInt<uint16_t, BinaryLittleEndian>(entry_ptr + 0x1A) |
                 ((uint32_t)ReadBinaryInt<uint16_t, BinaryLittleEndian>(entry_ptr + 0x14) << 16);
             
-            size_t filename_len = 0;
+            if (is_dot_entry && first_cluster == 0) {
+                first_cluster = o->root_cluster;
+            }
+            
+            char const *filename;
             if (!is_dot_entry && cur_vfat_seq == 0 && vfat_checksum(entry_ptr) == m_vfat_csum) {
-                while (filename_len < m_filename_pos && m_filename[filename_len] != 0) {
-                    filename_len++;
-                }
+                filename = m_filename + m_filename_pos;
+                m_filename[Params::MaxFileNameSize] = 0;
             } else {
                 char name_temp[8];
                 memcpy(name_temp, entry_ptr + 0, 8);
@@ -237,17 +255,25 @@ public:
                 memcpy(ext_temp, entry_ptr + 8, 3);
                 size_t ext_len = fixup_83_name(ext_temp, 3, bool(type_byte & 0x10));
                 
+                size_t filename_len = 0;
                 memcpy(m_filename + filename_len, name_temp, name_len);
                 filename_len += name_len;
-                m_filename[filename_len++] = '.';
-                memcpy(m_filename + filename_len, ext_temp, ext_len);
-                filename_len += ext_len;
+                if (ext_len > 0) {
+                    m_filename[filename_len++] = '.';
+                    memcpy(m_filename + filename_len, ext_temp, ext_len);
+                    filename_len += ext_len;
+                }
+                m_filename[filename_len] = '\0';
+                filename = m_filename;
             }
-            m_filename[filename_len] = '\0';
             
-            EntryType entry_type = is_dir ? ENTRYTYPE_DIR : ENTRYTYPE_FILE;
+            FsEntry entry;
+            entry.type = is_dir ? ENTRYTYPE_DIR : ENTRYTYPE_FILE;
+            entry.file_size = file_size;
+            entry.cluster_index = first_cluster;
+            
             m_state = DIRLISTER_STATE_WAITREQ;
-            return m_handler(c, false, m_filename, FsEntry{entry_type, file_size, first_cluster});
+            return m_handler(c, false, filename, entry);
         }
         
         void reader_handler (Context c, uint8_t status)
@@ -273,7 +299,7 @@ public:
                 m_state = DIRLISTER_STATE_READING;
             } else {
                 m_event.appendNowNotAlready(c);
-                m_event = DIRLISTER_STATE_EVENT;
+                m_state = DIRLISTER_STATE_EVENT;
             }
         }
         
@@ -289,6 +315,71 @@ public:
         char m_filename[Params::MaxFileNameSize + 1];
     };
     
+    class FileReader {
+    private:
+        enum {FILEREADER_STATE_WAITREQ, FILEREADER_STATE_READING};
+        
+    public:
+        using FileReaderHandler = Callback<void(Context c, bool is_error, size_t length)>;
+        
+        void init (Context c, FsEntry file_entry, FileReaderHandler handler)
+        {
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(file_entry.type == ENTRYTYPE_FILE)
+            
+            m_handler = handler;
+            m_reader.init(c, file_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&FileReader::reader_handler, this));
+            m_rem_file_size = file_entry.file_size;
+            m_state = FILEREADER_STATE_WAITREQ;
+        }
+        
+        // WARNING: Only allowed together with deiniting the whole FatFs and underlying storage!
+        void deinit (Context c)
+        {
+            TheDebugObject::access(c);
+            
+            m_reader.deinit(c);
+        }
+        
+        void requestBlock (Context c, WrapBuffer buf)
+        {
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == FILEREADER_STATE_WAITREQ)
+            
+            m_reader.requestBlock(c, buf);
+            m_state = FILEREADER_STATE_READING;
+        }
+        
+    private:
+        void reader_handler (Context c, uint8_t status)
+        {
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == FILEREADER_STATE_READING)
+            
+            bool is_error = true;
+            size_t read_length = 0;
+            
+            do {
+                if (status != BaseReader::BASEREAD_STATUS_OK) {
+                    is_error = (status != BaseReader::BASEREAD_STATUS_EOF || m_rem_file_size > 0);
+                    break;
+                }
+                
+                is_error = false;
+                read_length = MinValue((uint32_t)BlockSize, m_rem_file_size);
+                m_rem_file_size -= read_length;
+            } while (0);
+            
+            m_state = FILEREADER_STATE_WAITREQ;
+            return m_handler(c, is_error, read_length);
+        }
+        
+        FileReaderHandler m_handler;
+        BaseReader m_reader;
+        uint32_t m_rem_file_size;
+        uint8_t m_state;
+    };
+    
 private:
     static void init_block_read_handler (Context c, bool read_error)
     {
@@ -298,72 +389,75 @@ private:
         
         uint8_t error_code = 99;
         
-        if (read_error) {
-            error_code = 20;
-            goto error;
-        }
+        do {
+            if (read_error) {
+                error_code = 20;
+                goto error;
+            }
+            
+            o->sector_size =          ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->buffer + 0xB);
+            o->sectors_per_cluster =  ReadBinaryInt<uint8_t,  BinaryLittleEndian>(o->buffer + 0xD);
+            o->num_reserved_sectors = ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->buffer + 0xE);
+            o->num_fats =             ReadBinaryInt<uint8_t,  BinaryLittleEndian>(o->buffer + 0x10);
+            uint16_t max_root =       ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->buffer + 0x11);
+            o->sectors_per_fat =      ReadBinaryInt<uint32_t, BinaryLittleEndian>(o->buffer + 0x24);
+            o->root_cluster =         ReadBinaryInt<uint32_t, BinaryLittleEndian>(o->buffer + 0x2C);
+            uint8_t sig =             ReadBinaryInt<uint8_t,  BinaryLittleEndian>(o->buffer + 0x42);
+            
+            if (o->sector_size == 0 || o->sector_size % BlockSize != 0) {
+                error_code = 22;
+                goto error;
+            }
+            o->blocks_per_sector = o->sector_size / BlockSize;
+            
+            if (o->sectors_per_cluster > UINT16_MAX / o->blocks_per_sector) {
+                error_code = 23;
+                goto error;
+            }
+            o->blocks_per_cluster = o->blocks_per_sector * o->sectors_per_cluster;
+            
+            if ((uint32_t)o->num_reserved_sectors * o->sector_size < 0x47) {
+                error_code = 24;
+                goto error;
+            }
+            
+            if (o->num_fats != 1 && o->num_fats != 2) {
+                error_code = 25;
+                goto error;
+            }
+            
+            if (sig != 0x28 && sig != 0x29) {
+                error_code = 26;
+                goto error;
+            }
+            
+            if (max_root != 0) {
+                error_code = 27;
+                goto error;
+            }
+            
+            if (o->root_cluster < 2) {
+                error_code = 28;
+                goto error;
+            }
+            
+            uint16_t entries_per_sector = o->sector_size / 4;
+            if (o->sectors_per_fat == 0 || o->sectors_per_fat > UINT32_MAX / entries_per_sector) {
+                error_code = 29;
+                goto error;
+            }
+            o->num_fat_entries = (ClusterIndexType)o->sectors_per_fat * entries_per_sector;
+            
+            o->fat_end_sectors = (SectorIndexType)o->num_reserved_sectors + (SectorIndexType)o->num_fats * o->sectors_per_fat;
+            
+            if (o->fat_end_sectors > get_capacity_sectors(c)) {
+                error_code = 29;
+                goto error;
+            }
+            
+            error_code = 0;
+        } while (0);
         
-        o->sector_size =          ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->buffer + 0xB);
-        o->sectors_per_cluster =  ReadBinaryInt<uint8_t,  BinaryLittleEndian>(o->buffer + 0xD);
-        o->num_reserved_sectors = ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->buffer + 0xE);
-        o->num_fats =             ReadBinaryInt<uint8_t,  BinaryLittleEndian>(o->buffer + 0x10);
-        uint16_t max_root =       ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->buffer + 0x11);
-        o->sectors_per_fat =      ReadBinaryInt<uint32_t, BinaryLittleEndian>(o->buffer + 0x24);
-        o->root_cluster =         ReadBinaryInt<uint32_t, BinaryLittleEndian>(o->buffer + 0x2C);
-        uint8_t sig =             ReadBinaryInt<uint8_t,  BinaryLittleEndian>(o->buffer + 0x42);
-        
-        if (o->sector_size == 0 || o->sector_size % BlockSize != 0) {
-            error_code = 22;
-            goto error;
-        }
-        o->blocks_per_sector = o->sector_size / BlockSize;
-        
-        if (o->sectors_per_cluster > UINT16_MAX / o->blocks_per_sector) {
-            error_code = 23;
-            goto error;
-        }
-        o->blocks_per_cluster = o->blocks_per_sector * o->sectors_per_cluster;
-        
-        if ((uint32_t)o->num_reserved_sectors * o->sector_size < 0x47) {
-            error_code = 24;
-            goto error;
-        }
-        
-        if (o->num_fats != 1 && o->num_fats != 2) {
-            error_code = 25;
-            goto error;
-        }
-        
-        if (sig != 0x28 && sig != 0x29) {
-            error_code = 26;
-            goto error;
-        }
-        
-        if (max_root != 0) {
-            error_code = 27;
-            goto error;
-        }
-        
-        if (o->root_cluster < 2) {
-            error_code = 28;
-            goto error;
-        }
-        
-        uint16_t entries_per_sector = o->sector_size / 4;
-        if (o->sectors_per_fat == 0 || o->sectors_per_fat > UINT32_MAX / entries_per_sector) {
-            error_code = 29;
-            goto error;
-        }
-        o->num_fat_entries = (ClusterIndexType)o->sectors_per_fat * entries_per_sector;
-        
-        o->fat_end_sectors = (SectorIndexType)o->num_reserved_sectors + (SectorIndexType)o->num_fats * o->sectors_per_fat;
-        
-        if (o->fat_end_sectors > get_capacity_sectors(c)) {
-            error_code = 29;
-            goto error;
-        }
-        
-        error_code = 0;
     error:
         o->state = error_code ? FS_STATE_FAILED : FS_STATE_READY;
         return InitHandler::call(c, error_code);
@@ -462,7 +556,6 @@ private:
         
         void requestBlock (Context c, WrapBuffer buf)
         {
-            auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == BASEREAD_STATE_WAITREQ)
             
@@ -511,7 +604,6 @@ private:
         
         void read_handler (Context c, bool is_read_error)
         {
-            auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == BASEREAD_STATE_READING_DATA || m_state == BASEREAD_STATE_READING_FAT)
             
@@ -523,7 +615,7 @@ private:
             
             if (m_state == BASEREAD_STATE_READING_FAT) {
                 size_t block_offset = (size_t)4 * (m_current_cluster % FatEntriesPerBlock);
-                m_current_cluster = ReadBinaryInt<uint32_t, BinaryLittleEndian>(o->m_buffer + block_offset);
+                m_current_cluster = ReadBinaryInt<uint32_t, BinaryLittleEndian>(m_buffer + block_offset);
                 m_block_in_cluster = 0;
                 m_state = BASEREAD_STATE_REQEVENT;
                 m_event.appendNowNotAlready(c);

@@ -777,13 +777,10 @@ def use_sdcard(gen, config, key, user):
 
     @sd_service_sel.option('SpiSdCard')
     def option(spi_sd):
-        gen.add_aprinter_include('printer/input/SdCardInput.h')
         gen.add_aprinter_include('devices/SpiSdCard.h')
-        return TemplateExpr('SdCardInputService', [
-            TemplateExpr('SpiSdCardService', [
-                get_pin(gen, spi_sd, 'SsPin'),
-                use_spi(gen, spi_sd, 'SpiService', '{}::GetSdCard::GetSpi'.format(user)),
-            ]),
+        return TemplateExpr('SpiSdCardService', [
+            get_pin(gen, spi_sd, 'SsPin'),
+            use_spi(gen, spi_sd, 'SpiService', '{}::GetSpi'.format(user)),
         ])
 
     return config.do_selection(key, sd_service_sel)
@@ -947,8 +944,32 @@ def generate(config_root_data, cfg_name, main_template):
                     def option(parser):
                         return 'BinaryGcodeParser, BinaryGcodeParserParams<{}>'.format(parser.get_int('MaxParts'))
                     
+                    fs_sel = selection.Selection()
+                    
+                    @fs_sel.option('Raw')
+                    def option(fs_config):
+                        gen.add_aprinter_include('printer/input/SdCardInput.h')
+                        return TemplateExpr('SdCardInputService', [
+                            use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetInput<>::GetSdCard'),
+                        ])
+                    
+                    @fs_sel.option('Fat32')
+                    def option(fs_config):
+                        max_filename_size = fs_config.get_int('MaxFileNameSize')
+                        if not (12 <= max_filename_size <= 1024):
+                            fs_config.key_path('MaxFileNameSize').error('Bad value.')
+                        gen.add_aprinter_include('printer/input/SdFatInput.h')
+                        gen.add_aprinter_include('devices/FatFs.h')
+                        return TemplateExpr('SdFatInputService', [
+                            use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetInput<>::GetSdCard'),
+                            TemplateExpr('FatFsService', [
+                                max_filename_size,
+                            ]),
+                            fs_config.get_bool_constant('CaseInsensFileName'),
+                        ])
+                    
                     return TemplateExpr('PrinterMainSdCardParams', [
-                        use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetInput<>'),
+                        sdcard.do_selection('FsType', fs_sel),
                         sdcard.do_selection('GcodeParser', gcode_parser_sel),
                         sdcard.get_int('BufferBaseSize'),
                         sdcard.get_int('MaxCommandSize'),

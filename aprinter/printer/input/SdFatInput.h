@@ -30,11 +30,11 @@
 #include <string.h>
 
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/misc/AsciiTools.h>
 #include <aprinter/devices/FatFs.h>
 #include <aprinter/devices/BlockAccess.h>
 
@@ -46,31 +46,38 @@ public:
     struct Object;
     
 private:
-    using TheDebugObject = DebugObject<Context, Object>;
     using ThePrinterMain = typename ClientParams::ThePrinterMain;
+    using TheDebugObject = DebugObject<Context, Object>;
     struct BlockAccessActivateHandler;
     using TheBlockAccess = typename BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler>;
     struct FsInitHandler;
     using TheFs = typename Params::FsService::template Fs<Context, Object, TheBlockAccess, FsInitHandler>;
     using FsEntry = typename TheFs::FsEntry;
     using FsDirLister = typename TheFs::DirLister;
-    enum {
-        STATE_INACTIVE,
-        STATE_ACTIVATE_SD,
-        STATE_INIT_FS,
-        STATE_NOFILE,
-        STATE_LISTING
+    enum InitState {
+        INIT_STATE_INACTIVE,
+        INIT_STATE_ACTIVATE_SD,
+        INIT_STATE_INIT_FS,
+        INIT_STATE_DONE
+    };
+    enum ListingState {
+        LISTING_STATE_INACTIVE,
+        LISTING_STATE_DIRLIST,
+        LISTING_STATE_CHDIR,
+        LISTING_STATE_OPEN
     };
     
+    static size_t const ReplyRequestExtra = 24;
+    
 public:
-    static size_t const NeedBufAvail = BlockSize;
+    static size_t const NeedBufAvail = TheBlockAccess::BlockSize;
     
     static void init (Context c)
     {
         auto *o = Object::self(c);
         
         TheBlockAccess::init(c);
-        o->state = STATE_INACTIVE;
+        o->init_state = INIT_STATE_INACTIVE;
         
         TheDebugObject::init(c);
     }
@@ -80,12 +87,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        if (o->state == STATE_LISTING) {
-            o->dir_lister.deinit(c);
-        }
-        if (o->state >= STATE_INIT_FS) {
-            TheFs::deinit(c);
-        }
+        cleanup(c);
         TheBlockAccess::deinit(c);
     }
     
@@ -93,26 +95,22 @@ public:
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_INACTIVE)
+        AMBRO_ASSERT(o->init_state == INIT_STATE_INACTIVE)
         
         TheBlockAccess::activate(c);
-        o->state = STATE_ACTIVATE_SD;
+        o->init_state = INIT_STATE_ACTIVATE_SD;
     }
     
     static void deactivate (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state != STATE_INACTIVE)
+        AMBRO_ASSERT(o->init_state != INIT_STATE_INACTIVE)
+        // due to locking in all of M20,M22,M23 we cannot be listing at this point
+        AMBRO_ASSERT(o->init_state != INIT_STATE_DONE || o->listing_state == LISTING_STATE_INACTIVE)
         
-        if (o->state == STATE_LISTING) {
-            o->dir_lister.deinit(c);
-        }
-        if (o->state >= STATE_INIT_FS) {
-            TheFs::deinit(c);
-        }
-        TheBlockAccess::deactivate(c);
-        o->state = STATE_INACTIVE;
+        cleanup(c);
+        o->init_state = INIT_STATE_INACTIVE;
     }
     
     static bool eofReached (Context c)
@@ -121,7 +119,7 @@ public:
         TheDebugObject::access(c);
         
         //
-        return true;
+        return false;
     }
     
     static bool canRead (Context c, size_t buf_avail)
@@ -138,6 +136,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
+        AMBRO_ASSERT(0)
         //
     }
     
@@ -146,51 +145,106 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        /*
-        if (cmd->getCmdNumber(c) == 23) {
-            if (o->state != STATE_NOFILE) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:Incorrect state"));
-                cmd->finishCommand(c);
-                return false;
-            }
-            o->file_path = cmd->get_command_param_str(c, 'F', "");
-            return false;
-        }
-        */
+        auto cmd_num = cmd->getCmdNumber(c);
         
-        if (cmd->getCmdNumber(c) == 20) {
+        if (cmd_num == 20 || cmd_num == 23) {
             if (!cmd->tryLockedCommand(c)) {
                 return false;
             }
-            if (o->state != STATE_NOFILE) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:Incorrect state"));
-                cmd->finishCommand(c);
+            
+            do {
+                if (o->init_state != INIT_STATE_DONE || o->listing_state != LISTING_STATE_INACTIVE) {
+                    AMBRO_PGM_P errstr = (o->init_state != INIT_STATE_DONE) ? AMBRO_PSTR("Error:SdNotInited\n") : AMBRO_PSTR("Error:SdNavBusy\n");
+                    cmd->reply_append_pstr(c, errstr);
+                    break;
+                }
+                
+                if (cmd_num == 20) {
+                    o->listing_state = LISTING_STATE_DIRLIST;
+                    o->dir_list_name = nullptr;
+                    o->dir_list_length_error = false;
+                } 
+                else { // cmd_num == 23
+                    if (cmd->find_command_param(c, 'R', nullptr)) {
+                        o->current_directory = TheFs::getRootEntry(c);
+                        break;
+                    }
+                    
+                    if ((o->dir_list_find_filename = cmd->get_command_param_str(c, 'D', nullptr))) {
+                        o->listing_state = LISTING_STATE_CHDIR;
+                    }
+                    else if ((o->dir_list_find_filename = cmd->get_command_param_str(c, 'F', nullptr))) {
+                        o->listing_state = LISTING_STATE_OPEN;
+                    }
+                    else {
+                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadParams\n"));
+                        break;
+                    }
+                    
+                    o->entry_found = false;
+                }
+                
+                o->dir_lister.init(c, o->current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
+                o->dir_lister.requestEntry(c);
                 return false;
-            }
-            o->dir_lister.init(c, o->current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
-            o->dir_lister.requestEntry(c);
-            o->state = STATE_LISTING;
+            } while (0);
+            
+            cmd->finishCommand(c);
             return false;
         }
         
         return true;
     }
     
-    using GetSdCard = TheSdCard;
+    static bool startingIo (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        
+        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:TBD\n"));
+        return false;
+    }
+    
+    static void pausingIo (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        
+        
+    }
+    
+    using GetSdCard = typename TheBlockAccess::GetSd;
     
 private:
+    static void cleanup (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        if (o->init_state == INIT_STATE_DONE && o->listing_state != LISTING_STATE_INACTIVE) {
+            o->dir_lister.deinit(c);
+        }
+        if (o->init_state >= INIT_STATE_INIT_FS) {
+            TheFs::deinit(c);
+        }
+        if (o->init_state >= INIT_STATE_ACTIVATE_SD) {
+            TheBlockAccess::deactivate(c);
+        }
+    }
+    
     static void block_access_activate_handler (Context c, uint8_t error_code)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_ACTIVATE_SD)
+        AMBRO_ASSERT(o->init_state == INIT_STATE_ACTIVATE_SD)
         
         if (error_code) {
-            o->state = STATE_INACTIVE;
+            o->init_state = INIT_STATE_INACTIVE;
             return ClientParams::ActivateHandler::call(c, error_code);
         }
         TheFs::init(c);
-        o->state = STATE_INIT_FS;
+        o->init_state = INIT_STATE_INIT_FS;
     }
     struct BlockAccessActivateHandler : public AMBRO_WFUNC_TD(&SdFatInput::block_access_activate_handler) {};
     
@@ -198,14 +252,14 @@ private:
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_INIT_FS)
+        AMBRO_ASSERT(o->init_state == INIT_STATE_INIT_FS)
         
         if (error_code) {
-            TheFs::deinit(c);
-            TheBlockAccess::deactivate(c);
-            o->state = STATE_INACTIVE;
+            cleanup(c);
+            o->init_state = INIT_STATE_INACTIVE;
         } else {
-            o->state = STATE_NOFILE;
+            o->init_state = INIT_STATE_DONE;
+            o->listing_state = LISTING_STATE_INACTIVE;
             o->current_directory = TheFs::getRootEntry(c);
         }
         return ClientParams::ActivateHandler::call(c, error_code);
@@ -216,25 +270,97 @@ private:
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_LISTING)
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->listing_state == LISTING_STATE_DIRLIST || o->listing_state == LISTING_STATE_CHDIR || o->listing_state == LISTING_STATE_OPEN)
         
         auto *cmd = ThePrinterMain::get_locked(c);
         
         if (!is_error && name) {
-            // TBD
-            o->dir_lister.requestEntry(c);
-            return;
+            bool stop_listing = false;
+            do {
+                if (o->listing_state == LISTING_STATE_DIRLIST) {
+                    AMBRO_ASSERT(!o->dir_list_name)
+                    
+                    // ReplyRequestExtra is to make sure we have space for a possible error reply at the end
+                    size_t name_len = strlen(name);
+                    size_t req_len = (2 + name_len + 1) + ReplyRequestExtra;
+                    if (name_len > 255 || !cmd->requestSendBufEvent(c, req_len, SdFatInput::send_buf_event_handler)) {
+                        o->dir_list_length_error = true;
+                        break;
+                    }
+                    
+                    o->dir_list_name = name;
+                    o->dir_list_is_dir = (entry.getType() == TheFs::ENTRYTYPE_DIR);
+                    return;
+                }
+                else if (o->listing_state == LISTING_STATE_CHDIR) {
+                    if (compare_filename_equal(name, o->dir_list_find_filename) && entry.getType() == TheFs::ENTRYTYPE_DIR) {
+                        o->current_directory = entry;
+                        o->entry_found = true;
+                        stop_listing = true;
+                    }
+                }
+                else { // o->listing_state == LISTING_STATE_OPEN
+                    if (compare_filename_equal(name, o->dir_list_find_filename) && entry.getType() == TheFs::ENTRYTYPE_FILE) {
+                        // TBD
+                        o->entry_found = true;
+                        stop_listing = true;
+                    }
+                }
+            } while (0);
+            
+            if (!stop_listing) {
+                o->dir_lister.requestEntry(c);
+                return;
+            }
         }
         
-        o->dir_lister.deinit(c);
-        o->state = STATE_NOFILE;
-        
+        AMBRO_PGM_P errstr = nullptr;
         if (is_error) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("error:FsDirList\n"));
+            errstr = AMBRO_PSTR("error:InputOutput\n");
         } else {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("end\n"));
+            if (o->listing_state == LISTING_STATE_DIRLIST) {
+                if (o->dir_list_length_error) {
+                    errstr = AMBRO_PSTR("error:NameTooLong\n");
+                }
+            }
+            else {
+                if (!o->entry_found) {
+                    errstr = AMBRO_PSTR("error:NotFound\n");
+                }
+            }
+        }
+        
+        if (errstr) {
+            cmd->reply_append_pstr(c, errstr);
         }
         cmd->finishCommand(c);
+        
+        o->dir_lister.deinit(c);
+        o->listing_state = LISTING_STATE_INACTIVE;
+    }
+    
+    static void send_buf_event_handler (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->listing_state == LISTING_STATE_DIRLIST)
+        AMBRO_ASSERT(o->dir_list_name)
+        
+        auto *cmd = ThePrinterMain::get_locked(c);
+        cmd->reply_append_pstr(c, o->dir_list_is_dir ? AMBRO_PSTR("d ") : AMBRO_PSTR("f "));
+        cmd->reply_append_buffer(c, o->dir_list_name, strlen(o->dir_list_name));
+        cmd->reply_append_ch(c, '\n');
+        cmd->reply_poke(c);
+        
+        o->dir_lister.requestEntry(c);
+        o->dir_list_name = nullptr;
+    }
+    
+    static bool compare_filename_equal (char const *str1, char const *str2)
+    {
+        return Params::CaseInsensFileName ? AsciiCaseInsensStringEqual(str1, str2) : !strcmp(str1, str2);
     }
     
 public:
@@ -243,16 +369,23 @@ public:
         TheBlockAccess,
         TheFs
     >> {
-        uint8_t state;
+        uint8_t init_state;
+        uint8_t listing_state;
         FsEntry current_directory;
         FsDirLister dir_lister;
+        char const *dir_list_name;
+        bool dir_list_is_dir;
+        bool dir_list_length_error;
+        bool entry_found;
+        char const *dir_list_find_filename;
     };
 };
 
-template <typename TSdCardService, typename TFsService>
+template <typename TSdCardService, typename TFsService, bool TCaseInsensFileName>
 struct SdFatInputService {
     using SdCardService = TSdCardService;
     using FsService = TFsService;
+    static bool const CaseInsensFileName = TCaseInsensFileName;
     
     template <typename Context, typename ParentObject, typename ClientParams>
     using Input = SdFatInput<Context, ParentObject, ClientParams, SdFatInputService>;

@@ -42,6 +42,7 @@ public:
     struct Object;
     
 private:
+    using ThePrinterMain = typename ClientParams::ThePrinterMain;
     using TheDebugObject = DebugObject<Context, Object>;
     struct SdCardInitHandler;
     struct SdCardCommandHandler;
@@ -121,9 +122,18 @@ public:
         o->state = STATE_READING;
     }
     
-    static bool checkCommand (Context c, typename ClientParams::ThePrinterMain::CommandType *cmd)
+    static bool checkCommand (Context c, typename ThePrinterMain::CommandType *cmd)
     {
         return true;
+    }
+    
+    static bool startingIo (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        return true;
+    }
+    
+    static void pausingIo (Context c)
+    {
     }
     
     using GetSdCard = TheSdCard;

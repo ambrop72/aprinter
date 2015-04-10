@@ -53,20 +53,16 @@
 #include <aprinter/meta/TypeListFold.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/misc/AsciiTools.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-static char RuntimeConfigManager__tolower (char c)
-{
-    return (c >= 'A' && c <= 'Z') ? (c + 32) : c;
-}
-
 static bool RuntimeConfigManager__compare_option (char const *name, ProgPtr<char> optname)
 {
     while (1) {
-        char c = RuntimeConfigManager__tolower(*name);
-        char d = RuntimeConfigManager__tolower(*optname);
+        char c = AsciiToLower(*name);
+        char d = AsciiToLower(*optname);
         if (c != d) {
             return false;
         }

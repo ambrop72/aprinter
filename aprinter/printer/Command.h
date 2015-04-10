@@ -71,7 +71,9 @@ public:
         for (PartsSizeType i = 0; i < num_parts; i++) {
             PartRef part = getPart(c, i);
             if (getPartCode(c, part) == code) {
-                *out_part = part;
+                if (out_part) {
+                    *out_part = part;
+                }
                 return true;
             }
         }
