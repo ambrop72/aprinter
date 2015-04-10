@@ -768,7 +768,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 Channel::reply_poke_impl(c);
             }
             
-            void reply_append_buffer (Context c, char const *str, uint8_t length)
+            void reply_append_buffer (Context c, char const *str, size_t length)
             {
                 Channel::reply_append_buffer_impl(c, str, length);
             }
@@ -778,7 +778,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 Channel::reply_append_ch_impl(c, ch);
             }
             
-            void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, uint8_t length)
+            void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
             {
                 Channel::reply_append_pbuffer_impl(c, pstr, length);
             }
@@ -919,7 +919,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheSerial::sendPoke(c);
         }
         
-        static void reply_append_buffer_impl (Context c, char const *str, uint8_t length)
+        static void reply_append_buffer_impl (Context c, char const *str, size_t length)
         {
             SendSizeType avail = TheSerial::sendQuery(c);
             if (length > avail.value()) {
@@ -935,7 +935,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
         }
         
-        static void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, uint8_t length)
+        static void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length)
         {
             SendSizeType avail = TheSerial::sendQuery(c);
             if (length > avail.value()) {
@@ -1231,11 +1231,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
         }
         
-        static void reply_append_buffer_impl (Context c, char const *str, uint8_t length)
+        static void reply_append_buffer_impl (Context c, char const *str, size_t length)
         {
         }
         
-        static void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, uint8_t length)
+        static void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length)
         {
         }
         

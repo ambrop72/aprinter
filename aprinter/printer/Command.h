@@ -58,9 +58,9 @@ public:
     virtual char const * getPartStringValue (Context c, PartRef part) = 0;
     
     virtual void reply_poke (Context c) = 0;
-    virtual void reply_append_buffer (Context c, char const *str, uint8_t length) = 0;
+    virtual void reply_append_buffer (Context c, char const *str, size_t length) = 0;
     virtual void reply_append_ch (Context c, char ch) = 0;
-    virtual void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, uint8_t length) = 0;
+    virtual void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length) = 0;
     
     virtual bool requestSendBufEvent (Context c, size_t length, SendBufEventHandler handler) = 0;
     virtual void cancelSendBufEvent (Context c) = 0;

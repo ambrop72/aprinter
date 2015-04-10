@@ -284,7 +284,7 @@ private:
                     // ReplyRequestExtra is to make sure we have space for a possible error reply at the end
                     size_t name_len = strlen(name);
                     size_t req_len = (2 + name_len + 1) + ReplyRequestExtra;
-                    if (name_len > 255 || !cmd->requestSendBufEvent(c, req_len, SdFatInput::send_buf_event_handler)) {
+                    if (!cmd->requestSendBufEvent(c, req_len, SdFatInput::send_buf_event_handler)) {
                         o->dir_list_length_error = true;
                         break;
                     }
@@ -350,7 +350,7 @@ private:
         
         auto *cmd = ThePrinterMain::get_locked(c);
         cmd->reply_append_pstr(c, o->dir_list_is_dir ? AMBRO_PSTR("d ") : AMBRO_PSTR("f "));
-        cmd->reply_append_buffer(c, o->dir_list_name, strlen(o->dir_list_name));
+        cmd->reply_append_str(c, o->dir_list_name);
         cmd->reply_append_ch(c, '\n');
         cmd->reply_poke(c);
         
