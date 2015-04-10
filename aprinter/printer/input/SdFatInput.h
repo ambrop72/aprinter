@@ -52,8 +52,6 @@ private:
     using TheBlockAccess = typename BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler>;
     struct FsInitHandler;
     using TheFs = typename Params::FsService::template Fs<Context, Object, TheBlockAccess, FsInitHandler>;
-    using FsEntry = typename TheFs::FsEntry;
-    using FsDirLister = typename TheFs::DirLister;
     enum InitState {
         INIT_STATE_INACTIVE,
         INIT_STATE_ACTIVATE_SD,
@@ -161,8 +159,8 @@ public:
                 
                 if (cmd_num == 20) {
                     o->listing_state = LISTING_STATE_DIRLIST;
-                    o->dir_list_name = nullptr;
-                    o->dir_list_length_error = false;
+                    o->listing_u.dirlist.cur_name = nullptr;
+                    o->listing_u.dirlist.length_error = false;
                 } 
                 else { // cmd_num == 23
                     if (cmd->find_command_param(c, 'R', nullptr)) {
@@ -170,10 +168,11 @@ public:
                         break;
                     }
                     
-                    if ((o->dir_list_find_filename = cmd->get_command_param_str(c, 'D', nullptr))) {
+                    char const *find_name;
+                    if ((find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
                         o->listing_state = LISTING_STATE_CHDIR;
                     }
-                    else if ((o->dir_list_find_filename = cmd->get_command_param_str(c, 'F', nullptr))) {
+                    else if ((find_name = cmd->get_command_param_str(c, 'F', nullptr))) {
                         o->listing_state = LISTING_STATE_OPEN;
                     }
                     else {
@@ -181,7 +180,8 @@ public:
                         break;
                     }
                     
-                    o->entry_found = false;
+                    o->listing_u.open_or_chdir.find_name = find_name;
+                    o->listing_u.open_or_chdir.entry_found = false;
                 }
                 
                 o->dir_lister.init(c, o->current_directory, &o->fs_buffer, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
@@ -266,7 +266,7 @@ private:
     }
     struct FsInitHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_init_handler) {};
     
-    static void dir_lister_handler (Context c, bool is_error, char const *name, FsEntry entry)
+    static void dir_lister_handler (Context c, bool is_error, char const *name, typename TheFs::FsEntry entry)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -279,31 +279,31 @@ private:
             bool stop_listing = false;
             do {
                 if (o->listing_state == LISTING_STATE_DIRLIST) {
-                    AMBRO_ASSERT(!o->dir_list_name)
+                    AMBRO_ASSERT(!o->listing_u.dirlist.cur_name)
                     
                     // ReplyRequestExtra is to make sure we have space for a possible error reply at the end
                     size_t name_len = strlen(name);
                     size_t req_len = (2 + name_len + 1) + ReplyRequestExtra;
                     if (!cmd->requestSendBufEvent(c, req_len, SdFatInput::send_buf_event_handler)) {
-                        o->dir_list_length_error = true;
+                        o->listing_u.dirlist.length_error = true;
                         break;
                     }
                     
-                    o->dir_list_name = name;
-                    o->dir_list_is_dir = (entry.getType() == TheFs::ENTRYTYPE_DIR);
+                    o->listing_u.dirlist.cur_name = name;
+                    o->listing_u.dirlist.cur_is_dir = (entry.getType() == TheFs::ENTRYTYPE_DIR);
                     return;
                 }
                 else if (o->listing_state == LISTING_STATE_CHDIR) {
-                    if (compare_filename_equal(name, o->dir_list_find_filename) && entry.getType() == TheFs::ENTRYTYPE_DIR) {
+                    if (compare_filename_equal(name, o->listing_u.open_or_chdir.find_name) && entry.getType() == TheFs::ENTRYTYPE_DIR) {
                         o->current_directory = entry;
-                        o->entry_found = true;
+                        o->listing_u.open_or_chdir.entry_found = true;
                         stop_listing = true;
                     }
                 }
                 else { // o->listing_state == LISTING_STATE_OPEN
-                    if (compare_filename_equal(name, o->dir_list_find_filename) && entry.getType() == TheFs::ENTRYTYPE_FILE) {
+                    if (compare_filename_equal(name, o->listing_u.open_or_chdir.find_name) && entry.getType() == TheFs::ENTRYTYPE_FILE) {
                         // TBD
-                        o->entry_found = true;
+                        o->listing_u.open_or_chdir.entry_found = true;
                         stop_listing = true;
                     }
                 }
@@ -320,12 +320,12 @@ private:
             errstr = AMBRO_PSTR("error:InputOutput\n");
         } else {
             if (o->listing_state == LISTING_STATE_DIRLIST) {
-                if (o->dir_list_length_error) {
+                if (o->listing_u.dirlist.length_error) {
                     errstr = AMBRO_PSTR("error:NameTooLong\n");
                 }
             }
             else {
-                if (!o->entry_found) {
+                if (!o->listing_u.open_or_chdir.entry_found) {
                     errstr = AMBRO_PSTR("error:NotFound\n");
                 }
             }
@@ -346,16 +346,16 @@ private:
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
         AMBRO_ASSERT(o->listing_state == LISTING_STATE_DIRLIST)
-        AMBRO_ASSERT(o->dir_list_name)
+        AMBRO_ASSERT(o->listing_u.dirlist.cur_name)
         
         auto *cmd = ThePrinterMain::get_locked(c);
-        cmd->reply_append_pstr(c, o->dir_list_is_dir ? AMBRO_PSTR("d ") : AMBRO_PSTR("f "));
-        cmd->reply_append_str(c, o->dir_list_name);
+        cmd->reply_append_pstr(c, o->listing_u.dirlist.cur_is_dir ? AMBRO_PSTR("d ") : AMBRO_PSTR("f "));
+        cmd->reply_append_str(c, o->listing_u.dirlist.cur_name);
         cmd->reply_append_ch(c, '\n');
         cmd->reply_poke(c);
         
         o->dir_lister.requestEntry(c);
-        o->dir_list_name = nullptr;
+        o->listing_u.dirlist.cur_name = nullptr;
     }
     
     static bool compare_filename_equal (char const *str1, char const *str2)
@@ -371,13 +371,19 @@ public:
     >> {
         uint8_t init_state;
         uint8_t listing_state;
-        FsEntry current_directory;
-        FsDirLister dir_lister;
-        char const *dir_list_name;
-        bool dir_list_is_dir;
-        bool dir_list_length_error;
-        bool entry_found;
-        char const *dir_list_find_filename;
+        typename TheFs::FsEntry current_directory;
+        typename TheFs::DirLister dir_lister;
+        union {
+            struct {
+                char const *cur_name;
+                bool cur_is_dir;
+                bool length_error;
+            } dirlist;
+            struct {
+                char const *find_name;
+                bool entry_found;
+            } open_or_chdir;
+        } listing_u;
         typename TheFs::SharedBuffer fs_buffer;
     };
 };
