@@ -337,9 +337,10 @@ public:
             AMBRO_ASSERT(file_entry.type == ENTRYTYPE_FILE)
             
             m_handler = handler;
-            m_reader.init(c, file_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&FileReader::reader_handler, this));
-            m_rem_file_size = file_entry.file_size;
+            m_first_cluster = file_entry.cluster_index;
+            m_file_size = file_entry.file_size;
             m_state = FILEREADER_STATE_WAITREQ;
+            init_reader(c);
         }
         
         // WARNING: Only allowed together with deiniting the whole FatFs and underlying storage!
@@ -348,6 +349,15 @@ public:
             TheDebugObject::access(c);
             
             m_reader.deinit(c);
+        }
+        
+        void rewind (Context c)
+        {
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == FILEREADER_STATE_WAITREQ)
+            
+            m_reader.deinit(c);
+            init_reader(c);
         }
         
         void requestBlock (Context c, WrapBuffer buf)
@@ -360,6 +370,12 @@ public:
         }
         
     private:
+        void init_reader (Context c)
+        {
+            m_reader.init(c, m_first_cluster, APRINTER_CB_OBJFUNC_T(&FileReader::reader_handler, this));
+            m_rem_file_size = m_file_size;
+        }
+        
         void reader_handler (Context c, uint8_t status)
         {
             TheDebugObject::access(c);
@@ -384,6 +400,8 @@ public:
         }
         
         FileReaderHandler m_handler;
+        ClusterIndexType m_first_cluster;
+        uint32_t m_file_size;
         BaseReader m_reader;
         uint32_t m_rem_file_size;
         uint8_t m_state;
@@ -557,7 +575,7 @@ private:
             m_block_in_cluster = 0;
         }
         
-        // WARNING: Only allowed together with deiniting the whole FatFs and underlying storage!
+        // WARNING: Only allowed together with deiniting the whole FatFs and underlying storage or when not reading!
         void deinit (Context c)
         {
             m_block_user.deinit(c);

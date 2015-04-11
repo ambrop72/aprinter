@@ -99,6 +99,16 @@ public:
     {
     }
     
+    static bool rewind (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->state == STATE_READY)
+        
+        o->block = 0;
+        return true;
+    }
+    
     static bool eofReached (Context c)
     {
         auto *o = Object::self(c);

@@ -147,6 +147,22 @@ public:
         o->file_state = FILE_STATE_PAUSED;
     }
     
+    static bool rewind (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->file_state == FILE_STATE_INACTIVE || o->file_state == FILE_STATE_PAUSED)
+        
+        if (o->file_state == FILE_STATE_INACTIVE) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:FileNotOpened\n"));
+            return false;
+        }
+        
+        o->init_u.fs.file_reader.rewind(c);
+        return true;
+    }
+    
     static bool eofReached (Context c)
     {
         auto *o = Object::self(c);

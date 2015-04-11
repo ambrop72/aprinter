@@ -1086,7 +1086,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
         struct InputReadHandler : public AMBRO_WFUNC_TD(&SdCardFeature::input_read_handler) {};
         
-        static void input_clear_buffer_handler (Context c)
+        static void clear_input_buffer (Context c)
         {
             auto *o = Object::self(c);
             auto *co = TheChannelCommon::Object::self(c);
@@ -1098,7 +1098,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             o->m_start = 0;
             o->m_length = 0;
         }
-        struct InputClearBufferHandler : public AMBRO_WFUNC_TD(&SdCardFeature::input_clear_buffer_handler) {};
+        struct InputClearBufferHandler : public AMBRO_WFUNC_TD(&SdCardFeature::clear_input_buffer) {};
         
         static void next_event_handler (Context c)
         {
@@ -1220,6 +1220,29 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     }
                     TheInput::pausingIo(c);
                     o->m_state = SDCARD_INITED;
+                } while (0);
+                cmd->finishCommand(c);
+                return false;
+            }
+            if (cmd->getCmdNumber(c) == 26) {
+                if (!cmd->tryUnplannedCommand(c)) {
+                    return false;
+                }
+                sd_not_initing_or_pausing_assert(c);
+                do {
+                    if (o->m_state != SDCARD_INITED) {
+                        cmd->reply_append_pstr(c, o->m_state == SDCARD_NONE ? AMBRO_PSTR("Error:SdNotInited\n") : AMBRO_PSTR("Error:SdPrintRunning\n"));
+                        break;
+                    }
+                    uint32_t seek_pos = cmd->get_command_param_uint32(c, 'S', 0);
+                    if (seek_pos != 0) {
+                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:CanOnlySeekToZero\n"));
+                        break;
+                    }
+                    if (!TheInput::rewind(c, cmd)) {
+                        break;
+                    }
+                    clear_input_buffer(c);
                 } while (0);
                 cmd->finishCommand(c);
                 return false;
