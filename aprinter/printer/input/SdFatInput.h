@@ -34,6 +34,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/BinaryTools.h>
 #include <aprinter/misc/AsciiTools.h>
 #include <aprinter/devices/FatFs.h>
 #include <aprinter/devices/BlockAccess.h>
@@ -52,9 +53,14 @@ private:
     using TheBlockAccess = typename BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler>;
     struct FsInitHandler;
     using TheFs = typename Params::FsService::template Fs<Context, Object, TheBlockAccess, FsInitHandler>;
+    
+    static size_t const DirListReplyRequestExtra = 24;
+    static_assert(TheBlockAccess::BlockSize == 512, "BlockSize must be 512");
+    
     enum InitState {
         INIT_STATE_INACTIVE,
         INIT_STATE_ACTIVATE_SD,
+        INIT_STATE_READ_MBR,
         INIT_STATE_INIT_FS,
         INIT_STATE_DONE
     };
@@ -70,8 +76,6 @@ private:
         FILE_STATE_RUNNING,
         FILE_STATE_READING
     };
-    
-    static size_t const ReplyRequestExtra = 24;
     
 public:
     static size_t const NeedBufAvail = TheBlockAccess::BlockSize;
@@ -170,7 +174,7 @@ public:
         AMBRO_ASSERT(buf_avail >= TheBlockAccess::BlockSize)
         AMBRO_ASSERT(buf_wrap > 0)
         
-        o->file_reader.requestBlock(c, WrapBuffer(buf_wrap, (char *)buf1, (char *)buf2));
+        o->init_u.fs.file_reader.requestBlock(c, WrapBuffer::Make(buf_wrap, (char *)buf1, (char *)buf2));
         o->file_state = FILE_STATE_READING;
     }
     
@@ -200,7 +204,7 @@ public:
                 } 
                 else { // cmd_num == 23
                     if (cmd->find_command_param(c, 'R', nullptr)) {
-                        o->current_directory = TheFs::getRootEntry(c);
+                        o->init_u.fs.current_directory = TheFs::getRootEntry(c);
                         break;
                     }
                     
@@ -222,8 +226,8 @@ public:
                     o->listing_u.open_or_chdir.entry_found = false;
                 }
                 
-                o->dir_lister.init(c, o->current_directory, &o->fs_buffer, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
-                o->dir_lister.requestEntry(c);
+                o->init_u.fs.dir_lister.init(c, o->init_u.fs.current_directory, &o->fs_buffer, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
+                o->init_u.fs.dir_lister.requestEntry(c);
                 return false;
             } while (0);
             
@@ -242,13 +246,16 @@ private:
         auto *o = Object::self(c);
         
         if (o->listing_state != LISTING_STATE_INACTIVE) {
-            o->dir_lister.deinit(c);
+            o->init_u.fs.dir_lister.deinit(c);
         }
         if (o->file_state != FILE_STATE_INACTIVE) {
-            o->file_reader.deinit(c);
+            o->init_u.fs.file_reader.deinit(c);
         }
         if (o->init_state >= INIT_STATE_INIT_FS) {
             TheFs::deinit(c);
+        }
+        if (o->init_state == INIT_STATE_READ_MBR) {
+            o->init_u.mbr.block_user.deinit(c);
         }
         if (o->init_state >= INIT_STATE_ACTIVATE_SD) {
             TheBlockAccess::deactivate(c);
@@ -269,10 +276,68 @@ private:
             o->init_state = INIT_STATE_INACTIVE;
             return ClientParams::ActivateHandler::call(c, error_code);
         }
-        TheFs::init(c, &o->fs_buffer);
-        o->init_state = INIT_STATE_INIT_FS;
+        
+        o->init_state = INIT_STATE_READ_MBR;
+        o->init_u.mbr.block_user.init(c, TheBlockAccess::getDeviceRange(c), APRINTER_CB_STATFUNC_T(&SdFatInput::block_user_handler));
+        o->init_u.mbr.block_user.startRead(c, 0, WrapBuffer::Make(o->fs_buffer.buffer));
     }
     struct BlockAccessActivateHandler : public AMBRO_WFUNC_TD(&SdFatInput::block_access_activate_handler) {};
+    
+    static void block_user_handler (Context c, bool read_error)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_READ_MBR)
+        
+        uint8_t error_code = 99;
+        do {
+            if (read_error) {
+                error_code = 40;
+                goto error;
+            }
+            
+            uint16_t signature = ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->fs_buffer.buffer + 510);
+            if (signature != UINT16_C(0xAA55)) {
+                error_code = 41;
+                goto error;
+            }
+            
+            auto capacity = TheBlockAccess::getCapacityBlocks(c);
+            bool part_found = false;
+            typename TheBlockAccess::BlockRange part_range;
+            
+            for (int partNum = 0; partNum < 4; partNum++) {
+                char const *part_entry_buf = o->fs_buffer.buffer + (446 + partNum * 16);
+                uint8_t part_type =           ReadBinaryInt<uint8_t,  BinaryLittleEndian>(part_entry_buf + 0x4);
+                uint32_t part_start_blocks =  ReadBinaryInt<uint32_t, BinaryLittleEndian>(part_entry_buf + 0x8);
+                uint32_t part_length_blocks = ReadBinaryInt<uint32_t, BinaryLittleEndian>(part_entry_buf + 0xC);
+                
+                if (!(part_start_blocks <= capacity && part_length_blocks <= capacity - part_start_blocks && part_length_blocks > 0)) {
+                    continue;
+                }
+                
+                if (TheFs::isPartitionTypeSupported(part_type)) {
+                    part_found = true;
+                    part_range = typename TheBlockAccess::BlockRange{part_start_blocks, part_start_blocks + part_length_blocks};
+                    break;
+                }
+            }
+            
+            if (!part_found) {
+                error_code = 42;
+                goto error;
+            }
+            
+            o->init_u.mbr.block_user.deinit(c);
+            TheFs::init(c, &o->fs_buffer, part_range);
+            o->init_state = INIT_STATE_INIT_FS;
+            return;
+        } while (0);
+        
+    error:
+        cleanup(c);
+        return ClientParams::ActivateHandler::call(c, error_code);
+    }
     
     static void fs_init_handler (Context c, uint8_t error_code)
     {
@@ -286,7 +351,7 @@ private:
             cleanup(c);
         } else {
             o->init_state = INIT_STATE_DONE;
-            o->current_directory = TheFs::getRootEntry(c);
+            o->init_u.fs.current_directory = TheFs::getRootEntry(c);
         }
         return ClientParams::ActivateHandler::call(c, error_code);
     }
@@ -307,8 +372,8 @@ private:
                 if (o->listing_state == LISTING_STATE_DIRLIST) {
                     AMBRO_ASSERT(!o->listing_u.dirlist.cur_name)
                     
-                    // ReplyRequestExtra is to make sure we have space for a possible error reply at the end
-                    size_t req_len = (2 + strlen(name) + 1) + ReplyRequestExtra;
+                    // DirListReplyRequestExtra is to make sure we have space for a possible error reply at the end
+                    size_t req_len = (2 + strlen(name) + 1) + DirListReplyRequestExtra;
                     if (!cmd->requestSendBufEvent(c, req_len, SdFatInput::send_buf_event_handler)) {
                         o->listing_u.dirlist.length_error = true;
                         break;
@@ -327,7 +392,7 @@ private:
             } while (0);
             
             if (!stop_listing) {
-                o->dir_lister.requestEntry(c);
+                o->init_u.fs.dir_lister.requestEntry(c);
                 return;
             }
         }
@@ -350,7 +415,7 @@ private:
                 }
                 
                 if (o->listing_state == LISTING_STATE_CHDIR) {
-                    o->current_directory = entry;
+                    o->init_u.fs.current_directory = entry;
                 } else {
                     if (o->file_state >= FILE_STATE_RUNNING) {
                         errstr = AMBRO_PSTR("error:SdPrintRunning\n");
@@ -358,9 +423,9 @@ private:
                     }
                     
                     if (o->file_state != FILE_STATE_INACTIVE) {
-                        o->file_reader.deinit(c);
+                        o->init_u.fs.file_reader.deinit(c);
                     }
-                    o->file_reader.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::file_reader_handler));
+                    o->init_u.fs.file_reader.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::file_reader_handler));
                     o->file_state = FILE_STATE_PAUSED;
                     o->file_eof = false;
                     
@@ -377,7 +442,7 @@ private:
         }
         cmd->finishCommand(c);
         
-        o->dir_lister.deinit(c);
+        o->init_u.fs.dir_lister.deinit(c);
         o->listing_state = LISTING_STATE_INACTIVE;
     }
     
@@ -395,7 +460,7 @@ private:
         cmd->reply_append_ch(c, '\n');
         cmd->reply_poke(c);
         
-        o->dir_lister.requestEntry(c);
+        o->init_u.fs.dir_lister.requestEntry(c);
         o->listing_u.dirlist.cur_name = nullptr;
     }
     
@@ -429,9 +494,16 @@ public:
         uint8_t listing_state;
         uint8_t file_state;
         bool file_eof;
-        typename TheFs::FsEntry current_directory;
-        typename TheFs::DirLister dir_lister;
-        typename TheFs::FileReader file_reader;
+        struct {
+            struct {
+                typename TheBlockAccess::User block_user;
+            } mbr;
+            struct {
+                typename TheFs::FsEntry current_directory;
+                typename TheFs::DirLister dir_lister;
+                typename TheFs::FileReader file_reader;
+            } fs;
+        } init_u;
         union {
             struct {
                 char const *cur_name;

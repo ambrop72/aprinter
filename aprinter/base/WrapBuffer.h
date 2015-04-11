@@ -33,13 +33,15 @@
 #include <aprinter/BeginNamespace.h>
 
 struct WrapBuffer {
-    inline WrapBuffer () {}
+    static WrapBuffer Make (size_t wrap, char *ptr1, char *ptr2)
+    {
+        return WrapBuffer{wrap, ptr1, ptr2};
+    }
     
-    inline WrapBuffer (size_t wrap, char *ptr1, char *ptr2)
-    : wrap(wrap), ptr1(ptr1), ptr2(ptr2) {}
-    
-    inline WrapBuffer (char *ptr)
-    : wrap(-1), ptr1(ptr), ptr2(nullptr) {}
+    static WrapBuffer Make (char *ptr)
+    {
+        return WrapBuffer{(size_t)-1, ptr, nullptr};
+    }
     
     inline void copyOut (size_t offset, size_t length, char *dst) const
     {

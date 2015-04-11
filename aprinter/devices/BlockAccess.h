@@ -55,6 +55,11 @@ public:
     using BlockIndexType = typename TheSd::BlockIndexType;
     static size_t const BlockSize = TheSd::BlockSize;
     
+    struct BlockRange {
+        BlockIndexType start_block;
+        BlockIndexType end_block;
+    };
+    
     static void init (Context c)
     {
         auto *o = Object::self(c);
@@ -99,7 +104,14 @@ public:
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
         
-        return TheSd::getCapacityBlocks(c);
+        BlockIndexType capacity = TheSd::getCapacityBlocks(c);
+        AMBRO_ASSERT(capacity > 0)
+        return capacity;
+    }
+    
+    static BlockRange getDeviceRange (Context c)
+    {
+        return BlockRange{0, getCapacityBlocks(c)};
     }
     
     using GetSd = TheSd;
@@ -112,15 +124,32 @@ public:
     public:
         using ReadHandlerType = Callback<void(Context c, bool error)>;
         
-        void init (Context c, ReadHandlerType read_handler)
+        void init (Context c, BlockRange block_range, ReadHandlerType read_handler)
         {
+            auto *o = Object::self(c);
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
+            AMBRO_ASSERT(block_range.start_block < block_range.end_block)
+            AMBRO_ASSERT(block_range.end_block <= TheSd::getCapacityBlocks(c))
+            
+            m_block_range = block_range;
             m_read_handler = read_handler;
             m_state = USER_STATE_IDLE;
         }
         
-        // WARNING: Only allowed together with deiniting the whole storage!
+        // WARNING: Only allowed together with deiniting the whole storage or when not reading!
         void deinit (Context c)
         {
+        }
+        
+        BlockRange getBlockRange (Context c)
+        {
+            return m_block_range;
+        }
+        
+        BlockIndexType getUserCapacityBlocks (Context c)
+        {
+            return m_block_range.end_block - m_block_range.start_block;
         }
         
         void startRead (Context c, BlockIndexType block_idx, WrapBuffer buf)
@@ -129,14 +158,16 @@ public:
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
             AMBRO_ASSERT(m_state == USER_STATE_IDLE)
+            AMBRO_ASSERT(block_idx < m_block_range.end_block - m_block_range.start_block)
             
             m_state = USER_STATE_READING;
-            m_block_idx = block_idx;
+            m_block_idx = m_block_range.start_block + block_idx;
             m_buf = buf;
             add_request(c, this);
         }
         
     private:
+        BlockRange m_block_range;
         ReadHandlerType m_read_handler;
         uint8_t m_state;
         BlockIndexType m_block_idx;

@@ -82,14 +82,19 @@ public:
         char buffer[BlockSize];
     };
     
-    static void init (Context c, SharedBuffer *init_buffer)
+    static bool isPartitionTypeSupported (uint8_t type)
+    {
+        return (type == 0xB || type == 0xC);
+    }
+    
+    static void init (Context c, SharedBuffer *init_buffer, typename TheBlockAccess::BlockRange block_range)
     {
         auto *o = Object::self(c);
         
         o->init_buffer = init_buffer;
-        o->init_block_user.init(c, APRINTER_CB_STATFUNC_T(&FatFs::init_block_read_handler));
+        o->init_block_user.init(c, block_range, APRINTER_CB_STATFUNC_T(&FatFs::init_block_read_handler));
         o->state = FS_STATE_INIT;
-        o->init_block_user.startRead(c, 0, WrapBuffer(o->init_buffer->buffer));
+        o->init_block_user.startRead(c, 0, WrapBuffer::Make(o->init_buffer->buffer));
         
         TheDebugObject::init(c);
     }
@@ -299,7 +304,7 @@ public:
         void next_entry (Context c)
         {
             if (m_block_entry_pos == DirEntriesPerBlock) {
-                m_reader.requestBlock(c, WrapBuffer(m_buffer->buffer));
+                m_reader.requestBlock(c, WrapBuffer::Make(m_buffer->buffer));
                 m_state = DIRLISTER_STATE_READING;
             } else {
                 m_event.appendNowNotAlready(c);
@@ -471,7 +476,7 @@ private:
     static SectorIndexType get_capacity_sectors (Context c)
     {
         auto *o = Object::self(c);
-        return TheBlockAccess::getCapacityBlocks(c) / o->blocks_per_sector;
+        return o->init_block_user.getUserCapacityBlocks(c) / o->blocks_per_sector;
     }
     
     static bool is_cluster_idx_valid (ClusterIndexType cluster_idx)
@@ -547,7 +552,7 @@ private:
             m_handler = handler;
             m_state = BASEREAD_STATE_WAITREQ;
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&BaseReader::event_handler, this));
-            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&BaseReader::read_handler, this));
+            m_block_user.init(c, o->init_block_user.getBlockRange(c), APRINTER_CB_OBJFUNC_T(&BaseReader::read_handler, this));
             m_current_cluster = first_cluster;
             m_block_in_cluster = 0;
         }
