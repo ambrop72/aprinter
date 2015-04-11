@@ -369,6 +369,11 @@
         "_compoundName": "SdCardConfig",
         "sdcard": {
           "BufferBaseSize": 2048,
+          "FsType": {
+            "CaseInsensFileName": true,
+            "MaxFileNameSize": 128,
+            "_compoundName": "Fat32"
+          },
           "GcodeParser": {
             "MaxParts": 8,
             "_compoundName": "TextGcodeParser"
@@ -828,6 +833,11 @@
         "_compoundName": "SdCardConfig",
         "sdcard": {
           "BufferBaseSize": 2048,
+          "FsType": {
+            "CaseInsensFileName": true,
+            "MaxFileNameSize": 128,
+            "_compoundName": "Fat32"
+          },
           "GcodeParser": {
             "MaxParts": 8,
             "_compoundName": "TextGcodeParser"
@@ -1879,6 +1889,11 @@
         "_compoundName": "SdCardConfig",
         "sdcard": {
           "BufferBaseSize": 1024,
+          "FsType": {
+            "CaseInsensFileName": true,
+            "MaxFileNameSize": 32,
+            "_compoundName": "Fat32"
+          },
           "GcodeParser": {
             "MaxParts": 8,
             "_compoundName": "TextGcodeParser"
@@ -2185,6 +2200,11 @@
         "_compoundName": "SdCardConfig",
         "sdcard": {
           "BufferBaseSize": 2048,
+          "FsType": {
+            "CaseInsensFileName": true,
+            "MaxFileNameSize": 128,
+            "_compoundName": "Fat32"
+          },
           "GcodeParser": {
             "MaxParts": 8,
             "_compoundName": "TextGcodeParser"
