@@ -58,6 +58,11 @@ public:
     struct BlockRange {
         BlockIndexType start_block;
         BlockIndexType end_block;
+        
+        BlockIndexType getLength () const
+        {
+            return end_block - start_block;
+        }
     };
     
     static void init (Context c)
@@ -109,32 +114,23 @@ public:
         return capacity;
     }
     
-    static BlockRange getDeviceRange (Context c)
-    {
-        return BlockRange{0, getCapacityBlocks(c)};
-    }
-    
     using GetSd = TheSd;
     
     class User {
     private:
         friend BlockAccess;
-        enum {USER_STATE_IDLE, USER_STATE_READING};
         
     public:
         using ReadHandlerType = Callback<void(Context c, bool error)>;
         
-        void init (Context c, BlockRange block_range, ReadHandlerType read_handler)
+        void init (Context c, ReadHandlerType read_handler)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
-            AMBRO_ASSERT(block_range.start_block < block_range.end_block)
-            AMBRO_ASSERT(block_range.end_block <= TheSd::getCapacityBlocks(c))
             
-            m_block_range = block_range;
             m_read_handler = read_handler;
-            m_state = USER_STATE_IDLE;
+            QueueList::markRemoved(this);
         }
         
         // WARNING: Only allowed together with deiniting the whole storage or when not reading!
@@ -142,34 +138,26 @@ public:
         {
         }
         
-        BlockRange getBlockRange (Context c)
-        {
-            return m_block_range;
-        }
-        
-        BlockIndexType getUserCapacityBlocks (Context c)
-        {
-            return m_block_range.end_block - m_block_range.start_block;
-        }
-        
         void startRead (Context c, BlockIndexType block_idx, WrapBuffer buf)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
-            AMBRO_ASSERT(m_state == USER_STATE_IDLE)
-            AMBRO_ASSERT(block_idx < m_block_range.end_block - m_block_range.start_block)
+            AMBRO_ASSERT(QueueList::isRemoved(this))
+            AMBRO_ASSERT(block_idx < TheSd::getCapacityBlocks(c))
             
-            m_state = USER_STATE_READING;
-            m_block_idx = m_block_range.start_block + block_idx;
+            m_block_idx = block_idx;
             m_buf = buf;
             add_request(c, this);
         }
         
+        WrapBuffer getBuffer (Context c)
+        {
+            return m_buf;
+        }
+        
     private:
-        BlockRange m_block_range;
         ReadHandlerType m_read_handler;
-        uint8_t m_state;
         BlockIndexType m_block_idx;
         WrapBuffer m_buf;
         DoubleEndedListNode<User> m_list_node;
@@ -207,11 +195,11 @@ private:
         }
         TheSd::unsetEvent(c);
         User *user = o->queue.first();
-        AMBRO_ASSERT(user->m_state == User::USER_STATE_READING)
+        AMBRO_ASSERT(!QueueList::isRemoved(user))
         o->queue.removeFirst();
+        QueueList::markRemoved(user);
         o->state = STATE_READY;
         continue_queue(c);
-        user->m_state = User::USER_STATE_IDLE;
         return user->m_read_handler(c, error);
     }
     struct SdCommandHandler : public AMBRO_WFUNC_TD(&BlockAccess::sd_command_handler) {};
@@ -234,7 +222,7 @@ private:
         
         User *user = o->queue.first();
         if (user) {
-            AMBRO_ASSERT(user->m_state == User::USER_STATE_READING)
+            AMBRO_ASSERT(!QueueList::isRemoved(user))
             size_t effective_wrap = MinValue(BlockSize, user->m_buf.wrap);
             TheSd::queueReadBlock(c, user->m_block_idx, (uint8_t *)user->m_buf.ptr1, effective_wrap, (uint8_t *)user->m_buf.ptr2, &o->read_state);
             o->state = STATE_BUSY;

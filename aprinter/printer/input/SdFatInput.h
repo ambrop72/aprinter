@@ -57,6 +57,7 @@ private:
     static size_t const DirListReplyRequestExtra = 24;
     static_assert(TheBlockAccess::BlockSize == 512, "BlockSize must be 512");
     
+    // NOTE: Check bit field widths at the bottom before adding new state values.
     enum InitState {
         INIT_STATE_INACTIVE,
         INIT_STATE_ACTIVATE_SD,
@@ -295,7 +296,7 @@ private:
         }
         
         o->init_state = INIT_STATE_READ_MBR;
-        o->init_u.mbr.block_user.init(c, TheBlockAccess::getDeviceRange(c), APRINTER_CB_STATFUNC_T(&SdFatInput::block_user_handler));
+        o->init_u.mbr.block_user.init(c, APRINTER_CB_STATFUNC_T(&SdFatInput::block_user_handler));
         o->init_u.mbr.block_user.startRead(c, 0, WrapBuffer::Make(o->fs_buffer.buffer));
     }
     struct BlockAccessActivateHandler : public AMBRO_WFUNC_TD(&SdFatInput::block_access_activate_handler) {};
@@ -346,6 +347,7 @@ private:
             }
             
             o->init_u.mbr.block_user.deinit(c);
+            
             TheFs::init(c, &o->fs_buffer, part_range);
             o->init_state = INIT_STATE_INIT_FS;
             return;
@@ -507,10 +509,10 @@ public:
         TheBlockAccess,
         TheFs
     >> {
-        uint8_t init_state;
-        uint8_t listing_state;
-        uint8_t file_state;
-        bool file_eof;
+        uint8_t init_state : 3;
+        uint8_t listing_state : 2;
+        uint8_t file_state : 2;
+        uint8_t file_eof : 1;
         union {
             struct {
                 typename TheBlockAccess::User block_user;
@@ -524,8 +526,8 @@ public:
         union {
             struct {
                 char const *cur_name;
-                bool cur_is_dir;
-                bool length_error;
+                bool cur_is_dir : 1;
+                bool length_error : 1;
             } dirlist;
             struct {
                 char const *find_name;

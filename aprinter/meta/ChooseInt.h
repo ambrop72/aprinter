@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 #include <aprinter/meta/If.h>
+#include <aprinter/meta/BitsInInt.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -52,6 +53,9 @@ public:
 
 template <int NumBits, bool Signed = false>
 using ChooseInt = typename ChooseIntHelper<NumBits, Signed>::Result;
+
+template <uintmax_t N, bool Signed = false>
+using ChooseIntForMax = ChooseInt<BitsInInt<N>::Value, Signed>;
 
 #include <aprinter/EndNamespace.h>
 
