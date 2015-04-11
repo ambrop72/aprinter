@@ -160,6 +160,7 @@ public:
         }
         
         o->init_u.fs.file_reader.rewind(c);
+        o->file_eof = false;
         return true;
     }
     
