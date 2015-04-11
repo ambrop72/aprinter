@@ -67,7 +67,7 @@ configure_teensy() {
     )
 
     FLAGS_C_CXX+=(
-        -I"${TEENSY3}" -D${CPU_DEF} -DF_CPU=${F_CPU} -DUSB_SERIAL
+        -I"${TEENSY3}" -D${CPU_DEF} -DF_CPU=${F_CPU} -DUSB_SERIAL -DAPRINTER_NO_SBRK
     )
 
     C_SOURCES+=(
@@ -78,6 +78,7 @@ configure_teensy() {
         "${TEENSY3}/usb_mem.c"
         "${TEENSY3}/usb_serial.c"
         "aprinter/platform/teensy3/aprinter_teensy_eeprom.c"
+        "aprinter/platform/newlib_common.c"
     )
 
     CXX_SOURCES+=(

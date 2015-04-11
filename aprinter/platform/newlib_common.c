@@ -37,8 +37,9 @@ void _init (void)
 {
 }
 
+#ifndef APRINTER_NO_SBRK
 __attribute__((used))
-caddr_t _sbrk (int incr)
+void * _sbrk (ptrdiff_t incr)
 {
     extern char _end;
     static char *heap_end = 0;
@@ -51,21 +52,22 @@ caddr_t _sbrk (int incr)
 
     if ((heap_end + incr) > &_end + HEAP_SIZE) {
         errno = ENOMEM;
-        return (caddr_t)-1;
+        return (void *)-1;
     }
     
     heap_end += incr;
-    return (caddr_t)prev_heap_end;
+    return prev_heap_end;
 }
+#endif
 
 __attribute__((used))
-int _read (int file, char *ptr, int len)
+int _read (int file, void *ptr, size_t len)
 {
     return -1;
 }
 
 __attribute__((used))
-int _write (int file, char *ptr, int len)
+int _write (int file, void const *ptr, size_t len)
 {
     aprinter_platform_debug_write(ptr, len);
     return len;
@@ -90,7 +92,7 @@ int _isatty (int fd)
 }
 
 __attribute__((used))
-int _lseek (int file, int ptr, int dir)
+_off_t _lseek (int file, _off_t ptr, int dir)
 {
     return -1;
 }
