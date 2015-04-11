@@ -1147,7 +1147,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (!cmd->tryUnplannedCommand(c)) {
                     return false;
                 }
+                sd_not_initing_or_pausing_assert(c);
                 if (o->m_state != SDCARD_NONE) {
+                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdAlreadyInited\n"));
                     cmd->finishCommand(c);
                     return false;
                 }
@@ -1159,25 +1161,29 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (!cmd->tryUnplannedCommand(c)) {
                     return false;
                 }
+                sd_not_initing_or_pausing_assert(c);
+                do {
+                    if (o->m_state == SDCARD_NONE) {
+                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+                        break;
+                    }
+                    TheGcodeParser::deinit(c);
+                    o->m_state = SDCARD_NONE;
+                    o->m_next_event.unset(c);
+                    TheChannelCommon::maybeCancelLockingCommand(c);
+                    TheInput::deactivate(c);
+                } while (0);
                 cmd->finishCommand(c);
-                AMBRO_ASSERT(o->m_state != SDCARD_INITING)
-                AMBRO_ASSERT(o->m_state != SDCARD_PAUSING)
-                if (o->m_state == SDCARD_NONE) {
-                    return false;
-                }
-                TheGcodeParser::deinit(c);
-                o->m_state = SDCARD_NONE;
-                o->m_next_event.unset(c);
-                TheChannelCommon::maybeCancelLockingCommand(c);
-                TheInput::deactivate(c);
                 return false;
             }
             if (cmd->getCmdNumber(c) == 24) {
                 if (!cmd->tryUnplannedCommand(c)) {
                     return false;
                 }
+                sd_not_initing_or_pausing_assert(c);
                 do {
                     if (o->m_state != SDCARD_INITED) {
+                        cmd->reply_append_pstr(c, o->m_state == SDCARD_NONE ? AMBRO_PSTR("Error:SdNotInited\n") : AMBRO_PSTR("Error:SdPrintAlreadyActive\n"));
                         break;
                     }
                     if (!TheInput::startingIo(c, cmd)) {
@@ -1200,19 +1206,22 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (!cmd->tryUnplannedCommand(c)) {
                     return false;
                 }
-                if (o->m_state != SDCARD_RUNNING) {
-                    cmd->finishCommand(c);
-                    return false;
-                }
-                o->m_next_event.unset(c);
-                TheChannelCommon::maybePauseLockingCommand(c);
-                if (o->m_reading) {
-                    o->m_state = SDCARD_PAUSING;
-                } else {
+                sd_not_initing_or_pausing_assert(c);
+                do {
+                    if (o->m_state != SDCARD_RUNNING) {
+                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintNotRunning\n"));
+                        break;
+                    }
+                    o->m_next_event.unset(c);
+                    TheChannelCommon::maybePauseLockingCommand(c);
+                    if (o->m_reading) {
+                        o->m_state = SDCARD_PAUSING;
+                        return false;
+                    }
                     TheInput::pausingIo(c);
                     o->m_state = SDCARD_INITED;
-                    cmd->finishCommand(c);
-                }
+                } while (0);
+                cmd->finishCommand(c);
                 return false;
             }
             return TheInput::checkCommand(c, cmd);
@@ -1299,6 +1308,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->m_start < BufferBaseSize)
             AMBRO_ASSERT(o->m_length <= BufferBaseSize)
+        }
+        
+        static void sd_not_initing_or_pausing_assert (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->m_state != SDCARD_INITING)
+            AMBRO_ASSERT(o->m_state != SDCARD_PAUSING)
         }
         
         using SdChannelCommonList = MakeTypeList<TheChannelCommon>;
