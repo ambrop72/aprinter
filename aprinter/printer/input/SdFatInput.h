@@ -511,7 +511,7 @@ public:
         uint8_t listing_state;
         uint8_t file_state;
         bool file_eof;
-        struct {
+        union {
             struct {
                 typename TheBlockAccess::User block_user;
             } mbr;
