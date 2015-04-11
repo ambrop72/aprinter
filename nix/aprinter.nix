@@ -3,7 +3,6 @@
 , assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false
 , detectOverloadEnabled ? false
-, forceUartSerial ? false
 }:
 
 let
@@ -15,7 +14,7 @@ let
         PLATFORM = board.platform;
         OPTIMIZE_FOR_SIZE = if optimizeForSize then "1" else "0";
     } // (if board.platform == "sam3x" then {
-        USE_USB_SERIAL = if forceUartSerial then "0" else "1";
+        USE_USB_SERIAL = "1";
     } else {}) // board.targetVars;
     
     targetVarsText = stdenv.lib.concatStrings (
@@ -64,7 +63,8 @@ stdenv.mkDerivation rec {
     src = aprinterSource;
     
     configurePhase = ''
-        rm config/*
+        rm -rf config
+        mkdir config
         ln -s ${targetFile} config/nixbuild.sh
         mkdir -p main
         ln -s ${mainFile} main/aprinter-nixbuild.cpp

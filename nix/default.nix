@@ -23,7 +23,6 @@ rec {
         assertionsEnabled = true;
         eventLoopBenchmarkEnabled = true;
         detectOverloadEnabled = true;
-        forceUartSerial = true;
         
         To pass them, either modify aprinterTestFunc to use them for all targets,
         or use .override, like this:
