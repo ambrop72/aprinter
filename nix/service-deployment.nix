@@ -67,6 +67,12 @@ in
             pkgs.psmisc
         ];
         
+        environment.etc."aprinter-stdenv".source = pkgs.stdenv;
+        environment.etc."aprinter-gcc-arm-embedded".source = pkgs.gcc-arm-embedded;
+        environment.etc."aprinter-gccAvrAtmel".source = aprinterExprs.gccAvrAtmel;
+        environment.etc."aprinter-asf".source = aprinterExprs.asf;
+        environment.etc."aprinter-teensyCores".source = aprinterExprs.teensyCores;
+        
         time.timeZone = "CET";
     };
 } // (if test then {} else {
