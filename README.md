@@ -12,7 +12,7 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
     Availability depends on chip/board.
   * Delta robot and CoreXY support. Additionally, new geometries can be added easily by defining a transform class.
     Performance will be sub-optimal when using Delta on AVR platforms.
-  * SD card printing (reading of sequential blocks only, no filesystem or partition support).
+  * SD card printing. Supports reading g-code from FAT32 filesystems, and also directory listing.
   * Optionally supports a custom packed g-code format for SD printing.
     This results in about 50% size reduction and 15% reduction in main loop processing load (on AVR).
   * Bed probing using a microswitch (prints results, no correction yet).
@@ -40,7 +40,6 @@ It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Tee
 ## Planned features (in the approximate order of priority):
 
   * Porting to more platforms (LPC, STM32).
-  * SD card FAT32 support and write support.
 
 ## Hardware requirements
 
@@ -189,26 +188,40 @@ The `M930` command does not alter the current set of configuration values in any
 
 ## SD card support
 
-The firmware supports reading G-code from an SD card. However, the G-code needs to be written directly to the SD card in sequential blocks, starting with the first block (where the partition table would normally reside).
+The firmware supports reading G-code from a file in a FAT32 partition on an SD card.
+When the SD card is being initialized, the first primary partition with a FAT32 filesystem signature will be used.
 
-SD card support is working and enabled by default on all three supported boards (RAMPS1.4, Melzi, RAMPS-FD).
+SD card support is enabled by default on the following boards: RADDS, RAMPS-FD, RAMPS 1.3, Melzi.
 
-Once you boot a firmware with SD support enabled, you will have the following commands available:
+The following SD-card related commands will be available when SD card support is enabled:
 
-- M21 - Initializes the SD card.
-- M22 - Deinitializes the SD card.
-- M24 - Starts/resumes SD printing. If this is after M21, g-code is read from the first block, otherwise from where it was paused.
-- M25 - Pauses SD printing.
+- M21 - Initialize the SD card. On success the root directory will become the current directory.
+- M22 - Deinitialize the SD card.
+- M20 - List the contents of the current directory.
+- M23 D<dir> - Change the current directory (<dir> must be a directory in the current directory, or ..).
+- M23 R - Change to root directory.
+- M23 F<file> - Select file for printing (<file> must be a file in the current directory).
+- M24 - Start or resume SD printing.
+- M25 - Pause SD printing.
+- M26 - Rewind the current file to the beginning.
 
-To print from SD card, you need to:
+Example: print the file `gcodes/test.gcode`.
 
-- Add an `EOF` line to the end of the g-code. This will allow the printer to know where the g-code ends.
-- Make sure there aren't any excessively long lines in the g-code. In particular, Cura's `CURA_PROFILE_STRING` is a problem.
-  You can fix that by putting the `EOF` in the "end gcode", so it ends up before the `CURA_PROFILE_STRING`.
-- Write the prepared g-code to the SD card device node (not partition). Obviously, this will destroy any existing data on your card.
-- Insert the card into the printer, then issue M21 to initialize the card, and M24 to begin printing.
+```
+M21
+M23 Dgcodes
+M23 Ftest.gcode
+M24
+```
 
-The `DeTool.py` postprocessor can also prepare the g-code for SD card printing; more about this in the next section.
+Example: restart the same print (whether or not it has completed).
+
+```
+M25
+// wait for the printer to stop and clear the print surface
+M26
+M24
+```
 
 ## Packed gcode
 
@@ -258,7 +271,6 @@ usage: DeTool.py [-h] --input InputFile --output OutputFile
                  --tool-travel-speed Speedmm/s --physical AxisName OffsetX
                  OffsetY OffsetZ --tool ToolIndex PhysicalIndexFrom0
                  [--fan FanSpeedCmd PhysicalIndexFrom0 SpeedMultiplier]
-                 [--sdcard]
 ```
 
 For example, if you have two extruder axes, E and U, the U nozzle being offset 10mm to the right, and you want to map the T0 tool to U, and T1 to E,
