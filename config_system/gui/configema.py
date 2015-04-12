@@ -67,8 +67,8 @@ class ConfigBase (object):
     def __init__ (self, **kwargs):
         self.title = _kwarg_maybe('title', kwargs)
         self.title_key = _kwarg_maybe('title_key', kwargs)
-        self.collapsed = _kwarg_maybe('collapsed', kwargs, False)
-        self.disable_collapse = _kwarg_maybe('disable_collapse', kwargs, False)
+        self.collapsable = _kwarg_maybe('collapsable', kwargs, False)
+        self.collapsed_initially = _kwarg_maybe('collapsed_initially', kwargs, True)
         self.ident = _kwarg_maybe('ident', kwargs)
         self.enum = _kwarg_maybe('enum', kwargs)
         self.no_header = _kwarg_maybe('no_header', kwargs, False)
@@ -89,14 +89,14 @@ class ConfigBase (object):
             } if self.ident is not None else {}),
             ({
                 'options': {
-                    'collapsed': True
-                }
-            } if self.collapsed else {}),
-            ({
-                'options': {
                     'disable_collapse': True
                 }
-            } if self.disable_collapse else {}),
+            } if not self.collapsable else {}),
+            ({
+                'options': {
+                    'collapsed': True
+                }
+            } if self.collapsable and self.collapsed_initially else {}),
             ({
                 'options': {
                     'no_header': True
