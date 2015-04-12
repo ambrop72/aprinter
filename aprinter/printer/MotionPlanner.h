@@ -258,7 +258,7 @@ private:
         typename TheLinearPlanner::SegmentData lp_seg;
         FpType max_accel_rec;
         FpType rel_max_speed_rec;
-        FpType half_accel[NumAxes];
+        FpType half_rel_max_accel;
     };
     
     struct Segment {
@@ -554,13 +554,6 @@ public:
             return FloatMax(accum, cs->x * APRINTER_CFG(Config, CMaxAccelRec, c));
         }
         
-        template <typename TheComputeStateTuple>
-        static void write_segment_buffer_entry_extra (Segment *entry, FpType half_rel_max_accel, TheComputeStateTuple const *cst)
-        {
-            ComputeState const *cs = TupleFindElem<ComputeState>(cst);
-            entry->axes.half_accel[AxisIndex] = half_rel_max_accel * cs->x;
-        }
-        
         template <typename AccumType, typename TheComputeStateTuple>
         AMBRO_OPTIMIZE_SPEED
         static FpType do_junction_limit (AccumType accum, Context c, Segment const *entry, FpType distance_rec, TheComputeStateTuple const *cst)
@@ -607,14 +600,16 @@ public:
             }
             
             bool dir = entry->dir_and_type & TheAxisMask;
+            FpType half_accel = entry->axes.half_rel_max_accel * xfp;
+            
             if (x0.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperStepFixedType::importFpSaturatedRound(entry->axes.half_accel[AxisIndex] * t0_squared)));
+                TheCommon::gen_stepper_command(c, dir, x0, t0, FixedMin(x0, StepperStepFixedType::importFpSaturatedRound(half_accel * t0_squared)));
             }
             if (!skip1) {
                 TheCommon::gen_stepper_command(c, dir, x1, t1, StepperStepFixedType::importBits(0));
             }
             if (x2.bitsValue() != 0) {
-                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperStepFixedType::importFpSaturatedRound(entry->axes.half_accel[AxisIndex] * t2_squared)));
+                TheCommon::gen_stepper_command(c, dir, x2, t2, -FixedMin(x2, StepperStepFixedType::importFpSaturatedRound(half_accel * t2_squared)));
             }
         }
         
@@ -1470,14 +1465,13 @@ private:
                 FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, &cst);
                 FpType distance_rec = 1.0f / distance;
                 entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
-                FpType half_rel_max_accel = 0.5f / rel_max_accel_rec;
+                entry->axes.half_rel_max_accel = 0.5f / rel_max_accel_rec;
                 ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
-                ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry_extra(), entry, half_rel_max_accel, &cst);
                 FpType junction_max_v_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_do_junction_limit(), c, entry, distance_rec, &cst);
                 o->m_last_dir_and_type = entry->dir_and_type;
                 FpType distance_squared = distance * distance;
                 FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
-                FpType a_x = 4 * half_rel_max_accel * distance_squared;
+                FpType a_x = FloatLdexp(entry->axes.half_rel_max_accel * distance_squared, 2);
                 TheLinearPlanner::initSegment(&entry->axes.lp_seg, o->m_last_max_v, 1.0f / junction_max_v_rec, max_v, a_x);
                 o->m_last_max_v = max_v;
                 if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
