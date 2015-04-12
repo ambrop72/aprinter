@@ -29,6 +29,7 @@
 #include <aprinter/meta/TypeDict.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/MapTypeList.h>
+#include <aprinter/meta/TypeListReverse.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -135,6 +136,28 @@ using TypeListIndexMapped = typename TypeListFindMapped<List, Func, FuncValue>::
 
 template <typename List, typename Func, typename FuncValue>
 using TypeListGetMapped = TypeListGet<List, TypeListIndexMapped<List, Func, FuncValue>::Value>;
+
+namespace Private {
+    struct TypeListGetDictEntryKeyFunc {
+        template <typename DictEntry>
+        struct Call;
+        
+        template <typename Key, typename Value>
+        struct Call<TypeDictEntry<Key, Value>> {
+            using Type = Key;
+        };
+    };
+}
+
+template <typename List>
+using TypeListRemoveDuplicates = TypeListReverse<
+    MapTypeList<
+        TypeDictRemoveDuplicatesAndReverse<
+            TypeDictMakeElemToIndexMap<List>
+        >,
+        Private::TypeListGetDictEntryKeyFunc
+    >
+>;
 
 #include <aprinter/EndNamespace.h>
 

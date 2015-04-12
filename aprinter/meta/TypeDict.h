@@ -88,8 +88,11 @@ namespace Private {
 template <typename EntriesList, typename Key>
 using TypeDictFindNoDupl = decltype(Private::TypeDictGetHelper<Key>(Private::TypeDictHelper<EntriesList>()));
 
+template <typename EntriesList>
+using TypeDictRemoveDuplicatesAndReverse = typename Private::TypeDictRemoveDuplicatesHelper<EmptyTypeList, EntriesList>::Result;
+
 template <typename EntriesList, typename Key>
-using TypeDictFind = TypeDictFindNoDupl<typename Private::TypeDictRemoveDuplicatesHelper<EmptyTypeList, EntriesList>::Result, Key>;
+using TypeDictFind = TypeDictFindNoDupl<TypeDictRemoveDuplicatesAndReverse<EntriesList>, Key>;
 
 #include <aprinter/EndNamespace.h>
 

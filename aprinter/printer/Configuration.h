@@ -109,7 +109,7 @@ private:
     using ExprIsConstexpr = WrapBool<TheExpr::IsConstexpr>;
     using ExprIsConstexprFunc = TemplateFunc<ExprIsConstexpr>;
     using ConstexprExprsList = FilterTypeList<MyExprsList, ExprIsConstexprFunc>;
-    using CachedExprsList = FilterTypeList<MyExprsList, ComposeFunctions<NotFunc, ExprIsConstexprFunc>>;
+    using CachedExprsList = TypeListRemoveDuplicates<FilterTypeList<MyExprsList, ComposeFunctions<NotFunc, ExprIsConstexprFunc>>>;
     
     template <int CachedExprIndex>
     struct CachedExprState {
