@@ -1418,17 +1418,16 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 
                 static void homer_finished_handler (Context c, bool success)
                 {
-                    auto *hf = HomingFeature::Object::self(c);
                     auto *axis = Axis::Object::self(c);
                     auto *mob = PrinterMain::Object::self(c);
-                    AMBRO_ASSERT(hf->homing)
+                    AMBRO_ASSERT(mob->axis_homing & Lazy<>::AxisMask)
                     AMBRO_ASSERT(mob->locked)
                     AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                     
                     Homer::deinit(c);
                     axis->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
                     axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
-                    hf->homing = false;
+                    mob->axis_homing &= ~Lazy<>::AxisMask;
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
                     mob->m_homing_rem_axes &= ~Lazy<>::AxisMask;
                     if (!(mob->m_homing_rem_axes & PhysAxisMask)) {
@@ -1447,29 +1446,28 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             static void init (Context c)
             {
-                auto *o = Object::self(c);
+                auto *mob = PrinterMain::Object::self(c);
+                AMBRO_ASSERT(!(mob->axis_homing & Lazy<>::AxisMask))
                 HomerGlobal::init(c);
-                o->homing = false;
             }
             
             static void deinit (Context c)
             {
-                auto *o = Object::self(c);
-                if (o->homing) {
+                auto *mob = PrinterMain::Object::self(c);
+                if (mob->axis_homing & Lazy<>::AxisMask) {
                     HomingState::Homer::deinit(c);
                 }
             }
             
             static void start_phys_homing (Context c)
             {
-                auto *o = Object::self(c);
                 auto *mob = PrinterMain::Object::self(c);
-                AMBRO_ASSERT(!o->homing)
+                AMBRO_ASSERT(!(mob->axis_homing & Lazy<>::AxisMask))
                 AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
                 
                 Stepper::enable(c);
                 HomingState::Homer::init(c);
-                o->homing = true;
+                mob->axis_homing |= Lazy<>::AxisMask;
             }
             
             using InitPosition = decltype(ExprIf(Config::e(HomingSpec::HomeDir::i), MaxReqPos(), MinReqPos()));
@@ -1482,9 +1480,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             struct Object : public ObjBase<HomingFeature, typename Axis::Object, MakeTypeList<
                 HomerGlobal
-            >> {
-                bool homing;
-            };
+            >> {};
         } AMBRO_STRUCT_ELSE(HomingFeature) {
             struct HomingState { struct Object {}; };
             using AxisDriverConsumersList = EmptyTypeList;
@@ -1524,12 +1520,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void init (Context c)
         {
             auto *o = Object::self(c);
+            auto *mob = PrinterMain::Object::self(c);
+            AMBRO_ASSERT(!(mob->axis_relative & Lazy<>::AxisMask))
             TheAxisDriver::init(c);
             HomingFeature::init(c);
             MicroStepFeature::init(c);
             o->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
             o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
-            o->m_relative_positioning = false;
         }
         
         static void deinit (Context c)
@@ -1650,7 +1647,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             AbsStepFixedType m_end_pos;
             FpType m_req_pos;
             FpType m_old_pos;
-            bool m_relative_positioning;
         };
     };
     
@@ -2017,8 +2013,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             static void init (Context c)
             {
-                auto *o = Object::self(c);
-                o->m_relative_positioning = false;
+                auto *mo = PrinterMain::Object::self(c);
+                AMBRO_ASSERT(!(mo->axis_relative & Lazy<>::AxisMask))
                 HomingFeature::init(c);
             }
             
@@ -2265,7 +2261,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 FpType m_req_pos;
                 FpType m_old_pos;
                 FpType m_delta;
-                bool m_relative_positioning;
             };
         };
         
@@ -2399,9 +2394,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static bool collect_new_pos (Context c, TheCommand *cmd, CommandPartRef part)
         {
             auto *axis = TheAxis::Object::self(c);
+            auto *mo = PrinterMain::Object::self(c);
+            
             if (AMBRO_UNLIKELY(cmd->getPartCode(c, part) == TheAxis::AxisName)) {
                 FpType req = cmd->getPartFpValue(c, part);
-                if (axis->m_relative_positioning) {
+                if (mo->axis_relative & AxisMask) {
                     req += axis->m_old_pos;
                 }
                 update_new_pos(c, req);
@@ -2412,8 +2409,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void set_relative_positioning (Context c, bool relative)
         {
-            auto *axis = TheAxis::Object::self(c);
-            axis->m_relative_positioning = relative;
+            auto *mo = PrinterMain::Object::self(c);
+            if (relative) {
+                mo->axis_relative |= AxisMask;
+            } else {
+                mo->axis_relative &= ~AxisMask;
+            }
         }
         
         static void append_position (Context c, TheCommand *cmd)
@@ -2512,20 +2513,18 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             o->m_enabled = false;
+            o->m_was_not_unset = false;
             TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
             o->m_control_event.init(c, APRINTER_CB_STATFUNC_T(&Heater::control_event_handler));
             o->m_control_event.appendAt(c, time + (APRINTER_CFG(Config, CControlIntervalTicks, c) / 2));
-            o->m_was_not_unset = false;
             ThePwm::init(c, time);
-            o->m_observing = false;
+            TheObserver::init(c);
         }
         
         static void deinit (Context c)
         {
             auto *o = Object::self(c);
-            if (o->m_observing) {
-                TheObserver::deinit(c);
-            }
+            TheObserver::deinit(c);
             ThePwm::deinit(c);
             o->m_control_event.deinit(c);
         }
@@ -2608,9 +2607,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 } else {
                     unset(c);
                 }
-                AMBRO_ASSERT(!o->m_observing)
-                TheObserver::init(c, target);
-                o->m_observing = true;
+                AMBRO_ASSERT(!TheObserver::isObserving(c))
+                TheObserver::startObserving(c, target);
                 now_active(c);
                 return false;
             }
@@ -2646,14 +2644,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             auto *mob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(o->m_observing)
+            AMBRO_ASSERT(TheObserver::isObserving(c))
             AMBRO_ASSERT(mob->locked)
             
             if (!state) {
                 return;
             }
-            TheObserver::deinit(c);
-            o->m_observing = false;
+            TheObserver::stopObserving(c);
             now_inactive(c);
             finish_locked(c);
         }
@@ -2719,11 +2716,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheObserver,
             TheFormula
         >> {
-            bool m_enabled;
+            uint8_t m_enabled : 1;
+            uint8_t m_was_not_unset : 1;
             FpType m_target;
-            bool m_observing;
             typename Loop::QueuedEvent m_control_event;
-            bool m_was_not_unset;
         };
         
         using ConfigExprs = MakeTypeList<CMinSafeTemp, CMaxSafeTemp, CInfAdcValue, CSupAdcValue, CControlIntervalTicks>;
@@ -2937,7 +2933,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (o->m_point_state < 4) {
                     if (o->m_point_state == 3) {
                         FpType height = get_height(c);
-                        o->m_samples[o->m_current_point] = height;
                         report_height(c, get_locked(c), height);
                     }
                     o->m_point_state++;
@@ -3006,7 +3001,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             uint8_t m_current_point;
             uint8_t m_point_state;
             bool m_command_sent;
-            FpType m_samples[NumPoints];
         };
     } AMBRO_STRUCT_ELSE(ProbeFeature) {
         static void init (Context c) {}
@@ -3121,6 +3115,8 @@ public:
         TheSteppers::init(c);
         SerialFeature::init(c);
         SdCardFeature::init(c);
+        ob->axis_homing = 0;
+        ob->axis_relative = 0;
         ListForEachForward<AxesList>(LForeach_init(), c);
         ListForEachForward<LasersList>(LForeach_init(), c);
         TransformFeature::init(c);
@@ -3884,12 +3880,14 @@ public:
         typename Loop::QueuedEvent force_timer;
         FpType time_freq_by_max_speed;
         uint32_t underrun_count;
-        bool locked;
-        uint8_t planner_state;
+        uint8_t locked : 1;
+        uint8_t planner_state : 3;
+        uint8_t m_planning_pull_pending : 1;
+        uint8_t move_seen_cartesian : 1;
         PlannerClient *planner_client;
-        bool m_planning_pull_pending;
+        PhysVirtAxisMaskType axis_homing;
+        PhysVirtAxisMaskType axis_relative;
         PhysVirtAxisMaskType m_homing_rem_axes;
-        bool move_seen_cartesian;
     };
 };
 

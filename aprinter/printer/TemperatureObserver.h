@@ -31,6 +31,7 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -44,14 +45,11 @@ private:
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:
-    static void init (Context c, FpType target)
+    static void init (Context c)
     {
         auto *o = Object::self(c);
         
         o->m_event.init(c, APRINTER_CB_STATFUNC_T(&TemperatureObserver::event_handler));
-        o->m_target = target;
-        o->m_intervals = 0;
-        o->m_event.appendNowNotAlready(c);
         
         TheDebugObject::init(c);
     }
@@ -62,6 +60,34 @@ public:
         TheDebugObject::deinit(c);
         
         o->m_event.deinit(c);
+    }
+    
+    static void startObserving (Context c, FpType target)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(!o->m_event.isSet(c))
+        
+        o->m_target = target;
+        o->m_intervals = 0;
+        o->m_event.appendNowNotAlready(c);
+    }
+    
+    static void stopObserving (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->m_event.isSet(c))
+        
+        o->m_event.unset(c);
+    }
+    
+    static bool isObserving (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        
+        return o->m_event.isSet(c);
     }
     
 private:
