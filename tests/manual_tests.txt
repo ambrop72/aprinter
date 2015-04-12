@@ -1,0 +1,201 @@
+This file contains a bunch of hacked up test code for various functions, particularly hand written assembly.
+To run a test, the appropriate code should be put manually into the main file.
+
+
+    for (uint32_t i = 0; i < UINT32_C(100000); i++) {
+        wdt_reset();
+        
+        uint16_t x;
+        *((uint8_t *)&x + 0) = rand();
+        *((uint8_t *)&x + 1) = rand();
+        x &= (UINT16_C(1) << 12) - 1;
+        
+        uint16_t y;
+        *((uint8_t *)&y + 0) = rand();
+        *((uint8_t *)&y + 1) = rand();
+        
+        uint16_t mine = div_12_16_l15_s14(x, y);
+        
+        uint16_t correct;
+        if (y == 0) {
+            correct = (UINT16_C(1) << 14) - 1;
+        } else {
+            uint32_t temp = ((uint32_t)x << 15) / y;
+            correct = (temp > ((UINT16_C(1) << 14) - 1)) ? ((UINT16_C(1) << 14) - 1) : temp;
+        }
+        
+        if (mine != correct) {
+            printf("ERROR %" PRIu16 " %" PRIu16 "\n", mine, correct);
+        }
+    }
+    
+    for (uint32_t i = 0; i < UINT32_C(100000); i++) {
+        wdt_reset();
+        
+        uint16_t x;
+        *((uint8_t *)&x + 0) = rand();
+        *((uint8_t *)&x + 1) = rand();
+        x &= (UINT16_C(1) << 11) - 1;
+        
+        uint16_t y;
+        *((uint8_t *)&y + 0) = rand();
+        *((uint8_t *)&y + 1) = rand();
+        
+        uint16_t mine = div_11_16_l14_s13(x, y);
+        
+        uint16_t correct;
+        if (y == 0) {
+            correct = (UINT16_C(1) << 13) - 1;
+        } else {
+            uint32_t temp = ((uint32_t)x << 14) / y;
+            correct = (temp > ((UINT16_C(1) << 13) - 1)) ? ((UINT16_C(1) << 13) - 1) : temp;
+        }
+        
+        if (mine != correct) {
+            printf("ERROR %" PRIu16 " %" PRIu16 "\n", mine, correct);
+        }
+    }
+    
+#if 0
+    for (uint32_t i = 0; i < UINT32_C(2000000); i++) {
+        wdt_reset();
+        
+        uint32_t x;
+        *((uint8_t *)&x + 0) = rand();
+        *((uint8_t *)&x + 1) = rand();
+        *((uint8_t *)&x + 2) = rand();
+        *((uint8_t *)&x + 3) = rand();
+        x &= (UINT32_C(1) << 25) - 1;
+        
+        uint16_t mine = sqrt_25_large(x);
+        uint16_t correct = IntSqrt<25, false>::good_sqrt(x);
+        if (mine != correct) {
+            printf("ERROR x=%" PRIu32 " mine=%" PRIu16 " correct=%" PRIu16 "\n", x, mine, correct);
+            while (1);
+        }
+    }
+    printf("done\n");
+#endif
+#if 0
+    for (uint32_t i = 0; i < UINT32_C(100000); i++) {
+        wdt_reset();
+        
+        __uint24 x;
+        *((uint8_t *)&x + 0) = rand();
+        *((uint8_t *)&x + 1) = rand();
+        *((uint8_t *)&x + 2) = rand();
+        
+        uint16_t y;
+        *((uint8_t *)&y + 0) = rand();
+        *((uint8_t *)&y + 1) = rand();
+        
+        uint32_t mine = mul_24_16_r15(x, y);
+        uint32_t correct = ((uint64_t)x * y) >> 15;
+        if (mine != correct) {
+            printf("ERROR %" PRIu32 " %" PRIu32 "\n", mine, correct);
+        }
+    }
+    printf("done\n");
+#endif
+#if 0
+    for (uint32_t i = 0; i < UINT32_C(100000); i++) {
+        wdt_reset();
+        
+        uint32_t x;
+        *((uint8_t *)&x + 0) = rand();
+        *((uint8_t *)&x + 1) = rand();
+        *((uint8_t *)&x + 2) = rand();
+        *((uint8_t *)&x + 3) = rand();
+        
+        uint8_t y;
+        *((uint8_t *)&y + 0) = rand();
+        
+        uint32_t mine = mul_32_8_r8(x, y);
+        uint32_t correct = ((uint64_t)x * y) >> 8;
+        if (mine != correct) {
+            printf("ERROR %" PRIu32 " %" PRIu32 "\n", mine, correct);
+        }
+    }
+    printf("done\n");
+#endif
+
+
+
+
+
+template <int SatBits>
+static uint32_t goodround (float op)
+{
+    if (op <= 0.0) {
+        return 0;
+    }
+    op = roundf(op);
+    if (op >= ldexpf(1.0, SatBits)) {
+        return PowerOfTwoMinusOne<uint32_t, SatBits>::Value;
+    }
+    return op;
+}
+template <int SatBits>
+static bool test_one (float x)
+{
+    if (isfinite(x)) {
+        uint32_t res = fpround_u32<SatBits>(x);
+        uint32_t good = goodround<SatBits>(x);
+        if (__builtin_expect(res != good, 0)) {
+            printf("BAD %d %f res=%" PRIu32 " good=%" PRIu32 "\n", SatBits, x, res, good);
+            return false;
+        }
+    }
+    return true;
+}
+template <int SatBits>
+static void test (void)
+{
+    printf("Testing %d\n", SatBits);
+    
+    test_one<SatBits>(PowerOfTwoMinusOne<uint32_t, SatBits>::Value + 0.51f);
+    
+    for (uint32_t i = 0; i < UINT32_C(20000); i++) {
+        wdt_reset();
+        float x;
+        *((uint8_t *)&x + 0) = rand();
+        *((uint8_t *)&x + 1) = rand();
+        *((uint8_t *)&x + 2) = rand();
+        *((uint8_t *)&x + 3) = rand();
+        if (!test_one<SatBits>(x)) {
+            break;
+        }
+    }
+}
+    test<32>();
+    test<31>();
+    test<30>();
+    test<29>();
+    test<28>();
+    test<27>();
+    test<26>();
+    test<25>();
+    test<24>();
+    test<23>();
+    test<22>();
+    test<21>();
+    test<20>();
+    test<19>();
+    test<18>();
+    test<17>();
+    test<16>();
+    test<15>();
+    test<14>();
+    test<13>();
+    test<12>();
+    test<11>();
+    test<10>();
+    test<9>();
+    test<8>();
+    test<7>();
+    test<6>();
+    test<5>();
+    test<4>();
+    test<3>();
+    test<2>();
+    test<1>();
