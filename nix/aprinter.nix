@@ -1,8 +1,6 @@
 { stdenv, writeText, bash, gcc-arm-embedded, gccAvrAtmel, asf, teensyCores, aprinterSource
-, buildName, boardName, mainText, desiredOutputs, optimizeForSize
-, assertionsEnabled ? false
-, eventLoopBenchmarkEnabled ? false
-, detectOverloadEnabled ? false
+, buildName, boardName, mainText, desiredOutputs, optimizeForSize, assertionsEnabled
+, eventLoopBenchmarkEnabled, detectOverloadEnabled
 }:
 
 let

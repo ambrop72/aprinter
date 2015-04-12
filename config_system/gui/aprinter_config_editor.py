@@ -555,6 +555,11 @@ def editor():
                 ce.Float(key='EventChannelTimerClearance', title='Event channel timer clearance'),
                 ce.Boolean(key='OptimizeForSize', title='Optimize compilation for program size', default=False),
             ]),
+            ce.Compound('development', key='development', title='Development features', collapsed=True, attrs=[
+                ce.Boolean(key='AssertionsEnabled', title='Enable assertions', default=False),
+                ce.Boolean(key='EventLoopBenchmarkEnabled', title='Enable event-loop execution timing', default=False),
+                ce.Boolean(key='DetectOverloadEnabled', title='Enable interrupt overload detection', default=False),
+            ]),
             ce.Compound('CurrentConfig', key='current_config', title='Motor current control', collapsed=True, attrs=[
                 ce.OneOf(key='current', title='Current control', choices=[
                     ce.Compound('NoCurrent', title='Disabled', disable_collapse=True, attrs=[]),

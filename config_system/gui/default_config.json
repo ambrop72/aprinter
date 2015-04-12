@@ -316,6 +316,12 @@
         }
       ],
       "name": "RADDS",
+      "development": {
+        "AssertionsEnabled": false,
+        "DetectOverloadEnabled": false,
+        "EventLoopBenchmarkEnabled": false,
+        "_compoundName": "development"
+      },
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "DuePin37",
@@ -786,6 +792,12 @@
         }
       ],
       "name": "RAMPS-FD",
+      "development": {
+        "AssertionsEnabled": false,
+        "DetectOverloadEnabled": false,
+        "EventLoopBenchmarkEnabled": false,
+        "_compoundName": "development"
+      },
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "DuePin13",
@@ -1143,6 +1155,12 @@
         }
       ],
       "name": "4pi",
+      "development": {
+        "AssertionsEnabled": false,
+        "DetectOverloadEnabled": false,
+        "EventLoopBenchmarkEnabled": false,
+        "_compoundName": "development"
+      },
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "At91SamPin<At91SamPioC,22>",
@@ -1481,6 +1499,12 @@
         }
       ],
       "name": "Teensy 3",
+      "development": {
+        "AssertionsEnabled": false,
+        "DetectOverloadEnabled": false,
+        "EventLoopBenchmarkEnabled": false,
+        "_compoundName": "development"
+      },
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "TeensyPin13",
@@ -1845,6 +1869,12 @@
         }
       ],
       "name": "RAMPS 1.3",
+      "development": {
+        "AssertionsEnabled": false,
+        "DetectOverloadEnabled": false,
+        "EventLoopBenchmarkEnabled": false,
+        "_compoundName": "development"
+      },
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "MegaPin13",
@@ -2156,6 +2186,12 @@
         }
       ],
       "name": "Melzi",
+      "development": {
+        "AssertionsEnabled": false,
+        "DetectOverloadEnabled": false,
+        "EventLoopBenchmarkEnabled": false,
+        "_compoundName": "development"
+      },
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "AvrPin<AvrPortA,4>",
