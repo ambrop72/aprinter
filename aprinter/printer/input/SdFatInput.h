@@ -35,6 +35,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/BinaryTools.h>
+#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/misc/AsciiTools.h>
 #include <aprinter/devices/FatFs.h>
 #include <aprinter/devices/BlockAccess.h>
@@ -183,16 +184,16 @@ public:
         return (!o->file_eof && buf_avail >= TheBlockAccess::BlockSize);
     }
     
-    static void startRead (Context c, size_t buf_avail, size_t buf_wrap, uint8_t *buf1, uint8_t *buf2)
+    static void startRead (Context c, size_t buf_avail, WrapBuffer buf)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->file_state == FILE_STATE_RUNNING)
         AMBRO_ASSERT(!o->file_eof)
         AMBRO_ASSERT(buf_avail >= TheBlockAccess::BlockSize)
-        AMBRO_ASSERT(buf_wrap > 0)
+        AMBRO_ASSERT(buf.wrap > 0)
         
-        o->init_u.fs.file_reader.requestBlock(c, WrapBuffer::Make(buf_wrap, (char *)buf1, (char *)buf2));
+        o->init_u.fs.file_reader.requestBlock(c, buf);
         o->file_state = FILE_STATE_READING;
     }
     

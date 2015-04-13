@@ -33,6 +33,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/WrapBuffer.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -127,17 +128,17 @@ public:
         return (o->block < TheSdCard::getCapacityBlocks(c) && buf_avail >= BlockSize);
     }
     
-    static void startRead (Context c, size_t buf_avail, size_t buf_wrap, uint8_t *buf1, uint8_t *buf2)
+    static void startRead (Context c, size_t buf_avail, WrapBuffer buf)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_READY)
         AMBRO_ASSERT(o->block < TheSdCard::getCapacityBlocks(c))
         AMBRO_ASSERT(buf_avail >= BlockSize)
-        AMBRO_ASSERT(buf_wrap > 0)
+        AMBRO_ASSERT(buf.wrap > 0)
         
-        size_t effective_wrap = MinValue(BlockSize, buf_wrap);
-        TheSdCard::queueReadBlock(c, o->block, buf1, effective_wrap, buf2, &o->read_state);
+        size_t effective_wrap = MinValue(BlockSize, buf.wrap);
+        TheSdCard::queueReadBlock(c, o->block, (uint8_t *)buf.ptr1, effective_wrap, (uint8_t *)buf.ptr2, &o->read_state);
         o->state = STATE_READING;
     }
     

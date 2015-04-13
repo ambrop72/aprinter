@@ -1014,7 +1014,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void deinit (Context c)
         {
             auto *o = Object::self(c);
-            if (o->m_state != SDCARD_NONE && o->m_state != SDCARD_INITING) {
+            if (o->m_state >= SDCARD_INITED) {
                 TheGcodeParser::deinit(c);
             }
             o->m_next_event.deinit(c);
@@ -1030,9 +1030,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 o->m_state = SDCARD_NONE;
             } else {
                 o->m_state = SDCARD_INITED;
-                TheGcodeParser::init(c);
-                o->m_start = 0;
-                o->m_length = 0;
+                init_buffer_and_parser(c);
             }
             
             TheCommand *cmd = get_locked(c);
@@ -1080,7 +1078,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 start_read(c);
             }
             if (!co->m_cmd && !o->m_eof) {
-                o->m_next_event.prependNowNotAlready(c);
+                if (!o->m_next_event.isSet(c)) {
+                    o->m_next_event.prependNowNotAlready(c);
+                }
             }
         }
         struct InputReadHandler : public AMBRO_WFUNC_TD(&SdCardFeature::input_read_handler) {};
@@ -1093,9 +1093,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             TheChannelCommon::maybeCancelLockingCommand(c);
             TheGcodeParser::deinit(c);
-            TheGcodeParser::init(c);
-            o->m_start = 0;
-            o->m_length = 0;
+            init_buffer_and_parser(c);
         }
         struct InputClearBufferHandler : public AMBRO_WFUNC_TD(&SdCardFeature::clear_input_buffer) {};
         
@@ -1110,7 +1108,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             AMBRO_PGM_P eof_str;
             if (!TheGcodeParser::haveCommand(c)) {
-                TheGcodeParser::startCommand(c, (char *)(o->m_buffer + o->m_start), 0);
+                TheGcodeParser::startCommand(c, o->m_buffer + o->m_start, 0);
             }
             ParserSizeType avail = MinValue(MaxCommandSize, o->m_length);
             if (TheGcodeParser::extendCommand(c, avail)) {
@@ -1142,6 +1140,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             if (cmd == TheChannelCommon::impl(c)) {
                 return true;
             }
+            
             if (cmd->getCmdNumber(c) == 21) {
                 if (!cmd->tryUnplannedCommand(c)) {
                     return false;
@@ -1246,6 +1245,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 cmd->finishCommand(c);
                 return false;
             }
+            
             return TheInput::checkCommand(c, cmd);
         }
         
@@ -1298,6 +1298,14 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
         }
         
+        static void init_buffer_and_parser (Context c)
+        {
+            auto *o = Object::self(c);
+            TheGcodeParser::init(c);
+            o->m_start = 0;
+            o->m_length = 0;
+        }
+        
         static bool can_read (Context c)
         {
             auto *o = Object::self(c);
@@ -1322,7 +1330,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             o->m_reading = true;
             size_t write_offset = buf_add(o->m_start, o->m_length);
-            TheInput::startRead(c, BufferBaseSize - o->m_length, BufferBaseSize - write_offset, o->m_buffer + write_offset, o->m_buffer);
+            TheInput::startRead(c, BufferBaseSize - o->m_length, WrapBuffer::Make(BufferBaseSize - write_offset, o->m_buffer + write_offset, o->m_buffer));
         }
         
         static void buf_sanity (Context c)
@@ -1347,12 +1355,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheGcodeParser
         >> {
             typename Loop::QueuedEvent m_next_event;
-            uint8_t m_state;
+            uint8_t m_state : 3;
+            uint8_t m_eof : 1;
+            uint8_t m_reading : 1;
             size_t m_start;
             size_t m_length;
-            bool m_eof;
-            bool m_reading;
-            uint8_t m_buffer[BufferBaseSize + WrapExtraSize];
+            char m_buffer[BufferBaseSize + WrapExtraSize];
         };
     } AMBRO_STRUCT_ELSE(SdCardFeature) {
         static void init (Context c) {}
