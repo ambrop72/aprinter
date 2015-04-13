@@ -38,7 +38,6 @@
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/PowerOfTwo.h>
-#include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapDouble.h>
@@ -543,7 +542,7 @@ private:
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:
-    using DutyCycleType = ChooseInt<BitsInInt<(TheMyFtm::TheModeHelper::TopVal + 1)>::Value, false>;
+    using DutyCycleType = ChooseIntForMax<TheMyFtm::TheModeHelper::TopVal + 1, false>;
     static DutyCycleType const MaxDutyCycle = TheMyFtm::TheModeHelper::TopVal + 1;
     
     static void init (Context c)

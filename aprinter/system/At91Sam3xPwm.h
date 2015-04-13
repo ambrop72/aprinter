@@ -32,7 +32,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/WrapValue.h>
@@ -171,7 +170,7 @@ private:
     using Conn = TypeListGet<ConnSearchRes, 0>;
     
 public:
-    using DutyCycleType = ChooseInt<BitsInInt<(Params::ChannelPeriod)>::Value, false>;
+    using DutyCycleType = ChooseIntForMax<Params::ChannelPeriod, false>;
     static DutyCycleType const MaxDutyCycle = Params::ChannelPeriod;
     
     static void init (Context c)

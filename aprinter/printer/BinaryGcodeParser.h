@@ -30,7 +30,6 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
@@ -67,7 +66,7 @@ class BinaryGcodeParser {
 public:
     struct Object;
     using BufferSizeType = TBufferSizeType;
-    using PartsSizeType = ChooseInt<BitsInInt<Params::MaxParts>::Value, true>;
+    using PartsSizeType = ChooseIntForMax<Params::MaxParts, true>;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;

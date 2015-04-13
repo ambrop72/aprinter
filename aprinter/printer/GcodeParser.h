@@ -29,7 +29,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/FloatTools.h>
@@ -60,7 +59,7 @@ private:
     
 public:
     using BufferSizeType = TBufferSizeType;
-    using PartsSizeType = ChooseInt<BitsInInt<Params::MaxParts>::Value, true>;
+    using PartsSizeType = ChooseIntForMax<Params::MaxParts, true>;
     
     enum {
         ERROR_NO_PARTS = -1, // must be -1

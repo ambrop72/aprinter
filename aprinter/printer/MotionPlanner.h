@@ -124,11 +124,11 @@ private:
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     static_assert(NumAxes > 0, "");
     static const int NumChannels = TypeListLength<ParamsChannelsList>::Value;
-    using SegmentBufferSizeType = ChooseInt<BitsInInt<2 * LookaheadBufferSize>::Value, false>; // twice for segments_add()
+    using SegmentBufferSizeType = ChooseIntForMax<2 * LookaheadBufferSize, false>; // twice for segments_add()
     static const size_t StepperCommitBufferSize = 3 * StepperSegmentBufferSize;
     static const size_t StepperBackupBufferSize = 3 * (LookaheadBufferSize - LookaheadCommitCount);
-    using StepperCommitBufferSizeType = ChooseInt<BitsInInt<StepperCommitBufferSize>::Value, false>;
-    using StepperBackupBufferSizeType = ChooseInt<BitsInInt<2 * StepperBackupBufferSize>::Value, false>;
+    using StepperCommitBufferSizeType = ChooseIntForMax<StepperCommitBufferSize, false>;
+    using StepperBackupBufferSizeType = ChooseIntForMax<2 * StepperBackupBufferSize, false>;
     using StepperFastEvent = typename Context::EventLoop::template FastEventSpec<MotionPlanner>;
     using CallbackFastEvent = typename Context::EventLoop::template FastEventSpec<StepperFastEvent>;
     static const int TypeBits = BitsInInt<NumChannels>::Value;
@@ -860,9 +860,9 @@ public:
         static_assert(ChannelSpec::BufferSize - LookaheadCommitCount > 1, "");
         static const size_t ChannelCommitBufferSize = ChannelSpec::BufferSize;
         static const size_t ChannelBackupBufferSize = LookaheadBufferSize - LookaheadCommitCount;
-        using ChannelCommitBufferSizeType = ChooseInt<BitsInInt<ChannelCommitBufferSize>::Value, false>;
-        using ChannelBackupBufferSizeType = ChooseInt<BitsInInt<2 * ChannelBackupBufferSize>::Value, false>;
-        using LookaheadSizeType = ChooseInt<BitsInInt<LookaheadBufferSize>::Value, false>;
+        using ChannelCommitBufferSizeType = ChooseIntForMax<ChannelCommitBufferSize, false>;
+        using ChannelBackupBufferSizeType = ChooseIntForMax<2 * ChannelBackupBufferSize, false>;
+        using LookaheadSizeType = ChooseIntForMax<LookaheadBufferSize, false>;
         
         static void init (Context c)
         {

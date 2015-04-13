@@ -40,7 +40,6 @@
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/JoinTypeLists.h>
@@ -998,7 +997,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static_assert(MaxCommandSize > 0, "");
         static_assert(BufferBaseSize >= TheInput::NeedBufAvail + (MaxCommandSize - 1), "");
         static const size_t WrapExtraSize = MaxCommandSize - 1;
-        using ParserSizeType = ChooseInt<BitsInInt<MaxCommandSize>::Value, false>;
+        using ParserSizeType = ChooseIntForMax<MaxCommandSize, false>;
         using TheGcodeParser = typename Params::SdCardParams::template GcodeParserTemplate<Context, Object, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
         using TheChannelCommon = ChannelCommon<Object, SdCardFeature>;
         enum {SDCARD_NONE, SDCARD_INITING, SDCARD_INITED, SDCARD_RUNNING, SDCARD_PAUSING};
