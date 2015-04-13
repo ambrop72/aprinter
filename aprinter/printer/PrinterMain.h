@@ -3326,6 +3326,20 @@ public: // private, see comment on top
                 } break;
 #endif
                 
+                case 918: { // test assertions
+                    uint32_t magic = cmd->get_command_param_uint32(c, 'M', 0);
+                    if (magic != UINT32_C(122345)) {
+                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadMagic\n"));
+                    } else {
+                        if (cmd->find_command_param(c, 'F', nullptr)) {
+                            AMBRO_ASSERT_FORCE(0)
+                        } else {
+                            AMBRO_ASSERT(0)
+                        }
+                    }
+                    cmd->finishCommand(c);
+                } break;
+                
                 case 920: { // get underrun count
                     cmd->reply_append_uint32(c, ob->underrun_count);
                     cmd->reply_append_ch(c, '\n');
