@@ -1142,7 +1142,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
             
             if (cmd->getCmdNumber(c) == 21) {
-                if (!cmd->tryUnplannedCommand(c)) {
+                if (!cmd->tryLockedCommand(c)) {
                     return false;
                 }
                 sd_not_initing_or_pausing_assert(c);
@@ -1156,7 +1156,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 return false;
             }
             if (cmd->getCmdNumber(c) == 22) {
-                if (!cmd->tryUnplannedCommand(c)) {
+                if (!cmd->tryLockedCommand(c)) {
                     return false;
                 }
                 sd_not_initing_or_pausing_assert(c);
@@ -1175,7 +1175,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 return false;
             }
             if (cmd->getCmdNumber(c) == 24) {
-                if (!cmd->tryUnplannedCommand(c)) {
+                if (!cmd->tryLockedCommand(c)) {
                     return false;
                 }
                 sd_not_initing_or_pausing_assert(c);
@@ -1201,7 +1201,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 return false;
             }
             if (cmd->getCmdNumber(c) == 25) {
-                if (!cmd->tryUnplannedCommand(c)) {
+                if (!cmd->tryLockedCommand(c)) {
                     return false;
                 }
                 sd_not_initing_or_pausing_assert(c);
@@ -1223,7 +1223,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 return false;
             }
             if (cmd->getCmdNumber(c) == 26) {
-                if (!cmd->tryUnplannedCommand(c)) {
+                if (!cmd->tryLockedCommand(c)) {
                     return false;
                 }
                 sd_not_initing_or_pausing_assert(c);
