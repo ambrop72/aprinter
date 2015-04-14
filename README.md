@@ -202,10 +202,10 @@ The following SD-card related commands will be available when SD card support is
 - M23 R - Change to root directory.
 - M23 F<file> - Select file for printing (<file> must be a file in the current directory).
 - M24 - Start or resume SD printing.
-- M25 - Pause SD printing.
+- M25 - Pause SD printing. Note that pause automatically happens at end of file or read error.
 - M26 - Rewind the current file to the beginning.
 
-Example: print the file `gcodes/test.gcode`.
+Example: start printing from the file `gcodes/test.gcode`.
 
 ```
 M21
@@ -214,11 +214,17 @@ M23 Ftest.gcode
 M24
 ```
 
-Example: restart the same print (whether or not it has completed).
+Example: interrupt and restart the same print.
 
 ```
 M25
-// wait for the printer to stop and clear the print surface
+M26
+M24
+```
+
+Example: repeat a successful print.
+
+```
 M26
 M24
 ```
