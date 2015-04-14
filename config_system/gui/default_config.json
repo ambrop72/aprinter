@@ -2343,14 +2343,37 @@
   "configurations": [
     {
       "board": "RADDS",
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "FET3 (fan 1)"
+        },
+        {
+          "Name": "U",
+          "OffMCommand": 407,
+          "SetMCommand": 406,
+          "_compoundName": "fan",
+          "pwm_output": "FET2 (fan 2)"
+        }
+      ],
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "WaitTimeout": 500,
       "heaters": [
         {
-          "WaitMCommand": 109,
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T0",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -2379,12 +2402,11 @@
           "pwm_output": "FET6 (extruder 1)"
         },
         {
-          "WaitMCommand": 190,
           "MaxSafeTemp": 120,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T4",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.3,
@@ -2413,12 +2435,11 @@
           "pwm_output": "FET1 (bed)"
         },
         {
-          "WaitMCommand": 409,
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "U",
           "SetMCommand": 404,
           "ThermistorInput": "T1",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -2447,29 +2468,6 @@
           "pwm_output": "FET5 (extruder 2)"
         }
       ],
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "fans": [
-        {
-          "Name": "E",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
-          "_compoundName": "fan",
-          "pwm_output": "FET3 (fan 1)"
-        },
-        {
-          "Name": "U",
-          "OffMCommand": 407,
-          "SetMCommand": 406,
-          "_compoundName": "fan",
-          "pwm_output": "FET2 (fan 2)"
-        }
-      ],
-      "_compoundName": "config",
       "lasers": [],
       "name": "RADDS example",
       "probe_config": {
@@ -2646,14 +2644,37 @@
     },
     {
       "board": "RAMPS-FD",
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "FET5 (fan 1)"
+        },
+        {
+          "Name": "U",
+          "OffMCommand": 407,
+          "SetMCommand": 406,
+          "_compoundName": "fan",
+          "pwm_output": "FET6 (fan 2)"
+        }
+      ],
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "WaitTimeout": 500,
       "heaters": [
         {
-          "WaitMCommand": 109,
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T1",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -2682,12 +2703,11 @@
           "pwm_output": "FET2/D9 (extruder 1)"
         },
         {
-          "WaitMCommand": 190,
           "MaxSafeTemp": 120,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T0",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.3,
@@ -2716,12 +2736,11 @@
           "pwm_output": "FET1/D8 (bed)"
         },
         {
-          "WaitMCommand": 409,
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "U",
           "SetMCommand": 404,
           "ThermistorInput": "T2",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -2750,29 +2769,6 @@
           "pwm_output": "FET3/D10 (extruder 2)"
         }
       ],
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "fans": [
-        {
-          "Name": "E",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
-          "_compoundName": "fan",
-          "pwm_output": "FET5 (fan 1)"
-        },
-        {
-          "Name": "U",
-          "OffMCommand": 407,
-          "SetMCommand": 406,
-          "_compoundName": "fan",
-          "pwm_output": "FET6 (fan 2)"
-        }
-      ],
-      "_compoundName": "config",
       "lasers": [],
       "name": "RAMPS-FD example",
       "probe_config": {
@@ -2916,14 +2912,22 @@
     },
     {
       "board": "4pi",
+      "fans": [],
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "WaitTimeout": 500,
       "heaters": [
         {
-          "WaitMCommand": 109,
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T1",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -2952,12 +2956,11 @@
           "pwm_output": "Hot End 1"
         },
         {
-          "WaitMCommand": 409,
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "U",
           "SetMCommand": 404,
           "ThermistorInput": "T2",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -2986,12 +2989,11 @@
           "pwm_output": "Hot End 2"
         },
         {
-          "WaitMCommand": 190,
           "MaxSafeTemp": 120,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T0",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.3,
@@ -3020,14 +3022,6 @@
           "pwm_output": "Heated Bed"
         }
       ],
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "fans": [],
-      "_compoundName": "config",
       "lasers": [],
       "name": "4pi example",
       "probe_config": {
@@ -3204,14 +3198,30 @@
     },
     {
       "board": "Teensy 3",
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "Fan"
+        }
+      ],
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "WaitTimeout": 500,
       "heaters": [
         {
-          "WaitMCommand": 109,
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -3240,22 +3250,6 @@
           "pwm_output": "Extruder"
         }
       ],
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "fans": [
-        {
-          "Name": "E",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
-          "_compoundName": "fan",
-          "pwm_output": "Fan"
-        }
-      ],
-      "_compoundName": "config",
       "lasers": [],
       "name": "Teensy 3 example",
       "probe_config": {
@@ -3379,14 +3373,30 @@
     },
     {
       "board": "RAMPS 1.3",
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "D4"
+        }
+      ],
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "WaitTimeout": 500,
       "heaters": [
         {
-          "WaitMCommand": 190,
           "MaxSafeTemp": 120,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T1",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.3,
@@ -3415,12 +3425,11 @@
           "pwm_output": "D8 (bed)"
         },
         {
-          "WaitMCommand": 109,
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T0",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -3449,22 +3458,6 @@
           "pwm_output": "D10 (extruder 1)"
         }
       ],
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "fans": [
-        {
-          "Name": "E",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
-          "_compoundName": "fan",
-          "pwm_output": "D4"
-        }
-      ],
-      "_compoundName": "config",
       "lasers": [],
       "name": "RAMPS 1.3 example",
       "probe_config": {
@@ -3588,14 +3581,30 @@
     },
     {
       "board": "Melzi",
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "fan"
+        }
+      ],
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "WaitTimeout": 500,
       "heaters": [
         {
-          "WaitMCommand": 109,
           "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "etemp",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -3624,12 +3633,11 @@
           "pwm_output": "hot end"
         },
         {
-          "WaitMCommand": 190,
           "MaxSafeTemp": 120,
+          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "btemp",
-          "MinSafeTemp": 10,
           "_compoundName": "heater",
           "control": {
             "ControlInterval": 0.2,
@@ -3658,22 +3666,6 @@
           "pwm_output": "bed"
         }
       ],
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "fans": [
-        {
-          "Name": "E",
-          "OffMCommand": 107,
-          "SetMCommand": 106,
-          "_compoundName": "fan",
-          "pwm_output": "fan"
-        }
-      ],
-      "_compoundName": "config",
       "lasers": [],
       "name": "Melzi example",
       "probe_config": {

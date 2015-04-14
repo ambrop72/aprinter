@@ -87,6 +87,7 @@
 
 template <
     typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TInactiveTime,
+    typename TWaitTimeout,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
     int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSize,
     int TLookaheadCommitCount,
@@ -104,6 +105,7 @@ struct PrinterMainParams {
     using LedPin = TLedPin;
     using LedBlinkInterval = TLedBlinkInterval;
     using InactiveTime = TInactiveTime;
+    using WaitTimeout = TWaitTimeout;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using MaxStepsPerCycle = TMaxStepsPerCycle;
     static int const StepperSegmentBufferSize = TStepperSegmentBufferSize;
@@ -264,7 +266,7 @@ struct PrinterMainVirtualHomingParams {
 };
 
 template <
-    char TName, int TSetMCommand, int TWaitMCommand,
+    char TName, int TSetMCommand,
     typename TAdcPin,
     typename TFormula,
     typename TMinSafeTemp, typename TMaxSafeTemp,
@@ -276,7 +278,6 @@ template <
 struct PrinterMainHeaterParams {
     static char const Name = TName;
     static int const SetMCommand = TSetMCommand;
-    static int const WaitMCommand = TWaitMCommand;
     using AdcPin = TAdcPin;
     using Formula = TFormula;
     using MinSafeTemp = TMinSafeTemp;
@@ -445,6 +446,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_apply_default, apply_default)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_begin_move, begin_move)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_wait_mask, update_wait_mask)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_wait, start_wait)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stop_wait, stop_wait)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
@@ -517,10 +521,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using FCpu = APRINTER_FP_CONST_EXPR(F_CPU);
     
     using CInactiveTimeTicks = decltype(ExprCast<TimeType>(Config::e(Params::InactiveTime::i) * TimeConversion()));
+    using CWaitTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitTimeout::i) * TimeConversion()));
     using CStepSpeedLimitFactor = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::MaxStepsPerCycle::i) * FCpu() * TimeRevConversion())));
     using CForceTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::ForceTimeout::i) * TimeConversion()));
     
-    using MyConfigExprs = MakeTypeList<CInactiveTimeTicks, CStepSpeedLimitFactor, CForceTimeoutTicks>;
+    using MyConfigExprs = MakeTypeList<CInactiveTimeTicks, CWaitTimeoutTicks, CStepSpeedLimitFactor, CForceTimeoutTicks>;
     
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
@@ -2528,6 +2533,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             FpType target;
         };
         
+        template <typename ThePrinterMain = PrinterMain>
+        struct Lazy {
+            static typename ThePrinterMain::HeatersMaskType const HeaterMask = (typename ThePrinterMain::HeatersMaskType)1 << HeaterIndex;
+        };
+        
         static void init (Context c)
         {
             auto *o = Object::self(c);
@@ -2616,21 +2626,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             
-            if (cmd->getCmdNumber(c) == HeaterSpec::WaitMCommand) {
-                if (!cmd->tryUnplannedCommand(c)) {
-                    return false;
-                }
-                FpType target = cmd->get_command_param_fp(c, 'S', 0.0f);
-                if (target >= APRINTER_CFG(Config, CMinSafeTemp, c) && target <= APRINTER_CFG(Config, CMaxSafeTemp, c)) {
-                    set(c, target);
-                } else {
-                    unset(c);
-                }
-                AMBRO_ASSERT(!TheObserver::isObserving(c))
-                TheObserver::startObserving(c, target);
-                now_active(c);
-                return false;
-            }
             if (cmd->getCmdNumber(c) == HeaterSpec::SetMCommand) {
                 if (!cmd->tryPlannedCommand(c)) {
                     return false;
@@ -2664,14 +2659,14 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             auto *o = Object::self(c);
             auto *mob = PrinterMain::Object::self(c);
             AMBRO_ASSERT(TheObserver::isObserving(c))
-            AMBRO_ASSERT(mob->locked)
+            AMBRO_ASSERT(mob->waiting_heaters & Lazy<>::HeaterMask)
             
-            if (!state) {
-                return;
+            if (state) {
+                mob->inrange_heaters |= Lazy<>::HeaterMask;
+            } else {
+                mob->inrange_heaters &= ~Lazy<>::HeaterMask;
             }
-            TheObserver::stopObserving(c);
-            now_inactive(c);
-            finish_locked(c);
+            check_wait_completion(c);
         }
         
         static void emergency ()
@@ -2723,6 +2718,44 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                         ThePwm::setDutyCycle(lock_c, duty);
                     }
                 }
+            }
+        }
+        
+        template <typename TheHeatersMaskType>
+        static void update_wait_mask (Context c, TheCommand *cmd, TheHeatersMaskType *mask, CommandPartRef part)
+        {
+            if (cmd->getPartCode(c, part) == HeaterSpec::Name) {
+                *mask |= Lazy<>::HeaterMask;
+            }
+        }
+        
+        template <typename TheHeatersMaskType>
+        static void start_wait (Context c, TheHeatersMaskType mask)
+        {
+            auto *o = Object::self(c);
+            auto *m = PrinterMain::Object::self(c);
+            
+            if ((mask & Lazy<>::HeaterMask)) {
+                FpType target = NAN;
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                    if (o->m_enabled) {
+                        target = o->m_target;
+                    }
+                }
+                
+                if (!isnan(target)) {
+                    m->waiting_heaters |= Lazy<>::HeaterMask;
+                    TheObserver::startObserving(c, target);
+                }
+            }
+        }
+        
+        static void stop_wait (Context c)
+        {
+            auto *m = PrinterMain::Object::self(c);
+            
+            if ((m->waiting_heaters & Lazy<>::HeaterMask)) {
+                TheObserver::stopObserving(c);
             }
         }
         
@@ -2815,6 +2848,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     using HeatersChannelPayloadUnion = Union<MapTypeList<HeatersList, GetMemberType_ChannelPayload>>;
     using FansChannelPayloadUnion = Union<MapTypeList<FansList, GetMemberType_ChannelPayload>>;
+    
+    using HeatersMaskType = ChooseInt<MaxValue(1, TypeListLength<HeatersList>::Value), false>;
     
     struct PlannerChannelPayload {
         uint8_t type;
@@ -3303,6 +3338,29 @@ public: // private, see comment on top
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_append_position(), c, cmd);
                     cmd->reply_append_ch(c, '\n');
                     return cmd->finishCommand(c);
+                } break;
+                
+                case 116: { // wait for temperature reached
+                    if (!cmd->tryUnplannedCommand(c)) {
+                        return;
+                    }
+                    HeatersMaskType heaters_mask = 0;
+                    auto num_parts = cmd->getNumParts(c);
+                    for (decltype(num_parts) i = 0; i < num_parts; i++) {
+                        ListForEachForward<HeatersList>(LForeach_update_wait_mask(), c, cmd, &heaters_mask, cmd->getPart(c, i));
+                    }
+                    if (heaters_mask == 0) {
+                        heaters_mask = -1;
+                    }
+                    ob->waiting_heaters = 0;
+                    ob->inrange_heaters = 0;
+                    ob->wait_started_time = Clock::getTime(c);
+                    ListForEachForward<HeatersList>(LForeach_start_wait(), c, heaters_mask);
+                    if (ob->waiting_heaters) {
+                        now_active(c);
+                    } else {
+                        cmd->finishCommand(c);
+                    }
                 } break;
                 
                 case 119: {
@@ -3835,6 +3893,26 @@ public: // private, see comment on top
         }
     }
     
+    static void check_wait_completion (Context c)
+    {
+        auto *ob = Object::self(c);
+        AMBRO_ASSERT(ob->locked)
+        AMBRO_ASSERT(ob->waiting_heaters)
+        
+        bool reached = ob->inrange_heaters == ob->waiting_heaters;
+        bool timed_out = (TimeType)(Clock::getTime(c) - ob->wait_started_time) >= APRINTER_CFG(Config, CWaitTimeoutTicks, c);
+        
+        if (reached || timed_out) {
+            TheCommand *cmd = get_locked(c);
+            if (timed_out) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:WaitTimedOut\n"));
+            }
+            cmd->finishCommand(c);
+            ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
+            now_inactive(c);
+        }
+    }
+    
     struct PlannerUnion {
         struct Object : public ObjUnionBase<PlannerUnion, typename PrinterMain::Object, MakeTypeList<
             PlannerUnionPlanner,
@@ -3921,6 +3999,9 @@ public:
         PhysVirtAxisMaskType axis_homing;
         PhysVirtAxisMaskType axis_relative;
         PhysVirtAxisMaskType m_homing_rem_axes;
+        HeatersMaskType waiting_heaters;
+        HeatersMaskType inrange_heaters;
+        TimeType wait_started_time;
     };
 };
 

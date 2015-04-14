@@ -326,6 +326,7 @@ def editor():
             ce.String(key='name', title='Configuration name', default='New Configuration'),
             ce.Reference(key='board', ref_array={'base': 'id_editor.boards', 'descend': []}, ref_id_key='name', ref_name_key='name', deref_key='board_data', title='Board', processing_order=-1),
             ce.Float(key='InactiveTime', title='Disable steppers after [s]', default=480),
+            ce.Float(key='WaitTimeout', title='Timeout when waiting for heater temperatures (M116) [s]', default=500),
             ce.Compound('advanced', key='advanced', title='Advanced parameters', collapsable=True, attrs=[
                 ce.Float(key='LedBlinkInterval', title='LED blink interval [s]', default=0.5),
                 ce.Float(key='ForceTimeout', title='Force motion timeout [s]', default=0.1),
@@ -388,7 +389,6 @@ def editor():
                 ce.String(key='Name', title='Name (single character, T=extruder, B=bed)'),
                 pwm_output_choice(configuration_context, key='pwm_output', title='PWM output'),
                 ce.Integer(key='SetMCommand', title='Set command M-number (extruder 104, bed 140)', default=104),
-                ce.Integer(key='WaitMCommand', title='Wait command M-number (extruder 109, bed 190)', default=109),
                 analog_input_choice(key='ThermistorInput', title='Thermistor analog input'),
                 ce.Float(key='MinSafeTemp', title='Turn off if temperature is below [C]', default=10),
                 ce.Float(key='MaxSafeTemp', title='Turn off if temperature is above [C]', default=280),

@@ -1174,7 +1174,6 @@ def generate(config_root_data, cfg_name, main_template):
                 return TemplateExpr('PrinterMainHeaterParams', [
                     TemplateChar(name),
                     heater.get_int('SetMCommand'),
-                    heater.get_int('WaitMCommand'),
                     use_analog_input(gen, heater, 'ThermistorInput'),
                     thermistor,
                     gen.add_float_config('{}HeaterMinSafeTemp'.format(name), heater.get_float('MinSafeTemp')),
@@ -1324,6 +1323,7 @@ def generate(config_root_data, cfg_name, main_template):
                 led_pin_expr,
                 'LedBlinkInterval',
                 gen.add_float_config('InactiveTime', config.get_float('InactiveTime')),
+                gen.add_float_config('WaitTimeout', config.get_float('WaitTimeout')),
                 gen.add_float_constant('SpeedLimitMultiply', 1.0 / 60.0),
                 gen.add_float_config('MaxStepsPerCycle', performance.get_float('MaxStepsPerCycle')),
                 performance.get_int_constant('StepperSegmentBufferSize'),
