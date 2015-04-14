@@ -155,7 +155,16 @@ You need to press the button on the board before trying to upload, to put the bo
 teensy-loader -mmcu=mk20dx128 "$HOME/aprinter-build/aprinter-nixbuild.hex"
 ```
 
-## Runtime configuration
+## Feature documentation
+
+Different features of the firmware are described in the following sections.
+
+Note that the ability to define new devices (heaters, fans, extruders...) depends on the particular board/microcontroller.
+In the web GUI, if there is an available "port" (stepper port, PWM output),
+it is just a matter of adding a device to the Configuration section.
+Otherwise it may or may not be possible to add a new port, based on hardware availability (timer units, PWM channels).
+
+### Runtime configuration
 
 When runtime configuration is available, the values of many parameters can be adjusted at runtime, and the values specified in
 the web GUI are used as defaults only.
@@ -186,7 +195,7 @@ After changing any configuration (either directly with `M926` or by loading an e
 
 The `M930` command does not alter the current set of configuration values in any way. Rather, it recomputes a set of values in RAM which are derived from the configuration values. This is a one-way operation, there is no way to see what the current applied configuration is.
 
-## SD card support
+### SD card
 
 The firmware supports reading G-code from a file in a FAT32 partition on an SD card.
 When the SD card is being initialized, the first primary partition with a FAT32 filesystem signature will be used.
@@ -229,7 +238,7 @@ M26
 M24
 ```
 
-## Packed gcode
+### Packed gcode
 
 When printing from SD, the firmware can optionally read a custom packed form of gcode, to improve space and processing efficiency. The packing format [is documented](encoding.txt).
 
@@ -242,25 +251,133 @@ To pack a gcode file, use the `aprinter_encode.py` script, as follows.
 python2.7 /path/to/aprinter/aprinter_encode.py --input file.gcode --output file.packed
 ```
 
-## Multi-extruder configuration
+### Heaters
 
-While the firmware allows any number of axes, heaters and fans, it does not, by design, implement tool change commands.
-All axes, heaters and fans are independent, and the firmware does not know anything about their physical association:
+Each heater is identified with a one-character name, along with an M-command number for setting the temperature setpoint.
+The recommended heater naming is:
 
-- Extra extruder axes are independently controlled through their identification letter. Recommened letters for extra extruders are U and V.
-- Extra heaters also need an identification letter, which is sent when the printer reports temperatures to the host.
-  Additionally, each heater needs three M-codes, for `set-heater-temperature`, `wait-heater-temperature` and `set-config`.
-  The recommended choices for the second extruder heater are U,M404,M409,M402, and for the third extruder heater V,M414,M419,M412, respectively.
-- Extra fans need their `set-fan-speed` and `turn-fan-off` M-codes.
-  The recommended choices for the second extruder fan are M406,M407, and for the third extruder fan M416,M417, respectively.
+- Bed: B/M140
+- First extruder: T/M104
+- Second extruder: U/M404
+- Third extruder: V/M414
 
-The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands, but more about that will be explained later.
+To enable a heater: `M104 S<temperature>`.
+To disable a heater, set it to an invalid setpoint outside the specified safe range, or to `NAN`.
 
-Note that the ability to define new devices depends on the particular board.
-In the web GUI, if there is an available "port" (stepper port, PWM output),
-it is just a matter of adding a device to the Configuration section.
-Otherwise it may or may not be possible to add a new port, based on hardware availability
-(timer units, PWM channels).
+The command M116 can be used to wait for the set temperatures to be reached.
+Issuing just M116 will wait for any enabled heaters.
+Alternatively, heater names can be added as parameters to indicate which heaters to wait for, e.g `M116 T U`.
+However, any heaters that are not enabled will be skipped even if specified.
+
+### Fans
+
+Each fan is identified with a one-character name, along with M-command numbers for setting the fan speed and turning off the fan.
+The recommended fan naming is:
+
+- First extruder: E/M106/M107
+- Second extruder: U/M406/M407
+- Third extruder: V/M416/M417
+
+### Extruders
+
+The firmware allows any number of axes (given sufficient hardware resources), but it does not, by design, implement tool change commands.
+Extruder axes need to be configured with the "is cartesian" option set to false.
+This distinction is required for the implementation of the feedrate parameter (G1 Fxxx ...).
+
+The recommented naming for extruder axes is:
+
+- First extruder: E
+- Second extruder: U
+- Third extruder: V
+
+The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands,
+but more about that will be explained later.
+
+### Slave steppers
+
+Slave steppers are extra steppers assigned to an axis. They will be driven synchronously with the main stepper for the axis.
+Actually, the only difference between the main stepper and slave steppers is the way they are specified in the configuration.
+
+In the web GUI, slave steppers can be added in the Stepper section for a particular stepper.
+If there is no existing suitable stepper port definition, you will need to add one in the Board configuration.
+When doing this, note that for slave steppers, the "Stepper timer" does not need to be defined (set it to "Not defined").
+
+### Coordinate transformation
+
+APrinter has generic support for non-cartesian coordinate systems.
+Currently, delta (towers) and CoreXY/H-bot are supported out of the box.
+
+*NOTE*: Delta will not work well on AVR based platforms due to lack of CPU speed and RAM.
+CoreXY may or may not.
+
+Generally, the transformation is configured as follows in the web GUI:
+
+- In the Steppers list, define the steppers (actuators) that are involved in the transform,
+  with names that are *not* cartesian axes (delta: A, B, C, CoreXY: A, B).
+  Make that for each such stepper, "Is cartesian" is set to No.
+  Set the position limits correctly (see the sub-section next).
+  For delta, enable homing for all three steppers, for CoreXY disable homing for both.
+- Define any remaining cartesian steppers. So for CoreXY that would be Z, and none for delta.
+  Of course extruders still belong to the Steppers list.
+- In the "Coordinate transformation" section, select your particular transformation type.
+  More configuration is made available.
+- Set up the "Stepper mapping" to map the transformation to the steppers defined earlier.
+  Type the stepper name letter to map a stepper.
+  Note that you are free to define the mapping in any order, to achieve correct motion.
+  Which is a bit tricky woth CoreXY - you may also have to invert stepper direction.
+- Set the transformation-type specific parameters. The delta-related parameters mean exactly
+  the same as for Marlin, so no further explanation will be given here.
+- Configure the cartesian axes. Currently this is just position limits and maximum speed.
+  But, for CoreXY, you have the option of enabling homing for cartesian axes
+  (which is a different concept than stepper-specific homing).
+
+#### Stepper configuration
+
+Steppers involved in the coordinate transform have their own configuration which is generally the same as for other steppers.
+In particular they need to be defined the position limits.
+
+For CoreXY, the position limits should not constrain motion as defined by the limits of the cartesian axes.
+The following formulas give the minimum required stepper limits to support the cartesian limits
+(assuming no reordering of steppers): Arange = [Xmin + Ymin, Xmax + Ymax], Brange = [Xmin - Ymax, Xmax - Ymin].
+
+For delta, the stepper limits should be configured appropriately for the machine.
+It helps to know that the A/B/C stepper positions are actually cartesian Z coordinates
+of assemblies on the towers, and that the maximum position limit corresponds to
+meeting the endstop at the top.
+
+### Lasers
+
+There is currently experimental support for lasers, more precisely,
+for a PWM output whose duty cycle is proportional to the current speed.
+The laser configuration parameters are:
+
+- `LaserPower` [W]: The actual power of the laser at full duty cycle.
+  You don't strictly have to measure the power, this just serves as a
+  reference for everything else, you can use e.g. 1 or 100.
+- `MaxPower` [W]: An artificial limit of laser power. Use =`LaserPower` to
+  allow the laser to run at full duty cycle. But make sure it's not
+  greater than `LaserPower`, that will result in strange behavior.
+- `DutyAdjustmentInterval` [s]: Time interval for duty cycle adjustment
+  from a timer interrupt (=1/frequency).
+
+A prerequisite for configuring a laser is the availability of hardware PWM and its support by the firmware. See the section "Hardware PWM configuration" for more details.
+
+A laser is configured in the web GUI as follows:
+
+- In the Board section, add a "Laser port". Give it a name (anything), select the PWM output.
+  This must be a hardware PWM output.
+  Also select an available timer unit. This is not exactly easy since the timer allocations
+  are spread throughout the Board configuration (Event channel timer, stepper timers,
+  timers for software PWM outputs).
+- In the Configuration section, add a Laser. The default values here should be usable.
+  But make sure your new "Laser port" is selected.
+
+In the g-code interface, *either* of the following parameters can be used in a `G0`/`G1` command to control the laser:
+- **L** - Total energy emmitted over the segment [W]. This is the low level interface to the laser.
+- **M** - Energy density over the segment [W/mm]. The value is multiplied by the segment length to obtain the effective energy for the segment.
+
+The energy density *M* is cached, so you can specify it in one command, and leave it out for any further commands where you want the same energy density.
+If *L* is specified, it takes precedence over *M* or its cached value, but it does not alter the *M* cached value.
 
 ## The DeTool g-code postprocessor
 
@@ -298,92 +415,6 @@ you will want to pass:
 ```
 
 If the fans are not equally powerful, you can adjust the `SpeedMultiplier` to scale the speed of specific fans.
-
-## Coordinate transformation
-
-APrinter has generic support for non-cartesian coordinate systems.
-Currently, delta (towers) and CoreXY/H-bot are supported out of the box.
-
-*NOTE*: Delta will not work well on AVR based platforms due to lack of CPU speed and RAM.
-CoreXY may or may not.
-
-Generally, the transformation is configured as follows in the web GUI:
-
-- In the Steppers list, define the steppers (actuators) that are involved in the transform,
-  with names that are *not* cartesian axes (delta: A, B, C, CoreXY: A, B).
-  Make that for each such stepper, "Is cartesian" is set to No.
-  Set the position limits correctly (see the sub-section next).
-  For delta, enable homing for all three steppers, for CoreXY disable homing for both.
-- Define any remaining cartesian steppers. So for CoreXY that would be Z, and none for delta.
-  Of course extruders still belong to the Steppers list.
-- In the "Coordinate transformation" section, select your particular transformation type.
-  More configuration is made available.
-- Set up the "Stepper mapping" to map the transformation to the steppers defined earlier.
-  Type the stepper name letter to map a stepper.
-  Note that you are free to define the mapping in any order, to achieve correct motion.
-  Which is a bit tricky woth CoreXY - you may also have to invert stepper direction.
-- Set the transformation-type specific parameters. The delta-related parameters mean exactly
-  the same as for Marlin, so no further explanation will be given here.
-- Configure the cartesian axes. Currently this is just position limits and maximum speed.
-  But, for CoreXY, you have the option of enabling homing for cartesian axes
-  (which is a different concept than stepper-specific homing).
-
-### Stepper configuration
-
-Steppers involved in the coordinate transform have their own configuration which is generally the same as for other steppers.
-In particular they need to be defined the position limits.
-
-For CoreXY, the position limits should not constrain motion as defined by the limits of the cartesian axes.
-The following formulas give the minimum required stepper limits to support the cartesian limits
-(assuming no reordering of steppers): Arange = [Xmin + Ymin, Xmax + Ymax], Brange = [Xmin - Ymax, Xmax - Ymin].
-
-For delta, the stepper limits should be configured appropriately for the machine.
-It helps to know that the A/B/C stepper positions are actually cartesian Z coordinates
-of assemblies on the towers, and that the maximum position limit corresponds to
-meeting the endstop at the top.
-
-## Slave steppers
-
-Slave steppers are extra steppers assigned to an axis. They will be driven synchronously with the main stepper for the axis.
-Actually, the only difference between the main stepper and slave steppers is the way they are specified in the configuration.
-
-In the web GUI, slave steppers can be added in the Stepper section for a particular stepper.
-If there is no existing suitable stepper port definition, you will need to add one in the Board configuration.
-When doing this, note that for slave steppers, the "Stepper timer" does not need to be defined (set it to "Not defined").
-
-## Laser support
-
-There is currently experimental support for lasers, more precisely,
-for a PWM output whose duty cycle is proportional to the current speed.
-The laser configuration parameters are:
-
-- `LaserPower` [W]: The actual power of the laser at full duty cycle.
-  You don't strictly have to measure the power, this just serves as a
-  reference for everything else, you can use e.g. 1 or 100.
-- `MaxPower` [W]: An artificial limit of laser power. Use =`LaserPower` to
-  allow the laser to run at full duty cycle. But make sure it's not
-  greater than `LaserPower`, that will result in strange behavior.
-- `DutyAdjustmentInterval` [s]: Time interval for duty cycle adjustment
-  from a timer interrupt (=1/frequency).
-
-A prerequisite for configuring a laser is the availability of hardware PWM and its support by the firmware. See the section "Hardware PWM configuration" for more details.
-
-A laser is configured in the web GUI as follows:
-
-- In the Board section, add a "Laser port". Give it a name (anything), select the PWM output.
-  This must be a hardware PWM output.
-  Also select an available timer unit. This is not exactly easy since the timer allocations
-  are spread throughout the Board configuration (Event channel timer, stepper timers,
-  timers for software PWM outputs).
-- In the Configuration section, add a Laser. The default values here should be usable.
-  But make sure your new "Laser port" is selected.
-
-In the g-code interface, *either* of the following parameters can be used in a `G0`/`G1` command to control the laser:
-- **L** - Total energy emmitted over the segment [W]. This is the low level interface to the laser.
-- **M** - Energy density over the segment [W/mm]. The value is multiplied by the segment length to obtain the effective energy for the segment.
-
-The energy density *M* is cached, so you can specify it in one command, and leave it out for any further commands where you want the same energy density.
-If *L* is specified, it takes precedence over *M* or its cached value, but it does not alter the *M* cached value.
 
 ## Support
 
