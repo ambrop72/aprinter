@@ -62,12 +62,13 @@ public:
     using PartsSizeType = ChooseIntForMax<Params::MaxParts, true>;
     
     enum {
-        ERROR_NO_PARTS = -1, // must be -1
+        ERROR_NO_PARTS = -1,
         ERROR_TOO_MANY_PARTS = -2,
         ERROR_INVALID_PART = -3,
         ERROR_CHECKSUM = -4,
         ERROR_RECV_OVERRUN = -5,
-        ERROR_EOF = -6
+        ERROR_EOF = -6,
+        ERROR_BAD_ESCAPE = -7
     };
     
     template <typename TheParserType, typename Dummy = void>
@@ -103,7 +104,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
     }
     
@@ -150,8 +150,10 @@ public:
                         TheTypeHelper::checksum_check_hook(c);
                     }
                     if (o->m_command.num_parts >= 0) {
-                        o->m_command.num_parts--; // becomes ERROR_NO_PARTS if num_parts==0
-                        if (o->m_command.num_parts >= 0) {
+                        if (o->m_command.num_parts == 0) {
+                            o->m_command.num_parts = ERROR_NO_PARTS;
+                        } else {
+                            o->m_command.num_parts--;
                             o->m_command.cmd_number = atoi(o->m_command.parts[0].data);
                         }
                     }
@@ -455,7 +457,30 @@ private:
         
         char code = o->m_buffer[o->m_temp];
         
-        o->m_buffer[o->m_command.length] = '\0';
+        BufferSizeType in_pos = o->m_temp + 1;
+        BufferSizeType out_pos = in_pos;
+        
+        while (in_pos < o->m_command.length) {
+            char ch = o->m_buffer[in_pos++];
+            if (ch == '\\' && o->m_command.num_parts > 0) {
+                if (o->m_command.length - in_pos < 2) {
+                    o->m_command.num_parts = ERROR_BAD_ESCAPE;
+                    return;
+                }
+                int digit_h = read_hex_digit(o->m_buffer[in_pos++]);
+                int digit_l = read_hex_digit(o->m_buffer[in_pos++]);
+                if (digit_h < 0 || digit_l < 0) {
+                    o->m_command.num_parts = ERROR_BAD_ESCAPE;
+                    return;
+                }
+                unsigned char byte = (digit_h << 4) | digit_l;
+                o->m_buffer[out_pos++] = *(char *)&byte;
+            } else {
+                o->m_buffer[out_pos++] = ch;
+            }
+        }
+        
+        o->m_buffer[out_pos] = '\0';
         
         if (TheTypeHelper::finish_part_hook(c, code)) {
             return;
@@ -464,6 +489,15 @@ private:
         o->m_command.parts[o->m_command.num_parts].code = code;
         o->m_command.parts[o->m_command.num_parts].data = o->m_buffer + (o->m_temp + 1);
         o->m_command.num_parts++;
+    }
+    
+    static int read_hex_digit (char ch)
+    {
+        return
+            (ch >= '0' && ch <= '9') ? (ch - '0') :
+            (ch >= 'A' && ch <= 'F') ? (10 + (ch - 'A')) :
+            (ch >= 'a' && ch <= 'f') ? (10 + (ch - 'a')) :
+            -1;
     }
     
     template <typename TheParserType, typename Dummy = void>

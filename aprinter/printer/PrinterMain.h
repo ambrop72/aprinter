@@ -571,6 +571,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     case TheGcodeParser::ERROR_INVALID_PART: err = AMBRO_PSTR("invalid part"); break;
                     case TheGcodeParser::ERROR_CHECKSUM: err = AMBRO_PSTR("incorrect checksum"); break;
                     case TheGcodeParser::ERROR_RECV_OVERRUN: err = AMBRO_PSTR("receive buffer overrun"); break;
+                    case TheGcodeParser::ERROR_BAD_ESCAPE: err = AMBRO_PSTR("bad escape sequence"); break;
                 }
                 impl(c)->reply_append_pstr(c, AMBRO_PSTR("Error:"));
                 impl(c)->reply_append_pstr(c, err);

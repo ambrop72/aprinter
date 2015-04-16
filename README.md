@@ -101,7 +101,7 @@ This file would usually be produced by the web GUI, but you're free to manage it
 Again, the prerequisite for building is the [Nix package manager](http://nixos.org/nix/) on Linux.
 
 ```
-python -B config_system/generator/generate.py --nix --config path_to_config.json | nix-build - -o ~/aprinter-service
+python -B config_system/generator/generate.py --nix --config path_to_config.json | nix-build - -o ~/aprinter-build
 ```
 
 ## Uploading
@@ -213,6 +213,9 @@ The following SD-card related commands will be available when SD card support is
 - M24 - Start or resume SD printing.
 - M25 - Pause SD printing. Note that pause automatically happens at end of file or read error.
 - M26 - Rewind the current file to the beginning.
+
+When passing a file or directory name to a command, any spaces in the name have to be replaced with the escape sequence `\20`,
+because a space would be parsed as a delimiter between command parameters.
 
 Example: start printing from the file `gcodes/test.gcode`.
 
