@@ -34,6 +34,9 @@ rec {
     /* Atmel Software Framework (chip support for Atmel ARM chips). */
     asf = pkgs.callPackage ./asf.nix {};
     
+    /* STM32CubeF4 (chip support for STM32F4). */
+    stm32cubef4 = pkgs.callPackage ./stm32cubef4.nix {};
+    
     /* Teensy-cores (chip support for Teensy 3). */
     teensyCores = pkgs.callPackage ./teensy_cores.nix {};
     
@@ -55,7 +58,7 @@ rec {
     */    
     aprinterFunc = aprinterConfig: pkgs.callPackage ./aprinter.nix (
         {
-            inherit gccAvrAtmel asf teensyCores aprinterSource;
+            inherit gccAvrAtmel asf stm32cubef4 teensyCores aprinterSource;
         } // aprinterConfig
     );
         
@@ -71,4 +74,15 @@ rec {
     */
     aprinterServiceExprs = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
     aprinterService = aprinterServiceExprs.service;
+    
+    stmTest = aprinterFunc {
+        buildName = "test";
+        boardName = "stm32f429";
+        mainText = builtins.readFile ../stm_test.cpp;
+        desiredOutputs = ["bin"];
+        optimizeForSize = false;
+        assertionsEnabled = false;
+        eventLoopBenchmarkEnabled = false;
+        detectOverloadEnabled = false;
+    };
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2015 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,19 +22,28 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STM32F4_SUPPORT_H
-#define AMBROLIB_STM32F4_SUPPORT_H
-
-#include <stm32f4xx.h>
-#include <stm32f4xx_hal_rcc.h>
-
-#include <aprinter/platform/arm_cortex_common.h>
-
-#define F_CPU 168000000
-#define F_TIMERS1 (F_CPU / 2)
-
-#define INTERRUPT_PRIORITY 4
-
-void platform_init (void);
-
-#endif
+{ stdenv, fetchurl, unzip }:
+let
+    source = fetchurl {
+        url = http://www.st.com/st-web-ui/static/active/en/st_prod_software_internet/resource/technical/software/firmware/stm32cubef4.zip;
+        sha256 = "b5deff0c2da912de9a1d4b2473b66d39e405a6926c085f688ac55212102270da";
+    };
+in
+stdenv.mkDerivation rec {
+    name = "stm32cubef4";
+    
+    unpackPhase = "true";
+    
+    nativeBuildInputs = [ unzip ];
+    
+    installPhase = ''
+        mkdir -p "$out"/EXTRACT
+        unzip -q ${source} -d "$out"/EXTRACT
+        mv "$out"/EXTRACT/STM32Cube*/* "$out"/
+        rm -rf "$out"/EXTRACT
+    '';
+    
+    dontStrip = true;
+    dontPatchELF = true;
+    dontPatchShebangs = true;
+}

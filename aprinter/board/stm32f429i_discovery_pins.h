@@ -21,3 +21,17 @@
  * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
+
+#ifndef AMBROLIB_STM32F429I_DISCOVERY_PINS_H
+#define AMBROLIB_STM32F4DISCOVERY_PINS_H
+
+#include <aprinter/system/Stm32f4Pins.h>
+
+#include <aprinter/BeginNamespace.h>
+
+using DiscoveryPinLedGreen = Stm32f4Pin<Stm32f4PortG, 13>;
+using DiscoveryPinLedRed = Stm32f4Pin<Stm32f4PortG, 14>;
+
+#include <aprinter/EndNamespace.h>
+
+#endif

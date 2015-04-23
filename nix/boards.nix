@@ -89,4 +89,11 @@ rec {
             TEENSY_VERSION = "3.1";
         };
     };
+    
+    stm32f429 = {
+        platform = "stm32f4";
+        targetVars = {
+            
+        };
+    };
 }

@@ -85,45 +85,41 @@ private:
 public:
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOF, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOG, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOH, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOI, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOJ, ENABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOK, ENABLE);
+        __HAL_RCC_GPIOA_CLK_ENABLE();
+        __HAL_RCC_GPIOB_CLK_ENABLE();
+        __HAL_RCC_GPIOC_CLK_ENABLE();
+        __HAL_RCC_GPIOD_CLK_ENABLE();
+        __HAL_RCC_GPIOE_CLK_ENABLE();
+        __HAL_RCC_GPIOF_CLK_ENABLE();
+        __HAL_RCC_GPIOG_CLK_ENABLE();
+        __HAL_RCC_GPIOH_CLK_ENABLE();
+        __HAL_RCC_GPIOI_CLK_ENABLE();
+        __HAL_RCC_GPIOJ_CLK_ENABLE();
+        __HAL_RCC_GPIOK_CLK_ENABLE();
         
         TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOK, DISABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOJ, DISABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOI, DISABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOH, DISABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOG, DISABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOF, DISABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOE, DISABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOD, DISABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOC, DISABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOB, DISABLE);
-        RCC_AHB1PeriphClockCmd(RCC_AHB1Periph_GPIOA, DISABLE);
+        __HAL_RCC_GPIOK_CLK_DISABLE();
+        __HAL_RCC_GPIOJ_CLK_DISABLE();
+        __HAL_RCC_GPIOI_CLK_DISABLE();
+        __HAL_RCC_GPIOH_CLK_DISABLE();
+        __HAL_RCC_GPIOG_CLK_DISABLE();
+        __HAL_RCC_GPIOF_CLK_DISABLE();
+        __HAL_RCC_GPIOE_CLK_DISABLE();
+        __HAL_RCC_GPIOD_CLK_DISABLE();
+        __HAL_RCC_GPIOC_CLK_DISABLE();
+        __HAL_RCC_GPIOB_CLK_DISABLE();
+        __HAL_RCC_GPIOA_CLK_DISABLE();
     }
     
     template <typename Pin, typename Mode = Stm32f4PinInputModeNormal, typename ThisContext>
     static void setInput (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -135,7 +131,6 @@ public:
     template <typename Pin, typename Mode = Stm32f4PinOutputModeNormal, typename ThisContext>
     static void setOutput (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -148,7 +143,6 @@ public:
     template <typename Pin, int AfNumber, typename ThisContext>
     static void setAlternateFunction (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
@@ -161,7 +155,6 @@ public:
     template <typename Pin, typename ThisContext>
     static bool get (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         return (Pin::Port::gpio()->IDR & (UINT32_C(1) << Pin::PinIndex));
@@ -170,13 +163,12 @@ public:
     template <typename Pin, typename ThisContext>
     static void set (ThisContext c, bool x)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         if (x) {
-            Pin::Port::gpio()->BSRRL = (UINT32_C(1) << Pin::PinIndex);
+            Pin::Port::gpio()->BSRR = (UINT32_C(1) << Pin::PinIndex);
         } else {
-            Pin::Port::gpio()->BSRRH = (UINT32_C(1) << Pin::PinIndex);
+            Pin::Port::gpio()->BSRR = (UINT32_C(1) << (16 + Pin::PinIndex));
         }
     }
     
@@ -184,9 +176,9 @@ public:
     static void emergencySet (bool x)
     {
         if (x) {
-            Pin::Port::gpio()->BSRRL = (UINT32_C(1) << Pin::PinIndex);
+            Pin::Port::gpio()->BSRR = (UINT32_C(1) << Pin::PinIndex);
         } else {
-            Pin::Port::gpio()->BSRRH = (UINT32_C(1) << Pin::PinIndex);
+            Pin::Port::gpio()->BSRR = (UINT32_C(1) << (16 + Pin::PinIndex));
         }
     }
     

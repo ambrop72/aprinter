@@ -49,29 +49,30 @@ struct Stm32f4Clock__IrqCompHelper {
 
 #include <aprinter/BeginNamespace.h>
 
-template <bool TIs32Bit, uint32_t TAddr, int TClockType, uint32_t TClockId, enum IRQn TIrq>
-struct Stm32f4ClockTC {
-    static bool const Is32Bit = TIs32Bit;
-    static TIM_TypeDef * tim () { return (TIM_TypeDef *)TAddr; }
-    static int const ClockType = TClockType;
-    static uint32_t const ClockId = TClockId;
-    static enum IRQn const Irq = TIrq;
+#define STM32F4CLOCK_DEFINE_TC(tc_num, is_32bit, clock_type, irqn) \
+struct Stm32f4ClockTIM##tc_num { \
+    static bool const Is32Bit = is_32bit; \
+    static TIM_TypeDef * tim () { return TIM##tc_num; } \
+    static int const ClockType = clock_type; \
+    static void enable_clock () { __HAL_RCC_TIM##tc_num##_CLK_ENABLE(); } \
+    static void disable_clock () { __HAL_RCC_TIM##tc_num##_CLK_DISABLE(); } \
+    static IRQn_Type const Irq = irqn; \
 };
 
 // We don't work with (not need) APB2 timers.
 
-//using Stm32f4ClockTIM1 = Stm32f4ClockTC<false, TIM1_BASE, 2, RCC_APB2Periph_TIM1, TIM1_CC_IRQn>;
-using Stm32f4ClockTIM2 = Stm32f4ClockTC<true, TIM2_BASE, 1, RCC_APB1Periph_TIM2, TIM2_IRQn>;
-using Stm32f4ClockTIM3 = Stm32f4ClockTC<false, TIM3_BASE, 1, RCC_APB1Periph_TIM3, TIM3_IRQn>;
-using Stm32f4ClockTIM4 = Stm32f4ClockTC<false, TIM4_BASE, 1, RCC_APB1Periph_TIM4, TIM4_IRQn>;
-using Stm32f4ClockTIM5 = Stm32f4ClockTC<true, TIM5_BASE, 1, RCC_APB1Periph_TIM5, TIM5_IRQn>;
-//using Stm32f4ClockTIM8 = Stm32f4ClockTC<false, TIM8_BASE, 2, RCC_APB2Periph_TIM8, TIM8_CC_IRQn>;
-//using Stm32f4ClockTIM9 = Stm32f4ClockTC<false, TIM9_BASE, 2, RCC_APB2Periph_TIM9, TIM1_BRK_TIM9_IRQn>;
-//using Stm32f4ClockTIM10 = Stm32f4ClockTC<false, TIM10_BASE, 2, RCC_APB2Periph_TIM10, TIM1_UP_TIM10_IRQn>;
-//using Stm32f4ClockTIM11 = Stm32f4ClockTC<false, TIM11_BASE, 2, RCC_APB2Periph_TIM11, TIM1_TRG_COM_TIM11_IRQn>;
-using Stm32f4ClockTIM12 = Stm32f4ClockTC<false, TIM12_BASE, 1, RCC_APB1Periph_TIM12, TIM8_BRK_TIM12_IRQn>;
-using Stm32f4ClockTIM13 = Stm32f4ClockTC<false, TIM13_BASE, 1, RCC_APB1Periph_TIM13, TIM8_UP_TIM13_IRQn>;
-using Stm32f4ClockTIM14 = Stm32f4ClockTC<false, TIM14_BASE, 1, RCC_APB1Periph_TIM14, TIM8_TRG_COM_TIM14_IRQn>;
+//STM32F4CLOCK_DEFINE_TC(1,  false, 2, TIM1_CC_IRQn)
+STM32F4CLOCK_DEFINE_TC(2,  true,  1, TIM2_IRQn)
+STM32F4CLOCK_DEFINE_TC(3,  false, 1, TIM3_IRQn)
+STM32F4CLOCK_DEFINE_TC(4,  false, 1, TIM4_IRQn)
+STM32F4CLOCK_DEFINE_TC(5,  true,  1, TIM5_IRQn)
+//STM32F4CLOCK_DEFINE_TC(8,  false, 2, TIM8_CC_IRQn)
+//STM32F4CLOCK_DEFINE_TC(9,  false, 2, TIM1_BRK_TIM9_IRQn)
+//STM32F4CLOCK_DEFINE_TC(10, false, 2, TIM1_UP_TIM10_IRQn)
+//STM32F4CLOCK_DEFINE_TC(11, false, 2, TIM1_TRG_COM_TIM11_IRQn)
+STM32F4CLOCK_DEFINE_TC(12, false, 1, TIM8_BRK_TIM12_IRQn)
+STM32F4CLOCK_DEFINE_TC(13, false, 1, TIM8_UP_TIM13_IRQn)
+STM32F4CLOCK_DEFINE_TC(14, false, 1, TIM8_TRG_COM_TIM14_IRQn)
 
 template <
     size_t TCcmrOffset,
@@ -120,11 +121,7 @@ private:
         
         static void init (Context c)
         {
-            if (TcSpec::ClockType == 1) {
-                RCC_APB1PeriphClockCmd(TcSpec::ClockId, ENABLE);
-            } else if (TcSpec::ClockType == 2) {
-                RCC_APB2PeriphClockCmd(TcSpec::ClockId, ENABLE);
-            }
+            TcSpec::enable_clock();
             TcSpec::tim()->CR1 = 0;
             TcSpec::tim()->CR2 = 0;
             TcSpec::tim()->SMCR = 0;
@@ -149,11 +146,7 @@ private:
             TcSpec::tim()->CR1 = 0;
             TcSpec::tim()->SR = 0;
             NVIC_ClearPendingIRQ(TcSpec::Irq);
-            if (TcSpec::ClockType == 1) {
-                RCC_APB1PeriphClockCmd(TcSpec::ClockId, DISABLE);
-            } else if (TcSpec::ClockType == 2) {
-                RCC_APB2PeriphClockCmd(TcSpec::ClockId, DISABLE);
-            }
+            TcSpec::disable_clock();
         }
         
         static void irq_handler (InterruptContext<Context> c)
@@ -173,8 +166,6 @@ private:
 public:
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
         ListForEachForward<MyTcsList>(LForeach_init(), c);
         
         TheDebugObject::init(c);
@@ -182,7 +173,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         ListForEachReverse<MyTcsList>(LForeach_deinit(), c);
@@ -191,7 +181,6 @@ public:
     template <typename ThisContext>
     static TimeType getTime (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         return MyTc<0>::TcSpec::tim()->CNT;
