@@ -32,11 +32,6 @@
 static void SystemClock_Config(void);
 
 extern "C" {
-    __attribute__((used))
-    void _init (void)
-    {
-    }
-    
     void NMI_Handler (void)
     {
     }

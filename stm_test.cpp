@@ -96,8 +96,24 @@ AMBRO_STM32F4_CLOCK_TC_GLOBAL(9, MyClock, MyContext())
 AMBRO_STM32F4_CLOCK_TC_GLOBAL(10, MyClock, MyContext())
 AMBRO_STM32F4_CLOCK_TC_GLOBAL(11, MyClock, MyContext())
 
+int kkk = 0;
+
+struct Foo {
+    Foo()
+    {
+        kkk += 2;
+    }
+};
+
+Foo the_foo;
+Foo the_foo2;
+
 int main ()
 {
+    if (kkk != 4) {
+        while(1);
+    }
+    
     platform_init();
     
     MyContext c;
