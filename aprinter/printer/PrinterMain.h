@@ -70,6 +70,7 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Optimize.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/devices/Blinker.h>
