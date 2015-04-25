@@ -264,6 +264,11 @@ def setup_platform(gen, config, key):
         gen.add_platform_include('aprinter/platform/avr/avr_support.h')
         gen.add_init_call(-3, 'sei();')
     
+    @platform_sel.option('Stm32f4')
+    def option(platform):
+        gen.add_platform_include('aprinter/platform/stm32f4/stm32f4_support.h')
+        gen.add_init_call(-1, 'platform_init();')
+    
     config.do_selection(key, platform_sel)
 
 class CommonClock(object):
@@ -389,6 +394,16 @@ def AvrClockDef(x):
             timer_config.do_selection('Mode', mode_sel),
         ])
 
+def Stm32f4ClockDef(x):
+    x.INCLUDE = 'system/Stm32f4Clock.h'
+    x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Stm32f4Clock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
+    x.TIMER_RE = '\\ATIM([0-9]{1,2})\\Z'
+    x.CHANNEL_RE = '\\ATIM([0-9]{1,2})_([1-4])\\Z'
+    x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Stm32f4ClockInterruptTimerService<Stm32f4ClockTIM{}, Stm32f4ClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
+    x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_STM32F4_CLOCK_INTERRUPT_TIMER_GLOBAL(Stm32f4ClockTIM{}, Stm32f4ClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
+    x.TIMER_EXPR = lambda tc: 'Stm32f4ClockTIM{}'.format(tc)
+    x.TIMER_ISR = lambda tc: 'AMBRO_STM32F4_CLOCK_TC_GLOBAL({}, MyClock, MyContext())'.format(tc)
+
 def setup_clock(gen, config, key):
     clock_sel = selection.Selection()
     
@@ -407,6 +422,10 @@ def setup_clock(gen, config, key):
     @clock_sel.option('AvrClock')
     def option(clock):
         return CommonClock(gen, clock, AvrClockDef)
+    
+    @clock_sel.option('Stm32f4Clock')
+    def option(clock):
+        return CommonClock(gen, clock, Stm32f4ClockDef)
     
     gen.register_singleton_object('clock', config.do_selection(key, clock_sel))
 
@@ -432,6 +451,12 @@ def setup_pins (gen, config, key):
         gen.add_aprinter_include('system/AvrPins.h')
         pin_regexes.append('\\AAvrPin<AvrPort[A-Z],[0-9]{1,3}>\\Z')
         return TemplateExpr('AvrPins', ['MyContext', 'Program'])
+    
+    @pins_sel.option('Stm32f4Pins')
+    def options(pin_config):
+        gen.add_aprinter_include('system/Stm32f4Pins.h')
+        pin_regexes.append('\\AStm32f4Pin<Stm32f4Port[A-Z],[0-9]{1,3}>\\Z')
+        return TemplateExpr('Stm32f4Pins', ['MyContext', 'Program'])
     
     gen.add_global_resource(10, 'MyPins', config.do_selection(key, pins_sel), context_name='Pins')
     gen.register_singleton_object('pin_regexes', pin_regexes)
@@ -472,10 +497,22 @@ def setup_watchdog (gen, config, key, user):
         gen.add_isr('AMBRO_AVR_WATCHDOG_GLOBAL')
         return TemplateExpr('AvrWatchdogService', [wdto])
     
+    @watchdog_sel.option('Stm32f4Watchdog')
+    def option(watchdog):
+        gen.add_aprinter_include('system/Stm32f4Watchdog.h')
+        return TemplateExpr('Stm32f4WatchdogService', [
+            watchdog.get_int('Divider'),
+            watchdog.get_int('Reload'),
+        ])
+    
     return config.do_selection(key, watchdog_sel)
 
 def setup_adc (gen, config, key):
     adc_sel = selection.Selection()
+    
+    @adc_sel.option('NoAdc')
+    def option(adc_config):
+        return None
     
     @adc_sel.option('At91SamAdc')
     def option(adc_config):
@@ -545,6 +582,8 @@ def setup_adc (gen, config, key):
         }
     
     result = config.do_selection(key, adc_sel)
+    if result is None:
+        return
     
     gen.register_singleton_object('adc_pins', [])
     
@@ -769,6 +808,11 @@ def use_serial(gen, config, key, user):
         gen.add_global_code(0, 'APRINTER_SETUP_AVR_DEBUG_WRITE(AvrSerial_DebugPutChar<{}>, MyContext())'.format(user))
         gen.add_init_call(-2, 'aprinter_init_avr_debug_write();')
         return TemplateExpr('AvrSerialService', [serial_service.get_bool('DoubleSpeed')])
+    
+    @serial_sel.option('NullSerial')
+    def option(serial_service):
+        gen.add_aprinter_include('system/NullSerial.h')
+        return 'NullSerialService'
     
     return config.do_selection(key, serial_sel)
 

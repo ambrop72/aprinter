@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2015 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,21 +22,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_STM32F4_SUPPORT_H
-#define AMBROLIB_STM32F4_SUPPORT_H
+#ifndef APRINTER_JOIN_TOKENS_H
+#define APRINTER_JOIN_TOKENS_H
 
-#include <stdint.h>
-#include <stm32f4xx.h>
-#include <stm32f4xx_hal_rcc.h>
-
-#include <aprinter/platform/arm_cortex_common.h>
-
-#define F_CPU (((double)HSE_VALUE * PLL_N_VALUE) / ((double)PLL_P_DIV_VALUE * PLL_M_VALUE))
-#define APB1_TIMERS_DIV (APB1_PRESC_DIV == 1 ? APB1_PRESC_DIV : (APB1_PRESC_DIV / 2))
-#define APB2_TIMERS_DIV (APB2_PRESC_DIV == 1 ? APB2_PRESC_DIV : (APB2_PRESC_DIV / 2))
-
-#define INTERRUPT_PRIORITY 4
-
-void platform_init (void);
+#define APRINTER_JOIN_HELPER(x, y) x##y
+#define APRINTER_JOIN(x, y) APRINTER_JOIN_HELPER(x, y)
 
 #endif

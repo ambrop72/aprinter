@@ -93,7 +93,12 @@ rec {
     stm32f429 = {
         platform = "stm32f4";
         targetVars = {
-            
+            HSE_VALUE = "8000000";
+            PLL_N_VALUE = "270";
+            PLL_M_VALUE = "6";
+            PLL_P_DIV_VALUE = "2";
+            APB1_PRESC_DIV = "4";
+            APB2_PRESC_DIV = "2";
         };
     };
 }

@@ -76,13 +76,7 @@ rec {
     aprinterService = aprinterServiceExprs.service;
     
     stmTest = aprinterFunc {
-        buildName = "test";
         boardName = "stm32f429";
         mainText = builtins.readFile ../stm_test.cpp;
-        desiredOutputs = ["bin"];
-        optimizeForSize = false;
-        assertionsEnabled = false;
-        eventLoopBenchmarkEnabled = false;
-        detectOverloadEnabled = false;
     };
 }

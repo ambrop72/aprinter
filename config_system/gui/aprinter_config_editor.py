@@ -202,6 +202,31 @@ def platform_Avr(variant):
         ]),
     ])
 
+def platform_Stm32f4():
+    return ce.Compound('Stm32f4', attrs=[
+        ce.Compound('Stm32f4Clock', key='clock', title='Clock', collapsable=True, attrs=[
+            ce.Integer(key='prescaler', title='Prescaler'),
+            ce.String(key='primary_timer', title='Primary timer'),
+            ce.Constant(key='avail_oc_units', value=[
+                {
+                    'value': 'TIM{}_{}'.format(n, m)
+                } for n in [1,2,3,4,5,9,10,11] for m in [1,2,3,4]
+            ])
+        ]),
+        ce.Compound('NoAdc', key='adc', title='ADC', collapsable=True, attrs=[]),
+        ce.Compound('Stm32f4Watchdog', key='watchdog', title='Watchdog', collapsable=True, attrs=[
+            ce.Integer(key='Divider', title='Divider'),
+            ce.Integer(key='Reload', title='Reload'),
+        ]),
+        ce.Compound('Stm32f4Pins', key='pins', title='Pins', collapsable=True, attrs=[
+            ce.Constant(key='input_modes', value=[
+                { 'ident': 'Stm32f4PinInputModeNormal', 'name': 'Normal' },
+                { 'ident': 'Stm32f4PinInputModePullUp', 'name': 'Pull-up' },
+                { 'ident': 'Stm32f4PinInputModePullDown', 'name': 'Pull-down' },
+            ])
+        ]),
+    ])
+
 def hard_pwm_choice(**kwargs):
     return ce.OneOf(title='Hard-PWM driver', choices=[
         ce.Compound('AvrClockPwm', ident='id_pwm_output', attrs=[
@@ -463,6 +488,7 @@ def editor():
                     platform_Teensy3(),
                     platform_Avr('ATmega2560'),
                     platform_Avr('ATmega1284p'),
+                    platform_Stm32f4(),
                 ]),
             ]),
             pin_choice(key='LedPin', title='LED pin'),
@@ -512,6 +538,7 @@ def editor():
                     ce.Compound('AvrSerial', title='AVR UART', attrs=[
                         ce.Boolean(key='DoubleSpeed'),
                     ]),
+                    ce.Compound('NullSerial', title='Null serial driver', attrs=[]),
                 ])
             ]),
             ce.Compound('SdCardConfig', key='sdcard_config', title='SD card configuration', collapsable=True, attrs=[

@@ -25,6 +25,8 @@
 #include <errno.h>
 #include <sys/types.h>
 
+#include <aprinter/base/JoinTokens.h>
+
 #include "stm32f4_support.h"
 
 static void SystemClock_Config(void);
@@ -88,33 +90,26 @@ static void SystemClock_Config(void)
     RCC_OscInitTypeDef RCC_OscInitStruct;
     HAL_StatusTypeDef ret = HAL_OK;
 
-    /* Enable Power Control clock */
     __HAL_RCC_PWR_CLK_ENABLE();
 
-    /* The voltage scaling allows optimizing the power consumption when the device is 
-        clocked below the maximum system frequency, to update the voltage scaling value 
-        regarding system frequency refer to product datasheet.  */
     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
 
-    /* Enable HSE Oscillator and activate PLL with HSE as source */
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
     RCC_OscInitStruct.HSEState = RCC_HSE_ON;
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-    RCC_OscInitStruct.PLL.PLLM = 8;
-    RCC_OscInitStruct.PLL.PLLN = 288;
-    RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+    RCC_OscInitStruct.PLL.PLLM = PLL_M_VALUE;
+    RCC_OscInitStruct.PLL.PLLN = PLL_N_VALUE;
+    RCC_OscInitStruct.PLL.PLLP = APRINTER_JOIN(RCC_PLLP_DIV, PLL_P_DIV_VALUE);
     RCC_OscInitStruct.PLL.PLLQ = 6;
     ret = HAL_RCC_OscConfig(&RCC_OscInitStruct);
     if (ret != HAL_OK) while (1);
 
-    /* Select PLL as system clock source and configure the HCLK, PCLK1 and PCLK2 
-        clocks dividers */
     RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
     RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-    RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV4;  
-    RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV2;  
+    RCC_ClkInitStruct.APB1CLKDivider = APRINTER_JOIN(RCC_HCLK_DIV, APB1_PRESC_DIV);
+    RCC_ClkInitStruct.APB2CLKDivider = APRINTER_JOIN(RCC_HCLK_DIV, APB2_PRESC_DIV);
     ret = HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
     if (ret != HAL_OK) while (1);
 }

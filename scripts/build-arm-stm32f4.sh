@@ -45,7 +45,9 @@ configure_stm32f4() {
         -mfpu=fpv4-sp-d16 -mfloat-abi=hard
     )
     FLAGS_C_CXX+=(
-        -DSTM32F429xx -DUSE_HAL_DRIVER -DHSE_VALUE=8000000
+        -DSTM32F429xx -DUSE_HAL_DRIVER
+        -DHSE_VALUE=${HSE_VALUE} -DPLL_N_VALUE=${PLL_N_VALUE} -DPLL_M_VALUE=${PLL_M_VALUE} -DPLL_P_DIV_VALUE=${PLL_P_DIV_VALUE}
+        -DAPB1_PRESC_DIV=${APB1_PRESC_DIV} -DAPB2_PRESC_DIV=${APB2_PRESC_DIV}
         -I aprinter/platform/stm32f4
         -I "${CMSIS_DIR}/Include"
         -I "${STM32CUBEF4_DIR}/Drivers/CMSIS/Include"

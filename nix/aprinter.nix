@@ -24,8 +24,9 @@
 
 { stdenv, writeText, bash, gcc-arm-embedded, gccAvrAtmel, asf, stm32cubef4
 , teensyCores, aprinterSource
-, buildName, boardName, mainText, desiredOutputs, optimizeForSize, assertionsEnabled
-, eventLoopBenchmarkEnabled, detectOverloadEnabled
+, mainText, boardName, buildName ? "nixbuild", desiredOutputs ? ["bin" "hex"]
+, optimizeForSize ? false, assertionsEnabled ? false
+, eventLoopBenchmarkEnabled ? false, detectOverloadEnabled ? false
 }:
 
 let
