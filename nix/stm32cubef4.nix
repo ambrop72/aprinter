@@ -41,6 +41,7 @@ stdenv.mkDerivation rec {
         unzip -q ${source} -d "$out"/EXTRACT
         mv "$out"/EXTRACT/STM32Cube*/* "$out"/
         rm -rf "$out"/EXTRACT
+        sed -i 's|"USBD_CDC.h"|"usbd_cdc.h"|g' "$out"/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
     '';
     
     dontStrip = true;

@@ -2,6 +2,10 @@
 #include <stdio.h>
 
 #include <aprinter/platform/stm32f4/stm32f4_support.h>
+#include <aprinter/platform/stm32f4/usbd_desc.h>
+#include <aprinter/platform/stm32f4/usbd_conf.h>
+#include <aprinter/platform/stm32f4/usbd_cdc_interface.h>
+#include <usbd_core.h>
 
 static void emergency (void);
 
@@ -16,12 +20,17 @@ static void emergency (void);
 #include <aprinter/base/Assert.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/InterruptLock.h>
-
 #include <aprinter/system/Stm32f4Clock.h>
 #include <aprinter/system/Stm32f4Pins.h>
 #include <aprinter/system/Stm32f4Watchdog.h>
 
+#if defined(STM32F429xx)
 #include <aprinter/board/stm32f429i_discovery_pins.h>
+#elif defined(STM32F407xx)
+#include <aprinter/board/stm32f4discovery_pins.h>
+#else
+#error not supported
+#endif
 
 using namespace APrinter;
 
@@ -33,16 +42,9 @@ using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
 using MyClock = Stm32f4Clock<
     MyContext,
     Program,
-    31,
+    34,
     MakeTypeList<
-        Stm32f4ClockTIM2,
-        Stm32f4ClockTIM1,
-        Stm32f4ClockTIM3,
-        Stm32f4ClockTIM4,
-        Stm32f4ClockTIM5,
-        Stm32f4ClockTIM9,
-        Stm32f4ClockTIM10,
-        Stm32f4ClockTIM11
+        Stm32f4ClockTIM2
     >
 >;
 using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
@@ -88,33 +90,22 @@ extern "C" __attribute__((used)) void __cxa_pure_virtual(void)
 }
 
 AMBRO_STM32F4_CLOCK_TC_GLOBAL(2, MyClock, MyContext())
-AMBRO_STM32F4_CLOCK_TC_GLOBAL(1, MyClock, MyContext())
-AMBRO_STM32F4_CLOCK_TC_GLOBAL(3, MyClock, MyContext())
-AMBRO_STM32F4_CLOCK_TC_GLOBAL(4, MyClock, MyContext())
-AMBRO_STM32F4_CLOCK_TC_GLOBAL(5, MyClock, MyContext())
-AMBRO_STM32F4_CLOCK_TC_GLOBAL(9, MyClock, MyContext())
-AMBRO_STM32F4_CLOCK_TC_GLOBAL(10, MyClock, MyContext())
-AMBRO_STM32F4_CLOCK_TC_GLOBAL(11, MyClock, MyContext())
 
-int kkk = 0;
+extern "C" {
+    USBD_HandleTypeDef USBD_Device = {0};
+}
 
-struct Foo {
-    Foo()
-    {
-        kkk += 2;
-    }
-};
-
-Foo the_foo;
-Foo the_foo2;
+extern "C" void OTG_FS_IRQHandler(void)
+{
+    HAL_PCD_IRQHandler(&hpcd);
+}
 
 int main ()
 {
-    if (kkk != 4) {
-        while(1);
-    }
-    
+    // Basic initialization (STM HAL, clock).
     platform_init();
+    
+    // APrinter stuff initialization.
     
     MyContext c;
     
@@ -123,6 +114,26 @@ int main ()
     MyLoop::init(c);
     MyPins::init(c);
     MyWatchdog::init(c);
+    
+    // USB serial port initialization.
+    
+    if (USBD_Init(&USBD_Device, &VCP_Desc, 0) != USBD_OK) {
+        while (1);
+    }
+    
+    if (USBD_RegisterClass(&USBD_Device, USBD_CDC_CLASS) != USBD_OK) {
+        while (1);
+    }
+    
+    if (USBD_CDC_RegisterInterface(&USBD_Device, &USBD_CDC_fops) != USBD_OK) {
+        while (1);
+    }
+    
+    if (USBD_Start(&USBD_Device) != USBD_OK) {
+        while (1);
+    }
+    
+    // Go on bliking the LEDs.
     
     MyPins::setOutput<DiscoveryPinLedGreen>(c);
     MyPins::setOutput<DiscoveryPinLedRed>(c);
@@ -137,9 +148,9 @@ int main ()
         MyPins::set<DiscoveryPinLedGreen>(c, state);
         MyPins::set<DiscoveryPinLedRed>(c, !state);
         
-        time += (MyClock::TimeType)(MyClock::time_freq * 0.125);
+        time += (MyClock::TimeType)(MyClock::time_freq * 0.5);
         while ((uint32_t)(time - MyClock::getTime(c)) < UINT32_C(0x80000000));
     }
     
-    MyLoop::run(c);
+    //MyLoop::run(c);
 }

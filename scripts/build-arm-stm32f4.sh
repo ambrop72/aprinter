@@ -30,29 +30,44 @@
 
 configure_stm32f4() {
     STM32CUBEF4_DIR=${CUSTOM_STM32CUBEF4}
-    
     CMSIS_DIR=${STM32CUBEF4_DIR}/Drivers/CMSIS/Device/ST/STM32F4xx
     TEMPLATES_DIR=${CMSIS_DIR}/Source/Templates
     HAL_DIR=${STM32CUBEF4_DIR}/Drivers/STM32F4xx_HAL_Driver
-    LINKER_SCRIPT=aprinter/platform/stm32f4/stm32f429.ld
+    USB_DIR=${STM32CUBEF4_DIR}/Middlewares/ST/STM32_USB_Device_Library
 
     ARM_CPU=cortex-m4
 
-    configure_arm
+    if [[ $STM_CHIP = "stm32f429" ]]; then
+        CHIP_FLAGS=( -DSTM32F429xx )
+        STARTUP_ASM_FILE=startup_stm32f429xx.s
+    elif [[ $STM_CHIP = "stm32f407" ]]; then
+        CHIP_FLAGS=( -DSTM32F407xx )
+        STARTUP_ASM_FILE=startup_stm32f407xx.s
+    else
+        fail "Unsupported STM_CHIP"
+    fi
 
+    LINKER_SCRIPT=aprinter/platform/stm32f4/${STM_CHIP}.ld
+    
+    configure_arm
+    
     FLAGS_C_CXX_LD+=(
-        -mfpu=fpv4-sp-d16 -mfloat-abi=hard
+        -mfpu=fpv4-sp-d16 -mfloat-abi=hard -ggdb
     )
     FLAGS_C_CXX+=(
-        -DSTM32F429xx -DUSE_HAL_DRIVER -DHEAP_SIZE=16384
-        -DHSE_VALUE=${HSE_VALUE} -DPLL_N_VALUE=${PLL_N_VALUE} -DPLL_M_VALUE=${PLL_M_VALUE} -DPLL_P_DIV_VALUE=${PLL_P_DIV_VALUE}
+        "${CHIP_FLAGS[@]}"
+        -DUSE_HAL_DRIVER -DHEAP_SIZE=16384
+        -DHSE_VALUE=${HSE_VALUE} -DPLL_N_VALUE=${PLL_N_VALUE} -DPLL_M_VALUE=${PLL_M_VALUE}
+        -DPLL_P_DIV_VALUE=${PLL_P_DIV_VALUE} -DPLL_Q_DIV_VALUE=${PLL_Q_DIV_VALUE}
         -DAPB1_PRESC_DIV=${APB1_PRESC_DIV} -DAPB2_PRESC_DIV=${APB2_PRESC_DIV}
         -I aprinter/platform/stm32f4
         -I "${CMSIS_DIR}/Include"
         -I "${STM32CUBEF4_DIR}/Drivers/CMSIS/Include"
         -I "${HAL_DIR}/Inc"
+        -I "${USB_DIR}/Core/Inc"
+        -I "${USB_DIR}/Class/CDC/Inc"
     )
-
+    
     CXX_SOURCES+=(
         "aprinter/platform/stm32f4/stm32f4_support.cpp"
     )
@@ -62,10 +77,21 @@ configure_stm32f4() {
         "${HAL_DIR}/Src/stm32f4xx_hal_cortex.c"
         "${HAL_DIR}/Src/stm32f4xx_hal_rcc.c"
         "${HAL_DIR}/Src/stm32f4xx_hal_iwdg.c"
+        "${HAL_DIR}/Src/stm32f4xx_hal_gpio.c"
+        "${HAL_DIR}/Src/stm32f4xx_hal_pcd.c"
+        "${HAL_DIR}/Src/stm32f4xx_hal_pcd_ex.c"
+        "${HAL_DIR}/Src/stm32f4xx_ll_usb.c"
+        "${USB_DIR}/Core/Src/usbd_core.c"
+        "${USB_DIR}/Core/Src/usbd_ctlreq.c"
+        "${USB_DIR}/Core/Src/usbd_ioreq.c"
+        "${USB_DIR}/Class/CDC/Src/usbd_cdc.c"
         "aprinter/platform/newlib_common.c"
+        "aprinter/platform/stm32f4/usbd_conf.c"
+        "aprinter/platform/stm32f4/usbd_desc.c"
+        "aprinter/platform/stm32f4/usbd_cdc_interface.c"
     )
     ASM_SOURCES+=(
-        "${TEMPLATES_DIR}/gcc/startup_stm32f429xx.s"
+        "${TEMPLATES_DIR}/gcc/${STARTUP_ASM_FILE}"
     )
 
     # define target functions

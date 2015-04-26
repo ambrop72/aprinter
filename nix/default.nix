@@ -75,8 +75,14 @@ rec {
     aprinterServiceExprs = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
     aprinterService = aprinterServiceExprs.service;
     
-    stmTest = aprinterFunc {
+    stmTest429 = aprinterFunc {
         boardName = "stm32f429";
         mainText = builtins.readFile ../stm_test.cpp;
+        desiredOutputs = ["bin" "elf"];
+    };
+    stmTest407 = aprinterFunc {
+        boardName = "stm32f407";
+        mainText = builtins.readFile ../stm_test.cpp;
+        desiredOutputs = ["bin" "elf"];
     };
 }

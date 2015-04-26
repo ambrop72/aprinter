@@ -48,8 +48,12 @@ using Stm32f4PortF = Stm32f4Port<GPIOF_BASE>;
 using Stm32f4PortG = Stm32f4Port<GPIOG_BASE>;
 using Stm32f4PortH = Stm32f4Port<GPIOH_BASE>;
 using Stm32f4PortI = Stm32f4Port<GPIOI_BASE>;
+#ifdef GPIOJ
 using Stm32f4PortJ = Stm32f4Port<GPIOJ_BASE>;
+#endif
+#ifdef GPIOK
 using Stm32f4PortK = Stm32f4Port<GPIOK_BASE>;
+#endif
 
 template <typename TPort, int TPinIndex>
 struct Stm32f4Pin {
@@ -94,8 +98,12 @@ public:
         __HAL_RCC_GPIOG_CLK_ENABLE();
         __HAL_RCC_GPIOH_CLK_ENABLE();
         __HAL_RCC_GPIOI_CLK_ENABLE();
+#ifdef GPIOJ
         __HAL_RCC_GPIOJ_CLK_ENABLE();
+#endif
+#ifdef GPIOK
         __HAL_RCC_GPIOK_CLK_ENABLE();
+#endif
         
         TheDebugObject::init(c);
     }
@@ -104,8 +112,12 @@ public:
     {
         TheDebugObject::deinit(c);
         
+#ifdef GPIOK
         __HAL_RCC_GPIOK_CLK_DISABLE();
+#endif
+#ifdef GPIOJ
         __HAL_RCC_GPIOJ_CLK_DISABLE();
+#endif
         __HAL_RCC_GPIOI_CLK_DISABLE();
         __HAL_RCC_GPIOH_CLK_DISABLE();
         __HAL_RCC_GPIOG_CLK_DISABLE();

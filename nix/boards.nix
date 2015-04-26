@@ -93,10 +93,26 @@ rec {
     stm32f429 = {
         platform = "stm32f4";
         targetVars = {
+            STM_CHIP = "stm32f429";
             HSE_VALUE = "8000000";
-            PLL_N_VALUE = "270";
-            PLL_M_VALUE = "6";
+            PLL_N_VALUE = "336";
+            PLL_M_VALUE = "8";
             PLL_P_DIV_VALUE = "2";
+            PLL_Q_DIV_VALUE = "7";
+            APB1_PRESC_DIV = "4";
+            APB2_PRESC_DIV = "2";
+        };
+    };
+    
+    stm32f407 = {
+        platform = "stm32f4";
+        targetVars = {
+            STM_CHIP = "stm32f407";
+            HSE_VALUE = "8000000";
+            PLL_N_VALUE = "336";
+            PLL_M_VALUE = "8";
+            PLL_P_DIV_VALUE = "2";
+            PLL_Q_DIV_VALUE = "7";
             APB1_PRESC_DIV = "4";
             APB2_PRESC_DIV = "2";
         };

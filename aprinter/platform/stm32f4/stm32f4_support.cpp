@@ -70,6 +70,7 @@ extern "C" {
     
     void SysTick_Handler (void)
     {
+        HAL_IncTick();
     }
 }
 
@@ -85,21 +86,26 @@ static void SystemClock_Config(void)
     RCC_OscInitTypeDef RCC_OscInitStruct;
     HAL_StatusTypeDef ret = HAL_OK;
 
+    // Enable Power Control clock.
     __HAL_RCC_PWR_CLK_ENABLE();
 
+    // Enable voltage scaling.
     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
 
+    // Enable the HSE oscillator and activate the PLL with the HSE.
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
     RCC_OscInitStruct.HSEState = RCC_HSE_ON;
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
     RCC_OscInitStruct.PLL.PLLM = PLL_M_VALUE;
     RCC_OscInitStruct.PLL.PLLN = PLL_N_VALUE;
-    RCC_OscInitStruct.PLL.PLLP = APRINTER_JOIN(RCC_PLLP_DIV, PLL_P_DIV_VALUE);
-    RCC_OscInitStruct.PLL.PLLQ = 6;
+    RCC_OscInitStruct.PLL.PLLP = PLL_P_DIV_VALUE;
+    RCC_OscInitStruct.PLL.PLLQ = PLL_Q_DIV_VALUE;
     ret = HAL_RCC_OscConfig(&RCC_OscInitStruct);
     if (ret != HAL_OK) while (1);
-
+    
+    // Select PLL as the system clock source and configure the HCLK, PCLK1 and PCLK2
+    // clock dividers.
     RCC_ClkInitStruct.ClockType = (RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2);
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
     RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
