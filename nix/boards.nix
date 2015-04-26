@@ -101,6 +101,7 @@ rec {
             PLL_Q_DIV_VALUE = "7";
             APB1_PRESC_DIV = "4";
             APB2_PRESC_DIV = "2";
+            USB_MODE = "HS-in-FS";
         };
     };
     
@@ -115,6 +116,7 @@ rec {
             PLL_Q_DIV_VALUE = "7";
             APB1_PRESC_DIV = "4";
             APB2_PRESC_DIV = "2";
+            USB_MODE = "FS";
         };
     };
 }

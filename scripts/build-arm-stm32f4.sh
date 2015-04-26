@@ -51,6 +51,35 @@ configure_stm32f4() {
     
     configure_arm
     
+    USB_FLAGS=()
+    USB_C_SOURCES=()
+    
+    if [[ -n $USB_MODE ]]; then
+        USB_C_SOURCES=(
+            "${HAL_DIR}/Src/stm32f4xx_hal_pcd.c"
+            "${HAL_DIR}/Src/stm32f4xx_hal_pcd_ex.c"
+            "${HAL_DIR}/Src/stm32f4xx_ll_usb.c"
+            "${USB_DIR}/Core/Src/usbd_core.c"
+            "${USB_DIR}/Core/Src/usbd_ctlreq.c"
+            "${USB_DIR}/Core/Src/usbd_ioreq.c"
+            "${USB_DIR}/Class/CDC/Src/usbd_cdc.c"
+            "aprinter/platform/stm32f4/usbd_conf.c"
+            "aprinter/platform/stm32f4/usbd_desc.c"
+            "aprinter/platform/stm32f4/usbd_instance.c"
+            "aprinter/platform/stm32f4/usbd_cdc_interface.c"
+        )
+        
+        if [[ $USB_MODE = "FS" ]]; then
+            USB_FLAGS=( -DUSE_USB_FS )
+        elif [[ $USB_MODE = "HS" ]]; then
+            USB_FLAGS=( -DUSE_USB_HS )
+        elif [[ $USB_MODE = "HS-in-FS" ]]; then
+            USB_FLAGS=( -DUSE_USB_HS -DUSE_USB_HS_IN_FS )
+        else
+            fail "Invalid USB_MODE"
+        fi
+    fi
+        
     FLAGS_C_CXX_LD+=(
         -mfpu=fpv4-sp-d16 -mfloat-abi=hard -ggdb
     )
@@ -60,6 +89,7 @@ configure_stm32f4() {
         -DHSE_VALUE=${HSE_VALUE} -DPLL_N_VALUE=${PLL_N_VALUE} -DPLL_M_VALUE=${PLL_M_VALUE}
         -DPLL_P_DIV_VALUE=${PLL_P_DIV_VALUE} -DPLL_Q_DIV_VALUE=${PLL_Q_DIV_VALUE}
         -DAPB1_PRESC_DIV=${APB1_PRESC_DIV} -DAPB2_PRESC_DIV=${APB2_PRESC_DIV}
+        "${USB_FLAGS[@]}"
         -I aprinter/platform/stm32f4
         -I "${CMSIS_DIR}/Include"
         -I "${STM32CUBEF4_DIR}/Drivers/CMSIS/Include"
@@ -78,17 +108,8 @@ configure_stm32f4() {
         "${HAL_DIR}/Src/stm32f4xx_hal_rcc.c"
         "${HAL_DIR}/Src/stm32f4xx_hal_iwdg.c"
         "${HAL_DIR}/Src/stm32f4xx_hal_gpio.c"
-        "${HAL_DIR}/Src/stm32f4xx_hal_pcd.c"
-        "${HAL_DIR}/Src/stm32f4xx_hal_pcd_ex.c"
-        "${HAL_DIR}/Src/stm32f4xx_ll_usb.c"
-        "${USB_DIR}/Core/Src/usbd_core.c"
-        "${USB_DIR}/Core/Src/usbd_ctlreq.c"
-        "${USB_DIR}/Core/Src/usbd_ioreq.c"
-        "${USB_DIR}/Class/CDC/Src/usbd_cdc.c"
         "aprinter/platform/newlib_common.c"
-        "aprinter/platform/stm32f4/usbd_conf.c"
-        "aprinter/platform/stm32f4/usbd_desc.c"
-        "aprinter/platform/stm32f4/usbd_cdc_interface.c"
+        "${USB_C_SOURCES[@]}"
     )
     ASM_SOURCES+=(
         "${TEMPLATES_DIR}/gcc/${STARTUP_ASM_FILE}"

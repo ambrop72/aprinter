@@ -31,14 +31,12 @@
 
 #define USBD_VID                   0x0483
 #define USBD_PID                   0x5740
-
 #define USBD_LANGID_STRING         0x409
 #define USBD_MANUFACTURER_STRING   "STMicroelectronics"
-
-#define USBD_PRODUCT_FS_STRING        "STM32 Virtual ComPort in FS Mode"
-#define USBD_SERIALNUMBER_FS_STRING   "00000000001B"
-#define USBD_CONFIGURATION_FS_STRING  "VCP Config"
-#define USBD_INTERFACE_FS_STRING      "VCP Interface"
+#define USBD_PRODUCT_STRING        "STM32 Virtual ComPort"
+#define USBD_SERIALNUMBER_STRING   "00000000001B"
+#define USBD_CONFIGURATION_STRING  "VCP Config"
+#define USBD_INTERFACE_STRING      "VCP Interface"
 
 uint8_t *     USBD_VCP_DeviceDescriptor( USBD_SpeedTypeDef speed , uint16_t *length);
 uint8_t *     USBD_VCP_LangIDStrDescriptor( USBD_SpeedTypeDef speed , uint16_t *length);
@@ -118,7 +116,7 @@ uint8_t *  USBD_VCP_LangIDStrDescriptor( USBD_SpeedTypeDef speed , uint16_t *len
 
 uint8_t *  USBD_VCP_ProductStrDescriptor( USBD_SpeedTypeDef speed , uint16_t *length)
 {
-  USBD_GetString ((uint8_t *)USBD_PRODUCT_FS_STRING, USBD_StrDesc, length);
+  USBD_GetString ((uint8_t *)USBD_PRODUCT_STRING, USBD_StrDesc, length);
   return USBD_StrDesc;
 }
 
@@ -130,18 +128,18 @@ uint8_t *  USBD_VCP_ManufacturerStrDescriptor( USBD_SpeedTypeDef speed , uint16_
 
 uint8_t *  USBD_VCP_SerialStrDescriptor( USBD_SpeedTypeDef speed , uint16_t *length)
 {
-  USBD_GetString ((uint8_t *)USBD_SERIALNUMBER_FS_STRING, USBD_StrDesc, length);
+  USBD_GetString ((uint8_t *)USBD_SERIALNUMBER_STRING, USBD_StrDesc, length);
   return USBD_StrDesc;
 }
 
 uint8_t *  USBD_VCP_ConfigStrDescriptor( USBD_SpeedTypeDef speed , uint16_t *length)
 {
-  USBD_GetString ((uint8_t *)USBD_CONFIGURATION_FS_STRING, USBD_StrDesc, length);
+  USBD_GetString ((uint8_t *)USBD_CONFIGURATION_STRING, USBD_StrDesc, length);
   return USBD_StrDesc;  
 }
 
 uint8_t *  USBD_VCP_InterfaceStrDescriptor( USBD_SpeedTypeDef speed , uint16_t *length)
 {
-  USBD_GetString ((uint8_t *)USBD_INTERFACE_FS_STRING, USBD_StrDesc, length);
+  USBD_GetString ((uint8_t *)USBD_INTERFACE_STRING, USBD_StrDesc, length);
   return USBD_StrDesc;  
 }

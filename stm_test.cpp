@@ -2,10 +2,10 @@
 #include <stdio.h>
 
 #include <aprinter/platform/stm32f4/stm32f4_support.h>
-#include <aprinter/platform/stm32f4/usbd_desc.h>
-#include <aprinter/platform/stm32f4/usbd_conf.h>
-#include <aprinter/platform/stm32f4/usbd_cdc_interface.h>
 #include <usbd_core.h>
+#include <aprinter/platform/stm32f4/usbd_desc.h>
+#include <aprinter/platform/stm32f4/usbd_instance.h>
+#include <aprinter/platform/stm32f4/usbd_cdc_interface.h>
 
 static void emergency (void);
 
@@ -90,15 +90,6 @@ extern "C" __attribute__((used)) void __cxa_pure_virtual(void)
 }
 
 AMBRO_STM32F4_CLOCK_TC_GLOBAL(2, MyClock, MyContext())
-
-extern "C" {
-    USBD_HandleTypeDef USBD_Device = {0};
-}
-
-extern "C" void OTG_FS_IRQHandler(void)
-{
-    HAL_PCD_IRQHandler(&hpcd);
-}
 
 int main ()
 {
