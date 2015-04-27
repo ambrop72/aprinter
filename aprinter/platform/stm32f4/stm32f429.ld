@@ -29,8 +29,9 @@ MEMORY
     FLASH (rx) :   ORIGIN = 0x8000000,  LENGTH = 2048K
 }
 
-/* end of stack is at end of RAM */
-_estack = 0x2002FFFF;
+/* End of stack is at end of RAM. And NOT one less. See:
+   http://stackoverflow.com/a/28761856/1020667 */
+_estack = ORIGIN(RAM) + LENGTH(RAM);
 
 SECTIONS
 {
