@@ -480,7 +480,7 @@ def editor():
             ce.String(key='name', title='Name (modifying will break references from configurations and lose data)'),
             ce.Compound('PlatformConfig', key='platform_config', title='Platform configuration', collapsable=True, processing_order=-10, attrs=[
                 ce.String(key='board_for_build', title='Board for building (see nix/boards.nix)'),
-                ce.String(key='output_type', title='Build output type', enum=['hex', 'bin']),
+                ce.String(key='output_type', title='Build output type', enum=['hex', 'bin', 'elf']),
                 ce.Array(key='board_helper_includes', title='Board helper includes', table=True, elem=ce.String(title='Name')),
                 ce.OneOf(key='platform', title='Platform', processing_order=-1, choices=[
                     platform_At91Sam3x8e(),

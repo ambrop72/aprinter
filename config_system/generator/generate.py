@@ -940,7 +940,7 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_subst('BoardForBuild', board_for_build)
                     
                     output_type = platform_config.get_string('output_type')
-                    if output_type not in ('hex', 'bin'):
+                    if output_type not in ('hex', 'bin', 'elf'):
                         platform_config.key_path('output_type').error('Incorrect value.')
                     
                     setup_platform(gen, platform_config, 'platform')
