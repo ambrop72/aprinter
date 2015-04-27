@@ -111,5 +111,6 @@ $${InitCalls}
     MyLoop::init(c);
     
 $${GlobalResourceInit}
+$${FinalInitCalls}
     MyLoop::run(c);
 }

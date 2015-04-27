@@ -29,7 +29,19 @@
 
 #include "stm32f4_support.h"
 
-static void SystemClock_Config(void);
+#ifdef APRINTER_ENABLE_USB
+#include <usbd_core.h>
+#include "usbd_desc.h"
+#endif
+
+static void init_clock (void);
+static void init_usb (void);
+static void init_final_usb (void);
+
+#ifdef APRINTER_ENABLE_USB
+extern "C" PCD_HandleTypeDef hpcd;
+USBD_HandleTypeDef USBD_Device;
+#endif
 
 extern "C" {
     void NMI_Handler (void)
@@ -72,15 +84,37 @@ extern "C" {
     {
         HAL_IncTick();
     }
+    
+#ifdef APRINTER_ENABLE_USB
+#ifdef USE_USB_FS
+    void OTG_FS_IRQHandler(void)
+    {
+        HAL_PCD_IRQHandler(&hpcd);
+    }
+#endif
+
+#ifdef USE_USB_HS
+    void OTG_HS_IRQHandler(void)
+    {
+        HAL_PCD_IRQHandler(&hpcd);
+    }
+#endif
+#endif
 }
 
 void platform_init (void)
 {
     HAL_Init();
-    SystemClock_Config();
+    init_clock();
+    init_usb();
 }
 
-static void SystemClock_Config(void)
+void platform_init_final (void)
+{
+    init_final_usb();
+}
+
+static void init_clock (void)
 {
     RCC_ClkInitTypeDef RCC_ClkInitStruct;
     RCC_OscInitTypeDef RCC_OscInitStruct;
@@ -113,4 +147,22 @@ static void SystemClock_Config(void)
     RCC_ClkInitStruct.APB2CLKDivider = APRINTER_JOIN(RCC_HCLK_DIV, APB2_PRESC_DIV);
     ret = HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
     if (ret != HAL_OK) while (1);
+}
+
+static void init_usb (void)
+{
+#ifdef APRINTER_ENABLE_USB
+    if (USBD_Init(&USBD_Device, &VCP_Desc, 0) != USBD_OK) {
+        while (1);
+    }
+#endif
+}
+
+static void init_final_usb (void)
+{
+#ifdef APRINTER_ENABLE_USB
+    if (USBD_Start(&USBD_Device) != USBD_OK) {
+        while (1);
+    }
+#endif
 }

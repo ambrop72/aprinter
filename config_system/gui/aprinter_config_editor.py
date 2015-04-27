@@ -538,6 +538,7 @@ def editor():
                     ce.Compound('AvrSerial', title='AVR UART', attrs=[
                         ce.Boolean(key='DoubleSpeed'),
                     ]),
+                    ce.Compound('Stm32f4UsbSerial', title='STM32F4 USB', attrs=[]),
                     ce.Compound('NullSerial', title='Null serial driver', attrs=[]),
                 ])
             ]),

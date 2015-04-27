@@ -71,14 +71,4 @@
 #define USBD_DbgLog(...)                         
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-extern PCD_HandleTypeDef hpcd;
-
-#ifdef __cplusplus
-}
-#endif
-
 #endif

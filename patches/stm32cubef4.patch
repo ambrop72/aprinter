@@ -1,0 +1,99 @@
+From b7bec735f9572cbb4b90d7597ef29a8bdc22380c Mon Sep 17 00:00:00 2001
+From: Ambroz Bizjak <ambrop7@gmail.com>
+Date: Sun, 26 Apr 2015 16:24:46 +0200
+Subject: [PATCH 1/2] Fix wrong letter case in include.
+
+---
+ Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c b/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
+index 5c3ced6..2ca2660 100644
+--- a/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
++++ b/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
+@@ -59,7 +59,7 @@
+   */ 
+ 
+ /* Includes ------------------------------------------------------------------*/
+-#include "USBD_CDC.h"
++#include "usbd_cdc.h"
+ #include "usbd_desc.h"
+ #include "usbd_ctlreq.h"
+ 
+-- 
+2.3.5
+
+
+From 3716a7ce57bee650413b676ec4ff578488263d07 Mon Sep 17 00:00:00 2001
+From: Ambroz Bizjak <ambrop7@gmail.com>
+Date: Mon, 27 Apr 2015 01:51:27 +0200
+Subject: [PATCH 2/2] usbd_cdc: Improvements to make it suitable for use from
+ APrinter.
+
+- Added TxCompleted callback.
+- Added CheckTxBusy function.
+---
+ .../STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h   |  4 +++-
+ .../STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c   | 17 +++++++++++++++++
+ 2 files changed, 20 insertions(+), 1 deletion(-)
+
+diff --git a/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h b/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h
+index f38e6dc..2f2629b 100644
+--- a/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h
++++ b/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Inc/usbd_cdc.h
+@@ -104,7 +104,7 @@ typedef struct _USBD_CDC_Itf
+   int8_t (* DeInit)        (void);
+   int8_t (* Control)       (uint8_t, uint8_t * , uint16_t);   
+   int8_t (* Receive)       (uint8_t *, uint32_t *);  
+-
++  void   (* TxCompleted)   (void);
+ }USBD_CDC_ItfTypeDef;
+ 
+ 
+@@ -159,6 +159,8 @@ uint8_t  USBD_CDC_SetRxBuffer        (USBD_HandleTypeDef   *pdev,
+ uint8_t  USBD_CDC_ReceivePacket      (USBD_HandleTypeDef *pdev);
+ 
+ uint8_t  USBD_CDC_TransmitPacket     (USBD_HandleTypeDef *pdev);
++
++uint8_t  USBD_CDC_CheckTxBusy        (USBD_HandleTypeDef *pdev);
+ /**
+   * @}
+   */ 
+diff --git a/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c b/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
+index 2ca2660..37e3ca3 100644
+--- a/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
++++ b/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
+@@ -669,6 +669,8 @@ static uint8_t  USBD_CDC_DataIn (USBD_HandleTypeDef *pdev, uint8_t epnum)
+   {
+     
+     hcdc->TxState = 0;
++    
++    ((USBD_CDC_ItfTypeDef *)pdev->pUserData)->TxCompleted();
+ 
+     return USBD_OK;
+   }
+@@ -874,6 +876,21 @@ uint8_t  USBD_CDC_TransmitPacket(USBD_HandleTypeDef *pdev)
+ }
+ 
+ 
++uint8_t  USBD_CDC_CheckTxBusy(USBD_HandleTypeDef *pdev)
++{      
++  USBD_CDC_HandleTypeDef   *hcdc = (USBD_CDC_HandleTypeDef*) pdev->pClassData;
++  
++  if(pdev->pClassData != NULL)
++  {
++    return hcdc->TxState == 0 ? USBD_OK : USBD_BUSY;
++  }
++  else
++  {
++    return USBD_FAIL;
++  }
++}
++
++
+ /**
+   * @brief  USBD_CDC_ReceivePacket
+   *         prepare OUT Endpoint for reception
+-- 
+2.3.5
+

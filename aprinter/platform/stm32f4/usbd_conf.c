@@ -599,18 +599,4 @@ void  USBD_LL_Delay(uint32_t Delay)
   HAL_Delay(Delay);  
 }
 
-#ifdef USE_USB_FS
-void OTG_FS_IRQHandler(void)
-{
-    HAL_PCD_IRQHandler(&hpcd);
-}
-#endif
-
-#ifdef USE_USB_HS
-void OTG_HS_IRQHandler(void)
-{
-    HAL_PCD_IRQHandler(&hpcd);
-}
-#endif
-
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

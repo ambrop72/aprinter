@@ -28,6 +28,7 @@ let
         url = http://www.st.com/st-web-ui/static/active/en/st_prod_software_internet/resource/technical/software/firmware/stm32cubef4.zip;
         sha256 = "b5deff0c2da912de9a1d4b2473b66d39e405a6926c085f688ac55212102270da";
     };
+    patchFile = ../patches/stm32cubef4.patch;
 in
 stdenv.mkDerivation rec {
     name = "stm32cubef4";
@@ -41,7 +42,7 @@ stdenv.mkDerivation rec {
         unzip -q ${source} -d "$out"/EXTRACT
         mv "$out"/EXTRACT/STM32Cube*/* "$out"/
         rm -rf "$out"/EXTRACT
-        sed -i 's|"USBD_CDC.h"|"usbd_cdc.h"|g' "$out"/Middlewares/ST/STM32_USB_Device_Library/Class/CDC/Src/usbd_cdc.c
+        patch -d "$out" -p1 < ${patchFile}
     '';
     
     dontStrip = true;

@@ -26,8 +26,12 @@
 #define AMBROLIB_STM32F4_SUPPORT_H
 
 #include <stdint.h>
+
 #include <stm32f4xx.h>
-#include <stm32f4xx_hal_rcc.h>
+
+#ifdef APRINTER_ENABLE_USB
+#include <usbd_def.h>
+#endif
 
 #include <aprinter/platform/arm_cortex_common.h>
 
@@ -38,5 +42,10 @@
 #define INTERRUPT_PRIORITY 4
 
 void platform_init (void);
+void platform_init_final (void);
+
+#ifdef APRINTER_ENABLE_USB
+extern USBD_HandleTypeDef USBD_Device;
+#endif
 
 #endif

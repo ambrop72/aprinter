@@ -55,6 +55,7 @@ configure_stm32f4() {
     USB_C_SOURCES=()
     
     if [[ -n $USB_MODE ]]; then
+        USB_FLAGS=( -DAPRINTER_ENABLE_USB )
         USB_C_SOURCES=(
             "${HAL_DIR}/Src/stm32f4xx_hal_pcd.c"
             "${HAL_DIR}/Src/stm32f4xx_hal_pcd_ex.c"
@@ -65,16 +66,14 @@ configure_stm32f4() {
             "${USB_DIR}/Class/CDC/Src/usbd_cdc.c"
             "aprinter/platform/stm32f4/usbd_conf.c"
             "aprinter/platform/stm32f4/usbd_desc.c"
-            "aprinter/platform/stm32f4/usbd_instance.c"
-            "aprinter/platform/stm32f4/usbd_cdc_interface.c"
         )
         
         if [[ $USB_MODE = "FS" ]]; then
-            USB_FLAGS=( -DUSE_USB_FS )
+            USB_FLAGS=( "${USB_FLAGS[@]}" -DUSE_USB_FS )
         elif [[ $USB_MODE = "HS" ]]; then
-            USB_FLAGS=( -DUSE_USB_HS )
+            USB_FLAGS=( "${USB_FLAGS[@]}" -DUSE_USB_HS )
         elif [[ $USB_MODE = "HS-in-FS" ]]; then
-            USB_FLAGS=( -DUSE_USB_HS -DUSE_USB_HS_IN_FS )
+            USB_FLAGS=( "${USB_FLAGS[@]}" -DUSE_USB_HS -DUSE_USB_HS_IN_FS )
         else
             fail "Invalid USB_MODE"
         fi

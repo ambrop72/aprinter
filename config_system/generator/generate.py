@@ -50,6 +50,7 @@ class GenState(object):
         self._finalize_actions = []
         self._global_code = []
         self._init_calls = []
+        self._final_init_calls = []
         self._global_resources = []
     
     def add_subst (self, key, val, indent=-1):
@@ -120,6 +121,9 @@ class GenState(object):
     def add_init_call (self, priority, init_call):
         self._init_calls.append({'priority':priority, 'init_call':init_call})
     
+    def add_final_init_call (self, priority, init_call):
+        self._final_init_calls.append({'priority':priority, 'init_call':init_call})
+    
     def add_finalize_action (self, action):
         self._finalize_actions.append(action)
     
@@ -147,6 +151,7 @@ class GenState(object):
         self.add_subst('GlobalResourceContextAliases', ''.join('    using {} = {};\n'.format(gr['context_name'], gr['name']) for gr in global_resources if gr['context_name'] is not None))
         self.add_subst('GlobalResourceProgramChildren', ''.join('    {},\n'.format(gr['name']) for gr in global_resources))
         self.add_subst('GlobalResourceInit', ''.join('    {}::init(c);\n'.format(gr['name']) for gr in global_resources))
+        self.add_subst('FinalInitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._final_init_calls, key=lambda x: x['priority'])))
     
     def get_subst (self):
         res = {}
@@ -268,6 +273,7 @@ def setup_platform(gen, config, key):
     def option(platform):
         gen.add_platform_include('aprinter/platform/stm32f4/stm32f4_support.h')
         gen.add_init_call(-1, 'platform_init();')
+        gen.add_final_init_call(-1, 'platform_init_final();')
     
     config.do_selection(key, platform_sel)
 
@@ -808,6 +814,11 @@ def use_serial(gen, config, key, user):
         gen.add_global_code(0, 'APRINTER_SETUP_AVR_DEBUG_WRITE(AvrSerial_DebugPutChar<{}>, MyContext())'.format(user))
         gen.add_init_call(-2, 'aprinter_init_avr_debug_write();')
         return TemplateExpr('AvrSerialService', [serial_service.get_bool('DoubleSpeed')])
+    
+    @serial_sel.option('Stm32f4UsbSerial')
+    def option(serial_service):
+        gen.add_aprinter_include('system/Stm32f4UsbSerial.h')
+        return 'Stm32f4UsbSerialService'
     
     @serial_sel.option('NullSerial')
     def option(serial_service):
