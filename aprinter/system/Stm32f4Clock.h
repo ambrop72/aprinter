@@ -30,6 +30,7 @@
 
 #include <aprinter/base/Object.h>
 #include <aprinter/base/JoinTokens.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
@@ -76,33 +77,36 @@ struct Stm32f4ClockTIM##tc_num { \
 #define STM32F4CLOCK_IRQ_FOR_TIM13 TIM8_UP_TIM13_
 #define STM32F4CLOCK_IRQ_FOR_TIM14 TIM8_TRG_COM_TIM14_
 
-// For these commented-out timers, the clock enable/disable macros are missing in stm32f4xx_hal_rcc.h.
-STM32F4CLOCK_DEFINE_TC(1,  false, 2)
+// Some timers we don't support:
+// - Those for which clock enable/disable macros are missing in stm32f4xx_hal_rcc.h.
+// - APB2 timers, because they are based on a different clock (could try prescaler adjustment).
+//STM32F4CLOCK_DEFINE_TC(1,  false, 2)
 STM32F4CLOCK_DEFINE_TC(2,  true,  1)
 STM32F4CLOCK_DEFINE_TC(3,  false, 1)
 STM32F4CLOCK_DEFINE_TC(4,  false, 1)
 STM32F4CLOCK_DEFINE_TC(5,  true,  1)
 //STM32F4CLOCK_DEFINE_TC(8,  false, 2)
-STM32F4CLOCK_DEFINE_TC(9,  false, 2)
-STM32F4CLOCK_DEFINE_TC(10, false, 2)
-STM32F4CLOCK_DEFINE_TC(11, false, 2)
+//STM32F4CLOCK_DEFINE_TC(9,  false, 2)
+//STM32F4CLOCK_DEFINE_TC(10, false, 2)
+//STM32F4CLOCK_DEFINE_TC(11, false, 2)
 //STM32F4CLOCK_DEFINE_TC(12, false, 1)
 //STM32F4CLOCK_DEFINE_TC(13, false, 1)
 //STM32F4CLOCK_DEFINE_TC(14, false, 1)
 
-#define STM32F4CLOCK_DEFINE_COMP(comp_num, ccmr_num, ccmr_bit_offset, ccer_bit_offset, ccie_bit) \
+#define STM32F4CLOCK_DEFINE_COMP(comp_num, ccmr_num, ccmr_bit_offset, ccer_bit_offset, ccie_bit, if_bit) \
 struct Stm32f4ClockComp##comp_num { \
     static uint32_t volatile * ccmr (TIM_TypeDef *tim) { return &tim->CCMR##ccmr_num; } \
     static int const CcmrBitOffset = ccmr_bit_offset; \
     static int const CcerBitOffset = ccer_bit_offset; \
     static uint32_t volatile * ccr (TIM_TypeDef *tim) { return &tim->CCR##comp_num; } \
     static uint32_t const CcieBit = ccie_bit; \
+    static uint32_t const IfBit = if_bit; \
 };
 
-STM32F4CLOCK_DEFINE_COMP(1, 1, 0, 0,  TIM_DIER_CC1IE)
-STM32F4CLOCK_DEFINE_COMP(2, 1, 8, 4,  TIM_DIER_CC2IE)
-STM32F4CLOCK_DEFINE_COMP(3, 2, 0, 8,  TIM_DIER_CC3IE)
-STM32F4CLOCK_DEFINE_COMP(4, 2, 8, 12, TIM_DIER_CC4IE)
+STM32F4CLOCK_DEFINE_COMP(1, 1, 0, 0,  TIM_DIER_CC1IE, TIM_SR_CC1IF)
+STM32F4CLOCK_DEFINE_COMP(2, 1, 8, 4,  TIM_DIER_CC2IE, TIM_SR_CC2IF)
+STM32F4CLOCK_DEFINE_COMP(3, 2, 0, 8,  TIM_DIER_CC3IE, TIM_SR_CC3IF)
+STM32F4CLOCK_DEFINE_COMP(4, 2, 8, 12, TIM_DIER_CC4IE, TIM_SR_CC4IF)
 
 template <typename Context, typename ParentObject, uint16_t Prescale, typename ParamsTcsList>
 class Stm32f4Clock {
@@ -111,6 +115,7 @@ class Stm32f4Clock {
     static_assert(TypeListGet<ParamsTcsList, 0>::ClockType == 1, "First timer must be APB1-clocked");
     
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init_start, init_start)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
     
 public:
@@ -145,11 +150,15 @@ private:
             TcSpec::tim()->PSC = Prescale;
             TcSpec::tim()->ARR = TcSpec::Is32Bit ? UINT32_MAX : UINT16_MAX;
             TcSpec::tim()->EGR = TIM_EGR_UG;
-            TcSpec::tim()->CNT = (TcIndex == 1);
-            TcSpec::tim()->CR1 = TIM_CR1_CEN;
+            TcSpec::tim()->CNT = (TcIndex == 0);
             NVIC_ClearPendingIRQ(TcSpec::Irq);
             NVIC_SetPriority(TcSpec::Irq, INTERRUPT_PRIORITY);
             NVIC_EnableIRQ(TcSpec::Irq);
+        }
+        
+        static void init_start (Context c)
+        {
+            TcSpec::tim()->CR1 = TIM_CR1_CEN;
         }
         
         static void deinit (Context c)
@@ -179,6 +188,10 @@ public:
     static void init (Context c)
     {
         ListForEachForward<MyTcsList>(LForeach_init(), c);
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            ListForEachForward<MyTcsList>(LForeach_init_start(), c);
+        }
         
         TheDebugObject::init(c);
     }
@@ -211,7 +224,7 @@ public:
 #define AMBRO_STM32F4_CLOCK_TC_GLOBAL(tc_num, clock, context) \
 extern "C" \
 __attribute__((used)) \
-void APRINTER_JOIN(STM32F4CLOCK_IRQ_FOR_TIM##tc_num, Handler) (void) \
+void APRINTER_JOIN(STM32F4CLOCK_IRQ_FOR_TIM##tc_num, IRQHandler) (void) \
 { \
     clock::tc_irq_handler<Stm32f4ClockTIM##tc_num>(MakeInterruptContext((context))); \
 }
@@ -238,6 +251,14 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = false;
 #endif
+        
+        // Setup the channel. But, it's not strictly needed because the
+        // appropriate bits need to just be zerod and they already were
+        // when we did the Clock initialization.
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            *ccmr_reg() = (*ccmr_reg() & ~((uint32_t)255 << Comp::CcmrBitOffset)) | ((uint32_t)0 << Comp::CcmrBitOffset);
+            TcSpec::tim()->CCER = (TcSpec::tim()->CCER & ~((uint32_t)15 << Comp::CcerBitOffset)) | ((uint32_t)0 << Comp::CcerBitOffset);
+        }
     }
     
     static void deinit (Context c)
@@ -267,15 +288,8 @@ public:
         memory_barrier();
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            TimeType now = Clock::template MyTc<0>::TcSpec::tim()->CNT;
-            now -= time;
-            now += clearance;
-            if (now < UINT32_C(0x80000000)) {
-                time += now;
-            }
-            *ccr_reg() = time;
-            *ccmr_reg() = (*ccmr_reg() & ~((uint32_t)255 << Comp::CcmrBitOffset)) | ((uint32_t)0 << Comp::CcmrBitOffset);
-            TcSpec::tim()->CCER = (TcSpec::tim()->CCER & ~((uint32_t)15 << Comp::CcerBitOffset)) | ((uint32_t)0 << Comp::CcerBitOffset);
+            *ccr_reg() = adjust_set_time(time);
+            TcSpec::tim()->SR &= ~Comp::IfBit;
             TcSpec::tim()->DIER |= Comp::CcieBit;
         }
     }
@@ -290,13 +304,7 @@ public:
         o->m_time = time;
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            TimeType now = Clock::template MyTc<0>::TcSpec::tim()->CNT;
-            now -= time;
-            now += clearance;
-            if (now < UINT32_C(0x80000000)) {
-                time += now;
-            }
-            *ccr_reg() = time;
+            *ccr_reg() = adjust_set_time(time);
         }
     }
     
@@ -337,6 +345,10 @@ public:
         
         AMBRO_ASSERT(o->m_running)
         
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            TcSpec::tim()->SR &= ~Comp::IfBit;
+        }
+        
         TimeType now = Clock::template MyTc<0>::TcSpec::tim()->CNT;
         now -= o->m_time;
         
@@ -361,6 +373,18 @@ private:
     static uint32_t volatile * ccmr_reg (void)
     {
         return Comp::ccmr(TcSpec::tim());
+    }
+    
+    AMBRO_ALWAYS_INLINE
+    static TimeType adjust_set_time (TimeType time)
+    {
+        TimeType now = Clock::template MyTc<0>::TcSpec::tim()->CNT;
+        now -= time;
+        now += clearance;
+        if (now < UINT32_C(0x80000000)) {
+            time += now;
+        }
+        return time;
     }
     
     static const TimeType clearance = MaxValue<TimeType>((64 / Clock::prescale_divide) + 2, ExtraClearance::value() * Clock::time_freq);
