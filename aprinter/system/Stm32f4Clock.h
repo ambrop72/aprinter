@@ -172,6 +172,9 @@ private:
         
         static void irq_handler (InterruptContext<Context> c)
         {
+            // Ack interrupts.
+            TcSpec::tim()->SR = 0;
+            
             Stm32f4Clock__IrqCompHelper<TcSpec, Stm32f4ClockComp1>::call();
             Stm32f4Clock__IrqCompHelper<TcSpec, Stm32f4ClockComp2>::call();
             Stm32f4Clock__IrqCompHelper<TcSpec, Stm32f4ClockComp3>::call();
@@ -289,7 +292,6 @@ public:
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
             *ccr_reg() = adjust_set_time(time);
-            TcSpec::tim()->SR &= ~Comp::IfBit;
             TcSpec::tim()->DIER |= Comp::CcieBit;
         }
     }
@@ -344,10 +346,6 @@ public:
         }
         
         AMBRO_ASSERT(o->m_running)
-        
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            TcSpec::tim()->SR &= ~Comp::IfBit;
-        }
         
         TimeType now = Clock::template MyTc<0>::TcSpec::tim()->CNT;
         now -= o->m_time;
