@@ -111,6 +111,15 @@ Before you can upload, you need to install the uploading program, which depends 
 - Atmel ARM: BOSSA (intall with `nix-env -i bossa`).
 - Teensy 3: teensy-loader (install with `nix-env -i teensy-loader`).
 
+There is a Python program included in the root of the source that will do the upload using the appropriate tool.
+It is generally used like this:
+
+```
+python -B flash.py -t <board-type> -f <file-to-flash> [-p <port>]
+```
+
+Below, the specific command used to flash manually are also shown.
+
 ### RAMPS
 ```
 avrdude -p atmega2560 -P /dev/ttyACM0 -b 115200 -c stk500v2 -D -U "flash:w:$HOME/aprinter-build/aprinter-nixbuild.hex:i"
@@ -152,7 +161,7 @@ choose "AT91 UART".
 You need to press the button on the board before trying to upload, to put the board into bootloader mode.
 
 ```
-teensy-loader -mmcu=mk20dx128 "$HOME/aprinter-build/aprinter-nixbuild.hex"
+teensy_loader_cli -mmcu=mk20dx128 "$HOME/aprinter-build/aprinter-nixbuild.hex"
 ```
 
 ## Feature documentation
