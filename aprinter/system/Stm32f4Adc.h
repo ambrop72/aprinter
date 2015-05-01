@@ -78,7 +78,7 @@ class Stm32f4Adc {
     template <int...Numbers>
     using AdcNumbers = MakeTypeList<WrapInt<Numbers>...>;
     
-#if defined(STM32F429xx)
+#if defined(STM32F429xx) || defined(STM32F407xx)
     STM32F4ADC_DEFINE_SUBADC(AdcDef1, 1, 2, 0, 0)
     STM32F4ADC_DEFINE_SUBADC(AdcDef2, 2, 2, 2, 1)
     STM32F4ADC_DEFINE_SUBADC(AdcDef3, 3, 2, 1, 2)
