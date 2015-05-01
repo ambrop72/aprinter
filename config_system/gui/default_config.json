@@ -2338,6 +2338,458 @@
           }
         }
       ]
+    },
+    {
+      "platform_config": {
+        "platform": {
+          "_compoundName": "Stm32f4",
+          "adc": {
+            "ClockDivider": 8,
+            "SampleTimeSelection": 7,
+            "_compoundName": "Stm32f4Adc"
+          },
+          "clock": {
+            "_compoundName": "Stm32f4Clock",
+            "avail_oc_units": [
+              {
+                "value": "TIM2_1"
+              },
+              {
+                "value": "TIM2_2"
+              },
+              {
+                "value": "TIM2_3"
+              },
+              {
+                "value": "TIM2_4"
+              },
+              {
+                "value": "TIM3_1"
+              },
+              {
+                "value": "TIM3_2"
+              },
+              {
+                "value": "TIM3_3"
+              },
+              {
+                "value": "TIM3_4"
+              },
+              {
+                "value": "TIM4_1"
+              },
+              {
+                "value": "TIM4_2"
+              },
+              {
+                "value": "TIM4_3"
+              },
+              {
+                "value": "TIM4_4"
+              },
+              {
+                "value": "TIM5_1"
+              },
+              {
+                "value": "TIM5_2"
+              },
+              {
+                "value": "TIM5_3"
+              },
+              {
+                "value": "TIM5_4"
+              }
+            ],
+            "prescaler": 35,
+            "primary_timer": "TIM2"
+          },
+          "pins": {
+            "_compoundName": "Stm32f4Pins",
+            "input_modes": [
+              {
+                "ident": "Stm32f4PinInputModeNormal",
+                "name": "Normal"
+              },
+              {
+                "ident": "Stm32f4PinInputModePullUp",
+                "name": "Pull-up"
+              },
+              {
+                "ident": "Stm32f4PinInputModePullDown",
+                "name": "Pull-down"
+              }
+            ]
+          },
+          "watchdog": {
+            "Divider": 16,
+            "Reload": 4095,
+            "_compoundName": "Stm32f4Watchdog"
+          }
+        },
+        "_compoundName": "PlatformConfig",
+        "board_for_build": "stm32f429",
+        "board_helper_includes": [
+          "stm32f429i_discovery_pins"
+        ],
+        "output_type": "elf"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": "Stm32f4PinInputModeNormal",
+          "Name": "ButtonUser",
+          "Pin": "DiscoveryPinButtonUser",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "analog_inputs": [
+        {
+          "Name": "PF6",
+          "Pin": "Stm32f4Pin<Stm32f4PortF,6>",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "PC3",
+          "Pin": "Stm32f4Pin<Stm32f4PortC,3>",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "PA5",
+          "Pin": "Stm32f4Pin<Stm32f4PortA,5>",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "pwm_outputs": [
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "DiscoveryPinLedRed",
+            "PulseInterval": 0.01,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TIM2_3"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "LedRed",
+          "_compoundName": "pwm_output"
+        }
+      ],
+      "name": "STM32F429I-Discovery",
+      "development": {
+        "AssertionsEnabled": true,
+        "DetectOverloadEnabled": false,
+        "EventLoopBenchmarkEnabled": false,
+        "_compoundName": "development"
+      },
+      "_compoundName": "board",
+      "laser_ports": [],
+      "LedPin": "DiscoveryPinLedGreen",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TIM2_1"
+      },
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "runtime_config": {
+        "_compoundName": "RuntimeConfig",
+        "config_manager": {
+          "ConfigStore": {
+            "_compoundName": "NoStore"
+          },
+          "_compoundName": "RuntimeConfigManager"
+        }
+      },
+      "sdcard_config": {
+        "_compoundName": "SdCardConfig",
+        "sdcard": {
+          "_compoundName": "NoSdCard"
+        }
+      },
+      "serial": {
+        "BaudRate": 115200,
+        "GcodeMaxParts": 16,
+        "RecvBufferSizeExp": 8,
+        "SendBufferSizeExp": 9,
+        "Service": {
+          "_compoundName": "Stm32f4UsbSerial"
+        },
+        "_compoundName": "serial"
+      },
+      "stepper_ports": [
+        {
+          "DirPin": "Stm32f4Pin<Stm32f4PortG,2>",
+          "EnablePin": "Stm32f4Pin<Stm32f4PortB,2>",
+          "Name": "X",
+          "StepPin": "Stm32f4Pin<Stm32f4PortG,3>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TIM2_2"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        }
+      ]
+    },
+    {
+      "platform_config": {
+        "platform": {
+          "_compoundName": "Stm32f4",
+          "adc": {
+            "ClockDivider": 2,
+            "SampleTimeSelection": 7,
+            "_compoundName": "Stm32f4Adc"
+          },
+          "clock": {
+            "_compoundName": "Stm32f4Clock",
+            "avail_oc_units": [
+              {
+                "value": "TIM2_1"
+              },
+              {
+                "value": "TIM2_2"
+              },
+              {
+                "value": "TIM2_3"
+              },
+              {
+                "value": "TIM2_4"
+              },
+              {
+                "value": "TIM3_1"
+              },
+              {
+                "value": "TIM3_2"
+              },
+              {
+                "value": "TIM3_3"
+              },
+              {
+                "value": "TIM3_4"
+              },
+              {
+                "value": "TIM4_1"
+              },
+              {
+                "value": "TIM4_2"
+              },
+              {
+                "value": "TIM4_3"
+              },
+              {
+                "value": "TIM4_4"
+              },
+              {
+                "value": "TIM5_1"
+              },
+              {
+                "value": "TIM5_2"
+              },
+              {
+                "value": "TIM5_3"
+              },
+              {
+                "value": "TIM5_4"
+              }
+            ],
+            "prescaler": 35,
+            "primary_timer": "TIM2"
+          },
+          "pins": {
+            "_compoundName": "Stm32f4Pins",
+            "input_modes": [
+              {
+                "ident": "Stm32f4PinInputModeNormal",
+                "name": "Normal"
+              },
+              {
+                "ident": "Stm32f4PinInputModePullUp",
+                "name": "Pull-up"
+              },
+              {
+                "ident": "Stm32f4PinInputModePullDown",
+                "name": "Pull-down"
+              }
+            ]
+          },
+          "watchdog": {
+            "Divider": 16,
+            "Reload": 4095,
+            "_compoundName": "Stm32f4Watchdog"
+          }
+        },
+        "_compoundName": "PlatformConfig",
+        "board_for_build": "stm32f407",
+        "board_helper_includes": [
+          "stm32f4discovery_pins"
+        ],
+        "output_type": "elf"
+      },
+      "digital_inputs": [
+        {
+          "InputMode": "Stm32f4PinInputModeNormal",
+          "Name": "ButtonUser",
+          "Pin": "DiscoveryPinButtonUser",
+          "_compoundName": "digital_input"
+        }
+      ],
+      "analog_inputs": [
+        {
+          "Name": "PA2",
+          "Pin": "Stm32f4Pin<Stm32f4PortA,2>",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "PA3",
+          "Pin": "Stm32f4Pin<Stm32f4PortA,3>",
+          "_compoundName": "analog_input"
+        },
+        {
+          "Name": "PB0",
+          "Pin": "Stm32f4Pin<Stm32f4PortB,0>",
+          "_compoundName": "analog_input"
+        }
+      ],
+      "pwm_outputs": [
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "DiscoveryPinLedRed",
+            "PulseInterval": 0.01,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TIM2_3"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "LedRed",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "DiscoveryPinLedOrange",
+            "PulseInterval": 0.01,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TIM2_4"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "LedOrange",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "DiscoveryPinLedBlue",
+            "PulseInterval": 0.01,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TIM3_1"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "LedBlue",
+          "_compoundName": "pwm_output"
+        }
+      ],
+      "name": "STM32F407-Discovery",
+      "development": {
+        "AssertionsEnabled": true,
+        "DetectOverloadEnabled": false,
+        "EventLoopBenchmarkEnabled": false,
+        "_compoundName": "development"
+      },
+      "_compoundName": "board",
+      "laser_ports": [],
+      "LedPin": "DiscoveryPinLedGreen",
+      "performance": {
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelBufferSize": 32,
+        "EventChannelTimerClearance": 0.002,
+        "FpType": "double",
+        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
+        "MaxStepsPerCycle": 0.0017,
+        "OptimizeForSize": false,
+        "StepperSegmentBufferSize": 32,
+        "_compoundName": "performance"
+      },
+      "EventChannelTimer": {
+        "_compoundName": "interrupt_timer",
+        "oc_unit": "TIM2_1"
+      },
+      "current_config": {
+        "_compoundName": "CurrentConfig",
+        "current": {
+          "_compoundName": "NoCurrent"
+        }
+      },
+      "runtime_config": {
+        "_compoundName": "RuntimeConfig",
+        "config_manager": {
+          "ConfigStore": {
+            "_compoundName": "NoStore"
+          },
+          "_compoundName": "RuntimeConfigManager"
+        }
+      },
+      "sdcard_config": {
+        "_compoundName": "SdCardConfig",
+        "sdcard": {
+          "_compoundName": "NoSdCard"
+        }
+      },
+      "serial": {
+        "BaudRate": 115200,
+        "GcodeMaxParts": 16,
+        "RecvBufferSizeExp": 8,
+        "SendBufferSizeExp": 9,
+        "Service": {
+          "_compoundName": "Stm32f4UsbSerial"
+        },
+        "_compoundName": "serial"
+      },
+      "stepper_ports": [
+        {
+          "DirPin": "Stm32f4Pin<Stm32f4PortC,6>",
+          "EnablePin": "Stm32f4Pin<Stm32f4PortC,9>",
+          "Name": "X",
+          "StepPin": "Stm32f4Pin<Stm32f4PortC,8>",
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TIM2_2"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        }
+      ]
     }
   ],
   "configurations": [
@@ -3781,6 +4233,192 @@
           },
           "slave_steppers": [],
           "stepper_port": "E"
+        }
+      ],
+      "transform": {
+        "_compoundName": "NoTransform"
+      }
+    },
+    {
+      "board": "STM32F429I-Discovery",
+      "fans": [],
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "WaitTimeout": 500,
+      "heaters": [
+        {
+          "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
+          "Name": "T",
+          "SetMCommand": 104,
+          "ThermistorInput": "PF6",
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.2,
+            "PidD": 0.2,
+            "PidDHistory": 0.7,
+            "PidI": 0.0005,
+            "PidIStateMax": 0.6,
+            "PidIStateMin": 0,
+            "PidP": 0.05,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3960,
+            "MaxTemp": 300,
+            "MinTemp": 10,
+            "R0": 100000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 3,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "LedRed"
+        }
+      ],
+      "lasers": [],
+      "name": "STM32F429I-Discovery example",
+      "probe_config": {
+        "_compoundName": "ProbeConfig",
+        "probe": {
+          "_compoundName": "NoProbe"
+        }
+      },
+      "steppers": [
+        {
+          "MicroSteps": 0,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 1500,
+          "MaxPos": 200,
+          "MaxSpeed": 300,
+          "Current": 0,
+          "MinPos": 0,
+          "Name": "X",
+          "StepsPerUnit": 80,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "ButtonUser",
+            "HomeFastMaxDist": 250,
+            "HomeFastSpeed": 40,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "X"
+        }
+      ],
+      "transform": {
+        "_compoundName": "NoTransform"
+      }
+    },
+    {
+      "board": "STM32F407-Discovery",
+      "fans": [
+        {
+          "Name": "E",
+          "OffMCommand": 107,
+          "SetMCommand": 106,
+          "_compoundName": "fan",
+          "pwm_output": "LedOrange"
+        }
+      ],
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "WaitTimeout": 500,
+      "heaters": [
+        {
+          "MaxSafeTemp": 280,
+          "MinSafeTemp": 10,
+          "Name": "T",
+          "SetMCommand": 104,
+          "ThermistorInput": "PA2",
+          "_compoundName": "heater",
+          "control": {
+            "ControlInterval": 0.2,
+            "PidD": 0.2,
+            "PidDHistory": 0.7,
+            "PidI": 0.0005,
+            "PidIStateMax": 0.6,
+            "PidIStateMin": 0,
+            "PidP": 0.05,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3960,
+            "MaxTemp": 300,
+            "MinTemp": 10,
+            "R0": 100000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 3,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "LedRed"
+        }
+      ],
+      "lasers": [],
+      "name": "STM32F407-Discovery example",
+      "probe_config": {
+        "_compoundName": "ProbeConfig",
+        "probe": {
+          "_compoundName": "NoProbe"
+        }
+      },
+      "steppers": [
+        {
+          "MicroSteps": 0,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "MaxAccel": 1500,
+          "MaxPos": 200,
+          "MaxSpeed": 300,
+          "Current": 0,
+          "MinPos": 0,
+          "Name": "X",
+          "StepsPerUnit": 80,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "ButtonUser",
+            "HomeFastMaxDist": 250,
+            "HomeFastSpeed": 40,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "X"
         }
       ],
       "transform": {
