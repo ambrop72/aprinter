@@ -165,6 +165,17 @@ public:
     }
     
     template <typename Pin, typename ThisContext>
+    static void setAnalog (ThisContext c)
+    {
+        TheDebugObject::access(c);
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            set_moder<Pin, 3>();
+            set_pupdr<Pin, 0>();
+        }
+    }
+    
+    template <typename Pin, typename ThisContext>
     static bool get (ThisContext c)
     {
         TheDebugObject::access(c);

@@ -587,6 +587,20 @@ def setup_adc (gen, config, key):
             'pin_func': lambda pin: pin
         }
     
+    @adc_sel.option('Stm32f4Adc')
+    def option(adc_config):
+        gen.add_aprinter_include('system/Stm32f4Adc.h')
+        gen.add_isr('APRINTER_STM32F4_ADC_GLOBAL(MyAdc, MyContext())')
+        
+        return {
+            'value_func': lambda pins: TemplateExpr('Stm32f4Adc', [
+                'MyContext', 'Program', pins,
+                adc_config.get_int('ClockDivider'),
+                adc_config.get_int('SampleTimeSelection'),
+            ]),
+            'pin_func': lambda pin: pin
+        }
+    
     result = config.do_selection(key, adc_sel)
     if result is None:
         return

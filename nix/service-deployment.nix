@@ -95,6 +95,7 @@ in
         environment.etc."aprinter-gcc-arm-embedded".source = pkgs.gcc-arm-embedded;
         environment.etc."aprinter-gccAvrAtmel".source = aprinterExprs.gccAvrAtmel;
         environment.etc."aprinter-asf".source = aprinterExprs.asf;
+        environment.etc."aprinter-stm32cubef4".source = aprinterExprs.stm32cubef4;
         environment.etc."aprinter-teensyCores".source = aprinterExprs.teensyCores;
         
         time.timeZone = "CET";

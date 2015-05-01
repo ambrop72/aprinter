@@ -80,7 +80,7 @@ configure_stm32f4() {
     fi
         
     FLAGS_C_CXX_LD+=(
-        -mfpu=fpv4-sp-d16 -mfloat-abi=hard -ggdb
+        -mfpu=fpv4-sp-d16 -mfloat-abi=hard
     )
     FLAGS_C_CXX+=(
         "${CHIP_FLAGS[@]}"
@@ -107,6 +107,7 @@ configure_stm32f4() {
         "${HAL_DIR}/Src/stm32f4xx_hal_rcc.c"
         "${HAL_DIR}/Src/stm32f4xx_hal_iwdg.c"
         "${HAL_DIR}/Src/stm32f4xx_hal_gpio.c"
+        "${HAL_DIR}/Src/stm32f4xx_hal_dma.c"
         "aprinter/platform/newlib_common.c"
         "${USB_C_SOURCES[@]}"
     )

@@ -210,10 +210,13 @@ def platform_Stm32f4():
             ce.Constant(key='avail_oc_units', value=[
                 {
                     'value': 'TIM{}_{}'.format(n, m)
-                } for n in [1,2,3,4,5,9,10,11] for m in [1,2,3,4]
+                } for n in [2,3,4,5] for m in [1,2,3,4]
             ])
         ]),
-        ce.Compound('NoAdc', key='adc', title='ADC', collapsable=True, attrs=[]),
+        ce.Compound('Stm32f4Adc', key='adc', title='ADC', collapsable=True, attrs=[
+            ce.Integer(key='ClockDivider'),
+            ce.Integer(key='SampleTimeSelection'),
+        ]),
         ce.Compound('Stm32f4Watchdog', key='watchdog', title='Watchdog', collapsable=True, attrs=[
             ce.Integer(key='Divider', title='Divider'),
             ce.Integer(key='Reload', title='Reload'),
