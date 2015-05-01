@@ -38,6 +38,9 @@
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/TemplateFunc.h>
+#include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/IsEqualFunc.h>
+#include <aprinter/meta/NotFunc.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/Stm32f4Pins.h>
@@ -63,6 +66,7 @@ class Stm32f4Adc {
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start, start)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_irq, handle_irq)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Number, Number)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_NumAdcPinsWrapped, NumAdcPinsWrapped)
     
     template <typename TAdcList, int TInputNumber>
     struct AdcMapping {
@@ -79,30 +83,30 @@ class Stm32f4Adc {
     STM32F4ADC_DEFINE_SUBADC(AdcDef3, 3, 1, 2)
     using AdcDefList = MakeTypeList<AdcDef1, AdcDef2, AdcDef3>;
     using PinDefList = MakeTypeList<
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 3>, AdcMapping<AdcNumbers<3>, 9>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 4>, AdcMapping<AdcNumbers<3>, 14>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 5>, AdcMapping<AdcNumbers<3>, 15>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 6>, AdcMapping<AdcNumbers<3>, 4>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 7>, AdcMapping<AdcNumbers<3>, 5>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 8>, AdcMapping<AdcNumbers<3>, 6>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 9>, AdcMapping<AdcNumbers<3>, 7>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 10>, AdcMapping<AdcNumbers<3>, 8>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 0>, AdcMapping<AdcNumbers<1,2,3>, 10>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 1>, AdcMapping<AdcNumbers<1,2,3>, 11>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 2>, AdcMapping<AdcNumbers<1,2,3>, 12>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 3>, AdcMapping<AdcNumbers<1,2,3>, 13>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 0>, AdcMapping<AdcNumbers<1,2,3>, 0>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 1>, AdcMapping<AdcNumbers<1,2,3>, 1>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 2>, AdcMapping<AdcNumbers<1,2,3>, 2>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 3>, AdcMapping<AdcNumbers<1,2,3>, 3>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 4>, AdcMapping<AdcNumbers<1,2>, 4>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 5>, AdcMapping<AdcNumbers<1,2>, 5>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 6>, AdcMapping<AdcNumbers<1,2>, 6>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 7>, AdcMapping<AdcNumbers<1,2>, 7>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 4>, AdcMapping<AdcNumbers<1,2>, 14>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 5>, AdcMapping<AdcNumbers<1,2>, 15>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortB, 0>, AdcMapping<AdcNumbers<1,2>, 8>>,
-        TypeDictEntry<Stm32f4Pin<Stm32f4PortB, 1>, AdcMapping<AdcNumbers<1,2>, 9>>
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 3>,  AdcMapping<AdcNumbers<3>,     9>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 4>,  AdcMapping<AdcNumbers<3>,     14>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 5>,  AdcMapping<AdcNumbers<3>,     15>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 6>,  AdcMapping<AdcNumbers<3>,     4>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 7>,  AdcMapping<AdcNumbers<3>,     5>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 8>,  AdcMapping<AdcNumbers<3>,     6>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 9>,  AdcMapping<AdcNumbers<3>,     7>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 10>, AdcMapping<AdcNumbers<3>,     8>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 0>,  AdcMapping<AdcNumbers<1,2,3>, 10>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 1>,  AdcMapping<AdcNumbers<1,2,3>, 11>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 2>,  AdcMapping<AdcNumbers<1,2,3>, 12>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 3>,  AdcMapping<AdcNumbers<1,2,3>, 13>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 0>,  AdcMapping<AdcNumbers<1,2,3>, 0>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 1>,  AdcMapping<AdcNumbers<1,2,3>, 1>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 2>,  AdcMapping<AdcNumbers<1,2,3>, 2>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 3>,  AdcMapping<AdcNumbers<1,2,3>, 3>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 4>,  AdcMapping<AdcNumbers<1,2>,   4>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 5>,  AdcMapping<AdcNumbers<1,2>,   5>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 6>,  AdcMapping<AdcNumbers<1,2>,   6>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortA, 7>,  AdcMapping<AdcNumbers<1,2>,   7>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 4>,  AdcMapping<AdcNumbers<1,2>,   14>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortC, 5>,  AdcMapping<AdcNumbers<1,2>,   15>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortB, 0>,  AdcMapping<AdcNumbers<1,2>,   8>>,
+        TypeDictEntry<Stm32f4Pin<Stm32f4PortB, 1>,  AdcMapping<AdcNumbers<1,2>,   9>>
     >;
 #else
 #error Chip not supported by Stm32f4Adc
@@ -162,31 +166,16 @@ private:
         using AssignedPinIndices = TypeListGet<PinAssignments, AdcIndex>;
         static int const NumAdcPins = TypeListLength<AssignedPinIndices>::Value;
         static_assert(NumAdcPins <= MaxPinsPerAdc, "");
+        using NumAdcPinsWrapped = WrapInt<NumAdcPins>;
         
         static void init (Context c)
         {
             auto *o = Object::self(c);
             
-            if (NumAdcPins == 0) {
-                return;
-            }
-            
-            AdcDef::adc()->CR1 = ADC_CR1_SCAN | ADC_CR1_OVRIE;
-            AdcDef::adc()->CR2 = ADC_CR2_CONT | ADC_CR2_DMA | ADC_CR2_DDS | ADC_CR2_EOCS;
-            AdcDef::adc()->SMPR1 = 0;
-            AdcDef::adc()->SMPR2 = 0;
-            AdcDef::adc()->SQR1 = (uint32_t)NumAdcPins << 20;
-            AdcDef::adc()->SQR2 = 0;
-            AdcDef::adc()->SQR3 = 0;
-            
-            ListForEachForward<AdcPinList>(LForeach_init(), c);
-            
-            AdcDef::adc()->CR2 |= ADC_CR2_ADON;
-            
             AdcDef::dma_clk_enable();
             
+            o->dma = DMA_HandleTypeDef();
             o->dma.Instance = AdcDef::dma_stream();
-            o->dma.Init = DMA_InitTypeDef();
             o->dma.Init.Channel = DMA_CHANNEL_0;
             o->dma.Init.Direction = DMA_PERIPH_TO_MEMORY;
             o->dma.Init.PeriphInc = DMA_PINC_DISABLE;
@@ -196,28 +185,41 @@ private:
             o->dma.Init.Mode = DMA_CIRCULAR;
             o->dma.Init.Priority = DMA_PRIORITY_HIGH;
             o->dma.Init.FIFOMode = DMA_FIFOMODE_DISABLE;
-            HAL_DMA_Init(&o->dma);
+            if (HAL_DMA_Init(&o->dma) != HAL_OK) {
+                AMBRO_ASSERT_ABORT("HAL_DMA_Init failed");
+            }
+            
+            AdcDef::adc()->CR1 = ADC_CR1_SCAN | ADC_CR1_OVRIE;
+            AdcDef::adc()->CR2 = ADC_CR2_CONT | ADC_CR2_DMA | ADC_CR2_DDS | ADC_CR2_EOCS;
+            AdcDef::adc()->SMPR1 = 0;
+            AdcDef::adc()->SMPR2 = 0;
+            AdcDef::adc()->SQR1 = (uint32_t)(NumAdcPins - 1) << 20;
+            AdcDef::adc()->SQR2 = 0;
+            AdcDef::adc()->SQR3 = 0;
+            AdcDef::adc()->JSQR = 0;
+            
+            ListForEachForward<AdcPinList>(LForeach_init(), c);
+            
+            AdcDef::adc()->CR2 |= ADC_CR2_ADON;
         }
         
         static void start (Context c)
         {
             auto *o = Object::self(c);
             
-            if (NumAdcPins == 0) {
-                return;
+            HAL_DMA_Abort(&o->dma);
+            
+            if (HAL_DMA_Start(&o->dma, (uint32_t)&AdcDef::adc()->DR, (uint32_t)&o->adc_values, NumAdcPins) != HAL_OK) {
+                AMBRO_ASSERT_ABORT("HAL_DMA_Start failed");
             }
             
-            HAL_DMA_Start(&o->dma, (uint32_t)&AdcDef::adc()->DR, (uint32_t)&o->adc_values, NumAdcPins);
+            AdcDef::adc()->SR &= ~ADC_SR_OVR;
             AdcDef::adc()->CR2 |= ADC_CR2_SWSTART;
         }
         
         static void deinit (Context c)
         {
             auto *o = Object::self(c);
-            
-            if (NumAdcPins == 0) {
-                return;
-            }
             
             AdcDef::adc()->CR1 = 0;
             AdcDef::adc()->CR2 = 0;
@@ -228,12 +230,7 @@ private:
         
         static void handle_irq (InterruptContext<Context> c)
         {
-            if (NumAdcPins == 0) {
-                return;
-            }
-            
             if (AdcDef::adc()->SR & ADC_SR_OVR) {
-                AdcDef::adc()->SR &= ~ADC_SR_OVR;
                 start(c);
             }
         }
@@ -278,7 +275,18 @@ private:
             uint16_t adc_values[NumAdcPins];
         };
     };
-    using AdcList = IndexElemList<AdcDefList, Adc>;
+    using AllAdcList = IndexElemList<AdcDefList, Adc>;
+    
+    using UsedAdcList = FilterTypeList<
+        AllAdcList,
+        ComposeFunctions<
+            NotFunc,
+            ComposeFunctions<
+                IsEqualFunc<WrapInt<0>>,
+                GetMemberType_NumAdcPinsWrapped
+            >
+        >
+    >;
     
 public:
     using FixedType = FixedPoint<12, false, -12>;
@@ -289,13 +297,15 @@ public:
         
         ADC->CCR = ((uint32_t)AdcPrescalerCode << 16);
         
-        ListForEachForward<AdcList>(LForeach_init(), c);
+        ListForEachForward<UsedAdcList>(LForeach_init(), c);
         
         NVIC_ClearPendingIRQ(ADC_IRQn);
         NVIC_SetPriority(ADC_IRQn, INTERRUPT_PRIORITY);
-        NVIC_EnableIRQ(ADC_IRQn);
         
-        ListForEachForward<AdcList>(LForeach_start(), c);
+        ListForEachForward<UsedAdcList>(LForeach_start(), c);
+        
+        memory_barrier();
+        NVIC_EnableIRQ(ADC_IRQn);
         
         TheDebugObject::init(c);
     }
@@ -305,7 +315,10 @@ public:
         TheDebugObject::deinit(c);
         
         NVIC_DisableIRQ(ADC_IRQn);
-        ListForEachForward<AdcList>(LForeach_deinit(), c);
+        memory_barrier();
+        
+        ListForEachForward<UsedAdcList>(LForeach_deinit(), c);
+        
         NVIC_ClearPendingIRQ(ADC_IRQn);
         
         __HAL_RCC_ADC1_CLK_DISABLE();
@@ -325,12 +338,12 @@ public:
     
     static void handle_irq (InterruptContext<Context> c)
     {
-        ListForEachForward<AdcList>(LForeach_handle_irq(), c);
+        ListForEachForward<UsedAdcList>(LForeach_handle_irq(), c);
     }
     
 public:
     struct Object : public ObjBase<Stm32f4Adc, ParentObject, JoinTypeLists<
-        AdcList,
+        UsedAdcList,
         MakeTypeList<TheDebugObject>
     >> {};
 };
