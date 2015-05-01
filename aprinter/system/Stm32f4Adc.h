@@ -48,12 +48,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define STM32F4ADC_DEFINE_SUBADC(TheName, TheNumber, DmaNumber, DmaStreamNumber) \
+#define STM32F4ADC_DEFINE_SUBADC(TheName, TheNumber, DmaNumber, DmaStreamNumber, DmaChannelNumber) \
 struct TheName { \
     using Number = WrapInt<TheNumber>; \
     static ADC_TypeDef * adc () { return ADC##TheNumber; } \
     static void dma_clk_enable () { __HAL_RCC_DMA##DmaNumber##_CLK_ENABLE(); } \
     static DMA_Stream_TypeDef * dma_stream () { return DMA##DmaNumber##_Stream##DmaStreamNumber; } \
+    static uint32_t const DmaChannelSelection = DMA_CHANNEL_##DmaChannelNumber; \
 };
 
 template <typename Context, typename ParentObject, typename ParamsPinsList, int ClockDivider, int SampleTimeSelection>
@@ -78,9 +79,9 @@ class Stm32f4Adc {
     using AdcNumbers = MakeTypeList<WrapInt<Numbers>...>;
     
 #if defined(STM32F429xx)
-    STM32F4ADC_DEFINE_SUBADC(AdcDef1, 1, 1, 0)
-    STM32F4ADC_DEFINE_SUBADC(AdcDef2, 2, 1, 1)
-    STM32F4ADC_DEFINE_SUBADC(AdcDef3, 3, 1, 2)
+    STM32F4ADC_DEFINE_SUBADC(AdcDef1, 1, 2, 0, 0)
+    STM32F4ADC_DEFINE_SUBADC(AdcDef2, 2, 2, 2, 1)
+    STM32F4ADC_DEFINE_SUBADC(AdcDef3, 3, 2, 1, 2)
     using AdcDefList = MakeTypeList<AdcDef1, AdcDef2, AdcDef3>;
     using PinDefList = MakeTypeList<
         TypeDictEntry<Stm32f4Pin<Stm32f4PortF, 3>,  AdcMapping<AdcNumbers<3>,     9>>,
@@ -176,7 +177,7 @@ private:
             
             o->dma = DMA_HandleTypeDef();
             o->dma.Instance = AdcDef::dma_stream();
-            o->dma.Init.Channel = DMA_CHANNEL_0;
+            o->dma.Init.Channel = AdcDef::DmaChannelSelection;
             o->dma.Init.Direction = DMA_PERIPH_TO_MEMORY;
             o->dma.Init.PeriphInc = DMA_PINC_DISABLE;
             o->dma.Init.MemInc = DMA_MINC_ENABLE;
