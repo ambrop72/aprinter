@@ -117,13 +117,8 @@ public:
         TheDebugObject::access(c);
         AMBRO_ASSERT(out_overrun)
         
-        RecvSizeType end;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            end = o->m_recv_end;
-        }
-        
         *out_overrun = false;
-        return recv_avail(o->m_recv_start, end);
+        return recv_avail(o->m_recv_start, o->m_recv_end);
     }
     
     static char * recvGetChunkPtr (Context c)
@@ -139,10 +134,8 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            AMBRO_ASSERT(amount <= recv_avail(o->m_recv_start, o->m_recv_end))
-            o->m_recv_start = BoundedModuloAdd(o->m_recv_start, amount);
-        }
+        AMBRO_ASSERT(amount <= recv_avail(o->m_recv_start, o->m_recv_end))
+        o->m_recv_start = BoundedModuloAdd(o->m_recv_start, amount);
         Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
     }
     
@@ -247,8 +240,10 @@ private:
                 if (amount.m_int > remaining) {
                     amount.m_int = remaining;
                 }
-                memcpy(o->m_recv_buffer + o->m_recv_end.value(), o->m_recv_rx_buffer, amount.value());
-                memcpy(o->m_recv_buffer + ((size_t)RecvSizeType::maxIntValue() + 1) + o->m_recv_end.value(), o->m_recv_rx_buffer, amount.value());
+                char const *src = o->m_recv_rx_buffer + o->m_recv_rx_buffer_pos;
+                char *dst = o->m_recv_buffer + o->m_recv_end.value();
+                memcpy(dst, src, amount.value());
+                memcpy(dst + ((size_t)RecvSizeType::maxIntValue() + 1), src, amount.value());
                 o->m_recv_rx_buffer_pos += amount.value();
                 o->m_recv_end = BoundedModuloAdd(o->m_recv_end, amount);
                 o->m_recv_force = true;
