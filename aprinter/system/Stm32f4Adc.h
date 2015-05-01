@@ -48,10 +48,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define STM32F4ADC_DEFINE_SUBADC(TheName, TheNumber, DmaNumber, DmaStreamNumber, DmaChannelNumber) \
-struct TheName { \
-    using Number = WrapInt<TheNumber>; \
-    static ADC_TypeDef * adc () { return ADC##TheNumber; } \
+#define STM32F4ADC_DEFINE_SUBADC(AdcDefName, AdcNumber, DmaNumber, DmaStreamNumber, DmaChannelNumber) \
+struct AdcDefName { \
+    using Number = WrapInt<AdcNumber>; \
+    static void adc_clk_enable () { __HAL_RCC_ADC##AdcNumber##_CLK_ENABLE(); } \
+    static void adc_clk_disable () { __HAL_RCC_ADC##AdcNumber##_CLK_DISABLE(); } \
+    static ADC_TypeDef * adc () { return ADC##AdcNumber; } \
     static void dma_clk_enable () { __HAL_RCC_DMA##DmaNumber##_CLK_ENABLE(); } \
     static DMA_Stream_TypeDef * dma_stream () { return DMA##DmaNumber##_Stream##DmaStreamNumber; } \
     static uint32_t const DmaChannelSelection = DMA_CHANNEL_##DmaChannelNumber; \
@@ -174,6 +176,7 @@ private:
             auto *o = Object::self(c);
             
             AdcDef::dma_clk_enable();
+            AdcDef::adc_clk_enable();
             
             o->dma = DMA_HandleTypeDef();
             o->dma.Instance = AdcDef::dma_stream();
@@ -227,6 +230,8 @@ private:
             
             HAL_DMA_Abort(&o->dma);
             HAL_DMA_DeInit(&o->dma);
+            
+            AdcDef::adc_clk_disable();
         }
         
         static void handle_irq (InterruptContext<Context> c)
@@ -294,8 +299,6 @@ public:
     
     static void init (Context c)
     {
-        __HAL_RCC_ADC1_CLK_ENABLE();
-        
         ADC->CCR = ((uint32_t)AdcPrescalerCode << 16);
         
         ListForEachForward<UsedAdcList>(LForeach_init(), c);
@@ -321,8 +324,6 @@ public:
         ListForEachForward<UsedAdcList>(LForeach_deinit(), c);
         
         NVIC_ClearPendingIRQ(ADC_IRQn);
-        
-        __HAL_RCC_ADC1_CLK_DISABLE();
     }
     
     template <typename Pin, typename ThisContext>
