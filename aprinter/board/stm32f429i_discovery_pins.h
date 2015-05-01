@@ -31,6 +31,44 @@
 
 using DiscoveryPinLedGreen = Stm32f4Pin<Stm32f4PortG, 13>;
 using DiscoveryPinLedRed = Stm32f4Pin<Stm32f4PortG, 14>;
+using DiscoveryPinButtonUser = Stm32f4Pin<Stm32f4PortA, 0>;
+
+/*
+List of internally connected pins:
+
+// MEMS
+PF7 PF8 PF9 PC1 PA2 PA1
+
+// LEDs
+PG13 PG14
+
+// User button
+PA0
+
+// USB
+PC5 PC4 PB15 PB14 PB13 PB12
+
+// LCD
+PA4 PC2 PC6 PD11 PD12 PD13 PF7 PF9 PF10 PG7
+PC10 PB0 PA11 PA12 PB1 PG6
+PA6 PG10 PB10 PB11 PC7 PD3
+PD6 PG11 PG12 PA3 PB8 PB9
+
+// I2C/LCD
+PA8 PC9 PA15 PA7
+
+// SDRAM
+PB5 PB6 PC0 PE0 PE1 PF11 PG4 PG5 PG8 PG15
+PF0 PF1 PF2 PF3 PF4 PF5 PF12 PF13 PF14 PF15 PG0 PG1
+PD14 PD15 PD0 PD1 PE7 PE8 PE9 PE10 PE11 PE12 PE13 PE14 PE15 PD8 PD9 PD10
+
+// Oscillator
+PH0 PH1
+
+// ST-LINK
+PB3 PA13 PA14
+
+*/
 
 #include <aprinter/EndNamespace.h>
 
