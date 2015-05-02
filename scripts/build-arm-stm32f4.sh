@@ -53,7 +53,6 @@ configure_stm32f4() {
     
     USB_FLAGS=()
     USB_C_SOURCES=()
-    
     if [[ -n $USB_MODE ]]; then
         USB_FLAGS=( -DAPRINTER_ENABLE_USB )
         USB_C_SOURCES=(
@@ -78,7 +77,15 @@ configure_stm32f4() {
             fail "Invalid USB_MODE"
         fi
     fi
-        
+    
+    SDCARD_C_SOURCES=()
+    if [[ -n $ENABLE_SDCARD ]]; then
+        SDCARD_C_SOURCES=(
+            "${HAL_DIR}/Src/stm32f4xx_hal_sd.c"
+            "${HAL_DIR}/Src/stm32f4xx_ll_sdmmc.c"
+        )
+    fi
+    
     FLAGS_C_CXX_LD+=(
         -mfpu=fpv4-sp-d16 -mfloat-abi=hard
     )
@@ -109,7 +116,7 @@ configure_stm32f4() {
         "${HAL_DIR}/Src/stm32f4xx_hal_gpio.c"
         "${HAL_DIR}/Src/stm32f4xx_hal_dma.c"
         "aprinter/platform/newlib_common.c"
-        "${USB_C_SOURCES[@]}"
+        "${USB_C_SOURCES[@]}" "${SDCARD_C_SOURCES[@]}"
     )
     ASM_SOURCES+=(
         "${TEMPLATES_DIR}/gcc/${STARTUP_ASM_FILE}"

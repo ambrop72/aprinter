@@ -62,21 +62,45 @@ struct Stm32f4Pin {
 };
 
 template <uint8_t TPupdr>
-struct Stm32f4PinInputMode {
+struct Stm32f4PinPullMode {
     static uint8_t const Pupdr = TPupdr;
 };
-
-using Stm32f4PinInputModeNormal = Stm32f4PinInputMode<0>;
-using Stm32f4PinInputModePullUp = Stm32f4PinInputMode<1>;
-using Stm32f4PinInputModePullDown = Stm32f4PinInputMode<2>;
+using Stm32f4PinPullModeNone = Stm32f4PinPullMode<0>;
+using Stm32f4PinPullModePullUp = Stm32f4PinPullMode<1>;
+using Stm32f4PinPullModePullDown = Stm32f4PinPullMode<2>;
 
 template <uint8_t TOptyper>
-struct Stm32f4PinOutputMode {
+struct Stm32f4PinOutputType {
     static uint8_t const Optyper = TOptyper;
 };
+using Stm32f4PinOutputTypeNormal = Stm32f4PinOutputType<0>;
+using Stm32f4PinOutputTypeOpenDrain = Stm32f4PinOutputType<1>;
 
-using Stm32f4PinOutputModeNormal = Stm32f4PinOutputMode<0>;
-using Stm32f4PinOutputModeOpenDrain = Stm32f4PinOutputMode<1>;
+template <uint8_t TOspeedr>
+struct Stm32f4PinOutputSpeed {
+    static uint8_t const Ospeedr = TOspeedr;
+};
+using Stm32f4PinOutputSpeedLow = Stm32f4PinOutputSpeed<0>;
+using Stm32f4PinOutputSpeedMedium = Stm32f4PinOutputSpeed<1>;
+using Stm32f4PinOutputSpeedFast = Stm32f4PinOutputSpeed<2>;
+using Stm32f4PinOutputSpeedHigh = Stm32f4PinOutputSpeed<3>;
+
+template <typename PullMode>
+struct Stm32f4PinInputMode {
+    static uint8_t const Pupdr = PullMode::Pupdr;
+};
+using Stm32f4PinInputModeNormal = Stm32f4PinInputMode<Stm32f4PinPullModeNone>;
+using Stm32f4PinInputModePullUp = Stm32f4PinInputMode<Stm32f4PinPullModePullUp>;
+using Stm32f4PinInputModePullDown = Stm32f4PinInputMode<Stm32f4PinPullModePullDown>;
+
+template <typename OutputType, typename OutputSpeed, typename PullMode>
+struct Stm32f4PinOutputMode {
+    static uint8_t const Optyper = OutputType::Optyper;
+    static uint8_t const Ospeedr = OutputSpeed::Ospeedr;
+    static uint8_t const Pupdr = PullMode::Pupdr;
+};
+using Stm32f4PinOutputModeNormal = Stm32f4PinOutputMode<Stm32f4PinOutputTypeNormal, Stm32f4PinOutputSpeedLow, Stm32f4PinPullModeNone>;
+using Stm32f4PinOutputModeOpenDrain = Stm32f4PinOutputMode<Stm32f4PinOutputTypeOpenDrain, Stm32f4PinOutputSpeedLow, Stm32f4PinPullModeNone>;
 
 template <typename Context, typename ParentObject>
 class Stm32f4Pins {
@@ -135,8 +159,8 @@ public:
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            set_moder<Pin, 0>();
             set_pupdr<Pin, Mode::Pupdr>();
+            set_moder<Pin, 0>();
         }
     }
     
@@ -146,21 +170,24 @@ public:
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            set_pupdr<Pin, Mode::Pupdr>();
             set_optyper<Pin, Mode::Optyper>();
+            set_ospeedr<Pin, Mode::Ospeedr>();
             set_moder<Pin, 1>();
-            set_pupdr<Pin, 0>();
         }
     }
     
-    template <typename Pin, int AfNumber, typename ThisContext>
+    template <typename Pin, int AfNumber, typename Mode = Stm32f4PinOutputModeNormal, typename ThisContext>
     static void setAlternateFunction (ThisContext c)
     {
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            set_pupdr<Pin, Mode::Pupdr>();
+            set_optyper<Pin, Mode::Optyper>();
+            set_ospeedr<Pin, Mode::Ospeedr>();
             set_af<Pin, AfNumber>();
             set_moder<Pin, 2>();
-            set_pupdr<Pin, 0>();
         }
     }
     
@@ -170,8 +197,8 @@ public:
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            set_moder<Pin, 3>();
             set_pupdr<Pin, 0>();
+            set_moder<Pin, 3>();
         }
     }
     
@@ -222,6 +249,12 @@ private:
     static void set_optyper ()
     {
         Pin::Port::gpio()->OTYPER = (Pin::Port::gpio()->OTYPER & ~(UINT32_C(1) << Pin::PinIndex)) | ((uint32_t)Value << Pin::PinIndex);
+    }
+    
+    template <typename Pin, uint8_t Value>
+    static void set_ospeedr ()
+    {
+        Pin::Port::gpio()->OSPEEDR = (Pin::Port::gpio()->OSPEEDR & ~(UINT32_C(3) << Pin::PinIndex)) | ((uint32_t)Value << Pin::PinIndex);
     }
     
     template <typename Pin, uint8_t Value>

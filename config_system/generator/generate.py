@@ -851,7 +851,13 @@ def use_sdcard(gen, config, key, user):
             get_pin(gen, spi_sd, 'SsPin'),
             use_spi(gen, spi_sd, 'SpiService', '{}::GetSpi'.format(user)),
         ])
-
+    
+    @sd_service_sel.option('Stm32f4SdCard')
+    def option(spi_sd):
+        gen.add_aprinter_include('system/Stm32f4SdCard.h')
+        gen.add_isr('APRINTER_STM32F4_SD_CARD_GLOBAL({}, MyContext())'.format(user))
+        return 'Stm32f4SdCardService'
+    
     return config.do_selection(key, sd_service_sel)
 
 def use_config_manager(gen, config, key, user):

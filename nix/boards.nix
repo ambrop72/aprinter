@@ -117,6 +117,7 @@ rec {
             APB1_PRESC_DIV = "4";
             APB2_PRESC_DIV = "2";
             USB_MODE = "FS";
+            ENABLE_SDCARD = "YES";
         };
     };
 }

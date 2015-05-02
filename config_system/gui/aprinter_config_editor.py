@@ -570,7 +570,8 @@ def editor():
                             ce.Compound('SpiSdCard', title='SPI', attrs=[
                                 pin_choice(key='SsPin', title='SS pin'),
                                 spi_choice(key='SpiService', title='SPI driver')
-                            ])
+                            ]),
+                            ce.Compound('Stm32f4SdCard', title='STM32F4 SDIO', attrs=[]),
                         ])
                     ])
                 ]),
