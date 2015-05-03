@@ -32,30 +32,36 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/system/Stm32f4Pins.h>
 #include <aprinter/system/InterruptLock.h>
+#include <aprinter/structure/DoubleEndedList.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename ParentObject, int MaxCommands, typename InitHandler, typename CommandHandler, typename Params>
 class Stm32f4SdCard {
+    static_assert(Params::BusWidth == 1 || Params::BusWidth == 4, "Invalid SD-card bus width");
+    
 public:
     struct Object;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
+    using FastEvent = typename Context::EventLoop::template FastEventSpec<Stm32f4SdCard>;
     enum {STATE_INACTIVE, STATE_ACTIVATING, STATE_RUNNING};
     
     static int const MaxInitAttempts = 100;
     
     static int const SdPinsAF = 12;
     using SdPinsMode = Stm32f4PinOutputMode<Stm32f4PinOutputTypeNormal, Stm32f4PinOutputSpeedHigh, Stm32f4PinPullModePullUp>;
+    
+    using SdPinCK = Stm32f4Pin<Stm32f4PortC, 12>;
+    using SdPinCmd = Stm32f4Pin<Stm32f4PortD, 2>;
     using SdPinD0 = Stm32f4Pin<Stm32f4PortC, 8>;
     using SdPinD1 = Stm32f4Pin<Stm32f4PortC, 9>;
     using SdPinD2 = Stm32f4Pin<Stm32f4PortC, 10>;
     using SdPinD3 = Stm32f4Pin<Stm32f4PortC, 11>;
-    using SdPinCK = Stm32f4Pin<Stm32f4PortC, 12>;
-    using SdPinCmd = Stm32f4Pin<Stm32f4PortD, 2>;
     
     static void dma_clk_enable () { __HAL_RCC_DMA2_CLK_ENABLE(); }
     static uint32_t const DmaChannel = DMA_CHANNEL_4;
@@ -70,22 +76,29 @@ public:
     
     class ReadState {
         friend Stm32f4SdCard;
-        // TBD
+        
+        DoubleEndedListNode<ReadState> queue_node;
+        BlockIndexType block;
+        WrapBuffer buf;
+        bool completed;
+        bool error;
     };
     
     static void init (Context c)
     {
         auto *o = Object::self(c);
         
-        o->event.init(c, APRINTER_CB_STATFUNC_T(&Stm32f4SdCard::event_handler));
+        Context::EventLoop::template initFastEvent<FastEvent>(c, Stm32f4SdCard::event_handler);
         o->state = STATE_INACTIVE;
         
-        Context::Pins::template setAlternateFunction<SdPinD0,  SdPinsAF, SdPinsMode>(c);
-        Context::Pins::template setAlternateFunction<SdPinD1,  SdPinsAF, SdPinsMode>(c);
-        Context::Pins::template setAlternateFunction<SdPinD2,  SdPinsAF, SdPinsMode>(c);
-        Context::Pins::template setAlternateFunction<SdPinD3,  SdPinsAF, SdPinsMode>(c);
         Context::Pins::template setAlternateFunction<SdPinCK,  SdPinsAF, SdPinsMode>(c);
         Context::Pins::template setAlternateFunction<SdPinCmd, SdPinsAF, SdPinsMode>(c);
+        Context::Pins::template setAlternateFunction<SdPinD0,  SdPinsAF, SdPinsMode>(c);
+        if (Params::BusWidth == 4) {
+            Context::Pins::template setAlternateFunction<SdPinD1,  SdPinsAF, SdPinsMode>(c);
+            Context::Pins::template setAlternateFunction<SdPinD2,  SdPinsAF, SdPinsMode>(c);
+            Context::Pins::template setAlternateFunction<SdPinD3,  SdPinsAF, SdPinsMode>(c);
+        }
         
         TheDebugObject::init(c);
     }
@@ -96,7 +109,6 @@ public:
         TheDebugObject::deinit(c);
         
         deactivate_common(c);
-        o->event.deinit(c);
     }
     
     static void activate (Context c)
@@ -106,8 +118,8 @@ public:
         AMBRO_ASSERT(o->state == STATE_INACTIVE)
         
         o->state = STATE_ACTIVATING;
-        o->event.prependNowNotAlready(c);
         o->init_attempts_left = MaxInitAttempts;
+        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
     }
     
     static void deactivate (Context c)
@@ -136,7 +148,11 @@ public:
         AMBRO_ASSERT(o->state == STATE_RUNNING)
         AMBRO_ASSERT(block < o->capacity_blocks)
         
-        // TBD
+        state->block = block;
+        state->buf = WrapBuffer::Make(wrap, (char *)data1, (char *)data2);
+        state->completed = false;
+        o->queue_list.append(state);
+        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
     }
     
     static bool checkReadBlock (Context c, ReadState *state, bool *out_error)
@@ -145,8 +161,11 @@ public:
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_RUNNING)
         
-        // TBD
-        return false;
+        if (!state->completed) {
+            return false;
+        }
+        *out_error = state->error;
+        return true;
     }
     
     static void unsetEvent (Context c)
@@ -155,7 +174,9 @@ public:
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_RUNNING)
         
-        // TBD
+        // Nothing. This is meant to cancel any stray callbacks
+        // when the user has completed all operations, but there
+        // won't be any in the first place in this implementation.
     }
     
     static void msp_init (Context c)
@@ -246,7 +267,11 @@ public:
         HAL_DMA_IRQHandler(o->sd.hdmatx); 
     }
     
+    using EventLoopFastEvents = MakeTypeList<FastEvent>;
+    
 private:
+    using QueueList = DoubleEndedList<ReadState, &ReadState::queue_node>;
+    
     static void deactivate_common (Context c)
     {
         auto *o = Object::self(c);
@@ -254,7 +279,7 @@ private:
         if (o->state == STATE_RUNNING) {
             HAL_SD_DeInit(&o->sd);
         }
-        o->event.unset(c);
+        Context::EventLoop::template resetFastEvent<FastEvent>(c);
         o->state = STATE_INACTIVE;
     }
     
@@ -262,7 +287,18 @@ private:
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_ACTIVATING)
+        AMBRO_ASSERT(o->state == STATE_ACTIVATING || o->state == STATE_RUNNING)
+        
+        if (o->state == STATE_ACTIVATING) {
+            return event_in_activating(c);
+        } else {
+            return event_in_running(c);
+        }
+    }
+    
+    static void event_in_activating (Context c)
+    {
+        auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_attempts_left > 0)
         
         o->sd = SD_HandleTypeDef();
@@ -281,16 +317,18 @@ private:
                 if (o->init_attempts_left > 1) {
                     o->init_attempts_left--;
                     HAL_SD_DeInit(&o->sd);
-                    o->event.prependNowNotAlready(c);
+                    Context::EventLoop::template triggerFastEvent<FastEvent>(c);
                     return;
                 }
                 error_code = 1;
                 goto out;
             }
             
-            if (HAL_SD_WideBusOperation_Config(&o->sd, SDIO_BUS_WIDE_4B) != SD_OK) {
-                error_code = 2;
-                goto out;
+            if (Params::BusWidth == 4) {
+                if (HAL_SD_WideBusOperation_Config(&o->sd, SDIO_BUS_WIDE_4B) != SD_OK) {
+                    error_code = 2;
+                    goto out;
+                }
             }
             
             uint64_t capacity_blocks_calc = sd_info.CardCapacity / BlockSize;
@@ -313,25 +351,85 @@ private:
             deactivate_common(c);
         } else {
             o->state = STATE_RUNNING;
+            o->queue_list.init();
+            o->busy = false;
         }
         return InitHandler::call(c, error_code);
+    }
+    
+    static void event_in_running (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        if (!o->busy) {
+            if (!o->queue_list.isEmpty()) {
+                ReadState *entry = o->queue_list.first();
+                AMBRO_ASSERT(!entry->completed)
+                
+                o->busy = true;
+                o->completed = false;
+                
+                if (HAL_SD_ReadBlocks_DMA(&o->sd, o->buffer, (uint64_t)entry->block * BlockSize, BlockSize, 1) != SD_OK) {
+                    o->completed = true;
+                    o->error = true;
+                }
+                
+                Context::EventLoop::template triggerFastEvent<FastEvent>(c);
+            }
+        } else {
+            if (!o->completed) {
+                if (HAL_SD_PollReadOperation(&o->sd)) {
+                    o->completed = true;
+                    HAL_SD_ErrorTypedef sd_error = HAL_SD_CheckReadOperation(&o->sd, 1);
+                    o->error = (sd_error != SD_OK);
+                } else {
+                    Context::EventLoop::template triggerFastEvent<FastEvent>(c);
+                }
+            }
+            
+            if (o->completed) {
+                ReadState *entry = o->queue_list.first();
+                AMBRO_ASSERT(entry)
+                AMBRO_ASSERT(!entry->completed)
+                
+                o->queue_list.removeFirst();
+                o->busy = false;
+                
+                entry->completed = true;
+                entry->error = o->error;
+                if (!o->error) {
+                    entry->buf.copyIn(0, BlockSize, (char const *)o->buffer);
+                }
+                
+                Context::EventLoop::template triggerFastEvent<FastEvent>(c);
+                
+                return CommandHandler::call(c);
+            }
+        }
     }
     
 public:
     struct Object : public ObjBase<Stm32f4SdCard, ParentObject, MakeTypeList<
         TheDebugObject
     >> {
-        typename Context::EventLoop::QueuedEvent event;
         uint8_t state;
         int init_attempts_left;
-        uint32_t capacity_blocks;
         SD_HandleTypeDef sd;
         DMA_HandleTypeDef dma_rx;
         DMA_HandleTypeDef dma_tx;
+        uint32_t capacity_blocks;
+        QueueList queue_list;
+        bool busy;
+        bool completed;
+        bool error;
+        uint32_t buffer[BlockSize / 4];
     };
 };
 
+template <int TBusWidth>
 struct Stm32f4SdCardService {
+    static int const BusWidth = TBusWidth;
+    
     template <typename Context, typename ParentObject, int MaxCommands, typename InitHandler, typename CommandHandler>
     using SdCard = Stm32f4SdCard<Context, ParentObject, MaxCommands, InitHandler, CommandHandler, Stm32f4SdCardService>;
 };

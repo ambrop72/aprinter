@@ -36,6 +36,7 @@ rec {
     
     /* STM32CubeF4 (chip support for STM32F4). */
     stm32cubef4 = pkgs.callPackage ./stm32cubef4.nix {};
+    /* stm32cubef4 = stdenv.lib.cleanSource /home/ambro/cube/STM32Cube_FW_F4_V1.5.0; */
     
     /* Teensy-cores (chip support for Teensy 3). */
     teensyCores = pkgs.callPackage ./teensy_cores.nix {};

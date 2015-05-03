@@ -856,7 +856,9 @@ def use_sdcard(gen, config, key, user):
     def option(spi_sd):
         gen.add_aprinter_include('system/Stm32f4SdCard.h')
         gen.add_isr('APRINTER_STM32F4_SD_CARD_GLOBAL({}, MyContext())'.format(user))
-        return 'Stm32f4SdCardService'
+        return TemplateExpr('Stm32f4SdCardService', [
+            spi_sd.get_int('BusWidth'),
+        ])
     
     return config.do_selection(key, sd_service_sel)
 

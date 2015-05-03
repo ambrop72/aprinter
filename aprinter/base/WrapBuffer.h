@@ -59,6 +59,22 @@ struct WrapBuffer {
         }
     }
     
+    inline void copyIn (size_t offset, size_t length, char const *src) const
+    {
+        if (length > 0) {
+            if (offset < wrap) {
+                size_t to_copy = MinValue(length, wrap - offset);
+                memcpy(ptr1 + offset, src, to_copy);
+                offset += to_copy;
+                length -= to_copy;
+                src += to_copy;
+            }
+            if (length > 0) {
+                memcpy(ptr2 + (offset - wrap), src, length);
+            }
+        }
+    }
+    
     size_t wrap;
     char *ptr1;
     char *ptr2;

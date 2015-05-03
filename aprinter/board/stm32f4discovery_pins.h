@@ -36,7 +36,7 @@ using DiscoveryPinLedBlue = Stm32f4Pin<Stm32f4PortD, 15>;
 using DiscoveryPinButtonUser = Stm32f4Pin<Stm32f4PortA, 0>;
 
 /*
-List of internally connected pins:
+List of internally connected pins or otherwise possibly used:
 
 // MEMS
 PE1 PE0 PA5 PA7 PA6 PE3
@@ -58,6 +58,10 @@ PH0 PH1
 
 // ST-LINK
 PB3 PA13 PA14
+
+// SD card (if used)
+PC8 PC9 PC10 PC11 PC12 PD2
+Optional for card detection: PA8
 */
 
 #include <aprinter/EndNamespace.h>
