@@ -1421,7 +1421,7 @@ def generate(config_root_data, cfg_name, main_template):
                 lasers_expr,
             ])
             
-            gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', printer_params]))
+            gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', printer_params]), context_name='Printer')
             gen.add_subst('FastEventRoot', 'MyPrinter')
             gen.add_subst('EmergencyProvider', 'MyPrinter')
     
