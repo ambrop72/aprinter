@@ -236,40 +236,36 @@ private:
     template <typename Pin, uint8_t Value>
     static void set_moder ()
     {
-        Pin::Port::gpio()->MODER = (Pin::Port::gpio()->MODER & ~(UINT32_C(3) << (2 * Pin::PinIndex))) | ((uint32_t)Value << (2 * Pin::PinIndex));
+        Pin::Port::gpio()->MODER = set_bits(Pin::Port::gpio()->MODER, 2 * Pin::PinIndex, 2, Value);
     }
     
     template <typename Pin, uint8_t Value>
     static void set_pupdr ()
     {
-        Pin::Port::gpio()->PUPDR = (Pin::Port::gpio()->PUPDR & ~(UINT32_C(3) << (2 * Pin::PinIndex))) | ((uint32_t)Value << (2 * Pin::PinIndex));
+        Pin::Port::gpio()->PUPDR = set_bits(Pin::Port::gpio()->PUPDR, 2 * Pin::PinIndex, 2, Value);
     }
     
     template <typename Pin, uint8_t Value>
     static void set_optyper ()
     {
-        Pin::Port::gpio()->OTYPER = (Pin::Port::gpio()->OTYPER & ~(UINT32_C(1) << Pin::PinIndex)) | ((uint32_t)Value << Pin::PinIndex);
+        Pin::Port::gpio()->OTYPER = set_bits(Pin::Port::gpio()->OTYPER, Pin::PinIndex, 1, Value);
     }
     
     template <typename Pin, uint8_t Value>
     static void set_ospeedr ()
     {
-        Pin::Port::gpio()->OSPEEDR = (Pin::Port::gpio()->OSPEEDR & ~(UINT32_C(3) << Pin::PinIndex)) | ((uint32_t)Value << Pin::PinIndex);
+        Pin::Port::gpio()->OSPEEDR = set_bits(Pin::Port::gpio()->OSPEEDR, 2 * Pin::PinIndex, 2, Value);
     }
     
     template <typename Pin, uint8_t Value>
     static void set_af ()
     {
-        if (Pin::PinIndex >= 8) {
-            Pin::Port::gpio()->AFR[1] = set_bits(4 * (Pin::PinIndex - 8), 4, Pin::Port::gpio()->AFR[1], Value);
-        } else {
-            Pin::Port::gpio()->AFR[0] = set_bits(4 * Pin::PinIndex, 4, Pin::Port::gpio()->AFR[0], Value);
-        }
+        Pin::Port::gpio()->AFR[Pin::PinIndex / 8] = set_bits(Pin::Port::gpio()->AFR[Pin::PinIndex / 8], 4 * (Pin::PinIndex % 8), 4, Value);
     }
     
-    static uint32_t set_bits (int offset, int bits, uint32_t x, uint32_t val)
+    static uint32_t set_bits (uint32_t orig, int offset, int bits, uint32_t val)
     {
-        return (x & (uint32_t)~(((uint32_t)-1 >> (32 - bits)) << offset)) | (uint32_t)(val << offset);
+        return (orig & (uint32_t)~(((uint32_t)-1 >> (32 - bits)) << offset)) | (uint32_t)(val << offset);
     }
     
 public:
