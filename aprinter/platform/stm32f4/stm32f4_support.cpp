@@ -124,7 +124,7 @@ static void init_clock (void)
     __HAL_RCC_PWR_CLK_ENABLE();
 
     // Enable voltage scaling.
-    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE2);
+    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
     // Enable the HSE oscillator and activate the PLL with the HSE.
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
@@ -145,7 +145,7 @@ static void init_clock (void)
     RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
     RCC_ClkInitStruct.APB1CLKDivider = APRINTER_JOIN(RCC_HCLK_DIV, APB1_PRESC_DIV);
     RCC_ClkInitStruct.APB2CLKDivider = APRINTER_JOIN(RCC_HCLK_DIV, APB2_PRESC_DIV);
-    ret = HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4);
+    ret = HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_5);
     if (ret != HAL_OK) while (1);
 }
 
