@@ -49,4 +49,9 @@ inline static void memory_barrier (void)
     asm volatile ("" : : : "memory");
 }
 
+inline static void memory_barrier_dma (void)
+{
+    asm volatile ("dmb" : : : "memory");
+}
+
 #endif
