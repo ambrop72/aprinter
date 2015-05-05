@@ -246,9 +246,9 @@ public:
             bool is_dot_entry = (first_byte == (uint8_t)'.');
             uint32_t file_size = ReadBinaryInt<uint32_t, BinaryLittleEndian>(entry_ptr + 0x1C);
             
-            ClusterIndexType first_cluster =
+            ClusterIndexType first_cluster = mask_cluster_entry(
                 ReadBinaryInt<uint16_t, BinaryLittleEndian>(entry_ptr + 0x1A) |
-                ((uint32_t)ReadBinaryInt<uint16_t, BinaryLittleEndian>(entry_ptr + 0x14) << 16);
+                ((uint32_t)ReadBinaryInt<uint16_t, BinaryLittleEndian>(entry_ptr + 0x14) << 16));
             
             if (is_dot_entry && first_cluster == 0) {
                 first_cluster = o->u.fs.root_cluster;
@@ -427,7 +427,7 @@ private:
             uint8_t num_fats =             ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x10);
             uint16_t max_root =            ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0x11);
             uint32_t sectors_per_fat =     ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x24);
-            o->u.fs.root_cluster =         ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x2C);
+            uint32_t root_cluster =        ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x2C);
             uint8_t sig =                  ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x42);
             
             if (sector_size == 0 || sector_size % BlockSize != 0) {
@@ -462,6 +462,7 @@ private:
                 goto error;
             }
             
+            o->u.fs.root_cluster = mask_cluster_entry(root_cluster);
             if (o->u.fs.root_cluster < 2) {
                 error_code = 28;
                 goto error;
@@ -493,6 +494,11 @@ private:
     {
         auto *o = Object::self(c);
         return o->block_range.getLength() / o->u.fs.blocks_per_sector;
+    }
+    
+    static ClusterIndexType mask_cluster_entry (uint32_t entry_value)
+    {
+        return (entry_value & UINT32_C(0x0FFFFFFF));
     }
     
     static bool is_cluster_idx_valid (ClusterIndexType cluster_idx)
@@ -649,7 +655,7 @@ private:
                 size_t block_offset = (size_t)4 * (m_current_cluster % FatEntriesPerBlock);
                 char cluster_number_buf[4];
                 m_req_buf.copyOut(block_offset, 4, cluster_number_buf);
-                m_current_cluster = ReadBinaryInt<uint32_t, BinaryLittleEndian>(cluster_number_buf);
+                m_current_cluster = mask_cluster_entry(ReadBinaryInt<uint32_t, BinaryLittleEndian>(cluster_number_buf));
                 m_block_in_cluster = 0;
                 m_state = BASEREAD_STATE_REQEVENT;
                 m_event.appendNowNotAlready(c);
