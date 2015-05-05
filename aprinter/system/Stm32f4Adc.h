@@ -335,6 +335,7 @@ public:
         using PinAdc = Adc<AssignPin<PinIndex>::AssignedAdcIndex>;
         static int const AdcPinIndex = TypeListIndex<typename PinAdc::AssignedPinIndices, WrapInt<PinIndex>>::Value;
         auto *adc_o = PinAdc::Object::self(c);
+        memory_barrier_dma();
         return FixedType::importBits(((uint16_t volatile *)adc_o->adc_values)[AdcPinIndex]);
     }
     

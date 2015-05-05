@@ -398,6 +398,7 @@ private:
                 entry->completed = true;
                 entry->error = o->error;
                 if (!o->error) {
+                    memory_barrier_dma();
                     entry->buf.copyIn(0, BlockSize, (char const *)o->buffer);
                 }
                 
