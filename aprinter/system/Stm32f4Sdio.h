@@ -35,21 +35,19 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Handler, typename Params>
+template <typename Context, typename ParentObject, typename CommandHandler, typename DataHandler, typename Params>
 class Stm32f4Sdio {
 public:
     struct Object;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
-    using FastEvent = typename Context::EventLoop::template FastEventSpec<Stm32f4Sdio>;
+    using CmdFastEvent = typename Context::EventLoop::template FastEventSpec<Stm32f4Sdio>;
+    using DataFastEvent = typename Context::EventLoop::template FastEventSpec<CmdFastEvent>;
     
-    enum {
-        STATE_DEAD,
-        STATE_POWERON,
-        STATE_READY,
-        STATE_EXECCMD
-    };
+    enum {INIT_STATE_OFF, INIT_STATE_POWERON, INIT_STATE_ON};
+    enum {CMD_STATE_READY, CMD_STATE_BUSY};
+    enum {DATA_STATE_READY, DATA_STATE_WAIT_COMPL, DATA_STATE_WAIT_RXTX, DATA_STATE_WAIT_DMA};
     
     static int const SdPinsAF = 12;
     using SdPinsMode = Stm32f4PinOutputMode<Stm32f4PinOutputTypeNormal, Stm32f4PinOutputSpeedHigh, Stm32f4PinPullModePullUp>;
@@ -68,10 +66,17 @@ private:
     static SDIO_TypeDef * sdio () { return SDIO; }
     
 public:
+    static size_t const BlockSize = 512;
+    
     enum ResponseType {
         RESPONSE_NONE,
         RESPONSE_SHORT,
         RESPONSE_LONG
+    };
+    
+    struct InterfaceParams {
+        bool clock_full_speed;
+        bool wide_data_bus;
     };
     
     struct CommandParams {
@@ -80,26 +85,52 @@ public:
         ResponseType response_type;
     };
     
-    enum ErrorCode {
-        ERROR_NONE,
-        ERROR_RESPONSE_TIMEOUT,
-        ERROR_RESPONSE_CHECKSUM,
-        ERROR_BAD_RESPONSE_CMD
+    enum CommandErrorCode {
+        CMD_ERROR_NONE,
+        CMD_ERROR_RESPONSE_TIMEOUT,
+        CMD_ERROR_RESPONSE_CHECKSUM,
+        CMD_ERROR_BAD_RESPONSE_CMD
     };
     
     struct CommandResults {
-        ErrorCode error_code;
+        CommandErrorCode error_code;
         uint32_t response[4];
+    };
+    
+    enum DataDirection {
+        DATA_DIR_READ,
+        DATA_DIR_WRITE
+    };
+    
+    struct DataParams {
+        DataDirection direction;
+        size_t num_blocks;
+        uint32_t *data_ptr;
+    };
+    
+    enum DataErrorCode {
+        DATA_ERROR_NONE,
+        DATA_ERROR_CHECKSUM,
+        DATA_ERROR_TIMEOUT,
+        DATA_ERROR_RX_OVERRUN,
+        DATA_ERROR_TX_OVERRUN,
+        DATA_ERROR_STBITER,
+        DATA_ERROR_DMA
+    };
+    
+    struct DataResults {
+        DataErrorCode error_code;
     };
     
     static void init (Context c)
     {
         auto *o = Object::self(c);
         
-        Context::EventLoop::template initFastEvent<FastEvent>(c, Stm32f4Sdio::event_handler);
+        Context::EventLoop::template initFastEvent<CmdFastEvent>(c, Stm32f4Sdio::cmd_event_handler);
+        Context::EventLoop::template initFastEvent<DataFastEvent>(c, Stm32f4Sdio::data_event_handler);
         o->timer.init(c, APRINTER_CB_STATFUNC_T(&Stm32f4Sdio::timer_handler));
         
-        o->state = STATE_DEAD;
+        o->init_state = INIT_STATE_OFF;
         
         TheDebugObject::init(c);
     }
@@ -121,49 +152,58 @@ public:
         
         reset_internal(c);
         
-        o->state = STATE_DEAD;
+        o->init_state = INIT_STATE_OFF;
     }
     
-    static void startPowerOn (Context c)
+    static void startPowerOn (Context c, InterfaceParams if_params)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_DEAD)
+        AMBRO_ASSERT(o->init_state == INIT_STATE_OFF)
         
         msp_init(c);
         
-        SD_InitTypeDef tmpinit = SD_InitTypeDef();
-        tmpinit.ClockEdge           = SDIO_CLOCK_EDGE_RISING;
-        tmpinit.ClockBypass         = SDIO_CLOCK_BYPASS_DISABLE;
-        tmpinit.ClockPowerSave      = SDIO_CLOCK_POWER_SAVE_DISABLE;
-        tmpinit.BusWide             = SDIO_BUS_WIDE_1B;
-        tmpinit.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
-        tmpinit.ClockDiv            = SDIO_INIT_CLK_DIV;
-        SDIO_Init(sdio(), tmpinit);
+        configure_interface(if_params);
         
         __SDIO_DISABLE(); 
         
         SDIO_PowerState_ON(sdio());
         
-        o->state = STATE_POWERON;
+        o->init_state = INIT_STATE_POWERON;
     }
     
     static void completePowerOn (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_POWERON)
+        AMBRO_ASSERT(o->init_state == INIT_STATE_POWERON)
         
         __SDIO_ENABLE();
         
-        o->state = STATE_READY;
+        o->init_state = INIT_STATE_ON;
+        o->cmd_state = CMD_STATE_READY;
+        o->data_state = DATA_STATE_READY;
+    }
+    
+    static void reconfigureInterface (Context c, InterfaceParams if_params)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_ON)
+        AMBRO_ASSERT(o->cmd_state == CMD_STATE_READY)
+        AMBRO_ASSERT(o->data_state == DATA_STATE_READY)
+        
+        configure_interface(if_params);
     }
     
     static void startCommand (Context c, CommandParams cmd_params)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_READY)
+        AMBRO_ASSERT(o->init_state == INIT_STATE_ON)
+        AMBRO_ASSERT(o->cmd_state == CMD_STATE_READY)
+        
+        clear_static_flags(SDIO_FLAG_CMDSENT|SDIO_FLAG_CCRCFAIL|SDIO_FLAG_CTIMEOUT|SDIO_FLAG_CMDREND);
         
         uint32_t response_sdio;
         switch (cmd_params.response_type) {
@@ -185,13 +225,52 @@ public:
         cmd.CPSM = SDIO_CPSM_ENABLE;
         SDIO_SendCommand(sdio(), &cmd);
         
-        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
-        o->state = STATE_EXECCMD;
+        o->cmd_state = CMD_STATE_BUSY;
         o->cmd_index = cmd_params.cmd_index;
         o->response_type = cmd_params.response_type;
+        Context::EventLoop::template triggerFastEvent<CmdFastEvent>(c);
     }
     
-    using EventLoopFastEvents = MakeTypeList<FastEvent>;
+    static void startData (Context c, DataParams data_params)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_ON)
+        AMBRO_ASSERT(o->cmd_state == DATA_STATE_READY)
+        AMBRO_ASSERT(data_params.direction == DATA_DIR_READ || data_params.direction == DATA_DIR_WRITE)
+        AMBRO_ASSERT(data_params.num_blocks >= 1)
+        
+        size_t data_len = data_params.num_blocks * BlockSize;
+        
+        clear_static_flags(SDIO_FLAG_DCRCFAIL|SDIO_FLAG_DTIMEOUT|SDIO_FLAG_RXOVERR|SDIO_FLAG_TXUNDERR|SDIO_FLAG_STBITERR|SDIO_FLAG_DATAEND);
+        
+        sdio()->DCTRL = 0;
+        
+        __SDIO_DMA_ENABLE();
+        
+        memory_barrier_dma();
+        
+        if (data_params.direction == DATA_DIR_READ) {
+            HAL_DMA_Start(o->dma_rx, (uint32_t)sdio()->FIFO, (uint32_t)data_params.data_ptr, data_len / 4);
+        } else {
+            HAL_DMA_Start(o->dma_tx, (uint32_t)data_params.data_ptr, (uint32_t)sdio()->FIFO, data_len / 4);
+        }
+        
+        SDIO_DataInitTypeDef data_init = SDIO_DataInitTypeDef();
+        data_init.DataTimeOut   = UINT32_C(0xFFFFFFFF);
+        data_init.DataLength    = data_len;
+        data_init.DataBlockSize = SDIO_DATABLOCK_SIZE_512B;
+        data_init.TransferDir   = data_params.direction == DATA_DIR_READ ? SDIO_TRANSFER_DIR_TO_SDIO : SDIO_TRANSFER_DIR_TO_CARD;
+        data_init.TransferMode  = SDIO_TRANSFER_MODE_BLOCK;
+        data_init.DPSM          = SDIO_DPSM_ENABLE;
+        SDIO_DataConfig(sdio(), &data_init);
+        
+        o->data_state = DATA_STATE_WAIT_COMPL;
+        o->data_dir = data_params.direction;
+        Context::EventLoop::template triggerFastEvent<DataFastEvent>(c);
+    }
+    
+    using EventLoopFastEvents = MakeTypeList<CmdFastEvent, DataFastEvent>;
     
 private:
     static void msp_init (Context c)
@@ -249,46 +328,65 @@ private:
         HAL_DMA_DeInit(&o->dma_rx);
     }
     
+    static void configure_interface (InterfaceParams if_params)
+    {
+        SD_InitTypeDef tmpinit = SD_InitTypeDef();
+        tmpinit.ClockEdge           = SDIO_CLOCK_EDGE_RISING;
+        tmpinit.ClockBypass         = SDIO_CLOCK_BYPASS_DISABLE;
+        tmpinit.ClockPowerSave      = SDIO_CLOCK_POWER_SAVE_DISABLE;
+        tmpinit.BusWide             = if_params.wide_data_bus ? SDIO_BUS_WIDE_4B : SDIO_BUS_WIDE_1B;
+        tmpinit.HardwareFlowControl = SDIO_HARDWARE_FLOW_CONTROL_DISABLE;
+        tmpinit.ClockDiv            = if_params.clock_full_speed ? SDIO_TRANSFER_CLK_DIV : SDIO_INIT_CLK_DIV;
+        SDIO_Init(sdio(), tmpinit);
+    }
+    
+    static void clear_static_flags (uint32_t flags)
+    {
+        sdio()->ICR = flags;
+    }
+    
     static void reset_internal (Context c)
     {
         auto *o = Object::self(c);
         
-        if (o->state >= STATE_POWERON) {
+        if (o->init_state >= INIT_STATE_POWERON) {
             SDIO_PowerState_OFF(sdio());
             msp_deinit(c);
         }
         o->timer.unset(c);
-        Context::EventLoop::template resetFastEvent<FastEvent>(c);
+        Context::EventLoop::template resetFastEvent<DataFastEvent>(c);
+        Context::EventLoop::template resetFastEvent<CmdFastEvent>(c);
     }
     
-    static void event_handler (Context c)
+    static void cmd_event_handler (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_EXECCMD)
+        AMBRO_ASSERT(o->init_state == INIT_STATE_ON)
+        AMBRO_ASSERT(o->cmd_state == CMD_STATE_BUSY)
         
         CommandResults results = CommandResults();
         uint32_t status = sdio()->STA;
         if (o->response_type == RESPONSE_NONE) {
             if (!(status & SDIO_FLAG_CMDSENT)) {
-                Context::EventLoop::template triggerFastEvent<FastEvent>(c);
+                Context::EventLoop::template triggerFastEvent<CmdFastEvent>(c);
                 return;
             }
         } else {
             if ((status & SDIO_FLAG_CCRCFAIL)) {
-                results.error_code = ERROR_RESPONSE_CHECKSUM;
+                results.error_code = CMD_ERROR_RESPONSE_CHECKSUM;
                 goto report;
             }
             if ((status & SDIO_FLAG_CTIMEOUT)) {
-                results.error_code = ERROR_RESPONSE_TIMEOUT;
+                results.error_code = CMD_ERROR_RESPONSE_TIMEOUT;
                 goto report;
             }
             if (!(status & SDIO_FLAG_CMDREND)) {
-                Context::EventLoop::template triggerFastEvent<FastEvent>(c);
+                Context::EventLoop::template triggerFastEvent<CmdFastEvent>(c);
                 return;
             }
             if (SDIO_GetCommandResponse(sdio()) != o->cmd_index) {
-                results.error_code = ERROR_BAD_RESPONSE_CMD;
+                results.error_code = CMD_ERROR_BAD_RESPONSE_CMD;
                 goto report;
             }
             results.response[0] = sdio()->RESP1;
@@ -296,10 +394,81 @@ private:
             results.response[2] = sdio()->RESP3;
             results.response[3] = sdio()->RESP4;
         }
-        results.error_code = ERROR_NONE;
+        results.error_code = CMD_ERROR_NONE;
     report:
-        o->state = STATE_READY;
-        return Handler::call(c, results);
+        o->cmd_state = CMD_STATE_READY;
+        return CommandHandler::call(c, results);
+    }
+    
+    static void data_event_handler (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_ON)
+        AMBRO_ASSERT(o->data_state != DATA_STATE_READY)
+        
+        uint32_t status = sdio()->STA;
+        
+        while (true) {
+            switch (o->data_state) {
+                case DATA_STATE_WAIT_COMPL: {
+                    if ((status & SDIO_FLAG_DCRCFAIL)) {
+                        o->data_error = DATA_ERROR_CHECKSUM;
+                    }
+                    else if ((status & SDIO_FLAG_DTIMEOUT)) {
+                        o->data_error = DATA_ERROR_TIMEOUT;
+                    }
+                    else if ((status & SDIO_FLAG_RXOVERR)) {
+                        o->data_error = DATA_ERROR_RX_OVERRUN;
+                    }
+                    else if ((status & SDIO_FLAG_TXUNDERR)) {
+                        o->data_error = DATA_ERROR_TX_OVERRUN;
+                    }
+                    else if ((status & SDIO_FLAG_STBITERR)) {
+                        o->data_error = DATA_ERROR_STBITER;
+                    }
+                    else if ((status & SDIO_FLAG_DATAEND)) {
+                        o->data_error = DATA_ERROR_NONE;
+                    }
+                    else {
+                        goto wait_more;
+                    }
+                    o->data_state = DATA_STATE_WAIT_RXTX;
+                } break;
+                
+                case DATA_STATE_WAIT_RXTX: {
+                    if ((status & SDIO_FLAG_RXACT) || (status & SDIO_FLAG_TXACT)) {
+                        goto wait_more;
+                    }
+                    o->data_state = DATA_STATE_WAIT_DMA;
+                } break;
+                
+                case DATA_STATE_WAIT_DMA: {
+                    DMA_HandleTypeDef *dma = o->data_dir == DATA_DIR_READ ? &o->dma_rx : &o->dma_tx;
+                    if (o->data_error == DATA_ERROR_NONE) {
+                        HAL_StatusTypeDef dma_status = HAL_DMA_PollForTransfer(dma, HAL_DMA_FULL_TRANSFER, 0);
+                        if (dma_status == HAL_TIMEOUT) {
+                            goto wait_more;
+                        }
+                        if (dma_status != HAL_OK) {
+                            o->data_error = DATA_ERROR_DMA;
+                        } else if (o->data_dir == DATA_DIR_READ) {
+                            memory_barrier_dma();
+                        }
+                    }
+                    HAL_DMA_Abort(dma);
+                    DataResults results = DataResults();
+                    results.error_code = o->data_error;
+                    o->data_state = DATA_STATE_READY;
+                    return DataHandler::call(c, results);
+                } break;
+                
+                default: AMBRO_ASSERT(0);
+            }
+        }
+        
+    wait_more:
+        Context::EventLoop::template triggerFastEvent<DataFastEvent>(c);
     }
     
     static void timer_handler (Context c)
@@ -317,15 +486,19 @@ public:
         DMA_HandleTypeDef dma_rx;
         DMA_HandleTypeDef dma_tx;
         typename Context::EventLoop::QueuedEvent timer;
-        uint8_t state;
+        uint8_t init_state;
+        uint8_t cmd_state;
+        uint8_t data_state;
         uint8_t cmd_index;
         uint8_t response_type;
+        uint8_t data_dir;
+        uint8_t data_error;
     };
 };
 
 struct Stm32f4SdioService {
-    template <typename Context, typename ParentObject, typename Handler>
-    using Sdio = Stm32f4Sdio<Context, ParentObject, Handler, Stm32f4SdioService>;
+    template <typename Context, typename ParentObject, typename CommandHandler, typename DataHandler>
+    using Sdio = Stm32f4Sdio<Context, ParentObject, CommandHandler, DataHandler, Stm32f4SdioService>;
 };
 
 #include <aprinter/EndNamespace.h>
