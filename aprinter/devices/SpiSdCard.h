@@ -313,7 +313,10 @@ private:
                     return error(c, 8);
                 }
                 if (o->m_sdhc) {
-                    uint16_t c_size = o->m_buf2[4] | ((uint32_t)o->m_buf2[3] << 8) | ((uint32_t)(o->m_buf2[2] & 0x3f) << 16);
+                    uint32_t c_size = o->m_buf2[4] | ((uint32_t)o->m_buf2[3] << 8) | ((uint32_t)(o->m_buf2[2] & 0x3f) << 16);
+                    if (c_size >= UINT32_C(0x3fffff)) {
+                        return error(c, 10);
+                    }
                     o->m_capacity_blocks = (c_size + 1) * UINT32_C(1024);
                 } else {
                     uint8_t read_bl_len = o->m_buf2[0] & 0xf;
