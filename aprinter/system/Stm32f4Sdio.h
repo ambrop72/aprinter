@@ -32,10 +32,11 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/system/Stm32f4Pins.h>
+#include <aprinter/devices/SdioInterface.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename CommandHandler, typename DataHandler, typename Params>
+template <typename Context, typename ParentObject, typename CommandHandler, typename DataHandler, bool TIsWideMode, typename Params>
 class Stm32f4Sdio {
 public:
     struct Object;
@@ -66,65 +67,21 @@ private:
     static SDIO_TypeDef * sdio () { return SDIO; }
     
 public:
+    static bool const IsWideMode = TIsWideMode;
     static size_t const BlockSize = 512;
-    
-    enum ResponseType {
-        RESPONSE_NONE,
-        RESPONSE_SHORT,
-        RESPONSE_LONG
-    };
-    
-    struct InterfaceParams {
-        bool clock_full_speed;
-        bool wide_data_bus;
-    };
-    
-    struct CommandParams {
-        uint8_t cmd_index;
-        uint32_t argument;
-        ResponseType response_type;
-    };
-    
-    enum CommandErrorCode {
-        CMD_ERROR_NONE,
-        CMD_ERROR_RESPONSE_TIMEOUT,
-        CMD_ERROR_RESPONSE_CHECKSUM,
-        CMD_ERROR_BAD_RESPONSE_CMD
-    };
-    
-    struct CommandResults {
-        CommandErrorCode error_code;
-        uint32_t response[4];
-    };
-    
-    enum DataDirection {
-        DATA_DIR_READ,
-        DATA_DIR_WRITE
-    };
-    
-    struct DataParams {
-        DataDirection direction;
-        size_t num_blocks;
-        uint32_t *data_ptr;
-    };
-    
-    enum DataErrorCode {
-        DATA_ERROR_NONE,
-        DATA_ERROR_CHECKSUM,
-        DATA_ERROR_TIMEOUT,
-        DATA_ERROR_RX_OVERRUN,
-        DATA_ERROR_TX_OVERRUN,
-        DATA_ERROR_STBITER,
-        DATA_ERROR_DMA
-    };
-    
-    struct DataResults {
-        DataErrorCode error_code;
-    };
     
     static void init (Context c)
     {
         auto *o = Object::self(c);
+        
+        Context::Pins::template setAlternateFunction<SdPinCK,  SdPinsAF, SdPinsMode>(c);
+        Context::Pins::template setAlternateFunction<SdPinCmd, SdPinsAF, SdPinsMode>(c);
+        Context::Pins::template setAlternateFunction<SdPinD0,  SdPinsAF, SdPinsMode>(c);
+        if (IsWideMode) {
+            Context::Pins::template setAlternateFunction<SdPinD1,  SdPinsAF, SdPinsMode>(c);
+            Context::Pins::template setAlternateFunction<SdPinD2,  SdPinsAF, SdPinsMode>(c);
+            Context::Pins::template setAlternateFunction<SdPinD3,  SdPinsAF, SdPinsMode>(c);
+        }
         
         Context::EventLoop::template initFastEvent<CmdFastEvent>(c, Stm32f4Sdio::cmd_event_handler);
         Context::EventLoop::template initFastEvent<DataFastEvent>(c, Stm32f4Sdio::data_event_handler);
@@ -155,7 +112,7 @@ public:
         o->init_state = INIT_STATE_OFF;
     }
     
-    static void startPowerOn (Context c, InterfaceParams if_params)
+    static void startPowerOn (Context c, SdioIface::InterfaceParams if_params)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -185,7 +142,7 @@ public:
         o->data_state = DATA_STATE_READY;
     }
     
-    static void reconfigureInterface (Context c, InterfaceParams if_params)
+    static void reconfigureInterface (Context c, SdioIface::InterfaceParams if_params)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -196,7 +153,7 @@ public:
         configure_interface(if_params);
     }
     
-    static void startCommand (Context c, CommandParams cmd_params)
+    static void startCommand (Context c, SdioIface::CommandParams cmd_params)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -207,11 +164,11 @@ public:
         
         uint32_t response_sdio;
         switch (cmd_params.response_type) {
-            case RESPONSE_NONE:
+            case SdioIface::RESPONSE_NONE:
                 response_sdio = SDIO_RESPONSE_NO; break;
-            case RESPONSE_SHORT:
+            case SdioIface::RESPONSE_SHORT:
                 response_sdio = SDIO_RESPONSE_SHORT; break;
-            case RESPONSE_LONG:
+            case SdioIface::RESPONSE_LONG:
                 response_sdio = SDIO_RESPONSE_LONG; break;
             default:
                 AMBRO_ASSERT(0);
@@ -231,26 +188,24 @@ public:
         Context::EventLoop::template triggerFastEvent<CmdFastEvent>(c);
     }
     
-    static void startData (Context c, DataParams data_params)
+    static void startData (Context c, SdioIface::DataParams data_params)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_ON)
         AMBRO_ASSERT(o->cmd_state == DATA_STATE_READY)
-        AMBRO_ASSERT(data_params.direction == DATA_DIR_READ || data_params.direction == DATA_DIR_WRITE)
+        AMBRO_ASSERT(data_params.direction == SdioIface::DATA_DIR_READ || data_params.direction == SdioIface::DATA_DIR_WRITE)
         AMBRO_ASSERT(data_params.num_blocks >= 1)
         
         size_t data_len = data_params.num_blocks * BlockSize;
         
         clear_static_flags(SDIO_FLAG_DCRCFAIL|SDIO_FLAG_DTIMEOUT|SDIO_FLAG_RXOVERR|SDIO_FLAG_TXUNDERR|SDIO_FLAG_STBITERR|SDIO_FLAG_DATAEND);
         
-        sdio()->DCTRL = 0;
-        
         __SDIO_DMA_ENABLE();
         
         memory_barrier_dma();
         
-        if (data_params.direction == DATA_DIR_READ) {
+        if (data_params.direction == SdioIface::DATA_DIR_READ) {
             HAL_DMA_Start(o->dma_rx, (uint32_t)sdio()->FIFO, (uint32_t)data_params.data_ptr, data_len / 4);
         } else {
             HAL_DMA_Start(o->dma_tx, (uint32_t)data_params.data_ptr, (uint32_t)sdio()->FIFO, data_len / 4);
@@ -260,7 +215,7 @@ public:
         data_init.DataTimeOut   = UINT32_C(0xFFFFFFFF);
         data_init.DataLength    = data_len;
         data_init.DataBlockSize = SDIO_DATABLOCK_SIZE_512B;
-        data_init.TransferDir   = data_params.direction == DATA_DIR_READ ? SDIO_TRANSFER_DIR_TO_SDIO : SDIO_TRANSFER_DIR_TO_CARD;
+        data_init.TransferDir   = data_params.direction == SdioIface::DATA_DIR_READ ? SDIO_TRANSFER_DIR_TO_SDIO : SDIO_TRANSFER_DIR_TO_CARD;
         data_init.TransferMode  = SDIO_TRANSFER_MODE_BLOCK;
         data_init.DPSM          = SDIO_DPSM_ENABLE;
         SDIO_DataConfig(sdio(), &data_init);
@@ -268,6 +223,19 @@ public:
         o->data_state = DATA_STATE_WAIT_COMPL;
         o->data_dir = data_params.direction;
         Context::EventLoop::template triggerFastEvent<DataFastEvent>(c);
+    }
+    
+    static void abortData (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_ON)
+        AMBRO_ASSERT(o->data_state != DATA_STATE_READY)
+        
+        Context::EventLoop::template resetFastEvent<DataFastEvent>(c);
+        sdio()->DCTRL = 0;
+        HAL_DMA_Abort(current_dma(c));
+        o->data_state = DATA_STATE_READY;
     }
     
     using EventLoopFastEvents = MakeTypeList<CmdFastEvent, DataFastEvent>;
@@ -328,7 +296,7 @@ private:
         HAL_DMA_DeInit(&o->dma_rx);
     }
     
-    static void configure_interface (InterfaceParams if_params)
+    static void configure_interface (SdioIface::InterfaceParams if_params)
     {
         SD_InitTypeDef tmpinit = SD_InitTypeDef();
         tmpinit.ClockEdge           = SDIO_CLOCK_EDGE_RISING;
@@ -365,20 +333,20 @@ private:
         AMBRO_ASSERT(o->init_state == INIT_STATE_ON)
         AMBRO_ASSERT(o->cmd_state == CMD_STATE_BUSY)
         
-        CommandResults results = CommandResults();
+        SdioIface::CommandResults results = SdioIface::CommandResults();
         uint32_t status = sdio()->STA;
-        if (o->response_type == RESPONSE_NONE) {
+        if (o->response_type == SdioIface::RESPONSE_NONE) {
             if (!(status & SDIO_FLAG_CMDSENT)) {
                 Context::EventLoop::template triggerFastEvent<CmdFastEvent>(c);
                 return;
             }
         } else {
             if ((status & SDIO_FLAG_CCRCFAIL)) {
-                results.error_code = CMD_ERROR_RESPONSE_CHECKSUM;
+                results.error_code = SdioIface::CMD_ERROR_RESPONSE_CHECKSUM;
                 goto report;
             }
             if ((status & SDIO_FLAG_CTIMEOUT)) {
-                results.error_code = CMD_ERROR_RESPONSE_TIMEOUT;
+                results.error_code = SdioIface::CMD_ERROR_RESPONSE_TIMEOUT;
                 goto report;
             }
             if (!(status & SDIO_FLAG_CMDREND)) {
@@ -386,7 +354,7 @@ private:
                 return;
             }
             if (SDIO_GetCommandResponse(sdio()) != o->cmd_index) {
-                results.error_code = CMD_ERROR_BAD_RESPONSE_CMD;
+                results.error_code = SdioIface::CMD_ERROR_BAD_RESPONSE_CMD;
                 goto report;
             }
             results.response[0] = sdio()->RESP1;
@@ -394,7 +362,7 @@ private:
             results.response[2] = sdio()->RESP3;
             results.response[3] = sdio()->RESP4;
         }
-        results.error_code = CMD_ERROR_NONE;
+        results.error_code = SdioIface::CMD_ERROR_NONE;
     report:
         o->cmd_state = CMD_STATE_READY;
         return CommandHandler::call(c, results);
@@ -413,22 +381,22 @@ private:
             switch (o->data_state) {
                 case DATA_STATE_WAIT_COMPL: {
                     if ((status & SDIO_FLAG_DCRCFAIL)) {
-                        o->data_error = DATA_ERROR_CHECKSUM;
+                        o->data_error = SdioIface::DATA_ERROR_CHECKSUM;
                     }
                     else if ((status & SDIO_FLAG_DTIMEOUT)) {
-                        o->data_error = DATA_ERROR_TIMEOUT;
+                        o->data_error = SdioIface::DATA_ERROR_TIMEOUT;
                     }
                     else if ((status & SDIO_FLAG_RXOVERR)) {
-                        o->data_error = DATA_ERROR_RX_OVERRUN;
+                        o->data_error = SdioIface::DATA_ERROR_RX_OVERRUN;
                     }
                     else if ((status & SDIO_FLAG_TXUNDERR)) {
-                        o->data_error = DATA_ERROR_TX_OVERRUN;
+                        o->data_error = SdioIface::DATA_ERROR_TX_OVERRUN;
                     }
                     else if ((status & SDIO_FLAG_STBITERR)) {
-                        o->data_error = DATA_ERROR_STBITER;
+                        o->data_error = SdioIface::DATA_ERROR_STBITER;
                     }
                     else if ((status & SDIO_FLAG_DATAEND)) {
-                        o->data_error = DATA_ERROR_NONE;
+                        o->data_error = SdioIface::DATA_ERROR_NONE;
                     }
                     else {
                         goto wait_more;
@@ -444,26 +412,28 @@ private:
                 } break;
                 
                 case DATA_STATE_WAIT_DMA: {
-                    DMA_HandleTypeDef *dma = o->data_dir == DATA_DIR_READ ? &o->dma_rx : &o->dma_tx;
-                    if (o->data_error == DATA_ERROR_NONE) {
+                    DMA_HandleTypeDef *dma = current_dma(c);
+                    if (o->data_error == SdioIface::DATA_ERROR_NONE) {
                         HAL_StatusTypeDef dma_status = HAL_DMA_PollForTransfer(dma, HAL_DMA_FULL_TRANSFER, 0);
                         if (dma_status == HAL_TIMEOUT) {
                             goto wait_more;
                         }
                         if (dma_status != HAL_OK) {
-                            o->data_error = DATA_ERROR_DMA;
-                        } else if (o->data_dir == DATA_DIR_READ) {
+                            o->data_error = SdioIface::DATA_ERROR_DMA;
+                        } else if (o->data_dir == SdioIface::DATA_DIR_READ) {
                             memory_barrier_dma();
                         }
                     }
+                    sdio()->DCTRL = 0;
                     HAL_DMA_Abort(dma);
-                    DataResults results = DataResults();
+                    SdioIface::DataResults results = SdioIface::DataResults();
                     results.error_code = o->data_error;
                     o->data_state = DATA_STATE_READY;
                     return DataHandler::call(c, results);
                 } break;
                 
-                default: AMBRO_ASSERT(0);
+                default:
+                    AMBRO_ASSERT(false);
             }
         }
         
@@ -477,6 +447,12 @@ private:
         TheDebugObject::access(c);
         
         //
+    }
+    
+    static DMA_HandleTypeDef * current_dma (Context c)
+    {
+        auto *o = Object::self(c);
+        return o->data_dir == DATA_DIR_READ ? &o->dma_rx : &o->dma_tx;
     }
     
 public:
@@ -497,8 +473,8 @@ public:
 };
 
 struct Stm32f4SdioService {
-    template <typename Context, typename ParentObject, typename CommandHandler, typename DataHandler>
-    using Sdio = Stm32f4Sdio<Context, ParentObject, CommandHandler, DataHandler, Stm32f4SdioService>;
+    template <typename Context, typename ParentObject, typename CommandHandler, typename DataHandler, bool IsWideMode>
+    using Sdio = Stm32f4Sdio<Context, ParentObject, CommandHandler, DataHandler, IsWideMode, Stm32f4SdioService>;
 };
 
 #include <aprinter/EndNamespace.h>
