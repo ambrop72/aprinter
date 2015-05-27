@@ -731,6 +731,18 @@ def use_spi (gen, config, key, user):
     
     return config.do_selection(key, spi_sel)
 
+def use_sdio (gen, config, key, user):
+    sdio_sel = selection.Selection()
+    
+    @sdio_sel.option('Stm32f4Sdio')
+    def option(sdio_config):
+        gen.add_aprinter_include('system/Stm32f4Sdio.h')
+        return TemplateExpr('Stm32f4SdioService', [
+            sdio_config.get_bool('IsWideMode')
+        ])
+    
+    return config.do_selection(key, sdio_sel)
+
 def use_i2c (gen, config, key, user, username):
     i2c_sel = selection.Selection()
     
@@ -850,6 +862,13 @@ def use_sdcard(gen, config, key, user):
         return TemplateExpr('SpiSdCardService', [
             get_pin(gen, spi_sd, 'SsPin'),
             use_spi(gen, spi_sd, 'SpiService', '{}::GetSpi'.format(user)),
+        ])
+    
+    @sd_service_sel.option('SdioSdCard')
+    def option(sdio_sd):
+        gen.add_aprinter_include('devices/SdioSdCard.h')
+        return TemplateExpr('SdioSdCardService', [
+            use_sdio(gen, sdio_sd, 'SdioService', '{}::GetSdio'.format(user)),
         ])
     
     @sd_service_sel.option('Stm32f4SdCard')

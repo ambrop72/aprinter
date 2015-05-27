@@ -61,6 +61,13 @@ def spi_choice(**kwargs):
         ]),
     ], **kwargs)
 
+def sdio_choice(**kwargs):
+    return ce.OneOf(choices=[
+        ce.Compound('Stm32f4Sdio', attrs=[
+            ce.Boolean(key='IsWideMode', title='Data bus width', false_title='1-bit', true_title='4-bit', default=False),
+        ]),
+    ], **kwargs)
+
 def watchdog_at91sam():
     return ce.Compound('At91SamWatchdog', key='watchdog', title='Watchdog', collapsable=True, attrs=[
         ce.Integer(key='Wdv', title='Wdv')
@@ -570,6 +577,9 @@ def editor():
                             ce.Compound('SpiSdCard', title='SPI', attrs=[
                                 pin_choice(key='SsPin', title='SS pin'),
                                 spi_choice(key='SpiService', title='SPI driver')
+                            ]),
+                            ce.Compound('SdioSdCard', title='SDIO', attrs=[
+                                sdio_choice(key='SdioService', title='SDIO driver'),
                             ]),
                             ce.Compound('Stm32f4SdCard', title='STM32F4 SDIO', attrs=[
                                 ce.Integer(key='BusWidth', title='Bus width (1 or 4)'),

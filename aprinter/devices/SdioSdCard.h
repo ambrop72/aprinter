@@ -53,13 +53,14 @@ private:
     enum {
         STATE_INACTIVE, STATE_POWERON, STATE_GO_IDLE, STATE_IF_COND,
         STATE_OP_COND_APP, STATE_OP_COND, STATE_SEND_CID, STATE_RELATIVE_ADDR,
-        STATE_SEND_CSD, STATE_SELECT, STATE_RUNNING
+        STATE_SEND_CSD, STATE_SELECT, STATE_WIDEBUS_APP, STATE_WIDEBUS,
+        STATE_RUNNING
     };
     
     enum {READ_STATE_IDLE, READ_STATE_BUSY};
     
     static TimeType const PowerOnTimeTicks = 0.0015 * Context::Clock::time_freq;
-    static uint16_t const OpCmdAttempts = 255;
+    static uint16_t const OpCmdAttempts = 500;
     
     static const uint8_t CMD_GO_IDLE_STATE = 0;
     static const uint8_t CMD_ALL_SEND_CID = 2;
@@ -69,6 +70,7 @@ private:
     static const uint8_t CMD_SEND_CSD = 9;
     static const uint8_t CMD_READ_SINGLE_BLOCK = 17;
     static const uint8_t CMD_APP_CMD = 55;
+    static const uint8_t ACMD_SET_BUS_WIDTH = 6;
     static const uint8_t ACMD_SD_SEND_OP_COND = 41;
     
     static const uint32_t OCR_CCS = (UINT32_C(1) << 30);
@@ -182,6 +184,8 @@ public:
         // won't be any in the first place in this implementation.
     }
     
+    using GetSdio = TheSdio;
+    
 private:
     using QueueList = DoubleEndedList<ReadState, &ReadState::queue_node>;
     
@@ -245,7 +249,8 @@ private:
                 if (!check_r1_response(results)) {
                     return init_error(c, 4);
                 }
-                TheSdio::startCommand(c, SdioIface::CommandParams{ACMD_SD_SEND_OP_COND, UINT32_C(0x40000000), SdioIface::RESPONSE_SHORT});
+                uint32_t op_cond_arg = UINT32_C(0xC0100000);
+                TheSdio::startCommand(c, SdioIface::CommandParams{ACMD_SD_SEND_OP_COND, op_cond_arg, SdioIface::RESPONSE_SHORT, SdioIface::CMD_FLAG_NO_CRC_CHECK|SdioIface::CMD_FLAG_NO_CMDNUM_CHECK});
                 o->state = STATE_OP_COND;
             } break;
             
@@ -264,7 +269,7 @@ private:
                     return;
                 }
                 o->is_sdhc = ocr & OCR_CCS;
-                TheSdio::startCommand(c, SdioIface::CommandParams{CMD_ALL_SEND_CID, 0, SdioIface::RESPONSE_LONG});
+                TheSdio::startCommand(c, SdioIface::CommandParams{CMD_ALL_SEND_CID, 0, SdioIface::RESPONSE_LONG, SdioIface::CMD_FLAG_NO_CMDNUM_CHECK});
                 o->state = STATE_SEND_CID;
             } break;
             
@@ -285,7 +290,7 @@ private:
                     return init_error(c, 9);
                 }
                 o->rca = response >> 16;
-                TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_CSD, (uint32_t)rca << 16, SdioIface::RESPONSE_LONG});
+                TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_CSD, (uint32_t)o->rca << 16, SdioIface::RESPONSE_LONG, SdioIface::CMD_FLAG_NO_CMDNUM_CHECK});
                 o->state = STATE_SEND_CSD;
             } break;
             
@@ -311,7 +316,7 @@ private:
                 if (o->capacity_blocks == 0) {
                     return init_error(c, 10);
                 }
-                TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SELECT_DESELECT, (uint32_t)rca << 16, SdioIface::RESPONSE_SHORT});
+                TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SELECT_DESELECT, (uint32_t)o->rca << 16, SdioIface::RESPONSE_SHORT});
                 o->state = STATE_SELECT;
             } break;
             
@@ -319,11 +324,29 @@ private:
                 if (!check_r1_response(results)) {
                     return init_error(c, 11);
                 }
-                TheSdio::reconfigureInterface(c, SdioIface::InterfaceParams{true, TheSdio::IsWideMode});
-                o->state = STATE_RUNNING;
-                o->queue_list.init();
-                o->read_state = READ_STATE_IDLE;
-                return InitHandler::call(c, 0);
+                TheSdio::reconfigureInterface(c, SdioIface::InterfaceParams{true, false});
+                if (!TheSdio::IsWideMode) {
+                    return complete_init(c);
+                }
+                // TBD: need to first check if card supports 4-bit?
+                send_app_cmd(c, o->rca);
+                o->state = STATE_WIDEBUS_APP;
+            } break;
+            
+            case STATE_WIDEBUS_APP: {
+                if (!check_r1_response(results)) {
+                    return init_error(c, 12);
+                }
+                TheSdio::startCommand(c, SdioIface::CommandParams{ACMD_SET_BUS_WIDTH, 2, SdioIface::RESPONSE_SHORT});
+                o->state = STATE_WIDEBUS;
+            } break;
+            
+            case STATE_WIDEBUS: {
+                if (!check_r1_response(results)) {
+                    return init_error(c, 13);
+                }
+                TheSdio::reconfigureInterface(c, SdioIface::InterfaceParams{true, true});
+                return complete_init(c);
             } break;
             
             case STATE_RUNNING: {
@@ -375,7 +398,7 @@ private:
         return InitHandler::call(c, error_code);
     }
     
-    static bool check_r1_response (Context c, SdioIface::CommandResults results)
+    static bool check_r1_response (SdioIface::CommandResults results)
     {
         return results.error_code == SdioIface::CMD_ERROR_NONE && (results.response[0] & UINT32_C(0xFDFFE008)) == 0;
     }
@@ -383,6 +406,16 @@ private:
     static void send_app_cmd (Context c, uint16_t rca)
     {
         TheSdio::startCommand(c, SdioIface::CommandParams{CMD_APP_CMD, (uint32_t)rca << 16, SdioIface::RESPONSE_SHORT});
+    }
+    
+    static void complete_init (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        o->state = STATE_RUNNING;
+        o->queue_list.init();
+        o->read_state = READ_STATE_IDLE;
+        return InitHandler::call(c, 0);
     }
     
     static void complete_operation (Context c, bool error)
@@ -440,11 +473,9 @@ public:
 };
 
 template <
-    int TBusWidth,
     typename TSdioService
 >
 struct SdioSdCardService {
-    static int const BusWidth = TBusWidth;
     using SdioService = TSdioService;
     
     template <typename Context, typename ParentObject, int MaxCommands, typename InitHandler, typename CommandHandler>

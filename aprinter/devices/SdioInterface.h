@@ -31,21 +31,27 @@
 #include <aprinter/BeginNamespace.h>
 
 namespace SdioIface {
+    struct InterfaceParams {
+        bool clock_full_speed;
+        bool wide_data_bus;
+    };
+    
     enum ResponseType {
         RESPONSE_NONE,
         RESPONSE_SHORT,
         RESPONSE_LONG
     };
     
-    struct InterfaceParams {
-        bool clock_full_speed;
-        bool wide_data_bus;
+    enum {
+        CMD_FLAG_NO_CRC_CHECK = 1 << 0,
+        CMD_FLAG_NO_CMDNUM_CHECK = 1 << 1
     };
     
     struct CommandParams {
         uint8_t cmd_index;
         uint32_t argument;
         ResponseType response_type;
+        uint8_t flags;
     };
     
     enum CommandErrorCode {
