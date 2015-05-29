@@ -581,9 +581,6 @@ def editor():
                             ce.Compound('SdioSdCard', title='SDIO', attrs=[
                                 sdio_choice(key='SdioService', title='SDIO driver'),
                             ]),
-                            ce.Compound('Stm32f4SdCard', title='STM32F4 SDIO', attrs=[
-                                ce.Integer(key='BusWidth', title='Bus width (1 or 4)'),
-                            ]),
                         ])
                     ])
                 ]),

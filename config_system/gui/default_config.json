@@ -2523,9 +2523,9 @@
       },
       "serial": {
         "BaudRate": 115200,
-        "GcodeMaxParts": 16,
-        "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 9,
+        "GcodeMaxParts": 32,
+        "RecvBufferSizeExp": 9,
+        "SendBufferSizeExp": 10,
         "Service": {
           "_compoundName": "Stm32f4UsbSerial"
         },
@@ -2758,14 +2758,32 @@
       "sdcard_config": {
         "_compoundName": "SdCardConfig",
         "sdcard": {
-          "_compoundName": "NoSdCard"
+          "BufferBaseSize": 2048,
+          "FsType": {
+            "CaseInsensFileName": true,
+            "MaxFileNameSize": 256,
+            "_compoundName": "Fat32"
+          },
+          "GcodeParser": {
+            "MaxParts": 32,
+            "_compoundName": "TextGcodeParser"
+          },
+          "MaxCommandSize": 256,
+          "SdCardService": {
+            "SdioService": {
+              "IsWideMode": true,
+              "_compoundName": "Stm32f4Sdio"
+            },
+            "_compoundName": "SdioSdCard"
+          },
+          "_compoundName": "SdCard"
         }
       },
       "serial": {
         "BaudRate": 115200,
-        "GcodeMaxParts": 16,
-        "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 9,
+        "GcodeMaxParts": 32,
+        "RecvBufferSizeExp": 9,
+        "SendBufferSizeExp": 10,
         "Service": {
           "_compoundName": "Stm32f4UsbSerial"
         },
