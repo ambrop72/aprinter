@@ -38,7 +38,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, int MaxCommands, typename InitHandler, typename CommandHandler, typename Params>
+template <typename Context, typename ParentObject, typename InitHandler, typename CommandHandler, typename Params>
 class SpiSdCard {
 public:
     struct Object;
@@ -46,7 +46,7 @@ public:
 private:
     struct SpiHandler;
     
-    static const int SpiMaxCommands = MaxValue(6, 6 * MaxCommands);
+    static const int SpiMaxCommands = 6;
     static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     using TheDebugObject = DebugObject<Context, Object>;
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
@@ -364,8 +364,8 @@ struct SpiSdCardService {
     using SsPin = TSsPin;
     using SpiService = TSpiService;
     
-    template <typename Context, typename ParentObject, int MaxCommands, typename InitHandler, typename CommandHandler>
-    using SdCard = SpiSdCard<Context, ParentObject, MaxCommands, InitHandler, CommandHandler, SpiSdCardService>;
+    template <typename Context, typename ParentObject, typename InitHandler, typename CommandHandler>
+    using SdCard = SpiSdCard<Context, ParentObject, InitHandler, CommandHandler, SpiSdCardService>;
 };
 
 #include <aprinter/EndNamespace.h>

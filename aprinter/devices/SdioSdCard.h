@@ -38,7 +38,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, int MaxCommands, typename InitHandler, typename CommandHandler, typename Params>
+template <typename Context, typename ParentObject, typename InitHandler, typename CommandHandler, typename Params>
 class SdioSdCard {
 public:
     struct Object;
@@ -417,8 +417,8 @@ template <
 struct SdioSdCardService {
     using SdioService = TSdioService;
     
-    template <typename Context, typename ParentObject, int MaxCommands, typename InitHandler, typename CommandHandler>
-    using SdCard = SdioSdCard<Context, ParentObject, MaxCommands, InitHandler, CommandHandler, SdioSdCardService>;
+    template <typename Context, typename ParentObject, typename InitHandler, typename CommandHandler>
+    using SdCard = SdioSdCard<Context, ParentObject, InitHandler, CommandHandler, SdioSdCardService>;
 };
 
 #include <aprinter/EndNamespace.h>
