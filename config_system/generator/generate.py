@@ -738,7 +738,8 @@ def use_sdio (gen, config, key, user):
     def option(sdio_config):
         gen.add_aprinter_include('system/Stm32f4Sdio.h')
         return TemplateExpr('Stm32f4SdioService', [
-            sdio_config.get_bool('IsWideMode')
+            sdio_config.get_bool('IsWideMode'),
+            sdio_config.get_int('DataTimeoutBusClocks'),
         ])
     
     return config.do_selection(key, sdio_sel)

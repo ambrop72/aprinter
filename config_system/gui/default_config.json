@@ -2771,6 +2771,7 @@
           "MaxCommandSize": 256,
           "SdCardService": {
             "SdioService": {
+              "DataTimeoutBusClocks": 536870912,
               "IsWideMode": true,
               "_compoundName": "Stm32f4Sdio"
             },

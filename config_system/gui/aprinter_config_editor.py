@@ -65,6 +65,7 @@ def sdio_choice(**kwargs):
     return ce.OneOf(choices=[
         ce.Compound('Stm32f4Sdio', attrs=[
             ce.Boolean(key='IsWideMode', title='Data bus width', false_title='1-bit', true_title='4-bit', default=False),
+            ce.Integer(key='DataTimeoutBusClocks', title='Data timeout (in SDIO bus clocks)', default=0x20000000),
         ]),
     ], **kwargs)
 

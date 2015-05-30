@@ -25,6 +25,7 @@
 #ifndef APRINTER_SDIO_SDCARD_H
 #define APRINTER_SDIO_SDCARD_H
 
+#include <stddef.h>
 #include <stdint.h>
 
 #include <aprinter/base/Object.h>
@@ -60,7 +61,9 @@ private:
     enum {READ_STATE_IDLE, READ_STATE_BUSY};
     
     static TimeType const PowerOnTimeTicks = 0.0015 * Context::Clock::time_freq;
-    static uint16_t const OpCmdAttempts = 500;
+    static TimeType const InitTimeoutTicks = 1.2 * Context::Clock::time_freq;
+    static uint32_t const IfCondArgumentResponse = UINT32_C(0x1AA);
+    static uint32_t const OpCondArgument = UINT32_C(0x40100000);
     
     static const uint8_t CMD_GO_IDLE_STATE = 0;
     static const uint8_t CMD_ALL_SEND_CID = 2;
@@ -229,7 +232,7 @@ private:
                 if (results.error_code != SdioIface::CMD_ERROR_NONE) {
                     return init_error(c, 1);
                 }
-                TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_IF_COND, UINT32_C(0x1AA), SdioIface::RESPONSE_SHORT});
+                TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_IF_COND, IfCondArgumentResponse, SdioIface::RESPONSE_SHORT});
                 o->state = STATE_IF_COND;
             } break;
             
@@ -237,20 +240,19 @@ private:
                 if (results.error_code != SdioIface::CMD_ERROR_NONE) {
                     return init_error(c, 2);
                 }
-                if (results.response[0] != UINT32_C(0x1AA)) {
+                if (results.response[0] != IfCondArgumentResponse) {
                     return init_error(c, 3);
                 }
                 send_app_cmd(c, 0);
                 o->state = STATE_OP_COND_APP;
-                o->op_cmd_attempts_left = OpCmdAttempts;
+                o->card_init_deadline = Context::Clock::getTime(c) + InitTimeoutTicks;
             } break;
             
             case STATE_OP_COND_APP: {
                 if (!check_r1_response(results)) {
                     return init_error(c, 4);
                 }
-                uint32_t op_cond_arg = UINT32_C(0xC0100000);
-                TheSdio::startCommand(c, SdioIface::CommandParams{ACMD_SD_SEND_OP_COND, op_cond_arg, SdioIface::RESPONSE_SHORT, SdioIface::CMD_FLAG_NO_CRC_CHECK|SdioIface::CMD_FLAG_NO_CMDNUM_CHECK});
+                TheSdio::startCommand(c, SdioIface::CommandParams{ACMD_SD_SEND_OP_COND, OpCondArgument, SdioIface::RESPONSE_SHORT, SdioIface::CMD_FLAG_NO_CRC_CHECK|SdioIface::CMD_FLAG_NO_CMDNUM_CHECK});
                 o->state = STATE_OP_COND;
             } break;
             
@@ -260,12 +262,11 @@ private:
                 }
                 uint32_t ocr = results.response[0];
                 if (!(ocr & OCR_CPUS)) {
-                    if (o->op_cmd_attempts_left <= 1) {
+                    if ((uint32_t)(Context::Clock::getTime(c) - o->card_init_deadline) < UINT32_C(0x80000000)) {
                         return init_error(c, 6);
                     }
                     send_app_cmd(c, 0);
                     o->state = STATE_OP_COND_APP;
-                    o->op_cmd_attempts_left--;
                     return;
                 }
                 o->is_sdhc = ocr & OCR_CCS;
@@ -286,10 +287,11 @@ private:
                     return init_error(c, 8);
                 }
                 uint32_t response = results.response[0];
-                if ((response & UINT32_C(0xE008)) != 0) {
+                if ((response & UINT32_C(0xE000))) {
                     return init_error(c, 9);
                 }
                 o->rca = response >> 16;
+                TheSdio::reconfigureInterface(c, SdioIface::InterfaceParams{true, false});
                 TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_CSD, (uint32_t)o->rca << 16, SdioIface::RESPONSE_LONG, SdioIface::CMD_FLAG_NO_CMDNUM_CHECK});
                 o->state = STATE_SEND_CSD;
             } break;
@@ -324,11 +326,9 @@ private:
                 if (!check_r1_response(results)) {
                     return init_error(c, 11);
                 }
-                TheSdio::reconfigureInterface(c, SdioIface::InterfaceParams{true, false});
                 if (!TheSdio::IsWideMode) {
                     return complete_init(c);
                 }
-                // TBD: need to first check if card supports 4-bit?
                 send_app_cmd(c, o->rca);
                 o->state = STATE_WIDEBUS_APP;
             } break;
@@ -400,7 +400,7 @@ private:
     
     static bool check_r1_response (SdioIface::CommandResults results)
     {
-        return results.error_code == SdioIface::CMD_ERROR_NONE && (results.response[0] & UINT32_C(0xFDFFE008)) == 0;
+        return results.error_code == SdioIface::CMD_ERROR_NONE && !(results.response[0] & UINT32_C(0xFDFFE008));
     }
     
     static void send_app_cmd (Context c, uint16_t rca)
@@ -459,7 +459,7 @@ public:
     >> {
         typename Context::EventLoop::QueuedEvent timer;
         uint8_t state;
-        uint16_t op_cmd_attempts_left;
+        TimeType card_init_deadline;
         bool is_sdhc;
         uint16_t rca;
         uint32_t capacity_blocks;
