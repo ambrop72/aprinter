@@ -137,8 +137,7 @@ public:
         AMBRO_ASSERT(buf_avail >= BlockSize)
         AMBRO_ASSERT(buf.wrap > 0)
         
-        size_t effective_wrap = MinValue(BlockSize, buf.wrap);
-        TheSdCard::queueReadBlock(c, o->block, (uint8_t *)buf.ptr1, effective_wrap, (uint8_t *)buf.ptr2, &o->read_state);
+        TheSdCard::startReadBlock(c, o->block, buf);
         o->state = STATE_READING;
     }
     
@@ -166,17 +165,12 @@ private:
     }
     struct SdCardInitHandler : public AMBRO_WFUNC_TD(&SdCardInput::sd_card_init_handler) {};
     
-    static void sd_card_command_handler (Context c)
+    static void sd_card_command_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_READING)
         
-        bool error;
-        if (!TheSdCard::checkReadBlock(c, &o->read_state, &error)) {
-            return;
-        }
-        TheSdCard::unsetEvent(c);
         o->state = STATE_READY;
         size_t bytes = 0;
         if (!error) {
@@ -193,7 +187,6 @@ public:
     >> {
         uint8_t state;
         uint32_t block;
-        typename TheSdCard::ReadState read_state;
     };
 };
 

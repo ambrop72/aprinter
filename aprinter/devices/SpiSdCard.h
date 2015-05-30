@@ -34,6 +34,7 @@
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/WrapBuffer.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -49,17 +50,10 @@ private:
     static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     using TheDebugObject = DebugObject<Context, Object>;
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
-    using SpiCommandSizeType = typename TheSpi::CommandSizeType;
     
 public:
     using BlockIndexType = uint32_t;
     static size_t const BlockSize = 512;
-    
-    class ReadState {
-        friend SpiSdCard;
-        uint8_t buf[6];
-        SpiCommandSizeType spi_end_index;
-    };
     
     static void init (Context c)
     {
@@ -113,46 +107,24 @@ public:
         return o->m_capacity_blocks;
     }
     
-    static void queueReadBlock (Context c, BlockIndexType block, uint8_t *data1, size_t data1_len, uint8_t *data2, ReadState *state)
+    static void startReadBlock (Context c, BlockIndexType block, WrapBuffer buffer)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
+        AMBRO_ASSERT(o->m_io_state == IO_STATE_IDLE)
         AMBRO_ASSERT(block < o->m_capacity_blocks)
-        AMBRO_ASSERT(data1_len > 0)
-        AMBRO_ASSERT(data1_len <= 512)
         
         uint32_t addr = o->m_sdhc ? block : (block * 512);
-        sd_command(c, CMD_READ_SINGLE_BLOCK, addr, true, state->buf, state->buf);
-        TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, state->buf + 1);
-        TheSpi::cmdReadBuffer(c, data1, data1_len, 0xff);
-        if (data1_len < 512) {
-            TheSpi::cmdReadBuffer(c, data2, 512 - data1_len, 0xff);
+        sd_command(c, CMD_READ_SINGLE_BLOCK, addr, true, o->m_io_buf, o->m_io_buf);
+        size_t first_part_length = MinValue(buffer.wrap, BlockSize);
+        TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, o->m_io_buf + 1);
+        TheSpi::cmdReadBuffer(c, (uint8_t *)buffer.ptr1, first_part_length, 0xff);
+        if (first_part_length < BlockSize) {
+            TheSpi::cmdReadBuffer(c, (uint8_t *)buffer.ptr2, BlockSize - first_part_length, 0xff);
         }
         TheSpi::cmdWriteByte(c, 0xff, 2 - 1);
-        state->spi_end_index = TheSpi::getEndIndex(c);
-    }
-    
-    static bool checkReadBlock (Context c, ReadState *state, bool *out_error)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_RUNNING)
-        
-        if (!TheSpi::indexReached(c, state->spi_end_index)) {
-            return false;
-        }
-        *out_error = (state->buf[0] != 0 || state->buf[1] != 0xfe);
-        return true;
-    }
-    
-    static void unsetEvent (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_RUNNING)
-        
-        TheSpi::unsetEvent(c);
+        o->m_io_state = IO_STATE_READING;
     }
     
     using GetSpi = TheSpi;
@@ -172,6 +144,8 @@ private:
         STATE_INIT8,
         STATE_RUNNING
     };
+    
+    enum {IO_STATE_IDLE, IO_STATE_READING};
     
     static const uint8_t CMD_GO_IDLE_STATE = 0;
     static const uint8_t CMD_SEND_IF_COND = 8;
@@ -233,12 +207,10 @@ private:
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state != STATE_INACTIVE)
         
-        if (AMBRO_LIKELY(o->m_state == STATE_RUNNING)) {
-            return CommandHandler::call(c);
-        }
         if (!TheSpi::endReached(c)) {
             return;
         }
+        TheSpi::unsetEvent(c);
         switch (o->m_state) {
             case STATE_INIT1: {
                 Context::Pins::template set<SsPin>(c, false);
@@ -331,7 +303,14 @@ private:
                     return error(c, 9);
                 }
                 o->m_state = STATE_RUNNING;
+                o->m_io_state = IO_STATE_IDLE;
                 return InitHandler::call(c, 0);
+            } break;
+            case STATE_RUNNING: {
+                AMBRO_ASSERT(o->m_io_state == IO_STATE_READING)
+                o->m_io_state = IO_STATE_IDLE;
+                bool error = (o->m_io_buf[0] != 0 || o->m_io_buf[1] != 0xfe);
+                return CommandHandler::call(c, error);
             } break;
         }
     }
@@ -368,7 +347,11 @@ public:
                 uint8_t m_buf1[6];
                 uint8_t m_buf2[6];
             };
-            uint32_t m_capacity_blocks;
+            struct {
+                uint32_t m_capacity_blocks;
+                uint8_t m_io_state;
+                uint8_t m_io_buf[6];
+            };
         };
     };
 };

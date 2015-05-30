@@ -182,18 +182,13 @@ private:
     }
     struct SdInitHandler : public AMBRO_WFUNC_TD(&BlockAccess::sd_init_handler) {};
     
-    static void sd_command_handler (Context c)
+    static void sd_command_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_BUSY)
         AMBRO_ASSERT(!o->queue.isEmpty())
         
-        bool error;
-        if (!TheSd::checkReadBlock(c, &o->read_state, &error)) {
-            return;
-        }
-        TheSd::unsetEvent(c);
         User *user = o->queue.first();
         AMBRO_ASSERT(!QueueList::isRemoved(user))
         o->queue.removeFirst();
@@ -223,8 +218,7 @@ private:
         User *user = o->queue.first();
         if (user) {
             AMBRO_ASSERT(!QueueList::isRemoved(user))
-            size_t effective_wrap = MinValue(BlockSize, user->m_buf.wrap);
-            TheSd::queueReadBlock(c, user->m_block_idx, (uint8_t *)user->m_buf.ptr1, effective_wrap, (uint8_t *)user->m_buf.ptr2, &o->read_state);
+            TheSd::startReadBlock(c, user->m_block_idx, user->m_buf);
             o->state = STATE_BUSY;
         }
     }
@@ -235,7 +229,6 @@ public:
         TheSd
     >> {
         uint8_t state;
-        typename TheSd::ReadState read_state;
         QueueList queue;
     };
 };

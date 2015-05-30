@@ -34,7 +34,6 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
-#include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/devices/SdioInterface.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -58,7 +57,7 @@ private:
         STATE_RUNNING
     };
     
-    enum {READ_STATE_IDLE, READ_STATE_BUSY};
+    enum {IO_STATE_IDLE, IO_STATE_READING};
     
     static TimeType const PowerOnTimeTicks = 0.0015 * Context::Clock::time_freq;
     static TimeType const InitTimeoutTicks = 1.2 * Context::Clock::time_freq;
@@ -82,16 +81,6 @@ private:
 public:
     using BlockIndexType = uint32_t;
     static size_t const BlockSize = TheSdio::BlockSize;
-    
-    class ReadState {
-        friend SdioSdCard;
-        
-        DoubleEndedListNode<ReadState> queue_node;
-        BlockIndexType block;
-        WrapBuffer buf;
-        bool completed;
-        bool error;
-    };
     
     static void init (Context c)
     {
@@ -146,80 +135,36 @@ public:
         return o->capacity_blocks;
     }
     
-    static void queueReadBlock (Context c, BlockIndexType block, uint8_t *data1, size_t wrap, uint8_t *data2, ReadState *state)
+    static void startReadBlock (Context c, BlockIndexType block, WrapBuffer buffer)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_RUNNING)
+        AMBRO_ASSERT(o->io_state == IO_STATE_IDLE)
         AMBRO_ASSERT(block < o->capacity_blocks)
         
-        state->block = block;
-        state->buf = WrapBuffer::Make(wrap, (char *)data1, (char *)data2);
-        state->completed = false;
-        o->queue_list.append(state);
+        uint32_t addr = o->is_sdhc ? block : (block * 512);
+        TheSdio::startData(c, SdioIface::DataParams{SdioIface::DATA_DIR_READ, 1, o->buffer});
+        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_READ_SINGLE_BLOCK, addr, SdioIface::RESPONSE_SHORT});
         
-        if (!o->timer.isSet(c)) {
-            o->timer.prependNowNotAlready(c);
-        }
-    }
-    
-    static bool checkReadBlock (Context c, ReadState *state, bool *out_error)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_RUNNING)
-        
-        if (!state->completed) {
-            return false;
-        }
-        *out_error = state->error;
-        return true;
-    }
-    
-    static void unsetEvent (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_RUNNING)
-        
-        // Nothing. This is meant to cancel any stray callbacks
-        // when the user has completed all operations, but there
-        // won't be any in the first place in this implementation.
+        o->io_state = IO_STATE_READING;
+        o->io_buffer = buffer;
+        o->cmd_finished = false;
+        o->data_finished = false;
     }
     
     using GetSdio = TheSdio;
     
 private:
-    using QueueList = DoubleEndedList<ReadState, &ReadState::queue_node>;
-    
     static void timer_handler (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
+        AMBRO_ASSERT(o->state == STATE_POWERON)
         
-        switch (o->state) {
-            case STATE_POWERON: {
-                TheSdio::completePowerOn(c);
-                TheSdio::startCommand(c, SdioIface::CommandParams{CMD_GO_IDLE_STATE, 0, SdioIface::RESPONSE_NONE});
-                o->state = STATE_GO_IDLE;
-            } break;
-            
-            case STATE_RUNNING: {
-                if (!o->queue_list.isEmpty() && o->read_state == READ_STATE_IDLE) {
-                    ReadState *entry = o->queue_list.first();
-                    AMBRO_ASSERT(!entry->completed)
-                    uint32_t addr = o->is_sdhc ? entry->block : (entry->block * 512);
-                    TheSdio::startData(c, SdioIface::DataParams{SdioIface::DATA_DIR_READ, 1, o->buffer});
-                    TheSdio::startCommand(c, SdioIface::CommandParams{CMD_READ_SINGLE_BLOCK, addr, SdioIface::RESPONSE_SHORT});
-                    o->read_state = READ_STATE_BUSY;
-                    o->cmd_finished = false;
-                    o->data_finished = false;
-                }
-            } break;
-            
-            default:
-                AMBRO_ASSERT(false);
-        }
+        TheSdio::completePowerOn(c);
+        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_GO_IDLE_STATE, 0, SdioIface::RESPONSE_NONE});
+        o->state = STATE_GO_IDLE;
     }
     
     static void sdio_command_handler (Context c, SdioIface::CommandResults results)
@@ -350,7 +295,7 @@ private:
             } break;
             
             case STATE_RUNNING: {
-                AMBRO_ASSERT(o->read_state == READ_STATE_BUSY)
+                AMBRO_ASSERT(o->io_state == IO_STATE_READING)
                 AMBRO_ASSERT(!o->cmd_finished)
                 
                 if (!check_r1_response(results)) {
@@ -374,11 +319,12 @@ private:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_RUNNING)
-        AMBRO_ASSERT(o->read_state == READ_STATE_BUSY)
+        AMBRO_ASSERT(o->io_state == IO_STATE_READING)
         AMBRO_ASSERT(!o->data_finished)
         
         o->data_finished = true;
         o->data_error = results.error_code;
+        
         return check_operation_complete(c);
     }
     struct SdioDataHandler : public AMBRO_WFUNC_TD(&SdioSdCard::sdio_data_handler) {};
@@ -389,12 +335,14 @@ private:
         
         o->timer.unset(c);
         TheSdio::reset(c);
+        
         o->state = STATE_INACTIVE;
     }
     
     static void init_error (Context c, uint8_t error_code)
     {
         deactivate_common(c);
+        
         return InitHandler::call(c, error_code);
     }
     
@@ -413,8 +361,8 @@ private:
         auto *o = Object::self(c);
         
         o->state = STATE_RUNNING;
-        o->queue_list.init();
-        o->read_state = READ_STATE_IDLE;
+        o->io_state = IO_STATE_IDLE;
+        
         return InitHandler::call(c, 0);
     }
     
@@ -422,24 +370,15 @@ private:
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == STATE_RUNNING)
-        AMBRO_ASSERT(o->read_state == READ_STATE_BUSY)
+        AMBRO_ASSERT(o->io_state == IO_STATE_READING)
         
-        ReadState *entry = o->queue_list.first();
-        AMBRO_ASSERT(!entry->completed)
+        o->io_state = IO_STATE_IDLE;
         
-        o->queue_list.removeFirst();
-        o->read_state = READ_STATE_IDLE;
-        if (!o->timer.isSet(c)) {
-            o->timer.prependNowNotAlready(c);
-        }
-        
-        entry->completed = true;
-        entry->error = error;
         if (!error) {
-            entry->buf.copyIn(0, BlockSize, (char const *)o->buffer);
+            o->io_buffer.copyIn(0, BlockSize, (char const *)o->buffer);
         }
         
-        return CommandHandler::call(c);
+        return CommandHandler::call(c, error);
     }
     
     static void check_operation_complete (Context c)
@@ -463,8 +402,8 @@ public:
         bool is_sdhc;
         uint16_t rca;
         uint32_t capacity_blocks;
-        QueueList queue_list;
-        uint8_t read_state;
+        uint8_t io_state;
+        WrapBuffer io_buffer;
         bool cmd_finished;
         bool data_finished;
         SdioIface::DataErrorCode data_error;
