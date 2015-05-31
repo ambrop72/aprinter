@@ -421,33 +421,33 @@ private:
                 goto error;
             }
             
-            uint16_t sector_size =         ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0xB);
-            uint8_t sectors_per_cluster =  ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0xD);
-            o->u.fs.num_reserved_sectors = ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0xE);
-            uint8_t num_fats =             ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x10);
-            uint16_t max_root =            ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0x11);
-            uint32_t sectors_per_fat =     ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x24);
-            uint32_t root_cluster =        ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x2C);
-            uint8_t sig =                  ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x42);
+            uint16_t sector_size =          ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0xB);
+            uint8_t sectors_per_cluster =   ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0xD);
+            uint16_t num_reserved_sectors = ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0xE);
+            o->u.fs.num_fats =              ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x10);
+            uint16_t max_root =             ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0x11);
+            uint32_t sectors_per_fat =      ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x24);
+            uint32_t root_cluster =         ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x2C);
+            uint8_t sig =                   ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x42);
             
             if (sector_size == 0 || sector_size % BlockSize != 0) {
                 error_code = 22;
                 goto error;
             }
-            o->u.fs.blocks_per_sector = sector_size / BlockSize;
+            uint16_t blocks_per_sector = sector_size / BlockSize;
             
-            if (sectors_per_cluster > UINT16_MAX / o->u.fs.blocks_per_sector) {
+            if (sectors_per_cluster > UINT16_MAX / blocks_per_sector) {
                 error_code = 23;
                 goto error;
             }
-            o->u.fs.blocks_per_cluster = o->u.fs.blocks_per_sector * sectors_per_cluster;
+            o->u.fs.blocks_per_cluster = blocks_per_sector * sectors_per_cluster;
             
-            if ((uint32_t)o->u.fs.num_reserved_sectors * sector_size < 0x47) {
+            if ((uint32_t)num_reserved_sectors * sector_size < 0x47) {
                 error_code = 24;
                 goto error;
             }
             
-            if (num_fats != 1 && num_fats != 2) {
+            if (o->u.fs.num_fats != 1 && o->u.fs.num_fats != 2) {
                 error_code = 25;
                 goto error;
             }
@@ -475,12 +475,13 @@ private:
             }
             o->u.fs.num_fat_entries = (ClusterIndexType)sectors_per_fat * entries_per_sector;
             
-            uint64_t fat_end_sectors_calc = (uint64_t)o->u.fs.num_reserved_sectors + (uint64_t)num_fats * sectors_per_fat;
-            if (fat_end_sectors_calc > get_capacity_sectors(c)) {
+            uint64_t fat_end_sectors_calc = (uint64_t)num_reserved_sectors + (uint64_t)o->u.fs.num_fats * sectors_per_fat;
+            if (fat_end_sectors_calc > o->block_range.getLength() / blocks_per_sector) {
                 error_code = 29;
                 goto error;
             }
-            o->u.fs.fat_end_sectors = fat_end_sectors_calc;
+            o->u.fs.num_reserved_blocks = (BlockIndexType)num_reserved_sectors * blocks_per_sector;
+            o->u.fs.fat_end_blocks = fat_end_sectors_calc * blocks_per_sector;
             
             error_code = 0;
         } while (0);
@@ -488,12 +489,6 @@ private:
     error:
         o->state = error_code ? FS_STATE_FAILED : FS_STATE_READY;
         return InitHandler::call(c, error_code);
-    }
-    
-    static SectorIndexType get_capacity_sectors (Context c)
-    {
-        auto *o = Object::self(c);
-        return o->block_range.getLength() / o->u.fs.blocks_per_sector;
     }
     
     static ClusterIndexType mask_cluster_entry (uint32_t entry_value)
@@ -512,13 +507,11 @@ private:
         AMBRO_ASSERT(is_cluster_idx_valid(cluster_idx))
         AMBRO_ASSERT(cluster_block_idx < o->u.fs.blocks_per_cluster)
         
-        uint8_t sectors_per_cluster = o->u.fs.blocks_per_cluster / o->u.fs.blocks_per_sector;
-        uint64_t sectors_after_fat_end = (uint64_t)(cluster_idx - 2) * sectors_per_cluster;
-        if (sectors_after_fat_end >= get_capacity_sectors(c) - o->u.fs.fat_end_sectors) {
+        uint64_t blocks_after_fat_end = (uint64_t)(cluster_idx - 2) * o->u.fs.blocks_per_cluster + cluster_block_idx;
+        if (blocks_after_fat_end >= o->block_range.getLength() - o->u.fs.fat_end_blocks) {
             return false;
         }
-        SectorIndexType sector_idx = o->u.fs.fat_end_sectors + (SectorIndexType)sectors_after_fat_end;
-        *out_block_idx = (BlockIndexType)sector_idx * o->u.fs.blocks_per_sector + cluster_block_idx;
+        *out_block_idx = o->u.fs.fat_end_blocks + blocks_after_fat_end;
         return true;
     }
     
@@ -530,7 +523,7 @@ private:
         if (cluster_idx >= o->u.fs.num_fat_entries) {
             return false;
         }
-        *out_block_idx = ((BlockIndexType)o->u.fs.num_reserved_sectors * o->u.fs.blocks_per_sector) + (cluster_idx / FatEntriesPerBlock);
+        *out_block_idx = o->u.fs.num_reserved_blocks + (cluster_idx / FatEntriesPerBlock);
         return true;
     }
     
@@ -690,12 +683,12 @@ public:
                 BlockAccessUser block_user;
             } init;
             struct {
-                uint16_t num_reserved_sectors;
+                uint8_t num_fats;
                 ClusterIndexType root_cluster;
-                uint16_t blocks_per_sector;
                 ClusterBlockIndexType blocks_per_cluster;
                 ClusterIndexType num_fat_entries;
-                SectorIndexType fat_end_sectors;
+                BlockIndexType num_reserved_blocks;
+                BlockIndexType fat_end_blocks;
             } fs;
         } u;
     };
