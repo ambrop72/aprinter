@@ -1052,12 +1052,19 @@ def generate(config_root_data, cfg_name, main_template):
                         max_filename_size = fs_config.get_int('MaxFileNameSize')
                         if not (12 <= max_filename_size <= 1024):
                             fs_config.key_path('MaxFileNameSize').error('Bad value.')
+                        
+                        num_cache_entries = fs_config.get_int('NumCacheEntries')
+                        if not (2 <= num_cache_entries <= 64):
+                            fs_config.key_path('NumCacheEntries').error('Bad value.')
+                        
                         gen.add_aprinter_include('printer/input/SdFatInput.h')
                         gen.add_aprinter_include('devices/FatFs.h')
+                        
                         return TemplateExpr('SdFatInputService', [
                             use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetInput<>::GetSdCard'),
                             TemplateExpr('FatFsService', [
                                 max_filename_size,
+                                num_cache_entries,
                             ]),
                             fs_config.get_bool_constant('CaseInsensFileName'),
                         ])

@@ -561,6 +561,7 @@ def editor():
                             ce.Compound('Raw', title='None (raw data on device)', attrs=[]),
                             ce.Compound('Fat32', title='FAT32', attrs=[
                                 ce.Integer(key='MaxFileNameSize', title='Maximum filename size', default=32),
+                                ce.Integer(key='NumCacheEntries', title='Block cache size (in blocks)', default=2),
                                 ce.Boolean(key='CaseInsensFileName', title='Case-insensitive filename matching', default=True),
                             ]),
                         ]),
