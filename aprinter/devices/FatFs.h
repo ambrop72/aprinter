@@ -542,7 +542,7 @@ private:
         return true;
     }
     
-    static bool get_fat_entry_block_idx (Context c, ClusterIndexType cluster_idx, BlockIndexType *out_block_idx)
+    static bool get_fat_entry_block_idx (Context c, ClusterIndexType cluster_idx, BlockIndexType *out_block_idx, size_t *out_block_offset)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(is_cluster_idx_valid(cluster_idx))
@@ -551,6 +551,7 @@ private:
             return false;
         }
         *out_block_idx = o->u.fs.num_reserved_blocks + (cluster_idx / FatEntriesPerBlock);
+        *out_block_offset = (size_t)4 * (cluster_idx % FatEntriesPerBlock);
         return true;
     }
     
@@ -684,7 +685,7 @@ private:
             AMBRO_ASSERT(m_state == State::NEXT_CLUSTER)
             AMBRO_ASSERT(m_block_in_cluster == o->u.fs.blocks_per_cluster)
              
-            if (error || !m_chain.haveCurrentCluster(c)) {
+            if (error || m_chain.endReached(c)) {
                 return complete_request(c, error ? BASEREAD_STATUS_ERR : BASEREAD_STATUS_EOF);
             }
             
@@ -733,11 +734,12 @@ private:
         {
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&ClusterChain::event_handler, this));
             m_fat_cache_ref.init(c, APRINTER_CB_OBJFUNC_T(&ClusterChain::fat_cache_ref_handler, this));
+            
             m_handler = handler;
             m_state = State::IDLE;
             m_first_cluster = first_cluster;
-            m_current_cluster = m_first_cluster;
-            m_current_cluster_reported = false;
+            
+            rewind_internal(c);
         }
         
         void deinit (Context c)
@@ -755,29 +757,29 @@ private:
         {
             AMBRO_ASSERT(m_state == State::IDLE)
             
-            m_current_cluster = m_first_cluster;
-            m_current_cluster_reported = false;
+            rewind_internal(c);
         }
         
         void requestNext (Context c)
         {
             AMBRO_ASSERT(m_state == State::IDLE)
+            AMBRO_ASSERT(m_iter_state != IterState::END)
             
             m_state = State::REQUEST_NEXT_CHECK;
             m_event.prependNowNotAlready(c);
         }
         
-        bool haveCurrentCluster (Context c)
+        bool endReached (Context c)
         {
             AMBRO_ASSERT(m_state == State::IDLE)
             
-            return m_current_cluster_reported && is_cluster_idx_valid(m_current_cluster);
+            return (m_iter_state == IterState::END);
         }
         
         ClusterIndexType getCurrentCluster (Context c)
         {
             AMBRO_ASSERT(m_state == State::IDLE)
-            AMBRO_ASSERT(haveCurrentCluster(c))
+            AMBRO_ASSERT(m_iter_state == IterState::CLUSTER)
             
             return m_current_cluster;
         }
@@ -785,13 +787,31 @@ private:
     private:
         enum class State : uint8_t {IDLE, REQUEST_NEXT_CHECK, READING_FAT_FOR_NEXT};
         
+        enum class IterState : uint8_t {START, CLUSTER, END};
+        
+        void rewind_internal (Context c)
+        {
+            m_iter_state = IterState::START;
+            m_current_cluster = m_first_cluster;
+            m_prev_cluster = 0;
+        }
+        
+        void complete_request (Context c, bool error)
+        {
+            m_state = State::IDLE;
+            return m_handler(c, error);
+        }
+        
         void event_handler (Context c)
         {
             switch (m_state) {
                 case State::REQUEST_NEXT_CHECK: {
-                    if (m_current_cluster_reported) {
+                    AMBRO_ASSERT(m_iter_state != IterState::END)
+                    
+                    if (m_iter_state != IterState::START) {
                         BlockIndexType fat_block_idx;
-                        if (!get_fat_entry_block_idx(c, m_current_cluster, &fat_block_idx)) {
+                        size_t fat_block_offset;
+                        if (!get_fat_entry_block_idx(c, m_current_cluster, &fat_block_idx, &fat_block_offset)) {
                             return complete_request(c, true);
                         }
                         
@@ -801,16 +821,16 @@ private:
                             return;
                         }
                         
-                        size_t block_offset = (size_t)4 * (m_current_cluster % FatEntriesPerBlock);
-                        m_current_cluster = mask_cluster_entry(ReadBinaryInt<uint32_t, BinaryLittleEndian>(m_fat_cache_ref.getData(c) + block_offset));
-                        m_current_cluster_reported = false;
+                        m_prev_cluster = m_current_cluster;
+                        m_current_cluster = mask_cluster_entry(ReadBinaryInt<uint32_t, BinaryLittleEndian>(m_fat_cache_ref.getData(c) + fat_block_offset));
                     }
                     
-                    if (!is_cluster_idx_valid(m_current_cluster)) {
-                        return complete_request(c, false);
+                    if (is_cluster_idx_valid(m_current_cluster)) {
+                        m_iter_state = IterState::CLUSTER;
+                    } else {
+                        m_iter_state = IterState::END;
+                        m_fat_cache_ref.reset(c);
                     }
-                    
-                    m_current_cluster_reported = true;
                     
                     return complete_request(c, false);
                 } break;
@@ -837,20 +857,14 @@ private:
             }
         }
         
-        void complete_request (Context c, bool error)
-        {
-            m_state = State::IDLE;
-            
-            return m_handler(c, error);
-        }
-        
         typename Context::EventLoop::QueuedEvent m_event;
         CacheRef m_fat_cache_ref;
         ClusterChainHandler m_handler;
         State m_state;
+        IterState m_iter_state;
         ClusterIndexType m_first_cluster;
         ClusterIndexType m_current_cluster;
-        bool m_current_cluster_reported;
+        ClusterIndexType m_prev_cluster;
     };
     
     class CacheRef {
