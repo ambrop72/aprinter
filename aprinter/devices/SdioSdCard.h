@@ -57,10 +57,11 @@ private:
         STATE_RUNNING
     };
     
-    enum {IO_STATE_IDLE, IO_STATE_READING};
+    enum {IO_STATE_IDLE, IO_STATE_READING, IO_STATE_WRITING};
     
     static TimeType const PowerOnTimeTicks = 0.0015 * Context::Clock::time_freq;
     static TimeType const InitTimeoutTicks = 1.2 * Context::Clock::time_freq;
+    static TimeType const ProgrammingTimeoutTicks = 5.0 * Context::Clock::time_freq;
     static uint32_t const IfCondArgumentResponse = UINT32_C(0x1AA);
     static uint32_t const OpCondArgument = UINT32_C(0x40100000);
     
@@ -70,7 +71,9 @@ private:
     static const uint8_t CMD_SELECT_DESELECT = 7;
     static const uint8_t CMD_SEND_IF_COND = 8;
     static const uint8_t CMD_SEND_CSD = 9;
+    static const uint8_t CMD_SEND_STATUS = 13;
     static const uint8_t CMD_READ_SINGLE_BLOCK = 17;
+    static const uint8_t CMD_WRITE_BLOCK = 24;
     static const uint8_t CMD_APP_CMD = 55;
     static const uint8_t ACMD_SET_BUS_WIDTH = 6;
     static const uint8_t ACMD_SD_SEND_OP_COND = 41;
@@ -135,6 +138,16 @@ public:
         return o->capacity_blocks;
     }
     
+    static bool isWritable (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->state == STATE_RUNNING)
+        
+        // TBD: checks if card is actually writable
+        return true;
+    }
+    
     static void startReadBlock (Context c, BlockIndexType block, WrapBuffer buffer)
     {
         auto *o = Object::self(c);
@@ -148,7 +161,24 @@ public:
         TheSdio::startCommand(c, SdioIface::CommandParams{CMD_READ_SINGLE_BLOCK, addr, SdioIface::RESPONSE_SHORT});
         
         o->io_state = IO_STATE_READING;
-        o->io_buffer = buffer;
+        o->io_user_buffer = buffer;
+        o->cmd_finished = false;
+        o->data_finished = false;
+    }
+    
+    static void startWriteBlock (Context c, BlockIndexType block, WrapBuffer buffer)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->state == STATE_RUNNING)
+        AMBRO_ASSERT(o->io_state == IO_STATE_IDLE)
+        AMBRO_ASSERT(block < o->capacity_blocks)
+        
+        uint32_t addr = o->is_sdhc ? block : (block * 512);
+        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_WRITE_BLOCK, addr, SdioIface::RESPONSE_SHORT});
+        
+        o->io_state = IO_STATE_WRITING;
+        o->io_user_buffer = buffer;
         o->cmd_finished = false;
         o->data_finished = false;
     }
@@ -190,7 +220,7 @@ private:
                 }
                 send_app_cmd(c, 0);
                 o->state = STATE_OP_COND_APP;
-                o->card_init_deadline = Context::Clock::getTime(c) + InitTimeoutTicks;
+                o->deadline = Context::Clock::getTime(c) + InitTimeoutTicks;
             } break;
             
             case STATE_OP_COND_APP: {
@@ -207,7 +237,7 @@ private:
                 }
                 uint32_t ocr = results.response[0];
                 if (!(ocr & OCR_CPUS)) {
-                    if ((uint32_t)(Context::Clock::getTime(c) - o->card_init_deadline) < UINT32_C(0x80000000)) {
+                    if ((uint32_t)(Context::Clock::getTime(c) - o->deadline) < UINT32_C(0x80000000)) {
                         return init_error(c, 6);
                     }
                     send_app_cmd(c, 0);
@@ -295,17 +325,40 @@ private:
             } break;
             
             case STATE_RUNNING: {
-                AMBRO_ASSERT(o->io_state == IO_STATE_READING)
+                AMBRO_ASSERT(o->io_state == IO_STATE_READING || o->io_state == IO_STATE_WRITING)
                 AMBRO_ASSERT(!o->cmd_finished)
                 
                 if (!check_r1_response(results)) {
-                    if (!o->data_finished) {
+                    if (o->io_state == IO_STATE_READING && !o->data_finished) {
                         TheSdio::abortData(c);
                     }
                     return complete_operation(c, true);
                 }
+                
                 o->cmd_finished = true;
-                return check_operation_complete(c);
+                
+                if (o->io_state == IO_STATE_READING) {
+                    return check_read_complete(c);
+                } else {
+                    if (!o->data_finished) {
+                        o->io_user_buffer.copyOut(0, BlockSize, (char *)o->buffer);
+                        TheSdio::startData(c, SdioIface::DataParams{SdioIface::DATA_DIR_WRITE, 1, o->buffer});
+                    } else {
+                        uint8_t card_state = (results.response[0] >> 9) & 0xF;
+                        if (card_state == 6 || card_state == 7) {
+                            if ((uint32_t)(Context::Clock::getTime(c) - o->deadline) < UINT32_C(0x80000000)) {
+                                return complete_operation(c, true);
+                            }
+                            
+                            o->cmd_finished = false;
+                            TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_STATUS, (uint32_t)o->rca << 16, SdioIface::RESPONSE_SHORT});
+                            return;
+                        }
+                        
+                        bool error = o->data_error != SdioIface::DATA_ERROR_NONE;
+                        return complete_operation(c, error);
+                    }
+                }
             } break;
             
             default:
@@ -319,13 +372,20 @@ private:
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_RUNNING)
-        AMBRO_ASSERT(o->io_state == IO_STATE_READING)
+        AMBRO_ASSERT(o->io_state == IO_STATE_READING || o->io_state == IO_STATE_WRITING)
         AMBRO_ASSERT(!o->data_finished)
+        AMBRO_ASSERT(o->io_state != IO_STATE_WRITING || o->cmd_finished)
         
         o->data_finished = true;
         o->data_error = results.error_code;
         
-        return check_operation_complete(c);
+        if (o->io_state == IO_STATE_READING) {
+            return check_read_complete(c);
+        } else {
+            o->deadline = Context::Clock::getTime(c) + ProgrammingTimeoutTicks;
+            o->cmd_finished = false;
+            TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_STATUS, (uint32_t)o->rca << 16, SdioIface::RESPONSE_SHORT});
+        }
     }
     struct SdioDataHandler : public AMBRO_WFUNC_TD(&SdioSdCard::sdio_data_handler) {};
     
@@ -370,18 +430,18 @@ private:
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == STATE_RUNNING)
-        AMBRO_ASSERT(o->io_state == IO_STATE_READING)
+        AMBRO_ASSERT(o->io_state != IO_STATE_IDLE)
+        
+        if (o->io_state == IO_STATE_READING && !error) {
+            o->io_user_buffer.copyIn(0, BlockSize, (char const *)o->buffer);
+        }
         
         o->io_state = IO_STATE_IDLE;
-        
-        if (!error) {
-            o->io_buffer.copyIn(0, BlockSize, (char const *)o->buffer);
-        }
         
         return CommandHandler::call(c, error);
     }
     
-    static void check_operation_complete (Context c)
+    static void check_read_complete (Context c)
     {
         auto *o = Object::self(c);
         
@@ -398,12 +458,12 @@ public:
     >> {
         typename Context::EventLoop::QueuedEvent timer;
         uint8_t state;
-        TimeType card_init_deadline;
+        TimeType deadline;
         bool is_sdhc;
         uint16_t rca;
         uint32_t capacity_blocks;
         uint8_t io_state;
-        WrapBuffer io_buffer;
+        WrapBuffer io_user_buffer;
         bool cmd_finished;
         bool data_finished;
         SdioIface::DataErrorCode data_error;

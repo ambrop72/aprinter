@@ -114,23 +114,34 @@ public:
         return capacity;
     }
     
+    static bool isWritable (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
+        
+        return TheSd::isWritable(c);
+    }
+    
     using GetSd = TheSd;
     
     class User {
     private:
         friend BlockAccess;
         
-    public:
-        using ReadHandlerType = Callback<void(Context c, bool error)>;
+        enum {USER_STATE_IDLE, USER_STATE_READING, USER_STATE_WRITING};
         
-        void init (Context c, ReadHandlerType read_handler)
+    public:
+        using HandlerType = Callback<void(Context c, bool error)>;
+        
+        void init (Context c, HandlerType handler)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
             
-            m_read_handler = read_handler;
-            QueueList::markRemoved(this);
+            m_handler = handler;
+            m_state = USER_STATE_IDLE;
         }
         
         // WARNING: Only allowed together with deiniting the whole storage or when not reading!
@@ -140,15 +151,12 @@ public:
         
         void startRead (Context c, BlockIndexType block_idx, WrapBuffer buf)
         {
-            auto *o = Object::self(c);
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
-            AMBRO_ASSERT(QueueList::isRemoved(this))
-            AMBRO_ASSERT(block_idx < TheSd::getCapacityBlocks(c))
-            
-            m_block_idx = block_idx;
-            m_buf = buf;
-            add_request(c, this);
+            return start_request(c, block_idx, buf, USER_STATE_READING);
+        }
+        
+        void startWrite (Context c, BlockIndexType block_idx, WrapBuffer buf)
+        {
+            return start_request(c, block_idx, buf, USER_STATE_WRITING);
         }
         
         WrapBuffer getBuffer (Context c)
@@ -157,7 +165,22 @@ public:
         }
         
     private:
-        ReadHandlerType m_read_handler;
+        void start_request (Context c, BlockIndexType block_idx, WrapBuffer buf, uint8_t state_for_request_type)
+        {
+            auto *o = Object::self(c);
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
+            AMBRO_ASSERT(m_state == USER_STATE_IDLE)
+            AMBRO_ASSERT(block_idx < TheSd::getCapacityBlocks(c))
+            
+            m_state = state_for_request_type;
+            m_block_idx = block_idx;
+            m_buf = buf;
+            add_request(c, this);
+        }
+        
+        HandlerType m_handler;
+        uint8_t m_state;
         BlockIndexType m_block_idx;
         WrapBuffer m_buf;
         DoubleEndedListNode<User> m_list_node;
@@ -190,12 +213,12 @@ private:
         AMBRO_ASSERT(!o->queue.isEmpty())
         
         User *user = o->queue.first();
-        AMBRO_ASSERT(!QueueList::isRemoved(user))
+        AMBRO_ASSERT(user->m_state == User::USER_STATE_READING || user->m_state == User::USER_STATE_WRITING)
         o->queue.removeFirst();
-        QueueList::markRemoved(user);
+        user->m_state = User::USER_STATE_IDLE;
         o->state = STATE_READY;
         continue_queue(c);
-        return user->m_read_handler(c, error);
+        return user->m_handler(c, error);
     }
     struct SdCommandHandler : public AMBRO_WFUNC_TD(&BlockAccess::sd_command_handler) {};
     
@@ -217,8 +240,12 @@ private:
         
         User *user = o->queue.first();
         if (user) {
-            AMBRO_ASSERT(!QueueList::isRemoved(user))
-            TheSd::startReadBlock(c, user->m_block_idx, user->m_buf);
+            AMBRO_ASSERT(user->m_state == User::USER_STATE_READING || user->m_state == User::USER_STATE_WRITING)
+            if (user->m_state == User::USER_STATE_READING) {
+                TheSd::startReadBlock(c, user->m_block_idx, user->m_buf);
+            } else {
+                TheSd::startWriteBlock(c, user->m_block_idx, user->m_buf);
+            }
             o->state = STATE_BUSY;
         }
     }

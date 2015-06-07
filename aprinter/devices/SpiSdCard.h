@@ -107,6 +107,15 @@ public:
         return o->m_capacity_blocks;
     }
     
+    static bool isWritable (Context c)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->m_state == STATE_RUNNING)
+        
+        return false;
+    }
+    
     static void startReadBlock (Context c, BlockIndexType block, WrapBuffer buffer)
     {
         auto *o = Object::self(c);
@@ -125,6 +134,11 @@ public:
         }
         TheSpi::cmdWriteByte(c, 0xff, 2 - 1);
         o->m_io_state = IO_STATE_READING;
+    }
+    
+    static void startWriteBlock (Context c, BlockIndexType block, WrapBuffer buffer)
+    {
+        AMBRO_ASSERT(false);
     }
     
     using GetSpi = TheSpi;
