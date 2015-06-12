@@ -494,6 +494,9 @@ private:
             o->u.fs.num_reserved_blocks = (BlockIndexType)num_reserved_sectors * blocks_per_sector;
             o->u.fs.fat_end_blocks = fat_end_sectors_calc * blocks_per_sector;
             
+            o->u.fs.allocator_list.init(c);
+            o->u.fs.allocator_position = 0;
+            
             for (int i = 0; i < Params::NumCacheEntries; i++) {
                 o->u.fs.cache_entries[i].init(c);
             }
@@ -867,6 +870,164 @@ private:
         ClusterIndexType m_prev_cluster;
     };
     
+    class ClusterAllocator {
+    public:
+        using ClusterAllocatorHandler = Callback<void(Context c, bool error)>;
+        
+        void init (Context c, ClusterAllocatorHandler handler)
+        {
+            auto *o = Object::self(c);
+            
+            m_handler = handler;
+            m_event.init(c, APRINTER_CB_OBJFUNC_T(&ClusterAllocator::event_handler, this));
+            m_fat_cache_ref.init(c, APRINTER_CB_OBJFUNC_T(&ClusterAllocator::fat_cache_ref_handler, this));
+            m_state = State::INVALID;
+        }
+        
+        void deinit (Context c)
+        {
+            auto *o = Object::self(c);
+            
+            release_locking(c);
+            m_fat_cache_ref.deinit(c);
+            m_event.deinit(c);
+        }
+        
+        void requestAllocation (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(m_state == State::INVALID)
+            
+            bool was_empty = o->u.fs.allocator_list.isEmpty(c);
+            o->u.fs.allocator_list.append(this);
+            
+            if (was_empty) {
+                locking_completed(c);
+            } else {
+                m_state = State::QUEUED;
+            }
+        }
+        
+        ClusterIndexType getAllocatedCluster (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::ALLOCATED || m_state == State::FLUSHING)
+            
+            // TBD
+        }
+        
+        void requestFlush (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::ALLOCATED)
+            
+            m_state = State::FLUSHING;
+            
+            // TBD
+        }
+        
+    private:
+        enum class State : uint8_t {INVALID, QUEUED, ALLOCATING, ALLOCATED, FLUSHING};
+        enum class AllocatingState : uint8_t {CHECK_EVENT, REQUESTING_BLOCK};
+        
+        void locking_completed (Context c)
+        {
+            auto *o = Object::self(c);
+            
+            o->u.fs.allocator_count = 0;
+            m_state = State::ALLOCATING;
+            m_allocating_state = AllocatingState::CHECK_EVENT;
+            m_event.prependNowNotAlready(c);
+        }
+        
+        void release_locking (Context c)
+        {
+            auto *o = Object::self(c);
+            
+            if (m_state == State::QUEUED || m_state == State::ALLOCATING) {
+                o->u.fs.allocator_list.remove(this);
+            }
+            
+            if (m_state == State::ALLOCATING) {
+                ClusterAllocator *allocator = o->u.fs.allocator_list.first();
+                AMBRO_ASSERT(allocator->m_state == State::QUEUED)
+                allocator->locking_completed(c);
+            }
+        }
+        
+        void complete_request (Context c, State new_state, bool error)
+        {
+            release_locking(c);
+            m_state = new_state;
+            return m_handler(c, error);
+        }
+        
+        void event_handler (Context c)
+        {
+            auto *o = Object::self(c);
+            
+            switch (m_state) {
+                case State::ALLOCATING: {
+                    AMBRO_ASSERT(m_allocating_state == AllocatingState::CHECK_EVENT)
+                    
+                    if (o->u.fs.allocator_count == o->u.fs.num_fat_entries) {
+                        return complete_request(c, State::INVALID, true);
+                    }
+                    
+                    BlockIndexType fat_block_idx;
+                    size_t fat_block_offset;
+                    if (!get_fat_entry_block_idx(c, o->u.fs.allocator_position, &fat_block_idx, &fat_block_offset)) {
+                        return complete_request(c, State::INVALID, true);
+                    }
+                    
+                    if (!m_fat_cache_ref.isBlockSelected(c) || m_fat_cache_ref.getBlock(c) != fat_block_idx) {
+                        m_fat_cache_ref.requestBlock(c, fat_block_idx);
+                        m_allocating_state = AllocatingState::REQUESTING_BLOCK;
+                        return;
+                    }
+                    
+                    o->u.fs.allocator_position = (o->u.fs.allocator_position == o->u.fs.num_fat_entries - 1) ? 0 : (o->u.fs.allocator_position + 1);
+                    o->u.fs.allocator_count++;
+                    
+                    ClusterIndexType next_cluster = mask_cluster_entry(ReadBinaryInt<uint32_t, BinaryLittleEndian>(m_fat_cache_ref.getData(c) + fat_block_offset));
+                    
+                    
+                    
+                    
+                } break;
+                
+                default:
+                    AMBRO_ASSERT(false);
+            }
+        }
+        
+        void fat_cache_ref_handler (Context c, bool error)
+        {
+            switch (m_state) {
+                case State::ALLOCATING: {
+                    AMBRO_ASSERT(m_allocating_state == AllocatingState::REQUESTING_BLOCK)
+                    
+                    if (error) {
+                        return complete_request(c, State::INVALID, true);
+                    }
+                    
+                    m_allocating_state = AllocatingState::CHECK_EVENT;
+                    m_event.prependNowNotAlready(c);
+                } break;
+                
+                default:
+                    AMBRO_ASSERT(false);
+            }
+        }
+        
+        ClusterAllocatorHandler m_handler;
+        typename Context::EventLoop::QueuedEvent m_event;
+        CacheRef m_fat_cache_ref;
+        State m_state;
+        AllocatingState m_allocating_state;
+        DoubleEndedListNode<ClusterAllocator> m_allocators_list_node;
+    };
+    
+    using ClusterAllocatorList = DoubleEndedList<ClusterAllocator, &ClusterAllocator::m_allocators_list_node>;
+    
     class CacheRef {
         friend class CacheEntry;
         
@@ -1212,6 +1373,9 @@ public:
                 ClusterIndexType num_fat_entries;
                 BlockIndexType num_reserved_blocks;
                 BlockIndexType fat_end_blocks;
+                ClusterAllocatorList allocator_list;
+                ClusterIndexType allocator_position;
+                ClusterIndexType allocator_count;
                 CacheEntry cache_entries[Params::NumCacheEntries];
             } fs;
         } u;
