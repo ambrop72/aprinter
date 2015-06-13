@@ -29,6 +29,7 @@
 
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/DebugObject.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -42,8 +43,10 @@ public:
     
 private:
     class CacheEntry;
+    using TheDebugObject = DebugObject<Context, Object>;
     using BlockAccessUser = typename TheBlockAccess::User;
     using DirtTimeType = uint32_t;
+    static constexpr DirtTimeType DirtSignBit = ((DirtTimeType)-1 / 2) + 1;
     
 public:
     using BlockIndexType = typename TheBlockAccess::BlockIndexType;
@@ -61,11 +64,14 @@ public:
         for (int i = 0; i < NumCacheEntries; i++) {
             o->cache_entries[i].init(c);
         }
+        
+        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
+        TheDebugObject::deinit(c);
         AMBRO_ASSERT(o->pending_allocations.isEmpty())
         AMBRO_ASSERT(o->waiting_flush_requests.isEmpty())
         
@@ -75,7 +81,7 @@ public:
         o->allocations_event.deinit(c);
     }
     
-    class FlushRequest {
+    class FlushRequest : private SimpleDebugObject<Context> {
         friend BlockCache;
         
     public:
@@ -86,30 +92,34 @@ public:
             m_handler = handler;
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&FlushRequest::event_handler, this));
             m_state = State::IDLE;
+            this->debugInit(c);
         }
         
         void deinit (Context c)
         {
+            this->debugDeinit(c);
             reset_internal(c);
             m_event.deinit(c);
         }
         
         void reset (Context c)
         {
+            this->debugAccess(c);
             reset_internal(c);
         }
         
         void requestFlush (Context c)
         {
             auto *o = Object::self(c);
+            this->debugAccess(c);
             AMBRO_ASSERT(m_state == State::IDLE)
             
-            o->waiting_flush_requests.add(this);
-            m_state = State::WAITING;
             if (is_everything_clean(c)) {
                 return complete(c, false);
             }
-            start_writing_everything(c);
+            o->waiting_flush_requests.add(this);
+            m_state = State::WAITING;
+            start_writing_for_flush(c);
         }
         
     private:
@@ -118,7 +128,6 @@ public:
         void reset_internal (Context c)
         {
             auto *o = Object::self(c);
-            
             if (m_state == State::WAITING) {
                 o->waiting_flush_requests.remove(this);
             }
@@ -128,17 +137,24 @@ public:
         
         void complete (Context c, bool error)
         {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(m_state == State::WAITING)
-            
-            o->waiting_flush_requests.remove(this);
             m_state = State::REPORTING;
             m_error = error;
             m_event.prependNowNotAlready(c);
         }
         
+        void flush_request_result (Context c, bool error)
+        {
+            auto *o = Object::self(c);
+            this->debugAccess(c);
+            AMBRO_ASSERT(m_state == State::WAITING)
+            
+            o->waiting_flush_requests.remove(this);
+            complete(c, error);
+        }
+        
         void event_handler (Context c)
         {
+            this->debugAccess(c);
             AMBRO_ASSERT(m_state == State::REPORTING)
             
             m_state = State::IDLE;
@@ -152,9 +168,11 @@ public:
         bool m_error;
     };
     
-    class CacheRef {
+    class CacheRef : private SimpleDebugObject<Context> {
         friend BlockCache;
         friend class CacheEntry;
+        
+        enum class State : uint8_t {INVALID, ALLOCATING_ENTRY, WAITING_READ, INIT_COMPL_EVENT, AVAILABLE};
         
     public:
         using CacheHandler = Callback<void(Context c, bool error)>;
@@ -165,46 +183,56 @@ public:
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&CacheRef::event_handler, this));
             m_state = State::INVALID;
             m_entry = nullptr;
+            this->debugInit(c);
         }
         
         void deinit (Context c)
         {
+            this->debugDeinit(c);
             reset_internal(c);
             m_event.deinit(c);
         }
         
         void reset (Context c)
         {
+            this->debugAccess(c);
             reset_internal(c);
         }
         
         void requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count)
         {
             auto *o = Object::self(c);
+            this->debugAccess(c);
             
             if (m_state != State::INVALID) {
                 reset_internal(c);
             }
+            
+            AMBRO_ASSERT(!m_entry)
+            m_state = State::ALLOCATING_ENTRY;
             m_block = block;
             m_write_stride = write_stride;
             m_write_count = write_count;
-            m_state = State::ALLOCATING_ENTRY;
             o->pending_allocations.append(this);
+            
             schedule_allocations_check(c);
         }
         
         bool isThisBlockSelected (Context c, BlockIndexType block)
         {
+            this->debugAccess(c);
             return m_state != State::INVALID && m_block == block;
         }
         
         bool isAvailable (Context c)
         {
+            this->debugAccess(c);
             return m_state == State::AVAILABLE;
         }
         
         char * getData (Context c)
         {
+            this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
             
             return m_entry->getData(c);
@@ -212,14 +240,13 @@ public:
         
         void markDirty (Context c)
         {
+            this->debugAccess(c);
             AMBRO_ASSERT(isAvailable((c))
             
             m_entry->markDirty(c);
         }
         
     private:
-        enum class State : uint8_t {INVALID, ALLOCATING_ENTRY, WAITING_READ, INIT_COMPL_EVENT, AVAILABLE};
-        
         void reset_internal (Context c)
         {
             auto *o = Object::self(c);
@@ -242,7 +269,7 @@ public:
         
         void event_handler (Context c)
         {
-            auto *o = Object::self(c);
+            this->debugAccess(c);
             AMBRO_ASSERT(m_state == State::INIT_COMPL_EVENT)
             
             bool error = !m_entry;
@@ -257,6 +284,7 @@ public:
         void allocation_event (Context c, bool error)
         {
             auto *o = Object::self(c);
+            this->debugAccess(c);
             AMBRO_ASSERT(m_state == State::ALLOCATING_ENTRY)
             AMBRO_ASSERT(!m_entry)
             
@@ -264,6 +292,7 @@ public:
                 o->pending_allocations.remove(this);
                 return complete_init(c);
             }
+            
             CacheEntry *entry = get_entry_for_block(c, m_block);
             if (entry) {
                 o->pending_allocations.remove(this);
@@ -280,6 +309,7 @@ public:
         
         void cache_event (Context c, typename CacheEntry::Event event, bool error)
         {
+            this->debugAccess(c);
             AMBRO_ASSERT(m_entry)
             AMBRO_ASSERT(event == CacheEntry::Event::READ_COMPLETED)
             AMBRO_ASSERT(m_state == State::WAITING_READ)
@@ -315,7 +345,7 @@ private:
         return true;
     }
     
-    static void start_writing_everything (Context c)
+    static void start_writing_for_flush (Context c)
     {
         auto *o = Object::self(c);
         for (int i = 0; i < NumCacheEntries; i++) {
@@ -332,7 +362,7 @@ private:
         FlushRequest *req = o->waiting_flush_requests.first();
         while (req) {
             CacheRef *next = o->waiting_flush_requests.next(req);
-            req->complete(c, error);
+            req->flush_request_result(c, error);
             req = next;
         }
     }
@@ -351,10 +381,12 @@ private:
                 return ce->isBeingReleased(c) ? nullptr : ce;
             }
             
-            if (!ce->isAssigned(c)) {
-                invalid_entry = ce;
-            } else if (ce->canReassign(c)) {
-                recyclable_entry = ce;
+            if (!ce->isBeingReleased(c)) {
+                if (!ce->isAssigned(c)) {
+                    invalid_entry = ce;
+                } else if (ce->canReassign(c)) {
+                    recyclable_entry = ce;
+                }
             }
         }
         
@@ -384,6 +416,7 @@ private:
     static void allocations_event_handler (Context c)
     {
         auto *o = Object::self(c);
+        TheDebugObject::access(c);
         
         for (int i = 0; i < NumCacheEntries; i++) {
             CacheEntry *ce = &o->u.fs.cache_entries[i];
@@ -395,13 +428,14 @@ private:
         report_allocation_event(c, false);
         
         if (!o->pending_allocations.isEmpty()) {
-            if (!assure_allocation_release_in_progress(c)) {
+            bool could_assure_release = assure_release_in_progress(c);
+            if (!could_assure_release) {
                 report_allocation_event(c, true);
             }
         }
     }
     
-    static bool assure_allocation_release_in_progress (Context c)
+    static bool assure_release_in_progress (Context c)
     {
         auto *o = Object::self(c);
         
@@ -442,8 +476,7 @@ private:
     
     static bool dirt_times_less (Context c, DirtTimeType t1, DirtTimeType t2)
     {
-        static constexpr DirtTimeType SignBit = ((DirtTimeType)-1 / 2) + 1;
-        return ((DirtTimeType)(t1 - t2) >= SignBit);
+        return ((DirtTimeType)(t1 - t2) >= DirtSignBit);
     }
     
     class CacheEntry {
@@ -706,7 +739,9 @@ private:
     };
     
 public:
-    struct Object : public ObjBase<BlockCache, ParentObject, EmptyTypeList> {
+    struct Object : public ObjBase<BlockCache, ParentObject, MakeTypeList<
+        TheDebugObject
+    >> {
         typename Context::EventLoop::QueuedEvent allocations_event;
         DirtTimeType current_dirt_time;
         DoubleEndedList<FlushRequest, &FlushRequest::m_waiting_flush_requests_node> waiting_flush_requests;
