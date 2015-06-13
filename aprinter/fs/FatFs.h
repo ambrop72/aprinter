@@ -118,9 +118,6 @@ public:
         if (o->state == FS_STATE_INIT) {
             o->u.init.block_user.deinit(c);
         } else if (o->state == FS_STATE_READY) {
-            for (int i = 0; i < Params::NumCacheEntries; i++) {
-                o->u.fs.cache_entries[i].deinit(c);
-            }
         }
     }
     
@@ -497,10 +494,6 @@ private:
             o->u.fs.allocator_list.init(c);
             o->u.fs.allocator_position = 0;
             
-            for (int i = 0; i < Params::NumCacheEntries; i++) {
-                o->u.fs.cache_entries[i].init(c);
-            }
-            
             error_code = 0;
         } while (0);
         
@@ -512,6 +505,11 @@ private:
     static ClusterIndexType mask_cluster_entry (uint32_t entry_value)
     {
         return (entry_value & UINT32_C(0x0FFFFFFF));
+    }
+    
+    static uint32_t update_cluster_entry (uint32_t entry_value, ClusterIndexType new_value)
+    {
+        return (entry_value & UINT32_C(0xF0000000)) | new_value;
     }
     
     static bool is_cluster_idx_valid (ClusterIndexType cluster_idx)
@@ -893,6 +891,14 @@ private:
             m_event.deinit(c);
         }
         
+        void reset (Context c)
+        {
+            release_locking(c);
+            m_fat_cache_ref.reset(c);
+            m_event.unset(c);
+            m_state = State::INVALID;
+        }
+        
         void requestAllocation (Context c)
         {
             auto *o = Object::self(c);
@@ -910,22 +916,22 @@ private:
         
         ClusterIndexType getAllocatedCluster (Context c)
         {
-            AMBRO_ASSERT(m_state == State::ALLOCATED || m_state == State::FLUSHING)
+            AMBRO_ASSERT(m_state == State::ALLOCATED)
             
             // TBD
         }
         
-        void requestFlush (Context c)
+        void setNextCluster (Context c, ClusterIndexType next_cluster)
         {
             AMBRO_ASSERT(m_state == State::ALLOCATED)
             
-            m_state = State::FLUSHING;
-            
             // TBD
+            
+            
         }
         
     private:
-        enum class State : uint8_t {INVALID, QUEUED, ALLOCATING, ALLOCATED, FLUSHING};
+        enum class State : uint8_t {INVALID, QUEUED, ALLOCATING, ALLOCATED};
         enum class AllocatingState : uint8_t {CHECK_EVENT, REQUESTING_BLOCK};
         
         void locking_completed (Context c)
@@ -978,18 +984,28 @@ private:
                         return complete_request(c, State::INVALID, true);
                     }
                     
-                    if (!m_fat_cache_ref.isBlockSelected(c) || m_fat_cache_ref.getBlock(c) != fat_block_idx) {
+                    if (!m_fat_cache_ref.isThisBlockSelected(c, fat_block_idx)) {
                         m_fat_cache_ref.requestBlock(c, fat_block_idx);
                         m_allocating_state = AllocatingState::REQUESTING_BLOCK;
                         return;
                     }
                     
+                    ClusterIndexType current_cluster = o->u.fs.allocator_position;
                     o->u.fs.allocator_position = (o->u.fs.allocator_position == o->u.fs.num_fat_entries - 1) ? 0 : (o->u.fs.allocator_position + 1);
                     o->u.fs.allocator_count++;
                     
-                    ClusterIndexType next_cluster = mask_cluster_entry(ReadBinaryInt<uint32_t, BinaryLittleEndian>(m_fat_cache_ref.getData(c) + fat_block_offset));
+                    char *entry_ptr = m_fat_cache_ref.getData(c) + fat_block_offset;
+                    uint32_t entry_value = ReadBinaryInt<uint32_t, BinaryLittleEndian>(entry_ptr);
+                    ClusterIndexType entry_index = mask_cluster_entry(entry_value);
                     
-                    
+                    if (entry_index == 0) {
+                        uint32_t new_entry_value = update_cluster_entry(entry_value, UINT32_C(0x0FFFFFFF));
+                        WriteBinaryInt<uint32_t, BinaryLittleEndian>(new_entry_value, entry_ptr);
+                        m_fat_cache_ref.markDirty(c);
+                        m_allocated_cluster = current_cluster;
+                        
+                        return complete_request(c, State::ALLOCATED);
+                    }
                     
                     
                 } break;
@@ -1023,338 +1039,11 @@ private:
         CacheRef m_fat_cache_ref;
         State m_state;
         AllocatingState m_allocating_state;
+        ClusterIndexType m_allocated_cluster;
         DoubleEndedListNode<ClusterAllocator> m_allocators_list_node;
     };
     
     using ClusterAllocatorList = DoubleEndedList<ClusterAllocator, &ClusterAllocator::m_allocators_list_node>;
-    
-    class CacheRef {
-        friend class CacheEntry;
-        
-    public:
-        using CacheHandler = Callback<void(Context c, bool error)>;
-        
-        void init (Context c, CacheHandler handler)
-        {
-            m_handler = handler;
-            m_timer.init(c, APRINTER_CB_OBJFUNC_T(&CacheRef::timer_handler, this));
-            m_state = State::INVALID;
-            m_entry = nullptr;
-        }
-        
-        void deinit (Context c)
-        {
-            if (m_entry) {
-                m_entry->detachUser(c, this);
-            }
-            m_timer.deinit(c);
-        }
-        
-        void reset (Context c)
-        {
-            if (m_entry) {
-                m_entry->detachUser(c, this);
-                m_entry = nullptr;
-            }
-            m_timer.unset(c);
-            m_state = State::INVALID;
-        }
-        
-        bool isBlockSelected (Context c)
-        {
-            return m_state != State::INVALID;
-        }
-        
-        BlockIndexType getBlock (Context c)
-        {
-            AMBRO_ASSERT(m_state != State::INVALID)
-            
-            return m_block;
-        }
-        
-        bool isAvailable (Context c)
-        {
-            return m_state == State::AVAILABLE;
-        }
-        
-        char * getData (Context c)
-        {
-            AMBRO_ASSERT(m_state == State::AVAILABLE)
-            
-            return m_entry->getData(c);
-        }
-        
-        void requestBlock (Context c, BlockIndexType block)
-        {
-            if (m_entry) {
-                m_entry->detachUser(c, this);
-                m_entry = nullptr;
-            }
-            
-            m_timer.unset(c);
-            m_timer.prependNowNotAlready(c);
-            m_state = State::REQUEST_EVENT;
-            m_dirt_state = DirtState::CLEAN;
-            m_flush_state = FlushState::IDLE;
-            m_block = block;
-        }
-        
-        void markDirty (Context c)
-        {
-            AMBRO_ASSERT(m_state == State::AVAILABLE)
-            
-            m_dirt_state = DirtState::DIRTY;
-        }
-        
-        void requestFlush (Context c)
-        {
-            AMBRO_ASSERT(m_state == State::AVAILABLE)
-            AMBRO_ASSERT(m_flush_state == FlushState::IDLE)
-            
-            m_flush_state = FlushState::CHECK_EVENT;
-            m_flush_error = false;
-            m_timer.prependNowNotAlready(c);
-        }
-        
-    private:
-        enum class State : uint8_t {INVALID, REQUEST_EVENT, WAITING_READ, READ_COMPL_EVENT, AVAILABLE};
-        enum class DirtState : uint8_t {CLEAN, DIRTY, WRITING};
-        enum class FlushState : uint8_t {IDLE, CHECK_EVENT, WRITING};
-        
-        void timer_handler (Context c)
-        {
-            switch (m_state) {
-                case State::REQUEST_EVENT: {
-                    AMBRO_ASSERT(!m_entry)
-                    
-                    m_entry = get_cache_entry(c, m_block);
-                    if (!m_entry) {
-                        return complete_init(c, true);
-                    }
-                    
-                    m_entry->attachUser(c, this);
-                    
-                    if (m_entry->getState(c) != CacheEntry::State::READING) {
-                        return complete_init(c, false);
-                    }
-                    
-                    m_state = State::WAITING_READ;
-                } break;
-                
-                case State::READ_COMPL_EVENT: {
-                    bool error = !m_entry;
-                    return complete_init(c, error);
-                } break;
-                
-                case State::AVAILABLE: {
-                    AMBRO_ASSERT(m_flush_state == FlushState::CHECK_EVENT)
-                    
-                    if (m_dirt_state == DirtState::CLEAN || m_flush_error) {
-                        m_flush_state = FlushState::IDLE;
-                        return m_handler(c, m_flush_error);
-                    }
-                    
-                    if (m_entry->getState(c) != CacheEntry::State::WRITING) {
-                        m_entry->startWriting(c);
-                    }
-                    
-                    m_flush_state = FlushState::WRITING;
-                } break;
-                
-                default:
-                    AMBRO_ASSERT(false);
-            }
-        }
-        
-        void cache_event (Context c, typename CacheEntry::Event event, bool error)
-        {
-            AMBRO_ASSERT(m_entry)
-            
-            switch (event) {
-                case CacheEntry::Event::READ_COMPLETED: {
-                    AMBRO_ASSERT(m_state == State::WAITING_READ)
-                    
-                    if (error) {
-                        m_entry->detachUser(c, this);
-                        m_entry = nullptr;
-                    }
-                    
-                    m_state = State::READ_COMPL_EVENT;
-                    m_timer.prependNowNotAlready(c);
-                } break;
-                
-                case CacheEntry::Event::WRITE_STARTED: {
-                    AMBRO_ASSERT(m_state == State::READ_COMPL_EVENT || m_state == State::AVAILABLE)
-                    
-                    if (m_dirt_state == DirtState::DIRTY) {
-                        m_dirt_state = DirtState::WRITING;
-                    }
-                } break;
-                
-                case CacheEntry::Event::WRITE_COMPLETED: {
-                    AMBRO_ASSERT(m_state == State::READ_COMPL_EVENT || m_state == State::AVAILABLE)
-                    
-                    if (m_dirt_state == DirtState::WRITING && !error) {
-                        m_dirt_state = DirtState::CLEAN;
-                    }
-                    
-                    if (m_flush_state == FlushState::WRITING) {
-                        m_flush_state = FlushState::CHECK_EVENT;
-                        m_timer.prependNowNotAlready(c);
-                    }
-                } break;
-            }
-        }
-        
-        void complete_init (Context c, bool error)
-        {
-            AMBRO_ASSERT(m_dirt_state == DirtState::CLEAN)
-            AMBRO_ASSERT(m_flush_state == FlushState::IDLE)
-            
-            if (error) {
-                m_state = State::INVALID;
-            } else {
-                m_state = State::AVAILABLE;
-            }
-            return m_handler(c, error);
-        }
-        
-        CacheHandler m_handler;
-        typename Context::EventLoop::QueuedEvent m_timer;
-        State m_state;
-        DirtState m_dirt_state;
-        FlushState m_flush_state;
-        bool m_flush_error;
-        CacheEntry *m_entry;
-        BlockIndexType m_block;
-        DoubleEndedListNode<CacheRef> m_cache_users_list_node;
-    };
-    
-    class CacheEntry {
-    public:
-        enum class State : uint8_t {INVALID, READING, IDLE, WRITING};
-        
-        enum class Event : uint8_t {READ_COMPLETED, WRITE_STARTED, WRITE_COMPLETED};
-        
-        void init (Context c)
-        {
-            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_handler, this));
-            m_cache_users_list.init();
-            m_state = State::INVALID;
-        }
-        
-        void deinit (Context c)
-        {
-            m_block_user.deinit(c);
-        }
-        
-        State getState (Context c)
-        {
-            return m_state;
-        }
-        
-        BlockIndexType getBlock (Context c)
-        {
-            AMBRO_ASSERT(m_state != State::INVALID)
-            
-            return m_block;
-        }
-        
-        char * getData (Context c)
-        {
-            AMBRO_ASSERT(m_state != State::INVALID)
-            AMBRO_ASSERT(m_state != State::READING)
-            
-            return m_buffer;
-        }
-        
-        bool isUnused (Context c)
-        {
-            return m_cache_users_list.isEmpty();
-        }
-        
-        void attachUser (Context c, CacheRef *user)
-        {
-            AMBRO_ASSERT(m_state != State::INVALID)
-            
-            m_cache_users_list.append(user);
-        }
-        
-        void detachUser (Context c, CacheRef *user)
-        {
-            m_cache_users_list.remove(user);
-        }
-        
-        void assignBlockAndStartReading (Context c, BlockIndexType block)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(m_state == State::INVALID || m_state == State::IDLE)
-            AMBRO_ASSERT(m_cache_users_list.isEmpty())
-            
-            m_state = State::READING;
-            m_block = block;
-            m_block_user.startRead(c, get_abs_block_index(c, m_block), WrapBuffer::Make(m_buffer));
-        }
-        
-        void startWriting (Context c)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(m_state == State::IDLE)
-            
-            m_state = State::WRITING;
-            m_next_fat_index = 1;
-            m_block_user.startWrite(c, get_abs_block_index(c, m_block), WrapBuffer::Make(m_buffer));
-            
-            raise_cache_event(c, Event::WRITE_STARTED, false);
-        }
-        
-    private:
-        bool is_fat_block (Context c)
-        {
-            auto *o = Object::self(c);
-            return m_block >= o->u.fs.num_reserved_blocks && (m_block - o->u.fs.num_reserved_blocks) < num_blocks_per_fat(c);
-        }
-        
-        void raise_cache_event (Context c, Event event, bool error)
-        {
-            CacheRef *ref = m_cache_users_list.first();
-            while (ref) {
-                CacheRef *next = m_cache_users_list.next(ref);
-                ref->cache_event(c, event, error);
-                ref = next;
-            }
-        }
-        
-        void block_user_handler (Context c, bool error)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(m_state == State::READING || m_state == State::WRITING)
-            
-            if (!error && m_state == State::WRITING && is_fat_block(c) && m_next_fat_index < o->u.fs.num_fats) {
-                BlockIndexType write_block = m_block + m_next_fat_index * num_blocks_per_fat(c);
-                m_next_fat_index++;
-                m_block_user.startWrite(c, get_abs_block_index(c, write_block), WrapBuffer::Make(m_buffer));
-                return;
-            }
-            
-            Event event = (m_state == State::READING) ? Event::READ_COMPLETED : Event::WRITE_COMPLETED;
-            
-            m_state = (event == Event::READ_COMPLETED && error) ? State::INVALID : State::IDLE;
-            
-            raise_cache_event(c, event, error);
-            
-            AMBRO_ASSERT(m_state != State::IDLE || m_cache_users_list.isEmpty())
-        }
-        
-        using CacheRefsList = DoubleEndedList<CacheRef, &CacheRef::m_cache_users_list_node>;
-        
-        BlockAccessUser m_block_user;
-        CacheRefsList m_cache_users_list;
-        State m_state;
-        BlockIndexType m_block;
-        uint8_t m_next_fat_index;
-        char m_buffer[BlockSize];
-    };
     
 public:
     struct Object : public ObjBase<FatFs, ParentObject, MakeTypeList<
@@ -1376,7 +1065,6 @@ public:
                 ClusterAllocatorList allocator_list;
                 ClusterIndexType allocator_position;
                 ClusterIndexType allocator_count;
-                CacheEntry cache_entries[Params::NumCacheEntries];
             } fs;
         } u;
     };

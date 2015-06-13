@@ -35,9 +35,9 @@
 
 namespace Private {
     template <bool IsSigned>
-    struct ReadHelper {
+    struct BinaryToolsHelper {
         template <typename Type, bool IsBigEndian>
-        static Type call (char const *src)
+        static Type read_it (char const *src)
         {
             using TypeInfo = IntTypeInfo<Type>;
             static_assert(!TypeInfo::Signed, "");
@@ -49,19 +49,42 @@ namespace Private {
             }
             return val;
         }
+        
+        template <typename Type, bool IsBigEndian>
+        static void write_it (Type value, char *dst)
+        {
+            using TypeInfo = IntTypeInfo<Type>;
+            static_assert(!TypeInfo::Signed, "");
+            
+            for (int i = 0; i < sizeof(Type); i++) {
+                int j = IsBigEndian ? (sizeof(Type) - 1 - i) : i;
+                ((unsigned char *)dst)[i] = value >> (8 * j);
+            }
+        }
     };
     
     template <>
-    struct ReadHelper<true> {
+    struct BinaryToolsHelper<true> {
         template <typename Type, bool IsBigEndian>
-        static Type call (char const *src)
+        static Type read_it (char const *src)
         {
             using TypeInfo = IntTypeInfo<Type>;
             static_assert(TypeInfo::Signed, "");
             
             using UType = ChooseInt<TypeInfo::NumBits, false>;
-            UType uval = ReadHelper<false>::template call<UType, IsBigEndian>(src);
+            UType uval = BinaryToolsHelper<false>::template read_it<UType, IsBigEndian>(src);
             return reinterpret_cast<Type const &>(uval);
+        }
+        
+        template <typename Type, bool IsBigEndian>
+        static void write_it (Type value, char *dst)
+        {
+            using TypeInfo = IntTypeInfo<Type>;
+            static_assert(TypeInfo::Signed, "");
+            
+            using UType = ChooseInt<TypeInfo::NumBits, false>;
+            UType uval = value;
+            BinaryToolsHelper<false>::template write_it<UType, IsBigEndian>(uval, dst);
         }
     };
 }
@@ -78,7 +101,14 @@ template <typename Type, typename Endian>
 Type ReadBinaryInt (char const *src)
 {
     using TypeInfo = IntTypeInfo<Type>;
-    return Private::ReadHelper<TypeInfo::Signed>::template call<Type, Endian::IsBigEndian>(src);
+    return Private::BinaryToolsHelper<TypeInfo::Signed>::template read_it<Type, Endian::IsBigEndian>(src);
+}
+
+template <typename Type, typename Endian>
+void WriteBinaryInt (Type value, char *dst)
+{
+    using TypeInfo = IntTypeInfo<Type>;
+    return Private::BinaryToolsHelper<TypeInfo::Signed>::template write_it<Type, Endian::IsBigEndian>(value, dst);
 }
 
 #include <aprinter/EndNamespace.h>

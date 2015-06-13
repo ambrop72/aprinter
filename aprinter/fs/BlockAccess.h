@@ -63,6 +63,16 @@ public:
         {
             return end_block - start_block;
         }
+        
+        BlockIndexType getAbsBlockIndex (BlockIndexType rel_block) const
+        {
+            return start_block + rel_block;
+        }
+        
+        bool isBlockInRange (BlockIndexType block) const
+        {
+            return block >= start_block && block < end_block;
+        }
     };
     
     static void init (Context c)

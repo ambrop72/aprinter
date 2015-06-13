@@ -37,8 +37,8 @@
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/misc/AsciiTools.h>
-#include <aprinter/devices/FatFs.h>
-#include <aprinter/devices/BlockAccess.h>
+#include <aprinter/fs/FatFs.h>
+#include <aprinter/fs/BlockAccess.h>
 
 #include <aprinter/BeginNamespace.h>
 
