@@ -1058,7 +1058,7 @@ def generate(config_root_data, cfg_name, main_template):
                             fs_config.key_path('NumCacheEntries').error('Bad value.')
                         
                         gen.add_aprinter_include('printer/input/SdFatInput.h')
-                        gen.add_aprinter_include('devices/FatFs.h')
+                        gen.add_aprinter_include('fs/FatFs.h')
                         
                         return TemplateExpr('SdFatInputService', [
                             use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetInput<>::GetSdCard'),

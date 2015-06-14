@@ -40,6 +40,7 @@
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/misc/Utf8Encoder.h>
 #include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/fs/BlockCache.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -64,13 +65,13 @@ private:
     static_assert(Params::MaxFileNameSize >= 12, "");
     using FileNameLenType = ChooseIntForMax<Params::MaxFileNameSize, false>;
     static_assert(Params::NumCacheEntries >= 2, "");
+    using TheBlockCache = BlockCache<Context, Object, TheBlockAccess, Params::NumCacheEntries>;
+    using CacheBlockRef = typename TheBlockCache::CacheRef;
     
     enum {FS_STATE_INIT, FS_STATE_READY, FS_STATE_FAILED};
     
     class BaseReader;
     class ClusterChain;
-    class CacheRef;
-    class CacheEntry;
     
 public:
     enum EntryType {ENTRYTYPE_DIR, ENTRYTYPE_FILE};
@@ -118,6 +119,7 @@ public:
         if (o->state == FS_STATE_INIT) {
             o->u.init.block_user.deinit(c);
         } else if (o->state == FS_STATE_READY) {
+            TheBlockCache::deinit(c);
         }
     }
     
@@ -491,8 +493,12 @@ private:
             o->u.fs.num_reserved_blocks = (BlockIndexType)num_reserved_sectors * blocks_per_sector;
             o->u.fs.fat_end_blocks = fat_end_sectors_calc * blocks_per_sector;
             
+            TheBlockCache::init(c);
+            
+#if 0
             o->u.fs.allocator_list.init(c);
             o->u.fs.allocator_position = 0;
+#endif
             
             error_code = 0;
         } while (0);
@@ -578,38 +584,6 @@ private:
             }
         }
         return length;
-    }
-    
-    static CacheEntry * get_cache_entry (Context c, BlockIndexType block)
-    {
-        auto *o = Object::self(c);
-        
-        CacheEntry *invalid_entry = nullptr;
-        CacheEntry *unused_entry = nullptr;
-        
-        for (int i = 0; i < Params::NumCacheEntries; i++) {
-            CacheEntry *ce = &o->u.fs.cache_entries[i];
-            auto ce_state = ce->getState(c);
-            
-            if (ce_state != CacheEntry::State::INVALID && ce->getBlock(c) == block) {
-                return ce;
-            }
-            
-            if (ce_state == CacheEntry::State::INVALID) {
-                invalid_entry = ce;
-            } else if (ce_state == CacheEntry::State::IDLE && ce->isUnused(c)) {
-                unused_entry = ce;
-            }
-        }
-        
-        CacheEntry *entry = invalid_entry ? invalid_entry : unused_entry;
-        if (!entry) {
-            return nullptr;
-        }
-        
-        entry->assignBlockAndStartReading(c, block);
-        
-        return entry;
     }
     
     class BaseReader {
@@ -805,6 +779,8 @@ private:
         
         void event_handler (Context c)
         {
+            auto *o = Object::self(c);
+            
             switch (m_state) {
                 case State::REQUEST_NEXT_CHECK: {
                     AMBRO_ASSERT(m_iter_state != IterState::END)
@@ -816,9 +792,9 @@ private:
                             return complete_request(c, true);
                         }
                         
-                        if (!m_fat_cache_ref.isBlockSelected(c) || m_fat_cache_ref.getBlock(c) != fat_block_idx) {
+                        if (!m_fat_cache_ref.isThisBlockSelected(c, fat_block_idx)) {
                             m_state = State::READING_FAT_FOR_NEXT;
-                            m_fat_cache_ref.requestBlock(c, fat_block_idx);
+                            m_fat_cache_ref.requestBlock(c, fat_block_idx, num_blocks_per_fat(c), o->u.fs.num_fats);
                             return;
                         }
                         
@@ -859,7 +835,7 @@ private:
         }
         
         typename Context::EventLoop::QueuedEvent m_event;
-        CacheRef m_fat_cache_ref;
+        CacheBlockRef m_fat_cache_ref;
         ClusterChainHandler m_handler;
         State m_state;
         IterState m_iter_state;
@@ -868,6 +844,7 @@ private:
         ClusterIndexType m_prev_cluster;
     };
     
+#if 0
     class ClusterAllocator {
     public:
         using ClusterAllocatorHandler = Callback<void(Context c, bool error)>;
@@ -1042,12 +1019,12 @@ private:
         ClusterIndexType m_allocated_cluster;
         DoubleEndedListNode<ClusterAllocator> m_allocators_list_node;
     };
-    
-    using ClusterAllocatorList = DoubleEndedList<ClusterAllocator, &ClusterAllocator::m_allocators_list_node>;
+#endif
     
 public:
     struct Object : public ObjBase<FatFs, ParentObject, MakeTypeList<
-        TheDebugObject
+        TheDebugObject,
+        TheBlockCache
     >> {
         typename TheBlockAccess::BlockRange block_range;
         uint8_t state;
@@ -1062,9 +1039,11 @@ public:
                 ClusterIndexType num_fat_entries;
                 BlockIndexType num_reserved_blocks;
                 BlockIndexType fat_end_blocks;
-                ClusterAllocatorList allocator_list;
+#if 0
+                DoubleEndedList<ClusterAllocator, &ClusterAllocator::m_allocators_list_node> allocator_list;
                 ClusterIndexType allocator_position;
                 ClusterIndexType allocator_count;
+#endif
             } fs;
         } u;
     };

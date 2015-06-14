@@ -49,6 +49,8 @@ private:
     using DirtTimeType = uint32_t;
     static constexpr DirtTimeType DirtSignBit = ((DirtTimeType)-1 / 2) + 1;
     
+    enum class CacheEntryEvent : uint8_t {READ_COMPLETED};
+    
 public:
     using BlockIndexType = typename TheBlockAccess::BlockIndexType;
     using BlockRange = typename TheBlockAccess::BlockRange;
@@ -242,7 +244,7 @@ public:
         void markDirty (Context c)
         {
             this->debugAccess(c);
-            AMBRO_ASSERT(isAvailable((c))
+            AMBRO_ASSERT(isAvailable(c))
             
             m_entry->markDirty(c);
         }
@@ -308,11 +310,11 @@ public:
             }
         }
         
-        void cache_event (Context c, typename CacheEntry::Event event, bool error)
+        void cache_event (Context c, CacheEntryEvent event, bool error)
         {
             this->debugAccess(c);
             AMBRO_ASSERT(m_entry)
-            AMBRO_ASSERT(event == CacheEntry::Event::READ_COMPLETED)
+            AMBRO_ASSERT(event == CacheEntryEvent::READ_COMPLETED)
             AMBRO_ASSERT(m_state == State::WAITING_READ)
             
             if (error) {
@@ -339,7 +341,7 @@ private:
         auto *o = Object::self(c);
         bool error = false;
         for (int i = 0; i < NumCacheEntries; i++) {
-            CacheEntry *ce = &o->u.fs.cache_entries[i];
+            CacheEntry *ce = &o->cache_entries[i];
             if (ce->isDirty(c)) {
                 if (accept_errors && ce->hasLastWriteFailed(c)) {
                     error = true;
@@ -358,7 +360,7 @@ private:
     {
         auto *o = Object::self(c);
         for (int i = 0; i < NumCacheEntries; i++) {
-            CacheEntry *ce = &o->u.fs.cache_entries[i];
+            CacheEntry *ce = &o->cache_entries[i];
             if (ce->canStartWrite(c)) {
                 ce->startWriting(c);
             }
@@ -370,7 +372,7 @@ private:
         auto *o = Object::self(c);
         FlushRequest *req = o->waiting_flush_requests.first();
         while (req) {
-            CacheRef *next = o->waiting_flush_requests.next(req);
+            FlushRequest *next = o->waiting_flush_requests.next(req);
             req->flush_request_result(c, error);
             req = next;
         }
@@ -385,7 +387,7 @@ private:
         CacheEntry *recyclable_entry = nullptr;
         
         for (int i = 0; i < NumCacheEntries; i++) {
-            CacheEntry *ce = &o->u.fs.cache_entries[i];
+            CacheEntry *ce = &o->cache_entries[i];
             
             if (ce->isAssigned(c) && ce->getBlock(c) == block) {
                 return ce->isBeingReleased(c) ? nullptr : ce;
@@ -429,7 +431,7 @@ private:
         TheDebugObject::access(c);
         
         for (int i = 0; i < NumCacheEntries; i++) {
-            CacheEntry *ce = &o->u.fs.cache_entries[i];
+            CacheEntry *ce = &o->cache_entries[i];
             if (ce->isBeingReleased(c) && !ce->isAssigned(c)) {
                 ce->completeRelease(c);
             }
@@ -452,7 +454,7 @@ private:
         CacheEntry *release_entry = nullptr;
         
         for (int i = 0; i < NumCacheEntries; i++) {
-            CacheEntry *ce = &o->u.fs.cache_entries[i];
+            CacheEntry *ce = &o->cache_entries[i];
             if (ce->isBeingReleased(c)) {
                 return true;
             }
@@ -484,7 +486,7 @@ private:
         }
     }
     
-    static bool dirt_times_less (Context c, DirtTimeType t1, DirtTimeType t2)
+    static bool dirt_times_less (DirtTimeType t1, DirtTimeType t2)
     {
         return ((DirtTimeType)(t1 - t2) >= DirtSignBit);
     }
@@ -494,8 +496,6 @@ private:
         enum class DirtState : uint8_t {CLEAN, DIRTY, WRITING};
         
     public:
-        enum class Event : uint8_t {READ_COMPLETED};
-        
         void init (Context c)
         {
             m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_handler, this));
@@ -669,7 +669,7 @@ private:
         }
         
     private:
-        void raise_cache_event (Context c, Event event, bool error)
+        void raise_cache_event (Context c, CacheEntryEvent event, bool error)
         {
             CacheRef *ref = m_cache_users_list.first();
             while (ref) {
@@ -692,14 +692,14 @@ private:
                             entry_release_result(c, this, false);
                             return;
                         }
-                        raise_cache_event(c, Event::READ_COMPLETED, error);
+                        raise_cache_event(c, CacheEntryEvent::READ_COMPLETED, error);
                         AMBRO_ASSERT(!isReferenced(c))
                         return;
                     }
                     
                     m_state = State::IDLE;
                     m_dirt_state = DirtState::CLEAN;
-                    raise_cache_event(c, Event::READ_COMPLETED, error);
+                    raise_cache_event(c, CacheEntryEvent::READ_COMPLETED, error);
                 } break;
                 
                 case State::WRITING: {
