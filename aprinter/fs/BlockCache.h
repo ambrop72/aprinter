@@ -202,29 +202,30 @@ public:
             reset_internal(c);
         }
         
-        void requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count)
+        bool requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count)
         {
             auto *o = Object::self(c);
             this->debugAccess(c);
             
-            if (m_state != State::INVALID) {
-                reset_internal(c);
+            if (m_state != State::INVALID && block == m_block) {
+                AMBRO_ASSERT(write_stride == m_write_stride)
+                AMBRO_ASSERT(write_count == m_write_count)
+            } else {
+                if (m_state != State::INVALID) {
+                    reset_internal(c);
+                }
+                
+                AMBRO_ASSERT(!m_entry)
+                m_state = State::ALLOCATING_ENTRY;
+                m_block = block;
+                m_write_stride = write_stride;
+                m_write_count = write_count;
+                o->pending_allocations.append(this);
+                
+                schedule_allocations_check(c);
             }
             
-            AMBRO_ASSERT(!m_entry)
-            m_state = State::ALLOCATING_ENTRY;
-            m_block = block;
-            m_write_stride = write_stride;
-            m_write_count = write_count;
-            o->pending_allocations.append(this);
-            
-            schedule_allocations_check(c);
-        }
-        
-        bool isThisBlockSelected (Context c, BlockIndexType block)
-        {
-            this->debugAccess(c);
-            return m_state != State::INVALID && m_block == block;
+            return m_state == State::AVAILABLE;
         }
         
         bool isAvailable (Context c)

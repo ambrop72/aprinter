@@ -792,9 +792,8 @@ private:
                             return complete_request(c, true);
                         }
                         
-                        if (!m_fat_cache_ref.isThisBlockSelected(c, fat_block_idx)) {
+                        if (!m_fat_cache_ref.requestBlock(c, fat_block_idx, num_blocks_per_fat(c), o->u.fs.num_fats)) {
                             m_state = State::READING_FAT_FOR_NEXT;
-                            m_fat_cache_ref.requestBlock(c, fat_block_idx, num_blocks_per_fat(c), o->u.fs.num_fats);
                             return;
                         }
                         
