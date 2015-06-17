@@ -789,7 +789,7 @@ private:
                             return complete_request(c, true);
                         }
                         
-                        if (!m_fat_cache_ref.requestBlock(c, fat_block_idx, num_blocks_per_fat(c), o->u.fs.num_fats)) {
+                        if (!m_fat_cache_ref.requestBlock(c, get_abs_block_index(c, fat_block_idx), num_blocks_per_fat(c), o->u.fs.num_fats)) {
                             m_state = State::READING_FAT_FOR_NEXT;
                             return;
                         }
@@ -963,8 +963,7 @@ private:
             bool entry_location_res = get_fat_entry_location(c, current_cluster, &fat_block_idx, &fat_block_offset);
             AMBRO_ASSERT(entry_location_res)
             
-            if (!m_fat_cache_ref.isThisBlockSelected(c, fat_block_idx)) {
-                m_fat_cache_ref.requestBlock(c, fat_block_idx);
+            if (!m_fat_cache_ref.requestBlock(c, get_abs_block_index(c, fat_block_idx), num_blocks_per_fat(c), o->u.fs.num_fats)) {
                 m_allocating_state = AllocatingState::REQUESTING_BLOCK;
                 return;
             }
