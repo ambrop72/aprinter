@@ -643,6 +643,9 @@ private:
             AMBRO_ASSERT(m_state == State::CHECK_EVENT)
             
             if (m_block_in_cluster == o->u.fs.blocks_per_cluster) {
+                if (m_chain.endReached(c)) {
+                    return complete_request(c, BASEREAD_STATUS_EOF);
+                }
                 m_chain.requestNext(c);
                 m_state = State::NEXT_CLUSTER;
                 return;
