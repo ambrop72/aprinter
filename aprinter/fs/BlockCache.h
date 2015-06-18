@@ -202,12 +202,12 @@ public:
             reset_internal(c);
         }
         
-        bool requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count)
+        bool requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, bool disable_immediate_completion=false)
         {
             auto *o = Object::self(c);
             this->debugAccess(c);
             
-            if (m_state != State::INVALID && block == m_block) {
+            if (!disable_immediate_completion && m_state != State::INVALID && block == m_block) {
                 AMBRO_ASSERT(write_stride == m_write_stride)
                 AMBRO_ASSERT(write_count == m_write_count)
             } else {

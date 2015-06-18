@@ -48,12 +48,14 @@ public:
     struct Object;
     
 private:
+    struct UnionMbrPart;
+    struct UnionFsPart;
     using ThePrinterMain = typename ClientParams::ThePrinterMain;
     using TheDebugObject = DebugObject<Context, Object>;
     struct BlockAccessActivateHandler;
     using TheBlockAccess = typename BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler>;
     struct FsInitHandler;
-    using TheFs = typename Params::FsService::template Fs<Context, Object, TheBlockAccess, FsInitHandler>;
+    using TheFs = typename Params::FsService::template Fs<Context, typename UnionFsPart::Object, TheBlockAccess, FsInitHandler>;
     
     static size_t const DirListReplyRequestExtra = 24;
     static_assert(TheBlockAccess::BlockSize == 512, "BlockSize must be 512");
@@ -152,6 +154,7 @@ public:
     static bool rewind (Context c, typename ThePrinterMain::CommandType *cmd)
     {
         auto *o = Object::self(c);
+        auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
         AMBRO_ASSERT(o->file_state == FILE_STATE_INACTIVE || o->file_state == FILE_STATE_PAUSED)
@@ -161,7 +164,7 @@ public:
             return false;
         }
         
-        o->init_u.fs.file_reader.rewind(c);
+        fs_o->file_reader.rewind(c);
         o->file_eof = false;
         return true;
     }
@@ -187,19 +190,21 @@ public:
     static void startRead (Context c, size_t buf_avail, WrapBuffer buf)
     {
         auto *o = Object::self(c);
+        auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->file_state == FILE_STATE_RUNNING)
         AMBRO_ASSERT(!o->file_eof)
         AMBRO_ASSERT(buf_avail >= TheBlockAccess::BlockSize)
         AMBRO_ASSERT(buf.wrap > 0)
         
-        o->init_u.fs.file_reader.requestBlock(c, buf);
+        fs_o->file_reader.requestBlock(c, buf);
         o->file_state = FILE_STATE_READING;
     }
     
     static bool checkCommand (Context c, typename ThePrinterMain::CommandType *cmd)
     {
         auto *o = Object::self(c);
+        auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         
         auto cmd_num = cmd->getCmdNumber(c);
@@ -223,7 +228,7 @@ public:
                 } 
                 else { // cmd_num == 23
                     if (cmd->find_command_param(c, 'R', nullptr)) {
-                        o->init_u.fs.current_directory = TheFs::getRootEntry(c);
+                        fs_o->current_directory = TheFs::getRootEntry(c);
                         break;
                     }
                     
@@ -245,8 +250,8 @@ public:
                     o->listing_u.open_or_chdir.entry_found = false;
                 }
                 
-                o->init_u.fs.dir_lister.init(c, o->init_u.fs.current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
-                o->init_u.fs.dir_lister.requestEntry(c);
+                fs_o->dir_lister.init(c, fs_o->current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
+                fs_o->dir_lister.requestEntry(c);
                 return false;
             } while (0);
             
@@ -263,18 +268,20 @@ private:
     static void cleanup (Context c)
     {
         auto *o = Object::self(c);
+        auto *mbr_o = UnionMbrPart::Object::self(c);
+        auto *fs_o = UnionFsPart::Object::self(c);
         
         if (o->listing_state != LISTING_STATE_INACTIVE) {
-            o->init_u.fs.dir_lister.deinit(c);
+            fs_o->dir_lister.deinit(c);
         }
         if (o->file_state != FILE_STATE_INACTIVE) {
-            o->init_u.fs.file_reader.deinit(c);
+            fs_o->file_reader.deinit(c);
         }
         if (o->init_state >= INIT_STATE_INIT_FS) {
             TheFs::deinit(c);
         }
         if (o->init_state == INIT_STATE_READ_MBR) {
-            o->init_u.mbr.block_user.deinit(c);
+            mbr_o->block_user.deinit(c);
         }
         if (o->init_state >= INIT_STATE_ACTIVATE_SD) {
             TheBlockAccess::deactivate(c);
@@ -288,6 +295,7 @@ private:
     static void block_access_activate_handler (Context c, uint8_t error_code)
     {
         auto *o = Object::self(c);
+        auto *mbr_o = UnionMbrPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_ACTIVATE_SD)
         
@@ -297,14 +305,15 @@ private:
         }
         
         o->init_state = INIT_STATE_READ_MBR;
-        o->init_u.mbr.block_user.init(c, APRINTER_CB_STATFUNC_T(&SdFatInput::block_user_handler));
-        o->init_u.mbr.block_user.startRead(c, 0, WrapBuffer::Make(o->fs_buffer.buffer));
+        mbr_o->block_user.init(c, APRINTER_CB_STATFUNC_T(&SdFatInput::block_user_handler));
+        mbr_o->block_user.startRead(c, 0, WrapBuffer::Make(mbr_o->block_buffer));
     }
     struct BlockAccessActivateHandler : public AMBRO_WFUNC_TD(&SdFatInput::block_access_activate_handler) {};
     
     static void block_user_handler (Context c, bool read_error)
     {
         auto *o = Object::self(c);
+        auto *mbr_o = UnionMbrPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_READ_MBR)
         
@@ -315,7 +324,7 @@ private:
                 goto error;
             }
             
-            uint16_t signature = ReadBinaryInt<uint16_t, BinaryLittleEndian>(o->fs_buffer.buffer + 510);
+            uint16_t signature = ReadBinaryInt<uint16_t, BinaryLittleEndian>(mbr_o->block_buffer + 510);
             if (signature != UINT16_C(0xAA55)) {
                 error_code = 41;
                 goto error;
@@ -326,7 +335,7 @@ private:
             typename TheBlockAccess::BlockRange part_range;
             
             for (int partNum = 0; partNum < 4; partNum++) {
-                char const *part_entry_buf = o->fs_buffer.buffer + (446 + partNum * 16);
+                char const *part_entry_buf = mbr_o->block_buffer + (446 + partNum * 16);
                 uint8_t part_type =           ReadBinaryInt<uint8_t,  BinaryLittleEndian>(part_entry_buf + 0x4);
                 uint32_t part_start_blocks =  ReadBinaryInt<uint32_t, BinaryLittleEndian>(part_entry_buf + 0x8);
                 uint32_t part_length_blocks = ReadBinaryInt<uint32_t, BinaryLittleEndian>(part_entry_buf + 0xC);
@@ -347,9 +356,9 @@ private:
                 goto error;
             }
             
-            o->init_u.mbr.block_user.deinit(c);
+            mbr_o->block_user.deinit(c);
             
-            TheFs::init(c, &o->fs_buffer, part_range);
+            TheFs::init(c, part_range);
             o->init_state = INIT_STATE_INIT_FS;
             return;
         } while (0);
@@ -362,6 +371,7 @@ private:
     static void fs_init_handler (Context c, uint8_t error_code)
     {
         auto *o = Object::self(c);
+        auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_INIT_FS)
         AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
@@ -371,7 +381,7 @@ private:
             cleanup(c);
         } else {
             o->init_state = INIT_STATE_DONE;
-            o->init_u.fs.current_directory = TheFs::getRootEntry(c);
+            fs_o->current_directory = TheFs::getRootEntry(c);
         }
         return ClientParams::ActivateHandler::call(c, error_code);
     }
@@ -380,6 +390,7 @@ private:
     static void dir_lister_handler (Context c, bool is_error, char const *name, typename TheFs::FsEntry entry)
     {
         auto *o = Object::self(c);
+        auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
         AMBRO_ASSERT(o->listing_state == LISTING_STATE_DIRLIST || o->listing_state == LISTING_STATE_CHDIR || o->listing_state == LISTING_STATE_OPEN)
@@ -412,7 +423,7 @@ private:
             } while (0);
             
             if (!stop_listing) {
-                o->init_u.fs.dir_lister.requestEntry(c);
+                fs_o->dir_lister.requestEntry(c);
                 return;
             }
         }
@@ -435,7 +446,7 @@ private:
                 }
                 
                 if (o->listing_state == LISTING_STATE_CHDIR) {
-                    o->init_u.fs.current_directory = entry;
+                    fs_o->current_directory = entry;
                 } else {
                     if (o->file_state >= FILE_STATE_RUNNING) {
                         errstr = AMBRO_PSTR("error:SdPrintRunning\n");
@@ -443,9 +454,9 @@ private:
                     }
                     
                     if (o->file_state != FILE_STATE_INACTIVE) {
-                        o->init_u.fs.file_reader.deinit(c);
+                        fs_o->file_reader.deinit(c);
                     }
-                    o->init_u.fs.file_reader.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::file_reader_handler));
+                    fs_o->file_reader.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::file_reader_handler));
                     o->file_state = FILE_STATE_PAUSED;
                     o->file_eof = false;
                     
@@ -462,13 +473,14 @@ private:
         }
         cmd->finishCommand(c);
         
-        o->init_u.fs.dir_lister.deinit(c);
+        fs_o->dir_lister.deinit(c);
         o->listing_state = LISTING_STATE_INACTIVE;
     }
     
     static void send_buf_event_handler (Context c)
     {
         auto *o = Object::self(c);
+        auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
         AMBRO_ASSERT(o->listing_state == LISTING_STATE_DIRLIST)
@@ -480,7 +492,7 @@ private:
         cmd->reply_append_ch(c, '\n');
         cmd->reply_poke(c);
         
-        o->init_u.fs.dir_lister.requestEntry(c);
+        fs_o->dir_lister.requestEntry(c);
         o->listing_u.dirlist.cur_name = nullptr;
     }
     
@@ -504,26 +516,40 @@ private:
         return ClientParams::ReadHandler::call(c, is_error, length);
     }
     
+    struct InitUnion {
+        struct Object : public ObjUnionBase<InitUnion, typename SdFatInput::Object, MakeTypeList<
+            UnionMbrPart,
+            UnionFsPart
+        >> {};
+    };
+    
+    struct UnionMbrPart {
+        struct Object : public ObjBase<UnionMbrPart, typename InitUnion::Object, EmptyTypeList> {
+            typename TheBlockAccess::User block_user;
+            char block_buffer[TheBlockAccess::BlockSize];
+        };
+    };
+    
+    struct UnionFsPart {
+        struct Object : public ObjBase<UnionFsPart, typename InitUnion::Object, MakeTypeList<
+            TheFs
+        >> {
+            typename TheFs::FsEntry current_directory;
+            typename TheFs::DirLister dir_lister;
+            typename TheFs::FileReader file_reader;
+        };
+    };
+    
 public:
     struct Object : public ObjBase<SdFatInput, ParentObject, MakeTypeList<
         TheDebugObject,
         TheBlockAccess,
-        TheFs
+        InitUnion
     >> {
         uint8_t init_state : 3;
         uint8_t listing_state : 2;
         uint8_t file_state : 2;
         uint8_t file_eof : 1;
-        union {
-            struct {
-                typename TheBlockAccess::User block_user;
-            } mbr;
-            struct {
-                typename TheFs::FsEntry current_directory;
-                typename TheFs::DirLister dir_lister;
-                typename TheFs::FileReader file_reader;
-            } fs;
-        } init_u;
         union {
             struct {
                 char const *cur_name;
@@ -535,7 +561,6 @@ public:
                 bool entry_found;
             } open_or_chdir;
         } listing_u;
-        typename TheFs::SharedBuffer fs_buffer;
     };
 };
 

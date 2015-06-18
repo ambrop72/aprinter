@@ -89,24 +89,20 @@ public:
         ClusterIndexType cluster_index;
     };
     
-    struct SharedBuffer {
-        char buffer[BlockSize];
-    };
-    
     static bool isPartitionTypeSupported (uint8_t type)
     {
         return (type == 0xB || type == 0xC);
     }
     
-    static void init (Context c, SharedBuffer *init_buffer, typename TheBlockAccess::BlockRange block_range)
+    static void init (Context c, typename TheBlockAccess::BlockRange block_range)
     {
         auto *o = Object::self(c);
         
+        TheBlockCache::init(c);
         o->block_range = block_range;
-        
         o->state = FS_STATE_INIT;
-        o->u.init.block_user.init(c, APRINTER_CB_STATFUNC_T(&FatFs::init_block_read_handler));
-        o->u.init.block_user.startRead(c, get_abs_block_index(c, 0), WrapBuffer::Make(init_buffer->buffer));
+        o->u.init.block_ref.init(c, APRINTER_CB_STATFUNC_T(&FatFs::init_block_ref_handler));
+        o->u.init.block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
         
         TheDebugObject::init(c);
     }
@@ -117,10 +113,9 @@ public:
         TheDebugObject::deinit(c);
         
         if (o->state == FS_STATE_INIT) {
-            o->u.init.block_user.deinit(c);
-        } else if (o->state == FS_STATE_READY) {
-            TheBlockCache::deinit(c);
+            o->u.init.block_ref.deinit(c);
         }
+        TheBlockCache::deinit(c);
     }
     
     static FsEntry getRootEntry (Context c)
@@ -444,30 +439,35 @@ public:
     };
     
 private:
-    static void init_block_read_handler (Context c, bool read_error)
+    static void init_block_ref_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == FS_STATE_INIT)
         
-        char *buffer = o->u.init.block_user.getBuffer(c).ptr1;
-        o->u.init.block_user.deinit(c);
-        
         uint8_t error_code = 99;
         do {
-            if (read_error) {
+            if (error) {
                 error_code = 20;
+                o->u.init.block_ref.deinit(c);
                 goto error;
             }
+            
+            // Careful here - due to union, we first read out the interesting fields in the first block,
+            // then deinit the block_ref, and only then may we change anything within u.fs.
+            
+            char const *buffer = o->u.init.block_ref.getData(c);
             
             uint16_t sector_size =          ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0xB);
             uint8_t sectors_per_cluster =   ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0xD);
             uint16_t num_reserved_sectors = ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0xE);
-            o->u.fs.num_fats =              ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x10);
+            uint8_t num_fats =              ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x10);
             uint16_t max_root =             ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0x11);
             uint32_t sectors_per_fat =      ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x24);
             uint32_t root_cluster =         ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x2C);
             uint8_t sig =                   ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x42);
+            
+            o->u.init.block_ref.deinit(c);
             
             if (sector_size == 0 || sector_size % BlockSize != 0) {
                 error_code = 22;
@@ -486,10 +486,11 @@ private:
                 goto error;
             }
             
-            if (o->u.fs.num_fats != 1 && o->u.fs.num_fats != 2) {
+            if (num_fats != 1 && num_fats != 2) {
                 error_code = 25;
                 goto error;
             }
+            o->u.fs.num_fats = num_fats;
             
             if (sig != 0x28 && sig != 0x29) {
                 error_code = 26;
@@ -528,8 +529,6 @@ private:
                 goto error;
             }
             o->u.fs.num_valid_clusters = MinValue(valid_clusters_for_capacity, MinValue((ClusterIndexType)(o->u.fs.num_fat_entries - 2), UINT32_C(0xFFFFFF6)));
-            
-            TheBlockCache::init(c);
             
             o->u.fs.allocator_list.init();
             o->u.fs.allocator_position = 0;
@@ -1053,7 +1052,7 @@ public:
         uint8_t state;
         union {
             struct {
-                BlockAccessUser block_user;
+                CacheBlockRef block_ref;
             } init;
             struct {
                 uint8_t num_fats;
