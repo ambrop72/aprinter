@@ -245,7 +245,7 @@ public:
                     o->listing_u.open_or_chdir.entry_found = false;
                 }
                 
-                o->init_u.fs.dir_lister.init(c, o->init_u.fs.current_directory, &o->fs_buffer, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
+                o->init_u.fs.dir_lister.init(c, o->init_u.fs.current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
                 o->init_u.fs.dir_lister.requestEntry(c);
                 return false;
             } while (0);

@@ -137,60 +137,93 @@ public:
     }
     
     class DirLister {
-    private:
-        enum {DIRLISTER_STATE_WAITREQ, DIRLISTER_STATE_READING, DIRLISTER_STATE_EVENT};
+        enum class State : uint8_t {WAIT_REQUEST, CHECK_NEXT_EVENT, REQUESTING_CLUSTER, REQUESTING_BLOCK};
         
     public:
         using DirListerHandler = Callback<void(Context c, bool is_error, char const *name, FsEntry entry)>;
         
-        void init (Context c, FsEntry dir_entry, SharedBuffer *buffer, DirListerHandler handler)
+        void init (Context c, FsEntry dir_entry, DirListerHandler handler)
         {
+            auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(dir_entry.type == ENTRYTYPE_DIR)
             
-            m_buffer = buffer;
-            m_handler = handler;
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&DirLister::event_handler, this));
-            m_reader.init(c, dir_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&DirLister::reader_handler, this));
-            m_state = DIRLISTER_STATE_WAITREQ;
+            m_chain.init(c, dir_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&DirLister::chain_handler, this));
+            m_dir_block_ref.init(c, APRINTER_CB_OBJFUNC_T(&DirLister::dir_block_ref_handler, this));
+            
+            m_handler = handler;
+            m_state = State::WAIT_REQUEST;
+            m_block_in_cluster = o->u.fs.blocks_per_cluster;
             m_block_entry_pos = DirEntriesPerBlock;
             m_vfat_seq = -1;
         }
         
-        // WARNING: Only allowed together with deiniting the whole FatFs and underlying storage!
         void deinit (Context c)
         {
             TheDebugObject::access(c);
             
-            m_reader.deinit(c);
+            m_dir_block_ref.deinit(c);
+            m_chain.deinit(c);
             m_event.deinit(c);
         }
         
         void requestEntry (Context c)
         {
             TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == DIRLISTER_STATE_WAITREQ)
+            AMBRO_ASSERT(m_state == State::WAIT_REQUEST)
             
-            next_entry(c);
+            schedule_event(c);
         }
         
     private:
+        void complete_request (Context c, bool error, char const *name=nullptr, FsEntry entry=FsEntry{})
+        {
+            m_state = State::WAIT_REQUEST;
+            return m_handler(c, error, name, entry);
+        }
+        
+        void schedule_event (Context c)
+        {
+            m_state = State::CHECK_NEXT_EVENT;
+            m_event.prependNowNotAlready(c);
+        }
+        
         void event_handler (Context c)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == DIRLISTER_STATE_EVENT)
-            AMBRO_ASSERT(m_block_entry_pos < DirEntriesPerBlock)
+            AMBRO_ASSERT(m_state == State::CHECK_NEXT_EVENT)
             
-            char const *entry_ptr = m_buffer->buffer + ((size_t)m_block_entry_pos * 32);
+            if (m_block_entry_pos == DirEntriesPerBlock) {
+                if (m_block_in_cluster == o->u.fs.blocks_per_cluster) {
+                    m_chain.requestNext(c);
+                    m_state = State::REQUESTING_CLUSTER;
+                    return;
+                }
+                
+                BlockIndexType block_idx;
+                if (!get_cluster_block_idx(c, m_chain.getCurrentCluster(c), m_block_in_cluster, &block_idx)) {
+                    return complete_request(c, true);
+                }
+                
+                if (!m_dir_block_ref.requestBlock(c, get_abs_block_index(c, block_idx), 0, 1)) {
+                    m_state = State::REQUESTING_BLOCK;
+                    return;
+                }
+                
+                m_block_in_cluster++;
+                m_block_entry_pos = 0;
+            }
+            
+            char const *entry_ptr = m_dir_block_ref.getData(c) + ((size_t)m_block_entry_pos * 32);
             uint8_t first_byte =    ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0x0);
             uint8_t attrs =         ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xB);
             uint8_t type_byte =     ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xC);
             uint8_t checksum_byte = ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xD);
             
             if (first_byte == 0) {
-                m_state = DIRLISTER_STATE_WAITREQ;
-                return m_handler(c, false, nullptr, FsEntry());
+                return complete_request(c, false);
             }
             
             m_block_entry_pos++;
@@ -235,7 +268,7 @@ public:
                 }
                 
                 // Go on reading directory entries.
-                return next_entry(c);
+                return schedule_event(c);
             }
             
             // Forget VFAT state but remember for use in this entry.
@@ -244,12 +277,12 @@ public:
             
             // Free marker.
             if (first_byte == 0xE5) {
-                return next_entry(c);
+                return schedule_event(c);
             }
             
             // Ignore: volume label or device.
             if ((attrs & 0x8) || (attrs & 0x40)) {
-                return next_entry(c);
+                return schedule_event(c);
             }
             
             bool is_dir = (attrs & 0x10);
@@ -297,42 +330,38 @@ public:
             entry.file_size = file_size;
             entry.cluster_index = first_cluster;
             
-            m_state = DIRLISTER_STATE_WAITREQ;
-            return m_handler(c, false, filename, entry);
+            return complete_request(c, false, filename, entry);
         }
         
-        void reader_handler (Context c, uint8_t status)
+        void chain_handler (Context c, bool error)
         {
             TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == DIRLISTER_STATE_READING)
+            AMBRO_ASSERT(m_state == State::REQUESTING_CLUSTER)
             
-            if (status != BaseReader::BASEREAD_STATUS_OK) {
-                bool is_error = (status != BaseReader::BASEREAD_STATUS_EOF);
-                m_state = DIRLISTER_STATE_WAITREQ;
-                return m_handler(c, is_error, nullptr, FsEntry());
+            if (error || m_chain.endReached(c)) {
+                return complete_request(c, error);
             }
-            
-            m_block_entry_pos = 0;
-            m_event.appendNowNotAlready(c);
-            m_state = DIRLISTER_STATE_EVENT;
+            m_block_in_cluster = 0;
+            schedule_event(c);
         }
         
-        void next_entry (Context c)
+        void dir_block_ref_handler (Context c, bool error)
         {
-            if (m_block_entry_pos == DirEntriesPerBlock) {
-                m_reader.requestBlock(c, WrapBuffer::Make(m_buffer->buffer));
-                m_state = DIRLISTER_STATE_READING;
-            } else {
-                m_event.appendNowNotAlready(c);
-                m_state = DIRLISTER_STATE_EVENT;
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::REQUESTING_BLOCK)
+            
+            if (error) {
+                return complete_request(c, error);
             }
+            schedule_event(c);
         }
         
-        SharedBuffer *m_buffer;
-        DirListerHandler m_handler;
         typename Context::EventLoop::QueuedEvent m_event;
-        BaseReader m_reader;
-        uint8_t m_state;
+        ClusterChain m_chain;
+        CacheBlockRef m_dir_block_ref;
+        DirListerHandler m_handler;
+        State m_state;
+        ClusterBlockIndexType m_block_in_cluster;
         DirEntriesPerBlockType m_block_entry_pos;
         int8_t m_vfat_seq;
         uint8_t m_vfat_csum;
@@ -643,9 +672,6 @@ private:
             AMBRO_ASSERT(m_state == State::CHECK_EVENT)
             
             if (m_block_in_cluster == o->u.fs.blocks_per_cluster) {
-                if (m_chain.endReached(c)) {
-                    return complete_request(c, BASEREAD_STATUS_EOF);
-                }
                 m_chain.requestNext(c);
                 m_state = State::NEXT_CLUSTER;
                 return;
@@ -742,7 +768,6 @@ private:
         void requestNext (Context c)
         {
             AMBRO_ASSERT(m_state == State::IDLE)
-            AMBRO_ASSERT(m_iter_state != IterState::END)
             
             m_state = State::REQUEST_NEXT_CHECK;
             m_event.prependNowNotAlready(c);
@@ -783,9 +808,7 @@ private:
             
             switch (m_state) {
                 case State::REQUEST_NEXT_CHECK: {
-                    AMBRO_ASSERT(m_iter_state != IterState::END)
-                    
-                    if (m_iter_state != IterState::START) {
+                    if (m_iter_state == IterState::CLUSTER) {
                         BlockIndexType fat_block_idx;
                         size_t fat_block_offset;
                         if (!get_fat_entry_location(c, m_current_cluster, &fat_block_idx, &fat_block_offset)) {
@@ -801,10 +824,12 @@ private:
                         m_current_cluster = mask_cluster_entry(ReadBinaryInt<uint32_t, BinaryLittleEndian>(m_fat_cache_ref.getData(c) + fat_block_offset));
                     }
                     
-                    if (is_cluster_idx_normal(m_current_cluster)) {
-                        m_iter_state = IterState::CLUSTER;
-                    } else {
-                        m_iter_state = IterState::END;
+                    if (m_iter_state != IterState::END) {
+                        if (is_cluster_idx_normal(m_current_cluster)) {
+                            m_iter_state = IterState::CLUSTER;
+                        } else {
+                            m_iter_state = IterState::END;
+                        }
                     }
                     
                     return complete_request(c, false);
@@ -822,7 +847,6 @@ private:
                     if (error) {
                         return complete_request(c, true);
                     }
-                    
                     m_state = State::REQUEST_NEXT_CHECK;
                     m_event.prependNowNotAlready(c);
                 } break;
