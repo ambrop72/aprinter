@@ -276,7 +276,6 @@ public:
     }
     
     template <typename ThisContext>
-    AMBRO_OPTIMIZE_SPEED
     static void setFirst (ThisContext c, TimeType time)
     {
         auto *o = Object::self(c);
@@ -296,7 +295,6 @@ public:
         }
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void setNext (HandlerContext c, TimeType time)
     {
         auto *o = Object::self(c);
@@ -311,7 +309,6 @@ public:
     }
     
     template <typename ThisContext>
-    AMBRO_OPTIMIZE_SPEED
     static void unset (ThisContext c)
     {
         auto *o = Object::self(c);
@@ -336,7 +333,6 @@ public:
         return o->m_time;
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void irq_handler (InterruptContext<Context> c)
     {
         auto *o = Object::self(c);
