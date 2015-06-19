@@ -41,7 +41,6 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
-#include <aprinter/base/Optimize.h>
 #include <aprinter/system/InterruptLock.h>
 
 template <typename TcSpec, typename Comp>
@@ -134,7 +133,6 @@ private:
             pmc_disable_periph_clk(TcSpec::Id);
         }
         
-        AMBRO_OPTIMIZE_SPEED
         static void irq_handler (InterruptContext<Context> c)
         {
             (void)ch()->TC_SR;
@@ -247,7 +245,6 @@ public:
     }
     
     template <typename ThisContext>
-    AMBRO_OPTIMIZE_SPEED
     static void setFirst (ThisContext c, TimeType time)
     {
         auto *o = Object::self(c);
@@ -274,7 +271,6 @@ public:
         }
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void setNext (HandlerContext c, TimeType time)
     {
         auto *o = Object::self(c);
@@ -295,7 +291,6 @@ public:
     }
     
     template <typename ThisContext>
-    AMBRO_OPTIMIZE_SPEED
     static void unset (ThisContext c)
     {
         auto *o = Object::self(c);
@@ -318,7 +313,6 @@ public:
         return o->m_time;
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void irq_handler (InterruptContext<Context> c)
     {
         auto *o = Object::self(c);

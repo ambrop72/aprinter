@@ -68,7 +68,6 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/ProgramMemory.h>
-#include <aprinter/base/Optimize.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/system/InterruptLock.h>
@@ -1594,7 +1593,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
         
         template <typename Src, typename AddDistance, typename PlannerCmd>
-        AMBRO_OPTIMIZE_SPEED
         static void do_move (Context c, Src new_pos, AddDistance, FpType *distance_squared, FpType *total_steps, PlannerCmd *cmd)
         {
             auto *o = Object::self(c);
@@ -1873,7 +1871,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheTransformAlg::physToVirt(c, PhysReqPosSrc{c}, VirtReqPosDst{c});
         }
         
-        AMBRO_OPTIMIZE_SPEED
         static void handle_virt_move (Context c, FpType time_freq_by_max_speed, bool is_positioning_move)
         {
             auto *o = Object::self(c);
@@ -1956,7 +1953,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return false;
         }
         
-        AMBRO_OPTIMIZE_SPEED
         static void do_split (Context c)
         {
             auto *o = Object::self(c);
@@ -2833,7 +2829,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
         
         template <typename ThisContext, typename TheChannelPayloadUnion>
-        AMBRO_OPTIMIZE_SPEED
         static void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
         {
             ChannelPayload *payload = UnionGetElem<FanIndex>(payload_union);
@@ -3287,7 +3282,6 @@ public: // private, see comment on top
         TheWatchdog::reset(c);
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void work_command (Context c, TheCommand *cmd)
     {
         auto *ob = Object::self(c);
@@ -3620,7 +3614,6 @@ public: // private, see comment on top
         ThePlanner::waitFinished(c);
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void planner_pull_handler (Context c)
     {
         auto *ob = Object::self(c);
@@ -3648,7 +3641,6 @@ public: // private, see comment on top
         }
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void planner_finished_handler (Context c)
     {
         auto *ob = Object::self(c);
@@ -3699,7 +3691,6 @@ public: // private, see comment on top
 #endif
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)
     {
         auto *ob = Object::self(c);
@@ -3751,7 +3742,6 @@ public: // private, see comment on top
         FpType get () { return Laser<LaserIndex>::Object::self(m_c)->move_energy; }
     };
     
-    AMBRO_OPTIMIZE_SPEED
     static void move_end (Context c, FpType time_freq_by_max_speed, bool is_positioning_move=true)
     {
         auto *ob = Object::self(c);

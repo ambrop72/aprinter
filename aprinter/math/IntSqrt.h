@@ -33,7 +33,6 @@
 #include <aprinter/meta/IntTypeInfo.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/base/Likely.h>
-#include <aprinter/base/Optimize.h>
 
 #ifdef AMBROLIB_AVR
 #include <aprinter/avr-asm-ops/sqrt_26_large.h>
@@ -101,7 +100,6 @@ private:
         
         template <typename I, typename Dummy = void>
         struct Work {
-            AMBRO_OPTIMIZE_SPEED
             static ResType call (TempType op, TempType res)
             {
                 TempType one = PowerOfTwo<TempType, (TempBits - 2 - (2 * I::Value))>::Value;
@@ -117,7 +115,6 @@ private:
         
         template <typename Dummy>
         struct Work<WrapInt<(TempBits / 2)>, Dummy> {
-            AMBRO_OPTIMIZE_SPEED
             static ResType call (TempType op, TempType res)
             {
                 if (Round && op > res) {
@@ -137,7 +134,6 @@ private:
         
         template <typename I, typename Dummy = void>
         struct Work {
-            AMBRO_OPTIMIZE_SPEED
             static ResType call (TempType op, TempType res)
             {
                 static const TempType one = PowerOfTwo<TempType, TempBits - 2 - I::Value>::Value;
@@ -158,7 +154,6 @@ private:
         
         template <typename Dummy>
         struct Work<WrapInt<((TempBits / 2) - 1)>, Dummy> {
-            AMBRO_OPTIMIZE_SPEED
             static ResType call (TempType op, TempType res)
             {
                 if (op >= res) {

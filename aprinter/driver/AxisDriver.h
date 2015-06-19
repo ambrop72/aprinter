@@ -34,7 +34,6 @@
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/base/Object.h>
-#include <aprinter/base/Optimize.h>
 #include <aprinter/math/StoredNumber.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -109,7 +108,6 @@ public:
         TMulStored t_mul_stored;
     };
     
-    AMBRO_OPTIMIZE_SPEED
     AMBRO_ALWAYS_INLINE static void generate_command (bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a, Command *cmd)
     {
         AMBRO_ASSERT(a >= -x)
@@ -268,7 +266,6 @@ private:
         }
     };
     
-    AMBRO_OPTIMIZE_SPEED
     static bool timer_handler (typename TimerInstance::HandlerContext c)
     {
         auto *o = Object::self(c);

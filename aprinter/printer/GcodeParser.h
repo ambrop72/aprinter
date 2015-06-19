@@ -35,7 +35,6 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
-#include <aprinter/base/Optimize.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -115,7 +114,6 @@ public:
         return (o->m_state != STATE_NOCMD);
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void startCommand (Context c, char *buffer, int8_t assume_error)
     {
         auto *o = Object::self(c);
@@ -131,7 +129,6 @@ public:
         TheTypeHelper::init_command_hook(c);
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static bool extendCommand (Context c, BufferSizeType avail)
     {
         auto *o = Object::self(c);
@@ -423,7 +420,6 @@ private:
         return (ch == ' ' || ch == '\t' || ch == '\r');
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static bool compare_checksum (uint8_t expected, char const *received, BufferSizeType received_len)
     {
         while (received_len > 0 && is_space(received[received_len - 1])) {
@@ -442,7 +438,6 @@ private:
         return (received_len == 0);
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void finish_part (Context c)
     {
         auto *o = Object::self(c);

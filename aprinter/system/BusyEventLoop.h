@@ -40,7 +40,6 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
-#include <aprinter/base/Optimize.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/system/InterruptLock.h>
 
@@ -92,7 +91,6 @@ public:
         AMBRO_ASSERT(o->m_queued_event_list.isEmpty())
     }
     
-    AMBRO_OPTIMIZE_SPEED
     static void run (Context c)
     {
         auto *o = Object::self(c);
