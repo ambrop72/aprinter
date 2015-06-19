@@ -216,13 +216,29 @@ public:
                 }
                 
                 AMBRO_ASSERT(!m_entry)
-                m_state = State::ALLOCATING_ENTRY;
                 m_block = block;
                 m_write_stride = write_stride;
                 m_write_count = write_count;
-                o->pending_allocations.append(this);
                 
-                schedule_allocations_check(c);
+                CacheEntry *entry = get_entry_for_block(c, m_block);
+                if (entry) {
+                    m_entry = entry;
+                    m_entry->assignBlockAndAttachUser(c, m_block, m_write_stride, m_write_count, this);
+                    if (!m_entry->isInitialized(c)) {
+                        m_state = State::WAITING_READ;
+                    } else {
+                        if (disable_immediate_completion) {
+                            complete_init(c);
+                        } else {
+                            m_state = State::AVAILABLE;
+                        }
+                    }
+                } else {
+                    m_state = State::ALLOCATING_ENTRY;
+                    o->pending_allocations.append(this);
+                    
+                    schedule_allocations_check(c);
+                }
             }
             
             return m_state == State::AVAILABLE;
@@ -301,8 +317,7 @@ public:
             if (entry) {
                 o->pending_allocations.remove(this);
                 m_entry = entry;
-                m_entry->assignBlock(c, m_block, m_write_stride, m_write_count);
-                m_entry->attachUser(c, this);
+                m_entry->assignBlockAndAttachUser(c, m_block, m_write_stride, m_write_count, this);
                 if (!m_entry->isInitialized(c)) {
                     m_state = State::WAITING_READ;
                     return;
@@ -580,7 +595,7 @@ private:
             return m_dirt_time;
         }
         
-        void assignBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count)
+        void assignBlockAndAttachUser (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, CacheRef *user)
         {
             AMBRO_ASSERT(write_count >= 1)
             AMBRO_ASSERT(!isBeingReleased(c))
@@ -588,25 +603,17 @@ private:
             if (m_state != State::INVALID && block == m_block) {
                 AMBRO_ASSERT(write_stride == m_write_stride)
                 AMBRO_ASSERT(write_count == m_write_count)
-                return;
+            } else {
+                AMBRO_ASSERT(m_cache_users_list.isEmpty())
+                AMBRO_ASSERT(m_state == State::INVALID || m_state == State::IDLE)
+                AMBRO_ASSERT(m_state == State::INVALID || m_dirt_state == DirtState::CLEAN)
+                
+                m_state = State::READING;
+                m_block = block;
+                m_write_stride = write_stride;
+                m_write_count = write_count;
+                m_block_user.startRead(c, m_block, WrapBuffer::Make(m_buffer));
             }
-            
-            AMBRO_ASSERT(m_cache_users_list.isEmpty())
-            AMBRO_ASSERT(m_state == State::INVALID || m_state == State::IDLE)
-            AMBRO_ASSERT(m_state == State::INVALID || m_dirt_state == DirtState::CLEAN)
-            
-            m_state = State::READING;
-            m_block = block;
-            m_write_stride = write_stride;
-            m_write_count = write_count;
-            
-            m_block_user.startRead(c, m_block, WrapBuffer::Make(m_buffer));
-        }
-        
-        void attachUser (Context c, CacheRef *user)
-        {
-            AMBRO_ASSERT(m_state != State::INVALID)
-            AMBRO_ASSERT(!isBeingReleased(c))
             
             m_cache_users_list.append(user);
         }
