@@ -25,8 +25,8 @@
 { stdenv, fetchurl, unzip }:
 let
     source = fetchurl {
-        url = http://www.st.com/st-web-ui/static/active/en/st_prod_software_internet/resource/technical/software/firmware/stm32cubef4.zip;
-        sha256 = "b5deff0c2da912de9a1d4b2473b66d39e405a6926c085f688ac55212102270da";
+        url = https://www.dropbox.com/s/vbpdqvlevdusnn5/stm32cubef4.zip?dl=1;
+        sha256 = "dc1475e29b61806ff0674e61ad9710153743056b17fe4f50ffc5070de988ff3c";
     };
     patchFile = ../patches/stm32cubef4.patch;
 in
