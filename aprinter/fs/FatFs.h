@@ -56,6 +56,7 @@ private:
     static size_t const BlockSize = TheBlockAccess::BlockSize;
     static_assert(BlockSize >= 0x47, "BlockSize not enough for EBPB");
     static_assert(BlockSize % 32 == 0, "BlockSize not a multiple of 32");
+    static_assert(BlockSize >= 512, "BlockSize not enough for FS Information Sector");
     using SectorIndexType = BlockIndexType;
     using ClusterIndexType = uint32_t;
     using ClusterBlockIndexType = uint16_t;
@@ -470,6 +471,7 @@ private:
             uint16_t max_root =             ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0x11);
             uint32_t sectors_per_fat =      ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x24);
             uint32_t root_cluster =         ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + 0x2C);
+            uint16_t fs_info_sector =       ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0x30);
             uint8_t sig =                   ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x42);
             
             o->u.init.block_ref.deinit(c);
@@ -527,6 +529,13 @@ private:
             }
             o->u.fs.num_reserved_blocks = (BlockIndexType)num_reserved_sectors * blocks_per_sector;
             o->u.fs.fat_end_blocks = fat_end_sectors_calc * blocks_per_sector;
+            
+            uint32_t fs_info_block_calc = fs_info_sector * (uint32_t)blocks_per_sector;
+            if (fs_info_block_calc >= o->u.fs.num_reserved_blocks) {
+                error_code = 31;
+                goto error;
+            }
+            o->u.fs.fs_info_block = fs_info_block_calc;
             
             ClusterIndexType valid_clusters_for_capacity = (o->block_range.getLength() - o->u.fs.fat_end_blocks) / o->u.fs.blocks_per_cluster;
             if (valid_clusters_for_capacity < 1) {
@@ -1110,6 +1119,108 @@ private:
         DoubleEndedListNode<ClusterRef> m_node;
     };
     
+    class FsInfo {
+        enum class State : uint8_t {INVALID, REQUESTING_BLOCK, READY};
+        
+        static size_t const Sig1Offset = 0x0;
+        static size_t const Sig2Offset = 0x1E4;
+        static size_t const FreeClustersOffset = 0x1E8;
+        static size_t const AllocatedClustersOffset = 0x1EC;
+        static size_t const Sig3Offset = 0x1FC;
+        
+    public:
+        using FsInfoHandler = Callback<void(Context c, bool error)>;
+        
+        void init (Context c, FsInfoHandler handler)
+        {
+            m_block_ref.init(c, APRINTER_CB_OBJFUNC_T(&FsInfo::block_ref_handler, this));
+            m_handler = handler;
+            m_state = State::INVALID;
+        }
+        
+        void deinit (Context c)
+        {
+            m_block_ref.deinit(c);
+        }
+        
+        void reset (Context c)
+        {
+            m_block_ref.reset(c);
+            m_state = State::INVALID;
+        }
+        
+        void requestAccess (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(m_state == State::INVALID)
+            AMBRO_ASSERT(o->u.fs.fs_info_block != 0)
+            
+            m_state = State::REQUESTING_BLOCK;
+            m_block_ref.requestBlock(c, get_abs_block_index(c, o->u.fs.fs_info_block), 0, 1, true);
+        }
+        
+        uint32_t getNumFreeClusters (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::READY)
+            
+            return ReadBinaryInt<uint32_t, BinaryLittleEndian>(m_block_ref.getData(c) + FreeClustersOffset);
+        }
+        
+        uint32_t getNumAllocatedClusters (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::READY)
+            
+            return ReadBinaryInt<uint32_t, BinaryLittleEndian>(m_block_ref.getData(c) + AllocatedClustersOffset);
+        }
+        
+        void setNumFreeClusters (Context c, uint32_t value)
+        {
+            AMBRO_ASSERT(m_state == State::READY)
+            
+            WriteBinaryInt<uint32_t, BinaryLittleEndian>(value, m_block_ref.getData(c) + FreeClustersOffset);
+            m_block_ref.markDirty(c);
+        }
+        
+        void setNumAllocatedClusters (Context c, uint32_t value)
+        {
+            AMBRO_ASSERT(m_state == State::READY)
+            
+            WriteBinaryInt<uint32_t, BinaryLittleEndian>(value, m_block_ref.getData(c) + AllocatedClustersOffset);
+            m_block_ref.markDirty(c);
+        }
+        
+    private:
+        void complete_request (Context c, bool error)
+        {
+            if (error) {
+                m_state = State::INVALID;
+                m_block_ref.reset(c);
+            } else {
+                m_state = State::READY;
+            }
+            return m_handler(c, error);
+        }
+        
+        void block_ref_handler (Context c, bool error)
+        {
+            AMBRO_ASSERT(m_state == State::REQUESTING_BLOCK)
+            
+            if (error) {
+                return complete_request(c, error);
+            }
+            char *buffer = m_block_ref.getData(c);
+            uint32_t sig1 = ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + Sig1Offset);
+            uint32_t sig2 = ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + Sig2Offset);
+            uint32_t sig3 = ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + Sig3Offset);
+            bool signature_error = sig1 != UINT32_C(0x41615252) || sig2 != UINT32_C(0x61417272) || sig3 != UINT32_C(0xAA550000);
+            return complete_request(c, signature_error);
+        }
+        
+        CacheBlockRef m_block_ref;
+        FsInfoHandler m_handler;
+        State m_state;
+    };
+    
 public:
     struct Object : public ObjBase<FatFs, ParentObject, MakeTypeList<
         TheDebugObject,
@@ -1128,6 +1239,7 @@ public:
                 ClusterIndexType num_fat_entries;
                 BlockIndexType num_reserved_blocks;
                 BlockIndexType fat_end_blocks;
+                BlockIndexType fs_info_block;
                 ClusterIndexType num_valid_clusters;
                 DoubleEndedList<ClusterRef, &ClusterRef::m_node> cluster_refs_list;
                 typename Context::EventLoop::QueuedEvent alloc_event;
