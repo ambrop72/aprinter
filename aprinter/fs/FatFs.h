@@ -72,7 +72,6 @@ private:
     enum class FsState : uint8_t {INIT, READY, FAILED};
     enum class AllocationState : uint8_t {IDLE, CHECK_EVENT, REQUESTING_BLOCK};
     
-    class BaseReader;
     class ClusterChain;
     
 public:
@@ -395,77 +394,131 @@ public:
     };
     
     class FileReader {
+        enum class State : uint8_t {IDLE, EVENT, NEXT_CLUSTER, READING_DATA};
+        
     public:
-        using FileReaderHandler = Callback<void(Context c, bool is_error, size_t length)>;
+        using FileReaderHandler = Callback<void(Context c, bool error, size_t length)>;
         
         void init (Context c, FsEntry file_entry, FileReaderHandler handler)
         {
+            auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(file_entry.type == EntryType::FILE)
             
+            m_event.init(c, APRINTER_CB_OBJFUNC_T(&FileReader::event_handler, this));
+            m_chain.init(c, file_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&FileReader::chain_handler, this));
+            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&FileReader::block_user_handler, this));
+            
             m_handler = handler;
-            m_first_cluster = file_entry.cluster_index;
             m_file_size = file_entry.file_size;
-            init_reader(c);
+            m_state = State::IDLE;
+            m_rem_file_size = m_file_size;
+            m_block_in_cluster = o->u.fs.blocks_per_cluster;
         }
         
-        // WARNING: Only allowed together with deiniting the whole FatFs and underlying storage!
+        // NOTE: Not allowed when reader is busy, except when deiniting the whole FatFs and underlying storage!
         void deinit (Context c)
         {
             TheDebugObject::access(c);
             
-            m_reader.deinit(c);
+            m_block_user.deinit(c);
+            m_chain.deinit(c);
+            m_event.deinit(c);
         }
         
         void rewind (Context c)
         {
+            auto *o = Object::self(c);
             TheDebugObject::access(c);
-            AMBRO_ASSERT(m_reader.isIdle(c))
+            AMBRO_ASSERT(m_state == State::IDLE)
             
-            m_reader.deinit(c);
-            init_reader(c);
+            m_chain.rewind(c);
+            m_rem_file_size = m_file_size;
+            m_block_in_cluster = o->u.fs.blocks_per_cluster;
         }
         
         void requestBlock (Context c, WrapBuffer buf)
         {
             TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::IDLE)
             
-            m_reader.requestBlock(c, buf);
+            m_request_buf = buf;
+            m_state = State::EVENT;
+            m_event.prependNowNotAlready(c);
         }
         
     private:
-        void init_reader (Context c)
+        void complete_request (Context c, bool error, size_t length=0)
         {
-            m_reader.init(c, m_first_cluster, APRINTER_CB_OBJFUNC_T(&FileReader::reader_handler, this));
-            m_rem_file_size = m_file_size;
+            m_state = State::IDLE;
+            return m_handler(c, error, length);
         }
         
-        void reader_handler (Context c, typename BaseReader::BaseReadStatus status)
+        void event_handler (Context c)
         {
+            auto *o = Object::self(c);
             TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::EVENT)
+            AMBRO_ASSERT(m_block_in_cluster <= o->u.fs.blocks_per_cluster)
             
-            bool is_error = true;
-            size_t read_length = 0;
-            
-            do {
-                if (status != BaseReader::BaseReadStatus::OKAY) {
-                    is_error = (status != BaseReader::BaseReadStatus::END_OF_FILE || m_rem_file_size > 0);
-                    break;
-                }
-                
-                is_error = false;
-                read_length = MinValue((uint32_t)BlockSize, m_rem_file_size);
-                m_rem_file_size -= read_length;
-            } while (0);
-            
-            return m_handler(c, is_error, read_length);
+            if (m_rem_file_size == 0) {
+                return complete_request(c, false);
+            }
+            if (m_block_in_cluster == o->u.fs.blocks_per_cluster) {
+                m_state = State::NEXT_CLUSTER;
+                m_chain.requestNext(c);
+                return;
+            }
+            if (!is_cluster_idx_valid_for_data(c, m_chain.getCurrentCluster(c))) {
+                return complete_request(c, true);
+            }
+            m_state = State::READING_DATA;
+            BlockIndexType block_idx = get_cluster_data_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster);
+            m_block_user.startRead(c, get_abs_block_index(c, block_idx), m_request_buf);
         }
         
+        void chain_handler (Context c, bool error)
+        {
+            auto *o = Object::self(c);
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::NEXT_CLUSTER)
+            AMBRO_ASSERT(m_rem_file_size > 0)
+            AMBRO_ASSERT(m_block_in_cluster == o->u.fs.blocks_per_cluster)
+            
+            if (error || m_chain.endReached(c)) {
+                return complete_request(c, true);
+            }
+            m_block_in_cluster = 0;
+            m_state = State::EVENT;
+            m_event.prependNowNotAlready(c);
+        }
+        
+        void block_user_handler (Context c, bool error)
+        {
+            auto *o = Object::self(c);
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::READING_DATA)
+            AMBRO_ASSERT(m_rem_file_size > 0)
+            AMBRO_ASSERT(m_block_in_cluster < o->u.fs.blocks_per_cluster)
+            
+            if (error) {
+                return complete_request(c, error);
+            }
+            m_block_in_cluster++;
+            size_t read_length = MinValue((uint32_t)BlockSize, m_rem_file_size);
+            m_rem_file_size -= read_length;
+            return complete_request(c, false, read_length);
+        }
+        
+        typename Context::EventLoop::QueuedEvent m_event;
+        ClusterChain m_chain;
+        BlockAccessUser m_block_user;
         FileReaderHandler m_handler;
-        ClusterIndexType m_first_cluster;
         uint32_t m_file_size;
-        BaseReader m_reader;
+        State m_state;
         uint32_t m_rem_file_size;
+        ClusterBlockIndexType m_block_in_cluster;
+        WrapBuffer m_request_buf;
     };
     
 private:
@@ -739,115 +792,6 @@ private:
         o->u.fs.alloc_state = AllocationState::CHECK_EVENT;
         o->u.fs.alloc_event.prependNowNotAlready(c);
     }
-    
-    class BaseReader {
-        enum class State : uint8_t {IDLE, CHECK_EVENT, NEXT_CLUSTER, READING_DATA};
-        
-    public:
-        enum class BaseReadStatus : uint8_t {ERROR, END_OF_FILE, OKAY};
-        
-        using BaseReadHandler = Callback<void(Context c, BaseReadStatus status)>;
-        
-        void init (Context c, ClusterIndexType first_cluster, BaseReadHandler handler)
-        {
-            auto *o = Object::self(c);
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(o->state == FsState::READY)
-            
-            m_event.init(c, APRINTER_CB_OBJFUNC_T(&BaseReader::event_handler, this));
-            m_chain.init(c, first_cluster, APRINTER_CB_OBJFUNC_T(&BaseReader::chain_handler, this));
-            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&BaseReader::read_handler, this));
-            
-            m_handler = handler;
-            m_state = State::IDLE;
-            m_block_in_cluster = o->u.fs.blocks_per_cluster;
-        }
-        
-        void deinit (Context c)
-        {
-            m_block_user.deinit(c);
-            m_chain.deinit(c);
-            m_event.deinit(c);
-        }
-        
-        void requestBlock (Context c, WrapBuffer buf)
-        {
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == State::IDLE)
-            
-            m_state = State::CHECK_EVENT;
-            m_req_buf = buf;
-            m_event.appendNowNotAlready(c);
-        }
-        
-        bool isIdle (Context c)
-        {
-            return (m_state == State::IDLE);
-        }
-        
-    private:
-        void event_handler (Context c)
-        {
-            auto *o = Object::self(c);
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == State::CHECK_EVENT)
-            
-            if (m_block_in_cluster == o->u.fs.blocks_per_cluster) {
-                m_chain.requestNext(c);
-                m_state = State::NEXT_CLUSTER;
-                return;
-            }
-            if (!is_cluster_idx_valid_for_data(c, m_chain.getCurrentCluster(c))) {
-                return complete_request(c, BaseReadStatus::ERROR);
-            }
-            BlockIndexType block_idx = get_cluster_data_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster);
-            m_block_user.startRead(c, get_abs_block_index(c, block_idx), m_req_buf);
-            m_state = State::READING_DATA;
-        }
-        
-        void chain_handler (Context c, bool error)
-        {
-            auto *o = Object::self(c);
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == State::NEXT_CLUSTER)
-            AMBRO_ASSERT(m_block_in_cluster == o->u.fs.blocks_per_cluster)
-             
-            if (error || m_chain.endReached(c)) {
-                return complete_request(c, error ? BaseReadStatus::ERROR : BaseReadStatus::END_OF_FILE);
-            }
-            m_block_in_cluster = 0;
-            m_state = State::CHECK_EVENT;
-            m_event.appendNowNotAlready(c);
-        }
-        
-        void read_handler (Context c, bool is_read_error)
-        {
-            auto *o = Object::self(c);
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == State::READING_DATA)
-            AMBRO_ASSERT(m_block_in_cluster < o->u.fs.blocks_per_cluster)
-            
-            if (is_read_error) {
-                return complete_request(c, BaseReadStatus::ERROR);
-            }
-            m_block_in_cluster++;
-            return complete_request(c, BaseReadStatus::OKAY);
-        }
-        
-        void complete_request (Context c, BaseReadStatus status)
-        {
-            m_state = State::IDLE;
-            return m_handler(c, status);
-        }
-        
-        typename Context::EventLoop::QueuedEvent m_event;
-        ClusterChain m_chain;
-        BlockAccessUser m_block_user;
-        BaseReadHandler m_handler;
-        State m_state;
-        ClusterBlockIndexType m_block_in_cluster;
-        WrapBuffer m_req_buf;
-    };
     
     class ClusterChain {
         enum class State : uint8_t {IDLE, REQUEST_NEXT_CHECK, READING_FAT_FOR_NEXT};
