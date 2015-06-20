@@ -411,10 +411,10 @@ private:
                     }
                     
                     o->listing_u.dirlist.cur_name = name;
-                    o->listing_u.dirlist.cur_is_dir = (entry.getType() == TheFs::ENTRYTYPE_DIR);
+                    o->listing_u.dirlist.cur_is_dir = (entry.getType() == TheFs::EntryType::DIR);
                     return;
                 } else {
-                    typename TheFs::EntryType expectedType = (o->listing_state == LISTING_STATE_CHDIR) ? TheFs::ENTRYTYPE_DIR : TheFs::ENTRYTYPE_FILE;
+                    typename TheFs::EntryType expectedType = (o->listing_state == LISTING_STATE_CHDIR) ? TheFs::EntryType::DIR : TheFs::EntryType::FILE;
                     if (entry.getType() == expectedType && compare_filename_equal(name, o->listing_u.open_or_chdir.find_name)) {
                         o->listing_u.open_or_chdir.entry_found = true;
                         stop_listing = true;

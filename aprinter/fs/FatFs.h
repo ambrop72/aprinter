@@ -29,7 +29,6 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Object.h>
@@ -51,13 +50,16 @@ public:
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
+    using TheBlockCache = BlockCache<Context, Object, TheBlockAccess, Params::NumCacheEntries>;
+    
     using BlockAccessUser = typename TheBlockAccess::User;
     using BlockIndexType = typename TheBlockAccess::BlockIndexType;
     static size_t const BlockSize = TheBlockAccess::BlockSize;
+    using CacheBlockRef = typename TheBlockCache::CacheRef;
+    
     static_assert(BlockSize >= 0x47, "BlockSize not enough for EBPB");
     static_assert(BlockSize % 32 == 0, "BlockSize not a multiple of 32");
     static_assert(BlockSize >= 512, "BlockSize not enough for FS Information Sector");
-    using SectorIndexType = BlockIndexType;
     using ClusterIndexType = uint32_t;
     using ClusterBlockIndexType = uint16_t;
     static size_t const FatEntriesPerBlock = BlockSize / 4;
@@ -66,27 +68,25 @@ private:
     static_assert(Params::MaxFileNameSize >= 12, "");
     using FileNameLenType = ChooseIntForMax<Params::MaxFileNameSize, false>;
     static_assert(Params::NumCacheEntries >= 2, "");
-    using TheBlockCache = BlockCache<Context, Object, TheBlockAccess, Params::NumCacheEntries>;
-    using CacheBlockRef = typename TheBlockCache::CacheRef;
     
-    enum {FS_STATE_INIT, FS_STATE_READY, FS_STATE_FAILED};
+    enum class FsState : uint8_t {INIT, READY, FAILED};
     enum class AllocationState : uint8_t {IDLE, CHECK_EVENT, REQUESTING_BLOCK};
     
     class BaseReader;
     class ClusterChain;
     
 public:
-    enum EntryType {ENTRYTYPE_DIR, ENTRYTYPE_FILE};
+    enum class EntryType : uint8_t {DIR, FILE};
     
     class FsEntry {
+        friend FatFs;
+        
     public:
-        inline EntryType getType () const { return (EntryType)type; }
+        inline EntryType getType () const { return type; }
         inline uint32_t getFileSize () const { return file_size; }
         
     private:
-        friend FatFs;
-        
-        uint8_t type;
+        EntryType type;
         uint32_t file_size;
         ClusterIndexType cluster_index;
     };
@@ -102,7 +102,7 @@ public:
         
         TheBlockCache::init(c);
         o->block_range = block_range;
-        o->state = FS_STATE_INIT;
+        o->state = FsState::INIT;
         o->u.init.block_ref.init(c, APRINTER_CB_STATFUNC_T(&FatFs::init_block_ref_handler));
         o->u.init.block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
         
@@ -114,10 +114,10 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        if (o->state == FS_STATE_INIT) {
+        if (o->state == FsState::INIT) {
             o->u.init.block_ref.deinit(c);
         }
-        if (o->state == FS_STATE_READY) {
+        if (o->state == FsState::READY) {
             o->u.fs.alloc_block_ref.deinit(c);
             o->u.fs.alloc_event.deinit(c);
         }
@@ -128,10 +128,10 @@ public:
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == FS_STATE_READY)
+        AMBRO_ASSERT(o->state == FsState::READY)
         
         FsEntry entry;
-        entry.type = ENTRYTYPE_DIR;
+        entry.type = EntryType::DIR;
         entry.file_size = 0;
         entry.cluster_index = o->u.fs.root_cluster;
         return entry;
@@ -147,7 +147,7 @@ public:
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
-            AMBRO_ASSERT(dir_entry.type == ENTRYTYPE_DIR)
+            AMBRO_ASSERT(dir_entry.type == EntryType::DIR)
             
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&DirLister::event_handler, this));
             m_chain.init(c, dir_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&DirLister::chain_handler, this));
@@ -327,7 +327,7 @@ public:
             }
             
             FsEntry entry;
-            entry.type = is_dir ? ENTRYTYPE_DIR : ENTRYTYPE_FILE;
+            entry.type = is_dir ? EntryType::DIR : EntryType::FILE;
             entry.file_size = file_size;
             entry.cluster_index = first_cluster;
             
@@ -357,6 +357,30 @@ public:
             schedule_event(c);
         }
         
+        static uint8_t vfat_checksum (char const *data)
+        {
+            uint8_t csum = 0;
+            for (int i = 0; i < 11; i++) {
+                csum = (uint8_t)((uint8_t)((csum & 1) << 7) + (csum >> 1)) + (uint8_t)data[i];
+            }
+            return csum;
+        }
+        
+        static size_t fixup_83_name (char *data, size_t length, bool lowercase)
+        {
+            while (length > 0 && data[length - 1] == ' ') {
+                length--;
+            }
+            if (lowercase) {
+                for (size_t i = 0; i < length; i++) {
+                    if (data[i] >= 'A' && data[i] <= 'Z') {
+                        data[i] += 32;
+                    }
+                }
+            }
+            return length;
+        }
+        
         typename Context::EventLoop::QueuedEvent m_event;
         ClusterChain m_chain;
         CacheBlockRef m_dir_block_ref;
@@ -377,7 +401,7 @@ public:
         void init (Context c, FsEntry file_entry, FileReaderHandler handler)
         {
             TheDebugObject::access(c);
-            AMBRO_ASSERT(file_entry.type == ENTRYTYPE_FILE)
+            AMBRO_ASSERT(file_entry.type == EntryType::FILE)
             
             m_handler = handler;
             m_first_cluster = file_entry.cluster_index;
@@ -416,7 +440,7 @@ public:
             m_rem_file_size = m_file_size;
         }
         
-        void reader_handler (Context c, uint8_t status)
+        void reader_handler (Context c, typename BaseReader::BaseReadStatus status)
         {
             TheDebugObject::access(c);
             
@@ -424,8 +448,8 @@ public:
             size_t read_length = 0;
             
             do {
-                if (status != BaseReader::BASEREAD_STATUS_OK) {
-                    is_error = (status != BaseReader::BASEREAD_STATUS_EOF || m_rem_file_size > 0);
+                if (status != BaseReader::BaseReadStatus::OKAY) {
+                    is_error = (status != BaseReader::BaseReadStatus::END_OF_FILE || m_rem_file_size > 0);
                     break;
                 }
                 
@@ -449,7 +473,7 @@ private:
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == FS_STATE_INIT)
+        AMBRO_ASSERT(o->state == FsState::INIT)
         
         uint8_t error_code = 99;
         do {
@@ -554,7 +578,7 @@ private:
         } while (0);
         
     error:
-        o->state = error_code ? FS_STATE_FAILED : FS_STATE_READY;
+        o->state = error_code ? FsState::FAILED : FsState::READY;
         return InitHandler::call(c, error_code);
     }
     
@@ -585,7 +609,8 @@ private:
         AMBRO_ASSERT(is_cluster_idx_valid_for_fat(c, cluster_idx))
         
         BlockIndexType block_idx = o->u.fs.num_reserved_blocks + (cluster_idx / FatEntriesPerBlock);
-        return block_ref->requestBlock(c, get_abs_block_index(c, block_idx), num_blocks_per_fat(c), o->u.fs.num_fats, disable_immediate_completion);
+        BlockIndexType num_blocks_per_fat = o->u.fs.num_fat_entries / FatEntriesPerBlock;
+        return block_ref->requestBlock(c, get_abs_block_index(c, block_idx), num_blocks_per_fat, o->u.fs.num_fats, disable_immediate_completion);
     }
     
     static char * get_fat_ptr_in_cache_block (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_idx)
@@ -616,36 +641,6 @@ private:
         AMBRO_ASSERT(rel_block < o->block_range.getLength())
         
         return o->block_range.getAbsBlockIndex(rel_block);
-    }
-    
-    static BlockIndexType num_blocks_per_fat (Context c)
-    {
-        auto *o = Object::self(c);
-        return o->u.fs.num_fat_entries / FatEntriesPerBlock;
-    }
-    
-    static uint8_t vfat_checksum (char const *data)
-    {
-        uint8_t csum = 0;
-        for (int i = 0; i < 11; i++) {
-            csum = (uint8_t)((uint8_t)((csum & 1) << 7) + (csum >> 1)) + (uint8_t)data[i];
-        }
-        return csum;
-    }
-    
-    static size_t fixup_83_name (char *data, size_t length, bool lowercase)
-    {
-        while (length > 0 && data[length - 1] == ' ') {
-            length--;
-        }
-        if (lowercase) {
-            for (size_t i = 0; i < length; i++) {
-                if (data[i] >= 'A' && data[i] <= 'Z') {
-                    data[i] += 32;
-                }
-            }
-        }
-        return length;
     }
     
     static void allocation_request_added (Context c)
@@ -749,15 +744,15 @@ private:
         enum class State : uint8_t {IDLE, CHECK_EVENT, NEXT_CLUSTER, READING_DATA};
         
     public:
-        enum {BASEREAD_STATUS_ERR, BASEREAD_STATUS_EOF, BASEREAD_STATUS_OK};
+        enum class BaseReadStatus : uint8_t {ERROR, END_OF_FILE, OKAY};
         
-        using BaseReadHandler = Callback<void(Context c, uint8_t status)>;
+        using BaseReadHandler = Callback<void(Context c, BaseReadStatus status)>;
         
         void init (Context c, ClusterIndexType first_cluster, BaseReadHandler handler)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
-            AMBRO_ASSERT(o->state == FS_STATE_READY)
+            AMBRO_ASSERT(o->state == FsState::READY)
             
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&BaseReader::event_handler, this));
             m_chain.init(c, first_cluster, APRINTER_CB_OBJFUNC_T(&BaseReader::chain_handler, this));
@@ -803,7 +798,7 @@ private:
                 return;
             }
             if (!is_cluster_idx_valid_for_data(c, m_chain.getCurrentCluster(c))) {
-                return complete_request(c, BASEREAD_STATUS_ERR);
+                return complete_request(c, BaseReadStatus::ERROR);
             }
             BlockIndexType block_idx = get_cluster_data_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster);
             m_block_user.startRead(c, get_abs_block_index(c, block_idx), m_req_buf);
@@ -818,7 +813,7 @@ private:
             AMBRO_ASSERT(m_block_in_cluster == o->u.fs.blocks_per_cluster)
              
             if (error || m_chain.endReached(c)) {
-                return complete_request(c, error ? BASEREAD_STATUS_ERR : BASEREAD_STATUS_EOF);
+                return complete_request(c, error ? BaseReadStatus::ERROR : BaseReadStatus::END_OF_FILE);
             }
             m_block_in_cluster = 0;
             m_state = State::CHECK_EVENT;
@@ -833,13 +828,13 @@ private:
             AMBRO_ASSERT(m_block_in_cluster < o->u.fs.blocks_per_cluster)
             
             if (is_read_error) {
-                return complete_request(c, BASEREAD_STATUS_ERR);
+                return complete_request(c, BaseReadStatus::ERROR);
             }
             m_block_in_cluster++;
-            return complete_request(c, BASEREAD_STATUS_OK);
+            return complete_request(c, BaseReadStatus::OKAY);
         }
         
-        void complete_request (Context c, uint8_t status)
+        void complete_request (Context c, BaseReadStatus status)
         {
             m_state = State::IDLE;
             return m_handler(c, status);
@@ -1143,12 +1138,6 @@ private:
             m_block_ref.deinit(c);
         }
         
-        void reset (Context c)
-        {
-            m_block_ref.reset(c);
-            m_state = State::INVALID;
-        }
-        
         void requestAccess (Context c)
         {
             auto *o = Object::self(c);
@@ -1227,7 +1216,7 @@ public:
         TheBlockCache
     >> {
         typename TheBlockAccess::BlockRange block_range;
-        uint8_t state;
+        FsState state;
         union {
             struct {
                 CacheBlockRef block_ref;
