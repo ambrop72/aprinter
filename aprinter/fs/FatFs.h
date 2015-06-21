@@ -383,9 +383,9 @@ public:
         ClusterChain m_chain;
         CacheBlockRef m_dir_block_ref;
         DirListerHandler m_handler;
-        State m_state;
         ClusterBlockIndexType m_block_in_cluster;
         DirEntriesPerBlockType m_block_entry_pos;
+        State m_state;
         int8_t m_vfat_seq;
         uint8_t m_vfat_csum;
         FileNameLenType m_filename_pos;
