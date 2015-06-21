@@ -26,12 +26,14 @@
 #define APRINTER_BLOCK_CACHE_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -238,7 +240,6 @@ public:
                 } else {
                     m_state = State::ALLOCATING_ENTRY;
                     o->pending_allocations.append(this);
-                    
                     schedule_allocations_check(c);
                 }
             }
@@ -475,7 +476,6 @@ private:
         auto *o = Object::self(c);
         
         CacheEntry *release_entry = nullptr;
-        
         for (int i = 0; i < NumCacheEntries; i++) {
             CacheEntry *ce = &o->cache_entries[i];
             if (ce->isBeingReleased(c)) {
@@ -487,11 +487,9 @@ private:
                 }
             }
         }
-        
         if (!release_entry) {
             return false;
         }
-        
         release_entry->startRelease(c);
         return true;
     }
@@ -584,21 +582,18 @@ private:
         BlockIndexType getBlock (Context c)
         {
             AMBRO_ASSERT(isAssigned(c))
-            
             return m_block;
         }
         
         char * getData (Context c)
         {
             AMBRO_ASSERT(isInitialized(c))
-            
             return m_buffer;
         }
         
         DirtTimeType getDirtTime (Context c)
         {
             AMBRO_ASSERT(isDirty(c))
-            
             return m_dirt_time;
         }
         
@@ -641,7 +636,6 @@ private:
                 m_dirt_state = DirtState::DIRTY;
                 m_dirt_time = o->current_dirt_time++;
             }
-            
             if (!o->waiting_flush_requests.isEmpty() && m_state == State::IDLE) {
                 startWriting(c);
             }
@@ -656,7 +650,6 @@ private:
             m_last_write_failed = false;
             m_dirt_state = DirtState::WRITING;
             m_write_index = 1;
-            
             m_block_user.startWrite(c, m_block, WrapBuffer::Make(m_buffer));
             
             // TBD: Figure out the problem with modifying the block while it's being written out.
@@ -670,7 +663,6 @@ private:
             AMBRO_ASSERT(!isBeingReleased(c))
             
             m_releasing = true;
-            
             if (m_state == State::IDLE) {
                 startWriting(c);
             }

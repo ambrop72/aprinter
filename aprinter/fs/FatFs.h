@@ -811,11 +811,6 @@ private:
             m_event.deinit(c);
         }
         
-        ClusterIndexType getFirstCluster (Context c)
-        {
-            return m_first_cluster;
-        }
-        
         void rewind (Context c)
         {
             AMBRO_ASSERT(m_state == State::IDLE)
