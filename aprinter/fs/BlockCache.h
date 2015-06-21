@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
@@ -48,6 +49,7 @@ private:
     using BlockAccessUser = typename TheBlockAccess::User;
     using DirtTimeType = uint32_t;
     static constexpr DirtTimeType DirtSignBit = ((DirtTimeType)-1 / 2) + 1;
+    using CacheEntryIndexType = ChooseIntForMax<NumCacheEntries, true>;
     
     enum class CacheEntryEvent : uint8_t {READ_COMPLETED};
     
@@ -185,7 +187,7 @@ public:
             m_handler = handler;
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&CacheRef::event_handler, this));
             m_state = State::INVALID;
-            m_entry = nullptr;
+            m_entry_index = -1;
             this->debugInit(c);
         }
         
@@ -215,16 +217,16 @@ public:
                     reset_internal(c);
                 }
                 
-                AMBRO_ASSERT(!m_entry)
+                AMBRO_ASSERT(m_entry_index == -1)
                 m_block = block;
                 m_write_stride = write_stride;
                 m_write_count = write_count;
                 
-                CacheEntry *entry = get_entry_for_block(c, m_block);
-                if (entry) {
-                    m_entry = entry;
-                    m_entry->assignBlockAndAttachUser(c, m_block, m_write_stride, m_write_count, this);
-                    if (!m_entry->isInitialized(c)) {
+                CacheEntryIndexType entry_index = get_entry_for_block(c, m_block);
+                if (entry_index != -1) {
+                    m_entry_index = entry_index;
+                    get_entry(c)->assignBlockAndAttachUser(c, m_block, m_write_stride, m_write_count, this);
+                    if (!get_entry(c)->isInitialized(c)) {
                         m_state = State::WAITING_READ;
                     } else {
                         if (disable_immediate_completion) {
@@ -255,7 +257,7 @@ public:
             this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
             
-            return m_entry->getData(c);
+            return get_entry(c)->getData(c);
         }
         
         void markDirty (Context c)
@@ -263,16 +265,22 @@ public:
             this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
             
-            m_entry->markDirty(c);
+            get_entry(c)->markDirty(c);
         }
         
     private:
+        CacheEntry * get_entry (Context c)
+        {
+            auto *o = Object::self(c);
+            return &o->cache_entries[m_entry_index];
+        }
+        
         void reset_internal (Context c)
         {
             auto *o = Object::self(c);
-            if (m_entry) {
-                m_entry->detachUser(c, this);
-                m_entry = nullptr;
+            if (m_entry_index != -1) {
+                get_entry(c)->detachUser(c, this);
+                m_entry_index = -1;
             }
             if (m_state == State::ALLOCATING_ENTRY) {
                 o->pending_allocations.remove(this);
@@ -292,7 +300,7 @@ public:
             this->debugAccess(c);
             AMBRO_ASSERT(m_state == State::INIT_COMPL_EVENT)
             
-            bool error = !m_entry;
+            bool error = (m_entry_index == -1);
             if (error) {
                 m_state = State::INVALID;
             } else {
@@ -306,19 +314,19 @@ public:
             auto *o = Object::self(c);
             this->debugAccess(c);
             AMBRO_ASSERT(m_state == State::ALLOCATING_ENTRY)
-            AMBRO_ASSERT(!m_entry)
+            AMBRO_ASSERT(m_entry_index == -1)
             
             if (error) {
                 o->pending_allocations.remove(this);
                 return complete_init(c);
             }
             
-            CacheEntry *entry = get_entry_for_block(c, m_block);
-            if (entry) {
+            CacheEntryIndexType entry_index = get_entry_for_block(c, m_block);
+            if (entry_index != -1) {
                 o->pending_allocations.remove(this);
-                m_entry = entry;
-                m_entry->assignBlockAndAttachUser(c, m_block, m_write_stride, m_write_count, this);
-                if (!m_entry->isInitialized(c)) {
+                m_entry_index = entry_index;
+                get_entry(c)->assignBlockAndAttachUser(c, m_block, m_write_stride, m_write_count, this);
+                if (!get_entry(c)->isInitialized(c)) {
                     m_state = State::WAITING_READ;
                     return;
                 }
@@ -329,26 +337,25 @@ public:
         void cache_event (Context c, CacheEntryEvent event, bool error)
         {
             this->debugAccess(c);
-            AMBRO_ASSERT(m_entry)
+            AMBRO_ASSERT(m_entry_index != -1)
             AMBRO_ASSERT(event == CacheEntryEvent::READ_COMPLETED)
             AMBRO_ASSERT(m_state == State::WAITING_READ)
             
             if (error) {
-                m_entry->detachUser(c, this);
-                m_entry = nullptr;
+                get_entry(c)->detachUser(c, this);
+                m_entry_index = -1;
             }
             complete_init(c);
         }
         
         CacheHandler m_handler;
         typename Context::EventLoop::QueuedEvent m_event;
-        State m_state;
+        DoubleEndedListNode<CacheRef> m_list_node;
         BlockIndexType m_block;
         BlockIndexType m_write_stride;
+        CacheEntryIndexType m_entry_index;
+        State m_state;
         uint8_t m_write_count;
-        CacheEntry *m_entry;
-        DoubleEndedListNode<CacheRef> m_cache_users_node;
-        DoubleEndedListNode<CacheRef> m_pending_allocations_node;
     };
     
 private:
@@ -395,30 +402,30 @@ private:
         AMBRO_ASSERT(o->waiting_flush_requests.isEmpty())
     }
     
-    static CacheEntry * get_entry_for_block (Context c, BlockIndexType block)
+    static CacheEntryIndexType get_entry_for_block (Context c, BlockIndexType block)
     {
         auto *o = Object::self(c);
         
-        CacheEntry *invalid_entry = nullptr;
-        CacheEntry *recyclable_entry = nullptr;
+        CacheEntryIndexType invalid_entry = -1;
+        CacheEntryIndexType recyclable_entry = -1;
         
-        for (int i = 0; i < NumCacheEntries; i++) {
-            CacheEntry *ce = &o->cache_entries[i];
+        for (CacheEntryIndexType entry_index = 0; entry_index < NumCacheEntries; entry_index++) {
+            CacheEntry *ce = &o->cache_entries[entry_index];
             
             if (ce->isAssigned(c) && ce->getBlock(c) == block) {
-                return ce->isBeingReleased(c) ? nullptr : ce;
+                return ce->isBeingReleased(c) ? -1 : entry_index;
             }
             
             if (!ce->isBeingReleased(c)) {
                 if (!ce->isAssigned(c)) {
-                    invalid_entry = ce;
+                    invalid_entry = entry_index;
                 } else if (ce->canReassign(c)) {
-                    recyclable_entry = ce;
+                    recyclable_entry = entry_index;
                 }
             }
         }
         
-        return invalid_entry ? invalid_entry : recyclable_entry;
+        return (invalid_entry != -1) ? invalid_entry : recyclable_entry;
     }
     
     static void report_allocation_event (Context c, bool error)
@@ -753,7 +760,7 @@ private:
         }
         
         BlockAccessUser m_block_user;
-        DoubleEndedList<CacheRef, &CacheRef::m_cache_users_node> m_cache_users_list;
+        DoubleEndedList<CacheRef, &CacheRef::m_list_node> m_cache_users_list;
         State m_state;
         bool m_releasing;
         bool m_last_write_failed;
@@ -773,7 +780,7 @@ public:
         typename Context::EventLoop::QueuedEvent allocations_event;
         DirtTimeType current_dirt_time;
         DoubleEndedList<FlushRequest, &FlushRequest::m_waiting_flush_requests_node> waiting_flush_requests;
-        DoubleEndedList<CacheRef, &CacheRef::m_pending_allocations_node> pending_allocations;
+        DoubleEndedList<CacheRef, &CacheRef::m_list_node> pending_allocations;
         CacheEntry cache_entries[NumCacheEntries];
     };
 };
