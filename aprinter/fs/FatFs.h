@@ -73,6 +73,9 @@ private:
     enum class AllocationState : uint8_t {IDLE, CHECK_EVENT, REQUESTING_BLOCK};
     
     class ClusterChain;
+    class ClusterRef;
+    class DirectoryIterator;
+    class FsInfo;
     
 public:
     enum class EntryType : uint8_t {DIR, FILE};
@@ -136,8 +139,6 @@ public:
     }
     
     class DirLister {
-        enum class State : uint8_t {WAIT_REQUEST, CHECK_NEXT_EVENT, REQUESTING_CLUSTER, REQUESTING_BLOCK};
-        
     public:
         using DirListerHandler = Callback<void(Context c, bool is_error, char const *name, FsEntry entry)>;
         
@@ -145,251 +146,28 @@ public:
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
+            AMBRO_ASSERT(o->state == FsState::READY)
             AMBRO_ASSERT(dir_entry.type == EntryType::DIR)
             
-            m_event.init(c, APRINTER_CB_OBJFUNC_T(&DirLister::event_handler, this));
-            m_chain.init(c, dir_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&DirLister::chain_handler, this));
-            m_dir_block_ref.init(c, APRINTER_CB_OBJFUNC_T(&DirLister::dir_block_ref_handler, this));
-            
-            m_handler = handler;
-            m_state = State::WAIT_REQUEST;
-            m_block_in_cluster = o->blocks_per_cluster;
-            m_block_entry_pos = DirEntriesPerBlock;
-            m_vfat_seq = -1;
+            m_dir_iter.init(c, dir_entry.cluster_index, handler);
         }
         
         void deinit (Context c)
         {
             TheDebugObject::access(c);
             
-            m_dir_block_ref.deinit(c);
-            m_chain.deinit(c);
-            m_event.deinit(c);
+            m_dir_iter.deinit(c);
         }
         
         void requestEntry (Context c)
         {
             TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == State::WAIT_REQUEST)
             
-            schedule_event(c);
+            m_dir_iter.requestEntry(c);
         }
         
     private:
-        void complete_request (Context c, bool error, char const *name=nullptr, FsEntry entry=FsEntry{})
-        {
-            m_state = State::WAIT_REQUEST;
-            return m_handler(c, error, name, entry);
-        }
-        
-        void schedule_event (Context c)
-        {
-            m_state = State::CHECK_NEXT_EVENT;
-            m_event.prependNowNotAlready(c);
-        }
-        
-        void event_handler (Context c)
-        {
-            auto *o = Object::self(c);
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == State::CHECK_NEXT_EVENT)
-            
-            if (m_block_entry_pos == DirEntriesPerBlock) {
-                if (m_block_in_cluster == o->blocks_per_cluster) {
-                    m_chain.requestNext(c);
-                    m_state = State::REQUESTING_CLUSTER;
-                    return;
-                }
-                
-                if (!is_cluster_idx_valid_for_data(c, m_chain.getCurrentCluster(c))) {
-                    return complete_request(c, true);
-                }
-                
-                BlockIndexType block_idx = get_cluster_data_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster);
-                if (!m_dir_block_ref.requestBlock(c, get_abs_block_index(c, block_idx), 0, 1)) {
-                    m_state = State::REQUESTING_BLOCK;
-                    return;
-                }
-                
-                m_block_in_cluster++;
-                m_block_entry_pos = 0;
-            }
-            
-            char const *entry_ptr = m_dir_block_ref.getData(c) + ((size_t)m_block_entry_pos * 32);
-            uint8_t first_byte =    ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0x0);
-            uint8_t attrs =         ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xB);
-            uint8_t type_byte =     ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xC);
-            uint8_t checksum_byte = ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xD);
-            
-            if (first_byte == 0) {
-                return complete_request(c, false);
-            }
-            
-            m_block_entry_pos++;
-            
-            // VFAT entry
-            if (first_byte != 0xE5 && attrs == 0xF && type_byte == 0) {
-                int8_t entry_vfat_seq = first_byte & 0x1F;
-                if ((first_byte & 0x60) == 0x40) {
-                    // Start collection.
-                    m_vfat_seq = entry_vfat_seq;
-                    m_vfat_csum = checksum_byte;
-                    m_filename_pos = Params::MaxFileNameSize;
-                }
-                
-                if (entry_vfat_seq > 0 && m_vfat_seq != -1 && entry_vfat_seq == m_vfat_seq && checksum_byte == m_vfat_csum) {
-                    // Collect entry.
-                    char name_data[26];
-                    memcpy(name_data + 0, entry_ptr + 0x1, 10);
-                    memcpy(name_data + 10, entry_ptr + 0xE, 12);
-                    memcpy(name_data + 22, entry_ptr + 0x1C, 4);
-                    size_t chunk_len = 0;
-                    for (size_t i = 0; i < sizeof(name_data); i += 2) {
-                        uint16_t ch = ReadBinaryInt<uint16_t, BinaryLittleEndian>(name_data + i);
-                        if (ch == 0) {
-                            break;
-                        }
-                        char enc_buf[4];
-                        int enc_len = Utf8EncodeChar(ch, enc_buf);
-                        if (enc_len > m_filename_pos - chunk_len) {
-                            goto cancel_vfat;
-                        }
-                        memcpy(m_filename + chunk_len, enc_buf, enc_len);
-                        chunk_len += enc_len;
-                    }
-                    memmove(m_filename + (m_filename_pos - chunk_len), m_filename, chunk_len);
-                    m_filename_pos -= chunk_len;
-                    m_vfat_seq--;
-                } else {
-                cancel_vfat:
-                    // Cancel any collection.
-                    m_vfat_seq = -1;
-                }
-                
-                // Go on reading directory entries.
-                return schedule_event(c);
-            }
-            
-            // Forget VFAT state but remember for use in this entry.
-            int8_t cur_vfat_seq = m_vfat_seq;
-            m_vfat_seq = -1;
-            
-            // Free marker.
-            if (first_byte == 0xE5) {
-                return schedule_event(c);
-            }
-            
-            // Ignore: volume label or device.
-            if ((attrs & 0x8) || (attrs & 0x40)) {
-                return schedule_event(c);
-            }
-            
-            bool is_dir = (attrs & 0x10);
-            bool is_dot_entry = (first_byte == (uint8_t)'.');
-            uint32_t file_size = ReadBinaryInt<uint32_t, BinaryLittleEndian>(entry_ptr + 0x1C);
-            
-            ClusterIndexType first_cluster = mask_cluster_entry(
-                ReadBinaryInt<uint16_t, BinaryLittleEndian>(entry_ptr + 0x1A) |
-                ((uint32_t)ReadBinaryInt<uint16_t, BinaryLittleEndian>(entry_ptr + 0x14) << 16));
-            
-            if (is_dot_entry && first_cluster == 0) {
-                first_cluster = o->root_cluster;
-            }
-            
-            char const *filename;
-            if (!is_dot_entry && cur_vfat_seq == 0 && vfat_checksum(entry_ptr) == m_vfat_csum) {
-                filename = m_filename + m_filename_pos;
-                m_filename[Params::MaxFileNameSize] = 0;
-            } else {
-                char name_temp[8];
-                memcpy(name_temp, entry_ptr + 0, 8);
-                if (name_temp[0] == 0x5) {
-                    name_temp[0] = 0xE5;
-                }
-                size_t name_len = fixup_83_name(name_temp, 8, bool(type_byte & 0x8));
-                
-                char ext_temp[3];
-                memcpy(ext_temp, entry_ptr + 8, 3);
-                size_t ext_len = fixup_83_name(ext_temp, 3, bool(type_byte & 0x10));
-                
-                size_t filename_len = 0;
-                memcpy(m_filename + filename_len, name_temp, name_len);
-                filename_len += name_len;
-                if (ext_len > 0) {
-                    m_filename[filename_len++] = '.';
-                    memcpy(m_filename + filename_len, ext_temp, ext_len);
-                    filename_len += ext_len;
-                }
-                m_filename[filename_len] = '\0';
-                filename = m_filename;
-            }
-            
-            FsEntry entry;
-            entry.type = is_dir ? EntryType::DIR : EntryType::FILE;
-            entry.file_size = file_size;
-            entry.cluster_index = first_cluster;
-            
-            return complete_request(c, false, filename, entry);
-        }
-        
-        void chain_handler (Context c, bool error)
-        {
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == State::REQUESTING_CLUSTER)
-            
-            if (error || m_chain.endReached(c)) {
-                return complete_request(c, error);
-            }
-            m_block_in_cluster = 0;
-            schedule_event(c);
-        }
-        
-        void dir_block_ref_handler (Context c, bool error)
-        {
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == State::REQUESTING_BLOCK)
-            
-            if (error) {
-                return complete_request(c, error);
-            }
-            schedule_event(c);
-        }
-        
-        static uint8_t vfat_checksum (char const *data)
-        {
-            uint8_t csum = 0;
-            for (int i = 0; i < 11; i++) {
-                csum = (uint8_t)((uint8_t)((csum & 1) << 7) + (csum >> 1)) + (uint8_t)data[i];
-            }
-            return csum;
-        }
-        
-        static size_t fixup_83_name (char *data, size_t length, bool lowercase)
-        {
-            while (length > 0 && data[length - 1] == ' ') {
-                length--;
-            }
-            if (lowercase) {
-                for (size_t i = 0; i < length; i++) {
-                    if (data[i] >= 'A' && data[i] <= 'Z') {
-                        data[i] += 32;
-                    }
-                }
-            }
-            return length;
-        }
-        
-        typename Context::EventLoop::QueuedEvent m_event;
-        ClusterChain m_chain;
-        CacheBlockRef m_dir_block_ref;
-        DirListerHandler m_handler;
-        ClusterBlockIndexType m_block_in_cluster;
-        DirEntriesPerBlockType m_block_entry_pos;
-        State m_state;
-        int8_t m_vfat_seq;
-        uint8_t m_vfat_csum;
-        FileNameLenType m_filename_pos;
-        char m_filename[Params::MaxFileNameSize + 1];
+        DirectoryIterator m_dir_iter;
     };
     
     class FileReader {
@@ -402,6 +180,7 @@ public:
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
+            AMBRO_ASSERT(o->state == FsState::READY)
             AMBRO_ASSERT(file_entry.type == EntryType::FILE)
             
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&FileReader::event_handler, this));
@@ -1044,6 +823,258 @@ private:
         State m_state;
         ClusterIndexType m_index;
         DoubleEndedListNode<ClusterRef> m_node;
+    };
+    
+    class DirectoryIterator {
+        enum class State : uint8_t {WAIT_REQUEST, CHECK_NEXT_EVENT, REQUESTING_CLUSTER, REQUESTING_BLOCK};
+        
+    public:
+        using DirectoryIteratorHandler = Callback<void(Context c, bool is_error, char const *name, FsEntry entry)>;
+        
+        void init (Context c, ClusterIndexType first_cluster, DirectoryIteratorHandler handler)
+        {
+            auto *o = Object::self(c);
+            
+            m_event.init(c, APRINTER_CB_OBJFUNC_T(&DirectoryIterator::event_handler, this));
+            m_chain.init(c, first_cluster, APRINTER_CB_OBJFUNC_T(&DirectoryIterator::chain_handler, this));
+            m_dir_block_ref.init(c, APRINTER_CB_OBJFUNC_T(&DirectoryIterator::dir_block_ref_handler, this));
+            
+            m_handler = handler;
+            m_state = State::WAIT_REQUEST;
+            m_block_in_cluster = o->blocks_per_cluster;
+            m_block_entry_pos = DirEntriesPerBlock;
+            m_vfat_seq = -1;
+        }
+        
+        void deinit (Context c)
+        {
+            m_dir_block_ref.deinit(c);
+            m_chain.deinit(c);
+            m_event.deinit(c);
+        }
+        
+        void requestEntry (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::WAIT_REQUEST)
+            
+            schedule_event(c);
+        }
+        
+    private:
+        void complete_request (Context c, bool error, char const *name=nullptr, FsEntry entry=FsEntry{})
+        {
+            m_state = State::WAIT_REQUEST;
+            return m_handler(c, error, name, entry);
+        }
+        
+        void schedule_event (Context c)
+        {
+            m_state = State::CHECK_NEXT_EVENT;
+            m_event.prependNowNotAlready(c);
+        }
+        
+        void event_handler (Context c)
+        {
+            auto *o = Object::self(c);
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::CHECK_NEXT_EVENT)
+            
+            if (m_block_entry_pos == DirEntriesPerBlock) {
+                if (m_block_in_cluster == o->blocks_per_cluster) {
+                    m_chain.requestNext(c);
+                    m_state = State::REQUESTING_CLUSTER;
+                    return;
+                }
+                
+                if (!is_cluster_idx_valid_for_data(c, m_chain.getCurrentCluster(c))) {
+                    return complete_request(c, true);
+                }
+                
+                BlockIndexType block_idx = get_cluster_data_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster);
+                if (!m_dir_block_ref.requestBlock(c, get_abs_block_index(c, block_idx), 0, 1)) {
+                    m_state = State::REQUESTING_BLOCK;
+                    return;
+                }
+                
+                m_block_in_cluster++;
+                m_block_entry_pos = 0;
+            }
+            
+            char const *entry_ptr = m_dir_block_ref.getData(c) + ((size_t)m_block_entry_pos * 32);
+            uint8_t first_byte =    ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0x0);
+            uint8_t attrs =         ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xB);
+            uint8_t type_byte =     ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xC);
+            uint8_t checksum_byte = ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xD);
+            
+            if (first_byte == 0) {
+                return complete_request(c, false);
+            }
+            
+            m_block_entry_pos++;
+            
+            // VFAT entry
+            if (first_byte != 0xE5 && attrs == 0xF && type_byte == 0) {
+                int8_t entry_vfat_seq = first_byte & 0x1F;
+                if ((first_byte & 0x60) == 0x40) {
+                    // Start collection.
+                    m_vfat_seq = entry_vfat_seq;
+                    m_vfat_csum = checksum_byte;
+                    m_filename_pos = Params::MaxFileNameSize;
+                }
+                
+                if (entry_vfat_seq > 0 && m_vfat_seq != -1 && entry_vfat_seq == m_vfat_seq && checksum_byte == m_vfat_csum) {
+                    // Collect entry.
+                    char name_data[26];
+                    memcpy(name_data + 0, entry_ptr + 0x1, 10);
+                    memcpy(name_data + 10, entry_ptr + 0xE, 12);
+                    memcpy(name_data + 22, entry_ptr + 0x1C, 4);
+                    size_t chunk_len = 0;
+                    for (size_t i = 0; i < sizeof(name_data); i += 2) {
+                        uint16_t ch = ReadBinaryInt<uint16_t, BinaryLittleEndian>(name_data + i);
+                        if (ch == 0) {
+                            break;
+                        }
+                        char enc_buf[4];
+                        int enc_len = Utf8EncodeChar(ch, enc_buf);
+                        if (enc_len > m_filename_pos - chunk_len) {
+                            goto cancel_vfat;
+                        }
+                        memcpy(m_filename + chunk_len, enc_buf, enc_len);
+                        chunk_len += enc_len;
+                    }
+                    memmove(m_filename + (m_filename_pos - chunk_len), m_filename, chunk_len);
+                    m_filename_pos -= chunk_len;
+                    m_vfat_seq--;
+                } else {
+                cancel_vfat:
+                    // Cancel any collection.
+                    m_vfat_seq = -1;
+                }
+                
+                // Go on reading directory entries.
+                return schedule_event(c);
+            }
+            
+            // Forget VFAT state but remember for use in this entry.
+            int8_t cur_vfat_seq = m_vfat_seq;
+            m_vfat_seq = -1;
+            
+            // Free marker.
+            if (first_byte == 0xE5) {
+                return schedule_event(c);
+            }
+            
+            // Ignore: volume label or device.
+            if ((attrs & 0x8) || (attrs & 0x40)) {
+                return schedule_event(c);
+            }
+            
+            bool is_dir = (attrs & 0x10);
+            bool is_dot_entry = (first_byte == (uint8_t)'.');
+            uint32_t file_size = ReadBinaryInt<uint32_t, BinaryLittleEndian>(entry_ptr + 0x1C);
+            
+            ClusterIndexType first_cluster = mask_cluster_entry(
+                ReadBinaryInt<uint16_t, BinaryLittleEndian>(entry_ptr + 0x1A) |
+                ((uint32_t)ReadBinaryInt<uint16_t, BinaryLittleEndian>(entry_ptr + 0x14) << 16));
+            
+            if (is_dot_entry && first_cluster == 0) {
+                first_cluster = o->root_cluster;
+            }
+            
+            char const *filename;
+            if (!is_dot_entry && cur_vfat_seq == 0 && vfat_checksum(entry_ptr) == m_vfat_csum) {
+                filename = m_filename + m_filename_pos;
+                m_filename[Params::MaxFileNameSize] = 0;
+            } else {
+                char name_temp[8];
+                memcpy(name_temp, entry_ptr + 0, 8);
+                if (name_temp[0] == 0x5) {
+                    name_temp[0] = 0xE5;
+                }
+                size_t name_len = fixup_83_name(name_temp, 8, bool(type_byte & 0x8));
+                
+                char ext_temp[3];
+                memcpy(ext_temp, entry_ptr + 8, 3);
+                size_t ext_len = fixup_83_name(ext_temp, 3, bool(type_byte & 0x10));
+                
+                size_t filename_len = 0;
+                memcpy(m_filename + filename_len, name_temp, name_len);
+                filename_len += name_len;
+                if (ext_len > 0) {
+                    m_filename[filename_len++] = '.';
+                    memcpy(m_filename + filename_len, ext_temp, ext_len);
+                    filename_len += ext_len;
+                }
+                m_filename[filename_len] = '\0';
+                filename = m_filename;
+            }
+            
+            FsEntry entry;
+            entry.type = is_dir ? EntryType::DIR : EntryType::FILE;
+            entry.file_size = file_size;
+            entry.cluster_index = first_cluster;
+            
+            return complete_request(c, false, filename, entry);
+        }
+        
+        void chain_handler (Context c, bool error)
+        {
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::REQUESTING_CLUSTER)
+            
+            if (error || m_chain.endReached(c)) {
+                return complete_request(c, error);
+            }
+            m_block_in_cluster = 0;
+            schedule_event(c);
+        }
+        
+        void dir_block_ref_handler (Context c, bool error)
+        {
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::REQUESTING_BLOCK)
+            
+            if (error) {
+                return complete_request(c, error);
+            }
+            schedule_event(c);
+        }
+        
+        static uint8_t vfat_checksum (char const *data)
+        {
+            uint8_t csum = 0;
+            for (int i = 0; i < 11; i++) {
+                csum = (uint8_t)((uint8_t)((csum & 1) << 7) + (csum >> 1)) + (uint8_t)data[i];
+            }
+            return csum;
+        }
+        
+        static size_t fixup_83_name (char *data, size_t length, bool lowercase)
+        {
+            while (length > 0 && data[length - 1] == ' ') {
+                length--;
+            }
+            if (lowercase) {
+                for (size_t i = 0; i < length; i++) {
+                    if (data[i] >= 'A' && data[i] <= 'Z') {
+                        data[i] += 32;
+                    }
+                }
+            }
+            return length;
+        }
+        
+        typename Context::EventLoop::QueuedEvent m_event;
+        ClusterChain m_chain;
+        CacheBlockRef m_dir_block_ref;
+        DirectoryIteratorHandler m_handler;
+        ClusterBlockIndexType m_block_in_cluster;
+        DirEntriesPerBlockType m_block_entry_pos;
+        State m_state;
+        int8_t m_vfat_seq;
+        uint8_t m_vfat_csum;
+        FileNameLenType m_filename_pos;
+        char m_filename[Params::MaxFileNameSize + 1];
     };
     
     class FsInfo {
