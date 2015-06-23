@@ -36,7 +36,6 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/WrapBuffer.h>
-#include <aprinter/misc/AsciiTools.h>
 #include <aprinter/fs/FatFs.h>
 #include <aprinter/fs/BlockAccess.h>
 
@@ -225,6 +224,8 @@ public:
                     o->listing_state = LISTING_STATE_DIRLIST;
                     o->listing_u.dirlist.cur_name = nullptr;
                     o->listing_u.dirlist.length_error = false;
+                    o->listing_u.dirlist.dir_lister.init(c, fs_o->current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
+                    o->listing_u.dirlist.dir_lister.requestEntry(c);
                 } 
                 else { // cmd_num == 23
                     if (cmd->find_command_param(c, 'R', nullptr)) {
@@ -233,12 +234,15 @@ public:
                     }
                     
                     uint8_t listing_state;
+                    typename TheFs::EntryType entry_type;
                     char const *find_name;
                     if ((find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
                         listing_state = LISTING_STATE_CHDIR;
+                        entry_type = TheFs::EntryType::DIR;
                     }
                     else if ((find_name = cmd->get_command_param_str(c, 'F', nullptr))) {
                         listing_state = LISTING_STATE_OPEN;
+                        entry_type = TheFs::EntryType::FILE;
                     }
                     else {
                         cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadParams\n"));
@@ -246,12 +250,9 @@ public:
                     }
                     
                     o->listing_state = listing_state;
-                    o->listing_u.open_or_chdir.find_name = find_name;
-                    o->listing_u.open_or_chdir.entry_found = false;
+                    o->listing_u.open_or_chdir.opener.init(c, fs_o->current_directory, entry_type, find_name, Params::CaseInsensFileName, APRINTER_CB_STATFUNC_T(&SdFatInput::opener_handler));
                 }
                 
-                fs_o->dir_lister.init(c, fs_o->current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
-                fs_o->dir_lister.requestEntry(c);
                 return false;
             } while (0);
             
@@ -271,8 +272,11 @@ private:
         auto *mbr_o = UnionMbrPart::Object::self(c);
         auto *fs_o = UnionFsPart::Object::self(c);
         
-        if (o->listing_state != LISTING_STATE_INACTIVE) {
-            fs_o->dir_lister.deinit(c);
+        if (o->listing_state == LISTING_STATE_DIRLIST) {
+            o->listing_u.dirlist.dir_lister.deinit(c);
+        }
+        if (o->listing_state == LISTING_STATE_OPEN || o->listing_state == LISTING_STATE_CHDIR) {
+            o->listing_u.open_or_chdir.opener.deinit(c);
         }
         if (o->file_state != FILE_STATE_INACTIVE) {
             fs_o->file_reader.deinit(c);
@@ -390,91 +394,75 @@ private:
     static void dir_lister_handler (Context c, bool is_error, char const *name, typename TheFs::FsEntry entry)
     {
         auto *o = Object::self(c);
-        auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
-        AMBRO_ASSERT(o->listing_state == LISTING_STATE_DIRLIST || o->listing_state == LISTING_STATE_CHDIR || o->listing_state == LISTING_STATE_OPEN)
-        
-        auto *cmd = ThePrinterMain::get_locked(c);
+        AMBRO_ASSERT(o->listing_state == LISTING_STATE_DIRLIST)
         
         if (!is_error && name) {
-            bool stop_listing = false;
-            do {
-                if (o->listing_state == LISTING_STATE_DIRLIST) {
-                    AMBRO_ASSERT(!o->listing_u.dirlist.cur_name)
-                    
-                    // DirListReplyRequestExtra is to make sure we have space for a possible error reply at the end
-                    size_t req_len = (2 + strlen(name) + 1) + DirListReplyRequestExtra;
-                    if (!cmd->requestSendBufEvent(c, req_len, SdFatInput::send_buf_event_handler)) {
-                        o->listing_u.dirlist.length_error = true;
-                        break;
-                    }
-                    
-                    o->listing_u.dirlist.cur_name = name;
-                    o->listing_u.dirlist.cur_is_dir = (entry.getType() == TheFs::EntryType::DIR);
-                    return;
-                } else {
-                    typename TheFs::EntryType expectedType = (o->listing_state == LISTING_STATE_CHDIR) ? TheFs::EntryType::DIR : TheFs::EntryType::FILE;
-                    if (entry.getType() == expectedType && compare_filename_equal(name, o->listing_u.open_or_chdir.find_name)) {
-                        o->listing_u.open_or_chdir.entry_found = true;
-                        stop_listing = true;
-                    }
-                }
-            } while (0);
+            AMBRO_ASSERT(!o->listing_u.dirlist.cur_name)
             
-            if (!stop_listing) {
-                fs_o->dir_lister.requestEntry(c);
+            // DirListReplyRequestExtra is to make sure we have space for a possible error reply at the end
+            size_t req_len = (2 + strlen(name) + 1) + DirListReplyRequestExtra;
+            auto *cmd = ThePrinterMain::get_locked(c);
+            if (!cmd->requestSendBufEvent(c, req_len, SdFatInput::send_buf_event_handler)) {
+                o->listing_u.dirlist.length_error = true;
+                o->listing_u.dirlist.dir_lister.requestEntry(c);
                 return;
             }
+            
+            o->listing_u.dirlist.cur_name = name;
+            o->listing_u.dirlist.cur_is_dir = (entry.getType() == TheFs::EntryType::DIR);
+            return;
         }
         
         AMBRO_PGM_P errstr = nullptr;
+        if (is_error) {
+            errstr = AMBRO_PSTR("error:InputOutput\n");
+        } else if (o->listing_u.dirlist.length_error) {
+            errstr = AMBRO_PSTR("error:NameTooLong\n");
+        }
+        
+        complete_navigation(c, errstr);
+    }
+    
+    static void opener_handler (Context c, typename TheFs::Opener::OpenerStatus status, typename TheFs::FsEntry entry)
+    {
+        auto *o = Object::self(c);
+        auto *fs_o = UnionFsPart::Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->listing_state == LISTING_STATE_OPEN || o->listing_state == LISTING_STATE_CHDIR)
+        
+        AMBRO_PGM_P errstr = nullptr;
         do {
-            if (is_error) {
-                errstr = AMBRO_PSTR("error:InputOutput\n");
+            if (status != TheFs::Opener::OpenerStatus::SUCCESS) {
+                errstr = (status == TheFs::Opener::OpenerStatus::NOT_FOUND) ? AMBRO_PSTR("error:NotFound\n") : AMBRO_PSTR("error:InputOutput\n");
                 break;
             }
             
-            if (o->listing_state == LISTING_STATE_DIRLIST) {
-                if (o->listing_u.dirlist.length_error) {
-                    errstr = AMBRO_PSTR("error:NameTooLong\n");
-                }
+            if (o->listing_state == LISTING_STATE_CHDIR) {
+                fs_o->current_directory = entry;
             } else {
-                if (!o->listing_u.open_or_chdir.entry_found) {
-                    errstr = AMBRO_PSTR("error:NotFound\n");
+                if (o->file_state >= FILE_STATE_RUNNING) {
+                    errstr = AMBRO_PSTR("error:SdPrintRunning\n");
                     break;
                 }
                 
-                if (o->listing_state == LISTING_STATE_CHDIR) {
-                    fs_o->current_directory = entry;
-                } else {
-                    if (o->file_state >= FILE_STATE_RUNNING) {
-                        errstr = AMBRO_PSTR("error:SdPrintRunning\n");
-                        break;
-                    }
-                    
-                    if (o->file_state != FILE_STATE_INACTIVE) {
-                        fs_o->file_reader.deinit(c);
-                    }
-                    fs_o->file_reader.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::file_reader_handler));
-                    o->file_state = FILE_STATE_PAUSED;
-                    o->file_eof = false;
-                    
-                    // A non-obvious precondition for clearing the command buffer is that it does not contain
-                    // a command currently possessing the printer lock. This is guaranteed because this command
-                    // here takes the lock.
-                    ClientParams::ClearBufferHandler::call(c);
+                if (o->file_state != FILE_STATE_INACTIVE) {
+                    fs_o->file_reader.deinit(c);
                 }
+                fs_o->file_reader.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::file_reader_handler));
+                o->file_state = FILE_STATE_PAUSED;
+                o->file_eof = false;
+                
+                // A non-obvious precondition for clearing the command buffer is that it does not contain
+                // a command currently possessing the printer lock. This is guaranteed because this command
+                // here takes the lock.
+                ClientParams::ClearBufferHandler::call(c);
             }
-        } while (0);
+        } while (false);
         
-        if (errstr) {
-            cmd->reply_append_pstr(c, errstr);
-        }
-        cmd->finishCommand(c);
-        
-        fs_o->dir_lister.deinit(c);
-        o->listing_state = LISTING_STATE_INACTIVE;
+        complete_navigation(c, errstr);
     }
     
     static void send_buf_event_handler (Context c)
@@ -492,13 +480,8 @@ private:
         cmd->reply_append_ch(c, '\n');
         cmd->reply_poke(c);
         
-        fs_o->dir_lister.requestEntry(c);
+        o->listing_u.dirlist.dir_lister.requestEntry(c);
         o->listing_u.dirlist.cur_name = nullptr;
-    }
-    
-    static bool compare_filename_equal (char const *str1, char const *str2)
-    {
-        return Params::CaseInsensFileName ? AsciiCaseInsensStringEqual(str1, str2) : !strcmp(str1, str2);
     }
     
     static void file_reader_handler (Context c, bool is_error, size_t length)
@@ -514,6 +497,25 @@ private:
         }
         o->file_state = FILE_STATE_RUNNING;
         return ClientParams::ReadHandler::call(c, is_error, length);
+    }
+    
+    static void complete_navigation (Context c, AMBRO_PGM_P errstr)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->listing_state != LISTING_STATE_INACTIVE)
+        
+        auto *cmd = ThePrinterMain::get_locked(c);
+        if (errstr) {
+            cmd->reply_append_pstr(c, errstr);
+        }
+        cmd->finishCommand(c);
+        
+        if (o->listing_state == LISTING_STATE_DIRLIST) {
+            o->listing_u.dirlist.dir_lister.deinit(c);
+        } else {
+            o->listing_u.open_or_chdir.opener.deinit(c);
+        }
+        o->listing_state = LISTING_STATE_INACTIVE;
     }
     
     struct InitUnion {
@@ -535,8 +537,7 @@ private:
             TheFs
         >> {
             typename TheFs::FsEntry current_directory;
-            typename TheFs::DirLister dir_lister;
-            typename TheFs::FileReader file_reader;
+            typename TheFs::File file_reader;
         };
     };
     
@@ -552,13 +553,13 @@ public:
         uint8_t file_eof : 1;
         union {
             struct {
+                typename TheFs::DirLister dir_lister;
                 char const *cur_name;
                 bool cur_is_dir : 1;
                 bool length_error : 1;
             } dirlist;
             struct {
-                char const *find_name;
-                bool entry_found;
+                typename TheFs::Opener opener;
             } open_or_chdir;
         } listing_u;
     };

@@ -38,6 +38,7 @@
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/misc/Utf8Encoder.h>
+#include <aprinter/misc/AsciiTools.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/fs/BlockCache.h>
 
@@ -170,22 +171,88 @@ public:
         DirectoryIterator m_dir_iter;
     };
     
-    class FileReader {
+    class Opener {
+        enum class State : uint8_t {REQUESTING_ENTRY, COMPLETED};
+        
+    public:
+        enum class OpenerStatus : uint8_t {SUCCESS, NOT_FOUND, ERROR};
+        
+        using OpenerHandler = Callback<void(Context c, OpenerStatus status, FsEntry entry)>;
+        
+        void init (Context c, FsEntry dir_entry, EntryType entry_type, char const *name, bool case_insens, OpenerHandler handler)
+        {
+            auto *o = Object::self(c);
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(o->state == FsState::READY)
+            AMBRO_ASSERT(dir_entry.type == EntryType::DIR)
+            AMBRO_ASSERT(name)
+            
+            m_entry_type = entry_type;
+            m_name = name;
+            m_case_insens = case_insens;
+            m_handler = handler;
+            m_state = State::REQUESTING_ENTRY;
+            m_dir_iter.init(c, dir_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&Opener::dir_iter_handler, this));
+            m_dir_iter.requestEntry(c);
+        }
+        
+        void deinit (Context c)
+        {
+            if (m_state != State::COMPLETED) {
+                m_dir_iter.deinit(c);
+            }
+        }
+        
+    private:
+        void dir_iter_handler (Context c, bool is_error, char const *name, FsEntry entry)
+        {
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::REQUESTING_ENTRY)
+            
+            if (is_error || !name) {
+                m_state = State::COMPLETED;
+                m_dir_iter.deinit(c);
+                OpenerStatus status = is_error ? OpenerStatus::ERROR : OpenerStatus::NOT_FOUND;
+                return m_handler(c, status, FsEntry{});
+            }
+            if (entry.type != m_entry_type || !compare_filename_equal(name, m_name)) {
+                m_dir_iter.requestEntry(c);
+                return;
+            }
+            m_state = State::COMPLETED;
+            m_dir_iter.deinit(c);
+            return m_handler(c, OpenerStatus::SUCCESS, entry);
+        }
+        
+        bool compare_filename_equal (char const *str1, char const *str2)
+        {
+            return m_case_insens ? AsciiCaseInsensStringEqual(str1, str2) : !strcmp(str1, str2);
+        }
+        
+        EntryType m_entry_type;
+        char const *m_name;
+        bool m_case_insens;
+        OpenerHandler m_handler;
+        State m_state;
+        DirectoryIterator m_dir_iter;
+    };
+    
+    class File {
         enum class State : uint8_t {IDLE, EVENT, NEXT_CLUSTER, READING_DATA};
         
     public:
-        using FileReaderHandler = Callback<void(Context c, bool error, size_t length)>;
+        using FileHandler = Callback<void(Context c, bool error, size_t length)>;
         
-        void init (Context c, FsEntry file_entry, FileReaderHandler handler)
+        void init (Context c, FsEntry file_entry, FileHandler handler)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == FsState::READY)
             AMBRO_ASSERT(file_entry.type == EntryType::FILE)
             
-            m_event.init(c, APRINTER_CB_OBJFUNC_T(&FileReader::event_handler, this));
-            m_chain.init(c, file_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&FileReader::chain_handler, this));
-            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&FileReader::block_user_handler, this));
+            m_event.init(c, APRINTER_CB_OBJFUNC_T(&File::event_handler, this));
+            m_chain.init(c, file_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&File::chain_handler, this));
+            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&File::block_user_handler, this));
             
             m_handler = handler;
             m_file_size = file_entry.file_size;
@@ -291,7 +358,7 @@ public:
         typename Context::EventLoop::QueuedEvent m_event;
         ClusterChain m_chain;
         BlockAccessUser m_block_user;
-        FileReaderHandler m_handler;
+        FileHandler m_handler;
         uint32_t m_file_size;
         State m_state;
         uint32_t m_rem_file_size;
