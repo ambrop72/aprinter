@@ -54,7 +54,8 @@ private:
     struct BlockAccessActivateHandler;
     using TheBlockAccess = typename BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler>;
     struct FsInitHandler;
-    using TheFs = typename Params::FsService::template Fs<Context, typename UnionFsPart::Object, TheBlockAccess, FsInitHandler>;
+    struct FsWriteMountHandler;
+    using TheFs = typename Params::FsService::template Fs<Context, typename UnionFsPart::Object, TheBlockAccess, FsInitHandler, FsWriteMountHandler>;
     
     static size_t const DirListReplyRequestExtra = 24;
     static_assert(TheBlockAccess::BlockSize == 512, "BlockSize must be 512");
@@ -79,6 +80,12 @@ private:
         FILE_STATE_RUNNING,
         FILE_STATE_READING
     };
+    enum WriteMountState {
+        WRITEMOUNT_STATE_NOT_MOUNTED,
+        WRITEMOUNT_STATE_MOUNTING,
+        WRITEMOUNT_STATE_MOUNTED,
+        WRITEMOUNT_STATE_UNMOUNTING
+    };
     
 public:
     static size_t const NeedBufAvail = TheBlockAccess::BlockSize;
@@ -91,6 +98,7 @@ public:
         o->init_state = INIT_STATE_INACTIVE;
         o->listing_state = LISTING_STATE_INACTIVE;
         o->file_state = FILE_STATE_INACTIVE;
+        o->write_mount_state = WRITEMOUNT_STATE_NOT_MOUNTED;
         
         TheDebugObject::init(c);
     }
@@ -196,7 +204,7 @@ public:
         AMBRO_ASSERT(buf_avail >= TheBlockAccess::BlockSize)
         AMBRO_ASSERT(buf.wrap > 0)
         
-        fs_o->file_reader.requestBlock(c, buf);
+        fs_o->file_reader.startRead(c, buf);
         o->file_state = FILE_STATE_READING;
     }
     
@@ -207,59 +215,14 @@ public:
         TheDebugObject::access(c);
         
         auto cmd_num = cmd->getCmdNumber(c);
-        
         if (cmd_num == 20 || cmd_num == 23) {
-            if (!cmd->tryLockedCommand(c)) {
-                return false;
-            }
-            
-            do {
-                if (o->init_state != INIT_STATE_DONE || o->listing_state != LISTING_STATE_INACTIVE) {
-                    AMBRO_PGM_P errstr = (o->init_state != INIT_STATE_DONE) ? AMBRO_PSTR("Error:SdNotInited\n") : AMBRO_PSTR("Error:SdNavBusy\n");
-                    cmd->reply_append_pstr(c, errstr);
-                    break;
-                }
-                
-                if (cmd_num == 20) {
-                    o->listing_state = LISTING_STATE_DIRLIST;
-                    o->listing_u.dirlist.cur_name = nullptr;
-                    o->listing_u.dirlist.length_error = false;
-                    o->listing_u.dirlist.dir_lister.init(c, fs_o->current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
-                    o->listing_u.dirlist.dir_lister.requestEntry(c);
-                } 
-                else { // cmd_num == 23
-                    if (cmd->find_command_param(c, 'R', nullptr)) {
-                        fs_o->current_directory = TheFs::getRootEntry(c);
-                        break;
-                    }
-                    
-                    uint8_t listing_state;
-                    typename TheFs::EntryType entry_type;
-                    char const *find_name;
-                    if ((find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
-                        listing_state = LISTING_STATE_CHDIR;
-                        entry_type = TheFs::EntryType::DIR;
-                    }
-                    else if ((find_name = cmd->get_command_param_str(c, 'F', nullptr))) {
-                        listing_state = LISTING_STATE_OPEN;
-                        entry_type = TheFs::EntryType::FILE;
-                    }
-                    else {
-                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadParams\n"));
-                        break;
-                    }
-                    
-                    o->listing_state = listing_state;
-                    o->listing_u.open_or_chdir.opener.init(c, fs_o->current_directory, entry_type, find_name, Params::CaseInsensFileName, APRINTER_CB_STATFUNC_T(&SdFatInput::opener_handler));
-                }
-                
-                return false;
-            } while (0);
-            
-            cmd->finishCommand(c);
+            handle_navigation_command(c, cmd, (cmd_num == 20));
             return false;
         }
-        
+        if (cmd_num == 931 || cmd_num == 932) {
+            handle_write_mount_command(c, cmd, (cmd_num == 931));
+            return false;
+        }
         return true;
     }
     
@@ -294,6 +257,7 @@ private:
         o->init_state = INIT_STATE_INACTIVE;
         o->listing_state = LISTING_STATE_INACTIVE;
         o->file_state = FILE_STATE_INACTIVE;
+        o->write_mount_state = WRITEMOUNT_STATE_NOT_MOUNTED;
     }
     
     static void block_access_activate_handler (Context c, uint8_t error_code)
@@ -380,6 +344,7 @@ private:
         AMBRO_ASSERT(o->init_state == INIT_STATE_INIT_FS)
         AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
         AMBRO_ASSERT(o->file_state == FILE_STATE_INACTIVE)
+        AMBRO_ASSERT(o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED)
         
         if (error_code) {
             cleanup(c);
@@ -390,6 +355,60 @@ private:
         return ClientParams::ActivateHandler::call(c, error_code);
     }
     struct FsInitHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_init_handler) {};
+    
+    static void handle_navigation_command (Context c, typename ThePrinterMain::CommandType *cmd, bool is_dirlist)
+    {
+        auto *o = Object::self(c);
+        auto *fs_o = UnionFsPart::Object::self(c);
+        
+        if (!cmd->tryLockedCommand(c)) {
+            return;
+        }
+        
+        do {
+            if (o->init_state != INIT_STATE_DONE || o->listing_state != LISTING_STATE_INACTIVE) {
+                AMBRO_PGM_P errstr = (o->init_state != INIT_STATE_DONE) ? AMBRO_PSTR("Error:SdNotInited\n") : AMBRO_PSTR("Error:SdNavBusy\n");
+                cmd->reply_append_pstr(c, errstr);
+                break;
+            }
+            
+            if (is_dirlist) {
+                o->listing_state = LISTING_STATE_DIRLIST;
+                o->listing_u.dirlist.cur_name = nullptr;
+                o->listing_u.dirlist.length_error = false;
+                o->listing_u.dirlist.dir_lister.init(c, fs_o->current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
+                o->listing_u.dirlist.dir_lister.requestEntry(c);
+            } else {
+                if (cmd->find_command_param(c, 'R', nullptr)) {
+                    fs_o->current_directory = TheFs::getRootEntry(c);
+                    break;
+                }
+                
+                uint8_t listing_state;
+                typename TheFs::EntryType entry_type;
+                char const *find_name;
+                if ((find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
+                    listing_state = LISTING_STATE_CHDIR;
+                    entry_type = TheFs::EntryType::DIR;
+                }
+                else if ((find_name = cmd->get_command_param_str(c, 'F', nullptr))) {
+                    listing_state = LISTING_STATE_OPEN;
+                    entry_type = TheFs::EntryType::FILE;
+                }
+                else {
+                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadParams\n"));
+                    break;
+                }
+                
+                o->listing_state = listing_state;
+                o->listing_u.open_or_chdir.opener.init(c, fs_o->current_directory, entry_type, find_name, Params::CaseInsensFileName, APRINTER_CB_STATFUNC_T(&SdFatInput::opener_handler));
+            }
+            
+            return;
+        } while (false);
+        
+        cmd->finishCommand(c);
+    }
     
     static void dir_lister_handler (Context c, bool is_error, char const *name, typename TheFs::FsEntry entry)
     {
@@ -518,6 +537,56 @@ private:
         o->listing_state = LISTING_STATE_INACTIVE;
     }
     
+    static void handle_write_mount_command (Context c, typename ThePrinterMain::CommandType *cmd, bool is_mount)
+    {
+        auto *o = Object::self(c);
+        
+        if (!cmd->tryLockedCommand(c)) {
+            return;
+        }
+        do {
+            if (o->init_state != INIT_STATE_DONE) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+                break;
+            }
+            WriteMountState expected = is_mount ? WRITEMOUNT_STATE_NOT_MOUNTED : WRITEMOUNT_STATE_MOUNTED;
+            if (o->write_mount_state != expected) {
+                AMBRO_PGM_P errstr = is_mount ? AMBRO_PSTR("Error:SdWriteAlreadyMounted\n") : AMBRO_PSTR("Error:SdWriteNotMounted\n");
+                cmd->reply_append_pstr(c, errstr);
+                break;
+            }
+            o->write_mount_state = is_mount ? WRITEMOUNT_STATE_MOUNTING : WRITEMOUNT_STATE_UNMOUNTING;
+            if (is_mount) {
+                TheFs::startWriteMount(c);
+            } else {
+                TheFs::startWriteUnmount(c);
+            }
+            return;
+        } while (false);
+        cmd->finishCommand(c);
+    }
+    
+    static void fs_write_mount_handler (Context c, bool error)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->write_mount_state == WRITEMOUNT_STATE_MOUNTING ||
+                     o->write_mount_state == WRITEMOUNT_STATE_UNMOUNTING)
+        
+        bool is_mount = (o->write_mount_state == WRITEMOUNT_STATE_MOUNTING);
+        auto *cmd = ThePrinterMain::get_locked(c);
+        if (error) {
+            o->write_mount_state = is_mount ? WRITEMOUNT_STATE_NOT_MOUNTED : WRITEMOUNT_STATE_MOUNTED;
+            AMBRO_PGM_P errstr = is_mount ? AMBRO_PSTR("Error:SdWriteMountError\n") : AMBRO_PSTR("Error:SdWriteUnmountError\n");
+            cmd->reply_append_pstr(c, errstr);
+        } else {
+            o->write_mount_state = is_mount ? WRITEMOUNT_STATE_MOUNTED : WRITEMOUNT_STATE_NOT_MOUNTED;
+        }
+        cmd->finishCommand(c);
+    }
+    struct FsWriteMountHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_write_mount_handler) {};
+    
     struct InitUnion {
         struct Object : public ObjUnionBase<InitUnion, typename SdFatInput::Object, MakeTypeList<
             UnionMbrPart,
@@ -551,6 +620,7 @@ public:
         uint8_t listing_state : 2;
         uint8_t file_state : 2;
         uint8_t file_eof : 1;
+        uint8_t write_mount_state : 2;
         union {
             struct {
                 typename TheFs::DirLister dir_lister;

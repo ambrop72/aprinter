@@ -126,7 +126,7 @@ public:
             if (is_flush_completed(c, false, nullptr)) {
                 return complete(c, false);
             }
-            o->waiting_flush_requests.add(this);
+            o->waiting_flush_requests.append(this);
             m_state = State::WAITING;
             start_writing_for_flush(c);
         }
@@ -245,6 +245,14 @@ public:
             }
             
             return m_state == State::AVAILABLE;
+        }
+        
+        BlockIndexType getBlock (Context c)
+        {
+            this->debugAccess(c);
+            AMBRO_ASSERT(m_state != State::INVALID)
+            
+            return m_block;
         }
         
         bool isAvailable (Context c)
