@@ -740,6 +740,9 @@ private:
         if (!(entry1_value & Entry1CleanBit)) {
             return complete_write_mount_request(c, true);
         }
+        if (!TheBlockAccess::isWritable(c)) {
+            return complete_write_mount_request(c, true);
+        }
         entry1_value &= ~Entry1CleanBit;
         update_fat_entry_in_cache_block(c, &o->block_ref, FsStatusEntryIndex, entry1_value);
         o->write_mount_state = WriteMountState::MOUNT_FLUSH;
