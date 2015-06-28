@@ -1054,7 +1054,7 @@ def generate(config_root_data, cfg_name, main_template):
                             fs_config.key_path('MaxFileNameSize').error('Bad value.')
                         
                         num_cache_entries = fs_config.get_int('NumCacheEntries')
-                        if not (2 <= num_cache_entries <= 64):
+                        if not (1 <= num_cache_entries <= 64):
                             fs_config.key_path('NumCacheEntries').error('Bad value.')
                         
                         gen.add_aprinter_include('printer/input/SdFatInput.h')

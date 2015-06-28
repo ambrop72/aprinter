@@ -69,7 +69,7 @@ private:
     using DirEntriesPerBlockType = ChooseIntForMax<DirEntriesPerBlock, false>;
     static_assert(Params::MaxFileNameSize >= 12, "");
     using FileNameLenType = ChooseIntForMax<Params::MaxFileNameSize, false>;
-    static_assert(Params::NumCacheEntries >= 2, "");
+    static_assert(Params::NumCacheEntries >= 1, "");
     static ClusterIndexType const Entry1CleanBit = UINT32_C(0x8000000);
     static ClusterIndexType const FsStatusEntryIndex = 1;
     static ClusterIndexType const EndOfChainMarker = UINT32_C(0x0FFFFFFF);
@@ -1290,10 +1290,10 @@ private:
             
             State success_state;
             switch (m_state) {
-                case State::NEXT_REQUESTING_FAT:     success_state = State::NEXT_CHECK; break;
-                case State::NEW_REQUESTING_FAT:       success_state = State::NEW_CHECK;          break;
-                case State::TRUNCATE_REQUESTING_FAT:  success_state = State::TRUNCATE_CHECK;     break;
-                case State::TRUNCATE_REQUESTING_FAT2: success_state = State::TRUNCATE_CHECK;     break;
+                case State::NEXT_REQUESTING_FAT:      success_state = State::NEXT_CHECK;     break;
+                case State::NEW_REQUESTING_FAT:       success_state = State::NEW_CHECK;      break;
+                case State::TRUNCATE_REQUESTING_FAT:  success_state = State::TRUNCATE_CHECK; break;
+                case State::TRUNCATE_REQUESTING_FAT2: success_state = State::TRUNCATE_CHECK; break;
                 default: AMBRO_ASSERT(false);
             }
             if (error) {
@@ -1481,6 +1481,7 @@ private:
             
             if (m_block_entry_pos == DirEntriesPerBlock) {
                 if (m_block_in_cluster == o->blocks_per_cluster) {
+                    m_dir_block_ref.reset(c);
                     m_chain.requestNext(c);
                     m_state = State::REQUESTING_CLUSTER;
                     return;
