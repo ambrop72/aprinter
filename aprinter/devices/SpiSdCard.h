@@ -50,6 +50,10 @@ private:
     static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     using TheDebugObject = DebugObject<Context, Object>;
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
+    using TimeType = typename Context::Clock::TimeType;
+    
+    static TimeType const IdleStateTimeoutTicks = 1.2 * Context::Clock::time_freq;
+    static TimeType const InitTimeoutTicks = 1.2 * Context::Clock::time_freq;
     
 public:
     using BlockIndexType = uint32_t;
@@ -230,12 +234,11 @@ private:
                 Context::Pins::template set<SsPin>(c, false);
                 sd_command(c, CMD_GO_IDLE_STATE, 0, true, o->m_buf1, o->m_buf1);
                 o->m_state = STATE_INIT2;
-                o->m_count = 255;
+                o->m_deadline = Context::Clock::getTime(c) + IdleStateTimeoutTicks;
             } break;
             case STATE_INIT2: {
                 if (o->m_buf1[0] != R1_IN_IDLE_STATE) {
-                    o->m_count--;
-                    if (o->m_count == 0) {
+                    if ((uint32_t)(Context::Clock::getTime(c) - o->m_deadline) < UINT32_C(0x80000000)) {
                         return error(c, 1);
                     }
                     sd_command(c, CMD_GO_IDLE_STATE, 0, true, o->m_buf1, o->m_buf1);
@@ -251,12 +254,11 @@ private:
                 sd_command(c, CMD_APP_CMD, 0, true, o->m_buf2, o->m_buf2);
                 sd_command(c, ACMD_SD_SEND_OP_COND, UINT32_C(0x40000000), true, o->m_buf1, o->m_buf1);
                 o->m_state = STATE_INIT4;
-                o->m_count = 255;
+                o->m_deadline = Context::Clock::getTime(c) + InitTimeoutTicks;
             } break;
             case STATE_INIT4: {
                 if (o->m_buf2[0] != 0 || o->m_buf1[0] != 0) {
-                    o->m_count--;
-                    if (o->m_count == 0) {
+                    if ((uint32_t)(Context::Clock::getTime(c) - o->m_deadline) < UINT32_C(0x80000000)) {
                         return error(c, 3);
                     }
                     sd_command(c, CMD_APP_CMD, 0, true, o->m_buf2, o->m_buf2);
@@ -353,7 +355,7 @@ public:
     >> {
         uint8_t m_state;
         union {
-            uint8_t m_count;
+            TimeType m_deadline;
             bool m_sdhc;
         };
         union {
