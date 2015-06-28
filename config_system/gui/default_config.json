@@ -378,6 +378,7 @@
           "FsType": {
             "CaseInsensFileName": true,
             "MaxFileNameSize": 128,
+            "NumCacheEntries": 4,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
@@ -848,6 +849,7 @@
           "FsType": {
             "CaseInsensFileName": true,
             "MaxFileNameSize": 128,
+            "NumCacheEntries": 4,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
@@ -1922,6 +1924,7 @@
           "FsType": {
             "CaseInsensFileName": true,
             "MaxFileNameSize": 32,
+            "NumCacheEntries": 1,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
@@ -2239,6 +2242,7 @@
           "FsType": {
             "CaseInsensFileName": true,
             "MaxFileNameSize": 128,
+            "NumCacheEntries": 2,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
@@ -2762,6 +2766,7 @@
           "FsType": {
             "CaseInsensFileName": true,
             "MaxFileNameSize": 256,
+            "NumCacheEntries": 4,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
