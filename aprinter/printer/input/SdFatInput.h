@@ -389,11 +389,11 @@ private:
                 char const *find_name;
                 if ((find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
                     listing_state = LISTING_STATE_CHDIR;
-                    entry_type = TheFs::EntryType::DIR;
+                    entry_type = TheFs::EntryType::DIR_TYPE;
                 }
                 else if ((find_name = cmd->get_command_param_str(c, 'F', nullptr))) {
                     listing_state = LISTING_STATE_OPEN;
-                    entry_type = TheFs::EntryType::FILE;
+                    entry_type = TheFs::EntryType::FILE_TYPE;
                 }
                 else {
                     cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadParams\n"));
@@ -430,7 +430,7 @@ private:
             }
             
             o->listing_u.dirlist.cur_name = name;
-            o->listing_u.dirlist.cur_is_dir = (entry.getType() == TheFs::EntryType::DIR);
+            o->listing_u.dirlist.cur_is_dir = (entry.getType() == TheFs::EntryType::DIR_TYPE);
             return;
         }
         

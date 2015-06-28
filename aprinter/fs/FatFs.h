@@ -92,7 +92,7 @@ private:
     class WriteReference;
     
 public:
-    enum class EntryType : uint8_t {DIR, FILE};
+    enum class EntryType : uint8_t {DIR_TYPE, FILE_TYPE};
     
     class FsEntry {
         friend FatFs;
@@ -150,7 +150,7 @@ public:
         AMBRO_ASSERT(o->state == FsState::READY)
         
         FsEntry entry;
-        entry.type = EntryType::DIR;
+        entry.type = EntryType::DIR_TYPE;
         entry.file_size = 0;
         entry.cluster_index = o->root_cluster;
         entry.dir_entry_block_index = 0;
@@ -205,7 +205,7 @@ public:
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == FsState::READY)
-            AMBRO_ASSERT(dir_entry.type == EntryType::DIR)
+            AMBRO_ASSERT(dir_entry.type == EntryType::DIR_TYPE)
             
             m_dir_iter.init(c, dir_entry.cluster_index, handler);
         }
@@ -241,7 +241,7 @@ public:
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == FsState::READY)
-            AMBRO_ASSERT(dir_entry.type == EntryType::DIR)
+            AMBRO_ASSERT(dir_entry.type == EntryType::DIR_TYPE)
             AMBRO_ASSERT(name)
             
             m_entry_type = entry_type;
@@ -313,7 +313,7 @@ public:
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == FsState::READY)
-            AMBRO_ASSERT(file_entry.type == EntryType::FILE)
+            AMBRO_ASSERT(file_entry.type == EntryType::FILE_TYPE)
             
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&File::event_handler, this));
             m_chain.init(c, file_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&File::chain_handler, this));
@@ -1609,7 +1609,7 @@ private:
             }
             
             FsEntry entry;
-            entry.type = is_dir ? EntryType::DIR : EntryType::FILE;
+            entry.type = is_dir ? EntryType::DIR_TYPE : EntryType::FILE_TYPE;
             entry.file_size = file_size;
             entry.cluster_index = first_cluster;
             entry.dir_entry_block_index = get_cluster_data_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster - 1);
