@@ -35,6 +35,8 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
+#include <aprinter/base/BinaryTools.h>
+#include <aprinter/misc/CrcItuT.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -128,6 +130,7 @@ public:
         AMBRO_ASSERT(o->m_io_state == IO_STATE_IDLE)
         AMBRO_ASSERT(block < o->m_capacity_blocks)
         
+        o->m_request_buf = buffer;
         uint32_t addr = o->m_sdhc ? block : (block * 512);
         sd_command(c, CMD_READ_SINGLE_BLOCK, addr, true, o->m_io_buf, o->m_io_buf);
         size_t first_part_length = MinValue(buffer.wrap, BlockSize);
@@ -136,7 +139,7 @@ public:
         if (first_part_length < BlockSize) {
             TheSpi::cmdReadBuffer(c, (uint8_t *)buffer.ptr2, BlockSize - first_part_length, 0xff);
         }
-        TheSpi::cmdWriteByte(c, 0xff, 2 - 1);
+        TheSpi::cmdReadBuffer(c, o->m_io_buf + 2, 2, 0xff);
         o->m_io_state = IO_STATE_READING;
     }
     
@@ -326,6 +329,18 @@ private:
                 AMBRO_ASSERT(o->m_io_state == IO_STATE_READING)
                 o->m_io_state = IO_STATE_IDLE;
                 bool error = (o->m_io_buf[0] != 0 || o->m_io_buf[1] != 0xfe);
+                if (!error) {
+                    uint16_t checksum_received = ReadBinaryInt<uint16_t, BinaryBigEndian>((char *)(o->m_io_buf + 2));
+                    size_t first_part_length = MinValue(o->m_request_buf.wrap, BlockSize);
+                    uint16_t checksum_computed = CrcItuTInitial;
+                    checksum_computed = CrcItuTUpdate(checksum_computed, o->m_request_buf.ptr1, first_part_length);
+                    if (first_part_length < BlockSize) {
+                        checksum_computed = CrcItuTUpdate(checksum_computed, o->m_request_buf.ptr2, BlockSize - first_part_length);
+                    }
+                    if (checksum_received != checksum_computed) {
+                        error = true;
+                    }
+                }
                 return CommandHandler::call(c, error);
             } break;
         }
@@ -367,6 +382,7 @@ public:
                 uint32_t m_capacity_blocks;
                 uint8_t m_io_state;
                 uint8_t m_io_buf[6];
+                WrapBuffer m_request_buf;
             };
         };
     };
