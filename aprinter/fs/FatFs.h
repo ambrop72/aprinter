@@ -102,10 +102,10 @@ public:
         
     private:
         EntryType type;
+        DirEntriesPerBlockType dir_entry_block_offset;
         uint32_t file_size;
         ClusterIndexType cluster_index;
         BlockIndexType dir_entry_block_index;
-        DirEntriesPerBlockType dir_entry_block_offset;
     };
     
     static bool isPartitionTypeSupported (uint8_t type)
@@ -254,6 +254,8 @@ public:
         
         void deinit (Context c)
         {
+            TheDebugObject::access(c);
+            
             if (m_state != State::COMPLETED) {
                 m_dir_iter.deinit(c);
             }
@@ -573,9 +575,9 @@ private:
             return init_block_ref_handler(c, error);
         } else if (o->state == FsState::READY) {
             if (o->write_mount_state == WriteMountState::MOUNT_META) {
-                return write_mount_metblock_ref_handler(c, error);
+                return write_mount_metablock_ref_handler(c, error);
             } else if (o->write_mount_state == WriteMountState::UMOUNT_META) {
-                return write_unmount_metblock_ref_handler(c, error);
+                return write_unmount_metablock_ref_handler(c, error);
             } else if (o->alloc_state == AllocationState::REQUESTING_BLOCK) {
                 return alloc_block_ref_handler(c, error);
             }
@@ -723,7 +725,7 @@ private:
         return WriteMountHandler::call(c, error);
     }
     
-    static void write_mount_metblock_ref_handler (Context c, bool error)
+    static void write_mount_metablock_ref_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == FsState::READY)
@@ -749,6 +751,7 @@ private:
     static void flush_request_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == FsState::READY)
         
         switch (o->write_mount_state) {
@@ -779,6 +782,7 @@ private:
     static void fs_info_block_ref_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == FsState::READY)
         AMBRO_ASSERT(o->write_mount_state == WriteMountState::MOUNT_FSINFO)
         
@@ -802,7 +806,7 @@ private:
         o->flush_request.requestFlush(c);
     }
     
-    static void write_unmount_metblock_ref_handler (Context c, bool error)
+    static void write_unmount_metablock_ref_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == FsState::READY)
@@ -933,6 +937,7 @@ private:
     static void update_fs_info_allocated_cluster (Context c)
     {
         auto *o = Object::self(c);
+        
         ClusterIndexType value = 2 + o->alloc_position;
         WriteBinaryInt<uint32_t, BinaryLittleEndian>(value, o->fs_info_block_ref.getData(c) + FsInfoAllocatedClusterOffset);
         o->fs_info_block_ref.markDirty(c);
@@ -941,6 +946,7 @@ private:
     static void update_fs_info_free_clusters (Context c, bool inc_else_dec)
     {
         auto *o = Object::self(c);
+        
         uint32_t free_clusters = ReadBinaryInt<uint32_t, BinaryLittleEndian>(o->fs_info_block_ref.getData(c) + FsInfoFreeClustersOffset);
         if (free_clusters <= o->num_valid_clusters) {
             if (inc_else_dec) {
@@ -1012,6 +1018,7 @@ private:
     static void alloc_event_handler (Context c)
     {
         auto *o = Object::self(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->alloc_state == AllocationState::CHECK_EVENT)
         AMBRO_ASSERT(o->write_mount_state == WriteMountState::MOUNTED)
         
@@ -1120,6 +1127,7 @@ private:
         void requestNew (Context c)
         {
             auto *o = Object::self(c);
+            AMBRO_ASSERT(o->write_mount_state == WriteMountState::MOUNTED)
             AMBRO_ASSERT(m_state == State::IDLE)
             AMBRO_ASSERT(m_iter_state == IterState::END)
             
@@ -1152,6 +1160,8 @@ private:
         
         void event_handler (Context c)
         {
+            TheDebugObject::access(c);
+            
             switch (m_state) {
                 case State::REQUEST_NEXT_CHECK: {
                     if (m_iter_state == IterState::CLUSTER) {
@@ -1186,6 +1196,8 @@ private:
         
         void fat_cache_ref_handler (Context c, bool error)
         {
+            TheDebugObject::access(c);
+            
             switch (m_state) {
                 case State::READING_FAT_FOR_NEXT: {
                     if (error) {
@@ -1305,6 +1317,7 @@ private:
     private:
         void block_ref_handler (Context c, bool error)
         {
+            TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == State::REQUESTING_BLOCK)
             
             m_state = error ? State::INVALID : State::READY;
