@@ -297,11 +297,11 @@ struct FloatRoundImpl;
 
 template <typename Dummy>
 struct FloatRoundImpl<4, Dummy> {
-    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(lroundf(0)), int32_t>::Value, "");
-    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(lround(0)), int32_t>::Value, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && sizeof(decltype(lroundf(0))) == 4, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && sizeof(decltype(lround(0))) == 4, "");
 #if !defined(AMBROLIB_AVR)
-    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(llroundf(0)), int64_t>::Value, "");
-    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(llround(0)), int64_t>::Value, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && sizeof(decltype(llroundf(0))) == 8, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && sizeof(decltype(llround(0))) == 8, "");
 #endif
     
     APRINTER_DEFINE_INT_ROUND_HELPER_START
@@ -319,8 +319,8 @@ struct FloatRoundImpl<4, Dummy> {
 
 template <typename Dummy>
 struct FloatRoundImpl<8, Dummy> {
-    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(lroundf(0)), int64_t>::Value, "");
-    static_assert(TypesAreEqual<Dummy, void>::Value && TypesAreEqual<decltype(lround(0)), int64_t>::Value, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && sizeof(decltype(lroundf(0))) == 8, "");
+    static_assert(TypesAreEqual<Dummy, void>::Value && sizeof(decltype(lround(0))) == 8, "");
     
     APRINTER_DEFINE_INT_ROUND_HELPER_START
     APRINTER_DEFINE_INT_ROUND_HELPER(float, int8_t, lroundf)
