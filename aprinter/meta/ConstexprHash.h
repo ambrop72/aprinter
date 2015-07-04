@@ -37,27 +37,27 @@ public:
     constexpr ConstexprHash ()
     : m_accum(0) {}
     
-    constexpr Type end ()
+    constexpr Type end () const
     {
         return m_accum;
     }
     
-    constexpr ConstexprHash addString (char const *buf, size_t len)
+    constexpr ConstexprHash addString (char const *buf, size_t len) const
     {
         return (len == 0) ? *this : ConstexprHash(TheHash::hash(m_accum, (uint8_t)*buf)).addString(buf + 1, len - 1);
     }
     
-    constexpr ConstexprHash addUint8 (uint8_t x)
+    constexpr ConstexprHash addUint8 (uint8_t x) const
     {
         return ConstexprHash(TheHash::hash(m_accum, (uint8_t)x));
     }
     
-    constexpr ConstexprHash addUint16 (uint16_t x)
+    constexpr ConstexprHash addUint16 (uint16_t x) const
     {
         return ConstexprHash(TheHash::hash(TheHash::hash(m_accum, (uint8_t)(x >> 0)), (uint8_t)(x >> 8)));
     }
     
-    constexpr ConstexprHash addUint32 (uint32_t x)
+    constexpr ConstexprHash addUint32 (uint32_t x) const
     {
         return ConstexprHash(TheHash::hash(TheHash::hash(TheHash::hash(TheHash::hash(m_accum, (uint8_t)(x >> 0)), (uint8_t)(x >> 8)), (uint8_t)(x >> 16)), (uint8_t)(x >> 24)));
     }
