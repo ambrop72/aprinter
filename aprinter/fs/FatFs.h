@@ -31,6 +31,7 @@
 
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/EnableIf.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
@@ -86,7 +87,7 @@ private:
     enum class WriteMountState : uint8_t {NOT_MOUNTED, MOUNT_META, MOUNT_FSINFO, MOUNT_FLUSH, MOUNTED, UMOUNT_FLUSH1, UMOUNT_META, UMOUNT_FLUSH2};
     enum class AllocationState : uint8_t {IDLE, CHECK_EVENT, REQUESTING_BLOCK};
     
-    class ClusterChain;
+    template <bool Writable> class ClusterChain;
     class DirEntryRef;
     class DirectoryIterator;
     class WriteReference;
@@ -586,7 +587,7 @@ public:
         }
         
         typename Context::EventLoop::QueuedEvent m_event;
-        ClusterChain m_chain;
+        ClusterChain<true> m_chain;
         BlockAccessUser m_block_user;
         DirEntryRef m_dir_entry;
         FileHandler m_handler;
@@ -1029,10 +1030,10 @@ private:
         AMBRO_ASSERT(o->alloc_state != AllocationState::IDLE)
         AMBRO_ASSERT(!o->allocating_chains_list.isEmpty())
         
-        ClusterChain *complete_request = nullptr;
+        ClusterChain<true> *complete_request = nullptr;
         bool have_more_requests = false;
-        for (ClusterChain *chain = o->allocating_chains_list.first(); chain; chain = o->allocating_chains_list.next(chain)) {
-            AMBRO_ASSERT(chain->m_state == ClusterChain::State::NEW_ALLOCATING)
+        for (ClusterChain<true> *chain = o->allocating_chains_list.first(); chain; chain = o->allocating_chains_list.next(chain)) {
+            AMBRO_ASSERT(chain->m_state == ClusterChain<true>::State::NEW_ALLOCATING)
             if (!complete_request) {
                 complete_request = chain;
             } else {
@@ -1095,7 +1096,18 @@ private:
         o->alloc_event.prependNowNotAlready(c);
     }
     
-    class ClusterChain {
+    template <bool Writable, typename Dummy=void>
+    class ClusterChainExtraMembers {};
+    
+    template <typename Dummy>
+    class ClusterChainExtraMembers<true, Dummy> {
+        CacheBlockRef m_fat_cache_ref2;
+        DoubleEndedListNode<ClusterChain<true>> m_allocating_chains_node;
+        ClusterIndexType m_prev_cluster;
+    };
+    
+    template <bool Writable>
+    class ClusterChain : public ClusterChainExtraMembers<Writable> {
         enum class State : uint8_t {
             IDLE,
             NEXT_CHECK, NEXT_REQUESTING_FAT,
@@ -1111,24 +1123,19 @@ private:
         {
             m_event.init(c, APRINTER_CB_OBJFUNC_T(&ClusterChain::event_handler, this));
             m_fat_cache_ref1.init(c, APRINTER_CB_OBJFUNC_T(&ClusterChain::fat_cache_ref_handler, this));
-            m_fat_cache_ref2.init(c, APRINTER_CB_OBJFUNC_T(&ClusterChain::fat_cache_ref_handler, this));
             
             m_handler = handler;
             m_state = State::IDLE;
             m_first_cluster = first_cluster;
+            
+            extra_init(c);
             
             rewind_internal(c);
         }
         
         void deinit (Context c)
         {
-            auto *o = Object::self(c);
-            
-            if (m_state == State::NEW_ALLOCATING) {
-                o->allocating_chains_list.remove(this);
-                allocation_request_removed(c);
-            }
-            m_fat_cache_ref2.deinit(c);
+            extra_deinit(c);
             m_fat_cache_ref1.deinit(c);
             m_event.deinit(c);
         }
@@ -1163,7 +1170,7 @@ private:
             return m_current_cluster;
         }
         
-        void requestNew (Context c)
+        template <typename Ret=void> EnableIf<Writable, Ret> requestNew (Context c)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->write_mount_state == WriteMountState::MOUNTED)
@@ -1181,7 +1188,7 @@ private:
             return m_first_cluster;
         }
         
-        void startTruncate (Context c)
+        template <typename Ret=void> EnableIf<Writable, Ret> startTruncate (Context c)
         {
             AMBRO_ASSERT(m_state == State::IDLE)
             
@@ -1190,18 +1197,104 @@ private:
         }
         
     private:
+        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_init (Context c) {}
+        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_deinit (Context c) {}
+        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_complete_request (Context c) {}
+        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_event_new_check (Context c) {}
+        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_event_truncate_check (Context c) {}
+        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_set_prev_cluster (Context c, ClusterIndexType value) {}
+        
+        template <typename Ret=void> EnableIf<Writable, Ret> extra_init (Context c)
+        {
+            this->m_fat_cache_ref2.init(c, APRINTER_CB_OBJFUNC_T(&ClusterChain::fat_cache_ref_handler, this));
+        }
+        
+        template <typename Ret=void> EnableIf<Writable, Ret> extra_deinit (Context c)
+        {
+            auto *o = Object::self(c);
+            if (m_state == State::NEW_ALLOCATING) {
+                o->allocating_chains_list.remove(this);
+                allocation_request_removed(c);
+            }
+            this->m_fat_cache_ref2.deinit(c);
+        }
+        
+        template <typename Ret=void> EnableIf<Writable, Ret> extra_complete_request (Context c)
+        {
+            this->m_fat_cache_ref2.reset(c);
+        }
+        
+        template <typename Ret=void> EnableIf<Writable, Ret> extra_event_new_check (Context c)
+        {
+            auto *o = Object::self(c);
+            if (is_cluster_idx_normal(this->m_prev_cluster)) {
+                AMBRO_ASSERT(is_cluster_idx_valid_for_fat(c, this->m_prev_cluster))
+                if (!request_fat_cache_block(c, &m_fat_cache_ref1, this->m_prev_cluster, false)) {
+                    m_state = State::NEW_REQUESTING_FAT;
+                    return;
+                }
+            }
+            m_state = State::NEW_ALLOCATING;
+            o->allocating_chains_list.append(this);
+            allocation_request_added(c);
+        }
+        
+        template <typename Ret=void> EnableIf<Writable, Ret> extra_event_truncate_check (Context c)
+        {
+            if (!is_cluster_idx_normal(m_current_cluster)) {
+                return complete_request(c, false);
+            }
+            AMBRO_ASSERT(m_iter_state != IterState::END)
+            if (!is_cluster_idx_valid_for_fat(c, m_current_cluster)) {
+                return complete_request(c, true);
+            }
+            if (!request_fat_cache_block(c, &m_fat_cache_ref1, m_current_cluster, false)) {
+                m_state = State::TRUNCATE_REQUESTING_FAT;
+                return;
+            }
+            ClusterIndexType next_cluster = read_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster);
+            if (!is_cluster_idx_normal(next_cluster)) {
+                bool changing_first_cluster = false;
+                if (m_iter_state == IterState::START) {
+                    update_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster, FreeClusterMarker);
+                    update_fs_info_free_clusters(c, true);
+                    m_first_cluster = EndOfChainMarker;
+                    m_current_cluster = m_first_cluster;
+                    changing_first_cluster = true;
+                }
+                return complete_request(c, false, changing_first_cluster);
+            }
+            if (!is_cluster_idx_valid_for_fat(c, next_cluster)) {
+                return complete_request(c, true);
+            }
+            if (!request_fat_cache_block(c, &this->m_fat_cache_ref2, next_cluster, false)) {
+                m_state = State::TRUNCATE_REQUESTING_FAT2;
+                return;
+            }
+            ClusterIndexType after_next_cluster = read_fat_entry_in_cache_block(c, &this->m_fat_cache_ref2, next_cluster);
+            update_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster, after_next_cluster);
+            update_fat_entry_in_cache_block(c, &this->m_fat_cache_ref2, next_cluster, FreeClusterMarker);
+            update_fs_info_free_clusters(c, true);
+            m_event.prependNowNotAlready(c);
+        }
+        
+        template <typename Ret=void> EnableIf<Writable, Ret> extra_set_prev_cluster (Context c, ClusterIndexType value)
+        {
+            this->m_prev_cluster = value;
+        }
+        
         void rewind_internal (Context c)
         {
             m_iter_state = IterState::START;
             m_current_cluster = m_first_cluster;
-            m_prev_cluster = 0;
+            extra_set_prev_cluster(c, 0);
         }
         
         void complete_request (Context c, bool error, bool first_cluster_changed=false)
         {
             m_state = State::IDLE;
             m_fat_cache_ref1.reset(c);
-            m_fat_cache_ref2.reset(c);
+            extra_complete_request(c);
             return m_handler(c, error, first_cluster_changed);
         }
         
@@ -1210,77 +1303,31 @@ private:
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             
-            switch (m_state) {
-                case State::NEXT_CHECK: {
-                    if (m_iter_state == IterState::CLUSTER) {
-                        if (!is_cluster_idx_valid_for_fat(c, m_current_cluster)) {
-                            return complete_request(c, true);
-                        }
-                        if (!request_fat_cache_block(c, &m_fat_cache_ref1, m_current_cluster, false)) {
-                            m_state = State::NEXT_REQUESTING_FAT;
-                            return;
-                        }
-                        m_prev_cluster = m_current_cluster;
-                        m_current_cluster = read_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster);
-                    }
-                    if (m_iter_state != IterState::END) {
-                        m_iter_state = is_cluster_idx_normal(m_current_cluster) ? IterState::CLUSTER : IterState::END;
-                    }
-                    return complete_request(c, false);
-                } break;
-                
-                case State::NEW_CHECK: {
-                    if (is_cluster_idx_normal(m_prev_cluster)) {
-                        AMBRO_ASSERT(is_cluster_idx_valid_for_fat(c, m_prev_cluster))
-                        if (!request_fat_cache_block(c, &m_fat_cache_ref1, m_prev_cluster, false)) {
-                            m_state = State::NEW_REQUESTING_FAT;
-                            return;
-                        }
-                    }
-                    m_state = State::NEW_ALLOCATING;
-                    o->allocating_chains_list.append(this);
-                    allocation_request_added(c);
-                } break;
-                
-                case State::TRUNCATE_CHECK: {
-                    if (!is_cluster_idx_normal(m_current_cluster)) {
-                        return complete_request(c, false);
-                    }
-                    AMBRO_ASSERT(m_iter_state != IterState::END)
+            if (m_state == State::NEXT_CHECK) {
+                if (m_iter_state == IterState::CLUSTER) {
                     if (!is_cluster_idx_valid_for_fat(c, m_current_cluster)) {
                         return complete_request(c, true);
                     }
                     if (!request_fat_cache_block(c, &m_fat_cache_ref1, m_current_cluster, false)) {
-                        m_state = State::TRUNCATE_REQUESTING_FAT;
+                        m_state = State::NEXT_REQUESTING_FAT;
                         return;
                     }
-                    ClusterIndexType next_cluster = read_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster);
-                    if (!is_cluster_idx_normal(next_cluster)) {
-                        bool changing_first_cluster = false;
-                        if (m_iter_state == IterState::START) {
-                            update_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster, FreeClusterMarker);
-                            update_fs_info_free_clusters(c, true);
-                            m_first_cluster = EndOfChainMarker;
-                            m_current_cluster = m_first_cluster;
-                            changing_first_cluster = true;
-                        }
-                        return complete_request(c, false, changing_first_cluster);
-                    }
-                    if (!is_cluster_idx_valid_for_fat(c, next_cluster)) {
-                        return complete_request(c, true);
-                    }
-                    if (!request_fat_cache_block(c, &m_fat_cache_ref2, next_cluster, false)) {
-                        m_state = State::TRUNCATE_REQUESTING_FAT2;
-                        return;
-                    }
-                    ClusterIndexType after_next_cluster = read_fat_entry_in_cache_block(c, &m_fat_cache_ref2, next_cluster);
-                    update_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster, after_next_cluster);
-                    update_fat_entry_in_cache_block(c, &m_fat_cache_ref2, next_cluster, FreeClusterMarker);
-                    update_fs_info_free_clusters(c, true);
-                    m_event.prependNowNotAlready(c);
-                } break;
-                
-                default: AMBRO_ASSERT(false);
+                    extra_set_prev_cluster(c, m_current_cluster);
+                    m_current_cluster = read_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster);
+                }
+                if (m_iter_state != IterState::END) {
+                    m_iter_state = is_cluster_idx_normal(m_current_cluster) ? IterState::CLUSTER : IterState::END;
+                }
+                return complete_request(c, false);
+            }
+            else if (Writable && m_state == State::NEW_CHECK) {
+                extra_event_new_check(c);
+            }
+            else if (Writable && m_state == State::TRUNCATE_CHECK) {
+                extra_event_truncate_check(c);
+            }
+            else {
+                AMBRO_ASSERT(false);
             }
         }
         
@@ -1303,7 +1350,7 @@ private:
             m_event.prependNowNotAlready(c);
         }
         
-        void allocation_result (Context c, bool error, ClusterIndexType new_cluster_index)
+        template <typename Ret=void> EnableIf<Writable, Ret> allocation_result (Context c, bool error, ClusterIndexType new_cluster_index)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::NEW_ALLOCATING)
@@ -1311,18 +1358,18 @@ private:
             AMBRO_ASSERT(error || is_cluster_idx_normal(new_cluster_index))
             AMBRO_ASSERT(m_iter_state == IterState::END)
             AMBRO_ASSERT(!is_cluster_idx_normal(m_current_cluster))
-            AMBRO_ASSERT(is_cluster_idx_normal(m_first_cluster) == is_cluster_idx_normal(m_prev_cluster))
+            AMBRO_ASSERT(is_cluster_idx_normal(m_first_cluster) == is_cluster_idx_normal(this->m_prev_cluster))
             
             o->allocating_chains_list.remove(this);
             if (error) {
                 return complete_request(c, error);
             }
             m_current_cluster = new_cluster_index;
-            bool changing_first_cluster = !is_cluster_idx_normal(m_prev_cluster);
+            bool changing_first_cluster = !is_cluster_idx_normal(this->m_prev_cluster);
             if (changing_first_cluster) {
                 m_first_cluster = m_current_cluster;
             } else {
-                update_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_prev_cluster, m_current_cluster);
+                update_fat_entry_in_cache_block(c, &m_fat_cache_ref1, this->m_prev_cluster, m_current_cluster);
             }
             m_iter_state = IterState::CLUSTER;
             return complete_request(c, false, changing_first_cluster);
@@ -1330,14 +1377,11 @@ private:
         
         typename Context::EventLoop::QueuedEvent m_event;
         CacheBlockRef m_fat_cache_ref1;
-        CacheBlockRef m_fat_cache_ref2;
-        DoubleEndedListNode<ClusterChain> m_allocating_chains_node;
         ClusterChainHandler m_handler;
         State m_state;
         IterState m_iter_state;
         ClusterIndexType m_first_cluster;
         ClusterIndexType m_current_cluster;
-        ClusterIndexType m_prev_cluster;
     };
     
     class DirEntryRef {
@@ -1666,7 +1710,7 @@ private:
         }
         
         typename Context::EventLoop::QueuedEvent m_event;
-        ClusterChain m_chain;
+        ClusterChain<false> m_chain;
         CacheBlockRef m_dir_block_ref;
         DirectoryIteratorHandler m_handler;
         ClusterBlockIndexType m_block_in_cluster;
@@ -1743,7 +1787,7 @@ public:
         BlockIndexType fat_end_blocks;
         BlockIndexType fs_info_block;
         ClusterIndexType num_valid_clusters;
-        DoubleEndedList<ClusterChain, &ClusterChain::m_allocating_chains_node> allocating_chains_list;
+        DoubleEndedListForBase<ClusterChain<true>, ClusterChainExtraMembers<true>, &ClusterChain<true>::m_allocating_chains_node> allocating_chains_list;
         ClusterIndexType alloc_position;
         ClusterIndexType alloc_start;
         size_t num_write_references;

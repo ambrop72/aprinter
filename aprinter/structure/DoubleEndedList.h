@@ -65,7 +65,7 @@ public:
     Entry *m_last;
 };
 
-template <class Entry, DoubleEndedListNode<Entry> Entry::*NodeMember>
+template <class Entry, class Base, DoubleEndedListNode<Entry> Base::*NodeMember>
 struct DoubleEndedListAccessor {
     static DoubleEndedListNode<Entry> * access (Entry *e)
     {
@@ -74,7 +74,10 @@ struct DoubleEndedListAccessor {
 };
 
 template <class Entry, DoubleEndedListNode<Entry> Entry::*NodeMember>
-class DoubleEndedList : public DoubleEndedListWithAccessor<Entry, DoubleEndedListAccessor<Entry, NodeMember> > {};
+class DoubleEndedList : public DoubleEndedListWithAccessor<Entry, DoubleEndedListAccessor<Entry, Entry, NodeMember> > {};
+
+template <class Entry, class Base, DoubleEndedListNode<Entry> Base::*NodeMember>
+class DoubleEndedListForBase : public DoubleEndedListWithAccessor<Entry, DoubleEndedListAccessor<Entry, Base, NodeMember> > {};
 
 template <class Entry, class Accessor>
 DoubleEndedListNode<Entry> * DoubleEndedListWithAccessor<Entry, Accessor>::ac (Entry *e)
