@@ -43,7 +43,7 @@
 
 template <typename Context, typename Config, typename Params>
 class AxisHomerGlobal {
-    using CSwitchInvert = decltype(ExprCast<bool>(Config::e(Params::SwitchInvert::i)));
+    using CSwitchInvert = decltype(ExprCast<bool>(Config::e(Params::SwitchInvert::i())));
     
 public:
     static void init (Context c)
@@ -87,9 +87,9 @@ private:
     using SpeedConversion = decltype(DistConversion() / TimeConversion());
     using AccelConversion = decltype(DistConversion() / (TimeConversion() * TimeConversion()));
     
-    using FastSteps = decltype(Config::e(Params::FastMaxDist::i) * DistConversion());
-    using RetractSteps = decltype(Config::e(Params::RetractDist::i) * DistConversion());
-    using SlowSteps = decltype(Config::e(Params::SlowMaxDist::i) * DistConversion());
+    using FastSteps = decltype(Config::e(Params::FastMaxDist::i()) * DistConversion());
+    using RetractSteps = decltype(Config::e(Params::RetractDist::i()) * DistConversion());
+    using SlowSteps = decltype(Config::e(Params::SlowMaxDist::i()) * DistConversion());
     
     using PlannerMaxSpeedRec = APRINTER_FP_CONST_EXPR(0.0);
     using PlannerMaxAccelRec = decltype(ExprRec(MaxAccel() * AccelConversion()));
@@ -217,9 +217,9 @@ private:
         return TheGlobal::endstop_is_triggered(c);
     }
     
-    using CMaxVRecFast = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::FastSpeed::i) * SpeedConversion())));
-    using CMaxVRecRetract = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::RetractSpeed::i) * SpeedConversion())));
-    using CMaxVRecSlow = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::SlowSpeed::i) * SpeedConversion())));
+    using CMaxVRecFast = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::FastSpeed::i()) * SpeedConversion())));
+    using CMaxVRecRetract = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::RetractSpeed::i()) * SpeedConversion())));
+    using CMaxVRecSlow = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::SlowSpeed::i()) * SpeedConversion())));
     using CFixedStepsFast = decltype(ExprFixedPointImport<StepFixedType>(FastSteps()));
     using CFixedStepsRetract = decltype(ExprFixedPointImport<StepFixedType>(RetractSteps()));
     using CFixedStepsSlow = decltype(ExprFixedPointImport<StepFixedType>(SlowSteps()));

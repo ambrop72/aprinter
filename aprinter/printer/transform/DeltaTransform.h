@@ -81,8 +81,8 @@ public:
     using Splitter = DistanceSplitter<typename Params::SplitterParams, FpType>;
     
 private:
-    using DiagonalRod = decltype(Config::e(Params::DiagonalRod::i));
-    using Radius = decltype(Config::e(Params::SmoothRodOffset::i) - Config::e(Params::EffectorOffset::i) - Config::e(Params::CarriageOffset::i));
+    using DiagonalRod = decltype(Config::e(Params::DiagonalRod::i()));
+    using Radius = decltype(Config::e(Params::SmoothRodOffset::i()) - Config::e(Params::EffectorOffset::i()) - Config::e(Params::CarriageOffset::i()));
     
     using Value1 = APRINTER_FP_CONST_EXPR(-0.8660254037844386);
     using Value2 = APRINTER_FP_CONST_EXPR(-0.5);

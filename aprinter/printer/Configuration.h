@@ -84,7 +84,7 @@ struct ConfigOption {
     using DefaultValue = TDefaultValue;
     using Properties = TProperties;
     
-    static constexpr Identity i = Identity{};
+    static constexpr Identity i ();
     static constexpr char AMBRO_PROGMEM const * name () { return TOptionName; }
 };
 

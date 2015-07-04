@@ -493,7 +493,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         typename TheSlaveStepper::DirPin,
         typename TheSlaveStepper::StepPin,
         typename TheSlaveStepper::EnablePin,
-        decltype(Config::e(TheSlaveStepper::InvertDir::i))
+        decltype(Config::e(TheSlaveStepper::InvertDir::i()))
     >;
     
     template <typename TheAxis>
@@ -504,7 +504,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     typename TheAxis::DirPin,
                     typename TheAxis::StepPin,
                     typename TheAxis::EnablePin,
-                    decltype(Config::e(TheAxis::InvertDir::i))
+                    decltype(Config::e(TheAxis::InvertDir::i()))
                 >
             >,
             MapTypeList<typename TheAxis::SlaveSteppersList, TemplateFunc<MakeSlaveStepperDef>>
@@ -520,10 +520,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using TimeRevConversion = APRINTER_FP_CONST_EXPR(Clock::time_unit);
     using FCpu = APRINTER_FP_CONST_EXPR(F_CPU);
     
-    using CInactiveTimeTicks = decltype(ExprCast<TimeType>(Config::e(Params::InactiveTime::i) * TimeConversion()));
-    using CWaitTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitTimeout::i) * TimeConversion()));
-    using CStepSpeedLimitFactor = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::MaxStepsPerCycle::i) * FCpu() * TimeRevConversion())));
-    using CForceTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::ForceTimeout::i) * TimeConversion()));
+    using CInactiveTimeTicks = decltype(ExprCast<TimeType>(Config::e(Params::InactiveTime::i()) * TimeConversion()));
+    using CWaitTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitTimeout::i()) * TimeConversion()));
+    using CStepSpeedLimitFactor = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::MaxStepsPerCycle::i()) * FCpu() * TimeRevConversion())));
+    using CForceTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::ForceTimeout::i()) * TimeConversion()));
     
     using MyConfigExprs = MakeTypeList<CInactiveTimeTicks, CWaitTimeoutTicks, CStepSpeedLimitFactor, CForceTimeoutTicks>;
     
@@ -1406,18 +1406,18 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using WrappedAxisName = WrapInt<AxisName>;
         using HomingSpec = typename AxisSpec::Homing;
         
-        using DistConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i));
-        using SpeedConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i) / TimeConversion());
-        using AccelConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i) / (TimeConversion() * TimeConversion()));
+        using DistConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i()));
+        using SpeedConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i()) / TimeConversion());
+        using AccelConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i()) / (TimeConversion() * TimeConversion()));
         
         using AbsStepFixedTypeMin = APRINTER_FP_CONST_EXPR(AbsStepFixedType::minValue().fpValueConstexpr());
         using AbsStepFixedTypeMax = APRINTER_FP_CONST_EXPR(AbsStepFixedType::maxValue().fpValueConstexpr());
         
-        using MinReqPos = decltype(ExprFmax(Config::e(AxisSpec::DefaultMin::i), AbsStepFixedTypeMin() / DistConversion()));
-        using MaxReqPos = decltype(ExprFmin(Config::e(AxisSpec::DefaultMax::i), AbsStepFixedTypeMax() / DistConversion()));
+        using MinReqPos = decltype(ExprFmax(Config::e(AxisSpec::DefaultMin::i()), AbsStepFixedTypeMin() / DistConversion()));
+        using MaxReqPos = decltype(ExprFmin(Config::e(AxisSpec::DefaultMax::i()), AbsStepFixedTypeMax() / DistConversion()));
         
-        using PlannerMaxSpeedRec = decltype(ExprRec(Config::e(AxisSpec::DefaultMaxSpeed::i) * SpeedConversion()));
-        using PlannerMaxAccelRec = decltype(ExprRec(Config::e(AxisSpec::DefaultMaxAccel::i) * AccelConversion()));
+        using PlannerMaxSpeedRec = decltype(ExprRec(Config::e(AxisSpec::DefaultMaxSpeed::i()) * SpeedConversion()));
+        using PlannerMaxAccelRec = decltype(ExprRec(Config::e(AxisSpec::DefaultMaxAccel::i()) * AccelConversion()));
         
         template <typename ThePrinterMain = PrinterMain>
         struct Lazy {
@@ -1429,8 +1429,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             using HomerInstance = typename HomingSpec::HomerService::template Instance<
                 Context, Config, FpType, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
-                Params::LookaheadBufferSize, decltype(Config::e(AxisSpec::DefaultMaxAccel::i)),
-                DistConversion, TimeConversion, decltype(Config::e(HomingSpec::HomeDir::i))
+                Params::LookaheadBufferSize, decltype(Config::e(AxisSpec::DefaultMaxAccel::i())),
+                DistConversion, TimeConversion, decltype(Config::e(HomingSpec::HomeDir::i()))
             >;
             
             using HomerGlobal = typename HomerInstance::template HomerGlobal<Object>;
@@ -1495,7 +1495,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 mob->axis_homing |= Lazy<>::AxisMask;
             }
             
-            using InitPosition = decltype(ExprIf(Config::e(HomingSpec::HomeDir::i), MaxReqPos(), MinReqPos()));
+            using InitPosition = decltype(ExprIf(Config::e(HomingSpec::HomeDir::i()), MaxReqPos(), MinReqPos()));
             
             template <typename ThisContext>
             static bool endstop_is_triggered (ThisContext c)
@@ -1687,8 +1687,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using MakePlannerAxisSpec = MotionPlannerAxisSpec<
         typename TheAxis::TheAxisDriver,
         TheAxis::AxisSpec::StepBits,
-        decltype(Config::e(TheAxis::AxisSpec::DefaultDistanceFactor::i)),
-        decltype(Config::e(TheAxis::AxisSpec::DefaultCorneringDistance::i)),
+        decltype(Config::e(TheAxis::AxisSpec::DefaultDistanceFactor::i())),
+        decltype(Config::e(TheAxis::AxisSpec::DefaultCorneringDistance::i())),
         typename TheAxis::PlannerMaxSpeedRec,
         typename TheAxis::PlannerMaxAccelRec,
         PlannerPrestepCallback<TheAxis::AxisIndex>
@@ -1701,8 +1701,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using ThePwm = typename LaserSpec::PwmService::template Pwm<Context, Object>;
         using TheDutyFormula = typename LaserSpec::DutyFormulaService::template DutyFormula<typename ThePwm::DutyCycleType, ThePwm::MaxDutyCycle>;
         
-        using MaxPower = decltype(Config::e(LaserSpec::MaxPower::i));
-        using LaserPower = decltype(Config::e(LaserSpec::LaserPower::i));
+        using MaxPower = decltype(Config::e(LaserSpec::MaxPower::i()));
+        using LaserPower = decltype(Config::e(LaserSpec::LaserPower::i()));
         using PlannerMaxSpeedRec = decltype(TimeConversion() / (MaxPower() / LaserPower()));
         
         static void init (Context c)
@@ -2243,14 +2243,14 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     }
                 };
                 
-                using CEndInvert = decltype(ExprCast<bool>(Config::e(HomingSpec::EndInvert::i)));
-                using CHomeDir = decltype(ExprCast<bool>(Config::e(HomingSpec::HomeDir::i)));
-                using CFastExtraDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::FastExtraDist::i)));
-                using CRetractDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::RetractDist::i)));
-                using CSlowExtraDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::SlowExtraDist::i)));
-                using CFastSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::FastSpeed::i)));
-                using CRetractSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::RetractSpeed::i)));
-                using CSlowSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::SlowSpeed::i)));
+                using CEndInvert = decltype(ExprCast<bool>(Config::e(HomingSpec::EndInvert::i())));
+                using CHomeDir = decltype(ExprCast<bool>(Config::e(HomingSpec::HomeDir::i())));
+                using CFastExtraDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::FastExtraDist::i())));
+                using CRetractDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::RetractDist::i())));
+                using CSlowExtraDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::SlowExtraDist::i())));
+                using CFastSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::FastSpeed::i())));
+                using CRetractSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::RetractSpeed::i())));
+                using CSlowSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::SlowSpeed::i())));
                 
                 using ConfigExprs = MakeTypeList<CEndInvert, CHomeDir, CFastExtraDist, CRetractDist, CSlowExtraDist, CFastSpeed, CRetractSpeed, CSlowSpeed>;
                 
@@ -2269,9 +2269,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 struct Object {};
             };
             
-            using CMinPos = decltype(ExprCast<FpType>(Config::e(VirtAxisParams::MinPos::i)));
-            using CMaxPos = decltype(ExprCast<FpType>(Config::e(VirtAxisParams::MaxPos::i)));
-            using CMaxSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(VirtAxisParams::MaxSpeed::i)));
+            using CMinPos = decltype(ExprCast<FpType>(Config::e(VirtAxisParams::MinPos::i())));
+            using CMaxPos = decltype(ExprCast<FpType>(Config::e(VirtAxisParams::MaxPos::i())));
+            using CMaxSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(VirtAxisParams::MaxSpeed::i())));
             
             using ConfigExprs = MakeTypeList<CMinPos, CMaxPos, CMaxSpeedFactor>;
             
@@ -2503,7 +2503,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct ObserverHandler;
         
         using HeaterSpec = TypeListGet<ParamsHeatersList, HeaterIndex>;
-        using ControlInterval = decltype(Config::e(HeaterSpec::ControlInterval::i));
+        using ControlInterval = decltype(Config::e(HeaterSpec::ControlInterval::i()));
         using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType>;
         using ThePwm = typename HeaterSpec::PwmService::template Pwm<Context, Object>;
         using TheObserver = typename HeaterSpec::ObserverService::template Observer<Context, Object, Config, FpType, ObserverGetValueCallback, ObserverHandler>;
@@ -2518,11 +2518,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static auto TempToAdcAbs (Temp) -> decltype(TheFormula::TempToAdc(Temp()) * AdcRange());
         using AdcFpLowLimit = APRINTER_FP_CONST_EXPR(1.0 + 0.1);
         using AdcFpHighLimit = APRINTER_FP_CONST_EXPR((PowerOfTwoMinusOne<AdcIntType, AdcFixedType::num_bits>::Value - 0.1));
-        using InfAdcValueFp = decltype(ExprFmax(AdcFpLowLimit(), TempToAdcAbs(Config::e(HeaterSpec::MaxSafeTemp::i))));
-        using SupAdcValueFp = decltype(ExprFmin(AdcFpHighLimit(), TempToAdcAbs(Config::e(HeaterSpec::MinSafeTemp::i))));
+        using InfAdcValueFp = decltype(ExprFmax(AdcFpLowLimit(), TempToAdcAbs(Config::e(HeaterSpec::MaxSafeTemp::i()))));
+        using SupAdcValueFp = decltype(ExprFmin(AdcFpHighLimit(), TempToAdcAbs(Config::e(HeaterSpec::MinSafeTemp::i()))));
         
-        using CMinSafeTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::MinSafeTemp::i)));
-        using CMaxSafeTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::MaxSafeTemp::i)));
+        using CMinSafeTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::MinSafeTemp::i())));
+        using CMaxSafeTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::MaxSafeTemp::i())));
         using CInfAdcValue = decltype(ExprCast<AdcIntType>(InfAdcValueFp()));
         using CSupAdcValue = decltype(ExprCast<AdcIntType>(SupAdcValueFp()));
         using CControlIntervalTicks = decltype(ExprCast<TimeType>(ControlInterval() * TimeConversion()));
@@ -2915,7 +2915,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 
                 static FpType get_coord (Context c) { return APRINTER_CFG(Config, CPointCoord, c); }
                 
-                using CPointCoord = decltype(ExprCast<FpType>(Config::e(PointCoord::i)));
+                using CPointCoord = decltype(ExprCast<FpType>(Config::e(PointCoord::i())));
                 using ConfigExprs = MakeTypeList<CPointCoord>;
                 
                 struct Object : public ObjBase<PointHelper, typename AxisHelper::Object, EmptyTypeList> {};
@@ -2923,7 +2923,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             using PointHelperList = IndexElemList<typename ProbeParams::ProbePoints, PointHelper>;
             
-            using CAxisProbeOffset = decltype(ExprCast<FpType>(Config::e(AxisProbeOffset::i)));
+            using CAxisProbeOffset = decltype(ExprCast<FpType>(Config::e(AxisProbeOffset::i())));
             using ConfigExprs = MakeTypeList<CAxisProbeOffset>;
             
             struct Object : public ObjBase<AxisHelper, typename ProbeFeature::Object, PointHelperList> {};
@@ -3037,13 +3037,13 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             cmd->reply_poke(c);
         }
         
-        using CProbeStartHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeStartHeight::i)));
-        using CProbeLowHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeLowHeight::i)));
-        using CProbeRetractDist = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeRetractDist::i)));
-        using CProbeMoveSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeMoveSpeed::i)));
-        using CProbeFastSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeFastSpeed::i)));
-        using CProbeRetractSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeRetractSpeed::i)));
-        using CProbeSlowSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeSlowSpeed::i)));
+        using CProbeStartHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeStartHeight::i())));
+        using CProbeLowHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeLowHeight::i())));
+        using CProbeRetractDist = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeRetractDist::i())));
+        using CProbeMoveSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeMoveSpeed::i())));
+        using CProbeFastSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeFastSpeed::i())));
+        using CProbeRetractSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeRetractSpeed::i())));
+        using CProbeSlowSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeSlowSpeed::i())));
         
         using ConfigExprs = MakeTypeList<CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor, CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor>;
         
@@ -3119,7 +3119,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 return true;
             }
             
-            using CCurrent = decltype(ExprCast<FpType>(Config::e(CurrentAxisParams::DefaultCurrent::i)));
+            using CCurrent = decltype(ExprCast<FpType>(Config::e(CurrentAxisParams::DefaultCurrent::i())));
             using ConfigExprs = MakeTypeList<CCurrent>;
             
             struct Object : public ObjBase<CurrentAxis, typename CurrentFeature::Object, EmptyTypeList> {};

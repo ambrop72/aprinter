@@ -66,7 +66,7 @@ private:
     template <int ChannelIndex>
     struct ChannelHelper {
         using ChannelParams = TypeListGet<ChannelsList, ChannelIndex>;
-        using CChannelConversionFactor = decltype(ExprCast<FpType>(Config::e(ChannelParams::ConversionFactor::i)));
+        using CChannelConversionFactor = decltype(ExprCast<FpType>(Config::e(ChannelParams::ConversionFactor::i())));
         using ConfigExprs = MakeTypeList<CChannelConversionFactor>;
         struct Object : public ObjBase<ChannelHelper, typename Ad5206Current::Object, EmptyTypeList> {};
     };

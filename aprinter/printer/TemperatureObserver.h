@@ -93,14 +93,14 @@ public:
 private:
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    using SampleInterval = decltype(Config::e(Params::SampleInterval::i));
+    using SampleInterval = decltype(Config::e(Params::SampleInterval::i()));
     using TimeFreq = APRINTER_FP_CONST_EXPR(Clock::time_freq);
     using Two = APRINTER_FP_CONST_EXPR(2.0);
     using IntervalsMax = APRINTER_FP_CONST_EXPR(65535.0);
     
     using CIntervalTicks = decltype(ExprCast<TimeType>(SampleInterval() * TimeFreq()));
-    using CMinIntervals = decltype(ExprCast<uint16_t>(ExprFmin(IntervalsMax(), (Config::e(Params::MinTime::i) / SampleInterval()) + Two())));
-    using CValueTolerance = decltype(ExprCast<FpType>(Config::e(Params::ValueTolerance::i)));
+    using CMinIntervals = decltype(ExprCast<uint16_t>(ExprFmin(IntervalsMax(), (Config::e(Params::MinTime::i()) / SampleInterval()) + Two())));
+    using CValueTolerance = decltype(ExprCast<FpType>(Config::e(Params::ValueTolerance::i())));
     
     static void event_handler (Context c)
     {

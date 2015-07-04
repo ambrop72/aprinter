@@ -36,10 +36,10 @@ class GenericThermistor {
     using RoomTemp = APRINTER_FP_CONST_EXPR(298.15);
     using ZeroCelsiusTemp = APRINTER_FP_CONST_EXPR(273.15);
     
-    using RInf = decltype(Config::e(Params::ThermistorR0::i) * ExprExp(-Config::e(Params::ThermistorBeta::i) / RoomTemp()));
+    using RInf = decltype(Config::e(Params::ThermistorR0::i()) * ExprExp(-Config::e(Params::ThermistorBeta::i()) / RoomTemp()));
     
     template <typename Temp>
-    static auto FracThermistor (Temp) -> decltype((RInf() * ExprExp(Config::e(Params::ThermistorBeta::i) / (Temp() + ZeroCelsiusTemp()))) / Config::e(Params::ResistorR::i));
+    static auto FracThermistor (Temp) -> decltype((RInf() * ExprExp(Config::e(Params::ThermistorBeta::i()) / (Temp() + ZeroCelsiusTemp()))) / Config::e(Params::ResistorR::i()));
     
 public:
     template <typename Temp>
@@ -58,10 +58,10 @@ public:
     }
     
 private:
-    using CAdcMinTemp = decltype(ExprCast<FpType>(TempToAdc(Config::e(Params::MinTemp::i))));
-    using CAdcMaxTemp = decltype(ExprCast<FpType>(TempToAdc(Config::e(Params::MaxTemp::i))));
-    using CThermistorBeta = decltype(ExprCast<FpType>(Config::e(Params::ThermistorBeta::i)));
-    using CLogRByRInf = decltype(ExprCast<FpType>(ExprLog(Config::e(Params::ResistorR::i) / RInf())));
+    using CAdcMinTemp = decltype(ExprCast<FpType>(TempToAdc(Config::e(Params::MinTemp::i()))));
+    using CAdcMaxTemp = decltype(ExprCast<FpType>(TempToAdc(Config::e(Params::MaxTemp::i()))));
+    using CThermistorBeta = decltype(ExprCast<FpType>(Config::e(Params::ThermistorBeta::i())));
+    using CLogRByRInf = decltype(ExprCast<FpType>(ExprLog(Config::e(Params::ResistorR::i()) / RInf())));
     
 public:
     struct Object {};
