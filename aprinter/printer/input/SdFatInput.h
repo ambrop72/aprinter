@@ -606,7 +606,7 @@ private:
             TheFs
         >> {
             typename TheFs::FsEntry current_directory;
-            typename TheFs::File file_reader;
+            typename TheFs::template File<false> file_reader;
         };
     };
     
