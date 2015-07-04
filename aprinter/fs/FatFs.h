@@ -32,6 +32,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/EnableIf.h>
+#include <aprinter/meta/FunctionIf.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
@@ -374,7 +375,7 @@ public:
             m_event.prependNowNotAlready(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> startOpenWritable (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, startOpenWritable (Context c))
         {
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == State::IDLE)
@@ -384,7 +385,7 @@ public:
             m_event.prependNowNotAlready(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> closeWritable (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, closeWritable (Context c))
         {
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == State::IDLE)
@@ -392,7 +393,7 @@ public:
             clean_up_writability(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> startWrite (Context c, WrapBuffer buf, size_t bytes_in_block)
+        APRINTER_FUNCTION_IF(Writable, void, startWrite (Context c, WrapBuffer buf, size_t bytes_in_block))
         {
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == State::IDLE)
@@ -406,7 +407,7 @@ public:
             m_event.prependNowNotAlready(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> startTruncate (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, startTruncate (Context c))
         {
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == State::IDLE)
@@ -416,16 +417,7 @@ public:
         }
         
     private:
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_init (Context c, FsEntry file_entry) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_deinit (Context c) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_event_openwr (Context c) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_event_write (Context c) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_event_trunc (Context c) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_first_cluster_update (Context c, bool first_cluster_changed) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_chain_write_next (Context c, bool error) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_block_user_write_data (Context c, bool error) {}
-        
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_init (Context c, FsEntry file_entry)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_init (Context c, FsEntry file_entry))
         {
             this->m_dir_entry.init(c, APRINTER_CB_OBJFUNC_T(&File::dir_entry_handler<>, this));
             this->m_write_ref.init(c);
@@ -434,13 +426,13 @@ public:
             this->m_dir_entry_block_offset = file_entry.dir_entry_block_offset;
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_deinit (Context c)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_deinit (Context c))
         {
             this->m_write_ref.deinit(c);
             this->m_dir_entry.deinit(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_event_openwr (Context c)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_event_openwr (Context c))
         {
             if (!this->m_write_ref.take(c)) {
                 return complete_open_writable_request(c, true);
@@ -449,7 +441,7 @@ public:
             this->m_dir_entry.requestEntryRef(c, this->m_dir_entry_block_index, this->m_dir_entry_block_offset);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_event_write (Context c)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_event_write (Context c))
         {
             auto *o = Object::self(c);
             if (!this->m_write_ref.isTaken(c)) {
@@ -468,7 +460,7 @@ public:
             m_block_user.startWrite(c, get_abs_block_index(c, block_idx), m_request_buf);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_event_trunc (Context c)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_event_trunc (Context c))
         {
             if (!this->m_write_ref.isTaken(c)) {
                 return complete_request(c, true);
@@ -481,7 +473,7 @@ public:
             m_chain.startTruncate(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_first_cluster_update (Context c, bool first_cluster_changed)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_first_cluster_update (Context c, bool first_cluster_changed))
         {
             AMBRO_ASSERT(!first_cluster_changed || this->m_write_ref.isTaken(c))
             
@@ -491,7 +483,7 @@ public:
             }
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_chain_write_next (Context c, bool error)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_chain_write_next (Context c, bool error))
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_block_in_cluster == o->blocks_per_cluster)
@@ -507,7 +499,7 @@ public:
             m_event.prependNowNotAlready(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_block_user_write_data (Context c, bool error)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_block_user_write_data (Context c, bool error))
         {
             if (error) {
                 return complete_request(c, true);
@@ -527,7 +519,7 @@ public:
             return m_handler(c, error, length);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> complete_open_writable_request (Context c, bool error)
+        APRINTER_FUNCTION_IF(Writable, void, complete_open_writable_request (Context c, bool error))
         {
             if (error) {
                 clean_up_writability(c);
@@ -535,7 +527,7 @@ public:
             return complete_request(c, error);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> clean_up_writability (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, clean_up_writability (Context c))
         {
             this->m_write_ref.release(c);
             this->m_dir_entry.reset(c);
@@ -627,7 +619,7 @@ public:
             }
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> dir_entry_handler (Context c, bool error)
+        APRINTER_FUNCTION_IF(Writable, void, dir_entry_handler (Context c, bool error))
         {
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == State::OPENWR_DIR_ENTRY)
@@ -1223,7 +1215,7 @@ private:
             return m_current_cluster;
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> requestNew (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, requestNew (Context c))
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->write_mount_state == WriteMountState::MOUNTED)
@@ -1241,7 +1233,7 @@ private:
             return m_first_cluster;
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> startTruncate (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, startTruncate (Context c))
         {
             AMBRO_ASSERT(m_state == State::IDLE)
             
@@ -1250,19 +1242,12 @@ private:
         }
         
     private:
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_init (Context c) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_deinit (Context c) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_complete_request (Context c) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_event_new_check (Context c) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_event_truncate_check (Context c) {}
-        template <typename Ret=void> EnableIf<(!Writable), Ret> extra_set_prev_cluster (Context c, ClusterIndexType value) {}
-        
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_init (Context c)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_init (Context c))
         {
             this->m_fat_cache_ref2.init(c, APRINTER_CB_OBJFUNC_T(&ClusterChain::fat_cache_ref_handler, this));
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_deinit (Context c)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_deinit (Context c))
         {
             auto *o = Object::self(c);
             if (m_state == State::NEW_ALLOCATING) {
@@ -1272,12 +1257,12 @@ private:
             this->m_fat_cache_ref2.deinit(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_complete_request (Context c)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_complete_request (Context c))
         {
             this->m_fat_cache_ref2.reset(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_event_new_check (Context c)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_event_new_check (Context c))
         {
             auto *o = Object::self(c);
             if (is_cluster_idx_normal(this->m_prev_cluster)) {
@@ -1292,7 +1277,7 @@ private:
             allocation_request_added(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_event_truncate_check (Context c)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_event_truncate_check (Context c))
         {
             if (!is_cluster_idx_normal(m_current_cluster)) {
                 return complete_request(c, false);
@@ -1331,7 +1316,7 @@ private:
             m_event.prependNowNotAlready(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> extra_set_prev_cluster (Context c, ClusterIndexType value)
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, extra_set_prev_cluster (Context c, ClusterIndexType value))
         {
             this->m_prev_cluster = value;
         }
@@ -1403,7 +1388,7 @@ private:
             m_event.prependNowNotAlready(c);
         }
         
-        template <typename Ret=void> EnableIf<Writable, Ret> allocation_result (Context c, bool error, ClusterIndexType new_cluster_index)
+        APRINTER_FUNCTION_IF(Writable, void, allocation_result (Context c, bool error, ClusterIndexType new_cluster_index))
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::NEW_ALLOCATING)
