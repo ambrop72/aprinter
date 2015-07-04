@@ -456,6 +456,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     APRINTER_DECLARE_COLLECTIBLE(Collectible_EventLoopFastEvents, EventLoopFastEvents)
     APRINTER_DECLARE_COLLECTIBLE(Collectible_ConfigExprs, ConfigExprs)
     
+    struct PlannerUnion;
     struct PlannerUnionPlanner;
     struct PlannerUnionHoming;
     struct ConfigManagerHandler;
@@ -2898,6 +2899,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         template <int PlatformAxisIndex>
         struct AxisHelper {
+            struct Object;
+            
             using PlatformAxis = TypeListGet<typename ProbeParams::PlatformAxesList, PlatformAxisIndex>;
             static const int AxisIndex = FindPhysVirtAxis<PlatformAxis::Value>::Value;
             using AxisProbeOffset = TypeListGet<typename ProbeParams::ProbePlatformOffset, PlatformAxisIndex>;

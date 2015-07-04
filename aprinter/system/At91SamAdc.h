@@ -99,6 +99,10 @@ struct At91SamAdcSmoothPin {};
 
 template <typename Context, typename ParentObject, typename ParamsPinsList, typename Params>
 class At91SamAdc {
+public:
+    struct Object;
+    
+private:
 #if defined(__SAM3X8E__) || defined(__SAM3S2A__)
     static_assert(Params::AdcFreq::value() >= 1000000.0, "");
     static_assert(Params::AdcFreq::value() <= 20000000.0, "");
@@ -212,9 +216,6 @@ class At91SamAdc {
         static void work (InterruptContext<Context> c) {}
         struct Object {};
     };
-    
-public:
-    struct Object;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
