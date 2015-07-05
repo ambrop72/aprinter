@@ -22,9 +22,14 @@ stdenv.mkDerivation {
     
     configurePhase = ''
         gccVersion=$(cd ${gcc-arm-embedded}/lib/gcc/arm-none-eabi && echo *)
+        
         mv ../cfe-${version}.src tools/clang
+        
+        ( cd tools/clang && patch -p1 < ${ ./clang-constexpr-math.patch } )
+        
         ( cd tools/clang && patch -p1 < ${ ./clang-custom-program-path.patch } )
         sed -i 's|<GCC_PROGRAM_PATH>|${gcc-arm-embedded}/bin|g' tools/clang/lib/Driver/ToolChains.cpp
+        
         mkdir build
         cd build
         ../configure --enable-targets=arm --target=arm-none-eabi --enable-cxx11 \
