@@ -107,31 +107,12 @@ struct TupleForOneHelper<Tuple<ConsTypeList<Head, Tail>>, Offset, Ret, IndexType
     using TailTupleType = typename TupleType::TailTupleType;
     
     template <typename Func, typename... Args>
-    AMBRO_ALWAYS_INLINE static Ret call (IndexType index, TupleType *tuple, Func func, Args... args)
-    {
-        if (index == Offset) {
-            return func(tuple->getHead(), args...);
-        }
-        return TupleForOneHelper<TailTupleType, Offset + 1, Ret, IndexType>::call(index, tuple->getTail(), func, args...);
-    }
-    
-    template <typename Func, typename... Args>
     AMBRO_ALWAYS_INLINE static Ret call_always (IndexType index, TupleType *tuple, Func func, Args... args)
     {
         if (AMBRO_LIKELY((index == Offset || TypesAreEqual<TailTupleType, Tuple<EmptyTypeList>>::Value))) {
             return func(tuple->getHead(), args...);
         }
         return TupleForOneHelper<TailTupleType, Offset + 1, Ret, IndexType>::call_always(index, tuple->getTail(), func, args...);
-    }
-    
-    template <typename Func, typename... Args>
-    AMBRO_ALWAYS_INLINE static bool call_bool (IndexType index, TupleType *tuple, Func func, Args... args)
-    {
-        if (index == Offset) {
-            func(tuple->getHead(), args...);
-            return true;
-        }
-        return TupleForOneHelper<TailTupleType, Offset + 1, Ret, IndexType>::call_bool(index, tuple->getTail(), func, args...);
     }
 };
 
@@ -140,19 +121,9 @@ struct TupleForOneHelper<Tuple<EmptyTypeList>, Offset, Ret, IndexType> {
     using TupleType = Tuple<EmptyTypeList>;
     
     template <typename Func, typename... Args>
-    AMBRO_ALWAYS_INLINE static Ret call (IndexType index, TupleType *tuple, Func func, Args... args)
-    {
-    }
-    
-    template <typename Func, typename... Args>
     AMBRO_ALWAYS_INLINE static Ret call_always (IndexType index, TupleType *tuple, Func func, Args... args)
     {
-    }
-    
-    template <typename Func, typename... Args>
-    AMBRO_ALWAYS_INLINE static bool call_bool (IndexType index, TupleType *tuple, Func func, Args... args)
-    {
-        return false;
+        __builtin_unreachable();
     }
 };
 
@@ -181,27 +152,9 @@ AMBRO_ALWAYS_INLINE auto TupleForEachForwardAccRes (TupleType *tuple, InitialAcc
 }
 
 template <typename Ret = void, typename IndexType, typename TupleType, typename Func, typename... Args>
-AMBRO_ALWAYS_INLINE Ret TupleForOne (IndexType index, TupleType *tuple, Func func, Args... args)
-{
-    return TupleForOneHelper<TupleType, 0, Ret, IndexType>::call(index, tuple, func, args...);
-}
-
-template <typename Ret = void, typename IndexType, typename TupleType, typename Func, typename... Args>
 AMBRO_ALWAYS_INLINE Ret TupleForOneAlways (IndexType index, TupleType *tuple, Func func, Args... args)
 {
     return TupleForOneHelper<TupleType, 0, Ret, IndexType>::call_always(index, tuple, func, args...);
-}
-
-template <int Offset, typename Ret = void, typename IndexType, typename TupleType, typename Func, typename... Args>
-AMBRO_ALWAYS_INLINE Ret TupleForOneOffset (IndexType index, TupleType *tuple, Func func, Args... args)
-{
-    return TupleForOneHelper<TupleType, Offset, Ret, IndexType>::call(index, tuple, func, args...);
-}
-
-template <int Offset, typename IndexType, typename TupleType, typename Func, typename... Args>
-AMBRO_ALWAYS_INLINE bool TupleForOneBoolOffset (IndexType index, TupleType *tuple, Func func, Args... args)
-{
-    return TupleForOneHelper<TupleType, Offset, void, IndexType>::call_bool(index, tuple, func, args...);
 }
 
 #define AMBRO_DECLARE_TUPLE_FOREACH_HELPER(helper_name, func_name) \
