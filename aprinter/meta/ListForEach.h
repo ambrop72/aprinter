@@ -122,6 +122,7 @@ struct ListForOneHelper<EmptyTypeList, Offset, Ret, IndexType> {
     template <typename Func, typename... Args>
     AMBRO_ALWAYS_INLINE static Ret call (IndexType index, Func func, Args... args)
     {
+        __builtin_unreachable();
     }
     
     template <typename Func, typename... Args>
