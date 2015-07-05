@@ -3919,10 +3919,8 @@ public: // private, see comment on top
         struct Object : public ObjBase<PlannerUnionPlanner, typename PlannerUnion::Object, MakeTypeList<ThePlanner>> {};
     };
     
-    using HomingStateList = MapTypeList<AxesList, GetMemberType_HomingState>;
-    
     struct PlannerUnionHoming {
-        struct Object : public ObjBase<PlannerUnionHoming, typename PlannerUnion::Object, HomingStateList> {};
+        struct Object : public ObjBase<PlannerUnionHoming, typename PlannerUnion::Object, MapTypeList<AxesList, GetMemberType_HomingState>> {};
     };
     
     struct ConfigManagerHandler : public AMBRO_WFUNC_TD(&PrinterMain::config_manager_handler) {};
