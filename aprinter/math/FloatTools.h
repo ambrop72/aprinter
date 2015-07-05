@@ -158,12 +158,14 @@ bool FloatSignBit (T x)
 #endif
 }
 
-template <typename T>
-T FloatSqrt (T x)
+double FloatSqrt (double x)
 {
-    static_assert(IsFpType<T>::Value, "");
-    
-    return IsFloat<T>::Value ? sqrtf(x) : sqrt(x);
+    return sqrt(x);
+}
+
+float FloatSqrt (float x)
+{
+    return sqrtf(x);
 }
 
 template <typename T>
@@ -178,73 +180,84 @@ T StrToFloat (char const *nptr, char **endptr)
 #endif
 }
 
-template <typename T>
-T FloatLdexp (T x, int exp)
+double FloatLdexp (double x, int exp)
 {
-    static_assert(IsFpType<T>::Value, "");
-    
-    return IsFloat<T>::Value ? ldexpf(x, exp) : ldexp(x, exp);
+    return ldexp(x, exp);
 }
 
-template <typename T>
-T FloatRound (T x)
+float FloatLdexp (float x, int exp)
 {
-    static_assert(IsFpType<T>::Value, "");
-    
-    return IsFloat<T>::Value ? roundf(x) : round(x);
+    return ldexpf(x, exp);
 }
 
-template <typename T>
-T FloatCeil (T x)
+double FloatRound (double x)
 {
-    static_assert(IsFpType<T>::Value, "");
-    
-    return IsFloat<T>::Value ? ceilf(x) : ceil(x);
+    return round(x);
 }
 
-template <typename T>
-T FloatAbs (T x)
+float FloatRound (float x)
 {
-    static_assert(IsFpType<T>::Value, "");
-    
-    return IsFloat<T>::Value ? fabsf(x) : fabs(x);
+    return roundf(x);
 }
 
-template <typename T>
-T FloatLog (T x)
+double FloatCeil (double x)
 {
-    static_assert(IsFpType<T>::Value, "");
-    
-    return IsFloat<T>::Value ? logf(x) : log(x);
+    return ceil(x);
 }
 
-template <typename T>
-T FloatExp (T x)
+float FloatCeil (float x)
 {
-    static_assert(IsFpType<T>::Value, "");
-    
-    return IsFloat<T>::Value ? expf(x) : exp(x);
+    return ceilf(x);
 }
 
-template <typename T1, typename T2>
-using FloatPromote = If<(IsFloat<T1>::Value && IsFloat<T2>::Value), float, double>;
-
-template <typename T1, typename T2>
-FloatPromote<T1, T2> FloatMin (T1 x, T2 y)
+double FloatAbs (double x)
 {
-    static_assert(IsFpType<T1>::Value, "");
-    static_assert(IsFpType<T2>::Value, "");
-    
-    return IsFloat<FloatPromote<T1, T2>>::Value ? fminf(x, y) : fmin(x, y);
+    return fabs(x);
 }
 
-template <typename T1, typename T2>
-FloatPromote<T1, T2> FloatMax (T1 x, T2 y)
+float FloatAbs (float x)
 {
-    static_assert(IsFpType<T1>::Value, "");
-    static_assert(IsFpType<T2>::Value, "");
-    
-    return IsFloat<FloatPromote<T1, T2>>::Value ? fmaxf(x, y) : fmax(x, y);
+    return fabsf(x);
+}
+
+double FloatLog (double x)
+{
+    return log(x);
+}
+
+float FloatLog (float x)
+{
+    return logf(x);
+}
+
+double FloatExp (double x)
+{
+    return exp(x);
+}
+
+float FloatExp (float x)
+{
+    return expf(x);
+}
+
+double FloatMin (double x, double y)
+{
+    return fmin(x, y);
+}
+
+float FloatMin (float x, float y)
+{
+    return fminf(x, y);
+}
+
+double FloatMax (double x, double y)
+{
+    return fmax(x, y);
+}
+
+float FloatMax (float x, float y)
+{
+    return fmaxf(x, y);
 }
 
 struct FloatIdentity {};
@@ -268,7 +281,7 @@ T FloatPositiveIntegerRange ()
 {
     static_assert(IsFpType<T>::Value, "");
     
-    return FloatLdexp<T>(1.0f, (IsFloat<T>::Value ? FLT_MANT_DIG : DBL_MANT_DIG));
+    return FloatLdexp(T(1.0f), (IsFloat<T>::Value ? FLT_MANT_DIG : DBL_MANT_DIG));
 }
 
 template <typename T>
@@ -276,7 +289,7 @@ T FloatSignedIntegerRange ()
 {
     static_assert(IsFpType<T>::Value, "");
     
-    return FloatLdexp<T>(1.0f, (IsFloat<T>::Value ? FLT_MANT_DIG : DBL_MANT_DIG) - 1);
+    return FloatLdexp(T(1.0f), (IsFloat<T>::Value ? FLT_MANT_DIG : DBL_MANT_DIG) - 1);
 }
 
 #define APRINTER_DEFINE_INT_ROUND_HELPER_START \

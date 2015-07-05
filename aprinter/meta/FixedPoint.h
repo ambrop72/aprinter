@@ -244,10 +244,10 @@ private:
                 op = FloatLdexp(op, -Exp);
             }
             FpType a = FloatRound(op);
-            if (AMBRO_UNLIKELY(!(a > (Signed ? -FloatLdexp<FpType>(1.0f, NumBits) : 0.0f)))) {
+            if (AMBRO_UNLIKELY(!(a > (Signed ? -FloatLdexp(FpType(1.0f), NumBits) : 0.0f)))) {
                 return minValue();
             }
-            if (AMBRO_UNLIKELY(a >= FloatLdexp<FpType>(1.0f, NumBits))) {
+            if (AMBRO_UNLIKELY(a >= FloatLdexp(FpType(1.0f), NumBits))) {
                 return maxValue();
             }
             return importBits(a);

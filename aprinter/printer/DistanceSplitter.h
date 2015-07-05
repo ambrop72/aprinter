@@ -44,7 +44,7 @@ public:
     void start (FpType distance, FpType base_max_v_rec, FpType num_segments_by_distance)
     {
         FpType fpcount = distance * FloatMin((FpType)(1.0 / Params::MinSplitLength::value()), FloatMax((FpType)(1.0 / Params::MaxSplitLength::value()), num_segments_by_distance));
-        if (fpcount >= FloatLdexp<FpType>(1.0f, 31)) {
+        if (fpcount >= FloatLdexp(FpType(1.0f), 31)) {
             m_count = PowerOfTwo<uint32_t, 31>::Value;
         } else {
             m_count = 1 + (uint32_t)fpcount;
