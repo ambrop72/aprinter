@@ -64,9 +64,6 @@ configure_sam3x() {
 
     configure_arm
 
-    FLAGS_CXX_LD+=(
-        -Wno-deprecated-register
-    )
     FLAGS_C_CXX+=(
         -D__$(sam3x_to_upper "$ARCH")$(sam3x_to_upper "$SUBARCH")$(sam3x_to_upper "$SUBSUBARCH")__ -DHEAP_SIZE=16384
         -DBOARD=${ASF_BOARD}

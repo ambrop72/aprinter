@@ -53,10 +53,12 @@ else
     ARM_GCC_PREFIX=${ARM_GCC_PATH}/bin/arm-none-eabi-
 fi
 
+ARM_GCC=${ARM_GCC_PREFIX}gcc
+
 if [ "$BUILD_WITH_CLANG" = 1 ]; then
     ARM_CC=${CLANG_ARM_EMBEDDED}clang
 else
-    ARM_CC=${ARM_GCC_PREFIX}gcc
+    ARM_CC=${ARM_GCC}
 fi
 
 ARM_OBJCOPY=${ARM_GCC_PREFIX}objcopy
@@ -103,7 +105,7 @@ configure_arm() {
         -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
         -I.
         -Wfatal-errors
-        -Wno-absolute-value -Wno-undefined-internal
+        -Wno-absolute-value -Wno-undefined-internal -Wno-deprecated-register
         -ffunction-sections -fdata-sections
     )
     FLAGS_LD=(
@@ -146,7 +148,7 @@ build_arm() {
     for file in "${ASM_SOURCES[@]}"; do
         OBJ=${BUILD}/$(basename "${file}" .s).o
         OBJS+=( "${OBJ}" )
-        ( $V ; "${ARM_CC}" -x assembler -c "${ASMFLAGS[@]}" "${file}" -o "${OBJ}" )
+        ( $V ; "${ARM_GCC}" -x assembler -c "${ASMFLAGS[@]}" "${file}" -o "${OBJ}" )
     done
     
     echo "   Linking objects"
