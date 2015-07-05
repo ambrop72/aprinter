@@ -1,0 +1,12 @@
+diff --git a/lib/Driver/ToolChains.cpp b/lib/Driver/ToolChains.cpp
+index df74b41..834cd35 100644
+--- a/lib/Driver/ToolChains.cpp
++++ b/lib/Driver/ToolChains.cpp
+@@ -1987,6 +1987,7 @@ Generic_GCC::Generic_GCC(const Driver &D, const llvm::Triple &Triple,
+   getProgramPaths().push_back(getDriver().getInstalledDir());
+   if (getDriver().getInstalledDir() != getDriver().Dir)
+     getProgramPaths().push_back(getDriver().Dir);
++  getProgramPaths().push_back("<GCC_PROGRAM_PATH>");
+ }
+ 
+ Generic_GCC::~Generic_GCC() {}

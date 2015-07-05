@@ -53,7 +53,12 @@ else
     ARM_GCC_PREFIX=${ARM_GCC_PATH}/bin/arm-none-eabi-
 fi
 
-ARM_CC=${ARM_GCC_PREFIX}gcc
+if [ "$BUILD_WITH_CLANG" = 1 ]; then
+    ARM_CC=${CLANG_ARM_EMBEDDED}clang
+else
+    ARM_CC=${ARM_GCC_PREFIX}gcc
+fi
+
 ARM_OBJCOPY=${ARM_GCC_PREFIX}objcopy
 
 install_arm() {
@@ -75,11 +80,15 @@ check_depends_arm() {
 
 configure_arm() {
     echo "  Configuring ARM build"
+    
     FLAGS_OPT=( -O$( [[ $OPTIMIZE_FOR_SIZE = "1" ]] && echo s || echo 2 ) )
     FLAGS_C_CXX_LD=(
         -mcpu=${ARM_CPU} -mthumb ${ARM_EXTRA_CPU_FLAGS} "${FLAGS_OPT[@]}"
         -fno-math-errno -fno-trapping-math
     )
+    if [ "$BUILD_WITH_CLANG" = 1 ]; then
+        FLAGS_C_CXX_LD+=( -fshort-enums )
+    fi
     FLAGS_CXX_LD=(
         -fno-rtti -fno-exceptions
     )
@@ -87,13 +96,14 @@ configure_arm() {
         -std=c99
     )
     FLAGS_CXX=(
-        -std=c++11 -fno-access-control
+        -std=c++11 -fno-access-control -ftemplate-depth=1024
     )
     FLAGS_C_CXX=(
         -DNDEBUG
         -D__STDC_LIMIT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_CONSTANT_MACROS
         -I.
         -Wfatal-errors
+        -Wno-absolute-value -Wno-undefined-internal
         -ffunction-sections -fdata-sections
     )
     FLAGS_LD=(

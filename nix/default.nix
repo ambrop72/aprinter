@@ -31,6 +31,9 @@ rec {
     /* Atmel AVR toolchain. */
     gccAvrAtmel = pkgs.callPackage ./gcc_avr_atmel.nix {};
     
+    /* Clang compiler for ARM microcontrollers. */
+    clang-arm-embedded = pkgs.callPackage ./clang-arm-embedded.nix {};
+    
     /* Atmel Software Framework (chip support for Atmel ARM chips). */
     asf = pkgs.callPackage ./asf.nix {};
     
@@ -59,7 +62,7 @@ rec {
     */    
     aprinterFunc = aprinterConfig: pkgs.callPackage ./aprinter.nix (
         {
-            inherit gccAvrAtmel asf stm32cubef4 teensyCores aprinterSource;
+            inherit clang-arm-embedded gccAvrAtmel asf stm32cubef4 teensyCores aprinterSource;
         } // aprinterConfig
     );
         

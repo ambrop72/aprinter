@@ -22,11 +22,12 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-{ stdenv, writeText, bash, gcc-arm-embedded, gccAvrAtmel, asf, stm32cubef4
-, teensyCores, aprinterSource
+{ stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, gccAvrAtmel
+, asf, stm32cubef4, teensyCores, aprinterSource
 , mainText, boardName, buildName ? "nixbuild", desiredOutputs ? ["bin" "hex"]
 , optimizeForSize ? false, assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false, detectOverloadEnabled ? false
+, useClang ? false
 }:
 
 let
@@ -58,6 +59,8 @@ let
     targetFile = writeText "aprinter-nixbuild.sh" ''
         ${stdenv.lib.optionalString isAvr "CUSTOM_AVR_GCC=${gccAvrAtmel}/bin/avr-"}
         ${stdenv.lib.optionalString isArm "CUSTOM_ARM_GCC=${gcc-arm-embedded}/bin/arm-none-eabi-"}
+        ${stdenv.lib.optionalString useClang "BUILD_WITH_CLANG=1"}
+        ${stdenv.lib.optionalString useClang "CLANG_ARM_EMBEDDED=${clang-arm-embedded}/bin/arm-none-eabi-"}
         ${stdenv.lib.optionalString needAsf "CUSTOM_ASF=${asf}"}
         ${stdenv.lib.optionalString needStm32CubeF4 "CUSTOM_STM32CUBEF4=${stm32cubef4}"}
         ${stdenv.lib.optionalString needTeensyCores "CUSTOM_TEENSY_CORES=${teensyCores}"}
@@ -79,6 +82,8 @@ in
 
 assert isAvr -> gccAvrAtmel != null;
 assert isArm -> gcc-arm-embedded != null;
+assert useClang -> isArm;
+assert useClang -> clang-arm-embedded != null;
 assert needAsf -> asf != null;
 assert needStm32CubeF4 -> stm32cubef4 != null;
 assert needTeensyCores -> teensyCores != null;
