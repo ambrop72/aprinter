@@ -34,20 +34,20 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <uint32_t TPsorAddr, uint32_t TPcorAddr, uint32_t TPdirAddr, uint32_t TPddrAddr, uint32_t TPcr0Addr>
-struct Mk20Port {
-    static uint32_t volatile * psor () { return (uint32_t volatile *)TPsorAddr; }
-    static uint32_t volatile * pcor () { return (uint32_t volatile *)TPcorAddr; }
-    static uint32_t volatile * pdir () { return (uint32_t volatile *)TPdirAddr; }
-    static uint32_t volatile * pddr () { return (uint32_t volatile *)TPddrAddr; }
-    static uint32_t volatile * pcr0 () { return (uint32_t volatile *)TPcr0Addr; }
+#define MK20_PINS_DEFINE_PORT(port) \
+struct Mk20Port##port { \
+    static uint32_t volatile * psor () { return &GPIO##port##_PSOR; } \
+    static uint32_t volatile * pcor () { return &GPIO##port##_PCOR; } \
+    static uint32_t volatile * pdir () { return &GPIO##port##_PDIR; } \
+    static uint32_t volatile * pddr () { return &GPIO##port##_PDDR; } \
+    static uint32_t volatile * pcr0 () { return &PORT##port##_PCR0; } \
 };
 
-using Mk20PortA = Mk20Port<(uint32_t)&GPIOA_PSOR, (uint32_t)&GPIOA_PCOR, (uint32_t)&GPIOA_PDIR, (uint32_t)&GPIOA_PDDR, (uint32_t)&PORTA_PCR0>;
-using Mk20PortB = Mk20Port<(uint32_t)&GPIOB_PSOR, (uint32_t)&GPIOB_PCOR, (uint32_t)&GPIOB_PDIR, (uint32_t)&GPIOB_PDDR, (uint32_t)&PORTB_PCR0>;
-using Mk20PortC = Mk20Port<(uint32_t)&GPIOC_PSOR, (uint32_t)&GPIOC_PCOR, (uint32_t)&GPIOC_PDIR, (uint32_t)&GPIOC_PDDR, (uint32_t)&PORTC_PCR0>;
-using Mk20PortD = Mk20Port<(uint32_t)&GPIOD_PSOR, (uint32_t)&GPIOD_PCOR, (uint32_t)&GPIOD_PDIR, (uint32_t)&GPIOD_PDDR, (uint32_t)&PORTD_PCR0>;
-using Mk20PortE = Mk20Port<(uint32_t)&GPIOE_PSOR, (uint32_t)&GPIOE_PCOR, (uint32_t)&GPIOE_PDIR, (uint32_t)&GPIOE_PDDR, (uint32_t)&PORTE_PCR0>;
+MK20_PINS_DEFINE_PORT(A)
+MK20_PINS_DEFINE_PORT(B)
+MK20_PINS_DEFINE_PORT(C)
+MK20_PINS_DEFINE_PORT(D)
+MK20_PINS_DEFINE_PORT(E)
 
 template <typename TPort, int TPinIndex>
 struct Mk20Pin {

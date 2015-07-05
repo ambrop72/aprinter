@@ -57,25 +57,22 @@ struct Mk20Clock__IrqCompHelper {
 
 using Mk20ClockDefaultExtraClearance = AMBRO_WRAP_DOUBLE(0.0);
 
-template <
-    uint32_t TScAddr, uint32_t TCntAddr, uint32_t TModAddr, uint32_t TCntinAddr,
-    uint32_t TScgc6Bit, int TIrq, typename TChannels
->
-struct Mk20ClockFTM {
-    static uint32_t volatile * sc () { return (uint32_t volatile *)TScAddr; }
-    static uint32_t volatile * cnt () { return (uint32_t volatile *)TCntAddr; }
-    static uint32_t volatile * mod () { return (uint32_t volatile *)TModAddr; }
-    static uint32_t volatile * cntin () { return (uint32_t volatile *)TCntinAddr; }
-    static uint32_t const Scgc6Bit = TScgc6Bit;
-    static const int Irq = TIrq;
-    using Channels = TChannels;
+#define MK20_CLOCK_DEFINE_FTM(ftm_num, channels_list) \
+struct Mk20ClockFTM##ftm_num { \
+    static uint32_t volatile * sc () { return &FTM##ftm_num##_SC; } \
+    static uint32_t volatile * cnt () { return &FTM##ftm_num##_CNT; } \
+    static uint32_t volatile * mod () { return &FTM##ftm_num##_MOD; } \
+    static uint32_t volatile * cntin () { return &FTM##ftm_num##_CNTIN; } \
+    static uint32_t const Scgc6Bit = SIM_SCGC6_FTM##ftm_num; \
+    static const int Irq = IRQ_FTM##ftm_num; \
+    using Channels = channels_list; \
 };
 
-template <uint32_t TCscAddr, uint32_t TCvAddr, typename TPinsList>
-struct Mk20Clock__Channel {
-    static uint32_t volatile * csc () { return (uint32_t volatile *)TCscAddr; }
-    static uint32_t volatile * cv () { return (uint32_t volatile *)TCvAddr; }
-    using PinsList = TPinsList;
+#define MK20_CLOCK_DEFINE_CHANNEL(ftm_num, chan_num, pins_list) \
+struct Mk20Clock__Channel##ftm_num##_##chan_num { \
+    static uint32_t volatile * csc () { return &FTM##ftm_num##_C##chan_num##SC; } \
+    static uint32_t volatile * cv () { return &FTM##ftm_num##_C##chan_num##V; } \
+    using PinsList = pins_list; \
 };
 
 template <typename TPin, uint8_t TAlternateFunction>
@@ -84,55 +81,34 @@ struct Mk20Clock__ChannelPin {
     static uint8_t const AlternateFunction = TAlternateFunction;
 };
 
-using Mk20ClockFTM0 = Mk20ClockFTM<
-    (uint32_t)&FTM0_SC, (uint32_t)&FTM0_CNT, (uint32_t)&FTM0_MOD, (uint32_t)&FTM0_CNTIN,
-    SIM_SCGC6_FTM0, IRQ_FTM0, MakeTypeList<
-        Mk20Clock__Channel<(uint32_t)&FTM0_C0SC, (uint32_t)&FTM0_C0V, MakeTypeList<
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 3>, 3>,
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortC, 1>, 4>
-        >>,
-        Mk20Clock__Channel<(uint32_t)&FTM0_C1SC, (uint32_t)&FTM0_C1V, MakeTypeList<
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 4>, 3>,
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortC, 2>, 4>
-        >>,
-        Mk20Clock__Channel<(uint32_t)&FTM0_C2SC, (uint32_t)&FTM0_C2V, MakeTypeList<
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 5>, 3>,
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortC, 3>, 4>
-        >>,
-        Mk20Clock__Channel<(uint32_t)&FTM0_C3SC, (uint32_t)&FTM0_C3V, MakeTypeList<
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortC, 4>, 4>
-        >>,
-        Mk20Clock__Channel<(uint32_t)&FTM0_C4SC, (uint32_t)&FTM0_C4V, MakeTypeList<
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortD, 4>, 4>
-        >>,
-        Mk20Clock__Channel<(uint32_t)&FTM0_C5SC, (uint32_t)&FTM0_C5V, MakeTypeList<
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 0>, 3>,
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortD, 5>, 4>
-        >>,
-        Mk20Clock__Channel<(uint32_t)&FTM0_C6SC, (uint32_t)&FTM0_C6V, MakeTypeList<
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 1>, 3>,
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortD, 6>, 4>
-        >>,
-        Mk20Clock__Channel<(uint32_t)&FTM0_C7SC, (uint32_t)&FTM0_C7V, MakeTypeList<
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 2>, 3>,
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortD, 7>, 4>
-        >>
-    >
+using Mk20Clock__0_0_Pins = MakeTypeList<Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 3>, 3>, Mk20Clock__ChannelPin<Mk20Pin<Mk20PortC, 1>, 4>>;
+MK20_CLOCK_DEFINE_CHANNEL(0, 0, Mk20Clock__0_0_Pins)
+using Mk20Clock__0_1_Pins = MakeTypeList<Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 4>, 3>, Mk20Clock__ChannelPin<Mk20Pin<Mk20PortC, 2>, 4>>;
+MK20_CLOCK_DEFINE_CHANNEL(0, 1, Mk20Clock__0_1_Pins)
+using Mk20Clock__0_2_Pins = MakeTypeList<Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 5>, 3>, Mk20Clock__ChannelPin<Mk20Pin<Mk20PortC, 3>, 4>>;
+MK20_CLOCK_DEFINE_CHANNEL(0, 2, Mk20Clock__0_2_Pins)
+using Mk20Clock__0_3_Pins = MakeTypeList<Mk20Clock__ChannelPin<Mk20Pin<Mk20PortC, 4>, 4>>;
+MK20_CLOCK_DEFINE_CHANNEL(0, 3, Mk20Clock__0_3_Pins)
+using Mk20Clock__0_4_Pins = MakeTypeList<Mk20Clock__ChannelPin<Mk20Pin<Mk20PortD, 4>, 4>>;
+MK20_CLOCK_DEFINE_CHANNEL(0, 4, Mk20Clock__0_4_Pins)
+using Mk20Clock__0_5_Pins = MakeTypeList<Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 0>, 3>, Mk20Clock__ChannelPin<Mk20Pin<Mk20PortD, 5>, 4>>;
+MK20_CLOCK_DEFINE_CHANNEL(0, 5, Mk20Clock__0_5_Pins)
+using Mk20Clock__0_6_Pins = MakeTypeList<Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 1>, 3>, Mk20Clock__ChannelPin<Mk20Pin<Mk20PortD, 6>, 4>>;
+MK20_CLOCK_DEFINE_CHANNEL(0, 6, Mk20Clock__0_6_Pins)
+using Mk20Clock__0_7_Pins = MakeTypeList<Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 2>, 3>, Mk20Clock__ChannelPin<Mk20Pin<Mk20PortD, 7>, 4>>;
+MK20_CLOCK_DEFINE_CHANNEL(0, 7, Mk20Clock__0_7_Pins)
+using Mk20Clock__Ftm0Channels = MakeTypeList<
+    Mk20Clock__Channel0_0, Mk20Clock__Channel0_1, Mk20Clock__Channel0_2, Mk20Clock__Channel0_3,
+    Mk20Clock__Channel0_4, Mk20Clock__Channel0_5, Mk20Clock__Channel0_6, Mk20Clock__Channel0_7
 >;
+MK20_CLOCK_DEFINE_FTM(0, Mk20Clock__Ftm0Channels)
 
-using Mk20ClockFTM1 = Mk20ClockFTM<
-    (uint32_t)&FTM1_SC, (uint32_t)&FTM1_CNT, (uint32_t)&FTM1_MOD, (uint32_t)&FTM1_CNTIN,
-    SIM_SCGC6_FTM1, IRQ_FTM1, MakeTypeList<
-        Mk20Clock__Channel<(uint32_t)&FTM1_C0SC, (uint32_t)&FTM1_C0V, MakeTypeList<
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 12>, 3>,
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortB, 0>, 3>
-        >>,
-        Mk20Clock__Channel<(uint32_t)&FTM1_C1SC, (uint32_t)&FTM1_C1V, MakeTypeList<
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 13>, 3>,
-            Mk20Clock__ChannelPin<Mk20Pin<Mk20PortB, 1>, 3>
-        >>
-    >
->;
+using Mk20Clock__1_0_Pins = MakeTypeList<Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 12>, 3>, Mk20Clock__ChannelPin<Mk20Pin<Mk20PortB, 0>, 3>>;
+MK20_CLOCK_DEFINE_CHANNEL(1, 0, Mk20Clock__1_0_Pins)
+using Mk20Clock__1_1_Pins = MakeTypeList<Mk20Clock__ChannelPin<Mk20Pin<Mk20PortA, 13>, 3>, Mk20Clock__ChannelPin<Mk20Pin<Mk20PortB, 1>, 3>>;
+MK20_CLOCK_DEFINE_CHANNEL(1, 1, Mk20Clock__1_1_Pins)
+using Mk20Clock__Ftm1Channels = MakeTypeList<Mk20Clock__Channel1_0, Mk20Clock__Channel1_1>;
+MK20_CLOCK_DEFINE_FTM(1, Mk20Clock__Ftm1Channels)
 
 template <uint8_t PrescaleReduce, uint8_t NumBits>
 struct Mk20ClockFtmModeClock {};
