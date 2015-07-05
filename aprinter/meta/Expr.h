@@ -30,6 +30,12 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/RemoveReference.h>
 #include <aprinter/meta/ConstexprMath.h>
+#include <aprinter/meta/TestConstexpr.h>
+#include <aprinter/meta/FuncCall.h>
+#include <aprinter/meta/IfFunc.h>
+#include <aprinter/meta/ConstantFunc.h>
+#include <aprinter/meta/TemplateFunc.h>
+#include <aprinter/meta/ComposeFunctions.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -116,10 +122,20 @@ struct RuntimeNaryExpr : public Expr<RuntimeNaryExpr<Func, Operands...>> {
 };
 
 template <typename Func, typename... Operands>
-using NaryExpr = If<
-    Expr__OperandsAreConstexpr<Operands...>::Value,
-    ConstexprNaryExpr<Func, Operands...>,
-    RuntimeNaryExpr<Func, Operands...>
+using NaryExpr = FuncCall<
+    IfFunc<
+        ConstantFunc<Expr__OperandsAreConstexpr<Operands...>>,
+        IfFunc<
+            ComposeFunctions<
+                TemplateFunc<TestConstexpr>,
+                ConstantFunc<ConstexprNaryExpr<Func, Operands...>>
+            >,
+            ConstantFunc<ConstexprNaryExpr<Func, Operands...>>,
+            ConstantFunc<RuntimeNaryExpr<Func, Operands...>>
+        >,
+        ConstantFunc<RuntimeNaryExpr<Func, Operands...>>
+    >,
+    void
 >;
 
 template <typename TheFpConstExpr>
