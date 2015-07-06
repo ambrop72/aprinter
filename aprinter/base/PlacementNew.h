@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2015 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -23,78 +23,11 @@
  */
 
 #include <stddef.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/stat.h>
 
-void *__dso_handle;
+#ifndef APRINTER_PLACEMENT_NEW_H
+#define APRINTER_PLACEMENT_NEW_H
 
-__attribute__((weak))
-void aprinter_platform_debug_write (char const *ptr, size_t len)
-{
-}
+inline void * operator new (size_t, void *__p) throw() { return __p; }
+inline void * operator new[] (size_t, void *__p) throw() { return __p; }
 
-__attribute__((used))
-void _init (void)
-{
-}
-
-#ifndef APRINTER_NO_SBRK
-__attribute__((used))
-void * _sbrk (ptrdiff_t incr)
-{
-    extern char _end;
-    static char *heap_end = 0;
-    char *prev_heap_end;
-
-    if (heap_end == 0) {
-        heap_end = &_end;
-    }
-    prev_heap_end = heap_end;
-
-    if ((heap_end + incr) > &_end + HEAP_SIZE) {
-        errno = ENOMEM;
-        return (void *)-1;
-    }
-    
-    heap_end += incr;
-    return prev_heap_end;
-}
 #endif
-
-__attribute__((used))
-int _read (int file, void *ptr, size_t len)
-{
-    return -1;
-}
-
-__attribute__((used))
-int _write (int file, void const *ptr, size_t len)
-{
-    aprinter_platform_debug_write(ptr, len);
-    return len;
-}
-
-__attribute__((used))
-int _close (int file)
-{
-    return -1;
-}
-
-__attribute__((used))
-int _fstat (int file, struct stat *st)
-{
-    return -1;
-}
-
-__attribute__((used))
-int _isatty (int fd)
-{
-    return 1;
-}
-
-__attribute__((used))
-_off_t _lseek (int file, _off_t ptr, int dir)
-{
-    return -1;
-}

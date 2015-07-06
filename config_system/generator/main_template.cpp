@@ -43,6 +43,7 @@ static void emergency (void);
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/PlacementNew.h>
 #include <aprinter/system/BusyEventLoop.h>
 #include <aprinter/system/InterruptLock.h>
 
@@ -85,9 +86,14 @@ $${GlobalResourceProgramChildren}
     static Program * self (MyContext c);
 };
 
-Program p;
+union ProgramMemory {
+    ProgramMemory () {}
+    ~ProgramMemory () {}
+    
+    Program program;
+} program_memory;
 
-Program * Program::self (MyContext c) { return &p; }
+Program * Program::self (MyContext c) { return &program_memory.program; }
 void MyContext::check () const {}
 
 $${GlobalCode}
@@ -105,6 +111,8 @@ int main ()
 {
 $${InitCalls}
     MyContext c;
+    
+    new(&program_memory.program) Program();
     
     MyDebugObjectGroup::init(c);
     MyClock::init(c);
