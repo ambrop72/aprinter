@@ -501,6 +501,12 @@ def editor():
                     platform_Avr('ATmega1284p'),
                     platform_Stm32f4(),
                 ]),
+                ce.OneOf(key='debug_interface', title='Debug interface', choices=[
+                    ce.Compound('NoDebug', title='None or specified elsewhere', attrs=[]),
+                    ce.Compound('ArmItmDebug', title='ARM ITM', attrs=[
+                        ce.Integer(key='StimulusPort', title='Stimulus port number'),
+                    ]),
+                ]),
             ]),
             pin_choice(key='LedPin', title='LED pin'),
             interrupt_timer_choice(key='EventChannelTimer', title='Event channel timer'),

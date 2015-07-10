@@ -277,6 +277,27 @@ def setup_platform(gen, config, key):
     
     config.do_selection(key, platform_sel)
 
+def setup_debug_interface(gen, config, key):
+    debug_sel = selection.Selection()
+    
+    @debug_sel.option('NoDebug')
+    def option(debug):
+        pass
+    
+    @debug_sel.option('ArmItmDebug')
+    def option(debug):
+        stimulus_port = debug.get_int('StimulusPort')
+        if not 0 <= stimulus_port <= 31:
+            debug.key_path('StimulusPort').error('Incorrect value.')
+        gen.add_platform_include('aprinter/system/ArmItmDebug.h')
+        gen.add_aprinter_include('system/NewlibDebugWrite.h')
+        gen.add_global_code(0, 'using MyDebug = ArmItmDebug<MyContext, {}>;'.format(
+            stimulus_port,
+        ))
+        gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(MyDebug::write, MyContext())')
+    
+    config.do_selection(key, debug_sel)
+
 class CommonClock(object):
     def __init__ (self, gen, config, clockdef_func):
         self._gen = gen
@@ -986,6 +1007,8 @@ def generate(config_root_data, cfg_name, main_template):
                         setup_adc(gen, platform, 'adc')
                         if platform.has('pwm'):
                             setup_pwm(gen, platform, 'pwm')
+                    
+                    setup_debug_interface(gen, platform_config, 'debug_interface')
                     
                     for helper_name in platform_config.get_list(config_reader.ConfigTypeString(), 'board_helper_includes', max_count=20):
                         if not re.match('\\A[a-zA-Z0-9_]{1,128}\\Z', helper_name):
