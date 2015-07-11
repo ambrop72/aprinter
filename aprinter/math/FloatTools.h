@@ -212,7 +212,11 @@ float FloatCeil (float x)
 
 double FloatAbs (double x)
 {
+#ifdef APRINTER_BROKEN_FABS
+    return signbit(x) ? -x : x;
+#else
     return fabs(x);
+#endif
 }
 
 float FloatAbs (float x)

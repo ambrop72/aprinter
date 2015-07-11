@@ -88,9 +88,6 @@ configure_arm() {
         -mcpu=${ARM_CPU} -mthumb ${ARM_EXTRA_CPU_FLAGS} "${FLAGS_OPT[@]}"
         -fno-math-errno -fno-trapping-math
     )
-    if [ "$BUILD_WITH_CLANG" = 1 ]; then
-        FLAGS_C_CXX_LD+=( -fshort-enums )
-    fi
     FLAGS_CXX_LD=(
         -fno-rtti -fno-exceptions
     )
@@ -110,9 +107,14 @@ configure_arm() {
     )
     FLAGS_LD=(
         -T"${LINKER_SCRIPT}" -nostartfiles -Wl,--gc-sections
-        --specs=nano.specs
+        --specs=nano.specs -u _printf_float
     )
 
+    if [ "$BUILD_WITH_CLANG" = 1 ]; then
+        FLAGS_C_CXX_LD+=( -fshort-enums )
+        FLAGS_C_CXX+=( -DAPRINTER_BROKEN_FABS )
+    fi
+    
     C_SOURCES=()
     CXX_SOURCES=( "${SOURCE}" )
     ASM_SOURCES=()
