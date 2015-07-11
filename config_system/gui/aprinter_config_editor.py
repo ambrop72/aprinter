@@ -550,7 +550,9 @@ def editor():
                 ce.Integer(key='GcodeMaxParts', title='Max parts in GCode command'),
                 ce.OneOf(key='Service', title='Backend', choices=[
                     ce.Compound('AsfUsbSerial', title='AT91 USB', attrs=[]),
-                    ce.Compound('At91Sam3xSerial', title='AT91 UART', attrs=[]),
+                    ce.Compound('At91Sam3xSerial', title='AT91 UART', attrs=[
+                        ce.Boolean(key='UseForDebug', title='Use for debug output', default=True),
+                    ]),
                     ce.Compound('TeensyUsbSerial', title='Teensy3 USB', attrs=[]),
                     ce.Compound('AvrSerial', title='AVR UART', attrs=[
                         ce.Boolean(key='DoubleSpeed'),

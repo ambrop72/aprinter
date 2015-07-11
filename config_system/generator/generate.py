@@ -842,9 +842,10 @@ def use_serial(gen, config, key, user):
     @serial_sel.option('At91Sam3xSerial')
     def option(serial_service):
         gen.add_aprinter_include('system/At91Sam3xSerial.h')
-        gen.add_aprinter_include('system/NewlibDebugWrite.h')
         gen.add_isr('AMBRO_AT91SAM3X_SERIAL_GLOBAL({}, MyContext())'.format(user))
-        gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<{}>, MyContext())'.format(user))
+        if serial_service.get_bool('UseForDebug'):
+            gen.add_aprinter_include('system/NewlibDebugWrite.h')
+            gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<{}>, MyContext())'.format(user))
         return 'At91Sam3xSerialService'
     
     @serial_sel.option('TeensyUsbSerial')
