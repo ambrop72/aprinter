@@ -25,6 +25,7 @@
 #ifndef AMBROLIB_TEENSY3_SUPPORT_H
 #define AMBROLIB_TEENSY3_SUPPORT_H
 
+#include <stdint.h>
 #include <mk20dx128.h>
 
 #include <aprinter/platform/arm_cortex_common.h>
@@ -39,5 +40,44 @@
 #else
 #error F_CPU not recognized
 #endif
+
+typedef struct {
+    union {
+        uint8_t volatile u8;
+        uint16_t volatile u16;
+        uint32_t volatile u32;
+    } volatile PORT[32];
+    uint32_t RESERVED0[864];
+    uint32_t volatile TER;
+    uint32_t RESERVED1[15];
+    uint32_t volatile TPR;
+    uint32_t RESERVED2[15];
+    uint32_t volatile TCR;
+    uint32_t RESERVED3[29];
+    uint32_t volatile IWR;
+    uint32_t volatile IRR;
+    uint32_t volatile IMCR;
+    uint32_t RESERVED4[43];
+    uint32_t volatile LAR;
+    uint32_t volatile LSR;
+    uint32_t RESERVED5[6];
+    uint32_t volatile PID4;
+    uint32_t volatile PID5;
+    uint32_t volatile PID6;
+    uint32_t volatile PID7;
+    uint32_t volatile PID0;
+    uint32_t volatile PID1;
+    uint32_t volatile PID2;
+    uint32_t volatile PID3;
+    uint32_t volatile CID0;
+    uint32_t volatile CID1;
+    uint32_t volatile CID2;
+    uint32_t volatile CID3;
+} ITM_Type;
+
+#define ITM ((ITM_Type *)0xE0000000UL)
+
+#define ITM_TCR_ITMENA_Pos 0
+#define ITM_TCR_ITMENA_Msk ((uint32_t)1 << ITM_TCR_ITMENA_Pos)
 
 #endif
