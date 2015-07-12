@@ -61,6 +61,12 @@ configure_teensy() {
     ARM_CPU=cortex-m4
 
     configure_arm
+    
+    if [ "$BUILD_WITH_CLANG" = 1 ]; then
+        FLAGS_C_CXX_LD+=(
+            -msoft-float
+        )
+    fi
 
     FLAGS_C+=(
         -Dasm=__asm__
