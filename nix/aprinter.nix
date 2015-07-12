@@ -27,7 +27,7 @@
 , mainText, boardName, buildName ? "nixbuild", desiredOutputs ? ["bin" "hex"]
 , optimizeForSize ? false, assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false, detectOverloadEnabled ? false
-, buildWithClang ? false
+, buildWithClang ? false, verboseBuild ? false
 }:
 
 let
@@ -107,7 +107,7 @@ stdenv.mkDerivation rec {
         echo "Compile flags: ${compileFlags}"
         CFLAGS="${compileFlags}" \
         CXXFLAGS="${compileFlags}" \
-        ${bash}/bin/bash ./build.sh nixbuild build
+        ${bash}/bin/bash ./build.sh nixbuild ${if verboseBuild then "-v" else ""} build
     '';
     
     installPhase = ''

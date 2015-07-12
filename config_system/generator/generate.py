@@ -1035,6 +1035,7 @@ def generate(config_root_data, cfg_name, main_template):
                     event_loop_benchmark_enabled = development.get_bool('EventLoopBenchmarkEnabled')
                     detect_overload_enabled = development.get_bool('DetectOverloadEnabled')
                     build_with_clang = development.get_bool('BuildWithClang')
+                    verbose_build = development.get_bool('VerboseBuild')
                 
                 for serial in board_data.enter_config('serial'):
                     serial_expr = TemplateExpr('PrinterMainSerialParams', [
@@ -1482,6 +1483,7 @@ def generate(config_root_data, cfg_name, main_template):
         'event_loop_benchmark_enabled': event_loop_benchmark_enabled,
         'detect_overload_enabled': detect_overload_enabled,
         'build_with_clang': build_with_clang,
+        'verbose_build': verbose_build,
     }
 
 def main():
@@ -1512,7 +1514,7 @@ def main():
     with file_utils.use_output_file(args.output) as output_f:
         if args.nix:
             nix_dir = args.nix_dir if args.nix_dir is not None else os.path.join(src_dir, '..', '..', 'nix')
-            nix = 'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{ boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; optimizeForSize = {}; assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {}; buildWithClang = {}; mainText = {}; }}'.format(
+            nix = 'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{ boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; optimizeForSize = {}; assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {}; buildWithClang = {}; verboseBuild = {}; mainText = {}; }}'.format(
                 nix_utils.escape_string_for_nix(nix_dir),
                 nix_utils.escape_string_for_nix(result['board_for_build']),
                 nix_utils.escape_string_for_nix(result['output_type']),
@@ -1521,6 +1523,7 @@ def main():
                 nix_utils.convert_bool_for_nix(result['event_loop_benchmark_enabled']),
                 nix_utils.convert_bool_for_nix(result['detect_overload_enabled']),
                 nix_utils.convert_bool_for_nix(result['build_with_clang']),
+                nix_utils.convert_bool_for_nix(result['verbose_build']),
                 nix_utils.escape_string_for_nix(result['main_source'])
             )
             output_f.write(nix)

@@ -611,6 +611,7 @@ def editor():
                 ce.Boolean(key='EventLoopBenchmarkEnabled', title='Enable event-loop execution timing', default=False),
                 ce.Boolean(key='DetectOverloadEnabled', title='Enable interrupt overload detection', default=False),
                 ce.Boolean(key='BuildWithClang', title='Build with the Clang compiler', default=False),
+                ce.Boolean(key='VerboseBuild', title='Verbose build output', default=False),
             ]),
             ce.Compound('CurrentConfig', key='current_config', title='Motor current control', collapsable=True, attrs=[
                 ce.OneOf(key='current', title='Current control', choices=[
