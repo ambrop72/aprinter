@@ -495,7 +495,11 @@ def get_pin (gen, config, key):
         config.key_path(key).error('Invalid pin value.')
     return pin
 
-def setup_watchdog (gen, config, key, user):
+def setup_watchdog (gen, config, key, disable_watchdog, user):
+    if disable_watchdog:
+        gen.add_aprinter_include('system/NullWatchdog.h')
+        return 'NullWatchdogService'
+    
     watchdog_sel = selection.Selection()
     
     @watchdog_sel.option('At91SamWatchdog')
@@ -1004,7 +1008,6 @@ def generate(config_root_data, cfg_name, main_template):
                     for platform in platform_config.enter_config('platform'):
                         setup_clock(gen, platform, 'clock')
                         setup_pins(gen, platform, 'pins')
-                        watchdog_expr = setup_watchdog(gen, platform, 'watchdog', 'MyPrinter::GetWatchdog')
                         setup_adc(gen, platform, 'adc')
                         if platform.has('pwm'):
                             setup_pwm(gen, platform, 'pwm')
@@ -1034,6 +1037,7 @@ def generate(config_root_data, cfg_name, main_template):
                     assertions_enabled = development.get_bool('AssertionsEnabled')
                     event_loop_benchmark_enabled = development.get_bool('EventLoopBenchmarkEnabled')
                     detect_overload_enabled = development.get_bool('DetectOverloadEnabled')
+                    disable_watchdog = development.get_bool('DisableWatchdog')
                     build_with_clang = development.get_bool('BuildWithClang')
                     verbose_build = development.get_bool('VerboseBuild')
                 
@@ -1455,7 +1459,7 @@ def generate(config_root_data, cfg_name, main_template):
                 'ForceTimeout',
                 performance.get_identifier('FpType', lambda x: x in ('float', 'double')),
                 event_channel_timer_expr,
-                watchdog_expr,
+                setup_watchdog(gen, platform, 'watchdog', disable_watchdog, 'MyPrinter::GetWatchdog'),
                 sdcard_expr,
                 probe_expr,
                 current_config.do_selection('current', current_sel),

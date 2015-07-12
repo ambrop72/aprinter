@@ -610,6 +610,7 @@ def editor():
                 ce.Boolean(key='AssertionsEnabled', title='Enable assertions', default=False),
                 ce.Boolean(key='EventLoopBenchmarkEnabled', title='Enable event-loop execution timing', default=False),
                 ce.Boolean(key='DetectOverloadEnabled', title='Enable interrupt overload detection', default=False),
+                ce.Boolean(key='DisableWatchdog', title='Disable the watchdog timer', default=False),
                 ce.Boolean(key='BuildWithClang', title='Build with the Clang compiler', default=False),
                 ce.Boolean(key='VerboseBuild', title='Verbose build output', default=False),
             ]),
