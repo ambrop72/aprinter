@@ -25,9 +25,9 @@ stdenv.mkDerivation {
         
         mv ../cfe-${version}.src tools/clang
         
-        ( cd tools/clang && patch -p1 < ${ ./clang-constexpr-math.patch } )
+        ( cd tools/clang && patch -p1 < ${ ../patches/clang-constexpr-math.patch } )
         
-        ( cd tools/clang && patch -p1 < ${ ./clang-custom-program-path.patch } )
+        ( cd tools/clang && patch -p1 < ${ ../patches/clang-custom-program-path.patch } )
         sed -i 's|<GCC_PROGRAM_PATH>|${gcc-arm-embedded}/bin|g' tools/clang/lib/Driver/ToolChains.cpp
         
         mkdir build
