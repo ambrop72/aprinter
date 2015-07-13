@@ -27,7 +27,7 @@
 , mainText, boardName, buildName ? "nixbuild", desiredOutputs ? ["bin" "hex"]
 , optimizeForSize ? false, assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false, detectOverloadEnabled ? false
-, buildWithClang ? false, verboseBuild ? false
+, buildWithClang ? false, verboseBuild ? false, debugSymbols ? false
 }:
 
 let
@@ -78,6 +78,9 @@ let
         (stdenv.lib.optionalString detectOverloadEnabled "-DAXISDRIVER_DETECT_OVERLOAD")
     ];
     
+    ccxxldFlags = stdenv.lib.concatStringsSep " " [
+        (stdenv.lib.optionalString debugSymbols "-g")
+    ];
 in
 
 assert isAvr -> gccAvrAtmel != null;
@@ -104,9 +107,9 @@ stdenv.mkDerivation rec {
     '';
     
     buildPhase = ''
-        echo "Compile flags: ${compileFlags}"
         CFLAGS="${compileFlags}" \
         CXXFLAGS="${compileFlags}" \
+        CCXXLDFLAGS="${ccxxldFlags}" \
         ${bash}/bin/bash ./build.sh nixbuild ${if verboseBuild then "-v" else ""} build
     '';
     

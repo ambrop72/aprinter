@@ -613,6 +613,7 @@ def editor():
                 ce.Boolean(key='DisableWatchdog', title='Disable the watchdog timer', default=False),
                 ce.Boolean(key='BuildWithClang', title='Build with the Clang compiler', default=False),
                 ce.Boolean(key='VerboseBuild', title='Verbose build output', default=False),
+                ce.Boolean(key='DebugSymbols', title='Build with debug symbols (compile may crash)', default=False),
             ]),
             ce.Compound('CurrentConfig', key='current_config', title='Motor current control', collapsable=True, attrs=[
                 ce.OneOf(key='current', title='Current control', choices=[
