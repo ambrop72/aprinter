@@ -33,6 +33,8 @@ class Callback;
 template <typename R, typename... Args>
 class Callback<R(Args...)> {
 public:
+    using FuncType = R (*) (void *, Args...);
+    
     R operator() (Args... args) const
     {
         return m_func(m_arg, args...);
@@ -43,8 +45,13 @@ public:
         return m_func;
     }
     
+    static Callback Make (FuncType func, void *arg)
+    {
+        return Callback{func, arg};
+    }
+    
 public:
-    R (*m_func) (void *, Args... args);
+    FuncType m_func;
     void *m_arg;
 };
 

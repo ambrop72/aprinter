@@ -99,7 +99,7 @@ public:
         TimeType interval;
         TimeType next_time;
         bool state;
-        typename Loop::QueuedEvent timer;
+        typename Loop::TimedEvent timer;
     };
 };
 

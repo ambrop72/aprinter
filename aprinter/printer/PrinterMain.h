@@ -2770,7 +2770,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             uint8_t m_enabled : 1;
             uint8_t m_was_not_unset : 1;
             FpType m_target;
-            typename Loop::QueuedEvent m_control_event;
+            typename Loop::TimedEvent m_control_event;
         };
         
         using ConfigExprs = MakeTypeList<CMinSafeTemp, CMaxSafeTemp, CInfAdcValue, CSupAdcValue, CControlIntervalTicks>;
@@ -3980,8 +3980,8 @@ public:
         >
     >> {
         typename Loop::QueuedEvent unlocked_timer;
-        typename Loop::QueuedEvent disable_timer;
-        typename Loop::QueuedEvent force_timer;
+        typename Loop::TimedEvent disable_timer;
+        typename Loop::TimedEvent force_timer;
         FpType time_freq_by_max_speed;
         uint32_t underrun_count;
         uint8_t locked : 1;

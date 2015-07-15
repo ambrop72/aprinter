@@ -456,7 +456,7 @@ public:
         TheDebugObject,
         TheSdio
     >> {
-        typename Context::EventLoop::QueuedEvent timer;
+        typename Context::EventLoop::TimedEvent timer;
         uint8_t state;
         TimeType deadline;
         bool is_sdhc;

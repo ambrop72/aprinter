@@ -123,7 +123,7 @@ private:
     
 public:
     struct Object : public ObjBase<TemperatureObserver, ParentObject, MakeTypeList<TheDebugObject>> {
-        typename Context::EventLoop::QueuedEvent m_event;
+        typename Context::EventLoop::TimedEvent m_event;
         FpType m_target;
         uint16_t m_intervals;
     };
