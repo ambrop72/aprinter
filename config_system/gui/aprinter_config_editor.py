@@ -571,6 +571,7 @@ def editor():
                                 ce.Integer(key='MaxFileNameSize', title='Maximum filename size', default=32),
                                 ce.Integer(key='NumCacheEntries', title='Block cache size (in blocks)', default=2),
                                 ce.Boolean(key='CaseInsensFileName', title='Case-insensitive filename matching', default=True),
+                                ce.Boolean(key='FsWritable', title='Writable filesystem', default=False),
                             ]),
                         ]),
                         ce.Integer(key='BufferBaseSize', title='Buffer size'),

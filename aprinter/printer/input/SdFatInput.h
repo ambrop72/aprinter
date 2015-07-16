@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include <aprinter/meta/WrapFunction.h>
+#include <aprinter/meta/FunctionIf.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -219,7 +220,7 @@ public:
             handle_navigation_command(c, cmd, (cmd_num == 20));
             return false;
         }
-        if (cmd_num == 931 || cmd_num == 932) {
+        if (TheFs::FsWritable && (cmd_num == 931 || cmd_num == 932)) {
             handle_write_mount_command(c, cmd, (cmd_num == 931));
             return false;
         }
@@ -537,7 +538,7 @@ private:
         o->listing_state = LISTING_STATE_INACTIVE;
     }
     
-    static void handle_write_mount_command (Context c, typename ThePrinterMain::CommandType *cmd, bool is_mount)
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(TheFs::FsWritable, static, void, handle_write_mount_command (Context c, typename ThePrinterMain::CommandType *cmd, bool is_mount))
     {
         auto *o = Object::self(c);
         
@@ -566,7 +567,7 @@ private:
         cmd->finishCommand(c);
     }
     
-    static void fs_write_mount_handler (Context c, bool error)
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(TheFs::FsWritable, static, void, fs_write_mount_handler (Context c, bool error))
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -585,7 +586,7 @@ private:
         }
         cmd->finishCommand(c);
     }
-    struct FsWriteMountHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_write_mount_handler) {};
+    struct FsWriteMountHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_write_mount_handler<>) {};
     
     struct InitUnion {
         struct Object : public ObjUnionBase<InitUnion, typename SdFatInput::Object, MakeTypeList<

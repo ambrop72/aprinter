@@ -50,6 +50,7 @@ template <typename Context, typename ParentObject, typename TheBlockAccess, type
 class FatFs {
 public:
     struct Object;
+    static bool const FsWritable = Params::Writable;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
@@ -89,9 +90,9 @@ private:
     enum class AllocationState : uint8_t {IDLE, CHECK_EVENT, REQUESTING_BLOCK};
     
     template <bool Writable> class ClusterChain;
-    class DirEntryRef;
+    template <bool Writable> class DirEntryRef;
     class DirectoryIterator;
-    class WriteReference;
+    template <bool Writable> class WriteReference;
     
 public:
     enum class EntryType : uint8_t {DIR_TYPE, FILE_TYPE};
@@ -121,14 +122,13 @@ public:
         auto *o = Object::self(c);
         
         TheBlockCache::init(c);
-        o->alloc_event.init(c, APRINTER_CB_STATFUNC_T(&FatFs::alloc_event_handler));
         o->block_ref.init(c, APRINTER_CB_STATFUNC_T(&FatFs::block_ref_handler));
-        o->fs_info_block_ref.init(c, APRINTER_CB_STATFUNC_T(&FatFs::fs_info_block_ref_handler));
-        o->flush_request.init(c, APRINTER_CB_STATFUNC_T(&FatFs::flush_request_handler));
         
         o->block_range = block_range;
         o->state = FsState::INIT;
         o->block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
+        
+        fs_writable_init(c);
         
         TheDebugObject::init(c);
     }
@@ -138,10 +138,9 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        o->flush_request.deinit(c);
-        o->fs_info_block_ref.deinit(c);
+        fs_writable_deinit(c);
+        
         o->block_ref.deinit(c);
-        o->alloc_event.deinit(c);
         TheBlockCache::deinit(c);
     }
     
@@ -160,7 +159,7 @@ public:
         return entry;
     }
     
-    static void startWriteMount (Context c)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, startWriteMount (Context c))
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -174,7 +173,7 @@ public:
         request_fat_cache_block(c, &o->block_ref, FsStatusEntryIndex, true);
     }
     
-    static bool canStartWriteUnmount (Context c)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, bool, canStartWriteUnmount (Context c))
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -184,7 +183,7 @@ public:
         return (o->num_write_references == 0);
     }
     
-    static void startWriteUnmount (Context c)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, startWriteUnmount (Context c))
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -303,15 +302,17 @@ public:
     
     template <typename Dummy>
     class FileExtraMembers<true, Dummy> {
-        DirEntryRef m_dir_entry;
+        DirEntryRef<true> m_dir_entry;
         size_t m_write_bytes_in_block;
         BlockIndexType m_dir_entry_block_index;
         DirEntriesPerBlockType m_dir_entry_block_offset;
-        WriteReference m_write_ref;
+        WriteReference<true> m_write_ref;
     };
     
     template <bool Writable>
     class File : public FileExtraMembers<Writable> {
+        static_assert(!Writable || FsWritable, "");
+        
         enum class State : uint8_t {
             IDLE,
             READ_EVENT, READ_NEXT_CLUSTER, READ_DATA,
@@ -648,6 +649,32 @@ public:
     };
     
 private:
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(FsWritable, static, void, fs_writable_init (Context c))
+    {
+        auto *o = Object::self(c);
+        o->alloc_event.init(c, APRINTER_CB_STATFUNC_T(&FatFs::alloc_event_handler<>));
+        o->fs_info_block_ref.init(c, APRINTER_CB_STATFUNC_T(&FatFs::fs_info_block_ref_handler<>));
+        o->flush_request.init(c, APRINTER_CB_STATFUNC_T(&FatFs::flush_request_handler<>));
+    }
+    
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(FsWritable, static, void, fs_writable_deinit (Context c))
+    {
+        auto *o = Object::self(c);
+        o->flush_request.deinit(c);
+        o->fs_info_block_ref.deinit(c);
+        o->alloc_event.deinit(c);
+    }
+    
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(FsWritable, static, void, fs_writable_init_completed (Context c, BlockIndexType fs_info_block))
+    {
+        auto *o = Object::self(c);
+        o->write_mount_state = WriteMountState::NOT_MOUNTED;
+        o->alloc_state = AllocationState::IDLE;
+        o->fs_info_block = fs_info_block;
+        o->allocating_chains_list.init();
+        o->num_write_references = 0;
+    }
+    
     static void block_ref_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
@@ -655,7 +682,16 @@ private:
         
         if (o->state == FsState::INIT) {
             return init_block_ref_handler(c, error);
-        } else if (o->state == FsState::READY) {
+        } else if (FsWritable) {
+            return block_ref_handler_writable(c, error);
+        }
+        AMBRO_ASSERT(false)
+    }
+    
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(FsWritable, static, void, block_ref_handler_writable (Context c, bool error))
+    {
+        auto *o = Object::self(c);
+        if (o->state == FsState::READY) {
             if (o->write_mount_state == WriteMountState::MOUNT_META) {
                 return write_mount_metablock_ref_handler(c, error);
             } else if (o->write_mount_state == WriteMountState::UMOUNT_META) {
@@ -747,15 +783,16 @@ private:
             o->num_reserved_blocks = (BlockIndexType)num_reserved_sectors * blocks_per_sector;
             o->fat_end_blocks = fat_end_sectors_calc * blocks_per_sector;
             
+            BlockIndexType fs_info_block;
             if (fs_info_sector == 0 || fs_info_sector == UINT16_C(0xFFFF)) {
-                o->fs_info_block = 0;
+                fs_info_block = 0;
             } else {
                 uint32_t fs_info_block_calc = fs_info_sector * (uint32_t)blocks_per_sector;
                 if (fs_info_block_calc >= o->num_reserved_blocks) {
                     error_code = 31;
                     goto error;
                 }
-                o->fs_info_block = fs_info_block_calc;
+                fs_info_block = fs_info_block_calc;
             }
             
             ClusterIndexType valid_clusters_for_capacity = (o->block_range.getLength() - o->fat_end_blocks) / o->blocks_per_cluster;
@@ -765,10 +802,7 @@ private:
             }
             o->num_valid_clusters = MinValue(valid_clusters_for_capacity, MinValue((ClusterIndexType)(o->num_fat_entries - 2), NormalClusterIndexEnd - 2));
             
-            o->write_mount_state = WriteMountState::NOT_MOUNTED;
-            o->alloc_state = AllocationState::IDLE;
-            o->allocating_chains_list.init();
-            o->num_write_references = 0;
+            fs_writable_init_completed(c, fs_info_block);
             
             error_code = 0;
         } while (0);
@@ -778,7 +812,7 @@ private:
         return InitHandler::call(c, error_code);
     }
     
-    static void complete_write_mount_request (Context c, bool error)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, complete_write_mount_request (Context c, bool error))
     {
         auto *o = Object::self(c);
         o->block_ref.reset(c);
@@ -792,7 +826,7 @@ private:
         return WriteMountHandler::call(c, error);
     }
     
-    static void complete_write_unmount_request (Context c, bool error)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, complete_write_unmount_request (Context c, bool error))
     {
         auto *o = Object::self(c);
         o->block_ref.reset(c);
@@ -806,7 +840,7 @@ private:
         return WriteMountHandler::call(c, error);
     }
     
-    static void write_mount_metablock_ref_handler (Context c, bool error)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, write_mount_metablock_ref_handler (Context c, bool error))
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == FsState::READY)
@@ -829,7 +863,7 @@ private:
         o->fs_info_block_ref.requestBlock(c, get_abs_block_index(c, o->fs_info_block), 0, 1, true);
     }
     
-    static void flush_request_handler (Context c, bool error)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, flush_request_handler (Context c, bool error))
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -860,7 +894,7 @@ private:
         }
     }
     
-    static void fs_info_block_ref_handler (Context c, bool error)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, fs_info_block_ref_handler (Context c, bool error))
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -887,7 +921,7 @@ private:
         o->flush_request.requestFlush(c);
     }
     
-    static void write_unmount_metablock_ref_handler (Context c, bool error)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, write_unmount_metablock_ref_handler (Context c, bool error))
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == FsState::READY)
@@ -1015,7 +1049,7 @@ private:
         update_fat_entry_in_cache_block(c, block_ref, FsStatusEntryIndex, entry1_value);
     }
     
-    static void update_fs_info_allocated_cluster (Context c)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, update_fs_info_allocated_cluster (Context c))
     {
         auto *o = Object::self(c);
         
@@ -1024,7 +1058,7 @@ private:
         o->fs_info_block_ref.markDirty(c);
     }
     
-    static void update_fs_info_free_clusters (Context c, bool inc_else_dec)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, update_fs_info_free_clusters (Context c, bool inc_else_dec))
     {
         auto *o = Object::self(c);
         
@@ -1040,7 +1074,7 @@ private:
         }
     }
     
-    static void allocation_request_added (Context c)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, allocation_request_added (Context c))
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(!o->allocating_chains_list.isEmpty())
@@ -1051,7 +1085,7 @@ private:
         }
     }
     
-    static void allocation_request_removed (Context c)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, allocation_request_removed (Context c))
     {
         auto *o = Object::self(c);
         if (o->alloc_state != AllocationState::IDLE && o->allocating_chains_list.isEmpty()) {
@@ -1061,7 +1095,7 @@ private:
         }
     }
     
-    static void start_new_allocation (Context c)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, start_new_allocation (Context c))
     {
         auto *o = Object::self(c);
         o->alloc_state = AllocationState::CHECK_EVENT;
@@ -1069,7 +1103,7 @@ private:
         o->alloc_event.prependNowNotAlready(c);
     }
     
-    static void complete_allocation (Context c, bool error, ClusterIndexType cluster_index=0)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, complete_allocation (Context c, bool error, ClusterIndexType cluster_index=0))
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->alloc_state != AllocationState::IDLE)
@@ -1095,7 +1129,7 @@ private:
         complete_request->allocation_result(c, error, cluster_index);
     }
     
-    static void alloc_event_handler (Context c)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, alloc_event_handler (Context c))
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -1129,7 +1163,7 @@ private:
         }
     }
     
-    static void alloc_block_ref_handler (Context c, bool error)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, alloc_block_ref_handler (Context c, bool error))
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->alloc_state == AllocationState::REQUESTING_BLOCK)
@@ -1153,6 +1187,8 @@ private:
     
     template <bool Writable>
     class ClusterChain : public ClusterChainExtraMembers<Writable> {
+        static_assert(!Writable || FsWritable, "");
+        
         enum class State : uint8_t {
             IDLE,
             NEXT_CHECK, NEXT_REQUESTING_FAT,
@@ -1422,7 +1458,10 @@ private:
         ClusterIndexType m_current_cluster;
     };
     
+    template <bool Writable>
     class DirEntryRef {
+        static_assert(Writable && FsWritable, "");
+        
         enum class State : uint8_t {INVALID, REQUESTING_BLOCK, READY};
         
     public:
@@ -1760,7 +1799,10 @@ private:
         char m_filename[Params::MaxFileNameSize + 1];
     };
     
+    template <bool Writable>
     class WriteReference {
+        static_assert(Writable && FsWritable, "");
+        
     public:
         void init (Context c)
         {
@@ -1804,41 +1846,50 @@ private:
         bool m_taken;
     };
     
+    template <bool Writable, typename Dummy=void>
+    class FsWritableMembers {};
+    
+    template <typename Dummy>
+    class FsWritableMembers<true, Dummy> {
+        typename Context::EventLoop::QueuedEvent alloc_event;
+        CacheBlockRef fs_info_block_ref;
+        CacheFlushRequest flush_request;
+        WriteMountState write_mount_state;
+        AllocationState alloc_state;
+        BlockIndexType fs_info_block;
+        DoubleEndedListForBase<ClusterChain<true>, ClusterChainExtraMembers<true>, &ClusterChain<true>::m_allocating_chains_node> allocating_chains_list;
+        ClusterIndexType alloc_position;
+        ClusterIndexType alloc_start;
+        size_t num_write_references;
+    };
+    
 public:
     struct Object : public ObjBase<FatFs, ParentObject, MakeTypeList<
         TheDebugObject,
         TheBlockCache
-    >> {
-        typename Context::EventLoop::QueuedEvent alloc_event;
+    >>, public FsWritableMembers<FsWritable> {
         CacheBlockRef block_ref;
-        CacheBlockRef fs_info_block_ref;
-        CacheFlushRequest flush_request;
         typename TheBlockAccess::BlockRange block_range;
         FsState state;
-        WriteMountState write_mount_state;
-        AllocationState alloc_state;
         uint8_t num_fats;
         ClusterBlockIndexType blocks_per_cluster;
         ClusterIndexType root_cluster;
         ClusterIndexType num_fat_entries;
         BlockIndexType num_reserved_blocks;
         BlockIndexType fat_end_blocks;
-        BlockIndexType fs_info_block;
         ClusterIndexType num_valid_clusters;
-        DoubleEndedListForBase<ClusterChain<true>, ClusterChainExtraMembers<true>, &ClusterChain<true>::m_allocating_chains_node> allocating_chains_list;
-        ClusterIndexType alloc_position;
-        ClusterIndexType alloc_start;
-        size_t num_write_references;
     };
 };
 
 template <
     int TMaxFileNameSize,
-    int TNumCacheEntries
+    int TNumCacheEntries,
+    bool TWritable
 >
 struct FatFsService {
     static int const MaxFileNameSize = TMaxFileNameSize;
     static int const NumCacheEntries = TNumCacheEntries;
+    static bool const Writable = TWritable;
     
     template <typename Context, typename ParentObject, typename TheBlockAccess, typename InitHandler, typename WriteMountHandler>
     using Fs = FatFs<Context, ParentObject, TheBlockAccess, InitHandler, WriteMountHandler, FatFsService>;
