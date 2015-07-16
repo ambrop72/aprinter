@@ -62,6 +62,7 @@ else
 fi
 
 ARM_OBJCOPY=${ARM_GCC_PREFIX}objcopy
+ARM_SIZE=${ARM_GCC_PREFIX}size
 
 install_arm() {
     if [ -z "${CUSTOM_ARM_GCC}" ]; then
@@ -78,6 +79,7 @@ check_depends_arm() {
     echo "   Checking depends"
     check_build_tool "${ARM_CC}" "ARM compiler"
     check_build_tool "${ARM_OBJCOPY}" "ARM objcopy"
+    check_build_tool "${ARM_SIZE}" "ARM size calculator"
 }
 
 configure_arm() {
@@ -157,6 +159,9 @@ build_arm() {
     ( $V ;
     "${ARM_CC}" "${LDFLAGS[@]}" "${OBJS[@]}" -o "${TARGET}.elf" -lm
 
+    echo "   Size of build: "
+    "$ARM_SIZE" "${TARGET}.elf" | sed 's/^/    /'
+    
     echo "   Building images"
     "${ARM_OBJCOPY}" --output-target=binary "${TARGET}.elf" "${TARGET}.bin"
     "${ARM_OBJCOPY}" --output-target=ihex "${TARGET}.elf" "${TARGET}.hex"
