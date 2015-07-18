@@ -56,6 +56,7 @@ private:
     
     static TimeType const IdleStateTimeoutTicks = 1.2 * Context::Clock::time_freq;
     static TimeType const InitTimeoutTicks = 1.2 * Context::Clock::time_freq;
+    static TimeType const WriteBusyTimeoutTicks = 5.0 * Context::Clock::time_freq;
     
 public:
     using BlockIndexType = uint32_t;
@@ -119,16 +120,14 @@ public:
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->m_state == STATE_RUNNING)
         
-        return false;
+        // TBD: checks if card is actually writable
+        return true;
     }
     
     static void startReadBlock (Context c, BlockIndexType block, WrapBuffer buffer)
     {
         auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_RUNNING)
-        AMBRO_ASSERT(o->m_io_state == IO_STATE_IDLE)
-        AMBRO_ASSERT(block < o->m_capacity_blocks)
+        assert_io_preconditions(c, block);
         
         o->m_request_buf = buffer;
         uint32_t addr = o->m_sdhc ? block : (block * 512);
@@ -145,7 +144,13 @@ public:
     
     static void startWriteBlock (Context c, BlockIndexType block, WrapBuffer buffer)
     {
-        AMBRO_ASSERT(false);
+        auto *o = Object::self(c);
+        assert_io_preconditions(c, block);
+        
+        o->m_request_buf = buffer;
+        uint32_t addr = o->m_sdhc ? block : (block * 512);
+        sd_command(c, CMD_WRITE_BLOCK, addr, true, o->m_io_buf, o->m_io_buf);
+        o->m_io_state = IO_STATE_WRITING_CMD;
     }
     
     using GetSpi = TheSpi;
@@ -158,6 +163,7 @@ private:
         STATE_INIT1,
         STATE_INIT2,
         STATE_INIT3,
+        STATE_INIT3A,
         STATE_INIT4,
         STATE_INIT5,
         STATE_INIT6,
@@ -166,15 +172,18 @@ private:
         STATE_RUNNING
     };
     
-    enum {IO_STATE_IDLE, IO_STATE_READING};
+    enum {IO_STATE_IDLE, IO_STATE_READING, IO_STATE_WRITING_CMD, IO_STATE_WRITING_DATA, IO_STATE_WRITING_BUSY, IO_STATE_WRITING_STATUS};
     
     static const uint8_t CMD_GO_IDLE_STATE = 0;
     static const uint8_t CMD_SEND_IF_COND = 8;
     static const uint8_t CMD_SEND_CSD = 9;
+    static const uint8_t CMD_SEND_STATUS = 13;
     static const uint8_t CMD_SET_BLOCKLEN = 16;
     static const uint8_t CMD_READ_SINGLE_BLOCK = 17;
+    static const uint8_t CMD_WRITE_BLOCK = 24;
     static const uint8_t CMD_APP_CMD = 55;
     static const uint8_t CMD_READ_OCR = 58;
+    static const uint8_t CMD_CRC_ON_OFF = 59;
     static const uint8_t ACMD_SD_SEND_OP_COND = 41;
     static const uint8_t R1_IN_IDLE_STATE = (1 << 0);
     static const uint32_t OCR_CCS = (UINT32_C(1) << 30);
@@ -232,6 +241,7 @@ private:
             return;
         }
         TheSpi::unsetEvent(c);
+        
         switch (o->m_state) {
             case STATE_INIT1: {
                 Context::Pins::template set<SsPin>(c, false);
@@ -247,11 +257,18 @@ private:
                     sd_command(c, CMD_GO_IDLE_STATE, 0, true, o->m_buf1, o->m_buf1);
                     return;
                 }
-                sd_command(c, CMD_SEND_IF_COND, UINT32_C(0x1AA), true, o->m_buf1, o->m_buf1);
+                sd_command(c, CMD_CRC_ON_OFF, 1, true, o->m_buf1, o->m_buf1);
                 o->m_state = STATE_INIT3;
             } break;
             case STATE_INIT3: {
-                if (o->m_buf1[0] != 1) {
+                if (o->m_buf1[0] != R1_IN_IDLE_STATE) {
+                    return error(c, 11);
+                }
+                sd_command(c, CMD_SEND_IF_COND, UINT32_C(0x1AA), true, o->m_buf1, o->m_buf1);
+                o->m_state = STATE_INIT3A;
+            } break;
+            case STATE_INIT3A: {
+                if (o->m_buf1[0] != R1_IN_IDLE_STATE) {
                     return error(c, 2);
                 }
                 sd_command(c, CMD_APP_CMD, 0, true, o->m_buf2, o->m_buf2);
@@ -326,24 +343,94 @@ private:
                 return InitHandler::call(c, 0);
             } break;
             case STATE_RUNNING: {
-                AMBRO_ASSERT(o->m_io_state == IO_STATE_READING)
-                o->m_io_state = IO_STATE_IDLE;
-                bool error = (o->m_io_buf[0] != 0 || o->m_io_buf[1] != 0xfe);
-                if (!error) {
-                    uint16_t checksum_received = ReadBinaryInt<uint16_t, BinaryBigEndian>((char *)(o->m_io_buf + 2));
-                    size_t first_part_length = MinValue(o->m_request_buf.wrap, BlockSize);
-                    uint16_t checksum_computed = CrcItuTInitial;
-                    checksum_computed = CrcItuTUpdate(checksum_computed, o->m_request_buf.ptr1, first_part_length);
-                    if (first_part_length < BlockSize) {
-                        checksum_computed = CrcItuTUpdate(checksum_computed, o->m_request_buf.ptr2, BlockSize - first_part_length);
-                    }
-                    if (checksum_received != checksum_computed) {
-                        error = true;
-                    }
-                }
-                return CommandHandler::call(c, error);
+                spi_for_io_completed(c);
             } break;
         }
+    }
+    
+    static void spi_for_io_completed (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        bool error = true;
+        
+        switch (o->m_io_state) {
+            case IO_STATE_READING: {
+                if (o->m_io_buf[0] != 0 || o->m_io_buf[1] != 0xfe) {
+                    goto complete_request;
+                }
+                uint16_t checksum_received = ReadBinaryInt<uint16_t, BinaryBigEndian>((char *)(o->m_io_buf + 2));
+                size_t first_part_length = MinValue(o->m_request_buf.wrap, BlockSize);
+                uint16_t checksum_computed = CrcItuTInitial;
+                checksum_computed = CrcItuTUpdate(checksum_computed, o->m_request_buf.ptr1, first_part_length);
+                if (first_part_length < BlockSize) {
+                    checksum_computed = CrcItuTUpdate(checksum_computed, o->m_request_buf.ptr2, BlockSize - first_part_length);
+                }
+                if (checksum_received != checksum_computed) {
+                    goto complete_request;
+                }
+                error = false;
+            } break;
+            
+            case IO_STATE_WRITING_CMD: {
+                if (o->m_io_buf[0] != 0) {
+                    goto complete_request;
+                }
+                uint16_t checksum = CrcItuTInitial;
+                size_t first_part_length = MinValue(o->m_request_buf.wrap, BlockSize);
+                TheSpi::cmdWriteBuffer(c, 0xfe, (uint8_t *)o->m_request_buf.ptr1, first_part_length);
+                checksum = CrcItuTUpdate(checksum, o->m_request_buf.ptr1, first_part_length);
+                if (first_part_length < BlockSize) {
+                    char const *data2 = o->m_request_buf.ptr2;
+                    size_t len2 = BlockSize - first_part_length;
+                    TheSpi::cmdWriteBuffer(c, ((uint8_t *)data2)[0], (uint8_t *)data2 + 1, len2 - 1);
+                    checksum = CrcItuTUpdate(checksum, data2, len2);
+                }
+                WriteBinaryInt<uint16_t, BinaryBigEndian>(checksum, (char *)o->m_io_buf);
+                TheSpi::cmdWriteBuffer(c, o->m_io_buf[0], o->m_io_buf + 1, 1);
+                TheSpi::cmdReadBuffer(c, o->m_io_buf + 2, 1, 0xff);
+                o->m_io_state = IO_STATE_WRITING_DATA;
+                return;
+            } break;
+            
+            case IO_STATE_WRITING_DATA: {
+                uint8_t data_response = o->m_io_buf[2];
+                if ((data_response & 0x1F) != 5) {
+                    goto complete_request;
+                }
+                TheSpi::cmdReadUntilDifferent(c, 0x00, 255, 0xff, o->m_io_buf);
+                o->m_io_state = IO_STATE_WRITING_BUSY;
+                o->m_deadline = Context::Clock::getTime(c) + WriteBusyTimeoutTicks;
+                return;
+            } break;
+            
+            case IO_STATE_WRITING_BUSY: {
+                if (o->m_io_buf[0] == 0x00) {
+                    if ((uint32_t)(Context::Clock::getTime(c) - o->m_deadline) < UINT32_C(0x80000000)) {
+                        goto complete_request;
+                    }
+                    TheSpi::cmdReadUntilDifferent(c, 0x00, 255, 0xff, o->m_io_buf);
+                    return;
+                }
+                sd_command(c, CMD_SEND_STATUS, 0, true, o->m_io_buf, o->m_io_buf);
+                TheSpi::cmdReadBuffer(c, o->m_io_buf + 1, 1, 0xff);
+                o->m_io_state = IO_STATE_WRITING_STATUS;
+                return;
+            } break;
+            
+            case IO_STATE_WRITING_STATUS: {
+                if (o->m_io_buf[0] != 0 || o->m_io_buf[1] != 0) {
+                    goto complete_request;
+                }
+                error = false;
+            } break;
+            
+            default: AMBRO_ASSERT(false);
+        }
+    
+    complete_request:
+        o->m_io_state = IO_STATE_IDLE;
+        return CommandHandler::call(c, error);
     }
     
     static void deactivate_common (Context c)
@@ -361,6 +448,15 @@ private:
         return InitHandler::call(c, code);
     }
     
+    static void assert_io_preconditions (Context c, BlockIndexType block)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->m_state == STATE_RUNNING)
+        AMBRO_ASSERT(o->m_io_state == IO_STATE_IDLE)
+        AMBRO_ASSERT(block < o->m_capacity_blocks)
+    }
+    
     struct SpiHandler : public AMBRO_WFUNC_TD(&SpiSdCard::spi_handler) {};
     
 public:
@@ -368,11 +464,9 @@ public:
         TheDebugObject,
         TheSpi
     >> {
-        uint8_t m_state;
-        union {
-            TimeType m_deadline;
-            bool m_sdhc;
-        };
+        uint8_t m_state : 5;
+        bool m_sdhc : 1;
+        TimeType m_deadline;
         union {
             struct {
                 uint8_t m_buf1[6];
