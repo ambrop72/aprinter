@@ -22,7 +22,7 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-{ stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, gccAvrAtmel
+{ stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, avrgcclibc
 , asf, stm32cubef4, teensyCores, aprinterSource
 , mainText, boardName, buildName ? "nixbuild", desiredOutputs ? ["bin" "hex"]
 , optimizeForSize ? false, assertionsEnabled ? false
@@ -57,7 +57,7 @@ let
     needTeensyCores = board.platform == "teensy";
     
     targetFile = writeText "aprinter-nixbuild.sh" ''
-        ${stdenv.lib.optionalString isAvr "CUSTOM_AVR_GCC=${gccAvrAtmel}/bin/avr-"}
+        ${stdenv.lib.optionalString isAvr "CUSTOM_AVR_GCC=${avrgcclibc}/bin/avr-"}
         ${stdenv.lib.optionalString isArm "CUSTOM_ARM_GCC=${gcc-arm-embedded}/bin/arm-none-eabi-"}
         ${stdenv.lib.optionalString buildWithClang "BUILD_WITH_CLANG=1"}
         ${stdenv.lib.optionalString buildWithClang "CLANG_ARM_EMBEDDED=${clang-arm-embedded}/bin/arm-none-eabi-"}
@@ -83,7 +83,7 @@ let
     ];
 in
 
-assert isAvr -> gccAvrAtmel != null;
+assert isAvr -> avrgcclibc != null;
 assert isArm -> gcc-arm-embedded != null;
 assert buildWithClang -> isArm;
 assert buildWithClang -> clang-arm-embedded != null;

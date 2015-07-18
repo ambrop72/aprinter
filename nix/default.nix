@@ -31,6 +31,9 @@ rec {
     /* Atmel AVR toolchain. */
     gccAvrAtmel = pkgs.callPackage ./gcc_avr_atmel.nix {};
     
+    /* Atmel AVR toolchain, built from source. */
+    avrgcclibc = pkgs.callPackage ./avr-gcc-libc.nix {};
+    
     /* Clang compiler for ARM microcontrollers. */
     clang-arm-embedded = pkgs.callPackage ./clang-arm-embedded.nix {};
     
@@ -62,10 +65,11 @@ rec {
     */    
     aprinterFunc = aprinterConfig: pkgs.callPackage ./aprinter.nix (
         {
-            inherit clang-arm-embedded gccAvrAtmel asf stm32cubef4 teensyCores aprinterSource;
+            inherit clang-arm-embedded asf stm32cubef4 teensyCores aprinterSource;
+            inherit avrgcclibc; /* avrgcclibc = gccAvrAtmel; */
         } // aprinterConfig
     );
-        
+    
     /*
         We need a specific version of NCD for the service.
     */
