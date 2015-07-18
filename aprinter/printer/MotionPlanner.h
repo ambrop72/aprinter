@@ -1364,27 +1364,11 @@ private:
             }
             
             if (AMBRO_UNLIKELY(aborted)) {
-                ListForEachForward<AxisCommonList>(LForeach_abort(), c);
-                ListForEachForward<ChannelsList>(LForeach_abort(), c);
-                Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
-                o->m_state = STATE_ABORTED;
-                Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
-                return AbortedHandler::call(c);
+                return finish_after_aborted(c);
             }
             
             if (AMBRO_UNLIKELY(!busy)) {
-                AMBRO_ASSERT(!o->m_syncing)
-                o->m_state = STATE_BUFFERING;
-                o->m_segments_start = segments_add(o->m_segments_start, o->m_segments_staging_length);
-                o->m_segments_length -= o->m_segments_staging_length;
-                o->m_segments_staging_length = 0;
-                o->m_staging_time = 0;
-                o->m_staging_v_squared = 0.0f;
-                o->m_staging_v = 0.0f;
-#ifdef AMBROLIB_ASSERTIONS
-                o->m_planned = false;
-#endif
-                UnderrunCallback::call(c);
+                recover_from_underrun(c);
             }
         }
         
@@ -1436,42 +1420,81 @@ private:
                 return;
             }
             
-            AMBRO_ASSERT(!o->m_pulling)
-            AMBRO_ASSERT(o->m_split_buffer.type != 0 || o->m_split_buffer.axes.split_pos < o->m_split_buffer.axes.split_count)
-            
-            Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
-            entry->dir_and_type = o->m_split_buffer.type;
-            if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
-                o->m_split_buffer.axes.split_pos++;
-                ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
-                ComputeStateTuple cst;
-                ListForEachForward<AxisCommonList>(LForeach_compute_compute_state(), c, entry, &cst);
-                entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry, &cst);
-                FpType distance = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_distance(), c, &cst);
-                FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, &cst);
-                FpType distance_rec = 1.0f / distance;
-                entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
-                entry->axes.half_rel_max_accel = 0.5f / rel_max_accel_rec;
-                ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
-                FpType junction_max_v_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_do_junction_limit(), c, entry, distance_rec, &cst);
-                o->m_last_dir_and_type = entry->dir_and_type;
-                FpType distance_squared = distance * distance;
-                FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
-                FpType a_x = FloatLdexp(entry->axes.half_rel_max_accel * distance_squared, 2);
-                TheLinearPlanner::initSegment(&entry->axes.lp_seg, o->m_last_max_v, 1.0f / junction_max_v_rec, max_v, a_x);
-                o->m_last_max_v = max_v;
-                if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
-                    o->m_split_buffer.type = 0xFF;
-                }
-            } else {
-                ListForOneOffset<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_write_segment(), c, entry);
+            emit_segment(c);
+        }
+    }
+    
+    static void finish_after_aborted (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->m_state == STATE_STEPPING)
+        
+        ListForEachForward<AxisCommonList>(LForeach_abort(), c);
+        ListForEachForward<ChannelsList>(LForeach_abort(), c);
+        Context::EventLoop::template resetFastEvent<StepperFastEvent>(c);
+        o->m_state = STATE_ABORTED;
+        Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
+        return AbortedHandler::call(c);
+    }
+    
+    static void recover_from_underrun (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->m_state == STATE_STEPPING)
+        AMBRO_ASSERT(!o->m_syncing)
+        
+        o->m_state = STATE_BUFFERING;
+        o->m_segments_start = segments_add(o->m_segments_start, o->m_segments_staging_length);
+        o->m_segments_length -= o->m_segments_staging_length;
+        o->m_segments_staging_length = 0;
+        o->m_staging_time = 0;
+        o->m_staging_v_squared = 0.0f;
+        o->m_staging_v = 0.0f;
+#ifdef AMBROLIB_ASSERTIONS
+        o->m_planned = false;
+#endif
+        UnderrunCallback::call(c);
+    }
+    
+    static void emit_segment (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(!o->m_pulling)
+        AMBRO_ASSERT(o->m_split_buffer.type != 0xFF)
+        AMBRO_ASSERT(o->m_split_buffer.type != 0 || o->m_split_buffer.axes.split_pos < o->m_split_buffer.axes.split_count)
+        
+        Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
+        entry->dir_and_type = o->m_split_buffer.type;
+        if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
+            o->m_split_buffer.axes.split_pos++;
+            ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
+            ComputeStateTuple cst;
+            ListForEachForward<AxisCommonList>(LForeach_compute_compute_state(), c, entry, &cst);
+            entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry, &cst);
+            FpType distance = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_distance(), c, &cst);
+            FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, &cst);
+            FpType distance_rec = 1.0f / distance;
+            entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
+            entry->axes.half_rel_max_accel = 0.5f / rel_max_accel_rec;
+            ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
+            FpType junction_max_v_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_do_junction_limit(), c, entry, distance_rec, &cst);
+            o->m_last_dir_and_type = entry->dir_and_type;
+            FpType distance_squared = distance * distance;
+            FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
+            FpType a_x = FloatLdexp(entry->axes.half_rel_max_accel * distance_squared, 2);
+            TheLinearPlanner::initSegment(&entry->axes.lp_seg, o->m_last_max_v, 1.0f / junction_max_v_rec, max_v, a_x);
+            o->m_last_max_v = max_v;
+            if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
                 o->m_split_buffer.type = 0xFF;
             }
-            o->m_segments_length++;
-            
-            if (AMBRO_LIKELY(o->m_split_buffer.type == 0xFF)) {
-                Context::EventLoop::template triggerFastEvent<CallbackFastEvent>(c);
-            }
+        } else {
+            ListForOneOffset<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_write_segment(), c, entry);
+            o->m_split_buffer.type = 0xFF;
+        }
+        o->m_segments_length++;
+        
+        if (AMBRO_LIKELY(o->m_split_buffer.type == 0xFF)) {
+            Context::EventLoop::template triggerFastEvent<CallbackFastEvent>(c);
         }
     }
     
