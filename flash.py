@@ -22,6 +22,13 @@ class MelziType(object):
         port = '/dev/ttyUSB0' if opts['port'] is None else opts['port']
         return [['avrdude', '-p', 'atmega1284p', '-P', port, '-b', '57600', '-c', 'stk500v1', '-D', '-U', 'flash:w:{}:i'.format(opts['image_file'])]]
 
+class MelziProgrammerType(object):
+    SUPPORTED_EXTENSIONS = ['.hex']
+    
+    def flash_cmds(self, opts):
+        port = '/dev/ttyACM0' if opts['port'] is None else opts['port']
+        return [['avrdude', '-p', 'atmega1284p', '-P', port, '-b', '57600', '-c', 'stk500v2', '-U', 'flash:w:{}:i'.format(opts['image_file'])]]
+
 class ArduinoDueType(object):
     SUPPORTED_EXTENSIONS = ['.bin']
     
@@ -56,6 +63,7 @@ class Stm32f4Type(object):
 TYPES = {
     'arduino_mega': ArduinoMegaType,
     'melzi': MelziType,
+    'melzi_programmer': MelziProgrammerType,
     'arduino_due': ArduinoDueType,
     'teensy3': Teensy3Type,
     'stm32f4': Stm32f4Type,
