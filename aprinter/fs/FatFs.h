@@ -95,10 +95,15 @@ private:
     class DirectoryIterator;
     template <bool Writable> class WriteReference;
     
+    APRINTER_STRUCT_IF_TEMPLATE(FsEntryExtra) {
+        BlockIndexType dir_entry_block_index;
+        DirEntriesPerBlockType dir_entry_block_offset;
+    };
+    
 public:
     enum class EntryType : uint8_t {DIR_TYPE, FILE_TYPE};
     
-    class FsEntry {
+    class FsEntry : private FsEntryExtra<FsWritable> {
         friend FatFs;
         
     public:
@@ -107,10 +112,8 @@ public:
         
     private:
         EntryType type;
-        DirEntriesPerBlockType dir_entry_block_offset;
         uint32_t file_size;
         ClusterIndexType cluster_index;
-        BlockIndexType dir_entry_block_index;
     };
     
     static bool isPartitionTypeSupported (uint8_t type)
@@ -123,11 +126,12 @@ public:
         auto *o = Object::self(c);
         
         TheBlockCache::init(c);
-        o->block_ref.init(c, APRINTER_CB_STATFUNC_T(&FatFs::block_ref_handler));
         
         o->block_range = block_range;
         o->state = FsState::INIT;
-        o->block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
+        
+        o->init_block_ref.init(c, APRINTER_CB_STATFUNC_T(&FatFs::init_block_ref_handler));
+        o->init_block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
         
         fs_writable_init(c);
         
@@ -141,7 +145,10 @@ public:
         
         fs_writable_deinit(c);
         
-        o->block_ref.deinit(c);
+        if (o->state == FsState::INIT) {
+            o->init_block_ref.deinit(c);
+        }
+        
         TheBlockCache::deinit(c);
     }
     
@@ -155,8 +162,7 @@ public:
         entry.type = EntryType::DIR_TYPE;
         entry.file_size = 0;
         entry.cluster_index = o->root_cluster;
-        entry.dir_entry_block_index = 0;
-        entry.dir_entry_block_offset = 0;
+        set_fs_entry_extra(&entry, 0, 0);
         return entry;
     }
     
@@ -171,7 +177,7 @@ public:
         AMBRO_ASSERT(o->alloc_state == AllocationState::IDLE)
         
         o->write_mount_state = WriteMountState::MOUNT_META;
-        request_fat_cache_block(c, &o->block_ref, FsStatusEntryIndex, true);
+        request_fat_cache_block(c, &o->write_block_ref, FsStatusEntryIndex, true);
     }
     
     APRINTER_FUNCTION_IF_EXT(FsWritable, static, bool, canStartWriteUnmount (Context c))
@@ -650,6 +656,7 @@ private:
     {
         auto *o = Object::self(c);
         o->alloc_event.init(c, APRINTER_CB_STATFUNC_T(&FatFs::alloc_event_handler<>));
+        o->write_block_ref.init(c, APRINTER_CB_STATFUNC_T(&FatFs::write_block_ref_handler<>));
         o->fs_info_block_ref.init(c, APRINTER_CB_STATFUNC_T(&FatFs::fs_info_block_ref_handler<>));
         o->flush_request.init(c, APRINTER_CB_STATFUNC_T(&FatFs::flush_request_handler<>));
     }
@@ -659,6 +666,7 @@ private:
         auto *o = Object::self(c);
         o->flush_request.deinit(c);
         o->fs_info_block_ref.deinit(c);
+        o->write_block_ref.deinit(c);
         o->alloc_event.deinit(c);
     }
     
@@ -672,20 +680,7 @@ private:
         o->num_write_references = 0;
     }
     
-    static void block_ref_handler (Context c, bool error)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        
-        if (o->state == FsState::INIT) {
-            return init_block_ref_handler(c, error);
-        } else if (FsWritable) {
-            return block_ref_handler_writable(c, error);
-        }
-        AMBRO_ASSERT(false)
-    }
-    
-    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(FsWritable, static, void, block_ref_handler_writable (Context c, bool error))
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(FsWritable, static, void, write_block_ref_handler (Context c, bool error))
     {
         auto *o = Object::self(c);
         if (o->state == FsState::READY) {
@@ -703,16 +698,18 @@ private:
     static void init_block_ref_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
+        TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == FsState::INIT)
         
         uint8_t error_code = 99;
         do {
             if (error) {
+                o->init_block_ref.deinit(c);
                 error_code = 20;
                 goto error;
             }
             
-            char const *buffer = o->block_ref.getData(c);
+            char const *buffer = o->init_block_ref.getData(c);
             
             uint16_t sector_size =          ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0xB);
             uint8_t sectors_per_cluster =   ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0xD);
@@ -724,7 +721,7 @@ private:
             uint16_t fs_info_sector =       ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0x30);
             uint8_t sig =                   ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0x42);
             
-            o->block_ref.reset(c);
+            o->init_block_ref.deinit(c);
             
             if (sector_size == 0 || sector_size % BlockSize != 0) {
                 error_code = 22;
@@ -812,7 +809,7 @@ private:
     APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, complete_write_mount_request (Context c, bool error))
     {
         auto *o = Object::self(c);
-        o->block_ref.reset(c);
+        o->write_block_ref.reset(c);
         o->flush_request.reset(c);
         if (error) {
             o->fs_info_block_ref.reset(c);
@@ -826,7 +823,7 @@ private:
     APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, complete_write_unmount_request (Context c, bool error))
     {
         auto *o = Object::self(c);
-        o->block_ref.reset(c);
+        o->write_block_ref.reset(c);
         o->flush_request.reset(c);
         if (error) {
             o->write_mount_state = WriteMountState::MOUNTED;
@@ -846,7 +843,7 @@ private:
         if (error) {
             return complete_write_mount_request(c, true);
         }
-        ClusterIndexType entry1_value = read_fat_entry_in_cache_block(c, &o->block_ref, FsStatusEntryIndex);
+        ClusterIndexType entry1_value = read_fat_entry_in_cache_block(c, &o->write_block_ref, FsStatusEntryIndex);
         if (!(entry1_value & Entry1CleanBit)) {
             return complete_write_mount_request(c, true);
         }
@@ -869,7 +866,7 @@ private:
         switch (o->write_mount_state) {
             case WriteMountState::MOUNT_FLUSH: {
                 if (error) {
-                    update_fs_clean_bit(c, &o->block_ref, true);
+                    update_fs_clean_bit(c, &o->write_block_ref, true);
                     return complete_write_mount_request(c, true);
                 }
                 return complete_write_mount_request(c, false);
@@ -880,7 +877,7 @@ private:
                     return complete_write_unmount_request(c, true);
                 }
                 o->write_mount_state = WriteMountState::UMOUNT_META;
-                request_fat_cache_block(c, &o->block_ref, FsStatusEntryIndex, true);
+                request_fat_cache_block(c, &o->write_block_ref, FsStatusEntryIndex, true);
             } break;
             
             case WriteMountState::UMOUNT_FLUSH2: {
@@ -913,7 +910,7 @@ private:
         if (alloc_cluster >= 2 && alloc_cluster < 2 + o->num_valid_clusters) {
             o->alloc_position = alloc_cluster - 2;
         }
-        update_fs_clean_bit(c, &o->block_ref, false);
+        update_fs_clean_bit(c, &o->write_block_ref, false);
         o->write_mount_state = WriteMountState::MOUNT_FLUSH;
         o->flush_request.requestFlush(c);
     }
@@ -927,11 +924,11 @@ private:
         if (error) {
             return complete_write_unmount_request(c, true);
         }
-        ClusterIndexType entry1_value = read_fat_entry_in_cache_block(c, &o->block_ref, FsStatusEntryIndex);
+        ClusterIndexType entry1_value = read_fat_entry_in_cache_block(c, &o->write_block_ref, FsStatusEntryIndex);
         if ((entry1_value & Entry1CleanBit)) {
             return complete_write_unmount_request(c, true);
         }
-        update_fs_clean_bit(c, &o->block_ref, true);
+        update_fs_clean_bit(c, &o->write_block_ref, true);
         o->write_mount_state = WriteMountState::UMOUNT_FLUSH2;
         o->flush_request.requestFlush(c);
     }
@@ -1088,7 +1085,7 @@ private:
         if (o->alloc_state != AllocationState::IDLE && o->allocating_chains_list.isEmpty()) {
             o->alloc_state = AllocationState::IDLE;
             o->alloc_event.unset(c);
-            o->block_ref.reset(c);
+            o->write_block_ref.reset(c);
         }
     }
     
@@ -1121,7 +1118,7 @@ private:
             start_new_allocation(c);
         } else {
             o->alloc_state = AllocationState::IDLE;
-            o->block_ref.reset(c);
+            o->write_block_ref.reset(c);
         }
         complete_request->allocation_result(c, error, cluster_index);
     }
@@ -1136,7 +1133,7 @@ private:
         while (true) {
             ClusterIndexType current_cluster = 2 + o->alloc_position;
             
-            if (!request_fat_cache_block(c, &o->block_ref, current_cluster, false)) {
+            if (!request_fat_cache_block(c, &o->write_block_ref, current_cluster, false)) {
                 o->alloc_state = AllocationState::REQUESTING_BLOCK;
                 return;
             }
@@ -1146,9 +1143,9 @@ private:
                 o->alloc_position = 0;
             }
             
-            ClusterIndexType fat_value = read_fat_entry_in_cache_block(c, &o->block_ref, current_cluster);
+            ClusterIndexType fat_value = read_fat_entry_in_cache_block(c, &o->write_block_ref, current_cluster);
             if (fat_value == 0) {
-                update_fat_entry_in_cache_block(c, &o->block_ref, current_cluster, EndOfChainMarker);
+                update_fat_entry_in_cache_block(c, &o->write_block_ref, current_cluster, EndOfChainMarker);
                 update_fs_info_free_clusters(c, false);
                 update_fs_info_allocated_cluster(c);
                 return complete_allocation(c, false, current_cluster);
@@ -1177,6 +1174,12 @@ private:
         DoubleEndedListNode<ClusterChain<true>> m_allocating_chains_node;
         ClusterIndexType m_prev_cluster;
     };
+    
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(FsWritable, static, void, set_fs_entry_extra (FsEntry *entry, BlockIndexType dir_entry_block_index, DirEntriesPerBlockType dir_entry_block_offset))
+    {
+        entry->dir_entry_block_index = dir_entry_block_index;
+        entry->dir_entry_block_offset = dir_entry_block_offset;
+    }
     
     template <bool Writable>
     class ClusterChain : public ClusterChainExtraMembers<Writable> {
@@ -1726,8 +1729,9 @@ private:
             entry.type = is_dir ? EntryType::DIR_TYPE : EntryType::FILE_TYPE;
             entry.file_size = file_size;
             entry.cluster_index = first_cluster;
-            entry.dir_entry_block_index = get_cluster_data_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster - 1);
-            entry.dir_entry_block_offset = m_block_entry_pos - 1;
+            set_fs_entry_extra(&entry,
+                get_cluster_data_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster - 1),
+                m_block_entry_pos - 1);
             
             return complete_request(c, false, filename, entry);
         }
@@ -1841,6 +1845,7 @@ private:
     
     APRINTER_STRUCT_IF_TEMPLATE(FsWritableMembers) {
         typename Context::EventLoop::QueuedEvent alloc_event;
+        CacheBlockRef write_block_ref;
         CacheBlockRef fs_info_block_ref;
         CacheFlushRequest flush_request;
         WriteMountState write_mount_state;
@@ -1857,16 +1862,20 @@ public:
         TheDebugObject,
         TheBlockCache
     >>, public FsWritableMembers<FsWritable> {
-        CacheBlockRef block_ref;
         typename TheBlockAccess::BlockRange block_range;
         FsState state;
-        uint8_t num_fats;
-        ClusterBlockIndexType blocks_per_cluster;
-        ClusterIndexType root_cluster;
-        ClusterIndexType num_fat_entries;
-        BlockIndexType num_reserved_blocks;
-        BlockIndexType fat_end_blocks;
-        ClusterIndexType num_valid_clusters;
+        union {
+            CacheBlockRef init_block_ref;
+            struct {
+                uint8_t num_fats;
+                ClusterBlockIndexType blocks_per_cluster;
+                ClusterIndexType root_cluster;
+                ClusterIndexType num_fat_entries;
+                BlockIndexType num_reserved_blocks;
+                BlockIndexType fat_end_blocks;
+                ClusterIndexType num_valid_clusters;
+            };
+        };
     };
 };
 
