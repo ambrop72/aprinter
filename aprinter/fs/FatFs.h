@@ -33,6 +33,7 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/EnableIf.h>
 #include <aprinter/meta/FunctionIf.h>
+#include <aprinter/meta/StructIf.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
@@ -297,11 +298,7 @@ public:
         DirectoryIterator m_dir_iter;
     };
     
-    template <bool Writable, typename Dummy=void>
-    class FileExtraMembers {};
-    
-    template <typename Dummy>
-    class FileExtraMembers<true, Dummy> {
+    APRINTER_STRUCT_IF_TEMPLATE(FileExtraMembers) {
         DirEntryRef<true> m_dir_entry;
         size_t m_write_bytes_in_block;
         BlockIndexType m_dir_entry_block_index;
@@ -1175,11 +1172,7 @@ private:
         o->alloc_event.prependNowNotAlready(c);
     }
     
-    template <bool Writable, typename Dummy=void>
-    class ClusterChainExtraMembers {};
-    
-    template <typename Dummy>
-    class ClusterChainExtraMembers<true, Dummy> {
+    APRINTER_STRUCT_IF_TEMPLATE(ClusterChainExtraMembers) {
         CacheBlockRef m_fat_cache_ref2;
         DoubleEndedListNode<ClusterChain<true>> m_allocating_chains_node;
         ClusterIndexType m_prev_cluster;
@@ -1846,11 +1839,7 @@ private:
         bool m_taken;
     };
     
-    template <bool Writable, typename Dummy=void>
-    class FsWritableMembers {};
-    
-    template <typename Dummy>
-    class FsWritableMembers<true, Dummy> {
+    APRINTER_STRUCT_IF_TEMPLATE(FsWritableMembers) {
         typename Context::EventLoop::QueuedEvent alloc_event;
         CacheBlockRef fs_info_block_ref;
         CacheFlushRequest flush_request;

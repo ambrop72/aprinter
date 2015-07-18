@@ -38,6 +38,12 @@ struct name##__impl <true, name##__IfDummy>
 ; template <typename name##__IfDummy> \
 struct name##__impl <false, name##__IfDummy>
 
+#define APRINTER_STRUCT_IF_TEMPLATE(name) \
+template <bool name##__IfEnable, typename name##__IfDummy = void> \
+struct name {}; \
+template <typename name##__IfDummy> \
+struct name <true, name##__IfDummy>
+
 #include <aprinter/EndNamespace.h>
 
 #endif
