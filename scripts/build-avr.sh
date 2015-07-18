@@ -108,8 +108,13 @@ build_avr() {
     echo "   Building images"
     ($V; "$AVR_OBJCOPY" -j .text -j .data -O ihex "$TARGET.elf" "$TARGET.hex" || exit 2)
     
-    echo -n "   Size of build: "
-    "$AVR_SIZE" --format=avr --mcu=${MCU} "${TARGET}.elf" | grep bytes | sed 's/\(.*\):\s*\(.* bytes.* Full\)/\1: \2/g' | sed 'N;s/\n/\; /' | sed 's/\s\s*/ /g'
+    if "$AVR_SIZE" --help | grep 'format.*avr'; then
+        echo -n "   Size of build: "
+        "$AVR_SIZE" --format=avr --mcu=${MCU} "${TARGET}.elf" | grep bytes | sed 's/\(.*\):\s*\(.* bytes.* Full\)/\1: \2/g' | sed 'N;s/\n/\; /' | sed 's/\s\s*/ /g'
+    else
+        echo "   Size of build: "
+        "$AVR_SIZE" "${TARGET}.elf" | sed 's/^/    /'
+    fi
 }
 
 upload_avr() {
