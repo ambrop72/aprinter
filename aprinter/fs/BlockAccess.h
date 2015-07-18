@@ -54,6 +54,7 @@ private:
 public:
     using BlockIndexType = typename TheSd::BlockIndexType;
     static size_t const BlockSize = TheSd::BlockSize;
+    static int const MaxBufferLocks = 1;
     
     struct BlockRange {
         BlockIndexType start_block;
@@ -143,14 +144,16 @@ public:
         
     public:
         using HandlerType = Callback<void(Context c, bool error)>;
+        using LockerType = Callback<void(Context c, bool lock_else_unlock)>;
         
-        void init (Context c, HandlerType handler)
+        void init (Context c, HandlerType handler, LockerType locker = LockerType::Make(nullptr, nullptr))
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
             
             m_handler = handler;
+            m_locker = locker;
             m_state = USER_STATE_IDLE;
         }
         
@@ -190,6 +193,7 @@ public:
         }
         
         HandlerType m_handler;
+        LockerType m_locker;
         uint8_t m_state;
         BlockIndexType m_block_idx;
         WrapBuffer m_buf;
@@ -224,6 +228,9 @@ private:
         
         User *user = o->queue.first();
         AMBRO_ASSERT(user->m_state == User::USER_STATE_READING || user->m_state == User::USER_STATE_WRITING)
+        if (user->m_state == User::USER_STATE_WRITING && user->m_locker) {
+            user->m_locker(c, false);
+        }
         o->queue.removeFirst();
         user->m_state = User::USER_STATE_IDLE;
         o->state = STATE_READY;
@@ -254,6 +261,9 @@ private:
             if (user->m_state == User::USER_STATE_READING) {
                 TheSd::startReadBlock(c, user->m_block_idx, user->m_buf);
             } else {
+                if (user->m_locker) {
+                    user->m_locker(c, true);
+                }
                 TheSd::startWriteBlock(c, user->m_block_idx, user->m_buf);
             }
             o->state = STATE_BUSY;

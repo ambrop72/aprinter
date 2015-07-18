@@ -34,6 +34,7 @@
 #include <aprinter/meta/EnableIf.h>
 #include <aprinter/meta/FunctionIf.h>
 #include <aprinter/meta/StructIf.h>
+#include <aprinter/meta/If.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
@@ -709,7 +710,7 @@ private:
                 goto error;
             }
             
-            char const *buffer = o->init_block_ref.getData(c);
+            char const *buffer = o->init_block_ref.getData(c, WrapBool<false>());
             
             uint16_t sector_size =          ReadBinaryInt<uint16_t, BinaryLittleEndian>(buffer + 0xB);
             uint8_t sectors_per_cluster =   ReadBinaryInt<uint8_t,  BinaryLittleEndian>(buffer + 0xD);
@@ -898,7 +899,7 @@ private:
         if (error) {
             return complete_write_mount_request(c, true);
         }
-        char *buffer = o->fs_info_block_ref.getData(c);
+        char const *buffer = o->fs_info_block_ref.getData(c, WrapBool<false>());
         uint32_t sig1          = ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + FsInfoSig1Offset);
         uint32_t sig2          = ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + FsInfoSig2Offset);
         uint32_t sig3          = ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + FsInfoSig3Offset);
@@ -970,19 +971,20 @@ private:
         return block_ref->requestBlock(c, abs_block_idx, num_blocks_per_fat, o->num_fats, disable_immediate_completion);
     }
     
-    static char * get_fat_ptr_in_cache_block (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_idx)
+    template <bool ForWriting>
+    static If<ForWriting, char, char const> * get_fat_ptr_in_cache_block (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_idx)
     {
         AMBRO_ASSERT(is_cluster_idx_valid_for_fat(c, cluster_idx))
         AMBRO_ASSERT(block_ref->getBlock(c) == get_abs_block_index_for_fat_entry(c, cluster_idx))
         
-        return block_ref->getData(c) + ((size_t)4 * (cluster_idx % FatEntriesPerBlock));
+        return block_ref->getData(c, WrapBool<ForWriting>()) + ((size_t)4 * (cluster_idx % FatEntriesPerBlock));
     }
     
     static ClusterIndexType read_fat_entry_in_cache_block (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_idx)
     {
         AMBRO_ASSERT(is_cluster_idx_valid_for_fat(c, cluster_idx))
         
-        char *entry_ptr = get_fat_ptr_in_cache_block(c, block_ref, cluster_idx);
+        char const *entry_ptr = get_fat_ptr_in_cache_block<false>(c, block_ref, cluster_idx);
         return mask_cluster_entry(ReadBinaryInt<uint32_t, BinaryLittleEndian>(entry_ptr));
     }
     
@@ -990,7 +992,7 @@ private:
     {
         AMBRO_ASSERT(is_cluster_idx_valid_for_fat(c, cluster_idx))
         
-        char *entry_ptr = get_fat_ptr_in_cache_block(c, block_ref, cluster_idx);
+        char *entry_ptr = get_fat_ptr_in_cache_block<true>(c, block_ref, cluster_idx);
         uint32_t new_entry_value = update_cluster_entry(ReadBinaryInt<uint32_t, BinaryLittleEndian>(entry_ptr), value);
         WriteBinaryInt<uint32_t, BinaryLittleEndian>(new_entry_value, entry_ptr);
         block_ref->markDirty(c);
@@ -1048,7 +1050,8 @@ private:
         auto *o = Object::self(c);
         
         ClusterIndexType value = 2 + o->alloc_position;
-        WriteBinaryInt<uint32_t, BinaryLittleEndian>(value, o->fs_info_block_ref.getData(c) + FsInfoAllocatedClusterOffset);
+        char *buffer = o->fs_info_block_ref.getData(c, WrapBool<true>());
+        WriteBinaryInt<uint32_t, BinaryLittleEndian>(value, buffer + FsInfoAllocatedClusterOffset);
         o->fs_info_block_ref.markDirty(c);
     }
     
@@ -1056,14 +1059,15 @@ private:
     {
         auto *o = Object::self(c);
         
-        uint32_t free_clusters = ReadBinaryInt<uint32_t, BinaryLittleEndian>(o->fs_info_block_ref.getData(c) + FsInfoFreeClustersOffset);
+        char *buffer = o->fs_info_block_ref.getData(c, WrapBool<true>());
+        uint32_t free_clusters = ReadBinaryInt<uint32_t, BinaryLittleEndian>(buffer + FsInfoFreeClustersOffset);
         if (free_clusters <= o->num_valid_clusters) {
             if (inc_else_dec) {
                 free_clusters++;
             } else {
                 free_clusters--;
             }
-            WriteBinaryInt<uint32_t, BinaryLittleEndian>(free_clusters, o->fs_info_block_ref.getData(c) + FsInfoFreeClustersOffset);
+            WriteBinaryInt<uint32_t, BinaryLittleEndian>(free_clusters, buffer + FsInfoFreeClustersOffset);
             o->fs_info_block_ref.markDirty(c);
         }
     }
@@ -1494,15 +1498,16 @@ private:
         {
             AMBRO_ASSERT(m_state == State::READY)
             
-            return mask_cluster_entry(read_dir_entry_first_cluster(c, get_entry_ptr(c)));
+            return mask_cluster_entry(read_dir_entry_first_cluster(c, get_entry_ptr<false>(c)));
         }
         
         void setFirstCluster (Context c, ClusterIndexType value)
         {
             AMBRO_ASSERT(m_state == State::READY)
             
-            uint32_t write_value = update_cluster_entry(read_dir_entry_first_cluster(c, get_entry_ptr(c)), value);
-            write_dir_entry_first_cluster(c, write_value, get_entry_ptr(c));
+            char *buffer = get_entry_ptr<true>(c);
+            uint32_t write_value = update_cluster_entry(read_dir_entry_first_cluster(c, buffer), value);
+            write_dir_entry_first_cluster(c, write_value, buffer);
             m_block_ref.markDirty(c);
         }
         
@@ -1510,14 +1515,14 @@ private:
         {
             AMBRO_ASSERT(m_state == State::READY)
             
-            return ReadBinaryInt<uint32_t, BinaryLittleEndian>(get_entry_ptr(c) + DirEntrySizeOffset);
+            return ReadBinaryInt<uint32_t, BinaryLittleEndian>(get_entry_ptr<false>(c) + DirEntrySizeOffset);
         }
         
         void setFileSize (Context c, uint32_t value)
         {
             AMBRO_ASSERT(m_state == State::READY)
             
-            WriteBinaryInt<uint32_t, BinaryLittleEndian>(value, get_entry_ptr(c) + DirEntrySizeOffset);
+            WriteBinaryInt<uint32_t, BinaryLittleEndian>(value, get_entry_ptr<true>(c) + DirEntrySizeOffset);
             m_block_ref.markDirty(c);
         }
         
@@ -1531,9 +1536,10 @@ private:
             return m_handler(c, error);
         }
         
-        char * get_entry_ptr (Context c)
+        template <bool ForWriting>
+        If<ForWriting, char, char const> * get_entry_ptr (Context c)
         {
-            return m_block_ref.getData(c) + ((size_t)m_block_offset * 32);
+            return m_block_ref.getData(c, WrapBool<ForWriting>()) + ((size_t)m_block_offset * 32);
         }
         
         CacheBlockRef m_block_ref;
@@ -1618,7 +1624,8 @@ private:
                 m_block_entry_pos = 0;
             }
             
-            char const *entry_ptr = m_dir_block_ref.getData(c) + ((size_t)m_block_entry_pos * 32);
+            char const *entry_ptr = m_dir_block_ref.getData(c, WrapBool<false>()) + ((size_t)m_block_entry_pos * 32);
+            
             uint8_t first_byte =    ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0x0);
             uint8_t attrs =         ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xB);
             uint8_t type_byte =     ReadBinaryInt<uint8_t, BinaryLittleEndian>(entry_ptr + 0xC);

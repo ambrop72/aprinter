@@ -27,10 +27,12 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <string.h>
 
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/FunctionIf.h>
+#include <aprinter/meta/WrapValue.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
@@ -55,6 +57,8 @@ private:
     using DirtTimeType = uint32_t;
     static constexpr DirtTimeType DirtSignBit = ((DirtTimeType)-1 / 2) + 1;
     using CacheEntryIndexType = ChooseIntForMax<NumCacheEntries, true>;
+    static int const NumBuffers = NumCacheEntries + (Writable ? TheBlockAccess::MaxBufferLocks : 0);
+    using BufferIndexType = ChooseIntForMax<NumBuffers, true>;
     
     enum class CacheEntryEvent : uint8_t {READ_COMPLETED};
     
@@ -68,8 +72,12 @@ public:
         auto *o = Object::self(c);
         
         writable_init(c);
+        for (int i = 0; i < NumBuffers; i++) {
+            o->buffer_usage[i] = false;
+        }
         for (int i = 0; i < NumCacheEntries; i++) {
-            o->cache_entries[i].init(c);
+            o->buffer_usage[i] = true;
+            o->cache_entries[i].init(c, i);
         }
         
         TheDebugObject::init(c);
@@ -266,12 +274,20 @@ public:
             return m_state == State::AVAILABLE;
         }
         
-        char * getData (Context c)
+        char const * getData (Context c, WrapBool<false> for_reading)
         {
             this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
             
-            return get_entry(c)->getData(c);
+            return get_entry(c)->getDataForReading(c);
+        }
+        
+        APRINTER_FUNCTION_IF(Writable, char *, getData (Context c, WrapBool<true> for_writing))
+        {
+            this->debugAccess(c);
+            AMBRO_ASSERT(isAvailable(c))
+            
+            return get_entry(c)->getDataForWriting(c);
         }
         
         APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c))
@@ -571,6 +587,17 @@ private:
         return ((DirtTimeType)(t1 - t2) >= DirtSignBit);
     }
     
+    APRINTER_FUNCTION_IF_EXT(Writable, static, BufferIndexType, find_free_buffer (Context c))
+    {
+        auto *o = Object::self(c);
+        for (int i = 0; i < NumBuffers; i++) {
+            if (!o->buffer_usage[i]) {
+                return i;
+            }
+        }
+        return -1;
+    }
+    
     enum class DirtState : uint8_t {CLEAN, DIRTY, WRITING};
     
     APRINTER_STRUCT_IF_TEMPLATE(CacheEntryWritableMemebers) {
@@ -581,17 +608,19 @@ private:
         uint8_t m_write_index;
         DirtTimeType m_dirt_time;
         BlockIndexType m_write_stride;
+        BufferIndexType m_writing_buffer;
     };
     
     class CacheEntry : private CacheEntryWritableMemebers<Writable> {
         enum class State : uint8_t {INVALID, READING, IDLE, WRITING};
         
     public:
-        void init (Context c)
+        void init (Context c, BufferIndexType buffer_index)
         {
-            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_handler, this));
+            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_handler, this), APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_locker<>, this));
             m_cache_users_list.init();
             m_state = State::INVALID;
+            m_active_buffer = buffer_index;
             writable_init(c);
         }
         
@@ -655,10 +684,26 @@ private:
             return m_block;
         }
         
-        char * getData (Context c)
+        char const * getDataForReading (Context c)
         {
             AMBRO_ASSERT(isInitialized(c))
-            return m_buffer;
+            return get_buffer(c);
+        }
+        
+        APRINTER_FUNCTION_IF(Writable, char *, getDataForWriting (Context c))
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(isInitialized(c))
+            
+            if (m_active_buffer == this->m_writing_buffer) {
+                AMBRO_ASSERT(m_state == State::WRITING)
+                BufferIndexType new_buffer = find_free_buffer(c);
+                AMBRO_ASSERT(new_buffer != -1)
+                o->buffer_usage[new_buffer] = true;
+                memcpy(o->buffers[new_buffer], get_buffer(c), BlockSize);
+                m_active_buffer = new_buffer;
+            }
+            return get_buffer(c);
         }
         
         APRINTER_FUNCTION_IF(Writable, DirtTimeType, getDirtTime (Context c))
@@ -682,7 +727,7 @@ private:
                 m_state = State::READING;
                 m_block = block;
                 set_write_params(write_stride, write_count);
-                m_block_user.startRead(c, m_block, WrapBuffer::Make(m_buffer));
+                m_block_user.startRead(c, m_block, WrapBuffer::Make(get_buffer(c)));
             }
             
             m_cache_users_list.append(user);
@@ -713,14 +758,14 @@ private:
         {
             AMBRO_ASSERT(m_state == State::IDLE)
             AMBRO_ASSERT(this->m_dirt_state == DirtState::DIRTY)
+            AMBRO_ASSERT(this->m_writing_buffer == -1)
             
             m_state = State::WRITING;
             this->m_last_write_failed = false;
             this->m_dirt_state = DirtState::WRITING;
             this->m_write_index = 1;
-            m_block_user.startWrite(c, m_block, WrapBuffer::Make(m_buffer));
             
-            // TBD: Figure out the problem with modifying the block while it's being written out.
+            m_block_user.startWrite(c, m_block, WrapBuffer::Make(get_buffer(c)));
         }
         
         APRINTER_FUNCTION_IF(Writable, void, startRelease (Context c))
@@ -748,6 +793,7 @@ private:
         {
             this->m_releasing = false;
             this->m_last_write_failed = false;
+            this->m_writing_buffer = -1;
         }
         
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, writable_read_completed (Context c))
@@ -771,6 +817,12 @@ private:
         {
             this->m_write_stride = write_stride;
             this->m_write_count = write_count;
+        }
+        
+        char * get_buffer (Context c)
+        {
+            auto *o = Object::self(c);
+            return o->buffers[m_active_buffer];
         }
         
         void raise_cache_event (Context c, CacheEntryEvent event, bool error)
@@ -812,17 +864,35 @@ private:
             }
         }
         
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, block_user_locker (Context c, bool lock_else_unlock))
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(m_state == State::WRITING)
+            
+            if (lock_else_unlock) {
+                AMBRO_ASSERT(this->m_writing_buffer == -1)
+                this->m_writing_buffer = m_active_buffer;
+            } else {
+                AMBRO_ASSERT(this->m_writing_buffer != -1)
+                if (m_active_buffer != this->m_writing_buffer) {
+                    o->buffer_usage[this->m_writing_buffer] = false;
+                }
+                this->m_writing_buffer = -1;
+            }
+        }
+        
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, handle_writing_event (Context c, bool error))
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(this->m_dirt_state != DirtState::CLEAN)
             AMBRO_ASSERT(!this->m_last_write_failed)
             AMBRO_ASSERT(this->m_write_index <= this->m_write_count)
+            AMBRO_ASSERT(this->m_writing_buffer == -1)
             
             if (!error && this->m_write_index < this->m_write_count) {
                 BlockIndexType write_block = m_block + this->m_write_index * this->m_write_stride;
                 this->m_write_index++;
-                m_block_user.startWrite(c, write_block, WrapBuffer::Make(m_buffer));
+                m_block_user.startWrite(c, write_block, WrapBuffer::Make(get_buffer(c)));
                 return;
             }
             
@@ -855,7 +925,7 @@ private:
         DoubleEndedList<CacheRef, &CacheRef::m_list_node> m_cache_users_list;
         State m_state;
         BlockIndexType m_block;
-        char m_buffer[BlockSize];
+        BufferIndexType m_active_buffer;
     };
     
     APRINTER_STRUCT_IF_TEMPLATE(CacheWritableMembers) {
@@ -870,6 +940,8 @@ public:
         TheDebugObject
     >>, public CacheWritableMembers<Writable> {
         CacheEntry cache_entries[NumCacheEntries];
+        bool buffer_usage[NumBuffers];
+        char buffers[NumBuffers][BlockSize];
     };
 };
 
