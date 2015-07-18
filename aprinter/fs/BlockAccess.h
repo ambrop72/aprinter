@@ -43,6 +43,8 @@ template <typename Context, typename ParentObject, typename ActivateHandler, typ
 class BlockAccess {
 public:
     struct Object;
+    class User;
+    class UserFull;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
@@ -139,22 +141,22 @@ public:
     class User {
     private:
         friend BlockAccess;
+        friend class UserFull;
         
         enum {USER_STATE_IDLE, USER_STATE_READING, USER_STATE_WRITING};
         
     public:
         using HandlerType = Callback<void(Context c, bool error)>;
-        using LockerType = Callback<void(Context c, bool lock_else_unlock)>;
         
-        void init (Context c, HandlerType handler, LockerType locker = LockerType::Make(nullptr, nullptr))
+        void init (Context c, HandlerType handler)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
             
             m_handler = handler;
-            m_locker = locker;
             m_state = USER_STATE_IDLE;
+            m_is_full = false;
         }
         
         // WARNING: Only allowed together with deiniting the whole storage or when not reading!
@@ -193,11 +195,31 @@ public:
         }
         
         HandlerType m_handler;
-        LockerType m_locker;
-        uint8_t m_state;
+        uint8_t m_state : 3;
+        bool m_is_full : 1;
         BlockIndexType m_block_idx;
         WrapBuffer m_buf;
         DoubleEndedListNode<User> m_list_node;
+    };
+    
+    class UserFull : public User {
+    public:
+        using LockerType = Callback<void(Context c, bool lock_else_unlock)>;
+        
+        void init (Context c, typename User::HandlerType handler)
+        {
+            User::init(c, handler);
+            this->m_is_full = true;
+            m_locker = LockerType::MakeNull();
+        }
+        
+        void setLocker (Context c, LockerType locker)
+        {
+            m_locker = locker;
+        }
+        
+    private:
+        LockerType m_locker;
     };
     
 private:
@@ -228,8 +250,8 @@ private:
         
         User *user = o->queue.first();
         AMBRO_ASSERT(user->m_state == User::USER_STATE_READING || user->m_state == User::USER_STATE_WRITING)
-        if (user->m_state == User::USER_STATE_WRITING && user->m_locker) {
-            user->m_locker(c, false);
+        if (user->m_state == User::USER_STATE_WRITING) {
+            maybe_call_locker(c, user, false);
         }
         o->queue.removeFirst();
         user->m_state = User::USER_STATE_IDLE;
@@ -261,12 +283,20 @@ private:
             if (user->m_state == User::USER_STATE_READING) {
                 TheSd::startReadBlock(c, user->m_block_idx, user->m_buf);
             } else {
-                if (user->m_locker) {
-                    user->m_locker(c, true);
-                }
+                maybe_call_locker(c, user, true);
                 TheSd::startWriteBlock(c, user->m_block_idx, user->m_buf);
             }
             o->state = STATE_BUSY;
+        }
+    }
+    
+    static void maybe_call_locker (Context c, User *user, bool lock_else_unlock)
+    {
+        if (user->m_is_full) {
+            UserFull *userfull = static_cast<UserFull *>(user);
+            if (userfull->m_locker) {
+                userfull->m_locker(c, lock_else_unlock);
+            }
         }
     }
     

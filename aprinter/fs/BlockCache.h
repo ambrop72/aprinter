@@ -33,6 +33,7 @@
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/FunctionIf.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/If.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
@@ -53,7 +54,7 @@ public:
 private:
     class CacheEntry;
     using TheDebugObject = DebugObject<Context, Object>;
-    using BlockAccessUser = typename TheBlockAccess::User;
+    using BlockAccessUser = If<Writable, typename TheBlockAccess::UserFull, typename TheBlockAccess::User>;
     using DirtTimeType = uint32_t;
     static constexpr DirtTimeType DirtSignBit = ((DirtTimeType)-1 / 2) + 1;
     using CacheEntryIndexType = ChooseIntForMax<NumCacheEntries, true>;
@@ -617,7 +618,7 @@ private:
     public:
         void init (Context c, BufferIndexType buffer_index)
         {
-            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_handler, this), APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_locker<>, this));
+            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_handler, this));
             m_cache_users_list.init();
             m_state = State::INVALID;
             m_active_buffer = buffer_index;
@@ -791,6 +792,7 @@ private:
     private:
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, writable_init (Context c))
         {
+            m_block_user.setLocker(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_locker<>, this));
             this->m_releasing = false;
             this->m_last_write_failed = false;
             this->m_writing_buffer = -1;
@@ -864,7 +866,7 @@ private:
             }
         }
         
-        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, block_user_locker (Context c, bool lock_else_unlock))
+        APRINTER_FUNCTION_IF(Writable, void, block_user_locker (Context c, bool lock_else_unlock))
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::WRITING)

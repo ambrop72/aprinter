@@ -50,6 +50,11 @@ public:
         return Callback{func, arg};
     }
     
+    static Callback MakeNull ()
+    {
+        return Callback{nullptr, nullptr};
+    }
+    
 public:
     FuncType m_func;
     void *m_arg;
