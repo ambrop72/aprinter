@@ -55,13 +55,13 @@ public:
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
-    using TheBlockCache = BlockCache<Context, Object, TheBlockAccess, Params::NumCacheEntries>;
+    using TheBlockCache = BlockCache<Context, Object, TheBlockAccess, Params::NumCacheEntries, FsWritable>;
     
     using BlockAccessUser = typename TheBlockAccess::User;
     using BlockIndexType = typename TheBlockAccess::BlockIndexType;
     static size_t const BlockSize = TheBlockAccess::BlockSize;
     using CacheBlockRef = typename TheBlockCache::CacheRef;
-    using CacheFlushRequest = typename TheBlockCache::FlushRequest;
+    using CacheFlushRequest = typename TheBlockCache::template FlushRequest<>;
     
     static_assert(BlockSize >= 0x47, "BlockSize not enough for EBPB");
     static_assert(BlockSize % 32 == 0, "BlockSize not a multiple of 32");

@@ -29,6 +29,8 @@
 #include <stddef.h>
 
 #include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/StructIf.h>
+#include <aprinter/meta/FunctionIf.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
@@ -38,12 +40,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename TTheBlockAccess, int TNumCacheEntries>
+template <typename Context, typename ParentObject, typename TTheBlockAccess, int TNumCacheEntries, bool TWritable>
 class BlockCache {
 public:
     struct Object;
     using TheBlockAccess = TTheBlockAccess;
     static int const NumCacheEntries = TNumCacheEntries;
+    static bool const Writable = TWritable;
     
 private:
     class CacheEntry;
@@ -64,10 +67,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->allocations_event.init(c, APRINTER_CB_STATFUNC_T(&BlockCache::allocations_event_handler));
-        o->current_dirt_time = 0;
-        o->waiting_flush_requests.init();
-        o->pending_allocations.init();
+        writable_init(c);
         for (int i = 0; i < NumCacheEntries; i++) {
             o->cache_entries[i].init(c);
         }
@@ -79,15 +79,15 @@ public:
     {
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
-        AMBRO_ASSERT(o->pending_allocations.isEmpty())
-        AMBRO_ASSERT(o->waiting_flush_requests.isEmpty())
+        writable_deinit_assert(c);
         
         for (int i = 0; i < NumCacheEntries; i++) {
             o->cache_entries[i].deinit(c);
         }
-        o->allocations_event.deinit(c);
+        writable_deinit(c);
     }
     
+    template <typename Dummy=void>
     class FlushRequest : private SimpleDebugObject<Context> {
         friend BlockCache;
         
@@ -175,7 +175,12 @@ public:
         bool m_error;
     };
     
-    class CacheRef : private SimpleDebugObject<Context> {
+    APRINTER_STRUCT_IF_TEMPLATE(CacheRefWritableMemebers) {
+        BlockIndexType m_write_stride;
+        uint8_t m_write_count;
+    };
+    
+    class CacheRef : private SimpleDebugObject<Context>, private CacheRefWritableMemebers<Writable> {
         friend BlockCache;
         friend class CacheEntry;
         
@@ -212,8 +217,7 @@ public:
             this->debugAccess(c);
             
             if (!disable_immediate_completion && m_state != State::INVALID && block == m_block) {
-                AMBRO_ASSERT(write_stride == m_write_stride)
-                AMBRO_ASSERT(write_count == m_write_count)
+                check_write_params(write_stride, write_count);
             } else {
                 if (m_state != State::INVALID) {
                     reset_internal(c);
@@ -221,13 +225,12 @@ public:
                 
                 AMBRO_ASSERT(m_entry_index == -1)
                 m_block = block;
-                m_write_stride = write_stride;
-                m_write_count = write_count;
+                set_write_params(write_stride, write_count);
                 
                 CacheEntryIndexType entry_index = get_entry_for_block(c, m_block);
                 if (entry_index != -1) {
                     m_entry_index = entry_index;
-                    get_entry(c)->assignBlockAndAttachUser(c, m_block, m_write_stride, m_write_count, this);
+                    get_entry(c)->assignBlockAndAttachUser(c, m_block, write_stride, write_count, this);
                     if (!get_entry(c)->isInitialized(c)) {
                         m_state = State::WAITING_READ;
                     } else {
@@ -238,9 +241,11 @@ public:
                         }
                     }
                 } else {
-                    m_state = State::ALLOCATING_ENTRY;
-                    o->pending_allocations.append(this);
-                    schedule_allocations_check(c);
+                    if (Writable) {
+                        start_allocation(c);
+                    } else {
+                        complete_init(c);
+                    }
                 }
             }
             
@@ -269,7 +274,7 @@ public:
             return get_entry(c)->getData(c);
         }
         
-        void markDirty (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c))
         {
             this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
@@ -278,6 +283,26 @@ public:
         }
         
     private:
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, check_write_params (BlockIndexType write_stride, uint8_t write_count))
+        {
+            AMBRO_ASSERT(write_stride == this->m_write_stride)
+            AMBRO_ASSERT(write_count == this->m_write_count)
+        }
+        
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, set_write_params (BlockIndexType write_stride, uint8_t write_count))
+        {
+            this->m_write_stride = write_stride;
+            this->m_write_count = write_count;
+        }
+        
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, start_allocation (Context c))
+        {
+            auto *o = Object::self(c);
+            m_state = State::ALLOCATING_ENTRY;
+            o->pending_allocations.append(this);
+            schedule_allocations_check(c);
+        }
+        
         CacheEntry * get_entry (Context c)
         {
             auto *o = Object::self(c);
@@ -291,11 +316,17 @@ public:
                 get_entry(c)->detachUser(c, this);
                 m_entry_index = -1;
             }
-            if (m_state == State::ALLOCATING_ENTRY) {
-                o->pending_allocations.remove(this);
+            if (Writable && m_state == State::ALLOCATING_ENTRY) {
+                remove_from_pending_allocations(c);
             }
             m_event.unset(c);
             m_state = State::INVALID;
+        }
+        
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, remove_from_pending_allocations (Context c))
+        {
+            auto *o = Object::self(c);
+            o->pending_allocations.remove(this);
         }
         
         void complete_init (Context c)
@@ -318,7 +349,7 @@ public:
             return m_handler(c, error);
         }
         
-        void allocation_event (Context c, bool error)
+        APRINTER_FUNCTION_IF(Writable, void, allocation_event (Context c, bool error))
         {
             auto *o = Object::self(c);
             this->debugAccess(c);
@@ -334,7 +365,7 @@ public:
             if (entry_index != -1) {
                 o->pending_allocations.remove(this);
                 m_entry_index = entry_index;
-                get_entry(c)->assignBlockAndAttachUser(c, m_block, m_write_stride, m_write_count, this);
+                get_entry(c)->assignBlockAndAttachUser(c, m_block, this->m_write_stride, this->m_write_count, this);
                 if (!get_entry(c)->isInitialized(c)) {
                     m_state = State::WAITING_READ;
                     return;
@@ -361,14 +392,34 @@ public:
         typename Context::EventLoop::QueuedEvent m_event;
         DoubleEndedListNode<CacheRef> m_list_node;
         BlockIndexType m_block;
-        BlockIndexType m_write_stride;
         CacheEntryIndexType m_entry_index;
         State m_state;
-        uint8_t m_write_count;
     };
     
 private:
-    static bool is_flush_completed (Context c, bool accept_errors, bool *out_error)
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(Writable, static, void, writable_init (Context c))
+    {
+        auto *o = Object::self(c);
+        o->allocations_event.init(c, APRINTER_CB_STATFUNC_T(&BlockCache::allocations_event_handler<>));
+        o->current_dirt_time = 0;
+        o->waiting_flush_requests.init();
+        o->pending_allocations.init();
+    }
+    
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(Writable, static, void, writable_deinit_assert (Context c))
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->pending_allocations.isEmpty())
+        AMBRO_ASSERT(o->waiting_flush_requests.isEmpty())
+    }
+    
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(Writable, static, void, writable_deinit (Context c))
+    {
+        auto *o = Object::self(c);
+        o->allocations_event.deinit(c);
+    }
+    
+    APRINTER_FUNCTION_IF_EXT(Writable, static, bool, is_flush_completed (Context c, bool accept_errors, bool *out_error))
     {
         auto *o = Object::self(c);
         bool error = false;
@@ -388,7 +439,7 @@ private:
         return true;
     }
     
-    static void start_writing_for_flush (Context c)
+    APRINTER_FUNCTION_IF_EXT(Writable, static, void, start_writing_for_flush (Context c))
     {
         auto *o = Object::self(c);
         for (int i = 0; i < NumCacheEntries; i++) {
@@ -399,12 +450,12 @@ private:
         }
     }
     
-    static void complete_flush (Context c, bool error)
+    APRINTER_FUNCTION_IF_EXT(Writable, static, void, complete_flush (Context c, bool error))
     {
         auto *o = Object::self(c);
-        FlushRequest *req = o->waiting_flush_requests.first();
+        FlushRequest<> *req = o->waiting_flush_requests.first();
         while (req) {
-            FlushRequest *next = o->waiting_flush_requests.next(req);
+            FlushRequest<> *next = o->waiting_flush_requests.next(req);
             req->flush_request_result(c, error);
             req = next;
         }
@@ -437,7 +488,7 @@ private:
         return (invalid_entry != -1) ? invalid_entry : recyclable_entry;
     }
     
-    static void report_allocation_event (Context c, bool error)
+    APRINTER_FUNCTION_IF_EXT(Writable, static, void, report_allocation_event (Context c, bool error))
     {
         auto *o = Object::self(c);
         CacheRef *ref = o->pending_allocations.first();
@@ -449,7 +500,7 @@ private:
         AMBRO_ASSERT(!error || o->pending_allocations.isEmpty())
     }
     
-    static void schedule_allocations_check (Context c)
+    APRINTER_FUNCTION_IF_EXT(Writable, static, void, schedule_allocations_check (Context c))
     {
         auto *o = Object::self(c);
         if (!o->allocations_event.isSet(c)) {
@@ -457,7 +508,7 @@ private:
         }
     }
     
-    static void allocations_event_handler (Context c)
+    APRINTER_FUNCTION_IF_EXT(Writable, static, void, allocations_event_handler (Context c))
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -479,7 +530,7 @@ private:
         }
     }
     
-    static bool assure_release_in_progress (Context c)
+    APRINTER_FUNCTION_IF_EXT(Writable, static, bool, assure_release_in_progress (Context c))
     {
         auto *o = Object::self(c);
         
@@ -502,7 +553,7 @@ private:
         return true;
     }
     
-    static void entry_release_result (Context c, CacheEntry *entry, bool error)
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(Writable, static, void, entry_release_result (Context c, CacheEntry *entry, bool error))
     {
         AMBRO_ASSERT(entry->isBeingReleased(c))
         AMBRO_ASSERT(entry->isAssigned(c) == error)
@@ -520,9 +571,20 @@ private:
         return ((DirtTimeType)(t1 - t2) >= DirtSignBit);
     }
     
-    class CacheEntry {
+    enum class DirtState : uint8_t {CLEAN, DIRTY, WRITING};
+    
+    APRINTER_STRUCT_IF_TEMPLATE(CacheEntryWritableMemebers) {
+        bool m_releasing;
+        bool m_last_write_failed;
+        DirtState m_dirt_state;
+        uint8_t m_write_count;
+        uint8_t m_write_index;
+        DirtTimeType m_dirt_time;
+        BlockIndexType m_write_stride;
+    };
+    
+    class CacheEntry : private CacheEntryWritableMemebers<Writable> {
         enum class State : uint8_t {INVALID, READING, IDLE, WRITING};
-        enum class DirtState : uint8_t {CLEAN, DIRTY, WRITING};
         
     public:
         void init (Context c)
@@ -530,8 +592,7 @@ private:
             m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_handler, this));
             m_cache_users_list.init();
             m_state = State::INVALID;
-            m_releasing = false;
-            m_last_write_failed = false;
+            writable_init(c);
         }
         
         void deinit (Context c)
@@ -553,17 +614,17 @@ private:
         
         bool canReassign (Context c)
         {
-            return m_state == State::IDLE && m_dirt_state == DirtState::CLEAN && m_cache_users_list.isEmpty();
+            return m_state == State::IDLE && get_dirt_state() == DirtState::CLEAN && m_cache_users_list.isEmpty();
         }
         
-        bool isDirty (Context c)
+        APRINTER_FUNCTION_IF(Writable, bool, isDirty (Context c))
         {
-            return isInitialized(c) && m_dirt_state != DirtState::CLEAN;
+            return isInitialized(c) && this->m_dirt_state != DirtState::CLEAN;
         }
         
-        bool canStartWrite (Context c)
+        APRINTER_FUNCTION_IF(Writable, bool, canStartWrite (Context c))
         {
-            return m_state == State::IDLE && m_dirt_state != DirtState::CLEAN;
+            return m_state == State::IDLE && this->m_dirt_state != DirtState::CLEAN;
         }
         
         bool isReferenced (Context c)
@@ -571,20 +632,21 @@ private:
             return !m_cache_users_list.isEmpty();
         }
         
-        bool isBeingReleased (Context c)
+        APRINTER_FUNCTION_IF_ELSE(Writable, bool, isBeingReleased (Context c), {
+            return this->m_releasing;
+        }, {
+            return false;
+        })
+        
+        APRINTER_FUNCTION_IF(Writable, bool, canStartRelease (Context c))
         {
-            return m_releasing;
+            return m_state != State::INVALID && (m_state != State::IDLE || this->m_dirt_state != DirtState::CLEAN) &&
+                   m_cache_users_list.isEmpty() && !this->m_releasing;
         }
         
-        bool canStartRelease (Context c)
+        APRINTER_FUNCTION_IF(Writable, bool, hasLastWriteFailed (Context c))
         {
-            return m_state != State::INVALID && (m_state != State::IDLE || m_dirt_state != DirtState::CLEAN) &&
-                   m_cache_users_list.isEmpty() && !m_releasing;
-        }
-        
-        bool hasLastWriteFailed (Context c)
-        {
-            return m_last_write_failed;
+            return this->m_last_write_failed;
         }
         
         BlockIndexType getBlock (Context c)
@@ -599,10 +661,10 @@ private:
             return m_buffer;
         }
         
-        DirtTimeType getDirtTime (Context c)
+        APRINTER_FUNCTION_IF(Writable, DirtTimeType, getDirtTime (Context c))
         {
             AMBRO_ASSERT(isDirty(c))
-            return m_dirt_time;
+            return this->m_dirt_time;
         }
         
         void assignBlockAndAttachUser (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, CacheRef *user)
@@ -611,17 +673,15 @@ private:
             AMBRO_ASSERT(!isBeingReleased(c))
             
             if (m_state != State::INVALID && block == m_block) {
-                AMBRO_ASSERT(write_stride == m_write_stride)
-                AMBRO_ASSERT(write_count == m_write_count)
+                check_write_params(write_stride, write_count);
             } else {
                 AMBRO_ASSERT(m_cache_users_list.isEmpty())
                 AMBRO_ASSERT(m_state == State::INVALID || m_state == State::IDLE)
-                AMBRO_ASSERT(m_state == State::INVALID || m_dirt_state == DirtState::CLEAN)
+                AMBRO_ASSERT(m_state == State::INVALID || get_dirt_state() == DirtState::CLEAN)
                 
                 m_state = State::READING;
                 m_block = block;
-                m_write_stride = write_stride;
-                m_write_count = write_count;
+                set_write_params(write_stride, write_count);
                 m_block_user.startRead(c, m_block, WrapBuffer::Make(m_buffer));
             }
             
@@ -633,57 +693,86 @@ private:
             m_cache_users_list.remove(user);
         }
         
-        void markDirty (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c))
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(isInitialized(c))
             AMBRO_ASSERT(isReferenced(c))
             AMBRO_ASSERT(!isBeingReleased(c))
             
-            if (m_dirt_state != DirtState::DIRTY) {
-                m_dirt_state = DirtState::DIRTY;
-                m_dirt_time = o->current_dirt_time++;
+            if (this->m_dirt_state != DirtState::DIRTY) {
+                this->m_dirt_state = DirtState::DIRTY;
+                this->m_dirt_time = o->current_dirt_time++;
             }
             if (!o->waiting_flush_requests.isEmpty() && m_state == State::IDLE) {
                 startWriting(c);
             }
         }
         
-        void startWriting (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, startWriting (Context c))
         {
             AMBRO_ASSERT(m_state == State::IDLE)
-            AMBRO_ASSERT(m_dirt_state == DirtState::DIRTY)
+            AMBRO_ASSERT(this->m_dirt_state == DirtState::DIRTY)
             
             m_state = State::WRITING;
-            m_last_write_failed = false;
-            m_dirt_state = DirtState::WRITING;
-            m_write_index = 1;
+            this->m_last_write_failed = false;
+            this->m_dirt_state = DirtState::WRITING;
+            this->m_write_index = 1;
             m_block_user.startWrite(c, m_block, WrapBuffer::Make(m_buffer));
             
             // TBD: Figure out the problem with modifying the block while it's being written out.
         }
         
-        void startRelease (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, startRelease (Context c))
         {
             AMBRO_ASSERT(isAssigned(c))
             AMBRO_ASSERT(!canReassign(c))
             AMBRO_ASSERT(!isReferenced(c))
             AMBRO_ASSERT(!isBeingReleased(c))
             
-            m_releasing = true;
+            this->m_releasing = true;
             if (m_state == State::IDLE) {
                 startWriting(c);
             }
         }
         
-        void completeRelease (Context c)
+        APRINTER_FUNCTION_IF(Writable, void, completeRelease (Context c))
         {
-            AMBRO_ASSERT(m_releasing)
+            AMBRO_ASSERT(this->m_releasing)
             
-            m_releasing = false;
+            this->m_releasing = false;
         }
         
     private:
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, writable_init (Context c))
+        {
+            this->m_releasing = false;
+            this->m_last_write_failed = false;
+        }
+        
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, writable_read_completed (Context c))
+        {
+            this->m_dirt_state = DirtState::CLEAN;
+        }
+        
+        APRINTER_FUNCTION_IF_ELSE(Writable, DirtState, get_dirt_state (), {
+            return this->m_dirt_state;
+        }, {
+            return DirtState::CLEAN;
+        })
+        
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, check_write_params (BlockIndexType write_stride, uint8_t write_count))
+        {
+            AMBRO_ASSERT(write_stride == this->m_write_stride)
+            AMBRO_ASSERT(write_count == this->m_write_count)
+        }
+        
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, set_write_params (BlockIndexType write_stride, uint8_t write_count))
+        {
+            this->m_write_stride = write_stride;
+            this->m_write_count = write_count;
+        }
+        
         void raise_cache_event (Context c, CacheEntryEvent event, bool error)
         {
             CacheRef *ref = m_cache_users_list.first();
@@ -697,90 +786,89 @@ private:
         void block_user_handler (Context c, bool error)
         {
             auto *o = Object::self(c);
-            AMBRO_ASSERT(!m_releasing || !isReferenced(c))
+            AMBRO_ASSERT(!isBeingReleased(c) || !isReferenced(c))
             
-            switch (m_state) {
-                case State::READING: {
-                    if (error || m_releasing) {
-                        m_state = State::INVALID;
-                        if (m_releasing) {
-                            entry_release_result(c, this, false);
-                            return;
-                        }
-                        raise_cache_event(c, CacheEntryEvent::READ_COMPLETED, error);
-                        AMBRO_ASSERT(!isReferenced(c))
+            if (m_state == State::READING) {
+                if (error || isBeingReleased(c)) {
+                    m_state = State::INVALID;
+                    if (isBeingReleased(c)) {
+                        entry_release_result(c, this, false);
                         return;
                     }
-                    
-                    m_state = State::IDLE;
-                    m_dirt_state = DirtState::CLEAN;
                     raise_cache_event(c, CacheEntryEvent::READ_COMPLETED, error);
-                } break;
+                    AMBRO_ASSERT(!isReferenced(c))
+                    return;
+                }
                 
-                case State::WRITING: {
-                    AMBRO_ASSERT(m_dirt_state != DirtState::CLEAN)
-                    AMBRO_ASSERT(!m_last_write_failed)
-                    AMBRO_ASSERT(m_write_index <= m_write_count)
-                    
-                    if (!error && m_write_index < m_write_count) {
-                        BlockIndexType write_block = m_block + m_write_index * m_write_stride;
-                        m_write_index++;
-                        m_block_user.startWrite(c, write_block, WrapBuffer::Make(m_buffer));
-                        return;
-                    }
-                    
-                    m_state = State::IDLE;
-                    m_last_write_failed = error;
-                    m_dirt_state = (!error && m_dirt_state == DirtState::WRITING) ? DirtState::CLEAN : DirtState::DIRTY;
-                    
-                    if (!error && m_dirt_state == DirtState::DIRTY && (!o->waiting_flush_requests.isEmpty() || m_releasing)) {
-                        startWriting(c);
-                        return;
-                    }
-                    
-                    if (m_releasing) {
-                        if (!error) {
-                            AMBRO_ASSERT(m_dirt_state == DirtState::CLEAN)
-                            m_state = State::INVALID;
-                        }
-                        entry_release_result(c, this, error);
-                    }
-                    
-                    if (!o->waiting_flush_requests.isEmpty()) {
-                        bool flush_error;
-                        if (is_flush_completed(c, true, &flush_error)) {
-                            complete_flush(c, flush_error);
-                        }
-                    }
-                } break;
-                
-                default:
-                    AMBRO_ASSERT(false);
+                m_state = State::IDLE;
+                writable_read_completed(c);
+                raise_cache_event(c, CacheEntryEvent::READ_COMPLETED, error);
+            }
+            else if (Writable && m_state == State::WRITING) {
+                handle_writing_event(c, error);
+            }
+            else {
+                AMBRO_ASSERT(false)
+            }
+        }
+        
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, handle_writing_event (Context c, bool error))
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(this->m_dirt_state != DirtState::CLEAN)
+            AMBRO_ASSERT(!this->m_last_write_failed)
+            AMBRO_ASSERT(this->m_write_index <= this->m_write_count)
+            
+            if (!error && this->m_write_index < this->m_write_count) {
+                BlockIndexType write_block = m_block + this->m_write_index * this->m_write_stride;
+                this->m_write_index++;
+                m_block_user.startWrite(c, write_block, WrapBuffer::Make(m_buffer));
+                return;
+            }
+            
+            m_state = State::IDLE;
+            this->m_last_write_failed = error;
+            this->m_dirt_state = (!error && this->m_dirt_state == DirtState::WRITING) ? DirtState::CLEAN : DirtState::DIRTY;
+            
+            if (!error && this->m_dirt_state == DirtState::DIRTY && (!o->waiting_flush_requests.isEmpty() || this->m_releasing)) {
+                startWriting(c);
+                return;
+            }
+            
+            if (this->m_releasing) {
+                if (!error) {
+                    AMBRO_ASSERT(this->m_dirt_state == DirtState::CLEAN)
+                    m_state = State::INVALID;
+                }
+                entry_release_result(c, this, error);
+            }
+            
+            if (!o->waiting_flush_requests.isEmpty()) {
+                bool flush_error;
+                if (is_flush_completed(c, true, &flush_error)) {
+                    complete_flush(c, flush_error);
+                }
             }
         }
         
         BlockAccessUser m_block_user;
         DoubleEndedList<CacheRef, &CacheRef::m_list_node> m_cache_users_list;
         State m_state;
-        bool m_releasing;
-        bool m_last_write_failed;
-        DirtState m_dirt_state;
-        DirtTimeType m_dirt_time;
         BlockIndexType m_block;
-        BlockIndexType m_write_stride;
-        uint8_t m_write_count;
-        uint8_t m_write_index;
         char m_buffer[BlockSize];
+    };
+    
+    APRINTER_STRUCT_IF_TEMPLATE(CacheWritableMembers) {
+        typename Context::EventLoop::QueuedEvent allocations_event;
+        DirtTimeType current_dirt_time;
+        DoubleEndedList<FlushRequest<>, &FlushRequest<>::m_waiting_flush_requests_node> waiting_flush_requests;
+        DoubleEndedList<CacheRef, &CacheRef::m_list_node> pending_allocations;
     };
     
 public:
     struct Object : public ObjBase<BlockCache, ParentObject, MakeTypeList<
         TheDebugObject
-    >> {
-        typename Context::EventLoop::QueuedEvent allocations_event;
-        DirtTimeType current_dirt_time;
-        DoubleEndedList<FlushRequest, &FlushRequest::m_waiting_flush_requests_node> waiting_flush_requests;
-        DoubleEndedList<CacheRef, &CacheRef::m_list_node> pending_allocations;
+    >>, public CacheWritableMembers<Writable> {
         CacheEntry cache_entries[NumCacheEntries];
     };
 };
