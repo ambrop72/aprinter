@@ -135,7 +135,7 @@ public:
             if (is_flush_completed(c, false, nullptr)) {
                 return complete(c, false);
             }
-            o->waiting_flush_requests.append(this);
+            o->waiting_flush_requests.prepend(this);
             m_state = State::WAITING;
             start_writing_for_flush(c);
         }
@@ -731,7 +731,7 @@ private:
                 m_block_user.startRead(c, m_block, WrapBuffer::Make(get_buffer(c)));
             }
             
-            m_cache_users_list.append(user);
+            m_cache_users_list.prepend(user);
         }
         
         void detachUser (Context c, CacheRef *user)
@@ -924,7 +924,7 @@ private:
         }
         
         BlockAccessUser m_block_user;
-        DoubleEndedList<CacheRef, &CacheRef::m_list_node> m_cache_users_list;
+        DoubleEndedList<CacheRef, &CacheRef::m_list_node, false> m_cache_users_list;
         State m_state;
         BlockIndexType m_block;
         BufferIndexType m_active_buffer;
@@ -933,7 +933,7 @@ private:
     APRINTER_STRUCT_IF_TEMPLATE(CacheWritableMembers) {
         typename Context::EventLoop::QueuedEvent allocations_event;
         DirtTimeType current_dirt_time;
-        DoubleEndedList<FlushRequest<>, &FlushRequest<>::m_waiting_flush_requests_node> waiting_flush_requests;
+        DoubleEndedList<FlushRequest<>, &FlushRequest<>::m_waiting_flush_requests_node, false> waiting_flush_requests;
         DoubleEndedList<CacheRef, &CacheRef::m_list_node> pending_allocations;
     };
     
