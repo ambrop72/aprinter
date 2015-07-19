@@ -53,7 +53,7 @@ private:
     using TimeType = typename TheClockUtils::TimeType;
     
     enum {
-        STATE_INACTIVE, STATE_POWERON, STATE_GO_IDLE, STATE_IF_COND,
+        STATE_INACTIVE, STATE_POWERON, STATE_POWER_CLOCKS, STATE_GO_IDLE, STATE_IF_COND,
         STATE_OP_COND_APP, STATE_OP_COND, STATE_SEND_CID, STATE_RELATIVE_ADDR,
         STATE_SEND_CSD, STATE_SELECT, STATE_WIDEBUS_APP, STATE_WIDEBUS,
         STATE_RUNNING
@@ -62,6 +62,7 @@ private:
     enum {IO_STATE_IDLE, IO_STATE_READING, IO_STATE_WRITING};
     
     static TimeType const PowerOnTimeTicks = 0.0015 * TheClockUtils::time_freq;
+    static TimeType const PowerClocksTimeTicks = 0.001 * TheClockUtils::time_freq;
     static TimeType const InitTimeoutTicks = 1.2 * TheClockUtils::time_freq;
     static TimeType const ProgrammingTimeoutTicks = 5.0 * TheClockUtils::time_freq;
     static uint32_t const IfCondArgumentResponse = UINT32_C(0x1AA);
@@ -114,10 +115,8 @@ public:
         AMBRO_ASSERT(o->state == STATE_INACTIVE)
         
         TheSdio::startPowerOn(c, SdioIface::InterfaceParams{false, false});
-        
         TimeType timer_time = Context::Clock::getTime(c) + PowerOnTimeTicks;
         o->timer.appendAt(c, timer_time);
-        
         o->state = STATE_POWERON;
     }
     
@@ -192,11 +191,17 @@ private:
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_POWERON)
+        AMBRO_ASSERT(o->state == STATE_POWERON || o->state == STATE_POWER_CLOCKS)
         
-        TheSdio::completePowerOn(c);
-        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_GO_IDLE_STATE, 0, SdioIface::RESPONSE_NONE});
-        o->state = STATE_GO_IDLE;
+        if (o->state == STATE_POWERON) {
+            TheSdio::completePowerOn(c);
+            TimeType timer_time = Context::Clock::getTime(c) + PowerClocksTimeTicks;
+            o->timer.appendAt(c, timer_time);
+            o->state = STATE_POWER_CLOCKS;
+        } else {
+            TheSdio::startCommand(c, SdioIface::CommandParams{CMD_GO_IDLE_STATE, 0, SdioIface::RESPONSE_NONE});
+            o->state = STATE_GO_IDLE;
+        }
     }
     
     static void sdio_command_handler (Context c, SdioIface::CommandResults results)
