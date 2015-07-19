@@ -44,6 +44,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
+#include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -189,27 +190,27 @@ private:
     
     AMBRO_STRUCT_IF(AvgFeature, Params::AvgParams::Enabled) {
         struct Object;
-        using Clock = typename Context::Clock;
-        using TimeType = typename Clock::TimeType;
-        static TimeType const Interval = Params::AvgParams::AvgInterval::value() / Clock::time_unit;
+        using TheClockUtils = ClockUtils<Context>;
+        using TimeType = typename TheClockUtils::TimeType;
+        static TimeType const Interval = Params::AvgParams::AvgInterval::value() * TheClockUtils::time_freq;
         
         static void init (Context c)
         {
             auto *o = Object::self(c);
-            o->m_next = Clock::getTime(c) + Interval;
+            o->m_poll_timer.setAfter(c, Interval);
         }
         
         static void work (InterruptContext<Context> c)
         {
             auto *o = Object::self(c);
-            if ((TimeType)(Clock::getTime(c) - o->m_next) < UINT32_C(0x80000000)) {
+            if (o->m_poll_timer.isExpired(c)) {
                 ListForEachForward<PinsList>(LForeach_calc_avg(), c);
-                o->m_next += Interval;
+                o->m_poll_timer.addTime(Interval);
             }
         }
         
         struct Object : public ObjBase<AvgFeature, typename At91SamAdc::Object, EmptyTypeList> {
-            TimeType m_next;
+            typename TheClockUtils::PollTimer m_poll_timer;
         };
     } AMBRO_STRUCT_ELSE(AvgFeature) {
         static void init (Context c) {}

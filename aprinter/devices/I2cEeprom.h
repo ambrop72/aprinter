@@ -33,6 +33,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -45,9 +46,9 @@ private:
     static_assert(Params::Size % Params::BlockSize == 0, "");
     static_assert(Params::Size <= UINT32_C(65536), "");
     struct I2cHandler;
-    using Clock = typename Context::Clock;
-    using TimeType = typename Clock::TimeType;
-    static TimeType const WriteTimeoutTicks = Params::WriteTimeout::value() / Clock::time_unit;
+    using TheClockUtils = ClockUtils<Context>;
+    using TimeType = typename TheClockUtils::TimeType;
+    static TimeType const WriteTimeoutTicks = Params::WriteTimeout::value() * TheClockUtils::time_freq;
     using TheDebugObject = DebugObject<Context, Object>;
     using TheI2c = typename Params::I2cService::template I2c<Context, Object, I2cHandler>;
     enum {STATE_IDLE, STATE_READ_SEEK, STATE_READ_READ, STATE_WRITE_TRANSFER, STATE_WRITE_POLL};
@@ -136,11 +137,11 @@ private:
         } else if (o->state == STATE_WRITE_TRANSFER) {
             TheI2c::startWrite(c, Params::I2cAddr, o->addr_buf, 2, NULL, 0);
             o->state = STATE_WRITE_POLL;
-            o->write.timeout_time = Clock::getTime(c) + WriteTimeoutTicks;
+            o->write.poll_timer.setAfter(c, WriteTimeoutTicks);
             return;
         } else if (o->state == STATE_WRITE_POLL) {
             if (!success) {
-                if ((TimeType)(Clock::getTime(c) - o->write.timeout_time) < UINT32_C(0x80000000)) {
+                if (o->write.poll_timer.isExpired(c)) {
                     o->success = false;
                     goto end;
                 }
@@ -190,7 +191,7 @@ public:
                 SizeType offset;
                 uint8_t const *data;
                 SizeType length;
-                TimeType timeout_time;
+                typename TheClockUtils::PollTimer poll_timer;
             } write;
         };
     };

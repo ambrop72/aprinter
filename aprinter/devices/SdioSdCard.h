@@ -35,6 +35,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/devices/SdioInterface.h>
+#include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -48,7 +49,8 @@ private:
     struct SdioCommandHandler;
     struct SdioDataHandler;
     using TheSdio = typename Params::SdioService::template Sdio<Context, Object, SdioCommandHandler, SdioDataHandler>;
-    using TimeType = typename Context::Clock::TimeType;
+    using TheClockUtils = ClockUtils<Context>;
+    using TimeType = typename TheClockUtils::TimeType;
     
     enum {
         STATE_INACTIVE, STATE_POWERON, STATE_GO_IDLE, STATE_IF_COND,
@@ -59,9 +61,9 @@ private:
     
     enum {IO_STATE_IDLE, IO_STATE_READING, IO_STATE_WRITING};
     
-    static TimeType const PowerOnTimeTicks = 0.0015 * Context::Clock::time_freq;
-    static TimeType const InitTimeoutTicks = 1.2 * Context::Clock::time_freq;
-    static TimeType const ProgrammingTimeoutTicks = 5.0 * Context::Clock::time_freq;
+    static TimeType const PowerOnTimeTicks = 0.0015 * TheClockUtils::time_freq;
+    static TimeType const InitTimeoutTicks = 1.2 * TheClockUtils::time_freq;
+    static TimeType const ProgrammingTimeoutTicks = 5.0 * TheClockUtils::time_freq;
     static uint32_t const IfCondArgumentResponse = UINT32_C(0x1AA);
     static uint32_t const OpCondArgument = UINT32_C(0x40100000);
     
@@ -220,7 +222,7 @@ private:
                 }
                 send_app_cmd(c, 0);
                 o->state = STATE_OP_COND_APP;
-                o->deadline = Context::Clock::getTime(c) + InitTimeoutTicks;
+                o->poll_timer.setAfter(c, InitTimeoutTicks);
             } break;
             
             case STATE_OP_COND_APP: {
@@ -237,7 +239,7 @@ private:
                 }
                 uint32_t ocr = results.response[0];
                 if (!(ocr & OCR_CPUS)) {
-                    if ((uint32_t)(Context::Clock::getTime(c) - o->deadline) < UINT32_C(0x80000000)) {
+                    if (o->poll_timer.isExpired(c)) {
                         return init_error(c, 6);
                     }
                     send_app_cmd(c, 0);
@@ -346,7 +348,7 @@ private:
                     } else {
                         uint8_t card_state = (results.response[0] >> 9) & 0xF;
                         if (card_state == 6 || card_state == 7) {
-                            if ((uint32_t)(Context::Clock::getTime(c) - o->deadline) < UINT32_C(0x80000000)) {
+                            if (o->poll_timer.isExpired(c)) {
                                 return complete_operation(c, true);
                             }
                             
@@ -382,7 +384,7 @@ private:
         if (o->io_state == IO_STATE_READING) {
             return check_read_complete(c);
         } else {
-            o->deadline = Context::Clock::getTime(c) + ProgrammingTimeoutTicks;
+            o->poll_timer.setAfter(c, ProgrammingTimeoutTicks);
             o->cmd_finished = false;
             TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_STATUS, (uint32_t)o->rca << 16, SdioIface::RESPONSE_SHORT});
         }
@@ -458,7 +460,7 @@ public:
     >> {
         typename Context::EventLoop::TimedEvent timer;
         uint8_t state;
-        TimeType deadline;
+        typename TheClockUtils::PollTimer poll_timer;
         bool is_sdhc;
         uint16_t rca;
         uint32_t capacity_blocks;

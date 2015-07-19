@@ -42,6 +42,7 @@
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/system/InterruptLock.h>
+#include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -56,6 +57,7 @@ public:
     using Context = TContext;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
+    using TheClockUtils = ClockUtils<Context>;
     using QueuedEvent = BusyEventLoopQueuedEvent<BusyEventLoop>;
     using TimedEvent = BusyEventLoopTimedEvent<BusyEventLoop>;
     using FastHandlerType = void (*) (Context);
@@ -117,7 +119,7 @@ public:
             TimeType now = Clock::getTime(c);
             for (BaseEventStruct *ev = o->m_event_list.first(); ev; ev = o->m_event_list.next(ev)) {
                 AMBRO_ASSERT(!EventList::isRemoved(ev))
-                if (ev->handler_or_hack || (TimeType)(now - static_cast<TimedEventStruct *>(ev)->time) < UINT32_C(0x80000000)) {
+                if (ev->handler_or_hack || TheClockUtils::timeGreaterOrEqual(now, static_cast<TimedEventStruct *>(ev)->time)) {
                     o->m_event_list.remove(ev);
                     EventList::markRemoved(ev);
                     bench_start_measuring(c);

@@ -37,6 +37,7 @@
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/misc/CrcItuT.h>
+#include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -52,11 +53,12 @@ private:
     static const int SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
     using TheDebugObject = DebugObject<Context, Object>;
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
-    using TimeType = typename Context::Clock::TimeType;
+    using TheClockUtils = ClockUtils<Context>;
+    using TimeType = typename TheClockUtils::TimeType;
     
-    static TimeType const IdleStateTimeoutTicks = 1.2 * Context::Clock::time_freq;
-    static TimeType const InitTimeoutTicks = 1.2 * Context::Clock::time_freq;
-    static TimeType const WriteBusyTimeoutTicks = 5.0 * Context::Clock::time_freq;
+    static TimeType const IdleStateTimeoutTicks = 1.2 * TheClockUtils::time_freq;
+    static TimeType const InitTimeoutTicks = 1.2 * TheClockUtils::time_freq;
+    static TimeType const WriteBusyTimeoutTicks = 5.0 * TheClockUtils::time_freq;
     
 public:
     using BlockIndexType = uint32_t;
@@ -238,14 +240,14 @@ private:
         switch (o->m_state) {
             case STATE_INIT1: {
                 Context::Pins::template set<SsPin>(c, false);
-                start_deadline(c, IdleStateTimeoutTicks);
+                o->m_poll_timer.setAfter(c, IdleStateTimeoutTicks);
                 sd_command(c, CMD_GO_IDLE_STATE, 0, true, o->m_buf1, o->m_buf1);
                 o->m_state = STATE_INIT2;
             } break;
             
             case STATE_INIT2: {
                 if (o->m_buf1[0] != R1_IN_IDLE_STATE) {
-                    if (is_deadline_over(c)) {
+                    if (o->m_poll_timer.isExpired(c)) {
                         return error(c, 1);
                     }
                     sd_command(c, CMD_GO_IDLE_STATE, 0, true, o->m_buf1, o->m_buf1);
@@ -272,7 +274,7 @@ private:
                 if ((r7_response & UINT32_C(0xFFF)) != IfCondArgumentResponse) {
                     return error(c, 13);
                 }
-                start_deadline(c, InitTimeoutTicks);
+                o->m_poll_timer.setAfter(c, InitTimeoutTicks);
                 sd_command(c, CMD_APP_CMD, 0, true, o->m_buf2, o->m_buf2);
                 o->m_state = STATE_INIT4;
             } break;
@@ -284,7 +286,7 @@ private:
             
             case STATE_INIT5: {
                 if (o->m_buf2[0] != 0 || o->m_buf1[0] != 0) {
-                    if (is_deadline_over(c)) {
+                    if (o->m_poll_timer.isExpired(c)) {
                         return error(c, 3);
                     }
                     sd_command(c, CMD_APP_CMD, 0, true, o->m_buf2, o->m_buf2);
@@ -431,13 +433,13 @@ private:
                 }
                 TheSpi::cmdReadUntilDifferent(c, 0x00, 255, 0xff, o->m_io_buf);
                 o->m_io_state = IO_STATE_WRITING_BUSY;
-                start_deadline(c, WriteBusyTimeoutTicks);
+                o->m_poll_timer.setAfter(c, WriteBusyTimeoutTicks);
                 return;
             } break;
             
             case IO_STATE_WRITING_BUSY: {
                 if (o->m_io_buf[0] == 0x00) {
-                    if (is_deadline_over(c)) {
+                    if (o->m_poll_timer.isExpired(c)) {
                         goto complete_request;
                     }
                     TheSpi::cmdReadUntilDifferent(c, 0x00, 255, 0xff, o->m_io_buf);
@@ -473,18 +475,6 @@ private:
         o->m_state = STATE_INACTIVE;
     }
     
-    static void start_deadline (Context c, TimeType timeout_ticks)
-    {
-        auto *o = Object::self(c);
-        o->m_deadline = Context::Clock::getTime(c) + timeout_ticks;
-    }
-    
-    static bool is_deadline_over (Context c)
-    {
-        auto *o = Object::self(c);
-        return (uint32_t)(Context::Clock::getTime(c) - o->m_deadline) < UINT32_C(0x80000000);
-    }
-    
     static void error (Context c, uint8_t code)
     {
         deactivate_common(c);
@@ -518,7 +508,7 @@ public:
         uint8_t m_state : 4;
         uint8_t m_io_state : 3;
         bool m_sdhc : 1;
-        TimeType m_deadline;
+        typename TheClockUtils::PollTimer m_poll_timer;
         union {
             struct {
                 uint8_t m_buf1[6];
