@@ -75,8 +75,8 @@ private:
     static_assert(Params::MaxFileNameSize >= 12, "");
     using FileNameLenType = ChooseIntForMax<Params::MaxFileNameSize, false>;
     static_assert(Params::NumCacheEntries >= 1, "");
-    static ClusterIndexType const Entry1CleanBit = UINT32_C(0x8000000);
-    static ClusterIndexType const FsStatusEntryIndex = 1;
+    static size_t const EbpbStatusBitsOffset = 0x41;
+    static uint8_t const StatusBitsDirty = 0x01;
     static ClusterIndexType const EndOfChainMarker = UINT32_C(0x0FFFFFFF);
     static ClusterIndexType const FreeClusterMarker = UINT32_C(0x00000000);
     static ClusterIndexType const NormalClusterIndexEnd = UINT32_C(0x0FFFFFF8);
@@ -178,7 +178,7 @@ public:
         AMBRO_ASSERT(o->alloc_state == AllocationState::IDLE)
         
         o->write_mount_state = WriteMountState::MOUNT_META;
-        request_fat_cache_block(c, &o->write_block_ref, FsStatusEntryIndex, true);
+        o->write_block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
     }
     
     APRINTER_FUNCTION_IF_EXT(FsWritable, static, bool, canStartWriteUnmount (Context c))
@@ -844,8 +844,7 @@ private:
         if (error) {
             return complete_write_mount_request(c, true);
         }
-        ClusterIndexType entry1_value = read_fat_entry_in_cache_block(c, &o->write_block_ref, FsStatusEntryIndex);
-        if (!(entry1_value & Entry1CleanBit)) {
+        if (get_fs_dirty_bit(c, &o->write_block_ref)) {
             return complete_write_mount_request(c, true);
         }
         if (!TheBlockAccess::isWritable(c)) {
@@ -867,7 +866,7 @@ private:
         switch (o->write_mount_state) {
             case WriteMountState::MOUNT_FLUSH: {
                 if (error) {
-                    update_fs_clean_bit(c, &o->write_block_ref, true);
+                    update_fs_dirty_bit(c, &o->write_block_ref, false);
                     return complete_write_mount_request(c, true);
                 }
                 return complete_write_mount_request(c, false);
@@ -878,7 +877,7 @@ private:
                     return complete_write_unmount_request(c, true);
                 }
                 o->write_mount_state = WriteMountState::UMOUNT_META;
-                request_fat_cache_block(c, &o->write_block_ref, FsStatusEntryIndex, true);
+                o->write_block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
             } break;
             
             case WriteMountState::UMOUNT_FLUSH2: {
@@ -911,7 +910,7 @@ private:
         if (alloc_cluster >= 2 && alloc_cluster < 2 + o->num_valid_clusters) {
             o->alloc_position = alloc_cluster - 2;
         }
-        update_fs_clean_bit(c, &o->write_block_ref, false);
+        update_fs_dirty_bit(c, &o->write_block_ref, true);
         o->write_mount_state = WriteMountState::MOUNT_FLUSH;
         o->flush_request.requestFlush(c);
     }
@@ -925,11 +924,10 @@ private:
         if (error) {
             return complete_write_unmount_request(c, true);
         }
-        ClusterIndexType entry1_value = read_fat_entry_in_cache_block(c, &o->write_block_ref, FsStatusEntryIndex);
-        if ((entry1_value & Entry1CleanBit)) {
+        if (!get_fs_dirty_bit(c, &o->write_block_ref)) {
             return complete_write_unmount_request(c, true);
         }
-        update_fs_clean_bit(c, &o->write_block_ref, true);
+        update_fs_dirty_bit(c, &o->write_block_ref, false);
         o->write_mount_state = WriteMountState::UMOUNT_FLUSH2;
         o->flush_request.requestFlush(c);
     }
@@ -1034,15 +1032,24 @@ private:
         WriteBinaryInt<uint16_t, BinaryLittleEndian>(value >> 16, entry_ptr + 0x14);
     }
     
-    static void update_fs_clean_bit (Context c, CacheBlockRef *block_ref, bool set_else_clear)
+    static bool get_fs_dirty_bit (Context c, CacheBlockRef *block_ref)
     {
-        ClusterIndexType entry1_value = read_fat_entry_in_cache_block(c, block_ref, FsStatusEntryIndex);
+        char const *status_bits_ptr = block_ref->getData(c, WrapBool<false>()) + EbpbStatusBitsOffset;
+        uint8_t status_bits = ReadBinaryInt<uint8_t, BinaryLittleEndian>(status_bits_ptr);
+        return (status_bits & StatusBitsDirty);
+    }
+    
+    static void update_fs_dirty_bit (Context c, CacheBlockRef *block_ref, bool set_else_clear)
+    {
+        char *status_bits_ptr = block_ref->getData(c, WrapBool<true>()) + EbpbStatusBitsOffset;
+        uint8_t status_bits = ReadBinaryInt<uint8_t, BinaryLittleEndian>(status_bits_ptr);
         if (set_else_clear) {
-            entry1_value |= Entry1CleanBit;
+            status_bits |= StatusBitsDirty;
         } else {
-            entry1_value &= ~Entry1CleanBit;
+            status_bits &= ~StatusBitsDirty;
         }
-        update_fat_entry_in_cache_block(c, block_ref, FsStatusEntryIndex, entry1_value);
+        WriteBinaryInt<uint8_t, BinaryLittleEndian>(status_bits, status_bits_ptr);
+        block_ref->markDirty(c);
     }
     
     APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, update_fs_info_allocated_cluster (Context c))
