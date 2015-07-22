@@ -88,6 +88,10 @@ private:
         WRITEMOUNT_STATE_UNMOUNTING
     };
     
+    // Note regarding calling the ClearBufferHandler. A non-obvious precondition for clearing the buffer
+    // is that it does not contain a command currently possessing the printer lock. We guarantee this by
+    // always executing ClearBufferHandler as part of commands that take the printer lock.
+    
 public:
     static size_t const NeedBufAvail = TheBlockAccess::BlockSize;
     
@@ -96,55 +100,28 @@ public:
         auto *o = Object::self(c);
         
         TheBlockAccess::init(c);
-        o->init_state = INIT_STATE_INACTIVE;
-        o->listing_state = LISTING_STATE_INACTIVE;
-        o->file_state = FILE_STATE_INACTIVE;
-        o->write_mount_state = WRITEMOUNT_STATE_NOT_MOUNTED;
+        set_default_states(c);
         
         TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         cleanup(c);
         TheBlockAccess::deinit(c);
     }
     
-    static void activate (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->init_state == INIT_STATE_INACTIVE)
-        
-        TheBlockAccess::activate(c);
-        o->init_state = INIT_STATE_ACTIVATE_SD;
-    }
-    
-    static void deactivate (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->init_state != INIT_STATE_INACTIVE)
-        AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE) // due to locking in all of M20,M22,M23
-        
-        cleanup(c);
-    }
-    
     static bool startingIo (Context c, typename ThePrinterMain::CommandType *cmd)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
         AMBRO_ASSERT(o->file_state == FILE_STATE_INACTIVE || o->file_state == FILE_STATE_PAUSED)
         
-        if (o->file_state != FILE_STATE_PAUSED) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:FileNotOpened\n"));
+        if (!check_file_paused(c, cmd)) {
             return false;
         }
-        
         o->file_state = FILE_STATE_RUNNING;
         return true;
     }
@@ -164,16 +141,14 @@ public:
         auto *o = Object::self(c);
         auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
         AMBRO_ASSERT(o->file_state == FILE_STATE_INACTIVE || o->file_state == FILE_STATE_PAUSED)
         
-        if (o->file_state == FILE_STATE_INACTIVE) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:FileNotOpened\n"));
+        if (!check_file_paused(c, cmd)) {
             return false;
         }
-        
         fs_o->file_reader.rewind(c);
         o->file_eof = false;
+        ClientParams::ClearBufferHandler::call(c);
         return true;
     }
     
@@ -211,11 +186,17 @@ public:
     
     static bool checkCommand (Context c, typename ThePrinterMain::CommandType *cmd)
     {
-        auto *o = Object::self(c);
-        auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         
         auto cmd_num = cmd->getCmdNumber(c);
+        if (cmd_num == 21) {
+            handle_mount_command(c, cmd);
+            return false;
+        }
+        if (cmd_num == 22) {
+            handle_unmount_command(c, cmd);
+            return false;
+        }
         if (cmd_num == 20 || cmd_num == 23) {
             handle_navigation_command(c, cmd, (cmd_num == 20));
             return false;
@@ -230,6 +211,15 @@ public:
     using GetSdCard = typename TheBlockAccess::GetSd;
     
 private:
+    static void set_default_states (Context c)
+    {
+        auto *o = Object::self(c);
+        o->init_state = INIT_STATE_INACTIVE;
+        o->listing_state = LISTING_STATE_INACTIVE;
+        o->file_state = FILE_STATE_INACTIVE;
+        o->write_mount_state = WRITEMOUNT_STATE_NOT_MOUNTED;
+    }
+    
     static void cleanup (Context c)
     {
         auto *o = Object::self(c);
@@ -254,11 +244,22 @@ private:
         if (o->init_state >= INIT_STATE_ACTIVATE_SD) {
             TheBlockAccess::deactivate(c);
         }
+        set_default_states(c);
+    }
+    
+    static bool check_file_paused (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        auto *o = Object::self(c);
         
-        o->init_state = INIT_STATE_INACTIVE;
-        o->listing_state = LISTING_STATE_INACTIVE;
-        o->file_state = FILE_STATE_INACTIVE;
-        o->write_mount_state = WRITEMOUNT_STATE_NOT_MOUNTED;
+        if (o->init_state != INIT_STATE_DONE) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+            return false;
+        }
+        if (o->file_state != FILE_STATE_PAUSED) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:FileNotOpened\n"));
+            return false;
+        }
+        return true;
     }
     
     static void block_access_activate_handler (Context c, uint8_t error_code)
@@ -270,7 +271,7 @@ private:
         
         if (error_code) {
             o->init_state = INIT_STATE_INACTIVE;
-            return ClientParams::ActivateHandler::call(c, error_code);
+            return complete_mount_command(c, error_code);
         }
         
         o->init_state = INIT_STATE_READ_MBR;
@@ -334,7 +335,7 @@ private:
         
     error:
         cleanup(c);
-        return ClientParams::ActivateHandler::call(c, error_code);
+        return complete_mount_command(c, error_code);
     }
     
     static void fs_init_handler (Context c, uint8_t error_code)
@@ -353,9 +354,63 @@ private:
             o->init_state = INIT_STATE_DONE;
             fs_o->current_directory = TheFs::getRootEntry(c);
         }
-        return ClientParams::ActivateHandler::call(c, error_code);
+        return complete_mount_command(c, error_code);
     }
     struct FsInitHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_init_handler) {};
+    
+    static void handle_mount_command (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        auto *o = Object::self(c);
+        
+        if (!cmd->tryLockedCommand(c)) {
+            return;
+        }
+        if (o->init_state != INIT_STATE_INACTIVE) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdAlreadyInited\n"));
+            cmd->finishCommand(c);
+            return;
+        }
+        TheBlockAccess::activate(c);
+        o->init_state = INIT_STATE_ACTIVATE_SD;
+    }
+    
+    static void complete_mount_command (Context c, uint8_t error_code)
+    {
+        typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
+        if (error_code) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("SD error "));
+            cmd->reply_append_uint8(c, error_code);
+        } else {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("SD mounted"));
+        }
+        cmd->reply_append_ch(c, '\n');
+        cmd->finishCommand(c);
+    }
+    
+    static void handle_unmount_command (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        auto *o = Object::self(c);
+        
+        if (!cmd->tryLockedCommand(c)) {
+            return;
+        }
+        do {
+            if (o->init_state != INIT_STATE_DONE) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+                break;
+            }
+            if (o->file_state >= FILE_STATE_RUNNING) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintRunning\n"));
+                break;
+            }
+            AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
+            AMBRO_ASSERT(o->write_mount_state == WRITEMOUNT_STATE_MOUNTED || o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED)
+            cleanup(c);
+            ClientParams::ClearBufferHandler::call(c);
+            cmd->reply_append_pstr(c, AMBRO_PSTR("SD unmounted\n"));
+        } while (false);
+        cmd->finishCommand(c);
+    }
     
     static void handle_navigation_command (Context c, typename ThePrinterMain::CommandType *cmd, bool is_dirlist)
     {
@@ -474,10 +529,6 @@ private:
                 fs_o->file_reader.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::file_reader_handler));
                 o->file_state = FILE_STATE_PAUSED;
                 o->file_eof = false;
-                
-                // A non-obvious precondition for clearing the command buffer is that it does not contain
-                // a command currently possessing the printer lock. This is guaranteed because this command
-                // here takes the lock.
                 ClientParams::ClearBufferHandler::call(c);
             }
         } while (false);

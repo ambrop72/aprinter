@@ -49,7 +49,7 @@ private:
     struct SdCardCommandHandler;
     using TheSdCard = typename Params::SdCardService::template SdCard<Context, Object, SdCardInitHandler, SdCardCommandHandler>;
     static size_t const BlockSize = 512;
-    enum {STATE_INACTIVE, STATE_ACTIVATING, STATE_READY, STATE_READING};
+    enum {STATE_INACTIVE, STATE_ACTIVATING, STATE_PAUSED, STATE_READY, STATE_READING};
     
 public:
     static size_t const NeedBufAvail = BlockSize;
@@ -71,42 +71,39 @@ public:
         TheSdCard::deinit(c);
     }
     
-    static void activate (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_INACTIVE)
-        
-        TheSdCard::activate(c);
-        o->state = STATE_ACTIVATING;
-    }
-    
-    static void deactivate (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state != STATE_INACTIVE)
-        
-        TheSdCard::deactivate(c);
-        o->state = STATE_INACTIVE;
-    }
-    
     static bool startingIo (Context c, typename ThePrinterMain::CommandType *cmd)
     {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->state <= STATE_PAUSED)
+        
+        if (!check_file_paused(c, cmd)) {
+            return false;
+        }
+        o->state = STATE_READY;
         return true;
     }
     
     static void pausingIo (Context c)
     {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->state == STATE_READY)
+        
+        o->state = STATE_PAUSED;
     }
     
     static bool rewind (Context c, typename ThePrinterMain::CommandType *cmd)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_READY)
+        AMBRO_ASSERT(o->state <= STATE_PAUSED)
         
+        if (!check_file_paused(c, cmd)) {
+            return false;
+        }
         o->block = 0;
+        ClientParams::ClearBufferHandler::call(c);
         return true;
     }
     
@@ -143,12 +140,39 @@ public:
     
     static bool checkCommand (Context c, typename ThePrinterMain::CommandType *cmd)
     {
+        TheDebugObject::access(c);
+        
+        auto cmd_num = cmd->getCmdNumber(c);
+        if (cmd_num == 21) {
+            handle_mount_command(c, cmd);
+            return false;
+        }
+        if (cmd_num == 22) {
+            handle_unmount_command(c, cmd);
+            return false;
+        }
         return true;
     }
     
     using GetSdCard = TheSdCard;
     
 private:
+    static void handle_mount_command (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        auto *o = Object::self(c);
+        
+        if (!cmd->tryLockedCommand(c)) {
+            return;
+        }
+        if (o->state != STATE_INACTIVE) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdAlreadyInited\n"));
+            cmd->finishCommand(c);
+            return;
+        }
+        TheSdCard::activate(c);
+        o->state = STATE_ACTIVATING;
+    }
+    
     static void sd_card_init_handler (Context c, uint8_t error_code)
     {
         auto *o = Object::self(c);
@@ -158,12 +182,45 @@ private:
         if (error_code) {
             o->state = STATE_INACTIVE;
         } else {
-            o->state = STATE_READY;
+            o->state = STATE_PAUSED;
             o->block = 0;
         }
-        return ClientParams::ActivateHandler::call(c, error_code);
+        
+        typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
+        if (error_code) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("SD error "));
+            cmd->reply_append_uint8(c, error_code);
+        } else {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("SD mounted"));
+        }
+        cmd->reply_append_ch(c, '\n');
+        cmd->finishCommand(c);
     }
     struct SdCardInitHandler : public AMBRO_WFUNC_TD(&SdCardInput::sd_card_init_handler) {};
+    
+    static void handle_unmount_command (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        auto *o = Object::self(c);
+        
+        if (!cmd->tryLockedCommand(c)) {
+            return;
+        }
+        do {
+            if (o->state < STATE_PAUSED) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+                break;
+            }
+            if (o->state > STATE_PAUSED) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintRunning\n"));
+                break;
+            }
+            TheSdCard::deactivate(c);
+            o->state = STATE_INACTIVE;
+            ClientParams::ClearBufferHandler::call(c);
+            cmd->reply_append_pstr(c, AMBRO_PSTR("SD unmounted\n"));
+        } while (false);
+        cmd->finishCommand(c);
+    }
     
     static void sd_card_command_handler (Context c, bool error)
     {
@@ -180,6 +237,17 @@ private:
         return ClientParams::ReadHandler::call(c, error, bytes);
     }
     struct SdCardCommandHandler : public AMBRO_WFUNC_TD(&SdCardInput::sd_card_command_handler) {};
+    
+    static bool check_file_paused (Context c, typename ThePrinterMain::CommandType *cmd)
+    {
+        auto *o = Object::self(c);
+        
+        if (o->state != STATE_PAUSED) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+            return false;
+        }
+        return true;
+    }
     
 public:
     struct Object : public ObjBase<SdCardInput, ParentObject, MakeTypeList<

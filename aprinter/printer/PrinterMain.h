@@ -994,11 +994,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     AMBRO_STRUCT_IF(SdCardFeature, Params::SdCardParams::Enabled) {
         struct Object;
-        struct InputActivateHandler;
         struct InputReadHandler;
         struct InputClearBufferHandler;
         
-        using TheInput = typename Params::SdCardParams::InputService::template Input<Context, Object, InputClientParams<PrinterMain, InputActivateHandler, InputReadHandler, InputClearBufferHandler>>;
+        using TheInput = typename Params::SdCardParams::InputService::template Input<Context, Object, InputClientParams<PrinterMain, InputReadHandler, InputClearBufferHandler>>;
         static const size_t BufferBaseSize = Params::SdCardParams::BufferBaseSize;
         static const size_t MaxCommandSize = Params::SdCardParams::MaxCommandSize;
         static_assert(MaxCommandSize > 0, "");
@@ -1007,7 +1006,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using ParserSizeType = ChooseIntForMax<MaxCommandSize, false>;
         using TheGcodeParser = typename Params::SdCardParams::template GcodeParserTemplate<Context, Object, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
         using TheChannelCommon = ChannelCommon<Object, SdCardFeature>;
-        enum {SDCARD_NONE, SDCARD_INITING, SDCARD_INITED, SDCARD_RUNNING, SDCARD_PAUSING};
+        enum {SDCARD_PAUSED, SDCARD_RUNNING, SDCARD_PAUSING};
         
         static void init (Context c)
         {
@@ -1015,42 +1014,17 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheInput::init(c);
             TheChannelCommon::init(c);
             o->m_next_event.init(c, APRINTER_CB_STATFUNC_T(&SdCardFeature::next_event_handler));
-            o->m_state = SDCARD_NONE;
+            o->m_state = SDCARD_PAUSED;
+            init_buffering(c);
         }
         
         static void deinit (Context c)
         {
             auto *o = Object::self(c);
-            if (o->m_state >= SDCARD_INITED) {
-                TheGcodeParser::deinit(c);
-            }
+            deinit_buffering(c);
             o->m_next_event.deinit(c);
             TheInput::deinit(c);
         }
-        
-        static void input_activate_handler (Context c, uint8_t error_code)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_state == SDCARD_INITING)
-            
-            if (error_code) {
-                o->m_state = SDCARD_NONE;
-            } else {
-                o->m_state = SDCARD_INITED;
-                init_buffer_and_parser(c);
-            }
-            
-            TheCommand *cmd = get_locked(c);
-            if (error_code) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("SD error "));
-                cmd->reply_append_uint8(c, error_code);
-            } else {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("SD inited"));
-            }
-            cmd->reply_append_ch(c, '\n');
-            cmd->finishCommand(c);
-        }
-        struct InputActivateHandler : public AMBRO_WFUNC_TD(&SdCardFeature::input_activate_handler) {};
         
         static void input_read_handler (Context c, bool error, size_t bytes_read)
         {
@@ -1059,6 +1033,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING || o->m_state == SDCARD_PAUSING)
             buf_sanity(c);
             AMBRO_ASSERT(o->m_reading)
+            AMBRO_ASSERT(bytes_read <= BufferBaseSize - o->m_length)
             
             o->m_reading = false;
             if (!error) {
@@ -1072,6 +1047,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 o->m_length += bytes_read;
             }
             if (o->m_state == SDCARD_PAUSING) {
+                if (o->m_pausing_on_command) {
+                    finish_locked(c);
+                }
                 return complete_pause(c);
             }
             if (error) {
@@ -1094,11 +1072,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             auto *co = TheChannelCommon::Object::self(c);
-            AMBRO_ASSERT(o->m_state == SDCARD_INITED)
+            AMBRO_ASSERT(o->m_state == SDCARD_PAUSED)
             
             TheChannelCommon::maybeCancelLockingCommand(c);
-            TheGcodeParser::deinit(c);
-            init_buffer_and_parser(c);
+            deinit_buffering(c);
+            init_buffering(c);
         }
         struct InputClearBufferHandler : public AMBRO_WFUNC_TD(&SdCardFeature::clear_input_buffer) {};
         
@@ -1148,51 +1126,19 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             
+            // Cannot issue SD-card commands from the SD-card.
             if (cmd == TheChannelCommon::impl(c)) {
                 return true;
             }
             
-            if (cmd->getCmdNumber(c) == 21) {
-                if (!cmd->tryLockedCommand(c)) {
-                    return false;
-                }
-                AMBRO_ASSERT(o->m_state != SDCARD_INITING)
-                if (o->m_state != SDCARD_NONE) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdAlreadyInited\n"));
-                    cmd->finishCommand(c);
-                    return false;
-                }
-                TheInput::activate(c);
-                o->m_state = SDCARD_INITING;
-                return false;
-            }
-            if (cmd->getCmdNumber(c) == 22) {
-                if (!cmd->tryLockedCommand(c)) {
-                    return false;
-                }
-                AMBRO_ASSERT(o->m_state != SDCARD_INITING)
-                do {
-                    if (o->m_state == SDCARD_NONE) {
-                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
-                        break;
-                    }
-                    TheGcodeParser::deinit(c);
-                    o->m_state = SDCARD_NONE;
-                    o->m_next_event.unset(c);
-                    TheChannelCommon::maybeCancelLockingCommand(c);
-                    TheInput::deactivate(c);
-                } while (0);
-                cmd->finishCommand(c);
-                return false;
-            }
+            // Start/resume SD stream.
             if (cmd->getCmdNumber(c) == 24) {
                 if (!cmd->tryLockedCommand(c)) {
                     return false;
                 }
-                AMBRO_ASSERT(o->m_state != SDCARD_INITING)
                 do {
-                    if (o->m_state != SDCARD_INITED) {
-                        cmd->reply_append_pstr(c, o->m_state == SDCARD_NONE ? AMBRO_PSTR("Error:SdNotInited\n") : AMBRO_PSTR("Error:SdPrintAlreadyActive\n"));
+                    if (o->m_state != SDCARD_PAUSED) {
+                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintAlreadyActive\n"));
                         break;
                     }
                     if (!TheInput::startingIo(c, cmd)) {
@@ -1207,17 +1153,18 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     if (!TheChannelCommon::maybeResumeLockingCommand(c)) {
                         o->m_next_event.prependNowNotAlready(c);
                     }
-                } while (0);
+                } while (false);
                 cmd->finishCommand(c);
                 return false;
             }
+            
+            // Pause SD stream.
             if (cmd->getCmdNumber(c) == 25) {
                 if (!cmd->tryLockedCommand(c)) {
                     return false;
                 }
-                AMBRO_ASSERT(o->m_state != SDCARD_INITING)
                 do {
-                    if (o->m_state != SDCARD_RUNNING && o->m_state != SDCARD_PAUSING) {
+                    if (o->m_state == SDCARD_PAUSED) {
                         cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintNotRunning\n"));
                         break;
                     }
@@ -1230,18 +1177,19 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                         return false;
                     }
                     complete_pause(c);
-                } while (0);
+                } while (false);
                 cmd->finishCommand(c);
                 return false;
             }
+            
+            // Rewind SD stream.
             if (cmd->getCmdNumber(c) == 26) {
                 if (!cmd->tryLockedCommand(c)) {
                     return false;
                 }
-                AMBRO_ASSERT(o->m_state != SDCARD_INITING)
                 do {
-                    if (o->m_state != SDCARD_INITED) {
-                        cmd->reply_append_pstr(c, o->m_state == SDCARD_NONE ? AMBRO_PSTR("Error:SdNotInited\n") : AMBRO_PSTR("Error:SdPrintRunning\n"));
+                    if (o->m_state != SDCARD_PAUSED) {
+                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintRunning\n"));
                         break;
                     }
                     uint32_t seek_pos = cmd->get_command_param_uint32(c, 'S', 0);
@@ -1252,12 +1200,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     if (!TheInput::rewind(c, cmd)) {
                         break;
                     }
-                    clear_input_buffer(c);
-                } while (0);
+                } while (false);
                 cmd->finishCommand(c);
                 return false;
             }
             
+            // Let the Input module implement its own commands.
             return TheInput::checkCommand(c, cmd);
         }
         
@@ -1270,10 +1218,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             auto *co = TheChannelCommon::Object::self(c);
-            AMBRO_ASSERT(co->m_cmd)
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
             buf_sanity(c);
             AMBRO_ASSERT(!o->m_eof)
+            AMBRO_ASSERT(!TheGcodeParser::haveCommand(c))
             AMBRO_ASSERT(TheGcodeParser::getLength(c) <= o->m_length)
             
             size_t cmd_len = TheGcodeParser::getLength(c);
@@ -1310,12 +1258,17 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
         }
         
-        static void init_buffer_and_parser (Context c)
+        static void init_buffering (Context c)
         {
             auto *o = Object::self(c);
             TheGcodeParser::init(c);
             o->m_start = 0;
             o->m_length = 0;
+        }
+        
+        static void deinit_buffering (Context c)
+        {
+            TheGcodeParser::deinit(c);
         }
         
         static bool can_read (Context c)
@@ -1358,11 +1311,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING || o->m_state == SDCARD_PAUSING)
             AMBRO_ASSERT(!o->m_reading)
             
-            if (o->m_state == SDCARD_PAUSING && o->m_pausing_on_command) {
-                finish_locked(c);
-            }
             TheInput::pausingIo(c);
-            o->m_state = SDCARD_INITED;
+            o->m_state = SDCARD_PAUSED;
         }
         
         using SdChannelCommonList = MakeTypeList<TheChannelCommon>;
