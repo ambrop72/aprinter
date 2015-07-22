@@ -1073,8 +1073,8 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @fs_sel.option('Raw')
                     def option(fs_config):
-                        gen.add_aprinter_include('printer/input/SdCardInput.h')
-                        return TemplateExpr('SdCardInputService', [
+                        gen.add_aprinter_include('printer/input/SdRawInput.h')
+                        return TemplateExpr('SdRawInputService', [
                             use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetInput<>::GetSdCard'),
                         ])
                     

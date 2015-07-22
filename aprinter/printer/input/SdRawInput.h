@@ -22,8 +22,8 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_SDCARD_INPUT_H
-#define AMBROLIB_SDCARD_INPUT_H
+#ifndef AMBROLIB_SDRAW_INPUT_H
+#define AMBROLIB_SDRAW_INPUT_H
 
 #include <stdint.h>
 #include <stddef.h>
@@ -38,7 +38,7 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename ParentObject, typename ClientParams, typename Params>
-class SdCardInput {
+class SdRawInput {
 public:
     struct Object;
     
@@ -196,7 +196,7 @@ private:
         cmd->reply_append_ch(c, '\n');
         cmd->finishCommand(c);
     }
-    struct SdCardInitHandler : public AMBRO_WFUNC_TD(&SdCardInput::sd_card_init_handler) {};
+    struct SdCardInitHandler : public AMBRO_WFUNC_TD(&SdRawInput::sd_card_init_handler) {};
     
     static void handle_unmount_command (Context c, typename ThePrinterMain::CommandType *cmd)
     {
@@ -236,7 +236,7 @@ private:
         }
         return ClientParams::ReadHandler::call(c, error, bytes);
     }
-    struct SdCardCommandHandler : public AMBRO_WFUNC_TD(&SdCardInput::sd_card_command_handler) {};
+    struct SdCardCommandHandler : public AMBRO_WFUNC_TD(&SdRawInput::sd_card_command_handler) {};
     
     static bool check_file_paused (Context c, typename ThePrinterMain::CommandType *cmd)
     {
@@ -250,7 +250,7 @@ private:
     }
     
 public:
-    struct Object : public ObjBase<SdCardInput, ParentObject, MakeTypeList<
+    struct Object : public ObjBase<SdRawInput, ParentObject, MakeTypeList<
         TheDebugObject, TheSdCard
     >> {
         uint8_t state;
@@ -259,11 +259,11 @@ public:
 };
 
 template <typename TSdCardService>
-struct SdCardInputService {
+struct SdRawInputService {
     using SdCardService = TSdCardService;
     
     template <typename Context, typename ParentObject, typename ClientParams>
-    using Input = SdCardInput<Context, ParentObject, ClientParams, SdCardInputService>;
+    using Input = SdRawInput<Context, ParentObject, ClientParams, SdRawInputService>;
 };
 
 #include <aprinter/EndNamespace.h>
