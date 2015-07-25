@@ -201,10 +201,6 @@ public:
             handle_navigation_command(c, cmd, (cmd_num == 20));
             return false;
         }
-        if (TheFs::FsWritable && (cmd_num == 931 || cmd_num == 932)) {
-            handle_write_mount_command(c, cmd, (cmd_num == 931));
-            return false;
-        }
         return true;
     }
     
@@ -365,17 +361,27 @@ private:
         if (!cmd->tryLockedCommand(c)) {
             return;
         }
-        if (o->init_state != INIT_STATE_INACTIVE) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdAlreadyInited\n"));
-            cmd->finishCommand(c);
+        bool mount_writable = TheFs::FsWritable && cmd->find_command_param(c, 'W', nullptr);
+        if (o->init_state == INIT_STATE_INACTIVE) {
+            if (TheFs::FsWritable) {
+                o->mount_writable = mount_writable;
+            }
+            TheBlockAccess::activate(c);
+            o->init_state = INIT_STATE_ACTIVATE_SD;
             return;
         }
-        TheBlockAccess::activate(c);
-        o->init_state = INIT_STATE_ACTIVATE_SD;
+        if (mount_writable && o->init_state == INIT_STATE_DONE && o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED) {
+            start_write_mount(c, true);
+            return;
+        }
+        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdAlreadyMounted\n"));
+        cmd->finishCommand(c);
     }
     
     static void complete_mount_command (Context c, uint8_t error_code)
     {
+        auto *o = Object::self(c);
+        
         typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
         if (error_code) {
             cmd->reply_append_pstr(c, AMBRO_PSTR("SD error "));
@@ -384,7 +390,12 @@ private:
             cmd->reply_append_pstr(c, AMBRO_PSTR("SD mounted"));
         }
         cmd->reply_append_ch(c, '\n');
-        cmd->finishCommand(c);
+        
+        if (TheFs::FsWritable && !error_code && o->mount_writable) {
+            start_write_mount(c, true);
+        } else {
+            cmd->finishCommand(c);
+        }
     }
     
     static void handle_unmount_command (Context c, typename ThePrinterMain::CommandType *cmd)
@@ -395,20 +406,39 @@ private:
             return;
         }
         do {
+            AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
+            AMBRO_ASSERT(o->write_mount_state == WRITEMOUNT_STATE_MOUNTED || o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED)
             if (o->init_state != INIT_STATE_DONE) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotMounted\n"));
                 break;
             }
             if (o->file_state >= FILE_STATE_RUNNING) {
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintRunning\n"));
                 break;
             }
-            AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
-            AMBRO_ASSERT(o->write_mount_state == WRITEMOUNT_STATE_MOUNTED || o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED)
-            cleanup(c);
-            ClientParams::ClearBufferHandler::call(c);
-            cmd->reply_append_pstr(c, AMBRO_PSTR("SD unmounted\n"));
+            bool unmount_readonly = TheFs::FsWritable && cmd->find_command_param(c, 'R', nullptr);
+            if (TheFs::FsWritable && o->write_mount_state == WRITEMOUNT_STATE_MOUNTED) {
+                o->unmount_readonly = unmount_readonly;
+                o->unmount_force = cmd->find_command_param(c, 'F', nullptr);
+                start_write_mount(c, false);
+                return;
+            }
+            if (unmount_readonly) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotWriteMounted\n"));
+                break;
+            }
+            complete_unmount(c);
+            return;
         } while (false);
+        cmd->finishCommand(c);
+    }
+    
+    static void complete_unmount (Context c)
+    {
+        typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
+        cleanup(c);
+        ClientParams::ClearBufferHandler::call(c);
+        cmd->reply_append_pstr(c, AMBRO_PSTR("SD unmounted\n"));
         cmd->finishCommand(c);
     }
     
@@ -589,33 +619,18 @@ private:
         o->listing_state = LISTING_STATE_INACTIVE;
     }
     
-    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(TheFs::FsWritable, static, void, handle_write_mount_command (Context c, typename ThePrinterMain::CommandType *cmd, bool is_mount))
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(TheFs::FsWritable, static, void, start_write_mount (Context c, bool is_mount))
     {
         auto *o = Object::self(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->write_mount_state == (is_mount ? WRITEMOUNT_STATE_NOT_MOUNTED : WRITEMOUNT_STATE_MOUNTED))
         
-        if (!cmd->tryLockedCommand(c)) {
-            return;
+        o->write_mount_state = is_mount ? WRITEMOUNT_STATE_MOUNTING : WRITEMOUNT_STATE_UNMOUNTING;
+        if (is_mount) {
+            TheFs::startWriteMount(c);
+        } else {
+            TheFs::startWriteUnmount(c);
         }
-        do {
-            if (o->init_state != INIT_STATE_DONE) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
-                break;
-            }
-            WriteMountState expected = is_mount ? WRITEMOUNT_STATE_NOT_MOUNTED : WRITEMOUNT_STATE_MOUNTED;
-            if (o->write_mount_state != expected) {
-                AMBRO_PGM_P errstr = is_mount ? AMBRO_PSTR("Error:SdWriteAlreadyMounted\n") : AMBRO_PSTR("Error:SdWriteNotMounted\n");
-                cmd->reply_append_pstr(c, errstr);
-                break;
-            }
-            o->write_mount_state = is_mount ? WRITEMOUNT_STATE_MOUNTING : WRITEMOUNT_STATE_UNMOUNTING;
-            if (is_mount) {
-                TheFs::startWriteMount(c);
-            } else {
-                TheFs::startWriteUnmount(c);
-            }
-            return;
-        } while (false);
-        cmd->finishCommand(c);
     }
     
     APRINTER_FUNCTION_IF_OR_EMPTY_EXT(TheFs::FsWritable, static, void, fs_write_mount_handler (Context c, bool error))
@@ -634,8 +649,15 @@ private:
             cmd->reply_append_pstr(c, errstr);
         } else {
             o->write_mount_state = is_mount ? WRITEMOUNT_STATE_MOUNTED : WRITEMOUNT_STATE_NOT_MOUNTED;
+            AMBRO_PGM_P msgstr = is_mount ? AMBRO_PSTR("SD write-mounted\n") : AMBRO_PSTR("SD write-unmounted\n");
+            cmd->reply_append_pstr(c, msgstr);
         }
-        cmd->finishCommand(c);
+        
+        if (is_mount || (error && !o->unmount_force) || o->unmount_readonly) {
+            cmd->finishCommand(c);
+        } else {
+            complete_unmount(c);
+        }
     }
     struct FsWriteMountHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_write_mount_handler<>) {};
     
@@ -673,6 +695,9 @@ public:
         uint8_t file_state : 2;
         uint8_t file_eof : 1;
         uint8_t write_mount_state : 2;
+        uint8_t mount_writable : 1;
+        uint8_t unmount_readonly : 1;
+        uint8_t unmount_force : 1;
         union {
             struct {
                 typename TheFs::DirLister dir_lister;
