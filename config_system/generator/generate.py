@@ -1388,6 +1388,22 @@ def generate(config_root_data, cfg_name, main_template):
                             gen.add_float_constant('DeltaMaxSplitLength', transform.get_float('MaxSplitLength')),
                         ]),
                     ])
+                    
+                @transform_type_sel.option('RotationalDelta')
+                def option():
+                    gen.add_aprinter_include('printer/transform/RotationalDeltaTransform.h')
+                    
+                    return TemplateExpr('RotationalDeltaTransformService', [
+                        gen.add_float_config('DeltaEndEffectorLength', transform.get_float('EndEffectorLength')),
+                        gen.add_float_config('DeltaBaseLength', transform.get_float('BaseLength')),
+                        gen.add_float_config('DeltaRodLength', transform.get_float('RodLength')),
+                        gen.add_float_config('DeltaArmLength', transform.get_float('ArmLength')),
+                        gen.add_float_config('DeltaZOffset', transform.get_float('ZOffset')),
+                        TemplateExpr('DistanceSplitterParams', [
+                            gen.add_float_constant('DeltaMinSplitLength', transform.get_float('MinSplitLength')),
+                            gen.add_float_constant('DeltaMaxSplitLength', transform.get_float('MaxSplitLength')),
+                        ]),
+                    ])
                 
                 return TemplateExpr('PrinterMainTransformParams', [
                     transform.do_keyed_list('DimensionCount', 'CartesianAxes', 'VirtualAxis', virtual_axis_cb, 1, 3),

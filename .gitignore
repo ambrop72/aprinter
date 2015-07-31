@@ -4,3 +4,4 @@ aprinter.kdev4
 .kdev_include_paths
 depends
 .DS_Store
+/Debug/
