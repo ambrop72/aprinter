@@ -39,11 +39,6 @@
 template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
 class DeltaTransform {
 private:
-    static constexpr FpType square (FpType x)
-    {
-        return x * x;
-    }
-    
     using MyVector = Vector3<FpType>;
     
 public:
@@ -52,9 +47,9 @@ public:
     template <typename Src, typename Dst>
     static void virtToPhys (Context c, Src virt, Dst out_phys)
     {
-        out_phys.template set<0>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - square(APRINTER_CFG(Config, CTower1X, c) - virt.template get<0>()) - square(APRINTER_CFG(Config, CTower1Y, c) - virt.template get<1>())) + virt.template get<2>());
-        out_phys.template set<1>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - square(APRINTER_CFG(Config, CTower2X, c) - virt.template get<0>()) - square(APRINTER_CFG(Config, CTower2Y, c) - virt.template get<1>())) + virt.template get<2>());
-        out_phys.template set<2>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - square(APRINTER_CFG(Config, CTower3X, c) - virt.template get<0>()) - square(APRINTER_CFG(Config, CTower3Y, c) - virt.template get<1>())) + virt.template get<2>());
+        out_phys.template set<0>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - FloatSquare(APRINTER_CFG(Config, CTower1X, c) - virt.template get<0>()) - FloatSquare(APRINTER_CFG(Config, CTower1Y, c) - virt.template get<1>())) + virt.template get<2>());
+        out_phys.template set<1>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - FloatSquare(APRINTER_CFG(Config, CTower2X, c) - virt.template get<0>()) - FloatSquare(APRINTER_CFG(Config, CTower2Y, c) - virt.template get<1>())) + virt.template get<2>());
+        out_phys.template set<2>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - FloatSquare(APRINTER_CFG(Config, CTower3X, c) - virt.template get<0>()) - FloatSquare(APRINTER_CFG(Config, CTower3Y, c) - virt.template get<1>())) + virt.template get<2>());
     }
     
     template <typename Src, typename Dst>

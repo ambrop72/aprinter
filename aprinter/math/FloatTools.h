@@ -294,6 +294,16 @@ float FloatMax (float x, float y)
     return fmaxf(x, y);
 }
 
+double FloatSquare (double x)
+{
+    return x * x;
+}
+
+float FloatSquare (float x)
+{
+    return x * x;
+}
+
 struct FloatIdentity {};
 
 template <typename T2>

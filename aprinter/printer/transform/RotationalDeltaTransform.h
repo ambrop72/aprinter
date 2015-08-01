@@ -50,11 +50,6 @@ private:
     using DegreesToRadians = APRINTER_FP_CONST_EXPR(0.017453292519943295);
     using RadiansToDegrees = APRINTER_FP_CONST_EXPR(57.29577951308232);
     
-    static constexpr FpType square (FpType x)
-    {
-        return x * x;
-    }
-
     // helper function, calculates angle theta1 (for YZ-pane)
     static bool delta_calcAngleYZ (Context c, FpType x0, FpType y0, FpType z0, FpType &out_theta)
     {
@@ -63,17 +58,17 @@ private:
         FpType value_y1 = APRINTER_CFG(Config, CValueY1, c);
         
         y0 -= APRINTER_CFG(Config, CValueY0Diff, c); // shift center to edge
-        FpType a = (square(x0) + square(y0) + square(z0)
-                    + square(arm_length) - square(rod_length) - square(value_y1)) / (2 * z0);
+        FpType a = (FloatSquare(x0) + FloatSquare(y0) + FloatSquare(z0)
+                    + FloatSquare(arm_length) - FloatSquare(rod_length) - FloatSquare(value_y1)) / (2 * z0);
         FpType b = (value_y1 - y0) / z0;
         
         // discriminant
-        FpType d = -square(a + b * value_y1) + arm_length * (square(b) * arm_length + arm_length);
+        FpType d = -FloatSquare(a + b * value_y1) + arm_length * (FloatSquare(b) * arm_length + arm_length);
         if (d < 0) {
             return false; // non-existing point
         }
         
-        FpType yj = (value_y1 - a * b - FloatSqrt(d)) / (square(b) + 1); // choosing outer point
+        FpType yj = (value_y1 - a * b - FloatSqrt(d)) / (FloatSquare(b) + 1); // choosing outer point
         FpType zj = a + b * yj;
         FpType value_y1_minus_yj = value_y1 - yj;
         out_theta = FloatAtan2(-zj, value_y1_minus_yj) * (FpType)RadiansToDegrees::value();
@@ -147,10 +142,10 @@ public:
         FpType a = a1 * a1 + a2 * a2 + dnm * dnm;
         FpType b = 2 * (a1 * b1 + a2 * (b2 - y1 * dnm) - z1 * dnm * dnm);
         FpType cee = (b2 - y1 * dnm) * (b2 - y1 * dnm) + b1 * b1
-                        + dnm * dnm * (z1 * z1 - square(rod_length));
+                        + dnm * dnm * (z1 * z1 - FloatSquare(rod_length));
 
         // discriminant
-        FpType d = square(b) - 4.0f * a * cee;
+        FpType d = FloatSquare(b) - 4.0f * a * cee;
         // NOTE: We don't handle errors (d<0).
 
         FpType z0 = -0.5f * (b + FloatSqrt(d)) / a;
