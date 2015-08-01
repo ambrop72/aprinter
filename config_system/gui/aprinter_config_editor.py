@@ -420,6 +420,27 @@ def editor():
                         ce.Float(key='MaxSplitLength', title='Maximum segment length for splitting [mm]', default=4.0),
                     ]
                 ),
+                make_transform_type(transform_type='RotationalDelta', transform_title='Rotational delta', segments_per_sec_relevant=True,
+                    stepper_defs=[
+                        {'default_name': 'A', 'title': 'Arm-1 stepper (bottom)'},
+                        {'default_name': 'B', 'title': 'Arm-2 stepper (top-right)'},
+                        {'default_name': 'C', 'title': 'Arm-3 stepper (top-left)'},
+                    ],
+                    axis_defs=[
+                        {'axis_name': 'X', 'homing_allowed': False},
+                        {'axis_name': 'Y', 'homing_allowed': False},
+                        {'axis_name': 'Z', 'homing_allowed': False},
+                    ],
+                    specific_params=[
+                        ce.Float(key='EndEffectorLength', title='End effector length [mm]', default=30.0),
+                        ce.Float(key='BaseLength', title='Base length [mm]', default=40.0),
+                        ce.Float(key='RodLength', title='Rod length [mm]', default=130.0),
+                        ce.Float(key='ArmLength', title='Arm length [mm]', default=80.0),
+                        ce.Float(key='ZOffset', title='Z offset [mm]', default=200.0),
+                        ce.Float(key='MinSplitLength', title='Minimum segment length for splitting [mm]', default=0.1),
+                        ce.Float(key='MaxSplitLength', title='Maximum segment length for splitting [mm]', default=4.0),
+                    ]
+                ),
             ]),
             ce.Array(key='heaters', title='Heaters', copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('heater', title='Heater', title_key='Name', collapsable=True, ident='id_configuration_heater', attrs=[
                 ce.String(key='Name', title='Name (single character, T=extruder, B=bed)'),

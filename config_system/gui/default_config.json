@@ -4456,6 +4456,176 @@
       "transform": {
         "_compoundName": "NoTransform"
       }
+    },
+    {
+      "board": "RADDS",
+      "fans": [],
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "WaitTimeout": 500,
+      "heaters": [],
+      "lasers": [],
+      "name": "Rotational Delta example",
+      "probe_config": {
+        "_compoundName": "ProbeConfig",
+        "probe": {
+          "_compoundName": "NoProbe"
+        }
+      },
+      "steppers": [
+        {
+          "MicroSteps": 0,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": false,
+          "InvertDir": false,
+          "MaxAccel": 1100,
+          "MaxPos": 80,
+          "MaxSpeed": 220,
+          "Current": 0,
+          "MinPos": -30,
+          "Name": "A",
+          "StepsPerUnit": 218.181818182,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "X-MIN",
+            "HomeFastMaxDist": 120,
+            "HomeFastSpeed": 30,
+            "HomeRetractDist": 5,
+            "HomeRetractSpeed": 30,
+            "HomeSlowMaxDist": 10,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "X"
+        },
+        {
+          "MicroSteps": 0,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": false,
+          "InvertDir": false,
+          "MaxAccel": 1100,
+          "MaxPos": 80,
+          "MaxSpeed": 220,
+          "Current": 0,
+          "MinPos": -30,
+          "Name": "B",
+          "StepsPerUnit": 218.181818182,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "Y-MIN",
+            "HomeFastMaxDist": 120,
+            "HomeFastSpeed": 30,
+            "HomeRetractDist": 5,
+            "HomeRetractSpeed": 30,
+            "HomeSlowMaxDist": 10,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "Y"
+        },
+        {
+          "MicroSteps": 0,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": false,
+          "InvertDir": true,
+          "MaxAccel": 1100,
+          "MaxPos": 80,
+          "MaxSpeed": 220,
+          "Current": 0,
+          "MinPos": -30,
+          "Name": "C",
+          "StepsPerUnit": 218.181818182,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeDir": false,
+            "HomeEndInvert": false,
+            "HomeEndstopInput": "Z-MIN",
+            "HomeFastMaxDist": 120,
+            "HomeFastSpeed": 30,
+            "HomeRetractDist": 5,
+            "HomeRetractSpeed": 30,
+            "HomeSlowMaxDist": 10,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "Z"
+        }
+      ],
+      "transform": {
+        "MinSplitLength": 0.1,
+        "ArmLength": 80,
+        "CartesianAxes": {
+          "VirtualAxis0": {
+            "MaxPos": 1000,
+            "MaxSpeed": 100000,
+            "MinPos": -1000,
+            "Name": "X",
+            "_compoundName": "VirtualAxisParams",
+            "homing": {
+              "_compoundName": "no_homing"
+            }
+          },
+          "VirtualAxis1": {
+            "MaxPos": 1000,
+            "MaxSpeed": 100000,
+            "MinPos": -1000,
+            "Name": "Y",
+            "_compoundName": "VirtualAxisParams",
+            "homing": {
+              "_compoundName": "no_homing"
+            }
+          },
+          "VirtualAxis2": {
+            "MaxPos": 1000,
+            "MaxSpeed": 100000,
+            "MinPos": -1000,
+            "Name": "Z",
+            "_compoundName": "VirtualAxisParams",
+            "homing": {
+              "_compoundName": "no_homing"
+            }
+          },
+          "_compoundName": "CartesianAxes"
+        },
+        "DimensionCount": 3,
+        "EndEffectorLength": 30,
+        "MaxSplitLength": 4,
+        "BaseLength": 40,
+        "RodLength": 130,
+        "SegmentsPerSecond": 100,
+        "Steppers": {
+          "TransformStepper0": {
+            "StepperName": "A",
+            "_compoundName": "TransformStepperParams"
+          },
+          "TransformStepper1": {
+            "StepperName": "B",
+            "_compoundName": "TransformStepperParams"
+          },
+          "TransformStepper2": {
+            "StepperName": "C",
+            "_compoundName": "TransformStepperParams"
+          },
+          "_compoundName": "Steppers"
+        },
+        "ZOffset": 150,
+        "_compoundName": "RotationalDelta"
+      }
     }
   ],
   "_compoundName": "editor",

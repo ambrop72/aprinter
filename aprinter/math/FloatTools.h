@@ -244,6 +244,36 @@ float FloatExp (float x)
     return expf(x);
 }
 
+double FloatSin (double x)
+{
+    return sin(x);
+}
+
+float FloatSin (float x)
+{
+    return sinf(x);
+}
+
+double FloatCos (double x)
+{
+    return cos(x);
+}
+
+float FloatCos (float x)
+{
+    return cosf(x);
+}
+
+double FloatAtan2 (double y, double x)
+{
+    return atan2(y, x);
+}
+
+float FloatAtan2 (float y, float x)
+{
+    return atan2f(y, x);
+}
+
 double FloatMin (double x, double y)
 {
     return fmin(x, y);
