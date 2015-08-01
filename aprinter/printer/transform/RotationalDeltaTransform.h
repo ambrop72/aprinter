@@ -166,11 +166,11 @@ public:
     
 private:
     // expressions for configuration parameters
-    using EndEffectorLength = decltype(Config::e(Params::EndEffectorLength::i)); // e in trossen tutorial
-    using BaseLength = decltype(Config::e(Params::BaseLength::i)); // f in trossen tutorial
-    using RodLength = decltype(Config::e(Params::RodLength::i));// re in trossen tutorial
-    using ArmLength = decltype(Config::e(Params::ArmLength::i));// rf in trossen tutorial
-    using ZOffset = decltype(Config::e(Params::ZOffset::i));// Z- axis offset to put the print bed at 0 Z coordinate
+    using EndEffectorLength = decltype(Config::e(Params::EndEffectorLength::i())); // e in trossen tutorial
+    using BaseLength = decltype(Config::e(Params::BaseLength::i())); // f in trossen tutorial
+    using RodLength = decltype(Config::e(Params::RodLength::i()));// re in trossen tutorial
+    using ArmLength = decltype(Config::e(Params::ArmLength::i()));// rf in trossen tutorial
+    using ZOffset = decltype(Config::e(Params::ZOffset::i()));// Z- axis offset to put the print bed at 0 Z coordinate
 
     // cached values derived from configuration parameters (all cast to FpType)
     using CRodLength = decltype(ExprCast<FpType>(RodLength()));
