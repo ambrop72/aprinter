@@ -3220,6 +3220,11 @@ public:
         return get_command_in_state<COMMAND_LOCKED, true>(c);
     }
     
+    static CommandType * get_msg_output (Context c)
+    {
+        return SerialFeature::TheChannelCommon::impl(c);
+    }
+    
 public: // private, see comment on top
     static TimeType time_from_real (FpType t)
     {

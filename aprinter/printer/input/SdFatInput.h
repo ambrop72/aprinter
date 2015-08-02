@@ -403,15 +403,21 @@ private:
     {
         auto *o = Object::self(c);
         
-        if (o->for_command) {
-            auto *cmd = ThePrinterMain::get_locked(c);
-            if (error_code) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("SD error "));
+        auto *output = ThePrinterMain::get_msg_output(c);
+        if (error_code) {
+            if (o->for_command) {
+                auto *cmd = ThePrinterMain::get_locked(c);
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdMount:"));
                 cmd->reply_append_uint8(c, error_code);
-            } else {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("SD mounted"));
+                cmd->reply_append_ch(c, '\n');
             }
-            cmd->reply_append_ch(c, '\n');
+            if (!o->for_command || output != ThePrinterMain::get_locked(c)) {
+                output->reply_append_pstr(c, AMBRO_PSTR("//Error:SdMount:"));
+                output->reply_append_uint8(c, error_code);
+                output->reply_append_ch(c, '\n');
+            }
+        } else {
+            output->reply_append_pstr(c, AMBRO_PSTR("//SD mounted\n"));
         }
         
         if (TheFs::FsWritable && !error_code && o->mount_writable) {
@@ -426,15 +432,20 @@ private:
     {
         auto *o = Object::self(c);
         
-        if (o->for_command) {
-            auto *cmd = ThePrinterMain::get_locked(c);
-            AMBRO_PGM_P msgstr;
-            if (error) {
-                msgstr = is_mount ? AMBRO_PSTR("Error:SdWriteMountError\n") : AMBRO_PSTR("Error:SdWriteUnmountError\n");
-            } else {
-                msgstr = is_mount ? AMBRO_PSTR("SD write-mounted\n") : AMBRO_PSTR("SD write-unmounted\n");
+        auto *output = ThePrinterMain::get_msg_output(c);
+        if (error) {
+            AMBRO_PGM_P errstr = is_mount ? AMBRO_PSTR("Error:SdWriteMount\n") : AMBRO_PSTR("Error:SdWriteUnmount\n");
+            if (o->for_command) {
+                auto *cmd = ThePrinterMain::get_locked(c);
+                cmd->reply_append_pstr(c, errstr);
             }
-            cmd->reply_append_pstr(c, msgstr);
+            if (!o->for_command || output != ThePrinterMain::get_locked(c)) {
+                output->reply_append_pstr(c, AMBRO_PSTR("//"));
+                output->reply_append_pstr(c, errstr);
+            }
+        } else {
+            AMBRO_PGM_P msgstr = is_mount ? AMBRO_PSTR("//SD write-mounted\n") : AMBRO_PSTR("//SD write-unmounted\n");
+            output->reply_append_pstr(c, msgstr);
         }
         
         if (is_mount || (error && !o->unmount_force) || o->unmount_readonly) {
@@ -509,8 +520,10 @@ private:
         cleanup(c);
         ClientParams::ClearBufferHandler::call(c);
         
+        auto *output = ThePrinterMain::get_msg_output(c);
+        output->reply_append_pstr(c, AMBRO_PSTR("//SD unmounted\n"));
+        
         typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
-        cmd->reply_append_pstr(c, AMBRO_PSTR("SD unmounted\n"));
         cmd->finishCommand(c);
     }
     
