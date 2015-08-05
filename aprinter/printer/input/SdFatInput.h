@@ -31,12 +31,14 @@
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/FunctionIf.h>
+#include <aprinter/meta/StructIf.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/WrapBuffer.h>
+#include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/fs/FatFs.h>
 #include <aprinter/fs/BlockAccess.h>
 
@@ -101,6 +103,7 @@ public:
         
         TheBlockAccess::init(c);
         set_default_states(c);
+        AccessInterface::init(c);
         
         TheDebugObject::init(c);
     }
@@ -109,6 +112,7 @@ public:
     {
         TheDebugObject::deinit(c);
         
+        AccessInterface::deinit(c);
         cleanup(c);
         TheBlockAccess::deinit(c);
     }
@@ -206,6 +210,9 @@ public:
     
     using GetSdCard = typename TheBlockAccess::GetSd;
     
+    template <typename This=SdFatInput>
+    using GetFsAccess = typename This::AccessInterface;
+    
 private:
     static void set_default_states (Context c)
     {
@@ -267,7 +274,7 @@ private:
         
         if (error_code) {
             o->init_state = INIT_STATE_INACTIVE;
-            return complete_mount_command(c, error_code);
+            return mount_completed(c, error_code);
         }
         
         o->init_state = INIT_STATE_READ_MBR;
@@ -331,7 +338,7 @@ private:
         
     error:
         cleanup(c);
-        return complete_mount_command(c, error_code);
+        return mount_completed(c, error_code);
     }
     
     static void fs_init_handler (Context c, uint8_t error_code)
@@ -350,7 +357,7 @@ private:
             o->init_state = INIT_STATE_DONE;
             fs_o->current_directory = TheFs::getRootEntry(c);
         }
-        return complete_mount_command(c, error_code);
+        return mount_completed(c, error_code);
     }
     struct FsInitHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_init_handler) {};
     
@@ -362,38 +369,90 @@ private:
             return;
         }
         bool mount_writable = TheFs::FsWritable && cmd->find_command_param(c, 'W', nullptr);
-        if (o->init_state == INIT_STATE_INACTIVE) {
-            if (TheFs::FsWritable) {
-                o->mount_writable = mount_writable;
-            }
-            TheBlockAccess::activate(c);
-            o->init_state = INIT_STATE_ACTIVATE_SD;
-            return;
+        if (!start_mount(c, true, mount_writable)) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdAlreadyMounted\n"));
+            cmd->finishCommand(c);
         }
-        if (mount_writable && o->init_state == INIT_STATE_DONE && o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED) {
-            start_write_mount(c, true);
-            return;
-        }
-        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdAlreadyMounted\n"));
-        cmd->finishCommand(c);
     }
     
-    static void complete_mount_command (Context c, uint8_t error_code)
+    static bool start_mount (Context c, bool for_command, bool mount_writable)
     {
         auto *o = Object::self(c);
         
-        typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
-        if (error_code) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("SD error "));
-            cmd->reply_append_uint8(c, error_code);
-        } else {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("SD mounted"));
+        if (o->init_state == INIT_STATE_INACTIVE) {
+            o->for_command = for_command;
+            o->mount_writable = mount_writable;
+            TheBlockAccess::activate(c);
+            o->init_state = INIT_STATE_ACTIVATE_SD;
+            return true;
         }
-        cmd->reply_append_ch(c, '\n');
+        if (mount_writable && o->init_state == INIT_STATE_DONE && o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED) {
+            o->for_command = for_command;
+            start_write_mount(c, true);
+            return true;
+        }
+        if (o->init_state != INIT_STATE_DONE || (mount_writable && o->write_mount_state == WRITEMOUNT_STATE_MOUNTING)) {
+            o->for_command |= for_command;
+            o->mount_writable |= mount_writable;
+            return true;
+        }
+        return false;
+    }
+    
+    static void mount_completed (Context c, uint8_t error_code)
+    {
+        auto *o = Object::self(c);
+        
+        if (o->for_command) {
+            auto *cmd = ThePrinterMain::get_locked(c);
+            if (error_code) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("SD error "));
+                cmd->reply_append_uint8(c, error_code);
+            } else {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("SD mounted"));
+            }
+            cmd->reply_append_ch(c, '\n');
+        }
         
         if (TheFs::FsWritable && !error_code && o->mount_writable) {
+            AccessInterface::complete_mount_requests(c, false);
             start_write_mount(c, true);
         } else {
+            report_mount_result(c, true);
+        }
+    }
+    
+    static void write_mount_completed (Context c, bool error, bool is_mount)
+    {
+        auto *o = Object::self(c);
+        
+        if (o->for_command) {
+            auto *cmd = ThePrinterMain::get_locked(c);
+            AMBRO_PGM_P msgstr;
+            if (error) {
+                msgstr = is_mount ? AMBRO_PSTR("Error:SdWriteMountError\n") : AMBRO_PSTR("Error:SdWriteUnmountError\n");
+            } else {
+                msgstr = is_mount ? AMBRO_PSTR("SD write-mounted\n") : AMBRO_PSTR("SD write-unmounted\n");
+            }
+            cmd->reply_append_pstr(c, msgstr);
+        }
+        
+        if (is_mount || (error && !o->unmount_force) || o->unmount_readonly) {
+            report_mount_result(c, is_mount);
+        } else {
+            complete_unmount(c);
+        }
+    }
+    
+    static void report_mount_result (Context c, bool is_mount)
+    {
+        auto *o = Object::self(c);
+        
+        if (is_mount) {
+            AccessInterface::complete_mount_requests(c, true);
+        }
+        if (o->for_command) {
+            typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
             cmd->finishCommand(c);
         }
     }
@@ -406,8 +465,6 @@ private:
             return;
         }
         do {
-            AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
-            AMBRO_ASSERT(o->write_mount_state == WRITEMOUNT_STATE_MOUNTED || o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED)
             if (o->init_state != INIT_STATE_DONE) {
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotMounted\n"));
                 break;
@@ -417,7 +474,16 @@ private:
                 break;
             }
             bool unmount_readonly = TheFs::FsWritable && cmd->find_command_param(c, 'R', nullptr);
-            if (TheFs::FsWritable && o->write_mount_state == WRITEMOUNT_STATE_MOUNTED) {
+            if (AccessInterface::has_references(c, unmount_readonly)) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdInUse\n"));
+                break;
+            }
+            if (TheFs::FsWritable && o->write_mount_state != WRITEMOUNT_STATE_NOT_MOUNTED) {
+                if (o->write_mount_state != WRITEMOUNT_STATE_MOUNTED) {
+                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdWriteMountInProgress\n"));
+                    break;
+                }
+                o->for_command = true;
                 o->unmount_readonly = unmount_readonly;
                 o->unmount_force = cmd->find_command_param(c, 'F', nullptr);
                 start_write_mount(c, false);
@@ -435,9 +501,15 @@ private:
     
     static void complete_unmount (Context c)
     {
-        typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
+        AMBRO_ASSERT(o->write_mount_state == WRITEMOUNT_STATE_MOUNTED || o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED)
+        AMBRO_ASSERT(!AccessInterface::has_references(c, false))
+        
         cleanup(c);
         ClientParams::ClearBufferHandler::call(c);
+        
+        typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
         cmd->reply_append_pstr(c, AMBRO_PSTR("SD unmounted\n"));
         cmd->finishCommand(c);
     }
@@ -642,22 +714,8 @@ private:
                      o->write_mount_state == WRITEMOUNT_STATE_UNMOUNTING)
         
         bool is_mount = (o->write_mount_state == WRITEMOUNT_STATE_MOUNTING);
-        auto *cmd = ThePrinterMain::get_locked(c);
-        if (error) {
-            o->write_mount_state = is_mount ? WRITEMOUNT_STATE_NOT_MOUNTED : WRITEMOUNT_STATE_MOUNTED;
-            AMBRO_PGM_P errstr = is_mount ? AMBRO_PSTR("Error:SdWriteMountError\n") : AMBRO_PSTR("Error:SdWriteUnmountError\n");
-            cmd->reply_append_pstr(c, errstr);
-        } else {
-            o->write_mount_state = is_mount ? WRITEMOUNT_STATE_MOUNTED : WRITEMOUNT_STATE_NOT_MOUNTED;
-            AMBRO_PGM_P msgstr = is_mount ? AMBRO_PSTR("SD write-mounted\n") : AMBRO_PSTR("SD write-unmounted\n");
-            cmd->reply_append_pstr(c, msgstr);
-        }
-        
-        if (is_mount || (error && !o->unmount_force) || o->unmount_readonly) {
-            cmd->finishCommand(c);
-        } else {
-            complete_unmount(c);
-        }
+        o->write_mount_state = (is_mount == error) ? WRITEMOUNT_STATE_NOT_MOUNTED : WRITEMOUNT_STATE_MOUNTED;
+        return write_mount_completed(c, error, is_mount);
     }
     struct FsWriteMountHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_write_mount_handler<>) {};
     
@@ -684,17 +742,188 @@ private:
         };
     };
     
+    AMBRO_STRUCT_IF(AccessInterface, Params::HaveAccessInterface) {
+    private:
+        friend SdFatInput;
+        static_assert(TheFs::FsWritable, "");
+        
+        static void init (Context c)
+        {
+            auto *o = Object::self(c);
+            o->num_ro_refs = 0;
+            o->num_rw_refs = 0;
+            o->clients_list.init();
+        }
+        
+        static void deinit (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->num_ro_refs == 0)
+            AMBRO_ASSERT(o->num_rw_refs == 0)
+            AMBRO_ASSERT(o->clients_list.isEmpty())
+        }
+        
+        static void complete_mount_requests (Context c, bool complete_writable_requests)
+        {
+            auto *o = Object::self(c);
+            
+            Client *client = o->clients_list.first();
+            while (client) {
+                Client *next_client = o->clients_list.next(client);
+                AMBRO_ASSERT(client->m_state == Client::STATE_REQUESTING)
+                if (!client->m_writable || complete_writable_requests) {
+                    o->clients_list.remove(client);
+                    client->complete_request(c);
+                }
+                client = next_client;
+            }
+        }
+        
+        static bool has_references (Context c, bool count_writable_refs_only)
+        {
+            auto *o = Object::self(c);
+            return (!count_writable_refs_only && o->num_ro_refs != 0) || o->num_rw_refs != 0;
+        }
+        
+    public:
+        using TheFileSystem = TheFs;
+        
+        class Client : private SimpleDebugObject<Context> {
+            friend AccessInterface;
+            enum {STATE_IDLE, STATE_REQUESTING, STATE_REPORTING, STATE_COMPLETED};
+            
+        public:
+            using ClientHandler = Callback<void(Context c, bool error)>;
+            
+            void init (Context c, ClientHandler handler)
+            {
+                m_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::event_handler, this));
+                m_handler = handler;
+                m_state = STATE_IDLE;
+                m_have_reference = false;
+                this->debugInit(c);
+            }
+            
+            void deinit (Context c)
+            {
+                this->debugDeinit(c);
+                reset_internal(c);
+                m_event.deinit(c);
+            }
+            
+            void reset (Context c)
+            {
+                this->debugAccess(c);
+                reset_internal(c);
+            }
+            
+            void requestAccess (Context c, bool writable)
+            {
+                auto *o = Object::self(c);
+                this->debugAccess(c);
+                AMBRO_ASSERT(m_state == STATE_IDLE)
+                
+                m_writable = writable;
+                if (start_mount(c, false, writable)) {
+                    m_state = STATE_REQUESTING;
+                    o->clients_list.append(this);
+                } else {
+                    complete_request(c);
+                }
+            }
+            
+        private:
+            void reset_internal (Context c)
+            {
+                auto *o = Object::self(c);
+                
+                if (m_have_reference) {
+                    if (m_writable) {
+                        AMBRO_ASSERT(o->num_rw_refs > 0)
+                        o->num_rw_refs--;
+                    } else {
+                        AMBRO_ASSERT(o->num_ro_refs > 0)
+                        o->num_ro_refs--;
+                    }
+                }
+                if (m_state == STATE_REQUESTING) {
+                    o->clients_list.remove(this);
+                }
+                m_event.unset(c);
+                m_state = STATE_IDLE;
+                m_have_reference = false;
+            }
+            
+            void complete_request (Context c)
+            {
+                auto *o = Object::self(c);
+                auto *mo = SdFatInput::Object::self(c);
+                AMBRO_ASSERT(!m_have_reference)
+                
+                bool error =
+                    mo->init_state != INIT_STATE_DONE ||
+                    (mo->write_mount_state == WRITEMOUNT_STATE_UNMOUNTING && !mo->unmount_readonly) ||
+                    (m_writable && mo->write_mount_state != WRITEMOUNT_STATE_MOUNTED);
+                
+                if (!error) {
+                    if (m_writable) {
+                        o->num_rw_refs++;
+                    } else {
+                        o->num_ro_refs++;
+                    }
+                    m_have_reference = true;
+                }
+                m_state = Client::STATE_REPORTING;
+                m_event.prependNowNotAlready(c);
+            }
+            
+            void event_handler (Context c)
+            {
+                this->debugAccess(c);
+                AMBRO_ASSERT(m_state == STATE_REPORTING)
+                
+                m_state = STATE_COMPLETED;
+                return m_handler(c, !m_have_reference);
+            }
+            
+            typename Context::EventLoop::QueuedEvent m_event;
+            ClientHandler m_handler;
+            DoubleEndedListNode<Client> m_list_node;
+            uint8_t m_state : 3;
+            bool m_have_reference : 1;
+            bool m_writable : 1;
+        };
+        
+    private:
+        struct Object : public ObjBase<AccessInterface, typename SdFatInput::Object, EmptyTypeList> {
+            size_t num_ro_refs;
+            size_t num_rw_refs;
+            DoubleEndedList<Client, &Client::m_list_node> clients_list;
+        };
+    }
+    AMBRO_STRUCT_ELSE(AccessInterface) {
+    private:
+        friend SdFatInput;
+        static void init (Context c) {}
+        static void deinit (Context c) {}
+        static void complete_mount_requests (Context c, bool complete_writable_requests) {}
+        static bool has_references (Context c, bool count_writable_refs_only) { return false; }
+        struct Object {};
+    };
+    
 public:
     struct Object : public ObjBase<SdFatInput, ParentObject, MakeTypeList<
         TheDebugObject,
         TheBlockAccess,
-        InitUnion
+        InitUnion,
+        AccessInterface
     >> {
         uint8_t init_state : 3;
         uint8_t listing_state : 2;
         uint8_t file_state : 2;
         uint8_t file_eof : 1;
         uint8_t write_mount_state : 2;
+        uint8_t for_command : 1;
         uint8_t mount_writable : 1;
         uint8_t unmount_readonly : 1;
         uint8_t unmount_force : 1;
@@ -712,11 +941,12 @@ public:
     };
 };
 
-template <typename TSdCardService, typename TFsService, bool TCaseInsensFileName>
+template <typename TSdCardService, typename TFsService, bool TCaseInsensFileName, bool THaveAccessInterface>
 struct SdFatInputService {
     using SdCardService = TSdCardService;
     using FsService = TFsService;
     static bool const CaseInsensFileName = TCaseInsensFileName;
+    static bool const HaveAccessInterface = THaveAccessInterface;
     
     template <typename Context, typename ParentObject, typename ClientParams>
     using Input = SdFatInput<Context, ParentObject, ClientParams, SdFatInputService>;
