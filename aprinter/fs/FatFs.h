@@ -102,6 +102,8 @@ private:
     };
     
 public:
+    static size_t const TheBlockSize = BlockSize;
+    
     enum class EntryType : uint8_t {DIR_TYPE, FILE_TYPE};
     
     class FsEntry : private FsEntryExtra<FsWritable> {

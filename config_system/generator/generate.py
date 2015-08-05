@@ -928,6 +928,11 @@ def use_config_manager(gen, config, key, user):
                 config_store.get_int('EndBlock'),
             ])
         
+        @config_store_sel.option('FileConfigStore')
+        def option(config_store):
+            gen.add_aprinter_include('printer/config_store/FileConfigStore.h')
+            return 'FileConfigStoreService'
+        
         return TemplateExpr('RuntimeConfigManagerService', [config_manager.do_selection('ConfigStore', config_store_sel)])
     
     return config.do_selection(key, config_manager_sel)

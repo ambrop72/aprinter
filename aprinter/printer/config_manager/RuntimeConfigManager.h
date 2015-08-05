@@ -30,6 +30,7 @@
 
 #include <aprinter/meta/Expr.h>
 #include <aprinter/base/Object.h>
+#include <aprinter/base/ProgramMemory.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
@@ -54,6 +55,7 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/AsciiTools.h>
+#include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -85,6 +87,8 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_reset_config, reset_config)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_set_cmd, get_set_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_dump_options_helper, dump_options_helper)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_set_by_strings, set_by_strings)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_get_string_helper, get_string_helper)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_Type, Type)
     
     template <typename TheOption>
@@ -119,6 +123,8 @@ private:
     
     template <typename Dummy>
     struct TypeSpecific<double, Dummy> {
+        static size_t const MaxStringValueLength = 30;
+        
         static void get_value_cmd (Context c, CommandType *cmd, double value)
         {
             cmd->reply_append_fp(c, value);
@@ -128,10 +134,22 @@ private:
         {
             *value = cmd->get_command_param_fp(c, 'V', default_value);
         }
+        
+        static void get_value_str (double value, char *out_str)
+        {
+            AMBRO_PGM_SPRINTF(out_str, AMBRO_PSTR("%.17g"), value);
+        }
+        
+        static void set_value_str (double *value, char const *in_str)
+        {
+            *value = StrToFloat<double>(in_str, nullptr);
+        }
     };
     
     template <typename Dummy>
     struct TypeSpecific<bool, Dummy> {
+        static size_t const MaxStringValueLength = 1;
+        
         static void get_value_cmd (Context c, CommandType *cmd, bool value)
         {
             cmd->reply_append_uint8(c, value);
@@ -140,6 +158,16 @@ private:
         static void set_value_cmd (Context c, CommandType *cmd, bool *value, bool default_value)
         {
             *value = cmd->get_command_param_uint32(c, 'V', default_value);
+        }
+        
+        static void get_value_str (bool value, char *out_str)
+        {
+            strcpy(out_str, value ? "1" : "0");
+        }
+        
+        static void set_value_str (bool *value, char const *in_str)
+        {
+            *value = (strcmp(in_str, "0") != 0);
         }
     };
     
@@ -218,6 +246,38 @@ private:
             return true;
         }
         
+        static bool set_by_strings (Context c, char const *name, char const *set_value)
+        {
+            auto *o = Object::self(c);
+            int index = find_option(name);
+            if (index < 0) {
+                return true;
+            }
+            TheTypeSpecific::set_value_str(&o->values[index], set_value);
+            return false;
+        }
+        
+        static bool get_string_helper (Context c, int global_option_index, char *output, size_t output_avail)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(global_option_index >= PrevTypeGeneral::OptionCounter)
+            
+            if (global_option_index < OptionCounter) {
+                int index = global_option_index - PrevTypeGeneral::OptionCounter;
+                size_t name_length = AMBRO_PGM_STRLEN(NameTable::readAt(index).m_ptr);
+                if (output_avail < name_length + 1 + TheTypeSpecific::MaxStringValueLength + 1) {
+                    *output = '\0';
+                } else {
+                    AMBRO_PGM_MEMCPY(output, NameTable::readAt(index).m_ptr, name_length);
+                    output += name_length;
+                    *output++ = '=';
+                    TheTypeSpecific::get_value_str(o->values[index], output);
+                }
+                return false;
+            }
+            return true;
+        }
+        
         struct Object : public ObjBase<TypeGeneral, typename RuntimeConfigManager::Object, EmptyTypeList> {
             Type values[NumOptions];
         };
@@ -277,7 +337,7 @@ private:
     AMBRO_STRUCT_IF(StoreFeature, HasStore) {
         struct Object;
         struct StoreHandler;
-        using TheStore = typename StoreService::template Store<Context, Object, RuntimeConfigManager, StoreHandler>;
+        using TheStore = typename StoreService::template Store<Context, Object, RuntimeConfigManager, ThePrinterMain, StoreHandler>;
         enum {STATE_IDLE, STATE_LOADING, STATE_SAVING};
         
         static void init (Context c)
@@ -450,6 +510,20 @@ public:
         static_assert(OptionIsNotConstant<Option>::Value, "");
         
         return *OptionHelper<Option>::value(c);
+    }
+    
+    static bool setOptionByStrings (Context c, char const *option_name, char const *option_value)
+    {
+        return !ListForEachForwardInterruptible<TypeGeneralList>(Foreach_set_by_strings(), c, option_name, option_value);
+    }
+    
+    static void getOptionString (Context c, int option_index, char *output, size_t output_avail)
+    {
+        AMBRO_ASSERT(option_index >= 0)
+        AMBRO_ASSERT(option_index < NumRuntimeOptions)
+        AMBRO_ASSERT(output_avail > 0)
+        
+        ListForEachForwardInterruptible<TypeGeneralList>(Foreach_get_string_helper(), c, option_index, output, output_avail);
     }
     
     template <typename TheStoreFeature = StoreFeature>

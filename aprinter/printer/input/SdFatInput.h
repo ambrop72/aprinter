@@ -907,7 +907,7 @@ private:
             bool m_writable : 1;
         };
         
-    private:
+    public:
         struct Object : public ObjBase<AccessInterface, typename SdFatInput::Object, EmptyTypeList> {
             size_t num_ro_refs;
             size_t num_rw_refs;
@@ -921,6 +921,7 @@ private:
         static void deinit (Context c) {}
         static void complete_mount_requests (Context c, bool complete_writable_requests) {}
         static bool has_references (Context c, bool count_writable_refs_only) { return false; }
+    public:
         struct Object {};
     };
     

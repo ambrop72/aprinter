@@ -559,7 +559,8 @@ def editor():
                                         flash_choice(key='FlashDriver', title='Flash driver'),
                                     ]),
                                 ]),
-                            ])
+                            ]),
+                            ce.Compound('FileConfigStore', title='File on SD card', attrs=[]),
                         ])
                     ]),
                 ]),

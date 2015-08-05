@@ -316,7 +316,7 @@ struct EepromConfigStoreService {
     static int const StartBlock = TStartBlock;
     static int const EndBlock = TEndBlock;
     
-    template <typename Context, typename ParentObject, typename ConfigManager, typename Handler>
+    template <typename Context, typename ParentObject, typename ConfigManager, typename ThePrinterMain, typename Handler>
     using Store = EepromConfigStore<Context, ParentObject, ConfigManager, Handler, EepromConfigStoreService>;
 };
 
