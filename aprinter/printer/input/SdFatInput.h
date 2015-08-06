@@ -36,11 +36,11 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/fs/FatFs.h>
 #include <aprinter/fs/BlockAccess.h>
+#include <aprinter/fs/PartitionTable.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -297,34 +297,8 @@ private:
                 goto error;
             }
             
-            uint16_t signature = ReadBinaryInt<uint16_t, BinaryLittleEndian>(mbr_o->block_buffer + 510);
-            if (signature != UINT16_C(0xAA55)) {
-                error_code = 41;
-                goto error;
-            }
-            
-            auto capacity = TheBlockAccess::getCapacityBlocks(c);
-            bool part_found = false;
             typename TheBlockAccess::BlockRange part_range;
-            
-            for (int partNum = 0; partNum < 4; partNum++) {
-                char const *part_entry_buf = mbr_o->block_buffer + (446 + partNum * 16);
-                uint8_t part_type =           ReadBinaryInt<uint8_t,  BinaryLittleEndian>(part_entry_buf + 0x4);
-                uint32_t part_start_blocks =  ReadBinaryInt<uint32_t, BinaryLittleEndian>(part_entry_buf + 0x8);
-                uint32_t part_length_blocks = ReadBinaryInt<uint32_t, BinaryLittleEndian>(part_entry_buf + 0xC);
-                
-                if (!(part_start_blocks <= capacity && part_length_blocks <= capacity - part_start_blocks && part_length_blocks > 0)) {
-                    continue;
-                }
-                
-                if (TheFs::isPartitionTypeSupported(part_type)) {
-                    part_found = true;
-                    part_range = typename TheBlockAccess::BlockRange{part_start_blocks, part_start_blocks + part_length_blocks};
-                    break;
-                }
-            }
-            
-            if (!part_found) {
+            if (!FindMbrPartition<TheFs>(mbr_o->block_buffer, TheBlockAccess::getCapacityBlocks(c), &part_range)) {
                 error_code = 42;
                 goto error;
             }
@@ -854,6 +828,7 @@ private:
                     if (m_writable) {
                         AMBRO_ASSERT(o->num_rw_refs > 0)
                         o->num_rw_refs--;
+                        // TBD
                     } else {
                         AMBRO_ASSERT(o->num_ro_refs > 0)
                         o->num_ro_refs--;
@@ -895,7 +870,7 @@ private:
                 this->debugAccess(c);
                 AMBRO_ASSERT(m_state == STATE_REPORTING)
                 
-                m_state = STATE_COMPLETED;
+                m_state = m_have_reference ? STATE_COMPLETED : STATE_IDLE;
                 return m_handler(c, !m_have_reference);
             }
             

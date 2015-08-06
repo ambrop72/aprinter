@@ -36,6 +36,7 @@
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/structure/DoubleEndedList.h>
+#include <aprinter/fs/BlockRange.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -58,25 +59,7 @@ public:
     static size_t const BlockSize = TheSd::BlockSize;
     static int const MaxBufferLocks = 1;
     
-    struct BlockRange {
-        BlockIndexType start_block;
-        BlockIndexType end_block;
-        
-        BlockIndexType getLength () const
-        {
-            return end_block - start_block;
-        }
-        
-        BlockIndexType getAbsBlockIndex (BlockIndexType rel_block) const
-        {
-            return start_block + rel_block;
-        }
-        
-        bool isBlockInRange (BlockIndexType block) const
-        {
-            return block >= start_block && block < end_block;
-        }
-    };
+    using BlockRange = BlockRangeTemplate<BlockIndexType>;
     
     static void init (Context c)
     {
