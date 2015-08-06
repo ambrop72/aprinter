@@ -54,7 +54,7 @@ private:
     
     enum {
         STATE_IDLE,
-        STATE_WRITE_ACCESS, STATE_WRITE_OPEN, STATE_WRITE_OPENWR, STATE_WRITE_WRITE, STATE_WRITE_TRUNCATE,
+        STATE_WRITE_ACCESS, STATE_WRITE_OPEN, STATE_WRITE_OPENWR, STATE_WRITE_WRITE, STATE_WRITE_TRUNCATE, STATE_WRITE_FLUSH,
         STATE_READ_ACCESS, STATE_READ_OPEN, STATE_READ_READ
     };
     
@@ -67,6 +67,7 @@ public:
         o->state = STATE_IDLE;
         o->have_opener = false;
         o->have_file = false;
+        o->have_flush = false;
         
         TheDebugObject::init(c);
     }
@@ -112,6 +113,10 @@ private:
         if (o->have_opener) {
             o->fs_opener.deinit(c);
             o->have_opener = false;
+        }
+        if (o->have_flush) {
+            o->fs_flush.deinit(c);
+            o->have_flush = false;
         }
         o->access_client.reset(c);
         o->state = STATE_IDLE;
@@ -195,16 +200,32 @@ private:
         if (o->state == STATE_WRITE_OPENWR) {
             o->data_length = 0;
             o->write_option_index = 0;
+            
             return work_write(c);
-        } else if (o->state == STATE_WRITE_WRITE) {
+        }
+        else if (o->state == STATE_WRITE_WRITE) {
             size_t write_length = MinValue(o->data_length, TheFs::TheBlockSize);
             memmove(o->buffer, o->buffer + write_length, o->data_length - write_length);
             o->data_length -= write_length;
+            
             return work_write(c);
-        } else if (o->state == STATE_WRITE_TRUNCATE) {
-            return complete_command(c, false);
-        } else {
+        }
+        else if (o->state == STATE_WRITE_TRUNCATE) {
+            AMBRO_ASSERT(o->have_file)
+            AMBRO_ASSERT(!o->have_flush)
+            
+            o->fs_file.deinit(c);
+            o->have_file = false;
+            
+            o->fs_flush.init(c, APRINTER_CB_STATFUNC_T(&FileConfigStore::fs_flush_handler));
+            o->have_flush = true;
+            
+            o->fs_flush.requestFlush(c);
+            o->state = STATE_WRITE_FLUSH;
+        }
+        else { // STATE_READ_READ
             o->data_length += read_length;
+            
             return work_read(c, (read_length == 0));
         }
     }
@@ -270,6 +291,15 @@ private:
         start_read(c);
     }
     
+    static void fs_flush_handler (Context c, bool error)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->state == STATE_WRITE_FLUSH)
+        
+        return complete_command(c, error);
+    }
+    
 public:
     struct Object : public ObjBase<FileConfigStore, ParentObject, MakeTypeList<
         TheDebugObject
@@ -278,10 +308,12 @@ public:
         union {
             typename TheFs::Opener fs_opener;
             typename TheFs::template File<true> fs_file;
+            typename TheFs::template FlushRequest<> fs_flush;
         };
         uint8_t state : 4;
         bool have_opener : 1;
         bool have_file : 1;
+        bool have_flush : 1;
         size_t data_length;
         int write_option_index;
         char buffer[TheFs::TheBlockSize + (MaxLineSize - 1)];
