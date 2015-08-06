@@ -344,7 +344,9 @@ private:
         }
         bool mount_writable = TheFs::FsWritable && cmd->find_command_param(c, 'W', nullptr);
         if (!start_mount(c, true, mount_writable)) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdAlreadyMounted\n"));
+            AMBRO_PGM_P errstr = (TheFs::FsWritable && mount_writable && o->write_mount_state == WRITEMOUNT_STATE_UNMOUNTING) ?
+                AMBRO_PSTR("Error:SdWriteUnmountInProgress\n") : AMBRO_PSTR("Error:SdAlreadyMounted\n");
+            cmd->reply_append_pstr(c, errstr);
             cmd->finishCommand(c);
         }
     }
@@ -393,6 +395,7 @@ private:
         } else {
             output->reply_append_pstr(c, AMBRO_PSTR("//SD mounted\n"));
         }
+        output->reply_poke(c);
         
         if (TheFs::FsWritable && !error_code && o->mount_writable) {
             AccessInterface::complete_mount_requests(c, false);
@@ -421,10 +424,18 @@ private:
             AMBRO_PGM_P msgstr = is_mount ? AMBRO_PSTR("//SD write-mounted\n") : AMBRO_PSTR("//SD write-unmounted\n");
             output->reply_append_pstr(c, msgstr);
         }
+        output->reply_poke(c);
         
         if (is_mount || (error && !o->unmount_force) || o->unmount_readonly) {
             report_mount_result(c, is_mount);
         } else {
+            AMBRO_ASSERT(o->for_command)
+            if (!can_unmount(c)) {
+                auto *cmd = ThePrinterMain::get_locked(c);
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdInUse\n"));
+                cmd->finishCommand(c);
+                return;
+            }
             complete_unmount(c);
         }
     }
@@ -437,7 +448,7 @@ private:
             AccessInterface::complete_mount_requests(c, true);
         }
         if (o->for_command) {
-            typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
+            auto *cmd = ThePrinterMain::get_locked(c);
             cmd->finishCommand(c);
         }
     }
@@ -454,28 +465,30 @@ private:
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotMounted\n"));
                 break;
             }
-            if (o->file_state >= FILE_STATE_RUNNING) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintRunning\n"));
-                break;
-            }
             bool unmount_readonly = TheFs::FsWritable && cmd->find_command_param(c, 'R', nullptr);
-            if (AccessInterface::has_references(c, unmount_readonly)) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdInUse\n"));
-                break;
-            }
             if (TheFs::FsWritable && o->write_mount_state != WRITEMOUNT_STATE_NOT_MOUNTED) {
-                if (o->write_mount_state != WRITEMOUNT_STATE_MOUNTED) {
+                if (AccessInterface::has_references(c, true)) {
+                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdWriteInUse\n"));
+                    break;
+                }
+                if (o->write_mount_state == WRITEMOUNT_STATE_MOUNTING) {
                     cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdWriteMountInProgress\n"));
                     break;
                 }
                 o->for_command = true;
                 o->unmount_readonly = unmount_readonly;
                 o->unmount_force = cmd->find_command_param(c, 'F', nullptr);
-                start_write_mount(c, false);
+                if (o->write_mount_state != WRITEMOUNT_STATE_UNMOUNTING) {
+                    start_write_mount(c, false);
+                }
                 return;
             }
             if (unmount_readonly) {
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotWriteMounted\n"));
+                break;
+            }
+            if (!can_unmount(c)) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdInUse\n"));
                 break;
             }
             complete_unmount(c);
@@ -484,11 +497,32 @@ private:
         cmd->finishCommand(c);
     }
     
+    static void write_reference_removed (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->write_mount_state == WRITEMOUNT_STATE_MOUNTED)
+        
+        if (!AccessInterface::has_references(c, true)) {
+            o->for_command = false;
+            o->unmount_readonly = true;
+            o->unmount_force = false;
+            start_write_mount(c, false);
+        }
+    }
+    
+    static bool can_unmount (Context c)
+    {
+        auto *o = Object::self(c);
+        return (!(o->file_state >= FILE_STATE_RUNNING) && !AccessInterface::has_references(c, false));
+    }
+    
     static void complete_unmount (Context c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
         AMBRO_ASSERT(o->write_mount_state == WRITEMOUNT_STATE_MOUNTED || o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED)
+        AMBRO_ASSERT(!(o->file_state >= FILE_STATE_RUNNING))
         AMBRO_ASSERT(!AccessInterface::has_references(c, false))
         
         cleanup(c);
@@ -496,8 +530,9 @@ private:
         
         auto *output = ThePrinterMain::get_msg_output(c);
         output->reply_append_pstr(c, AMBRO_PSTR("//SD unmounted\n"));
+        output->reply_poke(c);
         
-        typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
+        auto *cmd = ThePrinterMain::get_locked(c);
         cmd->finishCommand(c);
     }
     
@@ -828,7 +863,7 @@ private:
                     if (m_writable) {
                         AMBRO_ASSERT(o->num_rw_refs > 0)
                         o->num_rw_refs--;
-                        // TBD
+                        write_reference_removed(c);
                     } else {
                         AMBRO_ASSERT(o->num_ro_refs > 0)
                         o->num_ro_refs--;
