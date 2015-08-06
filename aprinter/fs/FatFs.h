@@ -979,7 +979,7 @@ private:
     static If<ForWriting, char, char const> * get_fat_ptr_in_cache_block (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_idx)
     {
         AMBRO_ASSERT(is_cluster_idx_valid_for_fat(c, cluster_idx))
-        AMBRO_ASSERT(block_ref->getBlock(c) == get_abs_block_index_for_fat_entry(c, cluster_idx))
+        AMBRO_ASSERT(block_ref->getAvailableBlock(c) == get_abs_block_index_for_fat_entry(c, cluster_idx))
         
         return block_ref->getData(c, WrapBool<ForWriting>()) + ((size_t)4 * (cluster_idx % FatEntriesPerBlock));
     }

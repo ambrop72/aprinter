@@ -185,6 +185,7 @@ public:
     };
     
     APRINTER_STRUCT_IF_TEMPLATE(CacheRefWritableMemebers) {
+        BlockIndexType m_allocating_block;
         BlockIndexType m_write_stride;
         uint8_t m_write_count;
     };
@@ -225,7 +226,7 @@ public:
             auto *o = Object::self(c);
             this->debugAccess(c);
             
-            if (!disable_immediate_completion && m_state != State::INVALID && block == m_block) {
+            if (!disable_immediate_completion && (is_allocating_block(block) || (m_entry_index != -1 && block == get_entry(c)->getBlock(c)))) {
                 check_write_params(write_stride, write_count);
             } else {
                 if (m_state != State::INVALID) {
@@ -233,13 +234,12 @@ public:
                 }
                 
                 AMBRO_ASSERT(m_entry_index == -1)
-                m_block = block;
                 set_write_params(write_stride, write_count);
                 
-                CacheEntryIndexType entry_index = get_entry_for_block(c, m_block);
+                CacheEntryIndexType entry_index = get_entry_for_block(c, block);
                 if (entry_index != -1) {
                     m_entry_index = entry_index;
-                    get_entry(c)->assignBlockAndAttachUser(c, m_block, write_stride, write_count, this);
+                    get_entry(c)->assignBlockAndAttachUser(c, block, write_stride, write_count, this);
                     if (!get_entry(c)->isInitialized(c)) {
                         m_state = State::WAITING_READ;
                     } else {
@@ -251,7 +251,7 @@ public:
                     }
                 } else {
                     if (Writable) {
-                        start_allocation(c);
+                        start_allocation(c, block);
                     } else {
                         complete_init(c);
                     }
@@ -261,18 +261,18 @@ public:
             return m_state == State::AVAILABLE;
         }
         
-        BlockIndexType getBlock (Context c)
-        {
-            this->debugAccess(c);
-            AMBRO_ASSERT(m_state != State::INVALID)
-            
-            return m_block;
-        }
-        
         bool isAvailable (Context c)
         {
             this->debugAccess(c);
             return m_state == State::AVAILABLE;
+        }
+        
+        BlockIndexType getAvailableBlock (Context c)
+        {
+            this->debugAccess(c);
+            AMBRO_ASSERT(isAvailable(c))
+            
+            return get_entry(c)->getBlock(c);
         }
         
         char const * getData (Context c, WrapBool<false> for_reading)
@@ -312,10 +312,11 @@ public:
             this->m_write_count = write_count;
         }
         
-        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, start_allocation (Context c))
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, start_allocation (Context c, BlockIndexType block))
         {
             auto *o = Object::self(c);
             m_state = State::ALLOCATING_ENTRY;
+            this->m_allocating_block = block;
             o->pending_allocations.append(this);
             schedule_allocations_check(c);
         }
@@ -325,6 +326,12 @@ public:
             auto *o = Object::self(c);
             return &o->cache_entries[m_entry_index];
         }
+        
+        APRINTER_FUNCTION_IF_ELSE(Writable, bool, is_allocating_block (BlockIndexType block), {
+            return (m_state == State::ALLOCATING_ENTRY && this->m_allocating_block == block);
+        }, {
+            return false;
+        })
         
         void reset_internal (Context c)
         {
@@ -378,11 +385,11 @@ public:
                 return complete_init(c);
             }
             
-            CacheEntryIndexType entry_index = get_entry_for_block(c, m_block);
+            CacheEntryIndexType entry_index = get_entry_for_block(c, this->m_allocating_block);
             if (entry_index != -1) {
                 o->pending_allocations.remove(this);
                 m_entry_index = entry_index;
-                get_entry(c)->assignBlockAndAttachUser(c, m_block, this->m_write_stride, this->m_write_count, this);
+                get_entry(c)->assignBlockAndAttachUser(c, this->m_allocating_block, this->m_write_stride, this->m_write_count, this);
                 if (!get_entry(c)->isInitialized(c)) {
                     m_state = State::WAITING_READ;
                     return;
@@ -408,7 +415,6 @@ public:
         CacheHandler m_handler;
         typename Context::EventLoop::QueuedEvent m_event;
         DoubleEndedListNode<CacheRef> m_list_node;
-        BlockIndexType m_block;
         CacheEntryIndexType m_entry_index;
         State m_state;
     };
