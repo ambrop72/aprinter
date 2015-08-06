@@ -132,6 +132,9 @@
         "board_helper_includes": [
           "arduino_due_pins"
         ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
         "output_type": "bin"
       },
       "digital_inputs": [
@@ -319,8 +322,11 @@
       "development": {
         "AssertionsEnabled": false,
         "BuildWithClang": false,
+        "DebugSymbols": false,
         "DetectOverloadEnabled": false,
+        "DisableWatchdog": false,
         "EventLoopBenchmarkEnabled": false,
+        "VerboseBuild": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -378,6 +384,8 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
+            "FsWritable": false,
+            "HaveAccessInterface": false,
             "MaxFileNameSize": 128,
             "NumCacheEntries": 4,
             "_compoundName": "Fat32"
@@ -645,6 +653,9 @@
         "board_helper_includes": [
           "arduino_due_pins"
         ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
         "output_type": "bin"
       },
       "digital_inputs": [
@@ -797,8 +808,11 @@
       "development": {
         "AssertionsEnabled": false,
         "BuildWithClang": false,
+        "DebugSymbols": false,
         "DetectOverloadEnabled": false,
+        "DisableWatchdog": false,
         "EventLoopBenchmarkEnabled": false,
+        "VerboseBuild": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -850,6 +864,8 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
+            "FsWritable": false,
+            "HaveAccessInterface": false,
             "MaxFileNameSize": 128,
             "NumCacheEntries": 4,
             "_compoundName": "Fat32"
@@ -1052,6 +1068,9 @@
         "_compoundName": "PlatformConfig",
         "board_for_build": "4pi",
         "board_helper_includes": [],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
         "output_type": "bin"
       },
       "digital_inputs": [
@@ -1162,8 +1181,11 @@
       "development": {
         "AssertionsEnabled": false,
         "BuildWithClang": false,
+        "DebugSymbols": false,
         "DetectOverloadEnabled": false,
+        "DisableWatchdog": false,
         "EventLoopBenchmarkEnabled": false,
+        "VerboseBuild": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -1444,6 +1466,9 @@
         "board_helper_includes": [
           "teensy3_pins"
         ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
         "output_type": "hex"
       },
       "digital_inputs": [
@@ -1507,8 +1532,11 @@
       "development": {
         "AssertionsEnabled": false,
         "BuildWithClang": false,
+        "DebugSymbols": false,
         "DetectOverloadEnabled": false,
+        "DisableWatchdog": false,
         "EventLoopBenchmarkEnabled": false,
+        "VerboseBuild": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -1753,6 +1781,9 @@
         "board_helper_includes": [
           "arduino_mega_pins"
         ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
         "output_type": "hex"
       },
       "digital_inputs": [
@@ -1878,8 +1909,11 @@
       "development": {
         "AssertionsEnabled": false,
         "BuildWithClang": false,
+        "DebugSymbols": false,
         "DetectOverloadEnabled": false,
+        "DisableWatchdog": false,
         "EventLoopBenchmarkEnabled": false,
+        "VerboseBuild": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -1928,6 +1962,8 @@
           "BufferBaseSize": 1024,
           "FsType": {
             "CaseInsensFileName": true,
+            "FsWritable": false,
+            "HaveAccessInterface": false,
             "MaxFileNameSize": 32,
             "NumCacheEntries": 1,
             "_compoundName": "Fat32"
@@ -2119,6 +2155,9 @@
         "_compoundName": "PlatformConfig",
         "board_for_build": "melzi",
         "board_helper_includes": [],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
         "output_type": "hex"
       },
       "digital_inputs": [
@@ -2197,8 +2236,11 @@
       "development": {
         "AssertionsEnabled": false,
         "BuildWithClang": false,
+        "DebugSymbols": false,
         "DetectOverloadEnabled": false,
+        "DisableWatchdog": false,
         "EventLoopBenchmarkEnabled": false,
+        "VerboseBuild": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -2247,6 +2289,8 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
+            "FsWritable": false,
+            "HaveAccessInterface": false,
             "MaxFileNameSize": 128,
             "NumCacheEntries": 2,
             "_compoundName": "Fat32"
@@ -2441,6 +2485,9 @@
         "board_helper_includes": [
           "stm32f429i_discovery_pins"
         ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
         "output_type": "elf"
       },
       "digital_inputs": [
@@ -2488,8 +2535,11 @@
       "development": {
         "AssertionsEnabled": true,
         "BuildWithClang": false,
+        "DebugSymbols": false,
         "DetectOverloadEnabled": false,
+        "DisableWatchdog": false,
         "EventLoopBenchmarkEnabled": false,
+        "VerboseBuild": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -2654,6 +2704,9 @@
         "board_helper_includes": [
           "stm32f4discovery_pins"
         ],
+        "debug_interface": {
+          "_compoundName": "NoDebug"
+        },
         "output_type": "elf"
       },
       "digital_inputs": [
@@ -2729,8 +2782,11 @@
       "development": {
         "AssertionsEnabled": true,
         "BuildWithClang": false,
+        "DebugSymbols": false,
         "DetectOverloadEnabled": false,
+        "DisableWatchdog": false,
         "EventLoopBenchmarkEnabled": false,
+        "VerboseBuild": false,
         "_compoundName": "development"
       },
       "_compoundName": "board",
@@ -2773,6 +2829,8 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
+            "FsWritable": false,
+            "HaveAccessInterface": false,
             "MaxFileNameSize": 256,
             "NumCacheEntries": 4,
             "_compoundName": "Fat32"
