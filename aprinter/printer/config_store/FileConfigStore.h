@@ -22,13 +22,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_FILE_CONFIG_STORE_H
-#define AMBROLIB_FILE_CONFIG_STORE_H
+#ifndef APRINTER_FILE_CONFIG_STORE_H
+#define APRINTER_FILE_CONFIG_STORE_H
 
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
-#include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
@@ -44,13 +44,13 @@ public:
     struct Object;
     
 private:
-    using OptionSpecList = typename ConfigManager::RuntimeConfigOptionsList;
     using TheDebugObject = DebugObject<Context, Object>;
     using TheFsAccess = typename ThePrinterMain::template GetInput<>::template GetFsAccess<>;
     using TheFs = typename TheFsAccess::TheFileSystem;
     
     static constexpr char const *ConfigFileName = "aprinter.cfg";
     static size_t const MaxLineSize = 128;
+    static bool const OpenCaseInsens = true;
     
     enum {
         STATE_IDLE,
@@ -63,7 +63,6 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->event.init(c, APRINTER_CB_STATFUNC_T(&FileConfigStore::event_handler));
         o->access_client.init(c, APRINTER_CB_STATFUNC_T(&FileConfigStore::access_client_handler));
         o->state = STATE_IDLE;
         o->have_opener = false;
@@ -79,7 +78,6 @@ public:
         
         reset_internal(c);
         o->access_client.deinit(c);
-        o->event.deinit(c);
     }
     
     static void startWriting (Context c)
@@ -116,7 +114,6 @@ private:
             o->have_opener = false;
         }
         o->access_client.reset(c);
-        o->event.unset(c);
         o->state = STATE_IDLE;
     }
     
@@ -124,13 +121,6 @@ private:
     {
         reset_internal(c);
         return Handler::call(c, !error);
-    }
-    
-    static void event_handler (Context c)
-    {
-        TheDebugObject::access(c);
-        
-        return Handler::call(c, false);
     }
     
     static void access_client_handler (Context c, bool error)
@@ -145,8 +135,8 @@ private:
         }
         
         o->state = (o->state == STATE_WRITE_ACCESS) ? STATE_WRITE_OPEN : STATE_READ_OPEN;
-        o->fs_opener.init(c, TheFs::getRootEntry(c), TheFs::EntryType::FILE_TYPE, ConfigFileName, false, APRINTER_CB_STATFUNC_T(&FileConfigStore::fs_opener_handler));
-        o->have_opener =  true;
+        o->fs_opener.init(c, TheFs::getRootEntry(c), TheFs::EntryType::FILE_TYPE, ConfigFileName, OpenCaseInsens, APRINTER_CB_STATFUNC_T(&FileConfigStore::fs_opener_handler));
+        o->have_opener = true;
     }
     
     static void fs_opener_handler (Context c, typename TheFs::Opener::OpenerStatus status, typename TheFs::FsEntry entry)
@@ -171,7 +161,6 @@ private:
             o->state = STATE_WRITE_OPENWR;
             o->fs_file.startOpenWritable(c);
         } else {
-            o->data_start = 0;
             o->data_length = 0;
             return start_read(c);
         }
@@ -188,7 +177,7 @@ private:
     static void start_read (Context c)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->data_start == 0)
+        AMBRO_ASSERT(sizeof(o->buffer) - o->data_length >= TheFs::TheBlockSize)
         o->fs_file.startRead(c, WrapBuffer::Make(o->buffer + o->data_length));
         o->state = STATE_READ_READ;
     }
@@ -213,7 +202,7 @@ private:
             o->data_length -= write_length;
             return work_write(c);
         } else if (o->state == STATE_WRITE_TRUNCATE) {
-            return complete_command(c, io_error);
+            return complete_command(c, false);
         } else {
             o->data_length += read_length;
             return work_read(c, (read_length == 0));
@@ -247,11 +236,14 @@ private:
     {
         auto *o = Object::self(c);
         
-        while (o->data_length > 0) {
-            char *data_ptr = o->buffer + o->data_start;
-            char *newline_ptr = (char *)memchr(data_ptr, '\n', MinValue(o->data_length, MaxLineSize));
+        size_t parse_pos = 0;
+        
+        while (parse_pos < o->data_length) {
+            char *data_ptr = o->buffer + parse_pos;
+            size_t data_left = o->data_length - parse_pos;
+            char *newline_ptr = (char *)memchr(data_ptr, '\n', MinValue(data_left, MaxLineSize));
             if (!newline_ptr) {
-                if (o->data_length >= MaxLineSize) {
+                if (data_left >= MaxLineSize) {
                     return complete_command(c, true);
                 }
                 break;
@@ -265,12 +257,11 @@ private:
                 ConfigManager::setOptionByStrings(c, data_ptr, equals_ptr + 1);
             }
             
-            o->data_start += line_length + 1;
-            o->data_length -= line_length + 1;
+            parse_pos += line_length + 1;
         }
         
-        memmove(o->buffer, o->buffer + o->data_start, o->data_length);
-        o->data_start = 0;
+        o->data_length -= parse_pos;
+        memmove(o->buffer, o->buffer + parse_pos, o->data_length);
         
         if (eof_reached) {
             return complete_command(c, (o->data_length > 0));
@@ -283,14 +274,14 @@ public:
     struct Object : public ObjBase<FileConfigStore, ParentObject, MakeTypeList<
         TheDebugObject
     >> {
-        typename Context::EventLoop::QueuedEvent event;
         typename TheFsAccess::Client access_client;
-        typename TheFs::Opener fs_opener;
-        typename TheFs::template File<true> fs_file;
-        uint8_t state;
+        union {
+            typename TheFs::Opener fs_opener;
+            typename TheFs::template File<true> fs_file;
+        };
+        uint8_t state : 4;
         bool have_opener : 1;
         bool have_file : 1;
-        size_t data_start;
         size_t data_length;
         int write_option_index;
         char buffer[TheFs::TheBlockSize + (MaxLineSize - 1)];
