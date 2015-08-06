@@ -86,8 +86,7 @@ def main():
     try:
         # Run the generate script.
         generate_path = os.path.join(args.aprinter_src_dir, 'config_system/generator/generate.py')
-        aprinter_nix_dir = os.path.join(args.aprinter_src_dir, 'nix')
-        cmd = [args.python, '-B', generate_path, '--config', '-', '--output', '-', '--nix', '--nix-dir', aprinter_nix_dir]
+        cmd = [args.python, '-B', generate_path, '--config', '-', '--output', '-']
         nix_expr = run_process_limited(args, cmd, request, 'Failed to interpret the configuration.')
         
         # Do the build...

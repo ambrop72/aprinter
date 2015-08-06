@@ -1521,12 +1521,11 @@ def main():
     parser.add_argument('--config', help='JSON configuration file to use.')
     parser.add_argument('--cfg-name', help='Build this configuration instead of the one specified in the configuration file.')
     parser.add_argument('--output', default='-', help='File to write the output to (C++ code or Nix expression).')
-    parser.add_argument('--nix', action='store_true', help='Output a Nix expression.')
-    parser.add_argument('--nix-dir', help='The Nix directory of the APrinter source.')
     args = parser.parse_args()
     
-    # Determine source dir.
+    # Determine directories.
     src_dir = file_utils.file_dir(__file__)
+    nix_dir = os.path.join(src_dir, '..', '..', 'nix')
     
     # Read the configuration.
     config = args.config if args.config is not None else os.path.join(src_dir, '..', 'gui', 'default_config.json')
@@ -1536,28 +1535,32 @@ def main():
     # Read main template file.
     main_template = file_utils.read_file(os.path.join(src_dir, 'main_template.cpp'))
     
-    # Generate.
+    # Call the generate function.
     result = generate(config_data, args.cfg_name, main_template)
     
-    # Write results.
-    with file_utils.use_output_file(args.output) as output_f:
-        if args.nix:
-            nix_dir = args.nix_dir if args.nix_dir is not None else os.path.join(src_dir, '..', '..', 'nix')
-            nix = 'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{ boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; optimizeForSize = {}; assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {}; buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; mainText = {}; }}'.format(
-                nix_utils.escape_string_for_nix(nix_dir),
-                nix_utils.escape_string_for_nix(result['board_for_build']),
-                nix_utils.escape_string_for_nix(result['output_type']),
-                nix_utils.convert_bool_for_nix(result['optimize_for_size']),
-                nix_utils.convert_bool_for_nix(result['assertions_enabled']),
-                nix_utils.convert_bool_for_nix(result['event_loop_benchmark_enabled']),
-                nix_utils.convert_bool_for_nix(result['detect_overload_enabled']),
-                nix_utils.convert_bool_for_nix(result['build_with_clang']),
-                nix_utils.convert_bool_for_nix(result['verbose_build']),
-                nix_utils.convert_bool_for_nix(result['debug_symbols']),
-                nix_utils.escape_string_for_nix(result['main_source'])
-            )
-            output_f.write(nix)
-        else:
-            output_f.write(result['main_source'])
+    # Build the Nix expression.
+    nix_expr = (
+        'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{\n'
+        '    boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; optimizeForSize = {};\n'
+        '    assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {};\n'
+        '    buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; mainText = {};\n'
+        '}}\n'
+    ).format(
+        nix_utils.escape_string_for_nix(nix_dir),
+        nix_utils.escape_string_for_nix(result['board_for_build']),
+        nix_utils.escape_string_for_nix(result['output_type']),
+        nix_utils.convert_bool_for_nix(result['optimize_for_size']),
+        nix_utils.convert_bool_for_nix(result['assertions_enabled']),
+        nix_utils.convert_bool_for_nix(result['event_loop_benchmark_enabled']),
+        nix_utils.convert_bool_for_nix(result['detect_overload_enabled']),
+        nix_utils.convert_bool_for_nix(result['build_with_clang']),
+        nix_utils.convert_bool_for_nix(result['verbose_build']),
+        nix_utils.convert_bool_for_nix(result['debug_symbols']),
+        nix_utils.escape_string_for_nix(result['main_source'])
+    )
     
+    # Write output.
+    with file_utils.use_output_file(args.output) as output_f:
+        output_f.write(nix_expr)
+
 main()
