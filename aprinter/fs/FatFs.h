@@ -780,7 +780,7 @@ private:
                 error_code = 29;
                 goto error;
             }
-            o->num_reserved_blocks = (BlockIndexType)num_reserved_sectors * blocks_per_sector;
+            BlockIndexType num_reserved_blocks = (BlockIndexType)num_reserved_sectors * blocks_per_sector;
             o->fat_end_blocks = fat_end_sectors_calc * blocks_per_sector;
             
             BlockIndexType fs_info_block;
@@ -788,7 +788,7 @@ private:
                 fs_info_block = 0;
             } else {
                 uint32_t fs_info_block_calc = fs_info_sector * (uint32_t)blocks_per_sector;
-                if (fs_info_block_calc >= o->num_reserved_blocks) {
+                if (fs_info_block_calc >= num_reserved_blocks) {
                     error_code = 31;
                     goto error;
                 }
@@ -961,7 +961,8 @@ private:
     static BlockIndexType get_abs_block_index_for_fat_entry (Context c, ClusterIndexType cluster_idx)
     {
         auto *o = Object::self(c);
-        return get_abs_block_index(c, o->num_reserved_blocks + (cluster_idx / FatEntriesPerBlock));
+        BlockIndexType num_reserved_blocks = o->fat_end_blocks - o->num_fats * (o->num_fat_entries / FatEntriesPerBlock);
+        return get_abs_block_index(c, num_reserved_blocks + (cluster_idx / FatEntriesPerBlock));
     }
     
     static bool request_fat_cache_block (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_idx, bool disable_immediate_completion)
@@ -1890,7 +1891,6 @@ public:
                 ClusterBlockIndexType blocks_per_cluster;
                 ClusterIndexType root_cluster;
                 ClusterIndexType num_fat_entries;
-                BlockIndexType num_reserved_blocks;
                 BlockIndexType fat_end_blocks;
                 ClusterIndexType num_valid_clusters;
             };
