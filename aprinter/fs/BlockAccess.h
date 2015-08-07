@@ -28,7 +28,6 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
@@ -52,6 +51,7 @@ private:
     struct SdInitHandler;
     struct SdCommandHandler;
     using TheSd = typename Params::SdService::template SdCard<Context, Object, SdInitHandler, SdCommandHandler>;
+    
     enum {STATE_INACTIVE, STATE_ACTIVATING, STATE_READY, STATE_BUSY};
     
 public:
@@ -73,7 +73,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
         TheSd::deinit(c);
@@ -93,9 +92,10 @@ public:
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state != STATE_INACTIVE)
         
-        TheSd::deactivate(c);
+        if (o->state != STATE_INACTIVE) {
+            TheSd::deactivate(c);
+        }
         o->state = STATE_INACTIVE;
     }
     
@@ -133,10 +133,6 @@ public:
         
         void init (Context c, HandlerType handler)
         {
-            auto *o = Object::self(c);
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
-            
             m_handler = handler;
             m_state = USER_STATE_IDLE;
             m_is_full = false;
@@ -157,11 +153,6 @@ public:
             return start_request(c, block_idx, buf, USER_STATE_WRITING);
         }
         
-        WrapBuffer getBuffer (Context c)
-        {
-            return m_buf;
-        }
-        
     private:
         void start_request (Context c, BlockIndexType block_idx, WrapBuffer buf, uint8_t state_for_request_type)
         {
@@ -174,7 +165,18 @@ public:
             m_state = state_for_request_type;
             m_block_idx = block_idx;
             m_buf = buf;
+            
             add_request(c, this);
+        }
+        
+        void maybe_call_locker (Context c, bool lock_else_unlock)
+        {
+            if (m_is_full) {
+                UserFull *userfull = static_cast<UserFull *>(this);
+                if (userfull->m_locker) {
+                    userfull->m_locker(c, lock_else_unlock);
+                }
+            }
         }
         
         HandlerType m_handler;
@@ -186,6 +188,8 @@ public:
     };
     
     class UserFull : public User {
+        friend class User;
+        
     public:
         using LockerType = Callback<void(Context c, bool lock_else_unlock)>;
         
@@ -206,8 +210,6 @@ public:
     };
     
 private:
-    using QueueList = DoubleEndedList<User, &User::m_list_node>;
-    
     static void sd_init_handler (Context c, uint8_t error_code)
     {
         auto *o = Object::self(c);
@@ -233,13 +235,17 @@ private:
         
         User *user = o->queue.first();
         AMBRO_ASSERT(user->m_state == User::USER_STATE_READING || user->m_state == User::USER_STATE_WRITING)
+        
         if (user->m_state == User::USER_STATE_WRITING) {
-            maybe_call_locker(c, user, false);
+            user->maybe_call_locker(c, false);
         }
+        
         o->queue.removeFirst();
         user->m_state = User::USER_STATE_IDLE;
         o->state = STATE_READY;
+        
         continue_queue(c);
+        
         return user->m_handler(c, error);
     }
     struct SdCommandHandler : public AMBRO_WFUNC_TD(&BlockAccess::sd_command_handler) {};
@@ -266,20 +272,10 @@ private:
             if (user->m_state == User::USER_STATE_READING) {
                 TheSd::startReadBlock(c, user->m_block_idx, user->m_buf);
             } else {
-                maybe_call_locker(c, user, true);
+                user->maybe_call_locker(c, true);
                 TheSd::startWriteBlock(c, user->m_block_idx, user->m_buf);
             }
             o->state = STATE_BUSY;
-        }
-    }
-    
-    static void maybe_call_locker (Context c, User *user, bool lock_else_unlock)
-    {
-        if (user->m_is_full) {
-            UserFull *userfull = static_cast<UserFull *>(user);
-            if (userfull->m_locker) {
-                userfull->m_locker(c, lock_else_unlock);
-            }
         }
     }
     
@@ -289,7 +285,7 @@ public:
         TheSd
     >> {
         uint8_t state;
-        QueueList queue;
+        DoubleEndedList<User, &User::m_list_node> queue;
     };
 };
 
