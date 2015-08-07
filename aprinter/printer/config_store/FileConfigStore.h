@@ -106,6 +106,10 @@ private:
     {
         auto *o = Object::self(c);
         
+        if (o->have_flush) {
+            o->fs_flush.deinit(c);
+            o->have_flush = false;
+        }
         if (o->have_file) {
             o->fs_file.deinit(c);
             o->have_file = false;
@@ -113,10 +117,6 @@ private:
         if (o->have_opener) {
             o->fs_opener.deinit(c);
             o->have_opener = false;
-        }
-        if (o->have_flush) {
-            o->fs_flush.deinit(c);
-            o->have_flush = false;
         }
         o->access_client.reset(c);
         o->state = STATE_IDLE;
@@ -167,7 +167,7 @@ private:
             o->fs_file.startOpenWritable(c);
         } else {
             o->data_length = 0;
-            return start_read(c);
+            start_read(c);
         }
     }
     
@@ -205,8 +205,8 @@ private:
         }
         else if (o->state == STATE_WRITE_WRITE) {
             size_t write_length = MinValue(o->data_length, TheFs::TheBlockSize);
-            memmove(o->buffer, o->buffer + write_length, o->data_length - write_length);
             o->data_length -= write_length;
+            memmove(o->buffer, o->buffer + write_length, o->data_length);
             
             return work_write(c);
         }
@@ -224,6 +224,8 @@ private:
             o->state = STATE_WRITE_FLUSH;
         }
         else { // STATE_READ_READ
+            AMBRO_ASSERT(read_length <= TheFs::TheBlockSize)
+            AMBRO_ASSERT(read_length <= sizeof(o->buffer) - o->data_length)
             o->data_length += read_length;
             
             return work_read(c, (read_length == 0));
@@ -235,8 +237,9 @@ private:
         auto *o = Object::self(c);
         
         while (o->write_option_index < ConfigManager::NumRuntimeOptions && o->data_length < TheFs::TheBlockSize) {
-            ConfigManager::getOptionString(c, o->write_option_index, o->buffer + o->data_length, MaxLineSize);
-            size_t line_length = strlen(o->buffer + o->data_length);
+            char *data_ptr = o->buffer + o->data_length;
+            ConfigManager::getOptionString(c, o->write_option_index, data_ptr, MaxLineSize);
+            size_t line_length = strlen(data_ptr);
             AMBRO_ASSERT(line_length < MaxLineSize)
             o->buffer[o->data_length + line_length] = '\n';
             o->data_length += line_length + 1;

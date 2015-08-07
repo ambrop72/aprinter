@@ -99,8 +99,6 @@ public:
     
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
         TheBlockAccess::init(c);
         set_default_states(c);
         AccessInterface::init(c);
@@ -150,7 +148,7 @@ public:
         if (!check_file_paused(c, cmd)) {
             return false;
         }
-        fs_o->file_reader.rewind(c);
+        fs_o->file.rewind(c);
         o->file_eof = false;
         ClientParams::ClearBufferHandler::call(c);
         return true;
@@ -184,7 +182,7 @@ public:
         AMBRO_ASSERT(buf_avail >= TheBlockAccess::BlockSize)
         AMBRO_ASSERT(buf.wrap > 0)
         
-        fs_o->file_reader.startRead(c, buf);
+        fs_o->file.startRead(c, buf);
         o->file_state = FILE_STATE_READING;
     }
     
@@ -236,7 +234,7 @@ private:
             o->listing_u.open_or_chdir.opener.deinit(c);
         }
         if (o->file_state != FILE_STATE_INACTIVE) {
-            fs_o->file_reader.deinit(c);
+            fs_o->file.deinit(c);
         }
         if (o->init_state >= INIT_STATE_INIT_FS) {
             TheFs::deinit(c);
@@ -247,6 +245,7 @@ private:
         if (o->init_state >= INIT_STATE_ACTIVATE_SD) {
             TheBlockAccess::deactivate(c);
         }
+        
         set_default_states(c);
     }
     
@@ -308,7 +307,7 @@ private:
             TheFs::init(c, part_range);
             o->init_state = INIT_STATE_INIT_FS;
             return;
-        } while (0);
+        } while (false);
         
     error:
         cleanup(c);
@@ -355,6 +354,8 @@ private:
     {
         auto *o = Object::self(c);
         
+        mount_writable = TheFs::FsWritable && mount_writable;
+        
         if (o->init_state == INIT_STATE_INACTIVE) {
             o->for_command = for_command;
             o->mount_writable = mount_writable;
@@ -364,6 +365,7 @@ private:
         }
         if (mount_writable && o->init_state == INIT_STATE_DONE && o->write_mount_state == WRITEMOUNT_STATE_NOT_MOUNTED) {
             o->for_command = for_command;
+            o->mount_writable = mount_writable; // just so that |= below is not undefined behavior
             start_write_mount(c, true);
             return true;
         }
@@ -430,12 +432,14 @@ private:
             report_mount_result(c, is_mount);
         } else {
             AMBRO_ASSERT(o->for_command)
+            
             if (!can_unmount(c)) {
                 auto *cmd = ThePrinterMain::get_locked(c);
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdInUse\n"));
                 cmd->finishCommand(c);
                 return;
             }
+            
             complete_unmount(c);
         }
     }
@@ -460,11 +464,13 @@ private:
         if (!cmd->tryLockedCommand(c)) {
             return;
         }
+        
         do {
             if (o->init_state != INIT_STATE_DONE) {
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotMounted\n"));
                 break;
             }
+            
             bool unmount_readonly = TheFs::FsWritable && cmd->find_command_param(c, 'R', nullptr);
             if (TheFs::FsWritable && o->write_mount_state != WRITEMOUNT_STATE_NOT_MOUNTED) {
                 if (AccessInterface::has_references(c, true)) {
@@ -483,17 +489,21 @@ private:
                 }
                 return;
             }
+            
             if (unmount_readonly) {
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotWriteMounted\n"));
                 break;
             }
+            
             if (!can_unmount(c)) {
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdInUse\n"));
                 break;
             }
+            
             complete_unmount(c);
             return;
         } while (false);
+        
         cmd->finishCommand(c);
     }
     
@@ -546,9 +556,10 @@ private:
         }
         
         do {
-            if (o->init_state != INIT_STATE_DONE || o->listing_state != LISTING_STATE_INACTIVE) {
-                AMBRO_PGM_P errstr = (o->init_state != INIT_STATE_DONE) ? AMBRO_PSTR("Error:SdNotInited\n") : AMBRO_PSTR("Error:SdNavBusy\n");
-                cmd->reply_append_pstr(c, errstr);
+            AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
+            
+            if (o->init_state != INIT_STATE_DONE) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
                 break;
             }
             
@@ -564,9 +575,10 @@ private:
                     break;
                 }
                 
+                char const *find_name;
                 uint8_t listing_state;
                 typename TheFs::EntryType entry_type;
-                char const *find_name;
+                
                 if ((find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
                     listing_state = LISTING_STATE_CHDIR;
                     entry_type = TheFs::EntryType::DIR_TYPE;
@@ -596,10 +608,9 @@ private:
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
         AMBRO_ASSERT(o->listing_state == LISTING_STATE_DIRLIST)
+        AMBRO_ASSERT(!o->listing_u.dirlist.cur_name)
         
         if (!is_error && name) {
-            AMBRO_ASSERT(!o->listing_u.dirlist.cur_name)
-            
             // DirListReplyRequestExtra is to make sure we have space for a possible error reply at the end
             size_t req_len = (2 + strlen(name) + 1) + DirListReplyRequestExtra;
             auto *cmd = ThePrinterMain::get_locked(c);
@@ -630,7 +641,7 @@ private:
         auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
-        AMBRO_ASSERT(o->listing_state == LISTING_STATE_OPEN || o->listing_state == LISTING_STATE_CHDIR)
+        AMBRO_ASSERT(o->listing_state == LISTING_STATE_CHDIR || o->listing_state == LISTING_STATE_OPEN)
         
         AMBRO_PGM_P errstr = nullptr;
         do {
@@ -648,9 +659,10 @@ private:
                 }
                 
                 if (o->file_state != FILE_STATE_INACTIVE) {
-                    fs_o->file_reader.deinit(c);
+                    fs_o->file.deinit(c);
                 }
-                fs_o->file_reader.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::file_reader_handler));
+                
+                fs_o->file.init(c, entry, APRINTER_CB_STATFUNC_T(&SdFatInput::file_handler));
                 o->file_state = FILE_STATE_PAUSED;
                 o->file_eof = false;
                 ClientParams::ClearBufferHandler::call(c);
@@ -679,21 +691,6 @@ private:
         o->listing_u.dirlist.cur_name = nullptr;
     }
     
-    static void file_reader_handler (Context c, bool is_error, size_t length)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
-        AMBRO_ASSERT(o->file_state == FILE_STATE_READING)
-        AMBRO_ASSERT(!o->file_eof)
-        
-        if (!is_error && length == 0) {
-            o->file_eof = true;
-        }
-        o->file_state = FILE_STATE_RUNNING;
-        return ClientParams::ReadHandler::call(c, is_error, length);
-    }
-    
     static void complete_navigation (Context c, AMBRO_PGM_P errstr)
     {
         auto *o = Object::self(c);
@@ -711,6 +708,21 @@ private:
             o->listing_u.open_or_chdir.opener.deinit(c);
         }
         o->listing_state = LISTING_STATE_INACTIVE;
+    }
+    
+    static void file_handler (Context c, bool is_error, size_t length)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->init_state == INIT_STATE_DONE)
+        AMBRO_ASSERT(o->file_state == FILE_STATE_READING)
+        AMBRO_ASSERT(!o->file_eof)
+        
+        if (!is_error && length == 0) {
+            o->file_eof = true;
+        }
+        o->file_state = FILE_STATE_RUNNING;
+        return ClientParams::ReadHandler::call(c, is_error, length);
     }
     
     APRINTER_FUNCTION_IF_OR_EMPTY_EXT(TheFs::FsWritable, static, void, start_write_mount (Context c, bool is_mount))
@@ -740,29 +752,6 @@ private:
         return write_mount_completed(c, error, is_mount);
     }
     struct FsWriteMountHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_write_mount_handler<>) {};
-    
-    struct InitUnion {
-        struct Object : public ObjUnionBase<InitUnion, typename SdFatInput::Object, MakeTypeList<
-            UnionMbrPart,
-            UnionFsPart
-        >> {};
-    };
-    
-    struct UnionMbrPart {
-        struct Object : public ObjBase<UnionMbrPart, typename InitUnion::Object, EmptyTypeList> {
-            typename TheBlockAccess::User block_user;
-            char block_buffer[TheBlockAccess::BlockSize];
-        };
-    };
-    
-    struct UnionFsPart {
-        struct Object : public ObjBase<UnionFsPart, typename InitUnion::Object, MakeTypeList<
-            TheFs
-        >> {
-            typename TheFs::FsEntry current_directory;
-            typename TheFs::template File<false> file_reader;
-        };
-    };
     
     AMBRO_STRUCT_IF(AccessInterface, Params::HaveAccessInterface) {
     private:
@@ -841,14 +830,15 @@ private:
             
             void requestAccess (Context c, bool writable)
             {
-                auto *o = Object::self(c);
                 this->debugAccess(c);
                 AMBRO_ASSERT(m_state == STATE_IDLE)
+                TheDebugObject::access(c);
+                auto *o = Object::self(c);
                 
                 m_writable = writable;
                 if (start_mount(c, false, writable)) {
                     m_state = STATE_REQUESTING;
-                    o->clients_list.append(this);
+                    o->clients_list.prepend(this);
                 } else {
                     complete_request(c);
                 }
@@ -857,9 +847,8 @@ private:
         private:
             void reset_internal (Context c)
             {
-                auto *o = Object::self(c);
-                
                 if (m_have_reference) {
+                    auto *o = Object::self(c);
                     if (m_writable) {
                         AMBRO_ASSERT(o->num_rw_refs > 0)
                         o->num_rw_refs--;
@@ -870,6 +859,7 @@ private:
                     }
                 }
                 if (m_state == STATE_REQUESTING) {
+                    auto *o = Object::self(c);
                     o->clients_list.remove(this);
                 }
                 m_event.unset(c);
@@ -896,6 +886,7 @@ private:
                     }
                     m_have_reference = true;
                 }
+                
                 m_state = Client::STATE_REPORTING;
                 m_event.prependNowNotAlready(c);
             }
@@ -921,7 +912,7 @@ private:
         struct Object : public ObjBase<AccessInterface, typename SdFatInput::Object, EmptyTypeList> {
             size_t num_ro_refs;
             size_t num_rw_refs;
-            DoubleEndedList<Client, &Client::m_list_node> clients_list;
+            DoubleEndedList<Client, &Client::m_list_node, false> clients_list;
         };
     }
     AMBRO_STRUCT_ELSE(AccessInterface) {
@@ -933,6 +924,29 @@ private:
         static bool has_references (Context c, bool count_writable_refs_only) { return false; }
     public:
         struct Object {};
+    };
+    
+    struct InitUnion {
+        struct Object : public ObjUnionBase<InitUnion, typename SdFatInput::Object, MakeTypeList<
+            UnionMbrPart,
+            UnionFsPart
+        >> {};
+    };
+    
+    struct UnionMbrPart {
+        struct Object : public ObjBase<UnionMbrPart, typename InitUnion::Object, EmptyTypeList> {
+            typename TheBlockAccess::User block_user;
+            char block_buffer[TheBlockAccess::BlockSize];
+        };
+    };
+    
+    struct UnionFsPart {
+        struct Object : public ObjBase<UnionFsPart, typename InitUnion::Object, MakeTypeList<
+            TheFs
+        >> {
+            typename TheFs::FsEntry current_directory;
+            typename TheFs::template File<false> file;
+        };
     };
     
 public:
