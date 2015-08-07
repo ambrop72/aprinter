@@ -873,12 +873,7 @@ private:
                 auto *mo = SdFatInput::Object::self(c);
                 AMBRO_ASSERT(!m_have_reference)
                 
-                bool error =
-                    mo->init_state != INIT_STATE_DONE ||
-                    (mo->write_mount_state == WRITEMOUNT_STATE_UNMOUNTING && !mo->unmount_readonly) ||
-                    (m_writable && mo->write_mount_state != WRITEMOUNT_STATE_MOUNTED);
-                
-                if (!error) {
+                if (mo->init_state == INIT_STATE_DONE && (!m_writable || mo->write_mount_state == WRITEMOUNT_STATE_MOUNTED)) {
                     if (m_writable) {
                         o->num_rw_refs++;
                     } else {
