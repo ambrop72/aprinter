@@ -28,7 +28,7 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename BlockIndexType>
-struct BlockRangeTemplate {
+struct BlockRange {
     BlockIndexType start_block;
     BlockIndexType end_block;
     

@@ -41,6 +41,7 @@
 #include <aprinter/fs/FatFs.h>
 #include <aprinter/fs/BlockAccess.h>
 #include <aprinter/fs/PartitionTable.h>
+#include <aprinter/fs/BlockRange.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -296,7 +297,7 @@ private:
                 goto error;
             }
             
-            typename TheBlockAccess::BlockRange part_range;
+            BlockRange<typename TheBlockAccess::BlockIndexType> part_range;
             if (!FindMbrPartition<TheFs>(mbr_o->block_buffer, TheBlockAccess::getCapacityBlocks(c), &part_range)) {
                 error_code = 42;
                 goto error;

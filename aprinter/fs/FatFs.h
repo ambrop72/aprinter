@@ -45,6 +45,7 @@
 #include <aprinter/misc/AsciiTools.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/fs/BlockCache.h>
+#include <aprinter/fs/BlockRange.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -124,7 +125,7 @@ public:
         return (type == 0xB || type == 0xC);
     }
     
-    static void init (Context c, typename TheBlockAccess::BlockRange block_range)
+    static void init (Context c, BlockRange<BlockIndexType> block_range)
     {
         auto *o = Object::self(c);
         
@@ -1882,7 +1883,7 @@ public:
         TheDebugObject,
         TheBlockCache
     >>, public FsWritableMembers<FsWritable> {
-        typename TheBlockAccess::BlockRange block_range;
+        BlockRange<BlockIndexType> block_range;
         FsState state;
         union {
             CacheBlockRef init_block_ref;

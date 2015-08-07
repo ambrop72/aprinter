@@ -33,7 +33,7 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename TheFs, typename BlockIndexType>
-static bool FindMbrPartition (char const *mbr, BlockIndexType capacity_blocks, BlockRangeTemplate<BlockIndexType> *out_block_range)
+static bool FindMbrPartition (char const *mbr, BlockIndexType capacity_blocks, BlockRange<BlockIndexType> *out_block_range)
 {
     uint16_t signature = ReadBinaryInt<uint16_t, BinaryLittleEndian>(mbr + 510);
     if (signature != UINT16_C(0xAA55)) {
@@ -51,7 +51,7 @@ static bool FindMbrPartition (char const *mbr, BlockIndexType capacity_blocks, B
         }
         
         if (TheFs::isPartitionTypeSupported(part_type)) {
-            *out_block_range = BlockRangeTemplate<BlockIndexType>{part_start_blocks, part_start_blocks + part_length_blocks};
+            *out_block_range = BlockRange<BlockIndexType>{part_start_blocks, part_start_blocks + part_length_blocks};
             return true;
         }
     }
