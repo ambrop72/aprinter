@@ -997,6 +997,8 @@ def generate(config_root_data, cfg_name, main_template):
         for config in config_root.enter_elem_by_id('configurations', 'name', cfg_name):
             board_name = config.get_string('board')
             
+            modules_exprs = []
+            
             for board_data in config_root.enter_elem_by_id('boards', 'name', board_name):
                 for platform_config in board_data.enter_config('platform_config'):
                     board_for_build = platform_config.get_string('board_for_build')
@@ -1095,6 +1097,10 @@ def generate(config_root_data, cfg_name, main_template):
                         
                         gen.add_aprinter_include('printer/input/SdFatInput.h')
                         gen.add_aprinter_include('fs/FatFs.h')
+                        
+                        if fs_config.get_bool('EnableFsTest'):
+                            gen.add_aprinter_include('printer/FsTestModule.h')
+                            modules_exprs.append('FsTestModuleService')
                         
                         return TemplateExpr('SdFatInputService', [
                             use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetInput<>::GetSdCard'),
@@ -1494,6 +1500,7 @@ def generate(config_root_data, cfg_name, main_template):
                 heaters_expr,
                 fans_expr,
                 lasers_expr,
+                TemplateList(modules_exprs),
             ])
             
             gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', printer_params]), context_name='Printer')

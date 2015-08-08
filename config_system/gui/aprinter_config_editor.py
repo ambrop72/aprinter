@@ -595,6 +595,7 @@ def editor():
                                 ce.Boolean(key='CaseInsensFileName', title='Case-insensitive filename matching', default=True),
                                 ce.Boolean(key='FsWritable', title='Writable filesystem', default=False),
                                 ce.Boolean(key='HaveAccessInterface', title='Enable internal FS access interface', default=False),
+                                ce.Boolean(key='EnableFsTest', title='Enable FS test module', default=False),
                             ]),
                         ]),
                         ce.Integer(key='BufferBaseSize', title='Buffer size'),

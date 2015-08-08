@@ -845,6 +845,15 @@ private:
                 }
             }
             
+            typename TheFs::FsEntry getCurrentDirectory (Context c)
+            {
+                this->debugAccess(c);
+                AMBRO_ASSERT(m_state == STATE_COMPLETED)
+                
+                auto *fs_o = UnionFsPart::Object::self(c);
+                return fs_o->current_directory;
+            }
+            
         private:
             void reset_internal (Context c)
             {

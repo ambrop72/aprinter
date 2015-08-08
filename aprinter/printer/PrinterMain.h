@@ -98,7 +98,7 @@ template <
     typename TConfigManagerService,
     typename TConfigList,
     typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList,
-    typename TLasersList = EmptyTypeList
+    typename TLasersList, typename TModulesList
 >
 struct PrinterMainParams {
     using Serial = TSerial;
@@ -126,6 +126,7 @@ struct PrinterMainParams {
     using HeatersList = THeatersList;
     using FansList = TFansList;
     using LasersList = TLasersList;
+    using ModulesList = TModulesList;
 };
 
 template <
@@ -479,6 +480,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using TransformParams = typename Params::TransformParams;
     using ParamsHeatersList = typename Params::HeatersList;
     using ParamsFansList = typename Params::FansList;
+    using ParamsModulesList = typename Params::ModulesList;
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     using CommandType = Command<Context, FpType>;
     
@@ -3104,6 +3106,34 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void start_loading (Context c) {}
     };
     
+    template <int ModuleIndex>
+    struct Module {
+        struct Object;
+        using ModuleSpec = TypeListGet<ParamsModulesList, ModuleIndex>;
+        using TheModule = typename ModuleSpec::template Module<Context, Object, PrinterMain>;
+        
+        static void init (Context c)
+        {
+            TheModule::init(c);
+        }
+        
+        static void deinit (Context c)
+        {
+            TheModule::deinit(c);
+        }
+        
+        static bool check_command (Context c, TheCommand *cmd)
+        {
+            return TheModule::check_command(c, cmd);
+        }
+        
+        struct Object : public ObjBase<Module, typename PrinterMain::Object, MakeTypeList<
+            TheModule
+        >> {};
+    };
+    
+    using ModulesList = IndexElemList<ParamsModulesList, Module>;
+    
 public:
     static void init (Context c)
     {
@@ -3132,6 +3162,7 @@ public:
         ob->underrun_count = 0;
         ob->locked = false;
         ob->planner_state = PLANNER_NONE;
+        ListForEachForward<ModulesList>(LForeach_init(), c);
         
         SerialFeature::TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
         SerialFeature::TheChannelCommon::impl(c)->reply_poke(c);
@@ -3149,6 +3180,7 @@ public:
         if (ob->planner_state != PLANNER_NONE) {
             ThePlanner::deinit(c);
         }
+        ListForEachReverse<ModulesList>(LForeach_deinit(), c);
         CurrentFeature::deinit(c);
         ProbeFeature::deinit(c);
         ListForEachReverse<FansList>(LForeach_deinit(), c);
@@ -3253,7 +3285,8 @@ public: // private, see comment on top
                         SdCardFeature::check_command(c, cmd) &&
                         ProbeFeature::check_command(c, cmd) &&
                         CurrentFeature::check_command(c, cmd) &&
-                        TheConfigManager::checkCommand(c, cmd)
+                        TheConfigManager::checkCommand(c, cmd) &&
+                        ListForEachForwardInterruptible<ModulesList>(LForeach_check_command(), c, cmd)
                     ) {
                         goto unknown_command;
                     }
@@ -3919,6 +3952,7 @@ public:
         LasersList,
         HeatersList,
         FansList,
+        ModulesList,
         MakeTypeList<
             TheDebugObject,
             TheWatchdog,
