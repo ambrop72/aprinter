@@ -72,12 +72,9 @@ public:
         auto *o = Object::self(c);
         
         writable_init(c);
-        for (BufferIndexType i = 0; i < NumBuffers; i++) {
-            o->buffer_usage[i] = false;
-        }
+        
         for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
-            o->buffer_usage[i] = true;
-            o->cache_entries[i].init(c, i);
+            o->cache_entries[i].init(c);
         }
         
         TheDebugObject::init(c);
@@ -92,6 +89,7 @@ public:
         for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
             o->cache_entries[i].deinit(c);
         }
+        
         writable_deinit(c);
     }
     
@@ -415,6 +413,9 @@ private:
         o->current_dirt_time = 0;
         o->waiting_flush_requests.init();
         o->pending_allocations.init();
+        for (BufferIndexType i = 0; i < NumBuffers; i++) {
+            o->buffer_usage[i] = false;
+        }
     }
     
     APRINTER_FUNCTION_IF_OR_EMPTY_EXT(Writable, static, void, writable_deinit_assert (Context c))
@@ -511,7 +512,7 @@ private:
         AMBRO_ASSERT(!error || o->pending_allocations.isEmpty())
     }
     
-    APRINTER_FUNCTION_IF_EXT(Writable, static, void, schedule_allocations_check (Context c))
+    APRINTER_FUNCTION_IF_OR_EMPTY_EXT(Writable, static, void, schedule_allocations_check (Context c))
     {
         auto *o = Object::self(c);
         if (!o->allocations_event.isSet(c)) {
@@ -581,7 +582,7 @@ private:
         return -1;
     }
     
-    static void assert_used_buffer (Context c, BufferIndexType i)
+    APRINTER_FUNCTION_IF_EXT(Writable, static, void, assert_used_buffer (Context c, BufferIndexType i))
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(i >= 0)
@@ -600,6 +601,7 @@ private:
         uint8_t m_write_index;
         DirtTimeType m_dirt_time;
         BlockIndexType m_write_stride;
+        BufferIndexType m_active_buffer;
         BufferIndexType m_writing_buffer;
     };
     
@@ -607,12 +609,11 @@ private:
         enum class State : uint8_t {INVALID, READING, IDLE, WRITING};
         
     public:
-        void init (Context c, BufferIndexType buffer_index)
+        void init (Context c)
         {
             m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_handler, this));
             m_cache_users_list.init();
             m_state = State::INVALID;
-            m_active_buffer = buffer_index;
             writable_entry_init(c);
         }
         
@@ -695,13 +696,13 @@ private:
             auto *o = Object::self(c);
             AMBRO_ASSERT(isInitialized(c))
             
-            if (m_active_buffer == this->m_writing_buffer) {
+            if (this->m_active_buffer == this->m_writing_buffer) {
                 AMBRO_ASSERT(m_state == State::WRITING)
                 BufferIndexType new_buffer = find_free_buffer(c);
                 AMBRO_ASSERT(new_buffer != -1)
                 o->buffer_usage[new_buffer] = true;
                 memcpy(o->buffers[new_buffer], get_buffer(c), BlockSize);
-                m_active_buffer = new_buffer;
+                this->m_active_buffer = new_buffer;
             }
             
             return get_buffer(c);
@@ -801,12 +802,21 @@ private:
         }
         
     private:
+        CacheEntryIndexType get_entry_index (Context c)
+        {
+            auto *o = Object::self(c);
+            return (this - o->cache_entries);
+        }
+        
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, writable_entry_init (Context c))
         {
-            m_block_user.setLocker(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_locker<>, this));
+            auto *o = Object::self(c);
             
+            m_block_user.setLocker(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_locker<>, this));
             this->m_write_event.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::write_event_handler<>, this));
             this->m_releasing = false;
+            this->m_active_buffer = get_entry_index(c);
+            o->buffer_usage[this->m_active_buffer] = true;
             this->m_writing_buffer = -1;
         }
         
@@ -839,11 +849,13 @@ private:
             this->m_write_count = write_count;
         }
         
-        char * get_buffer (Context c)
-        {
+        APRINTER_FUNCTION_IF_ELSE(Writable, char *, get_buffer (Context c), {
             auto *o = Object::self(c);
-            return o->buffers[m_active_buffer];
-        }
+            return o->buffers[this->m_active_buffer];
+        }, {
+            auto *o = Object::self(c);
+            return o->buffers[get_entry_index(c)];
+        })
         
         void raise_read_completed (Context c, bool error)
         {
@@ -884,13 +896,13 @@ private:
             AMBRO_ASSERT(m_state == State::WRITING)
             
             if (lock_else_unlock) {
-                assert_used_buffer(c, m_active_buffer);
+                assert_used_buffer(c, this->m_active_buffer);
                 AMBRO_ASSERT(this->m_writing_buffer == -1)
-                this->m_writing_buffer = m_active_buffer;
+                this->m_writing_buffer = this->m_active_buffer;
             } else {
-                assert_used_buffer(c, m_active_buffer);
+                assert_used_buffer(c, this->m_active_buffer);
                 assert_used_buffer(c, this->m_writing_buffer);
-                if (m_active_buffer != this->m_writing_buffer) {
+                if (this->m_active_buffer != this->m_writing_buffer) {
                     o->buffer_usage[this->m_writing_buffer] = false;
                 }
                 this->m_writing_buffer = -1;
@@ -945,9 +957,8 @@ private:
         
         BlockAccessUser m_block_user;
         DoubleEndedList<CacheRef, &CacheRef::m_list_node, false> m_cache_users_list;
-        State m_state;
         BlockIndexType m_block;
-        BufferIndexType m_active_buffer;
+        State m_state;
     };
     
     APRINTER_STRUCT_IF_TEMPLATE(CacheWritableMembers) {
@@ -955,6 +966,7 @@ private:
         DirtTimeType current_dirt_time;
         DoubleEndedList<FlushRequest<>, &FlushRequest<>::m_waiting_flush_requests_node, false> waiting_flush_requests;
         DoubleEndedList<CacheRef, &CacheRef::m_list_node> pending_allocations;
+        bool buffer_usage[NumBuffers];
     };
     
 public:
@@ -962,7 +974,6 @@ public:
         TheDebugObject
     >>, public CacheWritableMembers<Writable> {
         CacheEntry cache_entries[NumCacheEntries];
-        bool buffer_usage[NumBuffers];
         char buffers[NumBuffers][BlockSize];
     };
 };
