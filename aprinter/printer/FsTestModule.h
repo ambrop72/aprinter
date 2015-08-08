@@ -47,13 +47,14 @@ private:
     using TheFsAccess = typename ThePrinterMain::template GetInput<>::template GetFsAccess<>;
     using TheFs = typename TheFsAccess::TheFileSystem;
     
-    enum {STATE_IDLE, STATE_ACCESS, STATE_OPEN, STATE_OPENWR, STATE_WRITE, STATE_TRUNCATE, STATE_FLUSH};
+    enum {STATE_IDLE, STATE_ACCESS, STATE_BUFFER, STATE_OPEN, STATE_OPENWR, STATE_WRITE, STATE_TRUNCATE, STATE_FLUSH};
     
 public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
         o->access_client.init(c, APRINTER_CB_STATFUNC_T(&FsTestModule::access_client_handler));
+        o->user_buffer.init(c, APRINTER_CB_STATFUNC_T(&FsTestModule::user_buffer_handler));
         o->state = STATE_IDLE;
         o->have_opener = false;
         o->have_file = false;
@@ -66,6 +67,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         reset_internal(c);
+        o->user_buffer.deinit(c);
         o->access_client.deinit(c);
     }
     
@@ -96,6 +98,7 @@ private:
             o->have_flush = false;
             o->fs_flush.deinit(c);
         }
+        o->user_buffer.reset(c);
         o->access_client.reset(c);
         o->state = STATE_IDLE;
     }
@@ -144,6 +147,20 @@ private:
         
         if (error) {
             return complete_command(c, AMBRO_PSTR("Error:Access\n"));
+        }
+        o->user_buffer.requestUserBuffer(c);
+        o->state = STATE_BUFFER;
+        debug_msg(c, AMBRO_PSTR("//FsTest:Buffer\n"));
+    }
+    
+    static void user_buffer_handler (Context c, bool error)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->state == STATE_BUFFER)
+        
+        if (error) {
+            return complete_command(c, AMBRO_PSTR("Error:Buffer\n"));
         }
         o->fs_opener.init(c, o->access_client.getCurrentDirectory(c), TheFs::EntryType::FILE_TYPE, o->open_file_name, true, APRINTER_CB_STATFUNC_T(&FsTestModule::fs_opener_handler));
         o->have_opener = true;
@@ -221,7 +238,7 @@ private:
             if (amount > o->write_size) {
                 amount = o->write_size;
             }
-            memcpy(o->buffer + o->buffer_pos, o->write_data + o->write_pos, amount);
+            memcpy(o->user_buffer.getUserBuffer(c) + o->buffer_pos, o->write_data + o->write_pos, amount);
             o->write_pos += amount;
             if (o->write_pos == o->write_data_size) {
                 o->write_pos = 0;
@@ -231,7 +248,7 @@ private:
         }
         
         if (o->buffer_pos > 0) {
-            o->fs_file.startWrite(c, WrapBuffer::Make(o->buffer), o->buffer_pos);
+            o->fs_file.startWrite(c, WrapBuffer::Make(o->user_buffer.getUserBuffer(c)), o->buffer_pos);
             o->state = STATE_WRITE;
             debug_msg(c, AMBRO_PSTR("//FsTest:Write\n"));
             return;
@@ -256,6 +273,7 @@ public:
         TheDebugObject
     >> {
         typename TheFsAccess::Client access_client;
+        typename TheFsAccess::UserBuffer user_buffer;
         union {
             typename TheFs::Opener fs_opener;
             typename TheFs::template File<true> fs_file;
@@ -271,7 +289,6 @@ public:
         uint32_t write_size;
         size_t write_pos;
         size_t buffer_pos;
-        char buffer[TheFs::TheBlockSize];
     };
 };
 

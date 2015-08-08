@@ -659,6 +659,8 @@ public:
     template <typename Dummy=void>
     using FlushRequest = CacheFlushRequest;
     
+    using CacheRefForUser = CacheBlockRef;
+    
 private:
     APRINTER_FUNCTION_IF_OR_EMPTY_EXT(FsWritable, static, void, fs_writable_init (Context c))
     {
