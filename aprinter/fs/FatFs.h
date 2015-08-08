@@ -80,6 +80,7 @@ private:
     static uint8_t const StatusBitsDirty = 0x01;
     static ClusterIndexType const EndOfChainMarker = UINT32_C(0x0FFFFFFF);
     static ClusterIndexType const FreeClusterMarker = UINT32_C(0x00000000);
+    static ClusterIndexType const EmptyFileMarker = UINT32_C(0x00000000);
     static ClusterIndexType const NormalClusterIndexEnd = UINT32_C(0x0FFFFFF8);
     static size_t const DirEntrySizeOffset = 0x1C;
     static size_t const FsInfoSig1Offset = 0x0;
@@ -1346,7 +1347,7 @@ private:
                 if (m_iter_state == IterState::START) {
                     update_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster, FreeClusterMarker);
                     update_fs_info_free_clusters(c, true);
-                    m_first_cluster = EndOfChainMarker;
+                    m_first_cluster = EmptyFileMarker;
                     m_current_cluster = m_first_cluster;
                     changing_first_cluster = true;
                 }
