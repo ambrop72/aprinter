@@ -3257,6 +3257,13 @@ public:
         return SerialFeature::TheChannelCommon::impl(c);
     }
     
+    static void print_pgm_string (Context c, AMBRO_PGM_P msg)
+    {
+        auto *output = get_msg_output(c);
+        output->reply_append_pstr(c, msg);
+        output->reply_poke(c);
+    }
+    
 public: // private, see comment on top
     static TimeType time_from_real (FpType t)
     {
