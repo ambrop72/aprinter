@@ -179,7 +179,7 @@ public:
         
         PWM->PWM_CH_NUM[ChannelNumber].PWM_CPRD = PWM_CPRD_CPRD(Params::ChannelPeriod);
         PWM->PWM_CH_NUM[ChannelNumber].PWM_CDTY = 0;
-        PWM->PWM_CH_NUM[ChannelNumber].PWM_CMR = Params::ChannelPrescaler | (Conn::Signal == 'H' ? PWM_CMR_CPOL : 0);
+        PWM->PWM_CH_NUM[ChannelNumber].PWM_CMR = Params::ChannelPrescaler | ((Conn::Signal == 'H') != Params::Invert ? PWM_CMR_CPOL : 0);
         PWM->PWM_ENA = (uint32_t)1 << ChannelNumber;
         
         Context::Pins::template setPeripheral<typename Conn::Pin>(c, typename Conn::Periph());
@@ -211,13 +211,14 @@ public:
     struct Object : public ObjBase<At91Sam3xPwmChannel, ParentObject, MakeTypeList<TheDebugObject>> {};
 };
 
-template <int TChannelPrescaler, uint32_t TChannelPeriod, int TChannelNumber, typename TPin, char TSignal>
+template <int TChannelPrescaler, uint32_t TChannelPeriod, int TChannelNumber, typename TPin, char TSignal, bool TInvert>
 struct At91Sam3xPwmChannelService {
     static int const ChannelPrescaler = TChannelPrescaler;
     static uint32_t const ChannelPeriod = TChannelPeriod;
     static int const ChannelNumber = TChannelNumber;
     using Pin = TPin;
     static char const Signal = TSignal;
+    static bool const Invert = TInvert;
     
     template <typename Context, typename ParentObject>
     using Pwm = At91Sam3xPwmChannel<Context, ParentObject, At91Sam3xPwmChannelService>;

@@ -719,6 +719,7 @@ def use_pwm_output (gen, config, key, user, username, hard=False):
                 hard_driver.get_int('ChannelNumber'),
                 get_pin(gen, hard_driver, 'OutputPin'),
                 TemplateChar(hard_driver.get_identifier('Signal')),
+                hard_driver.get_bool('Invert'),
             ])
         
         hard_pwm_expr = backend.do_selection('HardPwmDriver', hard_driver_sel)

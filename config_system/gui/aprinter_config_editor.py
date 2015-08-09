@@ -250,6 +250,7 @@ def hard_pwm_choice(**kwargs):
             ce.Integer(key='ChannelNumber', title='Channel number'),
             pin_choice(key='OutputPin', title='Output pin (constrained by choice of channel/signal)'),
             ce.String(key='Signal', title='Connection type (L/H)'),
+            ce.Boolean(key='Invert', title='Output logic', false_title='Normal (On=High)', true_title='Inverted (On=Low)'),
         ]),
     ], **kwargs)
 
