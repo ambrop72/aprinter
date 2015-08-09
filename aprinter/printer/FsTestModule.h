@@ -134,6 +134,9 @@ private:
         o->write_data = cmd->get_command_param_str(c, 'D', "1234567890");
         o->write_data_size = strlen(o->write_data);
         o->write_size = cmd->find_command_param(c, 'S', nullptr) ? cmd->get_command_param_uint32(c, 'S', 0) : o->write_data_size;
+        if (o->write_data_size == 0) {
+            o->write_size = 0;
+        }
         o->access_client.requestAccess(c, true);
         o->state = STATE_ACCESS;
         debug_msg(c, AMBRO_PSTR("//FsTest:Access\n"));
@@ -250,7 +253,13 @@ private:
         if (o->buffer_pos > 0) {
             o->fs_file.startWrite(c, WrapBuffer::Make(o->user_buffer.getUserBuffer(c)), o->buffer_pos);
             o->state = STATE_WRITE;
-            debug_msg(c, AMBRO_PSTR("//FsTest:Write\n"));
+            auto *output = ThePrinterMain::get_msg_output(c);
+            output->reply_append_pstr(c, AMBRO_PSTR("//FsTest:Write="));
+            output->reply_append_uint32(c, o->buffer_pos);
+            output->reply_append_pstr(c, AMBRO_PSTR(";Remain="));
+            output->reply_append_uint32(c, o->write_size);
+            output->reply_append_ch(c, '\n');
+            output->reply_poke(c);
             return;
         }
         
