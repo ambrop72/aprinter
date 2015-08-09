@@ -1012,6 +1012,20 @@ private:
         return cluster_idx >= 2 && cluster_idx - 2 < o->num_valid_clusters;
     }
     
+    static bool release_cluster (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_index, ClusterIndexType *out_next_cluster=nullptr)
+    {
+        ClusterIndexType next_cluster = read_fat_entry_in_cache_block(c, block_ref, cluster_index);
+        if (out_next_cluster) {
+            *out_next_cluster = next_cluster;
+        }
+        if (!is_cluster_idx_valid_for_data(c, cluster_index) || next_cluster == FreeClusterMarker) {
+            return false;
+        }
+        update_fat_entry_in_cache_block(c, block_ref, cluster_index, FreeClusterMarker);
+        update_fs_info_free_clusters(c, true);
+        return true;
+    }
+    
     static BlockIndexType get_cluster_data_block_index (Context c, ClusterIndexType cluster_idx, ClusterBlockIndexType cluster_block_idx)
     {
         auto *o = Object::self(c);
@@ -1165,7 +1179,7 @@ private:
             }
             
             ClusterIndexType fat_value = read_fat_entry_in_cache_block(c, &o->write_block_ref, current_cluster);
-            if (fat_value == 0) {
+            if (fat_value == FreeClusterMarker) {
                 update_fat_entry_in_cache_block(c, &o->write_block_ref, current_cluster, EndOfChainMarker);
                 update_fs_info_free_clusters(c, false);
                 update_fs_info_allocated_cluster(c);
@@ -1347,8 +1361,9 @@ private:
             if (!is_cluster_idx_normal(next_cluster)) {
                 bool changing_first_cluster = false;
                 if (m_iter_state == IterState::START) {
-                    update_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster, FreeClusterMarker);
-                    update_fs_info_free_clusters(c, true);
+                    if (!release_cluster(c, &m_fat_cache_ref1, m_current_cluster)) {
+                        return complete_request(c, true);
+                    }
                     m_first_cluster = EmptyFileMarker;
                     m_current_cluster = m_first_cluster;
                     changing_first_cluster = true;
@@ -1362,10 +1377,11 @@ private:
                 m_state = State::TRUNCATE_REQUESTING_FAT2;
                 return;
             }
-            ClusterIndexType after_next_cluster = read_fat_entry_in_cache_block(c, &this->m_fat_cache_ref2, next_cluster);
+            ClusterIndexType after_next_cluster;
+            if (!release_cluster(c, &this->m_fat_cache_ref2, next_cluster, &after_next_cluster)) {
+                return complete_request(c, true);
+            }
             update_fat_entry_in_cache_block(c, &m_fat_cache_ref1, m_current_cluster, after_next_cluster);
-            update_fat_entry_in_cache_block(c, &this->m_fat_cache_ref2, next_cluster, FreeClusterMarker);
-            update_fs_info_free_clusters(c, true);
             m_event.prependNowNotAlready(c);
         }
         
