@@ -50,7 +50,6 @@ private:
     
     static constexpr char const *ConfigFileName = "aprinter.cfg";
     static size_t const MaxLineSize = 128;
-    static bool const OpenCaseInsens = true;
     
     enum {
         STATE_IDLE,
@@ -157,7 +156,7 @@ private:
         }
         
         o->state = (o->state == STATE_WRITE_BUFFER) ? STATE_WRITE_OPEN : STATE_READ_OPEN;
-        o->fs_opener.init(c, TheFs::getRootEntry(c), TheFs::EntryType::FILE_TYPE, ConfigFileName, OpenCaseInsens, APRINTER_CB_STATFUNC_T(&FileConfigStore::fs_opener_handler));
+        o->fs_opener.init(c, TheFs::getRootEntry(c), TheFs::EntryType::FILE_TYPE, ConfigFileName, APRINTER_CB_STATFUNC_T(&FileConfigStore::fs_opener_handler));
         o->have_opener = true;
     }
     

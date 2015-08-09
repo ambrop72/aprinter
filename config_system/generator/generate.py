@@ -1107,9 +1107,9 @@ def generate(config_root_data, cfg_name, main_template):
                             TemplateExpr('FatFsService', [
                                 max_filename_size,
                                 num_cache_entries,
+                                fs_config.get_bool_constant('CaseInsensFileName'),
                                 fs_config.get_bool_constant('FsWritable'),
                             ]),
-                            fs_config.get_bool_constant('CaseInsensFileName'),
                             fs_config.get_bool_constant('HaveAccessInterface'),
                         ])
                     

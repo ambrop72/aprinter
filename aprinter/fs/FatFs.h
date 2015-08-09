@@ -249,7 +249,7 @@ public:
         
         using OpenerHandler = Callback<void(Context c, OpenerStatus status, FsEntry entry)>;
         
-        void init (Context c, FsEntry dir_entry, EntryType entry_type, char const *name, bool case_insens, OpenerHandler handler)
+        void init (Context c, FsEntry dir_entry, EntryType entry_type, char const *name, OpenerHandler handler)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
@@ -259,7 +259,6 @@ public:
             
             m_entry_type = entry_type;
             m_name = name;
-            m_case_insens = case_insens;
             m_handler = handler;
             m_state = State::REQUESTING_ENTRY;
             m_dir_iter.init(c, dir_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&Opener::dir_iter_handler, this));
@@ -296,13 +295,12 @@ public:
             return m_handler(c, OpenerStatus::SUCCESS, entry);
         }
         
-        bool compare_filename_equal (char const *str1, char const *str2)
+        static bool compare_filename_equal (char const *str1, char const *str2)
         {
-            return m_case_insens ? AsciiCaseInsensStringEqual(str1, str2) : !strcmp(str1, str2);
+            return Params::CaseInsens ? AsciiCaseInsensStringEqual(str1, str2) : !strcmp(str1, str2);
         }
         
         EntryType m_entry_type;
-        bool m_case_insens;
         State m_state;
         char const *m_name;
         OpenerHandler m_handler;
@@ -1921,11 +1919,13 @@ public:
 template <
     int TMaxFileNameSize,
     int TNumCacheEntries,
+    bool TCaseInsens,
     bool TWritable
 >
 struct FatFsService {
     static int const MaxFileNameSize = TMaxFileNameSize;
     static int const NumCacheEntries = TNumCacheEntries;
+    static bool const CaseInsens = TCaseInsens;
     static bool const Writable = TWritable;
     
     template <typename Context, typename ParentObject, typename TheBlockAccess, typename InitHandler, typename WriteMountHandler>

@@ -165,7 +165,7 @@ private:
         if (error) {
             return complete_command(c, AMBRO_PSTR("Error:Buffer\n"));
         }
-        o->fs_opener.init(c, o->access_client.getCurrentDirectory(c), TheFs::EntryType::FILE_TYPE, o->open_file_name, true, APRINTER_CB_STATFUNC_T(&FsTestModule::fs_opener_handler));
+        o->fs_opener.init(c, o->access_client.getCurrentDirectory(c), TheFs::EntryType::FILE_TYPE, o->open_file_name, APRINTER_CB_STATFUNC_T(&FsTestModule::fs_opener_handler));
         o->have_opener = true;
         o->state = STATE_OPEN;
         debug_msg(c, AMBRO_PSTR("//FsTest:Open\n"));

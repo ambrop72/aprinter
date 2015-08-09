@@ -594,7 +594,7 @@ private:
                 }
                 
                 o->listing_state = listing_state;
-                o->listing_u.open_or_chdir.opener.init(c, fs_o->current_directory, entry_type, find_name, Params::CaseInsensFileName, APRINTER_CB_STATFUNC_T(&SdFatInput::opener_handler));
+                o->listing_u.open_or_chdir.opener.init(c, fs_o->current_directory, entry_type, find_name, APRINTER_CB_STATFUNC_T(&SdFatInput::opener_handler));
             }
             
             return;
@@ -1017,11 +1017,10 @@ public:
     };
 };
 
-template <typename TSdCardService, typename TFsService, bool TCaseInsensFileName, bool THaveAccessInterface>
+template <typename TSdCardService, typename TFsService, bool THaveAccessInterface>
 struct SdFatInputService {
     using SdCardService = TSdCardService;
     using FsService = TFsService;
-    static bool const CaseInsensFileName = TCaseInsensFileName;
     static bool const HaveAccessInterface = THaveAccessInterface;
     
     template <typename Context, typename ParentObject, typename ClientParams>
