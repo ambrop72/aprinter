@@ -996,7 +996,7 @@ private:
         return mask_cluster_entry(ReadBinaryInt<uint32_t, BinaryLittleEndian>(entry_ptr));
     }
     
-    static void update_fat_entry_in_cache_block (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_idx, ClusterIndexType value)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, update_fat_entry_in_cache_block (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_idx, ClusterIndexType value))
     {
         AMBRO_ASSERT(is_cluster_idx_valid_for_fat(c, cluster_idx))
         
@@ -1012,7 +1012,7 @@ private:
         return cluster_idx >= 2 && cluster_idx - 2 < o->num_valid_clusters;
     }
     
-    static bool release_cluster (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_index, ClusterIndexType *out_next_cluster=nullptr)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, bool, release_cluster (Context c, CacheBlockRef *block_ref, ClusterIndexType cluster_index, ClusterIndexType *out_next_cluster=nullptr))
     {
         ClusterIndexType next_cluster = read_fat_entry_in_cache_block(c, block_ref, cluster_index);
         if (out_next_cluster) {
@@ -1063,7 +1063,7 @@ private:
         return (status_bits & StatusBitsDirty);
     }
     
-    static void update_fs_dirty_bit (Context c, CacheBlockRef *block_ref, bool set_else_clear)
+    APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, update_fs_dirty_bit (Context c, CacheBlockRef *block_ref, bool set_else_clear))
     {
         char *status_bits_ptr = block_ref->getData(c, WrapBool<true>()) + EbpbStatusBitsOffset;
         uint8_t status_bits = ReadBinaryInt<uint8_t, BinaryLittleEndian>(status_bits_ptr);
