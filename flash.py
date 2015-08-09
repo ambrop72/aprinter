@@ -44,6 +44,19 @@ class ArduinoDueType(object):
             ['bossac', '-p', bare_port, '-U', 'false', '-i', '-e', '-w', '-v', '-b', opts['image_file'], '-R'],
         ]
 
+class DuetType(object):
+    SUPPORTED_EXTENSIONS = ['.bin']
+    
+    def flash_cmds(self, opts):
+        port = '/dev/ttyACM0' if opts['port'] is None else opts['port']
+        port_prefix = '/dev/'
+        if not port.startswith(port_prefix):
+            report_error('port must start with {}'.format(port_prefix))
+        bare_port = port[len(port_prefix):]
+        return [
+            ['bossac', '-p', bare_port, '-i', '-e', '-w', '-v', '-b', opts['image_file'], '-R'],
+        ]
+
 class Teensy3Type(object):
     SUPPORTED_EXTENSIONS = ['.hex']
     
@@ -65,6 +78,7 @@ TYPES = {
     'melzi': MelziType,
     'melzi_programmer': MelziProgrammerType,
     'arduino_due': ArduinoDueType,
+    'duet': DuetType,
     'teensy3': Teensy3Type,
     'stm32f4': Stm32f4Type,
 }
