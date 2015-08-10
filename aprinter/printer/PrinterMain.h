@@ -2849,6 +2849,19 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return true;
         }
         
+        static void m119_append_endstop (Context c, TheCommand *cmd)
+        {
+            bool triggered = endstop_is_triggered(c);
+            cmd->reply_append_pstr(c, AMBRO_PSTR(" Probe:"));
+            cmd->reply_append_ch(c, (triggered ? '1' : '0'));
+        }
+        
+        template <typename ThisContext>
+        static bool endstop_is_triggered (ThisContext c)
+        {
+            return Context::Pins::template get<typename ProbeParams::ProbePin>(c) != Params::ProbeParams::ProbeInvert;
+        }
+        
         template <int PlatformAxisIndex>
         struct AxisHelper {
             struct Object;
@@ -2970,7 +2983,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename CallbackContext>
         static bool prestep_callback (CallbackContext c)
         {
-            return (Context::Pins::template get<typename ProbeParams::ProbePin>(c) != Params::ProbeParams::ProbeInvert);
+            return endstop_is_triggered(c);
         }
         
         static void init_probe_planner (Context c, bool watch_probe)
@@ -3012,6 +3025,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void init (Context c) {}
         static void deinit (Context c) {}
         static bool check_command (Context c, TheCommand *cmd) { return true; }
+        static void m119_append_endstop (Context c, TheCommand *cmd) {}
         template <typename CallbackContext>
         static bool prestep_callback (CallbackContext c) { return false; }
         struct Object {};
@@ -3360,6 +3374,7 @@ public: // private, see comment on top
                 case 119: {
                     cmd->reply_append_pstr(c, AMBRO_PSTR("endstops:"));
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_m119_append_endstop(), c, cmd);
+                    ProbeFeature::m119_append_endstop(c, cmd);
                     cmd->reply_append_ch(c, '\n');                    
                     return cmd->finishCommand(c, true);
                 } break;
