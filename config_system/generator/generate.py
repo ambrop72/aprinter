@@ -1142,6 +1142,7 @@ def generate(config_root_data, cfg_name, main_template):
             
             @probe_sel.option('Probe')
             def option(probe):
+                gen.add_bool_config('ProbeInvert', probe.get_bool('InvertInput')),
                 gen.add_float_config('ProbeOffsetX', probe.get_float('OffsetX'))
                 gen.add_float_config('ProbeOffsetY', probe.get_float('OffsetY'))
                 gen.add_float_config('ProbeStartHeight', probe.get_float('StartHeight'))
@@ -1163,7 +1164,7 @@ def generate(config_root_data, cfg_name, main_template):
                     'MakeTypeList<WrapInt<\'X\'>, WrapInt<\'Y\'>>',
                     '\'Z\'',
                     use_digital_input(gen, probe, 'ProbePin'),
-                    probe.get_bool_constant('InvertInput'),
+                    'ProbeInvert',
                     'MakeTypeList<ProbeOffsetX, ProbeOffsetY>',
                     'ProbeStartHeight',
                     'ProbeLowHeight',

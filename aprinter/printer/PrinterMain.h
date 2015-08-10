@@ -330,7 +330,7 @@ template <
     char TProbeAxis,
     typename TProbePin,
     typename TProbePinInputMode,
-    bool TProbeInvert,
+    typename TProbeInvert,
     typename TProbePlatformOffset,
     typename TProbeStartHeight,
     typename TProbeLowHeight,
@@ -347,7 +347,7 @@ struct PrinterMainProbeParams {
     static char const ProbeAxis = TProbeAxis;
     using ProbePin = TProbePin;
     using ProbePinInputMode = TProbePinInputMode;
-    static bool const ProbeInvert = TProbeInvert;
+    using ProbeInvert = TProbeInvert;
     using ProbePlatformOffset = TProbePlatformOffset;
     using ProbeStartHeight = TProbeStartHeight;
     using ProbeLowHeight = TProbeLowHeight;
@@ -2859,7 +2859,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <typename ThisContext>
         static bool endstop_is_triggered (ThisContext c)
         {
-            return Context::Pins::template get<typename ProbeParams::ProbePin>(c) != Params::ProbeParams::ProbeInvert;
+            return Context::Pins::template get<typename ProbeParams::ProbePin>(c) != APRINTER_CFG(Config, CProbeInvert, c);
         }
         
         template <int PlatformAxisIndex>
@@ -3005,6 +3005,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             cmd->reply_poke(c);
         }
         
+        using CProbeInvert = decltype(ExprCast<bool>(Config::e(Params::ProbeParams::ProbeInvert::i())));
         using CProbeStartHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeStartHeight::i())));
         using CProbeLowHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeLowHeight::i())));
         using CProbeRetractDist = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeRetractDist::i())));
@@ -3013,7 +3014,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         using CProbeRetractSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeRetractSpeed::i())));
         using CProbeSlowSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeSlowSpeed::i())));
         
-        using ConfigExprs = MakeTypeList<CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor, CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor>;
+        using ConfigExprs = MakeTypeList<CProbeInvert, CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor, CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor>;
         
         struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, AxisHelperList> {
             ProbePlannerClient planner_client;
