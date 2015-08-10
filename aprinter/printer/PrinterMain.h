@@ -359,6 +359,15 @@ struct PrinterMainProbeParams {
     using ProbePoints = TProbePoints;
 };
 
+template <
+    typename TEnabled,
+    typename TCoords
+>
+struct PrinterMainProbePointParams {
+    using Enabled = TEnabled;
+    using Coords = TCoords;
+};
+
 struct PrinterMainNoCurrentParams {
     static bool const Enabled = false;
 };
@@ -437,6 +446,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_add_axis, add_axis)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_current_axis, check_current_axis)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_coord, get_coord)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_skip_point_if_disabled, skip_point_if_disabled)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_position, append_position)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_new_pos, collect_new_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
@@ -2840,10 +2850,16 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     return false;
                 }
                 AMBRO_ASSERT(o->m_current_point == 0xff)
-                init_probe_planner(c, false);
                 o->m_current_point = 0;
-                o->m_point_state = 0;
-                o->m_command_sent = false;
+                skip_disabled_points_and_detect_end(c);
+                if (o->m_current_point == 0xff) {
+                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:NoProbePointsEnabled\n"));
+                    cmd->finishCommand(c);
+                } else {
+                    init_probe_planner(c, false);
+                    o->m_point_state = 0;
+                    o->m_command_sent = false;
+                }
                 return false;
             }
             return true;
@@ -2860,6 +2876,32 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static bool endstop_is_triggered (ThisContext c)
         {
             return Context::Pins::template get<typename ProbeParams::ProbePin>(c) != APRINTER_CFG(Config, CProbeInvert, c);
+        }
+        
+        template <int PointIndex>
+        struct PointHelper {
+            using Point = TypeListGet<typename ProbeParams::ProbePoints, PointIndex>;
+            using CPointEnabled = decltype(ExprCast<bool>(Config::e(Point::Enabled::i())));
+            using ConfigExprs = MakeTypeList<CPointEnabled>;
+            struct Object : public ObjBase<PointHelper, typename ProbeFeature::Object, EmptyTypeList> {};
+            
+            static uint8_t skip_point_if_disabled (uint8_t point_index, Context c)
+            {
+                if (point_index == PointIndex && !APRINTER_CFG(Config, CPointEnabled, c)) {
+                    point_index++;
+                }
+                return point_index;
+            }
+        };
+        using PointHelperList = IndexElemList<typename ProbeParams::ProbePoints, PointHelper>;
+        
+        static void skip_disabled_points_and_detect_end (Context c)
+        {
+            auto *o = Object::self(c);
+            o->m_current_point = ListForEachForwardAccRes<PointHelperList>(o->m_current_point, LForeach_skip_point_if_disabled(), c);
+            if (o->m_current_point >= NumPoints) {
+                o->m_current_point = 0xff;
+            }
         }
         
         template <int PlatformAxisIndex>
@@ -2879,11 +2921,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             template <int PointIndex>
             struct PointHelper {
                 using Point = TypeListGet<typename ProbeParams::ProbePoints, PointIndex>;
-                using PointCoord = TypeListGet<Point, PlatformAxisIndex>;
                 
                 static FpType get_coord (Context c) { return APRINTER_CFG(Config, CPointCoord, c); }
                 
-                using CPointCoord = decltype(ExprCast<FpType>(Config::e(PointCoord::i())));
+                using CPointCoord = decltype(ExprCast<FpType>(Config::e(TypeListGet<typename Point::Coords, PlatformAxisIndex>::i())));
                 using ConfigExprs = MakeTypeList<CPointCoord>;
                 
                 struct Object : public ObjBase<PointHelper, typename AxisHelper::Object, EmptyTypeList> {};
@@ -2952,15 +2993,15 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 if (o->m_point_state < 4) {
                     if (o->m_point_state == 3) {
                         FpType height = get_height(c);
-                        report_height(c, get_locked(c), height);
+                        report_height(c, get_locked(c), o->m_current_point, height);
                     }
                     o->m_point_state++;
                     bool watch_probe = (o->m_point_state == 1 || o->m_point_state == 3);
                     init_probe_planner(c, watch_probe);
                 } else {
                     o->m_current_point++;
-                    if (o->m_current_point == NumPoints) {
-                        o->m_current_point = 0xff;
+                    skip_disabled_points_and_detect_end(c);
+                    if (o->m_current_point == 0xff) {
                         finish_locked(c);
                         return;
                     }
@@ -2997,9 +3038,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return GetPhysVirtAxis<ProbeAxisIndex>::Object::self(c)->m_req_pos;
         }
         
-        static void report_height (Context c, TheCommand *cmd, FpType height)
+        static void report_height (Context c, TheCommand *cmd, uint8_t point_index, FpType height)
         {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("//ProbeHeight "));
+            cmd->reply_append_pstr(c, AMBRO_PSTR("//ProbeHeight@P"));
+            cmd->reply_append_uint16(c, point_index + 1);
+            cmd->reply_append_ch(c, ' ');
             cmd->reply_append_fp(c, height);
             cmd->reply_append_ch(c, '\n');
             cmd->reply_poke(c);
@@ -3016,7 +3059,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         using ConfigExprs = MakeTypeList<CProbeInvert, CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor, CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor>;
         
-        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, AxisHelperList> {
+        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, JoinTypeLists<PointHelperList, AxisHelperList> > {
             ProbePlannerClient planner_client;
             uint8_t m_current_point;
             uint8_t m_point_state;

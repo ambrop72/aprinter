@@ -1156,6 +1156,7 @@ def generate(config_root_data, cfg_name, main_template):
                 point_list = []
                 for (i, point) in enumerate(probe.iter_list_config('ProbePoints', min_count=1, max_count=20)):
                     p = (point.get_float('X'), point.get_float('Y'))
+                    gen.add_bool_config('ProbeP{}Enabled'.format(i+1), point.get_bool('Enabled'))
                     gen.add_float_config('ProbeP{}X'.format(i+1), p[0])
                     gen.add_float_config('ProbeP{}Y'.format(i+1), p[1])
                     point_list.append(p)
@@ -1173,7 +1174,7 @@ def generate(config_root_data, cfg_name, main_template):
                     'ProbeFastSpeed',
                     'ProbeRetractSpeed',
                     'ProbeSlowSpeed',
-                    TemplateList(['MakeTypeList<ProbeP{}X, ProbeP{}Y>'.format(i+1, i+1) for i in range(len(point_list))])
+                    TemplateList(['PrinterMainProbePointParams<ProbeP{}Enabled, MakeTypeList<ProbeP{}X, ProbeP{}Y>>'.format(i+1, i+1, i+1) for i in range(len(point_list))])
                 ])
             
             probe_expr = config.get_config('probe_config').do_selection('probe', probe_sel)

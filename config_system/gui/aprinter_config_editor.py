@@ -494,6 +494,7 @@ def editor():
                         ce.Float(key='RetractSpeed', title='Retraction speed [mm/s]', default=10),
                         ce.Float(key='SlowSpeed', title='Slow probing speed [mm/s]', default=0.5),
                         ce.Array(key='ProbePoints', title='Coordinates of probing points', table=True, elem=ce.Compound('ProbePoint', title='Point', attrs=[
+                            ce.Boolean(key='Enabled', default=True),
                             ce.Float(key='X'),
                             ce.Float(key='Y'),
                         ]))
