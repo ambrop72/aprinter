@@ -1544,11 +1544,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
         }
         
-        static void update_new_pos (Context c, FpType req)
+        static void update_new_pos (Context c, FpType req, bool ignore_limits)
         {
             auto *o = Object::self(c);
             auto *mo = PrinterMain::Object::self(c);
-            o->m_req_pos = clamp_req_pos(c, req);
+            o->m_req_pos = ignore_limits ? req : clamp_req_pos(c, req);
             if (AxisSpec::IsCartesian) {
                 mo->move_seen_cartesian = true;
             }
@@ -2003,11 +2003,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 HomingFeature::init(c);
             }
             
-            static void update_new_pos (Context c, FpType req)
+            static void update_new_pos (Context c, FpType req, bool ignore_limits)
             {
                 auto *o = Object::self(c);
                 auto *t = TransformFeature::Object::self(c);
-                o->m_req_pos = clamp_virt_pos(c, req);
+                o->m_req_pos = ignore_limits ? req : clamp_virt_pos(c, req);
                 t->splitting = true;
             }
             
@@ -2161,10 +2161,12 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                         move_begin(c);
                         FpType position;
                         FpType speed;
+                        bool ignore_limits = false;
                         switch (o->state) {
                             case 0: {
                                 position = home_end_pos(c) + home_dir(c) * APRINTER_CFG(Config, CFastExtraDist, c);
                                 speed = APRINTER_CFG(Config, CFastSpeed, c);
+                                ignore_limits = true;
                             } break;
                             case 1: {
                                 position = home_end_pos(c) - home_dir(c) * APRINTER_CFG(Config, CRetractDist, c);
@@ -2173,9 +2175,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                             case 2: {
                                 position = home_end_pos(c) + home_dir(c) * APRINTER_CFG(Config, CSlowExtraDist, c);
                                 speed = APRINTER_CFG(Config, CSlowSpeed, c);
+                                ignore_limits = true;
                             } break;
                         }
-                        move_add_axis<(NumAxes + VirtAxisIndex)>(c, position);
+                        move_add_axis<(NumAxes + VirtAxisIndex)>(c, position, ignore_limits);
                         move_end(c, (FpType)TimeConversion::value() / speed);
                         o->command_sent = true;
                     }
@@ -2371,9 +2374,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             axis->m_old_pos = axis->m_req_pos;
         }
         
-        static void update_new_pos (Context c, FpType req)
+        static void update_new_pos (Context c, FpType req, bool ignore_limits=false)
         {
-            TheAxis::update_new_pos(c, req);
+            TheAxis::update_new_pos(c, req, ignore_limits);
         }
         
         static bool collect_new_pos (Context c, TheCommand *cmd, CommandPartRef part)
@@ -2828,7 +2831,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::Enabled) {
         struct Object;
         using ProbeParams = typename Params::ProbeParams;
-        static const int NumPoints = TypeListLength<typename ProbeParams::ProbePoints>::Value;
+        using ProbePoints = typename ProbeParams::ProbePoints;
+        static const int NumPoints = TypeListLength<ProbePoints>::Value;
         static const int ProbeAxisIndex = FindPhysVirtAxis<Params::ProbeParams::ProbeAxis>::Value;
         
         static void init (Context c)
@@ -2880,7 +2884,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         template <int PointIndex>
         struct PointHelper {
-            using Point = TypeListGet<typename ProbeParams::ProbePoints, PointIndex>;
+            using Point = TypeListGet<ProbePoints, PointIndex>;
             using CPointEnabled = decltype(ExprCast<bool>(Config::e(Point::Enabled::i())));
             using ConfigExprs = MakeTypeList<CPointEnabled>;
             struct Object : public ObjBase<PointHelper, typename ProbeFeature::Object, EmptyTypeList> {};
@@ -2893,7 +2897,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 return point_index;
             }
         };
-        using PointHelperList = IndexElemList<typename ProbeParams::ProbePoints, PointHelper>;
+        using PointHelperList = IndexElemList<ProbePoints, PointHelper>;
         
         static void skip_disabled_points_and_detect_end (Context c)
         {
@@ -2907,10 +2911,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <int PlatformAxisIndex>
         struct AxisHelper {
             struct Object;
-            
             using PlatformAxis = TypeListGet<typename ProbeParams::PlatformAxesList, PlatformAxisIndex>;
             static const int AxisIndex = FindPhysVirtAxis<PlatformAxis::Value>::Value;
             using AxisProbeOffset = TypeListGet<typename ProbeParams::ProbePlatformOffset, PlatformAxisIndex>;
+            using CAxisProbeOffset = decltype(ExprCast<FpType>(Config::e(AxisProbeOffset::i())));
+            using ConfigExprs = MakeTypeList<CAxisProbeOffset>;
             
             static void add_axis (Context c, uint8_t point_index)
             {
@@ -2920,24 +2925,18 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             template <int PointIndex>
             struct PointHelper {
-                using Point = TypeListGet<typename ProbeParams::ProbePoints, PointIndex>;
-                
-                static FpType get_coord (Context c) { return APRINTER_CFG(Config, CPointCoord, c); }
-                
+                using Point = TypeListGet<ProbePoints, PointIndex>;
                 using CPointCoord = decltype(ExprCast<FpType>(Config::e(TypeListGet<typename Point::Coords, PlatformAxisIndex>::i())));
                 using ConfigExprs = MakeTypeList<CPointCoord>;
                 
+                static FpType get_coord (Context c) { return APRINTER_CFG(Config, CPointCoord, c); }
+                
                 struct Object : public ObjBase<PointHelper, typename AxisHelper::Object, EmptyTypeList> {};
             };
-            
-            using PointHelperList = IndexElemList<typename ProbeParams::ProbePoints, PointHelper>;
-            
-            using CAxisProbeOffset = decltype(ExprCast<FpType>(Config::e(AxisProbeOffset::i())));
-            using ConfigExprs = MakeTypeList<CAxisProbeOffset>;
+            using PointHelperList = IndexElemList<ProbePoints, PointHelper>;
             
             struct Object : public ObjBase<AxisHelper, typename ProbeFeature::Object, PointHelperList> {};
         };
-        
         using AxisHelperList = IndexElemList<typename ProbeParams::PlatformAxesList, AxisHelper>;
         
         struct ProbePlannerClient : public PlannerClient {
@@ -2977,7 +2976,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                         time_freq_by_speed = APRINTER_CFG(Config, CProbeRetractSpeedFactor, c);
                     } break;
                 }
-                move_add_axis<ProbeAxisIndex>(c, height);
+                move_add_axis<ProbeAxisIndex>(c, height, true);
                 move_end(c, time_freq_by_speed);
                 o->m_command_sent = true;
             }
@@ -3059,7 +3058,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         using ConfigExprs = MakeTypeList<CProbeInvert, CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor, CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor>;
         
-        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, JoinTypeLists<PointHelperList, AxisHelperList> > {
+        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, JoinTypeLists<PointHelperList, AxisHelperList>> {
             ProbePlannerClient planner_client;
             uint8_t m_current_point;
             uint8_t m_point_state;
@@ -3774,9 +3773,9 @@ public: // private, see comment on top
     }
     
     template <int PhysVirtAxisIndex>
-    static void move_add_axis (Context c, FpType value)
+    static void move_add_axis (Context c, FpType value, bool ignore_limits=false)
     {
-        PhysVirtAxisHelper<PhysVirtAxisIndex>::update_new_pos(c, value);
+        PhysVirtAxisHelper<PhysVirtAxisIndex>::update_new_pos(c, value, ignore_limits);
     }
     
     template <int LaserIndex>
