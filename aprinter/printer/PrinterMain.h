@@ -1911,6 +1911,17 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             submitted_planner_command(c);
         }
         
+        static void handle_aborted (Context c)
+        {
+            auto *o = Object::self(c);
+            
+            if (o->splitting) {
+                o->virt_update_pending = true;
+                o->splitting = false;
+            }
+            do_pending_virt_update(c);
+        }
+        
         static void handle_set_position (Context c, bool seen_virtual)
         {
             auto *o = Object::self(c);
@@ -2291,6 +2302,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void do_pending_virt_update (Context c) {}
         static bool is_splitting (Context c) { return false; }
         static void do_split (Context c) {}
+        static void handle_aborted (Context c) {}
         static void handle_set_position (Context c, bool seen_virtual) {}
         static bool start_virt_homing (Context c) { return true; }
         template <typename CallbackContext>
@@ -3661,6 +3673,7 @@ public: // private, see comment on top
         AMBRO_ASSERT(ob->planner_state != PLANNER_WAITING)
         
         if (ob->planner_state == PLANNER_CUSTOM) {
+            ob->custom_planner_deinit_allowed = true;
             return ob->planner_client->finished_handler(c);
         }
         
@@ -3683,8 +3696,10 @@ public: // private, see comment on top
         AMBRO_ASSERT(ob->planner_state == PLANNER_CUSTOM)
         
         ListForEachForward<AxesList>(LForeach_fix_aborted_pos(), c);
-        TransformFeature::do_pending_virt_update(c);
-        ob->planner_client->aborted_handler(c);
+        TransformFeature::handle_aborted(c);
+        ob->custom_planner_deinit_allowed = true;
+        
+        return ob->planner_client->aborted_handler(c);
     }
     
     static void planner_underrun_callback (Context c)
@@ -3725,6 +3740,7 @@ public: // private, see comment on top
         AMBRO_ASSERT(!TransformFeature::is_splitting(c))
         
         o->move_seen_cartesian = false;
+        o->custom_planner_deinit_allowed = false;
         ListForEachForward<PhysVirtAxisHelperList>(LForeach_init_new_pos(), c);
         ListForEachForward<LasersList>(LForeach_begin_move(), c);
     }
@@ -3832,6 +3848,7 @@ public: // private, see comment on top
         ob->planner_client = planner_client;
         ThePlanner::init(c, enable_prestep_callback);
         ob->m_planning_pull_pending = false;
+        ob->custom_planner_deinit_allowed = true;
         now_active(c);
     }
     
@@ -3840,6 +3857,7 @@ public: // private, see comment on top
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
         AMBRO_ASSERT(ob->planner_state == PLANNER_CUSTOM)
+        AMBRO_ASSERT(ob->custom_planner_deinit_allowed)
         
         ThePlanner::deinit(c);
         ob->planner_state = PLANNER_NONE;
@@ -3999,6 +4017,7 @@ public:
         uint8_t planner_state : 3;
         uint8_t m_planning_pull_pending : 1;
         uint8_t move_seen_cartesian : 1;
+        uint8_t custom_planner_deinit_allowed : 1;
         PlannerClient *planner_client;
         PhysVirtAxisMaskType axis_homing;
         PhysVirtAxisMaskType axis_relative;
