@@ -46,7 +46,6 @@ public:
     virtual bool tryLockedCommand (Context c) = 0;
     virtual bool tryUnplannedCommand (Context c) = 0;
     virtual bool tryPlannedCommand (Context c) = 0;
-    virtual bool trySplitClearCommand (Context c) = 0;
     
     virtual char getCmdCode (Context c) = 0;
     virtual uint16_t getCmdNumber (Context c) = 0;

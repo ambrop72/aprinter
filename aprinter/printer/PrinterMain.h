@@ -733,14 +733,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 return false;
             }
             
-            bool trySplitClearCommand (Context c)
-            {
-                if (!tryLockedCommand(c)) {
-                    return false;
-                }
-                return TransformFeature::try_splitclear_command(c);
-            }
-            
             char getCmdCode (Context c)
             {
                 return TheGcodeParser::getCmdCode(c);
@@ -1825,7 +1817,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             ListForEachForward<VirtAxesList>(LForeach_init(), c);
             update_virt_from_phys(c);
             o->virt_update_pending = false;
-            o->splitclear_pending = false;
             o->splitting = false;
         }
         
@@ -1837,11 +1828,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void handle_virt_move (Context c, FpType time_freq_by_max_speed, bool is_positioning_move)
         {
             auto *o = Object::self(c);
-            auto *mob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(mob->planner_state == PLANNER_RUNNING || mob->planner_state == PLANNER_CUSTOM)
-            AMBRO_ASSERT(mob->m_planning_pull_pending)
             AMBRO_ASSERT(o->splitting)
-            AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
             
             o->virt_update_pending = false;
             TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
@@ -1882,38 +1869,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         {
             auto *o = Object::self(c);
             return o->splitting;
-        }
-        
-        static void split_more (Context c)
-        {
-            auto *o = Object::self(c);
-            auto *mob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(o->splitting)
-            AMBRO_ASSERT(mob->planner_state != PLANNER_NONE)
-            AMBRO_ASSERT(mob->m_planning_pull_pending)
-            
-            do_split(c);
-            if (!o->splitting && o->splitclear_pending) {
-                AMBRO_ASSERT(mob->locked)
-                AMBRO_ASSERT(mob->planner_state == PLANNER_RUNNING)
-                o->splitclear_pending = false;
-                TheCommand *cmd = get_locked(c);
-                work_command(c, cmd);
-            }
-        }
-        
-        static bool try_splitclear_command (Context c)
-        {
-            auto *o = Object::self(c);
-            auto *mob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(mob->locked)
-            AMBRO_ASSERT(!o->splitclear_pending)
-            
-            if (!o->splitting) {
-                return true;
-            }
-            o->splitclear_pending = true;
-            return false;
         }
         
         static void do_split (Context c)
@@ -2323,7 +2278,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             LaserSplitsList
         >> {
             bool virt_update_pending;
-            bool splitclear_pending;
             bool splitting;
             FpType frac;
             TheSplitter splitter;
@@ -2336,8 +2290,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void mark_phys_moved (Context c) {}
         static void do_pending_virt_update (Context c) {}
         static bool is_splitting (Context c) { return false; }
-        static void split_more (Context c) {}
-        static bool try_splitclear_command (Context c) { return true; }
+        static void do_split (Context c) {}
         static void handle_set_position (Context c, bool seen_virtual) {}
         static bool start_virt_homing (Context c) { return true; }
         template <typename CallbackContext>
@@ -3545,7 +3498,9 @@ public: // private, see comment on top
                 } break;
                 
                 case 92: { // set position
-                    if (!cmd->trySplitClearCommand(c)) {
+                    // We use tryPlannedCommand to make sure that the TransformFeature
+                    // is not splitting while we adjust the positions.
+                    if (!cmd->tryPlannedCommand(c)) {
                         return;
                     }
                     SetPositionState s;
@@ -3679,7 +3634,7 @@ public: // private, see comment on top
         
         ob->m_planning_pull_pending = true;
         if (TransformFeature::is_splitting(c)) {
-            TransformFeature::split_more(c);
+            TransformFeature::do_split(c);
             return;
         }
         if (ob->planner_state == PLANNER_STOPPING) {
@@ -3766,9 +3721,11 @@ public: // private, see comment on top
     
     static void move_begin (Context c)
     {
-        auto *ob = Object::self(c);
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(!TransformFeature::is_splitting(c))
+        
+        o->move_seen_cartesian = false;
         ListForEachForward<PhysVirtAxisHelperList>(LForeach_init_new_pos(), c);
-        ob->move_seen_cartesian = false;
         ListForEachForward<LasersList>(LForeach_begin_move(), c);
     }
     
