@@ -425,7 +425,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_clamp_move_phys, clamp_move_phys)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prepare_split, prepare_split)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_split, compute_split)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_final_split, get_final_split)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_finish_set_position, finish_set_position)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_emergency, emergency)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_homing, start_homing)
@@ -460,6 +459,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_wait_mask, update_wait_mask)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_wait, start_wait)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stop_wait, stop_wait)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_save_req_pos, save_req_pos)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_restore_req_pos, restore_req_pos)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
@@ -1547,18 +1548,30 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TransformFeature::template mark_phys_moved<AxisIndex>(c);
         }
         
-        template <typename Src, typename AddDistance, typename PlannerCmd>
-        static void do_move (Context c, Src new_pos, AddDistance, FpType *distance_squared, FpType *total_steps, PlannerCmd *cmd)
+        static void save_req_pos (Context c, FpType *data)
         {
             auto *o = Object::self(c);
-            AbsStepFixedType new_end_pos = AbsStepFixedType::importFpSaturatedRound(new_pos.template get<AxisIndex>() * APRINTER_CFG(Config, CDistConversion, c));
+            data[AxisIndex] = o->m_req_pos;
+        }
+        
+        static void restore_req_pos (Context c, FpType const *data)
+        {
+            auto *o = Object::self(c);
+            o->m_req_pos = data[AxisIndex];
+        }
+        
+        template <typename PlannerCmd>
+        static void do_move (Context c, bool add_distance, FpType *distance_squared, FpType *total_steps, PlannerCmd *cmd)
+        {
+            auto *o = Object::self(c);
+            AbsStepFixedType new_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
             bool dir = (new_end_pos >= o->m_end_pos);
             StepFixedType move = StepFixedType::importBits(dir ? 
                 ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)o->m_end_pos.bitsValue()) :
                 ((typename StepFixedType::IntType)o->m_end_pos.bitsValue() - (typename StepFixedType::IntType)new_end_pos.bitsValue())
             );
             if (AMBRO_UNLIKELY(move.bitsValue() != 0)) {
-                if (AddDistance::Value && AxisSpec::IsCartesian) {
+                if (add_distance && AxisSpec::IsCartesian) {
                     FpType delta = move.template fpValue<FpType>() * APRINTER_CFG(Config, CDistConversionRec, c);
                     *distance_squared += delta * delta;
                 }
@@ -1787,18 +1800,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             void set (FpType x) { VirtAxis<Index>::Object::self(m_c)->m_req_pos = x; }
         };
         
-        struct ArraySrc {
-            FpType const *m_arr;
-            template <int Index>
-            FpType get () { return m_arr[Index]; }
-        };
-        
-        struct PhysArrayDst {
-            FpType *m_arr;
-            template <int Index>
-            void set (FpType x) { m_arr[VirtAxis<Index>::PhysAxisIndex] = x; }
-        };
-        
         struct LaserSplitSrc {
             Context c;
             FpType frac;
@@ -1825,13 +1826,18 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             TheTransformAlg::physToVirt(c, PhysReqPosSrc{c}, VirtReqPosDst{c});
         }
         
+        static void update_phys_from_virt (Context c)
+        {
+            TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
+        }
+        
         static void handle_virt_move (Context c, FpType time_freq_by_max_speed, bool is_positioning_move)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->splitting)
             
             o->virt_update_pending = false;
-            TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
+            update_phys_from_virt(c);
             ListForEachForward<VirtAxesList>(LForeach_clamp_req_phys(), c);
             do_pending_virt_update(c);
             FpType distance_squared = 0.0f;
@@ -1882,22 +1888,27 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             do {
                 FpType prev_frac = o->frac;
                 FpType rel_max_v_rec;
-                FpType move_pos[NumAxes];
+                FpType saved_virt_rex_pos[NumVirtAxes];
+                FpType saved_phys_req_pos[NumAxes];
                 if (o->splitter.pull(&rel_max_v_rec, &o->frac)) {
-                    FpType virt_pos[NumVirtAxes];
-                    ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, o->frac, virt_pos);
-                    TheTransformAlg::virtToPhys(c, ArraySrc{virt_pos}, PhysArrayDst{move_pos});
-                    ListForEachForward<VirtAxesList>(LForeach_clamp_move_phys(), c, move_pos);
-                    ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, o->frac, move_pos);
+                    ListForEachForward<AxesList>(LForeach_save_req_pos(), c, saved_phys_req_pos);
+                    FpType saved_virt_req_pos[NumVirtAxes];
+                    ListForEachForward<VirtAxesList>(LForeach_save_req_pos(), c, saved_virt_req_pos);
+                    ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, o->frac);
+                    update_phys_from_virt(c);
+                    ListForEachForward<VirtAxesList>(LForeach_restore_req_pos(), c, saved_virt_req_pos);
+                    ListForEachForward<VirtAxesList>(LForeach_clamp_move_phys(), c);
+                    ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, o->frac, saved_phys_req_pos);
                 } else {
                     o->frac = 1.0;
                     o->splitting = false;
-                    ListForEachForward<VirtAxesList>(LForeach_get_final_split(), c, move_pos);
-                    ListForEachForward<SecondaryAxesList>(LForeach_get_final_split(), c, move_pos);
                 }
                 PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
                 FpType total_steps = 0.0f;
-                ListForEachForward<AxesList>(LForeach_do_move(), c, ArraySrc{move_pos}, WrapBool<false>(), (FpType *)0, &total_steps, cmd);
+                ListForEachForward<AxesList>(LForeach_do_move(), c, false, (FpType *)0, &total_steps, cmd);
+                if (o->splitting) {
+                    ListForEachForward<AxesList>(LForeach_restore_req_pos(), c, saved_phys_req_pos);
+                }
                 if (total_steps != 0.0f) {
                     ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserSplitSrc{c, o->frac, prev_frac}, cmd);
                     cmd->axes.rel_max_v_rec = FloatMax(rel_max_v_rec, total_steps * APRINTER_CFG(Config, CStepSpeedLimitFactor, c));
@@ -1929,7 +1940,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             if (seen_virtual) {
                 o->virt_update_pending = false;
-                TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
+                update_phys_from_virt(c);
                 ListForEachForward<VirtAxesList>(LForeach_finish_set_position(), c);
             }
             do_pending_virt_update(c);
@@ -1990,9 +2001,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 }
             }
             
-            static void clamp_move_phys (Context c, FpType *move_pos)
+            static void clamp_move_phys (Context c)
             {
-                move_pos[PhysAxisIndex] = ThePhysAxis::clamp_req_pos(c, move_pos[PhysAxisIndex]);
+                auto *axis = ThePhysAxis::Object::self(c);
+                axis->m_req_pos = ThePhysAxis::clamp_req_pos(c, axis->m_req_pos);
             }
             
             static void prepare_split (Context c, FpType *distance_squared)
@@ -2002,17 +2014,22 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 *distance_squared += o->m_delta * o->m_delta;
             }
             
-            static void compute_split (Context c, FpType frac, FpType *virt_pos)
+            static void save_req_pos (Context c, FpType *data)
             {
                 auto *o = Object::self(c);
-                auto *t = TransformFeature::Object::self(c);
-                virt_pos[VirtAxisIndex] = o->m_old_pos + (frac * o->m_delta);
+                data[VirtAxisIndex] = o->m_req_pos;
             }
             
-            static void get_final_split (Context c, FpType *move_pos)
+            static void restore_req_pos (Context c, FpType const *data)
             {
-                auto *axis = ThePhysAxis::Object::self(c);
-                move_pos[PhysAxisIndex] = axis->m_req_pos;
+                auto *o = Object::self(c);
+                o->m_req_pos = data[VirtAxisIndex];
+            }
+            
+            static void compute_split (Context c, FpType frac)
+            {
+                auto *o = Object::self(c);
+                o->m_req_pos = o->m_old_pos + (frac * o->m_delta);
             }
             
             static void set_position (Context c, FpType value, bool *seen_virtual)
@@ -2250,17 +2267,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 }
             }
             
-            static void compute_split (Context c, FpType frac, FpType *move_pos)
+            static void compute_split (Context c, FpType frac, FpType const *saved_phys_req_pos)
             {
                 auto *axis = TheAxis::Object::self(c);
-                auto *t = TransformFeature::Object::self(c);
-                move_pos[AxisIndex] = axis->m_old_pos + (frac * (axis->m_req_pos - axis->m_old_pos));
-            }
-            
-            static void get_final_split (Context c, FpType *move_pos)
-            {
-                auto *axis = TheAxis::Object::self(c);
-                move_pos[AxisIndex] = axis->m_req_pos;
+                axis->m_req_pos = axis->m_old_pos + (frac * (saved_phys_req_pos[AxisIndex] - axis->m_old_pos));
             }
         };
         
@@ -3759,12 +3769,6 @@ public: // private, see comment on top
         laser->move_energy_specified = true;
     }
     
-    struct ReqPosSrc {
-        Context m_c;
-        template <int Index>
-        FpType get () { return Axis<Index>::Object::self(m_c)->m_req_pos; }
-    };
-    
     struct LaserExtraSrc {
         Context m_c;
         template <int LaserIndex>
@@ -3785,7 +3789,7 @@ public: // private, see comment on top
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
         FpType distance_squared = 0.0f;
         FpType total_steps = 0.0f;
-        ListForEachForward<AxesList>(LForeach_do_move(), c, ReqPosSrc{c}, WrapBool<true>(), &distance_squared, &total_steps, cmd);
+        ListForEachForward<AxesList>(LForeach_do_move(), c, true, &distance_squared, &total_steps, cmd);
         TransformFeature::do_pending_virt_update(c);
         if (total_steps != 0.0f) {
             cmd->axes.rel_max_v_rec = total_steps * APRINTER_CFG(Config, CStepSpeedLimitFactor, c);
