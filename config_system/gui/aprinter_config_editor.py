@@ -497,7 +497,13 @@ def editor():
                             ce.Boolean(key='Enabled', default=True),
                             ce.Float(key='X'),
                             ce.Float(key='Y'),
-                        ]))
+                        ])),
+                        ce.OneOf(key='correction', title='Bed correction', choices=[
+                            ce.Compound('NoCorrection', title='Disabled', attrs=[]),
+                            ce.Compound('Correction', title='Enabled', attrs=[
+                                ce.Float(key='CorrectionOffset', title='Z offset for correction [mm] (increase to raise nozzle)', default=0),
+                            ]),
+                        ])
                     ])
                 ])
             ]),

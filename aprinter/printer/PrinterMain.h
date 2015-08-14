@@ -56,13 +56,13 @@
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/PowerOfTwo.h>
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/WrapType.h>
 #include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/JoinTypeListList.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
@@ -72,6 +72,8 @@
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
+#include <aprinter/math/Matrix.h>
+#include <aprinter/math/MatrixQr.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/driver/StepperGroups.h>
 #include <aprinter/printer/GcodeParser.h>
@@ -339,7 +341,8 @@ template <
     typename TProbeFastSpeed,
     typename TProbeRetractSpeed,
     typename TProbeSlowSpeed,
-    typename TProbePoints
+    typename TProbePoints,
+    typename TProbeCorrectionParams
 >
 struct PrinterMainProbeParams {
     static bool const Enabled = true;
@@ -357,6 +360,19 @@ struct PrinterMainProbeParams {
     using ProbeRetractSpeed = TProbeRetractSpeed;
     using ProbeSlowSpeed = TProbeSlowSpeed;
     using ProbePoints = TProbePoints;
+    using ProbeCorrectionParams = TProbeCorrectionParams;
+};
+
+struct PrinterMainNoProbeCorrectionParams {
+    static bool const Enabled = false;
+};
+
+template <
+    typename TCorrectionOffset
+>
+struct PrinterMainProbeCorrectionParams {
+    static bool const Enabled = true;
+    using CorrectionOffset = TCorrectionOffset;
 };
 
 template <
@@ -461,6 +477,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stop_wait, stop_wait)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_save_req_pos, save_req_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_restore_req_pos, restore_req_pos)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_correction, print_correction)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fill_point_coordinates, fill_point_coordinates)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fill_coordinate, fill_coordinate)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_correct_virt_axis, correct_virt_axis)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_calc_correction_contribution, calc_correction_contribution)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
@@ -1812,6 +1833,16 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             }
         };
         
+        struct ArraySrc {
+            FpType const *m_arr;
+            template <int Index> FpType get () { return m_arr[Index]; }
+        };
+        
+        struct ArrayDst {
+            FpType *m_arr;
+            template <int Index> void set (FpType x) { m_arr[Index] = x; }
+        };
+        
         static void init (Context c)
         {
             auto *o = Object::self(c);
@@ -1823,12 +1854,24 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void update_virt_from_phys (Context c)
         {
-            TheTransformAlg::physToVirt(c, PhysReqPosSrc{c}, VirtReqPosDst{c});
+            if (TheCorrectionService::CorrectionEnabled) {
+                FpType temp_virt_pos[NumVirtAxes];
+                TheTransformAlg::physToVirt(c, PhysReqPosSrc{c}, ArrayDst{temp_virt_pos});
+                TheCorrectionService::do_correction(c, ArraySrc{temp_virt_pos}, VirtReqPosDst{c}, WrapBool<true>());
+            } else {
+                TheTransformAlg::physToVirt(c, PhysReqPosSrc{c}, VirtReqPosDst{c});
+            }
         }
         
         static void update_phys_from_virt (Context c)
         {
-            TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
+            if (TheCorrectionService::CorrectionEnabled) {
+                FpType temp_virt_pos[NumVirtAxes];
+                TheCorrectionService::do_correction(c, VirtReqPosSrc{c}, ArrayDst{temp_virt_pos}, WrapBool<false>());
+                TheTransformAlg::virtToPhys(c, ArraySrc{temp_virt_pos}, PhysReqPosDst{c});
+            } else {
+                TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
+            }
         }
         
         static void handle_virt_move (Context c, FpType time_freq_by_max_speed, bool is_positioning_move)
@@ -1955,6 +1998,14 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static bool prestep_callback (CallbackContext c)
         {
             return !ListForEachForwardInterruptible<VirtAxesList>(LForeach_prestep_callback(), c);
+        }
+        
+        static void handle_corrections_change (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(!o->splitting)
+            
+            update_virt_from_phys(c);
         }
         
         template <int VirtAxisIndex>
@@ -2324,6 +2375,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using PhysVirtAxisMaskType = ChooseInt<NumPhysVirtAxes, false>;
     static PhysVirtAxisMaskType const PhysAxisMask = PowerOfTwoMinusOne<PhysVirtAxisMaskType, NumAxes>::Value;
     
+    template <int PhysVirtAxisIndex>
+    using IsVirtAxis = WrapBool<(PhysVirtAxisIndex >= NumAxes)>;
+    
     template <bool IsVirt, int PhysVirtAxisIndex>
     struct GetPhysVirtAxisHelper {
         using Type = Axis<PhysVirtAxisIndex>;
@@ -2335,7 +2389,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     };
     
     template <int PhysVirtAxisIndex>
-    using GetPhysVirtAxis = typename GetPhysVirtAxisHelper<(PhysVirtAxisIndex >= NumAxes), PhysVirtAxisIndex>::Type;
+    using GetPhysVirtAxis = typename GetPhysVirtAxisHelper<IsVirtAxis<PhysVirtAxisIndex>::Value, PhysVirtAxisIndex>::Type;
     
     template <int PhysVirtAxisIndex>
     struct PhysVirtAxisHelper {
@@ -2803,18 +2857,187 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using ThePlanner = MotionPlanner<Context, typename PlannerUnionPlanner::Object, Config, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels, MotionPlannerLasers>;
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
+    struct DummyCorrectionService {
+        static bool const CorrectionEnabled = false;
+        template <typename Src, typename Dst, bool Reverse> static void do_correction (Context c, Src src, Dst dst, WrapBool<Reverse>) {}
+    };
+    
     AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::Enabled) {
         struct Object;
         using ProbeParams = typename Params::ProbeParams;
         using ProbePoints = typename ProbeParams::ProbePoints;
+        using PlatformAxesList = typename ProbeParams::PlatformAxesList;
+        using CorrectionParams = typename ProbeParams::ProbeCorrectionParams;
         static const int NumPoints = TypeListLength<ProbePoints>::Value;
+        static const int NumPlatformAxes = TypeListLength<PlatformAxesList>::Value;
         static const int ProbeAxisIndex = FindPhysVirtAxis<Params::ProbeParams::ProbeAxis>::Value;
+        
+        AMBRO_STRUCT_IF(CorrectionFeature, CorrectionParams::Enabled) {
+            static_assert(TransformParams::Enabled, "");
+            static_assert(IsVirtAxis<ProbeAxisIndex>::Value, "");
+            
+            static bool const CorrectionEnabled = true;
+            using TheCorrectionService = CorrectionFeature;
+            
+            using CCorrectionOffset = decltype(ExprCast<FpType>(Config::e(CorrectionParams::CorrectionOffset::i())));
+            using ConfigExprs = MakeTypeList<CCorrectionOffset>;
+            
+            static void init (Context c)
+            {
+                auto *o = Object::self(c);
+                MatrixWriteZero(o->corrections--);
+            }
+            
+            static void apply_corrections (Context c)
+            {
+                TransformFeature::handle_corrections_change(c);
+            }
+            
+            static void print_corrections (Context c, TheCommand *cmd, Matrix<FpType, NumPlatformAxes + 1, 1> const *corrections, AMBRO_PGM_P msg)
+            {
+                cmd->reply_append_pstr(c, msg);
+                ListForEachForward<AxisHelperList>(LForeach_print_correction(), c, cmd, corrections);
+                cmd->reply_append_ch(c, ' ');
+                cmd->reply_append_ch(c, PhysVirtAxisHelper<ProbeAxisIndex>::TheAxis::AxisName);
+                cmd->reply_append_ch(c, ':');
+                cmd->reply_append_fp(c, (*corrections)++(NumPlatformAxes, 0));
+                cmd->reply_append_ch(c, '\n');
+            }
+            
+            static bool check_command (Context c, TheCommand *cmd)
+            {
+                auto *o = Object::self(c);
+                if (cmd->getCmdNumber(c) == 937) {
+                    print_corrections(c, cmd, &o->corrections, AMBRO_PSTR("EffectiveCorrections"));
+                    cmd->finishCommand(c);
+                    return false;
+                }
+                if (cmd->getCmdNumber(c) == 938) {
+                    if (!cmd->tryUnplannedCommand(c)) {
+                        return false;
+                    }
+                    MatrixWriteZero(o->corrections--);
+                    apply_corrections(c);
+                    cmd->finishCommand(c);
+                    return false;
+                }
+                return true;
+            }
+            
+            static void probing_staring (Context c)
+            {
+                auto *o = Object::self(c);
+                for (int i = 0; i < NumPoints; i++) {
+                    o->heights_matrix--(i, 0) = NAN;
+                }
+            }
+            
+            static void probing_measurement (Context c, uint8_t point_index, FpType height)
+            {
+                auto *o = Object::self(c);
+                o->heights_matrix--(point_index, 0) = height + APRINTER_CFG(Config, CCorrectionOffset, c);
+            }
+            
+            static void probing_completing (Context c, TheCommand *cmd)
+            {
+                auto *o = Object::self(c);
+                
+                Matrix<FpType, NumPoints, NumPlatformAxes + 1> coordinates_matrix;
+                ListForEachForward<AxisHelperList>(LForeach_fill_point_coordinates(), c, coordinates_matrix--);
+                
+                int num_valid_points = 0;
+                for (int i = 0; i < NumPoints; i++) {
+                    if (isnan(o->heights_matrix--(i, 0))) {
+                        o->heights_matrix--(i, 0) = 0.0f;
+                        MatrixWriteZero(coordinates_matrix--.range(i, 0, 1, NumPlatformAxes + 1));
+                    } else {
+                        num_valid_points++;
+                        coordinates_matrix--(i, NumPlatformAxes) = 1.0f;
+                    }
+                }
+                
+                if (num_valid_points < NumPlatformAxes + 1) {
+                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:TooFewPointsForCorrection\n"));
+                    return;
+                }
+                
+                Matrix<FpType, NumPlatformAxes + 1, 1> new_corrections;
+                LinearLeastSquaresKnownSize<NumPoints, NumPlatformAxes + 1>(coordinates_matrix--, o->heights_matrix++, new_corrections--);
+                
+                print_corrections(c, cmd, &new_corrections, AMBRO_PSTR("RelativeCorrections"));
+                
+                bool bad_corrections = false;
+                for (int i = 0; i < NumPlatformAxes + 1; i++) {
+                    FpType x = new_corrections++(i, 0);
+                    if (isnan(x) || isinf(x)) {
+                        bad_corrections = true;
+                    }
+                }
+                
+                if (bad_corrections) {
+                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadCorrections\n"));
+                    return;
+                }
+                
+                if (cmd->find_command_param(c, 'A', nullptr)) {
+                    MatrixElemOpInPlace<MatrixElemOpAdd>(o->corrections--, new_corrections++);
+                    apply_corrections(c);
+                }
+            }
+            
+            template <typename Src>
+            static FpType compute_correction_for_point (Context c, Src src)
+            {
+                auto *o = Object::self(c);
+                return ListForEachForwardAccRes<AxisHelperList>(0.0f, LForeach_calc_correction_contribution(), c, src, &o->corrections)
+                       + o->corrections++(NumPlatformAxes, 0);
+            }
+            
+            template <typename Src, typename Dst, bool Reverse>
+            static void do_correction (Context c, Src src, Dst dst, WrapBool<Reverse>)
+            {
+                FpType correction_value = compute_correction_for_point(c, src);
+                ListForEachForward<VirtAxisHelperList>(LForeach_correct_virt_axis(), c, src, dst, correction_value, WrapBool<Reverse>());
+            }
+            
+            template <int VirtAxisIndex>
+            struct VirtAxisHelper {
+                template <typename Src, typename Dst, bool Reverse>
+                static void correct_virt_axis (Context c, Src src, Dst dst, FpType correction_value, WrapBool<Reverse>)
+                {
+                    FpType coord_value = src.template get<VirtAxisIndex>();
+                    if (VirtAxisIndex == ProbeAxisIndex - NumAxes) {
+                        if (Reverse) {
+                            coord_value -= correction_value;
+                        } else {
+                            coord_value += correction_value;
+                        }
+                    }
+                    dst.template set<VirtAxisIndex>(coord_value);
+                }
+            };
+            using VirtAxisHelperList = IndexElemListCount<TransformFeature::NumVirtAxes, VirtAxisHelper>;
+            
+            struct Object : public ObjBase<CorrectionFeature, typename ProbeFeature::Object, EmptyTypeList> {
+                Matrix<FpType, NumPoints, 1> heights_matrix;
+                Matrix<FpType, NumPlatformAxes + 1, 1> corrections;
+            };
+        } AMBRO_STRUCT_ELSE(CorrectionFeature) {
+            static void init (Context c) {}
+            static bool check_command (Context c, TheCommand *cmd) { return true; }
+            static void probing_staring (Context c) {}
+            static void probing_measurement (Context c, uint8_t point_index, FpType height) {}
+            static void probing_completing (Context c, TheCommand *cmd) {}
+            using TheCorrectionService = DummyCorrectionService;
+            struct Object {};
+        };
         
         static void init (Context c)
         {
             auto *o = Object::self(c);
             o->m_current_point = 0xff;
             Context::Pins::template setInput<typename ProbeParams::ProbePin, typename ProbeParams::ProbePinInputMode>(c);
+            CorrectionFeature::init(c);
         }
         
         static void deinit (Context c)
@@ -2838,10 +3061,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     init_probe_planner(c, false);
                     o->m_point_state = 0;
                     o->m_command_sent = false;
+                    CorrectionFeature::probing_staring(c);
                 }
                 return false;
             }
-            return true;
+            return CorrectionFeature::check_command(c, cmd);
         }
         
         static void m119_append_endstop (Context c, TheCommand *cmd)
@@ -2886,7 +3110,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         template <int PlatformAxisIndex>
         struct AxisHelper {
             struct Object;
-            using PlatformAxis = TypeListGet<typename ProbeParams::PlatformAxesList, PlatformAxisIndex>;
+            using PlatformAxis = TypeListGet<PlatformAxesList, PlatformAxisIndex>;
             static const int AxisIndex = FindPhysVirtAxis<PlatformAxis::Value>::Value;
             using AxisProbeOffset = TypeListGet<typename ProbeParams::ProbePlatformOffset, PlatformAxisIndex>;
             using CAxisProbeOffset = decltype(ExprCast<FpType>(Config::e(AxisProbeOffset::i())));
@@ -2898,6 +3122,28 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 move_add_axis<AxisIndex>(c, coord + APRINTER_CFG(Config, CAxisProbeOffset, c));
             }
             
+            static void fill_point_coordinates (Context c, MatrixRange<FpType> matrix)
+            {
+                ListForEachForward<PointHelperList>(LForeach_fill_coordinate(), c, matrix);
+            }
+            
+            template <typename TheCorrectionFeature=CorrectionFeature>
+            static void print_correction (Context c, TheCommand *cmd, Matrix<FpType, NumPlatformAxes + 1, 1> const *corrections)
+            {
+                cmd->reply_append_ch(c, ' ');
+                cmd->reply_append_ch(c, PhysVirtAxisHelper<AxisIndex>::TheAxis::AxisName);
+                cmd->reply_append_ch(c, ':');
+                cmd->reply_append_fp(c, (*corrections)++(PlatformAxisIndex, 0));
+            }
+            
+            template <typename Src>
+            static FpType calc_correction_contribution (FpType accum, Context c, Src src, Matrix<FpType, NumPlatformAxes + 1, 1> const *corrections)
+            {
+                static_assert(IsVirtAxis<AxisIndex>::Value, "");
+                static int const VirtAxisIndex = AxisIndex - NumAxes;
+                return accum + src.template get<VirtAxisIndex>() * (*corrections)++(PlatformAxisIndex, 0);
+            }
+            
             template <int PointIndex>
             struct PointHelper {
                 using Point = TypeListGet<ProbePoints, PointIndex>;
@@ -2906,13 +3152,18 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                 
                 static FpType get_coord (Context c) { return APRINTER_CFG(Config, CPointCoord, c); }
                 
+                static void fill_coordinate (Context c, MatrixRange<FpType> matrix)
+                {
+                    matrix(PointIndex, PlatformAxisIndex) = get_coord(c);
+                }
+                
                 struct Object : public ObjBase<PointHelper, typename AxisHelper::Object, EmptyTypeList> {};
             };
             using PointHelperList = IndexElemList<ProbePoints, PointHelper>;
             
             struct Object : public ObjBase<AxisHelper, typename ProbeFeature::Object, PointHelperList> {};
         };
-        using AxisHelperList = IndexElemList<typename ProbeParams::PlatformAxesList, AxisHelper>;
+        using AxisHelperList = IndexElemList<PlatformAxesList, AxisHelper>;
         
         struct ProbePlannerClient : public PlannerClient {
             void pull_handler (Context c)
@@ -2976,7 +3227,9 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
                     o->m_current_point++;
                     skip_disabled_points_and_detect_end(c);
                     if (o->m_current_point == 0xff) {
-                        finish_locked(c);
+                        TheCommand *cmd = get_locked(c);
+                        CorrectionFeature::probing_completing(c, cmd);
+                        cmd->finishCommand(c);
                         return;
                     }
                     init_probe_planner(c, false);
@@ -3014,6 +3267,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         static void report_height (Context c, TheCommand *cmd, uint8_t point_index, FpType height)
         {
+            CorrectionFeature::probing_measurement(c, point_index, height);
+            
             cmd->reply_append_pstr(c, AMBRO_PSTR("//ProbeHeight@P"));
             cmd->reply_append_uint16(c, point_index + 1);
             cmd->reply_append_ch(c, ' ');
@@ -3021,6 +3276,8 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             cmd->reply_append_ch(c, '\n');
             cmd->reply_poke(c);
         }
+        
+        using TheCorrectionService = typename CorrectionFeature::TheCorrectionService;
         
         using CProbeInvert = decltype(ExprCast<bool>(Config::e(Params::ProbeParams::ProbeInvert::i())));
         using CProbeStartHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeStartHeight::i())));
@@ -3033,7 +3290,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         using ConfigExprs = MakeTypeList<CProbeInvert, CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor, CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor>;
         
-        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, JoinTypeLists<PointHelperList, AxisHelperList>> {
+        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, JoinTypeLists<
+            PointHelperList,
+            AxisHelperList,
+            MakeTypeList<CorrectionFeature>
+        >> {
             ProbePlannerClient planner_client;
             uint8_t m_current_point;
             uint8_t m_point_state;
@@ -3046,8 +3307,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         static void m119_append_endstop (Context c, TheCommand *cmd) {}
         template <typename CallbackContext>
         static bool prestep_callback (CallbackContext c) { return false; }
+        using TheCorrectionService = DummyCorrectionService;
         struct Object {};
     };
+    
+    using TheCorrectionService = typename ProbeFeature::TheCorrectionService;
     
     AMBRO_STRUCT_IF(CurrentFeature, Params::CurrentParams::Enabled) {
         struct Object;
@@ -3181,6 +3445,7 @@ public:
         TheSteppers::init(c);
         SerialFeature::init(c);
         SdCardFeature::init(c);
+        ProbeFeature::init(c);
         ob->axis_homing = 0;
         ob->axis_relative = 0;
         ListForEachForward<AxesList>(LForeach_init(), c);
@@ -3188,7 +3453,6 @@ public:
         TransformFeature::init(c);
         ListForEachForward<HeatersList>(LForeach_init(), c);
         ListForEachForward<FansList>(LForeach_init(), c);
-        ProbeFeature::init(c);
         CurrentFeature::init(c);
         ob->time_freq_by_max_speed = 0.0f;
         ob->underrun_count = 0;
@@ -3214,11 +3478,11 @@ public:
         }
         ListForEachReverse<ModulesList>(LForeach_deinit(), c);
         CurrentFeature::deinit(c);
-        ProbeFeature::deinit(c);
         ListForEachReverse<FansList>(LForeach_deinit(), c);
         ListForEachReverse<HeatersList>(LForeach_deinit(), c);
         ListForEachReverse<LasersList>(LForeach_deinit(), c);
         ListForEachReverse<AxesList>(LForeach_deinit(), c);
+        ProbeFeature::deinit(c);
         SdCardFeature::deinit(c);
         SerialFeature::deinit(c);
         TheSteppers::deinit(c);

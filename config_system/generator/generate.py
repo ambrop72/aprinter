@@ -1134,51 +1134,6 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.add_float_constant('LedBlinkInterval', advanced.get_float('LedBlinkInterval'))
                 gen.add_float_config('ForceTimeout', advanced.get_float('ForceTimeout'))
             
-            probe_sel = selection.Selection()
-            
-            @probe_sel.option('NoProbe')
-            def option(probe):
-                return 'PrinterMainNoProbeParams'
-            
-            @probe_sel.option('Probe')
-            def option(probe):
-                gen.add_bool_config('ProbeInvert', probe.get_bool('InvertInput')),
-                gen.add_float_config('ProbeOffsetX', probe.get_float('OffsetX'))
-                gen.add_float_config('ProbeOffsetY', probe.get_float('OffsetY'))
-                gen.add_float_config('ProbeStartHeight', probe.get_float('StartHeight'))
-                gen.add_float_config('ProbeLowHeight', probe.get_float('LowHeight'))
-                gen.add_float_config('ProbeRetractDist', probe.get_float('RetractDist'))
-                gen.add_float_config('ProbeMoveSpeed', probe.get_float('MoveSpeed'))
-                gen.add_float_config('ProbeFastSpeed', probe.get_float('FastSpeed'))
-                gen.add_float_config('ProbeRetractSpeed', probe.get_float('RetractSpeed'))
-                gen.add_float_config('ProbeSlowSpeed', probe.get_float('SlowSpeed'))
-                
-                point_list = []
-                for (i, point) in enumerate(probe.iter_list_config('ProbePoints', min_count=1, max_count=20)):
-                    p = (point.get_float('X'), point.get_float('Y'))
-                    gen.add_bool_config('ProbeP{}Enabled'.format(i+1), point.get_bool('Enabled'))
-                    gen.add_float_config('ProbeP{}X'.format(i+1), p[0])
-                    gen.add_float_config('ProbeP{}Y'.format(i+1), p[1])
-                    point_list.append(p)
-                
-                return TemplateExpr('PrinterMainProbeParams', [
-                    'MakeTypeList<WrapInt<\'X\'>, WrapInt<\'Y\'>>',
-                    '\'Z\'',
-                    use_digital_input(gen, probe, 'ProbePin'),
-                    'ProbeInvert',
-                    'MakeTypeList<ProbeOffsetX, ProbeOffsetY>',
-                    'ProbeStartHeight',
-                    'ProbeLowHeight',
-                    'ProbeRetractDist',
-                    'ProbeMoveSpeed',
-                    'ProbeFastSpeed',
-                    'ProbeRetractSpeed',
-                    'ProbeSlowSpeed',
-                    TemplateList(['PrinterMainProbePointParams<ProbeP{}Enabled, MakeTypeList<ProbeP{}X, ProbeP{}Y>>'.format(i+1, i+1, i+1) for i in range(len(point_list))])
-                ])
-            
-            probe_expr = config.get_config('probe_config').do_selection('probe', probe_sel)
-            
             current_control_channel_list = []
             
             def stepper_cb(stepper, stepper_index):
@@ -1330,6 +1285,7 @@ def generate(config_root_data, cfg_name, main_template):
             heaters_expr = config.do_list('heaters', heater_cb, max_count=15)
             
             transform_sel = selection.Selection()
+            transform_axes = []
             
             @transform_sel.option('NoTransform')
             def option(transform):
@@ -1339,6 +1295,7 @@ def generate(config_root_data, cfg_name, main_template):
             def default(transform_type, transform):
                 def virtual_axis_cb(virtual_axis, virtual_axis_index):
                     name = virtual_axis.get_id_char('Name')
+                    transform_axes.append(name)
                     
                     homing_sel = selection.Selection()
                     
@@ -1428,6 +1385,69 @@ def generate(config_root_data, cfg_name, main_template):
                 ])
             
             transform_expr = config.do_selection('transform', transform_sel)
+            
+            probe_sel = selection.Selection()
+            
+            @probe_sel.option('NoProbe')
+            def option(probe):
+                return 'PrinterMainNoProbeParams'
+            
+            @probe_sel.option('Probe')
+            def option(probe):
+                gen.add_bool_config('ProbeInvert', probe.get_bool('InvertInput')),
+                gen.add_float_config('ProbeOffsetX', probe.get_float('OffsetX'))
+                gen.add_float_config('ProbeOffsetY', probe.get_float('OffsetY'))
+                gen.add_float_config('ProbeStartHeight', probe.get_float('StartHeight'))
+                gen.add_float_config('ProbeLowHeight', probe.get_float('LowHeight'))
+                gen.add_float_config('ProbeRetractDist', probe.get_float('RetractDist'))
+                gen.add_float_config('ProbeMoveSpeed', probe.get_float('MoveSpeed'))
+                gen.add_float_config('ProbeFastSpeed', probe.get_float('FastSpeed'))
+                gen.add_float_config('ProbeRetractSpeed', probe.get_float('RetractSpeed'))
+                gen.add_float_config('ProbeSlowSpeed', probe.get_float('SlowSpeed'))
+                
+                point_list = []
+                for (i, point) in enumerate(probe.iter_list_config('ProbePoints', min_count=1, max_count=20)):
+                    p = (point.get_float('X'), point.get_float('Y'))
+                    gen.add_bool_config('ProbeP{}Enabled'.format(i+1), point.get_bool('Enabled'))
+                    gen.add_float_config('ProbeP{}X'.format(i+1), p[0])
+                    gen.add_float_config('ProbeP{}Y'.format(i+1), p[1])
+                    point_list.append(p)
+                
+                correction_sel = selection.Selection()
+                
+                @correction_sel.option('NoCorrection')
+                def option(correction):
+                    return 'PrinterMainNoProbeCorrectionParams'
+                
+                @correction_sel.option('Correction')
+                def option(correction):
+                    if 'Z' not in transform_axes:
+                        correction.path().error('Bed correction is only supported when the Z axis is involved in the coordinate transformation.')
+                    
+                    return TemplateExpr('PrinterMainProbeCorrectionParams', [
+                        gen.add_float_config('ProbeCorrectionOffset', correction.get_float('CorrectionOffset')),
+                    ])
+                
+                correction_expr = probe.do_selection('correction', correction_sel)
+                
+                return TemplateExpr('PrinterMainProbeParams', [
+                    'MakeTypeList<WrapInt<\'X\'>, WrapInt<\'Y\'>>',
+                    '\'Z\'',
+                    use_digital_input(gen, probe, 'ProbePin'),
+                    'ProbeInvert',
+                    'MakeTypeList<ProbeOffsetX, ProbeOffsetY>',
+                    'ProbeStartHeight',
+                    'ProbeLowHeight',
+                    'ProbeRetractDist',
+                    'ProbeMoveSpeed',
+                    'ProbeFastSpeed',
+                    'ProbeRetractSpeed',
+                    'ProbeSlowSpeed',
+                    TemplateList(['PrinterMainProbePointParams<ProbeP{}Enabled, MakeTypeList<ProbeP{}X, ProbeP{}Y>>'.format(i+1, i+1, i+1) for i in range(len(point_list))]),
+                    correction_expr,
+                ])
+            
+            probe_expr = config.get_config('probe_config').do_selection('probe', probe_sel)
             
             def fan_cb(fan, fan_index):
                 name = fan.get_id_char('Name')
