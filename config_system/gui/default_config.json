@@ -293,6 +293,7 @@
               "ChannelNumber": 4,
               "ChannelPeriod": 1562,
               "ChannelPrescaler": 10,
+              "Invert": false,
               "OutputPin": "DuePin9",
               "Signal": "L",
               "_compoundName": "At91Sam3xPwmChannel"
@@ -308,6 +309,7 @@
               "ChannelNumber": 5,
               "ChannelPeriod": 1562,
               "ChannelPrescaler": 10,
+              "Invert": false,
               "OutputPin": "DuePin8",
               "Signal": "L",
               "_compoundName": "At91Sam3xPwmChannel"
@@ -384,6 +386,7 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
+            "EnableFsTest": false,
             "FsWritable": false,
             "HaveAccessInterface": false,
             "MaxFileNameSize": 128,
@@ -864,6 +867,7 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
+            "EnableFsTest": false,
             "FsWritable": false,
             "HaveAccessInterface": false,
             "MaxFileNameSize": 128,
@@ -1962,6 +1966,7 @@
           "BufferBaseSize": 1024,
           "FsType": {
             "CaseInsensFileName": true,
+            "EnableFsTest": false,
             "FsWritable": false,
             "HaveAccessInterface": false,
             "MaxFileNameSize": 32,
@@ -2289,6 +2294,7 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
+            "EnableFsTest": false,
             "FsWritable": false,
             "HaveAccessInterface": false,
             "MaxFileNameSize": 128,
@@ -2829,6 +2835,7 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
+            "EnableFsTest": false,
             "FsWritable": false,
             "HaveAccessInterface": false,
             "MaxFileNameSize": 256,
@@ -3015,40 +3022,47 @@
       "probe_config": {
         "_compoundName": "ProbeConfig",
         "probe": {
-          "ProbePin": "Z-MAX",
-          "FastSpeed": 2,
-          "LowHeight": 2,
-          "MoveSpeed": 120,
-          "OffsetX": -18,
-          "OffsetY": -31,
-          "InvertInput": false,
           "ProbePoints": [
             {
+              "Enabled": true,
               "X": 0,
               "Y": 31,
               "_compoundName": "ProbePoint"
             },
             {
+              "Enabled": true,
               "X": 0,
               "Y": 155,
               "_compoundName": "ProbePoint"
             },
             {
+              "Enabled": true,
               "X": 205,
               "Y": 31,
               "_compoundName": "ProbePoint"
             },
             {
+              "Enabled": true,
               "X": 205,
               "Y": 155,
               "_compoundName": "ProbePoint"
             }
           ],
+          "FastSpeed": 2,
+          "LowHeight": 2,
+          "MoveSpeed": 120,
+          "OffsetX": -18,
+          "OffsetY": -31,
+          "ProbePin": "Z-MAX",
+          "InvertInput": false,
           "RetractDist": 1,
           "RetractSpeed": 3,
           "SlowSpeed": 0.6,
           "StartHeight": 9,
-          "_compoundName": "Probe"
+          "_compoundName": "Probe",
+          "correction": {
+            "_compoundName": "NoCorrection"
+          }
         }
       },
       "steppers": [
@@ -3569,40 +3583,47 @@
       "probe_config": {
         "_compoundName": "ProbeConfig",
         "probe": {
-          "ProbePin": "Z-MAX",
-          "FastSpeed": 2,
-          "LowHeight": 2,
-          "MoveSpeed": 120,
-          "OffsetX": -18,
-          "OffsetY": -31,
-          "InvertInput": false,
           "ProbePoints": [
             {
+              "Enabled": true,
               "X": 0,
               "Y": 31,
               "_compoundName": "ProbePoint"
             },
             {
+              "Enabled": true,
               "X": 0,
               "Y": 155,
               "_compoundName": "ProbePoint"
             },
             {
+              "Enabled": true,
               "X": 205,
               "Y": 31,
               "_compoundName": "ProbePoint"
             },
             {
+              "Enabled": true,
               "X": 205,
               "Y": 155,
               "_compoundName": "ProbePoint"
             }
           ],
+          "FastSpeed": 2,
+          "LowHeight": 2,
+          "MoveSpeed": 120,
+          "OffsetX": -18,
+          "OffsetY": -31,
+          "ProbePin": "Z-MAX",
+          "InvertInput": false,
           "RetractDist": 1,
           "RetractSpeed": 3,
           "SlowSpeed": 0.6,
           "StartHeight": 9,
-          "_compoundName": "Probe"
+          "_compoundName": "Probe",
+          "correction": {
+            "_compoundName": "NoCorrection"
+          }
         }
       },
       "steppers": [
