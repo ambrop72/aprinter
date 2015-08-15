@@ -62,6 +62,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/JoinTypeListList.h>
+#include <aprinter/meta/If.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -328,60 +329,11 @@ struct PrinterMainNoProbeParams {
 };
 
 template <
-    typename TPlatformAxesList,
-    char TProbeAxis,
-    typename TProbePin,
-    typename TProbePinInputMode,
-    typename TProbeInvert,
-    typename TProbePlatformOffset,
-    typename TProbeStartHeight,
-    typename TProbeLowHeight,
-    typename TProbeRetractDist,
-    typename TProbeMoveSpeed,
-    typename TProbeFastSpeed,
-    typename TProbeRetractSpeed,
-    typename TProbeSlowSpeed,
-    typename TProbePoints,
-    typename TProbeCorrectionParams
+    typename TProbeService
 >
 struct PrinterMainProbeParams {
     static bool const Enabled = true;
-    using PlatformAxesList = TPlatformAxesList;
-    static char const ProbeAxis = TProbeAxis;
-    using ProbePin = TProbePin;
-    using ProbePinInputMode = TProbePinInputMode;
-    using ProbeInvert = TProbeInvert;
-    using ProbePlatformOffset = TProbePlatformOffset;
-    using ProbeStartHeight = TProbeStartHeight;
-    using ProbeLowHeight = TProbeLowHeight;
-    using ProbeRetractDist = TProbeRetractDist;
-    using ProbeMoveSpeed = TProbeMoveSpeed;
-    using ProbeFastSpeed = TProbeFastSpeed;
-    using ProbeRetractSpeed = TProbeRetractSpeed;
-    using ProbeSlowSpeed = TProbeSlowSpeed;
-    using ProbePoints = TProbePoints;
-    using ProbeCorrectionParams = TProbeCorrectionParams;
-};
-
-struct PrinterMainNoProbeCorrectionParams {
-    static bool const Enabled = false;
-};
-
-template <
-    typename TCorrectionOffset
->
-struct PrinterMainProbeCorrectionParams {
-    static bool const Enabled = true;
-    using CorrectionOffset = TCorrectionOffset;
-};
-
-template <
-    typename TEnabled,
-    typename TCoords
->
-struct PrinterMainProbePointParams {
-    using Enabled = TEnabled;
-    using Coords = TCoords;
+    using ProbeService = TProbeService;
 };
 
 struct PrinterMainNoCurrentParams {
@@ -433,7 +385,7 @@ class PrinterMain {
 public:
     struct Object;
     
-public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083662/c-strange-is-private-error
+private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_limit_virt_axis_speed, limit_virt_axis_speed)
@@ -458,10 +410,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_channel_callback, channel_callback)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_command_in_state_helper, get_command_in_state_helper)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_add_axis, add_axis)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_current_axis, check_current_axis)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_coord, get_coord)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_skip_point_if_disabled, skip_point_if_disabled)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_position, append_position)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_new_pos, collect_new_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
@@ -477,11 +426,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stop_wait, stop_wait)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_save_req_pos, save_req_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_restore_req_pos, restore_req_pos)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_correction, print_correction)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fill_point_coordinates, fill_point_coordinates)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fill_coordinate, fill_coordinate)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_correct_virt_axis, correct_virt_axis)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_calc_correction_contribution, calc_correction_contribution)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
@@ -506,23 +450,28 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
-    using FpType = typename Params::FpType;
     using ParamsAxesList = typename Params::AxesList;
     using ParamsLasersList = typename Params::LasersList;
     using TransformParams = typename Params::TransformParams;
     using ParamsHeatersList = typename Params::HeatersList;
     using ParamsFansList = typename Params::FansList;
     using ParamsModulesList = typename Params::ModulesList;
-    static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
-    using CommandType = Command<Context, FpType>;
     
     using TheDebugObject = DebugObject<Context, Object>;
     using TheWatchdog = typename Params::WatchdogService::template Watchdog<Context, Object>;
     using TheConfigManager = typename Params::ConfigManagerService::template ConfigManager<Context, Object, typename Params::ConfigList, PrinterMain, ConfigManagerHandler>;
     using TheConfigCache = ConfigCache<Context, Object, DelayedConfigExprs>;
-    using Config = ConfigFramework<TheConfigManager, TheConfigCache>;
     using TheBlinker = Blinker<Context, Object, typename Params::LedPin, BlinkerHandler>;
     
+public:
+    using FpType = typename Params::FpType;
+    using Config = ConfigFramework<TheConfigManager, TheConfigCache>;
+    using CommandType = Command<Context, FpType>;
+    using TheCommand = CommandType;
+    static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
+    static const bool IsTransformEnabled = TransformParams::Enabled;
+    
+private:
     template <typename TheSlaveStepper>
     using MakeSlaveStepperDef = StepperDef<
         typename TheSlaveStepper::DirPin,
@@ -551,8 +500,11 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
+public:
     using TimeConversion = APRINTER_FP_CONST_EXPR(Clock::time_freq);
     using TimeRevConversion = APRINTER_FP_CONST_EXPR(Clock::time_unit);
+    
+private:
     using FCpu = APRINTER_FP_CONST_EXPR(F_CPU);
     
     using CInactiveTimeTicks = decltype(ExprCast<TimeType>(Config::e(Params::InactiveTime::i()) * TimeConversion()));
@@ -567,7 +519,6 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     struct SetPositionState;
     
-    using TheCommand = CommandType;
     using CommandPartRef = typename TheCommand::PartRef;
     
     template <typename ChannelParentObject, typename Channel>
@@ -1781,19 +1732,30 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         typename TheLaser::PlannerMaxSpeedRec
     >;
     
+public:
     struct PlannerClient {
         virtual void pull_handler (Context c) = 0;
         virtual void finished_handler (Context c) = 0;
         virtual void aborted_handler (Context c) = 0;
     };
     
+public:
     AMBRO_STRUCT_IF(TransformFeature, TransformParams::Enabled) {
+        friend PrinterMain;
+        
+    public:
         struct Object;
+        
+    private:
         using ParamsVirtAxesList = typename TransformParams::VirtAxesList;
         using ParamsPhysAxesList = typename TransformParams::PhysAxesList;
         using TheTransformAlg = typename TransformParams::TransformService::template Transform<Context, Object, Config, FpType>;
         using TheSplitter = typename TheTransformAlg::Splitter;
+        
+    public:
         static int const NumVirtAxes = TheTransformAlg::NumAxes;
+        
+    private:
         static_assert(TypeListLength<ParamsVirtAxesList>::Value == NumVirtAxes, "");
         static_assert(TypeListLength<ParamsPhysAxesList>::Value == NumVirtAxes, "");
         
@@ -2000,6 +1962,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             return !ListForEachForwardInterruptible<VirtAxesList>(LForeach_prestep_callback(), c);
         }
         
+    public:
         static void handle_corrections_change (Context c)
         {
             auto *o = Object::self(c);
@@ -2008,6 +1971,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             update_virt_from_phys(c);
         }
         
+    private:
         template <int VirtAxisIndex>
         struct VirtAxis {
             struct Object;
@@ -2275,6 +2239,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
             
             using ConfigExprs = MakeTypeList<CMinPos, CMaxPos, CMaxSpeedFactor>;
             
+        public:
             struct Object : public ObjBase<VirtAxis, typename TransformFeature::Object, MakeTypeList<
                 TheTransformAlg,
                 HomingFeature
@@ -2345,6 +2310,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         
         using LaserSplitsList = IndexElemList<ParamsLasersList, LaserSplit>;
         
+    public:
         struct Object : public ObjBase<TransformFeature, typename PrinterMain::Object, JoinTypeLists<
             VirtAxesList,
             LaserSplitsList
@@ -2371,6 +2337,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         struct Object {};
     };
     
+public:
     static int const NumPhysVirtAxes = NumAxes + TransformFeature::NumVirtAxes;
     using PhysVirtAxisMaskType = ChooseInt<NumPhysVirtAxes, false>;
     static PhysVirtAxisMaskType const PhysAxisMask = PowerOfTwoMinusOne<PhysVirtAxisMaskType, NumAxes>::Value;
@@ -2378,6 +2345,10 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     template <int PhysVirtAxisIndex>
     using IsVirtAxis = WrapBool<(PhysVirtAxisIndex >= NumAxes)>;
     
+    template <int PhysVirtAxisIndex>
+    using GetVirtAxisVirtIndex = WrapInt<(PhysVirtAxisIndex - NumAxes)>;
+    
+private:
     template <bool IsVirt, int PhysVirtAxisIndex>
     struct GetPhysVirtAxisHelper {
         using Type = Axis<PhysVirtAxisIndex>;
@@ -2391,12 +2362,26 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     template <int PhysVirtAxisIndex>
     using GetPhysVirtAxis = typename GetPhysVirtAxisHelper<IsVirtAxis<PhysVirtAxisIndex>::Value, PhysVirtAxisIndex>::Type;
     
+public:
     template <int PhysVirtAxisIndex>
     struct PhysVirtAxisHelper {
+        friend PrinterMain;
+        
+    private:
         using TheAxis = GetPhysVirtAxis<PhysVirtAxisIndex>;
-        using WrappedAxisName = WrapInt<TheAxis::AxisName>;
+        
+    public:
+        static char const AxisName = TheAxis::AxisName;
+        using WrappedAxisName = WrapInt<AxisName>;
         static PhysVirtAxisMaskType const AxisMask = TheAxis::template Lazy<>::AxisMask;
         
+        static FpType get_position (Context c)
+        {
+            auto *axis = TheAxis::Object::self(c);
+            return axis->m_req_pos;
+        }
+        
+    private:
         static void init_new_pos (Context c)
         {
             auto *axis = TheAxis::Object::self(c);
@@ -2482,6 +2467,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         }
     };
     
+public:
     using PhysVirtAxisHelperList = IndexElemListCount<NumPhysVirtAxes, PhysVirtAxisHelper>;
     
     template <int AxisName>
@@ -2491,6 +2477,7 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
         WrapInt<AxisName>
     >;
     
+private:
     template <int HeaterIndex>
     struct Heater {
         struct Object;
@@ -2864,443 +2851,19 @@ public: // private, workaround gcc bug, http://stackoverflow.com/questions/22083
     
     AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::Enabled) {
         struct Object;
-        using ProbeParams = typename Params::ProbeParams;
-        using ProbePoints = typename ProbeParams::ProbePoints;
-        using PlatformAxesList = typename ProbeParams::PlatformAxesList;
-        using CorrectionParams = typename ProbeParams::ProbeCorrectionParams;
-        static const int NumPoints = TypeListLength<ProbePoints>::Value;
-        static const int NumPlatformAxes = TypeListLength<PlatformAxesList>::Value;
-        static const int ProbeAxisIndex = FindPhysVirtAxis<Params::ProbeParams::ProbeAxis>::Value;
+        using TheProbe = typename Params::ProbeParams::ProbeService::template Probe<Context, Object, PrinterMain>;
         
-        AMBRO_STRUCT_IF(CorrectionFeature, CorrectionParams::Enabled) {
-            static_assert(TransformParams::Enabled, "");
-            static_assert(IsVirtAxis<ProbeAxisIndex>::Value, "");
-            
-            static bool const CorrectionEnabled = true;
-            using TheCorrectionService = CorrectionFeature;
-            
-            using CCorrectionOffset = decltype(ExprCast<FpType>(Config::e(CorrectionParams::CorrectionOffset::i())));
-            using ConfigExprs = MakeTypeList<CCorrectionOffset>;
-            
-            static void init (Context c)
-            {
-                auto *o = Object::self(c);
-                MatrixWriteZero(o->corrections--);
-            }
-            
-            static void apply_corrections (Context c)
-            {
-                TransformFeature::handle_corrections_change(c);
-            }
-            
-            static void print_corrections (Context c, TheCommand *cmd, Matrix<FpType, NumPlatformAxes + 1, 1> const *corrections, AMBRO_PGM_P msg)
-            {
-                cmd->reply_append_pstr(c, msg);
-                ListForEachForward<AxisHelperList>(LForeach_print_correction(), c, cmd, corrections);
-                cmd->reply_append_ch(c, ' ');
-                cmd->reply_append_ch(c, PhysVirtAxisHelper<ProbeAxisIndex>::TheAxis::AxisName);
-                cmd->reply_append_ch(c, ':');
-                cmd->reply_append_fp(c, (*corrections)++(NumPlatformAxes, 0));
-                cmd->reply_append_ch(c, '\n');
-            }
-            
-            static bool check_command (Context c, TheCommand *cmd)
-            {
-                auto *o = Object::self(c);
-                if (cmd->getCmdNumber(c) == 937) {
-                    print_corrections(c, cmd, &o->corrections, AMBRO_PSTR("EffectiveCorrections"));
-                    cmd->finishCommand(c);
-                    return false;
-                }
-                if (cmd->getCmdNumber(c) == 938) {
-                    if (!cmd->tryUnplannedCommand(c)) {
-                        return false;
-                    }
-                    MatrixWriteZero(o->corrections--);
-                    apply_corrections(c);
-                    cmd->finishCommand(c);
-                    return false;
-                }
-                return true;
-            }
-            
-            static void probing_staring (Context c)
-            {
-                auto *o = Object::self(c);
-                for (int i = 0; i < NumPoints; i++) {
-                    o->heights_matrix--(i, 0) = NAN;
-                }
-            }
-            
-            static void probing_measurement (Context c, uint8_t point_index, FpType height)
-            {
-                auto *o = Object::self(c);
-                o->heights_matrix--(point_index, 0) = height + APRINTER_CFG(Config, CCorrectionOffset, c);
-            }
-            
-            static void probing_completing (Context c, TheCommand *cmd)
-            {
-                auto *o = Object::self(c);
-                
-                Matrix<FpType, NumPoints, NumPlatformAxes + 1> coordinates_matrix;
-                ListForEachForward<AxisHelperList>(LForeach_fill_point_coordinates(), c, coordinates_matrix--);
-                
-                int num_valid_points = 0;
-                for (int i = 0; i < NumPoints; i++) {
-                    if (isnan(o->heights_matrix--(i, 0))) {
-                        o->heights_matrix--(i, 0) = 0.0f;
-                        MatrixWriteZero(coordinates_matrix--.range(i, 0, 1, NumPlatformAxes + 1));
-                    } else {
-                        num_valid_points++;
-                        coordinates_matrix--(i, NumPlatformAxes) = 1.0f;
-                    }
-                }
-                
-                if (num_valid_points < NumPlatformAxes + 1) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:TooFewPointsForCorrection\n"));
-                    return;
-                }
-                
-                Matrix<FpType, NumPlatformAxes + 1, 1> new_corrections;
-                LinearLeastSquaresKnownSize<NumPoints, NumPlatformAxes + 1>(coordinates_matrix--, o->heights_matrix++, new_corrections--);
-                
-                print_corrections(c, cmd, &new_corrections, AMBRO_PSTR("RelativeCorrections"));
-                
-                bool bad_corrections = false;
-                for (int i = 0; i < NumPlatformAxes + 1; i++) {
-                    FpType x = new_corrections++(i, 0);
-                    if (isnan(x) || isinf(x)) {
-                        bad_corrections = true;
-                    }
-                }
-                
-                if (bad_corrections) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadCorrections\n"));
-                    return;
-                }
-                
-                if (cmd->find_command_param(c, 'A', nullptr)) {
-                    MatrixElemOpInPlace<MatrixElemOpAdd>(o->corrections--, new_corrections++);
-                    apply_corrections(c);
-                }
-            }
-            
-            template <typename Src>
-            static FpType compute_correction_for_point (Context c, Src src)
-            {
-                auto *o = Object::self(c);
-                return ListForEachForwardAccRes<AxisHelperList>(0.0f, LForeach_calc_correction_contribution(), c, src, &o->corrections)
-                       + o->corrections++(NumPlatformAxes, 0);
-            }
-            
-            template <typename Src, typename Dst, bool Reverse>
-            static void do_correction (Context c, Src src, Dst dst, WrapBool<Reverse>)
-            {
-                FpType correction_value = compute_correction_for_point(c, src);
-                ListForEachForward<VirtAxisHelperList>(LForeach_correct_virt_axis(), c, src, dst, correction_value, WrapBool<Reverse>());
-            }
-            
-            template <int VirtAxisIndex>
-            struct VirtAxisHelper {
-                template <typename Src, typename Dst, bool Reverse>
-                static void correct_virt_axis (Context c, Src src, Dst dst, FpType correction_value, WrapBool<Reverse>)
-                {
-                    FpType coord_value = src.template get<VirtAxisIndex>();
-                    if (VirtAxisIndex == ProbeAxisIndex - NumAxes) {
-                        if (Reverse) {
-                            coord_value -= correction_value;
-                        } else {
-                            coord_value += correction_value;
-                        }
-                    }
-                    dst.template set<VirtAxisIndex>(coord_value);
-                }
-            };
-            using VirtAxisHelperList = IndexElemListCount<TransformFeature::NumVirtAxes, VirtAxisHelper>;
-            
-            struct Object : public ObjBase<CorrectionFeature, typename ProbeFeature::Object, EmptyTypeList> {
-                Matrix<FpType, NumPoints, 1> heights_matrix;
-                Matrix<FpType, NumPlatformAxes + 1, 1> corrections;
-            };
-        } AMBRO_STRUCT_ELSE(CorrectionFeature) {
-            static void init (Context c) {}
-            static bool check_command (Context c, TheCommand *cmd) { return true; }
-            static void probing_staring (Context c) {}
-            static void probing_measurement (Context c, uint8_t point_index, FpType height) {}
-            static void probing_completing (Context c, TheCommand *cmd) {}
-            using TheCorrectionService = DummyCorrectionService;
-            struct Object {};
-        };
+        static void init (Context c) { TheProbe::init(c); }
+        static void deinit (Context c) { TheProbe::deinit(c); }
+        static bool check_command (Context c, TheCommand *cmd) { return TheProbe::check_command(c, cmd); }
+        static void m119_append_endstop (Context c, TheCommand *cmd) { TheProbe::m119_append_endstop(c, cmd); }
+        template <typename CallbackContext> static bool prestep_callback (CallbackContext c) { return TheProbe::prestep_callback(c); }
         
-        static void init (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_current_point = 0xff;
-            Context::Pins::template setInput<typename ProbeParams::ProbePin, typename ProbeParams::ProbePinInputMode>(c);
-            CorrectionFeature::init(c);
-        }
+        using TheCorrectionService = If<TheProbe::CorrectionSupported, typename TheProbe::CorrectionFeature, DummyCorrectionService>;
         
-        static void deinit (Context c)
-        {
-        }
-        
-        static bool check_command (Context c, TheCommand *cmd)
-        {
-            auto *o = Object::self(c);
-            if (cmd->getCmdNumber(c) == 32) {
-                if (!cmd->tryUnplannedCommand(c)) {
-                    return false;
-                }
-                AMBRO_ASSERT(o->m_current_point == 0xff)
-                o->m_current_point = 0;
-                skip_disabled_points_and_detect_end(c);
-                if (o->m_current_point == 0xff) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:NoProbePointsEnabled\n"));
-                    cmd->finishCommand(c);
-                } else {
-                    init_probe_planner(c, false);
-                    o->m_point_state = 0;
-                    o->m_command_sent = false;
-                    CorrectionFeature::probing_staring(c);
-                }
-                return false;
-            }
-            return CorrectionFeature::check_command(c, cmd);
-        }
-        
-        static void m119_append_endstop (Context c, TheCommand *cmd)
-        {
-            bool triggered = endstop_is_triggered(c);
-            cmd->reply_append_pstr(c, AMBRO_PSTR(" Probe:"));
-            cmd->reply_append_ch(c, (triggered ? '1' : '0'));
-        }
-        
-        template <typename ThisContext>
-        static bool endstop_is_triggered (ThisContext c)
-        {
-            return Context::Pins::template get<typename ProbeParams::ProbePin>(c) != APRINTER_CFG(Config, CProbeInvert, c);
-        }
-        
-        template <int PointIndex>
-        struct PointHelper {
-            using Point = TypeListGet<ProbePoints, PointIndex>;
-            using CPointEnabled = decltype(ExprCast<bool>(Config::e(Point::Enabled::i())));
-            using ConfigExprs = MakeTypeList<CPointEnabled>;
-            struct Object : public ObjBase<PointHelper, typename ProbeFeature::Object, EmptyTypeList> {};
-            
-            static uint8_t skip_point_if_disabled (uint8_t point_index, Context c)
-            {
-                if (point_index == PointIndex && !APRINTER_CFG(Config, CPointEnabled, c)) {
-                    point_index++;
-                }
-                return point_index;
-            }
-        };
-        using PointHelperList = IndexElemList<ProbePoints, PointHelper>;
-        
-        static void skip_disabled_points_and_detect_end (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_current_point = ListForEachForwardAccRes<PointHelperList>(o->m_current_point, LForeach_skip_point_if_disabled(), c);
-            if (o->m_current_point >= NumPoints) {
-                o->m_current_point = 0xff;
-            }
-        }
-        
-        template <int PlatformAxisIndex>
-        struct AxisHelper {
-            struct Object;
-            using PlatformAxis = TypeListGet<PlatformAxesList, PlatformAxisIndex>;
-            static const int AxisIndex = FindPhysVirtAxis<PlatformAxis::Value>::Value;
-            using AxisProbeOffset = TypeListGet<typename ProbeParams::ProbePlatformOffset, PlatformAxisIndex>;
-            using CAxisProbeOffset = decltype(ExprCast<FpType>(Config::e(AxisProbeOffset::i())));
-            using ConfigExprs = MakeTypeList<CAxisProbeOffset>;
-            
-            static void add_axis (Context c, uint8_t point_index)
-            {
-                FpType coord = ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_coord(), c);
-                move_add_axis<AxisIndex>(c, coord + APRINTER_CFG(Config, CAxisProbeOffset, c));
-            }
-            
-            static void fill_point_coordinates (Context c, MatrixRange<FpType> matrix)
-            {
-                ListForEachForward<PointHelperList>(LForeach_fill_coordinate(), c, matrix);
-            }
-            
-            template <typename TheCorrectionFeature=CorrectionFeature>
-            static void print_correction (Context c, TheCommand *cmd, Matrix<FpType, NumPlatformAxes + 1, 1> const *corrections)
-            {
-                cmd->reply_append_ch(c, ' ');
-                cmd->reply_append_ch(c, PhysVirtAxisHelper<AxisIndex>::TheAxis::AxisName);
-                cmd->reply_append_ch(c, ':');
-                cmd->reply_append_fp(c, (*corrections)++(PlatformAxisIndex, 0));
-            }
-            
-            template <typename Src>
-            static FpType calc_correction_contribution (FpType accum, Context c, Src src, Matrix<FpType, NumPlatformAxes + 1, 1> const *corrections)
-            {
-                static_assert(IsVirtAxis<AxisIndex>::Value, "");
-                static int const VirtAxisIndex = AxisIndex - NumAxes;
-                return accum + src.template get<VirtAxisIndex>() * (*corrections)++(PlatformAxisIndex, 0);
-            }
-            
-            template <int PointIndex>
-            struct PointHelper {
-                using Point = TypeListGet<ProbePoints, PointIndex>;
-                using CPointCoord = decltype(ExprCast<FpType>(Config::e(TypeListGet<typename Point::Coords, PlatformAxisIndex>::i())));
-                using ConfigExprs = MakeTypeList<CPointCoord>;
-                
-                static FpType get_coord (Context c) { return APRINTER_CFG(Config, CPointCoord, c); }
-                
-                static void fill_coordinate (Context c, MatrixRange<FpType> matrix)
-                {
-                    matrix(PointIndex, PlatformAxisIndex) = get_coord(c);
-                }
-                
-                struct Object : public ObjBase<PointHelper, typename AxisHelper::Object, EmptyTypeList> {};
-            };
-            using PointHelperList = IndexElemList<ProbePoints, PointHelper>;
-            
-            struct Object : public ObjBase<AxisHelper, typename ProbeFeature::Object, PointHelperList> {};
-        };
-        using AxisHelperList = IndexElemList<PlatformAxesList, AxisHelper>;
-        
-        struct ProbePlannerClient : public PlannerClient {
-            void pull_handler (Context c)
-            {
-                auto *o = Object::self(c);
-                AMBRO_ASSERT(o->m_current_point != 0xff)
-                AMBRO_ASSERT(o->m_point_state <= 4)
-                
-                if (o->m_command_sent) {
-                    custom_planner_wait_finished(c);
-                    return;
-                }
-                move_begin(c);
-                FpType height;
-                FpType time_freq_by_speed;
-                switch (o->m_point_state) {
-                    case 0: {
-                        ListForEachForward<AxisHelperList>(LForeach_add_axis(), c, o->m_current_point);
-                        height = APRINTER_CFG(Config, CProbeStartHeight, c);
-                        time_freq_by_speed = APRINTER_CFG(Config, CProbeMoveSpeedFactor, c);
-                    } break;
-                    case 1: {
-                        height = APRINTER_CFG(Config, CProbeLowHeight, c);
-                        time_freq_by_speed = APRINTER_CFG(Config, CProbeFastSpeedFactor, c);
-                    } break;
-                    case 2: {
-                        height = get_height(c) + APRINTER_CFG(Config, CProbeRetractDist, c);
-                        time_freq_by_speed = APRINTER_CFG(Config, CProbeRetractSpeedFactor, c);
-                    } break;
-                    case 3: {
-                        height = APRINTER_CFG(Config, CProbeLowHeight, c);
-                        time_freq_by_speed = APRINTER_CFG(Config, CProbeSlowSpeedFactor, c);
-                    } break;
-                    case 4: {
-                        height = APRINTER_CFG(Config, CProbeStartHeight, c);
-                        time_freq_by_speed = APRINTER_CFG(Config, CProbeRetractSpeedFactor, c);
-                    } break;
-                }
-                move_add_axis<ProbeAxisIndex>(c, height, true);
-                move_end(c, time_freq_by_speed);
-                o->m_command_sent = true;
-            }
-            
-            void finished_handler (Context c)
-            {
-                auto *o = Object::self(c);
-                AMBRO_ASSERT(o->m_current_point != 0xff)
-                AMBRO_ASSERT(o->m_command_sent)
-                
-                custom_planner_deinit(c);
-                o->m_command_sent = false;
-                if (o->m_point_state < 4) {
-                    if (o->m_point_state == 3) {
-                        FpType height = get_height(c);
-                        report_height(c, get_locked(c), o->m_current_point, height);
-                    }
-                    o->m_point_state++;
-                    bool watch_probe = (o->m_point_state == 1 || o->m_point_state == 3);
-                    init_probe_planner(c, watch_probe);
-                } else {
-                    o->m_current_point++;
-                    skip_disabled_points_and_detect_end(c);
-                    if (o->m_current_point == 0xff) {
-                        TheCommand *cmd = get_locked(c);
-                        CorrectionFeature::probing_completing(c, cmd);
-                        cmd->finishCommand(c);
-                        return;
-                    }
-                    init_probe_planner(c, false);
-                    o->m_point_state = 0;
-                }
-            }
-            
-            void aborted_handler (Context c)
-            {
-                auto *o = Object::self(c);
-                AMBRO_ASSERT(o->m_current_point != 0xff)
-                AMBRO_ASSERT(o->m_command_sent)
-                AMBRO_ASSERT(o->m_point_state == 1 || o->m_point_state == 3)
-                
-                finished_handler(c);
-            }
-        };
-        
-        template <typename CallbackContext>
-        static bool prestep_callback (CallbackContext c)
-        {
-            return endstop_is_triggered(c);
-        }
-        
-        static void init_probe_planner (Context c, bool watch_probe)
-        {
-            auto *o = Object::self(c);
-            custom_planner_init(c, &o->planner_client, watch_probe);
-        }
-        
-        static FpType get_height (Context c)
-        {
-            return GetPhysVirtAxis<ProbeAxisIndex>::Object::self(c)->m_req_pos;
-        }
-        
-        static void report_height (Context c, TheCommand *cmd, uint8_t point_index, FpType height)
-        {
-            CorrectionFeature::probing_measurement(c, point_index, height);
-            
-            cmd->reply_append_pstr(c, AMBRO_PSTR("//ProbeHeight@P"));
-            cmd->reply_append_uint16(c, point_index + 1);
-            cmd->reply_append_ch(c, ' ');
-            cmd->reply_append_fp(c, height);
-            cmd->reply_append_ch(c, '\n');
-            cmd->reply_poke(c);
-        }
-        
-        using TheCorrectionService = typename CorrectionFeature::TheCorrectionService;
-        
-        using CProbeInvert = decltype(ExprCast<bool>(Config::e(Params::ProbeParams::ProbeInvert::i())));
-        using CProbeStartHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeStartHeight::i())));
-        using CProbeLowHeight = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeLowHeight::i())));
-        using CProbeRetractDist = decltype(ExprCast<FpType>(Config::e(ProbeParams::ProbeRetractDist::i())));
-        using CProbeMoveSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeMoveSpeed::i())));
-        using CProbeFastSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeFastSpeed::i())));
-        using CProbeRetractSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeRetractSpeed::i())));
-        using CProbeSlowSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(ProbeParams::ProbeSlowSpeed::i())));
-        
-        using ConfigExprs = MakeTypeList<CProbeInvert, CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor, CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor>;
-        
-        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, JoinTypeLists<
-            PointHelperList,
-            AxisHelperList,
-            MakeTypeList<CorrectionFeature>
-        >> {
-            ProbePlannerClient planner_client;
-            uint8_t m_current_point;
-            uint8_t m_point_state;
-            bool m_command_sent;
-        };
-    } AMBRO_STRUCT_ELSE(ProbeFeature) {
+        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, MakeTypeList<TheProbe>> {};
+    }
+    AMBRO_STRUCT_ELSE(ProbeFeature) {
         static void init (Context c) {}
         static void deinit (Context c) {}
         static bool check_command (Context c, TheCommand *cmd) { return true; }
@@ -3560,7 +3123,7 @@ public:
         output->reply_poke(c);
     }
     
-public: // private, see comment on top
+private:
     static TimeType time_from_real (FpType t)
     {
         return (FixedPoint<30, false, 0>::importFpSaturatedRound(t * (FpType)TimeConversion::value())).bitsValue();
@@ -4008,6 +3571,7 @@ public: // private, see comment on top
             TransformFeature::prestep_callback(c);
     }
     
+public:
     static void move_begin (Context c)
     {
         auto *o = Object::self(c);
@@ -4032,12 +3596,6 @@ public: // private, see comment on top
         laser->move_energy = FloatMakePosOrPosZero(energy);
         laser->move_energy_specified = true;
     }
-    
-    struct LaserExtraSrc {
-        Context m_c;
-        template <int LaserIndex>
-        FpType get () { return Laser<LaserIndex>::Object::self(m_c)->move_energy; }
-    };
     
     static void move_end (Context c, FpType time_freq_by_max_speed, bool is_positioning_move=true)
     {
@@ -4071,6 +3629,13 @@ public: // private, see comment on top
         }
         submitted_planner_command(c);
     }
+    
+private:
+    struct LaserExtraSrc {
+        Context m_c;
+        template <int LaserIndex>
+        FpType get () { return Laser<LaserIndex>::Object::self(m_c)->move_energy; }
+    };
     
     struct SetPositionState {
         bool seen_virtual;
@@ -4106,6 +3671,7 @@ public: // private, see comment on top
         ob->force_timer.unset(c);
     }
     
+public:
     static void custom_planner_init (Context c, PlannerClient *planner_client, bool enable_prestep_callback)
     {
         auto *ob = Object::self(c);
@@ -4142,6 +3708,7 @@ public: // private, see comment on top
         ThePlanner::waitFinished(c);
     }
     
+private:
     static void config_manager_handler (Context c, bool success)
     {
         auto *ob = Object::self(c);

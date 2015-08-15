@@ -1394,6 +1394,8 @@ def generate(config_root_data, cfg_name, main_template):
             
             @probe_sel.option('Probe')
             def option(probe):
+                gen.add_aprinter_include('printer/BedProbe.h')
+                
                 gen.add_bool_config('ProbeInvert', probe.get_bool('InvertInput')),
                 gen.add_float_config('ProbeOffsetX', probe.get_float('OffsetX'))
                 gen.add_float_config('ProbeOffsetY', probe.get_float('OffsetY'))
@@ -1417,34 +1419,36 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 @correction_sel.option('NoCorrection')
                 def option(correction):
-                    return 'PrinterMainNoProbeCorrectionParams'
+                    return 'BedProbeNoCorrectionParams'
                 
                 @correction_sel.option('Correction')
                 def option(correction):
                     if 'Z' not in transform_axes:
                         correction.path().error('Bed correction is only supported when the Z axis is involved in the coordinate transformation.')
                     
-                    return TemplateExpr('PrinterMainProbeCorrectionParams', [
+                    return TemplateExpr('BedProbeCorrectionParams', [
                         gen.add_float_config('ProbeCorrectionOffset', correction.get_float('CorrectionOffset')),
                     ])
                 
                 correction_expr = probe.do_selection('correction', correction_sel)
                 
                 return TemplateExpr('PrinterMainProbeParams', [
-                    'MakeTypeList<WrapInt<\'X\'>, WrapInt<\'Y\'>>',
-                    '\'Z\'',
-                    use_digital_input(gen, probe, 'ProbePin'),
-                    'ProbeInvert',
-                    'MakeTypeList<ProbeOffsetX, ProbeOffsetY>',
-                    'ProbeStartHeight',
-                    'ProbeLowHeight',
-                    'ProbeRetractDist',
-                    'ProbeMoveSpeed',
-                    'ProbeFastSpeed',
-                    'ProbeRetractSpeed',
-                    'ProbeSlowSpeed',
-                    TemplateList(['PrinterMainProbePointParams<ProbeP{}Enabled, MakeTypeList<ProbeP{}X, ProbeP{}Y>>'.format(i+1, i+1, i+1) for i in range(len(point_list))]),
-                    correction_expr,
+                    TemplateExpr('BedProbeService', [
+                        'MakeTypeList<WrapInt<\'X\'>, WrapInt<\'Y\'>>',
+                        '\'Z\'',
+                        use_digital_input(gen, probe, 'ProbePin'),
+                        'ProbeInvert',
+                        'MakeTypeList<ProbeOffsetX, ProbeOffsetY>',
+                        'ProbeStartHeight',
+                        'ProbeLowHeight',
+                        'ProbeRetractDist',
+                        'ProbeMoveSpeed',
+                        'ProbeFastSpeed',
+                        'ProbeRetractSpeed',
+                        'ProbeSlowSpeed',
+                        TemplateList(['BedProbePointParams<ProbeP{}Enabled, MakeTypeList<ProbeP{}X, ProbeP{}Y>>'.format(i+1, i+1, i+1) for i in range(len(point_list))]),
+                        correction_expr,
+                    ]),
                 ])
             
             probe_expr = config.get_config('probe_config').do_selection('probe', probe_sel)
