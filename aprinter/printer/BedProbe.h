@@ -33,6 +33,7 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/IndexElemList.h>
+#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -65,7 +66,6 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_correct_virt_axis, correct_virt_axis)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_skip_point_if_disabled, skip_point_if_disabled)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_coord, get_coord)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fill_coordinate, fill_coordinate)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_add_axis, add_axis)
     
 public:
@@ -297,8 +297,14 @@ private:
     template <int PointIndex>
     struct PointHelper {
         using Point = TypeListGet<ProbePoints, PointIndex>;
+        
         using CPointEnabled = decltype(ExprCast<bool>(Config::e(Point::Enabled::i())));
-        using ConfigExprs = MakeTypeList<CPointEnabled>;
+        
+        template <int PlatformAxisIndex>
+        using CPointCoordForAxis = decltype(ExprCast<FpType>(Config::e(TypeListGet<typename Point::Coords, PlatformAxisIndex>::i())));
+        using CPointCoordList = IndexElemListCount<NumPlatformAxes, CPointCoordForAxis>;
+        
+        using ConfigExprs = JoinTypeLists<MakeTypeList<CPointEnabled>, CPointCoordList>;
         
         static uint8_t skip_point_if_disabled (uint8_t point_index, Context c)
         {
@@ -308,9 +314,22 @@ private:
             return point_index;
         }
         
+        template <int PlatformAxisIndex>
+        static FpType get_coord (Context c, WrapInt<PlatformAxisIndex>)
+        {
+            using CPointCoord = TypeListGet<CPointCoordList, PlatformAxisIndex>;
+            return APRINTER_CFG(Config, CPointCoord, c);
+        }
+        
         struct Object : public ObjBase<PointHelper, typename BedProbe::Object, EmptyTypeList> {};
     };
     using PointHelperList = IndexElemList<ProbePoints, PointHelper>;
+    
+    template <int PlatformAxisIndex>
+    static FpType get_point_coord (Context c, uint8_t point_index)
+    {
+        return ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_coord(), c, WrapInt<PlatformAxisIndex>());
+    }
     
     static void skip_disabled_points_and_detect_end (Context c)
     {
@@ -333,13 +352,15 @@ private:
         
         static void add_axis (Context c, uint8_t point_index)
         {
-            FpType coord = ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_coord(), c);
+            FpType coord = get_point_coord<PlatformAxisIndex>(c, point_index);
             ThePrinterMain::template move_add_axis<AxisIndex>(c, coord + APRINTER_CFG(Config, CAxisProbeOffset, c));
         }
         
         static void fill_point_coordinates (Context c, MatrixRange<FpType> matrix)
         {
-            ListForEachForward<PointHelperList>(LForeach_fill_coordinate(), c, matrix);
+            for (int i = 0; i < NumPoints; i++) {
+                matrix(i, PlatformAxisIndex) = get_point_coord<PlatformAxisIndex>(c, i);
+            }
         }
         
         template <typename TheCorrectionFeature=CorrectionFeature>
@@ -359,25 +380,7 @@ private:
             return accum + src.template get<VirtAxisIndex>() * (*corrections)++(PlatformAxisIndex, 0);
         }
         
-        template <int PointIndex>
-        struct PointHelper {
-            using Point = TypeListGet<ProbePoints, PointIndex>;
-            
-            using CPointCoord = decltype(ExprCast<FpType>(Config::e(TypeListGet<typename Point::Coords, PlatformAxisIndex>::i())));
-            using ConfigExprs = MakeTypeList<CPointCoord>;
-            
-            static FpType get_coord (Context c) { return APRINTER_CFG(Config, CPointCoord, c); }
-            
-            static void fill_coordinate (Context c, MatrixRange<FpType> matrix)
-            {
-                matrix(PointIndex, PlatformAxisIndex) = get_coord(c);
-            }
-            
-            struct Object : public ObjBase<PointHelper, typename AxisHelper::Object, EmptyTypeList> {};
-        };
-        using PointHelperList = IndexElemList<ProbePoints, PointHelper>;
-        
-        struct Object : public ObjBase<AxisHelper, typename BedProbe::Object, PointHelperList> {};
+        struct Object : public ObjBase<AxisHelper, typename BedProbe::Object, EmptyTypeList> {};
     };
     using AxisHelperList = IndexElemList<PlatformAxesList, AxisHelper>;
     
