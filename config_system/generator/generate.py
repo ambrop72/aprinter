@@ -127,8 +127,9 @@ class GenState(object):
     def add_finalize_action (self, action):
         self._finalize_actions.append(action)
     
-    def add_global_resource (self, priority, name, expr, context_name=None):
-        self._global_resources.append({'priority':priority, 'name':name, 'expr':expr, 'context_name':context_name})
+    def add_global_resource (self, priority, name, expr, context_name=None, code_before=None):
+        code_before = '' if code_before is None else '{}\n'.format(code_before)
+        self._global_resources.append({'priority':priority, 'name':name, 'expr':expr, 'context_name':context_name, 'code_before':code_before})
     
     def finalize (self):
         for action in reversed(self._finalize_actions):
@@ -147,7 +148,7 @@ class GenState(object):
         self.add_subst('AprinterIncludes', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in sorted(self._aprinter_includes)))
         self.add_subst('GlobalCode', ''.join('{}\n'.format(gc['code']) for gc in sorted(self._global_code, key=lambda x: x['priority'])))
         self.add_subst('InitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._init_calls, key=lambda x: x['priority'])))
-        self.add_subst('GlobalResourceExprs', ''.join('using {} = {};\n'.format(gr['name'], gr['expr'].build(indent=0)) for gr in global_resources))
+        self.add_subst('GlobalResourceExprs', ''.join('{}using {} = {};\n'.format(gr['code_before'], gr['name'], gr['expr'].build(indent=0)) for gr in global_resources))
         self.add_subst('GlobalResourceContextAliases', ''.join('    using {} = {};\n'.format(gr['context_name'], gr['name']) for gr in global_resources if gr['context_name'] is not None))
         self.add_subst('GlobalResourceProgramChildren', ''.join('    {},\n'.format(gr['name']) for gr in global_resources))
         self.add_subst('GlobalResourceInit', ''.join('    {}::init(c);\n'.format(gr['name']) for gr in global_resources))
@@ -1530,7 +1531,9 @@ def generate(config_root_data, cfg_name, main_template):
                 TemplateList(modules_exprs),
             ])
             
-            gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', printer_params]), context_name='Printer')
+            printer_params_typedef = 'struct ThePrinterParams : public {} {{}};'.format(printer_params.build(0))
+            
+            gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', 'ThePrinterParams']), context_name='Printer', code_before=printer_params_typedef)
             gen.add_subst('FastEventRoot', 'MyPrinter')
             gen.add_subst('EmergencyProvider', 'MyPrinter')
     
