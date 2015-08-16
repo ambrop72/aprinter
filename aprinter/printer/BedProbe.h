@@ -38,7 +38,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/math/Matrix.h>
-#include <aprinter/math/MatrixQr.h>
+#include <aprinter/math/LinearLeastSquares.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>

@@ -88,28 +88,6 @@ void MatrixQrHouseholderKnownSize (MA ma, MQT mqt)
     MatrixQrHouseholder(ma--, mqt--, tempv--, tempq--, tempq2--);
 }
 
-template <int Rows, int Cols, typename MX, typename MY, typename MBeta>
-void LinearLeastSquaresKnownSize (MX mx, MY my, MBeta mbeta)
-{
-    AMBRO_ASSERT(Rows >= Cols)
-    AMBRO_ASSERT(mx.rows() == Rows)
-    AMBRO_ASSERT(mx.cols() == Cols)
-    AMBRO_ASSERT(my.rows() == Rows)
-    AMBRO_ASSERT(my.cols() == 1)
-    AMBRO_ASSERT(mbeta.rows() == Cols)
-    AMBRO_ASSERT(mbeta.cols() == 1)
-    
-    Matrix<typename MX::T, Rows, Rows> mqt;
-    MatrixQrHouseholderKnownSize<Rows, Cols>(mx--, mqt--);
-    
-    auto mrn = mx.range(0, 0, Cols, Cols);
-    
-    Matrix<typename MX::T, Cols, 1> mqtyn;
-    MatrixMultiply(mqtyn--, mqt++.range(0, 0, Cols, Rows), my++);
-    
-    MatrixSolveUpperTriangular(mrn++, mqtyn++, mbeta--);
-}
-
 #include <aprinter/EndNamespace.h>
 
 #endif
