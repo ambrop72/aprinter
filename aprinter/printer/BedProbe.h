@@ -65,6 +65,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_calc_correction_contribution, calc_correction_contribution)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_correct_virt_axis, correct_virt_axis)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_skip_point_if_disabled, skip_point_if_disabled)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_z_offset, get_z_offset)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_coord, get_coord)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_add_axis, add_axis)
     
@@ -75,12 +76,6 @@ public:
         friend BedProbe;
         static_assert(ThePrinterMain::IsTransformEnabled, "");
         static_assert(ThePrinterMain::template IsVirtAxis<ProbeAxisIndex>::Value, "");
-        
-    private:
-        using CCorrectionOffset = decltype(ExprCast<FpType>(Config::e(CorrectionParams::CorrectionOffset::i())));
-        
-    public:
-        using ConfigExprs = MakeTypeList<CCorrectionOffset>;
         
     private:
         static void init (Context c)
@@ -136,7 +131,7 @@ public:
         static void probing_measurement (Context c, uint8_t point_index, FpType height)
         {
             auto *o = Object::self(c);
-            o->heights_matrix--(point_index, 0) = height + APRINTER_CFG(Config, CCorrectionOffset, c);
+            o->heights_matrix--(point_index, 0) = height;
         }
         
         static void probing_completing (Context c, TheCommand *cmd)
@@ -299,12 +294,13 @@ private:
         using Point = TypeListGet<ProbePoints, PointIndex>;
         
         using CPointEnabled = decltype(ExprCast<bool>(Config::e(Point::Enabled::i())));
+        using CPointZOffset = decltype(ExprCast<FpType>(Config::e(Point::ZOffset::i())));
         
         template <int PlatformAxisIndex>
         using CPointCoordForAxis = decltype(ExprCast<FpType>(Config::e(TypeListGet<typename Point::Coords, PlatformAxisIndex>::i())));
         using CPointCoordList = IndexElemListCount<NumPlatformAxes, CPointCoordForAxis>;
         
-        using ConfigExprs = JoinTypeLists<MakeTypeList<CPointEnabled>, CPointCoordList>;
+        using ConfigExprs = JoinTypeLists<MakeTypeList<CPointEnabled, CPointZOffset>, CPointCoordList>;
         
         static uint8_t skip_point_if_disabled (uint8_t point_index, Context c)
         {
@@ -312,6 +308,11 @@ private:
                 point_index++;
             }
             return point_index;
+        }
+        
+        static FpType get_z_offset (Context c)
+        {
+            return APRINTER_CFG(Config, CPointZOffset, c);
         }
         
         template <int PlatformAxisIndex>
@@ -324,6 +325,11 @@ private:
         struct Object : public ObjBase<PointHelper, typename BedProbe::Object, EmptyTypeList> {};
     };
     using PointHelperList = IndexElemList<ProbePoints, PointHelper>;
+    
+    static FpType get_point_z_offset (Context c, uint8_t point_index)
+    {
+        return ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_z_offset(), c);
+    }
     
     template <int PlatformAxisIndex>
     static FpType get_point_coord (Context c, uint8_t point_index)
@@ -436,7 +442,7 @@ private:
             o->m_command_sent = false;
             if (o->m_point_state < 4) {
                 if (o->m_point_state == 3) {
-                    FpType height = get_height(c);
+                    FpType height = get_height(c) + APRINTER_CFG(Config, CProbeGeneralZOffset, c) + get_point_z_offset(c, o->m_current_point);
                     report_height(c, ThePrinterMain::get_locked(c), o->m_current_point, height);
                 }
                 o->m_point_state++;
@@ -498,9 +504,13 @@ private:
     using CProbeFastSpeedFactor = decltype(ExprCast<FpType>(typename ThePrinterMain::TimeConversion() / Config::e(Params::ProbeFastSpeed::i())));
     using CProbeRetractSpeedFactor = decltype(ExprCast<FpType>(typename ThePrinterMain::TimeConversion() / Config::e(Params::ProbeRetractSpeed::i())));
     using CProbeSlowSpeedFactor = decltype(ExprCast<FpType>(typename ThePrinterMain::TimeConversion() / Config::e(Params::ProbeSlowSpeed::i())));
+    using CProbeGeneralZOffset = decltype(ExprCast<FpType>(Config::e(Params::ProbeGeneralZOffset::i())));
     
 public:
-    using ConfigExprs = MakeTypeList<CProbeInvert, CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor, CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor>;
+    using ConfigExprs = MakeTypeList<
+        CProbeInvert, CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor,
+        CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor, CProbeGeneralZOffset
+    >;
     
 public:
     struct Object : public ObjBase<BedProbe, ParentObject, JoinTypeLists<
@@ -519,21 +529,19 @@ struct BedProbeNoCorrectionParams {
     static bool const Enabled = false;
 };
 
-template <
-    typename TCorrectionOffset
->
 struct BedProbeCorrectionParams {
     static bool const Enabled = true;
-    using CorrectionOffset = TCorrectionOffset;
 };
 
 template <
     typename TEnabled,
-    typename TCoords
+    typename TCoords,
+    typename TZOffset
 >
 struct BedProbePointParams {
     using Enabled = TEnabled;
     using Coords = TCoords;
+    using ZOffset = TZOffset;
 };
 
 template <
@@ -550,6 +558,7 @@ template <
     typename TProbeFastSpeed,
     typename TProbeRetractSpeed,
     typename TProbeSlowSpeed,
+    typename TProbeGeneralZOffset,
     typename TProbePoints,
     typename TProbeCorrectionParams
 >
@@ -567,6 +576,7 @@ struct BedProbeService {
     using ProbeFastSpeed = TProbeFastSpeed;
     using ProbeRetractSpeed = TProbeRetractSpeed;
     using ProbeSlowSpeed = TProbeSlowSpeed;
+    using ProbeGeneralZOffset = TProbeGeneralZOffset;
     using ProbePoints = TProbePoints;
     using ProbeCorrectionParams = TProbeCorrectionParams;
     

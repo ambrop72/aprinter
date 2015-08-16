@@ -1407,14 +1407,15 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.add_float_config('ProbeFastSpeed', probe.get_float('FastSpeed'))
                 gen.add_float_config('ProbeRetractSpeed', probe.get_float('RetractSpeed'))
                 gen.add_float_config('ProbeSlowSpeed', probe.get_float('SlowSpeed'))
+                gen.add_float_config('ProbeGeneralZOffset', probe.get_float('GeneralZOffset'))
                 
-                point_list = []
+                num_points = 0
                 for (i, point) in enumerate(probe.iter_list_config('ProbePoints', min_count=1, max_count=20)):
-                    p = (point.get_float('X'), point.get_float('Y'))
+                    num_points += 1
                     gen.add_bool_config('ProbeP{}Enabled'.format(i+1), point.get_bool('Enabled'))
-                    gen.add_float_config('ProbeP{}X'.format(i+1), p[0])
-                    gen.add_float_config('ProbeP{}Y'.format(i+1), p[1])
-                    point_list.append(p)
+                    gen.add_float_config('ProbeP{}X'.format(i+1), point.get_float('X'))
+                    gen.add_float_config('ProbeP{}Y'.format(i+1), point.get_float('Y'))
+                    gen.add_float_config('ProbeP{}ZOffset'.format(i+1), point.get_float('Z-offset'))
                 
                 correction_sel = selection.Selection()
                 
@@ -1427,9 +1428,7 @@ def generate(config_root_data, cfg_name, main_template):
                     if 'Z' not in transform_axes:
                         correction.path().error('Bed correction is only supported when the Z axis is involved in the coordinate transformation.')
                     
-                    return TemplateExpr('BedProbeCorrectionParams', [
-                        gen.add_float_config('ProbeCorrectionOffset', correction.get_float('CorrectionOffset')),
-                    ])
+                    return 'BedProbeCorrectionParams'
                 
                 correction_expr = probe.do_selection('correction', correction_sel)
                 
@@ -1447,7 +1446,8 @@ def generate(config_root_data, cfg_name, main_template):
                         'ProbeFastSpeed',
                         'ProbeRetractSpeed',
                         'ProbeSlowSpeed',
-                        TemplateList(['BedProbePointParams<ProbeP{}Enabled, MakeTypeList<ProbeP{}X, ProbeP{}Y>>'.format(i+1, i+1, i+1) for i in range(len(point_list))]),
+                        'ProbeGeneralZOffset',
+                        TemplateList(['BedProbePointParams<ProbeP{0}Enabled, MakeTypeList<ProbeP{0}X, ProbeP{0}Y>, ProbeP{0}ZOffset>'.format(i+1) for i in range(num_points)]),
                         correction_expr,
                     ]),
                 ])

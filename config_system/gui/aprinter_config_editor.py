@@ -493,16 +493,16 @@ def editor():
                         ce.Float(key='FastSpeed', title='Fast probing speed [mm/s]', default=2),
                         ce.Float(key='RetractSpeed', title='Retraction speed [mm/s]', default=10),
                         ce.Float(key='SlowSpeed', title='Slow probing speed [mm/s]', default=0.5),
+                        ce.Float(key='GeneralZOffset', title='Z offset added to height measurements [mm] (increase for correction to raise nozzle)', default=0),
                         ce.Array(key='ProbePoints', title='Coordinates of probing points', table=True, elem=ce.Compound('ProbePoint', title='Point', attrs=[
                             ce.Boolean(key='Enabled', default=True),
                             ce.Float(key='X'),
                             ce.Float(key='Y'),
+                            ce.Float(key='Z-offset'),
                         ])),
                         ce.OneOf(key='correction', title='Bed correction', choices=[
                             ce.Compound('NoCorrection', title='Disabled', attrs=[]),
-                            ce.Compound('Correction', title='Enabled', attrs=[
-                                ce.Float(key='CorrectionOffset', title='Z offset for correction [mm] (increase to raise nozzle)', default=0),
-                            ]),
+                            ce.Compound('Correction', title='Enabled', attrs=[]),
                         ])
                     ])
                 ])
