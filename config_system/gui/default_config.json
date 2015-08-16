@@ -3377,39 +3377,44 @@
       "probe_config": {
         "_compoundName": "ProbeConfig",
         "probe": {
+          "ProbePin": "Z-MAX",
+          "FastSpeed": 2,
+          "InvertInput": false,
+          "LowHeight": 2,
+          "MoveSpeed": 120,
+          "OffsetX": -18,
+          "OffsetY": -31,
+          "GeneralZOffset": 0,
           "ProbePoints": [
             {
               "Enabled": true,
               "X": 0,
               "Y": 31,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 0,
               "Y": 155,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 205,
               "Y": 31,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 205,
               "Y": 155,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             }
           ],
-          "FastSpeed": 2,
-          "LowHeight": 2,
-          "MoveSpeed": 120,
-          "OffsetX": -18,
-          "OffsetY": -31,
-          "ProbePin": "Z-MAX",
-          "InvertInput": false,
           "RetractDist": 1,
           "RetractSpeed": 3,
           "SlowSpeed": 0.6,
@@ -3938,39 +3943,44 @@
       "probe_config": {
         "_compoundName": "ProbeConfig",
         "probe": {
+          "ProbePin": "Z-MAX",
+          "FastSpeed": 2,
+          "InvertInput": false,
+          "LowHeight": 2,
+          "MoveSpeed": 120,
+          "OffsetX": -18,
+          "OffsetY": -31,
+          "GeneralZOffset": 0,
           "ProbePoints": [
             {
               "Enabled": true,
               "X": 0,
               "Y": 31,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 0,
               "Y": 155,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 205,
               "Y": 31,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 205,
               "Y": 155,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             }
           ],
-          "FastSpeed": 2,
-          "LowHeight": 2,
-          "MoveSpeed": 120,
-          "OffsetX": -18,
-          "OffsetY": -31,
-          "ProbePin": "Z-MAX",
-          "InvertInput": false,
           "RetractDist": 1,
           "RetractSpeed": 3,
           "SlowSpeed": 0.6,
@@ -5112,112 +5122,127 @@
       "probe_config": {
         "_compoundName": "ProbeConfig",
         "probe": {
+          "ProbePin": "E0_STOP",
+          "FastSpeed": 10,
+          "InvertInput": false,
+          "LowHeight": -8,
+          "MoveSpeed": 200,
+          "OffsetX": 0,
+          "OffsetY": 0,
+          "GeneralZOffset": 0.3,
           "ProbePoints": [
             {
               "Enabled": true,
               "X": 1.46596939183,
               "Y": 69.9846478432,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 0,
               "Y": 70,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": -1.46596939183,
               "Y": 69.9846478432,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": -61.3414676031,
               "Y": -33.7227571871,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": -60.6217782649,
               "Y": -35,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": -59.8754982112,
               "Y": -36.2618906561,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 59.8754982112,
               "Y": -36.2618906561,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 60.6217782649,
               "Y": -35,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 61.3414676031,
               "Y": -33.7227571871,
+              "Z-offset": 0,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": 0,
+              "Y": 5,
+              "Z-offset": 0.1,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": -4.33012701892,
+              "Y": -2.5,
+              "Z-offset": 0.1,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": 4.33012701892,
+              "Y": -2.5,
+              "Z-offset": 0.1,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": false,
               "X": 0,
               "Y": 0,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": false,
               "X": 0,
               "Y": 0,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": false,
               "X": 0,
               "Y": 0,
-              "_compoundName": "ProbePoint"
-            },
-            {
-              "Enabled": false,
-              "X": 0,
-              "Y": 0,
-              "_compoundName": "ProbePoint"
-            },
-            {
-              "Enabled": false,
-              "X": 0,
-              "Y": 0,
-              "_compoundName": "ProbePoint"
-            },
-            {
-              "Enabled": false,
-              "X": 0,
-              "Y": 0,
+              "Z-offset": 0,
               "_compoundName": "ProbePoint"
             }
           ],
-          "FastSpeed": 10,
-          "LowHeight": -8,
-          "MoveSpeed": 200,
-          "OffsetX": 0,
-          "OffsetY": 0,
-          "ProbePin": "E0_STOP",
-          "InvertInput": false,
           "RetractDist": 1,
           "RetractSpeed": 10,
           "SlowSpeed": 0.5,
           "StartHeight": 8,
           "_compoundName": "Probe",
           "correction": {
-            "CorrectionOffset": 0.25,
             "_compoundName": "Correction"
           }
         }
@@ -5225,7 +5250,7 @@
       "steppers": [
         {
           "MicroSteps": 0,
-          "CorneringDistance": 40,
+          "CorneringDistance": 20,
           "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": true,
@@ -5254,7 +5279,7 @@
         },
         {
           "MicroSteps": 0,
-          "CorneringDistance": 40,
+          "CorneringDistance": 20,
           "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": true,
@@ -5283,7 +5308,7 @@
         },
         {
           "MicroSteps": 0,
-          "CorneringDistance": 40,
+          "CorneringDistance": 20,
           "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": true,
@@ -5312,7 +5337,7 @@
         },
         {
           "MicroSteps": 0,
-          "CorneringDistance": 40,
+          "CorneringDistance": 20,
           "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
           "InvertDir": true,
