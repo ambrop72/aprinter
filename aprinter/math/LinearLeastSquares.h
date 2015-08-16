@@ -32,24 +32,31 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <int Rows, int Cols, typename MX, typename MY, typename MBeta>
-void LinearLeastSquaresKnownSize (MX mx, MY my, MBeta mbeta)
+template <int MaxRows, int MaxCols, typename MX, typename MY, typename MBeta>
+void LinearLeastSquaresMaxSize (MX mx, MY my, MBeta mbeta)
 {
-    AMBRO_ASSERT(Rows >= Cols)
-    AMBRO_ASSERT(mx.rows() == Rows)
-    AMBRO_ASSERT(mx.cols() == Cols)
-    AMBRO_ASSERT(my.rows() == Rows)
+    AMBRO_ASSERT(mx.rows() >= mx.cols())
+    AMBRO_ASSERT(mx.rows() <= MaxRows)
+    AMBRO_ASSERT(mx.cols() <= MaxCols)
+    AMBRO_ASSERT(my.rows() == mx.rows())
     AMBRO_ASSERT(my.cols() == 1)
-    AMBRO_ASSERT(mbeta.rows() == Cols)
+    AMBRO_ASSERT(mbeta.rows() == mx.cols())
     AMBRO_ASSERT(mbeta.cols() == 1)
     
-    Matrix<typename MX::T, Rows, Rows> mqt;
-    MatrixQrHouseholderKnownSize<Rows, Cols>(mx--, mqt--);
+    int rows = mx.rows();
+    int cols = mx.cols();
     
-    auto mrn = mx.range(0, 0, Cols, Cols);
+    Matrix<typename MX::T, MaxRows, MaxRows> mqt_buf;
+    auto mqt = mqt_buf--.range(0, 0, rows, rows);
     
-    Matrix<typename MX::T, Cols, 1> mqtyn;
-    MatrixMultiply(mqtyn--, mqt++.range(0, 0, Cols, Rows), my++);
+    MatrixQrHouseholderMaxSize<MaxRows, MaxCols>(mx--, mqt--);
+    
+    auto mrn = mx.range(0, 0, cols, cols);
+    
+    Matrix<typename MX::T, MaxCols, 1> mqtyn_buf;
+    auto mqtyn = mqtyn_buf--.range(0, 0, cols, 1);
+    
+    MatrixMultiply(mqtyn--, mqt++.range(0, 0, cols, rows), my++);
     
     MatrixSolveUpperTriangular(mrn++, mqtyn++, mbeta--);
 }

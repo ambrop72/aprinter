@@ -73,19 +73,20 @@ void MatrixQrHouseholder (MA ma, MQT mqt, MTempV tempv, MTempQ tempq, MTempQ2 te
     }
 }
 
-template <int Rows, int Cols, typename MA, typename MQT>
-void MatrixQrHouseholderKnownSize (MA ma, MQT mqt)
+template <int MaxRows, int MaxCols, typename MA, typename MQT>
+void MatrixQrHouseholderMaxSize (MA ma, MQT mqt)
 {
-    AMBRO_ASSERT(ma.rows() == Rows)
-    AMBRO_ASSERT(ma.cols() == Cols)
-    AMBRO_ASSERT(mqt.rows() == Rows)
-    AMBRO_ASSERT(mqt.cols() == Rows)
+    AMBRO_ASSERT(ma.rows() <= MaxRows)
+    AMBRO_ASSERT(ma.cols() <= MaxCols)
+    AMBRO_ASSERT(ma.rows() >= ma.cols())
+    AMBRO_ASSERT(mqt.rows() == ma.rows())
+    AMBRO_ASSERT(mqt.cols() == ma.rows())
     
-    Matrix<typename MA::T, Rows, 1> tempv;
-    Matrix<typename MA::T, Rows, Rows> tempq;
-    Matrix<typename MA::T, Rows, Rows> tempq2;
+    Matrix<typename MA::T, MaxRows, 1> tempv;
+    Matrix<typename MA::T, MaxRows, MaxRows> tempq;
+    Matrix<typename MA::T, MaxRows, MaxRows> tempq2;
     
-    MatrixQrHouseholder(ma--, mqt--, tempv--, tempq--, tempq2--);
+    MatrixQrHouseholder(ma--, mqt--, tempv--.range(0, 0, ma.rows(), 1), tempq--.range(0, 0, ma.rows(), ma.rows()), tempq2--.range(0, 0, ma.rows(), ma.rows()));
 }
 
 #include <aprinter/EndNamespace.h>

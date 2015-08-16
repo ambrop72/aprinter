@@ -139,17 +139,20 @@ public:
             auto *o = Object::self(c);
             
             Matrix<FpType, NumPoints, NumPlatformAxes + 1> coordinates_matrix;
+            
             ListForEachForward<AxisHelperList>(LForeach_fill_point_coordinates(), c, coordinates_matrix--);
             
             int num_valid_points = 0;
             for (int i = 0; i < NumPoints; i++) {
                 if (isnan(o->heights_matrix--(i, 0))) {
-                    o->heights_matrix--(i, 0) = 0.0f;
-                    MatrixWriteZero(coordinates_matrix--.range(i, 0, 1, NumPlatformAxes + 1));
-                } else {
-                    num_valid_points++;
-                    coordinates_matrix--(i, NumPlatformAxes) = 1.0f;
+                    continue;
                 }
+                coordinates_matrix--(i, NumPlatformAxes) = 1.0f;
+                if (i != num_valid_points) {
+                    MatrixCopy(coordinates_matrix--.range(num_valid_points, 0, 1, NumPlatformAxes + 1), coordinates_matrix++.range(i, 0, 1, NumPlatformAxes + 1));
+                    MatrixCopy(o->heights_matrix--.range(num_valid_points, 0, 1, 1), o->heights_matrix++.range(i, 0, 1, 1));
+                }
+                num_valid_points++;
             }
             
             if (num_valid_points < NumPlatformAxes + 1) {
@@ -157,8 +160,12 @@ public:
                 return;
             }
             
+            auto effective_coordinates_matrix = coordinates_matrix--.range(0, 0, num_valid_points, NumPlatformAxes + 1);
+            auto effective_heights_matrix = o->heights_matrix--.range(0, 0, num_valid_points, 1);
+            
             Matrix<FpType, NumPlatformAxes + 1, 1> new_corrections;
-            LinearLeastSquaresKnownSize<NumPoints, NumPlatformAxes + 1>(coordinates_matrix--, o->heights_matrix++, new_corrections--);
+            
+            LinearLeastSquaresMaxSize<NumPoints, NumPlatformAxes + 1>(effective_coordinates_matrix--, effective_heights_matrix++, new_corrections--);
             
             print_corrections(c, cmd, &new_corrections, AMBRO_PSTR("RelativeCorrections"));
             
