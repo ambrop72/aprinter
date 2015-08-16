@@ -32,16 +32,39 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename MA, typename MQT, typename MTempV, typename MTempQ, typename MTempQ2>
-void MatrixQrHouseholder (MA ma, MQT mqt, MTempV tempv, MTempQ tempq, MTempQ2 tempq2)
+template <typename MR, typename MV, typename MA, typename MRowBuf>
+void MatrixTransformHouseholder (MR mr, MV mv, MA ma, MRowBuf row_buf)
+{
+    AMBRO_ASSERT(mr.rows() == ma.rows())
+    AMBRO_ASSERT(mr.cols() == ma.cols())
+    AMBRO_ASSERT(mv.cols() == 1)
+    AMBRO_ASSERT(ma.rows() == mv.rows())
+    AMBRO_ASSERT(row_buf.rows() == 1)
+    AMBRO_ASSERT(row_buf.cols() == mv.rows())
+    
+    int rows = ma.rows();
+    int cols = ma.cols();
+    
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < rows; j++) {
+            row_buf(0, j) = -2.0f * (mv(i, 0) * mv(j, 0));
+        }
+        row_buf(0, i) += 1.0f;
+        
+        MatrixMultiply(mr--.range(i, 0, 1, cols), row_buf++, ma++);
+    }
+}
+
+template <typename MA, typename MQT, typename MTempV, typename MRowBuf, typename MTempQ2>
+void MatrixQrHouseholder (MA ma, MQT mqt, MTempV tempv, MRowBuf row_buf, MTempQ2 tempq2)
 {
     AMBRO_ASSERT(ma.rows() >= ma.cols())
     AMBRO_ASSERT(mqt.rows() == ma.rows())
     AMBRO_ASSERT(mqt.cols() == ma.rows())
     AMBRO_ASSERT(tempv.rows() == ma.rows())
     AMBRO_ASSERT(tempv.cols() == 1)
-    AMBRO_ASSERT(tempq.rows() == ma.rows())
-    AMBRO_ASSERT(tempq.cols() == ma.rows())
+    AMBRO_ASSERT(row_buf.rows() == 1)
+    AMBRO_ASSERT(row_buf.cols() == ma.rows())
     AMBRO_ASSERT(tempq2.rows() == ma.rows())
     AMBRO_ASSERT(tempq2.cols() == ma.rows())
     
@@ -49,6 +72,7 @@ void MatrixQrHouseholder (MA ma, MQT mqt, MTempV tempv, MTempQ tempq, MTempQ2 te
     int cols = ma.cols();
     int iterations = (cols < rows - 1) ? cols : (rows - 1);
     MatrixWriteIdentity(mqt--);
+    
     for (int k = 0; k < iterations; k++) {
         auto x = ma.range(k, k, rows - k, 1);
         auto alpha = FloatSqrt(MatrixSquareNorm(x)) * ((x(0, 0) < 0) ? 1 : -1);
@@ -58,18 +82,16 @@ void MatrixQrHouseholder (MA ma, MQT mqt, MTempV tempv, MTempQ tempq, MTempQ2 te
         MatrixElemOpInPlace<MatrixElemOpAdd>(v--, x++);
         auto beta = FloatSqrt(MatrixSquareNorm(v));
         MatrixElemOpScalarInPlace<MatrixElemOpDivide>(v--, beta);
-        auto small_q = tempq.range(k, k, rows - k, rows - k);
-        MatrixMultiplyMMT(small_q, v);
-        MatrixElemOpScalarInPlace<MatrixElemOpMultiply>(small_q--, -2);
-        MatrixElemOpScalarInPlace<MatrixElemOpAdd>(small_q--, 1, MatrixElemPredicateDiagonal());
-        auto a_temp = tempq2.range(0, 0, rows, cols);
-        MatrixMultiply(a_temp--, tempq++, ma++);
-        MatrixCopy(ma--, a_temp++);
-        MatrixMultiply(tempq2--, tempq++, mqt++);
-        MatrixCopy(mqt--, tempq2++);
-        tempq(k, k) = 1;
-        MatrixWriteZero(tempq--.range(k, k + 1, 1, rows - (k + 1)));
-        MatrixWriteZero(tempq--.range(k + 1, k, rows - (k + 1), 1));
+        
+        auto ma_for_transform = ma--.range(k, 0, rows - k, cols);
+        auto a_temp = tempq2.range(0, 0, rows - k, cols);
+        MatrixTransformHouseholder(a_temp--, v++, ma_for_transform++, row_buf--.range(0, 0, 1, rows - k));
+        MatrixCopy(ma_for_transform--, a_temp++);
+        
+        auto mqt_for_transform = mqt--.range(k, 0, rows - k, rows);
+        auto qt_temp = tempq2.range(0, 0, rows - k, rows);
+        MatrixTransformHouseholder(qt_temp--, v++, mqt_for_transform++, row_buf--.range(0, 0, 1, rows - k));
+        MatrixCopy(mqt_for_transform--, qt_temp++);
     }
 }
 
@@ -83,10 +105,10 @@ void MatrixQrHouseholderMaxSize (MA ma, MQT mqt)
     AMBRO_ASSERT(mqt.cols() == ma.rows())
     
     Matrix<typename MA::T, MaxRows, 1> tempv;
-    Matrix<typename MA::T, MaxRows, MaxRows> tempq;
+    Matrix<typename MA::T, 1, MaxRows> row_buf;
     Matrix<typename MA::T, MaxRows, MaxRows> tempq2;
     
-    MatrixQrHouseholder(ma--, mqt--, tempv--.range(0, 0, ma.rows(), 1), tempq--.range(0, 0, ma.rows(), ma.rows()), tempq2--.range(0, 0, ma.rows(), ma.rows()));
+    MatrixQrHouseholder(ma--, mqt--, tempv--.range(0, 0, ma.rows(), 1), row_buf--.range(0, 0, 1, ma.rows()), tempq2--.range(0, 0, ma.rows(), ma.rows()));
 }
 
 #include <aprinter/EndNamespace.h>

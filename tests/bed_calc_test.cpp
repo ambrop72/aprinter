@@ -1,5 +1,8 @@
 #include <stdio.h>
 
+#include <aprinter/math/LinearLeastSquares.h>
+
+using namespace APrinter;
 
 template <typename M>
 static void print_matrix (M m)
@@ -13,25 +16,16 @@ static void print_matrix (M m)
     printf("\n");
 }
 
-#include <aprinter/math/MatrixQr.h>
-
-using namespace APrinter;
-
 int main ()
 {
     Matrix<double, 5, 3> x;
     Matrix<double, 5, 1> y;
-    /*
-    x--(0, 0) = -6; x--(0, 1) = -4; x--(0, 2) = 1; y--(0, 0) = 0.5;
-    x--(1, 0) = 7;  x--(1, 1) = -5; x--(1, 2) = 1; y--(1, 0) = -0.2;
-    x--(2, 0) = 0;  x--(2, 1) = 0; x--(2, 2) = 0; y--(2, 0) = 0;
-    x--(3, 0) = 4;  x--(3, 1) = 12; x--(3, 2) = 1; y--(3, 0) = 2.1;
-    */
+    
     x--(0, 0) = -6; x--(0, 1) = -4; x--(0, 2) = 1; y--(0, 0) = 0.5;
     x--(1, 0) = 7;  x--(1, 1) = -5; x--(1, 2) = 1; y--(1, 0) = -0.2;
     x--(2, 0) = 4;  x--(2, 1) = 12; x--(2, 2) = 1; y--(2, 0) = 2.1;
-    x--(3, 0) = 0;  x--(3, 1) = 0;  x--(3, 2) = 0; y--(3, 0) = 0;
-    x--(4, 0) = 0;  x--(4, 1) = 0;  x--(4, 2) = 0; y--(4, 0) = 0;
+    x--(3, 0) = 3;  x--(3, 1) = 6;  x--(3, 2) = 1; y--(3, 0) = 7.4;
+    x--(4, 0) = 5;  x--(4, 1) = -1; x--(4, 2) = 1; y--(4, 0) = 6;
     
     printf("X=\n");
     print_matrix(x++);
@@ -40,7 +34,7 @@ int main ()
     
     auto x_copy = x;
     Matrix<double, 3, 1> beta;
-    LinearLeastSquaresKnownSize<5, 3>(x_copy--, y++, beta--);
+    LinearLeastSquaresMaxSize<5, 3>(x_copy--, y++, beta--);
     
     printf("Beta=\n");
     print_matrix(beta++);

@@ -201,24 +201,6 @@ void MatrixMultiply (MR mr, M1 m1, M2 m2)
     }
 }
 
-template <typename MR, typename M1>
-void MatrixMultiplyMMT (MR mr, M1 m1)
-{
-    AMBRO_ASSERT(mr.rows() == m1.rows())
-    AMBRO_ASSERT(mr.cols() == m1.rows())
-    
-    int rows = m1.rows();
-    int mid = m1.cols();
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < rows; j++) {
-            mr(i, j) = 0;
-            for (int k = 0; k < mid; k++) {
-                mr(i, j) += m1(i, k) * m1(j, k);
-            }
-        }
-    }
-}
-
 template <typename M1>
 typename M1::T MatrixSquareNorm (M1 m1)
 {
