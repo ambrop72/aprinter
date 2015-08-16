@@ -390,7 +390,8 @@ private:
     };
     using AxisHelperList = IndexElemList<PlatformAxesList, AxisHelper>;
     
-    struct ProbePlannerClient : public ThePrinterMain::PlannerClient {
+    class ProbePlannerClient : public ThePrinterMain::PlannerClient {
+    public:
         void pull_handler (Context c)
         {
             auto *o = Object::self(c);
@@ -401,7 +402,9 @@ private:
                 ThePrinterMain::custom_planner_wait_finished(c);
                 return;
             }
+            
             ThePrinterMain::move_begin(c);
+            
             FpType height;
             FpType time_freq_by_speed;
             switch (o->m_point_state) {
@@ -427,49 +430,63 @@ private:
                     time_freq_by_speed = APRINTER_CFG(Config, CProbeRetractSpeedFactor, c);
                 } break;
             }
+            
             ThePrinterMain::template move_add_axis<ProbeAxisIndex>(c, height, true);
             ThePrinterMain::move_end(c, time_freq_by_speed);
+            
             o->m_command_sent = true;
         }
         
         void finished_handler (Context c)
         {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_current_point != 0xff)
-            AMBRO_ASSERT(o->m_command_sent)
-            
-            ThePrinterMain::custom_planner_deinit(c);
-            o->m_command_sent = false;
-            if (o->m_point_state < 4) {
-                if (o->m_point_state == 3) {
-                    FpType height = get_height(c) + APRINTER_CFG(Config, CProbeGeneralZOffset, c) + get_point_z_offset(c, o->m_current_point);
-                    report_height(c, ThePrinterMain::get_locked(c), o->m_current_point, height);
-                }
-                o->m_point_state++;
-                bool watch_probe = (o->m_point_state == 1 || o->m_point_state == 3);
-                init_probe_planner(c, watch_probe);
-            } else {
-                o->m_current_point++;
-                skip_disabled_points_and_detect_end(c);
-                if (o->m_current_point == 0xff) {
-                    TheCommand *cmd = ThePrinterMain::get_locked(c);
-                    CorrectionFeature::probing_completing(c, cmd);
-                    cmd->finishCommand(c);
-                    return;
-                }
-                init_probe_planner(c, false);
-                o->m_point_state = 0;
-            }
+            finished_or_aborted(c, false);
         }
         
         void aborted_handler (Context c)
         {
+            finished_or_aborted(c, true);
+        }
+        
+    private:
+        void finished_or_aborted (Context c, bool aborted)
+        {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->m_current_point != 0xff)
+            AMBRO_ASSERT(o->m_point_state <= 4)
             AMBRO_ASSERT(o->m_command_sent)
-            AMBRO_ASSERT(o->m_point_state == 1 || o->m_point_state == 3)
+            AMBRO_ASSERT(!aborted || is_point_state_watching(o->m_point_state))
             
-            finished_handler(c);
+            ThePrinterMain::custom_planner_deinit(c);
+            o->m_command_sent = false;
+            
+            if (is_point_state_watching(o->m_point_state) && !aborted) {
+                return finish_probing(c, true, AMBRO_PSTR("Error:EndstopNotTriggeredInProbeMove\n"));
+            }
+            
+            if (o->m_point_state == 4) {
+                o->m_current_point++;
+                skip_disabled_points_and_detect_end(c);
+                if (o->m_current_point == 0xff) {
+                    return finish_probing(c, false, nullptr);
+                }
+                init_probe_planner(c, false);
+                o->m_point_state = 0;
+                return;
+            }
+            
+            if (o->m_point_state == 3) {
+                FpType height = get_height(c) + APRINTER_CFG(Config, CProbeGeneralZOffset, c) + get_point_z_offset(c, o->m_current_point);
+                report_height(c, ThePrinterMain::get_locked(c), o->m_current_point, height);
+            }
+            
+            o->m_point_state++;
+            bool watch_probe = is_point_state_watching(o->m_point_state);
+            
+            if (watch_probe && endstop_is_triggered(c)) {
+                return finish_probing(c, true, AMBRO_PSTR("Error:EndstopTriggeredBeforeProbeMove\n"));
+            }
+            
+            init_probe_planner(c, watch_probe);
         }
     };
     
@@ -494,6 +511,26 @@ private:
         cmd->reply_append_fp(c, height);
         cmd->reply_append_ch(c, '\n');
         cmd->reply_poke(c);
+    }
+    
+    static void finish_probing (Context c, bool error, AMBRO_PGM_P errstr)
+    {
+        auto *o = Object::self(c);
+        
+        o->m_current_point = 0xff;
+        
+        TheCommand *cmd = ThePrinterMain::get_locked(c);
+        if (error) {
+            cmd->reply_append_pstr(c, errstr);
+        } else {
+            CorrectionFeature::probing_completing(c, cmd);
+        }
+        cmd->finishCommand(c);
+    }
+    
+    static bool is_point_state_watching (uint8_t point_state)
+    {
+        return point_state == 1 || point_state == 3;
     }
     
     using CProbeInvert = decltype(ExprCast<bool>(Config::e(Params::ProbeInvert::i())));
