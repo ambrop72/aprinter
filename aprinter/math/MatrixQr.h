@@ -37,39 +37,39 @@ inline constexpr int MatrixQrNumIterations (int rows, int cols)
     return (cols < rows - 1) ? cols : (rows - 1);
 }
 
-template <typename MR, typename MV, typename MA, typename MRowBuf>
-void MatrixTransformHouseholder (MR mr, MV mv, MA ma, MRowBuf row_buf)
+template <typename MV, typename MA, typename MColBuf>
+void MatrixTransformHouseholder (MV mv, MA ma, MColBuf col_buf)
 {
-    AMBRO_ASSERT(mr.rows() == ma.rows())
-    AMBRO_ASSERT(mr.cols() == ma.cols())
     AMBRO_ASSERT(mv.cols() == 1)
     AMBRO_ASSERT(ma.rows() == mv.rows())
-    AMBRO_ASSERT(row_buf.rows() == 1)
-    AMBRO_ASSERT(row_buf.cols() == mv.rows())
+    AMBRO_ASSERT(col_buf.rows() == ma.rows())
+    AMBRO_ASSERT(col_buf.cols() == 1)
     
     int rows = ma.rows();
     int cols = ma.cols();
     
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < rows; j++) {
-            row_buf(0, j) = -2.0f * (mv(i, 0) * mv(j, 0));
-        }
-        row_buf(0, i) += 1.0f;
+    for (int j = 0; j < cols; j++) {
+        MatrixCopy(col_buf--, ma++.range(0, j, rows, 1));
         
-        MatrixMultiply(mr--.range(i, 0, 1, cols), row_buf++, ma++);
+        for (int i = 0; i < rows; i++) {
+            typename MA::T value = 0.0f;
+            for (int k = 0; k < rows; k++) {
+                value += (-2.0f * (mv(i, 0) * mv(k, 0)) + (i == k)) * col_buf(k, 0);
+            }
+            
+            ma(i, j) = value;
+        }
     }
 }
 
-template <typename MA, typename MQVectors, typename MRowBuf, typename MMatrixBuf>
-MQVectors MatrixQrHouseholder (MA ma, MQVectors q_vectors, MRowBuf row_buf, MMatrixBuf matrix_buf)
+template <typename MA, typename MQVectors, typename MRowBuf>
+MQVectors MatrixQrHouseholder (MA ma, MQVectors q_vectors, MRowBuf row_buf)
 {
     AMBRO_ASSERT(ma.rows() >= ma.cols())
     AMBRO_ASSERT(q_vectors.rows() >= ma.rows())
     AMBRO_ASSERT(q_vectors.cols() >= MatrixQrNumIterations(ma.rows(), ma.cols()))
-    AMBRO_ASSERT(row_buf.rows() == 1)
-    AMBRO_ASSERT(row_buf.cols() == ma.rows())
-    AMBRO_ASSERT(matrix_buf.rows() == ma.rows())
-    AMBRO_ASSERT(matrix_buf.cols() == ma.cols())
+    AMBRO_ASSERT(row_buf.rows() == ma.rows())
+    AMBRO_ASSERT(row_buf.cols() == 1)
     
     int rows = ma.rows();
     int cols = ma.cols();
@@ -87,23 +87,19 @@ MQVectors MatrixQrHouseholder (MA ma, MQVectors q_vectors, MRowBuf row_buf, MMat
         MatrixElemOpScalarInPlace<MatrixElemOpDivide>(v--, beta);
         
         auto ma_for_transform = ma--.range(k, 0, rows - k, cols);
-        auto a_temp = matrix_buf.range(0, 0, rows - k, cols);
-        MatrixTransformHouseholder(a_temp--, v++, ma_for_transform++, row_buf--.range(0, 0, 1, rows - k));
-        MatrixCopy(ma_for_transform--, a_temp++);
+        MatrixTransformHouseholder(v++, ma_for_transform--, row_buf--.range(0, 0, rows - k, 1));
     }
     
     return q_vectors.range(0, 0, rows, iterations);
 }
 
-template <typename MMatrix, typename MQVectors, typename MRowBuf, typename MMatrixBuf>
-void MatrixQrHouseholderQMultiply (MMatrix matrix, MQVectors q_vectors, MRowBuf row_buf, MMatrixBuf matrix_buf)
+template <typename MMatrix, typename MQVectors, typename MRowBuf>
+void MatrixQrHouseholderQMultiply (MMatrix matrix, MQVectors q_vectors, MRowBuf row_buf)
 {
     AMBRO_ASSERT(matrix.rows() == q_vectors.rows())
     AMBRO_ASSERT(q_vectors.rows() > q_vectors.cols())
-    AMBRO_ASSERT(row_buf.rows() == 1)
-    AMBRO_ASSERT(row_buf.cols() == matrix.rows())
-    AMBRO_ASSERT(matrix_buf.rows() == matrix.rows())
-    AMBRO_ASSERT(matrix_buf.cols() == matrix.cols())
+    AMBRO_ASSERT(row_buf.rows() == matrix.rows())
+    AMBRO_ASSERT(row_buf.cols() == 1)
     
     int rows = matrix.rows();
     int cols = matrix.cols();
@@ -113,9 +109,7 @@ void MatrixQrHouseholderQMultiply (MMatrix matrix, MQVectors q_vectors, MRowBuf 
         auto v = q_vectors.range(k, k, rows - k, 1);
         
         auto matrix_for_transform = matrix.range(k, 0, rows - k, cols);
-        auto result_temp = matrix_buf.range(0, 0, rows - k, cols);
-        MatrixTransformHouseholder(result_temp--, v++, matrix_for_transform++, row_buf--.range(0, 0, 1, rows - k));
-        MatrixCopy(matrix_for_transform--, result_temp++);
+        MatrixTransformHouseholder(v++, matrix_for_transform--, row_buf--.range(0, 0, rows - k, 1));
     }
 }
 
