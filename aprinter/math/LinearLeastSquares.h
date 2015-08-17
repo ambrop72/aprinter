@@ -46,19 +46,21 @@ void LinearLeastSquaresMaxSize (MX mx, MY my, MBeta mbeta)
     int rows = mx.rows();
     int cols = mx.cols();
     
-    Matrix<typename MX::T, MaxRows, MaxRows> mqt_buf;
-    auto mqt = mqt_buf--.range(0, 0, rows, rows);
+    Matrix<typename MX::T, MaxRows, MatrixQrNumIterations(MaxRows, MaxCols)> q_vectors_buf;
+    Matrix<typename MX::T, 1, MaxRows> row_buf;
+    Matrix<typename MX::T, MaxRows, MaxCols> matrix_buf;
+    Matrix<typename MX::T, MaxRows, MaxCols> q_buf;
     
-    MatrixQrHouseholderMaxSize<MaxRows, MaxCols>(mx--, mqt--);
+    auto q_vectors = MatrixQrHouseholder(mx--, q_vectors_buf--, row_buf--.range(0, 0, 1, rows), matrix_buf--.range(0, 0, rows, cols));
     
-    auto mrn = mx.range(0, 0, cols, cols);
+    auto mq = q_buf--.range(0, 0, rows, cols);
+    MatrixWriteIdentity(mq--);
+    MatrixQrHouseholderQMultiply(mq--, q_vectors++, row_buf--.range(0, 0, 1, rows), matrix_buf--.range(0, 0, rows, cols));
     
-    Matrix<typename MX::T, MaxCols, 1> mqtyn_buf;
-    auto mqtyn = mqtyn_buf--.range(0, 0, cols, 1);
+    auto mqtyn = row_buf--.transposed().range(0, 0, cols, 1);
+    MatrixMultiply(mqtyn--, mq.transposed(), my++);
     
-    MatrixMultiply(mqtyn--, mqt++.range(0, 0, cols, rows), my++);
-    
-    MatrixSolveUpperTriangular(mrn++, mqtyn++, mbeta--);
+    MatrixSolveUpperTriangular(mx.range(0, 0, cols, cols)++, mqtyn++, mbeta--);
 }
 
 #include <aprinter/EndNamespace.h>

@@ -39,17 +39,18 @@ public:
     using TMaybeConst = TTMaybeConst;
     using T = RemoveConst<TMaybeConst>;
     
-    static MatrixRange Make (TMaybeConst *data, int rows, int cols, int stride)
+    static MatrixRange Make (TMaybeConst *data, int rows, int cols, int stride, bool column_major)
     {
         AMBRO_ASSERT(rows >= 0)
         AMBRO_ASSERT(cols >= 0)
-        AMBRO_ASSERT(stride >= cols)
+        AMBRO_ASSERT(stride >= (column_major ? rows : cols))
         
         MatrixRange res;
         res.m_data = data;
         res.m_rows = rows;
         res.m_cols = cols;
         res.m_stride = stride;
+        res.m_column_major = column_major;
         return res;
     }
     
@@ -82,7 +83,7 @@ public:
         AMBRO_ASSERT(col <= m_cols)
         AMBRO_ASSERT(cols <= m_cols - col)
         
-        return Make(index_data(row, col), rows, cols, m_stride);
+        return Make(index_data(row, col), rows, cols, m_stride, m_column_major);
     }
     
     MatrixRange operator-- (int) const
@@ -92,7 +93,7 @@ public:
     
     MatrixRange<T const> operator++ (int) const
     {
-        return MatrixRange<T const>::Make(m_data, m_rows, m_cols, m_stride);
+        return MatrixRange<T const>::Make(m_data, m_rows, m_cols, m_stride, m_column_major);
     }
     
     operator MatrixRange<T const> () const
@@ -100,16 +101,22 @@ public:
         return (*this)++;
     }
     
+    MatrixRange transposed () const
+    {
+        return MatrixRange::Make(m_data, m_cols, m_rows, m_stride, !m_column_major);
+    }
+    
 private:
     TMaybeConst * index_data (int row, int col) const
     {
-        return m_data + ((size_t)row * m_stride + col);
+        return m_data + (m_column_major ? ((size_t)col * m_stride + row) : ((size_t)row * m_stride + col));
     }
     
     TMaybeConst *m_data;
     int m_rows;
     int m_cols;
     int m_stride;
+    bool m_column_major;
 };
 
 template <typename TT, int TRows, int TCols>
@@ -125,17 +132,17 @@ public:
     
     MatrixRange<T> operator-- (int)
     {
-        return MatrixRange<T>::Make(m_data, Rows, Cols, Cols);
+        return MatrixRange<T>::Make(m_data, Rows, Cols, Cols, false);
     }
     
     MatrixRange<T const> operator-- (int) const
     {
-        return MatrixRange<T const>::Make(m_data, Rows, Cols, Cols);
+        return MatrixRange<T const>::Make(m_data, Rows, Cols, Cols, false);
     }
     
     MatrixRange<T const> operator++ (int) const
     {
-        return MatrixRange<T const>::Make(m_data, Rows, Cols, Cols);
+        return MatrixRange<T const>::Make(m_data, Rows, Cols, Cols, false);
     }
     
 private:
