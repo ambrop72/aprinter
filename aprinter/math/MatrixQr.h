@@ -32,11 +32,6 @@
 
 #include <aprinter/BeginNamespace.h>
 
-inline constexpr int MatrixQrNumIterations (int rows, int cols)
-{
-    return (cols < rows - 1) ? cols : (rows - 1);
-}
-
 template <typename MV, typename MA, typename MColBuf>
 void MatrixTransformHouseholder (MV mv, MA ma, MColBuf col_buf)
 {
@@ -62,24 +57,28 @@ void MatrixTransformHouseholder (MV mv, MA ma, MColBuf col_buf)
     }
 }
 
-template <typename MA, typename MQVectors, typename MRowBuf>
-MQVectors MatrixQrHouseholder (MA ma, MQVectors q_vectors, MRowBuf col_buf)
+template <typename MA, typename MR, typename MColBuf1, typename MColBuf2, typename MRowBuf>
+void MatrixQrHouseholder (MA ma, MR mr, MColBuf1 col_buf1, MColBuf2 col_buf2, MRowBuf row_buf)
 {
     AMBRO_ASSERT(ma.rows() >= ma.cols())
-    AMBRO_ASSERT(q_vectors.rows() >= ma.rows())
-    AMBRO_ASSERT(q_vectors.cols() >= MatrixQrNumIterations(ma.rows(), ma.cols()))
-    AMBRO_ASSERT(col_buf.rows() == ma.rows())
-    AMBRO_ASSERT(col_buf.cols() == 1)
+    AMBRO_ASSERT(mr.rows() == ma.cols())
+    AMBRO_ASSERT(mr.cols() == ma.cols())
+    AMBRO_ASSERT(col_buf1.rows() == ma.rows())
+    AMBRO_ASSERT(col_buf1.cols() == 1)
+    AMBRO_ASSERT(col_buf2.rows() == ma.rows())
+    AMBRO_ASSERT(col_buf2.cols() == 1)
+    AMBRO_ASSERT(row_buf.rows() == 1)
+    AMBRO_ASSERT(row_buf.cols() == ma.cols())
     
     int rows = ma.rows();
     int cols = ma.cols();
-    int iterations = MatrixQrNumIterations(rows, cols);
+    int iterations = (cols < rows - 1) ? cols : (rows - 1);
     
     for (int k = 0; k < iterations; k++) {
         auto x = ma.range(k, k, rows - k, 1);
         auto alpha = FloatSqrt(MatrixSquareNorm(x)) * ((x(0, 0) < 0) ? 1 : -1);
         
-        auto v = q_vectors.range(k, k, rows - k, 1);
+        auto v = col_buf1.range(0, 0, rows - k, 1);
         MatrixWriteZero(v);
         v(0, 0) = -alpha;
         MatrixElemOpInPlace<MatrixElemOpAdd>(v--, x++);
@@ -87,29 +86,29 @@ MQVectors MatrixQrHouseholder (MA ma, MQVectors q_vectors, MRowBuf col_buf)
         MatrixElemOpScalarInPlace<MatrixElemOpDivide>(v--, beta);
         
         auto ma_for_transform = ma--.range(k, k, rows - k, cols - k);
-        MatrixTransformHouseholder(v++, ma_for_transform--, col_buf--.range(0, 0, rows - k, 1));
+        MatrixTransformHouseholder(v++, ma_for_transform--, col_buf2--.range(0, 0, rows - k, 1));
+        
+        row_buf(0, k) = v(0, 0);
+        MatrixCopy(ma--.range(k + 1, k, rows - (k + 1), 1), v++.range(1, 0, rows - (k + 1), 1));
     }
     
-    return q_vectors.range(0, 0, rows, iterations);
-}
-
-template <typename MMatrix, typename MQVectors, typename MRowBuf>
-void MatrixQrHouseholderQMultiply (MMatrix matrix, MQVectors q_vectors, MRowBuf col_buf)
-{
-    AMBRO_ASSERT(matrix.rows() == q_vectors.rows())
-    AMBRO_ASSERT(q_vectors.rows() > q_vectors.cols())
-    AMBRO_ASSERT(col_buf.rows() == matrix.rows())
-    AMBRO_ASSERT(col_buf.cols() == 1)
+    MatrixCopyWithZeroBelowDiagonal(mr--, ma++.range(0, 0, cols, cols));
     
-    int rows = matrix.rows();
-    int cols = matrix.cols();
-    int iterations = q_vectors.cols();
-    
-    for (int k = iterations - 1; k >= 0; k--) {
-        auto v = q_vectors.range(k, k, rows - k, 1);
+    for (int k = cols - 1; k >= 0; k--) {
+        auto v = col_buf1.range(0, 0, rows - k, 1);
+        if (k < iterations) {
+            v(0, 0) = row_buf(0, k);
+            MatrixCopy(v--.range(1, 0, rows - (k + 1), 1), ma++.range(k + 1, k, rows - (k + 1), 1));
+        }
         
-        auto matrix_for_transform = matrix.range(k, 0, rows - k, cols);
-        MatrixTransformHouseholder(v++, matrix_for_transform--, col_buf--.range(0, 0, rows - k, 1));
+        ma(k, k) = 1;
+        MatrixWriteZero(ma--.range(k, k + 1, 1, cols - (k + 1)));
+        MatrixWriteZero(ma--.range(k + 1, k, rows - (k + 1), 1));
+        
+        if (k < iterations) {
+            auto ma_for_transform = ma.range(k, k, rows - k, cols - k);
+            MatrixTransformHouseholder(v++, ma_for_transform--, col_buf2--.range(0, 0, rows - k, 1));
+        }
     }
 }
 

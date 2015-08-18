@@ -164,6 +164,21 @@ void MatrixCopy (MR mr, M1 m1)
     }
 }
 
+template <typename MR, typename M1>
+void MatrixCopyWithZeroBelowDiagonal (MR mr, M1 m1)
+{
+    AMBRO_ASSERT(mr.rows() == m1.rows())
+    AMBRO_ASSERT(mr.cols() == m1.cols())
+    
+    int rows = mr.rows();
+    int cols = mr.cols();
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            mr(i, j) = (i <= j) ? m1(i, j) : 0;
+        }
+    }
+}
+
 template <typename MR>
 void MatrixWriteIdentity (MR mr)
 {
