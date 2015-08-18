@@ -63,13 +63,13 @@ void MatrixTransformHouseholder (MV mv, MA ma, MColBuf col_buf)
 }
 
 template <typename MA, typename MQVectors, typename MRowBuf>
-MQVectors MatrixQrHouseholder (MA ma, MQVectors q_vectors, MRowBuf row_buf)
+MQVectors MatrixQrHouseholder (MA ma, MQVectors q_vectors, MRowBuf col_buf)
 {
     AMBRO_ASSERT(ma.rows() >= ma.cols())
     AMBRO_ASSERT(q_vectors.rows() >= ma.rows())
     AMBRO_ASSERT(q_vectors.cols() >= MatrixQrNumIterations(ma.rows(), ma.cols()))
-    AMBRO_ASSERT(row_buf.rows() == ma.rows())
-    AMBRO_ASSERT(row_buf.cols() == 1)
+    AMBRO_ASSERT(col_buf.rows() == ma.rows())
+    AMBRO_ASSERT(col_buf.cols() == 1)
     
     int rows = ma.rows();
     int cols = ma.cols();
@@ -86,20 +86,20 @@ MQVectors MatrixQrHouseholder (MA ma, MQVectors q_vectors, MRowBuf row_buf)
         auto beta = FloatSqrt(MatrixSquareNorm(v));
         MatrixElemOpScalarInPlace<MatrixElemOpDivide>(v--, beta);
         
-        auto ma_for_transform = ma--.range(k, 0, rows - k, cols);
-        MatrixTransformHouseholder(v++, ma_for_transform--, row_buf--.range(0, 0, rows - k, 1));
+        auto ma_for_transform = ma--.range(k, k, rows - k, cols - k);
+        MatrixTransformHouseholder(v++, ma_for_transform--, col_buf--.range(0, 0, rows - k, 1));
     }
     
     return q_vectors.range(0, 0, rows, iterations);
 }
 
 template <typename MMatrix, typename MQVectors, typename MRowBuf>
-void MatrixQrHouseholderQMultiply (MMatrix matrix, MQVectors q_vectors, MRowBuf row_buf)
+void MatrixQrHouseholderQMultiply (MMatrix matrix, MQVectors q_vectors, MRowBuf col_buf)
 {
     AMBRO_ASSERT(matrix.rows() == q_vectors.rows())
     AMBRO_ASSERT(q_vectors.rows() > q_vectors.cols())
-    AMBRO_ASSERT(row_buf.rows() == matrix.rows())
-    AMBRO_ASSERT(row_buf.cols() == 1)
+    AMBRO_ASSERT(col_buf.rows() == matrix.rows())
+    AMBRO_ASSERT(col_buf.cols() == 1)
     
     int rows = matrix.rows();
     int cols = matrix.cols();
@@ -109,7 +109,7 @@ void MatrixQrHouseholderQMultiply (MMatrix matrix, MQVectors q_vectors, MRowBuf 
         auto v = q_vectors.range(k, k, rows - k, 1);
         
         auto matrix_for_transform = matrix.range(k, 0, rows - k, cols);
-        MatrixTransformHouseholder(v++, matrix_for_transform--, row_buf--.range(0, 0, rows - k, 1));
+        MatrixTransformHouseholder(v++, matrix_for_transform--, col_buf--.range(0, 0, rows - k, 1));
     }
 }
 
