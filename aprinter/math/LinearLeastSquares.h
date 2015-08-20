@@ -47,13 +47,12 @@ void LinearLeastSquaresMaxSize (MX mx, MY my, MBeta mbeta)
     int cols = mx.cols();
     
     Matrix<typename MX::T, MaxCols, MaxCols> r_buf;
-    Matrix<typename MX::T, MaxRows, 1> col_buf1;
-    Matrix<typename MX::T, MaxRows, 1> col_buf2;
+    Matrix<typename MX::T, MaxRows, 1> col_buf;
     Matrix<typename MX::T, 1, MaxCols> row_buf;
     
-    MatrixQrHouseholder(mx--, r_buf--.range(0, 0, cols, cols), col_buf1--.range(0, 0, rows, 1), col_buf2--.range(0, 0, rows, 1), row_buf--.range(0, 0, 1, cols));
+    MatrixQrHouseholder(mx--, r_buf--.range(0, 0, cols, cols), col_buf--.range(0, 0, rows, 1), row_buf--.range(0, 0, 1, cols));
     
-    auto mqtyn = col_buf1--.range(0, 0, cols, 1);
+    auto mqtyn = col_buf--.range(0, 0, cols, 1);
     MatrixMultiply(mqtyn--, mx.transposed(), my++);
     
     MatrixSolveUpperTriangular(r_buf++.range(0, 0, cols, cols), mqtyn++, mbeta--);
