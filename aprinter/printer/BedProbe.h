@@ -34,6 +34,8 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/JoinTypeLists.h>
+#include <aprinter/meta/TypeListRange.h>
+#include <aprinter/meta/If.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -61,6 +63,12 @@ private:
     static const int ProbeAxisIndex = ThePrinterMain::template FindPhysVirtAxis<Params::ProbeAxis>::Value;
     
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_correction, print_correction)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_quadratic_corrections1, print_quadratic_corrections1)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_quadratic_corrections2, print_quadratic_corrections2)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_add_quadratic_factors_to_row1, add_quadratic_factors_to_row1)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_add_quadratic_factors_to_row2, add_quadratic_factors_to_row2)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_quadratic_correction_for_point1, compute_quadratic_correction_for_point1)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_quadratic_correction_for_point2, compute_quadratic_correction_for_point2)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fill_point_coordinates, fill_point_coordinates)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_calc_correction_contribution, calc_correction_contribution)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_correct_virt_axis, correct_virt_axis)
@@ -78,6 +86,116 @@ public:
         static_assert(ThePrinterMain::template IsVirtAxis<ProbeAxisIndex>::Value, "");
         
     private:
+        static bool const QuadraticSupported = CorrectionParams::QuadraticCorrectionSupported;
+        static int const NumBaseFactors = NumPlatformAxes + 1;
+        static int const NumQuadraticFactors = QuadraticSupported ? (NumPlatformAxes * (NumPlatformAxes + 1) / 2) : 0;
+        static int const MaxCorrectionFactors = NumBaseFactors + NumQuadraticFactors;
+        
+        using CorrectionsMatrix = Matrix<FpType, MaxCorrectionFactors, 1>;
+        using LeastSquaresMatrix = Matrix<FpType, NumPoints, MaxCorrectionFactors>;
+        
+        AMBRO_STRUCT_IF(QuadraticFeature, QuadraticSupported) {
+            using CQuadraticCorrectionEnabled = decltype(ExprCast<bool>(Config::e(CorrectionParams::QuadraticCorrectionEnabled::i())));
+            using ConfigExprs = MakeTypeList<CQuadraticCorrectionEnabled>;
+            
+            static bool quadratic_enabled (Context c)
+            {
+                return APRINTER_CFG(Config, CQuadraticCorrectionEnabled, c);
+            }
+            
+            static void print_quadratic_corrections (Context c, TheCommand *cmd, CorrectionsMatrix const *corrections)
+            {
+                ListForEachForward<QuadraticAxisHelper1List>(LForeach_print_quadratic_corrections1(), c, cmd, corrections);
+            }
+            
+            static void add_quadratic_factors_to_row (Context c, LeastSquaresMatrix *matrix, int row)
+            {
+                if (quadratic_enabled(c)) {
+                    ListForEachForward<QuadraticAxisHelper1List>(LForeach_add_quadratic_factors_to_row1(), c, matrix, row);
+                }
+            }
+            
+            static int get_num_quadratic_columns (Context c)
+            {
+                return quadratic_enabled(c) ? NumQuadraticFactors : 0;
+            }
+            
+            template <typename Src>
+            static FpType compute_quadratic_correction_for_point (Context c, Src src, CorrectionsMatrix const *corrections)
+            {
+                return ListForEachForwardAccRes<QuadraticAxisHelper1List>(0.0f, LForeach_compute_quadratic_correction_for_point1(), c, src, corrections);
+            }
+            
+            template <int Value>
+            struct ConstantNextFactorIndex {
+                static int const NextFactorIndex = Value;
+            };
+            
+            template <int PlatformAxisIndex1>
+            struct QuadraticAxisHelper1 {
+                static int const BaseFactorIndex = If<(PlatformAxisIndex1 == 0), ConstantNextFactorIndex<0>, QuadraticAxisHelper1<(PlatformAxisIndex1 - 1)>>::NextFactorIndex;
+                
+                static void print_quadratic_corrections1 (Context c, TheCommand *cmd, CorrectionsMatrix const *corrections)
+                {
+                    ListForEachForward<QuadraticAxisHelper2List>(LForeach_print_quadratic_corrections2(), c, cmd, corrections);
+                }
+                
+                static void add_quadratic_factors_to_row1 (Context c, LeastSquaresMatrix *matrix, int row)
+                {
+                    ListForEachForward<QuadraticAxisHelper2List>(LForeach_add_quadratic_factors_to_row2(), c, matrix, row);
+                }
+                
+                template <typename Src>
+                static FpType compute_quadratic_correction_for_point1 (FpType accum, Context c, Src src, CorrectionsMatrix const *corrections)
+                {
+                    return ListForEachForwardAccRes<QuadraticAxisHelper2List>(accum, LForeach_compute_quadratic_correction_for_point2(), c, src, corrections);
+                }
+                
+                template <int PlatformAxisIndex2>
+                struct QuadraticAxisHelper2 {
+                    static int const FactorIndex = If<(PlatformAxisIndex2 == PlatformAxisIndex1), ConstantNextFactorIndex<BaseFactorIndex>, QuadraticAxisHelper2<(PlatformAxisIndex2 - 1)>>::NextFactorIndex;
+                    static int const NextFactorIndex = FactorIndex + 1;
+                    
+                    static_assert(FactorIndex < NumQuadraticFactors, "");
+                    static int const MatrixFactorIndex = NumBaseFactors + FactorIndex;
+                    
+                    static void print_quadratic_corrections2 (Context c, TheCommand *cmd, CorrectionsMatrix const *corrections)
+                    {
+                        cmd->reply_append_ch(c, ' ');
+                        cmd->reply_append_ch(c, AxisHelper<PlatformAxisIndex1>::AxisName);
+                        cmd->reply_append_ch(c, AxisHelper<PlatformAxisIndex2>::AxisName);
+                        cmd->reply_append_ch(c, ':');
+                        cmd->reply_append_fp(c, (*corrections)++(MatrixFactorIndex, 0));
+                    }
+                    
+                    static void add_quadratic_factors_to_row2 (Context c, LeastSquaresMatrix *matrix, int row)
+                    {
+                        (*matrix)--(row, MatrixFactorIndex) = (*matrix)++(row, PlatformAxisIndex1) * (*matrix)++(row, PlatformAxisIndex2);
+                    }
+                    
+                    template <typename Src>
+                    static FpType compute_quadratic_correction_for_point2 (FpType accum, Context c, Src src, CorrectionsMatrix const *corrections)
+                    {
+                        FpType coord1 = src.template get<AxisHelper<PlatformAxisIndex1>::VirtAxisIndex()>();
+                        FpType coord2 = src.template get<AxisHelper<PlatformAxisIndex2>::VirtAxisIndex()>();
+                        return accum + (coord1 * coord2) * (*corrections)++(MatrixFactorIndex, 0);
+                    }
+                };
+                using QuadraticAxisHelper2List = TypeListRangeFrom<IndexElemListCount<NumPlatformAxes, QuadraticAxisHelper2>, PlatformAxisIndex1>;
+                
+                static int const NextFactorIndex = QuadraticAxisHelper2<(NumPlatformAxes - 1)>::NextFactorIndex;
+            };
+            using QuadraticAxisHelper1List = IndexElemListCount<NumPlatformAxes, QuadraticAxisHelper1>;
+        }
+        AMBRO_STRUCT_ELSE(QuadraticFeature) {
+            static void print_quadratic_corrections (Context c, TheCommand *cmd, CorrectionsMatrix const *corrections) {}
+            static void add_quadratic_factors_to_row (Context c, LeastSquaresMatrix *matrix, int row) {}
+            static int get_num_quadratic_columns (Context c) { return 0; }
+            template <typename Src>
+            static FpType compute_quadratic_correction_for_point (Context c, Src src, CorrectionsMatrix const *corrections) { return 0.0f; }
+            using ConfigExprs = EmptyTypeList;
+        };
+        
         static void init (Context c)
         {
             auto *o = Object::self(c);
@@ -89,14 +207,19 @@ public:
             ThePrinterMain::TransformFeature::handle_corrections_change(c);
         }
         
-        static void print_corrections (Context c, TheCommand *cmd, Matrix<FpType, NumPlatformAxes + 1, 1> const *corrections, AMBRO_PGM_P msg)
+        static void print_corrections (Context c, TheCommand *cmd, CorrectionsMatrix const *corrections, AMBRO_PGM_P msg)
         {
             cmd->reply_append_pstr(c, msg);
-            ListForEachForward<AxisHelperList>(LForeach_print_correction(), c, cmd, corrections);
+            
             cmd->reply_append_ch(c, ' ');
             cmd->reply_append_ch(c, ThePrinterMain::template PhysVirtAxisHelper<ProbeAxisIndex>::AxisName);
             cmd->reply_append_ch(c, ':');
             cmd->reply_append_fp(c, (*corrections)++(NumPlatformAxes, 0));
+            
+            ListForEachForward<AxisHelperList>(LForeach_print_correction(), c, cmd, corrections);
+            
+            QuadraticFeature::print_quadratic_corrections(c, cmd, corrections);
+            
             cmd->reply_append_ch(c, '\n');
         }
         
@@ -138,39 +261,47 @@ public:
         {
             auto *o = Object::self(c);
             
-            Matrix<FpType, NumPoints, NumPlatformAxes + 1> coordinates_matrix;
+            LeastSquaresMatrix coordinates_matrix;
             
             ListForEachForward<AxisHelperList>(LForeach_fill_point_coordinates(), c, coordinates_matrix--);
             
+            int num_columns = NumBaseFactors + QuadraticFeature::get_num_quadratic_columns(c);
+            
             int num_valid_points = 0;
+            
             for (int i = 0; i < NumPoints; i++) {
                 if (isnan(o->heights_matrix--(i, 0))) {
                     continue;
                 }
+                
                 coordinates_matrix--(i, NumPlatformAxes) = 1.0f;
+                QuadraticFeature::add_quadratic_factors_to_row(c, &coordinates_matrix, i);
+                
                 if (i != num_valid_points) {
-                    MatrixCopy(coordinates_matrix--.range(num_valid_points, 0, 1, NumPlatformAxes + 1), coordinates_matrix++.range(i, 0, 1, NumPlatformAxes + 1));
+                    MatrixCopy(coordinates_matrix--.range(num_valid_points, 0, 1, num_columns), coordinates_matrix++.range(i, 0, 1, num_columns));
                     MatrixCopy(o->heights_matrix--.range(num_valid_points, 0, 1, 1), o->heights_matrix++.range(i, 0, 1, 1));
                 }
+                
                 num_valid_points++;
             }
             
-            if (num_valid_points < NumPlatformAxes + 1) {
+            if (num_valid_points < num_columns) {
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:TooFewPointsForCorrection\n"));
                 return;
             }
             
-            auto effective_coordinates_matrix = coordinates_matrix--.range(0, 0, num_valid_points, NumPlatformAxes + 1);
+            auto effective_coordinates_matrix = coordinates_matrix--.range(0, 0, num_valid_points, num_columns);
             auto effective_heights_matrix = o->heights_matrix--.range(0, 0, num_valid_points, 1);
             
-            Matrix<FpType, NumPlatformAxes + 1, 1> new_corrections;
+            CorrectionsMatrix new_corrections;
             
-            LinearLeastSquaresMaxSize<NumPoints, NumPlatformAxes + 1>(effective_coordinates_matrix--, effective_heights_matrix++, new_corrections--);
+            LinearLeastSquaresMaxSize<NumPoints, MaxCorrectionFactors>(effective_coordinates_matrix--, effective_heights_matrix++, new_corrections--.range(0, 0, num_columns, 1));
+            MatrixWriteZero(new_corrections--.range(num_columns, 0, MaxCorrectionFactors - num_columns, 1));
             
             print_corrections(c, cmd, &new_corrections, AMBRO_PSTR("RelativeCorrections"));
             
             bool bad_corrections = false;
-            for (int i = 0; i < NumPlatformAxes + 1; i++) {
+            for (int i = 0; i < MaxCorrectionFactors; i++) {
                 FpType x = new_corrections++(i, 0);
                 if (isnan(x) || isinf(x)) {
                     bad_corrections = true;
@@ -194,7 +325,8 @@ public:
             auto *o = Object::self(c);
             FpType constant_correction = o->corrections++(NumPlatformAxes, 0);
             FpType linear_correction = ListForEachForwardAccRes<AxisHelperList>(0.0f, LForeach_calc_correction_contribution(), c, src, &o->corrections);
-            return constant_correction + linear_correction;
+            FpType quadratic_correction = QuadraticFeature::compute_quadratic_correction_for_point(c, src, &o->corrections);
+            return constant_correction + linear_correction + quadratic_correction;
         }
         
         template <int VirtAxisIndex>
@@ -226,9 +358,11 @@ public:
         }
         
     public:
+        using ConfigExprs = typename QuadraticFeature::ConfigExprs;
+        
         struct Object : public ObjBase<CorrectionFeature, typename BedProbe::Object, EmptyTypeList> {
             Matrix<FpType, NumPoints, 1> heights_matrix;
-            Matrix<FpType, NumPlatformAxes + 1, 1> corrections;
+            CorrectionsMatrix corrections;
         };
     } AMBRO_STRUCT_ELSE(CorrectionFeature) {
         static void init (Context c) {}
@@ -358,10 +492,18 @@ private:
         struct Object;
         using PlatformAxis = TypeListGet<PlatformAxesList, PlatformAxisIndex>;
         static const int AxisIndex = ThePrinterMain::template FindPhysVirtAxis<PlatformAxis::Value>::Value;
+        static const char AxisName = ThePrinterMain::template PhysVirtAxisHelper<AxisIndex>::AxisName;
         using AxisProbeOffset = TypeListGet<typename Params::ProbePlatformOffset, PlatformAxisIndex>;
         
         using CAxisProbeOffset = decltype(ExprCast<FpType>(Config::e(AxisProbeOffset::i())));
         using ConfigExprs = MakeTypeList<CAxisProbeOffset>;
+        
+        template <typename ReturnType=int>
+        static constexpr ReturnType VirtAxisIndex ()
+        {
+            static_assert(ThePrinterMain::template IsVirtAxis<AxisIndex>::Value, "");
+            return ThePrinterMain::template GetVirtAxisVirtIndex<AxisIndex>::Value;
+        }
         
         static void add_axis (Context c, uint8_t point_index)
         {
@@ -376,21 +518,19 @@ private:
             }
         }
         
-        template <typename TheCorrectionFeature=CorrectionFeature>
-        static void print_correction (Context c, TheCommand *cmd, Matrix<FpType, NumPlatformAxes + 1, 1> const *corrections)
+        template <typename TheCorrectionsMatrix>
+        static void print_correction (Context c, TheCommand *cmd, TheCorrectionsMatrix const *corrections)
         {
             cmd->reply_append_ch(c, ' ');
-            cmd->reply_append_ch(c, ThePrinterMain::template PhysVirtAxisHelper<AxisIndex>::AxisName);
+            cmd->reply_append_ch(c, AxisName);
             cmd->reply_append_ch(c, ':');
             cmd->reply_append_fp(c, (*corrections)++(PlatformAxisIndex, 0));
         }
         
-        template <typename Src>
-        static FpType calc_correction_contribution (FpType accum, Context c, Src src, Matrix<FpType, NumPlatformAxes + 1, 1> const *corrections)
+        template <typename Src, typename TheCorrectionsMatrix>
+        static FpType calc_correction_contribution (FpType accum, Context c, Src src, TheCorrectionsMatrix const *corrections)
         {
-            static_assert(ThePrinterMain::template IsVirtAxis<AxisIndex>::Value, "");
-            static int const VirtAxisIndex = ThePrinterMain::template GetVirtAxisVirtIndex<AxisIndex>::Value;
-            return accum + src.template get<VirtAxisIndex>() * (*corrections)++(PlatformAxisIndex, 0);
+            return accum + src.template get<VirtAxisIndex()>() * (*corrections)++(PlatformAxisIndex, 0);
         }
         
         struct Object : public ObjBase<AxisHelper, typename BedProbe::Object, EmptyTypeList> {};
@@ -573,8 +713,14 @@ struct BedProbeNoCorrectionParams {
     static bool const Enabled = false;
 };
 
+template <
+    bool TQuadraticCorrectionSupported,
+    typename TQuadraticCorrectionEnabled
+>
 struct BedProbeCorrectionParams {
     static bool const Enabled = true;
+    static bool const QuadraticCorrectionSupported = TQuadraticCorrectionSupported;
+    using QuadraticCorrectionEnabled = TQuadraticCorrectionEnabled;
 };
 
 template <

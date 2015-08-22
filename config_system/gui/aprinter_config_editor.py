@@ -502,7 +502,10 @@ def editor():
                         ])),
                         ce.OneOf(key='correction', title='Bed correction', choices=[
                             ce.Compound('NoCorrection', title='Disabled', attrs=[]),
-                            ce.Compound('Correction', title='Enabled', attrs=[]),
+                            ce.Compound('Correction', title='Enabled', attrs=[
+                                ce.Boolean(key='QuadraticCorrectionSupported', title='Support quadratic correction', default=False),
+                                ce.Boolean(key='QuadraticCorrectionEnabled', title='Enable quadratic correction', default=False),
+                            ]),
                         ])
                     ])
                 ])

@@ -1428,7 +1428,10 @@ def generate(config_root_data, cfg_name, main_template):
                     if 'Z' not in transform_axes:
                         correction.path().error('Bed correction is only supported when the Z axis is involved in the coordinate transformation.')
                     
-                    return 'BedProbeCorrectionParams'
+                    quadratic_supported = correction.get_bool('QuadraticCorrectionSupported')
+                    quadratic_enabled = gen.add_bool_config('ProbeQuadrCorrEnabled', correction.get_bool('QuadraticCorrectionEnabled')) if quadratic_supported else 'void'
+                    
+                    return TemplateExpr('BedProbeCorrectionParams', [quadratic_supported, quadratic_enabled])
                 
                 correction_expr = probe.do_selection('correction', correction_sel)
                 
