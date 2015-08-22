@@ -159,7 +159,7 @@ public:
         
         uint32_t addr = o->is_sdhc ? block : (block * 512);
         TheSdio::startData(c, SdioIface::DataParams{SdioIface::DATA_DIR_READ, 1, o->buffer});
-        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_READ_SINGLE_BLOCK, addr, SdioIface::RESPONSE_SHORT});
+        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_READ_SINGLE_BLOCK, addr, SdioIface::RESPONSE_SHORT, SdioIface::CMD_FLAG_READ_DATA});
         
         o->io_state = IO_STATE_READING;
         o->io_user_buffer = buffer;
@@ -176,7 +176,7 @@ public:
         AMBRO_ASSERT(block < o->capacity_blocks)
         
         uint32_t addr = o->is_sdhc ? block : (block * 512);
-        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_WRITE_BLOCK, addr, SdioIface::RESPONSE_SHORT});
+        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_WRITE_BLOCK, addr, SdioIface::RESPONSE_SHORT, SdioIface::CMD_FLAG_WRITE_DATA});
         
         o->io_state = IO_STATE_WRITING;
         o->io_user_buffer = buffer;

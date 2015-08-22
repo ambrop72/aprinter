@@ -44,7 +44,9 @@ namespace SdioIface {
     
     enum {
         CMD_FLAG_NO_CRC_CHECK = 1 << 0,
-        CMD_FLAG_NO_CMDNUM_CHECK = 1 << 1
+        CMD_FLAG_NO_CMDNUM_CHECK = 1 << 1,
+        CMD_FLAG_READ_DATA = 1 << 2,
+        CMD_FLAG_WRITE_DATA = 1 << 3
     };
     
     struct CommandParams {
@@ -58,7 +60,8 @@ namespace SdioIface {
         CMD_ERROR_NONE,
         CMD_ERROR_RESPONSE_TIMEOUT,
         CMD_ERROR_RESPONSE_CHECKSUM,
-        CMD_ERROR_BAD_RESPONSE_CMD
+        CMD_ERROR_BAD_RESPONSE_CMD,
+        CMD_ERROR_OTHER
     };
     
     struct CommandResults {

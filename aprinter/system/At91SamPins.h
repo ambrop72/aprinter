@@ -31,6 +31,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
+#include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -60,12 +61,23 @@ struct At91SamPin {
 };
 
 template <bool TPullUp>
-struct At91SamPinInputMode {
+struct At91SamPinPullMode {
     static bool const PullUp = TPullUp;
 };
+using At91SamPinPullModeNormal = At91SamPinPullMode<false>;
+using At91SamPinPullModePullUp = At91SamPinPullMode<true>;
 
-using At91SamPinInputModeNormal = At91SamPinInputMode<false>;
-using At91SamPinInputModePullUp = At91SamPinInputMode<true>;
+template <typename PullMode>
+struct At91SamPinInputMode {
+    static bool const PullUp = PullMode::PullUp;
+};
+using At91SamPinInputModeNormal = At91SamPinInputMode<At91SamPinPullModeNormal>;
+using At91SamPinInputModePullUp = At91SamPinInputMode<At91SamPinPullModePullUp>;
+
+template <typename PullMode>
+struct At91SamPinPeriphMode {
+    static bool const PullUp = PullMode::PullUp;
+};
 
 struct At91SamPeriphA {};
 struct At91SamPeriphB {};
@@ -126,11 +138,7 @@ public:
         
         pio<typename Pin::Pio>()->PIO_ODR = (UINT32_C(1) << Pin::PinIndex);
         pio<typename Pin::Pio>()->PIO_PER = (UINT32_C(1) << Pin::PinIndex);
-        if (Mode::PullUp) {
-            pio<typename Pin::Pio>()->PIO_PUER = (UINT32_C(1) << Pin::PinIndex);
-        } else {
-            pio<typename Pin::Pio>()->PIO_PUDR = (UINT32_C(1) << Pin::PinIndex);
-        }
+        set_pull<Pin, Mode::PullUp>();
     }
     
     template <typename Pin, typename ThisContext>
@@ -142,25 +150,20 @@ public:
         pio<typename Pin::Pio>()->PIO_PER = (UINT32_C(1) << Pin::PinIndex);
     }
     
-    template <typename Pin, typename ThisContext>
-    static void setPeripheral (ThisContext c, At91SamPeriphA)
+    template <typename Pin, typename Mode = At91SamPinPeriphMode<At91SamPinPullModePullUp>, typename ThisContext, typename Peripheral>
+    static void setPeripheral (ThisContext c, Peripheral)
     {
+        static_assert(TypesAreEqual<Peripheral, At91SamPeriphA>::Value || TypesAreEqual<Peripheral, At91SamPeriphB>::Value, "");
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            pio<typename Pin::Pio>()->PIO_ABSR &= ~(UINT32_C(1) << Pin::PinIndex);
+            if (TypesAreEqual<Peripheral, At91SamPeriphA>::Value) {
+                pio<typename Pin::Pio>()->PIO_ABSR &= ~(UINT32_C(1) << Pin::PinIndex);
+            } else {
+                pio<typename Pin::Pio>()->PIO_ABSR |= (UINT32_C(1) << Pin::PinIndex);
+            }
             pio<typename Pin::Pio>()->PIO_PDR = (UINT32_C(1) << Pin::PinIndex);
-        }
-    }
-    
-    template <typename Pin, typename ThisContext>
-    static void setPeripheral (ThisContext c, At91SamPeriphB)
-    {
-        TheDebugObject::access(c);
-        
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            pio<typename Pin::Pio>()->PIO_ABSR |= (UINT32_C(1) << Pin::PinIndex);
-            pio<typename Pin::Pio>()->PIO_PDR = (UINT32_C(1) << Pin::PinIndex);
+            set_pull<Pin, Mode::PullUp>();
         }
     }
     
@@ -191,6 +194,17 @@ public:
             pio<typename Pin::Pio>()->PIO_SODR = (UINT32_C(1) << Pin::PinIndex);
         } else {
             pio<typename Pin::Pio>()->PIO_CODR = (UINT32_C(1) << Pin::PinIndex);
+        }
+    }
+    
+private:
+    template <typename Pin, bool PullUp>
+    static void set_pull ()
+    {
+        if (PullUp) {
+            pio<typename Pin::Pio>()->PIO_PUER = (UINT32_C(1) << Pin::PinIndex);
+        } else {
+            pio<typename Pin::Pio>()->PIO_PUDR = (UINT32_C(1) << Pin::PinIndex);
         }
     }
     

@@ -769,6 +769,14 @@ def use_sdio (gen, config, key, user):
             sdio_config.get_int('DataTimeoutBusClocks'),
         ])
     
+    @sdio_sel.option('At91SamSdio')
+    def option(sdio_config):
+        gen.add_aprinter_include('system/At91SamSdio.h')
+        return TemplateExpr('At91SamSdioService', [
+            sdio_config.get_int('Slot'),
+            sdio_config.get_bool('IsWideMode'),
+        ])
+    
     return config.do_selection(key, sdio_sel)
 
 def use_i2c (gen, config, key, user, username):

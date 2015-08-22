@@ -75,6 +75,7 @@ configure_sam3x() {
         -I"${ASF_DIR}/sam/boards"
         -I"${ASF_DIR}/sam/drivers/pmc"
         -I"${ASF_DIR}/sam/drivers/pio"
+        -I"${ASF_DIR}/sam/drivers/dmac"
         -I"${ASF_DIR}/common/utils"
         -I"${ASF_DIR}/common/services/usb"
         -I"${ASF_DIR}/common/services/usb/udc"
@@ -98,6 +99,10 @@ configure_sam3x() {
         "${TEMPLATES_DIR}/system_${ARCH}.c"
         "${TEMPLATES_DIR}/gcc/startup_${ARCH}.c"
         "${ASF_DIR}/sam/drivers/pmc/pmc.c"
+        "${ASF_DIR}/sam/drivers/pmc/sleep.c"
+        "${ASF_DIR}/sam/drivers/dmac/dmac.c"
+        "${ASF_DIR}/common/services/clock/${ARCH}/sysclk.c"
+        "${ASF_DIR}/common/utils/interrupt/interrupt_sam_nvic.c"
         "aprinter/platform/newlib_common.c"
     )
     CXX_SOURCES+=(
@@ -128,12 +133,9 @@ configure_sam3x() {
         fi
 
         C_SOURCES+=(
-            "${ASF_DIR}/sam/drivers/pmc/sleep.c"
-            "${ASF_DIR}/common/utils/interrupt/interrupt_sam_nvic.c"
             "${ASF_DIR}/common/services/usb/udc/udc.c"
             "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc.c"
             "${ASF_DIR}/common/services/usb/class/cdc/device/udi_cdc_desc.c"
-            "${ASF_DIR}/common/services/clock/${ARCH}/sysclk.c"
         )
     fi
     

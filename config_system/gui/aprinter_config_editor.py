@@ -67,6 +67,10 @@ def sdio_choice(**kwargs):
             ce.Boolean(key='IsWideMode', title='Data bus width', false_title='1-bit', true_title='4-bit', default=False),
             ce.Integer(key='DataTimeoutBusClocks', title='Data timeout (in SDIO bus clocks)', default=0x20000000),
         ]),
+        ce.Compound('At91SamSdio', attrs=[
+            ce.Integer(key='Slot', title='Slot number', default=0),
+            ce.Boolean(key='IsWideMode', title='Data bus width', false_title='1-bit', true_title='4-bit', default=False),
+        ]),
     ], **kwargs)
 
 def watchdog_at91sam():
