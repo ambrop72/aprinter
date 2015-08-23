@@ -3133,7 +3133,7 @@
         "LookaheadBufferSize": 28,
         "LookaheadCommitCount": 10,
         "MaxStepsPerCycle": 0.0017,
-        "OptimizeForSize": true,
+        "OptimizeForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
@@ -3151,7 +3151,7 @@
         "_compoundName": "RuntimeConfig",
         "config_manager": {
           "ConfigStore": {
-            "_compoundName": "NoStore"
+            "_compoundName": "FileConfigStore"
           },
           "_compoundName": "RuntimeConfigManager"
         }
@@ -3159,7 +3159,30 @@
       "sdcard_config": {
         "_compoundName": "SdCardConfig",
         "sdcard": {
-          "_compoundName": "NoSdCard"
+          "BufferBaseSize": 2048,
+          "FsType": {
+            "CaseInsensFileName": true,
+            "EnableFsTest": true,
+            "FsWritable": true,
+            "HaveAccessInterface": true,
+            "MaxFileNameSize": 256,
+            "NumCacheEntries": 8,
+            "_compoundName": "Fat32"
+          },
+          "GcodeParser": {
+            "MaxParts": 16,
+            "_compoundName": "TextGcodeParser"
+          },
+          "MaxCommandSize": 256,
+          "SdCardService": {
+            "SdioService": {
+              "IsWideMode": true,
+              "Slot": 0,
+              "_compoundName": "At91SamSdio"
+            },
+            "_compoundName": "SdioSdCard"
+          },
+          "_compoundName": "SdCard"
         }
       },
       "serial": {
@@ -5125,7 +5148,7 @@
           "ProbePin": "E0_STOP",
           "FastSpeed": 10,
           "InvertInput": false,
-          "LowHeight": -8,
+          "LowHeight": -5,
           "MoveSpeed": 200,
           "OffsetX": 0,
           "OffsetY": 0,
@@ -5133,116 +5156,118 @@
           "ProbePoints": [
             {
               "Enabled": true,
-              "X": 1.46596939183,
-              "Y": 69.9846478432,
+              "X": 7.31699242874,
+              "Y": 69.6165326758,
               "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
-              "X": 0,
-              "Y": 70,
+              "X": -7.31699242874,
+              "Y": 69.6165326758,
               "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
-              "X": -1.46596939183,
-              "Y": 69.9846478432,
+              "X": -56.6311896062,
+              "Y": 41.1449676605,
+              "Z-offset": 0.12,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": -63.948182035,
+              "Y": 28.4715650153,
+              "Z-offset": 0.12,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": -63.948182035,
+              "Y": -28.4715650153,
               "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
-              "X": -61.3414676031,
-              "Y": -33.7227571871,
+              "X": -56.6311896062,
+              "Y": -41.1449676605,
               "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
-              "X": -60.6217782649,
-              "Y": -35,
+              "X": -7.31699242874,
+              "Y": -69.6165326758,
+              "Z-offset": 0.12,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": 7.31699242874,
+              "Y": -69.6165326758,
+              "Z-offset": 0.12,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": 56.6311896062,
+              "Y": -41.1449676605,
               "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
-              "X": -59.8754982112,
-              "Y": -36.2618906561,
+              "X": 63.948182035,
+              "Y": -28.4715650153,
               "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
-              "X": 59.8754982112,
-              "Y": -36.2618906561,
-              "Z-offset": 0,
+              "X": 63.948182035,
+              "Y": 28.4715650153,
+              "Z-offset": 0.12,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
-              "X": 60.6217782649,
-              "Y": -35,
-              "Z-offset": 0,
-              "_compoundName": "ProbePoint"
-            },
-            {
-              "Enabled": true,
-              "X": 61.3414676031,
-              "Y": -33.7227571871,
-              "Z-offset": 0,
+              "X": 56.6311896062,
+              "Y": 41.1449676605,
+              "Z-offset": 0.12,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 0,
               "Y": 5,
-              "Z-offset": 0.1,
+              "Z-offset": 0.07,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": -4.33012701892,
               "Y": -2.5,
-              "Z-offset": 0.1,
+              "Z-offset": 0.07,
               "_compoundName": "ProbePoint"
             },
             {
               "Enabled": true,
               "X": 4.33012701892,
               "Y": -2.5,
-              "Z-offset": 0.1,
-              "_compoundName": "ProbePoint"
-            },
-            {
-              "Enabled": false,
-              "X": 0,
-              "Y": 0,
-              "Z-offset": 0,
-              "_compoundName": "ProbePoint"
-            },
-            {
-              "Enabled": false,
-              "X": 0,
-              "Y": 0,
-              "Z-offset": 0,
-              "_compoundName": "ProbePoint"
-            },
-            {
-              "Enabled": false,
-              "X": 0,
-              "Y": 0,
-              "Z-offset": 0,
+              "Z-offset": 0.07,
               "_compoundName": "ProbePoint"
             }
           ],
           "RetractDist": 1,
-          "RetractSpeed": 10,
+          "RetractSpeed": 200,
           "SlowSpeed": 0.5,
-          "StartHeight": 8,
+          "StartHeight": 5,
           "_compoundName": "Probe",
           "correction": {
+            "QuadraticCorrectionEnabled": true,
+            "QuadraticCorrectionSupported": true,
             "_compoundName": "Correction"
           }
         }
@@ -5357,7 +5382,7 @@
         }
       ],
       "transform": {
-        "MaxSplitLength": 4,
+        "MaxSplitLength": 3,
         "CarriageOffset": 0,
         "DiagnalRod": 160,
         "DimensionCount": 3,
@@ -5396,7 +5421,7 @@
           "_compoundName": "CartesianAxes"
         },
         "MinSplitLength": 0.1,
-        "SegmentsPerSecond": 100,
+        "SegmentsPerSecond": 150,
         "SmoothRodOffset": 81,
         "Steppers": {
           "TransformStepper0": {
