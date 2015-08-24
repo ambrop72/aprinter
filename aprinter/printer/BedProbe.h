@@ -35,6 +35,7 @@
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/If.h>
+#include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -55,6 +56,7 @@ private:
     using CorrectionParams = typename Params::ProbeCorrectionParams;
     static const int NumPoints = TypeListLength<ProbePoints>::Value;
     static const int NumPlatformAxes = TypeListLength<PlatformAxesList>::Value;
+    using PointIndexType = ChooseIntForMax<NumPoints, true>;
     
     using Config = typename ThePrinterMain::Config;
     using TheCommand = typename ThePrinterMain::TheCommand;
@@ -218,12 +220,12 @@ public:
         static void probing_staring (Context c)
         {
             auto *o = Object::self(c);
-            for (int i = 0; i < NumPoints; i++) {
+            for (PointIndexType i = 0; i < NumPoints; i++) {
                 o->heights_matrix--(i, 0) = NAN;
             }
         }
         
-        static void probing_measurement (Context c, uint8_t point_index, FpType height)
+        static void probing_measurement (Context c, PointIndexType point_index, FpType height)
         {
             auto *o = Object::self(c);
             o->heights_matrix--(point_index, 0) = height;
@@ -239,9 +241,9 @@ public:
             
             int num_columns = NumBaseFactors + QuadraticFeature::get_num_quadratic_columns(c);
             
-            int num_valid_points = 0;
+            PointIndexType num_valid_points = 0;
             
-            for (int i = 0; i < NumPoints; i++) {
+            for (PointIndexType i = 0; i < NumPoints; i++) {
                 if (isnan(o->heights_matrix--(i, 0))) {
                     continue;
                 }
@@ -340,7 +342,7 @@ public:
         static void init (Context c) {}
         static bool check_command (Context c, TheCommand *cmd) { return true; }
         static void probing_staring (Context c) {}
-        static void probing_measurement (Context c, uint8_t point_index, FpType height) {}
+        static void probing_measurement (Context c, PointIndexType point_index, FpType height) {}
         static void probing_completing (Context c, TheCommand *cmd) {}
         struct Object {};
     };
@@ -349,7 +351,7 @@ public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        o->m_current_point = 0xff;
+        o->m_current_point = -1;
         Context::Pins::template setInput<typename Params::ProbePin, typename Params::ProbePinInputMode>(c);
         CorrectionFeature::init(c);
     }
@@ -365,10 +367,10 @@ public:
             if (!cmd->tryUnplannedCommand(c)) {
                 return false;
             }
-            AMBRO_ASSERT(o->m_current_point == 0xff)
+            AMBRO_ASSERT(o->m_current_point == -1)
             o->m_current_point = 0;
             skip_disabled_points_and_detect_end(c);
-            if (o->m_current_point == 0xff) {
+            if (o->m_current_point == -1) {
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:NoProbePointsEnabled\n"));
                 cmd->finishCommand(c);
             } else {
@@ -415,7 +417,7 @@ private:
         
         using ConfigExprs = JoinTypeLists<MakeTypeList<CPointEnabled, CPointZOffset>, CPointCoordList>;
         
-        static uint8_t skip_point_if_disabled (uint8_t point_index, Context c)
+        static PointIndexType skip_point_if_disabled (PointIndexType point_index, Context c)
         {
             if (point_index == PointIndex && !APRINTER_CFG(Config, CPointEnabled, c)) {
                 point_index++;
@@ -439,13 +441,13 @@ private:
     };
     using PointHelperList = IndexElemList<ProbePoints, PointHelper>;
     
-    static FpType get_point_z_offset (Context c, uint8_t point_index)
+    static FpType get_point_z_offset (Context c, PointIndexType point_index)
     {
         return ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_z_offset(), c);
     }
     
     template <int PlatformAxisIndex>
-    static FpType get_point_coord (Context c, uint8_t point_index)
+    static FpType get_point_coord (Context c, PointIndexType point_index)
     {
         return ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_coord(), c, WrapInt<PlatformAxisIndex>());
     }
@@ -455,7 +457,7 @@ private:
         auto *o = Object::self(c);
         o->m_current_point = ListForEachForwardAccRes<PointHelperList>(o->m_current_point, LForeach_skip_point_if_disabled(), c);
         if (o->m_current_point >= NumPoints) {
-            o->m_current_point = 0xff;
+            o->m_current_point = -1;
         }
     }
     
@@ -477,7 +479,7 @@ private:
             return ThePrinterMain::template GetVirtAxisVirtIndex<AxisIndex>::Value;
         }
         
-        static void add_axis (Context c, uint8_t point_index)
+        static void add_axis (Context c, PointIndexType point_index)
         {
             FpType coord = get_point_coord<PlatformAxisIndex>(c, point_index);
             ThePrinterMain::template move_add_axis<AxisIndex>(c, coord + APRINTER_CFG(Config, CAxisProbeOffset, c));
@@ -485,7 +487,7 @@ private:
         
         static void fill_point_coordinates (Context c, MatrixRange<FpType> matrix)
         {
-            for (int i = 0; i < NumPoints; i++) {
+            for (PointIndexType i = 0; i < NumPoints; i++) {
                 matrix(i, PlatformAxisIndex) = get_point_coord<PlatformAxisIndex>(c, i);
             }
         }
@@ -514,7 +516,7 @@ private:
         void pull_handler (Context c)
         {
             auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_current_point != 0xff)
+            AMBRO_ASSERT(o->m_current_point != -1)
             AMBRO_ASSERT(o->m_point_state <= 4)
             
             if (o->m_command_sent) {
@@ -570,7 +572,7 @@ private:
         void finished_or_aborted (Context c, bool aborted)
         {
             auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_current_point != 0xff)
+            AMBRO_ASSERT(o->m_current_point != -1)
             AMBRO_ASSERT(o->m_point_state <= 4)
             AMBRO_ASSERT(o->m_command_sent)
             AMBRO_ASSERT(!aborted || is_point_state_watching(o->m_point_state))
@@ -585,7 +587,7 @@ private:
             if (o->m_point_state == 4) {
                 o->m_current_point++;
                 skip_disabled_points_and_detect_end(c);
-                if (o->m_current_point == 0xff) {
+                if (o->m_current_point == -1) {
                     return finish_probing(c, false, nullptr);
                 }
                 init_probe_planner(c, false);
@@ -620,7 +622,7 @@ private:
         return ThePrinterMain::template PhysVirtAxisHelper<ProbeAxisIndex>::get_position(c);
     }
     
-    static void report_height (Context c, TheCommand *cmd, uint8_t point_index, FpType height)
+    static void report_height (Context c, TheCommand *cmd, PointIndexType point_index, FpType height)
     {
         CorrectionFeature::probing_measurement(c, point_index, height);
         
@@ -636,7 +638,7 @@ private:
     {
         auto *o = Object::self(c);
         
-        o->m_current_point = 0xff;
+        o->m_current_point = -1;
         
         TheCommand *cmd = ThePrinterMain::get_locked(c);
         if (error) {
@@ -647,7 +649,7 @@ private:
         cmd->finishCommand(c);
     }
     
-    static bool is_point_state_watching (uint8_t point_state)
+    static bool is_point_state_watching (PointIndexType point_state)
     {
         return point_state == 1 || point_state == 3;
     }
@@ -675,7 +677,7 @@ public:
         MakeTypeList<CorrectionFeature>
     >> {
         ProbePlannerClient planner_client;
-        uint8_t m_current_point;
+        PointIndexType m_current_point;
         uint8_t m_point_state;
         bool m_command_sent;
     };
