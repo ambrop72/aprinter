@@ -63,6 +63,7 @@
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/JoinTypeListList.h>
 #include <aprinter/meta/If.h>
+#include <aprinter/meta/CallIfExists.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -97,7 +98,7 @@ template <
     typename TForceTimeout, typename TFpType,
     typename TEventChannelTimerService,
     typename TWatchdogService,
-    typename TSdCardParams, typename TProbeParams, typename TCurrentParams,
+    typename TSdCardParams, typename TProbeParams,
     typename TConfigManagerService,
     typename TConfigList,
     typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList,
@@ -121,7 +122,6 @@ struct PrinterMainParams {
     using WatchdogService = TWatchdogService;
     using SdCardParams = TSdCardParams;
     using ProbeParams = TProbeParams;
-    using CurrentParams = TCurrentParams;
     using ConfigManagerService = TConfigManagerService;
     using ConfigList = TConfigList;
     using AxesList = TAxesList;
@@ -336,31 +336,6 @@ struct PrinterMainProbeParams {
     using ProbeService = TProbeService;
 };
 
-struct PrinterMainNoCurrentParams {
-    static bool const Enabled = false;
-};
-
-template <
-    typename TCurrentAxesList,
-    typename TCurrentService
->
-struct PrinterMainCurrentParams {
-    static bool const Enabled = true;
-    using CurrentAxesList = TCurrentAxesList;
-    using CurrentService = TCurrentService;
-};
-
-template <
-    char TAxisName,
-    typename TDefaultCurrent,
-    typename TParams
->
-struct PrinterMainCurrentAxis {
-    static char const AxisName = TAxisName;
-    using DefaultCurrent = TDefaultCurrent;
-    using Params = TParams;
-};
-
 template <
     char TName,
     char TDensityName,
@@ -410,7 +385,6 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_channel_callback, channel_callback)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_command_in_state_helper, get_command_in_state_helper)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_current_axis, check_current_axis)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_position, append_position)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_new_pos, collect_new_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
@@ -419,19 +393,21 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_automatic_energy, handle_automatic_energy)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_planner_cmd, write_planner_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_apply_default, apply_default)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_begin_move, begin_move)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_wait_mask, update_wait_mask)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_wait, start_wait)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stop_wait, stop_wait)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_save_req_pos, save_req_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_restore_req_pos, restore_req_pos)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_configuration_changed, configuration_changed)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
     APRINTER_DECLARE_COLLECTIBLE(Collectible_EventLoopFastEvents, EventLoopFastEvents)
     APRINTER_DECLARE_COLLECTIBLE(Collectible_ConfigExprs, ConfigExprs)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_command, check_command)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_configuration_changed, configuration_changed)
     
     struct PlannerUnion;
     struct PlannerUnionPlanner;
@@ -2876,85 +2852,6 @@ private:
     
     using TheCorrectionService = typename ProbeFeature::TheCorrectionService;
     
-    AMBRO_STRUCT_IF(CurrentFeature, Params::CurrentParams::Enabled) {
-        struct Object;
-        using CurrentParams = typename Params::CurrentParams;
-        using ParamsCurrentAxesList = typename CurrentParams::CurrentAxesList;
-        template <typename ChannelAxisParams>
-        using MakeCurrentChannel = typename ChannelAxisParams::Params;
-        using CurrentChannelsList = MapTypeList<ParamsCurrentAxesList, TemplateFunc<MakeCurrentChannel>>;
-        using Current = typename CurrentParams::CurrentService::template Current<Context, Object, Config, FpType, CurrentChannelsList>;
-        
-        static void init (Context c)
-        {
-            Current::init(c);
-            apply_default(c);
-        }
-        
-        static void deinit (Context c)
-        {
-            Current::deinit(c);
-        }
-        
-        static void apply_default (Context c)
-        {
-            ListForEachForward<CurrentAxesList>(LForeach_apply_default(), c);
-        }
-        
-        static bool check_command (Context c, TheCommand *cmd)
-        {
-            if (cmd->getCmdNumber(c) == 906) {
-                auto num_parts = cmd->getNumParts(c);
-                for (decltype(num_parts) i = 0; i < num_parts; i++) {
-                    CommandPartRef part = cmd->getPart(c, i);
-                    ListForEachForwardInterruptible<CurrentAxesList>(LForeach_check_current_axis(), c, cmd, cmd->getPartCode(c, part), cmd->getPartFpValue(c, part));
-                }
-                cmd->finishCommand(c);
-                return false;
-            }
-            return true;
-        }
-        
-        template <int CurrentAxisIndex>
-        struct CurrentAxis {
-            using CurrentAxisParams = TypeListGet<ParamsCurrentAxesList, CurrentAxisIndex>;
-            
-            static void apply_default (Context c)
-            {
-                Current::template setCurrent<CurrentAxisIndex>(c, APRINTER_CFG(Config, CCurrent, c));
-            }
-            
-            static bool check_current_axis (Context c, TheCommand *cmd, char axis_name, FpType current)
-            {
-                if (axis_name == CurrentAxisParams::AxisName) {
-                    Current::template setCurrent<CurrentAxisIndex>(c, current);
-                    return false;
-                }
-                return true;
-            }
-            
-            using CCurrent = decltype(ExprCast<FpType>(Config::e(CurrentAxisParams::DefaultCurrent::i())));
-            using ConfigExprs = MakeTypeList<CCurrent>;
-            
-            struct Object : public ObjBase<CurrentAxis, typename CurrentFeature::Object, EmptyTypeList> {};
-        };
-        
-        using CurrentAxesList = IndexElemList<ParamsCurrentAxesList, CurrentAxis>;
-        
-        struct Object : public ObjBase<CurrentFeature, typename PrinterMain::Object, JoinTypeLists<
-            CurrentAxesList,
-            MakeTypeList<
-                Current
-            >
-        >> {};
-    } AMBRO_STRUCT_ELSE(CurrentFeature) {
-        static void init (Context c) {}
-        static void deinit (Context c) {}
-        static void apply_default (Context c) {}
-        static bool check_command (Context c, TheCommand *cmd) { return true; }
-        struct Object {};
-    };
-    
     AMBRO_STRUCT_IF(LoadConfigFeature, TheConfigManager::HasStore) {
         static void start_loading (Context c)
         {
@@ -2983,7 +2880,12 @@ private:
         
         static bool check_command (Context c, TheCommand *cmd)
         {
-            return TheModule::check_command(c, cmd);
+            return CallIfExists_check_command::template call_ret<TheModule, bool, true>(c, cmd);
+        }
+        
+        static void configuration_changed (Context c)
+        {
+            CallIfExists_configuration_changed::template call_void<TheModule>(c);
         }
         
         struct Object : public ObjBase<Module, typename PrinterMain::Object, MakeTypeList<
@@ -3016,7 +2918,6 @@ public:
         TransformFeature::init(c);
         ListForEachForward<HeatersList>(LForeach_init(), c);
         ListForEachForward<FansList>(LForeach_init(), c);
-        CurrentFeature::init(c);
         ob->time_freq_by_max_speed = 0.0f;
         ob->underrun_count = 0;
         ob->locked = false;
@@ -3040,7 +2941,6 @@ public:
             ThePlanner::deinit(c);
         }
         ListForEachReverse<ModulesList>(LForeach_deinit(), c);
-        CurrentFeature::deinit(c);
         ListForEachReverse<FansList>(LForeach_deinit(), c);
         ListForEachReverse<HeatersList>(LForeach_deinit(), c);
         ListForEachReverse<LasersList>(LForeach_deinit(), c);
@@ -3078,11 +2978,11 @@ public:
     template <typename TSdCardFeatue = SdCardFeature>
     using GetInput = typename TSdCardFeatue::TheInput;
     
-    template <typename TCurrentFeatue = CurrentFeature>
-    using GetCurrent = typename TCurrentFeatue::Current;
-    
     template <int LaserIndex>
     using GetLaserDriver = typename ThePlanner::template Laser<LaserIndex>::TheLaserDriver;
+    
+    template <int ModuleIndex>
+    using GetModule = typename Module<ModuleIndex>::TheModule;
     
     static void emergency ()
     {
@@ -3150,7 +3050,6 @@ private:
                         ListForEachForwardInterruptible<FansList>(LForeach_check_command(), c, cmd) &&
                         SdCardFeature::check_command(c, cmd) &&
                         ProbeFeature::check_command(c, cmd) &&
-                        CurrentFeature::check_command(c, cmd) &&
                         TheConfigManager::checkCommand(c, cmd) &&
                         ListForEachForwardInterruptible<ModulesList>(LForeach_check_command(), c, cmd)
                     ) {
@@ -3282,7 +3181,7 @@ private:
                         return;
                     }
                     TheConfigCache::update(c);
-                    CurrentFeature::apply_default(c);
+                    ListForEachForward<ModulesList>(LForeach_configuration_changed(), c);
                     return cmd->finishCommand(c);
                 } break;
             } break;
@@ -3808,11 +3707,11 @@ private:
                     AxesList,
                     LasersList,
                     HeatersList,
+                    ModulesList,
                     MakeTypeList<
                         TheSteppers,
                         TransformFeature,
                         ProbeFeature,
-                        CurrentFeature,
                         PlannerUnion
                     >
                 >,
@@ -3839,7 +3738,6 @@ public:
             SdCardFeature,
             TransformFeature,
             ProbeFeature,
-            CurrentFeature,
             PlannerUnion
         >
     >> {

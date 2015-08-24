@@ -1210,7 +1210,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 @stepper_current_sel.option('Current')
                 def option(stepper_current_config):
-                    stepper_current_expr = TemplateExpr('PrinterMainCurrentAxis', [
+                    stepper_current_expr = TemplateExpr('MotorCurrentAxisParams', [
                         TemplateChar(name),
                         gen.add_float_config('{}Current'.format(name), stepper.get_float('Current')),
                         use_current_driver_channel(gen, stepper_current_config, 'DriverChannelParams', name),
@@ -1504,14 +1504,18 @@ def generate(config_root_data, cfg_name, main_template):
             
             @current_sel.option('NoCurrent')
             def option(current):
-                return 'PrinterMainNoCurrentParams'
+                pass
             
             @current_sel.option('Current')
             def option(current):
-                return TemplateExpr('PrinterMainCurrentParams', [
+                gen.add_aprinter_include('printer/MotorCurrentModule.h')
+                current_module_index = len(modules_exprs)
+                modules_exprs.append(TemplateExpr('MotorCurrentModuleService', [
                     TemplateList(current_control_channel_list),
-                    use_current_driver(gen, current, 'current_driver', 'MyPrinter::GetCurrent<>')
-                ])
+                    use_current_driver(gen, current, 'current_driver', 'MyPrinter::GetModule<{}>::GetDriver'.format(current_module_index))
+                ]))
+            
+            current_config.do_selection('current', current_sel)
             
             printer_params = TemplateExpr('PrinterMainParams', [
                 serial_expr,
@@ -1531,7 +1535,6 @@ def generate(config_root_data, cfg_name, main_template):
                 setup_watchdog(gen, platform, 'watchdog', disable_watchdog, 'MyPrinter::GetWatchdog'),
                 sdcard_expr,
                 probe_expr,
-                current_config.do_selection('current', current_sel),
                 config_manager_expr,
                 'ConfigList',
                 steppers_expr,
