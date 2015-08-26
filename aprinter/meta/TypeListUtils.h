@@ -159,6 +159,27 @@ using TypeListRemoveDuplicates = TypeListReverse<
     >
 >;
 
+namespace Private {
+    template <int Offset, typename List>
+    struct TypeListEnumerateHelper;
+    
+    template <int Offset>
+    struct TypeListEnumerateHelper<Offset, EmptyTypeList> {
+        using Result = EmptyTypeList;
+    };
+    
+    template <int Offset, typename Head, typename Tail>
+    struct TypeListEnumerateHelper<Offset, ConsTypeList<Head, Tail>> {
+        using Result = ConsTypeList<
+            TypeDictEntry<WrapInt<Offset>, Head>,
+            typename TypeListEnumerateHelper<(Offset + 1), Tail>::Result
+        >;
+    };
+};
+
+template <typename List, int Offset=0>
+using TypeListEnumerate = typename Private::TypeListEnumerateHelper<Offset, List>::Result;
+
 #include <aprinter/EndNamespace.h>
 
 #endif

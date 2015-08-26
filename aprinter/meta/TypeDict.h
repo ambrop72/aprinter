@@ -31,8 +31,11 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Key, typename Value>
-struct TypeDictEntry;
+template <typename TKey, typename TValue>
+struct TypeDictEntry {
+    using Key = TKey;
+    using Value = TValue;
+};
 
 template <typename TResult>
 struct TypeDictFound {

@@ -32,6 +32,8 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/FunctionIf.h>
 #include <aprinter/meta/StructIf.h>
+#include <aprinter/meta/If.h>
+#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -1022,6 +1024,8 @@ struct SdFatInputService {
     using SdCardService = TSdCardService;
     using FsService = TFsService;
     static bool const HaveAccessInterface = THaveAccessInterface;
+    
+    static bool const ProvidesFsAccess = HaveAccessInterface;
     
     template <typename Context, typename ParentObject, typename ClientParams>
     using Input = SdFatInput<Context, ParentObject, ClientParams, SdFatInputService>;

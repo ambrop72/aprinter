@@ -35,10 +35,8 @@
 #include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/StructIf.h>
-#include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/MakeTypeList.h>
@@ -47,23 +45,21 @@
 #include <aprinter/meta/Union.h>
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
-#include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/ComposeFunctions.h>
-#include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/WrapType.h>
 #include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/Expr.h>
-#include <aprinter/meta/JoinTypeListList.h>
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/CallIfExists.h>
+#include <aprinter/meta/MemberType.h>
+#include <aprinter/meta/ListCollect.h>
+#include <aprinter/meta/TypeDict.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -71,19 +67,15 @@
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
-#include <aprinter/math/Matrix.h>
-#include <aprinter/math/MatrixQr.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/driver/StepperGroups.h>
 #include <aprinter/printer/GcodeParser.h>
-#include <aprinter/printer/BinaryGcodeParser.h>
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/Command.h>
-#include <aprinter/printer/InputCommon.h>
+#include <aprinter/printer/ServiceList.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -98,7 +90,7 @@ template <
     typename TForceTimeout, typename TFpType,
     typename TEventChannelTimerService,
     typename TWatchdogService,
-    typename TSdCardParams, typename TProbeParams,
+    typename TProbeParams,
     typename TConfigManagerService,
     typename TConfigList,
     typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList,
@@ -120,7 +112,6 @@ struct PrinterMainParams {
     using FpType = TFpType;
     using EventChannelTimerService = TEventChannelTimerService;
     using WatchdogService = TWatchdogService;
-    using SdCardParams = TSdCardParams;
     using ProbeParams = TProbeParams;
     using ConfigManagerService = TConfigManagerService;
     using ConfigList = TConfigList;
@@ -304,26 +295,6 @@ struct PrinterMainFanParams {
     using PwmService = TPwmService;
 };
 
-struct PrinterMainNoSdCardParams {
-    static bool const Enabled = false;
-};
-
-template <
-    typename TInputService,
-    template<typename, typename, typename, typename> class TGcodeParserTemplate,
-    typename TTheGcodeParserParams,
-    size_t TBufferBaseSize,
-    size_t TMaxCommandSize
->
-struct PrinterMainSdCardParams {
-    static bool const Enabled = true;
-    using InputService = TInputService;
-    template <typename X, typename Y, typename Z, typename W> using GcodeParserTemplate = TGcodeParserTemplate<X, Y, Z, W>;
-    using TheGcodeParserParams = TTheGcodeParserParams;
-    static size_t const BufferBaseSize = TBufferBaseSize;
-    static size_t const MaxCommandSize = TMaxCommandSize;
-};
-
 struct PrinterMainNoProbeParams {
     static bool const Enabled = false;
 };
@@ -404,8 +375,10 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
-    APRINTER_DECLARE_COLLECTIBLE(Collectible_EventLoopFastEvents, EventLoopFastEvents)
-    APRINTER_DECLARE_COLLECTIBLE(Collectible_ConfigExprs, ConfigExprs)
+    APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)
+    APRINTER_DEFINE_MEMBER_TYPE(MemberType_ConfigExprs, ConfigExprs)
+    APRINTER_DEFINE_MEMBER_TYPE(MemberType_CommandChannels, CommandChannels)
+    APRINTER_DEFINE_MEMBER_TYPE(MemberType_ProvidedServices, ProvidedServices)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_command, check_command)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_configuration_changed, configuration_changed)
     
@@ -444,6 +417,7 @@ public:
     using Config = ConfigFramework<TheConfigManager, TheConfigCache>;
     using CommandType = Command<Context, FpType>;
     using TheCommand = CommandType;
+    using CommandPartRef = typename TheCommand::PartRef;
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     static const bool IsTransformEnabled = TransformParams::Enabled;
     
@@ -495,8 +469,7 @@ private:
     
     struct SetPositionState;
     
-    using CommandPartRef = typename TheCommand::PartRef;
-    
+public:
     template <typename ChannelParentObject, typename Channel>
     struct ChannelCommon {
         struct Object;
@@ -776,6 +749,7 @@ private:
         };
     };
     
+private:
     struct SerialFeature {
         struct Object;
         struct SerialRecvHandler;
@@ -945,358 +919,58 @@ private:
         };
     };
     
-    AMBRO_STRUCT_IF(SdCardFeature, Params::SdCardParams::Enabled) {
+    template <int ModuleIndex>
+    struct Module {
         struct Object;
-        struct InputReadHandler;
-        struct InputClearBufferHandler;
-        
-        using TheInput = typename Params::SdCardParams::InputService::template Input<Context, Object, InputClientParams<PrinterMain, InputReadHandler, InputClearBufferHandler>>;
-        static const size_t BufferBaseSize = Params::SdCardParams::BufferBaseSize;
-        static const size_t MaxCommandSize = Params::SdCardParams::MaxCommandSize;
-        static_assert(MaxCommandSize > 0, "");
-        static_assert(BufferBaseSize >= TheInput::NeedBufAvail + (MaxCommandSize - 1), "");
-        static const size_t WrapExtraSize = MaxCommandSize - 1;
-        using ParserSizeType = ChooseIntForMax<MaxCommandSize, false>;
-        using TheGcodeParser = typename Params::SdCardParams::template GcodeParserTemplate<Context, Object, typename Params::SdCardParams::TheGcodeParserParams, ParserSizeType>;
-        using TheChannelCommon = ChannelCommon<Object, SdCardFeature>;
-        enum {SDCARD_PAUSED, SDCARD_RUNNING, SDCARD_PAUSING};
+        using ModuleSpec = TypeListGet<ParamsModulesList, ModuleIndex>;
+        using TheModule = typename ModuleSpec::template Module<Context, Object, PrinterMain>;
         
         static void init (Context c)
         {
-            auto *o = Object::self(c);
-            TheInput::init(c);
-            TheChannelCommon::init(c);
-            o->m_next_event.init(c, APRINTER_CB_STATFUNC_T(&SdCardFeature::next_event_handler));
-            o->m_state = SDCARD_PAUSED;
-            init_buffering(c);
+            TheModule::init(c);
         }
         
         static void deinit (Context c)
         {
-            auto *o = Object::self(c);
-            deinit_buffering(c);
-            o->m_next_event.deinit(c);
-            TheInput::deinit(c);
-        }
-        
-        static void input_read_handler (Context c, bool error, size_t bytes_read)
-        {
-            auto *o = Object::self(c);
-            auto *co = TheChannelCommon::Object::self(c);
-            AMBRO_ASSERT(o->m_state == SDCARD_RUNNING || o->m_state == SDCARD_PAUSING)
-            buf_sanity(c);
-            AMBRO_ASSERT(o->m_reading)
-            AMBRO_ASSERT(bytes_read <= BufferBaseSize - o->m_length)
-            
-            o->m_reading = false;
-            if (!error) {
-                size_t write_offset = buf_add(o->m_start, o->m_length);
-                if (write_offset < WrapExtraSize) {
-                    memcpy(o->m_buffer + BufferBaseSize + write_offset, o->m_buffer + write_offset, MinValue(bytes_read, WrapExtraSize - write_offset));
-                }
-                if (bytes_read > BufferBaseSize - write_offset) {
-                    memcpy(o->m_buffer + BufferBaseSize, o->m_buffer, MinValue(bytes_read - (BufferBaseSize - write_offset), WrapExtraSize));
-                }
-                o->m_length += bytes_read;
-            }
-            if (o->m_state == SDCARD_PAUSING) {
-                if (o->m_pausing_on_command) {
-                    finish_locked(c);
-                }
-                return complete_pause(c);
-            }
-            if (error) {
-                SerialFeature::TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("//SdRdEr\n"));
-                SerialFeature::TheChannelCommon::impl(c)->reply_poke(c);
-                return start_read(c);
-            }
-            if (can_read(c)) {
-                start_read(c);
-            }
-            if (!co->m_cmd && !o->m_eof) {
-                if (!o->m_next_event.isSet(c)) {
-                    o->m_next_event.prependNowNotAlready(c);
-                }
-            }
-        }
-        struct InputReadHandler : public AMBRO_WFUNC_TD(&SdCardFeature::input_read_handler) {};
-        
-        static void clear_input_buffer (Context c)
-        {
-            auto *o = Object::self(c);
-            auto *co = TheChannelCommon::Object::self(c);
-            AMBRO_ASSERT(o->m_state == SDCARD_PAUSED)
-            
-            TheChannelCommon::maybeCancelLockingCommand(c);
-            deinit_buffering(c);
-            init_buffering(c);
-        }
-        struct InputClearBufferHandler : public AMBRO_WFUNC_TD(&SdCardFeature::clear_input_buffer) {};
-        
-        static void next_event_handler (Context c)
-        {
-            auto *o = Object::self(c);
-            auto *co = TheChannelCommon::Object::self(c);
-            AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
-            buf_sanity(c);
-            AMBRO_ASSERT(!co->m_cmd)
-            AMBRO_ASSERT(!o->m_eof)
-            
-            AMBRO_PGM_P eof_str;
-            if (!TheGcodeParser::haveCommand(c)) {
-                TheGcodeParser::startCommand(c, o->m_buffer + o->m_start, 0);
-            }
-            ParserSizeType avail = MinValue(MaxCommandSize, o->m_length);
-            if (TheGcodeParser::extendCommand(c, avail)) {
-                if (TheGcodeParser::getNumParts(c) == TheGcodeParser::ERROR_EOF) {
-                    eof_str = AMBRO_PSTR("//SdEof\n");
-                    goto eof;
-                }
-                return TheChannelCommon::startCommand(c);
-            }
-            if (avail == MaxCommandSize) {
-                eof_str = AMBRO_PSTR("//SdLnEr\n");
-                goto eof;
-            }
-            if (TheInput::eofReached(c)) {
-                eof_str = AMBRO_PSTR("//SdEnd\n");
-                goto eof;
-            }
-            return;
-        eof:
-            SerialFeature::TheChannelCommon::impl(c)->reply_append_pstr(c, eof_str);
-            SerialFeature::TheChannelCommon::impl(c)->reply_poke(c);
-            o->m_eof = true;
-            if (o->m_reading) {
-                o->m_state = SDCARD_PAUSING;
-                o->m_pausing_on_command = false;
-            } else {
-                complete_pause(c);
-            }
+            TheModule::deinit(c);
         }
         
         static bool check_command (Context c, TheCommand *cmd)
         {
-            auto *o = Object::self(c);
-            
-            // Cannot issue SD-card commands from the SD-card.
-            if (cmd == TheChannelCommon::impl(c)) {
-                return true;
-            }
-            
-            // Start/resume SD stream.
-            if (cmd->getCmdNumber(c) == 24) {
-                if (!cmd->tryLockedCommand(c)) {
-                    return false;
-                }
-                do {
-                    if (o->m_state != SDCARD_PAUSED) {
-                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintAlreadyActive\n"));
-                        break;
-                    }
-                    if (!TheInput::startingIo(c, cmd)) {
-                        break;
-                    }
-                    o->m_state = SDCARD_RUNNING;
-                    o->m_eof = false;
-                    o->m_reading = false;
-                    if (can_read(c)) {
-                        start_read(c);
-                    }
-                    if (!TheChannelCommon::maybeResumeLockingCommand(c)) {
-                        o->m_next_event.prependNowNotAlready(c);
-                    }
-                } while (false);
-                cmd->finishCommand(c);
-                return false;
-            }
-            
-            // Pause SD stream.
-            if (cmd->getCmdNumber(c) == 25) {
-                if (!cmd->tryLockedCommand(c)) {
-                    return false;
-                }
-                do {
-                    if (o->m_state == SDCARD_PAUSED) {
-                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintNotRunning\n"));
-                        break;
-                    }
-                    AMBRO_ASSERT(o->m_state != SDCARD_PAUSING || o->m_reading)
-                    o->m_next_event.unset(c);
-                    TheChannelCommon::maybePauseLockingCommand(c);
-                    if (o->m_reading) {
-                        o->m_state = SDCARD_PAUSING;
-                        o->m_pausing_on_command = true;
-                        return false;
-                    }
-                    complete_pause(c);
-                } while (false);
-                cmd->finishCommand(c);
-                return false;
-            }
-            
-            // Rewind SD stream.
-            if (cmd->getCmdNumber(c) == 26) {
-                if (!cmd->tryLockedCommand(c)) {
-                    return false;
-                }
-                do {
-                    if (o->m_state != SDCARD_PAUSED) {
-                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintRunning\n"));
-                        break;
-                    }
-                    uint32_t seek_pos = cmd->get_command_param_uint32(c, 'S', 0);
-                    if (seek_pos != 0) {
-                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:CanOnlySeekToZero\n"));
-                        break;
-                    }
-                    if (!TheInput::rewind(c, cmd)) {
-                        break;
-                    }
-                } while (false);
-                cmd->finishCommand(c);
-                return false;
-            }
-            
-            // Let the Input module implement its own commands.
-            return TheInput::checkCommand(c, cmd);
+            return CallIfExists_check_command::template call_ret<TheModule, bool, true>(c, cmd);
         }
         
-        static bool start_command_impl (Context c)
+        static void configuration_changed (Context c)
         {
-            return true;
+            CallIfExists_configuration_changed::template call_void<TheModule>(c);
         }
         
-        static void finish_command_impl (Context c, bool no_ok)
-        {
-            auto *o = Object::self(c);
-            auto *co = TheChannelCommon::Object::self(c);
-            AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
-            buf_sanity(c);
-            AMBRO_ASSERT(!o->m_eof)
-            AMBRO_ASSERT(!TheGcodeParser::haveCommand(c))
-            AMBRO_ASSERT(TheGcodeParser::getLength(c) <= o->m_length)
-            
-            size_t cmd_len = TheGcodeParser::getLength(c);
-            o->m_next_event.prependNowNotAlready(c);
-            o->m_start = buf_add(o->m_start, cmd_len);
-            o->m_length -= cmd_len;
-            if (!o->m_reading && can_read(c)) {
-                start_read(c);
-            }
-        }
-        
-        static void reply_poke_impl (Context c)
-        {
-        }
-        
-        static void reply_append_buffer_impl (Context c, char const *str, size_t length)
-        {
-        }
-        
-        static void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length)
-        {
-        }
-        
-        static void reply_append_ch_impl (Context c, char ch)
-        {
-        }
-        
-        static bool request_send_buf_event_impl (Context c, size_t length)
-        {
-            return false;
-        }
-        
-        static void cancel_send_buf_event_impl (Context c)
-        {
-        }
-        
-        static void init_buffering (Context c)
-        {
-            auto *o = Object::self(c);
-            TheGcodeParser::init(c);
-            o->m_start = 0;
-            o->m_length = 0;
-        }
-        
-        static void deinit_buffering (Context c)
-        {
-            TheGcodeParser::deinit(c);
-        }
-        
-        static bool can_read (Context c)
-        {
-            auto *o = Object::self(c);
-            return TheInput::canRead(c, BufferBaseSize - o->m_length);
-        }
-        
-        static size_t buf_add (size_t start, size_t count)
-        {
-            static_assert(BufferBaseSize <= SIZE_MAX / 2, "");
-            size_t x = start + count;
-            if (x >= BufferBaseSize) {
-                x -= BufferBaseSize;
-            }
-            return x;
-        }
-        
-        static void start_read (Context c)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(!o->m_reading)
-            AMBRO_ASSERT(can_read(c))
-            
-            o->m_reading = true;
-            size_t write_offset = buf_add(o->m_start, o->m_length);
-            TheInput::startRead(c, BufferBaseSize - o->m_length, WrapBuffer::Make(BufferBaseSize - write_offset, o->m_buffer + write_offset, o->m_buffer));
-        }
-        
-        static void buf_sanity (Context c)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_start < BufferBaseSize)
-            AMBRO_ASSERT(o->m_length <= BufferBaseSize)
-        }
-        
-        static void complete_pause (Context c)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_state == SDCARD_RUNNING || o->m_state == SDCARD_PAUSING)
-            AMBRO_ASSERT(!o->m_reading)
-            
-            TheInput::pausingIo(c);
-            o->m_state = SDCARD_PAUSED;
-        }
-        
-        using SdChannelCommonList = MakeTypeList<TheChannelCommon>;
-        
-        struct Object : public ObjBase<SdCardFeature, typename PrinterMain::Object, MakeTypeList<
-            TheInput,
-            TheChannelCommon,
-            TheGcodeParser
-        >> {
-            typename Loop::QueuedEvent m_next_event;
-            uint8_t m_state : 3;
-            uint8_t m_eof : 1;
-            uint8_t m_reading : 1;
-            uint8_t m_pausing_on_command : 1;
-            size_t m_start;
-            size_t m_length;
-            char m_buffer[BufferBaseSize + WrapExtraSize];
-        };
-    } AMBRO_STRUCT_ELSE(SdCardFeature) {
-        static void init (Context c) {}
-        static void deinit (Context c) {}
-        static bool check_command (Context c, TheCommand *cmd) { return true; }
-        using SdChannelCommonList = EmptyTypeList;
-        struct Object {};
+        struct Object : public ObjBase<Module, typename PrinterMain::Object, MakeTypeList<
+            TheModule
+        >> {};
+    };
+    using ModulesList = IndexElemList<ParamsModulesList, Module>;
+    
+    using ServicesDict = ListGroup<ListCollect<ParamsModulesList, MemberType_ProvidedServices>>;
+    
+    template <typename ServiceType>
+    struct FindServiceProvider {
+        using FindResult = TypeDictFind<ServicesDict, ServiceType>;
+        static_assert(FindResult::Found, "The requested service type is not provided by any module.");
+        static int const ModuleIndex = TypeListGet<typename FindResult::Result, 0>::Value;
     };
     
-    using ChannelCommonList = JoinTypeLists<
-        MakeTypeList<typename SerialFeature::TheChannelCommon>,
-        typename SdCardFeature::SdChannelCommonList
-    >;
+public:
+    template <int ModuleIndex>
+    using GetModule = typename Module<ModuleIndex>::TheModule;
     
+    template <typename ServiceType>
+    using GetServiceProviderModule = GetModule<FindServiceProvider<ServiceType>::ModuleIndex>;
+    
+    template <typename This=PrinterMain>
+    using GetFsAccess = typename This::template GetServiceProviderModule<ServiceList::FsAccessService>::template GetFsAccess<>;
+    
+private:
     template <int TAxisIndex>
     struct Axis {
         struct Object;
@@ -2862,39 +2536,6 @@ private:
         static void start_loading (Context c) {}
     };
     
-    template <int ModuleIndex>
-    struct Module {
-        struct Object;
-        using ModuleSpec = TypeListGet<ParamsModulesList, ModuleIndex>;
-        using TheModule = typename ModuleSpec::template Module<Context, Object, PrinterMain>;
-        
-        static void init (Context c)
-        {
-            TheModule::init(c);
-        }
-        
-        static void deinit (Context c)
-        {
-            TheModule::deinit(c);
-        }
-        
-        static bool check_command (Context c, TheCommand *cmd)
-        {
-            return CallIfExists_check_command::template call_ret<TheModule, bool, true>(c, cmd);
-        }
-        
-        static void configuration_changed (Context c)
-        {
-            CallIfExists_configuration_changed::template call_void<TheModule>(c);
-        }
-        
-        struct Object : public ObjBase<Module, typename PrinterMain::Object, MakeTypeList<
-            TheModule
-        >> {};
-    };
-    
-    using ModulesList = IndexElemList<ParamsModulesList, Module>;
-    
 public:
     static void init (Context c)
     {
@@ -2909,7 +2550,6 @@ public:
         TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
         TheSteppers::init(c);
         SerialFeature::init(c);
-        SdCardFeature::init(c);
         ProbeFeature::init(c);
         ob->axis_homing = 0;
         ob->axis_relative = 0;
@@ -2946,7 +2586,6 @@ public:
         ListForEachReverse<LasersList>(LForeach_deinit(), c);
         ListForEachReverse<AxesList>(LForeach_deinit(), c);
         ProbeFeature::deinit(c);
-        SdCardFeature::deinit(c);
         SerialFeature::deinit(c);
         TheSteppers::deinit(c);
         TheBlinker::deinit(c);
@@ -2975,14 +2614,8 @@ public:
     
     using GetEventChannelTimer = typename ThePlanner::template GetChannelTimer<0>;
     
-    template <typename TSdCardFeatue = SdCardFeature>
-    using GetInput = typename TSdCardFeatue::TheInput;
-    
     template <int LaserIndex>
     using GetLaserDriver = typename ThePlanner::template Laser<LaserIndex>::TheLaserDriver;
-    
-    template <int ModuleIndex>
-    using GetModule = typename Module<ModuleIndex>::TheModule;
     
     static void emergency ()
     {
@@ -2992,8 +2625,6 @@ public:
         ListForEachForward<FansList>(LForeach_emergency());
     }
     
-    using EventLoopFastEvents = ObjCollect<MakeTypeList<PrinterMain>, Collectible_EventLoopFastEvents, true>;
-        
     static void finish_locked (Context c)
     {
         auto *ob = Object::self(c);
@@ -3048,7 +2679,6 @@ private:
                     if (
                         ListForEachForwardInterruptible<HeatersList>(LForeach_check_command(), c, cmd) &&
                         ListForEachForwardInterruptible<FansList>(LForeach_check_command(), c, cmd) &&
-                        SdCardFeature::check_command(c, cmd) &&
                         ProbeFeature::check_command(c, cmd) &&
                         TheConfigManager::checkCommand(c, cmd) &&
                         ListForEachForwardInterruptible<ModulesList>(LForeach_check_command(), c, cmd)
@@ -3715,12 +3345,19 @@ private:
                         PlannerUnion
                     >
                 >,
-                Collectible_ConfigExprs
+                MemberType_ConfigExprs
             >
         >;
     };
     
+    using ChannelCommonList = JoinTypeLists<
+        MakeTypeList<typename SerialFeature::TheChannelCommon>,
+        ObjCollect<ModulesList, MemberType_CommandChannels>
+    >;
+    
 public:
+    using EventLoopFastEvents = ObjCollect<MakeTypeList<PrinterMain>, MemberType_EventLoopFastEvents, true>;
+    
     struct Object : public ObjBase<PrinterMain, ParentObject, JoinTypeLists<
         AxesList,
         LasersList,
@@ -3735,7 +3372,6 @@ public:
             TheBlinker,
             TheSteppers,
             SerialFeature,
-            SdCardFeature,
             TransformFeature,
             ProbeFeature,
             PlannerUnion

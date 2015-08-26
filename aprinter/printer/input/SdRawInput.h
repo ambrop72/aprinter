@@ -262,6 +262,8 @@ template <typename TSdCardService>
 struct SdRawInputService {
     using SdCardService = TSdCardService;
     
+    static bool const ProvidesFsAccess = false;
+    
     template <typename Context, typename ParentObject, typename ClientParams>
     using Input = SdRawInput<Context, ParentObject, ClientParams, SdRawInputService>;
 };

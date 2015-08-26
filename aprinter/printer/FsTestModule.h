@@ -44,7 +44,7 @@ public:
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
-    using TheFsAccess = typename ThePrinterMain::template GetInput<>::template GetFsAccess<>;
+    using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;
     using TheFs = typename TheFsAccess::TheFileSystem;
     
     enum {STATE_IDLE, STATE_ACCESS, STATE_BUFFER, STATE_OPEN, STATE_OPENWR, STATE_WRITE, STATE_TRUNCATE, STATE_FLUSH};

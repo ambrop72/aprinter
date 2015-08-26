@@ -1072,18 +1072,26 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 @sdcard_sel.option('NoSdCard')
                 def option(sdcard):
-                    return 'PrinterMainNoSdCardParams'
+                    pass
                 
                 @sdcard_sel.option('SdCard')
                 def option(sdcard):
+                    gen.add_aprinter_include('printer/SdCardModule.h')
+                    
+                    sdcard_module_index = len(modules_exprs)
+                    modules_exprs.append(None)
+                    sdcard_user = 'MyPrinter::GetModule<{}>::GetInput::GetSdCard'.format(sdcard_module_index)
+                    
                     gcode_parser_sel = selection.Selection()
                     
                     @gcode_parser_sel.option('TextGcodeParser')
                     def option(parser):
+                        gen.add_aprinter_include('printer/GcodeParser.h')
                         return 'FileGcodeParser, GcodeParserParams<{}>'.format(parser.get_int('MaxParts'))
                     
                     @gcode_parser_sel.option('BinaryGcodeParser')
                     def option(parser):
+                        gen.add_aprinter_include('printer/BinaryGcodeParser.h')
                         return 'BinaryGcodeParser, BinaryGcodeParserParams<{}>'.format(parser.get_int('MaxParts'))
                     
                     fs_sel = selection.Selection()
@@ -1092,7 +1100,7 @@ def generate(config_root_data, cfg_name, main_template):
                     def option(fs_config):
                         gen.add_aprinter_include('printer/input/SdRawInput.h')
                         return TemplateExpr('SdRawInputService', [
-                            use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetInput<>::GetSdCard'),
+                            use_sdcard(gen, sdcard, 'SdCardService', sdcard_user),
                         ])
                     
                     @fs_sel.option('Fat32')
@@ -1113,7 +1121,7 @@ def generate(config_root_data, cfg_name, main_template):
                             modules_exprs.append('FsTestModuleService')
                         
                         return TemplateExpr('SdFatInputService', [
-                            use_sdcard(gen, sdcard, 'SdCardService', 'MyPrinter::GetInput<>::GetSdCard'),
+                            use_sdcard(gen, sdcard, 'SdCardService', sdcard_user),
                             TemplateExpr('FatFsService', [
                                 max_filename_size,
                                 num_cache_entries,
@@ -1123,14 +1131,14 @@ def generate(config_root_data, cfg_name, main_template):
                             fs_config.get_bool_constant('HaveAccessInterface'),
                         ])
                     
-                    return TemplateExpr('PrinterMainSdCardParams', [
+                    modules_exprs[sdcard_module_index] = TemplateExpr('SdCardModuleService', [
                         sdcard.do_selection('FsType', fs_sel),
                         sdcard.do_selection('GcodeParser', gcode_parser_sel),
                         sdcard.get_int('BufferBaseSize'),
                         sdcard.get_int('MaxCommandSize'),
                     ])
                 
-                sdcard_expr = board_data.get_config('sdcard_config').do_selection('sdcard', sdcard_sel)
+                board_data.get_config('sdcard_config').do_selection('sdcard', sdcard_sel)
                 
                 config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
                 
@@ -1533,7 +1541,6 @@ def generate(config_root_data, cfg_name, main_template):
                 performance.get_identifier('FpType', lambda x: x in ('float', 'double')),
                 event_channel_timer_expr,
                 setup_watchdog(gen, platform, 'watchdog', disable_watchdog, 'MyPrinter::GetWatchdog'),
-                sdcard_expr,
                 probe_expr,
                 config_manager_expr,
                 'ConfigList',

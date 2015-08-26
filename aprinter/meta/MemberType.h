@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2015 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,24 +22,16 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_WRAP_VALUE_H
-#define AMBROLIB_WRAP_VALUE_H
+#ifndef APRINTER_MEMBER_TYPE_H
+#define APRINTER_MEMBER_TYPE_H
 
-#include <aprinter/BeginNamespace.h>
+#include <aprinter/meta/HasMemberTypeFunc.h>
+#include <aprinter/meta/GetMemberTypeFunc.h>
 
-template <typename TType, TType TValue>
-struct WrapValue {
-    typedef TType Type;
-    static constexpr Type Value = TValue;
-    static constexpr Type value () { return TValue; }
+#define APRINTER_DEFINE_MEMBER_TYPE(ClassName, MemberName) \
+struct ClassName { \
+    AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Has, MemberName) \
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Get, MemberName) \
 };
-
-template <bool Value>
-using WrapBool = WrapValue<bool, Value>;
-
-template <int Value>
-using WrapInt = WrapValue<int, Value>;
-
-#include <aprinter/EndNamespace.h>
 
 #endif

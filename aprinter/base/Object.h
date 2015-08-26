@@ -44,6 +44,7 @@
 #include <aprinter/meta/IsEmpty.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/TypeListFold.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -107,13 +108,7 @@ struct ObjUnionBase : public Union<Obj__ChildObjects<TNestedClassesList>> {
     }
 };
 
-#define APRINTER_DECLARE_COLLECTIBLE(ClassName, CollectibleName) \
-struct ClassName { \
-    AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(Has, CollectibleName) \
-    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(Get, CollectibleName) \
-};
-
-template <typename ClassList, typename Collectible, bool WithoutRoots, typename CurrentList>
+template <typename ClassList, typename MemberType, bool WithoutRoots, typename CurrentList>
 struct Obj__CollectHelper {
     template<typename TheClass, typename TheCurrentList>
     using CollectClass = ConsTypeList<
@@ -122,8 +117,8 @@ struct Obj__CollectHelper {
                 ConstantFunc<WrapBool<WithoutRoots>>,
                 ConstantFunc<EmptyTypeList>,
                 IfFunc<
-                    typename Collectible::Has,
-                    typename Collectible::Get,
+                    typename MemberType::Has,
+                    typename MemberType::Get,
                     ConstantFunc<EmptyTypeList>
                 >
             >,
@@ -138,7 +133,7 @@ struct Obj__CollectHelper {
                 >,
                 typename TheClass::Object
             >,
-            Collectible,
+            MemberType,
             false,
             TheCurrentList
         >::Result
@@ -147,8 +142,8 @@ struct Obj__CollectHelper {
     using Result = TypeListFoldRight<ClassList, CurrentList, CollectClass>;
 };
 
-template <typename ClassList, typename Collectible, bool WithoutRoots = false>
-using ObjCollect = JoinTypeListList<typename Obj__CollectHelper<ClassList, Collectible, WithoutRoots, EmptyTypeList>::Result>;
+template <typename ClassList, typename MemberType, bool WithoutRoots = false>
+using ObjCollect = JoinTypeListList<typename Obj__CollectHelper<ClassList, MemberType, WithoutRoots, EmptyTypeList>::Result>;
 
 #include <aprinter/EndNamespace.h>
 

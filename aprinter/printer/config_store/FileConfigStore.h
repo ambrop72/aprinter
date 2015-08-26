@@ -45,7 +45,7 @@ public:
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
-    using TheFsAccess = typename ThePrinterMain::template GetInput<>::template GetFsAccess<>;
+    using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;
     using TheFs = typename TheFsAccess::TheFileSystem;
     
     static constexpr char const *ConfigFileName = "aprinter.cfg";
