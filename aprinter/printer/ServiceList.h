@@ -28,6 +28,7 @@
 #include <aprinter/BeginNamespace.h>
 
 namespace ServiceList {
+    struct SerialService {};
     struct FsAccessService {};
 }
 

@@ -71,7 +71,6 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/driver/StepperGroups.h>
-#include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/Command.h>
@@ -79,10 +78,8 @@
 
 #include <aprinter/BeginNamespace.h>
 
-#define PRINTERMAIN_SERIAL_OK_STR "ok\n"
-
 template <
-    typename TSerial, typename TLedPin, typename TLedBlinkInterval, typename TInactiveTime,
+    typename TLedPin, typename TLedBlinkInterval, typename TInactiveTime,
     typename TWaitTimeout,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
     int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSize,
@@ -97,7 +94,6 @@ template <
     typename TLasersList, typename TModulesList
 >
 struct PrinterMainParams {
-    using Serial = TSerial;
     using LedPin = TLedPin;
     using LedBlinkInterval = TLedBlinkInterval;
     using InactiveTime = TInactiveTime;
@@ -121,20 +117,6 @@ struct PrinterMainParams {
     using FansList = TFansList;
     using LasersList = TLasersList;
     using ModulesList = TModulesList;
-};
-
-template <
-    uint32_t TBaud,
-    int TRecvBufferSizeExp, int TSendBufferSizeExp,
-    typename TTheGcodeParserParams,
-    typename TSerialService
->
-struct PrinterMainSerialParams {
-    static uint32_t const Baud = TBaud;
-    static int const RecvBufferSizeExp = TRecvBufferSizeExp;
-    static int const SendBufferSizeExp = TSendBufferSizeExp;
-    using TheGcodeParserParams = TTheGcodeParserParams;
-    using SerialService = TSerialService;
 };
 
 template <
@@ -750,175 +732,6 @@ public:
     };
     
 private:
-    struct SerialFeature {
-        struct Object;
-        struct SerialRecvHandler;
-        struct SerialSendHandler;
-        
-        static size_t const MaxFinishLen = sizeof(PRINTERMAIN_SERIAL_OK_STR) - 1;
-        
-        using TheSerial = typename Params::Serial::SerialService::template Serial<Context, Object, Params::Serial::RecvBufferSizeExp, Params::Serial::SendBufferSizeExp, SerialRecvHandler, SerialSendHandler>;
-        using RecvSizeType = typename TheSerial::RecvSizeType;
-        using SendSizeType = typename TheSerial::SendSizeType;
-        using TheGcodeParser = GcodeParser<Context, Object, typename Params::Serial::TheGcodeParserParams, typename RecvSizeType::IntType, GcodeParserTypeSerial>;
-        using TheChannelCommon = ChannelCommon<Object, SerialFeature>;
-        
-        static void init (Context c)
-        {
-            auto *o = Object::self(c);
-            TheSerial::init(c, Params::Serial::Baud);
-            TheGcodeParser::init(c);
-            TheChannelCommon::init(c);
-            o->m_recv_next_error = 0;
-            o->m_line_number = 1;
-        }
-        
-        static void deinit (Context c)
-        {
-            TheGcodeParser::deinit(c);
-            TheSerial::deinit(c);
-        }
-        
-        static void serial_recv_handler (Context c)
-        {
-            auto *o = Object::self(c);
-            auto *cco = TheChannelCommon::Object::self(c);
-            
-            if (cco->m_cmd) {
-                return;
-            }
-            if (!TheGcodeParser::haveCommand(c)) {
-                TheGcodeParser::startCommand(c, TheSerial::recvGetChunkPtr(c), o->m_recv_next_error);
-                o->m_recv_next_error = 0;
-            }
-            bool overrun;
-            RecvSizeType avail = TheSerial::recvQuery(c, &overrun);
-            if (TheGcodeParser::extendCommand(c, avail.value())) {
-                return TheChannelCommon::startCommand(c);
-            }
-            if (overrun) {
-                TheSerial::recvConsume(c, avail);
-                TheSerial::recvClearOverrun(c);
-                TheGcodeParser::resetCommand(c);
-                o->m_recv_next_error = TheGcodeParser::ERROR_RECV_OVERRUN;
-            }
-        }
-        
-        static void serial_send_handler (Context c)
-        {
-            TheChannelCommon::reportSendBufEventDirectly(c);
-        }
-        
-        static bool start_command_impl (Context c)
-        {
-            auto *o = Object::self(c);
-            auto *cco = TheChannelCommon::Object::self(c);
-            AMBRO_ASSERT(cco->m_cmd)
-            
-            bool is_m110 = (TheGcodeParser::getCmdCode(c) == 'M' && TheGcodeParser::getCmdNumber(c) == 110);
-            if (is_m110) {
-                o->m_line_number = TheChannelCommon::impl(c)->get_command_param_uint32(c, 'L', (TheGcodeParser::getCmd(c)->have_line_number ? TheGcodeParser::getCmd(c)->line_number : -1));
-            }
-            if (TheGcodeParser::getCmd(c)->have_line_number) {
-                if (TheGcodeParser::getCmd(c)->line_number != o->m_line_number) {
-                    TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("Error:Line Number is not Last Line Number+1, Last Line:"));
-                    TheChannelCommon::impl(c)->reply_append_uint32(c, (uint32_t)(o->m_line_number - 1));
-                    TheChannelCommon::impl(c)->reply_append_ch(c, '\n');
-                    return false;
-                }
-            }
-            if (TheGcodeParser::getCmd(c)->have_line_number || is_m110) {
-                o->m_line_number++;
-            }
-            return true;
-        }
-        
-        static void finish_command_impl (Context c, bool no_ok)
-        {
-            auto *o = Object::self(c);
-            auto *cco = TheChannelCommon::Object::self(c);
-            AMBRO_ASSERT(cco->m_cmd)
-            
-            if (!no_ok) {
-                TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR(PRINTERMAIN_SERIAL_OK_STR));
-            }
-            TheSerial::sendPoke(c);
-            TheSerial::recvConsume(c, RecvSizeType::import(TheGcodeParser::getLength(c)));
-            TheSerial::recvForceEvent(c);
-        }
-        
-        static void reply_poke_impl (Context c)
-        {
-            TheSerial::sendPoke(c);
-        }
-        
-        static void reply_append_buffer_impl (Context c, char const *str, size_t length)
-        {
-            SendSizeType avail = TheSerial::sendQuery(c);
-            if (length > avail.value()) {
-                length = avail.value();
-            }
-            while (length > 0) {
-                char *chunk_data = TheSerial::sendGetChunkPtr(c);
-                uint8_t chunk_length = TheSerial::sendGetChunkLen(c, SendSizeType::import(length)).value();
-                memcpy(chunk_data, str, chunk_length);
-                TheSerial::sendProvide(c, SendSizeType::import(chunk_length));
-                str += chunk_length;
-                length -= chunk_length;
-            }
-        }
-        
-        static void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length)
-        {
-            SendSizeType avail = TheSerial::sendQuery(c);
-            if (length > avail.value()) {
-                length = avail.value();
-            }
-            while (length > 0) {
-                char *chunk_data = TheSerial::sendGetChunkPtr(c);
-                uint8_t chunk_length = TheSerial::sendGetChunkLen(c, SendSizeType::import(length)).value();
-                AMBRO_PGM_MEMCPY(chunk_data, pstr, chunk_length);
-                TheSerial::sendProvide(c, SendSizeType::import(chunk_length));
-                pstr += chunk_length;
-                length -= chunk_length;
-            }
-        }
-        
-        static void reply_append_ch_impl (Context c, char ch)
-        {
-            if (TheSerial::sendQuery(c).value() > 0) {
-                *TheSerial::sendGetChunkPtr(c) = ch;
-                TheSerial::sendProvide(c, SendSizeType::import(1));
-            }
-        }
-        
-        static bool request_send_buf_event_impl (Context c, size_t length)
-        {
-            if (length > SendSizeType::maxIntValue() - MaxFinishLen) {
-                return false;
-            }
-            TheSerial::sendRequestEvent(c, SendSizeType::import(length + MaxFinishLen));
-            return true;
-        }
-        
-        static void cancel_send_buf_event_impl (Context c)
-        {
-            TheSerial::sendRequestEvent(c, SendSizeType::import(0));
-        }
-        
-        struct SerialRecvHandler : public AMBRO_WFUNC_TD(&SerialFeature::serial_recv_handler) {};
-        struct SerialSendHandler : public AMBRO_WFUNC_TD(&SerialFeature::serial_send_handler) {};
-        
-        struct Object : public ObjBase<SerialFeature, typename PrinterMain::Object, MakeTypeList<
-            TheSerial,
-            TheGcodeParser,
-            TheChannelCommon
-        >> {
-            int8_t m_recv_next_error;
-            uint32_t m_line_number;
-        };
-    };
-    
     template <int ModuleIndex>
     struct Module {
         struct Object;
@@ -2549,7 +2362,6 @@ public:
         ob->force_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::force_timer_handler));
         TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
         TheSteppers::init(c);
-        SerialFeature::init(c);
         ProbeFeature::init(c);
         ob->axis_homing = 0;
         ob->axis_relative = 0;
@@ -2564,8 +2376,9 @@ public:
         ob->planner_state = PLANNER_NONE;
         ListForEachForward<ModulesList>(LForeach_init(), c);
         
-        SerialFeature::TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
-        SerialFeature::TheChannelCommon::impl(c)->reply_poke(c);
+        auto *output = get_msg_output(c);
+        output->reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
+        output->reply_poke(c);
         
         LoadConfigFeature::start_loading(c);
         
@@ -2586,7 +2399,6 @@ public:
         ListForEachReverse<LasersList>(LForeach_deinit(), c);
         ListForEachReverse<AxesList>(LForeach_deinit(), c);
         ProbeFeature::deinit(c);
-        SerialFeature::deinit(c);
         TheSteppers::deinit(c);
         TheBlinker::deinit(c);
         ob->force_timer.deinit(c);
@@ -2600,8 +2412,6 @@ public:
     using GetConfigManager = TheConfigManager;
     
     using GetWatchdog = TheWatchdog;
-    
-    using GetSerial = typename SerialFeature::TheSerial;
     
     template <int AxisIndex>
     using GetAxisTimer = typename Axis<AxisIndex>::TheAxisDriver::GetTimer;
@@ -2644,7 +2454,8 @@ public:
     
     static CommandType * get_msg_output (Context c)
     {
-        return SerialFeature::TheChannelCommon::impl(c);
+        using TheSerialChannel = typename GetServiceProviderModule<ServiceList::SerialService>::SerialChannel;
+        return TheSerialChannel::impl(c);
     }
     
     static void print_pgm_string (Context c, AMBRO_PGM_P msg)
@@ -3074,12 +2885,13 @@ private:
         ob->underrun_count++;
         
 #ifdef AXISDRIVER_DETECT_OVERLOAD
+        auto *output = get_msg_output(c);
         if (ThePlanner::axisOverloadOccurred(c)) {
-            SerialFeature::TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("//AxisOverload\n"));
+            output->reply_append_pstr(c, AMBRO_PSTR("//AxisOverload\n"));
         } else {
-            SerialFeature::TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("//NoOverload\n"));
+            output->reply_append_pstr(c, AMBRO_PSTR("//NoOverload\n"));
         }
-        SerialFeature::TheChannelCommon::impl(c)->reply_poke(c);
+        output->reply_poke(c);
 #endif
     }
     
@@ -3249,8 +3061,9 @@ private:
         }
         unlock(c);
         auto msg = success ? AMBRO_PSTR("//LoadConfigOk\n") : AMBRO_PSTR("//LoadConfigErr\n");
-        SerialFeature::TheChannelCommon::impl(c)->reply_append_pstr(c, msg);
-        SerialFeature::TheChannelCommon::impl(c)->reply_poke(c);
+        auto *output = get_msg_output(c);
+        output->reply_append_pstr(c, msg);
+        output->reply_poke(c);
     }
     
     template <int State, bool Must>
@@ -3350,10 +3163,7 @@ private:
         >;
     };
     
-    using ChannelCommonList = JoinTypeLists<
-        MakeTypeList<typename SerialFeature::TheChannelCommon>,
-        ObjCollect<ModulesList, MemberType_CommandChannels>
-    >;
+    using ChannelCommonList = ObjCollect<ModulesList, MemberType_CommandChannels>;
     
 public:
     using EventLoopFastEvents = ObjCollect<MakeTypeList<PrinterMain>, MemberType_EventLoopFastEvents, true>;
@@ -3371,7 +3181,6 @@ public:
             TheConfigCache,
             TheBlinker,
             TheSteppers,
-            SerialFeature,
             TransformFeature,
             ProbeFeature,
             PlannerUnion

@@ -1060,12 +1060,18 @@ def generate(config_root_data, cfg_name, main_template):
                     debug_symbols = development.get_bool('DebugSymbols')
                 
                 for serial in board_data.enter_config('serial'):
-                    serial_expr = TemplateExpr('PrinterMainSerialParams', [
+                    gen.add_aprinter_include('printer/SerialModule.h')
+                    
+                    serial_module_index = len(modules_exprs)
+                    modules_exprs.append(None)
+                    serial_user = 'MyPrinter::GetModule<{}>::GetSerial'.format(serial_module_index)
+                    
+                    modules_exprs[serial_module_index] = TemplateExpr('SerialModuleService', [
                         'UINT32_C({})'.format(serial.get_int_constant('BaudRate')),
                         serial.get_int_constant('RecvBufferSizeExp'),
                         serial.get_int_constant('SendBufferSizeExp'),
                         TemplateExpr('GcodeParserParams', [serial.get_int_constant('GcodeMaxParts')]),
-                        use_serial(gen, serial, 'Service', 'MyPrinter::GetSerial'),
+                        use_serial(gen, serial, 'Service', serial_user),
                     ])
                 
                 sdcard_sel = selection.Selection()
@@ -1526,7 +1532,6 @@ def generate(config_root_data, cfg_name, main_template):
             current_config.do_selection('current', current_sel)
             
             printer_params = TemplateExpr('PrinterMainParams', [
-                serial_expr,
                 led_pin_expr,
                 'LedBlinkInterval',
                 gen.add_float_config('InactiveTime', config.get_float('InactiveTime')),
