@@ -27,12 +27,10 @@
 
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/IsEqualFunc.h>
-#include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/SequenceList.h>
 #include <aprinter/base/Object.h>
-#include <aprinter/meta/ValueTemplateFunc.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/IndexElemList.h>

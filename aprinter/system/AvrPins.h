@@ -31,9 +31,7 @@
 #include <avr/io.h>
 
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/IsEqualFunc.h>
-#include <aprinter/meta/NotFunc.h>
-#include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/AvrIo.h>

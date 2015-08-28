@@ -32,7 +32,7 @@
 #include <stddef.h>
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TemplateFunc.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/StructIf.h>
@@ -44,8 +44,6 @@
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/ComposeFunctions.h>
-#include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/ConstexprMath.h>

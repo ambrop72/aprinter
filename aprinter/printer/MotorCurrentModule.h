@@ -25,7 +25,7 @@
 #ifndef APRINTER_MOTOR_CURRENT_MODULE_H
 #define APRINTER_MOTOR_CURRENT_MODULE_H
 
-#include <aprinter/meta/TemplateFunc.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>

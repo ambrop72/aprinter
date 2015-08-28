@@ -34,7 +34,7 @@
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/TemplateFunc.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/system/At91SamPins.h>

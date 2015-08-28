@@ -26,7 +26,7 @@
 #define AMBROLIB_INTERRUPT_LOCK_H
 
 #include <aprinter/meta/HasMemberTypeFunc.h>
-#include <aprinter/meta/FuncCall.h>
+#include <aprinter/meta/FuncUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

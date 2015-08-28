@@ -34,11 +34,8 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/IsEqualFunc.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/TemplateFunc.h>
-#include <aprinter/meta/IfFunc.h>
-#include <aprinter/meta/FuncCall.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/WrapFunction.h>
@@ -48,7 +45,6 @@
 #include <aprinter/meta/ConstexprString.h>
 #include <aprinter/meta/StaticArray.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
-#include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/AsciiTools.h>

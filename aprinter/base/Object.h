@@ -32,13 +32,9 @@
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/HasMemberTypeFunc.h>
-#include <aprinter/meta/TemplateFunc.h>
-#include <aprinter/meta/IfFunc.h>
-#include <aprinter/meta/ConstantFunc.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/FuncCall.h>
 #include <aprinter/meta/IsEmpty.h>
-#include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/TypeListUtils.h>
 
 #include <aprinter/BeginNamespace.h>

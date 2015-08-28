@@ -26,7 +26,7 @@
 #define AMBROLIB_IS_EMPTY_H
 
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/TemplateFunc.h>
+#include <aprinter/meta/FuncUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

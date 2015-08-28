@@ -31,11 +31,7 @@
 #include <aprinter/meta/RemoveReference.h>
 #include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/meta/TestConstexpr.h>
-#include <aprinter/meta/FuncCall.h>
-#include <aprinter/meta/IfFunc.h>
-#include <aprinter/meta/ConstantFunc.h>
-#include <aprinter/meta/TemplateFunc.h>
-#include <aprinter/meta/ComposeFunctions.h>
+#include <aprinter/meta/FuncUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

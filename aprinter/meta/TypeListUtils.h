@@ -28,7 +28,7 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeDict.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/FuncCall.h>
+#include <aprinter/meta/FuncUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

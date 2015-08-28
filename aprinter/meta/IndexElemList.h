@@ -27,7 +27,7 @@
 
 #include <aprinter/meta/SequenceList.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/ValueTemplateFunc.h>
+#include <aprinter/meta/FuncUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

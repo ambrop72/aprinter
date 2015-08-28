@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014 Ambroz Bizjak
+ * Copyright (c) 2015 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,13 +22,72 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_FUNC_CALL_H
-#define AMBROLIB_FUNC_CALL_H
+#ifndef APRINTER_FUNC_UTILS_H
+#define APRINTER_FUNC_UTILS_H
+
+#include <aprinter/meta/If.h>
+#include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/WrapValue.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename Func, typename Arg>
 using FuncCall = typename Func::template Call<Arg>::Type;
+
+template <typename CondFunc, typename TrueFunc, typename FalseFunc>
+struct IfFunc {
+    template <typename X>
+    struct Call {
+        using Type = FuncCall<If<FuncCall<CondFunc, X>::Value, TrueFunc, FalseFunc>, X>;
+    };
+};
+
+template <typename T>
+struct IsEqualFunc {
+    template <typename U>
+    struct Call {
+        typedef WrapBool<TypesAreEqual<U, T>::Value> Type;
+    };
+};
+
+struct NotFunc {
+    template <typename X>
+    struct Call {
+        typedef WrapBool<(!X::Value)> Type;
+    };
+};
+
+template <template<typename> class Template>
+struct TemplateFunc {
+    template <typename U>
+    struct Call {
+        typedef Template<U> Type;
+    };
+};
+
+template <typename ValueType, template<ValueType> class Template>
+struct ValueTemplateFunc {
+    template <typename U>
+    struct Call {
+        typedef Template<U::Value> Type;
+    };
+};
+
+template <typename Value>
+struct ConstantFunc {
+    template <typename X>
+    struct Call {
+        using Type = Value;
+    };
+};
+
+template <typename Func1, typename Func2>
+struct ComposeFunctions {
+    template <typename X>
+    struct Call {
+        using Type = FuncCall<Func1, FuncCall<Func2, X>>;
+    };
+};
 
 #include <aprinter/EndNamespace.h>
 

@@ -33,7 +33,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/IsEqualFunc.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/PowerOfTwo.h>

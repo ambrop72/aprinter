@@ -35,10 +35,7 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/If.h>
-#include <aprinter/meta/TemplateFunc.h>
-#include <aprinter/meta/ComposeFunctions.h>
-#include <aprinter/meta/IsEqualFunc.h>
-#include <aprinter/meta/NotFunc.h>
+#include <aprinter/meta/FuncUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/Stm32f4Pins.h>
