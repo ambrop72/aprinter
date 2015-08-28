@@ -38,7 +38,7 @@
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>

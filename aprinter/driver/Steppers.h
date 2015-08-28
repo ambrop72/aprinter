@@ -28,7 +28,7 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FuncUtils.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/SequenceList.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/ChooseInt.h>

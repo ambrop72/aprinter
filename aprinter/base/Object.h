@@ -30,8 +30,7 @@
 #include <aprinter/meta/Union.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/UnionGet.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
-#include <aprinter/meta/HasMemberTypeFunc.h>
+#include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/IsEmpty.h>

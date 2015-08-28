@@ -44,7 +44,7 @@
 #include <aprinter/meta/ConstexprCrc32.h>
 #include <aprinter/meta/ConstexprString.h>
 #include <aprinter/meta/StaticArray.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/MemberType.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/AsciiTools.h>

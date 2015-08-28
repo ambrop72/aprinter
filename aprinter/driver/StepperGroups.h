@@ -29,7 +29,7 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/MemberType.h>
 #include <aprinter/driver/Steppers.h>
 
 #include <aprinter/BeginNamespace.h>

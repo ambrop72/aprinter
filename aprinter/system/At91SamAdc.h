@@ -33,7 +33,7 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/StructIf.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/FixedPoint.h>

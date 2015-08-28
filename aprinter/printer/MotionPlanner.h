@@ -43,7 +43,7 @@
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/IndexElemUnion.h>
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>

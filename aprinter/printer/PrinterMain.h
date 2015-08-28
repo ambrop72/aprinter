@@ -41,7 +41,6 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Union.h>
 #include <aprinter/meta/UnionGet.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/PowerOfTwo.h>

@@ -25,8 +25,34 @@
 #ifndef APRINTER_MEMBER_TYPE_H
 #define APRINTER_MEMBER_TYPE_H
 
-#include <aprinter/meta/HasMemberTypeFunc.h>
-#include <aprinter/meta/GetMemberTypeFunc.h>
+#include <aprinter/meta/WrapValue.h>
+
+#define AMBRO_DECLARE_HAS_MEMBER_TYPE_FUNC(ClassName, TypeMemberName) \
+struct ClassName { \
+    template <typename T> \
+    class Call { \
+    private: \
+        typedef char Yes[1]; \
+        typedef char No[2]; \
+        \
+        template <typename U> \
+        static Yes & test (typename U::TypeMemberName *arg); \
+        \
+        template <typename U> \
+        static No & test (...); \
+        \
+    public: \
+        typedef APrinter::WrapBool<(sizeof(test<T>(0)) == sizeof(Yes))> Type; \
+    }; \
+};
+
+#define AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(ClassName, TypeMemberName) \
+struct ClassName { \
+    template <typename T> \
+    struct Call { \
+        typedef typename T::TypeMemberName Type; \
+    }; \
+};
 
 #define APRINTER_DEFINE_MEMBER_TYPE(ClassName, MemberName) \
 struct ClassName { \
