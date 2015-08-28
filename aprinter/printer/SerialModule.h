@@ -30,7 +30,7 @@
 #include <string.h>
 
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>

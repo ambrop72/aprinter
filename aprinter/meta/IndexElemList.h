@@ -25,7 +25,6 @@
 #ifndef AMBROLIB_INDEX_ELEM_LIST_H
 #define AMBROLIB_INDEX_ELEM_LIST_H
 
-#include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/SequenceList.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ValueTemplateFunc.h>

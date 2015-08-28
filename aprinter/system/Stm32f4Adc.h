@@ -30,12 +30,10 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/TypeDict.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
-#include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>

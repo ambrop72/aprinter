@@ -32,15 +32,12 @@
 #include <stddef.h>
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/IndexElemList.h>
-#include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Union.h>
 #include <aprinter/meta/UnionGet.h>
@@ -48,7 +45,6 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/ComposeFunctions.h>
-#include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/ListForEach.h>

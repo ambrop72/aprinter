@@ -25,12 +25,10 @@
 #ifndef APRINTER_MOTOR_CURRENT_MODULE_H
 #define APRINTER_MOTOR_CURRENT_MODULE_H
 
-#include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
-#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/printer/Configuration.h>
 

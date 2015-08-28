@@ -35,7 +35,6 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/TypesAreEqual.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/ChooseInt.h>

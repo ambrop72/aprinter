@@ -30,7 +30,7 @@
 #include <sam/drivers/pmc/pmc.h>
 
 #include <aprinter/base/Object.h>
-#include <aprinter/meta/MakeTypeList.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/ConstexprMath.h>

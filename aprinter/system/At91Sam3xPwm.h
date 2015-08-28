@@ -33,7 +33,6 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/base/DebugObject.h>

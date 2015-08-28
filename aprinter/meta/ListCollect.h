@@ -27,17 +27,13 @@
 
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeDict.h>
-#include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/IfFunc.h>
 #include <aprinter/meta/ConstantFunc.h>
-#include <aprinter/meta/JoinTypeListList.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/FuncCall.h>
-#include <aprinter/meta/TypeListFold.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/IsEqualFunc.h>
 
 #include <aprinter/BeginNamespace.h>

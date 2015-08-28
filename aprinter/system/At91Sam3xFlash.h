@@ -29,8 +29,8 @@
 #include <stddef.h>
 
 #include <aprinter/base/Object.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>

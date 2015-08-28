@@ -32,7 +32,6 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FixedPoint.h>
-#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>

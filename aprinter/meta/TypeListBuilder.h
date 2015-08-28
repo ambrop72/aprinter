@@ -26,7 +26,7 @@
 #define APRINTER_TYPE_LIST_BUILDER
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/TypeListReverse.h>
+#include <aprinter/meta/TypeListUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

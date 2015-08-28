@@ -30,8 +30,7 @@
 #include <avr/sfr_defs.h>
 #include <avr/io.h>
 
-#include <aprinter/meta/MakeTypeList.h>
-#include <aprinter/meta/FilterTypeList.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/NotFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>

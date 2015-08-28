@@ -26,25 +26,20 @@
 #define AMBROLIB_OBJECT_H
 
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/Union.h>
-#include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/HasMemberTypeFunc.h>
-#include <aprinter/meta/JoinTypeListList.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/IfFunc.h>
 #include <aprinter/meta/ConstantFunc.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/FuncCall.h>
-#include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/IsEmpty.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/TypeListFold.h>
 
 #include <aprinter/BeginNamespace.h>
 

@@ -27,20 +27,16 @@
 
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/IsEqualFunc.h>
 #include <aprinter/meta/ComposeFunctions.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/SequenceList.h>
 #include <aprinter/base/Object.h>
-#include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/ValueTemplateFunc.h>
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/printer/Configuration.h>
 

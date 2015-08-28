@@ -33,7 +33,6 @@
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/TupleGet.h>
@@ -43,10 +42,7 @@
 #include <aprinter/meta/Union.h>
 #include <aprinter/meta/UnionGet.h>
 #include <aprinter/meta/IndexElemUnion.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/JoinTypeLists.h>
-#include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>

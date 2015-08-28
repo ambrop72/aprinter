@@ -31,16 +31,12 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/GetMemberTypeFunc.h>
-#include <aprinter/meta/MapTypeList.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/TypeListFold.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/FixedPoint.h>
-#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/system/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>

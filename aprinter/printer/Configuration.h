@@ -31,7 +31,6 @@
 #include <aprinter/meta/Expr.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/IndexElemList.h>
-#include <aprinter/meta/FilterTypeList.h>
 #include <aprinter/meta/TemplateFunc.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/NotFunc.h>
@@ -39,9 +38,7 @@
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/ComposeFunctions.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/meta/TypeList.h>
-#include <aprinter/meta/JoinTypeLists.h>
 #include <aprinter/meta/ConstantFunc.h>
 #include <aprinter/meta/FuncCall.h>
 #include <aprinter/base/DebugObject.h>

@@ -28,7 +28,6 @@
 #include <stdint.h>
 
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/MakeTypeList.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/base/DebugObject.h>
@@ -36,6 +35,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/ExprFixedPoint.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>
 

@@ -28,10 +28,41 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeDict.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/MapTypeList.h>
-#include <aprinter/meta/TypeListReverse.h>
+#include <aprinter/meta/FuncCall.h>
 
 #include <aprinter/BeginNamespace.h>
+
+template <typename... Ts>
+struct MakeTypeListHelper;
+
+template <>
+struct MakeTypeListHelper<> {
+    typedef EmptyTypeList Type;
+};
+
+template <typename T, typename... Ts>
+struct MakeTypeListHelper<T, Ts...> {
+    typedef ConsTypeList<T, typename MakeTypeListHelper<Ts...>::Type> Type;
+};
+
+template <typename... Ts>
+using MakeTypeList = typename MakeTypeListHelper<Ts...>::Type;
+
+template <typename List, typename Func>
+struct MapTypeListHelper;
+
+template <typename Func>
+struct MapTypeListHelper<EmptyTypeList, Func> {
+    typedef EmptyTypeList Type;
+};
+
+template <typename Head, typename Tail, typename Func>
+struct MapTypeListHelper<ConsTypeList<Head, Tail>, Func> {
+    typedef ConsTypeList<FuncCall<Func, Head>, typename MapTypeListHelper<Tail, Func>::Type> Type;
+};
+
+template <typename List, typename Func>
+using MapTypeList = typename MapTypeListHelper<List, Func>::Type;
 
 namespace Private {
     template <typename List>
@@ -50,6 +81,157 @@ namespace Private {
 
 template <typename List>
 using TypeListLength = Private::TypeListLengthHelper<List>;
+
+template <typename List, typename Reversed>
+struct TypeListReverseHelper;
+
+template <typename Reversed>
+struct TypeListReverseHelper<EmptyTypeList, Reversed> {
+    using Type = Reversed;
+};
+
+template <typename Head, typename Tail, typename Reversed>
+struct TypeListReverseHelper<ConsTypeList<Head, Tail>, Reversed> {
+    using Type = typename TypeListReverseHelper<Tail, ConsTypeList<Head, Reversed>>::Type;
+};
+
+template <typename List>
+using TypeListReverse = typename TypeListReverseHelper<List, EmptyTypeList>::Type;
+
+template <typename List, typename Value, template<typename, typename> class FoldFunc>
+struct TypeListFoldHelper;
+
+template <typename Value, template<typename, typename> class FoldFunc>
+struct TypeListFoldHelper<EmptyTypeList, Value, FoldFunc> {
+    using Type = Value;
+};
+
+template <typename Head, typename Tail, typename Value, template<typename, typename> class FoldFunc>
+struct TypeListFoldHelper<ConsTypeList<Head, Tail>, Value, FoldFunc> {
+    using Type = typename TypeListFoldHelper<Tail, FoldFunc<Head, Value>, FoldFunc>::Type;
+};
+
+template <typename List, typename InitialValue, template<typename ListElem, typename AccumValue> class FoldFunc>
+using TypeListFold = typename TypeListFoldHelper<List, InitialValue, FoldFunc>::Type;
+
+template <typename List, typename Value, template<typename, typename> class FoldFunc>
+struct TypeListFoldRightHelper;
+
+template <typename Value, template<typename, typename> class FoldFunc>
+struct TypeListFoldRightHelper<EmptyTypeList, Value, FoldFunc> {
+    using Type = Value;
+};
+
+template <typename Head, typename Tail, typename Value, template<typename, typename> class FoldFunc>
+struct TypeListFoldRightHelper<ConsTypeList<Head, Tail>, Value, FoldFunc> {
+    using Type = FoldFunc<Head, typename TypeListFoldRightHelper<Tail, Value, FoldFunc>::Type>;
+};
+
+template <typename List, typename InitialValue, template<typename ListElem, typename AccumValue> class FoldFunc>
+using TypeListFoldRight = typename TypeListFoldRightHelper<List, InitialValue, FoldFunc>::Type;
+
+template <typename List, int IndexFrom>
+struct TypeListRangeFromHelper;
+
+template <>
+struct TypeListRangeFromHelper<EmptyTypeList, 0> {
+    using Result = EmptyTypeList;
+};
+
+template <typename Head, typename Tail>
+struct TypeListRangeFromHelper<ConsTypeList<Head, Tail>, 0> {
+    using Result = ConsTypeList<Head, Tail>;
+};
+
+template <typename Head, typename Tail, int IndexFrom>
+struct TypeListRangeFromHelper<ConsTypeList<Head, Tail>, IndexFrom> {
+    static_assert(IndexFrom > 0, "");
+    using Result = typename TypeListRangeFromHelper<Tail, (IndexFrom - 1)>::Result;
+};
+
+template <typename List, int IndexTo>
+struct TypeListRangeToHelper;
+
+template <>
+struct TypeListRangeToHelper<EmptyTypeList, 0> {
+    using Result = EmptyTypeList;
+};
+
+template <typename Head, typename Tail>
+struct TypeListRangeToHelper<ConsTypeList<Head, Tail>, 0> {
+    using Result = EmptyTypeList;
+};
+
+template <typename Head, typename Tail, int IndexTo>
+struct TypeListRangeToHelper<ConsTypeList<Head, Tail>, IndexTo> {
+    static_assert(IndexTo > 0, "");
+    using Result = ConsTypeList<Head, typename TypeListRangeToHelper<Tail, (IndexTo - 1)>::Result>;
+};
+
+template <typename List, int IndexFrom>
+using TypeListRangeFrom = typename TypeListRangeFromHelper<List, IndexFrom>::Result;
+
+template <typename List, int IndexTo>
+using TypeListRangeTo = typename TypeListRangeToHelper<List, IndexTo>::Result;
+
+template <typename List, int IndexFrom, int Count>
+using TypeListRange = TypeListRangeTo<TypeListRangeFrom<List, IndexFrom>, Count>;
+
+template <typename List1, typename List2>
+struct JoinTypeListsHelper;
+
+template <typename List2>
+struct JoinTypeListsHelper<EmptyTypeList, List2> {
+    typedef List2 Type;
+};
+
+template <typename Head, typename Tail, typename List2>
+struct JoinTypeListsHelper<ConsTypeList<Head, Tail>, List2> {
+    typedef ConsTypeList<Head, typename JoinTypeListsHelper<Tail, List2>::Type> Type;
+};
+
+template <typename List1, typename List2>
+using JoinTwoTypeLists = typename JoinTypeListsHelper<List1, List2>::Type;
+
+template <typename List1, typename List2>
+using JoinTwoTypeListsSwapped = typename JoinTypeListsHelper<List2, List1>::Type;
+
+template <typename... Lists>
+using JoinTypeLists = TypeListFoldRight<MakeTypeList<Lists...>, EmptyTypeList, JoinTwoTypeLists>;
+
+template <typename Lists>
+using JoinTypeListList = TypeListFoldRight<Lists, EmptyTypeList, JoinTwoTypeLists>;
+
+template <typename List, typename Predicate>
+struct FilterTypeListHelper;
+
+namespace Private {
+    template <typename Head, typename Tail, typename Predicate, bool IncludeHead>
+    struct FilterTypeListHelperHelper;
+
+    template <typename Head, typename Tail, typename Predicate>
+    struct FilterTypeListHelperHelper<Head, Tail, Predicate, true> {
+        typedef ConsTypeList<Head, typename FilterTypeListHelper<Tail, Predicate>::Type> Type;
+    };
+
+    template <typename Head, typename Tail, typename Predicate>
+    struct FilterTypeListHelperHelper<Head, Tail, Predicate, false> {
+        typedef typename FilterTypeListHelper<Tail, Predicate>::Type Type;
+    };
+}
+
+template <typename Predicate>
+struct FilterTypeListHelper<EmptyTypeList, Predicate> {
+    typedef EmptyTypeList Type;
+};
+
+template <typename Head, typename Tail, typename Predicate>
+struct FilterTypeListHelper<ConsTypeList<Head, Tail>, Predicate> {
+    typedef typename Private::FilterTypeListHelperHelper<Head, Tail, Predicate, FuncCall<Predicate, Head>::Value>::Type Type;
+};
+
+template <typename List, typename Predicate>
+using FilterTypeList = typename FilterTypeListHelper<List, Predicate>::Type;
 
 namespace Private {
     template <int, typename>
