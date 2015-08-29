@@ -71,10 +71,13 @@ private:
     
     using CWaitTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitTimeout::i()) * TimeConversion()));
     
+    static int const SetHeaterCommand = 104;
+    static int const SetFanCommand = 106;
+    static int const OffFanCommand = 107;
+    
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_emergency, emergency)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_adc_value, append_adc_value)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_wait_mask, update_wait_mask)
@@ -82,6 +85,8 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stop_wait, stop_wait)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_channel_callback, channel_callback)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_value, append_value)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_set_command, check_set_command)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     
 public:
@@ -99,8 +104,16 @@ public:
     
     static bool check_command (Context c, TheCommand *cmd)
     {
+        if (cmd->getCmdNumber(c) == SetHeaterCommand) {
+            handle_set_heater_command(c, cmd);
+            return false;
+        }
         if (cmd->getCmdNumber(c) == 105) {
             handle_print_heaters_command(c, cmd);
+            return false;
+        }
+        if (cmd->getCmdNumber(c) == SetFanCommand || cmd->getCmdNumber(c) == OffFanCommand) {
+            handle_set_fan_command(c, cmd, cmd->getCmdNumber(c) == OffFanCommand);
             return false;
         }
         if (cmd->getCmdNumber(c) == 116) {
@@ -127,6 +140,22 @@ public:
     }
     
 private:
+    template <typename Name>
+    static void print_name (Context c, TheCommand *cmd)
+    {
+        cmd->reply_append_ch(c, Name::Letter);
+        if (Name::Number != 0) {
+            cmd->reply_append_uint8(c, Name::Number);
+        }
+    }
+    
+    template <typename Name>
+    static bool match_name (Context c, TheCommand *cmd)
+    {
+        typename TheCommand::PartRef part;
+        return cmd->find_command_param(c, Name::Letter, &part) && cmd->getPartUint32Value(c, part) == Name::Number;
+    }
+    
     template <int HeaterIndex>
     struct Heater {
         struct Object;
@@ -213,7 +242,7 @@ private:
         {
             FpType value = get_temp(c);
             cmd->reply_append_ch(c, ' ');
-            cmd->reply_append_ch(c, HeaterSpec::Name);
+            print_name<typename HeaterSpec::Name>(c, cmd);
             cmd->reply_append_ch(c, ':');
             cmd->reply_append_fp(c, value);
         }
@@ -222,7 +251,7 @@ private:
         {
             AdcFixedType adc_value = get_adc(c);
             cmd->reply_append_ch(c, ' ');
-            cmd->reply_append_ch(c, HeaterSpec::Name);
+            print_name<typename HeaterSpec::Name>(c, cmd);
             cmd->reply_append_pstr(c, AMBRO_PSTR("A:"));
             cmd->reply_append_fp(c, adc_value.template fpValue<FpType>());
         }
@@ -251,28 +280,39 @@ private:
             }
         }
         
-        static bool check_command (Context c, TheCommand *cmd)
+        static bool check_set_command (Context c, TheCommand *cmd, bool use_default)
         {
-            auto *o = Object::self(c);
-            
-            if (cmd->getCmdNumber(c) == HeaterSpec::SetMCommand) {
-                if (!cmd->tryPlannedCommand(c)) {
-                    return false;
-                }
-                FpType target = cmd->get_command_param_fp(c, 'S', 0.0f);
-                cmd->finishCommand(c);
-                if (!(target >= APRINTER_CFG(Config, CMinSafeTemp, c) && target <= APRINTER_CFG(Config, CMaxSafeTemp, c))) {
-                    target = NAN;
-                }
-                auto *planner_cmd = ThePlanner<>::getBuffer(c);
-                PlannerChannelPayload *payload = UnionGetElem<PlannerChannelIndex<>::Value>(&planner_cmd->channel_payload);
-                payload->type = HeaterIndex;
-                UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
-                ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
-                ThePrinterMain::submitted_planner_command(c);
+            if (!use_default ? match_name<typename HeaterSpec::Name>(c, cmd) : (HeaterSpec::SetMCommand != 0 && SetHeaterCommand == HeaterSpec::SetMCommand)) {
+                handle_set_command(c, cmd);
                 return false;
             }
             return true;
+        }
+        
+        static bool check_command (Context c, TheCommand *cmd)
+        {
+            if (HeaterSpec::SetMCommand != 0 && HeaterSpec::SetMCommand != SetHeaterCommand && cmd->getCmdNumber(c) == HeaterSpec::SetMCommand) {
+                if (cmd->tryPlannedCommand(c)) {
+                    handle_set_command(c, cmd);
+                }
+                return false;
+            }
+            return true;
+        }
+        
+        static void handle_set_command (Context c, TheCommand *cmd)
+        {
+            FpType target = cmd->get_command_param_fp(c, 'S', 0.0f);
+            cmd->finishCommand(c);
+            if (!(target >= APRINTER_CFG(Config, CMinSafeTemp, c) && target <= APRINTER_CFG(Config, CMaxSafeTemp, c))) {
+                target = NAN;
+            }
+            auto *planner_cmd = ThePlanner<>::getBuffer(c);
+            PlannerChannelPayload *payload = UnionGetElem<PlannerChannelIndex<>::Value>(&planner_cmd->channel_payload);
+            payload->type = HeaterIndex;
+            UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
+            ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
+            ThePrinterMain::submitted_planner_command(c);
         }
         
         static void check_safety (Context c)
@@ -353,7 +393,7 @@ private:
         template <typename TheHeatersMaskType>
         static void update_wait_mask (Context c, TheCommand *cmd, TheHeatersMaskType *mask, typename TheCommand::PartRef part)
         {
-            if (cmd->getPartCode(c, part) == HeaterSpec::Name) {
+            if (cmd->getPartCode(c, part) == HeaterSpec::Name::Letter && cmd->getPartUint32Value(c, part) == HeaterSpec::Name::Number) {
                 *mask |= Lazy<>::HeaterMask;
             }
         }
@@ -429,29 +469,48 @@ private:
             ThePwm::deinit(c);
         }
         
-        static bool check_command (Context c, TheCommand *cmd)
+        static bool check_set_command (Context c, TheCommand *cmd, bool is_turn_off, bool use_default)
         {
-            if (cmd->getCmdNumber(c) == FanSpec::SetMCommand || cmd->getCmdNumber(c) == FanSpec::OffMCommand) {
-                if (!cmd->tryPlannedCommand(c)) {
-                    return false;
-                }
-                FpType target = 0.0f;
-                if (cmd->getCmdNumber(c) == FanSpec::SetMCommand) {
-                    target = 1.0f;
-                    if (cmd->find_command_param_fp(c, 'S', &target)) {
-                        target *= (FpType)FanSpec::SpeedMultiply::value();
-                    }
-                }
-                cmd->finishCommand(c);
-                auto *planner_cmd = ThePlanner<>::getBuffer(c);
-                PlannerChannelPayload *payload = UnionGetElem<PlannerChannelIndex<>::Value>(&planner_cmd->channel_payload);
-                payload->type = NumHeaters + FanIndex;
-                ThePwm::computeDutyCycle(target, &UnionGetElem<FanIndex>(&payload->fans)->duty);
-                ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
-                ThePrinterMain::submitted_planner_command(c);
+            if (!use_default ? match_name<typename FanSpec::Name>(c, cmd) : (
+                !is_turn_off ?
+                (FanSpec::SetMCommand != 0 && SetFanCommand == FanSpec::SetMCommand) :
+                (FanSpec::OffMCommand != 0 && OffFanCommand == FanSpec::OffMCommand)
+            )) {
+                handle_set_command(c, cmd, is_turn_off);
                 return false;
             }
             return true;
+        }
+        
+        static bool check_command (Context c, TheCommand *cmd)
+        {
+            if ((FanSpec::SetMCommand != 0 && FanSpec::SetMCommand != SetFanCommand && cmd->getCmdNumber(c) == FanSpec::SetMCommand) ||
+                (FanSpec::OffMCommand != 0 && FanSpec::OffMCommand != OffFanCommand && cmd->getCmdNumber(c) == FanSpec::OffMCommand)
+            ) {
+                if (cmd->tryPlannedCommand(c)) {
+                    handle_set_command(c, cmd, cmd->getCmdNumber(c) == FanSpec::OffMCommand);
+                }
+                return false;
+            }
+            return true;
+        }
+        
+        static void handle_set_command (Context c, TheCommand *cmd, bool is_turn_off)
+        {
+            FpType target = 0.0f;
+            if (!is_turn_off) {
+                target = 1.0f;
+                if (cmd->find_command_param_fp(c, 'S', &target)) {
+                    target *= (FpType)FanSpec::SpeedMultiply::value();
+                }
+            }
+            cmd->finishCommand(c);
+            auto *planner_cmd = ThePlanner<>::getBuffer(c);
+            PlannerChannelPayload *payload = UnionGetElem<PlannerChannelIndex<>::Value>(&planner_cmd->channel_payload);
+            payload->type = NumHeaters + FanIndex;
+            ThePwm::computeDutyCycle(target, &UnionGetElem<FanIndex>(&payload->fans)->duty);
+            ThePlanner<>::channelCommandDone(c, PlannerChannelIndex<>::Value + 1);
+            ThePrinterMain::submitted_planner_command(c);
         }
         
         static void emergency ()
@@ -496,12 +555,38 @@ private:
     template <typename This=AuxControlModule>
     using PlannerChannelIndex = typename This::ThePrinterMain::template GetPlannerChannelIndex<PlannerChannelSpec>;
     
+    static void handle_set_heater_command (Context c, TheCommand *cmd)
+    {
+        if (!cmd->tryPlannedCommand(c)) {
+            return;
+        }
+        if (ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, false) &&
+            ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, true)
+        ) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:UnknownHeater\n"));
+            cmd->finishCommand(c);
+        }
+    }
+    
     static void handle_print_heaters_command (Context c, TheCommand *cmd)
     {
         cmd->reply_append_pstr(c, AMBRO_PSTR("ok"));
         ListForEachForward<HeatersList>(LForeach_append_value(), c, cmd);
         cmd->reply_append_ch(c, '\n');
         cmd->finishCommand(c, true);
+    }
+    
+    static void handle_set_fan_command (Context c, TheCommand *cmd, bool is_turn_off)
+    {
+        if (!cmd->tryPlannedCommand(c)) {
+            return;
+        }
+        if (ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, is_turn_off, false) &&
+            ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, is_turn_off, true)
+        ) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:UnknownFan\n"));
+            cmd->finishCommand(c);
+        }
     }
     
     static void handle_wait_heaters_command (Context c, TheCommand *cmd)
@@ -592,7 +677,16 @@ public:
 };
 
 template <
-    char TName,
+    char TLetter,
+    uint8_t TNumber
+>
+struct AuxControlName {
+    static char const Letter = TLetter;
+    static uint8_t const Number = TNumber;
+};
+
+template <
+    typename TName,
     int TSetMCommand,
     typename TAdcPin,
     typename TFormula,
@@ -604,7 +698,7 @@ template <
     typename TPwmService
 >
 struct AuxControlModuleHeaterParams {
-    static char const Name = TName;
+    using Name = TName;
     static int const SetMCommand = TSetMCommand;
     using AdcPin = TAdcPin;
     using Formula = TFormula;
@@ -617,12 +711,14 @@ struct AuxControlModuleHeaterParams {
 };
 
 template <
+    typename TName,
     int TSetMCommand,
     int TOffMCommand,
     typename TSpeedMultiply,
     typename TPwmService
 >
 struct AuxControlModuleFanParams {
+    using Name = TName;
     static int const SetMCommand = TSetMCommand;
     static int const OffMCommand = TOffMCommand;
     using SpeedMultiply = TSpeedMultiply;

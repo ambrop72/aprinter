@@ -448,9 +448,9 @@ def editor():
                 ),
             ]),
             ce.Array(key='heaters', title='Heaters', copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('heater', title='Heater', title_key='Name', collapsable=True, ident='id_configuration_heater', attrs=[
-                ce.String(key='Name', title='Name (single character, T=extruder, B=bed)'),
+                ce.String(key='Name', title='Name (capital letter optionally followed by a number; T=extruder, B=bed)'),
+                ce.Integer(key='SetMCommand', title='Set command M-number (optional; M104 can set any heater)', default=0),
                 pwm_output_choice(configuration_context, key='pwm_output', title='PWM output'),
-                ce.Integer(key='SetMCommand', title='Set command M-number (extruder 104, bed 140)', default=104),
                 analog_input_choice(key='ThermistorInput', title='Thermistor analog input'),
                 ce.Float(key='MinSafeTemp', title='Turn off if temperature is below [C]', default=10),
                 ce.Float(key='MaxSafeTemp', title='Turn off if temperature is above [C]', default=280),
@@ -477,10 +477,10 @@ def editor():
                 ])
             ])),
             ce.Array(key='fans', title='Fans', copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('fan', title='Fan', title_key='Name', collapsable=True, ident='id_configuration_fan', attrs=[
-                ce.String(key='Name', title='Name (single character, e.g. the same as corresponding extruder)'),
+                ce.String(key='Name', title='Name (capital letter optionally followed by a number)'),
                 pwm_output_choice(configuration_context, key='pwm_output', title='PWM output'),
-                ce.Integer(key='SetMCommand', title='Set-command M-number (106 for first fan)'),
-                ce.Integer(key='OffMCommand', title='Off-command M-number (107 for first fan)'),
+                ce.Integer(key='SetMCommand', title='Set-command M-number (optional; M106 can set any fan)'),
+                ce.Integer(key='OffMCommand', title='Off-command M-number (optional; M107 can off any fan)'),
             ])),
             ce.Compound('ProbeConfig', key='probe_config', title='Bed probing configuration', collapsable=True, attrs=[
                 ce.OneOf(key='probe', title='Bed probing', choices=[

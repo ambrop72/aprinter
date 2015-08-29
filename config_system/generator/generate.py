@@ -997,6 +997,16 @@ def use_current_driver_channel(gen, config, key, name):
     
     return config.do_selection(key, current_driver_channel_sel)
 
+def get_letter_number_name(config, key):
+    name = config.get_string(key)
+    match = re.match('\\A([A-Z])([0-9]{0,2})\\Z', name)
+    if not match:
+        config.key_path(key).error('Incorrect name (expecting letter optionally followed by a number).')
+    letter = match.group(1)
+    number = int(match.group(2)) if match.group(2) != '' else 0
+    normalized_name = '{}{}'.format(letter, number)
+    return normalized_name, TemplateExpr('AuxControlName', [TemplateChar(letter), number])
+
 def generate(config_root_data, cfg_name, main_template):
     gen = GenState()
     
@@ -1264,7 +1274,7 @@ def generate(config_root_data, cfg_name, main_template):
             steppers_expr = config.do_list('steppers', stepper_cb, min_count=1, max_count=15)
             
             def heater_cb(heater, heater_index):
-                name = heater.get_id_char('Name')
+                name, name_expr = get_letter_number_name(heater, 'Name')
                 
                 for conversion in heater.enter_config('conversion'):
                     gen.add_aprinter_include('printer/thermistor/GenericThermistor.h')
@@ -1297,7 +1307,7 @@ def generate(config_root_data, cfg_name, main_template):
                     ])
                 
                 return TemplateExpr('AuxControlModuleHeaterParams', [
-                    TemplateChar(name),
+                    name_expr,
                     heater.get_int('SetMCommand'),
                     use_analog_input(gen, heater, 'ThermistorInput'),
                     thermistor,
@@ -1484,9 +1494,10 @@ def generate(config_root_data, cfg_name, main_template):
             probe_expr = config.get_config('probe_config').do_selection('probe', probe_sel)
             
             def fan_cb(fan, fan_index):
-                name = fan.get_id_char('Name')
+                name, name_expr = get_letter_number_name(fan, 'Name')
                 
                 return TemplateExpr('AuxControlModuleFanParams', [
+                    name_expr,
                     fan.get_int('SetMCommand'),
                     fan.get_int('OffMCommand'),
                     'FanSpeedMultiply',
