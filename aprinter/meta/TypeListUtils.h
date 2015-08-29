@@ -362,6 +362,28 @@ namespace Private {
 template <typename List, int Offset=0>
 using TypeListEnumerate = typename Private::TypeListEnumerateHelper<Offset, List>::Result;
 
+namespace Private {
+    struct TypeDictGetKeyFunc {
+        template <typename Entry>
+        struct Call {
+            using Type = typename Entry::Key;
+        };
+    };
+    
+    struct TypeDictGetValueFunc {
+        template <typename Entry>
+        struct Call {
+            using Type = typename Entry::Value;
+        };
+    };
+}
+
+template <typename List>
+using TypeDictKeys = MapTypeList<List, Private::TypeDictGetKeyFunc>;
+
+template <typename List>
+using TypeDictValues = MapTypeList<List, Private::TypeDictGetValueFunc>;
+
 #include <aprinter/EndNamespace.h>
 
 #endif

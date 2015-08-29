@@ -45,7 +45,6 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/Expr.h>
 #include <aprinter/meta/If.h>
@@ -73,41 +72,34 @@
 
 template <
     typename TLedPin, typename TLedBlinkInterval, typename TInactiveTime,
-    typename TWaitTimeout,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
-    int TStepperSegmentBufferSize, int TEventChannelBufferSize, int TLookaheadBufferSize,
+    int TStepperSegmentBufferSize, int TLookaheadBufferSize,
     int TLookaheadCommitCount,
     typename TForceTimeout, typename TFpType,
-    typename TEventChannelTimerService,
     typename TWatchdogService,
     typename TProbeParams,
     typename TConfigManagerService,
     typename TConfigList,
-    typename TAxesList, typename TTransformParams, typename THeatersList, typename TFansList,
+    typename TAxesList, typename TTransformParams,
     typename TLasersList, typename TModulesList
 >
 struct PrinterMainParams {
     using LedPin = TLedPin;
     using LedBlinkInterval = TLedBlinkInterval;
     using InactiveTime = TInactiveTime;
-    using WaitTimeout = TWaitTimeout;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using MaxStepsPerCycle = TMaxStepsPerCycle;
     static int const StepperSegmentBufferSize = TStepperSegmentBufferSize;
-    static int const EventChannelBufferSize = TEventChannelBufferSize;
     static int const LookaheadBufferSize = TLookaheadBufferSize;
     static int const LookaheadCommitCount = TLookaheadCommitCount;
     using ForceTimeout = TForceTimeout;
     using FpType = TFpType;
-    using EventChannelTimerService = TEventChannelTimerService;
     using WatchdogService = TWatchdogService;
     using ProbeParams = TProbeParams;
     using ConfigManagerService = TConfigManagerService;
     using ConfigList = TConfigList;
     using AxesList = TAxesList;
     using TransformParams = TTransformParams;
-    using HeatersList = THeatersList;
-    using FansList = TFansList;
     using LasersList = TLasersList;
     using ModulesList = TModulesList;
 };
@@ -235,41 +227,6 @@ struct PrinterMainVirtualHomingParams {
     using SlowSpeed = TSlowSpeed;
 };
 
-template <
-    char TName, int TSetMCommand,
-    typename TAdcPin,
-    typename TFormula,
-    typename TMinSafeTemp, typename TMaxSafeTemp,
-    typename TControlInterval,
-    typename TControlService,
-    typename TObserverService,
-    typename TPwmService
->
-struct PrinterMainHeaterParams {
-    static char const Name = TName;
-    static int const SetMCommand = TSetMCommand;
-    using AdcPin = TAdcPin;
-    using Formula = TFormula;
-    using MinSafeTemp = TMinSafeTemp;
-    using MaxSafeTemp = TMaxSafeTemp;
-    using ControlInterval = TControlInterval;
-    using ControlService = TControlService;
-    using ObserverService = TObserverService;
-    using PwmService = TPwmService;
-};
-
-template <
-    int TSetMCommand, int TOffMCommand,
-    typename TSpeedMultiply,
-    typename TPwmService
->
-struct PrinterMainFanParams {
-    static int const SetMCommand = TSetMCommand;
-    static int const OffMCommand = TOffMCommand;
-    using SpeedMultiply = TSpeedMultiply;
-    using PwmService = TPwmService;
-};
-
 struct PrinterMainNoProbeParams {
     static bool const Enabled = false;
 };
@@ -326,10 +283,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_limit_axis_move_speed, limit_axis_move_speed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fix_aborted_pos, fix_aborted_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_m119_append_endstop, m119_append_endstop)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_value, append_value)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_adc_value, append_adc_value)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_channel_callback, channel_callback)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_command_in_state_helper, get_command_in_state_helper)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_position, append_position)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_new_pos, collect_new_pos)
@@ -340,22 +294,22 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_planner_cmd, write_planner_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_begin_move, begin_move)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_wait_mask, update_wait_mask)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_wait, start_wait)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stop_wait, stop_wait)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_save_req_pos, save_req_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_restore_req_pos, restore_req_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_configuration_changed, configuration_changed)
-    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheModule, TheModule)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ConfigExprs, ConfigExprs)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_CommandChannels, CommandChannels)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ProvidedServices, ProvidedServices)
+    APRINTER_DEFINE_MEMBER_TYPE(MemberType_MotionPlannerChannels, MotionPlannerChannels)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_command, check_command)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_configuration_changed, configuration_changed)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_emergency, emergency)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_safety, check_safety)
     
     struct PlannerUnion;
     struct PlannerUnionPlanner;
@@ -366,7 +320,6 @@ private:
     struct PlannerFinishedHandler;
     struct PlannerAbortedHandler;
     struct PlannerUnderrunCallback;
-    struct PlannerChannelCallback;
     template <int AxisIndex> struct PlannerPrestepCallback;
     template <int AxisIndex> struct AxisDriverConsumersList;
     struct DelayedConfigExprs;
@@ -377,8 +330,6 @@ private:
     using ParamsAxesList = typename Params::AxesList;
     using ParamsLasersList = typename Params::LasersList;
     using TransformParams = typename Params::TransformParams;
-    using ParamsHeatersList = typename Params::HeatersList;
-    using ParamsFansList = typename Params::FansList;
     using ParamsModulesList = typename Params::ModulesList;
     
     using TheDebugObject = DebugObject<Context, Object>;
@@ -433,11 +384,10 @@ private:
     using FCpu = APRINTER_FP_CONST_EXPR(F_CPU);
     
     using CInactiveTimeTicks = decltype(ExprCast<TimeType>(Config::e(Params::InactiveTime::i()) * TimeConversion()));
-    using CWaitTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitTimeout::i()) * TimeConversion()));
     using CStepSpeedLimitFactor = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::MaxStepsPerCycle::i()) * FCpu() * TimeRevConversion())));
     using CForceTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::ForceTimeout::i()) * TimeConversion()));
     
-    using MyConfigExprs = MakeTypeList<CInactiveTimeTicks, CWaitTimeoutTicks, CStepSpeedLimitFactor, CForceTimeoutTicks>;
+    using MyConfigExprs = MakeTypeList<CInactiveTimeTicks, CStepSpeedLimitFactor, CForceTimeoutTicks>;
     
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
@@ -749,6 +699,16 @@ private:
         static void configuration_changed (Context c)
         {
             CallIfExists_configuration_changed::template call_void<TheModule>(c);
+        }
+        
+        static void emergency ()
+        {
+            CallIfExists_emergency::template call_void<TheModule>();
+        }
+        
+        static void check_safety (Context c)
+        {
+            CallIfExists_check_safety::template call_void<TheModule>(c);
         }
         
         struct Object : public ObjBase<Module, typename PrinterMain::Object, MakeTypeList<
@@ -1073,11 +1033,7 @@ private:
     using AxesList = IndexElemList<ParamsAxesList, Axis>;
     
     template <int AxisName>
-    using FindAxis = TypeListIndexMapped<
-        AxesList,
-        GetMemberType_WrappedAxisName,
-        WrapInt<AxisName>
-    >;
+    using FindAxis = TypeListIndexMapped<AxesList, GetMemberType_WrappedAxisName, WrapInt<AxisName>>;
     
     template <typename TheAxis>
     using MakePlannerAxisSpec = MotionPlannerAxisSpec<
@@ -1934,372 +1890,21 @@ public:
     >;
     
 private:
-    template <int HeaterIndex>
-    struct Heater {
-        struct Object;
-        struct ObserverGetValueCallback;
-        struct ObserverHandler;
-        
-        using HeaterSpec = TypeListGet<ParamsHeatersList, HeaterIndex>;
-        using ControlInterval = decltype(Config::e(HeaterSpec::ControlInterval::i()));
-        using TheControl = typename HeaterSpec::ControlService::template Control<Context, Object, Config, ControlInterval, FpType>;
-        using ThePwm = typename HeaterSpec::PwmService::template Pwm<Context, Object>;
-        using TheObserver = typename HeaterSpec::ObserverService::template Observer<Context, Object, Config, FpType, ObserverGetValueCallback, ObserverHandler>;
-        using PwmDutyCycleData = typename ThePwm::DutyCycleData;
-        using TheFormula = typename HeaterSpec::Formula::template Formula<Context, Object, Config, FpType>;
-        using AdcFixedType = typename Context::Adc::FixedType;
-        using AdcIntType = typename AdcFixedType::IntType;
-        
-        // compute the ADC readings corresponding to MinSafeTemp and MaxSafeTemp
-        using AdcRange = APRINTER_FP_CONST_EXPR((PowerOfTwo<double, AdcFixedType::num_bits>::Value));
-        template <typename Temp>
-        static auto TempToAdcAbs (Temp) -> decltype(TheFormula::TempToAdc(Temp()) * AdcRange());
-        using AdcFpLowLimit = APRINTER_FP_CONST_EXPR(1.0 + 0.1);
-        using AdcFpHighLimit = APRINTER_FP_CONST_EXPR((PowerOfTwoMinusOne<AdcIntType, AdcFixedType::num_bits>::Value - 0.1));
-        using InfAdcValueFp = decltype(ExprFmax(AdcFpLowLimit(), TempToAdcAbs(Config::e(HeaterSpec::MaxSafeTemp::i()))));
-        using SupAdcValueFp = decltype(ExprFmin(AdcFpHighLimit(), TempToAdcAbs(Config::e(HeaterSpec::MinSafeTemp::i()))));
-        
-        using CMinSafeTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::MinSafeTemp::i())));
-        using CMaxSafeTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::MaxSafeTemp::i())));
-        using CInfAdcValue = decltype(ExprCast<AdcIntType>(InfAdcValueFp()));
-        using CSupAdcValue = decltype(ExprCast<AdcIntType>(SupAdcValueFp()));
-        using CControlIntervalTicks = decltype(ExprCast<TimeType>(ControlInterval() * TimeConversion()));
-        
-        struct ChannelPayload {
-            FpType target;
-        };
-        
-        template <typename ThePrinterMain = PrinterMain>
-        struct Lazy {
-            static typename ThePrinterMain::HeatersMaskType const HeaterMask = (typename ThePrinterMain::HeatersMaskType)1 << HeaterIndex;
-        };
-        
-        static void init (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_enabled = false;
-            o->m_was_not_unset = false;
-            TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
-            o->m_control_event.init(c, APRINTER_CB_STATFUNC_T(&Heater::control_event_handler));
-            o->m_control_event.appendAt(c, time + (APRINTER_CFG(Config, CControlIntervalTicks, c) / 2));
-            ThePwm::init(c, time);
-            TheObserver::init(c);
-        }
-        
-        static void deinit (Context c)
-        {
-            auto *o = Object::self(c);
-            TheObserver::deinit(c);
-            ThePwm::deinit(c);
-            o->m_control_event.deinit(c);
-        }
-        
-        static FpType adc_to_temp (Context c, AdcFixedType adc_value)
-        {
-            FpType adc_fp = adc_value.template fpValue<FpType>() + (FpType)(0.5 / PowerOfTwo<double, AdcFixedType::num_bits>::Value);
-            return TheFormula::adcToTemp(c, adc_fp);
-        }
-        
-        template <typename ThisContext>
-        static AdcFixedType get_adc (ThisContext c)
-        {
-            return Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
-        }
-        
-        static bool adc_is_unsafe (Context c, AdcFixedType adc_value)
-        {
-            return (adc_value.bitsValue() <= APRINTER_CFG(Config, CInfAdcValue, c) || adc_value.bitsValue() >= APRINTER_CFG(Config, CSupAdcValue, c));
-        }
-        
-        static FpType get_temp (Context c)
-        {
-            return adc_to_temp(c, get_adc(c));
-        }
-        
-        static void append_value (Context c, TheCommand *cmd)
-        {
-            FpType value = get_temp(c);
-            cmd->reply_append_ch(c, ' ');
-            cmd->reply_append_ch(c, HeaterSpec::Name);
-            cmd->reply_append_ch(c, ':');
-            cmd->reply_append_fp(c, value);
-        }
-        
-        static void append_adc_value (Context c, TheCommand *cmd)
-        {
-            AdcFixedType adc_value = get_adc(c);
-            cmd->reply_append_ch(c, ' ');
-            cmd->reply_append_ch(c, HeaterSpec::Name);
-            cmd->reply_append_pstr(c, AMBRO_PSTR("A:"));
-            cmd->reply_append_fp(c, adc_value.template fpValue<FpType>());
-        }
-        
-        template <typename ThisContext>
-        static void set (ThisContext c, FpType target)
-        {
-            auto *o = Object::self(c);
-            
-            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                o->m_target = target;
-                o->m_enabled = true;
-            }
-        }
-        
-        template <typename ThisContext>
-        static void unset (ThisContext c)
-        {
-            auto *o = Object::self(c);
-            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                o->m_enabled = false;
-                o->m_was_not_unset = false;
-                PwmDutyCycleData duty;
-                ThePwm::computeZeroDutyCycle(&duty);
-                ThePwm::setDutyCycle(lock_c, duty);
-            }
-        }
-        
-        static bool check_command (Context c, TheCommand *cmd)
-        {
-            auto *o = Object::self(c);
-            
-            if (cmd->getCmdNumber(c) == HeaterSpec::SetMCommand) {
-                if (!cmd->tryPlannedCommand(c)) {
-                    return false;
-                }
-                FpType target = cmd->get_command_param_fp(c, 'S', 0.0f);
-                cmd->finishCommand(c);
-                if (!(target >= APRINTER_CFG(Config, CMinSafeTemp, c) && target <= APRINTER_CFG(Config, CMaxSafeTemp, c))) {
-                    target = NAN;
-                }
-                PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
-                PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
-                payload->type = HeaterIndex;
-                UnionGetElem<HeaterIndex>(&payload->heaters)->target = target;
-                ThePlanner::channelCommandDone(c, 1);
-                submitted_planner_command(c);
-                return false;
-            }
-            return true;
-        }
-        
-        static void check_safety (Context c)
-        {
-            AdcFixedType adc_value = get_adc(c);
-            if (adc_is_unsafe(c, adc_value)) {
-                unset(c);
-            }
-        }
-        
-        static void observer_handler (Context c, bool state)
-        {
-            auto *o = Object::self(c);
-            auto *mob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(TheObserver::isObserving(c))
-            AMBRO_ASSERT(mob->waiting_heaters & Lazy<>::HeaterMask)
-            
-            if (state) {
-                mob->inrange_heaters |= Lazy<>::HeaterMask;
-            } else {
-                mob->inrange_heaters &= ~Lazy<>::HeaterMask;
-            }
-            check_wait_completion(c);
-        }
-        
-        static void emergency ()
-        {
-            ThePwm::emergency();
-        }
-        
-        template <typename ThisContext, typename TheChannelPayloadUnion>
-        static void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
-        {
-            ChannelPayload *payload = UnionGetElem<HeaterIndex>(payload_union);
-            if (AMBRO_LIKELY(!isnan(payload->target))) {
-                set(c, payload->target);
-            } else {
-                unset(c);
-            }
-        }
-        
-        static void control_event_handler (Context c)
-        {
-            auto *o = Object::self(c);
-            
-            o->m_control_event.appendAfterPrevious(c, APRINTER_CFG(Config, CControlIntervalTicks, c));
-            
-            AdcFixedType adc_value = get_adc(c);
-            if (adc_is_unsafe(c, adc_value)) {
-                unset(c);
-            }
-            
-            bool enabled;
-            FpType target;
-            bool was_not_unset;
-            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                enabled = o->m_enabled;
-                target = o->m_target;
-                was_not_unset = o->m_was_not_unset;
-                o->m_was_not_unset = enabled;
-            }
-            if (AMBRO_LIKELY(enabled)) {
-                if (!was_not_unset) {
-                    TheControl::init(c);
-                }
-                FpType sensor_value = adc_to_temp(c, adc_value);
-                FpType output = TheControl::addMeasurement(c, sensor_value, target);
-                PwmDutyCycleData duty;;
-                ThePwm::computeDutyCycle(output, &duty);
-                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    if (o->m_was_not_unset) {
-                        ThePwm::setDutyCycle(lock_c, duty);
-                    }
-                }
-            }
-        }
-        
-        template <typename TheHeatersMaskType>
-        static void update_wait_mask (Context c, TheCommand *cmd, TheHeatersMaskType *mask, CommandPartRef part)
-        {
-            if (cmd->getPartCode(c, part) == HeaterSpec::Name) {
-                *mask |= Lazy<>::HeaterMask;
-            }
-        }
-        
-        template <typename TheHeatersMaskType>
-        static void start_wait (Context c, TheHeatersMaskType mask)
-        {
-            auto *o = Object::self(c);
-            auto *m = PrinterMain::Object::self(c);
-            
-            if ((mask & Lazy<>::HeaterMask)) {
-                FpType target = NAN;
-                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    if (o->m_enabled) {
-                        target = o->m_target;
-                    }
-                }
-                
-                if (!isnan(target)) {
-                    m->waiting_heaters |= Lazy<>::HeaterMask;
-                    TheObserver::startObserving(c, target);
-                }
-            }
-        }
-        
-        static void stop_wait (Context c)
-        {
-            auto *m = PrinterMain::Object::self(c);
-            
-            if ((m->waiting_heaters & Lazy<>::HeaterMask)) {
-                TheObserver::stopObserving(c);
-            }
-        }
-        
-        struct ObserverGetValueCallback : public AMBRO_WFUNC_TD(&Heater::get_temp) {};
-        struct ObserverHandler : public AMBRO_WFUNC_TD(&Heater::observer_handler) {};
-        
-        struct Object : public ObjBase<Heater, typename PrinterMain::Object, MakeTypeList<
-            TheControl,
-            ThePwm,
-            TheObserver,
-            TheFormula
-        >> {
-            uint8_t m_enabled : 1;
-            uint8_t m_was_not_unset : 1;
-            FpType m_target;
-            typename Loop::TimedEvent m_control_event;
-        };
-        
-        using ConfigExprs = MakeTypeList<CMinSafeTemp, CMaxSafeTemp, CInfAdcValue, CSupAdcValue, CControlIntervalTicks>;
-    };
+    using ModuleClassesList = MapTypeList<ModulesList, GetMemberType_TheModule>;
+    using MotionPlannerChannelsDict = ListCollect<ModuleClassesList, MemberType_MotionPlannerChannels>;
     
-    template <int FanIndex>
-    struct Fan {
-        struct Object;
-        
-        using FanSpec = TypeListGet<ParamsFansList, FanIndex>;
-        using ThePwm = typename FanSpec::PwmService::template Pwm<Context, Object>;
-        using PwmDutyCycleData = typename ThePwm::DutyCycleData;
-        
-        struct ChannelPayload {
-            PwmDutyCycleData duty;
-        };
-        
-        static void init (Context c)
-        {
-            TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
-            ThePwm::init(c, time);
-        }
-        
-        static void deinit (Context c)
-        {
-            ThePwm::deinit(c);
-        }
-        
-        static bool check_command (Context c, TheCommand *cmd)
-        {
-            if (cmd->getCmdNumber(c) == FanSpec::SetMCommand || cmd->getCmdNumber(c) == FanSpec::OffMCommand) {
-                if (!cmd->tryPlannedCommand(c)) {
-                    return false;
-                }
-                FpType target = 0.0f;
-                if (cmd->getCmdNumber(c) == FanSpec::SetMCommand) {
-                    target = 1.0f;
-                    if (cmd->find_command_param_fp(c, 'S', &target)) {
-                        target *= (FpType)FanSpec::SpeedMultiply::value();
-                    }
-                }
-                cmd->finishCommand(c);
-                PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
-                PlannerChannelPayload *payload = UnionGetElem<0>(&cmd->channel_payload);
-                payload->type = TypeListLength<ParamsHeatersList>::Value + FanIndex;
-                ThePwm::computeDutyCycle(target, &UnionGetElem<FanIndex>(&payload->fans)->duty);
-                ThePlanner::channelCommandDone(c, 1);
-                submitted_planner_command(c);
-                return false;
-            }
-            return true;
-        }
-        
-        static void emergency ()
-        {
-            ThePwm::emergency();
-        }
-        
-        template <typename ThisContext, typename TheChannelPayloadUnion>
-        static void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
-        {
-            ChannelPayload *payload = UnionGetElem<FanIndex>(payload_union);
-            ThePwm::setDutyCycle(c, payload->duty);
-        }
-        
-        struct Object : public ObjBase<Fan, typename PrinterMain::Object, MakeTypeList<
-            ThePwm
-        >> {};
-    };
-    
-    using HeatersList = IndexElemList<ParamsHeatersList, Heater>;
-    using FansList = IndexElemList<ParamsFansList, Fan>;
-    
-    using HeatersChannelPayloadUnion = Union<MapTypeList<HeatersList, GetMemberType_ChannelPayload>>;
-    using FansChannelPayloadUnion = Union<MapTypeList<FansList, GetMemberType_ChannelPayload>>;
-    
-    using HeatersMaskType = ChooseInt<MaxValue(1, TypeListLength<HeatersList>::Value), false>;
-    
-    struct PlannerChannelPayload {
-        uint8_t type;
-        union {
-            HeatersChannelPayloadUnion heaters;
-            FansChannelPayloadUnion fans;
-        };
-    };
-    
-    using MotionPlannerChannels = MakeTypeList<MotionPlannerChannelSpec<PlannerChannelPayload, PlannerChannelCallback, Params::EventChannelBufferSize, typename Params::EventChannelTimerService>>;
+    using MotionPlannerChannels = TypeDictValues<MotionPlannerChannelsDict>;
     using MotionPlannerAxes = MapTypeList<AxesList, TemplateFunc<MakePlannerAxisSpec>>;
     using MotionPlannerLasers = MapTypeList<LasersList, TemplateFunc<MakePlannerLaserSpec>>;
+    
+public:
     using ThePlanner = MotionPlanner<Context, typename PlannerUnionPlanner::Object, Config, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels, MotionPlannerLasers>;
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
+    template <typename PlannerChannelSpec>
+    using GetPlannerChannelIndex = TypeListIndex<MotionPlannerChannels, PlannerChannelSpec>;
+    
+private:
     struct DummyCorrectionService {
         static bool const CorrectionEnabled = false;
         template <typename Src, typename Dst, bool Reverse> static void do_correction (Context c, Src src, Dst dst, WrapBool<Reverse>) {}
@@ -2361,8 +1966,6 @@ public:
         ListForEachForward<AxesList>(LForeach_init(), c);
         ListForEachForward<LasersList>(LForeach_init(), c);
         TransformFeature::init(c);
-        ListForEachForward<HeatersList>(LForeach_init(), c);
-        ListForEachForward<FansList>(LForeach_init(), c);
         ob->time_freq_by_max_speed = 0.0f;
         ob->underrun_count = 0;
         ob->locked = false;
@@ -2387,8 +1990,6 @@ public:
             ThePlanner::deinit(c);
         }
         ListForEachReverse<ModulesList>(LForeach_deinit(), c);
-        ListForEachReverse<FansList>(LForeach_deinit(), c);
-        ListForEachReverse<HeatersList>(LForeach_deinit(), c);
         ListForEachReverse<LasersList>(LForeach_deinit(), c);
         ListForEachReverse<AxesList>(LForeach_deinit(), c);
         ProbeFeature::deinit(c);
@@ -2409,14 +2010,6 @@ public:
     template <int AxisIndex>
     using GetAxisTimer = typename Axis<AxisIndex>::TheAxisDriver::GetTimer;
     
-    template <int HeaterIndex>
-    using GetHeaterPwm = typename Heater<HeaterIndex>::ThePwm;
-    
-    template <int FanIndex>
-    using GetFanPwm = typename Fan<FanIndex>::ThePwm;
-    
-    using GetEventChannelTimer = typename ThePlanner::template GetChannelTimer<0>;
-    
     template <int LaserIndex>
     using GetLaserDriver = typename ThePlanner::template Laser<LaserIndex>::TheLaserDriver;
     
@@ -2424,8 +2017,7 @@ public:
     {
         ListForEachForward<AxesList>(LForeach_emergency());
         ListForEachForward<LasersList>(LForeach_emergency());
-        ListForEachForward<HeatersList>(LForeach_emergency());
-        ListForEachForward<FansList>(LForeach_emergency());
+        ListForEachForward<ModulesList>(LForeach_emergency());
     }
     
     static void finish_locked (Context c)
@@ -2469,7 +2061,7 @@ private:
         auto *ob = Object::self(c);
         TheDebugObject::access(c);
         
-        ListForEachForward<HeatersList>(LForeach_check_safety(), c);
+        ListForEachForward<ModulesList>(LForeach_check_safety(), c);
         TheWatchdog::reset(c);
     }
     
@@ -2481,8 +2073,6 @@ private:
             case 'M': switch (cmd->getCmdNumber(c)) {
                 default:
                     if (
-                        ListForEachForwardInterruptible<HeatersList>(LForeach_check_command(), c, cmd) &&
-                        ListForEachForwardInterruptible<FansList>(LForeach_check_command(), c, cmd) &&
                         ProbeFeature::check_command(c, cmd) &&
                         TheConfigManager::checkCommand(c, cmd) &&
                         ListForEachForwardInterruptible<ModulesList>(LForeach_check_command(), c, cmd)
@@ -2513,40 +2103,10 @@ private:
                     return cmd->finishCommand(c);
                 } break;
                 
-                case 105: {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("ok"));
-                    ListForEachForward<HeatersList>(LForeach_append_value(), c, cmd);
-                    cmd->reply_append_ch(c, '\n');
-                    return cmd->finishCommand(c, true);
-                } break;
-                
                 case 114: {
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_append_position(), c, cmd);
                     cmd->reply_append_ch(c, '\n');
                     return cmd->finishCommand(c);
-                } break;
-                
-                case 116: { // wait for temperature reached
-                    if (!cmd->tryUnplannedCommand(c)) {
-                        return;
-                    }
-                    HeatersMaskType heaters_mask = 0;
-                    auto num_parts = cmd->getNumParts(c);
-                    for (decltype(num_parts) i = 0; i < num_parts; i++) {
-                        ListForEachForward<HeatersList>(LForeach_update_wait_mask(), c, cmd, &heaters_mask, cmd->getPart(c, i));
-                    }
-                    if (heaters_mask == 0) {
-                        heaters_mask = -1;
-                    }
-                    ob->waiting_heaters = 0;
-                    ob->inrange_heaters = 0;
-                    ob->wait_started_time = Clock::getTime(c);
-                    ListForEachForward<HeatersList>(LForeach_start_wait(), c, heaters_mask);
-                    if (ob->waiting_heaters) {
-                        now_active(c);
-                    } else {
-                        cmd->finishCommand(c);
-                    }
                 } break;
                 
                 case 119: {
@@ -2601,13 +2161,6 @@ private:
                     cmd->reply_append_uint32(c, ob->underrun_count);
                     cmd->reply_append_ch(c, '\n');
                     cmd->finishCommand(c);
-                } break;
-                
-                case 921: { // get heater ADC readings
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("ok"));
-                    ListForEachForward<HeatersList>(LForeach_append_adc_value(), c, cmd);
-                    cmd->reply_append_ch(c, '\n');
-                    return cmd->finishCommand(c, true);
                 } break;
                 
                 case 930: { // apply configuration
@@ -2758,6 +2311,7 @@ private:
         TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
     }
     
+public:
     static void now_active (Context c)
     {
         auto *ob = Object::self(c);
@@ -2776,6 +2330,7 @@ private:
         ob->force_timer.appendAt(c, force_time);
     }
     
+private:
     static void unlocked_timer_handler (Context c)
     {
         auto *ob = Object::self(c);
@@ -2888,15 +2443,6 @@ private:
 #endif
     }
     
-    static void planner_channel_callback (typename ThePlanner::template Channel<0>::CallbackContext c, PlannerChannelPayload *payload)
-    {
-        auto *ob = Object::self(c);
-        TheDebugObject::access(c);
-        
-        ListForOneBoolOffset<HeatersList, 0>(payload->type, LForeach_channel_callback(), c, &payload->heaters) ||
-        ListForOneBoolOffset<FansList, TypeListLength<ParamsHeatersList>::Value>(payload->type, LForeach_channel_callback(), c, &payload->fans);
-    }
-    
     template <int AxisIndex>
     static bool planner_prestep_callback (typename ThePlanner::template Axis<AxisIndex>::StepperCommandCallbackContext c)
     {
@@ -2995,6 +2541,7 @@ private:
         TransformFeature::handle_set_position(c, s->seen_virtual);
     }
     
+public:
     static void submitted_planner_command (Context c)
     {
         auto *ob = Object::self(c);
@@ -3005,7 +2552,6 @@ private:
         ob->force_timer.unset(c);
     }
     
-public:
     static void custom_planner_init (Context c, PlannerClient *planner_client, bool enable_prestep_callback)
     {
         auto *ob = Object::self(c);
@@ -3086,26 +2632,6 @@ private:
         }
     }
     
-    static void check_wait_completion (Context c)
-    {
-        auto *ob = Object::self(c);
-        AMBRO_ASSERT(ob->locked)
-        AMBRO_ASSERT(ob->waiting_heaters)
-        
-        bool reached = ob->inrange_heaters == ob->waiting_heaters;
-        bool timed_out = (TimeType)(Clock::getTime(c) - ob->wait_started_time) >= APRINTER_CFG(Config, CWaitTimeoutTicks, c);
-        
-        if (reached || timed_out) {
-            TheCommand *cmd = get_locked(c);
-            if (timed_out) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:WaitTimedOut\n"));
-            }
-            cmd->finishCommand(c);
-            ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
-            now_inactive(c);
-        }
-    }
-    
     struct PlannerUnion {
         struct Object : public ObjUnionBase<PlannerUnion, typename PrinterMain::Object, MakeTypeList<
             PlannerUnionPlanner,
@@ -3127,7 +2653,6 @@ private:
     struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_finished_handler) {};
     struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_aborted_handler) {};
     struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_underrun_callback) {};
-    struct PlannerChannelCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_channel_callback) {};
     template <int AxisIndex> struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&PrinterMain::template planner_prestep_callback<AxisIndex>) {};
     template <int AxisIndex> struct AxisDriverConsumersList {
         using List = JoinTypeLists<
@@ -3142,7 +2667,6 @@ private:
                 JoinTypeLists<
                     AxesList,
                     LasersList,
-                    HeatersList,
                     ModulesList,
                     MakeTypeList<
                         TheSteppers,
@@ -3164,8 +2688,6 @@ public:
     struct Object : public ObjBase<PrinterMain, ParentObject, JoinTypeLists<
         AxesList,
         LasersList,
-        HeatersList,
-        FansList,
         ModulesList,
         MakeTypeList<
             TheDebugObject,
@@ -3193,9 +2715,6 @@ public:
         PhysVirtAxisMaskType axis_homing;
         PhysVirtAxisMaskType axis_relative;
         PhysVirtAxisMaskType m_homing_rem_axes;
-        HeatersMaskType waiting_heaters;
-        HeatersMaskType inrange_heaters;
-        TimeType wait_started_time;
     };
 };
 

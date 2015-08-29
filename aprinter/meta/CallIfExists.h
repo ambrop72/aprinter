@@ -47,7 +47,7 @@ public: \
     \
 private: \
     template <typename CallIfExists__Class, typename... CallIfExists__Args> \
-    static APrinter::CallIfExists__TypeHelper<void, decltype(CallIfExists__Class::func_name)> CallIfExists__void_helper_func (int, CallIfExists__Args... args) \
+    static auto CallIfExists__void_helper_func (int, CallIfExists__Args... args) -> APrinter::CallIfExists__TypeHelper<void, decltype(CallIfExists__Class::func_name(args...))> \
     { \
         return CallIfExists__Class::func_name(args...); \
     } \
@@ -56,7 +56,7 @@ private: \
     static void CallIfExists__void_helper_func (...) {} \
     \
     template <typename CallIfExists__Class, typename CallIfExists__ReturnType, CallIfExists__ReturnType CallIfExists__DefaultValue, typename... CallIfExists__Args> \
-    static APrinter::CallIfExists__TypeHelper<CallIfExists__ReturnType, decltype(CallIfExists__Class::func_name)> CallIfExists__ret_helper_func (int, CallIfExists__Args... args) \
+    static auto CallIfExists__ret_helper_func (int, CallIfExists__Args... args) -> APrinter::CallIfExists__TypeHelper<CallIfExists__ReturnType, decltype(CallIfExists__Class::func_name(args...))>  \
     { \
         return CallIfExists__Class::func_name(args...); \
     } \

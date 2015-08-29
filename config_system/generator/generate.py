@@ -1009,6 +1009,10 @@ def generate(config_root_data, cfg_name, main_template):
             
             modules_exprs = []
             
+            aux_control_module_index = len(modules_exprs)
+            modules_exprs.append(None)
+            aux_control_module_user = 'MyPrinter::GetModule<{}>'.format(aux_control_module_index)
+            
             for board_data in config_root.enter_elem_by_id('boards', 'name', board_name):
                 for platform_config in board_data.enter_config('platform_config'):
                     board_for_build = platform_config.get_string('board_for_build')
@@ -1043,7 +1047,7 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.register_objects('laser_port', board_data, 'laser_ports')
                 
                 led_pin_expr = get_pin(gen, board_data, 'LedPin')
-                event_channel_timer_expr = use_interrupt_timer(gen, board_data, 'EventChannelTimer', user='MyPrinter::GetEventChannelTimer', clearance='EventChannelTimerClearance')
+                event_channel_timer_expr = use_interrupt_timer(gen, board_data, 'EventChannelTimer', user='{}::GetEventChannelTimer<>'.format(aux_control_module_user), clearance='EventChannelTimerClearance')
                 
                 for performance in board_data.enter_config('performance'):
                     gen.add_typedef('TheAxisDriverPrecisionParams', performance.get_identifier('AxisDriverPrecisionParams'))
@@ -1292,7 +1296,7 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_config('{}HeaterObserverMinTime'.format(name), observer.get_float('ObserverMinTime')),
                     ])
                 
-                return TemplateExpr('PrinterMainHeaterParams', [
+                return TemplateExpr('AuxControlModuleHeaterParams', [
                     TemplateChar(name),
                     heater.get_int('SetMCommand'),
                     use_analog_input(gen, heater, 'ThermistorInput'),
@@ -1302,7 +1306,7 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_float_config('{}HeaterControlInterval'.format(name), control_interval),
                     control_service,
                     observer_service,
-                    use_pwm_output(gen, heater, 'pwm_output', 'MyPrinter::GetHeaterPwm<{}>'.format(heater_index), '{}Heater'.format(name))
+                    use_pwm_output(gen, heater, 'pwm_output', '{}::GetHeaterPwm<{}>'.format(aux_control_module_user, heater_index), '{}Heater'.format(name))
                 ])
             
             heaters_expr = config.do_list('heaters', heater_cb, max_count=15)
@@ -1482,11 +1486,11 @@ def generate(config_root_data, cfg_name, main_template):
             def fan_cb(fan, fan_index):
                 name = fan.get_id_char('Name')
                 
-                return TemplateExpr('PrinterMainFanParams', [
+                return TemplateExpr('AuxControlModuleFanParams', [
                     fan.get_int('SetMCommand'),
                     fan.get_int('OffMCommand'),
                     'FanSpeedMultiply',
-                    use_pwm_output(gen, fan, 'pwm_output', 'MyPrinter::GetFanPwm<{}>'.format(fan_index), '{}Fan'.format(name))
+                    use_pwm_output(gen, fan, 'pwm_output', '{}::GetFanPwm<{}>'.format(aux_control_module_user, fan_index), '{}Fan'.format(name))
                 ])
             
             fans_expr = config.do_list('fans', fan_cb, max_count=15)
@@ -1531,28 +1535,32 @@ def generate(config_root_data, cfg_name, main_template):
             
             current_config.do_selection('current', current_sel)
             
+            gen.add_aprinter_include('printer/AuxControlModule.h')
+            modules_exprs[aux_control_module_index] = TemplateExpr('AuxControlModuleService', [
+                performance.get_int_constant('EventChannelBufferSize'),
+                event_channel_timer_expr,
+                gen.add_float_config('WaitTimeout', config.get_float('WaitTimeout')),
+                heaters_expr,
+                fans_expr,
+            ])
+            
             printer_params = TemplateExpr('PrinterMainParams', [
                 led_pin_expr,
                 'LedBlinkInterval',
                 gen.add_float_config('InactiveTime', config.get_float('InactiveTime')),
-                gen.add_float_config('WaitTimeout', config.get_float('WaitTimeout')),
                 gen.add_float_constant('SpeedLimitMultiply', 1.0 / 60.0),
                 gen.add_float_config('MaxStepsPerCycle', performance.get_float('MaxStepsPerCycle')),
                 performance.get_int_constant('StepperSegmentBufferSize'),
-                performance.get_int_constant('EventChannelBufferSize'),
                 performance.get_int_constant('LookaheadBufferSize'),
                 performance.get_int_constant('LookaheadCommitCount'),
                 'ForceTimeout',
                 performance.get_identifier('FpType', lambda x: x in ('float', 'double')),
-                event_channel_timer_expr,
                 setup_watchdog(gen, platform, 'watchdog', disable_watchdog, 'MyPrinter::GetWatchdog'),
                 probe_expr,
                 config_manager_expr,
                 'ConfigList',
                 steppers_expr,
                 transform_expr,
-                heaters_expr,
-                fans_expr,
                 lasers_expr,
                 TemplateList(modules_exprs),
             ])
