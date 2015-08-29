@@ -200,6 +200,7 @@ private:
         {
             auto *o = Object::self(c);
             o->m_enabled = false;
+            o->m_target = 0.0f;
             o->m_was_not_unset = false;
             TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
             o->m_control_event.init(c, APRINTER_CB_STATFUNC_T(&Heater::control_event_handler));
@@ -240,11 +241,22 @@ private:
         
         static void append_value (Context c, TheCommand *cmd)
         {
+            auto *o = Object::self(c);
+            
             FpType value = get_temp(c);
+            FpType target = NAN;
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                if (o->m_enabled) {
+                    target = o->m_target;
+                }
+            }
+            
             cmd->reply_append_ch(c, ' ');
             print_name<typename HeaterSpec::Name>(c, cmd);
             cmd->reply_append_ch(c, ':');
             cmd->reply_append_fp(c, value);
+            cmd->reply_append_pstr(c, AMBRO_PSTR(" /"));
+            cmd->reply_append_fp(c, target);
         }
         
         static void append_adc_value (Context c, TheCommand *cmd)
