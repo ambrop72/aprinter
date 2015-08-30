@@ -267,11 +267,9 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_limit_virt_axis_speed, limit_virt_axis_speed)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_clamp_req_phys, clamp_req_phys)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_clamp_move_phys, clamp_move_phys)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_phys_limits, check_phys_limits)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prepare_split, prepare_split)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_split, compute_split)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_finish_set_position, finish_set_position)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_emergency, emergency)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_homing, start_homing)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_virt_homing, start_virt_homing)
@@ -289,14 +287,17 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_new_pos, collect_new_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_g92_check_axis, g92_check_axis)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init_new_pos, init_new_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_automatic_energy, handle_automatic_energy)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_planner_cmd, write_planner_cmd)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_begin_move, begin_move)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prepare_laser_for_move, prepare_laser_for_move)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_save_pos_to_old, save_pos_to_old)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_restore_pos_from_old, restore_pos_from_old)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_save_req_pos, save_req_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_restore_req_pos, restore_req_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_configuration_changed, configuration_changed)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_reverse_update_pos, reverse_update_pos)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_forward_update_pos, forward_update_pos)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
@@ -323,7 +324,6 @@ private:
     template <int AxisIndex> struct PlannerPrestepCallback;
     template <int AxisIndex> struct AxisDriverConsumersList;
     struct DelayedConfigExprs;
-    struct SetPositionState;
     
     using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
@@ -891,7 +891,7 @@ private:
             HomingFeature::init(c);
             MicroStepFeature::init(c);
             o->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
-            o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
+            forward_update_pos(c);
         }
         
         static void deinit (Context c)
@@ -983,22 +983,27 @@ private:
             RemStepsType rem_steps = ThePlanner::template countAbortedRemSteps<AxisIndex, RemStepsType>(c);
             if (rem_steps != 0) {
                 o->m_end_pos.m_bits.m_int -= rem_steps;
-                o->m_req_pos = o->m_end_pos.template fpValue<FpType>() * APRINTER_CFG(Config, CDistConversionRec, c);
+                reverse_update_pos(c);
                 TransformFeature::template mark_phys_moved<AxisIndex>(c);
             }
         }
         
-        static void only_set_position (Context c, FpType value)
+        static void forward_update_pos (Context c)
         {
             auto *o = Object::self(c);
-            o->m_req_pos = clamp_req_pos(c, value);
             o->m_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
         }
         
-        static void set_position (Context c, FpType value, bool *seen_virtual)
+        static void reverse_update_pos (Context c)
         {
-            only_set_position(c, value);
-            TransformFeature::template mark_phys_moved<AxisIndex>(c);
+            auto *o = Object::self(c);
+            o->m_req_pos = o->m_end_pos.template fpValue<FpType>() * APRINTER_CFG(Config, CDistConversionRec, c);
+        }
+        
+        static void set_position_try (Context c, FpType value)
+        {
+            auto *o = Object::self(c);
+            o->m_req_pos = clamp_req_pos(c, value);
         }
         
         static void emergency ()
@@ -1096,7 +1101,7 @@ private:
             mycmd->x = src.template get<LaserIndex>() * APRINTER_CFG(Config, CLaserPowerRec, c);
         }
         
-        static void begin_move (Context c)
+        static void prepare_laser_for_move (Context c)
         {
             auto *o = Object::self(c);
             o->move_energy = 0.0f;
@@ -1244,6 +1249,11 @@ public:
             }
         }
         
+        static bool check_all_phys_limits (Context c)
+        {
+            return ListForEachForwardInterruptible<VirtAxesList>(LForeach_check_phys_limits(), c);
+        }
+        
         static void handle_virt_move (Context c, FpType time_freq_by_max_speed, bool is_positioning_move)
         {
             auto *o = Object::self(c);
@@ -1251,19 +1261,43 @@ public:
             
             o->virt_update_pending = false;
             update_phys_from_virt(c);
-            ListForEachForward<VirtAxesList>(LForeach_clamp_req_phys(), c);
-            do_pending_virt_update(c);
+            
+            if (!check_all_phys_limits(c)) {
+                ListForEachForward<PhysVirtAxisHelperList>(LForeach_restore_pos_from_old(), c);
+                return handle_transform_error(c);
+            }
+            
             FpType distance_squared = 0.0f;
             ListForEachForward<VirtAxesList>(LForeach_prepare_split(), c, &distance_squared);
             ListForEachForward<SecondaryAxesList>(LForeach_prepare_split(), c, &distance_squared);
             FpType distance = FloatSqrt(distance_squared);
+            
             ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, distance, is_positioning_move);
             ListForEachForward<LaserSplitsList>(LForeach_prepare_split(), c);
+            
             FpType base_max_v_rec = ListForEachForwardAccRes<VirtAxesList>(distance * time_freq_by_max_speed, LForeach_limit_virt_axis_speed(), c);
             FpType min_segments_by_distance = (FpType)(TransformParams::SegmentsPerSecond::value() * Clock::time_unit) * time_freq_by_max_speed;
             o->splitter.start(distance, base_max_v_rec, min_segments_by_distance);
             o->frac = 0.0;
+            
             do_split(c);
+        }
+        
+        static void handle_transform_error (Context c)
+        {
+            auto *o = Object::self(c);
+            auto *mob = PrinterMain::Object::self(c);
+            AMBRO_ASSERT(o->splitting)
+            AMBRO_ASSERT(mob->planner_state != PLANNER_NONE)
+            AMBRO_ASSERT(mob->m_planning_pull_pending)
+            
+            print_pgm_string(c, AMBRO_PSTR("//Error:Transform\n"));
+            
+            o->virt_update_pending = false;
+            o->splitting = false;
+            
+            ThePlanner::emptyDone(c);
+            submitted_planner_command(c);
         }
         
         template <int PhysAxisIndex>
@@ -1303,19 +1337,30 @@ public:
                 FpType rel_max_v_rec;
                 FpType saved_virt_rex_pos[NumVirtAxes];
                 FpType saved_phys_req_pos[NumAxes];
+                
                 if (o->splitter.pull(&rel_max_v_rec, &o->frac)) {
                     ListForEachForward<AxesList>(LForeach_save_req_pos(), c, saved_phys_req_pos);
+                    
                     FpType saved_virt_req_pos[NumVirtAxes];
                     ListForEachForward<VirtAxesList>(LForeach_save_req_pos(), c, saved_virt_req_pos);
                     ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, o->frac);
                     update_phys_from_virt(c);
                     ListForEachForward<VirtAxesList>(LForeach_restore_req_pos(), c, saved_virt_req_pos);
-                    ListForEachForward<VirtAxesList>(LForeach_clamp_move_phys(), c);
+                    
+                    if (!check_all_phys_limits(c)) {
+                        // Compute actual positions based on prev_frac.
+                        ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, prev_frac);
+                        update_phys_from_virt(c);
+                        ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, prev_frac, saved_phys_req_pos);
+                        return handle_transform_error(c);
+                    }
+                    
                     ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, o->frac, saved_phys_req_pos);
                 } else {
                     o->frac = 1.0;
                     o->splitting = false;
                 }
+                
                 PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
                 FpType total_steps = 0.0f;
                 ListForEachForward<AxesList>(LForeach_do_move(), c, false, (FpType *)0, &total_steps, cmd);
@@ -1346,17 +1391,22 @@ public:
             do_pending_virt_update(c);
         }
         
-        static void handle_set_position (Context c, bool seen_virtual)
+        static bool handle_set_position (Context c)
         {
             auto *o = Object::self(c);
-            AMBRO_ASSERT(!o->splitting)
             
-            if (seen_virtual) {
+            if (o->splitting) {
+                o->splitting = false;
                 o->virt_update_pending = false;
                 update_phys_from_virt(c);
-                ListForEachForward<VirtAxesList>(LForeach_finish_set_position(), c);
+                if (!check_all_phys_limits(c)) {
+                    print_pgm_string(c, AMBRO_PSTR("//Error:Transform\n"));
+                    return false;
+                }
+            } else {
+                do_pending_virt_update(c);
             }
-            do_pending_virt_update(c);
+            return true;
         }
         
         static bool start_virt_homing (Context c)
@@ -1409,23 +1459,12 @@ public:
                 t->splitting = true;
             }
             
-            static void clamp_req_phys (Context c)
+            static bool check_phys_limits (Context c)
             {
                 auto *axis = ThePhysAxis::Object::self(c);
                 auto *t = TransformFeature::Object::self(c);
-                if (AMBRO_UNLIKELY(!(axis->m_req_pos <= APRINTER_CFG(Config, typename ThePhysAxis::CMaxReqPos, c)))) {
-                    axis->m_req_pos = APRINTER_CFG(Config, typename ThePhysAxis::CMaxReqPos, c);
-                    t->virt_update_pending = true;
-                } else if (AMBRO_UNLIKELY(!(axis->m_req_pos >= APRINTER_CFG(Config, typename ThePhysAxis::CMinReqPos, c)))) {
-                    axis->m_req_pos = APRINTER_CFG(Config, typename ThePhysAxis::CMinReqPos, c);
-                    t->virt_update_pending = true;
-                }
-            }
-            
-            static void clamp_move_phys (Context c)
-            {
-                auto *axis = ThePhysAxis::Object::self(c);
-                axis->m_req_pos = ThePhysAxis::clamp_req_pos(c, axis->m_req_pos);
+                return AMBRO_LIKELY(axis->m_req_pos >= APRINTER_CFG(Config, typename ThePhysAxis::CMinReqPos, c)) &&
+                       AMBRO_LIKELY(axis->m_req_pos <= APRINTER_CFG(Config, typename ThePhysAxis::CMaxReqPos, c));
             }
             
             static void prepare_split (Context c, FpType *distance_squared)
@@ -1453,22 +1492,12 @@ public:
                 o->m_req_pos = o->m_old_pos + (frac * o->m_delta);
             }
             
-            static void set_position (Context c, FpType value, bool *seen_virtual)
+            static void set_position_try (Context c, FpType value)
             {
                 auto *o = Object::self(c);
-                o->m_req_pos = clamp_virt_pos(c, value);
-                *seen_virtual = true;
-            }
-            
-            static void finish_set_position (Context c)
-            {
-                auto *axis = ThePhysAxis::Object::self(c);
                 auto *t = TransformFeature::Object::self(c);
-                FpType req = axis->m_req_pos;
-                ThePhysAxis::only_set_position(c, req);
-                if (axis->m_req_pos != req) {
-                    t->virt_update_pending = true;
-                }
+                o->m_req_pos = clamp_virt_pos(c, value);
+                t->splitting = true;
             }
             
             static FpType limit_virt_axis_speed (FpType accum, Context c)
@@ -1532,10 +1561,9 @@ public:
                 
                 static void set_position (Context c, FpType value)
                 {
-                    SetPositionState s;
-                    set_position_begin(c, &s);
-                    set_position_add_axis<(NumAxes + VirtAxisIndex)>(c, &s, value);
-                    set_position_end(c, &s);
+                    set_position_begin(c);
+                    set_position_add_axis<(NumAxes + VirtAxisIndex)>(c, value);
+                    set_position_end(c);
                 }
                 
                 static FpType home_start_pos (Context c)
@@ -1729,7 +1757,7 @@ public:
         static bool is_splitting (Context c) { return false; }
         static void do_split (Context c) {}
         static void handle_aborted (Context c) {}
-        static void handle_set_position (Context c, bool seen_virtual) {}
+        static bool handle_set_position (Context c) { return true; }
         static bool start_virt_homing (Context c) { return true; }
         template <typename CallbackContext>
         static bool prestep_callback (CallbackContext c) { return false; }
@@ -1781,10 +1809,16 @@ public:
         }
         
     private:
-        static void init_new_pos (Context c)
+        static void save_pos_to_old (Context c)
         {
             auto *axis = TheAxis::Object::self(c);
             axis->m_old_pos = axis->m_req_pos;
+        }
+        
+        static void restore_pos_from_old (Context c)
+        {
+            auto *axis = TheAxis::Object::self(c);
+            axis->m_req_pos = axis->m_old_pos;
         }
         
         static void update_new_pos (Context c, FpType req, bool ignore_limits)
@@ -1829,11 +1863,11 @@ public:
             cmd->reply_append_fp(c, axis->m_req_pos);
         }
         
-        static void g92_check_axis (Context c, TheCommand *cmd, CommandPartRef part, SetPositionState *s)
+        static void g92_check_axis (Context c, TheCommand *cmd, CommandPartRef part)
         {
             if (cmd->getPartCode(c, part) == TheAxis::AxisName) {
                 FpType value = cmd->getPartFpValue(c, part);
-                set_position_add_axis<PhysVirtAxisIndex>(c, s, value);
+                set_position_add_axis<PhysVirtAxisIndex>(c, value);
             }
         }
         
@@ -2221,13 +2255,12 @@ private:
                     if (!cmd->tryPlannedCommand(c)) {
                         return;
                     }
-                    SetPositionState s;
-                    set_position_begin(c, &s);
+                    set_position_begin(c);
                     auto num_parts = cmd->getNumParts(c);
                     for (decltype(num_parts) i = 0; i < num_parts; i++) {
-                        ListForEachForward<PhysVirtAxisHelperList>(LForeach_g92_check_axis(), c, cmd, cmd->getPart(c, i), &s);
+                        ListForEachForward<PhysVirtAxisHelperList>(LForeach_g92_check_axis(), c, cmd, cmd->getPart(c, i));
                     }
-                    set_position_end(c, &s);
+                    set_position_end(c);
                     return cmd->finishCommand(c);
                 } break;
             } break;
@@ -2441,8 +2474,8 @@ public:
         
         o->move_seen_cartesian = false;
         o->custom_planner_deinit_allowed = false;
-        ListForEachForward<PhysVirtAxisHelperList>(LForeach_init_new_pos(), c);
-        ListForEachForward<LasersList>(LForeach_begin_move(), c);
+        ListForEachForward<PhysVirtAxisHelperList>(LForeach_save_pos_to_old(), c);
+        ListForEachForward<LasersList>(LForeach_prepare_laser_for_move(), c);
     }
     
     template <int PhysVirtAxisIndex>
@@ -2492,36 +2525,36 @@ public:
         submitted_planner_command(c);
     }
     
+    static void set_position_begin (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->locked)
+        AMBRO_ASSERT(!TransformFeature::is_splitting(c))
+        
+        ListForEachForward<PhysVirtAxisHelperList>(LForeach_save_pos_to_old(), c);
+    }
+    
+    template <int PhysVirtAxisIndex>
+    static void set_position_add_axis (Context c, FpType value)
+    {
+        PhysVirtAxisHelper<PhysVirtAxisIndex>::update_new_pos(c, value, false);
+    }
+    
+    static void set_position_end (Context c)
+    {
+        if (!TransformFeature::handle_set_position(c)) {
+            ListForEachForward<PhysVirtAxisHelperList>(LForeach_restore_pos_from_old(), c);
+            return;
+        }
+        ListForEachForward<AxesList>(LForeach_forward_update_pos(), c);
+    }
+    
 private:
     struct LaserExtraSrc {
         Context m_c;
         template <int LaserIndex>
         FpType get () { return Laser<LaserIndex>::Object::self(m_c)->move_energy; }
     };
-    
-    struct SetPositionState {
-        bool seen_virtual;
-    };
-    
-    static void set_position_begin (Context c, SetPositionState *s)
-    {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(o->locked)
-        AMBRO_ASSERT(!TransformFeature::is_splitting(c))
-        
-        s->seen_virtual = false;
-    }
-    
-    template <int PhysVirtAxisIndex>
-    static void set_position_add_axis (Context c, SetPositionState *s, FpType value)
-    {
-        PhysVirtAxisHelper<PhysVirtAxisIndex>::TheAxis::set_position(c, value, &s->seen_virtual);
-    }
-    
-    static void set_position_end (Context c, SetPositionState *s)
-    {
-        TransformFeature::handle_set_position(c, s->seen_virtual);
-    }
     
 public:
     static void submitted_planner_command (Context c)
