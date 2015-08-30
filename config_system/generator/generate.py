@@ -1378,7 +1378,7 @@ def generate(config_root_data, cfg_name, main_template):
                 transform_type_sel = selection.Selection()
                 
                 def distance_splitter(prefix):
-                    gen.add_aprinter_include('printer/DistanceSplitter.h')
+                    gen.add_aprinter_include('printer/transform/DistanceSplitter.h')
                     return TemplateExpr('DistanceSplitterService', [
                         gen.add_float_config('{}MinSplitLength'.format(prefix), transform.get_float('MinSplitLength')),
                         gen.add_float_config('{}MaxSplitLength'.format(prefix), transform.get_float('MaxSplitLength')),
@@ -1387,7 +1387,7 @@ def generate(config_root_data, cfg_name, main_template):
                 @transform_type_sel.option('CoreXY')
                 def option():
                     gen.add_aprinter_include('printer/transform/CoreXyTransform.h')
-                    gen.add_aprinter_include('printer/NoSplitter.h')
+                    gen.add_aprinter_include('printer/transform/NoSplitter.h')
                     
                     return 'CoreXyTransformService', 'NoSplitterService'
                 
