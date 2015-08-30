@@ -40,15 +40,19 @@ public:
     struct Object;
     
 private:
+    using ClockTimeUnit = APRINTER_FP_CONST_EXPR(Context::Clock::time_unit);
+    
     using CMinSplitLengthRec = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::MinSplitLength::i()))));
     using CMaxSplitLengthRec = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::MaxSplitLength::i()))));
+    using CSegmentsPerSecondTimeUnit = decltype(ExprCast<FpType>(Config::e(Params::SegmentsPerSecond::i()) * ClockTimeUnit()));
     
 public:
     class Splitter {
     public:
-        void start (Context c, FpType distance, FpType base_max_v_rec, FpType num_segments_by_distance)
+        void start (Context c, FpType distance, FpType base_max_v_rec, FpType time_freq_by_max_speed)
         {
-            FpType fpcount = distance * FloatMin(APRINTER_CFG(Config, CMinSplitLengthRec, c), FloatMax(APRINTER_CFG(Config, CMaxSplitLengthRec, c), num_segments_by_distance));
+            FpType base_segments_by_distance = APRINTER_CFG(Config, CSegmentsPerSecondTimeUnit, c) * time_freq_by_max_speed;
+            FpType fpcount = distance * FloatMin(APRINTER_CFG(Config, CMinSplitLengthRec, c), FloatMax(APRINTER_CFG(Config, CMaxSplitLengthRec, c), base_segments_by_distance));
             if (fpcount >= FloatLdexp(FpType(1.0f), 31)) {
                 m_count = PowerOfTwo<uint32_t, 31>::Value;
             } else {
@@ -76,18 +80,20 @@ public:
     };
     
 public:
-    using ConfigExprs = MakeTypeList<CMinSplitLengthRec, CMaxSplitLengthRec>;
+    using ConfigExprs = MakeTypeList<CMinSplitLengthRec, CMaxSplitLengthRec, CSegmentsPerSecondTimeUnit>;
     
     struct Object : public ObjBase<DistanceSplitter, ParentObject, EmptyTypeList> {};
 };
 
 template <
     typename TMinSplitLength,
-    typename TMaxSplitLength
+    typename TMaxSplitLength,
+    typename TSegmentsPerSecond
 >
 struct DistanceSplitterService {
     using MinSplitLength = TMinSplitLength;
     using MaxSplitLength = TMaxSplitLength;
+    using SegmentsPerSecond = TSegmentsPerSecond;
     
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Splitter = DistanceSplitter<Context, ParentObject, Config, FpType, DistanceSplitterService>;

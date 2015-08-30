@@ -181,7 +181,6 @@ struct PrinterMainNoTransformParams {
 
 template <
     typename TVirtAxesList, typename TPhysAxesList,
-    typename TSegmentsPerSecond,
     typename TTransformService,
     typename TSplitterService
 >
@@ -189,7 +188,6 @@ struct PrinterMainTransformParams {
     static bool const Enabled = true;
     using VirtAxesList = TVirtAxesList;
     using PhysAxesList = TPhysAxesList;
-    using SegmentsPerSecond = TSegmentsPerSecond;
     using TransformService = TTransformService;
     using SplitterService = TSplitterService;
 };
@@ -1279,8 +1277,7 @@ public:
             ListForEachForward<LaserSplitsList>(LForeach_prepare_split(), c);
             
             FpType base_max_v_rec = ListForEachForwardAccRes<VirtAxesList>(distance * time_freq_by_max_speed, LForeach_limit_virt_axis_speed(), c);
-            FpType min_segments_by_distance = (FpType)(TransformParams::SegmentsPerSecond::value() * Clock::time_unit) * time_freq_by_max_speed;
-            o->splitter.start(c, distance, base_max_v_rec, min_segments_by_distance);
+            o->splitter.start(c, distance, base_max_v_rec, time_freq_by_max_speed);
             o->frac = 0.0;
             
             do_split(c);

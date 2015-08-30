@@ -32,7 +32,7 @@ class NoSplitter {
 public:
     class Splitter {
     public:
-        void start (Context c, FpType distance, FpType base_max_v_rec, FpType num_segments_by_distance)
+        void start (Context c, FpType distance, FpType base_max_v_rec, FpType time_freq_by_max_speed)
         {
             m_max_v_rec = base_max_v_rec;
         }

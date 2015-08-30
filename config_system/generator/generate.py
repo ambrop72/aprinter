@@ -1382,6 +1382,7 @@ def generate(config_root_data, cfg_name, main_template):
                     return TemplateExpr('DistanceSplitterService', [
                         gen.add_float_config('{}MinSplitLength'.format(prefix), transform.get_float('MinSplitLength')),
                         gen.add_float_config('{}MaxSplitLength'.format(prefix), transform.get_float('MaxSplitLength')),
+                        gen.add_float_config('{}SegmentsPerSecond'.format(prefix), transform.get_float('SegmentsPerSecond')),
                     ])
                 
                 @transform_type_sel.option('CoreXY')
@@ -1419,7 +1420,6 @@ def generate(config_root_data, cfg_name, main_template):
                 return TemplateExpr('PrinterMainTransformParams', [
                     transform.do_keyed_list('DimensionCount', 'CartesianAxes', 'VirtualAxis', virtual_axis_cb, 1, 3),
                     transform.do_keyed_list('DimensionCount', 'Steppers', 'TransformStepper', transform_stepper_cb, 1, 3),
-                    gen.add_float_constant('SegmentsPerSecond', transform.get_float('SegmentsPerSecond')),
                     transform_expr,
                     splitter_expr,
                 ])

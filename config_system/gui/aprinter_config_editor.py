@@ -274,15 +274,11 @@ def homing_params(**kwargs):
         ])
     ], **kwargs)
 
-def make_transform_type(transform_type, transform_title, segments_per_sec_relevant, stepper_defs, axis_defs, specific_params):
+def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs, specific_params):
     assert len(stepper_defs) == len(axis_defs)
     
     return ce.Compound(transform_type, title=transform_title, attrs=(
         specific_params +
-        (
-            [ce.Float(key='SegmentsPerSecond', title='Max segments per second', default=100)] if segments_per_sec_relevant else
-            [ce.Constant(key='SegmentsPerSecond', value=0)]
-        ) +
         [
             ce.Constant(key='DimensionCount', value=len(stepper_defs)),
             ce.Compound('Steppers', key='Steppers', title='Stepper mapping', attrs=[
@@ -394,7 +390,7 @@ def editor():
             ])),
             ce.OneOf(key='transform', title='Coordinate transformation', choices=[
                 ce.Compound('NoTransform', title='None (cartesian)', attrs=[]),
-                make_transform_type(transform_type='CoreXY', transform_title='CoreXY/H-bot', segments_per_sec_relevant=False,
+                make_transform_type(transform_type='CoreXY', transform_title='CoreXY/H-bot',
                     stepper_defs=[
                         {'default_name': 'A', 'title': 'First stepper'},
                         {'default_name': 'B', 'title': 'Second stepper'},
@@ -405,7 +401,7 @@ def editor():
                     ],
                     specific_params=[]
                 ),
-                make_transform_type(transform_type='Delta', transform_title='Delta', segments_per_sec_relevant=True,
+                make_transform_type(transform_type='Delta', transform_title='Delta',
                     stepper_defs=[
                         {'default_name': 'A', 'title': 'Tower-1 stepper (bottom-left)'},
                         {'default_name': 'B', 'title': 'Tower-2 stepper (bottom-right)'},
@@ -423,9 +419,10 @@ def editor():
                         ce.Float(key='CarriageOffset', title='Carriage offset [mm]', default=19.5),
                         ce.Float(key='MinSplitLength', title='Minimum segment length for splitting [mm]', default=0.1),
                         ce.Float(key='MaxSplitLength', title='Maximum segment length for splitting [mm]', default=4.0),
+                        ce.Float(key='SegmentsPerSecond', title='Segments per second', default=100.0),
                     ]
                 ),
-                make_transform_type(transform_type='RotationalDelta', transform_title='Rotational delta', segments_per_sec_relevant=True,
+                make_transform_type(transform_type='RotationalDelta', transform_title='Rotational delta',
                     stepper_defs=[
                         {'default_name': 'A', 'title': 'Arm-1 stepper (bottom)'},
                         {'default_name': 'B', 'title': 'Arm-2 stepper (top-right)'},
@@ -444,6 +441,7 @@ def editor():
                         ce.Float(key='ZOffset', title='Z offset [mm]', default=200.0),
                         ce.Float(key='MinSplitLength', title='Minimum segment length for splitting [mm]', default=0.1),
                         ce.Float(key='MaxSplitLength', title='Maximum segment length for splitting [mm]', default=4.0),
+                        ce.Float(key='SegmentsPerSecond', title='Segments per second', default=100.0),
                     ]
                 ),
             ]),
