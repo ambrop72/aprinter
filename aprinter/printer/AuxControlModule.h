@@ -192,9 +192,7 @@ private:
         };
         
         template <typename This=AuxControlModule>
-        struct Lazy {
-            static typename This::HeatersMaskType const HeaterMask = (typename This::HeatersMaskType)1 << HeaterIndex;
-        };
+        static constexpr typename This::HeatersMaskType HeaterMask () { return (HeatersMaskType)1 << HeaterIndex; }
         
         static void init (Context c)
         {
@@ -340,12 +338,12 @@ private:
             auto *o = Object::self(c);
             auto *mo = AuxControlModule::Object::self(c);
             AMBRO_ASSERT(TheObserver::isObserving(c))
-            AMBRO_ASSERT(mo->waiting_heaters & Lazy<>::HeaterMask)
+            AMBRO_ASSERT(mo->waiting_heaters & HeaterMask())
             
             if (state) {
-                mo->inrange_heaters |= Lazy<>::HeaterMask;
+                mo->inrange_heaters |= HeaterMask();
             } else {
-                mo->inrange_heaters &= ~Lazy<>::HeaterMask;
+                mo->inrange_heaters &= ~HeaterMask();
             }
             check_wait_completion(c);
         }
@@ -400,13 +398,17 @@ private:
                     }
                 }
             }
+            
+            if (TheObserver::isObserving(c) && !enabled) {
+                fail_wait(c);
+            }
         }
         
         template <typename TheHeatersMaskType>
-        static void update_wait_mask (Context c, TheCommand *cmd, TheHeatersMaskType *mask, typename TheCommand::PartRef part)
+        static void update_wait_mask (Context c, TheCommand *cmd, TheHeatersMaskType *mask)
         {
-            if (cmd->getPartCode(c, part) == HeaterSpec::Name::Letter && cmd->getPartUint32Value(c, part) == HeaterSpec::Name::Number) {
-                *mask |= Lazy<>::HeaterMask;
+            if (match_name<typename HeaterSpec::Name>(c, cmd)) {
+                *mask |= HeaterMask();
             }
         }
         
@@ -416,7 +418,7 @@ private:
             auto *o = Object::self(c);
             auto *mo = AuxControlModule::Object::self(c);
             
-            if ((mask & Lazy<>::HeaterMask)) {
+            if ((mask & HeaterMask())) {
                 FpType target = NAN;
                 AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                     if (o->m_enabled) {
@@ -425,7 +427,7 @@ private:
                 }
                 
                 if (!isnan(target)) {
-                    mo->waiting_heaters |= Lazy<>::HeaterMask;
+                    mo->waiting_heaters |= HeaterMask();
                     TheObserver::startObserving(c, target);
                 }
             }
@@ -435,7 +437,7 @@ private:
         {
             auto *mo = AuxControlModule::Object::self(c);
             
-            if ((mo->waiting_heaters & Lazy<>::HeaterMask)) {
+            if ((mo->waiting_heaters & HeaterMask())) {
                 TheObserver::stopObserving(c);
             }
         }
@@ -549,6 +551,7 @@ private:
     using FansChannelPayloadUnion = Union<MapTypeList<FansList, GetMemberType_ChannelPayload>>;
     
     using HeatersMaskType = ChooseInt<MaxValue(1, NumHeaters), false>;
+    static HeatersMaskType const AllHeatersMask = PowerOfTwoMinusOne<HeatersMaskType, NumHeaters>::Value;
     
     struct PlannerChannelPayload {
         uint8_t type;
@@ -608,17 +611,20 @@ private:
             return;
         }
         HeatersMaskType heaters_mask = 0;
-        auto num_parts = cmd->getNumParts(c);
-        for (decltype(num_parts) i = 0; i < num_parts; i++) {
-            ListForEachForward<HeatersList>(LForeach_update_wait_mask(), c, cmd, &heaters_mask, cmd->getPart(c, i));
-        }
+        ListForEachForward<HeatersList>(LForeach_update_wait_mask(), c, cmd, &heaters_mask);
         if (heaters_mask == 0) {
-            heaters_mask = -1;
+            heaters_mask = AllHeatersMask;
         }
         o->waiting_heaters = 0;
         o->inrange_heaters = 0;
         o->wait_started_time = Clock::getTime(c);
         ListForEachForward<HeatersList>(LForeach_start_wait(), c, heaters_mask);
+        if (o->waiting_heaters != heaters_mask) {
+            ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:HeaterNotEnabled\n"));
+            cmd->finishCommand(c);
+            return;
+        }
         if (o->waiting_heaters) {
             ThePrinterMain::now_active(c);
         } else {
@@ -634,6 +640,20 @@ private:
         cmd->finishCommand(c, true);
     }
     
+    static void complete_wait (Context c, AMBRO_PGM_P errstr)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->waiting_heaters)
+        
+        TheCommand *cmd = ThePrinterMain::get_locked(c);
+        if (errstr) {
+            cmd->reply_append_pstr(c, errstr);
+        }
+        cmd->finishCommand(c);
+        ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
+        ThePrinterMain::now_inactive(c);
+    }
+    
     static void check_wait_completion (Context c)
     {
         auto *o = Object::self(c);
@@ -643,14 +663,13 @@ private:
         bool timed_out = (TimeType)(Clock::getTime(c) - o->wait_started_time) >= APRINTER_CFG(Config, CWaitTimeoutTicks, c);
         
         if (reached || timed_out) {
-            TheCommand *cmd = ThePrinterMain::get_locked(c);
-            if (timed_out) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:WaitTimedOut\n"));
-            }
-            cmd->finishCommand(c);
-            ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
-            ThePrinterMain::now_inactive(c);
+            complete_wait(c, timed_out ? AMBRO_PSTR("Error:WaitTimedOut\n") : nullptr);
         }
+    }
+    
+    static void fail_wait (Context c)
+    {
+        complete_wait(c, AMBRO_PSTR("Error:HeaterDisabled\n"));
     }
     
     template <typename This>
