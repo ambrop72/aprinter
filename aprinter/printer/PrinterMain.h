@@ -323,6 +323,7 @@ private:
     template <int AxisIndex> struct PlannerPrestepCallback;
     template <int AxisIndex> struct AxisDriverConsumersList;
     struct DelayedConfigExprs;
+    struct SetPositionState;
     
     using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
@@ -379,10 +380,9 @@ private:
 public:
     using TimeConversion = APRINTER_FP_CONST_EXPR(Clock::time_freq);
     using TimeRevConversion = APRINTER_FP_CONST_EXPR(Clock::time_unit);
-    
-private:
     using FCpu = APRINTER_FP_CONST_EXPR(F_CPU);
     
+private:
     using CInactiveTimeTicks = decltype(ExprCast<TimeType>(Config::e(Params::InactiveTime::i()) * TimeConversion()));
     using CStepSpeedLimitFactor = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::MaxStepsPerCycle::i()) * FCpu() * TimeRevConversion())));
     using CForceTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::ForceTimeout::i()) * TimeConversion()));
@@ -391,8 +391,6 @@ private:
     
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
-    
-    struct SetPositionState;
     
 public:
     template <typename ChannelParentObject, typename Channel>
@@ -763,10 +761,8 @@ private:
         using PlannerMaxSpeedRec = decltype(ExprRec(Config::e(AxisSpec::DefaultMaxSpeed::i()) * SpeedConversion()));
         using PlannerMaxAccelRec = decltype(ExprRec(Config::e(AxisSpec::DefaultMaxAccel::i()) * AccelConversion()));
         
-        template <typename ThePrinterMain = PrinterMain>
-        struct Lazy {
-            static typename ThePrinterMain::PhysVirtAxisMaskType const AxisMask = (typename ThePrinterMain::PhysVirtAxisMaskType)1 << AxisIndex;
-        };
+        template <typename ThePrinterMain=PrinterMain>
+        static constexpr typename ThePrinterMain::PhysVirtAxisMaskType AxisMask () { return (PhysVirtAxisMaskType)1 << AxisIndex; }
         
         AMBRO_STRUCT_IF(HomingFeature, HomingSpec::Enabled) {
             struct Object;
@@ -789,16 +785,16 @@ private:
                 {
                     auto *axis = Axis::Object::self(c);
                     auto *mob = PrinterMain::Object::self(c);
-                    AMBRO_ASSERT(mob->axis_homing & Lazy<>::AxisMask)
+                    AMBRO_ASSERT(mob->axis_homing & AxisMask())
                     AMBRO_ASSERT(mob->locked)
-                    AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
+                    AMBRO_ASSERT(mob->m_homing_rem_axes & AxisMask())
                     
                     Homer::deinit(c);
                     axis->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
                     axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
-                    mob->axis_homing &= ~Lazy<>::AxisMask;
+                    mob->axis_homing &= ~AxisMask();
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
-                    mob->m_homing_rem_axes &= ~Lazy<>::AxisMask;
+                    mob->m_homing_rem_axes &= ~AxisMask();
                     if (!(mob->m_homing_rem_axes & PhysAxisMask)) {
                         phys_homing_finished(c);
                     }
@@ -816,14 +812,14 @@ private:
             static void init (Context c)
             {
                 auto *mob = PrinterMain::Object::self(c);
-                AMBRO_ASSERT(!(mob->axis_homing & Lazy<>::AxisMask))
+                AMBRO_ASSERT(!(mob->axis_homing & AxisMask()))
                 HomerGlobal::init(c);
             }
             
             static void deinit (Context c)
             {
                 auto *mob = PrinterMain::Object::self(c);
-                if (mob->axis_homing & Lazy<>::AxisMask) {
+                if (mob->axis_homing & AxisMask()) {
                     HomingState::Homer::deinit(c);
                 }
             }
@@ -831,12 +827,12 @@ private:
             static void start_phys_homing (Context c)
             {
                 auto *mob = PrinterMain::Object::self(c);
-                AMBRO_ASSERT(!(mob->axis_homing & Lazy<>::AxisMask))
-                AMBRO_ASSERT(mob->m_homing_rem_axes & Lazy<>::AxisMask)
+                AMBRO_ASSERT(!(mob->axis_homing & AxisMask()))
+                AMBRO_ASSERT(mob->m_homing_rem_axes & AxisMask())
                 
                 Stepper::enable(c);
                 HomingState::Homer::init(c);
-                mob->axis_homing |= Lazy<>::AxisMask;
+                mob->axis_homing |= AxisMask();
             }
             
             using InitPosition = decltype(ExprIf(Config::e(HomingSpec::HomeDir::i()), MaxReqPos(), MinReqPos()));
@@ -890,7 +886,7 @@ private:
         {
             auto *o = Object::self(c);
             auto *mob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(!(mob->axis_relative & Lazy<>::AxisMask))
+            AMBRO_ASSERT(!(mob->axis_relative & AxisMask()))
             TheAxisDriver::init(c);
             HomingFeature::init(c);
             MicroStepFeature::init(c);
@@ -1395,15 +1391,13 @@ public:
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
             using HomingSpec = typename VirtAxisParams::VirtualHoming;
             
-            template <typename ThePrinterMain = PrinterMain>
-            struct Lazy {
-                static typename ThePrinterMain::PhysVirtAxisMaskType const AxisMask = (typename ThePrinterMain::PhysVirtAxisMaskType)1 << (NumAxes + VirtAxisIndex);
-            };
+            template <typename ThePrinterMain=PrinterMain>
+            static constexpr typename ThePrinterMain::PhysVirtAxisMaskType AxisMask () { return (PhysVirtAxisMaskType)1 << (NumAxes + VirtAxisIndex); }
             
             static void init (Context c)
             {
                 auto *mo = PrinterMain::Object::self(c);
-                AMBRO_ASSERT(!(mo->axis_relative & Lazy<>::AxisMask))
+                AMBRO_ASSERT(!(mo->axis_relative & AxisMask()))
                 HomingFeature::init(c);
             }
             
@@ -1520,7 +1514,7 @@ public:
                     auto *o = Object::self(c);
                     auto *mo = PrinterMain::Object::self(c);
                     
-                    if (!(mo->m_homing_rem_axes & Lazy<>::AxisMask)) {
+                    if (!(mo->m_homing_rem_axes & AxisMask())) {
                         return true;
                     }
                     set_position(c, home_start_pos(c));
@@ -1609,7 +1603,7 @@ public:
                         if (o->state < 3) {
                             return custom_planner_init(c, &o->planner_client, o->state == 2);
                         }
-                        mo->m_homing_rem_axes &= ~Lazy<>::AxisMask;
+                        mo->m_homing_rem_axes &= ~AxisMask();
                         work_virt_homing(c);
                     }
                     
@@ -1666,18 +1660,13 @@ public:
         using VirtAxesList = IndexElemList<ParamsVirtAxesList, VirtAxis>;
         
         template <typename PhysAxisIndex>
-        using IsPhysAxisTransformPhys = WrapBool<TypeListFindMapped<
-            VirtAxesList,
-            GetMemberType_WrappedPhysAxisIndex,
-            PhysAxisIndex
-        >::Found>;
+        using IsPhysAxisTransformPhys = WrapBool<
+            TypeListFindMapped<VirtAxesList, GetMemberType_WrappedPhysAxisIndex, PhysAxisIndex>::Found
+        >;
         
         using SecondaryAxisIndices = FilterTypeList<
             SequenceList<NumAxes>,
-            ComposeFunctions<
-                NotFunc,
-                TemplateFunc<IsPhysAxisTransformPhys>
-            >
+            ComposeFunctions<NotFunc, TemplateFunc<IsPhysAxisTransformPhys>>
         >;
         static int const NumSecondaryAxes = TypeListLength<SecondaryAxisIndices>::Value;
         
@@ -1706,8 +1695,6 @@ public:
         
         template <int LaserIndex>
         struct LaserSplit {
-            struct Object;
-            
             static void prepare_split (Context c)
             {
                 auto *o = Object::self(c);
@@ -1785,7 +1772,7 @@ public:
     public:
         static char const AxisName = TheAxis::AxisName;
         using WrappedAxisName = WrapInt<AxisName>;
-        static PhysVirtAxisMaskType const AxisMask = TheAxis::template Lazy<>::AxisMask;
+        static PhysVirtAxisMaskType const AxisMask = TheAxis::AxisMask();
         
         static FpType get_position (Context c)
         {
@@ -1800,7 +1787,7 @@ public:
             axis->m_old_pos = axis->m_req_pos;
         }
         
-        static void update_new_pos (Context c, FpType req, bool ignore_limits=false)
+        static void update_new_pos (Context c, FpType req, bool ignore_limits)
         {
             TheAxis::update_new_pos(c, req, ignore_limits);
         }
@@ -1815,7 +1802,7 @@ public:
                 if (mo->axis_relative & AxisMask) {
                     req += axis->m_old_pos;
                 }
-                update_new_pos(c, req);
+                move_add_axis<PhysVirtAxisIndex>(c, req);
                 return false;
             }
             return true;
@@ -1883,11 +1870,7 @@ public:
     using PhysVirtAxisHelperList = IndexElemListCount<NumPhysVirtAxes, PhysVirtAxisHelper>;
     
     template <int AxisName>
-    using FindPhysVirtAxis = TypeListIndexMapped<
-        PhysVirtAxisHelperList,
-        GetMemberType_WrappedAxisName,
-        WrapInt<AxisName>
-    >;
+    using FindPhysVirtAxis = TypeListIndexMapped<PhysVirtAxisHelperList, GetMemberType_WrappedAxisName, WrapInt<AxisName>>;
     
 private:
     using ModuleClassesList = MapTypeList<ModulesList, GetMemberType_TheModule>;
@@ -2446,9 +2429,8 @@ private:
     template <int AxisIndex>
     static bool planner_prestep_callback (typename ThePlanner::template Axis<AxisIndex>::StepperCommandCallbackContext c)
     {
-        return
-            ProbeFeature::prestep_callback(c) ||
-            TransformFeature::prestep_callback(c);
+        return ProbeFeature::prestep_callback(c) ||
+               TransformFeature::prestep_callback(c);
     }
     
 public:
