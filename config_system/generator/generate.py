@@ -1004,7 +1004,7 @@ def get_letter_number_name(config, key):
         config.key_path(key).error('Incorrect name (expecting letter optionally followed by a number).')
     letter = match.group(1)
     number = int(match.group(2)) if match.group(2) != '' else 0
-    normalized_name = '{}{}'.format(letter, number)
+    normalized_name = '{}{}'.format(letter, number) if number != 0 else letter
     return normalized_name, TemplateExpr('AuxControlName', [TemplateChar(letter), number])
 
 def generate(config_root_data, cfg_name, main_template):
