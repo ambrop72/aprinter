@@ -48,6 +48,7 @@
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/MotionPlanner.h>
+#include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -60,6 +61,7 @@ private:
     using ThePrinterMain = TThePrinterMain;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
+    using TheClockUtils = ClockUtils<Context>;
     using Config = typename ThePrinterMain::Config;
     using TheCommand = typename ThePrinterMain::TheCommand;
     using FpType = typename ThePrinterMain::FpType;
@@ -70,6 +72,7 @@ private:
     static int const NumHeaters = TypeListLength<ParamsHeatersList>::Value;
     
     using CWaitTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitTimeout::i()) * TimeConversion()));
+    using CWaitReportPeriodTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitReportPeriod::i()) * TimeConversion()));
     
     static int const SetHeaterCommand = 104;
     static int const SetFanCommand = 106;
@@ -92,6 +95,8 @@ private:
 public:
     static void init (Context c)
     {
+        auto *o = Object::self(c);
+        o->waiting_heaters = 0;
         ListForEachForward<HeatersList>(LForeach_init(), c);
         ListForEachForward<FansList>(LForeach_init(), c);
     }
@@ -402,6 +407,8 @@ private:
             if (TheObserver::isObserving(c) && !enabled) {
                 fail_wait(c);
             }
+            
+            maybe_report(c);
         }
         
         template <typename TheHeatersMaskType>
@@ -586,9 +593,14 @@ private:
     static void handle_print_heaters_command (Context c, TheCommand *cmd)
     {
         cmd->reply_append_pstr(c, AMBRO_PSTR("ok"));
+        print_heaters(c, cmd);
+        cmd->finishCommand(c, true);
+    }
+    
+    static void print_heaters (Context c, TheCommand *cmd)
+    {
         ListForEachForward<HeatersList>(LForeach_append_value(), c, cmd);
         cmd->reply_append_ch(c, '\n');
-        cmd->finishCommand(c, true);
     }
     
     static void handle_set_fan_command (Context c, TheCommand *cmd, bool is_turn_off)
@@ -610,6 +622,7 @@ private:
         if (!cmd->tryUnplannedCommand(c)) {
             return;
         }
+        AMBRO_ASSERT(o->waiting_heaters == 0)
         HeatersMaskType heaters_mask = 0;
         ListForEachForward<HeatersList>(LForeach_update_wait_mask(), c, cmd, &heaters_mask);
         if (heaters_mask == 0) {
@@ -620,12 +633,14 @@ private:
         o->wait_started_time = Clock::getTime(c);
         ListForEachForward<HeatersList>(LForeach_start_wait(), c, heaters_mask);
         if (o->waiting_heaters != heaters_mask) {
-            ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
             cmd->reply_append_pstr(c, AMBRO_PSTR("Error:HeaterNotEnabled\n"));
             cmd->finishCommand(c);
+            ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
+            o->waiting_heaters = 0;
             return;
         }
         if (o->waiting_heaters) {
+            o->report_poll_timer.setTo(o->wait_started_time);
             ThePrinterMain::now_active(c);
         } else {
             cmd->finishCommand(c);
@@ -651,6 +666,7 @@ private:
         }
         cmd->finishCommand(c);
         ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
+        o->waiting_heaters = 0;
         ThePrinterMain::now_inactive(c);
     }
     
@@ -670,6 +686,18 @@ private:
     static void fail_wait (Context c)
     {
         complete_wait(c, AMBRO_PSTR("Error:HeaterDisabled\n"));
+    }
+    
+    static void maybe_report (Context c)
+    {
+        auto *o = Object::self(c);
+        if (o->waiting_heaters && o->report_poll_timer.isExpired(c)) {
+            o->report_poll_timer.addTime(APRINTER_CFG(Config, CWaitReportPeriodTicks, c));
+            auto *output = ThePrinterMain::get_msg_output(c);
+            output->reply_append_pstr(c, AMBRO_PSTR("//HeatProgress"));
+            print_heaters(c, output);
+            output->reply_poke(c);
+        }
     }
     
     template <typename This>
@@ -694,7 +722,7 @@ public:
     
     using MotionPlannerChannels = MakeTypeList<PlannerChannelSpec>;
     
-    using ConfigExprs = MakeTypeList<CWaitTimeoutTicks>;
+    using ConfigExprs = MakeTypeList<CWaitTimeoutTicks, CWaitReportPeriodTicks>;
     
 public:
     struct Object : public ObjBase<AuxControlModule, ParentObject, JoinTypeLists<
@@ -704,6 +732,7 @@ public:
         HeatersMaskType waiting_heaters;
         HeatersMaskType inrange_heaters;
         TimeType wait_started_time;
+        typename TheClockUtils::PollTimer report_poll_timer;
     };
 };
 
@@ -760,6 +789,7 @@ template <
     int TEventChannelBufferSize,
     typename TEventChannelTimerService,
     typename TWaitTimeout,
+    typename TWaitReportPeriod,
     typename THeatersList,
     typename TFansList
 >
@@ -767,6 +797,7 @@ struct AuxControlModuleService {
     static int const EventChannelBufferSize = TEventChannelBufferSize;
     using EventChannelTimerService = TEventChannelTimerService;
     using WaitTimeout = TWaitTimeout;
+    using WaitReportPeriod = TWaitReportPeriod;
     using HeatersList = THeatersList;
     using FansList = TFansList;
     

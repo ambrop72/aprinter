@@ -364,6 +364,7 @@ def editor():
             ce.Reference(key='board', ref_array={'base': 'id_editor.boards', 'descend': []}, ref_id_key='name', ref_name_key='name', deref_key='board_data', title='Board', processing_order=-1),
             ce.Float(key='InactiveTime', title='Disable steppers after [s]', default=480),
             ce.Float(key='WaitTimeout', title='Timeout when waiting for heater temperatures (M116) [s]', default=500),
+            ce.Float(key='WaitReportPeriod', title='Period of temperature reports when waiting for heaters [s]', default=1),
             ce.Compound('advanced', key='advanced', title='Advanced parameters', collapsable=True, attrs=[
                 ce.Float(key='LedBlinkInterval', title='LED blink interval [s]', default=0.5),
                 ce.Float(key='ForceTimeout', title='Force motion timeout [s]', default=0.1),

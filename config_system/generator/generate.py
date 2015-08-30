@@ -1554,6 +1554,7 @@ def generate(config_root_data, cfg_name, main_template):
                 performance.get_int_constant('EventChannelBufferSize'),
                 event_channel_timer_expr,
                 gen.add_float_config('WaitTimeout', config.get_float('WaitTimeout')),
+                gen.add_float_config('WaitReportPeriod', config.get_float('WaitReportPeriod')),
                 heaters_expr,
                 fans_expr,
             ])

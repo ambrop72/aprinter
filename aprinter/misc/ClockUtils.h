@@ -54,6 +54,11 @@ public:
     
     class PollTimer {
     public:
+        inline void setTo (TimeType set_time)
+        {
+            m_set_time = set_time;
+        }
+        
         template <typename ThisContext>
         inline void setAfter (ThisContext c, TimeType after_ticks)
         {
