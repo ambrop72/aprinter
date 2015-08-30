@@ -1377,11 +1377,19 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 transform_type_sel = selection.Selection()
                 
+                def distance_splitter(prefix):
+                    gen.add_aprinter_include('printer/DistanceSplitter.h')
+                    return TemplateExpr('DistanceSplitterService', [
+                        gen.add_float_config('{}MinSplitLength'.format(prefix), transform.get_float('MinSplitLength')),
+                        gen.add_float_config('{}MaxSplitLength'.format(prefix), transform.get_float('MaxSplitLength')),
+                    ])
+                
                 @transform_type_sel.option('CoreXY')
                 def option():
                     gen.add_aprinter_include('printer/transform/CoreXyTransform.h')
+                    gen.add_aprinter_include('printer/NoSplitter.h')
                     
-                    return 'CoreXyTransformService'
+                    return 'CoreXyTransformService', 'NoSplitterService'
                 
                 @transform_type_sel.option('Delta')
                 def option():
@@ -1392,12 +1400,8 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_config('DeltaSmoothRodOffset', transform.get_float('SmoothRodOffset')),
                         gen.add_float_config('DeltaEffectorOffset', transform.get_float('EffectorOffset')),
                         gen.add_float_config('DeltaCarriageOffset', transform.get_float('CarriageOffset')),
-                        TemplateExpr('DistanceSplitterParams', [
-                            gen.add_float_constant('DeltaMinSplitLength', transform.get_float('MinSplitLength')),
-                            gen.add_float_constant('DeltaMaxSplitLength', transform.get_float('MaxSplitLength')),
-                        ]),
-                    ])
-                    
+                    ]), distance_splitter('Delta')
+                
                 @transform_type_sel.option('RotationalDelta')
                 def option():
                     gen.add_aprinter_include('printer/transform/RotationalDeltaTransform.h')
@@ -1408,17 +1412,16 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_config('DeltaRodLength', transform.get_float('RodLength')),
                         gen.add_float_config('DeltaArmLength', transform.get_float('ArmLength')),
                         gen.add_float_config('DeltaZOffset', transform.get_float('ZOffset')),
-                        TemplateExpr('DistanceSplitterParams', [
-                            gen.add_float_constant('DeltaMinSplitLength', transform.get_float('MinSplitLength')),
-                            gen.add_float_constant('DeltaMaxSplitLength', transform.get_float('MaxSplitLength')),
-                        ]),
-                    ])
+                    ]), distance_splitter('Delta')
+                
+                transform_expr, splitter_expr = transform_type_sel.run(transform_type)
                 
                 return TemplateExpr('PrinterMainTransformParams', [
                     transform.do_keyed_list('DimensionCount', 'CartesianAxes', 'VirtualAxis', virtual_axis_cb, 1, 3),
                     transform.do_keyed_list('DimensionCount', 'Steppers', 'TransformStepper', transform_stepper_cb, 1, 3),
                     gen.add_float_constant('SegmentsPerSecond', transform.get_float('SegmentsPerSecond')),
-                    transform_type_sel.run(transform_type),
+                    transform_expr,
+                    splitter_expr,
                 ])
             
             transform_expr = config.do_selection('transform', transform_sel)

@@ -27,22 +27,33 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename FpType>
+template <typename Context, typename FpType>
 class NoSplitter {
 public:
-    void start (FpType distance, FpType base_max_v_rec, FpType num_segments_by_distance)
-    {
-        m_max_v_rec = base_max_v_rec;
-    }
+    class Splitter {
+    public:
+        void start (Context c, FpType distance, FpType base_max_v_rec, FpType num_segments_by_distance)
+        {
+            m_max_v_rec = base_max_v_rec;
+        }
+        
+        bool pull (Context c, FpType *out_rel_max_v_rec, FpType *out_frac)
+        {
+            *out_rel_max_v_rec = m_max_v_rec;
+            return false;
+        }
+        
+    private:
+        FpType m_max_v_rec;
+    };
     
-    bool pull (FpType *out_rel_max_v_rec, FpType *out_frac)
-    {
-        *out_rel_max_v_rec = m_max_v_rec;
-        return false;
-    }
-    
-private:
-    FpType m_max_v_rec;
+public:
+    struct Object {};
+};
+
+struct NoSplitterService {
+    template <typename Context, typename ParentObject, typename Config, typename FpType>
+    using Splitter = NoSplitter<Context, FpType>;
 };
 
 #include <aprinter/EndNamespace.h>

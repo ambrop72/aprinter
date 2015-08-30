@@ -31,7 +31,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/math/Vector3.h>
 #include <aprinter/math/FloatTools.h>
-#include <aprinter/printer/DistanceSplitter.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -73,8 +72,6 @@ public:
         out_virt.template set<2>(ps.m_v[2]);
     }
     
-    using Splitter = DistanceSplitter<typename Params::SplitterParams, FpType>;
-    
 private:
     using DiagonalRod = decltype(Config::e(Params::DiagonalRod::i()));
     using Radius = decltype(Config::e(Params::SmoothRodOffset::i()) - Config::e(Params::EffectorOffset::i()) - Config::e(Params::CarriageOffset::i()));
@@ -103,15 +100,13 @@ template <
     typename TDiagonalRod,
     typename TSmoothRodOffset,
     typename TEffectorOffset,
-    typename TCarriageOffset,
-    typename TSplitterParams
+    typename TCarriageOffset
 >
 struct DeltaTransformService {
     using DiagonalRod = TDiagonalRod;
     using SmoothRodOffset = TSmoothRodOffset;
     using EffectorOffset = TEffectorOffset;
     using CarriageOffset = TCarriageOffset;
-    using SplitterParams = TSplitterParams;
     
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Transform = DeltaTransform<Context, ParentObject, Config, FpType, DeltaTransformService>;

@@ -25,8 +25,6 @@
 #ifndef AMBROLIB_COREXY_TRANSFORM_H
 #define AMBROLIB_COREXY_TRANSFORM_H
 
-#include <aprinter/printer/NoSplitter.h>
-
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename FpType>
@@ -47,8 +45,6 @@ public:
         out_virt.template set<0>(0.5f * (phys.template get<0>() + phys.template get<1>()));
         out_virt.template set<1>(0.5f * (phys.template get<0>() - phys.template get<1>()));
     }
-    
-    using Splitter = NoSplitter<FpType>;
     
     struct Object {};
 };

@@ -182,7 +182,8 @@ struct PrinterMainNoTransformParams {
 template <
     typename TVirtAxesList, typename TPhysAxesList,
     typename TSegmentsPerSecond,
-    typename TTransformService
+    typename TTransformService,
+    typename TSplitterService
 >
 struct PrinterMainTransformParams {
     static bool const Enabled = true;
@@ -190,6 +191,7 @@ struct PrinterMainTransformParams {
     using PhysAxesList = TPhysAxesList;
     using SegmentsPerSecond = TSegmentsPerSecond;
     using TransformService = TTransformService;
+    using SplitterService = TSplitterService;
 };
 
 template <
@@ -1163,7 +1165,8 @@ public:
         using ParamsVirtAxesList = typename TransformParams::VirtAxesList;
         using ParamsPhysAxesList = typename TransformParams::PhysAxesList;
         using TheTransformAlg = typename TransformParams::TransformService::template Transform<Context, Object, Config, FpType>;
-        using TheSplitter = typename TheTransformAlg::Splitter;
+        using TheSplitterClass = typename TransformParams::SplitterService::template Splitter<Context, Object, Config, FpType>;
+        using TheSplitter = typename TheSplitterClass::Splitter;
         
     public:
         static int const NumVirtAxes = TheTransformAlg::NumAxes;
@@ -1277,7 +1280,7 @@ public:
             
             FpType base_max_v_rec = ListForEachForwardAccRes<VirtAxesList>(distance * time_freq_by_max_speed, LForeach_limit_virt_axis_speed(), c);
             FpType min_segments_by_distance = (FpType)(TransformParams::SegmentsPerSecond::value() * Clock::time_unit) * time_freq_by_max_speed;
-            o->splitter.start(distance, base_max_v_rec, min_segments_by_distance);
+            o->splitter.start(c, distance, base_max_v_rec, min_segments_by_distance);
             o->frac = 0.0;
             
             do_split(c);
@@ -1338,7 +1341,7 @@ public:
                 FpType saved_virt_rex_pos[NumVirtAxes];
                 FpType saved_phys_req_pos[NumAxes];
                 
-                if (o->splitter.pull(&rel_max_v_rec, &o->frac)) {
+                if (o->splitter.pull(c, &rel_max_v_rec, &o->frac)) {
                     ListForEachForward<AxesList>(LForeach_save_req_pos(), c, saved_phys_req_pos);
                     
                     FpType saved_virt_req_pos[NumVirtAxes];
@@ -1676,6 +1679,7 @@ public:
         public:
             struct Object : public ObjBase<VirtAxis, typename TransformFeature::Object, MakeTypeList<
                 TheTransformAlg,
+                TheSplitterClass,
                 HomingFeature
             >>
             {

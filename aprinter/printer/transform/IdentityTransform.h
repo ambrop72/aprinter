@@ -28,7 +28,6 @@
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/Tuple.h>
 #include <aprinter/meta/TupleForEach.h>
-#include <aprinter/printer/DistanceSplitter.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -53,8 +52,6 @@ public:
         TupleForEachForward(&dummy, Foreach_copy_coords(), phys, out_virt);
     }
     
-    using Splitter = DistanceSplitter<typename Params::SplitterParams, FpType>;
-    
 private:
     template <int AxisIndex>
     struct Helper {
@@ -71,10 +68,9 @@ public:
     struct Object {};
 };
 
-template <int TNumAxes, typename TSplitterParams>
+template <int TNumAxes>
 struct IdentityTransformService {
     static int const NumAxes = TNumAxes;
-    using SplitterParams = TSplitterParams;
     
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Transform = IdentityTransform<Context, FpType, IdentityTransformService>;

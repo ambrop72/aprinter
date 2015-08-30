@@ -30,7 +30,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/math/Vector3.h>
 #include <aprinter/math/FloatTools.h>
-#include <aprinter/printer/DistanceSplitter.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -157,8 +156,6 @@ public:
         out_virt.template set<2>(z0 + APRINTER_CFG(Config, CZOffset, c));
     }
     
-    using Splitter = DistanceSplitter<typename Params::SplitterParams, FpType>;
-    
 private:
     // expressions for configuration parameters
     using EndEffectorLength = decltype(Config::e(Params::EndEffectorLength::i())); // e in trossen tutorial
@@ -186,8 +183,7 @@ template <
     typename TBaseLength,
     typename TRodLength,
     typename TArmLength,
-    typename TZOffset,
-    typename TSplitterParams
+    typename TZOffset
 >
 struct RotationalDeltaTransformService {
     using EndEffectorLength = TEndEffectorLength;
@@ -195,7 +191,6 @@ struct RotationalDeltaTransformService {
     using RodLength = TRodLength;
     using ArmLength = TArmLength;
     using ZOffset = TZOffset;
-    using SplitterParams = TSplitterParams;
     
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Transform = RotationalDeltaTransform<Context, ParentObject, Config, FpType, RotationalDeltaTransformService>;

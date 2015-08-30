@@ -29,45 +29,68 @@
 
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/meta/PowerOfTwo.h>
+#include <aprinter/base/Object.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TMinSplitLength, typename TMaxSplitLength>
-struct DistanceSplitterParams {
-    using MinSplitLength = TMinSplitLength;
-    using MaxSplitLength = TMaxSplitLength;
-};
-
-template <typename Params, typename FpType>
+template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
 class DistanceSplitter {
 public:
-    void start (FpType distance, FpType base_max_v_rec, FpType num_segments_by_distance)
-    {
-        FpType fpcount = distance * FloatMin((FpType)(1.0 / Params::MinSplitLength::value()), FloatMax((FpType)(1.0 / Params::MaxSplitLength::value()), num_segments_by_distance));
-        if (fpcount >= FloatLdexp(FpType(1.0f), 31)) {
-            m_count = PowerOfTwo<uint32_t, 31>::Value;
-        } else {
-            m_count = 1 + (uint32_t)fpcount;
-        }
-        m_pos = 1;
-        m_max_v_rec = base_max_v_rec / m_count;
-    }
-    
-    bool pull (FpType *out_rel_max_v_rec, FpType *out_frac)
-    {
-        *out_rel_max_v_rec = m_max_v_rec;
-        if (m_pos == m_count) {
-            return false;
-        }
-        *out_frac = (FpType)m_pos / m_count;
-        m_pos++;
-        return true;
-    }
+    struct Object;
     
 private:
-    uint32_t m_count;
-    uint32_t m_pos;
-    FpType m_max_v_rec;
+    using CMinSplitLengthRec = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::MinSplitLength::i()))));
+    using CMaxSplitLengthRec = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::MaxSplitLength::i()))));
+    
+public:
+    class Splitter {
+    public:
+        void start (Context c, FpType distance, FpType base_max_v_rec, FpType num_segments_by_distance)
+        {
+            FpType fpcount = distance * FloatMin(APRINTER_CFG(Config, CMinSplitLengthRec, c), FloatMax(APRINTER_CFG(Config, CMaxSplitLengthRec, c), num_segments_by_distance));
+            if (fpcount >= FloatLdexp(FpType(1.0f), 31)) {
+                m_count = PowerOfTwo<uint32_t, 31>::Value;
+            } else {
+                m_count = 1 + (uint32_t)fpcount;
+            }
+            m_pos = 1;
+            m_max_v_rec = base_max_v_rec / m_count;
+        }
+        
+        bool pull (Context c, FpType *out_rel_max_v_rec, FpType *out_frac)
+        {
+            *out_rel_max_v_rec = m_max_v_rec;
+            if (m_pos == m_count) {
+                return false;
+            }
+            *out_frac = (FpType)m_pos / m_count;
+            m_pos++;
+            return true;
+        }
+        
+    private:
+        uint32_t m_count;
+        uint32_t m_pos;
+        FpType m_max_v_rec;
+    };
+    
+public:
+    using ConfigExprs = MakeTypeList<CMinSplitLengthRec, CMaxSplitLengthRec>;
+    
+    struct Object : public ObjBase<DistanceSplitter, ParentObject, EmptyTypeList> {};
+};
+
+template <
+    typename TMinSplitLength,
+    typename TMaxSplitLength
+>
+struct DistanceSplitterService {
+    using MinSplitLength = TMinSplitLength;
+    using MaxSplitLength = TMaxSplitLength;
+    
+    template <typename Context, typename ParentObject, typename Config, typename FpType>
+    using Splitter = DistanceSplitter<Context, ParentObject, Config, FpType, DistanceSplitterService>;
 };
 
 #include <aprinter/EndNamespace.h>
