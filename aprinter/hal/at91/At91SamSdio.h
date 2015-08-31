@@ -314,7 +314,7 @@ private:
             SdioIface::CommandResults results;
             
             if (!(status & HSMCI_SR_CMDRDY)) {
-                goto read_not_done;
+                goto cmd_not_done;
             }
             
             if (o->cmd_response_type == SdioIface::RESPONSE_NONE) {
@@ -323,25 +323,25 @@ private:
                 if (!(o->cmd_flags & SdioIface::CMD_FLAG_NO_CRC_CHECK)) {
                     if ((status & HSMCI_SR_RCRCE)) {
                         results = SdioIface::CommandResults{SdioIface::CMD_ERROR_RESPONSE_CHECKSUM};
-                        goto read_done;
+                        goto cmd_done;
                     }
                 }
                 
                 if ((status & HSMCI_SR_RTOE)) {
                     results = SdioIface::CommandResults{SdioIface::CMD_ERROR_RESPONSE_TIMEOUT};
-                    goto read_done;
+                    goto cmd_done;
                 }
                 
                 if (!(o->cmd_flags & SdioIface::CMD_FLAG_NO_CMDNUM_CHECK)) {
                     if ((status & HSMCI_SR_RINDE)) {
                         results = SdioIface::CommandResults{SdioIface::CMD_ERROR_BAD_RESPONSE_CMD};
-                        goto read_done;
+                        goto cmd_done;
                     }
                 }
                 
                 if ((status & HSMCI_SR_CSTOE) || (status & HSMCI_SR_RENDE) || (status & HSMCI_SR_RDIRE)) {
                     results = SdioIface::CommandResults{SdioIface::CMD_ERROR_OTHER};
-                    goto read_done;
+                    goto cmd_done;
                 }
                 
                 results = SdioIface::CommandResults{SdioIface::CMD_ERROR_NONE};
@@ -353,12 +353,12 @@ private:
                 }
             }
             
-        read_done:
+        cmd_done:
             o->cmd_state = CMD_STATE_READY;
             Context::EventLoop::template triggerFastEvent<FastEvent>(c);
             return CommandHandler::call(c, results);
         }
-    read_not_done:
+    cmd_not_done:
         
         if (o->data_state != DATA_STATE_READY) {
             while (true) {
@@ -380,7 +380,7 @@ private:
                             o->data_error = SdioIface::DATA_ERROR_NONE;
                         }
                         else {
-                            goto write_not_done;
+                            goto data_not_done;
                         }
                         
                         o->data_state = DATA_STATE_WAIT_DMA;
@@ -389,7 +389,7 @@ private:
                     case DATA_STATE_WAIT_DMA: {
                         if (o->data_error == SdioIface::DATA_ERROR_NONE) {
                             if (!dmac_channel_is_transfer_done(DMAC, DmaChannel)) {
-                                goto write_not_done;
+                                goto data_not_done;
                             }
                             
                             if (o->data_dir == SdioIface::DATA_DIR_READ) {
@@ -409,7 +409,7 @@ private:
                 }
             }
         }
-    write_not_done:
+    data_not_done:
         
         if (o->cmd_state != CMD_STATE_READY || o->data_state != DATA_STATE_READY) {
             Context::EventLoop::template triggerFastEvent<FastEvent>(c);
