@@ -325,7 +325,6 @@ private:
     template <int AxisIndex> struct AxisDriverConsumersList;
     struct DelayedConfigExprs;
     
-    using Loop = typename Context::EventLoop;
     using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     using ParamsAxesList = typename Params::AxesList;
@@ -342,8 +341,7 @@ private:
 public:
     using FpType = typename Params::FpType;
     using Config = ConfigFramework<TheConfigManager, TheConfigCache>;
-    using CommandType = Command<Context, FpType>;
-    using TheCommand = CommandType;
+    using TheCommand = Command<Context, FpType>;
     using CommandPartRef = typename TheCommand::PartRef;
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     static const bool IsTransformEnabled = TransformParams::Enabled;
@@ -394,13 +392,19 @@ private:
     
 public:
     template <typename ChannelParentObject, typename Channel>
-    struct ChannelCommon {
+    class ChannelCommon {
+        friend PrinterMain;
+        
+    public:
         struct Object;
+        
+    private:
         struct CommandImpl;
         using TheGcodeParser = typename Channel::TheGcodeParser;
         using GcodeParserPartRef = typename TheGcodeParser::PartRef;
         
-        static CommandImpl * impl (Context c)
+    public:
+        static TheCommand * impl (Context c)
         {
             auto *o = Object::self(c);
             return &o->m_cmd_impl;
@@ -412,6 +416,12 @@ public:
             o->m_state = COMMAND_IDLE;
             o->m_cmd = false;
             o->m_send_buf_event_handler = NULL;
+        }
+        
+        static bool hasCommand (Context c)
+        {
+            auto *o = Object::self(c);
+            return o->m_cmd;
         }
         
         static void startCommand (Context c)
@@ -488,6 +498,7 @@ public:
             return handler(c);
         }
         
+    private:
         template <int State>
         static bool get_command_in_state_helper (Context c, WrapInt<State>, TheCommand **out_cmd)
         {
@@ -664,6 +675,7 @@ public:
             }
         };
         
+    public:
         struct Object : public ObjBase<ChannelCommon, ChannelParentObject, EmptyTypeList> {
             CommandImpl m_cmd_impl;
             uint8_t m_state;
@@ -1990,9 +2002,7 @@ public:
         ob->planner_state = PLANNER_NONE;
         ListForEachForward<ModulesList>(LForeach_init(), c);
         
-        auto *output = get_msg_output(c);
-        output->reply_append_pstr(c, AMBRO_PSTR("start\nAPrinter\n"));
-        output->reply_poke(c);
+        print_pgm_string(c, AMBRO_PSTR("start\nAPrinter\n"));
         
         LoadConfigFeature::start_loading(c);
         
@@ -2047,7 +2057,7 @@ public:
         cmd->finishCommand(c);
     }
     
-    static CommandType * get_locked (Context c)
+    static TheCommand * get_locked (Context c)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
@@ -2055,7 +2065,7 @@ public:
         return get_command_in_state<COMMAND_LOCKED, true>(c);
     }
     
-    static CommandType * get_msg_output (Context c)
+    static TheCommand * get_msg_output (Context c)
     {
         using TheSerialChannel = typename GetServiceProviderModule<ServiceList::SerialService>::SerialChannel;
         return TheSerialChannel::impl(c);
@@ -2069,11 +2079,6 @@ public:
     }
     
 private:
-    static TimeType time_from_real (FpType t)
-    {
-        return (FixedPoint<30, false, 0>::importFpSaturatedRound(t * (FpType)TimeConversion::value())).bitsValue();
-    }
-    
     static void blinker_handler (Context c)
     {
         auto *ob = Object::self(c);
@@ -2463,8 +2468,7 @@ private:
     template <int AxisIndex>
     static bool planner_prestep_callback (typename ThePlanner::template Axis<AxisIndex>::StepperCommandCallbackContext c)
     {
-        return ProbeFeature::prestep_callback(c) ||
-               TransformFeature::prestep_callback(c);
+        return ProbeFeature::prestep_callback(c) || TransformFeature::prestep_callback(c);
     }
     
 public:
@@ -2717,9 +2721,9 @@ public:
             PlannerUnion
         >
     >> {
-        typename Loop::QueuedEvent unlocked_timer;
-        typename Loop::TimedEvent disable_timer;
-        typename Loop::TimedEvent force_timer;
+        typename Context::EventLoop::QueuedEvent unlocked_timer;
+        typename Context::EventLoop::TimedEvent disable_timer;
+        typename Context::EventLoop::TimedEvent force_timer;
         FpType time_freq_by_max_speed;
         uint32_t underrun_count;
         uint8_t locked : 1;

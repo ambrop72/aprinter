@@ -118,7 +118,7 @@ public:
         TheBlockAccess::deinit(c);
     }
     
-    static bool startingIo (Context c, typename ThePrinterMain::CommandType *cmd)
+    static bool startingIo (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -141,7 +141,7 @@ public:
         o->file_state = FILE_STATE_PAUSED;
     }
     
-    static bool rewind (Context c, typename ThePrinterMain::CommandType *cmd)
+    static bool rewind (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         auto *fs_o = UnionFsPart::Object::self(c);
@@ -189,7 +189,7 @@ public:
         o->file_state = FILE_STATE_READING;
     }
     
-    static bool checkCommand (Context c, typename ThePrinterMain::CommandType *cmd)
+    static bool checkCommand (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         TheDebugObject::access(c);
         
@@ -252,7 +252,7 @@ private:
         set_default_states(c);
     }
     
-    static bool check_file_paused (Context c, typename ThePrinterMain::CommandType *cmd)
+    static bool check_file_paused (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         
@@ -337,7 +337,7 @@ private:
     }
     struct FsInitHandler : public AMBRO_WFUNC_TD(&SdFatInput::fs_init_handler) {};
     
-    static void handle_mount_command (Context c, typename ThePrinterMain::CommandType *cmd)
+    static void handle_mount_command (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         
@@ -460,7 +460,7 @@ private:
         }
     }
     
-    static void handle_unmount_command (Context c, typename ThePrinterMain::CommandType *cmd)
+    static void handle_unmount_command (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         
@@ -549,7 +549,7 @@ private:
         cmd->finishCommand(c);
     }
     
-    static void handle_navigation_command (Context c, typename ThePrinterMain::CommandType *cmd, bool is_dirlist)
+    static void handle_navigation_command (Context c, typename ThePrinterMain::TheCommand *cmd, bool is_dirlist)
     {
         auto *o = Object::self(c);
         auto *fs_o = UnionFsPart::Object::self(c);

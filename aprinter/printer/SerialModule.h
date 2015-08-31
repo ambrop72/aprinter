@@ -85,8 +85,7 @@ public: // these are called by ChannelCommon
     static bool start_command_impl (Context c)
     {
         auto *o = Object::self(c);
-        auto *cco = TheChannelCommon::Object::self(c);
-        AMBRO_ASSERT(cco->m_cmd)
+        AMBRO_ASSERT(TheChannelCommon::hasCommand(c))
         
         bool is_m110 = (TheGcodeParser::getCmdCode(c) == 'M' && TheGcodeParser::getCmdNumber(c) == 110);
         if (is_m110) {
@@ -109,8 +108,7 @@ public: // these are called by ChannelCommon
     static void finish_command_impl (Context c, bool no_ok)
     {
         auto *o = Object::self(c);
-        auto *cco = TheChannelCommon::Object::self(c);
-        AMBRO_ASSERT(cco->m_cmd)
+        AMBRO_ASSERT(TheChannelCommon::hasCommand(c))
         
         if (!no_ok) {
             TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR(SERIALMODULE_OK_STR));
@@ -183,9 +181,8 @@ private:
     static void serial_recv_handler (Context c)
     {
         auto *o = Object::self(c);
-        auto *cco = TheChannelCommon::Object::self(c);
         
-        if (cco->m_cmd) {
+        if (TheChannelCommon::hasCommand(c)) {
             return;
         }
         if (!TheGcodeParser::haveCommand(c)) {

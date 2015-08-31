@@ -193,7 +193,6 @@ public: // these are called by ChannelCommon
     static void finish_command_impl (Context c, bool no_ok)
     {
         auto *o = Object::self(c);
-        auto *co = TheChannelCommon::Object::self(c);
         AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
         buf_sanity(c);
         AMBRO_ASSERT(!o->m_eof)
@@ -238,7 +237,6 @@ private:
     static void input_read_handler (Context c, bool error, size_t bytes_read)
     {
         auto *o = Object::self(c);
-        auto *co = TheChannelCommon::Object::self(c);
         AMBRO_ASSERT(o->m_state == SDCARD_RUNNING || o->m_state == SDCARD_PAUSING)
         buf_sanity(c);
         AMBRO_ASSERT(o->m_reading)
@@ -270,7 +268,7 @@ private:
         if (can_read(c)) {
             start_read(c);
         }
-        if (!co->m_cmd && !o->m_eof) {
+        if (!TheChannelCommon::hasCommand(c) && !o->m_eof) {
             if (!o->m_next_event.isSet(c)) {
                 o->m_next_event.prependNowNotAlready(c);
             }
@@ -281,7 +279,6 @@ private:
     static void clear_input_buffer (Context c)
     {
         auto *o = Object::self(c);
-        auto *co = TheChannelCommon::Object::self(c);
         AMBRO_ASSERT(o->m_state == SDCARD_PAUSED)
         
         TheChannelCommon::maybeCancelLockingCommand(c);
@@ -293,10 +290,9 @@ private:
     static void next_event_handler (Context c)
     {
         auto *o = Object::self(c);
-        auto *co = TheChannelCommon::Object::self(c);
         AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
         buf_sanity(c);
-        AMBRO_ASSERT(!co->m_cmd)
+        AMBRO_ASSERT(!TheChannelCommon::hasCommand(c))
         AMBRO_ASSERT(!o->m_eof)
         
         AMBRO_PGM_P eof_str;

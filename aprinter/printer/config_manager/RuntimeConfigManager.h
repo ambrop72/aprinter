@@ -109,7 +109,7 @@ public:
     enum class OperationType {LOAD, STORE};
     
 private:
-    using CommandType = typename ThePrinterMain::CommandType;
+    using TheCommand = typename ThePrinterMain::TheCommand;
     
     template <typename TheType, typename Dummy=void>
     struct TypeSpecific;
@@ -118,12 +118,12 @@ private:
     struct TypeSpecific<double, Dummy> {
         static size_t const MaxStringValueLength = 30;
         
-        static void get_value_cmd (Context c, CommandType *cmd, double value)
+        static void get_value_cmd (Context c, TheCommand *cmd, double value)
         {
             cmd->reply_append_fp(c, value);
         }
         
-        static void set_value_cmd (Context c, CommandType *cmd, double *value, double default_value)
+        static void set_value_cmd (Context c, TheCommand *cmd, double *value, double default_value)
         {
             *value = cmd->get_command_param_fp(c, 'V', default_value);
         }
@@ -143,12 +143,12 @@ private:
     struct TypeSpecific<bool, Dummy> {
         static size_t const MaxStringValueLength = 1;
         
-        static void get_value_cmd (Context c, CommandType *cmd, bool value)
+        static void get_value_cmd (Context c, TheCommand *cmd, bool value)
         {
             cmd->reply_append_uint8(c, value);
         }
         
-        static void set_value_cmd (Context c, CommandType *cmd, bool *value, bool default_value)
+        static void set_value_cmd (Context c, TheCommand *cmd, bool *value, bool default_value)
         {
             *value = cmd->get_command_param_uint32(c, 'V', default_value);
         }
@@ -209,7 +209,7 @@ private:
             }
         }
         
-        static bool get_set_cmd (Context c, CommandType *cmd, bool get_it, char const *name)
+        static bool get_set_cmd (Context c, TheCommand *cmd, bool get_it, char const *name)
         {
             auto *o = Object::self(c);
             int index = find_option(name);
@@ -224,7 +224,7 @@ private:
             return false;
         }
         
-        static bool dump_options_helper (Context c, CommandType *cmd, int global_option_index)
+        static bool dump_options_helper (Context c, TheCommand *cmd, int global_option_index)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(global_option_index >= PrevTypeGeneral::OptionCounter)
@@ -346,7 +346,7 @@ private:
             TheStore::deinit(c);
         }
         
-        static bool checkCommand (Context c, CommandType *cmd)
+        static bool checkCommand (Context c, TheCommand *cmd)
         {
             auto *o = Object::self(c);
             
@@ -405,7 +405,7 @@ private:
         struct Object {};
         static void init (Context c) {}
         static void deinit (Context c) {}
-        static bool checkCommand (Context c, CommandType *cmd) { return true; }
+        static bool checkCommand (Context c, TheCommand *cmd) { return true; }
     };
     
     static void reset_all_config (Context c)
@@ -417,7 +417,7 @@ private:
     {
         auto *o = Object::self(c);
         
-        CommandType *cmd = ThePrinterMain::get_locked(c);
+        TheCommand *cmd = ThePrinterMain::get_locked(c);
         if (o->dump_current_option == NumRuntimeOptions) {
             goto finish;
         }
@@ -435,7 +435,7 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->dump_current_option < NumRuntimeOptions)
         
-        CommandType *cmd = ThePrinterMain::get_locked(c);
+        TheCommand *cmd = ThePrinterMain::get_locked(c);
         cmd->reply_append_pstr(c, AMBRO_PSTR("M926 I"));
         ListForEachForwardInterruptible<TypeGeneralList>(Foreach_dump_options_helper(), c, cmd, o->dump_current_option);
         cmd->reply_append_ch(c, '\n');
@@ -458,7 +458,7 @@ public:
         StoreFeature::deinit(c);
     }
     
-    static bool checkCommand (Context c, CommandType *cmd)
+    static bool checkCommand (Context c, TheCommand *cmd)
     {
         auto *o = Object::self(c);
         

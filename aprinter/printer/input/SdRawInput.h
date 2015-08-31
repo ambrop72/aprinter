@@ -71,7 +71,7 @@ public:
         TheSdCard::deinit(c);
     }
     
-    static bool startingIo (Context c, typename ThePrinterMain::CommandType *cmd)
+    static bool startingIo (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -93,7 +93,7 @@ public:
         o->state = STATE_PAUSED;
     }
     
-    static bool rewind (Context c, typename ThePrinterMain::CommandType *cmd)
+    static bool rewind (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -138,7 +138,7 @@ public:
         o->state = STATE_READING;
     }
     
-    static bool checkCommand (Context c, typename ThePrinterMain::CommandType *cmd)
+    static bool checkCommand (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         TheDebugObject::access(c);
         
@@ -157,7 +157,7 @@ public:
     using GetSdCard = TheSdCard;
     
 private:
-    static void handle_mount_command (Context c, typename ThePrinterMain::CommandType *cmd)
+    static void handle_mount_command (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         
@@ -186,7 +186,7 @@ private:
             o->block = 0;
         }
         
-        typename ThePrinterMain::CommandType *cmd = ThePrinterMain::get_locked(c);
+        typename ThePrinterMain::TheCommand *cmd = ThePrinterMain::get_locked(c);
         if (error_code) {
             cmd->reply_append_pstr(c, AMBRO_PSTR("SD error "));
             cmd->reply_append_uint8(c, error_code);
@@ -198,7 +198,7 @@ private:
     }
     struct SdCardInitHandler : public AMBRO_WFUNC_TD(&SdRawInput::sd_card_init_handler) {};
     
-    static void handle_unmount_command (Context c, typename ThePrinterMain::CommandType *cmd)
+    static void handle_unmount_command (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         
@@ -238,7 +238,7 @@ private:
     }
     struct SdCardCommandHandler : public AMBRO_WFUNC_TD(&SdRawInput::sd_card_command_handler) {};
     
-    static bool check_file_paused (Context c, typename ThePrinterMain::CommandType *cmd)
+    static bool check_file_paused (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         

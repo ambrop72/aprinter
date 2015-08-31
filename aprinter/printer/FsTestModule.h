@@ -71,7 +71,7 @@ public:
         o->access_client.deinit(c);
     }
     
-    static bool check_command (Context c, typename ThePrinterMain::CommandType *cmd)
+    static bool check_command (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         TheDebugObject::access(c);
         
@@ -120,7 +120,7 @@ private:
         cmd->finishCommand(c);
     }
     
-    static void handle_write_command (Context c, typename ThePrinterMain::CommandType *cmd)
+    static void handle_write_command (Context c, typename ThePrinterMain::TheCommand *cmd)
     {
         auto *o = Object::self(c);
         
