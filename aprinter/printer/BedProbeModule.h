@@ -46,7 +46,7 @@
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
-class BedProbe {
+class BedProbeModule {
 public:
     struct Object;
     
@@ -77,7 +77,7 @@ private:
     
 public:
     AMBRO_STRUCT_IF(CorrectionFeature, CorrectionParams::Enabled) {
-        friend BedProbe;
+        friend BedProbeModule;
         static_assert(ThePrinterMain::IsTransformEnabled, "");
         static_assert(ThePrinterMain::template IsVirtAxis<ProbeAxisIndex>::Value, "");
         
@@ -332,7 +332,7 @@ public:
     public:
         using ConfigExprs = typename QuadraticFeature::ConfigExprs;
         
-        struct Object : public ObjBase<CorrectionFeature, typename BedProbe::Object, EmptyTypeList> {
+        struct Object : public ObjBase<CorrectionFeature, typename BedProbeModule::Object, EmptyTypeList> {
             Matrix<FpType, NumPoints, 1> heights_matrix;
             CorrectionsMatrix corrections;
         };
@@ -435,7 +435,7 @@ private:
             return APRINTER_CFG(Config, CPointCoord, c);
         }
         
-        struct Object : public ObjBase<PointHelper, typename BedProbe::Object, EmptyTypeList> {};
+        struct Object : public ObjBase<PointHelper, typename BedProbeModule::Object, EmptyTypeList> {};
     };
     using PointHelperList = IndexElemList<ProbePoints, PointHelper>;
     
@@ -505,7 +505,7 @@ private:
             return accum + src.template get<VirtAxisIndex()>() * (*corrections)++(PlatformAxisIndex, 0);
         }
         
-        struct Object : public ObjBase<AxisHelper, typename BedProbe::Object, EmptyTypeList> {};
+        struct Object : public ObjBase<AxisHelper, typename BedProbeModule::Object, EmptyTypeList> {};
     };
     using AxisHelperList = IndexElemList<PlatformAxesList, AxisHelper>;
     
@@ -669,7 +669,7 @@ public:
     >;
     
 public:
-    struct Object : public ObjBase<BedProbe, ParentObject, JoinTypeLists<
+    struct Object : public ObjBase<BedProbeModule, ParentObject, JoinTypeLists<
         PointHelperList,
         AxisHelperList,
         MakeTypeList<CorrectionFeature>
@@ -724,7 +724,7 @@ template <
     typename TProbePoints,
     typename TProbeCorrectionParams
 >
-struct BedProbeService {
+struct BedProbeModuleService {
     using PlatformAxesList = TPlatformAxesList;
     static char const ProbeAxis = TProbeAxis;
     using ProbePin = TProbePin;
@@ -745,7 +745,7 @@ struct BedProbeService {
     using ProvidedServices = If<ProbeCorrectionParams::Enabled, MakeTypeList<ServiceList::CorrectionService>, EmptyTypeList>;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = BedProbe<Context, ParentObject, ThePrinterMain, BedProbeService>;
+    using Module = BedProbeModule<Context, ParentObject, ThePrinterMain, BedProbeModuleService>;
 };
 
 #include <aprinter/EndNamespace.h>

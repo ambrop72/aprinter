@@ -1434,7 +1434,7 @@ def generate(config_root_data, cfg_name, main_template):
             
             @probe_sel.option('Probe')
             def option(probe):
-                gen.add_aprinter_include('printer/BedProbe.h')
+                gen.add_aprinter_include('printer/BedProbeModule.h')
                 
                 probe_module_index = len(modules_exprs)
                 modules_exprs.append(None)
@@ -1477,7 +1477,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 correction_expr = probe.do_selection('correction', correction_sel)
                 
-                modules_exprs[probe_module_index] = TemplateExpr('BedProbeService', [
+                modules_exprs[probe_module_index] = TemplateExpr('BedProbeModuleService', [
                     'MakeTypeList<WrapInt<\'X\'>, WrapInt<\'Y\'>>',
                     '\'Z\'',
                     use_digital_input(gen, probe, 'ProbePin'),
