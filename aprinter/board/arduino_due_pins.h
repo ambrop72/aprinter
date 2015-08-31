@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_ARDUINO_DUE_PINS_H
 #define AMBROLIB_ARDUINO_DUE_PINS_H
 
-#include <aprinter/system/At91SamPins.h>
+#include <aprinter/hal/at91/At91SamPins.h>
 
 #include <aprinter/BeginNamespace.h>
 

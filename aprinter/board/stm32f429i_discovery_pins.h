@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_STM32F429I_DISCOVERY_PINS_H
 #define AMBROLIB_STM32F4DISCOVERY_PINS_H
 
-#include <aprinter/system/Stm32f4Pins.h>
+#include <aprinter/hal/stm32/Stm32f4Pins.h>
 
 #include <aprinter/BeginNamespace.h>
 

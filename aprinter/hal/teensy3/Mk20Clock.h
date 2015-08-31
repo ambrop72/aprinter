@@ -44,7 +44,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/system/InterruptLock.h>
-#include <aprinter/system/Mk20Pins.h>
+#include <aprinter/hal/teensy3/Mk20Pins.h>
 
 template <typename Ftm, int ChannelIndex>
 struct Mk20Clock__IrqCompHelper {

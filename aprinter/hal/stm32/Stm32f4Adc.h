@@ -38,7 +38,7 @@
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/system/Stm32f4Pins.h>
+#include <aprinter/hal/stm32/Stm32f4Pins.h>
 #include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>

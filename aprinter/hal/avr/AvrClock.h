@@ -49,7 +49,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/system/InterruptLock.h>
-#include <aprinter/system/AvrPins.h>
+#include <aprinter/hal/avr/AvrPins.h>
 
 #include <aprinter/BeginNamespace.h>
 

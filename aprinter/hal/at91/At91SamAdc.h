@@ -38,7 +38,7 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/system/At91SamPins.h>
+#include <aprinter/hal/at91/At91SamPins.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/misc/ClockUtils.h>
 

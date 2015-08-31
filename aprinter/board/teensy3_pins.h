@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_TEENSY3_PINS_H
 #define AMBROLIB_TEENSY3_PINS_H
 
-#include <aprinter/system/Mk20Pins.h>
+#include <aprinter/hal/teensy3/Mk20Pins.h>
 
 #include <aprinter/BeginNamespace.h>
 

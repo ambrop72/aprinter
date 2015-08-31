@@ -25,7 +25,7 @@
 #ifndef AMBROLIB_ARDUINO_MEGA_PINS_H
 #define AMBROLIB_ARDUINO_MEGA_PINS_H
 
-#include <aprinter/system/AvrPins.h>
+#include <aprinter/hal/avr/AvrPins.h>
 
 #include <aprinter/BeginNamespace.h>
 

@@ -30,7 +30,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/system/Stm32f4Pins.h>
+#include <aprinter/hal/stm32/Stm32f4Pins.h>
 #include <aprinter/devices/SdioInterface.h>
 
 #include <aprinter/BeginNamespace.h>

@@ -37,7 +37,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
-#include <aprinter/system/AvrPins.h>
+#include <aprinter/hal/avr/AvrPins.h>
 #include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>

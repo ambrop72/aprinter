@@ -290,8 +290,8 @@ def setup_debug_interface(gen, config, key):
         stimulus_port = debug.get_int('StimulusPort')
         if not 0 <= stimulus_port <= 31:
             debug.key_path('StimulusPort').error('Incorrect value.')
-        gen.add_platform_include('aprinter/system/ArmItmDebug.h')
-        gen.add_aprinter_include('system/NewlibDebugWrite.h')
+        gen.add_platform_include('aprinter/hal/generic/ArmItmDebug.h')
+        gen.add_aprinter_include('hal/generic/NewlibDebugWrite.h')
         gen.add_global_code(0, 'using MyDebug = ArmItmDebug<MyContext, {}>;'.format(
             stimulus_port,
         ))
@@ -357,7 +357,7 @@ class CommonClock(object):
         self._gen.add_subst('CLOCK', self._clockdef.CLOCK_EXPR(self._config, timers_expr), indent=0)
 
 def At91Sam3xClockDef(x):
-    x.INCLUDE = 'system/At91Sam3xClock.h'
+    x.INCLUDE = 'hal/at91/At91Sam3xClock.h'
     x.CLOCK_EXPR = lambda config, timers: TemplateExpr('At91Sam3xClock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])([A-C])\\Z'
@@ -367,7 +367,7 @@ def At91Sam3xClockDef(x):
     x.TIMER_ISR = lambda tc: 'AMBRO_AT91SAM3X_CLOCK_TC{}_GLOBAL(MyClock, MyContext())'.format(tc)
 
 def At91Sam3uClockDef(x):
-    x.INCLUDE = 'system/At91Sam3uClock.h'
+    x.INCLUDE = 'hal/at91/At91Sam3uClock.h'
     x.CLOCK_EXPR = lambda config, timers: TemplateExpr('At91Sam3uClock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])([A-C])\\Z'
@@ -377,7 +377,7 @@ def At91Sam3uClockDef(x):
     x.TIMER_ISR = lambda tc: 'AMBRO_AT91SAM3U_CLOCK_TC{}_GLOBAL(MyClock, MyContext())'.format(tc)
 
 def Mk20ClockDef(x):
-    x.INCLUDE = 'system/Mk20Clock.h'
+    x.INCLUDE = 'hal/teensy3/Mk20Clock.h'
     x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Mk20Clock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
     x.TIMER_RE = '\\AFTM([0-9])\\Z'
     x.CHANNEL_RE = '\\AFTM([0-9])_([0-9])\\Z'
@@ -387,7 +387,7 @@ def Mk20ClockDef(x):
     x.TIMER_ISR = lambda tc: 'AMBRO_MK20_CLOCK_FTM_GLOBAL({}, MyClock, MyContext())'.format(tc)
 
 def AvrClockDef(x):
-    x.INCLUDE = 'system/AvrClock.h'
+    x.INCLUDE = 'hal/avr/AvrClock.h'
     x.CLOCK_EXPR = lambda config, timers: TemplateExpr('AvrClock', ['MyContext', 'Program', config.get_int_constant('PrescaleDivide'), timers])
     x.TIMER_RE = '\\ATC([0-9])\\Z'
     x.CHANNEL_RE = '\\ATC([0-9])_([A-Z])\\Z'
@@ -423,7 +423,7 @@ def AvrClockDef(x):
         ])
 
 def Stm32f4ClockDef(x):
-    x.INCLUDE = 'system/Stm32f4Clock.h'
+    x.INCLUDE = 'hal/stm32/Stm32f4Clock.h'
     x.CLOCK_EXPR = lambda config, timers: TemplateExpr('Stm32f4Clock', ['MyContext', 'Program', config.get_int_constant('prescaler'), timers])
     x.TIMER_RE = '\\ATIM([0-9]{1,2})\\Z'
     x.CHANNEL_RE = '\\ATIM([0-9]{1,2})_([1-4])\\Z'
@@ -464,25 +464,25 @@ def setup_pins (gen, config, key):
     
     @pins_sel.option('At91SamPins')
     def options(pin_config):
-        gen.add_aprinter_include('system/At91SamPins.h')
+        gen.add_aprinter_include('hal/at91/At91SamPins.h')
         pin_regexes.append('\\AAt91SamPin<At91SamPio[A-Z],[0-9]{1,3}>\\Z')
         return TemplateExpr('At91SamPins', ['MyContext', 'Program'])
     
     @pins_sel.option('Mk20Pins')
     def options(pin_config):
-        gen.add_aprinter_include('system/Mk20Pins.h')
+        gen.add_aprinter_include('hal/teensy3/Mk20Pins.h')
         pin_regexes.append('\\AMk20Pin<Mk20Port[A-Z],[0-9]{1,3}>\\Z')
         return TemplateExpr('Mk20Pins', ['MyContext', 'Program'])
     
     @pins_sel.option('AvrPins')
     def options(pin_config):
-        gen.add_aprinter_include('system/AvrPins.h')
+        gen.add_aprinter_include('hal/avr/AvrPins.h')
         pin_regexes.append('\\AAvrPin<AvrPort[A-Z],[0-9]{1,3}>\\Z')
         return TemplateExpr('AvrPins', ['MyContext', 'Program'])
     
     @pins_sel.option('Stm32f4Pins')
     def options(pin_config):
-        gen.add_aprinter_include('system/Stm32f4Pins.h')
+        gen.add_aprinter_include('hal/stm32/Stm32f4Pins.h')
         pin_regexes.append('\\AStm32f4Pin<Stm32f4Port[A-Z],[0-9]{1,3}>\\Z')
         return TemplateExpr('Stm32f4Pins', ['MyContext', 'Program'])
     
@@ -498,21 +498,21 @@ def get_pin (gen, config, key):
 
 def setup_watchdog (gen, config, key, disable_watchdog, user):
     if disable_watchdog:
-        gen.add_aprinter_include('system/NullWatchdog.h')
+        gen.add_aprinter_include('hal/generic/NullWatchdog.h')
         return 'NullWatchdogService'
     
     watchdog_sel = selection.Selection()
     
     @watchdog_sel.option('At91SamWatchdog')
     def option(watchdog):
-        gen.add_aprinter_include('system/At91SamWatchdog.h')
+        gen.add_aprinter_include('hal/at91/At91SamWatchdog.h')
         return TemplateExpr('At91SamWatchdogService', [
             watchdog.get_int('Wdv')
         ])
     
     @watchdog_sel.option('Mk20Watchdog')
     def option(watchdog):
-        gen.add_aprinter_include('system/Mk20Watchdog.h')
+        gen.add_aprinter_include('hal/teensy3/Mk20Watchdog.h')
         gen.add_isr('AMBRO_MK20_WATCHDOG_GLOBAL({})'.format(user))
         return TemplateExpr('Mk20WatchdogService', [
             watchdog.get_int('Toval'),
@@ -525,13 +525,13 @@ def setup_watchdog (gen, config, key, disable_watchdog, user):
         if not re.match('\\AWDTO_[0-9A-Z]{1,10}\\Z', wdto):
             watchdog.key_path('Timeout').error('Incorrect value.')
         
-        gen.add_aprinter_include('system/AvrWatchdog.h')
+        gen.add_aprinter_include('hal/avr/AvrWatchdog.h')
         gen.add_isr('AMBRO_AVR_WATCHDOG_GLOBAL')
         return TemplateExpr('AvrWatchdogService', [wdto])
     
     @watchdog_sel.option('Stm32f4Watchdog')
     def option(watchdog):
-        gen.add_aprinter_include('system/Stm32f4Watchdog.h')
+        gen.add_aprinter_include('hal/stm32/Stm32f4Watchdog.h')
         return TemplateExpr('Stm32f4WatchdogService', [
             watchdog.get_int('Divider'),
             watchdog.get_int('Reload'),
@@ -548,7 +548,7 @@ def setup_adc (gen, config, key):
     
     @adc_sel.option('At91SamAdc')
     def option(adc_config):
-        gen.add_aprinter_include('system/At91SamAdc.h')
+        gen.add_aprinter_include('hal/at91/At91SamAdc.h')
         gen.add_float_constant('AdcFreq', adc_config.get_float('freq'))
         gen.add_float_constant('AdcAvgInterval', adc_config.get_float('avg_interval'))
         gen.add_int_constant('uint16', 'AdcSmoothing', max(0, min(65535, int(adc_config.get_float('smoothing') * 65536.0))))
@@ -571,7 +571,7 @@ def setup_adc (gen, config, key):
     
     @adc_sel.option('At91Sam3uAdc')
     def option(adc_config):
-        gen.add_aprinter_include('system/At91SamAdc.h')
+        gen.add_aprinter_include('hal/at91/At91SamAdc.h')
         gen.add_float_constant('AdcFreq', adc_config.get_float('freq'))
         gen.add_float_constant('AdcAvgInterval', adc_config.get_float('avg_interval'))
         gen.add_int_constant('uint16', 'AdcSmoothing', max(0, min(65535, int(adc_config.get_float('smoothing') * 65536.0))))
@@ -592,7 +592,7 @@ def setup_adc (gen, config, key):
     
     @adc_sel.option('Mk20Adc')
     def option(adc_config):
-        gen.add_aprinter_include('system/Mk20Adc.h')
+        gen.add_aprinter_include('hal/teensy3/Mk20Adc.h')
         gen.add_int_constant('int32', 'AdcADiv', adc_config.get_int('AdcADiv'))
         gen.add_isr('AMBRO_MK20_ADC_ISRS(MyAdc, MyContext())')
         
@@ -603,7 +603,7 @@ def setup_adc (gen, config, key):
     
     @adc_sel.option('AvrAdc')
     def option(adc_config):
-        gen.add_aprinter_include('system/AvrAdc.h')
+        gen.add_aprinter_include('hal/avr/AvrAdc.h')
         gen.add_int_constant('int32', 'AdcRefSel', adc_config.get_int('RefSel'))
         gen.add_int_constant('int32', 'AdcPrescaler', adc_config.get_int('Prescaler'))
         gen.add_isr('AMBRO_AVR_ADC_ISRS(MyAdc, MyContext())')
@@ -615,7 +615,7 @@ def setup_adc (gen, config, key):
     
     @adc_sel.option('Stm32f4Adc')
     def option(adc_config):
-        gen.add_aprinter_include('system/Stm32f4Adc.h')
+        gen.add_aprinter_include('hal/stm32/Stm32f4Adc.h')
         gen.add_isr('APRINTER_STM32F4_ADC_GLOBAL(MyAdc, MyContext())')
         
         return {
@@ -649,7 +649,7 @@ def setup_pwm(gen, config, key):
     
     @pwm_sel.option('At91Sam3xPwm')
     def option(pwm_config):
-        gen.add_aprinter_include('system/At91Sam3xPwm.h')
+        gen.add_aprinter_include('hal/at91/At91Sam3xPwm.h')
         
         return TemplateExpr('At91Sam3xPwm', ['MyContext', 'Program', TemplateExpr('At91Sam3xPwmParams', [
             pwm_config.get_int('PreA'),
@@ -739,7 +739,7 @@ def use_spi (gen, config, key, user):
     
     @spi_sel.option('At91SamSpi')
     def option(spi_config):
-        gen.add_aprinter_include('system/At91SamSpi.h')
+        gen.add_aprinter_include('hal/at91/At91SamSpi.h')
         devices = {
             'At91Sam3xSpiDevice':'AMBRO_AT91SAM3X_SPI_GLOBAL',
             'At91Sam3uSpiDevice':'AMBRO_AT91SAM3U_SPI_GLOBAL'
@@ -752,7 +752,7 @@ def use_spi (gen, config, key, user):
     
     @spi_sel.option('AvrSpi')
     def option(spi_config):
-        gen.add_aprinter_include('system/AvrSpi.h')
+        gen.add_aprinter_include('hal/avr/AvrSpi.h')
         gen.add_isr('AMBRO_AVR_SPI_ISRS({}, MyContext())'.format(user))
         return TemplateExpr('AvrSpiService', [spi_config.get_int('SpeedDiv')])
     
@@ -763,7 +763,7 @@ def use_sdio (gen, config, key, user):
     
     @sdio_sel.option('Stm32f4Sdio')
     def option(sdio_config):
-        gen.add_aprinter_include('system/Stm32f4Sdio.h')
+        gen.add_aprinter_include('hal/stm32/Stm32f4Sdio.h')
         return TemplateExpr('Stm32f4SdioService', [
             sdio_config.get_bool('IsWideMode'),
             sdio_config.get_int('DataTimeoutBusClocks'),
@@ -771,7 +771,7 @@ def use_sdio (gen, config, key, user):
     
     @sdio_sel.option('At91SamSdio')
     def option(sdio_config):
-        gen.add_aprinter_include('system/At91SamSdio.h')
+        gen.add_aprinter_include('hal/at91/At91SamSdio.h')
         return TemplateExpr('At91SamSdioService', [
             sdio_config.get_int('Slot'),
             sdio_config.get_bool('IsWideMode'),
@@ -784,7 +784,7 @@ def use_i2c (gen, config, key, user, username):
     
     @i2c_sel.option('At91SamI2c')
     def option(i2c_config):
-        gen.add_aprinter_include('system/At91SamI2c.h')
+        gen.add_aprinter_include('hal/at91/At91SamI2c.h')
         devices = {
             'At91SamI2cDevice1':1,
         }
@@ -810,12 +810,12 @@ def use_eeprom(gen, config, key, user):
     
     @eeprom_sel.option('TeensyEeprom')
     def option(eeprom):
-        gen.add_aprinter_include('system/TeensyEeprom.h')
+        gen.add_aprinter_include('hal/teensy3/TeensyEeprom.h')
         return TemplateExpr('TeensyEepromService', [eeprom.get_int('Size'), eeprom.get_int('FakeBlockSize')])
     
     @eeprom_sel.option('AvrEeprom')
     def option(eeprom):
-        gen.add_aprinter_include('system/AvrEeprom.h')
+        gen.add_aprinter_include('hal/avr/AvrEeprom.h')
         gen.add_isr('AMBRO_AVR_EEPROM_ISRS({}, MyContext())'.format(user))
         return TemplateExpr('AvrEepromService', [eeprom.get_int('FakeBlockSize')])
     
@@ -836,7 +836,7 @@ def use_flash(gen, config, key, user):
         device_index = flash.get_int('DeviceIndex')
         if not (0 <= device_index < 10):
             flash.key_path('DeviceIndex').error('Invalid device index.')
-        gen.add_aprinter_include('system/At91Sam3xFlash.h')
+        gen.add_aprinter_include('hal/at91/At91Sam3xFlash.h')
         gen.add_isr('AMBRO_AT91SAM3X_FLASH_GLOBAL({}, {}, MyContext())'.format(device_index, user))
         return TemplateExpr('At91Sam3xFlashService', [
             'At91Sam3xFlashDevice{}'.format(device_index)
@@ -849,30 +849,30 @@ def use_serial(gen, config, key, user):
     
     @serial_sel.option('AsfUsbSerial')
     def option(serial_service):
-        gen.add_aprinter_include('system/AsfUsbSerial.h')
+        gen.add_aprinter_include('hal/at91/AsfUsbSerial.h')
         gen.add_init_call(0, 'udc_start();')
         return 'AsfUsbSerialService'
     
     @serial_sel.option('At91Sam3xSerial')
     def option(serial_service):
-        gen.add_aprinter_include('system/At91Sam3xSerial.h')
+        gen.add_aprinter_include('hal/at91/At91Sam3xSerial.h')
         gen.add_isr('AMBRO_AT91SAM3X_SERIAL_GLOBAL({}, MyContext())'.format(user))
         if serial_service.get_bool('UseForDebug'):
-            gen.add_aprinter_include('system/NewlibDebugWrite.h')
+            gen.add_aprinter_include('hal/generic/NewlibDebugWrite.h')
             gen.add_global_code(0, 'APRINTER_SETUP_NEWLIB_DEBUG_WRITE(At91Sam3xSerial_DebugWrite<{}>, MyContext())'.format(user))
         return 'At91Sam3xSerialService'
     
     @serial_sel.option('TeensyUsbSerial')
     def option(serial_service):
-        gen.add_aprinter_include('system/TeensyUsbSerial.h')
+        gen.add_aprinter_include('hal/teensy3/TeensyUsbSerial.h')
         gen.add_global_code(0, 'extern "C" { void usb_init (void); }')
         gen.add_init_call(0, 'usb_init();')
         return 'TeensyUsbSerialService'
     
     @serial_sel.option('AvrSerial')
     def option(serial_service):
-        gen.add_aprinter_include('system/AvrSerial.h')
-        gen.add_aprinter_include('system/AvrDebugWrite.h')
+        gen.add_aprinter_include('hal/avr/AvrSerial.h')
+        gen.add_aprinter_include('hal/avr/AvrDebugWrite.h')
         gen.add_isr('AMBRO_AVR_SERIAL_ISRS({}, MyContext())'.format(user))
         gen.add_global_code(0, 'APRINTER_SETUP_AVR_DEBUG_WRITE(AvrSerial_DebugPutChar<{}>, MyContext())'.format(user))
         gen.add_init_call(-2, 'aprinter_init_avr_debug_write();')
@@ -880,12 +880,12 @@ def use_serial(gen, config, key, user):
     
     @serial_sel.option('Stm32f4UsbSerial')
     def option(serial_service):
-        gen.add_aprinter_include('system/Stm32f4UsbSerial.h')
+        gen.add_aprinter_include('hal/stm32/Stm32f4UsbSerial.h')
         return 'Stm32f4UsbSerialService'
     
     @serial_sel.option('NullSerial')
     def option(serial_service):
-        gen.add_aprinter_include('system/NullSerial.h')
+        gen.add_aprinter_include('hal/generic/NullSerial.h')
         return 'NullSerialService'
     
     return config.do_selection(key, serial_sel)
