@@ -267,6 +267,7 @@ public:
         AMBRO_ASSERT(o->data_state != DATA_STATE_READY)
         
         dmac_channel_disable(DMAC, DmaChannel);
+        while (dmac_channel_is_enable(DMAC, DmaChannel));
         
         o->data_state = DATA_STATE_READY;
     }
@@ -292,6 +293,7 @@ private:
         if (o->init_state != INIT_STATE_OFF) {
             if (o->data_state != DATA_STATE_READY) {
                 dmac_channel_disable(DMAC, DmaChannel);
+                while (dmac_channel_is_enable(DMAC, DmaChannel));
             }
             HSMCI->HSMCI_CR = HSMCI_CR_MCIDIS;
             pmc_disable_periph_clk(ID_HSMCI);
@@ -398,6 +400,7 @@ private:
                         }
                         
                         dmac_channel_disable(DMAC, DmaChannel);
+                        while (dmac_channel_is_enable(DMAC, DmaChannel));
                         
                         o->data_state = DATA_STATE_READY;
                         Context::EventLoop::template triggerFastEvent<FastEvent>(c);
