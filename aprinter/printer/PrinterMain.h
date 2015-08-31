@@ -77,7 +77,6 @@ template <
     int TLookaheadCommitCount,
     typename TForceTimeout, typename TFpType,
     typename TWatchdogService,
-    typename TProbeParams,
     typename TConfigManagerService,
     typename TConfigList,
     typename TAxesList, typename TTransformParams,
@@ -95,7 +94,6 @@ struct PrinterMainParams {
     using ForceTimeout = TForceTimeout;
     using FpType = TFpType;
     using WatchdogService = TWatchdogService;
-    using ProbeParams = TProbeParams;
     using ConfigManagerService = TConfigManagerService;
     using ConfigList = TConfigList;
     using AxesList = TAxesList;
@@ -227,18 +225,6 @@ struct PrinterMainVirtualHomingParams {
     using SlowSpeed = TSlowSpeed;
 };
 
-struct PrinterMainNoProbeParams {
-    static bool const Enabled = false;
-};
-
-template <
-    typename TProbeService
->
-struct PrinterMainProbeParams {
-    static bool const Enabled = true;
-    using ProbeService = TProbeService;
-};
-
 template <
     char TName,
     char TDensityName,
@@ -302,6 +288,7 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheModule, TheModule)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_CorrectionFeature, CorrectionFeature)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ConfigExprs, ConfigExprs)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_CommandChannels, CommandChannels)
@@ -311,6 +298,8 @@ private:
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_configuration_changed, configuration_changed)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_emergency, emergency)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_safety, check_safety)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_m119_append_endstop, m119_append_endstop)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_prestep_callback, prestep_callback)
     
     struct PlannerUnion;
     struct PlannerUnionPlanner;
@@ -721,6 +710,17 @@ private:
             CallIfExists_check_safety::template call_void<TheModule>(c);
         }
         
+        static void m119_append_endstop (Context c, TheCommand *cmd)
+        {
+            CallIfExists_m119_append_endstop::template call_void<TheModule>(c, cmd);
+        }
+        
+        template <typename CallbackContext>
+        static bool prestep_callback (CallbackContext c)
+        {
+            return !CallIfExists_prestep_callback::template call_ret<TheModule, bool, false>(c);
+        }
+        
         struct Object : public ObjBase<Module, typename PrinterMain::Object, MakeTypeList<
             TheModule
         >> {};
@@ -728,6 +728,9 @@ private:
     using ModulesList = IndexElemList<ParamsModulesList, Module>;
     
     using ServicesDict = ListGroup<ListCollect<ParamsModulesList, MemberType_ProvidedServices>>;
+    
+    template <typename ServiceType>
+    using HasServiceProvider = WrapBool<TypeDictFind<ServicesDict, ServiceType>::Found>;
     
     template <typename ServiceType>
     struct FindServiceProvider {
@@ -1940,32 +1943,14 @@ private:
         template <typename Src, typename Dst, bool Reverse> static void do_correction (Context c, Src src, Dst dst, WrapBool<Reverse>) {}
     };
     
-    AMBRO_STRUCT_IF(ProbeFeature, Params::ProbeParams::Enabled) {
-        struct Object;
-        using TheProbe = typename Params::ProbeParams::ProbeService::template Probe<Context, Object, PrinterMain>;
-        
-        static void init (Context c) { TheProbe::init(c); }
-        static void deinit (Context c) { TheProbe::deinit(c); }
-        static bool check_command (Context c, TheCommand *cmd) { return TheProbe::check_command(c, cmd); }
-        static void m119_append_endstop (Context c, TheCommand *cmd) { TheProbe::m119_append_endstop(c, cmd); }
-        template <typename CallbackContext> static bool prestep_callback (CallbackContext c) { return TheProbe::prestep_callback(c); }
-        
-        using TheCorrectionService = If<TheProbe::CorrectionSupported, typename TheProbe::CorrectionFeature, DummyCorrectionService>;
-        
-        struct Object : public ObjBase<ProbeFeature, typename PrinterMain::Object, MakeTypeList<TheProbe>> {};
-    }
-    AMBRO_STRUCT_ELSE(ProbeFeature) {
-        static void init (Context c) {}
-        static void deinit (Context c) {}
-        static bool check_command (Context c, TheCommand *cmd) { return true; }
-        static void m119_append_endstop (Context c, TheCommand *cmd) {}
-        template <typename CallbackContext>
-        static bool prestep_callback (CallbackContext c) { return false; }
-        using TheCorrectionService = DummyCorrectionService;
-        struct Object {};
-    };
-    
-    using TheCorrectionService = typename ProbeFeature::TheCorrectionService;
+    using TheCorrectionService = FuncCall<
+        IfFunc<
+            TemplateFunc<HasServiceProvider>,
+            ComposeFunctions<GetMemberType_CorrectionFeature, TemplateFunc<GetServiceProviderModule>>,
+            ConstantFunc<DummyCorrectionService>
+        >,
+        typename ServiceList::CorrectionService
+    >;
     
     AMBRO_STRUCT_IF(LoadConfigFeature, TheConfigManager::HasStore) {
         static void start_loading (Context c)
@@ -1990,7 +1975,6 @@ public:
         ob->force_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::force_timer_handler));
         TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
         TheSteppers::init(c);
-        ProbeFeature::init(c);
         ob->axis_homing = 0;
         ob->axis_relative = 0;
         ListForEachForward<AxesList>(LForeach_init(), c);
@@ -2020,7 +2004,6 @@ public:
         ListForEachReverse<ModulesList>(LForeach_deinit(), c);
         ListForEachReverse<LasersList>(LForeach_deinit(), c);
         ListForEachReverse<AxesList>(LForeach_deinit(), c);
-        ProbeFeature::deinit(c);
         TheSteppers::deinit(c);
         TheBlinker::deinit(c);
         ob->force_timer.deinit(c);
@@ -2096,7 +2079,6 @@ private:
             case 'M': switch (cmd->getCmdNumber(c)) {
                 default:
                     if (
-                        ProbeFeature::check_command(c, cmd) &&
                         TheConfigManager::checkCommand(c, cmd) &&
                         ListForEachForwardInterruptible<ModulesList>(LForeach_check_command(), c, cmd)
                     ) {
@@ -2135,7 +2117,7 @@ private:
                 case 119: {
                     cmd->reply_append_pstr(c, AMBRO_PSTR("endstops:"));
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_m119_append_endstop(), c, cmd);
-                    ProbeFeature::m119_append_endstop(c, cmd);
+                    ListForEachForward<ModulesList>(LForeach_m119_append_endstop(), c, cmd);
                     cmd->reply_append_ch(c, '\n');                    
                     return cmd->finishCommand(c, true);
                 } break;
@@ -2468,7 +2450,8 @@ private:
     template <int AxisIndex>
     static bool planner_prestep_callback (typename ThePlanner::template Axis<AxisIndex>::StepperCommandCallbackContext c)
     {
-        return ProbeFeature::prestep_callback(c) || TransformFeature::prestep_callback(c);
+        return TransformFeature::prestep_callback(c) ||
+               !ListForEachForwardInterruptible<ModulesList>(LForeach_prestep_callback(), c);
     }
     
 public:
@@ -2691,7 +2674,6 @@ private:
                     MakeTypeList<
                         TheSteppers,
                         TransformFeature,
-                        ProbeFeature,
                         PlannerUnion
                     >
                 >,
@@ -2717,7 +2699,6 @@ public:
             TheBlinker,
             TheSteppers,
             TransformFeature,
-            ProbeFeature,
             PlannerUnion
         >
     >> {

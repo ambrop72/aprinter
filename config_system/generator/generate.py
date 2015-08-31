@@ -1430,11 +1430,14 @@ def generate(config_root_data, cfg_name, main_template):
             
             @probe_sel.option('NoProbe')
             def option(probe):
-                return 'PrinterMainNoProbeParams'
+                pass
             
             @probe_sel.option('Probe')
             def option(probe):
                 gen.add_aprinter_include('printer/BedProbe.h')
+                
+                probe_module_index = len(modules_exprs)
+                modules_exprs.append(None)
                 
                 gen.add_bool_config('ProbeInvert', probe.get_bool('InvertInput')),
                 gen.add_float_config('ProbeOffsetX', probe.get_float('OffsetX'))
@@ -1474,27 +1477,25 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 correction_expr = probe.do_selection('correction', correction_sel)
                 
-                return TemplateExpr('PrinterMainProbeParams', [
-                    TemplateExpr('BedProbeService', [
-                        'MakeTypeList<WrapInt<\'X\'>, WrapInt<\'Y\'>>',
-                        '\'Z\'',
-                        use_digital_input(gen, probe, 'ProbePin'),
-                        'ProbeInvert',
-                        'MakeTypeList<ProbeOffsetX, ProbeOffsetY>',
-                        'ProbeStartHeight',
-                        'ProbeLowHeight',
-                        'ProbeRetractDist',
-                        'ProbeMoveSpeed',
-                        'ProbeFastSpeed',
-                        'ProbeRetractSpeed',
-                        'ProbeSlowSpeed',
-                        'ProbeGeneralZOffset',
-                        TemplateList(['BedProbePointParams<ProbeP{0}Enabled, MakeTypeList<ProbeP{0}X, ProbeP{0}Y>, ProbeP{0}ZOffset>'.format(i+1) for i in range(num_points)]),
-                        correction_expr,
-                    ]),
+                modules_exprs[probe_module_index] = TemplateExpr('BedProbeService', [
+                    'MakeTypeList<WrapInt<\'X\'>, WrapInt<\'Y\'>>',
+                    '\'Z\'',
+                    use_digital_input(gen, probe, 'ProbePin'),
+                    'ProbeInvert',
+                    'MakeTypeList<ProbeOffsetX, ProbeOffsetY>',
+                    'ProbeStartHeight',
+                    'ProbeLowHeight',
+                    'ProbeRetractDist',
+                    'ProbeMoveSpeed',
+                    'ProbeFastSpeed',
+                    'ProbeRetractSpeed',
+                    'ProbeSlowSpeed',
+                    'ProbeGeneralZOffset',
+                    TemplateList(['BedProbePointParams<ProbeP{0}Enabled, MakeTypeList<ProbeP{0}X, ProbeP{0}Y>, ProbeP{0}ZOffset>'.format(i+1) for i in range(num_points)]),
+                    correction_expr,
                 ])
             
-            probe_expr = config.get_config('probe_config').do_selection('probe', probe_sel)
+            config.get_config('probe_config').do_selection('probe', probe_sel)
             
             def fan_cb(fan, fan_index):
                 name, name_expr = get_letter_number_name(fan, 'Name')
@@ -1571,7 +1572,6 @@ def generate(config_root_data, cfg_name, main_template):
                 'ForceTimeout',
                 performance.get_identifier('FpType', lambda x: x in ('float', 'double')),
                 setup_watchdog(gen, platform, 'watchdog', disable_watchdog, 'MyPrinter::GetWatchdog'),
-                probe_expr,
                 config_manager_expr,
                 'ConfigList',
                 steppers_expr,

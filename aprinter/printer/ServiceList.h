@@ -30,6 +30,7 @@
 namespace ServiceList {
     struct SerialService {};
     struct FsAccessService {};
+    struct CorrectionService {};
 }
 
 #include <aprinter/EndNamespace.h>

@@ -41,6 +41,7 @@
 #include <aprinter/math/Matrix.h>
 #include <aprinter/math/LinearLeastSquares.h>
 #include <aprinter/printer/Configuration.h>
+#include <aprinter/printer/ServiceList.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -75,9 +76,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_add_axis, add_axis)
     
 public:
-    static bool const CorrectionSupported = CorrectionParams::Enabled;
-    
-    AMBRO_STRUCT_IF(CorrectionFeature, CorrectionSupported) {
+    AMBRO_STRUCT_IF(CorrectionFeature, CorrectionParams::Enabled) {
         friend BedProbe;
         static_assert(ThePrinterMain::IsTransformEnabled, "");
         static_assert(ThePrinterMain::template IsVirtAxis<ProbeAxisIndex>::Value, "");
@@ -743,8 +742,10 @@ struct BedProbeService {
     using ProbePoints = TProbePoints;
     using ProbeCorrectionParams = TProbeCorrectionParams;
     
+    using ProvidedServices = If<ProbeCorrectionParams::Enabled, MakeTypeList<ServiceList::CorrectionService>, EmptyTypeList>;
+    
     template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Probe = BedProbe<Context, ParentObject, ThePrinterMain, BedProbeService>;
+    using Module = BedProbe<Context, ParentObject, ThePrinterMain, BedProbeService>;
 };
 
 #include <aprinter/EndNamespace.h>
