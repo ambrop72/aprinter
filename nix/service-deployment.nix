@@ -35,12 +35,14 @@ let
     lib = nixpkgsHost.lib;
 in
 { test ? false }:
-{
-    aprinterService = args@{ pkgs, resources, ... }: let
-        theInstances = aprinterInstances args;
-    in
-    lib.foldl lib.recursiveUpdate {} [
-        {
+lib.foldl lib.recursiveUpdate {} [
+    (lib.optionalAttrs (!test) {
+        resources.ec2KeyPairs.my-key-pair = { inherit region accessKeyId; };
+    })
+    {
+        aprinterService = args@{ pkgs, resources, ... }: let
+            theInstances = aprinterInstances args;
+        in {
             deployment = if test == true then {
                 targetEnv = "virtualbox";
                 virtualbox.memorySize = 1024;
@@ -128,9 +130,6 @@ in
                 
                 system.extraDependencies = aprinterExprs.buildDeps;
             }) (lib.range 0 ((builtins.length theInstances) - 1));
-        }
-        (lib.optionalAttrs (!test) {
-            resources.ec2KeyPairs.my-key-pair = { inherit region accessKeyId; };
-        })
-    ];
-}
+        };
+    }
+]
