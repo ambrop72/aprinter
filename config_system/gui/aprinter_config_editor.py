@@ -358,7 +358,6 @@ board_context = BoardContext()
 def editor():
     return ce.Compound('editor', title='Configuration editor', no_header=True, ident='id_editor', attrs=[
         ce.Constant(key='version', value=1),
-        ce.Reference(key='selected_config', title='Selected configuration (to compile)', ref_array={'base': 'id_editor.configurations', 'descend': []}, ref_id_key='name', ref_name_key='name'),
         ce.Array(key='configurations', title='Configurations', processing_order=-1, copy_name_key='name', elem=ce.Compound('config', key='config', ident='id_configuration', title='Configuration', title_key='name', collapsable=True, attrs=[
             ce.String(key='name', title='Configuration name', default='New Configuration'),
             ce.Reference(key='board', ref_array={'base': 'id_editor.boards', 'descend': []}, ref_id_key='name', ref_name_key='name', deref_key='board_data', title='Board', processing_order=-1),
@@ -712,5 +711,6 @@ def editor():
                 pwm_output_choice(board_context, key='pwm_output', title='PWM output (must be hard-PWM)'),
                 interrupt_timer_choice(key='LaserTimer', title='Output adjustment timer'),
             ])),
-        ]))
+        ])),
+        ce.Reference(key='selected_config', title='Selected configuration (to compile)', ref_array={'base': 'id_editor.configurations', 'descend': []}, ref_id_key='name', ref_name_key='name'),
     ])
