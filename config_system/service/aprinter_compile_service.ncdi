@@ -38,6 +38,7 @@ template aprinter_compile_service {
     config->get("aprinter_src_dir") aprinter_src_dir;
     config->get("temp_dir") temp_dir;
     config->get("stderr_truncate_bytes") stderr_truncate_bytes;
+    config->get("service_prefix") service_prefix;
     config->get("mktemp") mktemp;
     config->get("rm") rm;
     config->get("python") python;
@@ -52,6 +53,10 @@ template aprinter_compile_service {
     # Init the queue.
     call(@job_queue, {max_concurrent_compiles}) queue;
     
+    # Request paths.
+    var(@concat(service_prefix, "/")) root_path;
+    var(@concat(service_prefix, "/compile")) compile_path;
+    
     # Define the HTTP request handler.
     Block {
         alias(@_arg0) method;
@@ -63,7 +68,7 @@ template aprinter_compile_service {
         
         Do {
             # Provide some warm and fuzzy text at /.
-            If (@val_equal(path, "/")) {
+            If (@val_equal(path, root_path)) {
                 If (@not(@val_equal(method, "GET"))) {
                     responses.method_not_allowed->call();
                     _do->break();
@@ -81,7 +86,7 @@ template aprinter_compile_service {
             };
             
             # Unsupported request path?
-            If (@not(@val_equal(path, "/compile"))) {
+            If (@not(@val_equal(path, compile_path))) {
                 responses.not_found->call();
                 _do->break();
             };

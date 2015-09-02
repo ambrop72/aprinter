@@ -43,6 +43,9 @@ var $compile_start_button = document.getElementById('compile_start');
 var $error_modal_label = document.getElementById('error_modal_label');
 var $error_modal_body = document.getElementById('error_modal_body');
 
+// Base path to the backend.
+var $backend_path = window.location.pathname.substring(0, window.location.pathname.lastIndexOf("/") + 1);
+
 // Global variables.
 var jsoneditor;
 
@@ -207,7 +210,7 @@ var load = function() {
     // Compile button handler.
     $compile_start_button.addEventListener('click', function() {
         var compile_request = new XMLHttpRequest();
-        compile_request.open("POST", "/compile", true);
+        compile_request.open("POST", $backend_path + "compile", true);
         compile_request.setRequestHeader("Content-type", "application/json; charset=utf-8")
         
         compile_request.onreadystatechange = function() {

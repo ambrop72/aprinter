@@ -82,4 +82,6 @@ rec {
     */
     aprinterServiceExprs = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
     aprinterService = aprinterServiceExprs.service;
+    
+    buildDeps = [aprinterSource avrgcclibc clang-arm-embedded asf stm32cubef4 teensyCores];
 }

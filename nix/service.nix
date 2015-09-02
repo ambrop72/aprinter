@@ -30,6 +30,7 @@
 , servicePort ? 4000
 , backendPort ? 4001
 , stderrTruncateBytes ? 6000
+, servicePrefix ? ""
 }:
 let
     gui_dist = stdenv.mkDerivation {
@@ -40,14 +41,6 @@ let
             python -B "${aprinterSource}"/config_system/gui/build.py --out-dir "$out"
         '';
     };
-    
-    lighttpd_proxy_config = ''
-        $HTTP["url"] =~ "^/compile$" {
-            proxy.server = ("" => (
-                ("host" => "127.0.0.1", "port" => ${toString backendPort})
-            ))
-        }
-    '';
     
     lighttpd_config = writeText "aprinter-service-lighttpd.cfg" ''
         server.modules += ("mod_proxy")
@@ -68,7 +61,11 @@ let
 
         index-file.names = ( "index.html" )
         
-        ${lighttpd_proxy_config}
+        $HTTP["url"] =~ "^/compile$" {
+            proxy.server = ("" => (
+                ("host" => "127.0.0.1", "port" => ${toString backendPort})
+            ))
+        }
     '';
     
     ncd_script = writeText "aprinter-service.ncd" ''
@@ -119,6 +116,7 @@ let
                 "aprinter_src_dir": "${aprinterSource}",
                 "temp_dir": temp_dir,
                 "stderr_truncate_bytes": "${toString stderrTruncateBytes}",
+                "service_prefix": "${servicePrefix}",
                 "mktemp": "${coreutils}/bin/mktemp",
                 "rm": "${coreutils}/bin/rm",
                 "python": "${python27Packages.python}/bin/python",
@@ -155,6 +153,5 @@ let
 in
 {
     inherit gui_dist;
-    inherit lighttpd_proxy_config;
     inherit service;
 }
