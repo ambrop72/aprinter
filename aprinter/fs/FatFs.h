@@ -185,16 +185,6 @@ public:
         o->write_block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
     }
     
-    APRINTER_FUNCTION_IF_EXT(FsWritable, static, bool, canStartWriteUnmount (Context c))
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == FsState::READY)
-        AMBRO_ASSERT(o->write_mount_state == WriteMountState::MOUNTED)
-        
-        return (o->num_write_references == 0);
-    }
-    
     APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, startWriteUnmount (Context c))
     {
         auto *o = Object::self(c);
