@@ -1,59 +1,36 @@
 aprinter
 ========
 
-APrinter is a currently experimantal firmware for RepRap 3D printers and is under heavy development.
-It supports many controller boards based on AVR, Arduino Due (Atmel ARM) and Teensy 3 (Freescale ARM).
+APrinter is a portable firmware system for RepRap 3D printers and other desktop CNC devices.
+It supports many controller boards based on different microcontroller families: AVR, AT91SAM (e.g.. Arduino Due), STM32F4 and Freescale MK20 (Teensy 3). A [web-based configuration system](http://www.aprinter.eu/) is used to configure the high-level features for a particular machine, but also to define the low-level configuration for supporting different controller boards.
 
-## Implemented features (possibly with bugs)
+Here is a list of the boards which are supported out of the box. This means that a predefined Board configuration is provided in the configuration editor. Note that for some of the supported microcontrollers (STM32F4, Teensy 3), there is no specific board supported. It is up to you to build a board and bring the code to life :)
+- Duet (based on AT91SAM3XE).
+- RADDS, RAMPS-FD (based on Arduino Due / AT91SAM3XE).
+- RAMPS 1.3/1.4 (based Arduino Mega / ATMEGA2560).
+- Melzi (based on ATMEGA1284p).
 
-  * Highly configurable design. Extra heaters, fans and axes can be added easily, and
-    PWM frequencies for heaters and fans are individually adjustable unless hardware PWM is used.
-  * Runtime configuration system, and configuration storage to EEPROM.
-    Availability depends on chip/board.
-  * Delta robot and CoreXY support. Additionally, new geometries can be added easily by defining a transform class.
-    Performance will be sub-optimal when using Delta on AVR platforms.
-  * SD card printing. Supports reading g-code from FAT32 filesystems, and also directory listing.
-  * Optionally supports a custom packed g-code format for SD printing.
-    This results in about 50% size reduction and 15% reduction in main loop processing load (on AVR).
-  * Bed probing using a microswitch (prints results, no correction yet).
-  * Slave steppers, driven synchronously, can be configured for an axis (e.g. two Z motors driven by separate drivers).
-  * For use with multiple extruders, a g-code post-processor is provided to translate tool commands into
-    motion of individual axes which the firmware understands. If you have a fan on each extruder, the post-processor can
-    control the fans so that only the fan for the current extruder is on.
-  * Experimental support for lasers (PWM output with a duty cycle proportional to the current speed).
-  * Constant-acceleration motion with look-ahead planning. To speed up calculations, the firmware will only
-    calculate a new plan every LookaheadCommitCount commands. Effectively, this allows increasing
-    the lookahead count without an asymptotic increase of processing time, only limited by the available RAM.
-  * Homing using min- or max-endstops. Can home multiple axes in parallel.
-  * Heater control using PID. There are no thermistor tables, you simply configure the thermistor parameters.
-    Each heater is configured with a Safe temperature range; aheater is turned off in case its temperature goes
-    beyound the safe range.
-  * Fan control (any number of fans).
-  * Stepper control based on interrupts, with each stepper having its own timer interrupt.
-    Step times are computed analytically using the quadratic equation, employing custom assembly
-    routines for sqrt and division on AVR. This ensures that steps happen when they should,
-    without one stepper ending a move faster than others due to accumulated rounding errors,
-    and stopping while all steppers finish.
-  * Portable and ported design; three different microcontroller families are already supported.
-  * Non-drifting heartbeat LED. Its period is exactly 1 second, subject to the precision of your oscillator.
+The following machines are supported out of the box (meaning that a functional Configuration section is provided).
+- RepRapPro Fisher.
 
-## Planned features (in the approximate order of priority):
+## Major functionality
 
-  * Porting to more platforms (LPC, STM32).
+- Linear-delta, rotational-delta and CoreXY support. New geometries can be added by implementing a foward and inverse coordinate transformation. A processor with sufficient speed and RAM is needed (not AVR).
+- Bed probing using a digital input line (e.g. microswitch). Height measurements are printed to the console.
+- Bed height correction, either with a linear or quadratic polynomial, calculated by the least-squares method. However, correction is (currently) only available when the Z axis is involved in a coordinate transform (e.g. Delta).
+- SD card and FAT32 filesystem support. G-code can be read from the SD-card. Optionally, the SD card can be used for storage of runtime configuration options. A custom (fully asynchronous) FAT32 implementation is used, with limited write support (can write to existing files only).
+- Supports heaters and fans. Any number of these may be defined, limited only by available hardware resources.
+- Experimental support for lasers (PWM output with a duty cycle proportional to the current speed).
+- Supports multiple extruders. However, the interface is not compatible to typical firmwares. There are no tool commands, instead the extruders appear as separate axes. A g-code post-processor is provided to translate tool-using gcode into what the firmware understands. This post-processor can also control fans based on the "current tool".
+- Unified runtime configuration system. Most of the "simple" configuration values which are available in the configuration editor have the corresponding named runtime configuration option (e.g. XMaxPos). Configuration may be saved to and restored from a storage backend, such as an EEPROM or a file on an SD card.
 
-## Hardware requirements
+## Other features and implementation details
 
-Ports have been completed for the following boards:
-
-  * Melzi (atmega1284p only),
-  * RAMPS 1.3/1.4 (only RAMPS 1.4 with atmega2560 is tested),
-  * RAMPS-FD(*), RADDS.
-  * 4pi(*).
-  * Teensy 3 (no standard board, needs manual wiring).
-
-The (*) mark means that the board is supported by the firmware code but is currently unavailable
-due to a lack of support in the web configuration system. If you want to try the firmware on one of these
-boards, plase contact me and I will try to add the support.
+- Homing of multiple axes in parallel.
+- Homing cartesian axes involved in a coordinate transformation (e.g. homing X and Y in CoreXY).
+- Slave steppers, driven synchronously, can be configured for an axis (e.g. two Z motors driven by separate drivers).
+- Constant-acceleration motion planning with look-ahead. To speed up calculations, the firmware will only calculate a new plan every N ("Lookahead commit count") commands. This allows increasing the lookahead without an asymptotic increase of CPU usage, only limited by the available RAM.
+- High precision step timing. For each stepper, a separate timer compare channel is used. In the interrupt handler, a step pulse for a stepper is generated, and the time of the next step is calculated analytically.
 
 ## Coding style
 
@@ -101,7 +78,7 @@ This file would usually be produced by the web GUI, but you're free to manage it
 Again, the prerequisite for building is the [Nix package manager](http://nixos.org/nix/) on Linux.
 
 ```
-python -B config_system/generator/generate.py --nix --config path_to_config.json | nix-build - -o ~/aprinter-build
+python -B config_system/generator/generate.py --config path_to_config.json | nix-build - -o ~/aprinter-build
 ```
 
 ## Uploading
@@ -146,7 +123,7 @@ stty -F /dev/ttyACM0 1200
 Then upload the firmware using BOSSA (you can use the GUI if you like instead).
 
 ```
-bossac -p ttyACM0 -U false -i -e -w -v -b "$HOME/aprinter-build/aprinter-nixbuild.bin" -R 
+bossac -p ttyACM0 -U false -i -e -w -v -b ~/aprinter-build/aprinter-nixbuild.bin -R 
 ```
 
 Some Due clones have a problem resetting. If after uploading, the firmware does not start (LED doesn't blink), press the reset button.
@@ -155,6 +132,14 @@ Some Due clones have a problem resetting. If after uploading, the firmware does 
 However, it is possible to configure the firmware to use the programming port for communication.
 To do that in the web GUI, expand the specific board definition (in the Boards list), expand "Serial parameters" and for the "Backend",
 choose "AT91 UART".
+
+### Duet
+
+Before flashing, you need to bring the chip to boot mode by pressing the erase button (near the Ethernet jack).
+
+```
+bossac -p ttyACM0 -i -e -w -v -b ~/aprinter-build/aprinter-nixbuild.bin -R
+```
 
 ### Teensy 3
 
@@ -175,15 +160,12 @@ Otherwise it may or may not be possible to add a new port, based on hardware ava
 
 ### Runtime configuration
 
-When runtime configuration is available, the values of many parameters can be adjusted at runtime, and the values specified in
-the web GUI are used as defaults only.
-Notable things that cannot be configured at runtime are various structural aspects such as the presence of devices/features
-and hardware mapping of features (including pins).
+When runtime configuration is available, the values of many parameters can be adjusted at runtime, and the values specified in the web GUI are used as defaults only. Notable things that cannot be configured at runtime are various structural aspects such as the presence of devices/features and hardware mapping of features (including pins).
 
 Board-specific notes:
 
-  * RAMPS-FD: I2C EEPROM is used for storage, which is not present on old boards.
-  * RAMPS: Due to lack of RAM, some configuration options are not configurable at runtime.
+  * Duet, RADDS, RAMPS-FD: SD card is used for configuration storage.
+  * RAMPS, Melzi: EEPROM in the microcontroller is used.
   * 4pi: The internal flash is used for storage, which gets erased every time the device is programmed.
 
 Runtime configuration commands:
@@ -200,9 +182,11 @@ Runtime configuration commands:
   * Save configuration to storage: `M929`
   * Apply configuration: `M930`
 
-After changing any configuration (either directly with `M926` or by loading an entire configuration with `M928`), the configuration needs to be applied with `M930`. Only then will the changes take effect. However, when the firmware starts up, the stored configuration is automatically loaded and applied, as if `M928` followed by `M930` was done.
+After changing any configuration (e.g. with `M926`, `M927` or `M928`), the configuration needs to be applied with `M930`. Only then will the changes take effect. However, when the firmware starts up, the stored configuration is automatically loaded and applied, as if `M928` followed by `M930` was done.
 
 The `M930` command does not alter the current set of configuration values in any way. Rather, it recomputes a set of values in RAM which are derived from the configuration values. This is a one-way operation, there is no way to see what the current applied configuration is.
+
+If configuration is stored on the SD card, the file `aprinter.cfg` in the root of the filesystem needs to exist. The firmware is not capable of creating the file when saving the configuration! An empty file will suffice.
 
 ### SD card
 
@@ -220,11 +204,10 @@ The following SD-card related commands will be available when SD card support is
 - M23 R - Change to root directory.
 - M23 F\<file\> - Select file for printing (<file> must be a file in the current directory).
 - M24 - Start or resume SD printing.
-- M25 - Pause SD printing. Note that pause automatically happens at end of file or read error.
+- M25 - Pause SD printing. Note that pause automatically happens at end of file.
 - M26 - Rewind the current file to the beginning.
 
-When passing a file or directory name to a command, any spaces in the name have to be replaced with the escape sequence `\20`,
-because a space would be parsed as a delimiter between command parameters.
+When passing a file or directory name to a command, any spaces in the name have to be replaced with the escape sequence `\20`, because a space would be parsed as a delimiter between command parameters.
 
 Example: start printing from the file `gcodes/test.gcode`.
 
@@ -250,65 +233,36 @@ M26
 M24
 ```
 
-### Packed gcode
-
-When printing from SD, the firmware can optionally read a custom packed form of gcode, to improve space and processing efficiency. The packing format [is documented](encoding.txt).
-
-The choice between plain text and packed gcode needs to be made at compile time. By default, plain text is used.
-To configure packed gcode in the web GUI, go to your Board, "SD card configuration" and set "G-code parser" to "Binary G-code parser".
-
-To pack a gcode file, use the `aprinter_encode.py` script, as follows.
-
-```
-python2.7 /path/to/aprinter/aprinter_encode.py --input file.gcode --output file.packed
-```
-
 ### Heaters
 
-Each heater is identified with a one-character name, along with an M-command number for setting the temperature setpoint.
-The recommended heater naming is:
+Each heater is identified with a one-character name and a number. In the configuration editor, the number may be omitted, in which case it is assumed to be zero. On the other hand, the firmware will assume the number 0 if a heater is specified in a heater-related command with just a letter. Typical heater names are B (bed), T/T0 (first extruder) and T1 (second extruder).
 
-- Bed: B/M140
-- First extruder: T/M104
-- Second extruder: U/M404
-- Third extruder: V/M414
+To configure the setpoint for a heater and enable it, use `M104 <heater> S<temperature>`. For example: `M104 B S100`, `M104 T S220`, `M104 T1 S200`. To disable a heater, set the setpoint to nan (or a value outside of the defined safe range): `M104 B Snan`.
 
-To enable a heater: `M104 S<temperature>`.
-To disable a heater, set it to an invalid setpoint outside the specified safe range, or to `NAN`.
+The command M116 can be used to wait for the set temperatures of the specified heaters to be reached: `M116 <heater> ...`. For example: `M116 T0 T1 B`. Without any heaters specified, the effect is as if all heaters were specified. If one of the waited-for heaters is disabled at start or subsequently, the wait operation aborts.
 
-The command M116 can be used to wait for the set temperatures to be reached.
-Issuing just M116 will wait for any enabled heaters.
-Alternatively, heater names can be added as parameters to indicate which heaters to wait for, e.g `M116 T U`.
-However, any heaters that are not enabled will be skipped even if specified.
+Optionally, heater-specific M-codes can be defined in the configuration editor. For example is M123 is configured for the heater `T1`, the command `M123 S<temperature>` is equivalent to `M104 T1 S<temperature>`. Note, `M104` itself may be configured as a heater-specific M-code. In this case `M104` may still be used to configure any heater, but if no heater is specified, it configures that particular heater. It is useful to configure `M140` as the heater-specific code for the bed, and `M104` for an only extruder.
 
 ### Fans
 
-Each fan is identified with a one-character name, along with M-command numbers for setting the fan speed and turning off the fan.
-The recommended fan naming is:
+Fans are identified in much the same way as heaters, with a letter and a number. For fans attached to extruders, the names T/T0/T1 are also recommended. 
 
-- First extruder: E/M106/M107
-- Second extruder: U/M406/M407
-- Third extruder: V/M416/M417
+A fan is turned on using `M106 <fan> S<speed_0_to_255>`. Turning off is achieved either by setting the speed to 0 or using `M107 <fan>`.
+
+Much like heater-specific M-codes, one can have fan-specific M-codes for setting the speed of or turning off a fan. If there is only one fan, it is useful to use `M106` and `M107` themselves as heater-specific M-codes for the fan.
 
 ### Extruders
 
-The firmware allows any number of axes (given sufficient hardware resources), but it does not, by design, implement tool change commands.
-Extruder axes need to be configured with the "is cartesian" option set to false.
-This distinction is required for the implementation of the feedrate parameter (G1 Fxxx ...).
+The firmware allows any number of axes (given sufficient hardware resources), but it does not, by design, implement tool change commands. Extruder axes need to be configured with the "is cartesian" option set to false.
+This distinction is required for the implementation of the feedrate parameter (`G1 Fxxx ...`).
 
-The recommented naming for extruder axes is:
+The recommented naming for extruder axes is E, U, V in order.
 
-- First extruder: E
-- Second extruder: U
-- Third extruder: V
-
-The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands,
-but more about that will be explained later.
+The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands, but more about that will be explained later.
 
 ### Slave steppers
 
-Slave steppers are extra steppers assigned to an axis. They will be driven synchronously with the main stepper for the axis.
-Actually, the only difference between the main stepper and slave steppers is the way they are specified in the configuration.
+Slave steppers are extra steppers assigned to an axis. They will be driven synchronously with the main stepper for the axis. Actually, the only difference between the main stepper and slave steppers is the way they are specified in the configuration.
 
 In the web GUI, slave steppers can be added in the Stepper section for a particular stepper.
 If there is no existing suitable stepper port definition, you will need to add one in the Board configuration.
@@ -319,8 +273,7 @@ When doing this, note that for slave steppers, the "Stepper timer" does not need
 APrinter has generic support for non-cartesian coordinate systems.
 Currently, delta (towers) and CoreXY/H-bot are supported out of the box.
 
-*NOTE*: Delta will not work well on AVR based platforms due to lack of CPU speed and RAM.
-CoreXY may or may not.
+*NOTE*: Delta will not work well on AVR based platforms due to lack of CPU speed and RAM. CoreXY may or may not.
 
 Generally, the transformation is configured as follows in the web GUI:
 
@@ -356,6 +309,16 @@ For delta, the stepper limits should be configured appropriately for the machine
 It helps to know that the A/B/C stepper positions are actually cartesian Z coordinates
 of assemblies on the towers, and that the maximum position limit corresponds to
 meeting the endstop at the top.
+
+### Bed probing and correction
+
+When bed height probing is enabled, a list of corrdinates of the probe points needs to be defined, along with other parameters such as starting height and speeds. The configuration editor should provide sufficient information for configuring bed probing. Bed probing is initiated using `M32`. The resulting height measurements will be printed to the console.
+
+Automatic height correction is supported as long as the Z axis is involved in the coordinate transform (e.g. on delta, but not on cartesinan machines; this limitation may be removed in the future). Issuing `M32 A` will perform bed probing and apply corrections. The active corrections may be viewed using `M937`, and reset using `M938`.
+
+Correction may be either linear or quadratic. If quadratic correction is enabled in the configuration editor, a runtime configuration parameter (ProbeQuadrCorrEnabled) switches between linear and quadratic. Note, a correction is always applied on top of the existing correction, and a linear correction on top of a quadratic correction is still a quadratic correction.
+
+In any case, the computation of corrections is done using the linear least-squares method, via QR decomposition by Householder reflections. Even though this code was highly optimized for memory use, it still uses a substantial chunk of RAM, so you should watch out for RAM usage. The RAM needs are proportional in the number of probing points.
 
 ### Lasers
 
