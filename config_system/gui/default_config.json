@@ -336,14 +336,14 @@
       "LedPin": "DuePin37",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
+        "EventChannelBufferSize": 64,
         "EventChannelTimerClearance": 0.002,
         "FpType": "double",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
+        "LookaheadBufferSize": 48,
+        "LookaheadCommitCount": 16,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
-        "StepperSegmentBufferSize": 32,
+        "StepperSegmentBufferSize": 64,
         "_compoundName": "performance"
       },
       "EventChannelTimer": {
@@ -360,22 +360,7 @@
         "_compoundName": "RuntimeConfig",
         "config_manager": {
           "ConfigStore": {
-            "Eeprom": {
-              "BlockSize": 64,
-              "I2c": {
-                "Ckdiv": 2,
-                "Device": "At91SamI2cDevice1",
-                "I2cFreq": 100000,
-                "_compoundName": "At91SamI2c"
-              },
-              "I2cAddr": 80,
-              "Size": 32768,
-              "WriteTimeout": 1,
-              "_compoundName": "I2cEeprom"
-            },
-            "EndBlock": 512,
-            "StartBlock": 0,
-            "_compoundName": "EepromConfigStore"
+            "_compoundName": "FileConfigStore"
           },
           "_compoundName": "RuntimeConfigManager"
         }
@@ -386,15 +371,15 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
-            "EnableFsTest": false,
-            "FsWritable": false,
-            "HaveAccessInterface": false,
-            "MaxFileNameSize": 128,
-            "NumCacheEntries": 4,
+            "EnableFsTest": true,
+            "FsWritable": true,
+            "HaveAccessInterface": true,
+            "MaxFileNameSize": 256,
+            "NumCacheEntries": 8,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
-            "MaxParts": 8,
+            "MaxParts": 16,
             "_compoundName": "TextGcodeParser"
           },
           "MaxCommandSize": 256,
@@ -823,14 +808,14 @@
       "LedPin": "DuePin13",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
+        "EventChannelBufferSize": 64,
         "EventChannelTimerClearance": 0.002,
         "FpType": "double",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
+        "LookaheadBufferSize": 48,
+        "LookaheadCommitCount": 16,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
-        "StepperSegmentBufferSize": 32,
+        "StepperSegmentBufferSize": 64,
         "_compoundName": "performance"
       },
       "EventChannelTimer": {
@@ -847,16 +832,7 @@
         "_compoundName": "RuntimeConfig",
         "config_manager": {
           "ConfigStore": {
-            "Eeprom": {
-              "FlashDriver": {
-                "DeviceIndex": 1,
-                "_compoundName": "At91SamFlash"
-              },
-              "_compoundName": "FlashWrapper"
-            },
-            "EndBlock": 512,
-            "StartBlock": 0,
-            "_compoundName": "EepromConfigStore"
+            "_compoundName": "FileConfigStore"
           },
           "_compoundName": "RuntimeConfigManager"
         }
@@ -867,15 +843,15 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
-            "EnableFsTest": false,
-            "FsWritable": false,
-            "HaveAccessInterface": false,
-            "MaxFileNameSize": 128,
-            "NumCacheEntries": 4,
+            "EnableFsTest": true,
+            "FsWritable": true,
+            "HaveAccessInterface": true,
+            "MaxFileNameSize": 256,
+            "NumCacheEntries": 8,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
-            "MaxParts": 8,
+            "MaxParts": 16,
             "_compoundName": "TextGcodeParser"
           },
           "MaxCommandSize": 256,
@@ -3127,14 +3103,14 @@
       "LedPin": "At91SamPin<At91SamPioB,24>",
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
+        "EventChannelBufferSize": 64,
         "EventChannelTimerClearance": 0.002,
         "FpType": "double",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
+        "LookaheadBufferSize": 48,
+        "LookaheadCommitCount": 16,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
-        "StepperSegmentBufferSize": 32,
+        "StepperSegmentBufferSize": 64,
         "_compoundName": "performance"
       },
       "EventChannelTimer": {
@@ -3272,20 +3248,21 @@
       "board": "RADDS",
       "fans": [
         {
-          "Name": "E",
+          "Name": "T0",
           "OffMCommand": 107,
           "SetMCommand": 106,
           "_compoundName": "fan",
           "pwm_output": "FET3 (fan 1)"
         },
         {
-          "Name": "U",
+          "Name": "T1",
           "OffMCommand": 407,
           "SetMCommand": 406,
           "_compoundName": "fan",
           "pwm_output": "FET2 (fan 2)"
         }
       ],
+      "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
         "ForceTimeout": 0.1,
@@ -3293,12 +3270,12 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitTimeout": 500,
+      "WaitReportPeriod": 1,
       "heaters": [
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T",
+          "Name": "T0",
           "SetMCommand": 104,
           "ThermistorInput": "T0",
           "_compoundName": "heater",
@@ -3364,7 +3341,7 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "U",
+          "Name": "T1",
           "SetMCommand": 404,
           "ThermistorInput": "T1",
           "_compoundName": "heater",
@@ -3585,20 +3562,21 @@
       "board": "RAMPS-FD",
       "fans": [
         {
-          "Name": "E",
+          "Name": "T0",
           "OffMCommand": 107,
           "SetMCommand": 106,
           "_compoundName": "fan",
           "pwm_output": "FET5 (fan 1)"
         },
         {
-          "Name": "U",
+          "Name": "T1",
           "OffMCommand": 407,
           "SetMCommand": 406,
           "_compoundName": "fan",
           "pwm_output": "FET6 (fan 2)"
         }
       ],
+      "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
         "ForceTimeout": 0.1,
@@ -3606,12 +3584,12 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitTimeout": 500,
+      "WaitReportPeriod": 1,
       "heaters": [
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T",
+          "Name": "T0",
           "SetMCommand": 104,
           "ThermistorInput": "T1",
           "_compoundName": "heater",
@@ -3677,7 +3655,7 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "U",
+          "Name": "T1",
           "SetMCommand": 404,
           "ThermistorInput": "T2",
           "_compoundName": "heater",
@@ -3852,6 +3830,7 @@
     {
       "board": "4pi",
       "fans": [],
+      "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
         "ForceTimeout": 0.1,
@@ -3859,12 +3838,12 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitTimeout": 500,
+      "WaitReportPeriod": 1,
       "heaters": [
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "T",
+          "Name": "T0",
           "SetMCommand": 104,
           "ThermistorInput": "T1",
           "_compoundName": "heater",
@@ -3897,7 +3876,7 @@
         {
           "MaxSafeTemp": 280,
           "MinSafeTemp": 10,
-          "Name": "U",
+          "Name": "T1",
           "SetMCommand": 404,
           "ThermistorInput": "T2",
           "_compoundName": "heater",
@@ -4151,13 +4130,14 @@
       "board": "Teensy 3",
       "fans": [
         {
-          "Name": "E",
+          "Name": "T",
           "OffMCommand": 107,
           "SetMCommand": 106,
           "_compoundName": "fan",
           "pwm_output": "Fan"
         }
       ],
+      "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
         "ForceTimeout": 0.1,
@@ -4165,7 +4145,7 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitTimeout": 500,
+      "WaitReportPeriod": 1,
       "heaters": [
         {
           "MaxSafeTemp": 280,
@@ -4326,13 +4306,14 @@
       "board": "RAMPS 1.3",
       "fans": [
         {
-          "Name": "E",
+          "Name": "T",
           "OffMCommand": 107,
           "SetMCommand": 106,
           "_compoundName": "fan",
           "pwm_output": "D4"
         }
       ],
+      "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
         "ForceTimeout": 0.1,
@@ -4340,7 +4321,7 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitTimeout": 500,
+      "WaitReportPeriod": 1,
       "heaters": [
         {
           "MaxSafeTemp": 120,
@@ -4534,13 +4515,14 @@
       "board": "Melzi",
       "fans": [
         {
-          "Name": "E",
+          "Name": "T",
           "OffMCommand": 107,
           "SetMCommand": 106,
           "_compoundName": "fan",
           "pwm_output": "fan"
         }
       ],
+      "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
         "ForceTimeout": 0.1,
@@ -4548,7 +4530,7 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitTimeout": 500,
+      "WaitReportPeriod": 1,
       "heaters": [
         {
           "MaxSafeTemp": 280,
@@ -4741,6 +4723,7 @@
     {
       "board": "STM32F429I-Discovery",
       "fans": [],
+      "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
         "ForceTimeout": 0.1,
@@ -4748,7 +4731,7 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitTimeout": 500,
+      "WaitReportPeriod": 1,
       "heaters": [
         {
           "MaxSafeTemp": 280,
@@ -4831,13 +4814,14 @@
       "board": "STM32F407-Discovery",
       "fans": [
         {
-          "Name": "E",
+          "Name": "T",
           "OffMCommand": 107,
           "SetMCommand": 106,
           "_compoundName": "fan",
           "pwm_output": "LedOrange"
         }
       ],
+      "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
         "ForceTimeout": 0.1,
@@ -4845,7 +4829,7 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitTimeout": 500,
+      "WaitReportPeriod": 1,
       "heaters": [
         {
           "MaxSafeTemp": 280,
@@ -4927,6 +4911,7 @@
     {
       "board": "RADDS",
       "fans": [],
+      "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
         "ForceTimeout": 0.1,
@@ -4934,7 +4919,7 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitTimeout": 500,
+      "WaitReportPeriod": 1,
       "heaters": [],
       "lasers": [],
       "name": "Rotational Delta example",
@@ -5097,6 +5082,7 @@
     {
       "board": "Duet v0.6",
       "fans": [],
+      "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
         "ForceTimeout": 0.1,
@@ -5104,7 +5090,7 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitTimeout": 500,
+      "WaitReportPeriod": 1,
       "heaters": [
         {
           "MaxSafeTemp": 260,
