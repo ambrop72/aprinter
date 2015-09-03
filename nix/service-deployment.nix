@@ -71,6 +71,7 @@ lib.foldl lib.recursiveUpdate {} [
             
             environment.systemPackages = [
                 pkgs.psmisc
+                pkgs.tmux
             ];
             
             nix.buildCores = 2;
