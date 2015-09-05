@@ -625,7 +625,7 @@ public:
             
             void reply_append_buffer (Context c, char const *str, size_t length)
             {
-                Channel::reply_append_buffer_impl(c, str, length);
+                Channel::reply_append_buffer_impl(c, str, nullptr, length);
             }
             
             void reply_append_ch (Context c, char ch)
@@ -635,7 +635,7 @@ public:
             
             void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
             {
-                Channel::reply_append_pbuffer_impl(c, pstr, length);
+                Channel::reply_append_buffer_impl(c, nullptr, pstr, length);
             }
             
             bool requestSendBufEvent (Context c, size_t length, typename TheCommand::SendBufEventHandler handler)

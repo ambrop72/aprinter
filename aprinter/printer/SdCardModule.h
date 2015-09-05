@@ -212,11 +212,7 @@ public: // these are called by ChannelCommon
     {
     }
     
-    static void reply_append_buffer_impl (Context c, char const *str, size_t length)
-    {
-    }
-    
-    static void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length)
+    static void reply_append_buffer_impl (Context c, char const *str, AMBRO_PGM_P pstr, size_t length)
     {
     }
     
