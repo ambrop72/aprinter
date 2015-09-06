@@ -1553,6 +1553,7 @@ public:
             if (o->splitting) {
                 o->virt_update_pending = true;
                 o->splitting = false;
+                // We don't call the move_end_callback.
             }
             do_pending_virt_update(c);
         }
@@ -2372,7 +2373,6 @@ private:
                         }
                     }
                     bool is_positioning_move = (cmd->getCmdNumber(c) == 0);
-                    cmd->finishCommand(c);
                     return move_end(c, ob->time_freq_by_max_speed, PrinterMain::normal_move_end_callback, is_positioning_move);
                 } break;
                 
@@ -2490,7 +2490,11 @@ private:
     
     static void normal_move_end_callback (Context c, bool error)
     {
-        // TBD handle error
+        auto *cmd = get_locked(c);
+        if (error) {
+            cmd->reportError(c, nullptr);
+        }
+        cmd->finishCommand(c);
     }
     
 public:
@@ -2553,8 +2557,7 @@ private:
         
         ob->m_planning_pull_pending = true;
         if (TransformFeature::is_splitting(c)) {
-            TransformFeature::do_split(c);
-            return;
+            return TransformFeature::do_split(c);
         }
         if (ob->planner_state == PLANNER_STOPPING) {
             ThePlanner::waitFinished(c);
@@ -2667,8 +2670,7 @@ public:
         AMBRO_ASSERT(callback)
         
         if (TransformFeature::is_splitting(c)) {
-            TransformFeature::handle_virt_move(c, time_freq_by_max_speed, callback, is_positioning_move);
-            return;
+            return TransformFeature::handle_virt_move(c, time_freq_by_max_speed, callback, is_positioning_move);
         }
         
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);

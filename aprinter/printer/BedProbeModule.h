@@ -381,6 +381,7 @@ public:
                 init_probe_planner(c, false);
                 o->m_point_state = 0;
                 o->m_command_sent = false;
+                o->m_move_error = false;
                 CorrectionFeature::probing_staring(c);
             }
             return false;
@@ -583,6 +584,10 @@ private:
             ThePrinterMain::custom_planner_deinit(c);
             o->m_command_sent = false;
             
+            if (o->m_move_error) {
+                return finish_probing(c, AMBRO_PSTR("Move"));
+            }
+            
             if (is_point_state_watching(o->m_point_state) && !aborted) {
                 return finish_probing(c, AMBRO_PSTR("EndstopNotTriggeredInProbeMove"));
             }
@@ -659,7 +664,13 @@ private:
     
     static void move_end_callback (Context c, bool error)
     {
-        // TBD handle error
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->m_current_point != -1)
+        AMBRO_ASSERT(o->m_command_sent)
+        
+        if (error) {
+            o->m_move_error = true;
+        }
     }
     
     using CProbeInvert = decltype(ExprCast<bool>(Config::e(Params::ProbeInvert::i())));
@@ -688,6 +699,7 @@ public:
         PointIndexType m_current_point;
         uint8_t m_point_state;
         bool m_command_sent;
+        bool m_move_error;
     };
 };
 
