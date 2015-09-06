@@ -39,10 +39,11 @@ public:
     static int const NumAxes = Params::NumAxes;
     
     template <typename Src, typename Dst>
-    static void virtToPhys (Context c, Src virt, Dst out_phys)
+    static bool virtToPhys (Context c, Src virt, Dst out_phys)
     {
         HelperTuple dummy;
         TupleForEachForward(&dummy, Foreach_copy_coords(), virt, out_phys);
+        return true;
     }
     
     template <typename Src, typename Dst>

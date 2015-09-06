@@ -44,11 +44,20 @@ public:
     static int const NumAxes = 3;
     
     template <typename Src, typename Dst>
-    static void virtToPhys (Context c, Src virt, Dst out_phys)
+    static bool virtToPhys (Context c, Src virt, Dst out_phys)
     {
-        out_phys.template set<0>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - FloatSquare(APRINTER_CFG(Config, CTower1X, c) - virt.template get<0>()) - FloatSquare(APRINTER_CFG(Config, CTower1Y, c) - virt.template get<1>())) + virt.template get<2>());
-        out_phys.template set<1>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - FloatSquare(APRINTER_CFG(Config, CTower2X, c) - virt.template get<0>()) - FloatSquare(APRINTER_CFG(Config, CTower2Y, c) - virt.template get<1>())) + virt.template get<2>());
-        out_phys.template set<2>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - FloatSquare(APRINTER_CFG(Config, CTower3X, c) - virt.template get<0>()) - FloatSquare(APRINTER_CFG(Config, CTower3Y, c) - virt.template get<1>())) + virt.template get<2>());
+        FpType x = virt.template get<0>();
+        FpType y = virt.template get<1>();
+        FpType z = virt.template get<2>();
+        
+        if (!(x*x + y*y <= APRINTER_CFG(Config, CLimitRadius2, c))) {
+            return false;
+        }
+        
+        out_phys.template set<0>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - FloatSquare(APRINTER_CFG(Config, CTower1X, c) - x) - FloatSquare(APRINTER_CFG(Config, CTower1Y, c) - y)) + z);
+        out_phys.template set<1>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - FloatSquare(APRINTER_CFG(Config, CTower2X, c) - x) - FloatSquare(APRINTER_CFG(Config, CTower2Y, c) - y)) + z);
+        out_phys.template set<2>(FloatSqrt(APRINTER_CFG(Config, CDiagonalRod2, c) - FloatSquare(APRINTER_CFG(Config, CTower3X, c) - x) - FloatSquare(APRINTER_CFG(Config, CTower3Y, c) - y)) + z);
+        return true;
     }
     
     template <typename Src, typename Dst>
@@ -75,6 +84,7 @@ public:
 private:
     using DiagonalRod = decltype(Config::e(Params::DiagonalRod::i()));
     using Radius = decltype(Config::e(Params::SmoothRodOffset::i()) - Config::e(Params::EffectorOffset::i()) - Config::e(Params::CarriageOffset::i()));
+    using LimitRadius = decltype(Config::e(Params::LimitRadius::i()));
     
     using Value1 = APRINTER_FP_CONST_EXPR(-0.8660254037844386);
     using Value2 = APRINTER_FP_CONST_EXPR(-0.5);
@@ -89,9 +99,10 @@ private:
     using CTower2Y = decltype(ExprCast<FpType>(Radius() * Value2()));
     using CTower3X = decltype(ExprCast<FpType>(Radius() * Value4()));
     using CTower3Y = decltype(ExprCast<FpType>(Radius() * Value5()));
+    using CLimitRadius2 = decltype(ExprCast<FpType>(LimitRadius() * LimitRadius()));
     
 public:
-    using ConfigExprs = MakeTypeList<CDiagonalRod2, CTower1X, CTower1Y, CTower2X, CTower2Y, CTower3X, CTower3Y>;
+    using ConfigExprs = MakeTypeList<CDiagonalRod2, CTower1X, CTower1Y, CTower2X, CTower2Y, CTower3X, CTower3Y, CLimitRadius2>;
     
     struct Object : public ObjBase<DeltaTransform, ParentObject, EmptyTypeList> {};
 };
@@ -100,13 +111,15 @@ template <
     typename TDiagonalRod,
     typename TSmoothRodOffset,
     typename TEffectorOffset,
-    typename TCarriageOffset
+    typename TCarriageOffset,
+    typename TLimitRadius
 >
 struct DeltaTransformService {
     using DiagonalRod = TDiagonalRod;
     using SmoothRodOffset = TSmoothRodOffset;
     using EffectorOffset = TEffectorOffset;
     using CarriageOffset = TCarriageOffset;
+    using LimitRadius = TLimitRadius;
     
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Transform = DeltaTransform<Context, ParentObject, Config, FpType, DeltaTransformService>;

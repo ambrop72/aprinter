@@ -33,10 +33,11 @@ public:
     static int const NumAxes = 2;
     
     template <typename Src, typename Dst>
-    static void virtToPhys (Context c, Src virt, Dst out_phys)
+    static bool virtToPhys (Context c, Src virt, Dst out_phys)
     {
         out_phys.template set<0>(virt.template get<0>() + virt.template get<1>());
         out_phys.template set<1>(virt.template get<0>() - virt.template get<1>());
+        return true;
     }
     
     template <typename Src, typename Dst>

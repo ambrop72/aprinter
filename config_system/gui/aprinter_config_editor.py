@@ -417,6 +417,7 @@ def editor():
                         ce.Float(key='SmoothRodOffset', title='Smooth rod offset [mm]', default=145),
                         ce.Float(key='EffectorOffset', title='Effector offset [mm]', default=19.9),
                         ce.Float(key='CarriageOffset', title='Carriage offset [mm]', default=19.5),
+                        ce.Float(key='LimitRadius', title='Radius of XY disk to permit motion in [mm]', default=150.0),
                         ce.Float(key='MinSplitLength', title='Minimum segment length for splitting [mm]', default=0.1),
                         ce.Float(key='MaxSplitLength', title='Maximum segment length for splitting [mm]', default=4.0),
                         ce.Float(key='SegmentsPerSecond', title='Segments per second', default=100.0),

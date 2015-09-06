@@ -78,7 +78,7 @@ public:
     static int const NumAxes = 3;
     
     template <typename Src, typename Dst>
-    static void virtToPhys (Context c, Src virt, Dst out_phys)
+    static bool virtToPhys (Context c, Src virt, Dst out_phys)
     {
         // Cartesian to delta = inverse kinematics
         
@@ -93,11 +93,14 @@ public:
         status &= delta_calcAngleYZ(c, x, y, z, theta1);
         status &= delta_calcAngleYZ(c, x * (FpType)Cos120::value() + y * (FpType)Sin120::value(), y * (FpType)Cos120::value() - x * (FpType)Sin120::value(), z, theta2); // rotate coords to +120 deg
         status &= delta_calcAngleYZ(c, x * (FpType)Cos120::value() - y * (FpType)Sin120::value(), y * (FpType)Cos120::value() + x * (FpType)Sin120::value(), z, theta3); // rotate coords to -120 deg
-        // NOTE: We don't handle errors (status==false).
+        if (!status) {
+            return false;
+        }
         
         out_phys.template set<0>(theta1);
         out_phys.template set<1>(theta2);
         out_phys.template set<2>(theta3);
+        return true;
     }
     
     template <typename Src, typename Dst>

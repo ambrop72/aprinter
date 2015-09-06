@@ -1401,6 +1401,7 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_config('DeltaSmoothRodOffset', transform.get_float('SmoothRodOffset')),
                         gen.add_float_config('DeltaEffectorOffset', transform.get_float('EffectorOffset')),
                         gen.add_float_config('DeltaCarriageOffset', transform.get_float('CarriageOffset')),
+                        gen.add_float_config('DeltaLimitRadius', transform.get_float('LimitRadius')),
                     ]), distance_splitter('Delta')
                 
                 @transform_type_sel.option('RotationalDelta')

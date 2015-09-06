@@ -1399,20 +1399,20 @@ public:
             }
         }
         
-        static void update_phys_from_virt (Context c)
+        static bool update_phys_from_virt (Context c)
         {
+            bool success;
             if (TheCorrectionService::CorrectionEnabled) {
                 FpType temp_virt_pos[NumVirtAxes];
                 TheCorrectionService::do_correction(c, VirtReqPosSrc{c}, ArrayDst{temp_virt_pos}, WrapBool<false>());
-                TheTransformAlg::virtToPhys(c, ArraySrc{temp_virt_pos}, PhysReqPosDst{c});
+                success = TheTransformAlg::virtToPhys(c, ArraySrc{temp_virt_pos}, PhysReqPosDst{c});
             } else {
-                TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
+                success = TheTransformAlg::virtToPhys(c, VirtReqPosSrc{c}, PhysReqPosDst{c});
             }
-        }
-        
-        static bool check_all_phys_limits (Context c)
-        {
-            return ListForEachForwardInterruptible<VirtAxesList>(LForeach_check_phys_limits(), c);
+            if (success) {
+                success = ListForEachForwardInterruptible<VirtAxesList>(LForeach_check_phys_limits(), c);
+            }
+            return success;
         }
         
         static void handle_virt_move (Context c, FpType time_freq_by_max_speed, MoveEndCallback callback, bool is_positioning_move)
@@ -1422,9 +1422,9 @@ public:
             
             o->move_end_callback = callback;
             o->virt_update_pending = false;
-            update_phys_from_virt(c);
+            bool transform_success = update_phys_from_virt(c);
             
-            if (!check_all_phys_limits(c)) {
+            if (!transform_success) {
                 ListForEachForward<PhysVirtAxisHelperList>(LForeach_restore_pos_from_old(), c);
                 return handle_transform_error(c);
             }
@@ -1507,10 +1507,10 @@ public:
                     FpType saved_virt_req_pos[NumVirtAxes];
                     ListForEachForward<VirtAxesList>(LForeach_save_req_pos(), c, saved_virt_req_pos);
                     ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, o->frac);
-                    update_phys_from_virt(c);
+                    bool transform_success = update_phys_from_virt(c);
                     ListForEachForward<VirtAxesList>(LForeach_restore_req_pos(), c, saved_virt_req_pos);
                     
-                    if (!check_all_phys_limits(c)) {
+                    if (!transform_success) {
                         // Compute actual positions based on prev_frac.
                         ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, prev_frac);
                         update_phys_from_virt(c);
@@ -1565,8 +1565,8 @@ public:
             if (o->splitting) {
                 o->splitting = false;
                 o->virt_update_pending = false;
-                update_phys_from_virt(c);
-                if (!check_all_phys_limits(c)) {
+                bool transform_success = update_phys_from_virt(c);
+                if (!transform_success) {
                     print_pgm_string(c, AMBRO_PSTR("//Error:Transform\n"));
                     return false;
                 }
