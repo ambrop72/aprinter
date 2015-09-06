@@ -35,6 +35,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/printer/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -79,15 +80,6 @@ private:
     };
     
 public:
-    enum {
-        ERROR_NO_PARTS = -1,
-        ERROR_TOO_MANY_PARTS = -2,
-        ERROR_INVALID_PART = -3,
-        ERROR_CHECKSUM = -4,
-        ERROR_RECV_OVERRUN = -5,
-        ERROR_EOF = -6
-    };
-    
     using PartRef = Part *;
     
     static void init (Context c)
@@ -146,7 +138,7 @@ public:
                     o->m_length = 1;
                     o->m_num_parts = o->m_buffer[0] & 0x0f;
                     if (o->m_num_parts > Params::MaxParts) {
-                        o->m_num_parts = ERROR_TOO_MANY_PARTS;
+                        o->m_num_parts = GCODE_ERROR_TOO_MANY_PARTS;
                         goto finish;
                     }
                     o->m_state = STATE_INDEX;
@@ -164,7 +156,7 @@ public:
                             o->m_cmd_num = 92;
                         } break;
                         case CMD_TYPE_EOF: {
-                            o->m_num_parts = ERROR_EOF;
+                            o->m_num_parts = GCODE_ERROR_EOF;
                             goto finish;
                         } break;
                         case CMD_TYPE_LONG: {
@@ -204,7 +196,7 @@ public:
                                 data_size = 0;
                                 break;
                             default:
-                                o->m_num_parts = ERROR_INVALID_PART;
+                                o->m_num_parts = GCODE_ERROR_INVALID_PART;
                                 goto finish;
                         }
                         o->m_parts[i].data_type = index_byte >> 5;

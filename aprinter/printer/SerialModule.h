@@ -37,6 +37,7 @@
 #include <aprinter/printer/InputCommon.h>
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/GcodeParser.h>
+#include <aprinter/printer/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -55,9 +56,6 @@ private:
     using TheSerial = typename Params::SerialService::template Serial<Context, Object, Params::RecvBufferSizeExp, Params::SendBufferSizeExp, SerialRecvHandler, SerialSendHandler>;
     using RecvSizeType = typename TheSerial::RecvSizeType;
     using SendSizeType = typename TheSerial::SendSizeType;
-    using TheChannelCommon = typename ThePrinterMain::template ChannelCommon<Object, SerialModule>;
-    
-public:
     using TheGcodeParser = GcodeParser<Context, Object, typename Params::TheGcodeParserParams, typename RecvSizeType::IntType, GcodeParserTypeSerial>;
     
 public:
@@ -66,112 +64,119 @@ public:
         auto *o = Object::self(c);
         TheSerial::init(c, Params::Baud);
         TheGcodeParser::init(c);
-        TheChannelCommon::init(c);
+        o->command_stream.init(c, &o->callback);
         o->m_recv_next_error = 0;
         o->m_line_number = 1;
     }
     
     static void deinit (Context c)
     {
+        auto *o = Object::self(c);
+        o->command_stream.deinit(c);
         TheGcodeParser::deinit(c);
         TheSerial::deinit(c);
     }
     
+    static typename ThePrinterMain::CommandStream * get_serial_stream (Context c)
+    {
+        auto *o = Object::self(c);
+        return &o->command_stream;
+    }
+    
     using GetSerial = TheSerial;
-    using CommandChannels = MakeTypeList<TheChannelCommon>;
-    using SerialChannel = TheChannelCommon;
-    
-public: // these are called by ChannelCommon
-    static bool start_command_impl (Context c)
-    {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(TheChannelCommon::hasCommand(c))
-        
-        bool is_m110 = (TheGcodeParser::getCmdCode(c) == 'M' && TheGcodeParser::getCmdNumber(c) == 110);
-        if (is_m110) {
-            o->m_line_number = TheChannelCommon::impl(c)->get_command_param_uint32(c, 'L', (TheGcodeParser::getCmd(c)->have_line_number ? TheGcodeParser::getCmd(c)->line_number : -1));
-        }
-        if (TheGcodeParser::getCmd(c)->have_line_number) {
-            if (TheGcodeParser::getCmd(c)->line_number != o->m_line_number) {
-                TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR("Error:Line Number is not Last Line Number+1, Last Line:"));
-                TheChannelCommon::impl(c)->reply_append_uint32(c, (uint32_t)(o->m_line_number - 1));
-                TheChannelCommon::impl(c)->reply_append_ch(c, '\n');
-                return false;
-            }
-        }
-        if (TheGcodeParser::getCmd(c)->have_line_number || is_m110) {
-            o->m_line_number++;
-        }
-        return true;
-    }
-    
-    static void finish_command_impl (Context c, bool no_ok)
-    {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(TheChannelCommon::hasCommand(c))
-        
-        if (!no_ok) {
-            TheChannelCommon::impl(c)->reply_append_pstr(c, AMBRO_PSTR(SERIALMODULE_OK_STR));
-        }
-        TheSerial::sendPoke(c);
-        TheSerial::recvConsume(c, RecvSizeType::import(TheGcodeParser::getLength(c)));
-        TheSerial::recvForceEvent(c);
-    }
-    
-    static void reply_poke_impl (Context c)
-    {
-        TheSerial::sendPoke(c);
-    }
-    
-    static void reply_append_buffer_impl (Context c, char const *str, AMBRO_PGM_P pstr, size_t length)
-    {
-        SendSizeType avail = TheSerial::sendQuery(c);
-        if (length > avail.value()) {
-            length = avail.value();
-        }
-        while (length > 0) {
-            char *chunk_data = TheSerial::sendGetChunkPtr(c);
-            uint8_t chunk_length = TheSerial::sendGetChunkLen(c, SendSizeType::import(length)).value();
-            if (pstr) {
-                AMBRO_PGM_MEMCPY(chunk_data, pstr, chunk_length);
-                pstr += chunk_length;
-            } else {
-                memcpy(chunk_data, str, chunk_length);
-                str += chunk_length;
-            }
-            TheSerial::sendProvide(c, SendSizeType::import(chunk_length));
-            length -= chunk_length;
-        }
-    }
-    
-    static void reply_append_ch_impl (Context c, char ch)
-    {
-        if (TheSerial::sendQuery(c).value() > 0) {
-            *TheSerial::sendGetChunkPtr(c) = ch;
-            TheSerial::sendProvide(c, SendSizeType::import(1));
-        }
-    }
-    
-    static bool request_send_buf_event_impl (Context c, size_t length)
-    {
-        if (length > SendSizeType::maxIntValue() - MaxFinishLen) {
-            return false;
-        }
-        TheSerial::sendRequestEvent(c, SendSizeType::import(length + MaxFinishLen));
-        return true;
-    }
-    
-    static void cancel_send_buf_event_impl (Context c)
-    {
-        TheSerial::sendRequestEvent(c, SendSizeType::import(0));
-    }
     
 private:
+    struct StreamCallback : public ThePrinterMain::CommandStreamCallback {
+        bool start_command_impl (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->command_stream.hasCommand(c))
+            
+            bool is_m110 = (TheGcodeParser::getCmdCode(c) == 'M' && TheGcodeParser::getCmdNumber(c) == 110);
+            if (is_m110) {
+                o->m_line_number = o->command_stream.get_command_param_uint32(c, 'L', (TheGcodeParser::getCmd(c)->have_line_number ? TheGcodeParser::getCmd(c)->line_number : -1));
+            }
+            if (TheGcodeParser::getCmd(c)->have_line_number) {
+                if (TheGcodeParser::getCmd(c)->line_number != o->m_line_number) {
+                    o->command_stream.reply_append_pstr(c, AMBRO_PSTR("Error:Line Number is not Last Line Number+1, Last Line:"));
+                    o->command_stream.reply_append_uint32(c, (uint32_t)(o->m_line_number - 1));
+                    o->command_stream.reply_append_ch(c, '\n');
+                    return false;
+                }
+            }
+            if (TheGcodeParser::getCmd(c)->have_line_number || is_m110) {
+                o->m_line_number++;
+            }
+            return true;
+        }
+        
+        void finish_command_impl (Context c, bool no_ok)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->command_stream.hasCommand(c))
+            
+            if (!no_ok) {
+                o->command_stream.reply_append_pstr(c, AMBRO_PSTR(SERIALMODULE_OK_STR));
+            }
+            TheSerial::sendPoke(c);
+            TheSerial::recvConsume(c, RecvSizeType::import(TheGcodeParser::getLength(c)));
+            TheSerial::recvForceEvent(c);
+        }
+        
+        void reply_poke_impl (Context c)
+        {
+            TheSerial::sendPoke(c);
+        }
+        
+        void reply_append_buffer_impl (Context c, char const *str, AMBRO_PGM_P pstr, size_t length)
+        {
+            SendSizeType avail = TheSerial::sendQuery(c);
+            if (length > avail.value()) {
+                length = avail.value();
+            }
+            while (length > 0) {
+                char *chunk_data = TheSerial::sendGetChunkPtr(c);
+                uint8_t chunk_length = TheSerial::sendGetChunkLen(c, SendSizeType::import(length)).value();
+                if (pstr) {
+                    AMBRO_PGM_MEMCPY(chunk_data, pstr, chunk_length);
+                    pstr += chunk_length;
+                } else {
+                    memcpy(chunk_data, str, chunk_length);
+                    str += chunk_length;
+                }
+                TheSerial::sendProvide(c, SendSizeType::import(chunk_length));
+                length -= chunk_length;
+            }
+        }
+        
+        void reply_append_ch_impl (Context c, char ch)
+        {
+            if (TheSerial::sendQuery(c).value() > 0) {
+                *TheSerial::sendGetChunkPtr(c) = ch;
+                TheSerial::sendProvide(c, SendSizeType::import(1));
+            }
+        }
+        
+        bool request_send_buf_event_impl (Context c, size_t length)
+        {
+            if (length > SendSizeType::maxIntValue() - MaxFinishLen) {
+                return false;
+            }
+            TheSerial::sendRequestEvent(c, SendSizeType::import(length + MaxFinishLen));
+            return true;
+        }
+        
+        void cancel_send_buf_event_impl (Context c)
+        {
+            TheSerial::sendRequestEvent(c, SendSizeType::import(0));
+        }
+    };
+    
     static void serial_recv_handler (Context c)
     {
         auto *o = Object::self(c);
         
-        if (TheChannelCommon::hasCommand(c)) {
+        if (o->command_stream.hasCommand(c)) {
             return;
         }
         if (!TheGcodeParser::haveCommand(c)) {
@@ -181,29 +186,32 @@ private:
         bool overrun;
         RecvSizeType avail = TheSerial::recvQuery(c, &overrun);
         if (TheGcodeParser::extendCommand(c, avail.value())) {
-            return TheChannelCommon::startCommand(c);
+            return o->command_stream.startCommand(c, &o->gcode_command);
         }
         if (overrun) {
             TheSerial::recvConsume(c, avail);
             TheSerial::recvClearOverrun(c);
             TheGcodeParser::resetCommand(c);
-            o->m_recv_next_error = TheGcodeParser::ERROR_RECV_OVERRUN;
+            o->m_recv_next_error = GCODE_ERROR_RECV_OVERRUN;
         }
     }
     struct SerialRecvHandler : public AMBRO_WFUNC_TD(&SerialModule::serial_recv_handler) {};
     
     static void serial_send_handler (Context c)
     {
-        TheChannelCommon::reportSendBufEventDirectly(c);
+        auto *o = Object::self(c);
+        o->command_stream.reportSendBufEventDirectly(c);
     }
     struct SerialSendHandler : public AMBRO_WFUNC_TD(&SerialModule::serial_send_handler) {};
     
 public:
     struct Object : public ObjBase<SerialModule, ParentObject, MakeTypeList<
         TheSerial,
-        TheGcodeParser,
-        TheChannelCommon
+        TheGcodeParser
     >> {
+        typename ThePrinterMain::CommandStream command_stream;
+        StreamCallback callback;
+        GcodeCommandWrapper<Context, typename ThePrinterMain::FpType, TheGcodeParser> gcode_command;
         int8_t m_recv_next_error;
         uint32_t m_line_number;
     };

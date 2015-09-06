@@ -43,6 +43,7 @@
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/InputCommon.h>
 #include <aprinter/printer/ServiceList.h>
+#include <aprinter/printer/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -52,12 +53,10 @@ public:
     struct Object;
     
 private:
-    using Config = typename ThePrinterMain::Config;
     using TheCommand = typename ThePrinterMain::TheCommand;
     
     struct InputReadHandler;
     struct InputClearBufferHandler;
-    
     using TheInput = typename Params::InputService::template Input<Context, Object, InputClientParams<ThePrinterMain, InputReadHandler, InputClearBufferHandler>>;
     static const size_t BufferBaseSize = Params::BufferBaseSize;
     static const size_t MaxCommandSize = Params::MaxCommandSize;
@@ -65,18 +64,16 @@ private:
     static_assert(BufferBaseSize >= TheInput::NeedBufAvail + (MaxCommandSize - 1), "");
     static const size_t WrapExtraSize = MaxCommandSize - 1;
     using ParserSizeType = ChooseIntForMax<MaxCommandSize, false>;
-    using TheChannelCommon = typename ThePrinterMain::template ChannelCommon<Object, SdCardModule>;
-    enum {SDCARD_PAUSED, SDCARD_RUNNING, SDCARD_PAUSING};
-    
-public:
     using TheGcodeParser = typename Params::template GcodeParserTemplate<Context, Object, typename Params::TheGcodeParserParams, ParserSizeType>;
+    
+    enum {SDCARD_PAUSED, SDCARD_RUNNING, SDCARD_PAUSING};
     
 public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
         TheInput::init(c);
-        TheChannelCommon::init(c);
+        o->command_stream.init(c, &o->callback);
         o->m_next_event.init(c, APRINTER_CB_STATFUNC_T(&SdCardModule::next_event_handler));
         o->m_state = SDCARD_PAUSED;
         init_buffering(c);
@@ -87,6 +84,7 @@ public:
         auto *o = Object::self(c);
         deinit_buffering(c);
         o->m_next_event.deinit(c);
+        o->command_stream.deinit(c);
         TheInput::deinit(c);
     }
     
@@ -95,7 +93,7 @@ public:
         auto *o = Object::self(c);
         
         // Cannot issue SD-card commands from the SD-card.
-        if (cmd == TheChannelCommon::impl(c)) {
+        if (cmd == &o->command_stream) {
             return true;
         }
         
@@ -118,7 +116,7 @@ public:
                 if (can_read(c)) {
                     start_read(c);
                 }
-                if (!TheChannelCommon::maybeResumeLockingCommand(c)) {
+                if (!o->command_stream.maybeResumeLockingCommand(c)) {
                     o->m_next_event.prependNowNotAlready(c);
                 }
             } while (false);
@@ -138,7 +136,7 @@ public:
                 }
                 AMBRO_ASSERT(o->m_state != SDCARD_PAUSING || o->m_reading)
                 o->m_next_event.unset(c);
-                TheChannelCommon::maybePauseLockingCommand(c);
+                o->command_stream.maybePauseLockingCommand(c);
                 if (o->m_reading) {
                     o->m_state = SDCARD_PAUSING;
                     o->m_pausing_on_command = true;
@@ -177,57 +175,57 @@ public:
         return TheInput::checkCommand(c, cmd);
     }
     
-    using CommandChannels = MakeTypeList<TheChannelCommon>;
-    
     template <typename This=SdCardModule>
     using GetFsAccess = typename This::TheInput::template GetFsAccess<>;
     
     using GetInput = TheInput;
     
-public: // these are called by ChannelCommon
-    static bool start_command_impl (Context c)
-    {
-        return true;
-    }
-    
-    static void finish_command_impl (Context c, bool no_ok)
-    {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
-        buf_sanity(c);
-        AMBRO_ASSERT(!o->m_eof)
-        AMBRO_ASSERT(!TheGcodeParser::haveCommand(c))
-        AMBRO_ASSERT(TheGcodeParser::getLength(c) <= o->m_length)
-        
-        size_t cmd_len = TheGcodeParser::getLength(c);
-        o->m_next_event.prependNowNotAlready(c);
-        o->m_start = buf_add(o->m_start, cmd_len);
-        o->m_length -= cmd_len;
-        if (!o->m_reading && can_read(c)) {
-            start_read(c);
+private:
+    struct StreamCallback : public ThePrinterMain::CommandStreamCallback {
+        bool start_command_impl (Context c)
+        {
+            return true;
         }
-    }
-    
-    static void reply_poke_impl (Context c)
-    {
-    }
-    
-    static void reply_append_buffer_impl (Context c, char const *str, AMBRO_PGM_P pstr, size_t length)
-    {
-    }
-    
-    static void reply_append_ch_impl (Context c, char ch)
-    {
-    }
-    
-    static bool request_send_buf_event_impl (Context c, size_t length)
-    {
-        return false;
-    }
-    
-    static void cancel_send_buf_event_impl (Context c)
-    {
-    }
+        
+        void finish_command_impl (Context c, bool no_ok)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
+            buf_sanity(c);
+            AMBRO_ASSERT(!o->m_eof)
+            AMBRO_ASSERT(!TheGcodeParser::haveCommand(c))
+            AMBRO_ASSERT(TheGcodeParser::getLength(c) <= o->m_length)
+            
+            size_t cmd_len = TheGcodeParser::getLength(c);
+            o->m_next_event.prependNowNotAlready(c);
+            o->m_start = buf_add(o->m_start, cmd_len);
+            o->m_length -= cmd_len;
+            if (!o->m_reading && can_read(c)) {
+                start_read(c);
+            }
+        }
+        
+        void reply_poke_impl (Context c)
+        {
+        }
+        
+        void reply_append_buffer_impl (Context c, char const *str, AMBRO_PGM_P pstr, size_t length)
+        {
+        }
+        
+        void reply_append_ch_impl (Context c, char ch)
+        {
+        }
+        
+        bool request_send_buf_event_impl (Context c, size_t length)
+        {
+            return false;
+        }
+        
+        void cancel_send_buf_event_impl (Context c)
+        {
+        }
+    };
     
 private:
     static void input_read_handler (Context c, bool error, size_t bytes_read)
@@ -256,15 +254,13 @@ private:
             return complete_pause(c);
         }
         if (error) {
-            auto *output = ThePrinterMain::get_msg_output(c);
-            output->reply_append_pstr(c, AMBRO_PSTR("//SdRdEr\n"));
-            output->reply_poke(c);
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//SdRdEr\n"));
             return start_read(c);
         }
         if (can_read(c)) {
             start_read(c);
         }
-        if (!TheChannelCommon::hasCommand(c) && !o->m_eof) {
+        if (!o->command_stream.hasCommand(c) && !o->m_eof) {
             if (!o->m_next_event.isSet(c)) {
                 o->m_next_event.prependNowNotAlready(c);
             }
@@ -277,7 +273,7 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_state == SDCARD_PAUSED)
         
-        TheChannelCommon::maybeCancelLockingCommand(c);
+        o->command_stream.maybeCancelLockingCommand(c);
         deinit_buffering(c);
         init_buffering(c);
     }
@@ -288,7 +284,7 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
         buf_sanity(c);
-        AMBRO_ASSERT(!TheChannelCommon::hasCommand(c))
+        AMBRO_ASSERT(!o->command_stream.hasCommand(c))
         AMBRO_ASSERT(!o->m_eof)
         
         AMBRO_PGM_P eof_str;
@@ -297,11 +293,11 @@ private:
         }
         ParserSizeType avail = MinValue(MaxCommandSize, o->m_length);
         if (TheGcodeParser::extendCommand(c, avail)) {
-            if (TheGcodeParser::getNumParts(c) == TheGcodeParser::ERROR_EOF) {
+            if (TheGcodeParser::getNumParts(c) == GCODE_ERROR_EOF) {
                 eof_str = AMBRO_PSTR("//SdEof\n");
                 goto eof;
             }
-            return TheChannelCommon::startCommand(c);
+            return o->command_stream.startCommand(c, &o->gcode_command);
         }
         if (avail == MaxCommandSize) {
             eof_str = AMBRO_PSTR("//SdLnEr\n");
@@ -314,9 +310,7 @@ private:
         return;
         
     eof:
-        auto *output = ThePrinterMain::get_msg_output(c);
-        output->reply_append_pstr(c, eof_str);
-        output->reply_poke(c);
+        ThePrinterMain::print_pgm_string(c, eof_str);
         
         o->m_eof = true;
         if (o->m_reading) {
@@ -387,9 +381,11 @@ private:
 public:
     struct Object : public ObjBase<SdCardModule, ParentObject, MakeTypeList<
         TheInput,
-        TheChannelCommon,
         TheGcodeParser
     >> {
+        typename ThePrinterMain::CommandStream command_stream;
+        StreamCallback callback;
+        GcodeCommandWrapper<Context, typename ThePrinterMain::FpType, TheGcodeParser> gcode_command;
         typename Context::EventLoop::QueuedEvent m_next_event;
         uint8_t m_state : 3;
         uint8_t m_eof : 1;

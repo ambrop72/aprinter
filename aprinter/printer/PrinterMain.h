@@ -61,12 +61,14 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
+#include <aprinter/math/PrintInt.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/driver/StepperGroups.h>
+#include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>
-#include <aprinter/printer/Command.h>
 #include <aprinter/printer/ServiceList.h>
+#include <aprinter/printer/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -268,7 +270,6 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fix_aborted_pos, fix_aborted_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_m119_append_endstop, m119_append_endstop)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_get_command_in_state_helper, get_command_in_state_helper)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_position, append_position)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_new_pos, collect_new_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
@@ -291,7 +292,6 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_CorrectionFeature, CorrectionFeature)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ConfigExprs, ConfigExprs)
-    APRINTER_DEFINE_MEMBER_TYPE(MemberType_CommandChannels, CommandChannels)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ProvidedServices, ProvidedServices)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_MotionPlannerChannels, MotionPlannerChannels)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_command, check_command)
@@ -330,8 +330,6 @@ private:
 public:
     using FpType = typename Params::FpType;
     using Config = ConfigFramework<TheConfigManager, TheConfigCache>;
-    using TheCommand = Command<Context, FpType>;
-    using CommandPartRef = typename TheCommand::PartRef;
     static const int NumAxes = TypeListLength<ParamsAxesList>::Value;
     static const bool IsTransformEnabled = TransformParams::Enabled;
     
@@ -380,298 +378,402 @@ private:
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
     
 public:
-    template <typename ChannelParentObject, typename Channel>
-    class ChannelCommon {
+    class CommandStreamCallback {
+    public:
+        virtual bool start_command_impl (Context c) = 0;
+        virtual void finish_command_impl (Context c, bool no_ok) = 0;
+        virtual void reply_poke_impl (Context c) = 0;
+        virtual void reply_append_buffer_impl (Context c, char const *str, AMBRO_PGM_P pstr, size_t length) = 0;
+        virtual void reply_append_ch_impl (Context c, char ch) = 0;
+        virtual bool request_send_buf_event_impl (Context c, size_t length) = 0;
+        virtual void cancel_send_buf_event_impl (Context c) = 0;
+    };
+    
+    class CommandStream {
         friend PrinterMain;
         
     public:
-        struct Object;
+        using TheGcodeCommand = GcodeCommand<Context, FpType>;
         
-    private:
-        struct CommandImpl;
-        using TheGcodeParser = typename Channel::TheGcodeParser;
-        using GcodeParserPartRef = typename TheGcodeParser::PartRef;
-        
-    public:
-        static TheCommand * impl (Context c)
+        void init (Context c, CommandStreamCallback *callback)
         {
-            auto *o = Object::self(c);
-            return &o->m_cmd_impl;
-        }
-        
-        static void init (Context c)
-        {
-            auto *o = Object::self(c);
-            o->m_state = COMMAND_IDLE;
-            o->m_cmd = false;
-            o->m_send_buf_event_handler = NULL;
-        }
-        
-        static bool hasCommand (Context c)
-        {
-            auto *o = Object::self(c);
-            return o->m_cmd;
-        }
-        
-        static void startCommand (Context c)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_state == COMMAND_IDLE)
-            AMBRO_ASSERT(!o->m_cmd)
+            auto *mo = Object::self(c);
             
-            o->m_cmd = true;
-            if (TheGcodeParser::getNumParts(c) < 0) {
+            m_state = COMMAND_IDLE;
+            m_callback = callback;
+            m_cmd = nullptr;
+            m_send_buf_event_handler = nullptr;
+            mo->command_stream_list.prepend(this);
+        }
+        
+        void deinit (Context c)
+        {
+            auto *mo = Object::self(c);
+            
+            mo->command_stream_list.remove(this);
+        }
+        
+        bool hasCommand (Context c)
+        {
+            return (bool)m_cmd;
+        }
+        
+        void startCommand (Context c, TheGcodeCommand *cmd)
+        {
+            AMBRO_ASSERT(m_state == COMMAND_IDLE)
+            AMBRO_ASSERT(!m_cmd)
+            AMBRO_ASSERT(cmd)
+            
+            m_cmd = cmd;
+            PartsSizeType num_parts = m_cmd->getNumParts(c);
+            if (num_parts < 0) {
                 AMBRO_PGM_P err = AMBRO_PSTR("unknown error");
-                switch (TheGcodeParser::getNumParts(c)) {
-                    case TheGcodeParser::ERROR_NO_PARTS: err = AMBRO_PSTR("empty command"); break;
-                    case TheGcodeParser::ERROR_TOO_MANY_PARTS: err = AMBRO_PSTR("too many parts"); break;
-                    case TheGcodeParser::ERROR_INVALID_PART: err = AMBRO_PSTR("invalid part"); break;
-                    case TheGcodeParser::ERROR_CHECKSUM: err = AMBRO_PSTR("incorrect checksum"); break;
-                    case TheGcodeParser::ERROR_RECV_OVERRUN: err = AMBRO_PSTR("receive buffer overrun"); break;
-                    case TheGcodeParser::ERROR_BAD_ESCAPE: err = AMBRO_PSTR("bad escape sequence"); break;
+                switch (num_parts) {
+                    case GCODE_ERROR_NO_PARTS:       err = AMBRO_PSTR("empty command");          break;
+                    case GCODE_ERROR_TOO_MANY_PARTS: err = AMBRO_PSTR("too many parts");         break;
+                    case GCODE_ERROR_INVALID_PART:   err = AMBRO_PSTR("invalid part");           break;
+                    case GCODE_ERROR_CHECKSUM:       err = AMBRO_PSTR("incorrect checksum");     break;
+                    case GCODE_ERROR_RECV_OVERRUN:   err = AMBRO_PSTR("receive buffer overrun"); break;
+                    case GCODE_ERROR_BAD_ESCAPE:     err = AMBRO_PSTR("bad escape sequence");    break;
                 }
-                impl(c)->reply_append_pstr(c, AMBRO_PSTR("Error:"));
-                impl(c)->reply_append_pstr(c, err);
-                impl(c)->reply_append_ch(c, '\n');
-                return impl(c)->finishCommand(c);
+                reply_append_pstr(c, AMBRO_PSTR("Error:"));
+                reply_append_pstr(c, err);
+                reply_append_ch(c, '\n');
+                return finishCommand(c);
             }
-            if (!Channel::start_command_impl(c)) {
-                return impl(c)->finishCommand(c);
+            if (!m_callback->start_command_impl(c)) {
+                return finishCommand(c);
             }
-            work_command(c, impl(c));
+            work_command(c, this);
         }
         
-        static void maybePauseLockingCommand (Context c)
+        void maybePauseLockingCommand (Context c)
         {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(!o->m_cmd || o->m_state == COMMAND_LOCKING)
-            AMBRO_ASSERT(o->m_cmd || o->m_state == COMMAND_IDLE)
+            AMBRO_ASSERT(!m_cmd || m_state == COMMAND_LOCKING)
+            AMBRO_ASSERT(m_cmd || m_state == COMMAND_IDLE)
             
-            o->m_state = COMMAND_IDLE;
+            m_state = COMMAND_IDLE;
         }
         
-        static bool maybeResumeLockingCommand (Context c)
+        bool maybeResumeLockingCommand (Context c)
         {
-            auto *o = Object::self(c);
-            auto *mob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(o->m_state == COMMAND_IDLE)
+            auto *mo = Object::self(c);
+            AMBRO_ASSERT(m_state == COMMAND_IDLE)
             
-            if (!o->m_cmd) {
+            if (!m_cmd) {
                 return false;
             }
-            o->m_state = COMMAND_LOCKING;
-            if (!mob->unlocked_timer.isSet(c)) {
-                mob->unlocked_timer.prependNowNotAlready(c);
+            m_state = COMMAND_LOCKING;
+            if (!mo->unlocked_timer.isSet(c)) {
+                mo->unlocked_timer.prependNowNotAlready(c);
             }
             return true;
         }
         
-        static void maybeCancelLockingCommand (Context c)
+        void maybeCancelLockingCommand (Context c)
         {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_state != COMMAND_LOCKED)
+            AMBRO_ASSERT(m_state != COMMAND_LOCKED)
             
-            o->m_state = COMMAND_IDLE;
-            o->m_cmd = false;
+            m_state = COMMAND_IDLE;
+            m_cmd = nullptr;
         }
         
-        static void reportSendBufEventDirectly (Context c)
+        void reportSendBufEventDirectly (Context c)
         {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->m_state == COMMAND_LOCKED)
-            AMBRO_ASSERT(o->m_send_buf_event_handler)
+            AMBRO_ASSERT(m_state == COMMAND_LOCKED)
+            AMBRO_ASSERT(m_send_buf_event_handler)
             
-            auto handler = o->m_send_buf_event_handler;
-            o->m_send_buf_event_handler = NULL;
+            auto handler = m_send_buf_event_handler;
+            m_send_buf_event_handler = nullptr;
             
             return handler(c);
         }
         
-    private:
-        template <int State>
-        static bool get_command_in_state_helper (Context c, WrapInt<State>, TheCommand **out_cmd)
+    public:
+        using PartsSizeType = typename TheGcodeCommand::PartsSizeType;
+        using PartRef = typename TheGcodeCommand::PartRef;
+        using SendBufEventHandler = void (*) (Context);
+        
+        void finishCommand (Context c, bool no_ok = false)
         {
-            auto *o = Object::self(c);
+            auto *mo = Object::self(c);
+            AMBRO_ASSERT(m_cmd)
+            AMBRO_ASSERT(m_state == COMMAND_IDLE || m_state == COMMAND_LOCKED)
+            AMBRO_ASSERT(!m_send_buf_event_handler)
             
-            if (o->m_state == State) {
-                *out_cmd = impl(c);
+            m_callback->finish_command_impl(c, no_ok);
+            m_cmd = nullptr;
+            if (m_state == COMMAND_LOCKED) {
+                AMBRO_ASSERT(mo->locked)
+                m_state = COMMAND_IDLE;
+                unlock(c);
+            }
+        }
+        
+        bool tryLockedCommand (Context c)
+        {
+            auto *mo = Object::self(c);
+            AMBRO_ASSERT(m_state != COMMAND_LOCKING || !mo->locked)
+            AMBRO_ASSERT(m_state != COMMAND_LOCKED || mo->locked)
+            AMBRO_ASSERT(m_cmd)
+            
+            if (m_state == COMMAND_LOCKED) {
+                return true;
+            }
+            if (mo->locked) {
+                m_state = COMMAND_LOCKING;
                 return false;
             }
+            m_state = COMMAND_LOCKED;
+            lock(c);
             return true;
         }
         
-        struct CommandImpl : public TheCommand {
-            void finishCommand (Context c, bool no_ok = false)
-            {
-                auto *o = Object::self(c);
-                auto *mob = PrinterMain::Object::self(c);
-                AMBRO_ASSERT(o->m_cmd)
-                AMBRO_ASSERT(o->m_state == COMMAND_IDLE || o->m_state == COMMAND_LOCKED)
-                AMBRO_ASSERT(!o->m_send_buf_event_handler)
-                
-                Channel::finish_command_impl(c, no_ok);
-                o->m_cmd = false;
-                if (o->m_state == COMMAND_LOCKED) {
-                    AMBRO_ASSERT(mob->locked)
-                    o->m_state = COMMAND_IDLE;
-                    unlock(c);
-                }
-            }
+        bool tryUnplannedCommand (Context c)
+        {
+            auto *mo = Object::self(c);
             
-            bool tryLockedCommand (Context c)
-            {
-                auto *o = Object::self(c);
-                auto *mob = PrinterMain::Object::self(c);
-                AMBRO_ASSERT(o->m_state != COMMAND_LOCKING || !mob->locked)
-                AMBRO_ASSERT(o->m_state != COMMAND_LOCKED || mob->locked)
-                AMBRO_ASSERT(o->m_cmd)
-                
-                if (o->m_state == COMMAND_LOCKED) {
-                    return true;
-                }
-                if (mob->locked) {
-                    o->m_state = COMMAND_LOCKING;
-                    return false;
-                }
-                o->m_state = COMMAND_LOCKED;
-                lock(c);
-                return true;
-            }
-            
-            bool tryUnplannedCommand (Context c)
-            {
-                auto *mob = PrinterMain::Object::self(c);
-                
-                if (!tryLockedCommand(c)) {
-                    return false;
-                }
-                AMBRO_ASSERT(mob->planner_state == PLANNER_NONE || mob->planner_state == PLANNER_RUNNING)
-                if (mob->planner_state == PLANNER_NONE) {
-                    return true;
-                }
-                mob->planner_state = PLANNER_STOPPING;
-                if (mob->m_planning_pull_pending) {
-                    ThePlanner::waitFinished(c);
-                    mob->force_timer.unset(c);
-                }
+            if (!tryLockedCommand(c)) {
                 return false;
             }
-            
-            bool tryPlannedCommand (Context c)
-            {
-                auto *mob = PrinterMain::Object::self(c);
-                
-                if (!tryLockedCommand(c)) {
-                    return false;
-                }
-                AMBRO_ASSERT(mob->planner_state == PLANNER_NONE || mob->planner_state == PLANNER_RUNNING)
-                if (mob->planner_state == PLANNER_NONE) {
-                    ThePlanner::init(c, false);
-                    mob->planner_state = PLANNER_RUNNING;
-                    mob->m_planning_pull_pending = false;
-                    now_active(c);
-                }
-                if (mob->m_planning_pull_pending) {
-                    return true;
-                }
-                mob->planner_state = PLANNER_WAITING;
-                return false;
-            }
-            
-            char getCmdCode (Context c)
-            {
-                return TheGcodeParser::getCmdCode(c);
-            }
-            
-            uint16_t getCmdNumber (Context c)
-            {
-                return TheGcodeParser::getCmdNumber(c);
-            }
-            
-            typename TheCommand::PartsSizeType getNumParts (Context c)
-            {
-                return TheGcodeParser::getNumParts(c);
-            }
-            
-            CommandPartRef getPart (Context c, typename TheCommand::PartsSizeType i)
-            {
-                return CommandPartRef{TheGcodeParser::getPart(c, i)};
-            }
-            
-            char getPartCode (Context c, CommandPartRef part)
-            {
-                return TheGcodeParser::getPartCode(c, (GcodeParserPartRef)part.ptr);
-            }
-            
-            FpType getPartFpValue (Context c, CommandPartRef part)
-            {
-                return TheGcodeParser::template getPartFpValue<FpType>(c, (GcodeParserPartRef)part.ptr);
-            }
-            
-            uint32_t getPartUint32Value (Context c, CommandPartRef part)
-            {
-                return TheGcodeParser::getPartUint32Value(c, (GcodeParserPartRef)part.ptr);
-            }
-            
-            char const * getPartStringValue (Context c, CommandPartRef part)
-            {
-                return TheGcodeParser::getPartStringValue(c, (GcodeParserPartRef)part.ptr);
-            }
-            
-            void reply_poke (Context c)
-            {
-                Channel::reply_poke_impl(c);
-            }
-            
-            void reply_append_buffer (Context c, char const *str, size_t length)
-            {
-                Channel::reply_append_buffer_impl(c, str, nullptr, length);
-            }
-            
-            void reply_append_ch (Context c, char ch)
-            {
-                Channel::reply_append_ch_impl(c, ch);
-            }
-            
-            void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
-            {
-                Channel::reply_append_buffer_impl(c, nullptr, pstr, length);
-            }
-            
-            bool requestSendBufEvent (Context c, size_t length, typename TheCommand::SendBufEventHandler handler)
-            {
-                auto *o = Object::self(c);
-                AMBRO_ASSERT(o->m_state == COMMAND_LOCKED)
-                AMBRO_ASSERT(!o->m_send_buf_event_handler)
-                AMBRO_ASSERT(length > 0)
-                AMBRO_ASSERT(handler)
-                
-                if (!Channel::request_send_buf_event_impl(c, length)) {
-                    return false;
-                }
-                o->m_send_buf_event_handler = handler;
+            AMBRO_ASSERT(mo->planner_state == PLANNER_NONE || mo->planner_state == PLANNER_RUNNING)
+            if (mo->planner_state == PLANNER_NONE) {
                 return true;
             }
-            
-            void cancelSendBufEvent (Context c)
-            {
-                auto *o = Object::self(c);
-                AMBRO_ASSERT(o->m_state == COMMAND_LOCKED)
-                AMBRO_ASSERT(o->m_send_buf_event_handler)
-                
-                Channel::cancel_send_buf_event_impl(c);
-                o->m_send_buf_event_handler = NULL;
+            mo->planner_state = PLANNER_STOPPING;
+            if (mo->m_planning_pull_pending) {
+                ThePlanner::waitFinished(c);
+                mo->force_timer.unset(c);
             }
-        };
+            return false;
+        }
         
-    public:
-        struct Object : public ObjBase<ChannelCommon, ChannelParentObject, EmptyTypeList> {
-            CommandImpl m_cmd_impl;
-            uint8_t m_state;
-            bool m_cmd;
-            typename TheCommand::SendBufEventHandler m_send_buf_event_handler;
-        };
+        bool tryPlannedCommand (Context c)
+        {
+            auto *mo = Object::self(c);
+            
+            if (!tryLockedCommand(c)) {
+                return false;
+            }
+            AMBRO_ASSERT(mo->planner_state == PLANNER_NONE || mo->planner_state == PLANNER_RUNNING)
+            if (mo->planner_state == PLANNER_NONE) {
+                ThePlanner::init(c, false);
+                mo->planner_state = PLANNER_RUNNING;
+                mo->m_planning_pull_pending = false;
+                now_active(c);
+            }
+            if (mo->m_planning_pull_pending) {
+                return true;
+            }
+            mo->planner_state = PLANNER_WAITING;
+            return false;
+        }
+        
+        char getCmdCode (Context c)
+        {
+            return m_cmd->getCmdCode(c);
+        }
+        
+        uint16_t getCmdNumber (Context c)
+        {
+            return m_cmd->getCmdNumber(c);
+        }
+        
+        PartsSizeType getNumParts (Context c)
+        {
+            return m_cmd->getNumParts(c);
+        }
+        
+        PartRef getPart (Context c, PartsSizeType i)
+        {
+            return m_cmd->getPart(c, i);
+        }
+        
+        char getPartCode (Context c, PartRef part)
+        {
+            return m_cmd->getPartCode(c, part);
+        }
+        
+        FpType getPartFpValue (Context c, PartRef part)
+        {
+            return m_cmd->getPartFpValue(c, part);
+        }
+        
+        uint32_t getPartUint32Value (Context c, PartRef part)
+        {
+            return m_cmd->getPartUint32Value(c, part);
+        }
+        
+        char const * getPartStringValue (Context c, PartRef part)
+        {
+            return m_cmd->getPartStringValue(c, part);
+        }
+        
+        void reply_poke (Context c)
+        {
+            m_callback->reply_poke_impl(c);
+        }
+        
+        void reply_append_buffer (Context c, char const *str, size_t length)
+        {
+            m_callback->reply_append_buffer_impl(c, str, nullptr, length);
+        }
+        
+        void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
+        {
+            m_callback->reply_append_buffer_impl(c, nullptr, pstr, length);
+        }
+        
+        void reply_append_ch (Context c, char ch)
+        {
+            m_callback->reply_append_ch_impl(c, ch);
+        }
+        
+        bool requestSendBufEvent (Context c, size_t length, SendBufEventHandler handler)
+        {
+            AMBRO_ASSERT(m_state == COMMAND_LOCKED)
+            AMBRO_ASSERT(!m_send_buf_event_handler)
+            AMBRO_ASSERT(length > 0)
+            AMBRO_ASSERT(handler)
+            
+            if (!m_callback->request_send_buf_event_impl(c, length)) {
+                return false;
+            }
+            m_send_buf_event_handler = handler;
+            return true;
+        }
+        
+        void cancelSendBufEvent (Context c)
+        {
+            AMBRO_ASSERT(m_state == COMMAND_LOCKED)
+            AMBRO_ASSERT(m_send_buf_event_handler)
+            
+            m_callback->cancel_send_buf_event_impl(c);
+            m_send_buf_event_handler = nullptr;
+        }
+        
+        bool find_command_param (Context c, char code, PartRef *out_part)
+        {
+            PartsSizeType num_parts = getNumParts(c);
+            for (PartsSizeType i = 0; i < num_parts; i++) {
+                PartRef part = getPart(c, i);
+                if (getPartCode(c, part) == code) {
+                    if (out_part) {
+                        *out_part = part;
+                    }
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        uint32_t get_command_param_uint32 (Context c, char code, uint32_t default_value)
+        {
+            PartRef part;
+            if (!find_command_param(c, code, &part)) {
+                return default_value;
+            }
+            return getPartUint32Value(c, part);
+        }
+        
+        FpType get_command_param_fp (Context c, char code, FpType default_value)
+        {
+            PartRef part;
+            if (!find_command_param(c, code, &part)) {
+                return default_value;
+            }
+            return getPartFpValue(c, part);
+        }
+        
+        char const * get_command_param_str (Context c, char code, char const *default_value)
+        {
+            PartRef part;
+            if (!find_command_param(c, code, &part)) {
+                return default_value;
+            }
+            char const *str = getPartStringValue(c, part);
+            if (!str) {
+                return default_value;
+            }
+            return str;
+        }
+        
+        bool find_command_param_fp (Context c, char code, FpType *out)
+        {
+            PartRef part;
+            if (!find_command_param(c, code, &part)) {
+                return false;
+            }
+            *out = getPartFpValue(c, part);
+            return true;
+        }
+        
+        void reply_append_str (Context c, char const *str)
+        {
+            reply_append_buffer(c, str, strlen(str));
+        }
+        
+        void reply_append_pstr (Context c, AMBRO_PGM_P pstr)
+        {
+            reply_append_pbuffer(c, pstr, AMBRO_PGM_STRLEN(pstr));
+        }
+        
+        void reply_append_fp (Context c, FpType x)
+        {
+            char buf[30];
+#if defined(AMBROLIB_AVR)
+            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%g"), x);
+            reply_append_buffer(c, buf, len);
+#else        
+            FloatToStrSoft(x, buf);
+            reply_append_buffer(c, buf, strlen(buf));
+#endif
+        }
+        
+        void reply_append_uint32 (Context c, uint32_t x)
+        {
+            char buf[11];
+#if defined(AMBROLIB_AVR)
+            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu32), x);
+#else
+            uint8_t len = PrintNonnegativeIntDecimal<uint32_t>(x, buf);
+#endif
+            reply_append_buffer(c, buf, len);
+        }
+        
+        void reply_append_uint16 (Context c, uint16_t x)
+        {
+            char buf[6];
+#if defined(AMBROLIB_AVR)
+            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu16), x);
+#else
+            uint8_t len = PrintNonnegativeIntDecimal<uint16_t>(x, buf);
+#endif
+            reply_append_buffer(c, buf, len);
+        }
+        
+        void reply_append_uint8 (Context c, uint8_t x)
+        {
+            char buf[4];
+#if defined(AMBROLIB_AVR)
+            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu8), x);
+#else
+            uint8_t len = PrintNonnegativeIntDecimal<uint8_t>(x, buf);
+#endif
+            reply_append_buffer(c, buf, len);
+        }
+        
+    private:
+        uint8_t m_state;
+        CommandStreamCallback *m_callback;
+        TheGcodeCommand *m_cmd;
+        SendBufEventHandler m_send_buf_event_handler;
+        DoubleEndedListNode<CommandStream> m_list_node;
     };
+    
+public:
+    using TheCommand = CommandStream;
+    using CommandPartRef = typename TheCommand::PartRef;
     
 private:
     template <int ModuleIndex>
@@ -1984,6 +2086,7 @@ public:
         ob->underrun_count = 0;
         ob->locked = false;
         ob->planner_state = PLANNER_NONE;
+        ob->command_stream_list.init();
         ListForEachForward<ModulesList>(LForeach_init(), c);
         
         print_pgm_string(c, AMBRO_PSTR("start\nAPrinter\n"));
@@ -2002,6 +2105,7 @@ public:
             ThePlanner::deinit(c);
         }
         ListForEachReverse<ModulesList>(LForeach_deinit(), c);
+        AMBRO_ASSERT(ob->command_stream_list.isEmpty())
         ListForEachReverse<LasersList>(LForeach_deinit(), c);
         ListForEachReverse<AxesList>(LForeach_deinit(), c);
         TheSteppers::deinit(c);
@@ -2045,13 +2149,13 @@ public:
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
         
-        return get_command_in_state<COMMAND_LOCKED, true>(c);
+        return get_command_in_state(c, COMMAND_LOCKED, true);
     }
     
     static TheCommand * get_msg_output (Context c)
     {
-        using TheSerialChannel = typename GetServiceProviderModule<ServiceList::SerialService>::SerialChannel;
-        return TheSerialChannel::impl(c);
+        using SerialModule = GetServiceProviderModule<ServiceList::SerialService>;
+        return SerialModule::get_serial_stream(c);
     }
     
     static void print_pgm_string (Context c, AMBRO_PGM_P msg)
@@ -2341,7 +2445,7 @@ private:
         TheDebugObject::access(c);
         
         if (!ob->locked) {
-            TheCommand *cmd = get_command_in_state<COMMAND_LOCKING, false>(c);
+            TheCommand *cmd = get_command_in_state(c, COMMAND_LOCKING, false);
             if (cmd) {
                 work_command(c, cmd);
             }
@@ -2608,19 +2712,17 @@ private:
         output->reply_poke(c);
     }
     
-    template <int State, bool Must>
-    static TheCommand * get_command_in_state (Context c)
+    static TheCommand * get_command_in_state (Context c, int state, bool must)
     {
-        TheCommand *cmd;
-        bool res = ListForEachForwardInterruptible<ChannelCommonList>(LForeach_get_command_in_state_helper(), c, WrapInt<State>(), &cmd);
-        if (Must) {
-            AMBRO_ASSERT(!res)
-        } else {
-            if (res) {
-                return NULL;
+        auto *ob = Object::self(c);
+        
+        for (CommandStream *stream = ob->command_stream_list.first(); stream; stream = ob->command_stream_list.next(stream)) {
+            if (stream->m_state == state) {
+                return stream;
             }
         }
-        return cmd;
+        AMBRO_ASSERT(!must)
+        return nullptr;
     }
     
     static void enable_disable_command_common (Context c, bool enable, TheCommand *cmd)
@@ -2682,8 +2784,6 @@ private:
         >;
     };
     
-    using ChannelCommonList = ObjCollect<ModulesList, MemberType_CommandChannels>;
-    
 public:
     using EventLoopFastEvents = ObjCollect<MakeTypeList<PrinterMain>, MemberType_EventLoopFastEvents, true>;
     
@@ -2716,6 +2816,7 @@ public:
         PhysVirtAxisMaskType axis_homing;
         PhysVirtAxisMaskType axis_relative;
         PhysVirtAxisMaskType m_homing_rem_axes;
+        DoubleEndedList<CommandStream, &CommandStream::m_list_node, false> command_stream_list;
     };
 };
 

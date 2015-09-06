@@ -176,7 +176,7 @@ public:
         
         static void deinit (Context c)
         {
-            Context::Pins::template set<ThisDef::EnablePin>(c, true);
+            Context::Pins::template set<typename ThisDef::EnablePin>(c, true);
         }
     };
     

@@ -35,6 +35,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/printer/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -59,16 +60,6 @@ private:
 public:
     using BufferSizeType = TBufferSizeType;
     using PartsSizeType = ChooseIntForMax<Params::MaxParts, true>;
-    
-    enum {
-        ERROR_NO_PARTS = -1,
-        ERROR_TOO_MANY_PARTS = -2,
-        ERROR_INVALID_PART = -3,
-        ERROR_CHECKSUM = -4,
-        ERROR_RECV_OVERRUN = -5,
-        ERROR_EOF = -6,
-        ERROR_BAD_ESCAPE = -7
-    };
     
     template <typename TheParserType, typename Dummy = void>
     struct CommandExtra {};
@@ -148,7 +139,7 @@ public:
                     }
                     if (o->m_command.num_parts >= 0) {
                         if (o->m_command.num_parts == 0) {
-                            o->m_command.num_parts = ERROR_NO_PARTS;
+                            o->m_command.num_parts = GCODE_ERROR_NO_PARTS;
                         } else {
                             o->m_command.num_parts--;
                             o->m_command.cmd_number = atoi(o->m_command.parts[0].data);
@@ -193,13 +184,13 @@ public:
                     if (TheTypeHelper::EofEnabled) {
                         if (o->m_command.num_parts == 0 && ch == 'E') {
                             o->m_command.length++;
-                            o->m_command.num_parts = ERROR_EOF;
+                            o->m_command.num_parts = GCODE_ERROR_EOF;
                             o->m_state = STATE_NOCMD;
                             return true;
                         }
                     }
                     if (!is_code(ch)) {
-                        o->m_command.num_parts = ERROR_INVALID_PART;
+                        o->m_command.num_parts = GCODE_ERROR_INVALID_PART;
                     }
                     o->m_temp = o->m_command.length;
                     o->m_state = STATE_INSIDE;
@@ -379,7 +370,7 @@ private:
             BufferSizeType received_len = o->m_command.length - (o->m_temp + 1);
             
             if (AMBRO_UNLIKELY(!compare_checksum(o->m_checksum, received, received_len))) {
-                o->m_command.num_parts = ERROR_CHECKSUM;
+                o->m_command.num_parts = GCODE_ERROR_CHECKSUM;
             }
         }
     };
@@ -446,7 +437,7 @@ private:
         AMBRO_ASSERT(is_code(o->m_buffer[o->m_temp]))
         
         if (AMBRO_UNLIKELY(o->m_command.num_parts == Params::MaxParts)) {
-            o->m_command.num_parts = ERROR_TOO_MANY_PARTS;
+            o->m_command.num_parts = GCODE_ERROR_TOO_MANY_PARTS;
             return;
         }
         
@@ -459,13 +450,13 @@ private:
             char ch = o->m_buffer[in_pos++];
             if (ch == '\\' && o->m_command.num_parts > 0) {
                 if (o->m_command.length - in_pos < 2) {
-                    o->m_command.num_parts = ERROR_BAD_ESCAPE;
+                    o->m_command.num_parts = GCODE_ERROR_BAD_ESCAPE;
                     return;
                 }
                 int digit_h = read_hex_digit(o->m_buffer[in_pos++]);
                 int digit_l = read_hex_digit(o->m_buffer[in_pos++]);
                 if (digit_h < 0 || digit_l < 0) {
-                    o->m_command.num_parts = ERROR_BAD_ESCAPE;
+                    o->m_command.num_parts = GCODE_ERROR_BAD_ESCAPE;
                     return;
                 }
                 unsigned char byte = (digit_h << 4) | digit_l;
