@@ -290,6 +290,7 @@ private:
         
         AMBRO_PGM_P eof_str;
         ParserSizeType avail;
+        bool line_buffer_exhausted;
         
         if (o->command_stream.haveError(c)) {
             eof_str = AMBRO_PSTR("//SdCmdError\n");
@@ -301,7 +302,9 @@ private:
         }
         
         avail = MinValue(MaxCommandSize, o->m_length);
-        if (TheGcodeParser::extendCommand(c, avail)) {
+        line_buffer_exhausted = (avail == MaxCommandSize);
+        
+        if (TheGcodeParser::extendCommand(c, avail, line_buffer_exhausted)) {
             if (TheGcodeParser::getNumParts(c) == GCODE_ERROR_EOF) {
                 eof_str = AMBRO_PSTR("//SdEof\n");
                 goto eof;
@@ -309,7 +312,7 @@ private:
             return o->command_stream.startCommand(c, &o->gcode_command);
         }
         
-        if (avail == MaxCommandSize) {
+        if (line_buffer_exhausted) {
             eof_str = AMBRO_PSTR("//SdLnEr\n");
             goto eof;
         }

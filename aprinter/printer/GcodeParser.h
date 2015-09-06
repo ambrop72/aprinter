@@ -87,7 +87,9 @@ public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
+        
         o->m_state = STATE_NOCMD;
+        TheTypeHelper::init_hook(c);
         
         TheDebugObject::init(c);
     }
@@ -120,7 +122,7 @@ public:
         TheTypeHelper::init_command_hook(c);
     }
     
-    static bool extendCommand (Context c, BufferSizeType avail)
+    static bool extendCommand (Context c, BufferSizeType avail, bool line_buffer_exhausted=false)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -148,6 +150,7 @@ public:
                 }
                 o->m_command.length++;
                 o->m_state = STATE_NOCMD;
+                TheTypeHelper::newline_handled_hook(c);
                 return true;
             }
             
@@ -200,6 +203,12 @@ public:
                     finish_part(c);
                     o->m_state = STATE_OUTSIDE;
                 }
+            }
+        }
+        
+        if (line_buffer_exhausted) {
+            if (TheTypeHelper::handle_exhausted_line(c)) {
+                return true;
             }
         }
         
@@ -336,6 +345,10 @@ private:
         static const bool CommentsEnabled = false;
         static const bool EofEnabled = false;
         
+        static void init_hook (Context c)
+        {
+        }
+        
         static void init_command_hook (Context c)
         {
             auto *o = Object::self(c);
@@ -373,6 +386,15 @@ private:
                 o->m_command.num_parts = GCODE_ERROR_CHECKSUM;
             }
         }
+        
+        static bool handle_exhausted_line (Context c)
+        {
+            return false;
+        }
+        
+        static void newline_handled_hook (Context c)
+        {
+        }
     };
     
     template <typename Dummy>
@@ -381,8 +403,18 @@ private:
         static const bool CommentsEnabled = true;
         static const bool EofEnabled = true;
         
+        static void init_hook (Context c)
+        {
+            auto *o = Object::self(c);
+            o->m_continuing_comment_line = false;
+        }
+        
         static void init_command_hook (Context c)
         {
+            auto *o = Object::self(c);
+            if (o->m_continuing_comment_line) {
+                o->m_state = STATE_COMMENT;
+            }
         }
         
         static bool finish_part_hook (Context c, char code)
@@ -396,6 +428,24 @@ private:
         
         static void checksum_check_hook (Context c)
         {
+        }
+        
+        static bool handle_exhausted_line (Context c)
+        {
+            auto *o = Object::self(c);
+            if (o->m_state == STATE_COMMENT && o->m_command.num_parts == 0) {
+                o->m_continuing_comment_line = true;
+                o->m_command.num_parts = GCODE_ERROR_NO_PARTS;
+                o->m_state = STATE_NOCMD;
+                return true;
+            }
+            return false;
+        }
+        
+        static void newline_handled_hook (Context c)
+        {
+            auto *o = Object::self(c);
+            o->m_continuing_comment_line = false;
         }
     };
     
@@ -487,7 +537,9 @@ private:
     }
     
     template <typename TheParserType, typename Dummy = void>
-    struct ExtraMembers {};
+    struct ExtraMembers {
+        bool m_continuing_comment_line;
+    };
     
     template <typename Dummy>
     struct ExtraMembers<GcodeParserTypeSerial, Dummy> {
