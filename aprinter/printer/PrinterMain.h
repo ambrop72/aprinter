@@ -2260,6 +2260,11 @@ private:
                     return cmd->finishCommand(c);
                 } break;
                 
+                case 80: // ATX power on
+                case 81: // ATX power off
+                case 82: // set extruder to absolute mode
+                    return cmd->finishCommand(c);
+                
                 case 114: {
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_append_position(), c, cmd);
                     cmd->reply_append_ch(c, '\n');
