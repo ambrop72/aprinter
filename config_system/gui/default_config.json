@@ -5373,11 +5373,12 @@
         "DiagnalRod": 160,
         "DimensionCount": 3,
         "EffectorOffset": 0,
+        "LimitRadius": 75.1,
         "CartesianAxes": {
           "VirtualAxis0": {
-            "MaxPos": 75,
+            "MaxPos": 100,
             "MaxSpeed": 500,
-            "MinPos": -75,
+            "MinPos": -100,
             "Name": "X",
             "_compoundName": "VirtualAxisParams",
             "homing": {
@@ -5385,9 +5386,9 @@
             }
           },
           "VirtualAxis1": {
-            "MaxPos": 75,
+            "MaxPos": 100,
             "MaxSpeed": 500,
-            "MinPos": -75,
+            "MinPos": -100,
             "Name": "Y",
             "_compoundName": "VirtualAxisParams",
             "homing": {
