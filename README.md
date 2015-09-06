@@ -170,19 +170,19 @@ Board-specific notes:
 
 Runtime configuration commands:
 
-  * Print current configuration: `M924`.
+  * Print current configuration: `M503`.
   * Get option value: `M925 I<option>`
     Example: `M925 IXMin`
   * Set option value: `M926 I<option> V<value>`
     Example: `M926 IXMin V-20`
     For boolean option, the values are 0 and 1.
     Omit the V argument to set the option to the default value.
-  * Set all options to defaults: `M927`
-  * Load configuration from storage: `M928`
-  * Save configuration to storage: `M929`
+  * Set all options to defaults: `M502`
+  * Load configuration from storage: `M501`
+  * Save configuration to storage: `M500`
   * Apply configuration: `M930`
 
-After changing any configuration (e.g. with `M926`, `M927` or `M928`), the configuration needs to be applied with `M930`. Only then will the changes take effect. However, when the firmware starts up, the stored configuration is automatically loaded and applied, as if `M928` followed by `M930` was done.
+After changing any configuration (e.g. with `M926`, `M502` or `M501`), the configuration needs to be applied with `M930`. Only then will the changes take effect. However, when the firmware starts up, the stored configuration is automatically loaded and applied, as if `M501` followed by `M930` was done.
 
 The `M930` command does not alter the current set of configuration values in any way. Rather, it recomputes a set of values in RAM which are derived from the configuration values. This is a one-way operation, there is no way to see what the current applied configuration is.
 
@@ -312,9 +312,9 @@ meeting the endstop at the top.
 
 ### Bed probing and correction
 
-When bed height probing is enabled, a list of corrdinates of the probe points needs to be defined, along with other parameters such as starting height and speeds. The configuration editor should provide sufficient information for configuring bed probing. Bed probing is initiated using `M32`. The resulting height measurements will be printed to the console.
+When bed height probing is enabled, a list of corrdinates of the probe points needs to be defined, along with other parameters such as starting height and speeds. The configuration editor should provide sufficient information for configuring bed probing. Bed probing is initiated using `G32`. The resulting height measurements will be printed to the console.
 
-Automatic height correction is supported as long as the Z axis is involved in the coordinate transform (e.g. on delta, but not on cartesinan machines; this limitation may be removed in the future). Issuing `M32 A` will perform bed probing and apply corrections. The active corrections may be viewed using `M937`, and reset using `M938`.
+Automatic height correction is supported as long as the Z axis is involved in the coordinate transform (e.g. on delta, but not on cartesinan machines; this limitation may be removed in the future). When correction is enabled, `G32` will apply corrections after probing; `G32 D` will inhibit applying corrections. The active corrections may be viewed using `M937`, and reset using `M561`.
 
 Correction may be either linear or quadratic. If quadratic correction is enabled in the configuration editor, a runtime configuration parameter (ProbeQuadrCorrEnabled) switches between linear and quadratic. Note, a correction is always applied on top of the existing correction, and a linear correction on top of a quadratic correction is still a quadratic correction.
 

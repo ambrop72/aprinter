@@ -203,7 +203,7 @@ public:
                 cmd->finishCommand(c);
                 return false;
             }
-            if (cmd->getCmdNumber(c) == 938) {
+            if (cmd->getCmdNumber(c) == 561) {
                 if (!cmd->tryUnplannedCommand(c)) {
                     return false;
                 }
@@ -285,7 +285,7 @@ public:
                 return;
             }
             
-            if (cmd->find_command_param(c, 'A', nullptr)) {
+            if (!cmd->find_command_param(c, 'D', nullptr)) {
                 MatrixElemOpInPlace<MatrixElemOpAdd>(o->corrections--, new_corrections++);
                 apply_corrections(c);
             }
@@ -361,6 +361,12 @@ public:
     static bool check_command (Context c, TheCommand *cmd)
     {
         auto *o = Object::self(c);
+        return CorrectionFeature::check_command(c, cmd);
+    }
+    
+    static bool check_g_command (Context c, TheCommand *cmd)
+    {
+        auto *o = Object::self(c);
         if (cmd->getCmdNumber(c) == 32) {
             if (!cmd->tryUnplannedCommand(c)) {
                 return false;
@@ -379,7 +385,7 @@ public:
             }
             return false;
         }
-        return CorrectionFeature::check_command(c, cmd);
+        return true;
     }
     
     static void m119_append_endstop (Context c, TheCommand *cmd)

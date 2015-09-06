@@ -95,12 +95,12 @@ private:
     template <typename Type>
     using GetTypeIndex = TypeListIndex<SupportedTypesList, Type>;
     
-    static int const DumpConfigMCommand = 924;
+    static int const DumpConfigMCommand = 503;
     static int const GetConfigMCommand = 925;
     static int const SetConfigMCommand = 926;
-    static int const ResetAllConfigMCommand = 927;
-    static int const LoadConfigMCommand = 928;
-    static int const SaveConfigMCommand = 929;
+    static int const ResetAllConfigMCommand = 502;
+    static int const LoadConfigMCommand = 501;
+    static int const SaveConfigMCommand = 500;
     
     static int const MaxDumpLineLen = 60;
     

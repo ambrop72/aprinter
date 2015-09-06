@@ -270,6 +270,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_fix_aborted_pos, fix_aborted_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_m119_append_endstop, m119_append_endstop)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_g_command, check_g_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_position, append_position)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_collect_new_pos, collect_new_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_relative_positioning, set_relative_positioning)
@@ -295,6 +296,7 @@ private:
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ProvidedServices, ProvidedServices)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_MotionPlannerChannels, MotionPlannerChannels)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_command, check_command)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_g_command, check_g_command)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_configuration_changed, configuration_changed)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_emergency, emergency)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_safety, check_safety)
@@ -831,6 +833,11 @@ private:
         static bool check_command (Context c, TheCommand *cmd)
         {
             return CallIfExists_check_command::template call_ret<TheModule, bool, true>(c, cmd);
+        }
+        
+        static bool check_g_command (Context c, TheCommand *cmd)
+        {
+            return CallIfExists_check_g_command::template call_ret<TheModule, bool, true>(c, cmd);
         }
         
         static void configuration_changed (Context c)
@@ -2342,7 +2349,10 @@ private:
             
             case 'G': switch (cmd->getCmdNumber(c)) {
                 default:
-                    goto unknown_command;
+                    if (ListForEachForwardInterruptible<ModulesList>(LForeach_check_g_command(), c, cmd)) {
+                        goto unknown_command;
+                    }
+                    return;
                 
                 case 0:
                 case 1: { // buffered move
