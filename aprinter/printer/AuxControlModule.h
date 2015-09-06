@@ -70,6 +70,7 @@ private:
     using ParamsHeatersList = typename Params::HeatersList;
     using ParamsFansList = typename Params::FansList;
     static int const NumHeaters = TypeListLength<ParamsHeatersList>::Value;
+    static int const NumFans = TypeListLength<ParamsFansList>::Value;
     
     using CWaitTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitTimeout::i()) * TimeConversion()));
     using CWaitReportPeriodTicks = decltype(ExprCast<TimeType>(Config::e(Params::WaitReportPeriod::i()) * TimeConversion()));
@@ -585,7 +586,9 @@ private:
         if (ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, false) &&
             ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, true)
         ) {
-            cmd->reportError(c, AMBRO_PSTR("UnknownHeater"));
+            if (NumHeaters > 0) {
+                cmd->reportError(c, AMBRO_PSTR("UnknownHeater"));
+            }
             cmd->finishCommand(c);
         }
     }
@@ -611,7 +614,9 @@ private:
         if (ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, is_turn_off, false) &&
             ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, is_turn_off, true)
         ) {
-            cmd->reportError(c, AMBRO_PSTR("UnknownFan"));
+            if (NumFans > 0) {
+                cmd->reportError(c, AMBRO_PSTR("UnknownFan"));
+            }
             cmd->finishCommand(c);
         }
     }
