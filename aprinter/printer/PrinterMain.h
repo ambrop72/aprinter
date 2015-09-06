@@ -2271,6 +2271,11 @@ private:
                     return cmd->finishCommand(c);
                 } break;
                 
+                case 115: {
+                    cmd->reply_append_pstr(c, AMBRO_PSTR("ok FIRMWARE_NAME:APrinter\n"));
+                    return cmd->finishCommand(c, true);
+                } break;
+                
                 case 119: {
                     cmd->reply_append_pstr(c, AMBRO_PSTR("endstops:"));
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_m119_append_endstop(), c, cmd);
