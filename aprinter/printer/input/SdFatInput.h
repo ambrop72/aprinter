@@ -257,11 +257,11 @@ private:
         auto *o = Object::self(c);
         
         if (o->init_state != INIT_STATE_DONE) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+            cmd->reportError(c, AMBRO_PSTR("SdNotInited"));
             return false;
         }
         if (o->file_state != FILE_STATE_PAUSED) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:FileNotOpened\n"));
+            cmd->reportError(c, AMBRO_PSTR("FileNotOpened"));
             return false;
         }
         return true;
@@ -347,8 +347,8 @@ private:
         bool mount_writable = TheFs::FsWritable && cmd->find_command_param(c, 'W', nullptr);
         if (!start_mount(c, true, mount_writable)) {
             AMBRO_PGM_P errstr = (TheFs::FsWritable && mount_writable && o->write_mount_state == WRITEMOUNT_STATE_UNMOUNTING) ?
-                AMBRO_PSTR("Error:SdWriteUnmountInProgress\n") : AMBRO_PSTR("Error:SdAlreadyMounted\n");
-            cmd->reply_append_pstr(c, errstr);
+                AMBRO_PSTR("SdWriteUnmountInProgress") : AMBRO_PSTR("SdAlreadyMounted");
+            cmd->reportError(c, errstr);
             cmd->finishCommand(c);
         }
     }
@@ -388,6 +388,7 @@ private:
         if (error_code) {
             if (o->for_command) {
                 auto *cmd = ThePrinterMain::get_locked(c);
+                cmd->reportError(c, nullptr);
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdMount:"));
                 cmd->reply_append_uint8(c, error_code);
                 cmd->reply_append_ch(c, '\n');
@@ -419,6 +420,7 @@ private:
             AMBRO_PGM_P errstr = is_mount ? AMBRO_PSTR("Error:SdWriteMount\n") : AMBRO_PSTR("Error:SdWriteUnmount\n");
             if (o->for_command) {
                 auto *cmd = ThePrinterMain::get_locked(c);
+                cmd->reportError(c, nullptr);
                 cmd->reply_append_pstr(c, errstr);
             }
             if (!o->for_command || output != ThePrinterMain::get_locked(c)) {
@@ -438,7 +440,7 @@ private:
             
             if (!can_unmount(c)) {
                 auto *cmd = ThePrinterMain::get_locked(c);
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdInUse\n"));
+                cmd->reportError(c, AMBRO_PSTR("SdInUse"));
                 cmd->finishCommand(c);
                 return;
             }
@@ -470,18 +472,18 @@ private:
         
         do {
             if (o->init_state != INIT_STATE_DONE) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotMounted\n"));
+                cmd->reportError(c, AMBRO_PSTR("SdNotMounted"));
                 break;
             }
             
             bool unmount_readonly = TheFs::FsWritable && cmd->find_command_param(c, 'R', nullptr);
             if (TheFs::FsWritable && o->write_mount_state != WRITEMOUNT_STATE_NOT_MOUNTED) {
                 if (AccessInterface::has_references(c, true)) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdWriteInUse\n"));
+                    cmd->reportError(c, AMBRO_PSTR("SdWriteInUse"));
                     break;
                 }
                 if (o->write_mount_state == WRITEMOUNT_STATE_MOUNTING) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdWriteMountInProgress\n"));
+                    cmd->reportError(c, AMBRO_PSTR("SdWriteMountInProgress"));
                     break;
                 }
                 o->for_command = true;
@@ -494,12 +496,12 @@ private:
             }
             
             if (unmount_readonly) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotWriteMounted\n"));
+                cmd->reportError(c, AMBRO_PSTR("SdNotWriteMounted"));
                 break;
             }
             
             if (!can_unmount(c)) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdInUse\n"));
+                cmd->reportError(c, AMBRO_PSTR("SdInUse"));
                 break;
             }
             
@@ -562,7 +564,7 @@ private:
             AMBRO_ASSERT(o->listing_state == LISTING_STATE_INACTIVE)
             
             if (o->init_state != INIT_STATE_DONE) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+                cmd->reportError(c, AMBRO_PSTR("SdNotInited"));
                 break;
             }
             
@@ -591,7 +593,7 @@ private:
                     entry_type = TheFs::EntryType::FILE_TYPE;
                 }
                 else {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadParams\n"));
+                    cmd->reportError(c, AMBRO_PSTR("BadParams"));
                     break;
                 }
                 

@@ -585,7 +585,7 @@ private:
         if (ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, false) &&
             ListForEachForwardInterruptible<HeatersList>(LForeach_check_set_command(), c, cmd, true)
         ) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:UnknownHeater\n"));
+            cmd->reportError(c, AMBRO_PSTR("UnknownHeater"));
             cmd->finishCommand(c);
         }
     }
@@ -611,7 +611,7 @@ private:
         if (ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, is_turn_off, false) &&
             ListForEachForwardInterruptible<FansList>(LForeach_check_set_command(), c, cmd, is_turn_off, true)
         ) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:UnknownFan\n"));
+            cmd->reportError(c, AMBRO_PSTR("UnknownFan"));
             cmd->finishCommand(c);
         }
     }
@@ -633,7 +633,7 @@ private:
         o->wait_started_time = Clock::getTime(c);
         ListForEachForward<HeatersList>(LForeach_start_wait(), c, heaters_mask);
         if (o->waiting_heaters != heaters_mask) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:HeaterNotEnabled\n"));
+            cmd->reportError(c, AMBRO_PSTR("HeaterNotEnabled"));
             cmd->finishCommand(c);
             ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
             o->waiting_heaters = 0;
@@ -662,7 +662,7 @@ private:
         
         TheCommand *cmd = ThePrinterMain::get_locked(c);
         if (errstr) {
-            cmd->reply_append_pstr(c, errstr);
+            cmd->reportError(c, errstr);
         }
         cmd->finishCommand(c);
         ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
@@ -679,13 +679,13 @@ private:
         bool timed_out = (TimeType)(Clock::getTime(c) - o->wait_started_time) >= APRINTER_CFG(Config, CWaitTimeoutTicks, c);
         
         if (reached || timed_out) {
-            complete_wait(c, timed_out ? AMBRO_PSTR("Error:WaitTimedOut\n") : nullptr);
+            complete_wait(c, timed_out ? AMBRO_PSTR("WaitTimedOut") : nullptr);
         }
     }
     
     static void fail_wait (Context c)
     {
-        complete_wait(c, AMBRO_PSTR("Error:HeaterDisabled\n"));
+        complete_wait(c, AMBRO_PSTR("HeaterDisabled"));
     }
     
     static void maybe_report (Context c)

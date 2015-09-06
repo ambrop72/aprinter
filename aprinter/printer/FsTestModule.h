@@ -115,7 +115,7 @@ private:
         reset_internal(c);
         auto *cmd = ThePrinterMain::get_locked(c);
         if (errstr) {
-            cmd->reply_append_pstr(c, errstr);
+            cmd->reportError(c, errstr);
         }
         cmd->finishCommand(c);
     }
@@ -129,7 +129,7 @@ private:
         }
         AMBRO_ASSERT(o->state == STATE_IDLE)
         if (!(o->open_file_name = cmd->get_command_param_str(c, 'F', nullptr))) {
-            return complete_command(c, AMBRO_PSTR("Error:NoFileSpecified\n"));
+            return complete_command(c, AMBRO_PSTR("NoFileSpecified"));
         }
         o->write_data = cmd->get_command_param_str(c, 'D', "1234567890");
         o->write_data_size = strlen(o->write_data);
@@ -149,7 +149,7 @@ private:
         AMBRO_ASSERT(o->state == STATE_ACCESS)
         
         if (error) {
-            return complete_command(c, AMBRO_PSTR("Error:Access\n"));
+            return complete_command(c, AMBRO_PSTR("Access"));
         }
         o->user_buffer.requestUserBuffer(c);
         o->state = STATE_BUFFER;
@@ -163,7 +163,7 @@ private:
         AMBRO_ASSERT(o->state == STATE_BUFFER)
         
         if (error) {
-            return complete_command(c, AMBRO_PSTR("Error:Buffer\n"));
+            return complete_command(c, AMBRO_PSTR("Buffer"));
         }
         o->fs_opener.init(c, o->access_client.getCurrentDirectory(c), TheFs::EntryType::FILE_TYPE, o->open_file_name, APRINTER_CB_STATFUNC_T(&FsTestModule::fs_opener_handler));
         o->have_opener = true;
@@ -178,7 +178,7 @@ private:
         AMBRO_ASSERT(o->state == STATE_OPEN)
         
         if (status != TheFs::Opener::OpenerStatus::SUCCESS) {
-            return complete_command(c, AMBRO_PSTR("Error:Open\n"));
+            return complete_command(c, AMBRO_PSTR("Open"));
         }
         o->fs_opener.deinit(c);
         o->have_opener = false;
@@ -197,7 +197,7 @@ private:
         switch (o->state) {
             case STATE_OPENWR: {
                 if (io_error) {
-                    return complete_command(c, AMBRO_PSTR("Error:OpenWr\n"));
+                    return complete_command(c, AMBRO_PSTR("OpenWr"));
                 }
                 o->write_pos = 0;
                 o->buffer_pos = 0;
@@ -206,7 +206,7 @@ private:
             
             case STATE_WRITE: {
                 if (io_error) {
-                    return complete_command(c, AMBRO_PSTR("Error:Write\n"));
+                    return complete_command(c, AMBRO_PSTR("Write"));
                 }
                 o->buffer_pos = 0;
                 return work_write(c);
@@ -214,7 +214,7 @@ private:
             
             case STATE_TRUNCATE: {
                 if (io_error) {
-                    return complete_command(c, AMBRO_PSTR("Error:Truncate\n"));
+                    return complete_command(c, AMBRO_PSTR("Truncate"));
                 }
                 o->fs_file.deinit(c);
                 o->have_file = false;
@@ -274,7 +274,7 @@ private:
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_FLUSH)
         
-        return complete_command(c, error ? AMBRO_PSTR("Error:Flush\n") : nullptr);
+        return complete_command(c, error ? AMBRO_PSTR("Flush") : nullptr);
     }
     
 public:

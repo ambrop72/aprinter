@@ -258,7 +258,7 @@ public:
             }
             
             if (num_valid_points < num_columns) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:TooFewPointsForCorrection\n"));
+                cmd->reportError(c, AMBRO_PSTR("TooFewPointsForCorrection"));
                 return;
             }
             
@@ -281,7 +281,7 @@ public:
             }
             
             if (bad_corrections) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadCorrections\n"));
+                cmd->reportError(c, AMBRO_PSTR("BadCorrections"));
                 return;
             }
             
@@ -369,7 +369,7 @@ public:
             o->m_current_point = 0;
             skip_disabled_points_and_detect_end(c);
             if (o->m_current_point == -1) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:NoProbePointsEnabled\n"));
+                cmd->reportError(c, AMBRO_PSTR("NoProbePointsEnabled"));
                 cmd->finishCommand(c);
             } else {
                 init_probe_planner(c, false);
@@ -552,6 +552,7 @@ private:
             
             ThePrinterMain::template move_add_axis<ProbeAxisIndex>(c, height, true);
             ThePrinterMain::move_end(c, time_freq_by_speed);
+            // TBD: handle errors
             
             o->m_command_sent = true;
         }
@@ -579,14 +580,14 @@ private:
             o->m_command_sent = false;
             
             if (is_point_state_watching(o->m_point_state) && !aborted) {
-                return finish_probing(c, true, AMBRO_PSTR("Error:EndstopNotTriggeredInProbeMove\n"));
+                return finish_probing(c, AMBRO_PSTR("EndstopNotTriggeredInProbeMove"));
             }
             
             if (o->m_point_state == 4) {
                 o->m_current_point++;
                 skip_disabled_points_and_detect_end(c);
                 if (o->m_current_point == -1) {
-                    return finish_probing(c, false, nullptr);
+                    return finish_probing(c, nullptr);
                 }
                 init_probe_planner(c, false);
                 o->m_point_state = 0;
@@ -602,7 +603,7 @@ private:
             bool watch_probe = is_point_state_watching(o->m_point_state);
             
             if (watch_probe && endstop_is_triggered(c)) {
-                return finish_probing(c, true, AMBRO_PSTR("Error:EndstopTriggeredBeforeProbeMove\n"));
+                return finish_probing(c, AMBRO_PSTR("EndstopTriggeredBeforeProbeMove"));
             }
             
             init_probe_planner(c, watch_probe);
@@ -632,15 +633,15 @@ private:
         cmd->reply_poke(c);
     }
     
-    static void finish_probing (Context c, bool error, AMBRO_PGM_P errstr)
+    static void finish_probing (Context c, AMBRO_PGM_P errstr)
     {
         auto *o = Object::self(c);
         
         o->m_current_point = -1;
         
         TheCommand *cmd = ThePrinterMain::get_locked(c);
-        if (error) {
-            cmd->reply_append_pstr(c, errstr);
+        if (errstr) {
+            cmd->reportError(c, errstr);
         } else {
             CorrectionFeature::probing_completing(c, cmd);
         }

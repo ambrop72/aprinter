@@ -165,7 +165,7 @@ private:
             return;
         }
         if (o->state != STATE_INACTIVE) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdAlreadyInited\n"));
+            cmd->reportError(c, AMBRO_PSTR("SdAlreadyInited"));
             cmd->finishCommand(c);
             return;
         }
@@ -207,11 +207,11 @@ private:
         }
         do {
             if (o->state < STATE_PAUSED) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+                cmd->reportError(c, AMBRO_PSTR("SdNotInited"));
                 break;
             }
             if (o->state > STATE_PAUSED) {
-                cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintRunning\n"));
+                cmd->reportError(c, AMBRO_PSTR("SdPrintRunning"));
                 break;
             }
             TheSdCard::deactivate(c);
@@ -243,7 +243,7 @@ private:
         auto *o = Object::self(c);
         
         if (o->state != STATE_PAUSED) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdNotInited\n"));
+            cmd->reportError(c, AMBRO_PSTR("SdNotInited"));
             return false;
         }
         return true;

@@ -402,6 +402,7 @@ public:
             m_state = COMMAND_IDLE;
             m_callback = callback;
             m_cmd = nullptr;
+            m_error = false;
             m_send_buf_event_handler = nullptr;
             mo->command_stream_list.prepend(this);
         }
@@ -425,6 +426,7 @@ public:
             AMBRO_ASSERT(cmd)
             
             m_cmd = cmd;
+            
             PartsSizeType num_parts = m_cmd->getNumParts(c);
             if (num_parts < 0) {
                 AMBRO_PGM_P err = AMBRO_PSTR("unknown error");
@@ -436,14 +438,14 @@ public:
                     case GCODE_ERROR_RECV_OVERRUN:   err = AMBRO_PSTR("receive buffer overrun"); break;
                     case GCODE_ERROR_BAD_ESCAPE:     err = AMBRO_PSTR("bad escape sequence");    break;
                 }
-                reply_append_pstr(c, AMBRO_PSTR("Error:"));
-                reply_append_pstr(c, err);
-                reply_append_ch(c, '\n');
+                reportError(c, err);
                 return finishCommand(c);
             }
+            
             if (!m_callback->start_command_impl(c)) {
                 return finishCommand(c);
             }
+            
             work_command(c, this);
         }
         
@@ -489,10 +491,35 @@ public:
             return handler(c);
         }
         
+        bool haveError (Context c)
+        {
+            return m_error;
+        }
+        
+        void clearError (Context c)
+        {
+            AMBRO_ASSERT(m_state == COMMAND_IDLE)
+            
+            m_error = false;
+        }
+        
     public:
         using PartsSizeType = typename TheGcodeCommand::PartsSizeType;
         using PartRef = typename TheGcodeCommand::PartRef;
         using SendBufEventHandler = void (*) (Context);
+        
+        void reportError (Context c, AMBRO_PGM_P errstr)
+        {
+            AMBRO_ASSERT(m_cmd)
+            AMBRO_ASSERT(m_state == COMMAND_IDLE || m_state == COMMAND_LOCKED)
+            
+            m_error = true;
+            if (errstr) {
+                reply_append_pstr(c, AMBRO_PSTR("Error:"));
+                reply_append_pstr(c, errstr);
+                reply_append_ch(c, '\n');
+            }
+        }
         
         void finishCommand (Context c, bool no_ok = false)
         {
@@ -764,7 +791,8 @@ public:
         }
         
     private:
-        uint8_t m_state;
+        uint8_t m_state : 4;
+        bool m_error : 1;
         CommandStreamCallback *m_callback;
         TheGcodeCommand *m_cmd;
         SendBufEventHandler m_send_buf_event_handler;
@@ -2255,7 +2283,7 @@ private:
                 case 918: { // test assertions
                     uint32_t magic = cmd->get_command_param_uint32(c, 'M', 0);
                     if (magic != UINT32_C(122345)) {
-                        cmd->reply_append_pstr(c, AMBRO_PSTR("Error:BadMagic\n"));
+                        cmd->reportError(c, AMBRO_PSTR("BadMagic"));
                     } else {
                         if (cmd->find_command_param(c, 'F', nullptr)) {
                             AMBRO_ASSERT_FORCE(0)
@@ -2359,6 +2387,7 @@ private:
             
             unknown_command:
             default: {
+                cmd->reportError(c, nullptr);
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:Unknown command "));
                 cmd->reply_append_ch(c, cmd->getCmdCode(c));
                 cmd->reply_append_uint16(c, cmd->getCmdNumber(c));

@@ -104,7 +104,7 @@ public:
             }
             do {
                 if (o->m_state != SDCARD_PAUSED) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintAlreadyActive\n"));
+                    cmd->reportError(c, AMBRO_PSTR("SdPrintAlreadyActive"));
                     break;
                 }
                 if (!TheInput::startingIo(c, cmd)) {
@@ -116,6 +116,7 @@ public:
                 if (can_read(c)) {
                     start_read(c);
                 }
+                o->command_stream.clearError(c);
                 if (!o->command_stream.maybeResumeLockingCommand(c)) {
                     o->m_next_event.prependNowNotAlready(c);
                 }
@@ -131,7 +132,7 @@ public:
             }
             do {
                 if (o->m_state == SDCARD_PAUSED) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintNotRunning\n"));
+                    cmd->reportError(c, AMBRO_PSTR("SdPrintNotRunning"));
                     break;
                 }
                 AMBRO_ASSERT(o->m_state != SDCARD_PAUSING || o->m_reading)
@@ -155,12 +156,12 @@ public:
             }
             do {
                 if (o->m_state != SDCARD_PAUSED) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdPrintRunning\n"));
+                    cmd->reportError(c, AMBRO_PSTR("SdPrintRunning"));
                     break;
                 }
                 uint32_t seek_pos = cmd->get_command_param_uint32(c, 'S', 0);
                 if (seek_pos != 0) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:CanOnlySeekToZero\n"));
+                    cmd->reportError(c, AMBRO_PSTR("CanOnlySeekToZero"));
                     break;
                 }
                 if (!TheInput::rewind(c, cmd)) {
@@ -288,10 +289,18 @@ private:
         AMBRO_ASSERT(!o->m_eof)
         
         AMBRO_PGM_P eof_str;
+        ParserSizeType avail;
+        
+        if (o->command_stream.haveError(c)) {
+            eof_str = AMBRO_PSTR("//SdCmdError\n");
+            goto eof;
+        }
+        
         if (!TheGcodeParser::haveCommand(c)) {
             TheGcodeParser::startCommand(c, o->m_buffer + o->m_start, 0);
         }
-        ParserSizeType avail = MinValue(MaxCommandSize, o->m_length);
+        
+        avail = MinValue(MaxCommandSize, o->m_length);
         if (TheGcodeParser::extendCommand(c, avail)) {
             if (TheGcodeParser::getNumParts(c) == GCODE_ERROR_EOF) {
                 eof_str = AMBRO_PSTR("//SdEof\n");
@@ -299,10 +308,12 @@ private:
             }
             return o->command_stream.startCommand(c, &o->gcode_command);
         }
+        
         if (avail == MaxCommandSize) {
             eof_str = AMBRO_PSTR("//SdLnEr\n");
             goto eof;
         }
+        
         if (TheInput::eofReached(c)) {
             eof_str = AMBRO_PSTR("//SdEnd\n");
             goto eof;

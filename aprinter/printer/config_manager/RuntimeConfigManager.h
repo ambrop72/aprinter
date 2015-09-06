@@ -427,7 +427,7 @@ private:
             goto finish;
         }
         if (!cmd->requestSendBufEvent(c, MaxDumpLineLen, RuntimeConfigManager::send_buf_event_handler)) {
-            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:Dump\n"));
+            cmd->reportError(c, AMBRO_PSTR("Dump"));
             goto finish;
         }
         return;
@@ -476,7 +476,7 @@ public:
                 bool get_it = (cmd_num == GetConfigMCommand);
                 char const *name = cmd->get_command_param_str(c, 'I', "");
                 if (ListForEachForwardInterruptible<TypeGeneralList>(Foreach_get_set_cmd(), c, cmd, get_it, name)) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("Error:Unknown option\n"));
+                    cmd->reportError(c, AMBRO_PSTR("UnknownOption"));
                 } else if (get_it) {
                     cmd->reply_append_ch(c, '\n');
                 }
