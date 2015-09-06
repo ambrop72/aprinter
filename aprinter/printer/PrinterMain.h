@@ -2281,7 +2281,7 @@ private:
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_m119_append_endstop(), c, cmd);
                     ListForEachForward<ModulesList>(LForeach_m119_append_endstop(), c, cmd);
                     cmd->reply_append_ch(c, '\n');                    
-                    return cmd->finishCommand(c, true);
+                    return cmd->finishCommand(c);
                 } break;
                 
                 case 400: {
