@@ -429,6 +429,10 @@ public:
             
             PartsSizeType num_parts = m_cmd->getNumParts(c);
             if (num_parts < 0) {
+                if (num_parts == GCODE_ERROR_NO_PARTS) {
+                    return finishCommand(c, true);
+                }
+                
                 AMBRO_PGM_P err = AMBRO_PSTR("unknown error");
                 switch (num_parts) {
                     case GCODE_ERROR_NO_PARTS:       err = AMBRO_PSTR("empty command");          break;
@@ -438,6 +442,7 @@ public:
                     case GCODE_ERROR_RECV_OVERRUN:   err = AMBRO_PSTR("receive buffer overrun"); break;
                     case GCODE_ERROR_BAD_ESCAPE:     err = AMBRO_PSTR("bad escape sequence");    break;
                 }
+                
                 reportError(c, err);
                 return finishCommand(c);
             }
