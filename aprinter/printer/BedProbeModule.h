@@ -551,10 +551,8 @@ private:
             }
             
             ThePrinterMain::template move_add_axis<ProbeAxisIndex>(c, height, true);
-            ThePrinterMain::move_end(c, time_freq_by_speed);
-            // TBD: handle errors
-            
             o->m_command_sent = true;
+            return ThePrinterMain::move_end(c, time_freq_by_speed, BedProbeModule::move_end_callback);
         }
         
         void finished_handler (Context c)
@@ -651,6 +649,11 @@ private:
     static bool is_point_state_watching (PointIndexType point_state)
     {
         return point_state == 1 || point_state == 3;
+    }
+    
+    static void move_end_callback (Context c, bool error)
+    {
+        // TBD handle error
     }
     
     using CProbeInvert = decltype(ExprCast<bool>(Config::e(Params::ProbeInvert::i())));

@@ -803,6 +803,9 @@ public:
     using TheCommand = CommandStream;
     using CommandPartRef = typename TheCommand::PartRef;
     
+public:
+    using MoveEndCallback = void(*)(Context c, bool error);
+    
 private:
     template <int ModuleIndex>
     struct Module {
@@ -1400,11 +1403,12 @@ public:
             return ListForEachForwardInterruptible<VirtAxesList>(LForeach_check_phys_limits(), c);
         }
         
-        static void handle_virt_move (Context c, FpType time_freq_by_max_speed, bool is_positioning_move)
+        static void handle_virt_move (Context c, FpType time_freq_by_max_speed, MoveEndCallback callback, bool is_positioning_move)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->splitting)
             
+            o->move_end_callback = callback;
             o->virt_update_pending = false;
             update_phys_from_virt(c);
             
@@ -1425,7 +1429,7 @@ public:
             o->splitter.start(c, distance, base_max_v_rec, time_freq_by_max_speed);
             o->frac = 0.0;
             
-            do_split(c);
+            return do_split(c);
         }
         
         static void handle_transform_error (Context c)
@@ -1443,6 +1447,8 @@ public:
             
             ThePlanner::emptyDone(c);
             submitted_planner_command(c);
+            
+            return o->move_end_callback(c, true);
         }
         
         template <int PhysAxisIndex>
@@ -1523,6 +1529,9 @@ public:
             ThePlanner::emptyDone(c);
         submitted:
             submitted_planner_command(c);
+            if (!o->splitting) {
+                return o->move_end_callback(c, false);
+            }
         }
         
         static void handle_aborted (Context c)
@@ -1726,6 +1735,11 @@ public:
                     return APRINTER_CFG(Config, CHomeDir, c) ? 1.0f : -1.0f;
                 }
                 
+                static void virt_homing_move_end_callback (Context c, bool error)
+                {
+                    // TBD: Handle error.
+                }
+                
                 struct VirtHomingPlannerClient : public PlannerClient {
                     void pull_handler (Context c)
                     {
@@ -1756,8 +1770,8 @@ public:
                             } break;
                         }
                         move_add_axis<(NumAxes + VirtAxisIndex)>(c, position, ignore_limits);
-                        move_end(c, (FpType)TimeConversion::value() / speed);
                         o->command_sent = true;
+                        return move_end(c, (FpType)TimeConversion::value() / speed, HomingFeature::virt_homing_move_end_callback);
                     }
                     
                     void finished_handler (Context c)
@@ -1892,11 +1906,12 @@ public:
             bool splitting;
             FpType frac;
             TheSplitter splitter;
+            MoveEndCallback move_end_callback;
         };
     } AMBRO_STRUCT_ELSE(TransformFeature) {
         static int const NumVirtAxes = 0;
         static void init (Context c) {}
-        static void handle_virt_move (Context c, FpType time_freq_by_max_speed, bool is_positioning_move) {}
+        static void handle_virt_move (Context c, FpType time_freq_by_max_speed, MoveEndCallback callback, bool is_positioning_move) {}
         template <int PhysAxisIndex>
         static void mark_phys_moved (Context c) {}
         static void do_pending_virt_update (Context c) {}
@@ -2333,7 +2348,7 @@ private:
                     }
                     bool is_positioning_move = (cmd->getCmdNumber(c) == 0);
                     cmd->finishCommand(c);
-                    move_end(c, ob->time_freq_by_max_speed, is_positioning_move);
+                    return move_end(c, ob->time_freq_by_max_speed, PrinterMain::normal_move_end_callback, is_positioning_move);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -2446,6 +2461,11 @@ private:
         TimeType now = Clock::getTime(c);
         ob->disable_timer.appendAt(c, now + APRINTER_CFG(Config, CInactiveTimeTicks, c));
         TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
+    }
+    
+    static void normal_move_end_callback (Context c, bool error)
+    {
+        // TBD handle error
     }
     
 public:
@@ -2613,17 +2633,19 @@ public:
         laser->move_energy_specified = true;
     }
     
-    static void move_end (Context c, FpType time_freq_by_max_speed, bool is_positioning_move=true)
+    static void move_end (Context c, FpType time_freq_by_max_speed, MoveEndCallback callback, bool is_positioning_move=true)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING || ob->planner_state == PLANNER_CUSTOM)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
+        AMBRO_ASSERT(callback)
         
         if (TransformFeature::is_splitting(c)) {
-            TransformFeature::handle_virt_move(c, time_freq_by_max_speed, is_positioning_move);
+            TransformFeature::handle_virt_move(c, time_freq_by_max_speed, callback, is_positioning_move);
             return;
         }
+        
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
         FpType distance_squared = 0.0f;
         FpType total_steps = 0.0f;
@@ -2644,6 +2666,7 @@ public:
             ThePlanner::emptyDone(c);
         }
         submitted_planner_command(c);
+        return callback(c, false);
     }
     
     static void set_position_begin (Context c)
