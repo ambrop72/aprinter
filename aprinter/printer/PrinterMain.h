@@ -1257,7 +1257,7 @@ private:
         static void init (Context c)
         {
             auto *o = Object::self(c);
-            o->density = 0.0;
+            o->density = 0.0f;
             ThePwm::init(c);
         }
         
@@ -1475,7 +1475,7 @@ public:
             
             FpType base_max_v_rec = ListForEachForwardAccRes<VirtAxesList>(distance * time_freq_by_max_speed, LForeach_limit_virt_axis_speed(), c);
             o->splitter.start(c, distance, base_max_v_rec, time_freq_by_max_speed);
-            o->frac = 0.0;
+            o->frac = 0.0f;
             
             return do_split(c);
         }
@@ -1556,7 +1556,7 @@ public:
                     
                     ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, o->frac, saved_phys_req_pos);
                 } else {
-                    o->frac = 1.0;
+                    o->frac = 1.0f;
                     o->splitting = false;
                 }
                 
@@ -2657,13 +2657,11 @@ private:
         ob->underrun_count++;
         
 #ifdef AXISDRIVER_DETECT_OVERLOAD
-        auto *output = get_msg_output(c);
         if (ThePlanner::axisOverloadOccurred(c)) {
-            output->reply_append_pstr(c, AMBRO_PSTR("//AxisOverload\n"));
+            print_pgm_string(c, AMBRO_PSTR("//AxisOverload\n"));
         } else {
-            output->reply_append_pstr(c, AMBRO_PSTR("//NoOverload\n"));
+            print_pgm_string(c, AMBRO_PSTR("//NoOverload\n"));
         }
-        output->reply_poke(c);
 #endif
     }
     
@@ -2825,9 +2823,7 @@ private:
         }
         unlock(c);
         auto msg = success ? AMBRO_PSTR("//LoadConfigOk\n") : AMBRO_PSTR("//LoadConfigErr\n");
-        auto *output = get_msg_output(c);
-        output->reply_append_pstr(c, msg);
-        output->reply_poke(c);
+        print_pgm_string(c, msg);
     }
     
     static TheCommand * get_command_in_state (Context c, int state, bool must)
