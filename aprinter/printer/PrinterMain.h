@@ -386,7 +386,10 @@ public:
         virtual bool start_command_impl (Context c) = 0;
         virtual void finish_command_impl (Context c, bool no_ok) = 0;
         virtual void reply_poke_impl (Context c) = 0;
-        virtual void reply_append_buffer_impl (Context c, char const *str, AMBRO_PGM_P pstr, size_t length) = 0;
+        virtual void reply_append_buffer_impl (Context c, char const *str, size_t length) = 0;
+#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
+        virtual void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length) = 0;
+#endif
         virtual bool request_send_buf_event_impl (Context c, size_t length) = 0;
         virtual void cancel_send_buf_event_impl (Context c) = 0;
     };
@@ -653,22 +656,27 @@ public:
             m_callback->reply_poke_impl(c);
         }
         
-        APRINTER_NO_INLINE
         void reply_append_buffer (Context c, char const *str, size_t length)
         {
-            m_callback->reply_append_buffer_impl(c, str, nullptr, length);
+            m_callback->reply_append_buffer_impl(c, str, length);
         }
         
-        APRINTER_NO_INLINE
+#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
         void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
         {
-            m_callback->reply_append_buffer_impl(c, nullptr, pstr, length);
+            m_callback->reply_append_pbuffer_impl(c, pstr, length);
         }
+#else
+        void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
+        {
+            reply_append_buffer(c, pstr, length);
+        }
+#endif
         
         APRINTER_NO_INLINE
         void reply_append_ch (Context c, char ch)
         {
-            m_callback->reply_append_buffer_impl(c, &ch, nullptr, 1);
+            m_callback->reply_append_buffer_impl(c, &ch, 1);
         }
         
         APRINTER_NO_INLINE
@@ -763,11 +771,18 @@ public:
             reply_append_buffer(c, str, strlen(str));
         }
         
+#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
         APRINTER_NO_INLINE
         void reply_append_pstr (Context c, AMBRO_PGM_P pstr)
         {
             reply_append_pbuffer(c, pstr, AMBRO_PGM_STRLEN(pstr));
         }
+#else
+        void reply_append_pstr (Context c, AMBRO_PGM_P pstr)
+        {
+            reply_append_str(c, pstr);
+        }
+#endif
         
         APRINTER_NO_INLINE
         void reply_append_fp (Context c, FpType x)

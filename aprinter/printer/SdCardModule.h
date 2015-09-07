@@ -76,6 +76,8 @@ public:
         o->command_stream.init(c, &o->callback);
         o->m_next_event.init(c, APRINTER_CB_STATFUNC_T(&SdCardModule::next_event_handler));
         o->m_state = SDCARD_PAUSED;
+        o->m_echo_pending = true;
+        o->m_poke_pending = false;
         init_buffering(c);
     }
     
@@ -197,6 +199,10 @@ private:
             AMBRO_ASSERT(!TheGcodeParser::haveCommand(c))
             AMBRO_ASSERT(TheGcodeParser::getLength(c) <= o->m_length)
             
+            if (o->m_poke_pending) {
+                reply_poke_impl(c);
+            }
+            
             size_t cmd_len = TheGcodeParser::getLength(c);
             o->m_next_event.prependNowNotAlready(c);
             o->m_start = buf_add(o->m_start, cmd_len);
@@ -208,11 +214,71 @@ private:
         
         void reply_poke_impl (Context c)
         {
+            auto *o = Object::self(c);
+            
+            o->m_poke_pending = false;
+            ThePrinterMain::get_msg_output(c)->reply_poke(c);
         }
         
-        void reply_append_buffer_impl (Context c, char const *str, AMBRO_PGM_P pstr, size_t length)
+        void reply_append_buffer_impl (Context c, char const *str, size_t length)
         {
+            auto *o = Object::self(c);
+            
+            while (length > 0) {
+                o->m_poke_pending = true;
+                
+                if (o->m_echo_pending) {
+                    o->m_echo_pending = false;
+                    ThePrinterMain::get_msg_output(c)->reply_append_pstr(c, AMBRO_PSTR("//SdEcho "));
+                }
+                
+                size_t line_length = 0;
+                while (line_length < length) {
+                    if (str[line_length] == '\n') {
+                        line_length++;
+                        o->m_echo_pending = true;
+                        break;
+                    }
+                    line_length++;
+                }
+                
+                ThePrinterMain::get_msg_output(c)->reply_append_buffer(c, str, line_length);
+                
+                str += line_length;
+                length -= line_length;
+            }
         }
+        
+#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
+        void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length)
+        {
+            auto *o = Object::self(c);
+            
+            while (length > 0) {
+                o->m_poke_pending = true;
+                
+                if (o->m_echo_pending) {
+                    o->m_echo_pending = false;
+                    ThePrinterMain::get_msg_output(c)->reply_append_pstr(c, AMBRO_PSTR("//SdEcho "));
+                }
+                
+                size_t line_length = 0;
+                while (line_length < length) {
+                    if (AMBRO_PGM_READBYTE(pstr + line_length) == '\n') {
+                        line_length++;
+                        o->m_echo_pending = true;
+                        break;
+                    }
+                    line_length++;
+                }
+                
+                ThePrinterMain::get_msg_output(c)->reply_append_pbuffer(c, pstr, line_length);
+                
+                pstr += line_length;
+                length -= line_length;
+            }
+        }
+#endif
         
         bool request_send_buf_event_impl (Context c, size_t length)
         {
@@ -403,6 +469,8 @@ public:
         uint8_t m_pausing_on_command : 1;
         size_t m_start;
         size_t m_length;
+        bool m_echo_pending;
+        bool m_poke_pending;
         char m_buffer[BufferBaseSize + WrapExtraSize];
     };
 };

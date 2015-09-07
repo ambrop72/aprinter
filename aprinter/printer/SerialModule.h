@@ -128,7 +128,7 @@ private:
             TheSerial::sendPoke(c);
         }
         
-        void reply_append_buffer_impl (Context c, char const *str, AMBRO_PGM_P pstr, size_t length)
+        void reply_append_buffer_impl (Context c, char const *str, size_t length)
         {
             SendSizeType avail = TheSerial::sendQuery(c);
             if (length > avail.value()) {
@@ -137,17 +137,30 @@ private:
             while (length > 0) {
                 char *chunk_data = TheSerial::sendGetChunkPtr(c);
                 uint8_t chunk_length = TheSerial::sendGetChunkLen(c, SendSizeType::import(length)).value();
-                if (pstr) {
-                    AMBRO_PGM_MEMCPY(chunk_data, pstr, chunk_length);
-                    pstr += chunk_length;
-                } else {
-                    memcpy(chunk_data, str, chunk_length);
-                    str += chunk_length;
-                }
+                memcpy(chunk_data, str, chunk_length);
+                str += chunk_length;
                 TheSerial::sendProvide(c, SendSizeType::import(chunk_length));
                 length -= chunk_length;
             }
         }
+        
+#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
+        void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length)
+        {
+            SendSizeType avail = TheSerial::sendQuery(c);
+            if (length > avail.value()) {
+                length = avail.value();
+            }
+            while (length > 0) {
+                char *chunk_data = TheSerial::sendGetChunkPtr(c);
+                uint8_t chunk_length = TheSerial::sendGetChunkLen(c, SendSizeType::import(length)).value();
+                AMBRO_PGM_MEMCPY(chunk_data, pstr, chunk_length);
+                pstr += chunk_length;
+                TheSerial::sendProvide(c, SendSizeType::import(chunk_length));
+                length -= chunk_length;
+            }
+        }
+#endif
         
         bool request_send_buf_event_impl (Context c, size_t length)
         {
