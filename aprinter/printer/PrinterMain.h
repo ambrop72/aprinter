@@ -386,7 +386,6 @@ public:
         virtual void finish_command_impl (Context c, bool no_ok) = 0;
         virtual void reply_poke_impl (Context c) = 0;
         virtual void reply_append_buffer_impl (Context c, char const *str, AMBRO_PGM_P pstr, size_t length) = 0;
-        virtual void reply_append_ch_impl (Context c, char ch) = 0;
         virtual bool request_send_buf_event_impl (Context c, size_t length) = 0;
         virtual void cancel_send_buf_event_impl (Context c) = 0;
     };
@@ -660,7 +659,7 @@ public:
         
         void reply_append_ch (Context c, char ch)
         {
-            m_callback->reply_append_ch_impl(c, ch);
+            m_callback->reply_append_buffer_impl(c, &ch, nullptr, 1);
         }
         
         bool requestSendBufEvent (Context c, size_t length, SendBufEventHandler handler)

@@ -214,10 +214,6 @@ private:
         {
         }
         
-        void reply_append_ch_impl (Context c, char ch)
-        {
-        }
-        
         bool request_send_buf_event_impl (Context c, size_t length)
         {
             return false;

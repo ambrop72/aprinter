@@ -149,14 +149,6 @@ private:
             }
         }
         
-        void reply_append_ch_impl (Context c, char ch)
-        {
-            if (TheSerial::sendQuery(c).value() > 0) {
-                *TheSerial::sendGetChunkPtr(c) = ch;
-                TheSerial::sendProvide(c, SendSizeType::import(1));
-            }
-        }
-        
         bool request_send_buf_event_impl (Context c, size_t length)
         {
             if (length > SendSizeType::maxIntValue() - MaxFinishLen) {
