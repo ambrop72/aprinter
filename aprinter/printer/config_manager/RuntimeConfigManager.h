@@ -390,7 +390,7 @@ private:
             if (o->from_command) {
                 auto *cmd = ThePrinterMain::get_locked(c);
                 if (!success) {
-                    cmd->reply_append_pstr(c, AMBRO_PSTR("error:Store\n"));
+                    cmd->reportError(c, AMBRO_PSTR("Store"));
                 }
                 cmd->finishCommand(c);
             } else {

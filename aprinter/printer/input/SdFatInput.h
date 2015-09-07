@@ -632,9 +632,9 @@ private:
         
         AMBRO_PGM_P errstr = nullptr;
         if (is_error) {
-            errstr = AMBRO_PSTR("error:InputOutput\n");
+            errstr = AMBRO_PSTR("InputOutput");
         } else if (o->listing_u.dirlist.length_error) {
-            errstr = AMBRO_PSTR("error:NameTooLong\n");
+            errstr = AMBRO_PSTR("NameTooLong");
         }
         
         complete_navigation(c, errstr);
@@ -651,7 +651,7 @@ private:
         AMBRO_PGM_P errstr = nullptr;
         do {
             if (status != TheFs::Opener::OpenerStatus::SUCCESS) {
-                errstr = (status == TheFs::Opener::OpenerStatus::NOT_FOUND) ? AMBRO_PSTR("error:NotFound\n") : AMBRO_PSTR("error:InputOutput\n");
+                errstr = (status == TheFs::Opener::OpenerStatus::NOT_FOUND) ? AMBRO_PSTR("NotFound") : AMBRO_PSTR("InputOutput");
                 break;
             }
             
@@ -659,7 +659,7 @@ private:
                 fs_o->current_directory = entry;
             } else {
                 if (o->file_state >= FILE_STATE_RUNNING) {
-                    errstr = AMBRO_PSTR("error:SdPrintRunning\n");
+                    errstr = AMBRO_PSTR("SdPrintRunning");
                     break;
                 }
                 
@@ -703,7 +703,7 @@ private:
         
         auto *cmd = ThePrinterMain::get_locked(c);
         if (errstr) {
-            cmd->reply_append_pstr(c, errstr);
+            cmd->reportError(c, errstr);
         }
         cmd->finishCommand(c);
         
