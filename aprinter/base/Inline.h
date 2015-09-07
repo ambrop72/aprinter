@@ -27,4 +27,6 @@
 
 #define AMBRO_ALWAYS_INLINE __attribute__((always_inline)) inline
 
+#define APRINTER_NO_INLINE __attribute__((noinline))
+
 #endif

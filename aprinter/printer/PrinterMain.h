@@ -59,6 +59,7 @@
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/math/PrintInt.h>
@@ -514,6 +515,7 @@ public:
         using PartRef = typename TheGcodeCommand::PartRef;
         using SendBufEventHandler = void (*) (Context);
         
+        APRINTER_NO_INLINE
         void reportError (Context c, AMBRO_PGM_P errstr)
         {
             AMBRO_ASSERT(m_cmd)
@@ -527,6 +529,7 @@ public:
             }
         }
         
+        APRINTER_NO_INLINE
         void finishCommand (Context c, bool no_ok = false)
         {
             auto *mo = Object::self(c);
@@ -543,6 +546,7 @@ public:
             }
         }
         
+        APRINTER_NO_INLINE
         bool tryLockedCommand (Context c)
         {
             auto *mo = Object::self(c);
@@ -562,6 +566,7 @@ public:
             return true;
         }
         
+        APRINTER_NO_INLINE
         bool tryUnplannedCommand (Context c)
         {
             auto *mo = Object::self(c);
@@ -581,6 +586,7 @@ public:
             return false;
         }
         
+        APRINTER_NO_INLINE
         bool tryPlannedCommand (Context c)
         {
             auto *mo = Object::self(c);
@@ -647,21 +653,25 @@ public:
             m_callback->reply_poke_impl(c);
         }
         
+        APRINTER_NO_INLINE
         void reply_append_buffer (Context c, char const *str, size_t length)
         {
             m_callback->reply_append_buffer_impl(c, str, nullptr, length);
         }
         
+        APRINTER_NO_INLINE
         void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
         {
             m_callback->reply_append_buffer_impl(c, nullptr, pstr, length);
         }
         
+        APRINTER_NO_INLINE
         void reply_append_ch (Context c, char ch)
         {
             m_callback->reply_append_buffer_impl(c, &ch, nullptr, 1);
         }
         
+        APRINTER_NO_INLINE
         bool requestSendBufEvent (Context c, size_t length, SendBufEventHandler handler)
         {
             AMBRO_ASSERT(m_state == COMMAND_LOCKED)
@@ -676,6 +686,7 @@ public:
             return true;
         }
         
+        APRINTER_NO_INLINE
         void cancelSendBufEvent (Context c)
         {
             AMBRO_ASSERT(m_state == COMMAND_LOCKED)
@@ -685,6 +696,7 @@ public:
             m_send_buf_event_handler = nullptr;
         }
         
+        APRINTER_NO_INLINE
         bool find_command_param (Context c, char code, PartRef *out_part)
         {
             PartsSizeType num_parts = getNumParts(c);
@@ -700,6 +712,7 @@ public:
             return false;
         }
         
+        APRINTER_NO_INLINE
         uint32_t get_command_param_uint32 (Context c, char code, uint32_t default_value)
         {
             PartRef part;
@@ -709,6 +722,7 @@ public:
             return getPartUint32Value(c, part);
         }
         
+        APRINTER_NO_INLINE
         FpType get_command_param_fp (Context c, char code, FpType default_value)
         {
             PartRef part;
@@ -718,6 +732,7 @@ public:
             return getPartFpValue(c, part);
         }
         
+        APRINTER_NO_INLINE
         char const * get_command_param_str (Context c, char code, char const *default_value)
         {
             PartRef part;
@@ -731,6 +746,7 @@ public:
             return str;
         }
         
+        APRINTER_NO_INLINE
         bool find_command_param_fp (Context c, char code, FpType *out)
         {
             PartRef part;
@@ -741,16 +757,19 @@ public:
             return true;
         }
         
+        APRINTER_NO_INLINE
         void reply_append_str (Context c, char const *str)
         {
             reply_append_buffer(c, str, strlen(str));
         }
         
+        APRINTER_NO_INLINE
         void reply_append_pstr (Context c, AMBRO_PGM_P pstr)
         {
             reply_append_pbuffer(c, pstr, AMBRO_PGM_STRLEN(pstr));
         }
         
+        APRINTER_NO_INLINE
         void reply_append_fp (Context c, FpType x)
         {
             char buf[30];
@@ -763,6 +782,7 @@ public:
 #endif
         }
         
+        APRINTER_NO_INLINE
         void reply_append_uint32 (Context c, uint32_t x)
         {
             char buf[11];
@@ -774,6 +794,7 @@ public:
             reply_append_buffer(c, buf, len);
         }
         
+        APRINTER_NO_INLINE
         void reply_append_uint16 (Context c, uint16_t x)
         {
             char buf[6];
@@ -785,6 +806,7 @@ public:
             reply_append_buffer(c, buf, len);
         }
         
+        APRINTER_NO_INLINE
         void reply_append_uint8 (Context c, uint8_t x)
         {
             char buf[4];
@@ -2183,6 +2205,7 @@ public:
     template <int LaserIndex>
     using GetLaserDriver = typename ThePlanner::template Laser<LaserIndex>::TheLaserDriver;
     
+    APRINTER_NO_INLINE
     static void emergency ()
     {
         ListForEachForward<AxesList>(LForeach_emergency());
@@ -2213,6 +2236,7 @@ public:
         return SerialModule::get_serial_stream(c);
     }
     
+    APRINTER_NO_INLINE
     static void print_pgm_string (Context c, AMBRO_PGM_P msg)
     {
         auto *output = get_msg_output(c);
@@ -2230,6 +2254,7 @@ private:
         TheWatchdog::reset(c);
     }
     
+    APRINTER_NO_INLINE
     static void work_command (Context c, TheCommand *cmd)
     {
         auto *ob = Object::self(c);
