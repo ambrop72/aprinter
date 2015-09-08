@@ -1583,7 +1583,7 @@ public:
             do_pending_virt_update(c);
         }
         
-        static bool handle_set_position (Context c)
+        static bool handle_set_position (Context c, TheCommand *err_output)
         {
             auto *o = Object::self(c);
             
@@ -1592,7 +1592,8 @@ public:
                 o->virt_update_pending = false;
                 bool transform_success = update_phys_from_virt(c);
                 if (!transform_success) {
-                    print_pgm_string(c, AMBRO_PSTR("//Error:Transform\n"));
+                    err_output->reply_append_error(c, AMBRO_PSTR("Transform"));
+                    err_output->reply_poke(c);
                     return false;
                 }
             } else {
@@ -1755,7 +1756,8 @@ public:
                 {
                     set_position_begin(c);
                     set_position_add_axis<(NumAxes + VirtAxisIndex)>(c, value);
-                    set_position_end(c);
+                    set_position_end(c, get_locked(c));
+                    // TBD handle error
                 }
                 
                 static FpType home_start_pos (Context c)
@@ -1957,7 +1959,7 @@ public:
         static bool is_splitting (Context c) { return false; }
         static void do_split (Context c) {}
         static void handle_aborted (Context c) {}
-        static bool handle_set_position (Context c) { return true; }
+        static bool handle_set_position (Context c, TheCommand *err_output) { return true; }
         static bool start_virt_homing (Context c) { return true; }
         template <typename CallbackContext>
         static bool prestep_callback (CallbackContext c) { return false; }
@@ -2449,7 +2451,9 @@ private:
                     for (decltype(num_parts) i = 0; i < num_parts; i++) {
                         ListForEachForward<PhysVirtAxisHelperList>(LForeach_g92_check_axis(), c, cmd, cmd->getPart(c, i));
                     }
-                    set_position_end(c);
+                    if (!set_position_end(c, cmd)) {
+                        cmd->reportError(c, nullptr);
+                    }
                     return cmd->finishCommand(c);
                 } break;
             } break;
@@ -2739,13 +2743,17 @@ public:
         PhysVirtAxisHelper<PhysVirtAxisIndex>::update_new_pos(c, value, false);
     }
     
-    static void set_position_end (Context c)
+    static bool set_position_end (Context c, TheCommand *err_output)
     {
-        if (!TransformFeature::handle_set_position(c)) {
+        AMBRO_ASSERT(err_output)
+        
+        if (!TransformFeature::handle_set_position(c, err_output)) {
             ListForEachForward<PhysVirtAxisHelperList>(LForeach_restore_pos_from_old(), c);
-            return;
+            return false;
         }
+        
         ListForEachForward<AxesList>(LForeach_forward_update_pos(), c);
+        return true;
     }
     
 private:
