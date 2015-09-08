@@ -41,8 +41,9 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename Config, typename Params>
+template <typename Context, typename ThePrinterMain, typename Params>
 class AxisHomerGlobal {
+    using Config = typename ThePrinterMain::Config;
     using CSwitchInvert = decltype(ExprCast<bool>(Config::e(Params::SwitchInvert::i())));
     
 public:
@@ -63,8 +64,8 @@ public:
 };
 
 template <
-    typename Context, typename ParentObject, typename Config,
-    typename TheGlobal, typename FpType,
+    typename Context, typename ThePrinterMain, typename ParentObject,
+    typename TheGlobal,
     typename TheAxisDriver, int PlannerStepBits, int StepperSegmentBufferSize,
     int MaxLookaheadBufferSize, typename MaxAccel, typename DistConversion,
     typename TimeConversion, typename HomeDir, typename FinishedHandler,
@@ -75,6 +76,10 @@ public:
     struct Object;
     
 private:
+    using Config = typename ThePrinterMain::Config;
+    using FpType = typename ThePrinterMain::FpType;
+    using TheCommand = typename ThePrinterMain::TheCommand;
+    
     struct PlannerPullHandler;
     struct PlannerFinishedHandler;
     struct PlannerAbortedHandler;
@@ -102,18 +107,29 @@ private:
     
     using TheDebugObject = DebugObject<Context, Object>;
     
-    enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
-    
 public:
     using StepFixedType = typename Planner::template Axis<0>::StepFixedType;
     
-    static void init (Context c)
+private:
+    using CMaxVRecFast = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::FastSpeed::i()) * SpeedConversion())));
+    using CMaxVRecRetract = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::RetractSpeed::i()) * SpeedConversion())));
+    using CMaxVRecSlow = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::SlowSpeed::i()) * SpeedConversion())));
+    using CFixedStepsFast = decltype(ExprFixedPointImport<StepFixedType>(FastSteps()));
+    using CFixedStepsRetract = decltype(ExprFixedPointImport<StepFixedType>(RetractSteps()));
+    using CFixedStepsSlow = decltype(ExprFixedPointImport<StepFixedType>(SlowSteps()));
+    using CHomeDir = decltype(ExprCast<bool>(HomeDir()));
+    
+    enum {STATE_FAST, STATE_RETRACT, STATE_SLOW, STATE_END};
+    
+public:
+    static void init (Context c, TheCommand *err_output)
     {
         auto *o = Object::self(c);
         
         Planner::init(c, true);
         o->m_state = STATE_FAST;
         o->m_command_sent = false;
+        o->m_err_output = err_output;
         
         TheDebugObject::init(c);
     }
@@ -171,6 +187,7 @@ private:
         }
         o->m_command_sent = true;
     }
+    struct PlannerPullHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_pull_handler) {};
     
     static void planner_finished_handler (Context c)
     {
@@ -182,14 +199,18 @@ private:
         Planner::deinit(c);
         
         if (o->m_state != STATE_RETRACT) {
-            o->m_state = STATE_END;
-            return FinishedHandler::call(c, false);
+            return complete_with_error(c, AMBRO_PSTR("EndstopNotTriggered"));
+        }
+        
+        if (TheGlobal::endstop_is_triggered(c)) {
+            return complete_with_error(c, AMBRO_PSTR("EndstopTriggeredAfterRetract"));
         }
         
         o->m_state++;
         Planner::init(c, true);
         o->m_command_sent = false;
     }
+    struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_finished_handler) {};
     
     static void planner_aborted_handler (Context c)
     {
@@ -207,29 +228,27 @@ private:
         Planner::init(c, o->m_state != STATE_RETRACT);
         o->m_command_sent = false;
     }
+    struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_aborted_handler) {};
     
     static void planner_underrun_callback (Context c)
     {
     }
+    struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_underrun_callback) {};
     
     static bool planner_prestep_callback (typename Planner::template Axis<0>::StepperCommandCallbackContext c)
     {
         return TheGlobal::endstop_is_triggered(c);
     }
-    
-    using CMaxVRecFast = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::FastSpeed::i()) * SpeedConversion())));
-    using CMaxVRecRetract = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::RetractSpeed::i()) * SpeedConversion())));
-    using CMaxVRecSlow = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::SlowSpeed::i()) * SpeedConversion())));
-    using CFixedStepsFast = decltype(ExprFixedPointImport<StepFixedType>(FastSteps()));
-    using CFixedStepsRetract = decltype(ExprFixedPointImport<StepFixedType>(RetractSteps()));
-    using CFixedStepsSlow = decltype(ExprFixedPointImport<StepFixedType>(SlowSteps()));
-    using CHomeDir = decltype(ExprCast<bool>(HomeDir()));
-    
-    struct PlannerPullHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_pull_handler) {};
-    struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_finished_handler) {};
-    struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&AxisHomer::planner_aborted_handler) {};
-    struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_underrun_callback) {};
     struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_prestep_callback) {};
+    
+    static void complete_with_error (Context c, AMBRO_PGM_P errstr)
+    {
+        auto *o = Object::self(c);
+        o->m_err_output->reply_append_error(c, errstr);
+        o->m_err_output->reply_poke(c);
+        o->m_state = STATE_END;
+        return FinishedHandler::call(c, false);
+    }
     
 public:
     using ConfigExprs = MakeTypeList<CMaxVRecFast, CMaxVRecRetract, CMaxVRecSlow, CFixedStepsFast, CFixedStepsRetract, CFixedStepsSlow, CHomeDir>;
@@ -240,6 +259,7 @@ public:
     >> {
         uint8_t m_state;
         bool m_command_sent;
+        TheCommand *m_err_output;
     };
 };
 
@@ -260,17 +280,17 @@ struct AxisHomerService {
     using SlowSpeed = TSlowSpeed;
     
     template <
-        typename Context, typename Config, typename FpType, int PlannerStepBits,
+        typename Context, typename ThePrinterMain, int PlannerStepBits,
         int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename MaxAccel,
         typename DistConversion, typename TimeConversion, typename HomeDir
     >
     struct Instance {
         template <typename ParentObject>
-        using HomerGlobal = AxisHomerGlobal<Context, Config, AxisHomerService>;
+        using HomerGlobal = AxisHomerGlobal<Context, ThePrinterMain, AxisHomerService>;
         
         template <typename ParentObject, typename TheGlobal, typename TheAxisDriver, typename FinishedHandler>
         using Homer = AxisHomer<
-            Context, ParentObject, Config, TheGlobal, FpType, TheAxisDriver, PlannerStepBits,
+            Context, ThePrinterMain, ParentObject, TheGlobal, TheAxisDriver, PlannerStepBits,
             StepperSegmentBufferSize, MaxLookaheadBufferSize, MaxAccel, DistConversion,
             TimeConversion, HomeDir, FinishedHandler, AxisHomerService
         >;

@@ -950,7 +950,7 @@ private:
             struct Object;
             
             using HomerInstance = typename HomingSpec::HomerService::template Instance<
-                Context, Config, FpType, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
+                Context, PrinterMain, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
                 Params::LookaheadBufferSize, decltype(Config::e(AxisSpec::DefaultMaxAccel::i())),
                 DistConversion, TimeConversion, decltype(Config::e(HomingSpec::HomeDir::i()))
             >;
@@ -974,14 +974,18 @@ private:
                     Homer::deinit(c);
                     axis->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
                     axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
+                    
                     mob->axis_homing &= ~AxisMask();
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
                     mob->m_homing_rem_axes &= ~AxisMask();
+                    if (!success) {
+                        mob->homing_error = true;
+                    }
+                    
                     if (!(mob->m_homing_rem_axes & PhysAxisMask)) {
                         phys_homing_finished(c);
                     }
                 }
-                
                 struct HomerFinishedHandler : public AMBRO_WFUNC_TD(&HomingState::homer_finished_handler) {};
                 
                 struct Object : public ObjBase<HomingState, typename PlannerUnionHoming::Object, MakeTypeList<
@@ -1013,7 +1017,7 @@ private:
                 AMBRO_ASSERT(mob->m_homing_rem_axes & AxisMask())
                 
                 Stepper::enable(c);
-                HomingState::Homer::init(c);
+                HomingState::Homer::init(c, get_locked(c));
                 mob->axis_homing |= AxisMask();
             }
             
@@ -2423,6 +2427,7 @@ private:
                         mask = -1;
                     }
                     ob->m_homing_rem_axes = 0;
+                    ob->homing_error = false;
                     now_active(c);
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_start_homing(), c, mask);
                     if (!(ob->m_homing_rem_axes & PhysAxisMask)) {
@@ -2504,6 +2509,14 @@ private:
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
         AMBRO_ASSERT(!(ob->m_homing_rem_axes & PhysAxisMask))
+        
+        if (ob->homing_error) {
+            now_inactive(c);
+            auto *cmd = get_locked(c);
+            cmd->reportError(c, nullptr);
+            cmd->finishCommand(c);
+            return;
+        }
         
         if (!TransformFeature::start_virt_homing(c)) {
             return;
@@ -2925,6 +2938,7 @@ public:
         uint8_t m_planning_pull_pending : 1;
         uint8_t move_seen_cartesian : 1;
         uint8_t custom_planner_deinit_allowed : 1;
+        bool homing_error : 1;
         PlannerClient *planner_client;
         PhysVirtAxisMaskType axis_homing;
         PhysVirtAxisMaskType axis_relative;
