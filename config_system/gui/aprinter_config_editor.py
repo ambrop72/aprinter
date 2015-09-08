@@ -258,7 +258,7 @@ def hard_pwm_choice(**kwargs):
         ]),
     ], **kwargs)
 
-def homing_params(**kwargs):
+def stepper_homing_params(**kwargs):
     return ce.OneOf(title='Homing', choices=[
         ce.Compound('no_homing', title='Disabled', attrs=[]),
         ce.Compound('homing', title='Enabled', ident='id_board_steppers_homing', attrs=[
@@ -268,6 +268,22 @@ def homing_params(**kwargs):
             ce.Float(key='HomeFastMaxDist', title='Maximum fast travel [mm] (use more than abs(MinPos-MaxPos))', default=250),
             ce.Float(key='HomeRetractDist', title='Retraction travel [mm]', default=3),
             ce.Float(key='HomeSlowMaxDist', title='Maximum slow travel [mm] (use more than RetractionTravel)', default=5),
+            ce.Float(key='HomeFastSpeed', title='Fast speed [mm/s]', default=40),
+            ce.Float(key='HomeRetractSpeed', title='Retraction speed [mm/s]', default=50),
+            ce.Float(key='HomeSlowSpeed', title='Slow speed [mm/s]', default=5)
+        ])
+    ], **kwargs)
+
+def virtual_homing_params(**kwargs):
+    return ce.OneOf(title='Homing', choices=[
+        ce.Compound('no_homing', title='Disabled', attrs=[]),
+        ce.Compound('homing', title='Enabled', ident='id_board_steppers_homing', attrs=[
+            ce.Boolean(key='HomeDir', title='Homing direction', false_title='Negative', true_title='Positive', default=False),
+            digital_input_choice(key='HomeEndstopInput', title='Endstop digital input'),
+            ce.Boolean(key='HomeEndInvert', title='Invert endstop', false_title='No (high signal is pressed)', true_title='Yes (low signal is pressed)', default=False),
+            ce.Float(key='HomeFastExtraDist', title='Extra permitted travel for fast move [mm] (on top of abs(MaxPos-MinPos))', default=10),
+            ce.Float(key='HomeRetractDist', title='Retraction travel [mm]', default=3),
+            ce.Float(key='HomeSlowExtraDist', title='Extra permitted travel for slow move [mm]', default=5),
             ce.Float(key='HomeFastSpeed', title='Fast speed [mm/s]', default=40),
             ce.Float(key='HomeRetractSpeed', title='Retraction speed [mm/s]', default=50),
             ce.Float(key='HomeSlowSpeed', title='Slow speed [mm/s]', default=5)
@@ -296,7 +312,7 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
                         ce.Float(key='MaxSpeed', title='Maximum speed [mm/s]', default=300),
                     ] +
                     (
-                        [homing_params(key='homing')] if axis_def['homing_allowed'] else
+                        [virtual_homing_params(key='homing')] if axis_def['homing_allowed'] else
                         [ce.Constant(key='homing', value={'_compoundName': 'no_homing'})]
                     )
                 ))
@@ -386,7 +402,7 @@ def editor():
                 ce.Float(key='DistanceFactor', title='Distance factor [1]', default=1),
                 ce.Float(key='CorneringDistance', title='Cornering distance [step]', default=40),
                 ce.Boolean(key='EnableCartesianSpeedLimit', title='Is cartesian (Yes for X/Y/Z, No for extruders)', default=True),
-                homing_params(key='homing'),
+                stepper_homing_params(key='homing'),
             ])),
             ce.OneOf(key='transform', title='Coordinate transformation', choices=[
                 ce.Compound('NoTransform', title='None (cartesian)', attrs=[]),

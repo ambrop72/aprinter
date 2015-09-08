@@ -1744,9 +1744,11 @@ public:
                         return true;
                     }
                     set_position(c, home_start_pos(c));
-                    custom_planner_init(c, &o->planner_client, true);
-                    o->state = 0;
-                    o->command_sent = false;
+                    if (!mo->homing_error) {
+                        custom_planner_init(c, &o->planner_client, true);
+                        o->state = 0;
+                        o->command_sent = false;
+                    }
                     return false;
                 }
                 
@@ -1758,10 +1760,13 @@ public:
                 
                 static void set_position (Context c, FpType value)
                 {
+                    auto *mo = PrinterMain::Object::self(c);
+                    
                     set_position_begin(c);
                     set_position_add_axis<(NumAxes + VirtAxisIndex)>(c, value);
-                    set_position_end(c, get_locked(c));
-                    // TBD handle error
+                    if (!set_position_end(c, get_locked(c))) {
+                        mo->homing_error = true;
+                    }
                 }
                 
                 static FpType home_start_pos (Context c)
@@ -1781,7 +1786,17 @@ public:
                 
                 static void virt_homing_move_end_callback (Context c, bool error)
                 {
-                    // TBD: Handle error.
+                    auto *mo = PrinterMain::Object::self(c);
+                    if (error) {
+                        mo->homing_error = true;
+                    }
+                }
+                
+                static void axis_virt_homing_completed (Context c)
+                {
+                    auto *mo = PrinterMain::Object::self(c);
+                    mo->m_homing_rem_axes &= ~AxisMask();
+                    work_virt_homing(c);
                 }
                 
                 struct VirtHomingPlannerClient : public PlannerClient {
@@ -1820,6 +1835,16 @@ public:
                     
                     void finished_handler (Context c)
                     {
+                        finished_or_aborted(c, false);
+                    }
+                    
+                    void aborted_handler (Context c)
+                    {
+                        finished_or_aborted(c, true);
+                    }
+                    
+                    void finished_or_aborted (Context c, bool aborted)
+                    {
                         auto *o = Object::self(c);
                         auto *mo = PrinterMain::Object::self(c);
                         AMBRO_ASSERT(o->state < 3)
@@ -1829,18 +1854,23 @@ public:
                         if (o->state != 1) {
                             set_position(c, home_end_pos(c));
                         }
+                        
+                        if (!mo->homing_error) {
+                            if ((o->state == 1) ? endstop_is_triggered(c) : !aborted) {
+                                mo->homing_error = true;
+                                auto *cmd = get_locked(c);
+                                cmd->reply_append_error(c, (o->state == 1) ? AMBRO_PSTR("EndstopTriggeredAfterRetract") : AMBRO_PSTR("EndstopNotTriggered"));
+                                cmd->reply_poke(c);
+                            }
+                        }
+                        
+                        if (mo->homing_error || o->state == 2) {
+                            return axis_virt_homing_completed(c);
+                        }
+                        
                         o->state++;
                         o->command_sent = false;
-                        if (o->state < 3) {
-                            return custom_planner_init(c, &o->planner_client, o->state == 2);
-                        }
-                        mo->m_homing_rem_axes &= ~AxisMask();
-                        work_virt_homing(c);
-                    }
-                    
-                    void aborted_handler (Context c)
-                    {
-                        finished_handler(c);
+                        custom_planner_init(c, &o->planner_client, o->state == 2);
                     }
                 };
                 
@@ -2504,25 +2534,27 @@ private:
         work_virt_homing(c);
     }
     
+    static void homing_finished (Context c)
+    {
+        auto *ob = Object::self(c);
+        
+        now_inactive(c);
+        auto *cmd = get_locked(c);
+        if (ob->homing_error) {
+            cmd->reportError(c, nullptr);
+        }
+        cmd->finishCommand(c);
+    }
+    
     static void work_virt_homing (Context c)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
         AMBRO_ASSERT(!(ob->m_homing_rem_axes & PhysAxisMask))
         
-        if (ob->homing_error) {
-            now_inactive(c);
-            auto *cmd = get_locked(c);
-            cmd->reportError(c, nullptr);
-            cmd->finishCommand(c);
-            return;
+        if (ob->homing_error || TransformFeature::start_virt_homing(c) || ob->homing_error) {
+            return homing_finished(c);
         }
-        
-        if (!TransformFeature::start_virt_homing(c)) {
-            return;
-        }
-        now_inactive(c);
-        finish_locked(c);
     }
     
     static void now_inactive (Context c)
