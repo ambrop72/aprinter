@@ -1437,12 +1437,14 @@ public:
             return success;
         }
         
-        static void handle_virt_move (Context c, FpType time_freq_by_max_speed, MoveEndCallback callback, bool is_positioning_move)
+        static void handle_virt_move (Context c, FpType time_freq_by_max_speed, TheCommand *move_err_output, MoveEndCallback callback, bool is_positioning_move)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->splitting)
             
+            o->move_err_output = move_err_output;
             o->move_end_callback = callback;
+            
             o->virt_update_pending = false;
             bool transform_success = update_phys_from_virt(c);
             
@@ -1474,7 +1476,8 @@ public:
             AMBRO_ASSERT(mob->planner_state != PLANNER_NONE)
             AMBRO_ASSERT(mob->m_planning_pull_pending)
             
-            print_pgm_string(c, AMBRO_PSTR("//Error:Transform\n"));
+            o->move_err_output->reply_append_error(c, AMBRO_PSTR("Transform"));
+            o->move_err_output->reply_poke(c);
             
             o->virt_update_pending = false;
             o->splitting = false;
@@ -1806,7 +1809,7 @@ public:
                         }
                         move_add_axis<(NumAxes + VirtAxisIndex)>(c, position, ignore_limits);
                         o->command_sent = true;
-                        return move_end(c, (FpType)TimeConversion::value() / speed, HomingFeature::virt_homing_move_end_callback);
+                        return move_end(c, (FpType)TimeConversion::value() / speed, get_locked(c), HomingFeature::virt_homing_move_end_callback);
                     }
                     
                     void finished_handler (Context c)
@@ -1941,12 +1944,13 @@ public:
             bool splitting;
             FpType frac;
             TheSplitter splitter;
+            TheCommand *move_err_output;
             MoveEndCallback move_end_callback;
         };
     } AMBRO_STRUCT_ELSE(TransformFeature) {
         static int const NumVirtAxes = 0;
         static void init (Context c) {}
-        static void handle_virt_move (Context c, FpType time_freq_by_max_speed, MoveEndCallback callback, bool is_positioning_move) {}
+        static void handle_virt_move (Context c, FpType time_freq_by_max_speed, TheCommand *move_err_output, MoveEndCallback callback, bool is_positioning_move) {}
         template <int PhysAxisIndex>
         static void mark_phys_moved (Context c) {}
         static void do_pending_virt_update (Context c) {}
@@ -2398,7 +2402,7 @@ private:
                         }
                     }
                     bool is_positioning_move = (cmd->getCmdNumber(c) == 0);
-                    return move_end(c, ob->time_freq_by_max_speed, PrinterMain::normal_move_end_callback, is_positioning_move);
+                    return move_end(c, ob->time_freq_by_max_speed, get_locked(c), PrinterMain::normal_move_end_callback, is_positioning_move);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -2684,16 +2688,17 @@ public:
         laser->move_energy_specified = true;
     }
     
-    static void move_end (Context c, FpType time_freq_by_max_speed, MoveEndCallback callback, bool is_positioning_move=true)
+    static void move_end (Context c, FpType time_freq_by_max_speed, TheCommand *err_output, MoveEndCallback callback, bool is_positioning_move=true)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING || ob->planner_state == PLANNER_CUSTOM)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
         AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
+        AMBRO_ASSERT(err_output)
         AMBRO_ASSERT(callback)
         
         if (TransformFeature::is_splitting(c)) {
-            return TransformFeature::handle_virt_move(c, time_freq_by_max_speed, callback, is_positioning_move);
+            return TransformFeature::handle_virt_move(c, time_freq_by_max_speed, err_output, callback, is_positioning_move);
         }
         
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
