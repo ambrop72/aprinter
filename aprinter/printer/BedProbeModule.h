@@ -635,7 +635,7 @@ private:
         CorrectionFeature::probing_measurement(c, point_index, height);
         
         cmd->reply_append_pstr(c, AMBRO_PSTR("//ProbeHeight@P"));
-        cmd->reply_append_uint16(c, point_index + 1);
+        cmd->reply_append_uint32(c, point_index + 1);
         cmd->reply_append_ch(c, ' ');
         cmd->reply_append_fp(c, height);
         cmd->reply_append_ch(c, '\n');

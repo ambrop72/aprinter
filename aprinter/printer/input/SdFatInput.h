@@ -390,12 +390,12 @@ private:
                 auto *cmd = ThePrinterMain::get_locked(c);
                 cmd->reportError(c, nullptr);
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdMount:"));
-                cmd->reply_append_uint8(c, error_code);
+                cmd->reply_append_uint32(c, error_code);
                 cmd->reply_append_ch(c, '\n');
             }
             if (!o->for_command || output != ThePrinterMain::get_locked(c)) {
                 output->reply_append_pstr(c, AMBRO_PSTR("//Error:SdMount:"));
-                output->reply_append_uint8(c, error_code);
+                output->reply_append_uint32(c, error_code);
                 output->reply_append_ch(c, '\n');
             }
         } else {

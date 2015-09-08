@@ -148,7 +148,7 @@ private:
         
         static void get_value_cmd (Context c, TheCommand<> *cmd, bool value)
         {
-            cmd->reply_append_uint8(c, value);
+            cmd->reply_append_uint32(c, value);
         }
         
         static void set_value_cmd (Context c, TheCommand<> *cmd, bool *value, bool default_value)

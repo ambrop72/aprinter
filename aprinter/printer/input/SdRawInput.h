@@ -189,7 +189,7 @@ private:
         typename ThePrinterMain::TheCommand *cmd = ThePrinterMain::get_locked(c);
         if (error_code) {
             cmd->reply_append_pstr(c, AMBRO_PSTR("SD error "));
-            cmd->reply_append_uint8(c, error_code);
+            cmd->reply_append_uint32(c, error_code);
         } else {
             cmd->reply_append_pstr(c, AMBRO_PSTR("SD mounted"));
         }

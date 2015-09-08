@@ -526,9 +526,7 @@ public:
             
             m_error = true;
             if (errstr) {
-                reply_append_pstr(c, AMBRO_PSTR("Error:"));
-                reply_append_pstr(c, errstr);
-                reply_append_ch(c, '\n');
+                reply_append_error(c, errstr);
             }
         }
         
@@ -611,6 +609,7 @@ public:
             return false;
         }
         
+    public:
         char getCmdCode (Context c)
         {
             return m_cmd->getCmdCode(c);
@@ -651,6 +650,7 @@ public:
             return m_cmd->getPartStringValue(c, part);
         }
         
+    public:
         void reply_poke (Context c)
         {
             m_callback->reply_poke_impl(c);
@@ -673,12 +673,7 @@ public:
         }
 #endif
         
-        APRINTER_NO_INLINE
-        void reply_append_ch (Context c, char ch)
-        {
-            m_callback->reply_append_buffer_impl(c, &ch, 1);
-        }
-        
+    public:
         APRINTER_NO_INLINE
         bool requestSendBufEvent (Context c, size_t length, SendBufEventHandler handler)
         {
@@ -704,6 +699,7 @@ public:
             m_send_buf_event_handler = nullptr;
         }
         
+    public:
         APRINTER_NO_INLINE
         bool find_command_param (Context c, char code, PartRef *out_part)
         {
@@ -771,6 +767,13 @@ public:
             reply_append_buffer(c, str, strlen(str));
         }
         
+    public:
+        APRINTER_NO_INLINE
+        void reply_append_ch (Context c, char ch)
+        {
+            m_callback->reply_append_buffer_impl(c, &ch, 1);
+        }
+        
 #if AMBRO_HAS_NONTRANSPARENT_PROGMEM
         APRINTER_NO_INLINE
         void reply_append_pstr (Context c, AMBRO_PGM_P pstr)
@@ -783,6 +786,13 @@ public:
             reply_append_str(c, pstr);
         }
 #endif
+        APRINTER_NO_INLINE
+        void reply_append_error (Context c, AMBRO_PGM_P errstr)
+        {
+            reply_append_pstr(c, AMBRO_PSTR("Error:"));
+            reply_append_pstr(c, errstr);
+            reply_append_ch(c, '\n');
+        }
         
         APRINTER_NO_INLINE
         void reply_append_fp (Context c, FpType x)
@@ -805,30 +815,6 @@ public:
             uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu32), x);
 #else
             uint8_t len = PrintNonnegativeIntDecimal<uint32_t>(x, buf);
-#endif
-            reply_append_buffer(c, buf, len);
-        }
-        
-        APRINTER_NO_INLINE
-        void reply_append_uint16 (Context c, uint16_t x)
-        {
-            char buf[6];
-#if defined(AMBROLIB_AVR)
-            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu16), x);
-#else
-            uint8_t len = PrintNonnegativeIntDecimal<uint16_t>(x, buf);
-#endif
-            reply_append_buffer(c, buf, len);
-        }
-        
-        APRINTER_NO_INLINE
-        void reply_append_uint8 (Context c, uint8_t x)
-        {
-            char buf[4];
-#if defined(AMBROLIB_AVR)
-            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu8), x);
-#else
-            uint8_t len = PrintNonnegativeIntDecimal<uint8_t>(x, buf);
 #endif
             reply_append_buffer(c, buf, len);
         }
@@ -2469,7 +2455,7 @@ private:
                 cmd->reportError(c, nullptr);
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:Unknown command "));
                 cmd->reply_append_ch(c, cmd->getCmdCode(c));
-                cmd->reply_append_uint16(c, cmd->getCmdNumber(c));
+                cmd->reply_append_uint32(c, cmd->getCmdNumber(c));
                 cmd->reply_append_ch(c, '\n');
                 return cmd->finishCommand(c);
             } break;

@@ -151,7 +151,7 @@ private:
     {
         cmd->reply_append_ch(c, Name::Letter);
         if (Name::Number != 0) {
-            cmd->reply_append_uint8(c, Name::Number);
+            cmd->reply_append_uint32(c, Name::Number);
         }
     }
     
