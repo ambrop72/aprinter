@@ -402,6 +402,7 @@ def editor():
                 ce.Float(key='DistanceFactor', title='Distance factor [1]', default=1),
                 ce.Float(key='CorneringDistance', title='Cornering distance [step]', default=40),
                 ce.Boolean(key='EnableCartesianSpeedLimit', title='Is cartesian (Yes for X/Y/Z, No for extruders)', default=True),
+                ce.Boolean(key='IsExtruder', title='Is an extruder (e.g. subject to M82/M83)', default=False),
                 stepper_homing_params(key='homing'),
             ])),
             ce.OneOf(key='transform', title='Coordinate transformation', choices=[

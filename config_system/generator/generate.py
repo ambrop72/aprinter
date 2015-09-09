@@ -1262,6 +1262,7 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_float_config('{}CorneringDistance'.format(name), stepper.get_float('CorneringDistance')),
                     stepper.do_selection('homing', homing_sel),
                     stepper.get_bool('EnableCartesianSpeedLimit'),
+                    stepper.get_bool('IsExtruder'),
                     32,
                     TemplateExpr('AxisDriverService', [
                         use_interrupt_timer(gen, stepper_port, 'StepperTimer', user='MyPrinter::GetAxisTimer<{}>'.format(stepper_index)),

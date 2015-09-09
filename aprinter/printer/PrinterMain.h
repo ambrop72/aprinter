@@ -111,7 +111,7 @@ template <
     typename TDefaultStepsPerUnit, typename TDefaultMin, typename TDefaultMax,
     typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
-    typename THoming, bool TIsCartesian, int TStepBits,
+    typename THoming, bool TIsCartesian, bool TIsExtruder, int TStepBits,
     typename TTheAxisDriverService, typename TMicroStep,
     typename TSlaveSteppersList = EmptyTypeList
 >
@@ -130,6 +130,7 @@ struct PrinterMainAxisParams {
     using DefaultCorneringDistance = TDefaultCorneringDistance;
     using Homing = THoming;
     static bool const IsCartesian = TIsCartesian;
+    static bool const IsExtruder = TIsExtruder;
     static int const StepBits = TStepBits;
     using TheAxisDriverService = TTheAxisDriverService;
     using MicroStep = TMicroStep;
@@ -929,6 +930,7 @@ private:
         static const char AxisName = AxisSpec::Name;
         using WrappedAxisName = WrapInt<AxisName>;
         using HomingSpec = typename AxisSpec::Homing;
+        static bool const IsExtruder = AxisSpec::IsExtruder;
         
         using DistConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i()));
         using SpeedConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i()) / TimeConversion());
@@ -1637,6 +1639,7 @@ public:
             static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
             using HomingSpec = typename VirtAxisParams::VirtualHoming;
+            static bool const IsExtruder = false;
             
             template <typename ThePrinterMain=PrinterMain>
             static constexpr typename ThePrinterMain::PhysVirtAxisMaskType AxisMask () { return (PhysVirtAxisMaskType)1 << (NumAxes + VirtAxisIndex); }
@@ -2078,13 +2081,15 @@ public:
             return true;
         }
         
-        static void set_relative_positioning (Context c, bool relative)
+        static void set_relative_positioning (Context c, bool relative, bool extruders_only)
         {
             auto *mo = PrinterMain::Object::self(c);
-            if (relative) {
-                mo->axis_relative |= AxisMask;
-            } else {
-                mo->axis_relative &= ~AxisMask;
+            if (!extruders_only || TheAxis::IsExtruder) {
+                if (relative) {
+                    mo->axis_relative |= AxisMask;
+                } else {
+                    mo->axis_relative &= ~AxisMask;
+                }
             }
         }
         
@@ -2335,8 +2340,14 @@ private:
                 
                 case 80: // ATX power on
                 case 81: // ATX power off
-                case 82: // set extruder to absolute mode
                     return cmd->finishCommand(c);
+                
+                case 82:   // extruders to absolute positioning
+                case 83: { // extruders to relative positioning
+                    bool relative = (cmd->getCmdNumber(c) == 83);
+                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_set_relative_positioning(), c, relative, true);
+                    return cmd->finishCommand(c);
+                } break;
                 
                 case 114: {
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_append_position(), c, cmd);
@@ -2465,13 +2476,10 @@ private:
                     }
                 } break;
                 
-                case 90: { // absolute positioning
-                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_set_relative_positioning(), c, false);
-                    return cmd->finishCommand(c);
-                } break;
-                
+                case 90:   // absolute positioning
                 case 91: { // relative positioning
-                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_set_relative_positioning(), c, true);
+                    bool relative = (cmd->getCmdNumber(c) == 91);
+                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_set_relative_positioning(), c, relative, false);
                     return cmd->finishCommand(c);
                 } break;
                 
