@@ -1842,7 +1842,7 @@ public:
                         }
                         move_add_axis<(NumAxes + VirtAxisIndex)>(c, position, ignore_limits);
                         o->command_sent = true;
-                        return move_end(c, (FpType)TimeConversion::value() / speed, get_locked(c), HomingFeature::virt_homing_move_end_callback);
+                        return move_end(c, (FpType)TimeConversion::value() / speed, true, get_locked(c), HomingFeature::virt_homing_move_end_callback);
                     }
                     
                     void finished_handler (Context c)
@@ -2215,6 +2215,7 @@ public:
         ListForEachForward<LasersList>(LForeach_init(), c);
         TransformFeature::init(c);
         ob->time_freq_by_max_speed = 0.0f;
+        ob->speed_ratio = 1.0f;
         ob->underrun_count = 0;
         ob->locked = false;
         ob->planner_state = PLANNER_NONE;
@@ -2377,6 +2378,20 @@ private:
                     return cmd->finishCommand(c);
                 } break;
                 
+                case 220: {
+                    CommandPartRef part;
+                    if (cmd->find_command_param(c, 'S', &part)) {
+                        FpType new_speed_ratio = FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) / 100.0f);
+                        ob->time_freq_by_max_speed *= ob->speed_ratio / new_speed_ratio;
+                        ob->speed_ratio = new_speed_ratio;
+                    } else {
+                        cmd->reply_append_pstr(c, AMBRO_PSTR("Speed factor override: "));
+                        cmd->reply_append_fp(c, ob->speed_ratio * 100.0f);
+                        cmd->reply_append_ch(c, '\n');
+                    }
+                    return cmd->finishCommand(c);
+                } break;
+                
                 case 400: {
                     if (!cmd->tryUnplannedCommand(c)) {
                         return;
@@ -2454,12 +2469,12 @@ private:
                             ListForEachForwardInterruptible<LasersList>(LForeach_collect_new_pos(), c, cmd, part)
                         ) {
                             if (cmd->getPartCode(c, part) == 'F') {
-                                ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / FloatMakePosOrPosZero(cmd->getPartFpValue(c, part));
+                                ob->time_freq_by_max_speed = (FpType)(TimeConversion::value() / Params::SpeedLimitMultiply::value()) / (FloatMakePosOrPosZero(cmd->getPartFpValue(c, part) * ob->speed_ratio));
                             }
                         }
                     }
                     bool is_positioning_move = (cmd->getCmdNumber(c) == 0);
-                    return move_end(c, ob->time_freq_by_max_speed, get_locked(c), PrinterMain::normal_move_end_callback, is_positioning_move);
+                    return move_end(c, ob->time_freq_by_max_speed, false, get_locked(c), PrinterMain::normal_move_end_callback, is_positioning_move);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -2755,7 +2770,7 @@ public:
         laser->move_energy_specified = true;
     }
     
-    static void move_end (Context c, FpType time_freq_by_max_speed, TheCommand *err_output, MoveEndCallback callback, bool is_positioning_move=true)
+    static void move_end (Context c, FpType time_freq_by_max_speed, bool use_speed_ratio, TheCommand *err_output, MoveEndCallback callback, bool is_positioning_move=true)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING || ob->planner_state == PLANNER_CUSTOM)
@@ -2763,6 +2778,10 @@ public:
         AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
         AMBRO_ASSERT(err_output)
         AMBRO_ASSERT(callback)
+        
+        if (use_speed_ratio) {
+            time_freq_by_max_speed /= ob->speed_ratio;
+        }
         
         if (TransformFeature::is_splitting(c)) {
             return TransformFeature::handle_virt_move(c, time_freq_by_max_speed, err_output, callback, is_positioning_move);
@@ -2982,6 +3001,7 @@ public:
         typename Context::EventLoop::TimedEvent disable_timer;
         typename Context::EventLoop::TimedEvent force_timer;
         FpType time_freq_by_max_speed;
+        FpType speed_ratio;
         uint32_t underrun_count;
         uint8_t locked : 1;
         uint8_t planner_state : 3;

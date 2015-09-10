@@ -559,7 +559,7 @@ private:
             
             ThePrinterMain::template move_add_axis<ProbeAxisIndex>(c, height, true);
             o->m_command_sent = true;
-            return ThePrinterMain::move_end(c, time_freq_by_speed, ThePrinterMain::get_locked(c), BedProbeModule::move_end_callback);
+            return ThePrinterMain::move_end(c, time_freq_by_speed, true, ThePrinterMain::get_locked(c), BedProbeModule::move_end_callback);
         }
         
         void finished_handler (Context c)
