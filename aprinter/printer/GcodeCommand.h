@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 #include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/base/Assert.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -107,6 +108,59 @@ private:
     char const * getPartStringValue (Context c, PartRef part)
     {
         return TheImpl::getPartStringValue(c, (ImplPartRef)part.ptr);
+    }
+};
+
+template <typename Context, typename FpType>
+class GcodeM400Command : public GcodeCommand<Context, FpType> {
+private:
+    using TheGcodeCommand = GcodeCommand<Context, FpType>;
+    using PartsSizeType = typename TheGcodeCommand::PartsSizeType;
+    using PartRef = typename TheGcodeCommand::PartRef;
+    
+    char getCmdCode (Context c)
+    {
+        return 'M';
+    }
+    
+    uint16_t getCmdNumber (Context c)
+    {
+        return 400;
+    }
+    
+    PartsSizeType getNumParts (Context c)
+    {
+        return 0;
+    }
+    
+    PartRef getPart (Context c, PartsSizeType i)
+    {
+        AMBRO_ASSERT(false);
+        return PartRef{nullptr};
+    }
+    
+    char getPartCode (Context c, PartRef part)
+    {
+        AMBRO_ASSERT(false);
+        return 0;
+    }
+    
+    FpType getPartFpValue (Context c, PartRef part)
+    {
+        AMBRO_ASSERT(false);
+        return 0;
+    }
+    
+    uint32_t getPartUint32Value (Context c, PartRef part)
+    {
+        AMBRO_ASSERT(false);
+        return 0;
+    }
+    
+    char const * getPartStringValue (Context c, PartRef part)
+    {
+        AMBRO_ASSERT(false);
+        return nullptr;
     }
 };
 

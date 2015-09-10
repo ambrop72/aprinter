@@ -514,6 +514,11 @@ public:
             m_error = false;
         }
         
+        TheGcodeCommand * getGcodeCommand (Context c)
+        {
+            return m_cmd;
+        }
+        
     public:
         using PartsSizeType = typename TheGcodeCommand::PartsSizeType;
         using PartRef = typename TheGcodeCommand::PartRef;

@@ -139,7 +139,11 @@ public:
                 }
                 AMBRO_ASSERT(o->m_state != SDCARD_PAUSING || o->m_reading)
                 o->m_next_event.unset(c);
-                o->command_stream.maybePauseLockingCommand(c);
+                if (o->command_stream.getGcodeCommand(c) == &o->gcode_m400_command) {
+                    o->command_stream.maybeCancelLockingCommand(c);
+                } else {
+                    o->command_stream.maybePauseLockingCommand(c);
+                }
                 if (o->m_reading) {
                     o->m_state = SDCARD_PAUSING;
                     o->m_pausing_on_command = true;
@@ -196,12 +200,24 @@ private:
             AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
             buf_sanity(c);
             AMBRO_ASSERT(!o->m_eof)
-            AMBRO_ASSERT(!TheGcodeParser::haveCommand(c))
-            AMBRO_ASSERT(TheGcodeParser::getLength(c) <= o->m_length)
             
             if (o->m_poke_pending) {
                 reply_poke_impl(c);
             }
+            
+            if (o->command_stream.getGcodeCommand(c) == &o->gcode_m400_command) {
+                o->m_eof = true;
+                if (o->m_reading) {
+                    o->m_state = SDCARD_PAUSING;
+                    o->m_pausing_on_command = false;
+                } else {
+                    complete_pause(c);
+                }
+                return;
+            }
+            
+            AMBRO_ASSERT(!TheGcodeParser::haveCommand(c))
+            AMBRO_ASSERT(TheGcodeParser::getLength(c) <= o->m_length)
             
             size_t cmd_len = TheGcodeParser::getLength(c);
             o->m_next_event.prependNowNotAlready(c);
@@ -387,14 +403,7 @@ private:
         
     eof:
         ThePrinterMain::print_pgm_string(c, eof_str);
-        
-        o->m_eof = true;
-        if (o->m_reading) {
-            o->m_state = SDCARD_PAUSING;
-            o->m_pausing_on_command = false;
-        } else {
-            complete_pause(c);
-        }
+        return o->command_stream.startCommand(c, &o->gcode_m400_command);
     }
     
     static void init_buffering (Context c)
@@ -462,6 +471,7 @@ public:
         typename ThePrinterMain::CommandStream command_stream;
         StreamCallback callback;
         GcodeCommandWrapper<Context, typename ThePrinterMain::FpType, TheGcodeParser> gcode_command;
+        GcodeM400Command<Context, typename ThePrinterMain::FpType> gcode_m400_command;
         typename Context::EventLoop::QueuedEvent m_next_event;
         uint8_t m_state : 3;
         uint8_t m_eof : 1;
