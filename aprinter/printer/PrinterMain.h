@@ -975,7 +975,7 @@ private:
                     
                     Homer::deinit(c);
                     axis->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
-                    axis->m_end_pos = AbsStepFixedType::importFpSaturatedRound(axis->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
+                    forward_update_pos(c);
                     
                     mob->axis_homing &= ~AxisMask();
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
@@ -1136,12 +1136,16 @@ private:
         static void do_move (Context c, bool add_distance, FpType *distance_squared, FpType *total_steps, PlannerCmd *cmd)
         {
             auto *o = Object::self(c);
-            AbsStepFixedType new_end_pos = AbsStepFixedType::importFpSaturatedRound(o->m_req_pos * APRINTER_CFG(Config, CDistConversion, c));
-            bool dir = (new_end_pos >= o->m_end_pos);
+            
+            AbsStepFixedType old_end_pos = o->m_end_pos;
+            forward_update_pos(c);
+            
+            bool dir = (o->m_end_pos >= old_end_pos);
             StepFixedType move = StepFixedType::importBits(dir ? 
-                ((typename StepFixedType::IntType)new_end_pos.bitsValue() - (typename StepFixedType::IntType)o->m_end_pos.bitsValue()) :
-                ((typename StepFixedType::IntType)o->m_end_pos.bitsValue() - (typename StepFixedType::IntType)new_end_pos.bitsValue())
+                ((typename StepFixedType::IntType)o->m_end_pos.bitsValue() - (typename StepFixedType::IntType)old_end_pos.bitsValue()) :
+                ((typename StepFixedType::IntType)old_end_pos.bitsValue() - (typename StepFixedType::IntType)o->m_end_pos.bitsValue())
             );
+            
             if (AMBRO_UNLIKELY(move.bitsValue() != 0)) {
                 if (add_distance && AxisSpec::IsCartesian) {
                     FpType delta = move.template fpValue<FpType>() * APRINTER_CFG(Config, CDistConversionRec, c);
@@ -1150,10 +1154,10 @@ private:
                 *total_steps += move.template fpValue<FpType>();
                 Stepper::enable(c);
             }
+            
             auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
             mycmd->dir = dir;
             mycmd->x = move;
-            o->m_end_pos = new_end_pos;
         }
         
         template <typename PlannerCmd>
@@ -2419,6 +2423,7 @@ private:
                         return;
                     }
                     TheConfigCache::update(c);
+                    ListForEachForward<AxesList>(LForeach_forward_update_pos(), c);
                     ListForEachForward<ModulesList>(LForeach_configuration_changed(), c);
                     return cmd->finishCommand(c);
                 } break;
