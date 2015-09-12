@@ -52,6 +52,7 @@ class GenState(object):
         self._init_calls = []
         self._final_init_calls = []
         self._global_resources = []
+        self._modules_exprs = []
     
     def add_subst (self, key, val, indent=-1):
         self._subst[key] = {'val':val, 'indent':indent}
@@ -131,6 +132,14 @@ class GenState(object):
         code_before = '' if code_before is None else '{}\n'.format(code_before)
         self._global_resources.append({'priority':priority, 'name':name, 'expr':expr, 'context_name':context_name, 'code_before':code_before})
     
+    def add_module (self):
+        index = len(self._modules_exprs)
+        self._modules_exprs.append(None)
+        return GenPrinterModule(self, index)
+    
+    def get_modules_exprs (self):
+        return self._modules_exprs
+    
     def finalize (self):
         for action in reversed(self._finalize_actions):
             action()
@@ -161,6 +170,18 @@ class GenState(object):
             indent = subst['indent']
             res[key] = val if type(val) is str else val.build(indent)
         return res
+
+class GenPrinterModule(object):
+    def __init__ (self, gen, index):
+        self._gen = gen
+        self._index = index
+    
+    @property
+    def index (self):
+        return self._index
+    
+    def set_expr (self, expr):
+        self._gen._modules_exprs[self._index] = expr
 
 class GenConfigReader(config_reader.ConfigReader):
     def get_int_constant (self, key):
@@ -1017,11 +1038,8 @@ def generate(config_root_data, cfg_name, main_template):
         for config in config_root.enter_elem_by_id('configurations', 'name', cfg_name):
             board_name = config.get_string('board')
             
-            modules_exprs = []
-            
-            aux_control_module_index = len(modules_exprs)
-            modules_exprs.append(None)
-            aux_control_module_user = 'MyPrinter::GetModule<{}>'.format(aux_control_module_index)
+            aux_control_module = gen.add_module()
+            aux_control_module_user = 'MyPrinter::GetModule<{}>'.format(aux_control_module.index)
             
             for board_data in config_root.enter_elem_by_id('boards', 'name', board_name):
                 for platform_config in board_data.enter_config('platform_config'):
@@ -1076,17 +1094,16 @@ def generate(config_root_data, cfg_name, main_template):
                 for serial in board_data.enter_config('serial'):
                     gen.add_aprinter_include('printer/SerialModule.h')
                     
-                    serial_module_index = len(modules_exprs)
-                    modules_exprs.append(None)
-                    serial_user = 'MyPrinter::GetModule<{}>::GetSerial'.format(serial_module_index)
+                    serial_module = gen.add_module()
+                    serial_user = 'MyPrinter::GetModule<{}>::GetSerial'.format(serial_module.index)
                     
-                    modules_exprs[serial_module_index] = TemplateExpr('SerialModuleService', [
+                    serial_module.set_expr(TemplateExpr('SerialModuleService', [
                         'UINT32_C({})'.format(serial.get_int_constant('BaudRate')),
                         serial.get_int_constant('RecvBufferSizeExp'),
                         serial.get_int_constant('SendBufferSizeExp'),
                         TemplateExpr('GcodeParserParams', [serial.get_int_constant('GcodeMaxParts')]),
                         use_serial(gen, serial, 'Service', serial_user),
-                    ])
+                    ]))
                 
                 sdcard_sel = selection.Selection()
                 
@@ -1098,9 +1115,8 @@ def generate(config_root_data, cfg_name, main_template):
                 def option(sdcard):
                     gen.add_aprinter_include('printer/SdCardModule.h')
                     
-                    sdcard_module_index = len(modules_exprs)
-                    modules_exprs.append(None)
-                    sdcard_user = 'MyPrinter::GetModule<{}>::GetInput::GetSdCard'.format(sdcard_module_index)
+                    sdcard_module = gen.add_module()
+                    sdcard_user = 'MyPrinter::GetModule<{}>::GetInput::GetSdCard'.format(sdcard_module.index)
                     
                     gcode_parser_sel = selection.Selection()
                     
@@ -1138,7 +1154,8 @@ def generate(config_root_data, cfg_name, main_template):
                         
                         if fs_config.get_bool('EnableFsTest'):
                             gen.add_aprinter_include('printer/FsTestModule.h')
-                            modules_exprs.append('FsTestModuleService')
+                            fs_test_module = gen.add_module()
+                            fs_test_module.set_expr('FsTestModuleService')
                         
                         return TemplateExpr('SdFatInputService', [
                             use_sdcard(gen, sdcard, 'SdCardService', sdcard_user),
@@ -1151,12 +1168,12 @@ def generate(config_root_data, cfg_name, main_template):
                             fs_config.get_bool_constant('HaveAccessInterface'),
                         ])
                     
-                    modules_exprs[sdcard_module_index] = TemplateExpr('SdCardModuleService', [
+                    sdcard_module.set_expr(TemplateExpr('SdCardModuleService', [
                         sdcard.do_selection('FsType', fs_sel),
                         sdcard.do_selection('GcodeParser', gcode_parser_sel),
                         sdcard.get_int('BufferBaseSize'),
                         sdcard.get_int('MaxCommandSize'),
-                    ])
+                    ]))
                 
                 board_data.get_config('sdcard_config').do_selection('sdcard', sdcard_sel)
                 
@@ -1438,8 +1455,7 @@ def generate(config_root_data, cfg_name, main_template):
             def option(probe):
                 gen.add_aprinter_include('printer/BedProbeModule.h')
                 
-                probe_module_index = len(modules_exprs)
-                modules_exprs.append(None)
+                probe_module = gen.add_module()
                 
                 gen.add_bool_config('ProbeInvert', probe.get_bool('InvertInput')),
                 gen.add_float_config('ProbeOffsetX', probe.get_float('OffsetX'))
@@ -1479,7 +1495,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 correction_expr = probe.do_selection('correction', correction_sel)
                 
-                modules_exprs[probe_module_index] = TemplateExpr('BedProbeModuleService', [
+                probe_module.set_expr(TemplateExpr('BedProbeModuleService', [
                     'MakeTypeList<WrapInt<\'X\'>, WrapInt<\'Y\'>>',
                     '\'Z\'',
                     use_digital_input(gen, probe, 'ProbePin'),
@@ -1495,7 +1511,7 @@ def generate(config_root_data, cfg_name, main_template):
                     'ProbeGeneralZOffset',
                     TemplateList(['BedProbePointParams<ProbeP{0}Enabled, MakeTypeList<ProbeP{0}X, ProbeP{0}Y>, ProbeP{0}ZOffset>'.format(i+1) for i in range(num_points)]),
                     correction_expr,
-                ])
+                ]))
             
             config.get_config('probe_config').do_selection('probe', probe_sel)
             
@@ -1544,23 +1560,23 @@ def generate(config_root_data, cfg_name, main_template):
             @current_sel.option('Current')
             def option(current):
                 gen.add_aprinter_include('printer/MotorCurrentModule.h')
-                current_module_index = len(modules_exprs)
-                modules_exprs.append(TemplateExpr('MotorCurrentModuleService', [
+                current_module = gen.add_module()
+                current_module.set_expr(TemplateExpr('MotorCurrentModuleService', [
                     TemplateList(current_control_channel_list),
-                    use_current_driver(gen, current, 'current_driver', 'MyPrinter::GetModule<{}>::GetDriver'.format(current_module_index))
+                    use_current_driver(gen, current, 'current_driver', 'MyPrinter::GetModule<{}>::GetDriver'.format(current_module.index))
                 ]))
             
             current_config.do_selection('current', current_sel)
             
             gen.add_aprinter_include('printer/AuxControlModule.h')
-            modules_exprs[aux_control_module_index] = TemplateExpr('AuxControlModuleService', [
+            aux_control_module.set_expr(TemplateExpr('AuxControlModuleService', [
                 performance.get_int_constant('EventChannelBufferSize'),
                 event_channel_timer_expr,
                 gen.add_float_config('WaitTimeout', config.get_float('WaitTimeout')),
                 gen.add_float_config('WaitReportPeriod', config.get_float('WaitReportPeriod')),
                 heaters_expr,
                 fans_expr,
-            ])
+            ]))
             
             printer_params = TemplateExpr('PrinterMainParams', [
                 led_pin_expr,
@@ -1579,7 +1595,7 @@ def generate(config_root_data, cfg_name, main_template):
                 steppers_expr,
                 transform_expr,
                 lasers_expr,
-                TemplateList(modules_exprs),
+                TemplateList(gen.get_modules_exprs()),
             ])
             
             printer_params_typedef = 'struct ThePrinterParams : public {} {{}};'.format(printer_params.build(0))
