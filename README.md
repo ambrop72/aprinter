@@ -203,6 +203,7 @@ The following SD-card related commands will be available when SD card support is
 - M23 D\<dir\> - Change the current directory (<dir> must be a directory in the current directory, or ..).
 - M23 R - Change to root directory.
 - M23 F\<file\> - Select file for printing (<file> must be a file in the current directory).
+- M32 F\<file\> - Select file and start printing.
 - M24 - Start or resume SD printing.
 - M25 - Pause SD printing. Note that pause automatically happens at end of file.
 - M26 - Rewind the current file to the beginning.

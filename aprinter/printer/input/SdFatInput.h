@@ -118,13 +118,13 @@ public:
         TheBlockAccess::deinit(c);
     }
     
-    static bool startingIo (Context c, typename ThePrinterMain::TheCommand *cmd)
+    static bool startingIo (Context c, typename ThePrinterMain::TheCommand *err_output)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->file_state == FILE_STATE_INACTIVE || o->file_state == FILE_STATE_PAUSED)
         
-        if (!check_file_paused(c, cmd)) {
+        if (!check_file_paused(c, err_output)) {
             return false;
         }
         o->file_state = FILE_STATE_RUNNING;
@@ -141,14 +141,14 @@ public:
         o->file_state = FILE_STATE_PAUSED;
     }
     
-    static bool rewind (Context c, typename ThePrinterMain::TheCommand *cmd)
+    static bool rewind (Context c, typename ThePrinterMain::TheCommand *err_output)
     {
         auto *o = Object::self(c);
         auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->file_state == FILE_STATE_INACTIVE || o->file_state == FILE_STATE_PAUSED)
         
-        if (!check_file_paused(c, cmd)) {
+        if (!check_file_paused(c, err_output)) {
             return false;
         }
         fs_o->file.rewind(c);
@@ -202,8 +202,8 @@ public:
             handle_unmount_command(c, cmd);
             return false;
         }
-        if (cmd_num == 20 || cmd_num == 23) {
-            handle_navigation_command(c, cmd, (cmd_num == 20));
+        if (cmd_num == 20 || cmd_num == 23 || cmd_num == 32) {
+            handle_navigation_command(c, cmd, (cmd_num == 20), (cmd_num == 32));
             return false;
         }
         return true;
@@ -252,16 +252,16 @@ private:
         set_default_states(c);
     }
     
-    static bool check_file_paused (Context c, typename ThePrinterMain::TheCommand *cmd)
+    static bool check_file_paused (Context c, typename ThePrinterMain::TheCommand *err_output)
     {
         auto *o = Object::self(c);
         
         if (o->init_state != INIT_STATE_DONE) {
-            cmd->reportError(c, AMBRO_PSTR("SdNotInited"));
+            err_output->reply_append_error(c, AMBRO_PSTR("SdNotInited"));
             return false;
         }
         if (o->file_state != FILE_STATE_PAUSED) {
-            cmd->reportError(c, AMBRO_PSTR("FileNotOpened"));
+            err_output->reply_append_error(c, AMBRO_PSTR("FileNotOpened"));
             return false;
         }
         return true;
@@ -551,7 +551,7 @@ private:
         cmd->finishCommand(c);
     }
     
-    static void handle_navigation_command (Context c, typename ThePrinterMain::TheCommand *cmd, bool is_dirlist)
+    static void handle_navigation_command (Context c, typename ThePrinterMain::TheCommand *cmd, bool is_dirlist, bool start_stream)
     {
         auto *o = Object::self(c);
         auto *fs_o = UnionFsPart::Object::self(c);
@@ -575,7 +575,7 @@ private:
                 o->listing_u.dirlist.dir_lister.init(c, fs_o->current_directory, APRINTER_CB_STATFUNC_T(&SdFatInput::dir_lister_handler));
                 o->listing_u.dirlist.dir_lister.requestEntry(c);
             } else {
-                if (cmd->find_command_param(c, 'R', nullptr)) {
+                if (!start_stream && cmd->find_command_param(c, 'R', nullptr)) {
                     fs_o->current_directory = TheFs::getRootEntry(c);
                     break;
                 }
@@ -584,7 +584,7 @@ private:
                 uint8_t listing_state;
                 typename TheFs::EntryType entry_type;
                 
-                if ((find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
+                if (!start_stream && (find_name = cmd->get_command_param_str(c, 'D', nullptr))) {
                     listing_state = LISTING_STATE_CHDIR;
                     entry_type = TheFs::EntryType::DIR_TYPE;
                 }
@@ -598,6 +598,7 @@ private:
                 }
                 
                 o->listing_state = listing_state;
+                o->open_start_stream = start_stream;
                 o->listing_u.open_or_chdir.opener.init(c, fs_o->current_directory, entry_type, find_name, APRINTER_CB_STATFUNC_T(&SdFatInput::opener_handler));
             }
             
@@ -671,6 +672,13 @@ private:
                 o->file_state = FILE_STATE_PAUSED;
                 o->file_eof = false;
                 ClientParams::ClearBufferHandler::call(c);
+                
+                if (o->open_start_stream) {
+                    auto *cmd = ThePrinterMain::get_locked(c);
+                    if (!ClientParams::StartHandler::call(c, cmd)) {
+                        cmd->reportError(c, nullptr);
+                    }
+                }
             }
         } while (false);
         
@@ -1007,6 +1015,7 @@ public:
         uint8_t mount_writable : 1;
         uint8_t unmount_readonly : 1;
         uint8_t unmount_force : 1;
+        uint8_t open_start_stream : 1;
         union {
             struct {
                 typename TheFs::DirLister dir_lister;

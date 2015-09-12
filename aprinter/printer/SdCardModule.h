@@ -57,7 +57,8 @@ private:
     
     struct InputReadHandler;
     struct InputClearBufferHandler;
-    using TheInput = typename Params::InputService::template Input<Context, Object, InputClientParams<ThePrinterMain, InputReadHandler, InputClearBufferHandler>>;
+    struct InputStartHandler;
+    using TheInput = typename Params::InputService::template Input<Context, Object, InputClientParams<ThePrinterMain, InputReadHandler, InputClearBufferHandler, InputStartHandler>>;
     static const size_t BufferBaseSize = Params::BufferBaseSize;
     static const size_t MaxCommandSize = Params::MaxCommandSize;
     static_assert(MaxCommandSize > 0, "");
@@ -99,83 +100,10 @@ public:
             return true;
         }
         
-        // Start/resume SD stream.
-        if (cmd->getCmdNumber(c) == 24) {
-            if (!cmd->tryLockedCommand(c)) {
-                return false;
-            }
-            do {
-                if (o->m_state != SDCARD_PAUSED) {
-                    cmd->reportError(c, AMBRO_PSTR("SdPrintAlreadyActive"));
-                    break;
-                }
-                if (!TheInput::startingIo(c, cmd)) {
-                    break;
-                }
-                o->m_state = SDCARD_RUNNING;
-                o->m_eof = false;
-                o->m_reading = false;
-                if (can_read(c)) {
-                    start_read(c);
-                }
-                o->command_stream.clearError(c);
-                if (!o->command_stream.maybeResumeLockingCommand(c)) {
-                    o->m_next_event.prependNowNotAlready(c);
-                }
-            } while (false);
-            cmd->finishCommand(c);
-            return false;
-        }
-        
-        // Pause SD stream.
-        if (cmd->getCmdNumber(c) == 25) {
-            if (!cmd->tryLockedCommand(c)) {
-                return false;
-            }
-            do {
-                if (o->m_state == SDCARD_PAUSED) {
-                    cmd->reportError(c, AMBRO_PSTR("SdPrintNotRunning"));
-                    break;
-                }
-                AMBRO_ASSERT(o->m_state != SDCARD_PAUSING || o->m_reading)
-                o->m_next_event.unset(c);
-                if (o->command_stream.getGcodeCommand(c) == &o->gcode_m400_command) {
-                    o->command_stream.maybeCancelLockingCommand(c);
-                } else {
-                    o->command_stream.maybePauseLockingCommand(c);
-                }
-                if (o->m_reading) {
-                    o->m_state = SDCARD_PAUSING;
-                    o->m_pausing_on_command = true;
-                    return false;
-                }
-                complete_pause(c);
-            } while (false);
-            cmd->finishCommand(c);
-            return false;
-        }
-        
-        // Rewind SD stream.
-        if (cmd->getCmdNumber(c) == 26) {
-            if (!cmd->tryLockedCommand(c)) {
-                return false;
-            }
-            do {
-                if (o->m_state != SDCARD_PAUSED) {
-                    cmd->reportError(c, AMBRO_PSTR("SdPrintRunning"));
-                    break;
-                }
-                uint32_t seek_pos = cmd->get_command_param_uint32(c, 'S', 0);
-                if (seek_pos != 0) {
-                    cmd->reportError(c, AMBRO_PSTR("CanOnlySeekToZero"));
-                    break;
-                }
-                if (!TheInput::rewind(c, cmd)) {
-                    break;
-                }
-            } while (false);
-            cmd->finishCommand(c);
-            return false;
+        switch (cmd->getCmdNumber(c)) {
+            case 24: handle_start_command(c, cmd);  return false;
+            case 25: handle_pause_command(c, cmd);  return false;
+            case 26: handle_rewind_command(c, cmd); return false;
         }
         
         // Let the Input module implement its own commands.
@@ -307,6 +235,99 @@ private:
     };
     
 private:
+    static bool do_start (Context c, TheCommand *err_output)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->m_state == SDCARD_PAUSED)
+        
+        if (!TheInput::startingIo(c, err_output)) {
+            return false;
+        }
+        o->m_state = SDCARD_RUNNING;
+        o->m_eof = false;
+        o->m_reading = false;
+        if (can_read(c)) {
+            start_read(c);
+        }
+        o->command_stream.clearError(c);
+        if (!o->command_stream.maybeResumeLockingCommand(c)) {
+            o->m_next_event.prependNowNotAlready(c);
+        }
+        return true;
+    }
+    
+    static void handle_start_command (Context c, TheCommand *cmd)
+    {
+        auto *o = Object::self(c);
+        
+        if (!cmd->tryLockedCommand(c)) {
+            return;
+        }
+        do {
+            if (o->m_state != SDCARD_PAUSED) {
+                cmd->reportError(c, AMBRO_PSTR("SdPrintAlreadyActive"));
+                break;
+            }
+            if (!do_start(c, cmd)) {
+                cmd->reportError(c, nullptr);
+            }
+        } while (false);
+        cmd->finishCommand(c);
+    }
+    
+    static void handle_pause_command (Context c, TheCommand *cmd)
+    {
+        auto *o = Object::self(c);
+        
+        if (!cmd->tryLockedCommand(c)) {
+            return;
+        }
+        do {
+            if (o->m_state == SDCARD_PAUSED) {
+                cmd->reportError(c, AMBRO_PSTR("SdPrintNotRunning"));
+                break;
+            }
+            AMBRO_ASSERT(o->m_state != SDCARD_PAUSING || o->m_reading)
+            o->m_next_event.unset(c);
+            if (o->command_stream.getGcodeCommand(c) == &o->gcode_m400_command) {
+                o->command_stream.maybeCancelLockingCommand(c);
+            } else {
+                o->command_stream.maybePauseLockingCommand(c);
+            }
+            if (o->m_reading) {
+                o->m_state = SDCARD_PAUSING;
+                o->m_pausing_on_command = true;
+                return;
+            }
+            complete_pause(c);
+        } while (false);
+        cmd->finishCommand(c);
+    }
+    
+    static void handle_rewind_command (Context c, TheCommand *cmd)
+    {
+        auto *o = Object::self(c);
+        
+        if (!cmd->tryLockedCommand(c)) {
+            return;
+        }
+        do {
+            if (o->m_state != SDCARD_PAUSED) {
+                cmd->reportError(c, AMBRO_PSTR("SdPrintRunning"));
+                break;
+            }
+            uint32_t seek_pos = cmd->get_command_param_uint32(c, 'S', 0);
+            if (seek_pos != 0) {
+                cmd->reportError(c, AMBRO_PSTR("CanOnlySeekToZero"));
+                break;
+            }
+            if (!TheInput::rewind(c, cmd)) {
+                cmd->reportError(c, nullptr);
+            }
+        } while (false);
+        cmd->finishCommand(c);
+    }
+    
     static void input_read_handler (Context c, bool error, size_t bytes_read)
     {
         auto *o = Object::self(c);
@@ -357,6 +378,12 @@ private:
         init_buffering(c);
     }
     struct InputClearBufferHandler : public AMBRO_WFUNC_TD(&SdCardModule::clear_input_buffer) {};
+    
+    static bool input_start_handler (Context c, TheCommand *err_output)
+    {
+        return do_start(c, err_output);
+    }
+    struct InputStartHandler : public AMBRO_WFUNC_TD(&SdCardModule::input_start_handler) {};
     
     static void next_event_handler (Context c)
     {

@@ -27,11 +27,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TThePrinterMain, typename TReadHandler, typename TClearBufferHandler>
+template <typename TThePrinterMain, typename TReadHandler, typename TClearBufferHandler, typename TStartHandler>
 struct InputClientParams {
     using ThePrinterMain = TThePrinterMain;
     using ReadHandler = TReadHandler;
     using ClearBufferHandler = TClearBufferHandler;
+    using StartHandler = TStartHandler;
 };
 
 #include <aprinter/EndNamespace.h>
