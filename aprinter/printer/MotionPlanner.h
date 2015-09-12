@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <limits.h>
+#include <math.h>
 
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Tuple.h>
@@ -98,9 +99,16 @@ struct MotionPlannerLaserSpec {
     using MaxSpeedRec = TMaxSpeedRec;
 };
 
+template <typename Context>
+struct MotionPlannerConstants {
+    // Allows dependant equal expressions to not be duplicated for different MotionPlanner instances.
+    using FCpu = APRINTER_FP_CONST_EXPR(F_CPU);
+    using TimeRevConversion = APRINTER_FP_CONST_EXPR(Context::Clock::time_unit);
+};
+
 template <
     typename Context, typename ParentObject, typename Config, typename ParamsAxesList, int StepperSegmentBufferSize, int LookaheadBufferSize,
-    int LookaheadCommitCount, typename FpType,
+    int LookaheadCommitCount, typename FpType, typename MaxStepsPerCycle,
     typename PullHandler, typename FinishedHandler, typename AbortedHandler, typename UnderrunCallback,
     typename ParamsChannelsList = EmptyTypeList, typename ParamsLasersList = EmptyTypeList
 >
@@ -130,6 +138,7 @@ private:
     using AxisMaskType = ChooseInt<NumAxes + TypeBits, false>;
     static const AxisMaskType TypeMask = ((AxisMaskType)1 << TypeBits) - 1;
     using TheLinearPlanner = LinearPlanner<FpType>;
+    using Constants = MotionPlannerConstants<Context>;
     
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_deinit, deinit)
@@ -266,6 +275,8 @@ private:
     
     enum {STATE_BUFFERING, STATE_STEPPING, STATE_ABORTED};
     
+    using CStepSpeedLimitFactor = decltype(ExprCast<FpType>(ExprRec(MaxStepsPerCycle() * typename Constants::FCpu() * typename Constants::TimeRevConversion())));
+    
     template <typename TheAxis>
     struct AxisCommon {
         struct Object;
@@ -299,10 +310,15 @@ private:
             TheAxis::commandDone_assert_impl(c);
         }
         
-        template <typename TheComputeStateTuple>
-        static void compute_compute_state (Context c, Segment *entry, TheComputeStateTuple *cst)
+        static bool check_icmd_zero (bool accum, Context c)
         {
-            TheAxis::compute_compute_state_impl(c, entry, cst);
+            return accum && TheAxis::check_icmd_zero_impl(c);
+        }
+        
+        template <typename TheComputeStateTuple>
+        static FpType compute_compute_state (FpType accum, Context c, Segment *entry, TheComputeStateTuple *cst)
+        {
+            return accum + TheAxis::compute_compute_state_impl(c, entry, cst);
         }
         
         template <typename TheComputeStateTuple>
@@ -494,10 +510,10 @@ public:
             return FloatMax(accum, axis_split->x.template fpValue<FpType>() * (FpType)(1.0001 / StepperStepFixedType::maxValue().fpValueConstexpr()));
         }
         
-        static bool check_icmd_zero (bool accum, Context c)
+        static bool check_icmd_zero_impl (Context c)
         {
             TheAxisSplitBuffer *axis_split = get_axis_split(c);
-            return (accum && axis_split->x.bitsValue() == 0);
+            return (axis_split->x.bitsValue() == 0);
         }
         
         static void write_segment_buffer_entry (Context c, Segment *entry)
@@ -519,11 +535,12 @@ public:
         }
         
         template <typename TheComputeStateTuple>
-        static void compute_compute_state_impl (Context c, Segment *entry, TheComputeStateTuple *cst)
+        static FpType compute_compute_state_impl (Context c, Segment *entry, TheComputeStateTuple *cst)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             ComputeState *cs = TupleFindElem<ComputeState>(cst);
             cs->x = axis_entry->x.template fpValue<FpType>();
+            return cs->x;
         }
         
         template <typename AccumType, typename TheComputeStateTuple>
@@ -748,9 +765,16 @@ public:
             laser_split->x *= m->m_split_buffer.axes.split_frac;
         }
         
-        template <typename TheComputeStateTuple>
-        static void compute_compute_state_impl (Context c, Segment *entry, TheComputeStateTuple *cst)
+        static bool check_icmd_zero_impl (Context c)
         {
+            TheLaserSplitBuffer *laser_split = get_laser_split(c);
+            return (laser_split->x == 0.0f);
+        }
+        
+        template <typename TheComputeStateTuple>
+        static FpType compute_compute_state_impl (Context c, Segment *entry, TheComputeStateTuple *cst)
+        {
+            return 0.0f;
         }
         
         template <typename TheComputeStateTuple>
@@ -1078,9 +1102,7 @@ public:
     static SplitBuffer * getBuffer (Context c)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
-        AMBRO_ASSERT(o->m_pulling)
-        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
+        assert_pulling(c);
         
         return &o->m_split_buffer;
     }
@@ -1088,18 +1110,16 @@ public:
     static void axesCommandDone (Context c)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
-        AMBRO_ASSERT(o->m_pulling)
-        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
+        assert_pulling(c);
         AMBRO_ASSERT(FloatIsPosOrPosZero(o->m_split_buffer.axes.rel_max_v_rec))
         ListForEachForward<AxisCommonList>(LForeach_commandDone_assert(), c);
-        AMBRO_ASSERT(!ListForEachForwardAccRes<AxesList>(true, LForeach_check_icmd_zero(), c))
         
-        o->m_waiting = false;
-        Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
-#ifdef AMBROLIB_ASSERTIONS
-        o->m_pulling = false;
-#endif
+        stop_pulling(c);
+        
+        if (AMBRO_UNLIKELY(ListForEachForwardAccRes<AxisCommonList>(true, LForeach_check_icmd_zero(), c) && o->m_split_buffer.axes.rel_max_v_rec == 0.0f)) {
+            Context::EventLoop::template triggerFastEvent<CallbackFastEvent>(c);
+            return;
+        }
         
         o->m_split_buffer.type = 0;
         ListForEachForward<AxesList>(LForeach_write_splitbuf(), c);
@@ -1119,17 +1139,11 @@ public:
     static void channelCommandDone (Context c, uint8_t channel_index_plus_one)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
-        AMBRO_ASSERT(o->m_pulling)
-        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
+        assert_pulling(c);
         AMBRO_ASSERT(channel_index_plus_one >= 1)
         AMBRO_ASSERT(channel_index_plus_one <= NumChannels)
         
-        o->m_waiting = false;
-        Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
-#ifdef AMBROLIB_ASSERTIONS
-        o->m_pulling = false;
-#endif
+        stop_pulling(c);
         
         o->m_split_buffer.type = channel_index_plus_one;
         
@@ -1139,14 +1153,9 @@ public:
     static void emptyDone (Context c)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
-        AMBRO_ASSERT(o->m_pulling)
-        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
+        assert_pulling(c);
         
-        o->m_waiting = false;
-#ifdef AMBROLIB_ASSERTIONS
-        o->m_pulling = false;
-#endif
+        stop_pulling(c);
         
         Context::EventLoop::template triggerFastEvent<CallbackFastEvent>(c);
     }
@@ -1154,9 +1163,7 @@ public:
     static void waitFinished (Context c)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
-        AMBRO_ASSERT(o->m_pulling)
-        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
+        assert_pulling(c);
         
         o->m_waiting = true;
         Context::EventLoop::template triggerFastEvent<StepperFastEvent>(c);
@@ -1193,6 +1200,25 @@ public:
     using EventLoopFastEvents = MakeTypeList<StepperFastEvent, CallbackFastEvent>;
     
 private:
+    static void assert_pulling (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->m_state != STATE_ABORTED)
+        AMBRO_ASSERT(o->m_pulling)
+        AMBRO_ASSERT(o->m_split_buffer.type == 0xFF)
+    }
+    
+    static void stop_pulling (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        o->m_waiting = false;
+        Context::EventLoop::template resetFastEvent<CallbackFastEvent>(c);
+#ifdef AMBROLIB_ASSERTIONS
+        o->m_pulling = false;
+#endif
+    }
+    
     static bool plan (Context c)
     {
         auto *o = Object::self(c);
@@ -1461,25 +1487,42 @@ private:
         
         Segment *entry = &o->m_segments[segments_add(o->m_segments_start, o->m_segments_length)];
         entry->dir_and_type = o->m_split_buffer.type;
+        
         if (AMBRO_LIKELY(o->m_split_buffer.type == 0)) {
             o->m_split_buffer.axes.split_pos++;
             ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
+            
             ComputeStateTuple cst;
-            ListForEachForward<AxisCommonList>(LForeach_compute_compute_state(), c, entry, &cst);
-            entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(o->m_split_buffer.axes.rel_max_v_rec, LForeach_compute_segment_buffer_entry_speed(), c, entry, &cst);
+            FpType total_steps = ListForEachForwardAccRes<AxisCommonList>(0.0f, LForeach_compute_compute_state(), c, entry, &cst);
+            
+            FpType total_steps_for_limit = FloatMax(total_steps, (FpType)1.0f);
+            FpType base_rel_max_speed = FloatMax(o->m_split_buffer.axes.rel_max_v_rec, total_steps_for_limit * APRINTER_CFG(Config, CStepSpeedLimitFactor, c));
+            entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(base_rel_max_speed, LForeach_compute_segment_buffer_entry_speed(), c, entry, &cst);
+            
             FpType distance = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_distance(), c, &cst);
-            FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, &cst);
+            bool degenerate = (distance == 0.0f);
+            if (degenerate) {
+                distance = 1.0f;
+            }
             FpType distance_rec = 1.0f / distance;
+            
+            ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
+            
+            FpType rel_max_accel_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_accel(), c, &cst);
             entry->axes.max_accel_rec = rel_max_accel_rec * distance_rec;
             entry->axes.half_rel_max_accel = 0.5f / rel_max_accel_rec;
-            ListForEachForward<LasersList>(LForeach_write_segment_buffer_entry_extra(), c, entry, distance_rec);
-            FpType junction_max_v_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_do_junction_limit(), c, entry, distance_rec, &cst);
+            
+            FpType distance_rec_for_junction = AMBRO_UNLIKELY(degenerate) ? NAN : distance_rec;
+            FpType junction_max_v_rec = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_do_junction_limit(), c, entry, distance_rec_for_junction, &cst);
+            FpType junction_max_start_v = AMBRO_UNLIKELY(FloatIsNan(junction_max_v_rec)) ? 0.0f : (1.0f / junction_max_v_rec);
             o->m_last_dir_and_type = entry->dir_and_type;
+            
             FpType distance_squared = distance * distance;
             FpType max_v = distance_squared / (entry->axes.rel_max_speed_rec * entry->axes.rel_max_speed_rec);
             FpType a_x = FloatLdexp(entry->axes.half_rel_max_accel * distance_squared, 2);
-            TheLinearPlanner::initSegment(&entry->axes.lp_seg, o->m_last_max_v, 1.0f / junction_max_v_rec, max_v, a_x);
+            TheLinearPlanner::initSegment(&entry->axes.lp_seg, o->m_last_max_v, junction_max_start_v, max_v, a_x);
             o->m_last_max_v = max_v;
+            
             if (AMBRO_LIKELY(o->m_split_buffer.axes.split_pos == o->m_split_buffer.axes.split_count)) {
                 o->m_split_buffer.type = 0xFF;
             }
@@ -1487,6 +1530,7 @@ private:
             ListForOneOffset<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_write_segment(), c, entry);
             o->m_split_buffer.type = 0xFF;
         }
+        
         o->m_segments_length++;
         
         if (AMBRO_LIKELY(o->m_split_buffer.type == 0xFF)) {
@@ -1502,6 +1546,9 @@ private:
         }
         return res;
     }
+    
+public:
+    using ConfigExprs = MakeTypeList<CStepSpeedLimitFactor>;
     
 public:
     struct Object : public ObjBase<MotionPlanner, ParentObject, JoinTypeLists<

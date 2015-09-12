@@ -67,9 +67,9 @@ template <
     typename Context, typename ThePrinterMain, typename ParentObject,
     typename TheGlobal,
     typename TheAxisDriver, int PlannerStepBits, int StepperSegmentBufferSize,
-    int MaxLookaheadBufferSize, typename MaxAccel, typename DistConversion,
-    typename TimeConversion, typename HomeDir, typename FinishedHandler,
-    typename Params
+    int MaxLookaheadBufferSize, typename MaxStepsPerCycle, typename MaxAccel,
+    typename DistConversion, typename TimeConversion, typename HomeDir,
+    typename FinishedHandler, typename Params
 >
 class AxisHomer {
 public:
@@ -102,7 +102,7 @@ private:
     using PlannerCorneringDistance = APRINTER_FP_CONST_EXPR(1.0);
     
     using PlannerAxes = MakeTypeList<MotionPlannerAxisSpec<TheAxisDriver, PlannerStepBits, PlannerDistanceFactor, PlannerCorneringDistance, PlannerMaxSpeedRec, PlannerMaxAccelRec, PlannerPrestepCallback>>;
-    using Planner = MotionPlanner<Context, Object, Config, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
+    using Planner = MotionPlanner<Context, Object, Config, PlannerAxes, StepperSegmentBufferSize, LookaheadBufferSize, LookaheadCommitCount, FpType, MaxStepsPerCycle, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback>;
     using PlannerCommand = typename Planner::SplitBuffer;
     
     using TheDebugObject = DebugObject<Context, Object>;
@@ -281,7 +281,8 @@ struct AxisHomerService {
     
     template <
         typename Context, typename ThePrinterMain, int PlannerStepBits,
-        int StepperSegmentBufferSize, int MaxLookaheadBufferSize, typename MaxAccel,
+        int StepperSegmentBufferSize, int MaxLookaheadBufferSize,
+        typename MaxStepsPerCycle, typename MaxAccel,
         typename DistConversion, typename TimeConversion, typename HomeDir
     >
     struct Instance {
@@ -291,8 +292,8 @@ struct AxisHomerService {
         template <typename ParentObject, typename TheGlobal, typename TheAxisDriver, typename FinishedHandler>
         using Homer = AxisHomer<
             Context, ThePrinterMain, ParentObject, TheGlobal, TheAxisDriver, PlannerStepBits,
-            StepperSegmentBufferSize, MaxLookaheadBufferSize, MaxAccel, DistConversion,
-            TimeConversion, HomeDir, FinishedHandler, AxisHomerService
+            StepperSegmentBufferSize, MaxLookaheadBufferSize, MaxStepsPerCycle, MaxAccel,
+            DistConversion, TimeConversion, HomeDir, FinishedHandler, AxisHomerService
         >;
     };
 };

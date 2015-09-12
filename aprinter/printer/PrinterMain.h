@@ -368,15 +368,14 @@ private:
     
 public:
     using TimeConversion = APRINTER_FP_CONST_EXPR(Clock::time_freq);
-    using TimeRevConversion = APRINTER_FP_CONST_EXPR(Clock::time_unit);
-    using FCpu = APRINTER_FP_CONST_EXPR(F_CPU);
     
 private:
+    using MaxStepsPerCycle = decltype(Config::e(Params::MaxStepsPerCycle::i()));
+    
     using CInactiveTimeTicks = decltype(ExprCast<TimeType>(Config::e(Params::InactiveTime::i()) * TimeConversion()));
-    using CStepSpeedLimitFactor = decltype(ExprCast<FpType>(ExprRec(Config::e(Params::MaxStepsPerCycle::i()) * FCpu() * TimeRevConversion())));
     using CForceTimeoutTicks = decltype(ExprCast<TimeType>(Config::e(Params::ForceTimeout::i()) * TimeConversion()));
     
-    using MyConfigExprs = MakeTypeList<CInactiveTimeTicks, CStepSpeedLimitFactor, CForceTimeoutTicks>;
+    using MyConfigExprs = MakeTypeList<CInactiveTimeTicks, CForceTimeoutTicks>;
     
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
@@ -958,7 +957,7 @@ private:
             
             using HomerInstance = typename HomingSpec::HomerService::template Instance<
                 Context, PrinterMain, AxisSpec::StepBits, Params::StepperSegmentBufferSize,
-                Params::LookaheadBufferSize, decltype(Config::e(AxisSpec::DefaultMaxAccel::i())),
+                Params::LookaheadBufferSize, MaxStepsPerCycle, decltype(Config::e(AxisSpec::DefaultMaxAccel::i())),
                 DistConversion, TimeConversion, decltype(Config::e(HomingSpec::HomeDir::i()))
             >;
             
@@ -1138,7 +1137,7 @@ private:
         }
         
         template <typename PlannerCmd>
-        static void do_move (Context c, bool add_distance, FpType *distance_squared, FpType *total_steps, PlannerCmd *cmd)
+        static void do_move (Context c, bool add_distance, FpType *distance_squared, PlannerCmd *cmd)
         {
             auto *o = Object::self(c);
             
@@ -1156,7 +1155,6 @@ private:
                     FpType delta = move.template fpValue<FpType>() * APRINTER_CFG(Config, CDistConversionRec, c);
                     *distance_squared += delta * delta;
                 }
-                *total_steps += move.template fpValue<FpType>();
                 Stepper::enable(c);
             }
             
@@ -1535,52 +1533,44 @@ public:
             AMBRO_ASSERT(mob->planner_state != PLANNER_NONE)
             AMBRO_ASSERT(mob->m_planning_pull_pending)
             
-            do {
-                FpType prev_frac = o->frac;
-                FpType rel_max_v_rec;
-                FpType saved_virt_rex_pos[NumVirtAxes];
-                FpType saved_phys_req_pos[NumAxes];
-                
-                if (o->splitter.pull(c, &rel_max_v_rec, &o->frac)) {
-                    ListForEachForward<AxesList>(LForeach_save_req_pos(), c, saved_phys_req_pos);
-                    
-                    FpType saved_virt_req_pos[NumVirtAxes];
-                    ListForEachForward<VirtAxesList>(LForeach_save_req_pos(), c, saved_virt_req_pos);
-                    ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, o->frac);
-                    bool transform_success = update_phys_from_virt(c);
-                    ListForEachForward<VirtAxesList>(LForeach_restore_req_pos(), c, saved_virt_req_pos);
-                    
-                    if (!transform_success) {
-                        // Compute actual positions based on prev_frac.
-                        ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, prev_frac);
-                        update_phys_from_virt(c);
-                        ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, prev_frac, saved_phys_req_pos);
-                        return handle_transform_error(c);
-                    }
-                    
-                    ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, o->frac, saved_phys_req_pos);
-                } else {
-                    o->frac = 1.0f;
-                    o->splitting = false;
-                }
-                
-                PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
-                FpType total_steps = 0.0f;
-                ListForEachForward<AxesList>(LForeach_do_move(), c, false, (FpType *)0, &total_steps, cmd);
-                if (o->splitting) {
-                    ListForEachForward<AxesList>(LForeach_restore_req_pos(), c, saved_phys_req_pos);
-                }
-                if (total_steps != 0.0f) {
-                    ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserSplitSrc{c, o->frac, prev_frac}, cmd);
-                    cmd->axes.rel_max_v_rec = FloatMax(rel_max_v_rec, total_steps * APRINTER_CFG(Config, CStepSpeedLimitFactor, c));
-                    ThePlanner::axesCommandDone(c);
-                    goto submitted;
-                }
-            } while (o->splitting);
+            FpType prev_frac = o->frac;
+            FpType rel_max_v_rec;
+            FpType saved_phys_req_pos[NumAxes];
             
-            ThePlanner::emptyDone(c);
-        submitted:
+            if (o->splitter.pull(c, &rel_max_v_rec, &o->frac)) {
+                ListForEachForward<AxesList>(LForeach_save_req_pos(), c, saved_phys_req_pos);
+                
+                FpType saved_virt_req_pos[NumVirtAxes];
+                ListForEachForward<VirtAxesList>(LForeach_save_req_pos(), c, saved_virt_req_pos);
+                ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, o->frac);
+                bool transform_success = update_phys_from_virt(c);
+                ListForEachForward<VirtAxesList>(LForeach_restore_req_pos(), c, saved_virt_req_pos);
+                
+                if (!transform_success) {
+                    // Compute actual positions based on prev_frac.
+                    ListForEachForward<VirtAxesList>(LForeach_compute_split(), c, prev_frac);
+                    update_phys_from_virt(c);
+                    ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, prev_frac, saved_phys_req_pos);
+                    return handle_transform_error(c);
+                }
+                
+                ListForEachForward<SecondaryAxesList>(LForeach_compute_split(), c, o->frac, saved_phys_req_pos);
+            } else {
+                o->frac = 1.0f;
+                o->splitting = false;
+            }
+            
+            PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
+            ListForEachForward<AxesList>(LForeach_do_move(), c, false, (FpType *)0, cmd);
+            if (o->splitting) {
+                ListForEachForward<AxesList>(LForeach_restore_req_pos(), c, saved_phys_req_pos);
+            }
+            ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserSplitSrc{c, o->frac, prev_frac}, cmd);
+            cmd->axes.rel_max_v_rec = rel_max_v_rec;
+            
+            ThePlanner::axesCommandDone(c);
             submitted_planner_command(c);
+            
             if (!o->splitting) {
                 return o->move_end_callback(c, false);
             }
@@ -2165,7 +2155,12 @@ private:
     using MotionPlannerLasers = MapTypeList<LasersList, TemplateFunc<MakePlannerLaserSpec>>;
     
 public:
-    using ThePlanner = MotionPlanner<Context, typename PlannerUnionPlanner::Object, Config, MotionPlannerAxes, Params::StepperSegmentBufferSize, Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback, MotionPlannerChannels, MotionPlannerLasers>;
+    using ThePlanner = MotionPlanner<
+        Context, typename PlannerUnionPlanner::Object, Config, MotionPlannerAxes, Params::StepperSegmentBufferSize,
+        Params::LookaheadBufferSize, Params::LookaheadCommitCount, FpType, MaxStepsPerCycle,
+        PlannerPullHandler, PlannerFinishedHandler, PlannerAbortedHandler, PlannerUnderrunCallback,
+        MotionPlannerChannels, MotionPlannerLasers
+    >;
     using PlannerSplitBuffer = typename ThePlanner::SplitBuffer;
     
     template <typename PlannerChannelSpec>
@@ -2456,8 +2451,8 @@ private:
                     }
                     return;
                 
-                case 0:
-                case 1: { // buffered move
+                case 0:   // rapid move
+                case 1: { // linear move
                     if (!cmd->tryPlannedCommand(c)) {
                         return;
                     }
@@ -2475,6 +2470,30 @@ private:
                     }
                     bool is_positioning_move = (cmd->getCmdNumber(c) == 0);
                     return move_end(c, ob->time_freq_by_max_speed, false, get_locked(c), PrinterMain::normal_move_end_callback, is_positioning_move);
+                } break;
+                
+                case 4: { // dwell
+                    if (!cmd->tryPlannedCommand(c)) {
+                        return;
+                    }
+                    move_begin(c);
+                    FpType dwell_time_ticks = 0.0f;
+                    auto num_parts = cmd->getNumParts(c);
+                    for (decltype(num_parts) i = 0; i < num_parts; i++) {
+                        CommandPartRef part = cmd->getPart(c, i);
+                        if (ListForEachForwardInterruptible<LasersList>(LForeach_collect_new_pos(), c, cmd, part)) {
+                            char code = cmd->getPartCode(c, part);
+                            if (code == 'P' || code == 'S') {
+                                FpType dwell_time = cmd->getPartFpValue(c, part);
+                                if (code == 'P') {
+                                    dwell_time /= 1000.0f;
+                                }
+                                dwell_time_ticks = FloatMakePosOrPosZero(dwell_time * (FpType)TimeConversion::value());
+                            }
+                        }
+                    }
+                    move_set_dwell_time(c, FloatMax(dwell_time_ticks, (FpType)1.0f));
+                    return move_end(c, 0.0f, false, get_locked(c), PrinterMain::normal_move_end_callback, false);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -2754,6 +2773,9 @@ public:
         o->custom_planner_deinit_allowed = false;
         ListForEachForward<PhysVirtAxisHelperList>(LForeach_save_pos_to_old(), c);
         ListForEachForward<LasersList>(LForeach_prepare_laser_for_move(), c);
+        
+        PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
+        cmd->axes.rel_max_v_rec = 0.0f;
     }
     
     template <int PhysVirtAxisIndex>
@@ -2768,6 +2790,15 @@ public:
         auto *laser = Laser<LaserIndex>::Object::self(c);
         laser->move_energy = FloatMakePosOrPosZero(energy);
         laser->move_energy_specified = true;
+    }
+    
+    static void move_set_dwell_time (Context c, FpType min_time_ticks)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(FloatIsPosOrPosZero(min_time_ticks))
+        
+        PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
+        cmd->axes.rel_max_v_rec = min_time_ticks;
     }
     
     static void move_end (Context c, FpType time_freq_by_max_speed, bool use_speed_ratio, TheCommand *err_output, MoveEndCallback callback, bool is_positioning_move=true)
@@ -2789,23 +2820,17 @@ public:
         
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
         FpType distance_squared = 0.0f;
-        FpType total_steps = 0.0f;
-        ListForEachForward<AxesList>(LForeach_do_move(), c, true, &distance_squared, &total_steps, cmd);
+        ListForEachForward<AxesList>(LForeach_do_move(), c, true, &distance_squared, cmd);
         TransformFeature::do_pending_virt_update(c);
-        if (total_steps != 0.0f) {
-            cmd->axes.rel_max_v_rec = total_steps * APRINTER_CFG(Config, CStepSpeedLimitFactor, c);
-            if (ob->move_seen_cartesian) {
-                FpType distance = FloatSqrt(distance_squared);
-                cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, distance * time_freq_by_max_speed);
-                ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, distance, is_positioning_move);
-            } else {
-                ListForEachForward<AxesList>(LForeach_limit_axis_move_speed(), c, time_freq_by_max_speed, cmd);
-            }
-            ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserExtraSrc{c}, cmd);
-            ThePlanner::axesCommandDone(c);
+        if (ob->move_seen_cartesian) {
+            FpType distance = FloatSqrt(distance_squared);
+            cmd->axes.rel_max_v_rec = distance * time_freq_by_max_speed;
+            ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, distance, is_positioning_move);
         } else {
-            ThePlanner::emptyDone(c);
+            ListForEachForward<AxesList>(LForeach_limit_axis_move_speed(), c, time_freq_by_max_speed, cmd);
         }
+        ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserExtraSrc{c}, cmd);
+        ThePlanner::axesCommandDone(c);
         submitted_planner_command(c);
         return callback(c, false);
     }
