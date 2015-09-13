@@ -26,17 +26,12 @@
 #define AMBROLIB_AT91SAM_SPI_H
 
 #include <stdint.h>
-#include <stddef.h>
+
 #include <sam/drivers/pmc/pmc.h>
 
-#include <aprinter/base/Object.h>
-#include <aprinter/meta/BoundedInt.h>
-#include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/Lock.h>
-#include <aprinter/base/Likely.h>
 #include <aprinter/system/InterruptLock.h>
+#include <aprinter/hal/generic/SimpleSpi.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -58,57 +53,11 @@ struct At91SamSpiDevice {
     using MisoPin = TMisoPin;
 };
 
-template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits, typename Device>
-class At91SamSpiBase {
-    using FastEvent = typename Context::EventLoop::template FastEventSpec<At91SamSpiBase>;
-    
-    enum {
-        COMMAND_READ_BUFFER,
-        COMMAND_READ_UNTIL_DIFFERENT,
-        COMMAND_WRITE_BUFFER,
-        COMMAND_WRITE_BYTE
-    };
-    
-    struct Command {
-        uint8_t type;
-        uint8_t byte;
-        union {
-            struct {
-                uint8_t *cur;
-                uint8_t *end;
-            } read_buffer;
-            struct {
-                uint8_t *data;
-                uint8_t target_byte;
-                uint8_t remain;
-            } read_until_different;
-            struct {
-                uint8_t const *cur;
-                uint8_t const *end;
-            } write_buffer;
-            struct {
-                size_t count;
-            } write_byte;
-        } u;
-    };
-    
+template <typename Context, typename ParentObject, typename TransferCompleteHandler, typename Device>
+class At91SamSimpleSpi {
 public:
-    struct Object;
-    
-private:
-    using TheDebugObject = DebugObject<Context, Object>;
-    
-public:
-    using CommandSizeType = BoundedInt<CommandBufferBits, false>;
-    
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
-        Context::EventLoop::template initFastEvent<FastEvent>(c, At91SamSpiBase::event_handler);
-        o->m_start = CommandSizeType::import(0);
-        o->m_end = CommandSizeType::import(0);
-        
         Context::Pins::template setPeripheral<typename Device::SckPin>(c, At91SamPeriphA());
         Context::Pins::template setPeripheral<typename Device::MosiPin>(c, At91SamPeriphA());
         Context::Pins::template setInput<typename Device::MisoPin>(c);
@@ -123,15 +72,10 @@ public:
         NVIC_SetPriority(Device::SpiIrq, INTERRUPT_PRIORITY);
         NVIC_EnableIRQ(Device::SpiIrq);
         Device::spi()->SPI_CR = SPI_CR_SPIEN;
-        
-        TheDebugObject::init(c);
     }
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::deinit(c);
-        
         NVIC_DisableIRQ(Device::SpiIrq);
         Device::spi()->SPI_CR = SPI_CR_SPIDIS;
         (void)Device::spi()->SPI_RDR;
@@ -142,215 +86,46 @@ public:
         
         Context::Pins::template setInput<typename Device::MosiPin>(c);
         Context::Pins::template setInput<typename Device::SckPin>(c);
-        
-        Context::EventLoop::template resetFastEvent<FastEvent>(c);
     }
     
-    static void cmdReadBuffer (Context c, uint8_t *data, size_t length, uint8_t send_byte)
+    static void startTransfer (Context c, uint8_t byte)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(!is_full(c))
-        AMBRO_ASSERT(length > 0)
-        
-        Command *cmd = &o->m_buffer[o->m_end.value()];
-        cmd->type = COMMAND_READ_BUFFER;
-        cmd->byte = send_byte;
-        cmd->u.read_buffer.cur = data;
-        cmd->u.read_buffer.end = data + length;
-        write_command(c);
+        memory_barrier();
+        Device::spi()->SPI_TDR = byte;
+        Device::spi()->SPI_IER = SPI_IER_RDRF;
     }
     
-    static void cmdReadUntilDifferent (Context c, uint8_t target_byte, uint8_t max_extra_length, uint8_t send_byte, uint8_t *data)
+    static void nextByte (InterruptContext<Context> c, uint8_t byte)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(!is_full(c))
-        
-        Command *cmd = &o->m_buffer[o->m_end.value()];
-        cmd->type = COMMAND_READ_UNTIL_DIFFERENT;
-        cmd->byte = send_byte;
-        cmd->u.read_until_different.data = data;
-        cmd->u.read_until_different.target_byte = target_byte;
-        cmd->u.read_until_different.remain = max_extra_length;
-        write_command(c);
+        Device::spi()->SPI_TDR = byte;
     }
     
-    static void cmdWriteBuffer (Context c, uint8_t first_byte, uint8_t const *data, size_t length)
+    static void noNextByte (InterruptContext<Context> c)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(!is_full(c))
-        
-        Command *cmd = &o->m_buffer[o->m_end.value()];
-        cmd->type = COMMAND_WRITE_BUFFER;
-        cmd->byte = first_byte;
-        cmd->u.write_buffer.cur = data;
-        cmd->u.write_buffer.end = data + length;
-        write_command(c);
-    }
-    
-    static void cmdWriteByte (Context c, uint8_t byte, size_t extra_count)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(!is_full(c))
-        
-        Command *cmd = &o->m_buffer[o->m_end.value()];
-        cmd->type = COMMAND_WRITE_BYTE;
-        cmd->byte = byte;
-        cmd->u.write_byte.count = extra_count;
-        write_command(c);
-    }
-    
-    static CommandSizeType getEndIndex (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        
-        return o->m_end;
-    }
-    
-    static bool indexReached (Context c, CommandSizeType index)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        
-        CommandSizeType start = get_start(c);
-        return (BoundedModuloSubtract(o->m_end, start) <= BoundedModuloSubtract(o->m_end, index));
-    }
-    
-    static bool endReached (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        
-        CommandSizeType start = get_start(c);
-        return (start == o->m_end);
-    }
-    
-    static void unsetEvent (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        
-        Context::EventLoop::template resetFastEvent<FastEvent>(c);
+        Device::spi()->SPI_IDR = SPI_IDR_RDRF;
     }
     
     static void spi_irq (InterruptContext<Context> c)
     {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(o->m_start != o->m_end)
         AMBRO_ASSERT(Device::spi()->SPI_SR & SPI_SR_RDRF)
         
         uint8_t byte = Device::spi()->SPI_RDR;
-        Command *cmd = o->m_current;
-        switch (cmd->type) {
-            case COMMAND_READ_BUFFER: {
-                uint8_t * __restrict__ cur = cmd->u.read_buffer.cur;
-                *cur = byte;
-                cur++;
-                if (AMBRO_UNLIKELY(cur != cmd->u.read_buffer.end)) {
-                    cmd->u.read_buffer.cur = cur;
-                    Device::spi()->SPI_TDR = cmd->byte;
-                    return;
-                }
-            } break;
-            case COMMAND_READ_UNTIL_DIFFERENT: {
-                *cmd->u.read_until_different.data = byte;
-                if (AMBRO_UNLIKELY(byte == cmd->u.read_until_different.target_byte && cmd->u.read_until_different.remain != 0)) {
-                    cmd->u.read_until_different.remain--;
-                    Device::spi()->SPI_TDR = cmd->byte;
-                    return;
-                }
-            } break;
-            case COMMAND_WRITE_BUFFER: {
-                if (AMBRO_UNLIKELY(cmd->u.write_buffer.cur != cmd->u.write_buffer.end)) {
-                    uint8_t out = *cmd->u.write_buffer.cur;
-                    cmd->u.write_buffer.cur++;
-                    Device::spi()->SPI_TDR = out;
-                    return;
-                }
-            } break;
-            default:
-            case COMMAND_WRITE_BYTE: {
-                if (AMBRO_UNLIKELY(cmd->u.write_byte.count != 0)) {
-                    cmd->u.write_byte.count--;
-                    Device::spi()->SPI_TDR = cmd->byte;
-                    return;
-                }
-            } break;
-        }
-        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
-        o->m_start = BoundedModuloInc(o->m_start);
-        if (AMBRO_LIKELY(o->m_start != o->m_end)) {
-            o->m_current = &o->m_buffer[o->m_start.value()];
-            Device::spi()->SPI_TDR = o->m_current->byte;
-        } else {
-            Device::spi()->SPI_IDR = SPI_IDR_RDRF;
-        }
-    }
-    
-    using EventLoopFastEvents = MakeTypeList<FastEvent>;
-    
-private:
-    static void event_handler (Context c)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        
-        return Handler::call(c);
-    }
-    
-    static CommandSizeType get_start (Context c)
-    {
-        auto *o = Object::self(c);
-        CommandSizeType start;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            start = o->m_start;
-        }
-        return start;
-    }
-    
-    static bool is_full (Context c)
-    {
-        auto *o = Object::self(c);
-        CommandSizeType start = get_start(c);
-        return (BoundedModuloSubtract(o->m_end, start) == CommandSizeType::maxValue());
-    }
-    
-    static void write_command (Context c)
-    {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(!is_full(c))
-        
-        bool was_idle;
-        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-            was_idle = (o->m_start == o->m_end);
-            o->m_end = BoundedModuloInc(o->m_end);
-        }
-        if (was_idle) {
-            o->m_current = &o->m_buffer[o->m_start.value()];
-            memory_barrier();
-            Device::spi()->SPI_TDR = o->m_current->byte;
-            Device::spi()->SPI_IER = SPI_IER_RDRF;
-        }
+        TransferCompleteHandler::call(c, byte);
     }
     
 public:
-    struct Object : public ObjBase<At91SamSpiBase, ParentObject, MakeTypeList<TheDebugObject>> {
-        CommandSizeType m_start;
-        CommandSizeType m_end;
-        Command *m_current;
-        Command m_buffer[(size_t)CommandSizeType::maxIntValue() + 1];
-    };
+    struct Object {};
 };
 
 template <typename Device>
-struct At91SamSpiService {
-    template <typename Context, typename ParentObject, typename Handler, int CommandBufferBits>
-    using Spi = At91SamSpiBase<Context, ParentObject, Handler, CommandBufferBits, Device>;
+struct At91SamSimpleSpiService {
+    template <typename Context, typename ParentObject, typename TransferCompleteHandler>
+    using SimpleSpiDriver = At91SamSimpleSpi<Context, ParentObject, TransferCompleteHandler, Device>;
 };
+
+
+template <typename Device>
+using At91SamSpiService = SimpleSpiService<At91SamSimpleSpiService<Device>>;
 
 #if defined(__SAM3X8E__)
 
@@ -368,7 +143,7 @@ extern "C" \
 __attribute__((used)) \
 void SPI0_Handler (void) \
 { \
-    thespi::spi_irq(MakeInterruptContext(context)); \
+    thespi::GetDriver::spi_irq(MakeInterruptContext(context)); \
 }
 
 #elif defined(__SAM3U4E__)
@@ -387,7 +162,7 @@ extern "C" \
 __attribute__((used)) \
 void SPI_Handler (void) \
 { \
-    thespi::spi_irq(MakeInterruptContext(context)); \
+    thespi::GetDriver::spi_irq(MakeInterruptContext(context)); \
 }
 
 #else
