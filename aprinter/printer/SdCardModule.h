@@ -53,6 +53,7 @@ public:
     struct Object;
     
 private:
+    using TimeType = typename Context::Clock::TimeType;
     using TheCommand = typename ThePrinterMain::TheCommand;
     
     struct InputReadHandler;
@@ -67,6 +68,9 @@ private:
     using ParserSizeType = ChooseIntForMax<MaxCommandSize, false>;
     using TheGcodeParser = typename Params::template GcodeParserTemplate<Context, Object, typename Params::TheGcodeParserParams, ParserSizeType>;
     
+    static TimeType const BaseRetryTimeTicks = 0.5 * Context::Clock::time_freq;
+    static int const ReadRetryCount = 5;
+    
     enum {SDCARD_PAUSED, SDCARD_RUNNING, SDCARD_PAUSING};
     
 public:
@@ -76,6 +80,7 @@ public:
         TheInput::init(c);
         o->command_stream.init(c, &o->callback);
         o->m_next_event.init(c, APRINTER_CB_STATFUNC_T(&SdCardModule::next_event_handler));
+        o->m_retry_timer.init(c, APRINTER_CB_STATFUNC_T(&SdCardModule::retry_timer_handler));
         o->m_state = SDCARD_PAUSED;
         o->m_echo_pending = true;
         o->m_poke_pending = false;
@@ -86,6 +91,7 @@ public:
     {
         auto *o = Object::self(c);
         deinit_buffering(c);
+        o->m_retry_timer.deinit(c);
         o->m_next_event.deinit(c);
         o->command_stream.deinit(c);
         TheInput::deinit(c);
@@ -148,10 +154,12 @@ private:
             AMBRO_ASSERT(TheGcodeParser::getLength(c) <= o->m_length)
             
             size_t cmd_len = TheGcodeParser::getLength(c);
-            o->m_next_event.prependNowNotAlready(c);
             o->m_start = buf_add(o->m_start, cmd_len);
             o->m_length -= cmd_len;
-            if (!o->m_reading && can_read(c)) {
+            
+            o->m_next_event.prependNowNotAlready(c);
+            
+            if (!o->m_reading && can_read(c) && o->m_retry_counter == 0) {
                 start_read(c);
             }
         }
@@ -243,16 +251,21 @@ private:
         if (!TheInput::startingIo(c, err_output)) {
             return false;
         }
+        
         o->m_state = SDCARD_RUNNING;
         o->m_eof = false;
         o->m_reading = false;
+        o->m_retry_counter = 0;
+        o->command_stream.clearError(c);
+        
         if (can_read(c)) {
             start_read(c);
         }
-        o->command_stream.clearError(c);
+        
         if (!o->command_stream.maybeResumeLockingCommand(c)) {
             o->m_next_event.prependNowNotAlready(c);
         }
+        
         return true;
     }
     
@@ -335,8 +348,11 @@ private:
         buf_sanity(c);
         AMBRO_ASSERT(o->m_reading)
         AMBRO_ASSERT(bytes_read <= BufferBaseSize - o->m_length)
+        AMBRO_ASSERT(!o->m_retry_timer.isSet(c))
+        AMBRO_ASSERT(o->m_retry_counter <= ReadRetryCount)
         
         o->m_reading = false;
+        
         if (!error) {
             size_t write_offset = buf_add(o->m_start, o->m_length);
             if (write_offset < WrapExtraSize) {
@@ -347,23 +363,31 @@ private:
             }
             o->m_length += bytes_read;
         }
+        
         if (o->m_state == SDCARD_PAUSING) {
             if (o->m_pausing_on_command) {
                 ThePrinterMain::finish_locked(c);
             }
             return complete_pause(c);
         }
+        
         if (error) {
-            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//SdRdEr\n"));
-            return start_read(c);
-        }
-        if (can_read(c)) {
-            start_read(c);
-        }
-        if (!o->command_stream.hasCommand(c) && !o->m_eof) {
-            if (!o->m_next_event.isSet(c)) {
-                o->m_next_event.prependNowNotAlready(c);
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//Error:SdRead\n"));
+            o->m_retry_counter++;
+            if (o->m_retry_counter <= ReadRetryCount) {
+                TimeType retry_time = Context::Clock::getTime(c) + (BaseRetryTimeTicks << (o->m_retry_counter - 1));
+                o->m_retry_timer.appendAt(c, retry_time);
             }
+        } else {
+            o->m_retry_counter = 0;
+            
+            if (can_read(c)) {
+                start_read(c);
+            }
+        }
+        
+        if (!o->command_stream.hasCommand(c) && !o->m_eof && !o->m_next_event.isSet(c)) {
+            o->m_next_event.prependNowNotAlready(c);
         }
     }
     struct InputReadHandler : public AMBRO_WFUNC_TD(&SdCardModule::input_read_handler) {};
@@ -426,6 +450,12 @@ private:
             eof_str = AMBRO_PSTR("//SdEnd\n");
             goto eof;
         }
+        
+        if (o->m_retry_counter > ReadRetryCount) {
+            eof_str = AMBRO_PSTR("//SdAbort\n");
+            goto eof;
+        }
+        
         return;
         
     eof:
@@ -433,9 +463,21 @@ private:
         return o->command_stream.startCommand(c, &o->gcode_m400_command);
     }
     
+    static void retry_timer_handler (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->m_state == SDCARD_RUNNING)
+        AMBRO_ASSERT(!o->m_reading)
+        AMBRO_ASSERT(o->m_retry_counter > 0)
+        AMBRO_ASSERT(o->m_retry_counter <= ReadRetryCount)
+        
+        start_read(c);
+    }
+    
     static void init_buffering (Context c)
     {
         auto *o = Object::self(c);
+        
         TheGcodeParser::init(c);
         o->m_start = 0;
         o->m_length = 0;
@@ -487,6 +529,7 @@ private:
         AMBRO_ASSERT(!o->m_reading)
         
         TheInput::pausingIo(c);
+        o->m_retry_timer.unset(c);
         o->m_state = SDCARD_PAUSED;
     }
     
@@ -500,14 +543,16 @@ public:
         GcodeCommandWrapper<Context, typename ThePrinterMain::FpType, TheGcodeParser> gcode_command;
         GcodeM400Command<Context, typename ThePrinterMain::FpType> gcode_m400_command;
         typename Context::EventLoop::QueuedEvent m_next_event;
+        typename Context::EventLoop::TimedEvent m_retry_timer;
         uint8_t m_state : 3;
         uint8_t m_eof : 1;
         uint8_t m_reading : 1;
         uint8_t m_pausing_on_command : 1;
+        uint8_t m_echo_pending : 1;
+        uint8_t m_poke_pending : 1;
+        uint8_t m_retry_counter;
         size_t m_start;
         size_t m_length;
-        bool m_echo_pending;
-        bool m_poke_pending;
         char m_buffer[BufferBaseSize + WrapExtraSize];
     };
 };
