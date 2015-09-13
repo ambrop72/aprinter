@@ -56,6 +56,10 @@ def spi_choice(**kwargs):
         ce.Compound('At91SamSpi', attrs=[
             ce.String(key='Device')
         ]),
+        ce.Compound('At91SamUsartSpi', attrs=[
+            ce.Integer(key='DeviceIndex', default=0),
+            ce.Integer(key='ClockDivider', default=420),
+        ]),
         ce.Compound('AvrSpi', attrs=[
             ce.Integer(key='SpeedDiv')
         ]),

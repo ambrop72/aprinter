@@ -771,6 +771,16 @@ def use_spi (gen, config, key, user):
         gen.add_isr('{}({}, MyContext())'.format(devices[dev], user))
         return TemplateExpr('At91SamSpiService', [dev])
     
+    @spi_sel.option('At91SamUsartSpi')
+    def option(spi_config):
+        gen.add_aprinter_include('hal/at91/At91SamUsartSpi.h')
+        dev_index = spi_config.get_int('DeviceIndex')
+        gen.add_isr('APRINTER_AT91SAM_USART_SPI_GLOBAL({}, {}, MyContext())'.format(dev_index, user))
+        return TemplateExpr('At91SamUsartSpiService', [
+            'At91SamUsartSpiDevice{}'.format(dev_index),
+            spi_config.get_int('ClockDivider'),
+        ])
+    
     @spi_sel.option('AvrSpi')
     def option(spi_config):
         gen.add_aprinter_include('hal/avr/AvrSpi.h')
