@@ -88,12 +88,16 @@ function ce_copyhelper(rows, row, name_key, name_suffix) {
     }
 }
 
+function get_default_config() {
+    return JSON.parse(JSON.stringify(default_config));
+}
+
 // Function to get config from local storage or default.
 function get_config(allow_default) {
     var config_json = localStorage.getItem("aprinter_config");
     if (!config_json) {
         if (allow_default) {
-            return {ok: true, value: default_config};
+            return {ok: true, value: get_default_config()};
         }
         return {ok: false};
     }
@@ -134,9 +138,29 @@ function show_error_dialog(header, contents) {
     $('#error_modal').modal({});
 }
 
+function each_in(obj, prop, func) {
+    if (JSONEditor_utils.isObject(obj)) {
+        JSONEditor_utils.each(JSONEditor_utils.get(obj, prop), func);
+    }
+}
+
+function fixup_config(config) {
+    each_in(config, "boards", function(i, board) {
+        each_in(board, "analog_inputs", function(j, analog_input) {
+            if (JSONEditor_utils.isObject(analog_input)) {
+                if (!JSONEditor_utils.has(analog_input, "Driver") && JSONEditor_utils.has(analog_input, "Pin")) {
+                    analog_input["Driver"] = {"_compoundName": "AdcAnalogInput", "Pin": analog_input["Pin"]};
+                    delete analog_input["Pin"];
+                }
+            }
+        });
+    });
+}
+
 var load = function() {
     // Get initial configuration from local storage, if any.
     var startval = get_config(true).value;
+    fixup_config(startval);
 
     // Create the editor.
     jsoneditor = new JSONEditor($editor, {
@@ -158,7 +182,9 @@ var load = function() {
             alert("Cannot load - no configuration present in local storage!");
             return;
         }
-        jsoneditor.setValue(get_config_res.value);
+        var config = get_config_res.value;
+        fixup_config(config);
+        jsoneditor.setValue(config);
     });
     
     // Handler for the delete-saved-data button.
@@ -168,7 +194,9 @@ var load = function() {
     
     // When the load-defaults button is pressed, load the default config.
     $load_defaults_button.addEventListener('click', function() {
-        jsoneditor.setValue(default_config);
+        var config = get_default_config();
+        fixup_config(config);
+        jsoneditor.setValue(config);
     });
     
     // If the window is about to be closed with unsaved data, ask for confirmation.
@@ -202,6 +230,7 @@ var load = function() {
         var reader = new FileReader();
         reader.onload = function() {
             var config = JSON.parse(this.result);
+            fixup_config(config);
             jsoneditor.setValue(config);
         }
         reader.readAsText($import_data_file_input.files[0]);

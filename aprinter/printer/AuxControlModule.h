@@ -175,7 +175,8 @@ private:
         using TheObserver = typename HeaterSpec::ObserverService::template Observer<Context, Object, Config, FpType, ObserverGetValueCallback, ObserverHandler>;
         using PwmDutyCycleData = typename ThePwm::DutyCycleData;
         using TheFormula = typename HeaterSpec::Formula::template Formula<Context, Object, Config, FpType>;
-        using AdcFixedType = typename Context::Adc::FixedType;
+        using TheAnalogInput = typename HeaterSpec::AnalogInput::template AnalogInput<Context, Object>;
+        using AdcFixedType = typename TheAnalogInput::FixedType;
         using AdcIntType = typename AdcFixedType::IntType;
         
         // compute the ADC readings corresponding to MinSafeTemp and MaxSafeTemp
@@ -211,11 +212,13 @@ private:
             o->m_control_event.appendAt(c, time + (APRINTER_CFG(Config, CControlIntervalTicks, c) / 2));
             ThePwm::init(c, time);
             TheObserver::init(c);
+            TheAnalogInput::init(c);
         }
         
         static void deinit (Context c)
         {
             auto *o = Object::self(c);
+            TheAnalogInput::deinit(c);
             TheObserver::deinit(c);
             ThePwm::deinit(c);
             o->m_control_event.deinit(c);
@@ -230,7 +233,7 @@ private:
         template <typename ThisContext>
         static AdcFixedType get_adc (ThisContext c)
         {
-            return Context::Adc::template getValue<typename HeaterSpec::AdcPin>(c);
+            return TheAnalogInput::getValue(c);
         }
         
         static bool adc_is_unsafe (Context c, AdcFixedType adc_value)
@@ -457,7 +460,8 @@ private:
             TheControl,
             ThePwm,
             TheObserver,
-            TheFormula
+            TheFormula,
+            TheAnalogInput
         >> {
             uint8_t m_enabled : 1;
             uint8_t m_was_not_unset : 1;
@@ -753,7 +757,7 @@ struct AuxControlName {
 template <
     typename TName,
     int TSetMCommand,
-    typename TAdcPin,
+    typename TAnalogInput,
     typename TFormula,
     typename TMinSafeTemp,
     typename TMaxSafeTemp,
@@ -765,7 +769,7 @@ template <
 struct AuxControlModuleHeaterParams {
     using Name = TName;
     static int const SetMCommand = TSetMCommand;
-    using AdcPin = TAdcPin;
+    using AnalogInput = TAnalogInput;
     using Formula = TFormula;
     using MinSafeTemp = TMinSafeTemp;
     using MaxSafeTemp = TMaxSafeTemp;

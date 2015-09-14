@@ -712,7 +712,11 @@ def editor():
             ])),
             ce.Array(key='analog_inputs', title='Analog inputs', copy_name_key='Name', processing_order=-7, elem=ce.Compound('analog_input', title='Analog input', title_key='Name', collapsable=True, attrs=[
                 ce.String(key='Name', title='Name'),
-                pin_choice(key='Pin', title='Pin'),
+                ce.OneOf(key='Driver', title='Driver', choices=[
+                    ce.Compound('AdcAnalogInput', title='ADC pin', attrs=[
+                        pin_choice(key='Pin', title='Pin'),
+                    ]),
+                ]),
             ])),
             ce.Array(key='pwm_outputs', title='PWM outputs', copy_name_key='Name', processing_order=-6, elem=ce.Compound('pwm_output', title='PWM output', title_key='Name', collapsable=True, attrs=[
                 ce.String(key='Name', title='Name'),

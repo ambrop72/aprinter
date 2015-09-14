@@ -689,9 +689,17 @@ def use_digital_input (gen, config, key):
 
 def use_analog_input (gen, config, key):
     ai = gen.get_object('analog_input', config, key)
-    pin = get_pin(gen, ai, 'Pin')
-    gen.get_singleton_object('adc_pins').append(pin)
-    return pin
+    
+    analog_input_sel = selection.Selection()
+    
+    @analog_input_sel.option('AdcAnalogInput')
+    def option(analog_input):
+        gen.add_aprinter_include('printer/analog_input/AdcAnalogInput.h')
+        pin = get_pin(gen, analog_input, 'Pin')
+        gen.get_singleton_object('adc_pins').append(pin)
+        return TemplateExpr('AdcAnalogInputService', [pin])
+    
+    return ai.do_selection('Driver', analog_input_sel)
 
 def use_interrupt_timer (gen, config, key, user, clearance=None):
     clock = gen.get_singleton_object('clock')
