@@ -418,6 +418,13 @@ public:
         lo->m_event_list.append(this);
         this->time += after_time;
     }
+    
+    TimeType getSetTime (Context c)
+    {
+        this->debugAccess(c);
+        
+        return this->time;
+    }
 };
 
 #include <aprinter/EndNamespace.h>

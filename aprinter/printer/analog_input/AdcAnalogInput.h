@@ -33,7 +33,13 @@ class AdcAnalogInput {
     
 public:
     static bool const IsRounded = false;
+    
     using FixedType = typename TheAdc::FixedType;
+    
+    static bool isValueInvalid (FixedType value)
+    {
+        return false;
+    }
     
     static void init (Context c)
     {
@@ -43,10 +49,13 @@ public:
     {
     }
     
-    template <typename ThisContext>
-    static FixedType getValue (ThisContext c)
+    static FixedType getValue (Context c)
     {
         return TheAdc::template getValue<typename Params::AdcPin>(c);
+    }
+    
+    static void check_safety (Context c)
+    {
     }
     
 public:

@@ -226,6 +226,9 @@ private:
         
         static FpType adc_to_temp (Context c, AdcFixedType adc_value)
         {
+            if (TheAnalogInput::isValueInvalid(adc_value)) {
+                return NAN;
+            }
             FpType adc_fp = adc_value.template fpValue<FpType>();
             if (!TheAnalogInput::IsRounded) {
                 adc_fp += (FpType)(0.5 / PowerOfTwo<double, AdcFixedType::num_bits>::Value);
@@ -233,20 +236,23 @@ private:
             return TheFormula::adcToTemp(c, adc_fp);
         }
         
-        template <typename ThisContext>
-        static AdcFixedType get_adc (ThisContext c)
+        static AdcFixedType get_adc (Context c)
         {
             return TheAnalogInput::getValue(c);
         }
         
         static bool adc_is_unsafe (Context c, AdcFixedType adc_value)
         {
-            return (adc_value.bitsValue() <= APRINTER_CFG(Config, CInfAdcValue, c) || adc_value.bitsValue() >= APRINTER_CFG(Config, CSupAdcValue, c));
+            return
+                TheAnalogInput::isValueInvalid(adc_value) ||
+                adc_value.bitsValue() <= APRINTER_CFG(Config, CInfAdcValue, c) ||
+                adc_value.bitsValue() >= APRINTER_CFG(Config, CSupAdcValue, c);
         }
         
         static FpType get_temp (Context c)
         {
-            return adc_to_temp(c, get_adc(c));
+            AdcFixedType adc_raw = get_adc(c);
+            return adc_to_temp(c, adc_raw);
         }
         
         static void append_value (Context c, TheCommand *cmd)
@@ -339,6 +345,8 @@ private:
         
         static void check_safety (Context c)
         {
+            TheAnalogInput::check_safety(c);
+            
             AdcFixedType adc_value = get_adc(c);
             if (adc_is_unsafe(c, adc_value)) {
                 unset(c);
@@ -401,12 +409,14 @@ private:
                     TheControl::init(c);
                 }
                 FpType sensor_value = adc_to_temp(c, adc_value);
-                FpType output = TheControl::addMeasurement(c, sensor_value, target);
-                PwmDutyCycleData duty;;
-                ThePwm::computeDutyCycle(output, &duty);
-                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    if (o->m_was_not_unset) {
-                        ThePwm::setDutyCycle(lock_c, duty);
+                if (!FloatIsNan(sensor_value)) {
+                    FpType output = TheControl::addMeasurement(c, sensor_value, target);
+                    PwmDutyCycleData duty;
+                    ThePwm::computeDutyCycle(output, &duty);
+                    AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                        if (o->m_was_not_unset) {
+                            ThePwm::setDutyCycle(lock_c, duty);
+                        }
                     }
                 }
             }

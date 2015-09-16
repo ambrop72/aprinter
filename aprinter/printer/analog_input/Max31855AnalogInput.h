@@ -34,6 +34,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/BinaryTools.h>
+#include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -44,6 +45,7 @@ public:
     
 private:
     using TimeType = typename Context::Clock::TimeType;
+    using TheClockUtils = ClockUtils<Context>;
     
     static int const SpiMaxCommands = 2;
     static int const SpiCommandBits = BitsInInt<SpiMaxCommands>::Value;
@@ -51,10 +53,17 @@ private:
     using TheSpi = typename Params::SpiService::template Spi<Context, Object, SpiHandler, SpiCommandBits>;
     
     static TimeType const ReadDelayTicks = 0.05 * Context::Clock::time_freq;
+    static TimeType const SafetyDeadlineTicks = 0.5 * Context::Clock::time_freq;
     
 public:
     static bool const IsRounded = true;
+    
     using FixedType = FixedPoint<14, false, -14>;
+    
+    static bool isValueInvalid (FixedType value)
+    {
+        return value.bitsValue() == 0;
+    }
     
     static void init (Context c)
     {
@@ -66,7 +75,6 @@ public:
         TheSpi::init(c);
         o->m_timer.init(c, APRINTER_CB_STATFUNC_T(&Max31855AnalogInput::timer_handler));
         o->m_value = FixedType::importBits(0);
-        
         o->m_timer.appendAt(c, Context::Clock::getTime(c));
     }
     
@@ -80,22 +88,45 @@ public:
         Context::Pins::template set<typename Params::SsPin>(c, true);
     }
     
-    template <typename ThisContext>
-    static FixedType getValue (ThisContext c)
+    static FixedType getValue (Context c)
     {
         auto *o = Object::self(c);
         return o->m_value;
     }
     
+    static void check_safety (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        if (have_timing_error(c)) {
+            o->m_value = FixedType::importBits(0);
+        }
+    }
+    
     using GetSpi = TheSpi;
     
 private:
+    static bool have_timing_error (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        // Check for stall of SPI transactions.
+        // If the current time is not in the interval [low_limit, high_limit) defined below around
+        // the schuled time for a transaction, assume an invalid value.
+        
+        TimeType low_limit = o->m_timer.getSetTime(c) - ReadDelayTicks;
+        TimeType high_limit = o->m_timer.getSetTime(c) + SafetyDeadlineTicks;
+        TimeType now = Context::Clock::getTime(c);
+        
+        return (!TheClockUtils::timeGreaterOrEqual(now, low_limit) || TheClockUtils::timeGreaterOrEqual(now, high_limit));
+    }
+    
     static void timer_handler (Context c)
     {
         auto *o = Object::self(c);
         
         Context::Pins::template set<typename Params::SsPin>(c, false);
-        TheSpi::cmdReadBuffer(c, o->m_buffer, 2, 0);
+        TheSpi::cmdReadBuffer(c, o->m_buffer, 4, 0);
     }
     
     static void spi_handler (Context c)
@@ -108,12 +139,18 @@ private:
         TimeType set_time = Context::Clock::getTime(c) + ReadDelayTicks;
         o->m_timer.appendAt(c, set_time);
         
-        uint16_t raw_value = ReadBinaryInt<uint16_t, BinaryBigEndian>((char *)o->m_buffer) >> 2;
         uint16_t value;
-        if (raw_value < UINT16_C(8192)) {
-            value = raw_value + UINT16_C(8192);
+        uint32_t reading = ReadBinaryInt<uint32_t, BinaryBigEndian>((char *)o->m_buffer);
+        bool have_fault = (reading & UINT32_C(0x3000F)) != 0;
+        if (have_fault || have_timing_error(c)) {
+            value = 0;
         } else {
-            value = raw_value - UINT16_C(8192);
+            uint16_t temp_value = reading >> 18;
+            if (temp_value < UINT16_C(8192)) {
+                value = temp_value + UINT16_C(8192);
+            } else {
+                value = temp_value - UINT16_C(8192);
+            }
         }
         o->m_value = FixedType::importBits(value);
     }
@@ -125,7 +162,7 @@ public:
     >> {
         typename Context::EventLoop::TimedEvent m_timer;
         FixedType m_value;
-        uint8_t m_buffer[2];
+        uint8_t m_buffer[4];
     };
 };
 
