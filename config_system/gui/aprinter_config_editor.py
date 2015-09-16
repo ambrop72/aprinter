@@ -474,12 +474,15 @@ def editor():
                 analog_input_choice(key='ThermistorInput', title='Thermistor analog input'),
                 ce.Float(key='MinSafeTemp', title='Turn off if temperature is below [C]', default=10),
                 ce.Float(key='MaxSafeTemp', title='Turn off if temperature is above [C]', default=280),
-                ce.Compound('conversion', key='conversion', title='Conversion parameters', attrs=[
-                    ce.Float(key='ResistorR', title='Series-resistor resistance [ohm]', default=4700),
-                    ce.Float(key='R0', title='Thermistor resistance @25C [ohm]', default=100000),
-                    ce.Float(key='Beta', title='Thermistor beta value [K]', default=3960),
-                    ce.Float(key='MinTemp', title='Reliable measurements are above [C]', default=10),
-                    ce.Float(key='MaxTemp', title='Reliable measurements are below [C]', default=300)
+                ce.OneOf(key='conversion', title='Temperature conversion', choices=[
+                    ce.Compound('conversion', title='Generic thermistor', attrs=[
+                        ce.Float(key='ResistorR', title='Series-resistor resistance [ohm]', default=4700),
+                        ce.Float(key='R0', title='Thermistor resistance @25C [ohm]', default=100000),
+                        ce.Float(key='Beta', title='Thermistor beta value [K]', default=3960),
+                        ce.Float(key='MinTemp', title='Reliable measurements are above [C]', default=10),
+                        ce.Float(key='MaxTemp', title='Reliable measurements are below [C]', default=300)
+                    ]),
+                    ce.Compound('Max31855Formula', title='MAX31855 conversion', attrs=[]),
                 ]),
                 ce.Compound('control', key='control', title='PID control parameters', attrs=[
                     ce.Float(key='ControlInterval', title='Invoke the PID control algorithm every [s]', default=0.2),
@@ -715,6 +718,10 @@ def editor():
                 ce.OneOf(key='Driver', title='Driver', choices=[
                     ce.Compound('AdcAnalogInput', title='ADC pin', attrs=[
                         pin_choice(key='Pin', title='Pin'),
+                    ]),
+                    ce.Compound('Max31855AnalogInput', title='Thermocouple via MAX31855', attrs=[
+                        pin_choice(key='SsPin', title='SS pin'),
+                        spi_choice(key='SpiService', title='SPI driver'),
                     ]),
                 ]),
             ])),

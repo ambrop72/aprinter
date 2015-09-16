@@ -226,7 +226,10 @@ private:
         
         static FpType adc_to_temp (Context c, AdcFixedType adc_value)
         {
-            FpType adc_fp = adc_value.template fpValue<FpType>() + (FpType)(0.5 / PowerOfTwo<double, AdcFixedType::num_bits>::Value);
+            FpType adc_fp = adc_value.template fpValue<FpType>();
+            if (!TheAnalogInput::IsRounded) {
+                adc_fp += (FpType)(0.5 / PowerOfTwo<double, AdcFixedType::num_bits>::Value);
+            }
             return TheFormula::adcToTemp(c, adc_fp);
         }
         
@@ -725,6 +728,9 @@ public:
     
     template <int HeaterIndex>
     using GetHeaterPwm = typename Heater<HeaterIndex>::ThePwm;
+    
+    template <int HeaterIndex>
+    using GetHeaterAnalogInput = typename Heater<HeaterIndex>::TheAnalogInput;
     
     template <int FanIndex>
     using GetFanPwm = typename Fan<FanIndex>::ThePwm;

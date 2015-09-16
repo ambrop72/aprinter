@@ -22,45 +22,36 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_ADC_ANALOG_INPUT_H
-#define APRINTER_ADC_ANALOG_INPUT_H
+#ifndef APRINTER_MAX31855_FORMULA_H
+#define APRINTER_MAX31855_FORMULA_H
+
+#include <aprinter/math/FloatTools.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename Params>
-class AdcAnalogInput {
-    using TheAdc = typename Context::Adc;
+template <typename Context, typename ParentObject, typename Config, typename FpType, typename Params>
+class Max31855Formula {
+    using Unscale = APRINTER_FP_CONST_EXPR(16384.0);
+    using ZeroValue = APRINTER_FP_CONST_EXPR(8192.0);
+    using Resolution = APRINTER_FP_CONST_EXPR(0.25);
     
 public:
-    static bool const IsRounded = false;
-    using FixedType = typename TheAdc::FixedType;
+    template <typename Temp>
+    static auto TempToAdc (Temp) -> decltype(((Temp() / Resolution()) + ZeroValue()) / Unscale());
     
-    static void init (Context c)
+    static FpType adcToTemp (Context c, FpType adc)
     {
-    }
-    
-    static void deinit (Context c)
-    {
-    }
-    
-    template <typename ThisContext>
-    static FixedType getValue (ThisContext c)
-    {
-        return TheAdc::template getValue<typename Params::AdcPin>(c);
+        return ((adc * Unscale::value()) - (FpType)ZeroValue::value()) * (FpType)Resolution::value();
     }
     
 public:
     struct Object {};
 };
 
-template <
-    typename TAdcPin
->
-struct AdcAnalogInputService {
-    using AdcPin = TAdcPin;
-    
-    template <typename Context, typename ParentObject>
-    using AnalogInput = AdcAnalogInput<Context, ParentObject, AdcAnalogInputService>;
+struct Max31855FormulaService {
+    template <typename Context, typename ParentObject, typename Config, typename FpType>
+    using Formula = Max31855Formula<Context, ParentObject, Config, FpType, Max31855FormulaService>;
 };
 
 #include <aprinter/EndNamespace.h>

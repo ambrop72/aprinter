@@ -687,7 +687,7 @@ def use_digital_input (gen, config, key):
     di = gen.get_object('digital_input', config, key)
     return '{}, {}'.format(get_pin(gen, di, 'Pin'), di.get_identifier('InputMode'))
 
-def use_analog_input (gen, config, key):
+def use_analog_input (gen, config, key, user):
     ai = gen.get_object('analog_input', config, key)
     
     analog_input_sel = selection.Selection()
@@ -698,6 +698,14 @@ def use_analog_input (gen, config, key):
         pin = get_pin(gen, analog_input, 'Pin')
         gen.get_singleton_object('adc_pins').append(pin)
         return TemplateExpr('AdcAnalogInputService', [pin])
+    
+    @analog_input_sel.option('Max31855AnalogInput')
+    def option(analog_input):
+        gen.add_aprinter_include('printer/analog_input/Max31855AnalogInput.h')
+        return TemplateExpr('Max31855AnalogInputService', [
+            get_pin(gen, analog_input, 'SsPin'),
+            use_spi(gen, analog_input, 'SpiService', '{}::GetSpi'.format(user)),
+        ])
     
     return ai.do_selection('Driver', analog_input_sel)
 
@@ -1312,15 +1320,25 @@ def generate(config_root_data, cfg_name, main_template):
             def heater_cb(heater, heater_index):
                 name, name_expr = get_letter_number_name(heater, 'Name')
                 
-                for conversion in heater.enter_config('conversion'):
+                conversion_sel = selection.Selection()
+                
+                @conversion_sel.option('conversion')
+                def option(conversion_config):
                     gen.add_aprinter_include('printer/thermistor/GenericThermistor.h')
-                    thermistor = TemplateExpr('GenericThermistorService', [
-                        gen.add_float_config('{}HeaterTempResistorR'.format(name), conversion.get_float('ResistorR')),
-                        gen.add_float_config('{}HeaterTempR0'.format(name), conversion.get_float('R0')),
-                        gen.add_float_config('{}HeaterTempBeta'.format(name), conversion.get_float('Beta')),
-                        gen.add_float_config('{}HeaterTempMinTemp'.format(name), conversion.get_float('MinTemp')),
-                        gen.add_float_config('{}HeaterTempMaxTemp'.format(name), conversion.get_float('MaxTemp')),
+                    return TemplateExpr('GenericThermistorService', [
+                        gen.add_float_config('{}HeaterTempResistorR'.format(name), conversion_config.get_float('ResistorR')),
+                        gen.add_float_config('{}HeaterTempR0'.format(name), conversion_config.get_float('R0')),
+                        gen.add_float_config('{}HeaterTempBeta'.format(name), conversion_config.get_float('Beta')),
+                        gen.add_float_config('{}HeaterTempMinTemp'.format(name), conversion_config.get_float('MinTemp')),
+                        gen.add_float_config('{}HeaterTempMaxTemp'.format(name), conversion_config.get_float('MaxTemp')),
                     ])
+                
+                @conversion_sel.option('Max31855Formula')
+                def option(conversion_config):
+                    gen.add_aprinter_include('printer/thermistor/Max31855Formula.h')
+                    return 'Max31855FormulaService'
+                
+                conversion = heater.do_selection('conversion', conversion_sel)
                 
                 for control in heater.enter_config('control'):
                     gen.add_aprinter_include('printer/temp_control/PidControl.h')
@@ -1345,8 +1363,8 @@ def generate(config_root_data, cfg_name, main_template):
                 return TemplateExpr('AuxControlModuleHeaterParams', [
                     name_expr,
                     heater.get_int('SetMCommand'),
-                    use_analog_input(gen, heater, 'ThermistorInput'),
-                    thermistor,
+                    use_analog_input(gen, heater, 'ThermistorInput', '{}::GetHeaterAnalogInput<{}>'.format(aux_control_module_user, heater_index)),
+                    conversion,
                     gen.add_float_config('{}HeaterMinSafeTemp'.format(name), heater.get_float('MinSafeTemp')),
                     gen.add_float_config('{}HeaterMaxSafeTemp'.format(name), heater.get_float('MaxSafeTemp')),
                     gen.add_float_config('{}HeaterControlInterval'.format(name), control_interval),
