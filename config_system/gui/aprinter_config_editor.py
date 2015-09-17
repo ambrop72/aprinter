@@ -42,6 +42,22 @@ def analog_input_choice(**kwargs):
 def pwm_output_choice(context, **kwargs):
     return ce.Reference(ref_array=context.board_ref(['pwm_outputs']), ref_id_key='Name', ref_name_key='Name', **kwargs)
 
+def input_mode_choice(context, **kwargs):
+    return ce.OneOf(choices=[
+        ce.Compound('At91SamPinInputMode', attrs=[
+            ce.String(key='PullMode', title='Pull mode', enum=['Normal', 'Pull-up']),
+        ]),
+        ce.Compound('Stm32f4PinInputMode', attrs=[
+            ce.String(key='PullMode', title='Pull mode', enum=['Normal', 'Pull-up', 'Pull-down']),
+        ]),
+        ce.Compound('AvrPinInputMode', attrs=[
+            ce.String(key='PullMode', title='Pull mode', enum=['Normal', 'Pull-up']),
+        ]),
+        ce.Compound('Mk20PinInputMode', attrs=[
+            ce.String(key='PullMode', title='Pull mode', enum=['Normal', 'Pull-up', 'Pull-down']),
+        ]),
+    ], **kwargs)
+
 def i2c_choice(**kwargs):
     return ce.OneOf(choices=[
         ce.Compound('At91SamI2c', attrs=[
@@ -84,10 +100,7 @@ def watchdog_at91sam():
 
 def pins_at91sam():
     return ce.Compound('At91SamPins', key='pins', title='Pins', collapsable=True, attrs=[
-        ce.Constant(key='input_modes', value=[
-            { 'ident': 'At91SamPinInputModeNormal', 'name': 'Normal' },
-            { 'ident': 'At91SamPinInputModePullUp', 'name': 'Pull-up' }
-        ])
+        ce.Constant(key='input_mode_type', value='At91SamPinInputMode'),
     ])
 
 def platform_At91Sam3x8e():
@@ -164,11 +177,7 @@ def platform_Teensy3():
             ce.Integer(key='Prescval', title='Prescaler value'),
         ]),
         ce.Compound('Mk20Pins', key='pins', title='Pins', collapsable=True, attrs=[
-            ce.Constant(key='input_modes', value=[
-                { 'ident': 'Mk20PinInputModeNormal', 'name': 'Normal' },
-                { 'ident': 'Mk20PinInputModePullUp', 'name': 'Pull-up' },
-                { 'ident': 'Mk20PinInputModePullDown', 'name': 'Pull-down' },
-            ])
+            ce.Constant(key='input_mode_type', value='Mk20PinInputMode'),
         ]),
     ])
 
@@ -211,10 +220,7 @@ def platform_Avr(variant):
             ce.String(key='Timeout', title='Timeout (WDTO_*)'),
         ]),
         ce.Compound('AvrPins', key='pins', title='Pins', collapsable=True, attrs=[
-            ce.Constant(key='input_modes', value=[
-                { 'ident': 'AvrPinInputModeNormal', 'name': 'Normal' },
-                { 'ident': 'AvrPinInputModePullUp', 'name': 'Pull-up' },
-            ])
+            ce.Constant(key='input_mode_type', value='AvrPinInputMode'),
         ]),
     ])
 
@@ -238,11 +244,7 @@ def platform_Stm32f4():
             ce.Integer(key='Reload', title='Reload'),
         ]),
         ce.Compound('Stm32f4Pins', key='pins', title='Pins', collapsable=True, attrs=[
-            ce.Constant(key='input_modes', value=[
-                { 'ident': 'Stm32f4PinInputModeNormal', 'name': 'Normal' },
-                { 'ident': 'Stm32f4PinInputModePullUp', 'name': 'Pull-up' },
-                { 'ident': 'Stm32f4PinInputModePullDown', 'name': 'Pull-down' },
-            ])
+            ce.Constant(key='input_mode_type', value='Stm32f4PinInputMode'),
         ]),
     ])
 
@@ -711,7 +713,7 @@ def editor():
             ce.Array(key='digital_inputs', title='Digital inputs', copy_name_key='Name', processing_order=-8, elem=ce.Compound('digital_input', title='Digital input', title_key='Name', collapsable=True, ident='id_board_digital_inputs', attrs=[
                 ce.String(key='Name', title='Name'),
                 pin_choice(key='Pin', title='Pin'),
-                ce.Reference(key='InputMode', title='Input mode', ref_array={'base': 'id_board.platform_config.platform', 'descend': ['pins', 'input_modes']}, ref_id_key='ident', ref_name_key='name')
+                input_mode_choice(board_context, key='InputMode', title='Input mode'),
             ])),
             ce.Array(key='analog_inputs', title='Analog inputs', copy_name_key='Name', processing_order=-7, elem=ce.Compound('analog_input', title='Analog input', title_key='Name', collapsable=True, attrs=[
                 ce.String(key='Name', title='Name'),

@@ -231,6 +231,12 @@ class GenConfigReader(config_reader.ConfigReader):
             elem_config = elems_config.get_config('{}{}'.format(elem_key_prefix, i))
             elems.append(elem_cb(elem_config, i))
         return TemplateList(elems)
+    
+    def do_enum (self, key, mapping):
+        val = self.get_string(key)
+        if val not in mapping:
+            self.key_path(key).error('Incorrect choice.')
+        return mapping[val]
 
 class TemplateExpr(object):
     def __init__ (self, name, args):
@@ -683,9 +689,35 @@ def setup_pwm(gen, config, key):
     if pwm_expr is not None:
         gen.add_global_resource(25, 'MyPwm', pwm_expr, context_name='Pwm')
 
+def use_input_mode (config, key):
+    im_sel = selection.Selection()
+    
+    @im_sel.option('At91SamPinInputMode')
+    def option(im_config):
+        return TemplateExpr('At91SamPinInputMode', [
+            im_config.do_enum('PullMode', {'Normal': 'At91SamPinPullModeNormal', 'Pull-up': 'At91SamPinPullModePullUp'}),
+        ])
+    
+    @im_sel.option('Stm32f4PinInputMode')
+    def option(im_config):
+        return TemplateExpr('Stm32f4PinInputMode', [
+            im_config.do_enum('PullMode', {'Normal': 'Stm32f4PinPullModeNone', 'Pull-up': 'Stm32f4PinPullModePullUp', 'Pull-down': 'Stm32f4PinPullModePullDown'}),
+        ])
+    
+    @im_sel.option('AvrPinInputMode')
+    def option(im_config):
+        return im_config.do_enum('PullMode', {'Normal': 'AvrPinInputModeNormal', 'Pull-up': 'AvrPinInputModePullUp'})
+    
+    @im_sel.option('Mk20PinInputMode')
+    def option(im_config):
+        return im_config.do_enum('PullMode', {'Normal': 'Mk20PinInputModeNormal', 'Pull-up': 'Mk20PinInputModePullUp', 'Pull-down': 'Mk20PinInputModePullDown'})
+    
+    return config.do_selection(key, im_sel)
+
 def use_digital_input (gen, config, key):
     di = gen.get_object('digital_input', config, key)
-    return '{}, {}'.format(get_pin(gen, di, 'Pin'), di.get_identifier('InputMode'))
+    input_mode = use_input_mode(di, 'InputMode')
+    return '{}, {}'.format(get_pin(gen, di, 'Pin'), _build_template_arg(input_mode, -1))
 
 def use_analog_input (gen, config, key, user):
     ai = gen.get_object('analog_input', config, key)

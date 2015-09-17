@@ -154,6 +154,25 @@ function fixup_config(config) {
                 }
             }
         });
+        each_in(board, "digital_inputs", function(j, digital_input) {
+            if (JSONEditor_utils.has(digital_input, "InputMode") && typeof digital_input["InputMode"] === "string") {
+                var input_modes_conversion = {
+                    "At91SamPinInputModeNormal": {"_compoundName": "At91SamPinInputMode", "PullMode": "Normal"},
+                    "At91SamPinInputModePullUp": {"_compoundName": "At91SamPinInputMode", "PullMode": "Pull-up"},
+                    "Mk20PinInputModeNormal": {"_compoundName": "Mk20PinInputMode", "PullMode": "Normal"},
+                    "Mk20PinInputModePullUp": {"_compoundName": "Mk20PinInputMode", "PullMode": "Pull-up"},
+                    "Mk20PinInputModePullDown": {"_compoundName": "Mk20PinInputMode", "PullMode": "Pull-down"},
+                    "AvrPinInputModeNormal": {"_compoundName": "AvrPinInputMode", "PullMode": "Normal"},
+                    "AvrPinInputModePullUp": {"_compoundName": "AvrPinInputMode", "PullMode": "Pull-up"},
+                    "Stm32f4PinInputModeNormal": {"_compoundName": "Stm32f4PinInputMode", "PullMode": "Normal"},
+                    "Stm32f4PinInputModePullUp": {"_compoundName": "Stm32f4PinInputMode", "PullMode": "Pull-up"},
+                    "Stm32f4PinInputModePullDown": {"_compoundName": "Stm32f4PinInputMode", "PullMode": "Pull-down"}
+                };
+                if (JSONEditor_utils.has(input_modes_conversion, digital_input["InputMode"])) {
+                    digital_input["InputMode"] = input_modes_conversion[digital_input["InputMode"]];
+                }
+            }
+        });
     });
 }
 
