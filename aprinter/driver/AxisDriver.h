@@ -167,33 +167,11 @@ public:
         o->m_running = true;
 #endif
         o->m_consumer_id = TypeListIndex<typename ConsumersList::List, TheConsumer>::Value;
-        o->m_current_command = first_command;
-        Stepper::setDir(c, o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
-        o->m_notdecel = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
-        StepFixedType x = StepFixedType::importBits(o->m_current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
-        o->m_notend = (x.bitsValue() != 0);
-        TimeType end_time = start_time + TimeMulFixedType::importBits(TMulStored::retrieve(o->m_current_command->t_mul_stored)).template bitsTo<time_bits>().bitsValue();
-        TimeType timer_t;
-        if (AMBRO_UNLIKELY(!o->m_notend)) {
-            timer_t = end_time;
-            o->m_time = end_time;
-        } else {
-            timer_t = start_time;
-            auto xs = x.toSigned().template shiftBits<(-discriminant_prec)>();
-            auto a = o->m_current_command->a_mul.template undoShiftBitsLeft<(amul_shift-discriminant_prec)>();
-            auto x_minus_a = (xs - a).toUnsignedUnsafe();
-            o->m_discriminant = x_minus_a * x_minus_a;
-            if (AMBRO_LIKELY(o->m_notdecel)) {
-                o->m_v0 = (xs + a).toUnsignedUnsafe();
-                o->m_pos = StepFixedType::importBits(x.bitsValue() - 1);
-                o->m_time = end_time;
-            } else {
-                o->m_x = x;
-                o->m_v0 = x_minus_a;
-                o->m_pos = StepFixedType::importBits(1);
-                o->m_time = start_time;
-            }
-        }
+        o->m_time = start_time;
+        
+        bool command_completed = load_command(c, first_command);
+        TimeType timer_t = command_completed ? o->m_time : start_time;
+        
 #ifdef AXISDRIVER_DETECT_OVERLOAD
         o->m_overload = false;
 #endif
@@ -266,6 +244,38 @@ private:
         }
     };
     
+    template <typename ThisContext>
+    static bool load_command (ThisContext c, Command *command)
+    {
+        auto *o = Object::self(c);
+        
+        o->m_current_command = command;
+        Stepper::setDir(c, command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
+        o->m_notdecel = (command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
+        StepFixedType x = StepFixedType::importBits(command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
+        o->m_notend = (x.bitsValue() != 0);
+        
+        if (AMBRO_UNLIKELY(!o->m_notend)) {
+            o->m_time += TimeMulFixedType::importBits(TMulStored::retrieve(command->t_mul_stored)).template bitsTo<time_bits>().bitsValue();
+            return true;
+        } else {
+            auto xs = x.toSigned().template shiftBits<(-discriminant_prec)>();
+            auto a = command->a_mul.template undoShiftBitsLeft<(amul_shift-discriminant_prec)>();
+            auto x_minus_a = (xs - a).toUnsignedUnsafe();
+            if (AMBRO_LIKELY(o->m_notdecel)) {
+                o->m_v0 = (xs + a).toUnsignedUnsafe();
+                o->m_pos = StepFixedType::importBits(x.bitsValue() - 1);
+                o->m_time += TimeMulFixedType::importBits(TMulStored::retrieve(command->t_mul_stored)).template bitsTo<time_bits>().bitsValue();
+            } else {
+                o->m_x = x;
+                o->m_v0 = x_minus_a;
+                o->m_pos = StepFixedType::importBits(1);
+            }
+            o->m_discriminant = x_minus_a * x_minus_a;
+            return false;
+        }
+    }
+    
     static bool timer_handler (typename TimerInstance::HandlerContext c)
     {
         auto *o = Object::self(c);
@@ -288,29 +298,12 @@ private:
                 return false;
             }
             
-            o->m_current_command = current_command;
-            Stepper::setDir(c, current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
-            o->m_notdecel = (current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
-            StepFixedType x = StepFixedType::importBits(current_command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
-            o->m_notend = (x.bitsValue() != 0);
-            if (AMBRO_UNLIKELY(!o->m_notend)) {
-                o->m_time += TimeMulFixedType::importBits(TMulStored::retrieve(current_command->t_mul_stored)).template bitsTo<time_bits>().bitsValue();
+            bool command_completed = load_command(c, current_command);
+            if (command_completed) {
                 TimerInstance::setNext(c, o->m_time);
                 return true;
             }
-            auto xs = x.toSigned().template shiftBits<(-discriminant_prec)>();
-            auto a = current_command->a_mul.template undoShiftBitsLeft<(amul_shift-discriminant_prec)>();
-            auto x_minus_a = (xs - a).toUnsignedUnsafe();
-            if (AMBRO_LIKELY(o->m_notdecel)) {
-                o->m_v0 = (xs + a).toUnsignedUnsafe();
-                o->m_pos = StepFixedType::importBits(x.bitsValue() - 1);
-                o->m_time += TimeMulFixedType::importBits(TMulStored::retrieve(current_command->t_mul_stored)).template bitsTo<time_bits>().bitsValue();
-            } else {
-                o->m_x = x;
-                o->m_v0 = x_minus_a;
-                o->m_pos = StepFixedType::importBits(1);
-            }
-            o->m_discriminant = x_minus_a * x_minus_a;
+            
 #ifdef AMBROLIB_AVR
             // Force gcc to load the parameters we computed here (m_x, m_v0, m_pos)
             // when they're used below even though they could be kept in registers.
