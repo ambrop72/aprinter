@@ -92,6 +92,7 @@ public:
     using TimerInstance = typename Params::TimerService::template InterruptTimer<Context, Object, TimerHandler>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
     using DirStepFixedType = FixedPoint<step_bits + 2, false, 0>;
+    using DirStepIntType = typename DirStepFixedType::IntType;
     using AccelFixedType = FixedPoint<step_bits, true, 0>;
     using TimeFixedType = FixedPoint<time_bits, false, 0>;
     using TimeMulFixedType = decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
@@ -119,8 +120,8 @@ public:
         cmd->t_mul_stored = TMulStored::store(AXIS_STEPPER_TMUL_EXPR(x, t, a).m_bits.m_int);
         cmd->dir_x = DirStepFixedType::importBits(
             x.bitsValue() |
-            ((typename DirStepFixedType::IntType)dir << step_bits) |
-            ((typename DirStepFixedType::IntType)(a.bitsValue() >= 0) << (step_bits + 1))
+            ((DirStepIntType)dir << step_bits) |
+            ((DirStepIntType)(a.bitsValue() >= 0) << (step_bits + 1))
         );
         cmd->a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
     }
@@ -198,7 +199,7 @@ public:
         TheDebugObject::access(c);
         AMBRO_ASSERT(!o->m_running)
         
-        *dir = (o->m_current_command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
+        *dir = (o->m_current_command->dir_x.bitsValue() & ((DirStepIntType)1 << step_bits));
         if (!o->m_notend) {
             return StepFixedType::importBits(0);
         } else {
@@ -212,8 +213,8 @@ public:
     
     static StepFixedType getPendingCmdSteps (Context c, Command const *cmd, bool *dir)
     {
-        *dir = (cmd->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
-        return StepFixedType::importBits(cmd->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
+        *dir = (cmd->dir_x.bitsValue() & ((DirStepIntType)1 << step_bits));
+        return StepFixedType::importBits(cmd->dir_x.bitsValue() & (((DirStepIntType)1 << step_bits) - 1));
     }
     
 #ifdef AXISDRIVER_DETECT_OVERLOAD
@@ -247,36 +248,57 @@ private:
         }
     };
     
+    template <typename T>
+    inline static T volatile_read (T &x)
+    {
+        return *(T volatile *)&x;
+    }
+    
+    template <typename T>
+    inline static void volatile_write (T &x, T v)
+    {
+        *(T volatile *)&x = v;
+    }
+    
     template <typename ThisContext>
     static bool load_command (ThisContext c, Command *command)
     {
         auto *o = Object::self(c);
         
+        Stepper::setDir(c, command->dir_x.bitsValue()  & ((DirStepIntType)1 << step_bits));
+        
+        // Below we do some volatile memory accesses, to guarantee that at least some
+        // calculations are done after the setDir(). We want the new direction signal
+        // to be applied for a sufficient time before the step signal is raised.
+        
+        DirStepFixedType dir_x = DirStepFixedType::importBits(volatile_read(command->dir_x.m_bits.m_int));
+        
         o->m_current_command = command;
-        Stepper::setDir(c, command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << step_bits));
-        o->m_notdecel = (command->dir_x.bitsValue() & ((typename DirStepFixedType::IntType)1 << (step_bits + 1)));
-        StepFixedType x = StepFixedType::importBits(command->dir_x.bitsValue() & (((typename DirStepFixedType::IntType)1 << step_bits) - 1));
+        o->m_notdecel = (dir_x.bitsValue() & ((DirStepIntType)1 << (step_bits + 1)));
+        StepFixedType x = StepFixedType::importBits(dir_x.bitsValue() & (((DirStepIntType)1 << step_bits) - 1));
         o->m_notend = (x.bitsValue() != 0);
         
         if (AMBRO_UNLIKELY(!o->m_notend)) {
             o->m_time += TimeMulFixedType::importBits(TMulStored::retrieve(command->t_mul_stored)).template bitsTo<time_bits>().bitsValue();
             return true;
-        } else {
-            auto xs = x.toSigned().template shiftBits<(-discriminant_prec)>();
-            auto a = command->a_mul.template undoShiftBitsLeft<(amul_shift-discriminant_prec)>();
-            auto x_minus_a = (xs - a).toUnsignedUnsafe();
-            if (AMBRO_LIKELY(o->m_notdecel)) {
-                o->m_v0 = (xs + a).toUnsignedUnsafe();
-                o->m_pos = StepFixedType::importBits(x.bitsValue() - 1);
-                o->m_time += TimeMulFixedType::importBits(TMulStored::retrieve(command->t_mul_stored)).template bitsTo<time_bits>().bitsValue();
-            } else {
-                o->m_x = x;
-                o->m_v0 = x_minus_a;
-                o->m_pos = StepFixedType::importBits(1);
-            }
-            o->m_discriminant = x_minus_a * x_minus_a;
-            return false;
         }
+        
+        auto xs = x.toSigned().template shiftBits<(-discriminant_prec)>();
+        AMulType a_mul = AMulType::importBits(volatile_read(command->a_mul.m_bits.m_int));
+        auto a = a_mul.template undoShiftBitsLeft<(amul_shift-discriminant_prec)>();
+        auto x_minus_a = (xs - a).toUnsignedUnsafe();
+        if (AMBRO_LIKELY(o->m_notdecel)) {
+            o->m_v0 = (xs + a).toUnsignedUnsafe();
+            o->m_pos = StepFixedType::importBits(x.bitsValue() - 1);
+            o->m_time += TimeMulFixedType::importBits(TMulStored::retrieve(command->t_mul_stored)).template bitsTo<time_bits>().bitsValue();
+        } else {
+            o->m_x = x;
+            o->m_v0 = x_minus_a;
+            o->m_pos = StepFixedType::importBits(1);
+        }
+        volatile_write(o->m_discriminant.m_bits.m_int, (x_minus_a * x_minus_a).bitsValue());
+        
+        return false;
     }
     
     static bool timer_handler (typename TimerInstance::HandlerContext c)
@@ -334,7 +356,7 @@ private:
         // But to prevent the compiler from moving upwards any significant part of the calculation,
         // we do a volatile read of the discriminant (an input to the calculation).
         
-        auto discriminant_bits = *(typename DiscriminantType::IntType volatile *)&o->m_discriminant.m_bits.m_int;
+        auto discriminant_bits = volatile_read(o->m_discriminant.m_bits.m_int);
         o->m_discriminant.m_bits.m_int = discriminant_bits + current_command->a_mul.m_bits.m_int;
         AMBRO_ASSERT(o->m_discriminant.bitsValue() >= 0)
         
@@ -346,7 +368,7 @@ private:
         TimeFixedType t = FixedResMultiply(t_mul, t_frac);
         
         // Now make sure the calculations above happen before stepOff().
-        *(uint8_t volatile *)&o->m_dummy = t.bitsValue();
+        volatile_write(o->m_dummy, (uint8_t)t.bitsValue());
         
         Stepper::stepOff(c);
         
