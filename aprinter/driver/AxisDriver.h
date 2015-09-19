@@ -97,6 +97,9 @@ public:
     using TimeMulFixedType = decltype(AXIS_STEPPER_TMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
     using CommandCallbackContext = typename TimerInstance::HandlerContext;
     using TMulStored = StoredNumber<TimeMulFixedType::num_bits, TimeMulFixedType::is_signed>;
+    using DiscriminantType = decltype(AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
+    using V0Type = decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
+    using AMulType = decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
@@ -104,7 +107,7 @@ private:
 public:
     struct Command {
         DirStepFixedType dir_x;
-        decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) a_mul;
+        AMulType a_mul;
         TMulStored t_mul_stored;
     };
     
@@ -326,7 +329,13 @@ private:
         
         Stepper::stepOn(c);
         
-        o->m_discriminant.m_bits.m_int += current_command->a_mul.m_bits.m_int;
+        // We need to ensure that the step signal is sufficiently long for the stepper driver
+        // to register. To this end, we do the timely calculations in between stepOn and stepOff().
+        // But to prevent the compiler from moving upwards any significant part of the calculation,
+        // we do a volatile read of the discriminant (an input to the calculation).
+        
+        auto discriminant_bits = *(typename DiscriminantType::IntType volatile *)&o->m_discriminant.m_bits.m_int;
+        o->m_discriminant.m_bits.m_int = discriminant_bits + current_command->a_mul.m_bits.m_int;
         AMBRO_ASSERT(o->m_discriminant.bitsValue() >= 0)
         
         auto q = (o->m_v0 + FixedSquareRoot<true>(o->m_discriminant, OptionForceInline())).template shift<-1>();
@@ -335,6 +344,9 @@ private:
         
         auto t_mul = TimeMulFixedType::importBits(TMulStored::retrieve(current_command->t_mul_stored));
         TimeFixedType t = FixedResMultiply(t_mul, t_frac);
+        
+        // Now make sure the calculations above happen before stepOff().
+        *(uint8_t volatile *)&o->m_dummy = t.bitsValue();
         
         Stepper::stepOff(c);
         
@@ -357,6 +369,7 @@ private:
         }
         
         TimerInstance::setNext(c, next_time);
+        
         return true;
     }
     
@@ -376,10 +389,11 @@ public:
         bool m_notdecel;
         StepFixedType m_x;
         StepFixedType m_pos;
-        decltype(AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) m_discriminant;
+        DiscriminantType m_discriminant;
         TimeType m_time;
-        decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS)) m_v0;
+        V0Type m_v0;
         bool m_prestep_callback_enabled;
+        uint8_t m_dummy;
 #ifdef AXISDRIVER_DETECT_OVERLOAD
         bool m_overload;
 #endif
