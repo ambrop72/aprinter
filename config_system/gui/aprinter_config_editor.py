@@ -709,6 +709,14 @@ def editor():
                         current_driver_channel_choice(key='DriverChannelParams', title='Driver-specific parameters'),
                     ]),
                 ]),
+                ce.OneOf(key='delay', title='Step signals timing', choices=[
+                    ce.Compound('NoDelay', title='No special delays', attrs=[]),
+                    ce.Compound('Delay', title='Use delays to ensure required timing', attrs=[
+                        ce.Float(key='DirSetTime', title='Minimum direction ahead of step time [us]', default=0.2),
+                        ce.Float(key='StepHighTime', title='Minimum step high time [us]', default=1.0),
+                        ce.Float(key='StepLowTime', title='Minimum step low time [us]', default=1.0),
+                    ]),
+                ]),
             ])),
             ce.Array(key='digital_inputs', title='Digital inputs', copy_name_key='Name', processing_order=-8, elem=ce.Compound('digital_input', title='Digital input', title_key='Name', collapsable=True, ident='id_board_digital_inputs', attrs=[
                 ce.String(key='Name', title='Name'),

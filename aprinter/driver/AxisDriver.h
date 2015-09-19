@@ -33,11 +33,13 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/TupleForEach.h>
 #include <aprinter/meta/IndexElemTuple.h>
+#include <aprinter/meta/StructIf.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/StoredNumber.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Inline.h>
+#include <aprinter/misc/ClockUtils.h>
 #include <aprinter/driver/AxisDriverConsumer.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -88,6 +90,7 @@ private:
 public:
     struct Object;
     using Clock = typename Context::Clock;
+    using TheClockUtils = ClockUtils<Context>;
     using TimeType = typename Clock::TimeType;
     using TimerInstance = typename Params::TimerService::template InterruptTimer<Context, Object, TimerHandler>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
@@ -101,6 +104,8 @@ public:
     using DiscriminantType = decltype(AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
     using V0Type = decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
     using AMulType = decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
+    using DelayParams = typename Params::DelayParams;
+    using StepContext = typename TimerInstance::HandlerContext;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
@@ -179,6 +184,7 @@ public:
 #ifdef AXISDRIVER_DETECT_OVERLOAD
         o->m_overload = false;
 #endif
+        DelayFeature::set_step_timer_to(c, timer_t);
         TimerInstance::setFirst(c, timer_t);
     }
     
@@ -267,6 +273,8 @@ private:
         
         Stepper::setDir(c, command->dir_x.bitsValue()  & ((DirStepIntType)1 << step_bits));
         
+        DelayFeature::set_dir_timer(c);
+        
         // Below we do some volatile memory accesses, to guarantee that at least some
         // calculations are done after the setDir(). We want the new direction signal
         // to be applied for a sufficient time before the step signal is raised.
@@ -301,7 +309,7 @@ private:
         return false;
     }
     
-    static bool timer_handler (typename TimerInstance::HandlerContext c)
+    static bool timer_handler (StepContext c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_running)
@@ -325,6 +333,8 @@ private:
             
             bool command_completed = load_command(c, current_command);
             if (command_completed) {
+                DelayFeature::wait_for_step_timer(c);
+                DelayFeature::set_step_timer_to(c, o->m_time);
                 TimerInstance::setNext(c, o->m_time);
                 return true;
             }
@@ -349,7 +359,13 @@ private:
             }
         }
         
+        DelayFeature::wait_for_dir_timer(c);
+        
+        DelayFeature::wait_for_step_timer(c);
+        
         Stepper::stepOn(c);
+        
+        DelayFeature::set_step_timer_for_high(c);
         
         // We need to ensure that the step signal is sufficiently long for the stepper driver
         // to register. To this end, we do the timely calculations in between stepOn and stepOff().
@@ -370,7 +386,11 @@ private:
         // Now make sure the calculations above happen before stepOff().
         volatile_write(o->m_dummy, (uint8_t)t.bitsValue());
         
+        DelayFeature::wait_for_step_timer(c);
+        
         Stepper::stepOff(c);
+        
+        DelayFeature::set_step_timer_for_low(c);
         
         TimeType next_time;
         if (AMBRO_LIKELY(!o->m_notdecel)) {
@@ -394,13 +414,74 @@ private:
         
         return true;
     }
-    
     struct TimerHandler : public AMBRO_WFUNC_TD(&AxisDriver::timer_handler) {};
+    
+    AMBRO_STRUCT_IF(DelayFeature, DelayParams::Enabled) {
+        static TimeType const MinDirSetTicks = 1e-6 * DelayParams::DirSetTime::value() * TheClockUtils::time_freq + 0.99;
+        static TimeType const MinStepHighTicks = 1e-6 * DelayParams::StepHighTime::value() * TheClockUtils::time_freq + 0.99;
+        static TimeType const MinStepLowTicks = 1e-6 * DelayParams::StepLowTime::value() * TheClockUtils::time_freq + 0.99;
+        
+        static void set_step_timer_to (Context c, TimeType start_time)
+        {
+            auto *o = Object::self(c);
+            o->m_step_timer.setTo(start_time);
+        }
+        
+        template <typename ThisContext>
+        static void wait_for_dir_timer (ThisContext c)
+        {
+            auto *o = Object::self(c);
+            o->m_dir_timer.waitUntilExpired(c);
+        }
+        
+        template <typename ThisContext>
+        static void wait_for_step_timer (ThisContext c)
+        {
+            auto *o = Object::self(c);
+            o->m_step_timer.waitUntilExpired(c);
+        }
+        
+        template <typename ThisContext>
+        static void set_dir_timer (ThisContext c)
+        {
+            auto *o = Object::self(c);
+            o->m_dir_timer.setAfter(c, MinDirSetTicks);
+        }
+        
+        template <typename ThisContext>
+        static void set_step_timer_for_high (ThisContext c)
+        {
+            auto *o = Object::self(c);
+            o->m_step_timer.setAfter(c, MinStepHighTicks);
+        }
+        
+        template <typename ThisContext>
+        static void set_step_timer_for_low (ThisContext c)
+        {
+            auto *o = Object::self(c);
+            o->m_step_timer.setAfter(c, MinStepLowTicks);
+        }
+        
+        struct Object : public ObjBase<DelayFeature, typename AxisDriver::Object, EmptyTypeList> {
+            typename TheClockUtils::PollTimer m_dir_timer;
+            typename TheClockUtils::PollTimer m_step_timer;
+        };
+    }
+    AMBRO_STRUCT_ELSE(DelayFeature) {
+        static void set_step_timer_to (Context c, TimeType start_time) {}
+        template <typename ThisContext> static void wait_for_dir_timer (ThisContext c) {}
+        template <typename ThisContext> static void wait_for_step_timer (ThisContext c) {}
+        template <typename ThisContext> static void set_dir_timer (ThisContext c) {}
+        template <typename ThisContext> static void set_step_timer_for_high (ThisContext c) {}
+        template <typename ThisContext> static void set_step_timer_for_low (ThisContext c) {}
+        struct Object {};
+    };
     
 public:
     struct Object : public ObjBase<AxisDriver, ParentObject, MakeTypeList<
         TheDebugObject,
-        TimerInstance
+        TimerInstance,
+        DelayFeature
     >> {
 #ifdef AMBROLIB_ASSERTIONS
         bool m_running;
@@ -422,13 +503,31 @@ public:
     };
 };
 
+struct AxisDriverNoDelayParams {
+    static bool const Enabled = false;
+};
+
+template <
+    typename TDirSetTime,
+    typename TStepHighTime,
+    typename TStepLowTime
+>
+struct AxisDriverDelayParams {
+    static bool const Enabled = true;
+    using DirSetTime = TDirSetTime;
+    using StepHighTime = TStepHighTime;
+    using StepLowTime = TStepLowTime;
+};
+
 template <
     typename TTimerService,
-    typename TPrecisionParams
+    typename TPrecisionParams,
+    typename TDelayParams
 >
 struct AxisDriverService {
     using TimerService = TTimerService;
     using PrecisionParams = TPrecisionParams;
+    using DelayParams = TDelayParams;
     
     template <typename Context, typename ParentObject, typename Stepper, typename ConsumersList>
     using AxisDriver = AxisDriver<Context, ParentObject, Stepper, ConsumersList, AxisDriverService>;

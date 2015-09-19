@@ -1322,6 +1322,20 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 stepper_port.do_selection('current', stepper_current_sel)
                 
+                delay_sel = selection.Selection()
+                
+                @delay_sel.option('NoDelay')
+                def option(delay_config):
+                    return 'AxisDriverNoDelayParams'
+                
+                @delay_sel.option('Delay')
+                def option(delay_config):
+                    return TemplateExpr('AxisDriverDelayParams', [
+                        gen.add_float_constant('{}DirSetTime'.format(name), delay_config.get_float('DirSetTime')),
+                        gen.add_float_constant('{}StepHighTime'.format(name), delay_config.get_float('StepHighTime')),
+                        gen.add_float_constant('{}StepLowTime'.format(name), delay_config.get_float('StepLowTime')),
+                    ])
+                
                 return TemplateExpr('PrinterMainAxisParams', [
                     TemplateChar(name),
                     get_pin(gen, stepper_port, 'DirPin'),
@@ -1341,7 +1355,8 @@ def generate(config_root_data, cfg_name, main_template):
                     32,
                     TemplateExpr('AxisDriverService', [
                         use_interrupt_timer(gen, stepper_port, 'StepperTimer', user='MyPrinter::GetAxisTimer<{}>'.format(stepper_index)),
-                        'TheAxisDriverPrecisionParams'
+                        'TheAxisDriverPrecisionParams',
+                        stepper_port.do_selection('delay', delay_sel),
                     ]),
                     stepper_port.do_selection('microstep', microstep_sel),
                     stepper.do_list('slave_steppers', slave_steppers_cb, max_count=10),

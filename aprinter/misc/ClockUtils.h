@@ -76,6 +76,12 @@ public:
             return timeGreaterOrEqual(Context::Clock::getTime(c), m_set_time);
         }
         
+        template <typename ThisContext>
+        inline void waitUntilExpired (ThisContext c)
+        {
+            while (!isExpired(c));
+        }
+        
     private:
         TimeType m_set_time;
     };
