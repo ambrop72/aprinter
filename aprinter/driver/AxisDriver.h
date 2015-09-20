@@ -90,7 +90,6 @@ private:
 public:
     struct Object;
     using Clock = typename Context::Clock;
-    using TheClockUtils = ClockUtils<Context>;
     using TimeType = typename Clock::TimeType;
     using TimerInstance = typename Params::TimerService::template InterruptTimer<Context, Object, TimerHandler>;
     using StepFixedType = FixedPoint<step_bits, false, 0>;
@@ -184,7 +183,7 @@ public:
 #ifdef AXISDRIVER_DETECT_OVERLOAD
         o->m_overload = false;
 #endif
-        DelayFeature::set_step_timer_to(c, timer_t);
+        DelayFeature::set_step_timer_to_now(c);
         TimerInstance::setFirst(c, timer_t);
     }
     
@@ -334,7 +333,7 @@ private:
             bool command_completed = load_command(c, current_command);
             if (command_completed) {
                 DelayFeature::wait_for_step_timer(c);
-                DelayFeature::set_step_timer_to(c, o->m_time);
+                DelayFeature::set_step_timer_to_now(c);
                 TimerInstance::setNext(c, o->m_time);
                 return true;
             }
@@ -417,15 +416,14 @@ private:
     struct TimerHandler : public AMBRO_WFUNC_TD(&AxisDriver::timer_handler) {};
     
     AMBRO_STRUCT_IF(DelayFeature, DelayParams::Enabled) {
-        static TimeType const MinDirSetTicks = 1e-6 * DelayParams::DirSetTime::value() * TheClockUtils::time_freq + 0.99;
-        static TimeType const MinStepHighTicks = 1e-6 * DelayParams::StepHighTime::value() * TheClockUtils::time_freq + 0.99;
-        static TimeType const MinStepLowTicks = 1e-6 * DelayParams::StepLowTime::value() * TheClockUtils::time_freq + 0.99;
+        using DelayClockUtils = FastClockUtils<Context>;
+        using DelayTimeType = typename DelayClockUtils::TimeType;
         
-        static void set_step_timer_to (Context c, TimeType start_time)
-        {
-            auto *o = Object::self(c);
-            o->m_step_timer.setTo(start_time);
-        }
+        static_assert(TimeFixedType::maxValue().bitsValue() * Clock::time_unit <= DelayClockUtils::WorkingTimeSpan, "Fast clock is too fast");
+        
+        static DelayTimeType const MinDirSetTicks   = 1e-6 * DelayParams::DirSetTime::value()   * DelayClockUtils::time_freq + 0.99;
+        static DelayTimeType const MinStepHighTicks = 1e-6 * DelayParams::StepHighTime::value() * DelayClockUtils::time_freq + 0.99;
+        static DelayTimeType const MinStepLowTicks  = 1e-6 * DelayParams::StepLowTime::value()  * DelayClockUtils::time_freq + 0.99;
         
         template <typename ThisContext>
         static void wait_for_dir_timer (ThisContext c)
@@ -449,6 +447,13 @@ private:
         }
         
         template <typename ThisContext>
+        static void set_step_timer_to_now (ThisContext c)
+        {
+            auto *o = Object::self(c);
+            o->m_step_timer.setAfter(c, 0);
+        }
+        
+        template <typename ThisContext>
         static void set_step_timer_for_high (ThisContext c)
         {
             auto *o = Object::self(c);
@@ -463,15 +468,15 @@ private:
         }
         
         struct Object : public ObjBase<DelayFeature, typename AxisDriver::Object, EmptyTypeList> {
-            typename TheClockUtils::PollTimer m_dir_timer;
-            typename TheClockUtils::PollTimer m_step_timer;
+            typename DelayClockUtils::PollTimer m_dir_timer;
+            typename DelayClockUtils::PollTimer m_step_timer;
         };
     }
     AMBRO_STRUCT_ELSE(DelayFeature) {
-        static void set_step_timer_to (Context c, TimeType start_time) {}
         template <typename ThisContext> static void wait_for_dir_timer (ThisContext c) {}
         template <typename ThisContext> static void wait_for_step_timer (ThisContext c) {}
         template <typename ThisContext> static void set_dir_timer (ThisContext c) {}
+        template <typename ThisContext> static void set_step_timer_to_now (ThisContext c) {}
         template <typename ThisContext> static void set_step_timer_for_high (ThisContext c) {}
         template <typename ThisContext> static void set_step_timer_for_low (ThisContext c) {}
         struct Object {};

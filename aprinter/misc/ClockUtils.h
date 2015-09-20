@@ -28,18 +28,31 @@
 #include <stdint.h>
 
 #include <aprinter/meta/TypesAreEqual.h>
+#include <aprinter/meta/If.h>
+#include <aprinter/meta/FuncUtils.h>
+#include <aprinter/meta/MemberType.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context>
-class ClockUtils {
-    static_assert(TypesAreEqual<typename Context::Clock::TimeType, uint32_t>::Value, "");
+namespace ClockUtilsPrivate {
+    APRINTER_DEFINE_MEMBER_TYPE(MemberType_Clock, Clock)
+    APRINTER_DEFINE_MEMBER_TYPE(MemberType_FastClock, FastClock)
+}
+
+template <typename TClock>
+class ClockUtilsForClock {
+public:
+    using Clock = TClock;
+    
+private:
+    static_assert(TypesAreEqual<typename Clock::TimeType, uint32_t>::Value, "");
     
 public:
-    using Clock = typename Context::Clock;
     using TimeType = typename Clock::TimeType;
     static constexpr double time_unit = Clock::time_unit;
     static constexpr double time_freq = Clock::time_freq;
+    
+    static constexpr double WorkingTimeSpan = 0.9 * (UINT32_C(0x7fffffff) * time_unit);
     
     inline static bool timeGreaterOrEqual (TimeType t1, TimeType t2)
     {
@@ -49,7 +62,7 @@ public:
     template <typename ThisContext>
     inline static TimeType getTimeAfter (ThisContext c, TimeType after_ticks)
     {
-        return (TimeType)(Context::Clock::getTime(c) + after_ticks);
+        return (TimeType)(Clock::getTime(c) + after_ticks);
     }
     
     class PollTimer {
@@ -73,7 +86,7 @@ public:
         template <typename ThisContext>
         inline bool isExpired (ThisContext c)
         {
-            return timeGreaterOrEqual(Context::Clock::getTime(c), m_set_time);
+            return timeGreaterOrEqual(Clock::getTime(c), m_set_time);
         }
         
         template <typename ThisContext>
@@ -86,6 +99,21 @@ public:
         TimeType m_set_time;
     };
 };
+
+template <typename Context>
+using ClockUtils = ClockUtilsForClock<typename Context::Clock>;
+
+template <typename Context>
+using FastClockUtils = ClockUtilsForClock<
+    FuncCall<
+        IfFunc<
+            ClockUtilsPrivate::MemberType_FastClock::Has,
+            ClockUtilsPrivate::MemberType_FastClock::Get,
+            ClockUtilsPrivate::MemberType_Clock::Get
+        >,
+        Context
+    >
+>;
 
 #include <aprinter/EndNamespace.h>
 
