@@ -273,7 +273,10 @@ public:
         memory_barrier();
         
         ListForEachForward<MyFtmsList>(Foreach_init(), c);
-        ListForEachForward<MyFtmsList>(Foreach_init_start(), c);
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            ListForEachForward<MyFtmsList>(Foreach_init_start(), c);
+        }
         
         TheDebugObject::init(c);
     }

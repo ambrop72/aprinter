@@ -32,9 +32,8 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/TupleForEach.h>
-#include <aprinter/meta/TupleGet.h>
+#include <aprinter/meta/IndexElemList.h>
+#include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapDouble.h>
@@ -85,8 +84,9 @@ class At91Sam3uClock {
     template <typename, typename, typename, typename, typename, typename>
     friend class At91Sam3uClockInterruptTimer;
     
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_init, init)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_deinit, deinit)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init_start, init_start)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
     
 public:
     struct Object;
@@ -117,10 +117,14 @@ private:
             if (TcIndex == 0) {
                 ch()->TC_IER = TC_IER_COVFS;
             }
-            ch()->TC_CCR = TC_CCR_CLKEN | TC_CCR_SWTRG;
             NVIC_ClearPendingIRQ(TcSpec::Irq);
             NVIC_SetPriority(TcSpec::Irq, INTERRUPT_PRIORITY);
             NVIC_EnableIRQ(TcSpec::Irq);
+        }
+        
+        static void init_start (Context c)
+        {
+            ch()->TC_CCR = TC_CCR_CLKEN | TC_CCR_SWTRG;
         }
         
         static void deinit (Context c)
@@ -149,8 +153,7 @@ private:
             return (TcChannel volatile *)TcSpec::Addr;
         }
     };
-    
-    using MyTcsTuple = IndexElemTuple<TcsList, MyTc>;
+    using MyTcsList = IndexElemList<TcsList, MyTc>;
     
     template <typename TcSpec>
     using FindTc = MyTc<TypeListIndex<TcsList, TcSpec>::Value>;
@@ -164,8 +167,11 @@ public:
         
         memory_barrier();
         
-        MyTcsTuple dummy;
-        TupleForEachForward(&dummy, Foreach_init(), c);
+        ListForEachForward<MyTcsList>(Foreach_init(), c);
+        
+        AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+            ListForEachForward<MyTcsList>(Foreach_init_start(), c);
+        }
         
         TheDebugObject::init(c);
     }
@@ -175,8 +181,7 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        MyTcsTuple dummy;
-        TupleForEachReverse(&dummy, Foreach_deinit(), c);
+        ListForEachReverse<MyTcsList>(Foreach_deinit(), c);
         
         memory_barrier();
     }
