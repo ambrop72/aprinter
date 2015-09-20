@@ -332,7 +332,7 @@ private:
             
             bool command_completed = load_command(c, current_command);
             if (command_completed) {
-                DelayFeature::wait_for_step_timer(c);
+                DelayFeature::wait_for_step_low(c);
                 DelayFeature::set_step_timer_to_now(c);
                 TimerInstance::setNext(c, o->m_time);
                 return true;
@@ -358,9 +358,9 @@ private:
             }
         }
         
-        DelayFeature::wait_for_dir_timer(c);
+        DelayFeature::wait_for_dir(c);
         
-        DelayFeature::wait_for_step_timer(c);
+        DelayFeature::wait_for_step_low(c);
         
         Stepper::stepOn(c);
         
@@ -385,7 +385,7 @@ private:
         // Now make sure the calculations above happen before stepOff().
         volatile_write(o->m_dummy, (uint8_t)t.bitsValue());
         
-        DelayFeature::wait_for_step_timer(c);
+        DelayFeature::wait_for_step_high(c);
         
         Stepper::stepOff(c);
         
@@ -426,17 +426,24 @@ private:
         static DelayTimeType const MinStepLowTicks  = 1e-6 * DelayParams::StepLowTime::value()  * DelayClockUtils::time_freq + 0.99;
         
         template <typename ThisContext>
-        static void wait_for_dir_timer (ThisContext c)
+        static void wait_for_dir (ThisContext c)
         {
             auto *o = Object::self(c);
-            o->m_dir_timer.waitUntilExpired(c);
+            o->m_dir_timer.waitSafe(c, MinDirSetTicks);
         }
         
         template <typename ThisContext>
-        static void wait_for_step_timer (ThisContext c)
+        static void wait_for_step_high (ThisContext c)
         {
             auto *o = Object::self(c);
-            o->m_step_timer.waitUntilExpired(c);
+            o->m_step_timer.waitSafe(c, MinStepHighTicks);
+        }
+        
+        template <typename ThisContext>
+        static void wait_for_step_low (ThisContext c)
+        {
+            auto *o = Object::self(c);
+            o->m_step_timer.waitSafe(c, MinStepLowTicks);
         }
         
         template <typename ThisContext>
@@ -473,8 +480,9 @@ private:
         };
     }
     AMBRO_STRUCT_ELSE(DelayFeature) {
-        template <typename ThisContext> static void wait_for_dir_timer (ThisContext c) {}
-        template <typename ThisContext> static void wait_for_step_timer (ThisContext c) {}
+        template <typename ThisContext> static void wait_for_dir (ThisContext c) {}
+        template <typename ThisContext> static void wait_for_step_high (ThisContext c) {}
+        template <typename ThisContext> static void wait_for_step_low (ThisContext c) {}
         template <typename ThisContext> static void set_dir_timer (ThisContext c) {}
         template <typename ThisContext> static void set_step_timer_to_now (ThisContext c) {}
         template <typename ThisContext> static void set_step_timer_for_high (ThisContext c) {}

@@ -54,9 +54,19 @@ public:
     
     static constexpr double WorkingTimeSpan = 0.9 * (UINT32_C(0x7fffffff) * time_unit);
     
+    inline static TimeType timeDifference (TimeType t1, TimeType t2)
+    {
+        return (TimeType)(t1 - t2);
+    }
+    
+    inline static bool differenceIsNegative (TimeType td)
+    {
+        return td >= UINT32_C(0x80000000);
+    }
+    
     inline static bool timeGreaterOrEqual (TimeType t1, TimeType t2)
     {
-        return (TimeType)(t1 - t2) < UINT32_C(0x80000000);
+        return !differenceIsNegative(timeDifference(t1, t2));
     }
     
     template <typename ThisContext>
@@ -90,9 +100,18 @@ public:
         }
         
         template <typename ThisContext>
-        inline void waitUntilExpired (ThisContext c)
+        inline void waitSafe (ThisContext c, TimeType max_future_ticks)
         {
-            while (!isExpired(c));
+            while (true) {
+                TimeType time = Clock::getTime(c);
+                TimeType diff = timeDifference(time, m_set_time);
+                if (!differenceIsNegative(diff)) {
+                    return;
+                }
+                if ((TimeType)(-diff) > max_future_ticks) {
+                    return;
+                }
+            }
         }
         
     private:
