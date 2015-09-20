@@ -102,18 +102,14 @@
             "prescaler": 3,
             "primary_timer": "TC0"
           },
+          "fast_clock": {
+            "_compoundName": "At91Sam3xClock",
+            "prescaler": 2,
+            "primary_timer": "TC8"
+          },
           "pins": {
             "_compoundName": "At91SamPins",
-            "input_modes": [
-              {
-                "ident": "At91SamPinInputModeNormal",
-                "name": "Normal"
-              },
-              {
-                "ident": "At91SamPinInputModePullUp",
-                "name": "Pull-up"
-              }
-            ]
+            "input_mode_type": "At91SamPinInputMode"
           },
           "pwm": {
             "DivA": 0,
@@ -139,37 +135,55 @@
       },
       "digital_inputs": [
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "X-MIN",
           "Pin": "DuePin28",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Y-MIN",
           "Pin": "DuePin30",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Z-MIN",
           "Pin": "DuePin32",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "X-MAX",
           "Pin": "DuePin34",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Y-MAX",
           "Pin": "DuePin36",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Z-MAX",
           "Pin": "DuePin38",
           "_compoundName": "digital_input"
@@ -177,28 +191,43 @@
       ],
       "analog_inputs": [
         {
+          "Driver": {
+            "Pin": "DuePinA0",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T0",
-          "Pin": "DuePinA0",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "DuePinA1",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T1",
-          "Pin": "DuePinA1",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "DuePinA2",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T2",
-          "Pin": "DuePinA2",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "DuePinA3",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T3",
-          "Pin": "DuePinA3",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "DuePinA4",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T4",
-          "Pin": "DuePinA4",
           "_compoundName": "analog_input"
         }
       ],
@@ -418,6 +447,12 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -434,6 +469,12 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -452,6 +493,12 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -468,6 +515,12 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -486,6 +539,12 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -502,6 +561,12 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -611,18 +676,14 @@
             "prescaler": 3,
             "primary_timer": "TC0"
           },
+          "fast_clock": {
+            "_compoundName": "At91Sam3xClock",
+            "prescaler": 2,
+            "primary_timer": "TC8"
+          },
           "pins": {
             "_compoundName": "At91SamPins",
-            "input_modes": [
-              {
-                "ident": "At91SamPinInputModeNormal",
-                "name": "Normal"
-              },
-              {
-                "ident": "At91SamPinInputModePullUp",
-                "name": "Pull-up"
-              }
-            ]
+            "input_mode_type": "At91SamPinInputMode"
           },
           "pwm": {
             "DivA": 0,
@@ -648,37 +709,55 @@
       },
       "digital_inputs": [
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "X-MIN",
           "Pin": "DuePin22",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Y-MIN",
           "Pin": "DuePin24",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Z-MIN",
           "Pin": "DuePin26",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "X-MAX",
           "Pin": "DuePin30",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Y-MAX",
           "Pin": "DuePin38",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Z-MAX",
           "Pin": "DuePin34",
           "_compoundName": "digital_input"
@@ -686,23 +765,35 @@
       ],
       "analog_inputs": [
         {
+          "Driver": {
+            "Pin": "DuePinA0",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T0",
-          "Pin": "DuePinA0",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "DuePinA1",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T1",
-          "Pin": "DuePinA1",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "DuePinA2",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T2",
-          "Pin": "DuePinA2",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "DuePinA3",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T3",
-          "Pin": "DuePinA3",
           "_compoundName": "analog_input"
         }
       ],
@@ -890,6 +981,12 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -906,6 +1003,12 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -924,6 +1027,12 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -940,6 +1049,12 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -958,6 +1073,12 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -974,6 +1095,12 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -1029,16 +1156,7 @@
           },
           "pins": {
             "_compoundName": "At91SamPins",
-            "input_modes": [
-              {
-                "ident": "At91SamPinInputModeNormal",
-                "name": "Normal"
-              },
-              {
-                "ident": "At91SamPinInputModePullUp",
-                "name": "Pull-up"
-              }
-            ]
+            "input_mode_type": "At91SamPinInputMode"
           },
           "watchdog": {
             "Wdv": 260,
@@ -1055,37 +1173,55 @@
       },
       "digital_inputs": [
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "X-MIN",
           "Pin": "At91SamPin<At91SamPioB,16>",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Y-MIN",
           "Pin": "At91SamPin<At91SamPioA,17>",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Z-MIN",
           "Pin": "At91SamPin<At91SamPioC,17>",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "X-MAX",
           "Pin": "At91SamPin<At91SamPioC,15>",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Y-MAX",
           "Pin": "At91SamPin<At91SamPioC,17>",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Z-MAX",
           "Pin": "At91SamPin<At91SamPioC,18>",
           "_compoundName": "digital_input"
@@ -1093,23 +1229,35 @@
       ],
       "analog_inputs": [
         {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioC,16>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T0",
-          "Pin": "At91SamPin<At91SamPioC,16>",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioB,4>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T1",
-          "Pin": "At91SamPin<At91SamPioB,4>",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioA,30>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T2",
-          "Pin": "At91SamPin<At91SamPioA,30>",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioB,3>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T3",
-          "Pin": "At91SamPin<At91SamPioB,3>",
           "_compoundName": "analog_input"
         }
       ],
@@ -1254,6 +1402,9 @@
             },
             "_compoundName": "Current"
           },
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "microstep": {
             "MicroStepDriver": {
               "Ms1Pin": "At91SamPin<At91SamPioC,30>",
@@ -1280,6 +1431,9 @@
               "_compoundName": "Ad5206CurrentChannelParams"
             },
             "_compoundName": "Current"
+          },
+          "delay": {
+            "_compoundName": "NoDelay"
           },
           "microstep": {
             "MicroStepDriver": {
@@ -1308,6 +1462,9 @@
             },
             "_compoundName": "Current"
           },
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "microstep": {
             "MicroStepDriver": {
               "Ms1Pin": "At91SamPin<At91SamPioB,6>",
@@ -1335,6 +1492,9 @@
             },
             "_compoundName": "Current"
           },
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "microstep": {
             "MicroStepDriver": {
               "Ms1Pin": "At91SamPin<At91SamPioB,12>",
@@ -1361,6 +1521,9 @@
               "_compoundName": "Ad5206CurrentChannelParams"
             },
             "_compoundName": "Current"
+          },
+          "delay": {
+            "_compoundName": "NoDelay"
           },
           "microstep": {
             "MicroStepDriver": {
@@ -1420,20 +1583,7 @@
           },
           "pins": {
             "_compoundName": "Mk20Pins",
-            "input_modes": [
-              {
-                "ident": "Mk20PinInputModeNormal",
-                "name": "Normal"
-              },
-              {
-                "ident": "Mk20PinInputModePullUp",
-                "name": "Pull-up"
-              },
-              {
-                "ident": "Mk20PinInputModePullDown",
-                "name": "Pull-down"
-              }
-            ]
+            "input_mode_type": "Mk20PinInputMode"
           },
           "watchdog": {
             "Prescval": 0,
@@ -1453,19 +1603,28 @@
       },
       "digital_inputs": [
         {
-          "InputMode": "Mk20PinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Mk20PinInputMode"
+          },
           "Name": "X-min",
           "Pin": "TeensyPin12",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "Mk20PinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Mk20PinInputMode"
+          },
           "Name": "Y-min",
           "Pin": "TeensyPin14",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "Mk20PinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Mk20PinInputMode"
+          },
           "Name": "Z-min",
           "Pin": "TeensyPin15",
           "_compoundName": "digital_input"
@@ -1473,8 +1632,11 @@
       ],
       "analog_inputs": [
         {
+          "Driver": {
+            "Pin": "TeensyPinA2",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T",
-          "Pin": "TeensyPinA2",
           "_compoundName": "analog_input"
         }
       ],
@@ -1590,6 +1752,9 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -1606,6 +1771,9 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "_compoundName": "NoDelay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -1624,6 +1792,9 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -1640,6 +1811,9 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "_compoundName": "NoDelay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -1740,16 +1914,7 @@
           },
           "pins": {
             "_compoundName": "AvrPins",
-            "input_modes": [
-              {
-                "ident": "AvrPinInputModeNormal",
-                "name": "Normal"
-              },
-              {
-                "ident": "AvrPinInputModePullUp",
-                "name": "Pull-up"
-              }
-            ]
+            "input_mode_type": "AvrPinInputMode"
           },
           "watchdog": {
             "Timeout": "WDTO_2S",
@@ -1768,37 +1933,55 @@
       },
       "digital_inputs": [
         {
-          "InputMode": "AvrPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
           "Name": "X-",
           "Pin": "MegaPin3",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "AvrPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
           "Name": "X+",
           "Pin": "MegaPin2",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "AvrPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
           "Name": "Y-",
           "Pin": "MegaPin14",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "AvrPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
           "Name": "Y+",
           "Pin": "MegaPin15",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "AvrPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
           "Name": "Z-",
           "Pin": "MegaPin18",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "AvrPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
           "Name": "Z+",
           "Pin": "MegaPin19",
           "_compoundName": "digital_input"
@@ -1806,18 +1989,27 @@
       ],
       "analog_inputs": [
         {
+          "Driver": {
+            "Pin": "MegaPinA13",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T0",
-          "Pin": "MegaPinA13",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "MegaPinA14",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T1",
-          "Pin": "MegaPinA14",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "MegaPinA15",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "T2",
-          "Pin": "MegaPinA15",
           "_compoundName": "analog_input"
         }
       ],
@@ -1990,6 +2182,9 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -2006,6 +2201,9 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "_compoundName": "NoDelay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -2024,6 +2222,9 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -2041,6 +2242,9 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -2057,6 +2261,9 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "_compoundName": "NoDelay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -2117,16 +2324,7 @@
           },
           "pins": {
             "_compoundName": "AvrPins",
-            "input_modes": [
-              {
-                "ident": "AvrPinInputModeNormal",
-                "name": "Normal"
-              },
-              {
-                "ident": "AvrPinInputModePullUp",
-                "name": "Pull-up"
-              }
-            ]
+            "input_mode_type": "AvrPinInputMode"
           },
           "watchdog": {
             "Timeout": "WDTO_2S",
@@ -2143,19 +2341,28 @@
       },
       "digital_inputs": [
         {
-          "InputMode": "AvrPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
           "Name": "X-stop",
           "Pin": "AvrPin<AvrPortC,2>",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "AvrPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
           "Name": "Y-stop",
           "Pin": "AvrPin<AvrPortC,3>",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "AvrPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "AvrPinInputMode"
+          },
           "Name": "Z-stop",
           "Pin": "AvrPin<AvrPortC,4>",
           "_compoundName": "digital_input"
@@ -2163,13 +2370,19 @@
       ],
       "analog_inputs": [
         {
+          "Driver": {
+            "Pin": "AvrPin<AvrPortA,6>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "btemp",
-          "Pin": "AvrPin<AvrPortA,6>",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "AvrPin<AvrPortA,7>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "etemp",
-          "Pin": "AvrPin<AvrPortA,7>",
           "_compoundName": "analog_input"
         }
       ],
@@ -2318,6 +2531,9 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -2334,6 +2550,9 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "_compoundName": "NoDelay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -2352,6 +2571,9 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -2368,6 +2590,9 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "_compoundName": "NoDelay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -2434,27 +2659,55 @@
               },
               {
                 "value": "TIM5_4"
+              },
+              {
+                "value": "TIM12_1"
+              },
+              {
+                "value": "TIM12_2"
+              },
+              {
+                "value": "TIM12_3"
+              },
+              {
+                "value": "TIM12_4"
+              },
+              {
+                "value": "TIM13_1"
+              },
+              {
+                "value": "TIM13_2"
+              },
+              {
+                "value": "TIM13_3"
+              },
+              {
+                "value": "TIM13_4"
+              },
+              {
+                "value": "TIM14_1"
+              },
+              {
+                "value": "TIM14_2"
+              },
+              {
+                "value": "TIM14_3"
+              },
+              {
+                "value": "TIM14_4"
               }
             ],
             "prescaler": 35,
             "primary_timer": "TIM2"
           },
+          "fast_clock": {
+            "_compoundName": "Stm32f4Clock",
+            "prescaler": 4,
+            "primary_timer": "TIM5"
+          },
           "pins": {
             "_compoundName": "Stm32f4Pins",
-            "input_modes": [
-              {
-                "ident": "Stm32f4PinInputModeNormal",
-                "name": "Normal"
-              },
-              {
-                "ident": "Stm32f4PinInputModePullUp",
-                "name": "Pull-up"
-              },
-              {
-                "ident": "Stm32f4PinInputModePullDown",
-                "name": "Pull-down"
-              }
-            ]
+            "input_mode_type": "Stm32f4PinInputMode"
           },
           "watchdog": {
             "Divider": 16,
@@ -2474,7 +2727,10 @@
       },
       "digital_inputs": [
         {
-          "InputMode": "Stm32f4PinInputModeNormal",
+          "InputMode": {
+            "PullMode": "Normal",
+            "_compoundName": "Stm32f4PinInputMode"
+          },
           "Name": "ButtonUser",
           "Pin": "DiscoveryPinButtonUser",
           "_compoundName": "digital_input"
@@ -2482,18 +2738,27 @@
       ],
       "analog_inputs": [
         {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortF,6>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "PF6",
-          "Pin": "Stm32f4Pin<Stm32f4PortF,6>",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortC,3>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "PC3",
-          "Pin": "Stm32f4Pin<Stm32f4PortC,3>",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortA,5>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "PA5",
-          "Pin": "Stm32f4Pin<Stm32f4PortA,5>",
           "_compoundName": "analog_input"
         }
       ],
@@ -2588,6 +2853,12 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -2653,27 +2924,55 @@
               },
               {
                 "value": "TIM5_4"
+              },
+              {
+                "value": "TIM12_1"
+              },
+              {
+                "value": "TIM12_2"
+              },
+              {
+                "value": "TIM12_3"
+              },
+              {
+                "value": "TIM12_4"
+              },
+              {
+                "value": "TIM13_1"
+              },
+              {
+                "value": "TIM13_2"
+              },
+              {
+                "value": "TIM13_3"
+              },
+              {
+                "value": "TIM13_4"
+              },
+              {
+                "value": "TIM14_1"
+              },
+              {
+                "value": "TIM14_2"
+              },
+              {
+                "value": "TIM14_3"
+              },
+              {
+                "value": "TIM14_4"
               }
             ],
             "prescaler": 35,
             "primary_timer": "TIM2"
           },
+          "fast_clock": {
+            "_compoundName": "Stm32f4Clock",
+            "prescaler": 4,
+            "primary_timer": "TIM5"
+          },
           "pins": {
             "_compoundName": "Stm32f4Pins",
-            "input_modes": [
-              {
-                "ident": "Stm32f4PinInputModeNormal",
-                "name": "Normal"
-              },
-              {
-                "ident": "Stm32f4PinInputModePullUp",
-                "name": "Pull-up"
-              },
-              {
-                "ident": "Stm32f4PinInputModePullDown",
-                "name": "Pull-down"
-              }
-            ]
+            "input_mode_type": "Stm32f4PinInputMode"
           },
           "watchdog": {
             "Divider": 16,
@@ -2693,7 +2992,10 @@
       },
       "digital_inputs": [
         {
-          "InputMode": "Stm32f4PinInputModeNormal",
+          "InputMode": {
+            "PullMode": "Normal",
+            "_compoundName": "Stm32f4PinInputMode"
+          },
           "Name": "ButtonUser",
           "Pin": "DiscoveryPinButtonUser",
           "_compoundName": "digital_input"
@@ -2701,18 +3003,27 @@
       ],
       "analog_inputs": [
         {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortA,2>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "PA2",
-          "Pin": "Stm32f4Pin<Stm32f4PortA,2>",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortA,3>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "PA3",
-          "Pin": "Stm32f4Pin<Stm32f4PortA,3>",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "Stm32f4Pin<Stm32f4PortB,0>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "PB0",
-          "Pin": "Stm32f4Pin<Stm32f4PortB,0>",
           "_compoundName": "analog_input"
         }
       ],
@@ -2858,6 +3169,12 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -2966,18 +3283,14 @@
             "prescaler": 3,
             "primary_timer": "TC0"
           },
+          "fast_clock": {
+            "_compoundName": "At91Sam3xClock",
+            "prescaler": 2,
+            "primary_timer": "TC8"
+          },
           "pins": {
             "_compoundName": "At91SamPins",
-            "input_modes": [
-              {
-                "ident": "At91SamPinInputModeNormal",
-                "name": "Normal"
-              },
-              {
-                "ident": "At91SamPinInputModePullUp",
-                "name": "Pull-up"
-              }
-            ]
+            "input_mode_type": "At91SamPinInputMode"
           },
           "pwm": {
             "DivA": 0,
@@ -3001,25 +3314,37 @@
       },
       "digital_inputs": [
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "X_STOP",
           "Pin": "At91SamPin<At91SamPioD,7>",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Y_STOP",
           "Pin": "At91SamPin<At91SamPioD,3>",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "Z_STOP",
           "Pin": "At91SamPin<At91SamPioA,3>",
           "_compoundName": "digital_input"
         },
         {
-          "InputMode": "At91SamPinInputModePullUp",
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "At91SamPinInputMode"
+          },
           "Name": "E0_STOP",
           "Pin": "At91SamPin<At91SamPioA,7>",
           "_compoundName": "digital_input"
@@ -3027,13 +3352,19 @@
       ],
       "analog_inputs": [
         {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioA,6>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "E0_THERMISTOR",
-          "Pin": "At91SamPin<At91SamPioA,6>",
           "_compoundName": "analog_input"
         },
         {
+          "Driver": {
+            "Pin": "At91SamPin<At91SamPioA,4>",
+            "_compoundName": "AdcAnalogInput"
+          },
           "Name": "BED_THERMISTOR",
-          "Pin": "At91SamPin<At91SamPioA,4>",
           "_compoundName": "analog_input"
         }
       ],
@@ -3185,6 +3516,12 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -3201,6 +3538,12 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -3219,6 +3562,12 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
@@ -3235,6 +3584,12 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
