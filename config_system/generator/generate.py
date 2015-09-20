@@ -128,9 +128,13 @@ class GenState(object):
     def add_finalize_action (self, action):
         self._finalize_actions.append(action)
     
-    def add_global_resource (self, priority, name, expr, context_name=None, code_before=None):
+    def add_global_resource (self, priority, name, expr, context_name=None, code_before=None, code_before_program=None, extra_program_child=None):
         code_before = '' if code_before is None else '{}\n'.format(code_before)
-        self._global_resources.append({'priority':priority, 'name':name, 'expr':expr, 'context_name':context_name, 'code_before':code_before})
+        self._global_resources.append({
+            'priority':priority, 'name':name, 'expr':expr, 'context_name':context_name,
+            'code_before':code_before, 'code_before_program':code_before_program,
+            'extra_program_child':extra_program_child,
+        })
     
     def add_module (self):
         index = len(self._modules_exprs)
@@ -150,6 +154,10 @@ class GenState(object):
         
         global_resources = sorted(self._global_resources, key=lambda x: x['priority'])
         
+        program_children = []
+        program_children.extend(gr['name'] for gr in global_resources)
+        program_children.extend(gr['extra_program_child'] for gr in global_resources if gr['extra_program_child'] is not None)
+        
         self.add_subst('GENERATED_WARNING', 'WARNING: This file was automatically generated!')
         self.add_subst('EXTRA_CONSTANTS', ''.join('{} {} = {};\n'.format(c['type'], c['name'], c['value']) for c in self._constants))
         self.add_subst('ConfigOptions', ''.join('APRINTER_CONFIG_OPTION_{}({}, {}, ConfigNoProperties)\n'.format(c['dtype'], c['name'], c['value']) for c in self._config_options))
@@ -159,9 +167,10 @@ class GenState(object):
         self.add_subst('InitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._init_calls, key=lambda x: x['priority'])))
         self.add_subst('GlobalResourceExprs', ''.join('{}using {} = {};\n'.format(gr['code_before'], gr['name'], gr['expr'].build(indent=0)) for gr in global_resources))
         self.add_subst('GlobalResourceContextAliases', ''.join('    using {} = {};\n'.format(gr['context_name'], gr['name']) for gr in global_resources if gr['context_name'] is not None))
-        self.add_subst('GlobalResourceProgramChildren', ''.join('    {},\n'.format(gr['name']) for gr in global_resources))
+        self.add_subst('GlobalResourceProgramChildren', ',\n'.join('    {}'.format(pc_name) for pc_name in program_children))
         self.add_subst('GlobalResourceInit', ''.join('    {}::init(c);\n'.format(gr['name']) for gr in global_resources))
         self.add_subst('FinalInitCalls', ''.join('    {}\n'.format(ic['init_call']) for ic in sorted(self._final_init_calls, key=lambda x: x['priority'])))
+        self.add_subst('CodeBeforeProgram', ''.join('{}\n'.format(gr['code_before_program']) for gr in global_resources if gr['code_before_program'] is not None))
     
     def get_subst (self):
         res = {}
@@ -274,6 +283,17 @@ class TemplateChar(object):
     def build (self, indent):
         return '\'{}\''.format(self._ch)
 
+def setup_event_loop(gen):
+    gen.add_aprinter_include('system/BusyEventLoop.h')
+    
+    code_before_expr = 'struct MyLoopExtraDelay;'
+    expr = TemplateExpr('BusyEventLoop', ['MyContext', 'Program', 'MyLoopExtraDelay'])
+    code_before_program  = 'using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, typename MyPrinter::EventLoopFastEvents>;\n'
+    code_before_program += 'struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};'
+    
+    gen.add_global_resource(0, 'MyLoop', expr, context_name='EventLoop', code_before=code_before_expr, code_before_program=code_before_program, extra_program_child='MyLoopExtra')
+    gen.add_final_init_call(100, 'MyLoop::run(c);')
+
 def setup_platform(gen, config, key):
     platform_sel = selection.Selection()
     
@@ -327,7 +347,7 @@ def setup_debug_interface(gen, config, key):
     config.do_selection(key, debug_sel)
 
 class CommonClock(object):
-    def __init__ (self, gen, config, clockdef_func):
+    def __init__ (self, gen, config, clock_id, clockdef_func):
         self._gen = gen
         self._config = config
         self._clockdef = function_defined.FunctionDefinedClass(clockdef_func)
@@ -381,7 +401,9 @@ class CommonClock(object):
         ordered_timers = [self._primary_timer] + sorted(temp_timers)
         timers_expr = TemplateList([self._timers[timer_id] for timer_id in ordered_timers])
         
-        self._gen.add_subst('CLOCK', self._clockdef.CLOCK_EXPR(self._config, timers_expr), indent=0)
+        clock_expr = self._clockdef.CLOCK_EXPR(self._config, timers_expr)
+        
+        self._gen.add_global_resource(-10, 'MyClock', clock_expr, context_name='Clock')
 
 def At91Sam3xClockDef(x):
     x.INCLUDE = 'hal/at91/At91Sam3xClock.h'
@@ -459,30 +481,30 @@ def Stm32f4ClockDef(x):
     x.TIMER_EXPR = lambda tc: 'Stm32f4ClockTIM{}'.format(tc)
     x.TIMER_ISR = lambda tc: 'AMBRO_STM32F4_CLOCK_TC_GLOBAL({}, MyClock, MyContext())'.format(tc)
 
-def setup_clock(gen, config, key):
+def setup_clock(gen, config, key, clock_id):
     clock_sel = selection.Selection()
     
     @clock_sel.option('At91Sam3xClock')
     def option(clock):
-        return CommonClock(gen, clock, At91Sam3xClockDef)
+        return CommonClock(gen, clock, clock_id, At91Sam3xClockDef)
     
     @clock_sel.option('At91Sam3uClock')
     def option(clock):
-        return CommonClock(gen, clock, At91Sam3uClockDef)
+        return CommonClock(gen, clock, clock_id, At91Sam3uClockDef)
     
     @clock_sel.option('Mk20Clock')
     def option(clock):
-        return CommonClock(gen, clock, Mk20ClockDef)
+        return CommonClock(gen, clock, clock_id, Mk20ClockDef)
     
     @clock_sel.option('AvrClock')
     def option(clock):
-        return CommonClock(gen, clock, AvrClockDef)
+        return CommonClock(gen, clock, clock_id, AvrClockDef)
     
     @clock_sel.option('Stm32f4Clock')
     def option(clock):
-        return CommonClock(gen, clock, Stm32f4ClockDef)
+        return CommonClock(gen, clock, clock_id, Stm32f4ClockDef)
     
-    gen.register_singleton_object('clock', config.do_selection(key, clock_sel))
+    gen.register_singleton_object(clock_id, config.do_selection(key, clock_sel))
 
 def setup_pins (gen, config, key):
     pin_regexes = [IDENTIFIER_REGEX]
@@ -742,7 +764,7 @@ def use_analog_input (gen, config, key, user):
     return ai.do_selection('Driver', analog_input_sel)
 
 def use_interrupt_timer (gen, config, key, user, clearance=None):
-    clock = gen.get_singleton_object('clock')
+    clock = gen.get_singleton_object('Clock')
     
     for it_config in config.enter_config(key):
         return clock.add_interrupt_timer(it_config.get_string('oc_unit'), user, clearance, it_config.path())
@@ -773,7 +795,7 @@ def use_pwm_output (gen, config, key, user, username, hard=False):
         
         @hard_driver_sel.option('AvrClockPwm')
         def option(hard_driver):
-            clock = gen.get_singleton_object('clock')
+            clock = gen.get_singleton_object('Clock')
             oc_unit = clock.check_oc_unit(hard_driver.get_string('oc_unit'), hard_driver.path())
             
             return TemplateExpr('AvrClockPwmService', [
@@ -1096,6 +1118,8 @@ def generate(config_root_data, cfg_name, main_template):
         for config in config_root.enter_elem_by_id('configurations', 'name', cfg_name):
             board_name = config.get_string('board')
             
+            setup_event_loop(gen)
+            
             aux_control_module = gen.add_module()
             aux_control_module_user = 'MyPrinter::GetModule<{}>'.format(aux_control_module.index)
             
@@ -1113,7 +1137,7 @@ def generate(config_root_data, cfg_name, main_template):
                     setup_platform(gen, platform_config, 'platform')
                     
                     for platform in platform_config.enter_config('platform'):
-                        setup_clock(gen, platform, 'clock')
+                        setup_clock(gen, platform, 'clock', 'Clock')
                         setup_pins(gen, platform, 'pins')
                         setup_adc(gen, platform, 'adc')
                         if platform.has('pwm'):

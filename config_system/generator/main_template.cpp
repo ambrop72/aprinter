@@ -44,8 +44,6 @@ static void emergency (void);
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/PlacementNew.h>
-#include <aprinter/system/BusyEventLoop.h>
-#include <aprinter/system/InterruptLock.h>
 
 $${AprinterIncludes}
 using namespace APrinter;
@@ -57,31 +55,20 @@ $${ConfigOptions}
 APRINTER_CONFIG_END
 
 struct MyContext;
-struct MyLoopExtraDelay;
 struct Program;
 
 using MyDebugObjectGroup = DebugObjectGroup<MyContext, Program>;
-using MyClock = $${CLOCK};
-using MyLoop = BusyEventLoop<MyContext, Program, MyLoopExtraDelay>;
 $${GlobalResourceExprs}
 struct MyContext {
     using DebugGroup = MyDebugObjectGroup;
-    using Clock = MyClock;
-    using EventLoop = MyLoop;
-
 $${GlobalResourceContextAliases}
     void check () const;
 };
 
-using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, typename $${FastEventRoot}::EventLoopFastEvents>;
-struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};
-
+$${CodeBeforeProgram}
 struct Program : public ObjBase<void, void, MakeTypeList<
     MyDebugObjectGroup,
-    MyClock,
-    MyLoop,
 $${GlobalResourceProgramChildren}
-    MyLoopExtra
 >> {
     static Program * self (MyContext c);
 };
@@ -115,10 +102,7 @@ $${InitCalls}
     new(&program_memory.program) Program();
     
     MyDebugObjectGroup::init(c);
-    MyClock::init(c);
-    MyLoop::init(c);
     
 $${GlobalResourceInit}
 $${FinalInitCalls}
-    MyLoop::run(c);
 }
