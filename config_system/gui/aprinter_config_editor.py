@@ -134,6 +134,13 @@ def platform_At91Sam3x8e():
                 ce.Integer(key='DivB', title='Divisor B'),
             ]),
         ]),
+        ce.OneOf(key='fast_clock', title='Fast clock', choices=[
+            ce.Compound('NoClock', title='Disabled', attrs=[]),
+            ce.Compound('At91Sam3xClock', title='Enabled', attrs=[
+                ce.Integer(key='prescaler', title='Prescaler'),
+                ce.String(key='primary_timer', title='Timer'),
+            ]),
+        ]),
     ])
 
 def platform_At91Sam3u4e():

@@ -347,9 +347,12 @@ def setup_debug_interface(gen, config, key):
     config.do_selection(key, debug_sel)
 
 class CommonClock(object):
-    def __init__ (self, gen, config, clock_id, clockdef_func):
+    def __init__ (self, gen, config, clock_name, priority, clockdef_func):
         self._gen = gen
         self._config = config
+        self._clock_name = clock_name
+        self._my_clock = 'My{}'.format(clock_name)
+        self._priority = priority
         self._clockdef = function_defined.FunctionDefinedClass(clockdef_func)
         gen.add_aprinter_include(self._clockdef.INCLUDE)
         self._timers = self._load_timers(config)
@@ -390,11 +393,11 @@ class CommonClock(object):
         for timer_id in auto_timers:
             self._timers[timer_id] = self._clockdef.TIMER_EXPR(timer_id)
             if hasattr(self._clockdef, 'TIMER_ISR'):
-                self._gen.add_isr(self._clockdef.TIMER_ISR(timer_id))
+                self._gen.add_isr(self._clockdef.TIMER_ISR(self._my_clock, timer_id))
         
         if hasattr(self._clockdef, 'CLOCK_ISR'):
             clock = {'primary_timer': self._primary_timer}
-            self._gen.add_isr(self._clockdef.CLOCK_ISR(clock))
+            self._gen.add_isr(self._clockdef.CLOCK_ISR(self._my_clock, clock))
         
         temp_timers = set(self._timers)
         temp_timers.remove(self._primary_timer)
@@ -403,7 +406,7 @@ class CommonClock(object):
         
         clock_expr = self._clockdef.CLOCK_EXPR(self._config, timers_expr)
         
-        self._gen.add_global_resource(-10, 'MyClock', clock_expr, context_name='Clock')
+        self._gen.add_global_resource(self._priority, self._my_clock, clock_expr, context_name=self._clock_name)
 
 def At91Sam3xClockDef(x):
     x.INCLUDE = 'hal/at91/At91Sam3xClock.h'
@@ -413,7 +416,7 @@ def At91Sam3xClockDef(x):
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3xClockInterruptTimerService<At91Sam3xClockTC{}, At91Sam3xClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3X_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3xClockTC{}, At91Sam3xClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'At91Sam3xClockTC{}'.format(tc)
-    x.TIMER_ISR = lambda tc: 'AMBRO_AT91SAM3X_CLOCK_TC{}_GLOBAL(MyClock, MyContext())'.format(tc)
+    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_AT91SAM3X_CLOCK_TC{}_GLOBAL({}, MyContext())'.format(tc, my_clock)
 
 def At91Sam3uClockDef(x):
     x.INCLUDE = 'hal/at91/At91Sam3uClock.h'
@@ -423,7 +426,7 @@ def At91Sam3uClockDef(x):
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'At91Sam3uClockInterruptTimerService<At91Sam3uClockTC{}, At91Sam3uClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AT91SAM3U_CLOCK_INTERRUPT_TIMER_GLOBAL(At91Sam3uClockTC{}, At91Sam3uClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'At91Sam3uClockTC{}'.format(tc)
-    x.TIMER_ISR = lambda tc: 'AMBRO_AT91SAM3U_CLOCK_TC{}_GLOBAL(MyClock, MyContext())'.format(tc)
+    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_AT91SAM3U_CLOCK_TC{}_GLOBAL({}, MyContext())'.format(tc, my_clock)
 
 def Mk20ClockDef(x):
     x.INCLUDE = 'hal/teensy3/Mk20Clock.h'
@@ -433,7 +436,7 @@ def Mk20ClockDef(x):
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Mk20ClockInterruptTimerService<Mk20ClockFTM{}, {}{}>'.format(it['tc'], it['channel'], clearance_extra)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_MK20_CLOCK_INTERRUPT_TIMER_GLOBAL(Mk20ClockFTM{}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'Mk20ClockFtmSpec<Mk20ClockFTM{}>'.format(tc)
-    x.TIMER_ISR = lambda tc: 'AMBRO_MK20_CLOCK_FTM_GLOBAL({}, MyClock, MyContext())'.format(tc)
+    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_MK20_CLOCK_FTM_GLOBAL({}, {}, MyContext())'.format(tc, my_clock)
 
 def AvrClockDef(x):
     x.INCLUDE = 'hal/avr/AvrClock.h'
@@ -443,7 +446,7 @@ def AvrClockDef(x):
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'AvrClockInterruptTimerService<AvrClockTcChannel{}{}{}>'.format(it['tc'], it['channel'], clearance_extra)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_AVR_CLOCK_INTERRUPT_TIMER_ISRS({}, {}, {}, MyContext())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'AvrClockTcSpec<AvrClockTc{}>'.format(tc)
-    x.CLOCK_ISR = lambda clock: 'AMBRO_AVR_CLOCK_ISRS({}, MyClock, MyContext())'.format(clock['primary_timer'])
+    x.CLOCK_ISR = lambda my_clock, clock: 'AMBRO_AVR_CLOCK_ISRS({}, {}, MyContext())'.format(clock['primary_timer'], my_clock)
     
     @assign_func.assign_func(x, 'handle_timer')
     def handle_timer(gen, timer_id, timer_config):
@@ -479,32 +482,40 @@ def Stm32f4ClockDef(x):
     x.INTERRUPT_TIMER_EXPR = lambda it, clearance_extra: 'Stm32f4ClockInterruptTimerService<Stm32f4ClockTIM{}, Stm32f4ClockComp{}{}>'.format(it['tc'], it['channel'], clearance_extra)
     x.INTERRUPT_TIMER_ISR = lambda it, user: 'AMBRO_STM32F4_CLOCK_INTERRUPT_TIMER_GLOBAL(Stm32f4ClockTIM{}, Stm32f4ClockComp{}, {}, MyContext())'.format(it['tc'], it['channel'], user)
     x.TIMER_EXPR = lambda tc: 'Stm32f4ClockTIM{}'.format(tc)
-    x.TIMER_ISR = lambda tc: 'AMBRO_STM32F4_CLOCK_TC_GLOBAL({}, MyClock, MyContext())'.format(tc)
+    x.TIMER_ISR = lambda my_clock, tc: 'AMBRO_STM32F4_CLOCK_TC_GLOBAL({}, {}, MyContext())'.format(tc, my_clock)
 
-def setup_clock(gen, config, key, clock_id):
+def setup_clock(gen, config, key, clock_name, priority, allow_disabled):
     clock_sel = selection.Selection()
+    
+    @clock_sel.option('NoClock')
+    def option(clock):
+        if not allow_disabled:
+            clock.path().error('A clock is required.')
+        return None
     
     @clock_sel.option('At91Sam3xClock')
     def option(clock):
-        return CommonClock(gen, clock, clock_id, At91Sam3xClockDef)
+        return CommonClock(gen, clock, clock_name, priority, At91Sam3xClockDef)
     
     @clock_sel.option('At91Sam3uClock')
     def option(clock):
-        return CommonClock(gen, clock, clock_id, At91Sam3uClockDef)
+        return CommonClock(gen, clock, clock_name, priority, At91Sam3uClockDef)
     
     @clock_sel.option('Mk20Clock')
     def option(clock):
-        return CommonClock(gen, clock, clock_id, Mk20ClockDef)
+        return CommonClock(gen, clock, clock_name, priority, Mk20ClockDef)
     
     @clock_sel.option('AvrClock')
     def option(clock):
-        return CommonClock(gen, clock, clock_id, AvrClockDef)
+        return CommonClock(gen, clock, clock_name, priority, AvrClockDef)
     
     @clock_sel.option('Stm32f4Clock')
     def option(clock):
-        return CommonClock(gen, clock, clock_id, Stm32f4ClockDef)
+        return CommonClock(gen, clock, clock_name, priority, Stm32f4ClockDef)
     
-    gen.register_singleton_object(clock_id, config.do_selection(key, clock_sel))
+    clock_object = config.do_selection(key, clock_sel)
+    if clock_object is not None:
+        gen.register_singleton_object(clock_name, clock_object)
 
 def setup_pins (gen, config, key):
     pin_regexes = [IDENTIFIER_REGEX]
@@ -1137,11 +1148,12 @@ def generate(config_root_data, cfg_name, main_template):
                     setup_platform(gen, platform_config, 'platform')
                     
                     for platform in platform_config.enter_config('platform'):
-                        setup_clock(gen, platform, 'clock', 'Clock')
+                        setup_clock(gen, platform, 'clock', clock_name='Clock', priority=-10, allow_disabled=False)
                         setup_pins(gen, platform, 'pins')
                         setup_adc(gen, platform, 'adc')
                         if platform.has('pwm'):
                             setup_pwm(gen, platform, 'pwm')
+                        setup_clock(gen, platform, 'fast_clock', clock_name='FastClock', priority=-12, allow_disabled=True)
                     
                     setup_debug_interface(gen, platform_config, 'debug_interface')
                     
