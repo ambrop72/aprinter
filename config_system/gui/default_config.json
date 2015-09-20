@@ -3157,10 +3157,10 @@
       },
       "stepper_ports": [
         {
-          "DirPin": "Stm32f4Pin<Stm32f4PortC,6>",
-          "EnablePin": "Stm32f4Pin<Stm32f4PortC,9>",
+          "DirPin": "Stm32f4Pin<Stm32f4PortD,3>",
+          "EnablePin": "Stm32f4Pin<Stm32f4PortD,7>",
           "Name": "X",
-          "StepPin": "Stm32f4Pin<Stm32f4PortC,8>",
+          "StepPin": "Stm32f4Pin<Stm32f4PortD,6>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TIM2_2"
