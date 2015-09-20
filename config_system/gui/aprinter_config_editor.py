@@ -253,6 +253,13 @@ def platform_Stm32f4():
         ce.Compound('Stm32f4Pins', key='pins', title='Pins', collapsable=True, attrs=[
             ce.Constant(key='input_mode_type', value='Stm32f4PinInputMode'),
         ]),
+        ce.OneOf(key='fast_clock', title='Fast clock', choices=[
+            ce.Compound('NoClock', title='Disabled', attrs=[]),
+            ce.Compound('Stm32f4Clock', key='clock', title='Enabled', attrs=[
+                ce.Integer(key='prescaler', title='Prescaler'),
+                ce.String(key='primary_timer', title='Timer'),
+            ]),
+        ]),
     ])
 
 def hard_pwm_choice(**kwargs):
