@@ -78,7 +78,6 @@ struct Stm32f4ClockTIM##tc_num { \
 #define STM32F4CLOCK_IRQ_FOR_TIM14 TIM8_TRG_COM_TIM14_
 
 // Some timers we don't support:
-// - Those for which clock enable/disable macros are missing in stm32f4xx_hal_rcc.h.
 // - APB2 timers, because they are based on a different clock (could try prescaler adjustment).
 //STM32F4CLOCK_DEFINE_TC(1,  false, 2)
 STM32F4CLOCK_DEFINE_TC(2,  true,  1)
@@ -89,9 +88,9 @@ STM32F4CLOCK_DEFINE_TC(5,  true,  1)
 //STM32F4CLOCK_DEFINE_TC(9,  false, 2)
 //STM32F4CLOCK_DEFINE_TC(10, false, 2)
 //STM32F4CLOCK_DEFINE_TC(11, false, 2)
-//STM32F4CLOCK_DEFINE_TC(12, false, 1)
-//STM32F4CLOCK_DEFINE_TC(13, false, 1)
-//STM32F4CLOCK_DEFINE_TC(14, false, 1)
+STM32F4CLOCK_DEFINE_TC(12, false, 1)
+STM32F4CLOCK_DEFINE_TC(13, false, 1)
+STM32F4CLOCK_DEFINE_TC(14, false, 1)
 
 #define STM32F4CLOCK_DEFINE_COMP(comp_num, ccmr_num, ccmr_bit_offset, ccer_bit_offset, ccie_bit, if_bit) \
 struct Stm32f4ClockComp##comp_num { \

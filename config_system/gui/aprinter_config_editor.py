@@ -232,7 +232,7 @@ def platform_Stm32f4():
             ce.Constant(key='avail_oc_units', value=[
                 {
                     'value': 'TIM{}_{}'.format(n, m)
-                } for n in [2,3,4,5] for m in [1,2,3,4]
+                } for n in [2,3,4,5,12,13,14] for m in [1,2,3,4]
             ])
         ]),
         ce.Compound('Stm32f4Adc', key='adc', title='ADC', collapsable=True, attrs=[
