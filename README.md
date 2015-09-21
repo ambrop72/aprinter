@@ -52,10 +52,12 @@ available at [www.aprinter.eu](http://www.aprinter.eu/).
 The service allows you to configure the firmware, and will build it at your request.
 It should work with any modern web browser, and the only step that needs to be done
 locally is uploading the firmware to the board.
-
 If you want to, you can run the service locally, as described next.
-A prerequisite is the [Nix package manager](http://nixos.org/nix/) running on Linux.
-The service will then be available at `http://127.0.0.1:4000/`.
+
+A prerequisite for running locally is the [Nix package manager](http://nixos.org/nix/) running on Linux.
+If you're not familiar with Nix, please use the installer, not distribution packages.
+
+After you perform the commands below, the service will be available at `http://127.0.0.1:4000/`.
 
 ```
 nix-build nix/ -A aprinterService -o ~/aprinter-service
@@ -76,6 +78,7 @@ Instructions for using the web service:
 It is possible to build without using the web service, given a JSON configuration file.
 This file would usually be produced by the web GUI, but you're free to manage it manually.
 Again, the prerequisite for building is the [Nix package manager](http://nixos.org/nix/) on Linux.
+If you're not familiar with Nix, please use the installer, not distribution packages.
 
 ```
 python -B config_system/generator/generate.py --config path_to_config.json | nix-build - -o ~/aprinter-build
