@@ -239,7 +239,7 @@
             "PulseInterval": 0.3,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC7A"
+              "oc_unit": "TC2B"
             },
             "_compoundName": "SoftPwm"
           },
@@ -253,7 +253,7 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC7B"
+              "oc_unit": "TC2C"
             },
             "_compoundName": "SoftPwm"
           },
@@ -267,7 +267,7 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC7C"
+              "oc_unit": "TC3A"
             },
             "_compoundName": "SoftPwm"
           },
@@ -281,7 +281,7 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC8A"
+              "oc_unit": "TC3B"
             },
             "_compoundName": "SoftPwm"
           },
@@ -295,7 +295,7 @@
             "PulseInterval": 0.04,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC8B"
+              "oc_unit": "TC3C"
             },
             "_compoundName": "SoftPwm"
           },
@@ -309,7 +309,7 @@
             "PulseInterval": 0.04,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC8C"
+              "oc_unit": "TC4A"
             },
             "_compoundName": "SoftPwm"
           },
@@ -441,7 +441,7 @@
           "StepPin": "DuePin24",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC1A"
+            "oc_unit": "TC0B"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -464,7 +464,7 @@
           "StepPin": "DuePin17",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC2A"
+            "oc_unit": "TC0C"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -487,7 +487,7 @@
           "StepPin": "DuePin2",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC3A"
+            "oc_unit": "TC1A"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -510,7 +510,7 @@
           "StepPin": "DuePinA7",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC4A"
+            "oc_unit": "TC1B"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -533,7 +533,7 @@
           "StepPin": "DuePinA10",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC5A"
+            "oc_unit": "TC1C"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -556,7 +556,7 @@
           "StepPin": "DuePin51",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC6A"
+            "oc_unit": "TC2A"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -805,7 +805,7 @@
             "PulseInterval": 0.3,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC7A"
+              "oc_unit": "TC2B"
             },
             "_compoundName": "SoftPwm"
           },
@@ -819,7 +819,7 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC7B"
+              "oc_unit": "TC2C"
             },
             "_compoundName": "SoftPwm"
           },
@@ -833,7 +833,7 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC7C"
+              "oc_unit": "TC3A"
             },
             "_compoundName": "SoftPwm"
           },
@@ -847,7 +847,7 @@
             "PulseInterval": 0.2,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC8A"
+              "oc_unit": "TC3B"
             },
             "_compoundName": "SoftPwm"
           },
@@ -861,7 +861,7 @@
             "PulseInterval": 0.04,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC8B"
+              "oc_unit": "TC3C"
             },
             "_compoundName": "SoftPwm"
           },
@@ -875,7 +875,7 @@
             "PulseInterval": 0.04,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TC8C"
+              "oc_unit": "TC4A"
             },
             "_compoundName": "SoftPwm"
           },
@@ -975,7 +975,7 @@
           "StepPin": "DuePinA9",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC1A"
+            "oc_unit": "TC0B"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -998,7 +998,7 @@
           "StepPin": "DuePinA11",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC2A"
+            "oc_unit": "TC0C"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -1021,7 +1021,7 @@
           "StepPin": "DuePinA13",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC3A"
+            "oc_unit": "TC1A"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -1044,7 +1044,7 @@
           "StepPin": "DuePin36",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC4A"
+            "oc_unit": "TC1B"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -1067,7 +1067,7 @@
           "StepPin": "DuePin43",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC5A"
+            "oc_unit": "TC1C"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -1090,7 +1090,7 @@
           "StepPin": "DuePin32",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
-            "oc_unit": "TC6A"
+            "oc_unit": "TC2A"
           },
           "_compoundName": "stepper_port",
           "current": {
