@@ -350,7 +350,6 @@ private:
             bool command_completed = load_command(c, current_command);
             if (command_completed) {
                 DelayFeature::wait_for_step_low(c);
-                DelayFeature::set_step_timer_to_now(c);
                 TimerInstance::setNext(c, o->m_time);
                 return true;
             }
@@ -378,7 +377,6 @@ private:
             }
             
             DelayFeature::wait_for_dir(c);
-            DelayFeature::set_dir_timer_to_now(c);
             
             DelayFeature::wait_for_step_low(c);
             Stepper::stepOn(c);
@@ -425,7 +423,6 @@ private:
             }
         } else {
             DelayFeature::wait_for_step_low(c);
-            DelayFeature::set_step_timer_to_now(c);
         }
         
         if (PreloadCommands && AMBRO_LIKELY(!o->m_notend)) {
@@ -475,13 +472,6 @@ private:
         }
         
         template <typename ThisContext>
-        static void set_dir_timer_to_now (ThisContext c)
-        {
-            auto *o = Object::self(c);
-            o->m_dir_timer.setAfter(c, 0);
-        }
-        
-        template <typename ThisContext>
         static void set_dir_timer_for_step (ThisContext c)
         {
             auto *o = Object::self(c);
@@ -518,7 +508,6 @@ private:
         template <typename ThisContext> static void wait_for_dir (ThisContext c) {}
         template <typename ThisContext> static void wait_for_step_high (ThisContext c) {}
         template <typename ThisContext> static void wait_for_step_low (ThisContext c) {}
-        template <typename ThisContext> static void set_dir_timer_to_now (ThisContext c) {}
         template <typename ThisContext> static void set_dir_timer_for_step (ThisContext c) {}
         template <typename ThisContext> static void set_step_timer_to_now (ThisContext c) {}
         template <typename ThisContext> static void set_step_timer_for_high (ThisContext c) {}

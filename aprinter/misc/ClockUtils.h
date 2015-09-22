@@ -105,10 +105,8 @@ public:
             while (true) {
                 TimeType time = Clock::getTime(c);
                 TimeType diff = timeDifference(time, m_set_time);
-                if (!differenceIsNegative(diff)) {
-                    return;
-                }
-                if ((TimeType)(-diff) > max_future_ticks) {
+                if (!differenceIsNegative(diff) || (TimeType)(-diff) > max_future_ticks) {
+                    m_set_time = time;
                     return;
                 }
             }
