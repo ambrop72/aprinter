@@ -86,6 +86,7 @@ private:
     static const int discriminant_prec = Params::PrecisionParams::discriminant_prec;
     static const int rel_t_extra_prec = Params::PrecisionParams::rel_t_extra_prec;
     static const int amul_shift = 2 * (1 + discriminant_prec);
+    static bool const PreloadCommands = Params::PreloadCommands;
     
     struct TimerHandler;
     
@@ -184,7 +185,7 @@ public:
         o->m_time = start_time;
         
         bool command_completed = load_command(c, first_command);
-        TimeType timer_t = command_completed ? o->m_time : start_time;
+        TimeType timer_t = (!PreloadCommands && command_completed) ? o->m_time : start_time;
         
         DelayFeature::set_step_timer_to_now(c);
         TimerInstance::setFirst(c, timer_t);
@@ -277,8 +278,7 @@ private:
         auto *o = Object::self(c);
         
         Stepper::setDir(c, command->dir_x.bitsValue()  & ((DirStepIntType)1 << step_bits));
-        
-        DelayFeature::set_dir_timer(c);
+        DelayFeature::set_dir_timer_for_step(c);
         
         // Below we do some volatile memory accesses, to guarantee that at least some
         // calculations are done after the setDir(). We want the new direction signal
@@ -314,6 +314,21 @@ private:
         return false;
     }
     
+    static bool try_pull_command (StepContext c, Command **command)
+    {
+        auto *o = Object::self(c);
+        
+        bool res = ListForOneOffset<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_command_callback(), c, command);
+        if (AMBRO_UNLIKELY(!res)) {
+#ifdef AMBROLIB_ASSERTIONS
+            o->m_running = false;
+#endif
+            return false;
+        }
+        
+        return true;
+    }
+    
     static bool timer_handler (StepContext c)
     {
         auto *o = Object::self(c);
@@ -326,12 +341,9 @@ private:
 #endif
         
         Command *current_command = o->m_current_command;
-        if (AMBRO_LIKELY(!o->m_notend)) {
-            bool res = ListForOneOffset<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_command_callback(), c, &current_command);
-            if (AMBRO_UNLIKELY(!res)) {
-#ifdef AMBROLIB_ASSERTIONS
-                o->m_running = false;
-#endif
+        
+        if (!PreloadCommands && AMBRO_LIKELY(!o->m_notend)) {
+            if (!try_pull_command(c, &current_command)) {
                 return false;
             }
             
@@ -352,60 +364,78 @@ private:
 #endif
         }
         
-        if (AMBRO_UNLIKELY(o->m_prestep_callback_enabled)) {
-            bool res = ListForOneOffset<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_prestep_callback(), c);
-            if (AMBRO_UNLIKELY(res)) {
-#ifdef AMBROLIB_ASSERTIONS
-                o->m_running = false;
-#endif
-                return false;
-            }
-        }
-        
-        DelayFeature::wait_for_dir(c);
-        DelayFeature::wait_for_step_low(c);
-        Stepper::stepOn(c);
-        DelayFeature::set_step_timer_for_high(c);
-        
-        // We need to ensure that the step signal is sufficiently long for the stepper driver
-        // to register. To this end, we do the timely calculations in between stepOn and stepOff().
-        // But to prevent the compiler from moving upwards any significant part of the calculation,
-        // we do a volatile read of the discriminant (an input to the calculation).
-        
-        auto discriminant_bits = volatile_read(o->m_discriminant.m_bits.m_int);
-        o->m_discriminant.m_bits.m_int = discriminant_bits + current_command->a_mul.m_bits.m_int;
-        AMBRO_ASSERT(o->m_discriminant.bitsValue() >= 0)
-        
-        auto q = (o->m_v0 + FixedSquareRoot<true>(o->m_discriminant, OptionForceInline())).template shift<-1>();
-        
-        auto t_frac = FixedFracDivide<rel_t_extra_prec>(o->m_pos, q, OptionForceInline());
-        
-        auto t_mul = TimeMulFixedType::importBits(TMulStored::retrieve(current_command->t_mul_stored));
-        TimeFixedType t = FixedResMultiply(t_mul, t_frac);
-        
-        // Now make sure the calculations above happen before stepOff().
-        volatile_write(o->m_dummy, (uint8_t)t.bitsValue());
-        
-        DelayFeature::wait_for_step_high(c);
-        Stepper::stepOff(c);
-        DelayFeature::set_step_timer_for_low(c);
-        
         TimeType next_time;
-        if (AMBRO_LIKELY(!o->m_notdecel)) {
-            if (AMBRO_LIKELY(o->m_pos == o->m_x)) {
-                o->m_time += t_mul.template bitsTo<time_bits>().bitsValue();
-                o->m_notend = false;
-                next_time = o->m_time;
+        
+        if (!PreloadCommands || AMBRO_LIKELY(o->m_notend)) {
+            if (AMBRO_UNLIKELY(o->m_prestep_callback_enabled)) {
+                bool res = ListForOneOffset<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_prestep_callback(), c);
+                if (AMBRO_UNLIKELY(res)) {
+    #ifdef AMBROLIB_ASSERTIONS
+                    o->m_running = false;
+    #endif
+                    return false;
+                }
+            }
+            
+            DelayFeature::wait_for_dir(c);
+            DelayFeature::set_dir_timer_to_now(c);
+            
+            DelayFeature::wait_for_step_low(c);
+            Stepper::stepOn(c);
+            DelayFeature::set_step_timer_for_high(c);
+            
+            // We need to ensure that the step signal is sufficiently long for the stepper driver
+            // to register. To this end, we do the timely calculations in between stepOn and stepOff().
+            // But to prevent the compiler from moving upwards any significant part of the calculation,
+            // we do a volatile read of the discriminant (an input to the calculation).
+            
+            auto discriminant_bits = volatile_read(o->m_discriminant.m_bits.m_int);
+            o->m_discriminant.m_bits.m_int = discriminant_bits + current_command->a_mul.m_bits.m_int;
+            AMBRO_ASSERT(o->m_discriminant.bitsValue() >= 0)
+            
+            auto q = (o->m_v0 + FixedSquareRoot<true>(o->m_discriminant, OptionForceInline())).template shift<-1>();
+            
+            auto t_frac = FixedFracDivide<rel_t_extra_prec>(o->m_pos, q, OptionForceInline());
+            
+            auto t_mul = TimeMulFixedType::importBits(TMulStored::retrieve(current_command->t_mul_stored));
+            TimeFixedType t = FixedResMultiply(t_mul, t_frac);
+            
+            // Now make sure the calculations above happen before stepOff().
+            volatile_write(o->m_dummy, (uint8_t)t.bitsValue());
+            
+            DelayFeature::wait_for_step_high(c);
+            Stepper::stepOff(c);
+            DelayFeature::set_step_timer_for_low(c);
+            
+            if (AMBRO_LIKELY(!o->m_notdecel)) {
+                if (AMBRO_LIKELY(o->m_pos == o->m_x)) {
+                    o->m_time += t_mul.template bitsTo<time_bits>().bitsValue();
+                    o->m_notend = false;
+                    next_time = o->m_time;
+                } else {
+                    o->m_pos.m_bits.m_int++;
+                    next_time = (o->m_time + t.bitsValue());
+                }
             } else {
-                o->m_pos.m_bits.m_int++;
-                next_time = (o->m_time + t.bitsValue());
+                if (o->m_pos.bitsValue() == 0) {
+                    o->m_notend = false;
+                }
+                o->m_pos.m_bits.m_int--;
+                next_time = (o->m_time - t.bitsValue());
             }
         } else {
-            if (o->m_pos.bitsValue() == 0) {
-                o->m_notend = false;
+            DelayFeature::wait_for_step_low(c);
+            DelayFeature::set_step_timer_to_now(c);
+        }
+        
+        if (PreloadCommands && AMBRO_LIKELY(!o->m_notend)) {
+            if (!try_pull_command(c, &current_command)) {
+                return false;
             }
-            o->m_pos.m_bits.m_int--;
-            next_time = (o->m_time - t.bitsValue());
+            
+            next_time = o->m_time;
+            
+            load_command(c, current_command);
         }
         
         TimerInstance::setNext(c, next_time);
@@ -445,7 +475,14 @@ private:
         }
         
         template <typename ThisContext>
-        static void set_dir_timer (ThisContext c)
+        static void set_dir_timer_to_now (ThisContext c)
+        {
+            auto *o = Object::self(c);
+            o->m_dir_timer.setAfter(c, 0);
+        }
+        
+        template <typename ThisContext>
+        static void set_dir_timer_for_step (ThisContext c)
         {
             auto *o = Object::self(c);
             o->m_dir_timer.setAfter(c, MinDirSetTicks);
@@ -481,7 +518,8 @@ private:
         template <typename ThisContext> static void wait_for_dir (ThisContext c) {}
         template <typename ThisContext> static void wait_for_step_high (ThisContext c) {}
         template <typename ThisContext> static void wait_for_step_low (ThisContext c) {}
-        template <typename ThisContext> static void set_dir_timer (ThisContext c) {}
+        template <typename ThisContext> static void set_dir_timer_to_now (ThisContext c) {}
+        template <typename ThisContext> static void set_dir_timer_for_step (ThisContext c) {}
         template <typename ThisContext> static void set_step_timer_to_now (ThisContext c) {}
         template <typename ThisContext> static void set_step_timer_for_high (ThisContext c) {}
         template <typename ThisContext> static void set_step_timer_for_low (ThisContext c) {}
@@ -533,11 +571,13 @@ struct AxisDriverDelayParams {
 template <
     typename TTimerService,
     typename TPrecisionParams,
+    bool TPreloadCommands,
     typename TDelayParams
 >
 struct AxisDriverService {
     using TimerService = TTimerService;
     using PrecisionParams = TPrecisionParams;
+    static bool const PreloadCommands = TPreloadCommands;
     using DelayParams = TDelayParams;
     
     template <typename Context, typename ParentObject, typename Stepper, typename ConsumersList>

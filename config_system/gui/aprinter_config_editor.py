@@ -723,6 +723,7 @@ def editor():
                         current_driver_channel_choice(key='DriverChannelParams', title='Driver-specific parameters'),
                     ]),
                 ]),
+                ce.Boolean(key='PreloadCommands', title='Command loading mode', default=False, false_title='At first step', true_title='At last step of previous command (use when direction-ahead-of-step-time is large)'),
                 ce.OneOf(key='delay', title='Step signals timing', choices=[
                     ce.Compound('NoDelay', title='No special delays', attrs=[]),
                     ce.Compound('Delay', title='Use delays to ensure required timing', attrs=[

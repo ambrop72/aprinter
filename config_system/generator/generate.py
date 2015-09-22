@@ -1393,6 +1393,7 @@ def generate(config_root_data, cfg_name, main_template):
                     TemplateExpr('AxisDriverService', [
                         use_interrupt_timer(gen, stepper_port, 'StepperTimer', user='MyPrinter::GetAxisTimer<{}>'.format(stepper_index)),
                         'TheAxisDriverPrecisionParams',
+                        stepper_port.get_bool('PreloadCommands'),
                         stepper_port.do_selection('delay', delay_sel),
                     ]),
                     stepper_port.do_selection('microstep', microstep_sel),
