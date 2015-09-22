@@ -1153,7 +1153,8 @@ def generate(config_root_data, cfg_name, main_template):
                         setup_adc(gen, platform, 'adc')
                         if platform.has('pwm'):
                             setup_pwm(gen, platform, 'pwm')
-                        setup_clock(gen, platform, 'fast_clock', clock_name='FastClock', priority=-12, allow_disabled=True)
+                        if platform.has('fast_clock'):
+                            setup_clock(gen, platform, 'fast_clock', clock_name='FastClock', priority=-12, allow_disabled=True)
                     
                     setup_debug_interface(gen, platform_config, 'debug_interface')
                     
