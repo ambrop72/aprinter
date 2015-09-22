@@ -31,8 +31,8 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/Options.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/TupleForEach.h>
-#include <aprinter/meta/IndexElemTuple.h>
+#include <aprinter/meta/ListForEach.h>
+#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/StoredNumber.h>
@@ -72,11 +72,13 @@ struct AxisDriverPrecisionParams {
 using AxisDriverAvrPrecisionParams = AxisDriverPrecisionParams<11, 22, 24, 1, 0>;
 using AxisDriverDuePrecisionParams = AxisDriverPrecisionParams<11, 28, 28, 3, 4>;
 
-template <typename Context, typename ParentObject, typename Stepper, typename ConsumersList, typename Params>
+template <typename Context, typename ParentObject, typename Stepper, typename TConsumersList, typename Params>
 class AxisDriver {
+    using ConsumersList = TConsumersList;
+    
 private:
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_command_callback, call_command_callback)
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_call_prestep_callback, call_prestep_callback)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_call_command_callback, call_command_callback)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_call_prestep_callback, call_prestep_callback)
     
     static const int step_bits = Params::PrecisionParams::step_bits;
     static const int time_bits = Params::PrecisionParams::time_bits;
@@ -116,7 +118,8 @@ public:
         TMulStored t_mul_stored;
     };
     
-    AMBRO_ALWAYS_INLINE static void generate_command (bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a, Command *cmd)
+    AMBRO_ALWAYS_INLINE
+    static void generate_command (bool dir, StepFixedType x, TimeFixedType t, AccelFixedType a, Command *cmd)
     {
         AMBRO_ASSERT(a >= -x)
         AMBRO_ASSERT(a <= x)
@@ -174,15 +177,15 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         o->m_running = true;
 #endif
+#ifdef AXISDRIVER_DETECT_OVERLOAD
+        o->m_overload = false;
+#endif
         o->m_consumer_id = TypeListIndex<typename ConsumersList::List, TheConsumer>::Value;
         o->m_time = start_time;
         
         bool command_completed = load_command(c, first_command);
         TimeType timer_t = command_completed ? o->m_time : start_time;
         
-#ifdef AXISDRIVER_DETECT_OVERLOAD
-        o->m_overload = false;
-#endif
         DelayFeature::set_step_timer_to_now(c);
         TimerInstance::setFirst(c, timer_t);
     }
@@ -253,6 +256,9 @@ private:
         }
     };
     
+    template <typename This=AxisDriver>
+    using CallbackHelperList = IndexElemList<typename This::ConsumersList::List, CallbackHelper>;
+    
     template <typename T>
     inline static T volatile_read (T &x)
     {
@@ -321,8 +327,7 @@ private:
         
         Command *current_command = o->m_current_command;
         if (AMBRO_LIKELY(!o->m_notend)) {
-            IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
-            bool res = TupleForOneAlways<bool>(o->m_consumer_id, &dummy, Foreach_call_command_callback(), c, &current_command);
+            bool res = ListForOneOffset<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_command_callback(), c, &current_command);
             if (AMBRO_UNLIKELY(!res)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
@@ -348,8 +353,7 @@ private:
         }
         
         if (AMBRO_UNLIKELY(o->m_prestep_callback_enabled)) {
-            IndexElemTuple<typename ConsumersList::List, CallbackHelper> dummy;
-            bool res = TupleForOneAlways<bool>(o->m_consumer_id, &dummy, Foreach_call_prestep_callback(), c);
+            bool res = ListForOneOffset<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_prestep_callback(), c);
             if (AMBRO_UNLIKELY(res)) {
 #ifdef AMBROLIB_ASSERTIONS
                 o->m_running = false;
@@ -359,11 +363,8 @@ private:
         }
         
         DelayFeature::wait_for_dir(c);
-        
         DelayFeature::wait_for_step_low(c);
-        
         Stepper::stepOn(c);
-        
         DelayFeature::set_step_timer_for_high(c);
         
         // We need to ensure that the step signal is sufficiently long for the stepper driver
@@ -386,9 +387,7 @@ private:
         volatile_write(o->m_dummy, (uint8_t)t.bitsValue());
         
         DelayFeature::wait_for_step_high(c);
-        
         Stepper::stepOff(c);
-        
         DelayFeature::set_step_timer_for_low(c);
         
         TimeType next_time;
@@ -410,7 +409,6 @@ private:
         }
         
         TimerInstance::setNext(c, next_time);
-        
         return true;
     }
     struct TimerHandler : public AMBRO_WFUNC_TD(&AxisDriver::timer_handler) {};
@@ -499,20 +497,20 @@ public:
 #ifdef AMBROLIB_ASSERTIONS
         bool m_running;
 #endif
-        uint8_t m_consumer_id;
-        Command *m_current_command;
-        bool m_notend;
-        bool m_notdecel;
-        StepFixedType m_x;
-        StepFixedType m_pos;
-        DiscriminantType m_discriminant;
-        TimeType m_time;
-        V0Type m_v0;
-        bool m_prestep_callback_enabled;
-        uint8_t m_dummy;
 #ifdef AXISDRIVER_DETECT_OVERLOAD
         bool m_overload;
 #endif
+        bool m_prestep_callback_enabled;
+        bool m_notend;
+        bool m_notdecel;
+        uint8_t m_consumer_id;
+        uint8_t m_dummy;
+        StepFixedType m_x;
+        StepFixedType m_pos;
+        V0Type m_v0;
+        DiscriminantType m_discriminant;
+        TimeType m_time;
+        Command *m_current_command;
     };
 };
 
