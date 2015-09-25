@@ -34,6 +34,7 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/StructIf.h>
+#include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/StoredNumber.h>
 #include <aprinter/base/DebugObject.h>
@@ -113,6 +114,9 @@ private:
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:
+    static constexpr double AsyncMinStepTime() { return DelayFeature::AsyncMinStepTime(); }
+    static constexpr double SyncMinStepTime() { return DelayFeature::SyncMinStepTime(); }
+    
     struct Command {
         DirStepFixedType dir_x;
         AMulType a_mul;
@@ -450,6 +454,24 @@ private:
         static DelayTimeType const MinStepHighTicks = 1e-6 * DelayParams::StepHighTime::value() * DelayClockUtils::time_freq + 0.99;
         static DelayTimeType const MinStepLowTicks  = 1e-6 * DelayParams::StepLowTime::value()  * DelayClockUtils::time_freq + 0.99;
         
+        static constexpr double MinStepTimeFactor = 1.2;
+        
+        static constexpr double AsyncMinStepTime ()
+        {
+            return MinStepTimeFactor * 1e-6 * ConstexprFmax(
+                (PreloadCommands ? DelayParams::DirSetTime::value() : 0.0),
+                DelayParams::StepLowTime::value()
+            );
+        }
+        
+        static constexpr double SyncMinStepTime ()
+        {
+            return MinStepTimeFactor * 1e-6 * (
+                (!PreloadCommands ? DelayParams::DirSetTime::value() : 0.0) +
+                DelayParams::StepHighTime::value()
+            );
+        }
+        
         template <typename ThisContext>
         static void wait_for_dir (ThisContext c)
         {
@@ -505,6 +527,8 @@ private:
         };
     }
     AMBRO_STRUCT_ELSE(DelayFeature) {
+        static constexpr double AsyncMinStepTime () { return 0.0; }
+        static constexpr double SyncMinStepTime () { return 0.0; }
         template <typename ThisContext> static void wait_for_dir (ThisContext c) {}
         template <typename ThisContext> static void wait_for_step_high (ThisContext c) {}
         template <typename ThisContext> static void wait_for_step_low (ThisContext c) {}

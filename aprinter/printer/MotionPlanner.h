@@ -103,7 +103,7 @@ template <typename Context>
 struct MotionPlannerConstants {
     // Allows dependant equal expressions to not be duplicated for different MotionPlanner instances.
     using FCpu = APRINTER_FP_CONST_EXPR(F_CPU);
-    using TimeRevConversion = APRINTER_FP_CONST_EXPR(Context::Clock::time_unit);
+    using TimeConversion = APRINTER_FP_CONST_EXPR(Context::Clock::time_freq);
 };
 
 template <
@@ -150,6 +150,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_icmd_zero, check_icmd_zero)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_write_segment_buffer_entry, write_segment_buffer_entry)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_compute_state, compute_compute_state)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_steps_time, compute_steps_time)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_distance, compute_segment_buffer_entry_distance)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_speed, compute_segment_buffer_entry_speed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_segment_buffer_entry_accel, compute_segment_buffer_entry_accel)
@@ -275,8 +276,6 @@ private:
     
     enum {STATE_BUFFERING, STATE_STEPPING, STATE_ABORTED};
     
-    using CStepSpeedLimitFactor = decltype(ExprCast<FpType>(ExprRec(MaxStepsPerCycle() * typename Constants::FCpu() * typename Constants::TimeRevConversion())));
-    
     template <typename TheAxis>
     struct AxisCommon {
         struct Object;
@@ -316,9 +315,19 @@ private:
         }
         
         template <typename TheComputeStateTuple>
-        static FpType compute_compute_state (FpType accum, Context c, Segment *entry, TheComputeStateTuple *cst)
+        static void compute_compute_state (Context c, Segment *entry, TheComputeStateTuple *cst)
         {
-            return accum + TheAxis::compute_compute_state_impl(c, entry, cst);
+            TheAxis::compute_compute_state_impl(c, entry, cst);
+        }
+        
+        template <typename TheComputeStateTuple>
+        static void compute_steps_time (Context c, Segment *entry, TheComputeStateTuple *cst, FpType *sync_time, FpType *async_time)
+        {
+            FpType axis_sync_time;
+            FpType axis_async_time;
+            TheAxis::compute_steps_time_impl(c, entry, cst, &axis_sync_time, &axis_async_time);
+            *sync_time = *sync_time + axis_sync_time;
+            *async_time = FloatMax(*async_time, axis_async_time);
         }
         
         template <typename TheComputeStateTuple>
@@ -326,7 +335,7 @@ private:
         {
             return FloatMax(accum, TheAxis::compute_segment_buffer_entry_speed_impl(c, entry, cst));
         }
-
+        
         static bool have_commit_space (bool accum, Context c)
         {
             auto *o = Object::self(c);
@@ -535,12 +544,21 @@ public:
         }
         
         template <typename TheComputeStateTuple>
-        static FpType compute_compute_state_impl (Context c, Segment *entry, TheComputeStateTuple *cst)
+        static void compute_compute_state_impl (Context c, Segment *entry, TheComputeStateTuple *cst)
         {
             TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
             ComputeState *cs = TupleFindElem<ComputeState>(cst);
             cs->x = axis_entry->x.template fpValue<FpType>();
-            return cs->x;
+        }
+        
+        template <typename TheComputeStateTuple>
+        static void compute_steps_time_impl (Context c, Segment *entry, TheComputeStateTuple *cst, FpType *sync_time, FpType *async_time)
+        {
+            TheAxisSegment *axis_entry = TupleGetElem<AxisIndex>(entry->axes.axes());
+            ComputeState *cs = TupleFindElem<ComputeState>(cst);
+            FpType nonzero_x = (axis_entry->x.bitsValue() == 0) ? 1.0f : cs->x;
+            *sync_time = nonzero_x * APRINTER_CFG(Config, CSyncMinStepTime, c);
+            *async_time = nonzero_x * APRINTER_CFG(Config, CAsyncMinStepTime, c);
         }
         
         template <typename AccumType, typename TheComputeStateTuple>
@@ -701,12 +719,19 @@ public:
         }
 #endif
         
+        using DriverSyncMinStepTime = APRINTER_FP_CONST_EXPR(TheAxisDriver::SyncMinStepTime());
+        using DriverAsyncMinStepTime = APRINTER_FP_CONST_EXPR(TheAxisDriver::AsyncMinStepTime());
+        
+        using SyncMinStepTime = decltype(typename Constants::TimeConversion() * (ExprRec(MaxStepsPerCycle() * typename Constants::FCpu()) + DriverSyncMinStepTime()));
+        
         using CDistanceFactor = decltype(ExprCast<FpType>(AxisSpec::DistanceFactor::e()));
         using CCorneringSpeedComputationFactor = decltype(ExprCast<FpType>(AxisSpec::MaxAccelRec::e() / (AxisSpec::CorneringDistance::e() * AxisSpec::DistanceFactor::e())));
         using CMaxSpeedRec = decltype(ExprCast<FpType>(AxisSpec::MaxSpeedRec::e()));
         using CMaxAccelRec = decltype(ExprCast<FpType>(AxisSpec::MaxAccelRec::e()));
+        using CSyncMinStepTime = decltype(ExprCast<FpType>(SyncMinStepTime()));
+        using CAsyncMinStepTime = decltype(ExprCast<FpType>(SyncMinStepTime() + typename Constants::TimeConversion() * DriverAsyncMinStepTime()));
         
-        using ConfigExprs = MakeTypeList<CDistanceFactor, CCorneringSpeedComputationFactor, CMaxSpeedRec, CMaxAccelRec>;
+        using ConfigExprs = MakeTypeList<CDistanceFactor, CCorneringSpeedComputationFactor, CMaxSpeedRec, CMaxAccelRec, CSyncMinStepTime, CAsyncMinStepTime>;
         
         struct Object : public ObjBase<Axis, typename TheCommon::Object, EmptyTypeList> {
             FpType last_x_by_distance;
@@ -772,9 +797,15 @@ public:
         }
         
         template <typename TheComputeStateTuple>
-        static FpType compute_compute_state_impl (Context c, Segment *entry, TheComputeStateTuple *cst)
+        static void compute_compute_state_impl (Context c, Segment *entry, TheComputeStateTuple *cst)
         {
-            return 0.0f;
+        }
+        
+        template <typename TheComputeStateTuple>
+        static void compute_steps_time_impl (Context c, Segment *entry, TheComputeStateTuple *cst, FpType *sync_time, FpType *async_time)
+        {
+            *sync_time = 0.0f;
+            *async_time = 0.0f;
         }
         
         template <typename TheComputeStateTuple>
@@ -1493,10 +1524,12 @@ private:
             ListForEachForward<AxesList>(LForeach_write_segment_buffer_entry(), c, entry);
             
             ComputeStateTuple cst;
-            FpType total_steps = ListForEachForwardAccRes<AxisCommonList>(0.0f, LForeach_compute_compute_state(), c, entry, &cst);
+            ListForEachForward<AxisCommonList>(LForeach_compute_compute_state(), c, entry, &cst);
             
-            FpType total_steps_for_limit = FloatMax(total_steps, (FpType)1.0f);
-            FpType base_rel_max_speed = FloatMax(o->m_split_buffer.axes.rel_max_v_rec, total_steps_for_limit * APRINTER_CFG(Config, CStepSpeedLimitFactor, c));
+            FpType sync_steps_time = 0.0f;
+            FpType async_steps_time = 0.0f;
+            ListForEachForward<AxisCommonList>(LForeach_compute_steps_time(), c, entry, &cst, &sync_steps_time, &async_steps_time);
+            FpType base_rel_max_speed = FloatMax(o->m_split_buffer.axes.rel_max_v_rec, FloatMax(sync_steps_time, async_steps_time));
             entry->axes.rel_max_speed_rec = ListForEachForwardAccRes<AxisCommonList>(base_rel_max_speed, LForeach_compute_segment_buffer_entry_speed(), c, entry, &cst);
             
             FpType distance = ListForEachForwardAccRes<AxesList>(FloatIdentity(), LForeach_compute_segment_buffer_entry_distance(), c, &cst);
@@ -1546,9 +1579,6 @@ private:
         }
         return res;
     }
-    
-public:
-    using ConfigExprs = MakeTypeList<CStepSpeedLimitFactor>;
     
 public:
     struct Object : public ObjBase<MotionPlanner, ParentObject, JoinTypeLists<
