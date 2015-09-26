@@ -169,11 +169,13 @@ struct PrinterMainNoHomingParams {
 
 template <
     typename THomeDir,
+    typename THomeOffset,
     typename THomerService
 >
 struct PrinterMainHomingParams {
     static bool const Enabled = true;
     using HomeDir = THomeDir;
+    using HomeOffset = THomeOffset;
     using HomerService = THomerService;
 };
 
@@ -1027,7 +1029,7 @@ private:
                 mob->axis_homing |= AxisMask();
             }
             
-            using InitPosition = decltype(ExprIf(Config::e(HomingSpec::HomeDir::i()), MaxReqPos(), MinReqPos()));
+            using InitPosition = decltype(ExprIf(Config::e(HomingSpec::HomeDir::i()), MaxReqPos(), MinReqPos()) + Config::e(HomingSpec::HomeOffset::i()));
             
             template <typename ThisContext>
             static bool endstop_is_triggered (ThisContext c)

@@ -283,6 +283,7 @@ def stepper_homing_params(**kwargs):
         ce.Compound('no_homing', title='Disabled', attrs=[]),
         ce.Compound('homing', title='Enabled', ident='id_board_steppers_homing', attrs=[
             ce.Boolean(key='HomeDir', title='Homing direction', false_title='Negative', true_title='Positive', default=False),
+            ce.Float(key='HomeOffset', title='Offset of home position from min/max position [mm]', default=0),
             digital_input_choice(key='HomeEndstopInput', title='Endstop digital input'),
             ce.Boolean(key='HomeEndInvert', title='Invert endstop', false_title='No (high signal is pressed)', true_title='Yes (low signal is pressed)', default=False),
             ce.Float(key='HomeFastMaxDist', title='Maximum fast travel [mm] (use more than abs(MinPos-MaxPos))', default=250),
@@ -310,13 +311,18 @@ def virtual_homing_params(**kwargs):
         ])
     ], **kwargs)
 
-def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs, specific_params):
+def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs, specific_params, allow_identity_axes=False):
     assert len(stepper_defs) == len(axis_defs)
     
     return ce.Compound(transform_type, title=transform_title, attrs=(
         specific_params +
         [
             ce.Constant(key='DimensionCount', value=len(stepper_defs)),
+        ] +
+        ([
+            ce.Constant(key='Steppers', value={}),
+            ce.Constant(key='CartesianAxes', value={}),
+        ] if len(stepper_defs) == 0 else [
             ce.Compound('Steppers', key='Steppers', title='Stepper mapping', attrs=[
                 ce.Compound('TransformStepperParams', key='TransformStepper{}'.format(i), title=stepper_def['title'], collapsable=True, attrs=[
                     ce.String(key='StepperName', title='Name of stepper to use', default=stepper_def['default_name']),
@@ -338,7 +344,13 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
                 ))
                 for (i, axis_def) in enumerate(axis_defs)
             ]),
-        ]
+        ]) +
+        ([] if not allow_identity_axes else [
+            ce.Array(key='IdentityAxes', title='Extra identity axes', elem=ce.Compound('IdentityAxis', title='Identity axis', attrs=[
+                ce.String(key='Name', title='Name'),
+                ce.String(key='StepperName', title='Stepper name'),
+            ])),
+        ])
     ))
 
 def stepper_port_reference(context):
@@ -427,6 +439,12 @@ def editor():
             ])),
             ce.OneOf(key='transform', title='Coordinate transformation', choices=[
                 ce.Compound('NoTransform', title='None (cartesian)', attrs=[]),
+                make_transform_type(transform_type='Null', transform_title='Identity',
+                    stepper_defs=[],
+                    axis_defs=[],
+                    specific_params=[],
+                    allow_identity_axes=True
+                ),
                 make_transform_type(transform_type='CoreXY', transform_title='CoreXY/H-bot',
                     stepper_defs=[
                         {'default_name': 'A', 'title': 'First stepper'},

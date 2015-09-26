@@ -57,18 +57,21 @@ class GenState(object):
     def add_subst (self, key, val, indent=-1):
         self._subst[key] = {'val':val, 'indent':indent}
     
-    def add_config (self, name, dtype, value):
-        self._config_options.append({'name':name, 'dtype':dtype, 'value':value})
+    def add_config (self, name, dtype, value, is_constant=False):
+        properties = []
+        if is_constant:
+            properties.append('ConfigPropertyConstant')
+        self._config_options.append({'name':name, 'dtype':dtype, 'value':value, 'properties':properties})
         return name
     
-    def add_float_config (self, name, value):
-        return self.add_config(name, 'DOUBLE', '{:.17E}'.format(value))
+    def add_float_config (self, name, value, **kwargs):
+        return self.add_config(name, 'DOUBLE', format_cpp_float(value), **kwargs)
     
-    def add_bool_config (self, name, value):
-        return self.add_config(name, 'BOOL', 'true' if value else 'false')
+    def add_bool_config (self, name, value, **kwargs):
+        return self.add_config(name, 'BOOL', 'true' if value else 'false', **kwargs)
     
     def add_float_constant (self, name, value):
-        self._constants.append({'type':'using', 'name':name, 'value':'AMBRO_WRAP_DOUBLE({:.17E})'.format(value)})
+        self._constants.append({'type':'using', 'name':name, 'value':'AMBRO_WRAP_DOUBLE({})'.format(format_cpp_float(value))})
         return name
     
     def add_typedef (self, name, value):
@@ -160,7 +163,7 @@ class GenState(object):
         
         self.add_subst('GENERATED_WARNING', 'WARNING: This file was automatically generated!')
         self.add_subst('EXTRA_CONSTANTS', ''.join('{} {} = {};\n'.format(c['type'], c['name'], c['value']) for c in self._constants))
-        self.add_subst('ConfigOptions', ''.join('APRINTER_CONFIG_OPTION_{}({}, {}, ConfigNoProperties)\n'.format(c['dtype'], c['name'], c['value']) for c in self._config_options))
+        self.add_subst('ConfigOptions', ''.join('APRINTER_CONFIG_OPTION_{}({}, {}, ConfigProperties<{}>)\n'.format(c['dtype'], c['name'], c['value'], ', '.join(c['properties'])) for c in self._config_options))
         self.add_subst('PLATFORM_INCLUDES', ''.join('#include <{}>\n'.format(inc) for inc in self._platform_includes))
         self.add_subst('AprinterIncludes', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in sorted(self._aprinter_includes)))
         self.add_subst('GlobalCode', ''.join('{}\n'.format(gc['code']) for gc in sorted(self._global_code, key=lambda x: x['priority'])))
@@ -200,7 +203,7 @@ class GenConfigReader(config_reader.ConfigReader):
         return 'true' if self.get_bool(key) else 'false'
 
     def get_float_constant (self, key):
-        return '{:.17E}'.format(self.get_float(key))
+        return format_cpp_float(self.get_float(key))
 
     def get_identifier (self, key, validate=None):
         val = self.get_string(key)
@@ -230,10 +233,7 @@ class GenConfigReader(config_reader.ConfigReader):
             elems.append(elem_cb(config, i))
         return TemplateList(elems)
     
-    def do_keyed_list (self, count_key, elems_key, elem_key_prefix, elem_cb, min_count, max_count):
-        count = self.get_int(count_key)
-        if not min_count <= count <= max_count:
-            self.path().error('Incorrect {}.'.format(count_key))
+    def do_keyed_list (self, count, elems_key, elem_key_prefix, elem_cb):
         elems = []
         elems_config = self.get_config(elems_key)
         for i in range(count):
@@ -251,6 +251,9 @@ class TemplateExpr(object):
     def __init__ (self, name, args):
         self._name = name
         self._args = args
+    
+    def append_arg(self, arg):
+        self._args.append(arg)
     
     def build (self, indent):
         if indent == -1 or len(self._args) == 0:
@@ -282,6 +285,9 @@ class TemplateChar(object):
     
     def build (self, indent):
         return '\'{}\''.format(self._ch)
+
+def format_cpp_float(value):
+    return '{:.17E}'.format(value).replace('INF', 'INFINITY')
 
 def setup_event_loop(gen):
     gen.add_aprinter_include('system/BusyEventLoop.h')
@@ -1300,6 +1306,7 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     return TemplateExpr('PrinterMainHomingParams', [
                         gen.add_bool_config('{}HomeDir'.format(name), homing.get_bool('HomeDir')),
+                        gen.add_float_config('{}HomeOffset'.format(name), homing.get_float('HomeOffset')),
                         TemplateExpr('AxisHomerService', [
                             use_digital_input(gen, homing, 'HomeEndstopInput'),
                             gen.add_bool_config('{}HomeEndInvert'.format(name), homing.get_bool('HomeEndInvert')),
@@ -1524,6 +1531,13 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_config('{}SegmentsPerSecond'.format(prefix), transform.get_float('SegmentsPerSecond')),
                     ])
                 
+                @transform_type_sel.option('Null')
+                def option():
+                    gen.add_aprinter_include('printer/transform/IdentityTransform.h')
+                    gen.add_aprinter_include('printer/transform/NoSplitter.h')
+                    
+                    return TemplateExpr('IdentityTransformService', [0]), 'NoSplitterService'
+                
                 @transform_type_sel.option('CoreXY')
                 def option():
                     gen.add_aprinter_include('printer/transform/CoreXyTransform.h')
@@ -1555,12 +1569,52 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_config('DeltaZOffset', transform.get_float('ZOffset')),
                     ]), distance_splitter('Delta')
                 
-                transform_expr, splitter_expr = transform_type_sel.run(transform_type)
+                transform_type_expr, splitter_expr = transform_type_sel.run(transform_type)
+                
+                max_dimensions = 10
+                
+                dimension_count = transform.get_int('DimensionCount')
+                if not 0 <= dimension_count <= max_dimensions:
+                    transform.path().error('Incorrect DimensionCount.')
+                
+                virtual_axes = transform.do_keyed_list(dimension_count, 'CartesianAxes', 'VirtualAxis', virtual_axis_cb)
+                transform_steppers = transform.do_keyed_list(dimension_count, 'Steppers', 'TransformStepper', transform_stepper_cb)
+                
+                if transform.has('IdentityAxes'):
+                    num_idaxes = 0
+                    for idaxis in transform.iter_list_config('IdentityAxes', max_count=max_dimensions-dimension_count):
+                        virt_axis_name = idaxis.get_id_char('Name')
+                        stepper_name = idaxis.get_id_char('StepperName')
+                        transform_axes.append(virt_axis_name)
+                        num_idaxes += 1
+                        virtual_axes.append_arg(TemplateExpr('PrinterMainVirtualAxisParams', [
+                            TemplateChar(virt_axis_name),
+                            gen.add_float_config('{}MinPos'.format(virt_axis_name), float('-inf'), is_constant=True),
+                            gen.add_float_config('{}MaxPos'.format(virt_axis_name), float('+inf'), is_constant=True),
+                            gen.add_float_config('{}MaxSpeed'.format(virt_axis_name), float('inf'), is_constant=True),
+                            'PrinterMainNoVirtualHomingParams',
+                        ]))
+                        transform_steppers.append_arg(TemplateExpr('WrapInt', [TemplateChar(stepper_name)]))
+                    
+                    if num_idaxes > 0:
+                        gen.add_aprinter_include('printer/transform/IdentityTransform.h')
+                        id_transform_type_expr = TemplateExpr('IdentityTransformService', [num_idaxes])
+                        
+                        if dimension_count == 0:
+                            transform_type_expr = id_transform_type_expr
+                        else:
+                            gen.add_aprinter_include('printer/transform/CombineTransform.h')
+                            transform_type_expr = TemplateExpr('CombineTransformService', [transform_type_expr, id_transform_type_expr])
+                        
+                        dimension_count += num_idaxes
+                
+                if dimension_count == 0:
+                    transform.path().error('Need at least one dimension.')
                 
                 return TemplateExpr('PrinterMainTransformParams', [
-                    transform.do_keyed_list('DimensionCount', 'CartesianAxes', 'VirtualAxis', virtual_axis_cb, 1, 3),
-                    transform.do_keyed_list('DimensionCount', 'Steppers', 'TransformStepper', transform_stepper_cb, 1, 3),
-                    transform_expr,
+                    virtual_axes,
+                    transform_steppers,
+                    transform_type_expr,
                     splitter_expr,
                 ])
             

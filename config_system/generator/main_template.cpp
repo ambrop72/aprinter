@@ -30,6 +30,7 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <math.h>
 
 $${PLATFORM_INCLUDES}
 static void emergency (void);

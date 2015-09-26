@@ -26,14 +26,13 @@
 #define AMBROLIB_IDENTITY_TRANSFORM_H
 
 #include <aprinter/meta/IndexElemList.h>
-#include <aprinter/meta/Tuple.h>
-#include <aprinter/meta/TupleForEach.h>
+#include <aprinter/meta/ListForEach.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename FpType, typename Params>
 class IdentityTransform {
-    AMBRO_DECLARE_TUPLE_FOREACH_HELPER(Foreach_copy_coords, copy_coords)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_copy_coords, copy_coords)
     
 public:
     static int const NumAxes = Params::NumAxes;
@@ -41,16 +40,14 @@ public:
     template <typename Src, typename Dst>
     static bool virtToPhys (Context c, Src virt, Dst out_phys)
     {
-        HelperTuple dummy;
-        TupleForEachForward(&dummy, Foreach_copy_coords(), virt, out_phys);
+        ListForEachForward<HelperList>(Foreach_copy_coords(), virt, out_phys);
         return true;
     }
     
     template <typename Src, typename Dst>
     static void physToVirt (Context c, Src phys, Dst out_virt)
     {
-        HelperTuple dummy;
-        TupleForEachForward(&dummy, Foreach_copy_coords(), phys, out_virt);
+        ListForEachForward<HelperList>(Foreach_copy_coords(), phys, out_virt);
     }
     
 private:
@@ -62,8 +59,7 @@ private:
             dst.template set<AxisIndex>(src.template get<AxisIndex>());
         }
     };
-    
-    using HelperTuple = Tuple<IndexElemListCount<NumAxes, Helper>>;
+    using HelperList = IndexElemListCount<NumAxes, Helper>;
     
 public:
     struct Object {};
