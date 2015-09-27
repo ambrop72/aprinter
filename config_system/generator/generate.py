@@ -1523,53 +1523,57 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 transform_type_sel = selection.Selection()
                 
-                def distance_splitter(prefix):
-                    gen.add_aprinter_include('printer/transform/DistanceSplitter.h')
-                    return TemplateExpr('DistanceSplitterService', [
-                        gen.add_float_config('{}MinSplitLength'.format(prefix), transform.get_float('MinSplitLength')),
-                        gen.add_float_config('{}MaxSplitLength'.format(prefix), transform.get_float('MaxSplitLength')),
-                        gen.add_float_config('{}SegmentsPerSecond'.format(prefix), transform.get_float('SegmentsPerSecond')),
-                    ])
-                
                 @transform_type_sel.option('Null')
                 def option():
                     gen.add_aprinter_include('printer/transform/IdentityTransform.h')
-                    gen.add_aprinter_include('printer/transform/NoSplitter.h')
-                    
-                    return TemplateExpr('IdentityTransformService', [0]), 'NoSplitterService'
+                    return TemplateExpr('IdentityTransformService', [0]), 'Transform'
                 
                 @transform_type_sel.option('CoreXY')
                 def option():
                     gen.add_aprinter_include('printer/transform/CoreXyTransform.h')
-                    gen.add_aprinter_include('printer/transform/NoSplitter.h')
-                    
-                    return 'CoreXyTransformService', 'NoSplitterService'
+                    return 'CoreXyTransformService', 'Transform'
                 
                 @transform_type_sel.option('Delta')
                 def option():
                     gen.add_aprinter_include('printer/transform/DeltaTransform.h')
-                    
                     return TemplateExpr('DeltaTransformService', [
                         gen.add_float_config('DeltaDiagonalRod', transform.get_float('DiagnalRod')),
                         gen.add_float_config('DeltaSmoothRodOffset', transform.get_float('SmoothRodOffset')),
                         gen.add_float_config('DeltaEffectorOffset', transform.get_float('EffectorOffset')),
                         gen.add_float_config('DeltaCarriageOffset', transform.get_float('CarriageOffset')),
                         gen.add_float_config('DeltaLimitRadius', transform.get_float('LimitRadius')),
-                    ]), distance_splitter('Delta')
+                    ]), 'Delta'
                 
                 @transform_type_sel.option('RotationalDelta')
                 def option():
                     gen.add_aprinter_include('printer/transform/RotationalDeltaTransform.h')
-                    
                     return TemplateExpr('RotationalDeltaTransformService', [
                         gen.add_float_config('DeltaEndEffectorLength', transform.get_float('EndEffectorLength')),
                         gen.add_float_config('DeltaBaseLength', transform.get_float('BaseLength')),
                         gen.add_float_config('DeltaRodLength', transform.get_float('RodLength')),
                         gen.add_float_config('DeltaArmLength', transform.get_float('ArmLength')),
                         gen.add_float_config('DeltaZOffset', transform.get_float('ZOffset')),
-                    ]), distance_splitter('Delta')
+                    ]), 'Delta'
                 
-                transform_type_expr, splitter_expr = transform_type_sel.run(transform_type)
+                transform_type_expr, transform_prefix = transform_type_sel.run(transform_type)
+                
+                splitter_sel = selection.Selection()
+                
+                @splitter_sel.option('NoSplitter')
+                def option(splitter):
+                    gen.add_aprinter_include('printer/transform/NoSplitter.h')
+                    return 'NoSplitterService'
+                
+                @splitter_sel.option('DistanceSplitter')
+                def option(splitter):
+                    gen.add_aprinter_include('printer/transform/DistanceSplitter.h')
+                    return TemplateExpr('DistanceSplitterService', [
+                        gen.add_float_config('{}MinSplitLength'.format(transform_prefix), splitter.get_float('MinSplitLength')),
+                        gen.add_float_config('{}MaxSplitLength'.format(transform_prefix), splitter.get_float('MaxSplitLength')),
+                        gen.add_float_config('{}SegmentsPerSecond'.format(transform_prefix), splitter.get_float('SegmentsPerSecond')),
+                    ])
+                
+                splitter_expr = transform.do_selection('Splitter', splitter_sel)
                 
                 max_dimensions = 10
                 

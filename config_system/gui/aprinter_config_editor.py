@@ -350,7 +350,17 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
                 ce.String(key='Name', title='Name'),
                 ce.String(key='StepperName', title='Stepper name'),
             ])),
-        ])
+        ]) +
+        [
+            ce.OneOf(key='Splitter', title='Segmentation', choices=[
+                ce.Compound('DistanceSplitter', title='Enabled', attrs=[
+                    ce.Float(key='MinSplitLength', title='Minimum segment length [mm]', default=0.1),
+                    ce.Float(key='MaxSplitLength', title='Maximum segment length [mm]', default=4.0),
+                    ce.Float(key='SegmentsPerSecond', title='Segments per second', default=100.0),
+                ]),
+                ce.Compound('NoSplitter', title='Disabled', attrs=[]),
+            ]),
+        ]
     ))
 
 def stepper_port_reference(context):
@@ -473,9 +483,6 @@ def editor():
                         ce.Float(key='EffectorOffset', title='Effector offset [mm]', default=19.9),
                         ce.Float(key='CarriageOffset', title='Carriage offset [mm]', default=19.5),
                         ce.Float(key='LimitRadius', title='Radius of XY disk to permit motion in [mm]', default=150.0),
-                        ce.Float(key='MinSplitLength', title='Minimum segment length for splitting [mm]', default=0.1),
-                        ce.Float(key='MaxSplitLength', title='Maximum segment length for splitting [mm]', default=4.0),
-                        ce.Float(key='SegmentsPerSecond', title='Segments per second', default=100.0),
                     ]
                 ),
                 make_transform_type(transform_type='RotationalDelta', transform_title='Rotational delta',
@@ -495,9 +502,6 @@ def editor():
                         ce.Float(key='RodLength', title='Rod length [mm]', default=130.0),
                         ce.Float(key='ArmLength', title='Arm length [mm]', default=80.0),
                         ce.Float(key='ZOffset', title='Z offset [mm]', default=200.0),
-                        ce.Float(key='MinSplitLength', title='Minimum segment length for splitting [mm]', default=0.1),
-                        ce.Float(key='MaxSplitLength', title='Maximum segment length for splitting [mm]', default=4.0),
-                        ce.Float(key='SegmentsPerSecond', title='Segments per second', default=100.0),
                     ]
                 ),
             ]),

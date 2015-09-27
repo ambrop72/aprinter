@@ -145,6 +145,23 @@ function each_in(obj, prop, func) {
 }
 
 function fixup_config(config) {
+    each_in(config, "configurations", function(i, configuration) {
+        if (JSONEditor_utils.has(configuration, "transform")) {
+            var transform = configuration["transform"];
+            if (!JSONEditor_utils.has(transform, "Splitter")) {
+                if (JSONEditor_utils.has(transform, "MinSplitLength")) {
+                    transform["Splitter"] = {
+                        "_compoundName": "DistanceSplitter",
+                        "MinSplitLength": transform["MinSplitLength"],
+                        "MaxSplitLength": transform["MaxSplitLength"],
+                        "SegmentsPerSecond": transform["SegmentsPerSecond"]
+                    };
+                } else {
+                    transform["Splitter"] = {"_compoundName": "NoSplitter"};
+                }
+            }
+        }
+    });
     each_in(config, "boards", function(i, board) {
         each_in(board, "analog_inputs", function(j, analog_input) {
             if (JSONEditor_utils.isObject(analog_input)) {
