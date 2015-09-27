@@ -318,11 +318,30 @@ meeting the endstop at the top.
 
 When bed height probing is enabled, a list of corrdinates of the probe points needs to be defined, along with other parameters such as starting height and speeds. The configuration editor should provide sufficient information for configuring bed probing. Bed probing is initiated using `G32`. The resulting height measurements will be printed to the console.
 
-Automatic height correction is supported as long as the Z axis is involved in the coordinate transform (e.g. on delta, but not on cartesinan machines; this limitation may be removed in the future). When correction is enabled, `G32` will apply corrections after probing; `G32 D` will inhibit applying corrections. The active corrections may be viewed using `M937`, and reset using `M561`.
+Automatic height correction is supported. However, due to design, a precondition is that the X, Y and Z axes are involved in the coordinate transformation. On delta machines, this is obviously satisfied, however, on Cartesian or CoreXY machines, special configuration is needed (see below).
 
 Correction may be either linear or quadratic. If quadratic correction is enabled in the configuration editor, a runtime configuration parameter (ProbeQuadrCorrEnabled) switches between linear and quadratic. Note, a correction is always applied on top of the existing correction, and a linear correction on top of a quadratic correction is still a quadratic correction.
 
 In any case, the computation of corrections is done using the linear least-squares method, via QR decomposition by Householder reflections. Even though this code was highly optimized for memory use, it still uses a substantial chunk of RAM, so you should watch out for RAM usage. The RAM needs are proportional in the number of probing points.
+
+An important setting for calibration is the "Z offset added to height measurements", and the associated `ProbeGeneralZOffset` runtime configuration option. When a point is probed:
+- If the probe is triggered a certain distance before the nozzle touches the bed (the nozzle does not reach the bed), this should be set to minus that distance.
+- If the nozzle needs to push down into the bed to trigger the probe, this should be set to this positive push distance.
+
+It is possible to specify point-specific Z offsets; the general and point-specific offset are added to produce the effective Z offset. This allows compensating for the elasticity of the bed (in designs where this is needed).
+
+#### Configuring probing for Cartesian machines
+
+First do the basic configuration of axes:
+- Rename the X, Y, Z steppers to A, B, C, and set "Is cartesian" to No for all three.
+- Select "Coordinate transformation": Identity.
+- Add three identity axes, named X, Y, Z, for steppers A, B, C respectively. For X, Y select "Position limits": "Same as stepper".
+- For Z, select "Position limits": Specified, and set the limits. You surely want to use 0 as the minimum.
+
+You also must make sure the limits and homing for the C (Z) stepper are set correctly. Generally, the C/Z position should be sufficiently precise after homing so that probing works correctly. If you have a min-endstop on Z, it is advised to configure as follows:
+- Physically calibrate the Z endstop so that when homed, the nozzle is (slightly) above the bed at all XY coordinates.
+- From the homed position, the endstop must allow sufficient movement downward so that the nozzle can reach the bed at every XY coordinate, without the axis colliding into the endstop.
+- The "Minimum position" and "Offset of home position" settings for the C stepper should be tuned to achieve the above requirements. An example setting is -1mm and 2mm, which puts the axis to logical position 1mm (=-1mm+2mm) when homed, and allows it to move an additional 2mm downward to position -1mm.
 
 ### Lasers
 
