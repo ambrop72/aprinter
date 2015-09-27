@@ -349,6 +349,13 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
             ce.Array(key='IdentityAxes', title='Extra identity axes', elem=ce.Compound('IdentityAxis', title='Identity axis', attrs=[
                 ce.String(key='Name', title='Name'),
                 ce.String(key='StepperName', title='Stepper name'),
+                ce.OneOf(key='Limits', title='Position limits', choices=[
+                    ce.Compound('LimitsAsStepper', title='Same as stepper', attrs=[]),
+                    ce.Compound('LimitsSpecified', title='Specified', attrs=[
+                        ce.Float(key='MinPos', title='Minimum position [mm]', default=-1000),
+                        ce.Float(key='MaxPos', title='Maximum position [mm]', default=1000),
+                    ]),
+                ]),
             ])),
         ]) +
         [

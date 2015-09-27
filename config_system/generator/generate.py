@@ -1586,18 +1586,40 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 if transform.has('IdentityAxes'):
                     num_idaxes = 0
+                    
                     for idaxis in transform.iter_list_config('IdentityAxes', max_count=max_dimensions-dimension_count):
                         virt_axis_name = idaxis.get_id_char('Name')
                         stepper_name = idaxis.get_id_char('StepperName')
+                        
+                        limits_sel = selection.Selection()
+                        
+                        @limits_sel.option('LimitsAsStepper')
+                        def option(limits_config):
+                            return [
+                                '{}MinPos'.format(stepper_name),
+                                '{}MaxPos'.format(stepper_name),
+                            ]
+                        
+                        @limits_sel.option('LimitsSpecified')
+                        def option(limits_config):
+                            return [
+                                gen.add_float_config('{}MinPos'.format(virt_axis_name), limits_config.get_float('MinPos')),
+                                gen.add_float_config('{}MaxPos'.format(virt_axis_name), limits_config.get_float('MaxPos')),
+                            ]
+                        
+                        limits = idaxis.do_selection('Limits', limits_sel)
+                        
                         transform_axes.append(virt_axis_name)
                         num_idaxes += 1
+                        
                         virtual_axes.append_arg(TemplateExpr('PrinterMainVirtualAxisParams', [
                             TemplateChar(virt_axis_name),
-                            gen.add_float_config('{}MinPos'.format(virt_axis_name), float('-inf'), is_constant=True),
-                            gen.add_float_config('{}MaxPos'.format(virt_axis_name), float('+inf'), is_constant=True),
+                            limits[0],
+                            limits[1],
                             gen.add_float_config('{}MaxSpeed'.format(virt_axis_name), float('inf'), is_constant=True),
                             'PrinterMainNoVirtualHomingParams',
                         ]))
+                        
                         transform_steppers.append_arg(TemplateExpr('WrapInt', [TemplateChar(stepper_name)]))
                     
                     if num_idaxes > 0:
