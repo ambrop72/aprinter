@@ -317,6 +317,16 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
     return ce.Compound(transform_type, title=transform_title, attrs=(
         specific_params +
         [
+            ce.OneOf(key='Splitter', title='Segmentation', choices=[
+                ce.Compound('DistanceSplitter', title='Enabled', attrs=[
+                    ce.Float(key='MinSplitLength', title='Minimum segment length [mm]', default=0.1),
+                    ce.Float(key='MaxSplitLength', title='Maximum segment length [mm]', default=4.0),
+                    ce.Float(key='SegmentsPerSecond', title='Segments per second', default=100.0),
+                ]),
+                ce.Compound('NoSplitter', title='Disabled', attrs=[]),
+            ]),
+        ] +
+        [
             ce.Constant(key='DimensionCount', value=len(stepper_defs)),
         ] +
         ([
@@ -346,7 +356,7 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
             ]),
         ]) +
         ([] if not allow_identity_axes else [
-            ce.Array(key='IdentityAxes', title='Extra identity axes', elem=ce.Compound('IdentityAxis', title='Identity axis', attrs=[
+            ce.Array(key='IdentityAxes', title='Extra identity axes', elem=ce.Compound('IdentityAxis', title='Identity axis', title_key='Name', collapsable=True, attrs=[
                 ce.String(key='Name', title='Name'),
                 ce.String(key='StepperName', title='Stepper name'),
                 ce.OneOf(key='Limits', title='Position limits', choices=[
@@ -357,17 +367,7 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
                     ]),
                 ]),
             ])),
-        ]) +
-        [
-            ce.OneOf(key='Splitter', title='Segmentation', choices=[
-                ce.Compound('DistanceSplitter', title='Enabled', attrs=[
-                    ce.Float(key='MinSplitLength', title='Minimum segment length [mm]', default=0.1),
-                    ce.Float(key='MaxSplitLength', title='Maximum segment length [mm]', default=4.0),
-                    ce.Float(key='SegmentsPerSecond', title='Segments per second', default=100.0),
-                ]),
-                ce.Compound('NoSplitter', title='Disabled', attrs=[]),
-            ]),
-        ]
+        ])
     ))
 
 def stepper_port_reference(context):
