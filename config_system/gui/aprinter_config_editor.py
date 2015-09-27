@@ -311,7 +311,7 @@ def virtual_homing_params(**kwargs):
         ])
     ], **kwargs)
 
-def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs, specific_params, allow_identity_axes=False):
+def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs, specific_params):
     assert len(stepper_defs) == len(axis_defs)
     
     return ce.Compound(transform_type, title=transform_title, attrs=(
@@ -355,7 +355,7 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
                 for (i, axis_def) in enumerate(axis_defs)
             ]),
         ]) +
-        ([] if not allow_identity_axes else [
+        [
             ce.Array(key='IdentityAxes', title='Extra identity axes', elem=ce.Compound('IdentityAxis', title='Identity axis', title_key='Name', collapsable=True, attrs=[
                 ce.String(key='Name', title='Name'),
                 ce.String(key='StepperName', title='Stepper name'),
@@ -367,7 +367,7 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
                     ]),
                 ]),
             ])),
-        ])
+        ]
     ))
 
 def stepper_port_reference(context):
@@ -459,8 +459,7 @@ def editor():
                 make_transform_type(transform_type='Null', transform_title='Identity',
                     stepper_defs=[],
                     axis_defs=[],
-                    specific_params=[],
-                    allow_identity_axes=True
+                    specific_params=[]
                 ),
                 make_transform_type(transform_type='CoreXY', transform_title='CoreXY/H-bot',
                     stepper_defs=[
