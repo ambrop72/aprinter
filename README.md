@@ -343,6 +343,20 @@ You also must make sure the limits and homing for the C (Z) stepper are set corr
 - From the homed position, the endstop must allow sufficient movement downward so that the nozzle can reach the bed at every XY coordinate, without the axis colliding into the endstop.
 - The "Minimum position" and "Offset of home position" settings for the C stepper should be tuned to achieve the above requirements. An example setting is -1mm and 2mm, which puts the axis to logical position 1mm (=-1mm+2mm) when homed, and allows it to move an additional 2mm downward to position -1mm.
 
+### Maximum speed
+
+There are different ways to specify the maximum speed of a move. The following rules apply, in order.
+Please note that the notion of some axis appearing in a move command is literal regardless of the amount of motion,
+e.g. E does appear in "G1 E0" while X does not.
+
+- If a T parameter appears in the move command, the T value will be understood as the nominal move time in seconds.
+  This means that speed will be limited to the speed at which the move would be performed if took exactly T seconds
+  at constant speed. So, the move will take at least T seconds but may take longer (e.g. due to accelerations).
+- If at least one Cartesian axis appears in the move command, the last seen F value will be used to limit the
+  Euclidean speed of the move, based on the Euclidean distance calculated from all Cartesian axes.
+- Otherwise (no T parameter, no Cartesian axes - e.g. extruders only), the last seen F value will be used to limit
+  the speed of each individual stepper axis (and not virtual axes).
+
 ### Lasers
 
 There is currently experimental support for lasers, more precisely,
