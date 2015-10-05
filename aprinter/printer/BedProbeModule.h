@@ -354,10 +354,6 @@ public:
         CorrectionFeature::init(c);
     }
     
-    static void deinit (Context c)
-    {
-    }
-    
     static bool check_command (Context c, TheCommand *cmd)
     {
         auto *o = Object::self(c);

@@ -25,3 +25,19 @@ def escape_string_for_nix(data):
 
 def convert_bool_for_nix(value):
     return 'true' if value else 'false'
+
+def convert_for_nix(value):
+    if type(value) is str:
+        return escape_string_for_nix(value)
+    if type(value) is bool:
+        return convert_bool_for_nix(value)
+    if type(value) is list:
+        if len(value) == 0:
+            return '[]'
+        else:
+            return '[ {} ]'.format(' '.join(convert_for_nix(e) for e in value))
+    if type(value) is dict:
+        if len(value) == 0:
+            return '{}'
+        else:
+            return '{{ {} }}'.format(' '.join('{} = {};'.format(convert_for_nix(k), convert_for_nix(v)) for k, v in value.iteritems()))

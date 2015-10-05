@@ -106,6 +106,7 @@ configure_arm() {
         -Wfatal-errors
         -Wno-absolute-value -Wno-undefined-internal -Wno-deprecated-register
         -ffunction-sections -fdata-sections
+        $EXTRA_COMPILE_FLAGS
     )
     FLAGS_LD=(
         -T"${LINKER_SCRIPT}" -nostartfiles -Wl,--gc-sections
@@ -117,8 +118,8 @@ configure_arm() {
         FLAGS_C_CXX+=( -DAPRINTER_BROKEN_FABS )
     fi
     
-    C_SOURCES=()
-    CXX_SOURCES=( "${SOURCE}" )
+    C_SOURCES=( $(eval echo "$EXTRA_C_SOURCES") )
+    CXX_SOURCES=( $(eval echo "$EXTRA_CXX_SOURCES") "${SOURCE}" )
     ASM_SOURCES=()
 
     OBJS=()

@@ -53,6 +53,9 @@ class GenState(object):
         self._final_init_calls = []
         self._global_resources = []
         self._modules_exprs = []
+        self._build_vars = {}
+        self._extra_sources = []
+        self._extra_includes = []
     
     def add_subst (self, key, val, indent=-1):
         self._subst[key] = {'val':val, 'indent':indent}
@@ -144,6 +147,16 @@ class GenState(object):
         self._modules_exprs.append(None)
         return GenPrinterModule(self, index)
     
+    def add_build_var (self, name, value):
+        assert name not in self._build_vars
+        self._build_vars[name] = value
+    
+    def add_extra_source (self, path):
+        self._extra_sources.append(path)
+    
+    def add_extra_include (self, path):
+        self._extra_includes.append(path)
+    
     def get_modules_exprs (self):
         return self._modules_exprs
     
@@ -182,6 +195,15 @@ class GenState(object):
             indent = subst['indent']
             res[key] = val if type(val) is str else val.build(indent)
         return res
+    
+    def get_build_vars (self):
+        return self._build_vars
+    
+    def get_extra_sources (self):
+        return self._extra_sources
+    
+    def get_extra_includes (self):
+        return self._extra_includes
 
 class GenPrinterModule(object):
     def __init__ (self, gen, index):
@@ -1137,6 +1159,8 @@ def generate(config_root_data, cfg_name, main_template):
             
             setup_event_loop(gen)
             
+            need_millisecond_clock = False
+            
             aux_control_module = gen.add_module()
             aux_control_module_user = 'MyPrinter::GetModule<{}>'.format(aux_control_module.index)
             
@@ -1791,6 +1815,14 @@ def generate(config_root_data, cfg_name, main_template):
                 fans_expr,
             ]))
             
+            if need_millisecond_clock:
+                gen.add_aprinter_include('system/MillisecondClock.h')
+                gen.add_global_resource(5, 'MyMillisecondClock', TemplateExpr('MillisecondClock', ['MyContext', 'Program']), context_name='MillisecondClock')
+                
+                gen.add_aprinter_include('printer/MillisecondClockInfoModule.h')
+                millisecond_clock_module = gen.add_module()
+                millisecond_clock_module.set_expr('MillisecondClockInfoModuleService')
+            
             printer_params = TemplateExpr('PrinterMainParams', [
                 led_pin_expr,
                 'LedBlinkInterval',
@@ -1830,6 +1862,9 @@ def generate(config_root_data, cfg_name, main_template):
         'build_with_clang': build_with_clang,
         'verbose_build': verbose_build,
         'debug_symbols': debug_symbols,
+        'build_vars': gen.get_build_vars(),
+        'extra_sources': gen.get_extra_sources(),
+        'extra_includes': gen.get_extra_includes(),
     }
 
 def main():
@@ -1860,7 +1895,8 @@ def main():
         'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{\n'
         '    boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; optimizeForSize = {};\n'
         '    assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {};\n'
-        '    buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; mainText = {};\n'
+        '    buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; buildVars = {};\n'
+        '    extraSources = {}; extraIncludes = {}; mainText = {};\n'
         '}}\n'
     ).format(
         nix_utils.escape_string_for_nix(nix_dir),
@@ -1873,6 +1909,9 @@ def main():
         nix_utils.convert_bool_for_nix(result['build_with_clang']),
         nix_utils.convert_bool_for_nix(result['verbose_build']),
         nix_utils.convert_bool_for_nix(result['debug_symbols']),
+        nix_utils.convert_for_nix(result['build_vars']),
+        nix_utils.convert_for_nix(result['extra_sources']),
+        nix_utils.convert_for_nix(result['extra_includes']),
         nix_utils.escape_string_for_nix(result['main_source'])
     )
     

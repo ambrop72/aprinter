@@ -299,6 +299,8 @@ private:
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ConfigExprs, ConfigExprs)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ProvidedServices, ProvidedServices)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_MotionPlannerChannels, MotionPlannerChannels)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_init, init)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_deinit, deinit)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_command, check_command)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_g_command, check_g_command)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_configuration_changed, configuration_changed)
@@ -851,12 +853,12 @@ private:
         
         static void init (Context c)
         {
-            TheModule::init(c);
+            CallIfExists_init::template call_void<TheModule>(c);
         }
         
         static void deinit (Context c)
         {
-            TheModule::deinit(c);
+            CallIfExists_deinit::template call_void<TheModule>(c);
         }
         
         static bool check_command (Context c, TheCommand *cmd)

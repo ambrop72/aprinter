@@ -23,7 +23,8 @@
  */
 
 { stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, avrgcclibc
-, asf, stm32cubef4, teensyCores, aprinterSource
+, asf, stm32cubef4, teensyCores, aprinterSource, buildVars, extraSources
+, extraIncludes
 , mainText, boardName, buildName ? "nixbuild", desiredOutputs ? ["bin" "hex"]
 , optimizeForSize ? false, assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false, detectOverloadEnabled ? false
@@ -40,10 +41,14 @@ let
         OPTIMIZE_FOR_SIZE = if optimizeForSize then "1" else "0";
     } // (if board.platform == "sam3x" then {
         USE_USB_SERIAL = "1";
-    } else {}) // board.targetVars;
+    } else {}) // board.targetVars // buildVars // {
+        EXTRA_C_SOURCES = stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix ".c") extraSources);
+        EXTRA_CXX_SOURCES = stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix ".cpp") extraSources);
+        EXTRA_COMPILE_FLAGS = stdenv.lib.concatStringsSep " " (map (f: "-I" + f) extraIncludes);
+    };
     
     targetVarsText = stdenv.lib.concatStrings (
-        stdenv.lib.mapAttrsToList (name: value: "    ${name}=${value}\n") targetVars
+        stdenv.lib.mapAttrsToList (name: value: "    ${name}=${stdenv.lib.escapeShellArg value}\n") targetVars
     );
     
     isAvr = board.platform == "avr";
