@@ -1147,6 +1147,41 @@ def get_letter_number_name(config, key):
     normalized_name = '{}{}'.format(letter, number) if number != 0 else letter
     return normalized_name, TemplateExpr('AuxControlName', [TemplateChar(letter), number])
 
+def setup_network(gen, config, key):
+    network_sel = selection.Selection()
+    
+    @network_sel.option('NoNetwork')
+    def option(network_config):
+        pass
+    
+    @network_sel.option('Network')
+    def option(network_config):
+        gen.add_extra_include('aprinter/net/inc')
+        gen.add_extra_include('lwip/src/include')
+        gen.add_extra_source('lwip/src/core/ipv4/icmp.c')
+        gen.add_extra_source('lwip/src/core/ipv4/ip4.c')
+        gen.add_extra_source('lwip/src/core/ipv4/ip4_addr.c')
+        gen.add_extra_source('lwip/src/core/ipv4/ip_frag.c')
+        gen.add_extra_source('lwip/src/core/def.c')
+        gen.add_extra_source('lwip/src/core/dhcp.c')
+        gen.add_extra_source('lwip/src/core/inet_chksum.c')
+        gen.add_extra_source('lwip/src/core/init.c')
+        gen.add_extra_source('lwip/src/core/mem.c')
+        gen.add_extra_source('lwip/src/core/memp.c')
+        gen.add_extra_source('lwip/src/core/netif.c')
+        gen.add_extra_source('lwip/src/core/pbuf.c')
+        gen.add_extra_source('lwip/src/core/tcp.c')
+        gen.add_extra_source('lwip/src/core/tcp_in.c')
+        gen.add_extra_source('lwip/src/core/tcp_out.c')
+        gen.add_extra_source('lwip/src/core/timers.c')
+        gen.add_extra_source('lwip/src/core/udp.c')
+        gen.add_extra_source('lwip/src/netif/etharp.c')
+    
+        gen.add_extra_source('${ASF_DIR}/sam/drivers/emac/emac.c')
+        gen.add_extra_source('${ASF_DIR}/thirdparty/lwip/lwip-port-1.4.1/sam/netif/ethernetif.c')
+    
+    config.do_selection(key, network_sel)
+
 def generate(config_root_data, cfg_name, main_template):
     gen = GenState()
     
@@ -1301,6 +1336,8 @@ def generate(config_root_data, cfg_name, main_template):
                     ]))
                 
                 board_data.get_config('sdcard_config').do_selection('sdcard', sdcard_sel)
+                
+                setup_network(gen, board_data.get_config('network_config'), 'network')
                 
                 config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
                 
