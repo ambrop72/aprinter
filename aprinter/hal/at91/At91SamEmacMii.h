@@ -41,9 +41,9 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ClientParams, bool Rmii, typename Params>
+template <typename Context, typename ParentObject, typename ClientParams, typename Params>
 class At91SamEmacMii {
-    static_assert(Rmii, "Only RMII is currently supported.");
+    static_assert(Params::Rmii, "Only RMII is currently supported.");
     
 public:
     struct Object;
@@ -53,17 +53,19 @@ private:
     using SendBufferType = typename ClientParams::SendBufferType;
     using RecvBufferType = typename ClientParams::RecvBufferType;
     
-    enum class InitState : uint8_t {INACTIVE, WAIT_RST, PHY_READY_DELAY, RUNNING};
+    enum class InitState : uint8_t {INACTIVE, WAIT_RST, RUNNING};
     enum class PhyMaintState : uint8_t {IDLE, BUSY};
     
     static TimeType const ResetPollTicks = 0.1 * Context::Clock::time_freq;
     static uint16_t const MaxResetPolls = 50;
-    static TimeType const PhyReadyTicks = 0.4 * Context::Clock::time_freq;
     static size_t const RwBufSize = 1536;
     static TimeType const PhyMaintPollTicks = 0.01 * Context::Clock::time_freq;
     static uint16_t const MaxPhyMaintPolls = 200;
     
 public:
+    static uint8_t const SupportedSpeeds = MiiSpeed::SPEED_10M_HD|MiiSpeed::SPEED_10M_FD|MiiSpeed::SPEED_100M_HD|MiiSpeed::SPEED_100M_FD;
+    static uint8_t const SupportedPause = MiiPauseAbility::RX_ONLY;
+    
     static void init (Context c)
     {
         auto *o = Object::self(c);
@@ -107,7 +109,7 @@ public:
         
         o->init_state = InitState::WAIT_RST;
         o->timer.appendNowNotAlready(c);
-        memcpy(o->mac_addr, mac_addr, sizeof(o->mac_addr));
+        o->mac_addr = mac_addr;
         o->poll_counter = 1;
     }
     
@@ -186,6 +188,48 @@ public:
         o->phy_maint_rw = read_write;
     }
     
+    static void configureLink (Context c, MiiLinkParams link_params)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->init_state == InitState::RUNNING)
+        
+        switch (link_params.mode) {
+            case MiiSpeed::SPEED_10M_HD: {
+                emac_set_speed(EMAC, 0);
+                emac_enable_full_duplex(EMAC, 0);
+            } break;
+            
+            case MiiSpeed::SPEED_10M_FD: {
+                emac_set_speed(EMAC, 0);
+                emac_enable_full_duplex(EMAC, 1);
+            } break;
+            
+            case MiiSpeed::SPEED_100M_HD: {
+                emac_set_speed(EMAC, 1);
+                emac_enable_full_duplex(EMAC, 0);
+            } break;
+            
+            case MiiSpeed::SPEED_100M_FD: {
+                emac_set_speed(EMAC, 1);
+                emac_enable_full_duplex(EMAC, 1);
+            } break;
+            
+            default: AMBRO_ASSERT(false);
+        }
+        
+        emac_enable_pause_frame(EMAC, bool(link_params.pause_config & MiiPauseConfig::RX_ENABLE));
+        
+        emac_enable_transceiver_clock(EMAC, 1);
+    }
+    
+    static void resetLink (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->init_state == InitState::RUNNING)
+        
+        emac_enable_transceiver_clock(EMAC, 0);
+    }
+    
 private:
     static void reset_internal (Context c)
     {
@@ -217,23 +261,19 @@ private:
                     o->timer.appendAfterPrevious(c, ResetPollTicks);
                     return;
                 }
-                o->timer.appendAt(c, (TimeType)(Context::Clock::getTime(c) + PhyReadyTicks));
-                o->init_state = InitState::PHY_READY_DELAY;
-            } break;
-            
-            case InitState::PHY_READY_DELAY: {
+                
                 pmc_enable_periph_clk(ID_EMAC);
                 
                 emac_options_t emac_options = emac_options_t();
                 emac_options.uc_copy_all_frame = 0;
                 emac_options.uc_no_broadcast = 0;
-                memcpy(emac_options.uc_mac_addr, o->mac_addr, sizeof(o->mac_addr));
+                memcpy(emac_options.uc_mac_addr, o->mac_addr, 6);
                 
                 o->emac_dev = emac_device_t();
                 o->emac_dev.p_hw = EMAC;
                 emac_dev_init(EMAC, &o->emac_dev, &emac_options);
                 
-                emac_enable_rmii(EMAC, Rmii);
+                emac_enable_rmii(EMAC, Params::Rmii);
                 
                 o->init_state = InitState::RUNNING;
                 return ClientParams::ActivateHandler::call(c, false);
@@ -280,7 +320,7 @@ public:
         typename Context::EventLoop::TimedEvent timer;
         InitState init_state;
         PhyMaintState phy_maint_state;
-        uint8_t mac_addr[6];
+        uint8_t const *mac_addr;
         uint16_t poll_counter;
         emac_device_t emac_dev;
         bool phy_maint_rw;
@@ -289,8 +329,8 @@ public:
 };
 
 struct At91SamEmacMiiService {
-    template <typename Context, typename ParentObject, typename ClientParams, bool Rmii>
-    using Mii = At91SamEmacMii<Context, ParentObject, ClientParams, Rmii, At91SamEmacMiiService>;
+    template <typename Context, typename ParentObject, typename ClientParams>
+    using Mii = At91SamEmacMii<Context, ParentObject, ClientParams, At91SamEmacMiiService>;
 };
 
 #include <aprinter/EndNamespace.h>

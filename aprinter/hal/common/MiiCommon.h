@@ -33,13 +33,15 @@ template <
     typename TActivateHandler,
     typename TPhyMaintHandler,
     typename TSendBufferType,
-    typename TRecvBufferType
+    typename TRecvBufferType,
+    bool TRmii
 >
 struct MiiClientParams {
     using ActivateHandler = TActivateHandler;
     using PhyMaintHandler = TPhyMaintHandler;
     using SendBufferType = TSendBufferType;
     using RecvBufferType = TRecvBufferType;
+    static bool const Rmii = TRmii;
 };
 
 enum class PhyMaintCommandIoType : uint8_t {READ_ONLY, READ_WRITE};
@@ -54,6 +56,36 @@ struct MiiPhyMaintCommand {
 struct MiiPhyMaintResult {
     bool error;
     uint16_t data;
+};
+
+namespace MiiSpeed { enum : uint8_t {
+    SPEED_10M_HD  = 1 << 0,
+    SPEED_10M_FD  = 1 << 1,
+    SPEED_100M_HD = 1 << 2,
+    SPEED_100M_FD = 1 << 3
+}; }
+
+namespace MiiPauseAbility { enum : uint8_t {
+    RX_AND_TX = 1 << 0,
+    RX_ONLY   = 1 << 1,
+    TX_ONLY   = 1 << 2
+}; }
+
+namespace MiiPauseConfig { enum : uint8_t {
+    RX_ENABLE = 1 << 0,
+    TX_ENABLE = 1 << 1
+}; }
+
+struct MiiLinkParams {
+    uint8_t speed;
+    uint8_t pause_config;
+};
+
+template <
+    typename TPhyRequester
+>
+struct PhyClientParams {
+    using PhyRequester = TPhyRequester;
 };
 
 #include <aprinter/EndNamespace.h>

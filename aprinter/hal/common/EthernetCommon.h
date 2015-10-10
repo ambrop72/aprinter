@@ -28,14 +28,16 @@
 #include <aprinter/BeginNamespace.h>
 
 template <
+    typename TActivateHandler,
+    typename TLinkHandler,
     typename TSendBufferType,
-    typename TRecvBufferType,
-    typename TRecvHandler
+    typename TRecvBufferType
 >
 struct EthernetClientParams {
+    using ActivateHandler = TActivateHandler;
+    using LinkHandler = TLinkHandler;
     using SendBufferType = TSendBufferType;
     using RecvBufferType = TRecvBufferType;
-    using RecvHandler = TRecvHandler;
 };
 
 #include <aprinter/EndNamespace.h>

@@ -25,7 +25,13 @@
 #ifndef APRINTER_MII_ETHERNET_H
 #define APRINTER_MII_ETHERNET_H
 
+#include <stdint.h>
+
+#include <aprinter/meta/WrapFunction.h>
 #include <aprinter/base/Object.h>
+#include <aprinter/base/Callback.h>
+#include <aprinter/base/Assert.h>
+#include <aprinter/hal/common/MiiCommon.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -38,34 +44,188 @@ private:
     using SendBufferType = typename ClientParams::SendBufferType;
     using RecvBufferType = typename ClientParams::RecvBufferType;
     
+    struct MiiActivateHandler;
+    struct MiiPhyMaintHandler;
+    using TheMiiClientParams = MiiClientParams<MiiActivateHandler, MiiPhyMaintHandler, SendBufferType, RecvBufferType, Params::PhyService::Rmii>;
+    using TheMii = typename Params::MiiService::template Mii<Context, Object, TheMiiClientParams>;
+    
+    class PhyRequester;
+    using ThePhyClientParams = PhyClientParams<PhyRequester>;
+    using ThePhy = typename Params::PhyService::template Phy<Context, Object, ThePhyClientParams>;
+    
+    enum class InitState : uint8_t {INACTIVE, INITING, RUNNING};
+    
 public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
         
-        
+        TheMii::init(c);
+        ThePhy::init(c);
+        o->event.init(c, APRINTER_CB_STATFUNC_T(&MiiEthernet::event_handler));
+        o->init_state = InitState::INACTIVE;
+        o->link_up = false;
+        o->link_downup = false;
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
         
-        
+        o->event.deinit(c);
+        ThePhy::deinit(c);
+        TheMii::deinit(c);
     }
     
-    static void sendFrame (Context c, SendBufferType send_buffer)
+    static void reset (Context c)
     {
-        //
+        auto *o = Object::self(c);
+        
+        o->event.unset(c);
+        ThePhy::reset(c);
+        TheMii::reset(c);
+        o->init_state = InitState::INACTIVE;
+        o->link_up = false;
+        o->link_downup = false;
+    }
+    
+    static void activate (Context c, uint8_t const *mac_addr)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->init_state == InitState::INACTIVE)
+        
+        o->init_state = InitState::INITING;
+        TheMii::activate(c, mac_addr);
+    }
+    
+    static bool recvFrame (Context c, RecvBufferType recv_buffer)
+    {
+        auto *o = Object::self(c);
+        
+        if (o->init_state != InitState::RUNNING || !o->link_up) {
+            return false;
+        }
+        return TheMii::recvFrame(c, recv_buffer);
+    }
+    
+    static bool sendFrame (Context c, SendBufferType send_buffer)
+    {
+        auto *o = Object::self(c);
+        
+        if (o->init_state != InitState::RUNNING || !o->link_up) {
+            return false;
+        }
+        return TheMii::sendFrame(c, send_buffer);
     }
     
 private:
+    static void mii_activate_handler (Context c, bool error)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->init_state == InitState::INITING)
+        AMBRO_ASSERT(!o->link_up)
+        
+        if (error) {
+            o->init_state = InitState::INACTIVE;
+        } else {
+            o->init_state = InitState::RUNNING;
+            ThePhy::activate(c);
+        }
+        
+        return ClientParams::ActivateHandler::call(c, error);
+    }
+    struct MiiActivateHandler : public AMBRO_WFUNC_TD(&MiiEthernet::mii_activate_handler) {};
     
+    static void mii_phy_maint_handler (Context c, MiiPhyMaintResult result)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->init_state == InitState::RUNNING)
+        
+        return ThePhy::phyMaintCompleted(c, result);
+    }
+    struct MiiPhyMaintHandler : public AMBRO_WFUNC_TD(&MiiEthernet::mii_phy_maint_handler) {};
+    
+    class PhyRequester {
+    public:
+        static uint8_t const SupportedSpeeds = TheMii::SupportedSpeeds;
+        static uint8_t const SupportedPause = TheMii::SupportedPause;
+        
+        static void startPhyMaintenance (Context c, MiiPhyMaintCommand command)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->init_state == InitState::RUNNING)
+            
+            return TheMii::startPhyMaintenance(c, command);
+        }
+        
+        static void linkIsUp (Context c, MiiLinkParams link_params)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->init_state == InitState::RUNNING)
+            AMBRO_ASSERT(!o->link_up)
+            AMBRO_ASSERT(!o->link_downup)
+            
+            TheMii::configureLink(c, link_params);
+            o->link_up = true;
+            
+            if (o->event.isSet(c)) {
+                o->link_downup = true;
+            } else {
+                o->event.prependNowNotAlready(c);
+            }
+        }
+        
+        static void linkIsDown (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->init_state == InitState::RUNNING)
+            
+            if (!o->link_up) {
+                return;
+            }
+            
+            TheMii::resetLink(c);
+            o->link_up = false;
+            
+            if (o->event.isSet(c)) {
+                if (o->link_downup) {
+                    o->link_downup = false;
+                } else {
+                    o->event.unset(c);
+                }
+            } else {
+                AMBRO_ASSERT(!o->link_downup)
+                o->event.prependNowNotAlready(c);
+            }
+        }
+    };
+    
+    static void event_handler (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        bool report_link;
+        
+        if (o->link_downup) {
+            report_link = false;
+            o->event.prependNowNotAlready(c);
+            o->link_downup = false;
+        } else {
+            report_link = o->link;
+        }
+        
+        return ClientParams::LinkHandler::call(c, report_link);
+    }
     
 public:
     struct Object : public ObjBase<MiiEthernet, ParentObject, MakeTypeList<
-        //
+        TheMii,
+        ThePhy
     >> {
-        //
+        typename Context::EventLoop::QueuedEvent event;
+        InitState init_state;
+        bool link_up;
+        bool link_downup;
     };
 };
 
