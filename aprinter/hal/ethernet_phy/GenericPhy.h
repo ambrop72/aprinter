@@ -74,7 +74,7 @@ private:
         LINK_UP_READ_STATUS
     };
     
-    namespace RegNum { enum : uint8_t {
+    struct RegNum { enum : uint8_t {
         CONTROL                 = 0,
         STATUS                  = 1,
         PHY_ID_1                = 2,
@@ -91,16 +91,16 @@ private:
         MMD_ACCESS_CONTROL      = 13,
         MMD_ACCESS_ADDRESS_DATA = 14,
         EXTENDED_STATUS         = 15
-    }; }
+    }; };
     
-    namespace ControlReg { enum : uint16_t {
+    struct ControlReg { enum : uint16_t {
         RESET        = (uint16_t)1 << 15,
         ANEG_ENABLE  = (uint16_t)1 << 12,
         ISOLATE      = (uint16_t)1 << 10,
         RESTART_ANEG = (uint16_t)1 << 9
-    }; }
+    }; };
     
-    namespace StatusReg { enum : uint16_t {
+    struct StatusReg { enum : uint16_t {
         SUPPORT_100BASE_X_FD = (uint16_t)1 << 14,
         SUPPORT_100BASE_X_HD = (uint16_t)1 << 13,
         SUPPORT_10MB_FD      = (uint16_t)1 << 12,
@@ -109,9 +109,9 @@ private:
         ANEG_ABILITY         = (uint16_t)1 << 3,
         LINK_STATUS          = (uint16_t)1 << 2,
         EXTENDED_CAP         = (uint16_t)1 << 0
-    }; }
+    }; };
     
-    namespace AnegAdvReg { enum : uint16_t {
+    struct AnegAdvReg { enum : uint16_t {
         ADV_ASYM_PAUSE_FD    = (uint16_t)1 << 11,
         ADV_PAUSE_FD         = (uint16_t)1 << 10,
         ADV_100BASE_T4       = (uint16_t)1 << 9,
@@ -119,7 +119,7 @@ private:
         ADV_100BASE_TX       = (uint16_t)1 << 7,
         ADV_10BASE_T_FD      = (uint16_t)1 << 6,
         ADV_10BASE_T         = (uint16_t)1 << 5
-    }; }
+    }; };
     
 public:
     static void init (Context c)
@@ -218,6 +218,7 @@ public:
                 }
                 
                 o->advert = advert;
+                o->restart_aneg_on_init = advert != result.data;
                 
                 o->state = State::INIT_WRITE_ANEG_ADV;
                 PhyRequester::startPhyMaintenance(c, MiiPhyMaintCommand{PhyAddr, RegNum::ANEG_ADV, PhyMaintCommandIoType::READ_WRITE, advert});
@@ -229,7 +230,7 @@ public:
             } break;
             
             case State::INIT_READ_CONTROL: {
-                uint16_t control = adjust_control_for_aneg(result.data);
+                uint16_t control = adjust_control_for_aneg(result.data, o->restart_aneg_on_init);
                 o->state = State::INIT_WRITE_CONTROL;
                 write_control(c, control);
             } break;
@@ -267,12 +268,12 @@ public:
                     return;
                 }
                 
-                o->state = State:;ANEG_READ_LP_ABILITY;
+                o->state = State::ANEG_READ_LP_ABILITY;
                 PhyRequester::startPhyMaintenance(c, MiiPhyMaintCommand{PhyAddr, RegNum::ANEG_LP_ABILITY, PhyMaintCommandIoType::READ_ONLY});
             } break;
             
             case State::ANEG_READ_CONTROL: {
-                uint16_t control = adjust_control_for_aneg(result.data);
+                uint16_t control = adjust_control_for_aneg(result.data, true);
                 o->state = State::ANEG_WRITE_CONTROL;
                 write_control(c, control);
             } break;
@@ -357,10 +358,13 @@ private:
         PhyRequester::startPhyMaintenance(c, MiiPhyMaintCommand{PhyAddr, RegNum::CONTROL, PhyMaintCommandIoType::READ_ONLY});
     }
     
-    static uint16_t adjust_control_for_aneg (uint16_t value)
+    static uint16_t adjust_control_for_aneg (uint16_t value, bool restart_aneg)
     {
         value &= ~(ControlReg::ISOLATE);
-        value |= ControlReg::ANEG_ENABLE|ControlReg::RESTART_ANEG;
+        value |= ControlReg::ANEG_ENABLE;
+        if (restart_aneg) {
+            value |= ControlReg::RESTART_ANEG;
+        }
         return value;
     }
     
@@ -448,6 +452,7 @@ public:
     struct Object : public ObjBase<GenericPhy, ParentObject, EmptyTypeList> {
         typename Context::EventLoop::TimedEvent timer;
         State state;
+        bool restart_aneg_on_init;
         uint16_t initial_status;
         uint16_t advert;
         uint16_t counter;

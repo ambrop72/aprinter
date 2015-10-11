@@ -30,7 +30,6 @@
 #include <limits.h>
 
 #include <emac.h>
-#include <gpio.h>
 #include <rstc.h>
 
 #include <aprinter/meta/MinMax.h>
@@ -38,12 +37,13 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/common/MiiCommon.h>
+#include <aprinter/hal/at91/At91SamPins.h>
 
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename ParentObject, typename ClientParams, typename Params>
 class At91SamEmacMii {
-    static_assert(Params::Rmii, "Only RMII is currently supported.");
+    static_assert(ClientParams::Rmii, "Only RMII is currently supported.");
     
 public:
     struct Object;
@@ -70,16 +70,18 @@ public:
     {
         auto *o = Object::self(c);
         
-        gpio_configure_pin(PIN_EEMAC_EREFCK, PIN_EMAC_FLAGS);
-        gpio_configure_pin(PIN_EMAC_ETX0,    PIN_EMAC_FLAGS);
-        gpio_configure_pin(PIN_EMAC_ETX1,    PIN_EMAC_FLAGS);
-        gpio_configure_pin(PIN_EMAC_ETXEN,   PIN_EMAC_FLAGS);
-        gpio_configure_pin(PIN_EMAC_ECRSDV,  PIN_EMAC_FLAGS);
-        gpio_configure_pin(PIN_EMAC_ERX0,    PIN_EMAC_FLAGS);
-        gpio_configure_pin(PIN_EMAC_ERX1,    PIN_EMAC_FLAGS);
-        gpio_configure_pin(PIN_EMAC_ERXER,   PIN_EMAC_FLAGS);
-        gpio_configure_pin(PIN_EMAC_EMDC,    PIN_EMAC_FLAGS);
-        gpio_configure_pin(PIN_EMAC_EMDIO,   PIN_EMAC_FLAGS);
+        using Mode = At91SamPinPeriphMode<At91SamPinPullModeNormal>;
+        using Periph = At91SamPeriphA;
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 0>, Mode>(c, Periph());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 1>, Mode>(c, Periph());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 2>, Mode>(c, Periph());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 3>, Mode>(c, Periph());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 4>, Mode>(c, Periph());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 5>, Mode>(c, Periph());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 6>, Mode>(c, Periph());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 7>, Mode>(c, Periph());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 8>, Mode>(c, Periph());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 9>, Mode>(c, Periph());
         
         o->timer.init(c, APRINTER_CB_STATFUNC_T(&At91SamEmacMii::timer_handler));
         o->init_state = InitState::INACTIVE;
@@ -103,9 +105,6 @@ public:
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::INACTIVE)
-        
-        rstc_set_external_reset(RSTC, 13);
-        rstc_reset_extern(RSTC);
         
         o->init_state = InitState::WAIT_RST;
         o->timer.appendNowNotAlready(c);
@@ -151,8 +150,7 @@ public:
             return false;
         }
         
-        size_t max_length = recv_buffer.getMaxLength();
-        if (length > max_length) {
+        if (!recv_buffer.allocate((size_t)length)) {
             return false;
         }
         
@@ -174,18 +172,16 @@ public:
         AMBRO_ASSERT(o->init_state == InitState::RUNNING)
         AMBRO_ASSERT(o->phy_maint_state == PhyMaintState::IDLE)
         
-        bool read_write = (command.io_type == PhyMaintCommandIoType::READ_WRITE);
-        
         bool start = emac_is_phy_idle(EMAC);
         if (start) {
+            bool read_or_write = (command.io_type == PhyMaintCommandIoType::READ_ONLY);
             emac_enable_management(EMAC, 1);
-            emac_maintain_phy(EMAC, command.phy_address, command.reg_address, read_write, command.data);
+            emac_maintain_phy(EMAC, command.phy_address, command.reg_address, read_or_write, command.data);
         }
         
         o->phy_maint_state = PhyMaintState::BUSY;
         o->timer.appendAt(c, (TimeType)(Context::Clock::getTime(c) + PhyMaintPollTicks));
         o->poll_counter = start ? 1 : 0;
-        o->phy_maint_rw = read_write;
     }
     
     static void configureLink (Context c, MiiLinkParams link_params)
@@ -193,7 +189,7 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::RUNNING)
         
-        switch (link_params.mode) {
+        switch (link_params.speed) {
             case MiiSpeed::SPEED_10M_HD: {
                 emac_set_speed(EMAC, 0);
                 emac_enable_full_duplex(EMAC, 0);
@@ -252,7 +248,7 @@ private:
         
         switch (o->init_state) {
             case InitState::WAIT_RST: {
-                if ((rstc_get_status(RSTC) & RSTC_SR_NRSTL)) {
+                if (!(rstc_get_status(RSTC) & RSTC_SR_NRSTL)) {
                     if (o->poll_counter >= MaxResetPolls) {
                         reset_internal(c);
                         return ClientParams::ActivateHandler::call(c, true);
@@ -265,15 +261,17 @@ private:
                 pmc_enable_periph_clk(ID_EMAC);
                 
                 emac_options_t emac_options = emac_options_t();
-                emac_options.uc_copy_all_frame = 0;
-                emac_options.uc_no_broadcast = 0;
+                emac_options.uc_copy_all_frame = 1;
+                emac_options.uc_no_boardcast = 0;
                 memcpy(emac_options.uc_mac_addr, o->mac_addr, 6);
                 
                 o->emac_dev = emac_device_t();
                 o->emac_dev.p_hw = EMAC;
                 emac_dev_init(EMAC, &o->emac_dev, &emac_options);
                 
-                emac_enable_rmii(EMAC, Params::Rmii);
+                emac_set_clock(EMAC, F_MCK);
+                
+                emac_enable_rmii(EMAC, ClientParams::Rmii);
                 
                 o->init_state = InitState::RUNNING;
                 return ClientParams::ActivateHandler::call(c, false);
@@ -301,9 +299,8 @@ private:
                 }
                 
                 result.error = false;
-                if (o->phy_maint_rw) {
-                    result.data = emac_get_phy_data(EMAC);
-                }
+                result.data = emac_get_phy_data(EMAC);
+                
                 emac_enable_management(EMAC, 0);
                 
             end_phy_maint:
@@ -323,7 +320,6 @@ public:
         uint8_t const *mac_addr;
         uint16_t poll_counter;
         emac_device_t emac_dev;
-        bool phy_maint_rw;
         char frame_buf[RwBufSize];
     };
 };

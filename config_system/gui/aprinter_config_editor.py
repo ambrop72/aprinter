@@ -93,6 +93,19 @@ def sdio_choice(**kwargs):
         ]),
     ], **kwargs)
 
+def mii_choice(**kwargs):
+    return ce.OneOf(choices=[
+        ce.Compound('At91SamEmacMii', attrs=[]),
+    ], **kwargs)
+
+def phy_choice(**kwargs):
+    return ce.OneOf(choices=[
+        ce.Compound('GenericPhy', attrs=[
+            ce.Boolean(key='Rmii', title='Interface type', false_title='MII', true_title='RMII'),
+            ce.Integer(key='PhyAddr', title='PHY address'),
+        ]),
+    ], **kwargs)
+
 def watchdog_at91sam():
     return ce.Compound('At91SamWatchdog', key='watchdog', title='Watchdog', collapsable=True, attrs=[
         ce.Integer(key='Wdv', title='Wdv')
@@ -705,6 +718,19 @@ def editor():
                             ]),
                             ce.Compound('SdioSdCard', title='SDIO', attrs=[
                                 sdio_choice(key='SdioService', title='SDIO driver'),
+                            ]),
+                        ])
+                    ])
+                ]),
+            ]),
+            ce.Compound('NetworkConfig', key='network_config', title='Network configuration', collapsable=True, attrs=[
+                ce.OneOf(key='network', title='Network', choices=[
+                    ce.Compound('NoNetwork', title='Disabled', attrs=[]),
+                    ce.Compound('Network', title='Enabled', attrs=[
+                        ce.OneOf(key='EthernetDriver', title='Ethernet driver', choices=[
+                            ce.Compound('MiiEthernet', title='MII-based', attrs=[
+                                mii_choice(key='MiiDriver', title='MII driver'),
+                                phy_choice(key='PhyDriver', title='PHY driver')
                             ]),
                         ])
                     ])

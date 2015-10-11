@@ -103,7 +103,7 @@ configure_sam3x() {
         "${ASF_DIR}/sam/drivers/pmc/pmc.c"
         "${ASF_DIR}/sam/drivers/pmc/sleep.c"
         "${ASF_DIR}/sam/drivers/dmac/dmac.c"
-        "${ASF_DIR}/sam/drivers/dmac/rstc.c"
+        "${ASF_DIR}/sam/drivers/rstc/rstc.c"
         "${ASF_DIR}/common/services/clock/${ARCH}/sysclk.c"
         "${ASF_DIR}/common/utils/interrupt/interrupt_sam_nvic.c"
         "aprinter/platform/newlib_common.c"
@@ -111,13 +111,6 @@ configure_sam3x() {
     CXX_SOURCES+=(
         "aprinter/platform/at91${ARCH}/at91${ARCH}_support.cpp"
     )
-
-    if [ "$ARCH" = "sam3u" ]; then
-        FLAGS_C_CXX+=(
-            -I"${ASF_DIR}/sam/drivers/pio"
-            -I"${ASF_DIR}/common/services/ioport"
-        )
-    fi
 
     if [ $USE_USB_SERIAL -gt 0 ]; then
         if [ "$ARCH" = "sam3x" ]; then

@@ -22,48 +22,13 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <inttypes.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <errno.h>
+#ifndef CONF_EMAC_H_INCLUDED
+#define CONF_EMAC_H_INCLUDED
 
-#include <aprinter/base/Stringify.h>
+#define EMAC_RX_BUFFERS (32)
+#define EMAC_TX_BUFFERS (8)
 
-typedef uint8_t u8_t;
-typedef int8_t s8_t;
-typedef uint16_t u16_t;
-typedef int16_t s16_t;
-typedef uint32_t u32_t;
-typedef int32_t s32_t;
-typedef uintptr_t mem_ptr_t;
+// We wait for EMAC_NSR_IDLE ourselves so emac_wait_phy should never have to.
+#define MAC_PHY_RETRY_MAX 0
 
-#define PACK_STRUCT_STRUCT __attribute__((packed))
-
-// TBD: Improve this to use Assert.h.
-#define LWIP_PLATFORM_DIAG(x) do { printf x; } while (0)
-#define LWIP_PLATFORM_ASSERT(x) do { puts(__FILE__ ":" AMBRO_STRINGIFY(__LINE__) x); while (1); } while (0)
-
-#define U16_F PRIu16
-#define S16_F PRId16
-#define X16_F PRIx16
-#define U32_F PRIu32
-#define S32_F PRId32
-#define X32_F PRIx32
-#define SZT_F "zu"
-#define X8_F "02" PRIx8
-
-#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
-#define BYTE_ORDER LITTLE_ENDIAN
-#define LWIP_PLATFORM_BYTESWAP 1
-#define LWIP_PLATFORM_HTONS(x) __builtin_bswap16(x)
-#define LWIP_PLATFORM_HTONL(x) __builtin_bswap32(x)
-
-#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-#define BYTE_ORDER BIG_ENDIAN
-#define LWIP_PLATFORM_BYTESWAP 1
-#define LWIP_PLATFORM_HTONS(x) (x)
-#define LWIP_PLATFORM_HTONL(x) (x)
-
-#else
-#error Unknown byte order
 #endif

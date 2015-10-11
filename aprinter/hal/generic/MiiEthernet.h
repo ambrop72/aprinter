@@ -33,6 +33,11 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/common/MiiCommon.h>
 
+#ifdef APRINTER_DEBUG_MII
+#include <aprinter/base/ProgramMemory.h>
+#include <aprinter/printer/Console.h>
+#endif
+
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename ParentObject, typename ClientParams, typename Params>
@@ -141,6 +146,16 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::RUNNING)
         
+#ifdef APRINTER_DEBUG_MII
+        auto *out = Context::Printer::get_msg_output(c);
+        out->reply_append_pstr(c, AMBRO_PSTR("//MiiResult err="));
+        out->reply_append_uint32(c, result.error);
+        out->reply_append_pstr(c, AMBRO_PSTR(" data="));
+        out->reply_append_uint32(c, result.data);
+        out->reply_append_ch(c, '\n');
+        out->reply_poke(c);
+#endif
+        
         return ThePhy::phyMaintCompleted(c, result);
     }
     struct MiiPhyMaintHandler : public AMBRO_WFUNC_TD(&MiiEthernet::mii_phy_maint_handler) {};
@@ -154,6 +169,22 @@ private:
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->init_state == InitState::RUNNING)
+            
+#ifdef APRINTER_DEBUG_MII
+            auto *out = Context::Printer::get_msg_output(c);
+            if (command.io_type == PhyMaintCommandIoType::READ_WRITE) {
+                out->reply_append_pstr(c, AMBRO_PSTR("//MiiWrite reg="));
+            } else {
+                out->reply_append_pstr(c, AMBRO_PSTR("//MiiRead reg="));
+            }
+            out->reply_append_uint32(c, command.reg_address);
+            if (command.io_type == PhyMaintCommandIoType::READ_WRITE) {
+                out->reply_append_pstr(c, AMBRO_PSTR(" data="));
+                out->reply_append_uint32(c, command.data);
+            }
+            out->reply_append_ch(c, '\n');
+            out->reply_poke(c);
+#endif
             
             return TheMii::startPhyMaintenance(c, command);
         }
@@ -211,7 +242,7 @@ private:
             o->event.prependNowNotAlready(c);
             o->link_downup = false;
         } else {
-            report_link = o->link;
+            report_link = o->link_up;
         }
         
         return ClientParams::LinkHandler::call(c, report_link);

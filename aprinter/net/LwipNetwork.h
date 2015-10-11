@@ -30,26 +30,52 @@
 
 #include <lwip/init.h>
 
+#include <aprinter/meta/WrapFunction.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/hal/common/EthernetCommon.h>
+#include <aprinter/printer/Console.h>
 
-template <typename Context, typename ParentObject>
+#include <aprinter/BeginNamespace.h>
+
+template <typename Context, typename ParentObject, typename EthernetService>
 class LwipNetwork {
 public:
     struct Object;
     
-public:
-    static size_t const MaxRecvChunkSize = ???;
+private:
+    struct EthernetActivateHandler;
+    struct EthernetLinkHandler;
+    struct EthernetSendBuffer;
+    struct EthernetRecvBuffer;
+    using TheEthernetClientParams = EthernetClientParams<EthernetActivateHandler, EthernetLinkHandler, EthernetSendBuffer, EthernetRecvBuffer>;
+    using TheEthernet = typename EthernetService::template Ethernet<Context, Object, TheEthernetClientParams>;
     
+public:
     static void init (Context c)
     {
-        lwip_init();
+        auto *o = Object::self(c);
+        
+        //lwip_init();
+        
+        TheEthernet::init(c);
+        
+        o->mac_addr[0] = 0x6F;
+        o->mac_addr[1] = 0xBB;
+        o->mac_addr[2] = 0x93;
+        o->mac_addr[3] = 0x43;
+        o->mac_addr[4] = 0xC6;
+        o->mac_addr[5] = 0x2D;
+        
+        TheEthernet::activate(c, o->mac_addr);
     }
     
     static void deinit (Context c)
     {
+        TheEthernet::deinit(c);
     }
     
+    /*
     class TcpListener {
     public:
         using AcceptHandler = Callback<Context>;
@@ -110,11 +136,80 @@ public:
         RecvHandler m_recv_handler;
         SendHandler m_send_handler;
     };
+    */
+    
+private:
+    static void ethernet_activate_handler (Context c, bool error)
+    {
+        if (error) {
+            APRINTER_CONSOLE_MSG("//EthActivateErr");
+        } else {
+            APRINTER_CONSOLE_MSG("//EthActivateOk");
+        }
+    }
+    struct EthernetActivateHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_activate_handler) {};
+    
+    static void ethernet_link_handler (Context c, bool link_status)
+    {
+        if (link_status) {
+            APRINTER_CONSOLE_MSG("//EthLinkUp");
+        } else {
+            APRINTER_CONSOLE_MSG("//EthLinkDown");
+        }
+    }
+    struct EthernetLinkHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_link_handler) {};
+    
+    struct EthernetSendBuffer {
+        size_t getTotalLength ()
+        {
+            return 0;
+        }
+        
+        size_t getChunkLength ()
+        {
+            return 0;
+        }
+        
+        char const * getChunkPtr ()
+        {
+            return nullptr;
+        }
+        
+        bool nextChunk ()
+        {
+            return false;
+        }
+    };
+    
+    struct EthernetRecvBuffer {
+        bool allocate (size_t length)
+        {
+            return false;
+        }
+        
+        size_t getMaxChunkLength ()
+        {
+            return 0;
+        }
+        
+        char * getChunkPtr ()
+        {
+            return nullptr;
+        }
+        
+        void chunkWritten (size_t chunk_length)
+        {
+        }
+    };
     
 public:
-    struct Object : public ObjBase<LwipNetwork, ParentObject, EmptyTypeList> {
-        //
+    struct Object : public ObjBase<LwipNetwork, ParentObject, MakeTypeList<
+        TheEthernet
+    >> {
+        uint8_t mac_addr[6];
     };
 };
+
+#include <aprinter/EndNamespace.h>
 
 #endif

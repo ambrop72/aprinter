@@ -1156,6 +1156,8 @@ def setup_network(gen, config, key):
     
     @network_sel.option('Network')
     def option(network_config):
+        gen.add_aprinter_include('net/LwipNetwork.h')
+        
         gen.add_extra_include('aprinter/net/inc')
         gen.add_extra_include('lwip/src/include')
         gen.add_extra_source('lwip/src/core/ipv4/icmp.c')
@@ -1176,11 +1178,49 @@ def setup_network(gen, config, key):
         gen.add_extra_source('lwip/src/core/timers.c')
         gen.add_extra_source('lwip/src/core/udp.c')
         gen.add_extra_source('lwip/src/netif/etharp.c')
-    
-        gen.add_extra_source('${ASF_DIR}/sam/drivers/emac/emac.c')
-        gen.add_extra_source('${ASF_DIR}/thirdparty/lwip/lwip-port-1.4.1/sam/netif/ethernetif.c')
+        
+        ethernet_expr = use_ethernet(gen, network_config, 'EthernetDriver')
+        
+        gen.add_global_resource(40, 'MyNetwork', TemplateExpr('LwipNetwork', ['MyContext', 'Program', ethernet_expr]), context_name='Network')
     
     config.do_selection(key, network_sel)
+
+def use_ethernet(gen, config, key):
+    ethernet_sel = selection.Selection()
+    
+    @ethernet_sel.option('MiiEthernet')
+    def option(ethernet_config):
+        gen.add_aprinter_include('hal/generic/MiiEthernet.h')
+        return TemplateExpr('MiiEthernetService', [
+            use_mii(gen, ethernet_config, 'MiiDriver'),
+            use_phy(gen, ethernet_config, 'PhyDriver'),
+        ])
+    
+    return config.do_selection(key, ethernet_sel)
+
+def use_mii(gen, config, key):
+    mii_sel = selection.Selection()
+    
+    @mii_sel.option('At91SamEmacMii')
+    def option(mii_config):
+        gen.add_aprinter_include('hal/at91/At91SamEmacMii.h')
+        gen.add_extra_source('${ASF_DIR}/sam/drivers/emac/emac.c')
+        return 'At91SamEmacMiiService'
+    
+    return config.do_selection(key, mii_sel)
+
+def use_phy(gen, config, key):
+    phy_sel = selection.Selection()
+    
+    @phy_sel.option('GenericPhy')
+    def option(phy_config):
+        gen.add_aprinter_include('hal/ethernet_phy/GenericPhy.h')
+        return TemplateExpr('GenericPhyService', [
+            phy_config.get_bool('Rmii'),
+            phy_config.get_int('PhyAddr'),
+        ])
+    
+    return config.do_selection(key, phy_sel)
 
 def generate(config_root_data, cfg_name, main_template):
     gen = GenState()
