@@ -30,12 +30,14 @@
 template <
     typename TActivateHandler,
     typename TLinkHandler,
+    typename TReceiveHandler,
     typename TSendBufferType,
     typename TRecvBufferType
 >
 struct EthernetClientParams {
     using ActivateHandler = TActivateHandler;
     using LinkHandler = TLinkHandler;
+    using ReceiveHandler = TReceiveHandler;
     using SendBufferType = TSendBufferType;
     using RecvBufferType = TRecvBufferType;
 };

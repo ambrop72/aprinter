@@ -33,11 +33,13 @@
 #include <rstc.h>
 
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/common/MiiCommon.h>
 #include <aprinter/hal/at91/At91SamPins.h>
+#include <aprinter/printer/Console.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -62,6 +64,8 @@ private:
     static TimeType const PhyMaintPollTicks = 0.01 * Context::Clock::time_freq;
     static uint16_t const MaxPhyMaintPolls = 200;
     
+    using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<At91SamEmacMii>;
+    
 public:
     static uint8_t const SupportedSpeeds = MiiSpeed::SPEED_10M_HD|MiiSpeed::SPEED_10M_FD|MiiSpeed::SPEED_100M_HD|MiiSpeed::SPEED_100M_FD;
     static uint8_t const SupportedPause = MiiPauseAbility::RX_ONLY;
@@ -83,6 +87,7 @@ public:
         Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 8>, Mode>(c, Periph());
         Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 9>, Mode>(c, Periph());
         
+        Context::EventLoop::template initFastEvent<RecvFastEvent>(c, At91SamEmacMii::recv_event_handler);
         o->timer.init(c, APRINTER_CB_STATFUNC_T(&At91SamEmacMii::timer_handler));
         o->init_state = InitState::INACTIVE;
         o->phy_maint_state = PhyMaintState::IDLE;
@@ -112,22 +117,24 @@ public:
         o->poll_counter = 1;
     }
     
-    static bool sendFrame (Context c, SendBufferType send_buffer)
+    static bool sendFrame (Context c, SendBufferType *send_buffer)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::RUNNING)
         
-        size_t total_length = send_buffer.getTotalLength();
+        size_t total_length = send_buffer->getTotalLength();
         if (total_length > RwBufSize) {
             return false;
         }
         
         size_t buf_pos = 0;
         do {
-            size_t chunk_length = send_buffer.getChunkLength();
-            memcpy(o->frame_buf + buf_pos, send_buffer.getChunkPtr(), chunk_length);
+            size_t chunk_length = send_buffer->getChunkLength();
+            AMBRO_ASSERT(chunk_length <= total_length - buf_pos)
+            memcpy(o->frame_buf + buf_pos, send_buffer->getChunkPtr(), chunk_length);
             buf_pos += chunk_length;
-        } while (send_buffer.nextChunk());
+        } while (send_buffer->nextChunk());
+        AMBRO_ASSERT(buf_pos == total_length)
         
         memset(o->frame_buf + buf_pos, 0, RwBufSize - buf_pos);
         
@@ -139,30 +146,36 @@ public:
         return true;
     }
     
-    static bool recvFrame (Context c, RecvBufferType recv_buffer)
+    static bool recvFrame (Context c, RecvBufferType *recv_buffer)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::RUNNING)
         
-        uint32_t length;
-        auto read_res = emac_dev_read(&o->emac_dev, o->frame_buf, RwBufSize, &length);
+        uint32_t u_length;
+        auto read_res = emac_dev_read(&o->emac_dev, (uint8_t *)o->frame_buf, RwBufSize, &u_length);
         if (read_res != EMAC_OK) {
             return false;
         }
+        size_t total_length = u_length;
         
-        if (!recv_buffer.allocate((size_t)length)) {
+        /*
+        APRINTER_CONSOLE_MSG("//DrvRx");
+        return false;
+        */
+        
+        if (!recv_buffer->allocate(total_length)) {
             return false;
         }
-        
+        /*
         size_t buf_pos = 0;
         do {
-            size_t max_chunk_length = recv_buffer.getMaxChunkLength();
-            size_t chunk_length = MinValue(max_chunk_length, (size_t)(length - buf_pos));
-            memcpy(recv_buffer.getChunkPtr(), o->frame_buf + buf_pos, chunk_length);
-            recv_buffer.chunkWritten(chunk_length);
+            size_t chunk_length = recv_buffer->getChunkLength();
+            AMBRO_ASSERT(chunk_length <= total_length - buf_pos)
+            memcpy(recv_buffer->getChunkPtr(), o->frame_buf + buf_pos, chunk_length);
             buf_pos += chunk_length;
-        } while (buf_pos < length);
-        
+        } while (recv_buffer->nextChunk());
+        AMBRO_ASSERT(buf_pos == total_length)
+        */
         return true;
     }
     
@@ -216,12 +229,16 @@ public:
         emac_enable_pause_frame(EMAC, bool(link_params.pause_config & MiiPauseConfig::RX_ENABLE));
         
         emac_enable_transceiver_clock(EMAC, 1);
+        
+        Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
     }
     
     static void resetLink (Context c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::RUNNING)
+        
+        Context::EventLoop::template resetFastEvent<RecvFastEvent>(c);
         
         emac_enable_transceiver_clock(EMAC, 0);
     }
@@ -237,6 +254,7 @@ private:
             pmc_disable_periph_clk(ID_EMAC);
         }
         
+        Context::EventLoop::template resetFastEvent<RecvFastEvent>(c);
         o->timer.unset(c);
         o->init_state = InitState::INACTIVE;
         o->phy_maint_state = PhyMaintState::IDLE;
@@ -312,7 +330,16 @@ private:
         }
     }
     
+    static void recv_event_handler (Context c)
+    {
+        Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
+        
+        return ClientParams::ReceiveHandler::call(c);
+    }
+    
 public:
+    using EventLoopFastEvents = MakeTypeList<RecvFastEvent>;
+    
     struct Object : public ObjBase<At91SamEmacMii, ParentObject, EmptyTypeList> {
         typename Context::EventLoop::TimedEvent timer;
         InitState init_state;

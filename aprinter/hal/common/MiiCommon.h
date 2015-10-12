@@ -32,6 +32,7 @@
 template <
     typename TActivateHandler,
     typename TPhyMaintHandler,
+    typename TReceiveHandler,
     typename TSendBufferType,
     typename TRecvBufferType,
     bool TRmii
@@ -39,6 +40,7 @@ template <
 struct MiiClientParams {
     using ActivateHandler = TActivateHandler;
     using PhyMaintHandler = TPhyMaintHandler;
+    using ReceiveHandler = TReceiveHandler;
     using SendBufferType = TSendBufferType;
     using RecvBufferType = TRecvBufferType;
     static bool const Rmii = TRmii;

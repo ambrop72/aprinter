@@ -56,6 +56,8 @@ class GenState(object):
         self._build_vars = {}
         self._extra_sources = []
         self._extra_includes = []
+        self._need_millisecond_clock = False
+        self._fast_event_roots = []
     
     def add_subst (self, key, val, indent=-1):
         self._subst[key] = {'val':val, 'indent':indent}
@@ -157,8 +159,20 @@ class GenState(object):
     def add_extra_include (self, path):
         self._extra_includes.append(path)
     
+    def set_need_millisecond_clock (self):
+        self._need_millisecond_clock = True
+    
+    def add_fast_event_root (self, fast_event_root):
+        self._fast_event_roots.append(fast_event_root)
+    
     def get_modules_exprs (self):
         return self._modules_exprs
+    
+    def get_need_millisecond_clock (self):
+        return self._need_millisecond_clock
+    
+    def get_fast_event_roots (self):
+        return self._fast_event_roots
     
     def finalize (self):
         for action in reversed(self._finalize_actions):
@@ -316,7 +330,10 @@ def setup_event_loop(gen):
     
     code_before_expr = 'struct MyLoopExtraDelay;'
     expr = TemplateExpr('BusyEventLoop', ['MyContext', 'Program', 'MyLoopExtraDelay'])
-    code_before_program  = 'using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, typename MyPrinter::EventLoopFastEvents>;\n'
+    
+    fast_event_roots_list = 'JoinTypeLists<{}>'.format(', '.join('typename {}::EventLoopFastEvents'.format(r) for r in gen.get_fast_event_roots()))
+    
+    code_before_program  = 'using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, {}>;\n'.format(fast_event_roots_list)
     code_before_program += 'struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};'
     
     gen.add_global_resource(0, 'MyLoop', expr, context_name='EventLoop', code_before=code_before_expr, code_before_program=code_before_program, extra_program_child='MyLoopExtra')
@@ -1158,6 +1175,8 @@ def setup_network(gen, config, key):
     def option(network_config):
         gen.add_aprinter_include('net/LwipNetwork.h')
         
+        gen.set_need_millisecond_clock()
+        
         gen.add_extra_include('aprinter/net/inc')
         gen.add_extra_include('lwip/src/include')
         gen.add_extra_source('lwip/src/core/ipv4/icmp.c')
@@ -1179,9 +1198,12 @@ def setup_network(gen, config, key):
         gen.add_extra_source('lwip/src/core/udp.c')
         gen.add_extra_source('lwip/src/netif/etharp.c')
         
+        gen.add_global_code(0, 'extern "C" uint32_t sys_now (void) { MyContext c; return MyMillisecondClock::getTime(c); }')
+        
         ethernet_expr = use_ethernet(gen, network_config, 'EthernetDriver')
         
         gen.add_global_resource(40, 'MyNetwork', TemplateExpr('LwipNetwork', ['MyContext', 'Program', ethernet_expr]), context_name='Network')
+        gen.add_fast_event_root('MyNetwork')
     
     config.do_selection(key, network_sel)
 
@@ -1231,10 +1253,6 @@ def generate(config_root_data, cfg_name, main_template):
         
         for config in config_root.enter_elem_by_id('configurations', 'name', cfg_name):
             board_name = config.get_string('board')
-            
-            setup_event_loop(gen)
-            
-            need_millisecond_clock = False
             
             aux_control_module = gen.add_module()
             aux_control_module_user = 'MyPrinter::GetModule<{}>'.format(aux_control_module.index)
@@ -1892,7 +1910,7 @@ def generate(config_root_data, cfg_name, main_template):
                 fans_expr,
             ]))
             
-            if need_millisecond_clock:
+            if gen.get_need_millisecond_clock():
                 gen.add_aprinter_include('system/MillisecondClock.h')
                 gen.add_global_resource(5, 'MyMillisecondClock', TemplateExpr('MillisecondClock', ['MyContext', 'Program']), context_name='MillisecondClock')
                 
@@ -1923,8 +1941,10 @@ def generate(config_root_data, cfg_name, main_template):
             printer_params_typedef = 'struct ThePrinterParams : public {} {{}};'.format(printer_params.build(0))
             
             gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', 'ThePrinterParams']), context_name='Printer', code_before=printer_params_typedef)
-            gen.add_subst('FastEventRoot', 'MyPrinter')
             gen.add_subst('EmergencyProvider', 'MyPrinter')
+            gen.add_fast_event_root('MyPrinter')
+            
+            setup_event_loop(gen)
     
     gen.finalize()
     
