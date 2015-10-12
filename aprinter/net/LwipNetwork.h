@@ -25,9 +25,13 @@
 #ifndef APRINTER_LWIP_NETWORK_H
 #define APRINTER_LWIP_NETWORK_H
 
+#define APRINTER_DEBUG_NETWORK 1
+
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
 
 #include <lwip/init.h>
 #include <lwip/timers.h>
@@ -76,20 +80,13 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->timeouts_event.init(c, APRINTER_CB_STATFUNC_T(&LwipNetwork::timeouts_event_handler));
         TheEthernet::init(c);
-        
-        o->mac_addr[0] = 0x48;
-        o->mac_addr[1] = 0x5b;
-        o->mac_addr[2] = 0x39;
-        o->mac_addr[3] = 0x9b;
-        o->mac_addr[4] = 0x1e;
-        o->mac_addr[5] = 0xac;
-        
-        o->timeouts_event.appendNowNotAlready(c);
-        TheEthernet::activate(c, o->mac_addr);
-        
+        o->timeouts_event.init(c, APRINTER_CB_STATFUNC_T(&LwipNetwork::timeouts_event_handler));
+        o->eth_activated = false;
         init_lwip(c);
+        
+        TheEthernet::activate(c, o->netif.hwaddr);
+        o->timeouts_event.appendNowNotAlready(c);
     }
     
     // Note, deinit doesn't really work due to lwIP.
@@ -97,8 +94,8 @@ public:
     {
         auto *o = Object::self(c);
         
-        TheEthernet::deinit(c);
         o->timeouts_event.deinit(c);
+        TheEthernet::deinit(c);
     }
     
     /*
@@ -165,44 +162,6 @@ public:
     */
     
 private:
-    static void timeouts_event_handler (Context c)
-    {
-        auto *o = Object::self(c);
-        
-        o->timeouts_event.appendAfterPrevious(c, TimeoutsIntervalTicks);
-        
-        sys_check_timeouts();
-    }
-    
-    static void ethernet_activate_handler (Context c, bool error)
-    {
-        if (error) {
-            APRINTER_CONSOLE_MSG("//EthActivateErr");
-        } else {
-            APRINTER_CONSOLE_MSG("//EthActivateOk");
-        }
-    }
-    struct EthernetActivateHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_activate_handler) {};
-    
-    static void ethernet_link_handler (Context c, bool link_status)
-    {
-        auto *o = Object::self(c);
-        
-        if (link_status) {
-            APRINTER_CONSOLE_MSG("//EthLinkUp");
-        } else {
-            APRINTER_CONSOLE_MSG("//EthLinkDown");
-        }
-        
-        if (link_status) {
-            netif_set_link_up(&o->netif);
-        } else {
-            netif_set_link_down(&o->netif);
-        }
-        
-    }
-    struct EthernetLinkHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_link_handler) {};
-    
     static void init_lwip (Context c)
     {
         auto *o = Object::self(c);
@@ -220,17 +179,12 @@ private:
         
         netif_add(&o->netif, &the_ipaddr, &the_netmask, &the_gw, nullptr, &LwipNetwork::netif_if_init, ethernet_input);
         netif_set_up(&o->netif);
-        
         netif_set_default(&o->netif);
-        
         dhcp_start(&o->netif);
     }
     
     static err_t netif_if_init (struct netif *netif)
     {
-        Context c;
-        auto *o = Object::self(c);
-        
         netif->hostname = (char *)"aprinter";
         
         uint32_t link_speed_for_mib2 = UINT32_C(100000000);
@@ -243,7 +197,12 @@ private:
         netif->linkoutput = &LwipNetwork::netif_link_output;
         
         netif->hwaddr_len = ETHARP_HWADDR_LEN;
-        memcpy(netif->hwaddr, o->mac_addr, ETHARP_HWADDR_LEN);
+        netif->hwaddr[0] = 0xBE;
+        netif->hwaddr[1] = 0xEF;
+        netif->hwaddr[2] = 0xDE;
+        netif->hwaddr[3] = 0xAD;
+        netif->hwaddr[4] = 0xFE;
+        netif->hwaddr[5] = 0xED;
         
         netif->mtu = 1500;
         
@@ -252,36 +211,81 @@ private:
         return ERR_OK;
     }
     
+    static void timeouts_event_handler (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        o->timeouts_event.appendAfterPrevious(c, TimeoutsIntervalTicks);
+        sys_check_timeouts();
+    }
+    
+    static void ethernet_activate_handler (Context c, bool error)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(!o->eth_activated)
+        
+        if (error) {
+            APRINTER_CONSOLE_MSG("//EthActivateErr");
+            return;
+        }
+        o->eth_activated = true;
+    }
+    struct EthernetActivateHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_activate_handler) {};
+    
+    static void ethernet_link_handler (Context c, bool link_status)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->eth_activated)
+        
+        if (link_status) {
+            APRINTER_CONSOLE_MSG("//EthLinkUp");
+        } else {
+            APRINTER_CONSOLE_MSG("//EthLinkDown");
+        }
+        
+        if (link_status) {
+            netif_set_link_up(&o->netif);
+        } else {
+            netif_set_link_down(&o->netif);
+        }
+    }
+    struct EthernetLinkHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_link_handler) {};
+    
     static err_t netif_link_output (struct netif *netif, struct pbuf *p)
     {
         Context c;
         auto *o = Object::self(c);
         
-        APRINTER_CONSOLE_MSG("//Tx");
-        
-        err_t res;
-        
 #if ETH_PAD_SIZE
         pbuf_header(p, -ETH_PAD_SIZE);
 #endif
+        err_t ret = ERR_BUF;
+        
+        debug_print_pbuf(c, "Tx", p);
+        
+        if (!o->eth_activated) {
+            goto out;
+        }
         
         EthernetSendBuffer send_buf;
         send_buf.m_total_len = p->tot_len;
         send_buf.m_current_pbuf = p;
         
         if (!TheEthernet::sendFrame(c, &send_buf)) {
-            res = ERR_BUF;
+            APRINTER_CONSOLE_MSG("//TxEr");
             goto out;
         }
         
+        APRINTER_CONSOLE_MSG("//TxOk");
+        
         LINK_STATS_INC(link.xmit);
-        res = ERR_OK;
-
+        ret = ERR_OK;
+        
     out:
 #if ETH_PAD_SIZE
         pbuf_header(p, ETH_PAD_SIZE);
 #endif
-        return res;
+        return ret;
     }
     
     class EthernetSendBuffer {
@@ -320,6 +324,7 @@ private:
     static void ethernet_receive_handler (Context c)
     {
         auto *o = Object::self(c);
+        AMBRO_ASSERT(o->eth_activated)
         
         EthernetRecvBuffer recv_buf;
         recv_buf.m_first_pbuf = nullptr;
@@ -337,10 +342,11 @@ private:
             return;
         }
         
+        AMBRO_ASSERT(recv_buf.m_first_pbuf)
+        AMBRO_ASSERT(!recv_buf.m_current_pbuf)
         struct pbuf *p = recv_buf.m_first_pbuf;
-        AMBRO_ASSERT(p)
         
-        APRINTER_CONSOLE_MSG("//Rx");
+        debug_print_pbuf(c, "Rx", p);
         
 #if ETH_PAD_SIZE
         pbuf_header(p, ETH_PAD_SIZE);
@@ -361,10 +367,7 @@ private:
         {
             AMBRO_ASSERT(!m_first_pbuf)
             
-#if ETH_PAD_SIZE
-            length += ETH_PAD_SIZE;
-#endif
-            struct pbuf *p = pbuf_alloc(PBUF_RAW, length, PBUF_POOL);
+            struct pbuf *p = pbuf_alloc(PBUF_RAW, ETH_PAD_SIZE + length, PBUF_POOL);
             if (!p) {
                 m_dropped = true;
                 return false;
@@ -402,6 +405,27 @@ private:
         bool m_dropped;
     };
     
+    static void debug_print_pbuf (Context c, char const *event, struct pbuf *p)
+    {
+#if APRINTER_DEBUG_NETWORK
+        auto *out = Context::Printer::get_msg_output(c);
+        out->reply_append_str(c, "//");
+        out->reply_append_str(c, event);
+        out->reply_append_str(c, " tot_len=");
+        out->reply_append_uint32(c, p->tot_len);
+        out->reply_append_str(c, " data=");
+        for (struct pbuf *q = p; q; q = q->next) {
+            for (size_t i = 0; i < q->len; i++) {
+                char s[4];
+                sprintf(s, " %02" PRIX8, ((uint8_t *)q->payload)[i]);
+                out->reply_append_str(c, s);
+            }
+        }
+        out->reply_append_ch(c, '\n');
+        out->reply_poke(c);
+#endif
+    }
+    
 public:
     using EventLoopFastEvents = ObjCollect<MakeTypeList<LwipNetwork>, MemberType_EventLoopFastEvents, true>;
     
@@ -409,7 +433,7 @@ public:
         TheEthernet
     >> {
         typename Context::EventLoop::TimedEvent timeouts_event;
-        uint8_t mac_addr[6];
+        bool eth_activated;
         struct netif netif;
     };
 };

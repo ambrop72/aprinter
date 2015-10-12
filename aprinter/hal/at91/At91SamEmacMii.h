@@ -39,6 +39,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/common/MiiCommon.h>
 #include <aprinter/hal/at91/At91SamPins.h>
+
 #include <aprinter/printer/Console.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -140,6 +141,7 @@ public:
         
         auto write_res = emac_dev_write(&o->emac_dev, o->frame_buf, total_length, nullptr);
         if (write_res != EMAC_OK) {
+            APRINTER_CONSOLE_MSG("//emac_dev_writeEr");
             return false;
         }
         
@@ -158,15 +160,10 @@ public:
         }
         size_t total_length = u_length;
         
-        /*
-        APRINTER_CONSOLE_MSG("//DrvRx");
-        return false;
-        */
-        
         if (!recv_buffer->allocate(total_length)) {
             return false;
         }
-        /*
+        
         size_t buf_pos = 0;
         do {
             size_t chunk_length = recv_buffer->getChunkLength();
@@ -175,7 +172,7 @@ public:
             buf_pos += chunk_length;
         } while (recv_buffer->nextChunk());
         AMBRO_ASSERT(buf_pos == total_length)
-        */
+        
         return true;
     }
     
