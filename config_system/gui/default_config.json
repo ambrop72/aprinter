@@ -363,6 +363,12 @@
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "DuePin37",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelBufferSize": 64,
@@ -438,6 +444,7 @@
           "DirPin": "DuePin23",
           "EnablePin": "DuePin26",
           "Name": "X",
+          "PreloadCommands": false,
           "StepPin": "DuePin24",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -461,6 +468,7 @@
           "DirPin": "DuePin16",
           "EnablePin": "DuePin22",
           "Name": "Y",
+          "PreloadCommands": false,
           "StepPin": "DuePin17",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -484,6 +492,7 @@
           "DirPin": "DuePin3",
           "EnablePin": "DuePin15",
           "Name": "Z",
+          "PreloadCommands": false,
           "StepPin": "DuePin2",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -507,6 +516,7 @@
           "DirPin": "DuePinA6",
           "EnablePin": "DuePinA8",
           "Name": "E1",
+          "PreloadCommands": false,
           "StepPin": "DuePinA7",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -530,6 +540,7 @@
           "DirPin": "DuePinA9",
           "EnablePin": "DuePinA11",
           "Name": "E2",
+          "PreloadCommands": false,
           "StepPin": "DuePinA10",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -553,6 +564,7 @@
           "DirPin": "DuePin53",
           "EnablePin": "DuePin49",
           "Name": "E3",
+          "PreloadCommands": false,
           "StepPin": "DuePin51",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -897,6 +909,12 @@
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "DuePin13",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelBufferSize": 64,
@@ -972,6 +990,7 @@
           "DirPin": "DuePinA8",
           "EnablePin": "DuePin48",
           "Name": "X",
+          "PreloadCommands": false,
           "StepPin": "DuePinA9",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -995,6 +1014,7 @@
           "DirPin": "DuePinA10",
           "EnablePin": "DuePin46",
           "Name": "Y",
+          "PreloadCommands": false,
           "StepPin": "DuePinA11",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1018,6 +1038,7 @@
           "DirPin": "DuePinA12",
           "EnablePin": "DuePin44",
           "Name": "Z",
+          "PreloadCommands": false,
           "StepPin": "DuePinA13",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1041,6 +1062,7 @@
           "DirPin": "DuePin28",
           "EnablePin": "DuePin42",
           "Name": "E0",
+          "PreloadCommands": false,
           "StepPin": "DuePin36",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1064,6 +1086,7 @@
           "DirPin": "DuePin41",
           "EnablePin": "DuePin39",
           "Name": "E1",
+          "PreloadCommands": false,
           "StepPin": "DuePin43",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1087,6 +1110,7 @@
           "DirPin": "DuePin47",
           "EnablePin": "DuePin45",
           "Name": "E2",
+          "PreloadCommands": false,
           "StepPin": "DuePin32",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1319,6 +1343,12 @@
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "At91SamPin<At91SamPioC,22>",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelBufferSize": 32,
@@ -1388,6 +1418,7 @@
           "DirPin": "At91SamPin<At91SamPioB,8>",
           "EnablePin": "At91SamPin<At91SamPioC,31>",
           "Name": "X",
+          "PreloadCommands": false,
           "StepPin": "At91SamPin<At91SamPioC,28>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1418,6 +1449,7 @@
           "DirPin": "At91SamPin<At91SamPioA,31>",
           "EnablePin": "At91SamPin<At91SamPioA,22>",
           "Name": "Y",
+          "PreloadCommands": false,
           "StepPin": "At91SamPin<At91SamPioC,23>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1448,6 +1480,7 @@
           "DirPin": "At91SamPin<At91SamPioC,27>",
           "EnablePin": "At91SamPin<At91SamPioB,7>",
           "Name": "Z",
+          "PreloadCommands": false,
           "StepPin": "At91SamPin<At91SamPioA,27>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1478,6 +1511,7 @@
           "DirPin": "At91SamPin<At91SamPioB,2>",
           "EnablePin": "At91SamPin<At91SamPioB,13>",
           "Name": "E",
+          "PreloadCommands": false,
           "StepPin": "At91SamPin<At91SamPioC,26>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1508,6 +1542,7 @@
           "DirPin": "At91SamPin<At91SamPioC,25>",
           "EnablePin": "At91SamPin<At91SamPioC,13>",
           "Name": "U",
+          "PreloadCommands": false,
           "StepPin": "At91SamPin<At91SamPioB,1>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1684,6 +1719,12 @@
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "TeensyPin13",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelBufferSize": 32,
@@ -1743,6 +1784,7 @@
           "DirPin": "TeensyPin1",
           "EnablePin": "TeensyPin8",
           "Name": "X",
+          "PreloadCommands": false,
           "StepPin": "TeensyPin0",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1763,6 +1805,7 @@
           "DirPin": "TeensyPin3",
           "EnablePin": "TeensyPin9",
           "Name": "Y",
+          "PreloadCommands": false,
           "StepPin": "TeensyPin2",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1783,6 +1826,7 @@
           "DirPin": "TeensyPin5",
           "EnablePin": "TeensyPin10",
           "Name": "Z",
+          "PreloadCommands": false,
           "StepPin": "TeensyPin4",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1803,6 +1847,7 @@
           "DirPin": "TeensyPin7",
           "EnablePin": "TeensyPin11",
           "Name": "E",
+          "PreloadCommands": false,
           "StepPin": "TeensyPin6",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2091,6 +2136,12 @@
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "MegaPin13",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
         "EventChannelBufferSize": 24,
@@ -2173,6 +2224,7 @@
           "DirPin": "MegaPin55",
           "EnablePin": "MegaPin38",
           "Name": "X",
+          "PreloadCommands": false,
           "StepPin": "MegaPin54",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2193,6 +2245,7 @@
           "DirPin": "MegaPin61",
           "EnablePin": "MegaPin56",
           "Name": "Y",
+          "PreloadCommands": false,
           "StepPin": "MegaPin60",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2213,6 +2266,7 @@
           "DirPin": "MegaPin48",
           "EnablePin": "MegaPin62",
           "Name": "Z",
+          "PreloadCommands": false,
           "StepPin": "MegaPin46",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2233,6 +2287,7 @@
           "DirPin": "MegaPin28",
           "EnablePin": "MegaPin24",
           "Name": "E0",
+          "PreloadCommands": false,
           "StepPin": "MegaPin26",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2253,6 +2308,7 @@
           "DirPin": "MegaPin34",
           "EnablePin": "MegaPin30",
           "Name": "E1",
+          "PreloadCommands": false,
           "StepPin": "MegaPin36",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2440,6 +2496,12 @@
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "AvrPin<AvrPortA,4>",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
         "EventChannelBufferSize": 32,
@@ -2522,6 +2584,7 @@
           "DirPin": "AvrPin<AvrPortC,5>",
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "X",
+          "PreloadCommands": false,
           "StepPin": "AvrPin<AvrPortD,7>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2542,6 +2605,7 @@
           "DirPin": "AvrPin<AvrPortC,7>",
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "Y",
+          "PreloadCommands": false,
           "StepPin": "AvrPin<AvrPortC,6>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2562,6 +2626,7 @@
           "DirPin": "AvrPin<AvrPortB,2>",
           "EnablePin": "AvrPin<AvrPortA,5>",
           "Name": "Z",
+          "PreloadCommands": false,
           "StepPin": "AvrPin<AvrPortB,3>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2582,6 +2647,7 @@
           "DirPin": "AvrPin<AvrPortB,0>",
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "E",
+          "PreloadCommands": false,
           "StepPin": "AvrPin<AvrPortB,1>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2792,6 +2858,12 @@
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "DiscoveryPinLedGreen",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelBufferSize": 32,
@@ -2844,6 +2916,7 @@
           "DirPin": "Stm32f4Pin<Stm32f4PortG,2>",
           "EnablePin": "Stm32f4Pin<Stm32f4PortB,2>",
           "Name": "X",
+          "PreloadCommands": false,
           "StepPin": "Stm32f4Pin<Stm32f4PortG,3>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3085,6 +3158,12 @@
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "DiscoveryPinLedGreen",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "_compoundName": "NoNetwork"
+        }
+      },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelBufferSize": 32,
@@ -3160,6 +3239,7 @@
           "DirPin": "Stm32f4Pin<Stm32f4PortD,3>",
           "EnablePin": "Stm32f4Pin<Stm32f4PortD,7>",
           "Name": "X",
+          "PreloadCommands": false,
           "StepPin": "Stm32f4Pin<Stm32f4PortD,6>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3432,6 +3512,23 @@
       "_compoundName": "board",
       "laser_ports": [],
       "LedPin": "At91SamPin<At91SamPioB,24>",
+      "network_config": {
+        "_compoundName": "NetworkConfig",
+        "network": {
+          "EthernetDriver": {
+            "MiiDriver": {
+              "_compoundName": "At91SamEmacMii"
+            },
+            "PhyDriver": {
+              "PhyAddr": 2,
+              "Rmii": true,
+              "_compoundName": "GenericPhy"
+            },
+            "_compoundName": "MiiEthernet"
+          },
+          "_compoundName": "Network"
+        }
+      },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelBufferSize": 64,
@@ -3507,6 +3604,7 @@
           "DirPin": "At91SamPin<At91SamPioD,5>",
           "EnablePin": "At91SamPin<At91SamPioD,6>",
           "Name": "X",
+          "PreloadCommands": false,
           "StepPin": "At91SamPin<At91SamPioD,4>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3530,6 +3628,7 @@
           "DirPin": "At91SamPin<At91SamPioD,1>",
           "EnablePin": "At91SamPin<At91SamPioD,2>",
           "Name": "Y",
+          "PreloadCommands": false,
           "StepPin": "At91SamPin<At91SamPioD,0>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3553,6 +3652,7 @@
           "DirPin": "At91SamPin<At91SamPioC,26>",
           "EnablePin": "At91SamPin<At91SamPioC,27>",
           "Name": "Z",
+          "PreloadCommands": false,
           "StepPin": "At91SamPin<At91SamPioC,25>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3576,6 +3676,7 @@
           "DirPin": "At91SamPin<At91SamPioA,1>",
           "EnablePin": "At91SamPin<At91SamPioA,5>",
           "Name": "E0",
+          "PreloadCommands": false,
           "StepPin": "At91SamPin<At91SamPioA,0>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3797,11 +3898,12 @@
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "X-MIN",
             "HomeFastMaxDist": 280,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -3827,11 +3929,12 @@
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-MIN",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -3857,11 +3960,12 @@
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-MIN",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
+            "HomeEndInvert": false,
             "HomeRetractDist": 0.8,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.2,
@@ -4071,11 +4175,12 @@
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "X-MIN",
             "HomeFastMaxDist": 280,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4101,11 +4206,12 @@
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-MIN",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4131,11 +4237,12 @@
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-MIN",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
+            "HomeEndInvert": false,
             "HomeRetractDist": 0.8,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.2,
@@ -4375,11 +4482,12 @@
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "X-MIN",
             "HomeFastMaxDist": 280,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4405,11 +4513,12 @@
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-MIN",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4435,11 +4544,12 @@
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-MIN",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
+            "HomeEndInvert": false,
             "HomeRetractDist": 0.8,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.2,
@@ -4576,11 +4686,12 @@
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "X-min",
             "HomeFastMaxDist": 5,
             "HomeFastSpeed": 50,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4606,11 +4717,12 @@
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-min",
             "HomeFastMaxDist": 5,
             "HomeFastSpeed": 50,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4636,11 +4748,12 @@
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-min",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
+            "HomeEndInvert": false,
             "HomeRetractDist": 1,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.5,
@@ -4789,11 +4902,12 @@
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "X-",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4819,11 +4933,12 @@
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -4849,11 +4964,12 @@
           "StepsPerUnit": 4000,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
+            "HomeEndInvert": false,
             "HomeRetractDist": 0.8,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.2,
@@ -5002,11 +5118,12 @@
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "X-stop",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5032,11 +5149,12 @@
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-stop",
             "HomeFastMaxDist": 200,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5062,11 +5180,12 @@
           "StepsPerUnit": 4000,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-stop",
             "HomeFastMaxDist": 101,
             "HomeFastSpeed": 2,
+            "HomeEndInvert": false,
             "HomeRetractDist": 0.8,
             "HomeRetractSpeed": 2,
             "HomeSlowMaxDist": 1.2,
@@ -5174,11 +5293,12 @@
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "ButtonUser",
             "HomeFastMaxDist": 250,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5273,11 +5393,12 @@
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "ButtonUser",
             "HomeFastMaxDist": 250,
             "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
             "HomeRetractDist": 3,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 5,
@@ -5330,11 +5451,12 @@
           "StepsPerUnit": 218.181818182,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "X-MIN",
             "HomeFastMaxDist": 120,
             "HomeFastSpeed": 30,
+            "HomeEndInvert": false,
             "HomeRetractDist": 5,
             "HomeRetractSpeed": 30,
             "HomeSlowMaxDist": 10,
@@ -5360,11 +5482,12 @@
           "StepsPerUnit": 218.181818182,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Y-MIN",
             "HomeFastMaxDist": 120,
             "HomeFastSpeed": 30,
+            "HomeEndInvert": false,
             "HomeRetractDist": 5,
             "HomeRetractSpeed": 30,
             "HomeSlowMaxDist": 10,
@@ -5390,11 +5513,12 @@
           "StepsPerUnit": 218.181818182,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Z-MIN",
             "HomeFastMaxDist": 120,
             "HomeFastSpeed": 30,
+            "HomeEndInvert": false,
             "HomeRetractDist": 5,
             "HomeRetractSpeed": 30,
             "HomeSlowMaxDist": 10,
@@ -5406,7 +5530,7 @@
         }
       ],
       "transform": {
-        "MinSplitLength": 0.1,
+        "IdentityAxes": [],
         "ArmLength": 80,
         "CartesianAxes": {
           "VirtualAxis0": {
@@ -5443,10 +5567,14 @@
         },
         "DimensionCount": 3,
         "EndEffectorLength": 30,
-        "MaxSplitLength": 4,
         "BaseLength": 40,
         "RodLength": 130,
-        "SegmentsPerSecond": 100,
+        "Splitter": {
+          "MaxSplitLength": 4,
+          "MinSplitLength": 0.1,
+          "SegmentsPerSecond": 100,
+          "_compoundName": "DistanceSplitter"
+        },
         "Steppers": {
           "TransformStepper0": {
             "StepperName": "A",
@@ -5662,11 +5790,12 @@
           "StepsPerUnit": 87.489,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": true,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "X_STOP",
             "HomeFastMaxDist": 300,
             "HomeFastSpeed": 50,
+            "HomeEndInvert": false,
             "HomeRetractDist": 4,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 12,
@@ -5692,11 +5821,12 @@
           "StepsPerUnit": 87.489,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": true,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Y_STOP",
             "HomeFastMaxDist": 300,
             "HomeFastSpeed": 50,
+            "HomeEndInvert": false,
             "HomeRetractDist": 4,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 12,
@@ -5722,11 +5852,12 @@
           "StepsPerUnit": 87.489,
           "_compoundName": "stepper",
           "homing": {
+            "HomeOffset": 0,
             "HomeDir": true,
-            "HomeEndInvert": false,
             "HomeEndstopInput": "Z_STOP",
             "HomeFastMaxDist": 300,
             "HomeFastSpeed": 50,
+            "HomeEndInvert": false,
             "HomeRetractDist": 4,
             "HomeRetractSpeed": 50,
             "HomeSlowMaxDist": 12,
@@ -5759,12 +5890,11 @@
         }
       ],
       "transform": {
-        "MaxSplitLength": 3,
+        "IdentityAxes": [],
         "CarriageOffset": 0,
         "DiagnalRod": 160,
         "DimensionCount": 3,
         "EffectorOffset": 0,
-        "LimitRadius": 75.1,
         "CartesianAxes": {
           "VirtualAxis0": {
             "MaxPos": 100,
@@ -5798,9 +5928,14 @@
           },
           "_compoundName": "CartesianAxes"
         },
-        "MinSplitLength": 0.1,
-        "SegmentsPerSecond": 150,
+        "LimitRadius": 75.1,
         "SmoothRodOffset": 81,
+        "Splitter": {
+          "MaxSplitLength": 3,
+          "MinSplitLength": 0.1,
+          "SegmentsPerSecond": 150,
+          "_compoundName": "DistanceSplitter"
+        },
         "Steppers": {
           "TransformStepper0": {
             "StepperName": "C",
