@@ -1200,33 +1200,34 @@ def setup_network(gen, config, key):
         
         gen.add_global_code(0, 'extern "C" uint32_t sys_now (void) { MyContext c; return MyMillisecondClock::getTime(c); }')
         
-        ethernet_expr = use_ethernet(gen, network_config, 'EthernetDriver')
+        ethernet_expr = use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet')
         
         gen.add_global_resource(40, 'MyNetwork', TemplateExpr('LwipNetwork', ['MyContext', 'Program', ethernet_expr]), context_name='Network')
         gen.add_fast_event_root('MyNetwork')
     
     config.do_selection(key, network_sel)
 
-def use_ethernet(gen, config, key):
+def use_ethernet(gen, config, key, user):
     ethernet_sel = selection.Selection()
     
     @ethernet_sel.option('MiiEthernet')
     def option(ethernet_config):
         gen.add_aprinter_include('hal/generic/MiiEthernet.h')
         return TemplateExpr('MiiEthernetService', [
-            use_mii(gen, ethernet_config, 'MiiDriver'),
+            use_mii(gen, ethernet_config, 'MiiDriver', '{}::GetMii'.format(user)),
             use_phy(gen, ethernet_config, 'PhyDriver'),
         ])
     
     return config.do_selection(key, ethernet_sel)
 
-def use_mii(gen, config, key):
+def use_mii(gen, config, key, user):
     mii_sel = selection.Selection()
     
     @mii_sel.option('At91SamEmacMii')
     def option(mii_config):
         gen.add_aprinter_include('hal/at91/At91SamEmacMii.h')
         gen.add_extra_source('${ASF_DIR}/sam/drivers/emac/emac.c')
+        gen.add_isr('APRINTER_AT91SAM_EMAC_MII_GLOBAL({}, MyContext())'.format(user))
         return 'At91SamEmacMiiService'
     
     return config.do_selection(key, mii_sel)

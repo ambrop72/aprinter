@@ -39,8 +39,8 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/common/MiiCommon.h>
 #include <aprinter/hal/at91/At91SamPins.h>
-
-#include <aprinter/printer/Console.h>
+#include <aprinter/base/Lock.h>
+#include <aprinter/system/InterruptLock.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -65,7 +65,7 @@ private:
     static TimeType const PhyMaintPollTicks = 0.01 * Context::Clock::time_freq;
     static uint16_t const MaxPhyMaintPolls = 200;
     
-    using RecvFastEvent = typename Context::EventLoop::template FastEventSpec<At91SamEmacMii>;
+    using FastEvent = typename Context::EventLoop::template FastEventSpec<At91SamEmacMii>;
     
 public:
     static uint8_t const SupportedSpeeds = MiiSpeed::SPEED_10M_HD|MiiSpeed::SPEED_10M_FD|MiiSpeed::SPEED_100M_HD|MiiSpeed::SPEED_100M_FD;
@@ -88,7 +88,7 @@ public:
         Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 8>, Mode>(c, Periph());
         Context::Pins::template setPeripheral<At91SamPin<At91SamPioB, 9>, Mode>(c, Periph());
         
-        Context::EventLoop::template initFastEvent<RecvFastEvent>(c, At91SamEmacMii::recv_event_handler);
+        Context::EventLoop::template initFastEvent<FastEvent>(c, At91SamEmacMii::event_handler);
         o->timer.init(c, APRINTER_CB_STATFUNC_T(&At91SamEmacMii::timer_handler));
         o->init_state = InitState::INACTIVE;
         o->phy_maint_state = PhyMaintState::IDLE;
@@ -141,7 +141,6 @@ public:
         
         auto write_res = emac_dev_write(&o->emac_dev, o->frame_buf, total_length, nullptr);
         if (write_res != EMAC_OK) {
-            APRINTER_CONSOLE_MSG("//emac_dev_writeEr");
             return false;
         }
         
@@ -156,12 +155,12 @@ public:
         uint32_t u_length;
         auto read_res = emac_dev_read(&o->emac_dev, (uint8_t *)o->frame_buf, RwBufSize, &u_length);
         if (read_res != EMAC_OK) {
-            return false;
+            return read_res != EMAC_RX_NULL;
         }
         size_t total_length = u_length;
         
         if (!recv_buffer->allocate(total_length)) {
-            return false;
+            return true;
         }
         
         size_t buf_pos = 0;
@@ -172,6 +171,8 @@ public:
             buf_pos += chunk_length;
         } while (recv_buffer->nextChunk());
         AMBRO_ASSERT(buf_pos == total_length)
+        
+        recv_buffer->setValid();
         
         return true;
     }
@@ -226,8 +227,6 @@ public:
         emac_enable_pause_frame(EMAC, bool(link_params.pause_config & MiiPauseConfig::RX_ENABLE));
         
         emac_enable_transceiver_clock(EMAC, 1);
-        
-        Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
     }
     
     static void resetLink (Context c)
@@ -235,9 +234,22 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::RUNNING)
         
-        Context::EventLoop::template resetFastEvent<RecvFastEvent>(c);
-        
         emac_enable_transceiver_clock(EMAC, 0);
+    }
+    
+    static void emac_irq (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->init_state == InitState::RUNNING)
+        
+        // Ideally we would be calling emac_handler here but the emac driver code
+        // seems to be written without regard to interrupt safety. So, we temporarily
+        // disable the interrupt and delegate this to the main loop.
+        // Note, we must make regular calls to emac_handler because that cleans up
+        // after transmitted frames, preventing overrun of the tx buffer.
+        
+        NVIC_DisableIRQ(EMAC_IRQn);
+        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
     }
     
 private:
@@ -246,12 +258,20 @@ private:
         auto *o = Object::self(c);
         
         if (o->init_state == InitState::RUNNING) {
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                NVIC_DisableIRQ(EMAC_IRQn);
+            }
+            
             emac_enable_management(EMAC, 0);
             emac_network_control(EMAC, 0);
+            emac_disable_interrupt(EMAC, UINT32_MAX);
+            
+            NVIC_ClearPendingIRQ(EMAC_IRQn);
+            
             pmc_disable_periph_clk(ID_EMAC);
         }
         
-        Context::EventLoop::template resetFastEvent<RecvFastEvent>(c);
+        Context::EventLoop::template resetFastEvent<FastEvent>(c);
         o->timer.unset(c);
         o->init_state = InitState::INACTIVE;
         o->phy_maint_state = PhyMaintState::IDLE;
@@ -284,11 +304,21 @@ private:
                 o->emac_dev.p_hw = EMAC;
                 emac_dev_init(EMAC, &o->emac_dev, &emac_options);
                 
+                emac_enable_interrupt(EMAC, EMAC_IER_RCOMP);
+                
                 emac_set_clock(EMAC, F_MCK);
                 
                 emac_enable_rmii(EMAC, ClientParams::Rmii);
                 
+                NVIC_ClearPendingIRQ(EMAC_IRQn);
+                NVIC_SetPriority(EMAC_IRQn, INTERRUPT_PRIORITY);
+                
                 o->init_state = InitState::RUNNING;
+                
+                AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                    NVIC_EnableIRQ(EMAC_IRQn);
+                }
+                
                 return ClientParams::ActivateHandler::call(c, false);
             } break;
             
@@ -327,15 +357,25 @@ private:
         }
     }
     
-    static void recv_event_handler (Context c)
+    static void event_handler (Context c)
     {
-        Context::EventLoop::template triggerFastEvent<RecvFastEvent>(c);
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->init_state == InitState::RUNNING)
+        
+        emac_handler(&o->emac_dev);
+        
+        // Clear pending IRQ and re-enable the interrupt.
+        // Note, clearing here after the emac_handler call is safe,
+        // there is no risk of losing interrupts, because the interrupts
+        // are level-triggered (as far as I can tell).
+        NVIC_ClearPendingIRQ(EMAC_IRQn);
+        NVIC_EnableIRQ(EMAC_IRQn);
         
         return ClientParams::ReceiveHandler::call(c);
     }
     
 public:
-    using EventLoopFastEvents = MakeTypeList<RecvFastEvent>;
+    using EventLoopFastEvents = MakeTypeList<FastEvent>;
     
     struct Object : public ObjBase<At91SamEmacMii, ParentObject, EmptyTypeList> {
         typename Context::EventLoop::TimedEvent timer;
@@ -347,6 +387,14 @@ public:
         char frame_buf[RwBufSize];
     };
 };
+
+#define APRINTER_AT91SAM_EMAC_MII_GLOBAL(the_mii, context) \
+extern "C" \
+__attribute__((used)) \
+void EMAC_Handler (void) \
+{ \
+    the_mii::emac_irq(MakeInterruptContext((context))); \
+}
 
 struct At91SamEmacMiiService {
     template <typename Context, typename ParentObject, typename ClientParams>

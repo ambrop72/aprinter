@@ -25,6 +25,8 @@
 #ifndef APRINTER_MII_ETHERNET_H
 #define APRINTER_MII_ETHERNET_H
 
+//#define APRINTER_DEBUG_MII
+
 #include <stdint.h>
 
 #include <aprinter/meta/WrapFunction.h>
@@ -107,7 +109,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        if (o->init_state != InitState::RUNNING || !o->link_up) {
+        if (o->init_state != InitState::RUNNING) {
             return false;
         }
         return TheMii::recvFrame(c, recv_buffer);
@@ -117,7 +119,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        if (o->init_state != InitState::RUNNING || !o->link_up) {
+        if (o->init_state != InitState::RUNNING) {
             return false;
         }
         return TheMii::sendFrame(c, send_buffer);
@@ -249,6 +251,8 @@ private:
     }
     
 public:
+    using GetMii = TheMii;
+    
     struct Object : public ObjBase<MiiEthernet, ParentObject, MakeTypeList<
         TheMii,
         ThePhy
