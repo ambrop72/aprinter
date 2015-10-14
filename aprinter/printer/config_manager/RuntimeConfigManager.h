@@ -27,6 +27,9 @@
 
 #include <stdint.h>
 #include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
+#include <stdlib.h>
 
 #include <aprinter/meta/Expr.h>
 #include <aprinter/base/Object.h>
@@ -90,10 +93,6 @@ private:
     using OptionIsNotConstant = WrapBool<(!TypeListFind<typename TheOption::Properties, ConfigPropertyConstant>::Found)>;
     using StoreService = typename Params::StoreService;
     using FormatHasher = ConstexprHash<ConstexprCrc32>;
-    using SupportedTypesList = MakeTypeList<double, bool>;
-    
-    template <typename Type>
-    using GetTypeIndex = TypeListIndex<SupportedTypesList, Type>;
     
     static int const DumpConfigMCommand = 503;
     static int const GetConfigMCommand = 925;
@@ -111,6 +110,11 @@ public:
     enum class OperationType {LOAD, STORE};
     
 private:
+    using TypesList = TypeListRemoveDuplicates<MapTypeList<RuntimeConfigOptionsList, GetMemberType_Type>>;
+    
+    template <typename Type>
+    using GetTypeIndex = TypeListIndex<TypesList, Type>;
+    
     template <typename This=RuntimeConfigManager>
     using TheCommand = typename This::ThePrinterMain::TheCommand;
     
@@ -167,9 +171,79 @@ private:
         }
     };
     
+    template <typename Dummy>
+    struct TypeSpecific<ConfigTypeMacAddress, Dummy> {
+        static size_t const MaxStringValueLength = 17;
+        
+        static void get_value_cmd (Context c, TheCommand<> *cmd, ConfigTypeMacAddress value)
+        {
+            char str[MaxStringValueLength+1];
+            print_mac_addr(value, str);
+            cmd->reply_append_str(c, str);
+        }
+        
+        static void set_value_cmd (Context c, TheCommand<> *cmd, ConfigTypeMacAddress *value, ConfigTypeMacAddress default_value)
+        {
+            char const *str = cmd->get_command_param_str(c, 'V', nullptr);
+            if (!str || !parse_mac_addr(str, value)) {
+                *value = default_value;
+            }
+        }
+        
+        static void get_value_str (ConfigTypeMacAddress value, char *out_str)
+        {
+            print_mac_addr(value, out_str);
+        }
+        
+        static void set_value_str (ConfigTypeMacAddress *value, char const *in_str)
+        {
+            if (!parse_mac_addr(in_str, value)) {
+                *value = ConfigTypeMacAddress();
+            }
+        }
+        
+    private:
+        static void print_mac_addr (ConfigTypeMacAddress value, char *out_str)
+        {
+            sprintf(out_str, "%02" PRIx8 ":%02" PRIx8 ":%02" PRIx8 ":%02" PRIx8 ":%02" PRIx8 ":%02" PRIx8,
+                    value.mac_addr[0], value.mac_addr[1], value.mac_addr[2],
+                    value.mac_addr[3], value.mac_addr[4], value.mac_addr[5]);
+        }
+        
+        static bool parse_mac_addr (char const *str, ConfigTypeMacAddress *out_value)
+        {
+            for (size_t i = 0; i < ConfigTypeMacAddress::Size; i++) {
+                if (*str == '\0') {
+                    return false;
+                }
+                
+                char *end;
+                long int val = strtol(str, &end, 16);
+                
+                if (!(*end == ':' || *end == '\0')) {
+                    return false;
+                }
+                
+                if (!(val >= 0 && val <= 255)) {
+                    return false;
+                }
+                
+                out_value->mac_addr[i] = val;
+                
+                str = (*end == '\0') ? end : (end + 1);
+            }
+            
+            if (*str != '\0') {
+                return false;
+            }
+            
+            return true;
+        }
+    };
+    
     template <int TypeIndex, typename Dummy=void>
     struct TypeGeneral {
-        using Type = TypeListGet<SupportedTypesList, TypeIndex>;
+        using Type = TypeListGet<TypesList, TypeIndex>;
         using TheTypeSpecific = TypeSpecific<Type>;
         using OptionsList = FilterTypeList<RuntimeConfigOptionsList, ComposeFunctions<IsEqualFunc<Type>, GetMemberType_Type>>;
         using PrevTypeGeneral = TypeGeneral<(TypeIndex - 1)>;
@@ -284,7 +358,7 @@ private:
         static int const OptionCounter = 0;
     };
     
-    using TypeGeneralList = IndexElemList<SupportedTypesList, DedummyIndexTemplate<TypeGeneral>::template Result>;
+    using TypeGeneralList = IndexElemList<TypesList, DedummyIndexTemplate<TypeGeneral>::template Result>;
     
     template <typename Option>
     struct OptionHelper {

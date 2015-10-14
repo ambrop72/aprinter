@@ -42,7 +42,7 @@
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/TypeDict.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>

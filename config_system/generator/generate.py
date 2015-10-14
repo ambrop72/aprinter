@@ -62,18 +62,30 @@ class GenState(object):
     def add_subst (self, key, val, indent=-1):
         self._subst[key] = {'val':val, 'indent':indent}
     
-    def add_config (self, name, dtype, value, is_constant=False):
+    def add_config (self, name, dtype, value, is_constant=False, is_complex=False):
         properties = []
         if is_constant:
             properties.append('ConfigPropertyConstant')
-        self._config_options.append({'name':name, 'dtype':dtype, 'value':value, 'properties':properties})
+        properties_str = 'ConfigProperties<{}>'.format(', '.join(properties))
+        if dtype == 'double':
+            config_option_str = 'APRINTER_CONFIG_OPTION_DOUBLE({}, {}, {})'.format(name, value, properties_str)
+        elif is_complex:
+            config_option_str = 'APRINTER_CONFIG_OPTION_COMPLEX({}, {}, APRINTER_WRAP_COMPLEX_VALUE({}, {}), {})'.format(name, dtype, dtype, value, properties_str)
+        else:
+            config_option_str = 'APRINTER_CONFIG_OPTION_SIMPLE({}, {}, {}, {})'.format(name, dtype, value, properties_str)
+        self._config_options.append(config_option_str)
         return name
     
     def add_float_config (self, name, value, **kwargs):
-        return self.add_config(name, 'DOUBLE', format_cpp_float(value), **kwargs)
+        return self.add_config(name, 'double', format_cpp_float(value), **kwargs)
     
     def add_bool_config (self, name, value, **kwargs):
-        return self.add_config(name, 'BOOL', 'true' if value else 'false', **kwargs)
+        return self.add_config(name, 'bool', 'true' if value else 'false', **kwargs)
+    
+    def add_mac_addr_config (self, name, value, **kwargs):
+        assert len(value) == 6
+        val_str = '(ConfigTypeMacAddress{{{{{}}}}})'.format(', '.join('0x{:02x}'.format(x) for x in value))
+        return self.add_config(name, 'ConfigTypeMacAddress', val_str, is_complex=True, **kwargs)
     
     def add_float_constant (self, name, value):
         self._constants.append({'type':'using', 'name':name, 'value':'AMBRO_WRAP_DOUBLE({})'.format(format_cpp_float(value))})
@@ -190,7 +202,7 @@ class GenState(object):
         
         self.add_subst('GENERATED_WARNING', 'WARNING: This file was automatically generated!')
         self.add_subst('EXTRA_CONSTANTS', ''.join('{} {} = {};\n'.format(c['type'], c['name'], c['value']) for c in self._constants))
-        self.add_subst('ConfigOptions', ''.join('APRINTER_CONFIG_OPTION_{}({}, {}, ConfigProperties<{}>)\n'.format(c['dtype'], c['name'], c['value'], ', '.join(c['properties'])) for c in self._config_options))
+        self.add_subst('ConfigOptions', ''.join('{}\n'.format(c) for c in self._config_options))
         self.add_subst('PLATFORM_INCLUDES', ''.join('#include <{}>\n'.format(inc) for inc in self._platform_includes))
         self.add_subst('AprinterIncludes', ''.join('#include <aprinter/{}>\n'.format(inc) for inc in sorted(self._aprinter_includes)))
         self.add_subst('GlobalCode', ''.join('{}\n'.format(gc['code']) for gc in sorted(self._global_code, key=lambda x: x['priority'])))
@@ -254,6 +266,15 @@ class GenConfigReader(config_reader.ConfigReader):
         if val not in string.ascii_uppercase:
             self.key_path(key).error('Incorrect format.')
         return val
+    
+    def get_mac_addr (self, key):
+        val = self.get_string(key)
+        br = '([0-9A-Fa-f]{1,2})'
+        mac_re = '\\A{}:{}:{}:{}:{}:{}\\Z'.format(br, br, br, br, br, br)
+        m = re.match(mac_re, val)
+        if not m:
+            self.key_path(key).error('Incorrect format.')
+        return [int(m.group(i), 16) for i in range(1, 7)]
     
     def do_selection (self, key, sel_def):
         for config in self.enter_config(key):
@@ -1169,16 +1190,15 @@ def setup_network(gen, config, key):
     
     @network_sel.option('NoNetwork')
     def option(network_config):
-        pass
+        return False
     
     @network_sel.option('Network')
     def option(network_config):
         gen.add_aprinter_include('net/LwipNetwork.h')
         
-        gen.set_need_millisecond_clock()
-        
         gen.add_extra_include('aprinter/net/inc')
         gen.add_extra_include('lwip/src/include')
+        
         gen.add_extra_source('lwip/src/core/ipv4/icmp.c')
         gen.add_extra_source('lwip/src/core/ipv4/ip4.c')
         gen.add_extra_source('lwip/src/core/ipv4/ip4_addr.c')
@@ -1198,14 +1218,21 @@ def setup_network(gen, config, key):
         gen.add_extra_source('lwip/src/core/udp.c')
         gen.add_extra_source('lwip/src/netif/etharp.c')
         
+        gen.set_need_millisecond_clock()
         gen.add_global_code(0, 'extern "C" uint32_t sys_now (void) { MyContext c; return MyMillisecondClock::getTime(c); }')
         
-        ethernet_expr = use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet')
+        network_expr = TemplateExpr('LwipNetwork', [
+            'MyContext',
+            'Program',
+            use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
+        ])
         
-        gen.add_global_resource(40, 'MyNetwork', TemplateExpr('LwipNetwork', ['MyContext', 'Program', ethernet_expr]), context_name='Network')
+        gen.add_global_resource(40, 'MyNetwork', network_expr, context_name='Network')
         gen.add_fast_event_root('MyNetwork')
+        
+        return True
     
-    config.do_selection(key, network_sel)
+    return config.do_selection(key, network_sel)
 
 def use_ethernet(gen, config, key, user):
     ethernet_sel = selection.Selection()
@@ -1396,7 +1423,14 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 board_data.get_config('sdcard_config').do_selection('sdcard', sdcard_sel)
                 
-                setup_network(gen, board_data.get_config('network_config'), 'network')
+                have_network = setup_network(gen, board_data.get_config('network_config'), 'network')
+                if have_network:
+                    for network_config in board_data.get_config('network_config').enter_config('network'):
+                        gen.add_aprinter_include('printer/NetworkSupportModule.h')
+                        network_support_module = gen.add_module()
+                        network_support_module.set_expr(TemplateExpr('NetworkSupportModuleService', [
+                            gen.add_mac_addr_config('NetworkMacAddress', network_config.get_mac_addr('MacAddress')),
+                        ]))
                 
                 config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
                 

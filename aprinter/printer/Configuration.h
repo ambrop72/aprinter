@@ -25,14 +25,15 @@
 #ifndef APRINTER_CONFIGURATION_H
 #define APRINTER_CONFIGURATION_H
 
+#include <stdint.h>
+#include <stddef.h>
+
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/WrapDouble.h>
 #include <aprinter/meta/TypeListBuilder.h>
 #include <aprinter/meta/Expr.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/FuncUtils.h>
-#include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/ListForEach.h>
@@ -52,12 +53,12 @@ APRINTER_ADD_TO_LIST(ConfigList, Name)
 using Name##__DefaultValue = APrinter::WrapValue<Type, (DefaultValue)>; \
 APRINTER_CONFIG_OPTION_GENERIC(Name, Type, Name##__DefaultValue, Properties)
 
-#define APRINTER_CONFIG_OPTION_BOOL(Name, DefaultValue, Properties) \
-APRINTER_CONFIG_OPTION_SIMPLE(Name, bool, DefaultValue, Properties)
+#define APRINTER_CONFIG_OPTION_COMPLEX(Name, Type, DefaultValueType, Properties) \
+using Name##__DefaultValue = DefaultValueType; \
+APRINTER_CONFIG_OPTION_GENERIC(Name, Type, Name##__DefaultValue, Properties)
 
 #define APRINTER_CONFIG_OPTION_DOUBLE(Name, DefaultValue, Properties) \
-using Name##__DefaultValue = AMBRO_WRAP_DOUBLE(DefaultValue); \
-APRINTER_CONFIG_OPTION_GENERIC(Name, double, Name##__DefaultValue, Properties)
+APRINTER_CONFIG_OPTION_COMPLEX(Name, double, AMBRO_WRAP_DOUBLE(DefaultValue), Properties)
 
 #define APRINTER_CONFIG_END \
 APRINTER_END_LIST(ConfigList)
@@ -87,6 +88,12 @@ template <typename... Properties>
 using ConfigProperties = MakeTypeList<Properties...>;
 
 struct ConfigPropertyConstant {};
+
+struct ConfigTypeMacAddress {
+    static size_t const Size = 6;
+    
+    uint8_t mac_addr[Size];
+};
 
 template <typename Context, typename ParentObject, typename DelayedExprsList>
 class ConfigCache {

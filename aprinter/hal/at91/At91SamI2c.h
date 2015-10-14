@@ -32,7 +32,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/PowerOfTwo.h>
-#include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>

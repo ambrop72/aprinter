@@ -31,7 +31,7 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/BitsInInt.h>
-#include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/ChooseFixedForFloat.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>

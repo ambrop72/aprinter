@@ -27,7 +27,7 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/WrapValue.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/Vector3.h>
 #include <aprinter/math/FloatTools.h>

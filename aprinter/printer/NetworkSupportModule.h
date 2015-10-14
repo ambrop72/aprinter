@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2013 Ambroz Bizjak
+ * Copyright (c) 2015 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,27 +22,49 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef AMBROLIB_WRAP_VALUE_H
-#define AMBROLIB_WRAP_VALUE_H
+#ifndef APRINTER_NETWORK_SUPPORT_MODULE_H
+#define APRINTER_NETWORK_SUPPORT_MODULE_H
+
+#include <aprinter/base/Object.h>
+#include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TType, TType TValue>
-struct WrapValue {
-    typedef TType Type;
-    static constexpr Type Value = TValue;
-    static constexpr Type value () { return TValue; }
+template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
+class NetworkSupportModule {
+public:
+    struct Object;
+    
+private:
+    using Config = typename ThePrinterMain::Config;
+    using TheNetwork = typename Context::Network;
+    
+    using CMacAddress = decltype(Config::e(Params::MacAddress::i()));
+    
+public:
+    static void configuration_changed (Context c)
+    {
+        if (!TheNetwork::isActivated(c)) {
+            auto mac = APRINTER_CFG(Config, CMacAddress, c);
+            TheNetwork::activate(c, typename TheNetwork::ActivateParams{mac.mac_addr});
+        }
+    }
+    
+public:
+    using ConfigExprs = MakeTypeList<CMacAddress>;
+    
+    struct Object : public ObjBase<NetworkSupportModule, ParentObject, EmptyTypeList> {};
 };
 
-template <bool Value>
-using WrapBool = WrapValue<bool, Value>;
-
-template <int Value>
-using WrapInt = WrapValue<int, Value>;
-
-#define APRINTER_WRAP_COMPLEX_VALUE(Type, Value) struct { static constexpr Type value () { return (Value); } }
-
-#define AMBRO_WRAP_DOUBLE(Value) APRINTER_WRAP_COMPLEX_VALUE(double, (Value))
+template <
+    typename TMacAddress
+>
+struct NetworkSupportModuleService {
+    using MacAddress = TMacAddress;
+    
+    template <typename Context, typename ParentObject, typename ThePrinterMain>
+    using Module = NetworkSupportModule<Context, ParentObject, ThePrinterMain, NetworkSupportModuleService>;
+};
 
 #include <aprinter/EndNamespace.h>
 

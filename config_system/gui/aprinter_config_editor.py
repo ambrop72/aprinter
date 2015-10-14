@@ -732,7 +732,8 @@ def editor():
                                 mii_choice(key='MiiDriver', title='MII driver'),
                                 phy_choice(key='PhyDriver', title='PHY driver')
                             ]),
-                        ])
+                        ]),
+                        ce.String(key='MacAddress', title='MAC address', default='BE:EF:DE:AD:FE:ED'),
                     ])
                 ]),
             ]),

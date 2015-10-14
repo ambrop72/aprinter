@@ -33,7 +33,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/meta/WrapDouble.h>
+#include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/ExprFixedPoint.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/printer/MotionPlanner.h>

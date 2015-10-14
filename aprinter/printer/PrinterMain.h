@@ -2447,9 +2447,7 @@ private:
                     if (!cmd->tryUnplannedCommand(c)) {
                         return;
                     }
-                    TheConfigCache::update(c);
-                    ListForEachForward<AxesList>(LForeach_forward_update_pos(), c);
-                    ListForEachForward<ModulesList>(LForeach_configuration_changed(), c);
+                    update_configuration(c);
                     return cmd->finishCommand(c);
                 } break;
             } break;
@@ -2941,12 +2939,17 @@ private:
         AMBRO_ASSERT(TheConfigManager::HasStore)
         AMBRO_ASSERT(ob->locked)
         
-        if (success) {
-            TheConfigCache::update(c);
-        }
+        update_configuration(c);
         unlock(c);
         auto msg = success ? AMBRO_PSTR("//LoadConfigOk\n") : AMBRO_PSTR("//LoadConfigErr\n");
         print_pgm_string(c, msg);
+    }
+    
+    static void update_configuration (Context c)
+    {
+        TheConfigCache::update(c);
+        ListForEachForward<AxesList>(LForeach_forward_update_pos(), c);
+        ListForEachForward<ModulesList>(LForeach_configuration_changed(), c);
     }
     
     static TheCommand * get_command_in_state (Context c, int state, bool must)

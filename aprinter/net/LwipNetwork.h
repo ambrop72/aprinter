@@ -76,17 +76,18 @@ private:
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)
     
 public:
+    struct ActivateParams {
+        uint8_t const *mac_addr;
+    };
+    
     static void init (Context c)
     {
         auto *o = Object::self(c);
         
         TheEthernet::init(c);
         o->timeouts_event.init(c, APRINTER_CB_STATFUNC_T(&LwipNetwork::timeouts_event_handler));
+        o->net_activated = false;
         o->eth_activated = false;
-        init_lwip(c);
-        
-        TheEthernet::activate(c, o->netif.hwaddr);
-        o->timeouts_event.appendNowNotAlready(c);
     }
     
     // Note, deinit doesn't really work due to lwIP.
@@ -96,6 +97,23 @@ public:
         
         o->timeouts_event.deinit(c);
         TheEthernet::deinit(c);
+    }
+    
+    static void activate (Context c, ActivateParams params)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(!o->net_activated)
+        
+        init_lwip(c, params);
+        o->net_activated = true;
+        TheEthernet::activate(c, o->netif.hwaddr);
+        o->timeouts_event.appendNowNotAlready(c);
+    }
+    
+    static bool isActivated (Context c)
+    {
+        auto *o = Object::self(c);
+        return o->net_activated;
     }
     
     /*
@@ -162,7 +180,7 @@ public:
     */
     
 private:
-    static void init_lwip (Context c)
+    static void init_lwip (Context c, ActivateParams params)
     {
         auto *o = Object::self(c);
         
@@ -177,7 +195,7 @@ private:
         
         memset(&o->netif, 0, sizeof(o->netif));
         
-        netif_add(&o->netif, &the_ipaddr, &the_netmask, &the_gw, nullptr, &LwipNetwork::netif_if_init, ethernet_input);
+        netif_add(&o->netif, &the_ipaddr, &the_netmask, &the_gw, &params, &LwipNetwork::netif_if_init, ethernet_input);
         netif_set_up(&o->netif);
         netif_set_default(&o->netif);
         dhcp_start(&o->netif);
@@ -185,6 +203,8 @@ private:
     
     static err_t netif_if_init (struct netif *netif)
     {
+        ActivateParams const *params = (ActivateParams const *)netif->state;
+        
         netif->hostname = (char *)"aprinter";
         
         uint32_t link_speed_for_mib2 = UINT32_C(100000000);
@@ -197,16 +217,11 @@ private:
         netif->linkoutput = &LwipNetwork::netif_link_output;
         
         netif->hwaddr_len = ETHARP_HWADDR_LEN;
-        netif->hwaddr[0] = 0xBE;
-        netif->hwaddr[1] = 0xEF;
-        netif->hwaddr[2] = 0xDE;
-        netif->hwaddr[3] = 0xAD;
-        netif->hwaddr[4] = 0xFE;
-        netif->hwaddr[5] = 0xED;
+        memcpy(netif->hwaddr, params->mac_addr, ETHARP_HWADDR_LEN);
         
         netif->mtu = 1500;
-        
         netif->flags = NETIF_FLAG_BROADCAST|NETIF_FLAG_ETHARP;
+        netif->state = nullptr;
         
         return ERR_OK;
     }
@@ -272,7 +287,6 @@ private:
         send_buf.m_current_pbuf = p;
         
         if (!TheEthernet::sendFrame(c, &send_buf)) {
-            APRINTER_CONSOLE_MSG("//TxEr");
             goto out;
         }
         
@@ -444,6 +458,7 @@ public:
         TheEthernet
     >> {
         typename Context::EventLoop::TimedEvent timeouts_event;
+        bool net_activated;
         bool eth_activated;
         struct netif netif;
     };
