@@ -88,6 +88,8 @@ public:
         o->timeouts_event.init(c, APRINTER_CB_STATFUNC_T(&LwipNetwork::timeouts_event_handler));
         o->net_activated = false;
         o->eth_activated = false;
+        lwip_init();
+        o->timeouts_event.appendNowNotAlready(c);
     }
     
     // Note, deinit doesn't really work due to lwIP.
@@ -104,10 +106,9 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(!o->net_activated)
         
-        init_lwip(c, params);
         o->net_activated = true;
+        init_netif(c, params);
         TheEthernet::activate(c, o->netif.hwaddr);
-        o->timeouts_event.appendNowNotAlready(c);
     }
     
     static bool isActivated (Context c)
@@ -180,11 +181,9 @@ public:
     */
     
 private:
-    static void init_lwip (Context c, ActivateParams params)
+    static void init_netif (Context c, ActivateParams params)
     {
         auto *o = Object::self(c);
-        
-        lwip_init();
         
         ip_addr_t the_ipaddr;
         ip_addr_t the_netmask;
@@ -237,6 +236,7 @@ private:
     static void ethernet_activate_handler (Context c, bool error)
     {
         auto *o = Object::self(c);
+        AMBRO_ASSERT(o->net_activated)
         AMBRO_ASSERT(!o->eth_activated)
         
         if (error) {
@@ -270,6 +270,7 @@ private:
     {
         Context c;
         auto *o = Object::self(c);
+        AMBRO_ASSERT(o->net_activated)
         
 #if ETH_PAD_SIZE
         pbuf_header(p, -ETH_PAD_SIZE);
