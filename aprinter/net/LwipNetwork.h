@@ -105,16 +105,36 @@ public:
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(!o->net_activated)
+        AMBRO_ASSERT(!o->eth_activated)
         
         o->net_activated = true;
         init_netif(c, params);
         TheEthernet::activate(c, o->netif.hwaddr);
     }
     
+    static void deactivate (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->net_activated)
+        
+        o->net_activated = false;
+        o->eth_activated = false;
+        deinit_netif(c);
+        TheEthernet::reset(c);
+    }
+    
     static bool isActivated (Context c)
     {
         auto *o = Object::self(c);
         return o->net_activated;
+    }
+    
+    static uint8_t const * getMacAddress (Context c)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->net_activated)
+        
+        return o->netif.hwaddr;
     }
     
     /*
@@ -198,6 +218,14 @@ private:
         netif_set_up(&o->netif);
         netif_set_default(&o->netif);
         dhcp_start(&o->netif);
+    }
+    
+    static void deinit_netif (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        dhcp_stop(&o->netif);
+        netif_remove(&o->netif);
     }
     
     static err_t netif_if_init (struct netif *netif)

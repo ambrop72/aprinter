@@ -25,6 +25,8 @@
 #ifndef APRINTER_NETWORK_SUPPORT_MODULE_H
 #define APRINTER_NETWORK_SUPPORT_MODULE_H
 
+#include <string.h>
+
 #include <aprinter/base/Object.h>
 #include <aprinter/printer/Configuration.h>
 
@@ -44,8 +46,13 @@ private:
 public:
     static void configuration_changed (Context c)
     {
+        ConfigTypeMacAddress mac = APRINTER_CFG(Config, CMacAddress, c);
+        
+        if (TheNetwork::isActivated(c) && memcmp(mac.mac_addr, TheNetwork::getMacAddress(c), sizeof(mac.mac_addr))) {
+            TheNetwork::deactivate(c);
+        }
+        
         if (!TheNetwork::isActivated(c)) {
-            auto mac = APRINTER_CFG(Config, CMacAddress, c);
             TheNetwork::activate(c, typename TheNetwork::ActivateParams{mac.mac_addr});
         }
     }
