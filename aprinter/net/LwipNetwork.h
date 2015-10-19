@@ -42,11 +42,13 @@
 #include <lwip/snmp.h>
 #include <lwip/stats.h>
 #include <lwip/dhcp.h>
+#include <lwip/tcp.h>
 #include <netif/etharp.h>
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/MemberType.h>
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
@@ -59,10 +61,9 @@ template <typename Context, typename ParentObject, typename EthernetService>
 class LwipNetwork {
 public:
     struct Object;
+    class TcpConnection;
     
 private:
-    using TimeType = typename Context::Clock::TimeType;
-    
     struct EthernetActivateHandler;
     struct EthernetLinkHandler;
     struct EthernetReceiveHandler;
@@ -71,7 +72,7 @@ private:
     using TheEthernetClientParams = EthernetClientParams<EthernetActivateHandler, EthernetLinkHandler, EthernetReceiveHandler, EthernetSendBuffer, EthernetRecvBuffer>;
     using TheEthernet = typename EthernetService::template Ethernet<Context, Object, TheEthernetClientParams>;
     
-    static TimeType const TimeoutsIntervalTicks = 0.1 * Context::Clock::time_freq;
+    using TimeoutsFastEvent = typename Context::EventLoop::template FastEventSpec<LwipNetwork>;
     
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)
     
@@ -85,11 +86,11 @@ public:
         auto *o = Object::self(c);
         
         TheEthernet::init(c);
-        o->timeouts_event.init(c, APRINTER_CB_STATFUNC_T(&LwipNetwork::timeouts_event_handler));
+        Context::EventLoop::template initFastEvent<TimeoutsFastEvent>(c, LwipNetwork::timeouts_event_handler);
         o->net_activated = false;
         o->eth_activated = false;
         lwip_init();
-        o->timeouts_event.appendNowNotAlready(c);
+        Context::EventLoop::template triggerFastEvent<TimeoutsFastEvent>(c);
     }
     
     // Note, deinit doesn't really work due to lwIP.
@@ -97,7 +98,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->timeouts_event.deinit(c);
+        Context::EventLoop::template resetFastEvent<TimeoutsFastEvent>(c);
         TheEthernet::deinit(c);
     }
     
@@ -137,68 +138,339 @@ public:
         return o->netif.hwaddr;
     }
     
-    /*
     class TcpListener {
+        friend class TcpConnection;
+        
     public:
-        using AcceptHandler = Callback<Context>;
+        // The user is supposed to call TcpConnection::acceptConnection from within
+        // AcceptHandler. You must return true if and only if you have accepted the
+        // connection and not closed it.
+        // WARNING: Do not call any other network functions from this callback,
+        // especially don't close the listener. Though the following is permitted:
+        // - Closing the resulting connection (deinit/reset) from within this callback
+        //   after having accepted it, as long as you indicate this by returning false.
+        // - Closing other connections (perhaps in order to make space for the new one).
+        using AcceptHandler = Callback<bool(Context)>;
         
         void init (Context c, AcceptHandler accept_handler)
         {
             m_accept_handler = accept_handler;
+            m_pcb = nullptr;
+            m_accepted_pcb = nullptr;
         }
         
         void deinit (Context c)
         {
-            
+            reset_internal(c);
         }
         
         void reset (Context c)
         {
+            reset_internal(c);
         }
         
-        bool start_listening (Context c, uint16_t port)
+        bool startListening (Context c, uint16_t port)
         {
+            AMBRO_ASSERT(!m_pcb)
+            
+            do {
+                m_pcb = tcp_new();
+                if (!m_pcb) {
+                    goto fail;
+                }
+                
+                ip_addr_t the_addr;
+                ip_addr_set_any(0, &the_addr);
+                
+                auto err = tcp_bind(m_pcb, &the_addr, port);
+                if (err != ERR_OK) {
+                    goto fail;
+                }
+                
+                struct tcp_pcb *listen_pcb = tcp_listen(m_pcb);
+                if (!listen_pcb) {
+                    goto fail;
+                }
+                m_pcb = listen_pcb;
+                
+                tcp_arg(m_pcb, this);
+                tcp_accept(m_pcb, &TcpListener::pcb_accept_handler_wrapper);
+                
+                return true;
+            } while (false);
+            
+        fail:
+            reset_internal(c);
             return false;
         }
         
     private:
+        void reset_internal (Context c)
+        {
+            AMBRO_ASSERT(!m_accepted_pcb)
+            
+            if (m_pcb) {
+                tcp_arg(m_pcb, nullptr);
+                tcp_accept(m_pcb, nullptr);
+                auto err = tcp_close(m_pcb);
+                AMBRO_ASSERT(err == ERR_OK)
+                m_pcb = nullptr;
+            }
+        }
+        
+        static err_t pcb_accept_handler_wrapper (void *arg, struct tcp_pcb *newpcb, err_t err)
+        {
+            TcpListener *obj = (TcpListener *)arg;
+            return obj->pcb_accept_handler(newpcb, err);
+        }
+        
+        err_t pcb_accept_handler (struct tcp_pcb *newpcb, err_t err)
+        {
+            Context c;
+            AMBRO_ASSERT(m_pcb)
+            AMBRO_ASSERT(newpcb)
+            AMBRO_ASSERT(err == ERR_OK)
+            AMBRO_ASSERT(!m_accepted_pcb)
+            
+            tcp_accepted(m_pcb);
+            
+            m_accepted_pcb = newpcb;
+            bool accept_res = m_accept_handler(c);
+            
+            if (m_accepted_pcb) {
+                m_accepted_pcb = nullptr;
+                return ERR_BUF;
+            }
+            
+            return accept_res ? ERR_OK : ERR_ABRT;
+        }
+        
         AcceptHandler m_accept_handler;
+        struct tcp_pcb *m_pcb;
+        struct tcp_pcb *m_accepted_pcb;
     };
     
-    class TcpSocket {
-    public:
-        using RecvHandler = Callback<Context>;
-        using SendHandler = Callback<Context>;
+    class TcpConnection {
+        enum class State : uint8_t {IDLE, RUNNING, ERRORED};
         
-        void init (Context c, RecvHandler recv_handler, SendHandler send_handler)
+    public:
+        using ErrorHandler = Callback<void(Context, bool remote_closed)>;
+        
+        // The user is supposed to call TcpConnection::copyReceivedData from within
+        // RecvHandler, one or more times, with the sum of 'length' parameters
+        // equal to the 'length' in the callback (or less if not all data is needed).
+        // WARNING: Do not call any other network functions from this callback.
+        // It is specifically prohibited to close (deinit/reset) this connection.
+        using RecvHandler = Callback<void(Context, size_t length)>;
+        
+        using SendHandler = Callback<void(Context)>;
+        
+        void init (Context c, ErrorHandler error_handler, RecvHandler recv_handler, SendHandler send_handler)
         {
+            m_closed_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::closed_event_handler, this));
+            m_error_handler = error_handler;
             m_recv_handler = recv_handler;
             m_send_handler = send_handler;
-        }
-        
-        bool accept_connection (Context c, TcpListener *listener)
-        {
-            return false;
+            m_state = State::IDLE;
+            m_pcb = nullptr;
+            m_received_pbuf = nullptr;
         }
         
         void deinit (Context c)
         {
+            reset_internal(c);
+            m_closed_event.deinit(c);
         }
         
         void reset (Context c)
         {
+            reset_internal(c);
         }
         
-        bool receive (Context c, char *buffer, size_t *out_length)
+        void acceptConnection (Context c, TcpListener *listener)
         {
-            return false;
+            AMBRO_ASSERT(m_state == State::IDLE)
+            AMBRO_ASSERT(!m_pcb)
+            AMBRO_ASSERT(!m_received_pbuf)
+            AMBRO_ASSERT(listener->m_accepted_pcb)
+            
+            m_pcb = listener->m_accepted_pcb;
+            listener->m_accepted_pcb = nullptr;
+            
+            tcp_arg(m_pcb, this);
+            tcp_err(m_pcb, &TcpConnection::pcb_err_handler_wrapper);
+            tcp_recv(m_pcb, &TcpConnection::pcb_recv_handler_wrapper);
+            tcp_sent(m_pcb, &TcpConnection::pcb_sent_handler_wrapper);
+            
+            m_state = State::RUNNING;
+            m_recv_remote_closed = false;
+            m_recv_pending = 0;
+        }
+        
+        void copyReceivedData (Context c, char *buffer, size_t length)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING)
+            AMBRO_ASSERT(m_pcb)
+            AMBRO_ASSERT(m_received_pbuf)
+            
+            while (length > 0) {
+                AMBRO_ASSERT(m_received_offset <= m_received_pbuf->len)
+                size_t rem_bytes_in_pbuf = m_received_pbuf->len - m_received_offset;
+                if (rem_bytes_in_pbuf == 0) {
+                    AMBRO_ASSERT(m_received_pbuf->next)
+                    m_received_pbuf = m_received_pbuf->next;
+                    m_received_offset = 0;
+                    continue;
+                }
+                
+                size_t bytes_to_take = MinValue(length, rem_bytes_in_pbuf);
+                
+                memcpy(buffer, m_received_pbuf->payload + m_received_offset, bytes_to_take);
+                buffer += bytes_to_take;
+                length -= bytes_to_take;
+                
+                m_received_offset += bytes_to_take;
+            }
+        }
+        
+        void acceptReceivedData (Context c, size_t amount)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORED)
+            AMBRO_ASSERT(amount <= m_recv_pending)
+            
+            m_recv_pending -= amount;
+            
+            if (m_state == State::RUNNING) {
+                tcp_recved(m_pcb, amount);
+            }
         }
         
     private:
+        void reset_internal (Context c)
+        {
+            AMBRO_ASSERT(!m_received_pbuf)
+            
+            if (m_pcb) {
+                remove_pcb_callbacks(m_pcb);
+                auto err = tcp_close(m_pcb);
+                if (err != ERR_OK) {
+                    tcp_abort(m_pcb);
+                }
+                m_pcb = nullptr;
+            }
+            m_closed_event.unset(c);
+            m_state = State::IDLE;
+        }
+        
+        static void pcb_err_handler_wrapper (void *arg, err_t err)
+        {
+            TcpConnection *obj = (TcpConnection *)arg;
+            return obj->pcb_err_handler(err);
+        }
+        
+        void pcb_err_handler (err_t err)
+        {
+            Context c;
+            AMBRO_ASSERT(m_state == State::RUNNING)
+            AMBRO_ASSERT(m_pcb)
+            
+            remove_pcb_callbacks(m_pcb);
+            m_pcb = nullptr;
+            m_state = State::ERRORED;
+            
+            if (!m_closed_event.isSet(c)) {
+                m_closed_event.prependNowNotAlready(c);
+            }
+        }
+        
+        static err_t pcb_recv_handler_wrapper (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+        {
+            TcpConnection *obj = (TcpConnection *)arg;
+            return obj->pcb_recv_handler(tpcb, p, err);
+        }
+        
+        err_t pcb_recv_handler (struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
+        {
+            Context c;
+            AMBRO_ASSERT(m_state == State::RUNNING)
+            AMBRO_ASSERT(m_pcb)
+            AMBRO_ASSERT(!m_received_pbuf)
+            AMBRO_ASSERT(tpcb == m_pcb)
+            AMBRO_ASSERT(err == ERR_OK)
+            
+            if (!p) {
+                if (!m_recv_remote_closed) {
+                    m_recv_remote_closed = true;
+                    m_closed_event.prependNowNotAlready(c);
+                }
+            } else {
+                if (!m_recv_remote_closed && p->tot_len > 0) {
+                    m_recv_pending += p->tot_len;
+                    m_received_pbuf = p;
+                    m_received_offset = 0;
+                    
+                    m_recv_handler(c, p->tot_len);
+                    
+                    m_received_pbuf = nullptr;
+                }
+                
+                pbuf_free(p);
+            }
+            
+            return ERR_OK;
+        }
+        
+        static err_t pcb_sent_handler_wrapper (void *arg, struct tcp_pcb *tpcb, uint16_t len)
+        {
+            TcpConnection *obj = (TcpConnection *)arg;
+            return obj->pcb_sent_handler(tpcb, len);
+        }
+        
+        err_t pcb_sent_handler (struct tcp_pcb *tpcb, uint16_t len)
+        {
+            //
+            return ERR_OK;
+        }
+        
+        void closed_event_handler (Context c)
+        {
+            switch (m_state) {
+                case State::ERRORED: {
+                    AMBRO_ASSERT(!m_pcb)
+                    
+                    return m_error_handler(c, false);
+                } break;
+                
+                case State::RUNNING: {
+                    AMBRO_ASSERT(m_pcb)
+                    AMBRO_ASSERT(m_recv_remote_closed)
+                    
+                    return m_error_handler(c, true);
+                } break;
+                
+                default: AMBRO_ASSERT(false);
+            }
+        }
+        
+        static void remove_pcb_callbacks (struct tcp_pcb *pcb)
+        {
+            tcp_arg(pcb, nullptr);
+            tcp_err(pcb, nullptr);
+            tcp_recv(pcb, nullptr);
+            tcp_sent(pcb, nullptr);
+        }
+        
+        typename Context::EventLoop::QueuedEvent m_closed_event;
+        ErrorHandler m_error_handler;
         RecvHandler m_recv_handler;
         SendHandler m_send_handler;
+        State m_state;
+        bool m_recv_remote_closed;
+        struct tcp_pcb *m_pcb;
+        struct pbuf *m_received_pbuf;
+        size_t m_received_offset;
+        size_t m_recv_pending;
     };
-    */
     
 private:
     static void init_netif (Context c, ActivateParams params)
@@ -257,7 +529,7 @@ private:
     {
         auto *o = Object::self(c);
         
-        o->timeouts_event.appendAfterPrevious(c, TimeoutsIntervalTicks);
+        Context::EventLoop::template triggerFastEvent<TimeoutsFastEvent>(c);
         sys_check_timeouts();
     }
     
@@ -479,14 +751,16 @@ private:
     }
     
 public:
-    using EventLoopFastEvents = ObjCollect<MakeTypeList<LwipNetwork>, MemberType_EventLoopFastEvents, true>;
+    using EventLoopFastEvents = JoinTypeLists<
+        MakeTypeList<TimeoutsFastEvent>,
+        ObjCollect<MakeTypeList<LwipNetwork>, MemberType_EventLoopFastEvents, true>
+    >;
     
     using GetEthernet = TheEthernet;
     
     struct Object : public ObjBase<LwipNetwork, ParentObject, MakeTypeList<
         TheEthernet
     >> {
-        typename Context::EventLoop::TimedEvent timeouts_event;
         bool net_activated;
         bool eth_activated;
         struct netif netif;

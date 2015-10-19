@@ -1227,7 +1227,7 @@ def setup_network(gen, config, key):
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
         ])
         
-        gen.add_global_resource(40, 'MyNetwork', network_expr, context_name='Network')
+        gen.add_global_resource(27, 'MyNetwork', network_expr, context_name='Network')
         gen.add_fast_event_root('MyNetwork')
         
         return True
@@ -1430,6 +1430,13 @@ def generate(config_root_data, cfg_name, main_template):
                         network_support_module = gen.add_module()
                         network_support_module.set_expr(TemplateExpr('NetworkSupportModuleService', [
                             gen.add_mac_addr_config('NetworkMacAddress', network_config.get_mac_addr('MacAddress')),
+                        ]))
+                        
+                        gen.add_aprinter_include('printer/TcpConsoleModule.h')
+                        tcp_console_module = gen.add_module()
+                        tcp_console_module.set_expr(TemplateExpr('TcpConsoleModuleService', [
+                            TemplateExpr('GcodeParserParams', [32]),
+                            23
                         ]))
                 
                 config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
