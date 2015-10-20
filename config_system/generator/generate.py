@@ -1425,6 +1425,18 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_config('{}HeaterTempMaxTemp'.format(name), conversion_config.get_float('MaxTemp')),
                     ])
                 
+                @conversion_sel.option('PtRtdFormula')
+                def option(conversion_config):
+                    gen.add_aprinter_include('printer/thermistor/PtRtdFormula.h')
+                    return TemplateExpr('PtRtdFormulaService', [
+                        gen.add_float_config('{}HeaterTempResistorR'.format(name), conversion_config.get_float('ResistorR')),
+                        gen.add_float_config('{}HeaterTempPtR0'.format(name), conversion_config.get_float('PtR0')),
+                        gen.add_float_config('{}HeaterTempPtA'.format(name), conversion_config.get_float('PtA')),
+                        gen.add_float_config('{}HeaterTempPtB'.format(name), conversion_config.get_float('PtB')),
+                        gen.add_float_config('{}HeaterTempMinTemp'.format(name), conversion_config.get_float('MinTemp')),
+                        gen.add_float_config('{}HeaterTempMaxTemp'.format(name), conversion_config.get_float('MaxTemp')),
+                    ])
+                
                 @conversion_sel.option('Max31855Formula')
                 def option(conversion_config):
                     gen.add_aprinter_include('printer/thermistor/Max31855Formula.h')

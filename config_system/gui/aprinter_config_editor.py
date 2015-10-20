@@ -526,6 +526,14 @@ def editor():
                         ce.Float(key='MinTemp', title='Reliable measurements are above [C]', default=10),
                         ce.Float(key='MaxTemp', title='Reliable measurements are below [C]', default=300)
                     ]),
+                    ce.Compound('PtRtdFormula', title='Platinum resistance thermometer (PRT)', attrs=[
+                        ce.Float(key='ResistorR', title='Series-resistor resistance [ohm]', default=4700),
+                        ce.Float(key='PtR0', title='Resistance @0C [ohm]', default=1000),
+                        ce.Float(key='PtA', title='A (linear factor)', default=3.90830E-3),
+                        ce.Float(key='PtB', title='B (quadratic factor)', default=5.7750E-7),
+                        ce.Float(key='MinTemp', title='Reliable measurements are above [C]', default=0),
+                        ce.Float(key='MaxTemp', title='Reliable measurements are below [C]', default=600)
+                    ]),
                     ce.Compound('Max31855Formula', title='MAX31855 conversion', attrs=[]),
                 ]),
                 ce.Compound('control', key='control', title='PID control parameters', attrs=[
