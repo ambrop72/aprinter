@@ -43,6 +43,8 @@ class PtRtdFormula {
     static auto FracRTD (Temp) -> decltype(ResistanceAtTemp(Temp()) / Config::e(Params::ResistorR::i()));
 
 public:
+    static bool const NegativeSlope = false;
+    
     template <typename Temp>
     static auto TempToAdc (Temp) -> decltype(FracRTD(Temp()) / (One() + FracRTD(Temp())));
 

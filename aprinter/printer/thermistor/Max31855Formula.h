@@ -37,6 +37,8 @@ class Max31855Formula {
     using Resolution = APRINTER_FP_CONST_EXPR(0.25);
     
 public:
+    static bool const NegativeSlope = false;
+    
     template <typename Temp>
     static auto TempToAdc (Temp) -> decltype(((Temp() / Resolution()) + ZeroValue()) / Unscale());
     

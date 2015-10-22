@@ -178,6 +178,8 @@ private:
         using TheAnalogInput = typename HeaterSpec::AnalogInput::template AnalogInput<Context, Object>;
         using AdcFixedType = typename TheAnalogInput::FixedType;
         using AdcIntType = typename AdcFixedType::IntType;
+        using MinSafeTemp = decltype(Config::e(HeaterSpec::MinSafeTemp::i()));
+        using MaxSafeTemp = decltype(Config::e(HeaterSpec::MaxSafeTemp::i()));
         
         // compute the ADC readings corresponding to MinSafeTemp and MaxSafeTemp
         using AdcRange = APRINTER_FP_CONST_EXPR((PowerOfTwo<double, AdcFixedType::num_bits>::Value));
@@ -185,11 +187,13 @@ private:
         static auto TempToAdcAbs (Temp) -> decltype(TheFormula::TempToAdc(Temp()) * AdcRange());
         using AdcFpLowLimit = APRINTER_FP_CONST_EXPR(1.0 + 0.1);
         using AdcFpHighLimit = APRINTER_FP_CONST_EXPR((PowerOfTwoMinusOne<AdcIntType, AdcFixedType::num_bits>::Value - 0.1));
-        using InfAdcValueFp = decltype(ExprFmax(AdcFpLowLimit(), TempToAdcAbs(Config::e(HeaterSpec::MaxSafeTemp::i()))));
-        using SupAdcValueFp = decltype(ExprFmin(AdcFpHighLimit(), TempToAdcAbs(Config::e(HeaterSpec::MinSafeTemp::i()))));
+        using InfAdcSafeTemp = If<TheFormula::NegativeSlope, decltype(MaxSafeTemp()), decltype(MinSafeTemp())>;
+        using SupAdcSafeTemp = If<TheFormula::NegativeSlope, decltype(MinSafeTemp()), decltype(MaxSafeTemp())>;
+        using InfAdcValueFp = decltype(ExprFmax(AdcFpLowLimit(), TempToAdcAbs(InfAdcSafeTemp())));
+        using SupAdcValueFp = decltype(ExprFmin(AdcFpHighLimit(), TempToAdcAbs(SupAdcSafeTemp())));
         
-        using CMinSafeTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::MinSafeTemp::i())));
-        using CMaxSafeTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::MaxSafeTemp::i())));
+        using CMinSafeTemp = decltype(ExprCast<FpType>(MinSafeTemp()));
+        using CMaxSafeTemp = decltype(ExprCast<FpType>(MaxSafeTemp()));
         using CInfAdcValue = decltype(ExprCast<AdcIntType>(InfAdcValueFp()));
         using CSupAdcValue = decltype(ExprCast<AdcIntType>(SupAdcValueFp()));
         using CControlIntervalTicks = decltype(ExprCast<TimeType>(ControlInterval() * TimeConversion()));

@@ -42,6 +42,8 @@ class GenericThermistor {
     static auto FracThermistor (Temp) -> decltype((RInf() * ExprExp(Config::e(Params::ThermistorBeta::i()) / (Temp() + ZeroCelsiusTemp()))) / Config::e(Params::ResistorR::i()));
     
 public:
+    static bool const NegativeSlope = true;
+    
     template <typename Temp>
     static auto TempToAdc (Temp) -> decltype(FracThermistor(Temp()) / (One() + FracThermistor(Temp())));
     
