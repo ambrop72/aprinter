@@ -39,6 +39,7 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/MemberType.h>
+#include <aprinter/meta/If.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/ProgramMemory.h>
