@@ -17,7 +17,7 @@ The following machines are supported out of the box (meaning that a functional C
 
 - Linear-delta, rotational-delta and CoreXY support. New geometries can be added by implementing a foward and inverse coordinate transformation. A processor with sufficient speed and RAM is needed (not AVR).
 - Bed probing using a digital input line (e.g. microswitch). Height measurements are printed to the console.
-- Bed height correction, either with a linear or quadratic polynomial, calculated by the least-squares method. However, correction is (currently) only available when the Z axis is involved in a coordinate transform (e.g. Delta).
+- Bed height correction, either with a linear or quadratic polynomial, calculated by the least-squares method.
 - SD card and FAT32 filesystem support. G-code can be read from the SD-card. Optionally, the SD card can be used for storage of runtime configuration options. A custom (fully asynchronous) FAT32 implementation is used, with limited write support (can write to existing files only).
 - Supports heaters and fans. Any number of these may be defined, limited only by available hardware resources.
 - Experimental support for lasers (PWM output with a duty cycle proportional to the current speed).
