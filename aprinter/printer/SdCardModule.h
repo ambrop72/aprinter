@@ -66,7 +66,7 @@ private:
     static_assert(BufferBaseSize >= TheInput::NeedBufAvail + (MaxCommandSize - 1), "");
     static const size_t WrapExtraSize = MaxCommandSize - 1;
     using ParserSizeType = ChooseIntForMax<MaxCommandSize, false>;
-    using TheGcodeParser = typename Params::template GcodeParserTemplate<Context, Object, typename Params::TheGcodeParserParams, ParserSizeType>;
+    using TheGcodeParser = typename Params::template GcodeParserTemplate<Context, typename Params::TheGcodeParserParams, ParserSizeType, typename ThePrinterMain::FpType>;
     
     static TimeType const BaseRetryTimeTicks = 0.5 * Context::Clock::time_freq;
     static int const ReadRetryCount = 5;
@@ -150,10 +150,10 @@ private:
                 return;
             }
             
-            AMBRO_ASSERT(!TheGcodeParser::haveCommand(c))
-            AMBRO_ASSERT(TheGcodeParser::getLength(c) <= o->m_length)
+            AMBRO_ASSERT(!o->gcode_parser.haveCommand(c))
+            AMBRO_ASSERT(o->gcode_parser.getLength(c) <= o->m_length)
             
-            size_t cmd_len = TheGcodeParser::getLength(c);
+            size_t cmd_len = o->gcode_parser.getLength(c);
             o->m_start = buf_add(o->m_start, cmd_len);
             o->m_length -= cmd_len;
             
@@ -426,19 +426,19 @@ private:
             goto eof;
         }
         
-        if (!TheGcodeParser::haveCommand(c)) {
-            TheGcodeParser::startCommand(c, o->m_buffer + o->m_start, 0);
+        if (!o->gcode_parser.haveCommand(c)) {
+            o->gcode_parser.startCommand(c, o->m_buffer + o->m_start, 0);
         }
         
         avail = MinValue(MaxCommandSize, o->m_length);
         line_buffer_exhausted = (avail == MaxCommandSize);
         
-        if (TheGcodeParser::extendCommand(c, avail, line_buffer_exhausted)) {
-            if (TheGcodeParser::getNumParts(c) == GCODE_ERROR_EOF) {
+        if (o->gcode_parser.extendCommand(c, avail, line_buffer_exhausted)) {
+            if (o->gcode_parser.getNumParts(c) == GCODE_ERROR_EOF) {
                 eof_str = AMBRO_PSTR("//SdEof\n");
                 goto eof;
             }
-            return o->command_stream.startCommand(c, &o->gcode_command);
+            return o->command_stream.startCommand(c, &o->gcode_parser);
         }
         
         if (line_buffer_exhausted) {
@@ -478,14 +478,15 @@ private:
     {
         auto *o = Object::self(c);
         
-        TheGcodeParser::init(c);
+        o->gcode_parser.init(c);
         o->m_start = 0;
         o->m_length = 0;
     }
     
     static void deinit_buffering (Context c)
     {
-        TheGcodeParser::deinit(c);
+        auto *o = Object::self(c);
+        o->gcode_parser.deinit(c);
     }
     
     static bool can_read (Context c)
@@ -535,12 +536,11 @@ private:
     
 public:
     struct Object : public ObjBase<SdCardModule, ParentObject, MakeTypeList<
-        TheInput,
-        TheGcodeParser
+        TheInput
     >> {
+        TheGcodeParser gcode_parser;
         typename ThePrinterMain::CommandStream command_stream;
         StreamCallback callback;
-        GcodeCommandWrapper<Context, typename ThePrinterMain::FpType, TheGcodeParser> gcode_command;
         GcodeM400Command<Context, typename ThePrinterMain::FpType> gcode_m400_command;
         typename Context::EventLoop::QueuedEvent m_next_event;
         typename Context::EventLoop::TimedEvent m_retry_timer;

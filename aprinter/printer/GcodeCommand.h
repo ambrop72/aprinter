@@ -27,7 +27,6 @@
 
 #include <stdint.h>
 
-#include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/base/Assert.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -59,56 +58,6 @@ public:
     virtual FpType getPartFpValue (Context c, PartRef part) = 0;
     virtual uint32_t getPartUint32Value (Context c, PartRef part) = 0;
     virtual char const * getPartStringValue (Context c, PartRef part) = 0;
-};
-
-template <typename Context, typename FpType, typename TheImpl>
-class GcodeCommandWrapper : public GcodeCommand<Context, FpType> {
-private:
-    using TheGcodeCommand = GcodeCommand<Context, FpType>;
-    using PartsSizeType = typename TheGcodeCommand::PartsSizeType;
-    using PartRef = typename TheGcodeCommand::PartRef;
-    static_assert(TypesAreEqual<typename TheImpl::PartsSizeType, PartsSizeType>::Value, "");
-    using ImplPartRef = typename TheImpl::PartRef;
-    
-    char getCmdCode (Context c)
-    {
-        return TheImpl::getCmdCode(c);
-    }
-    
-    uint16_t getCmdNumber (Context c)
-    {
-        return TheImpl::getCmdNumber(c);
-    }
-    
-    PartsSizeType getNumParts (Context c)
-    {
-        return TheImpl::getNumParts(c);
-    }
-    
-    PartRef getPart (Context c, PartsSizeType i)
-    {
-        return PartRef{TheImpl::getPart(c, i)};
-    }
-    
-    char getPartCode (Context c, PartRef part)
-    {
-        return TheImpl::getPartCode(c, (ImplPartRef)part.ptr);
-    }
-    
-    FpType getPartFpValue (Context c, PartRef part)
-    {
-        return TheImpl::template getPartFpValue<FpType>(c, (ImplPartRef)part.ptr);
-    }
-    
-    uint32_t getPartUint32Value (Context c, PartRef part)
-    {
-        return TheImpl::getPartUint32Value(c, (ImplPartRef)part.ptr);
-    }
-    
-    char const * getPartStringValue (Context c, PartRef part)
-    {
-        return TheImpl::getPartStringValue(c, (ImplPartRef)part.ptr);
-    }
 };
 
 template <typename Context, typename FpType>

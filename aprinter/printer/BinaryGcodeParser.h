@@ -30,8 +30,6 @@
 #include <stddef.h>
 #include <string.h>
 
-#include <aprinter/meta/ChooseInt.h>
-#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
@@ -44,8 +42,11 @@ struct BinaryGcodeParserParams {
     static const int MaxParts = TMaxParts;
 };
 
-template <typename Context, typename ParentObject, typename Params, typename TBufferSizeType>
-class BinaryGcodeParser {
+template <typename Context, typename Params, typename TBufferSizeType, typename FpType>
+class BinaryGcodeParser
+: public GcodeCommand<Context, FpType>,
+  private SimpleDebugObject<Context>
+{
     static_assert(Params::MaxParts <= 14, "");
     
     enum {
@@ -65,13 +66,12 @@ class BinaryGcodeParser {
     };
     
 public:
-    struct Object;
     using BufferSizeType = TBufferSizeType;
-    using PartsSizeType = ChooseIntForMax<Params::MaxParts, true>;
+    using PartsSizeType = int8_t;
+    using TheGcodeCommand = GcodeCommand<Context, FpType>;
+    using PartRef = typename TheGcodeCommand::PartRef;
     
 private:
-    using TheDebugObject = DebugObject<Context, Object>;
-    
     struct Part {
         uint8_t data_type;
         char code;
@@ -80,112 +80,105 @@ private:
     };
     
 public:
-    using PartRef = Part *;
-    
-    static void init (Context c)
+    void init (Context c)
     {
-        auto *o = Object::self(c);
-        o->m_state = STATE_NOCMD;
+        m_state = STATE_NOCMD;
         
-        TheDebugObject::init(c);
+        this->debugInit(c);
     }
     
-    static void deinit (Context c)
+    void deinit (Context c)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::deinit(c);
+        this->debugDeinit(c);
     }
     
-    static bool haveCommand (Context c)
+    bool haveCommand (Context c)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
+        this->debugAccess(c);
         
-        return (o->m_state != STATE_NOCMD);
+        return (m_state != STATE_NOCMD);
     }
     
-    static void startCommand (Context c, char *buffer, int8_t assume_error)
+    void startCommand (Context c, char *buffer, int8_t assume_error)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_NOCMD)
         AMBRO_ASSERT(buffer)
         AMBRO_ASSERT(assume_error <= 0)
         
-        o->m_state = STATE_HEADER;
-        o->m_buffer = (uint8_t *)buffer;
-        o->m_length = 0;
-        o->m_num_parts = assume_error;
+        m_state = STATE_HEADER;
+        m_buffer = (uint8_t *)buffer;
+        m_length = 0;
+        m_num_parts = assume_error;
     }
     
-    static bool extendCommand (Context c, BufferSizeType avail)
+    bool extendCommand (Context c, BufferSizeType avail, bool line_buffer_exhausted=false)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state != STATE_NOCMD)
-        AMBRO_ASSERT(avail >= o->m_length)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state != STATE_NOCMD)
+        AMBRO_ASSERT(avail >= m_length)
         
         while (1) {
-            switch (o->m_state) {
+            switch (m_state) {
                 case STATE_HEADER: {
-                    AMBRO_ASSERT(o->m_length == 0)
-                    if (o->m_num_parts < 0) {
+                    AMBRO_ASSERT(m_length == 0)
+                    if (m_num_parts < 0) {
                         goto finish;
                     }
                     if (avail < 1) {
                         return false;
                     }
-                    o->m_length = 1;
-                    o->m_num_parts = o->m_buffer[0] & 0x0f;
-                    if (o->m_num_parts > Params::MaxParts) {
-                        o->m_num_parts = GCODE_ERROR_TOO_MANY_PARTS;
+                    m_length = 1;
+                    m_num_parts = m_buffer[0] & 0x0f;
+                    if (m_num_parts > Params::MaxParts) {
+                        m_num_parts = GCODE_ERROR_TOO_MANY_PARTS;
                         goto finish;
                     }
-                    o->m_state = STATE_INDEX;
-                    switch (o->m_buffer[0] >> 4) {
+                    m_state = STATE_INDEX;
+                    switch (m_buffer[0] >> 4) {
                         case CMD_TYPE_G0: {
-                            o->m_cmd_code = 'G';
-                            o->m_cmd_num = 0;
+                            m_cmd_code = 'G';
+                            m_cmd_num = 0;
                         } break;
                         case CMD_TYPE_G1: {
-                            o->m_cmd_code = 'G';
-                            o->m_cmd_num = 1;
+                            m_cmd_code = 'G';
+                            m_cmd_num = 1;
                         } break;
                         case CMD_TYPE_G92: {
-                            o->m_cmd_code = 'G';
-                            o->m_cmd_num = 92;
+                            m_cmd_code = 'G';
+                            m_cmd_num = 92;
                         } break;
                         case CMD_TYPE_EOF: {
-                            o->m_num_parts = GCODE_ERROR_EOF;
+                            m_num_parts = GCODE_ERROR_EOF;
                             goto finish;
                         } break;
                         case CMD_TYPE_LONG: {
-                            o->m_state = STATE_HEADER_LONG;
+                            m_state = STATE_HEADER_LONG;
                         } break;
                     }
                 } break;
                 
                 case STATE_HEADER_LONG: {
-                    AMBRO_ASSERT(o->m_length == 1)
+                    AMBRO_ASSERT(m_length == 1)
                     if (avail < 3) {
                         return false;
                     }
-                    o->m_length = 3;
-                    o->m_cmd_code = 'A' + (o->m_buffer[1] >> 3);
-                    o->m_cmd_num = ((uint16_t)(o->m_buffer[1] & 0x7) << 8) | o->m_buffer[2];
-                    o->m_state = STATE_INDEX;
+                    m_length = 3;
+                    m_cmd_code = 'A' + (m_buffer[1] >> 3);
+                    m_cmd_num = ((uint16_t)(m_buffer[1] & 0x7) << 8) | m_buffer[2];
+                    m_state = STATE_INDEX;
                 } break;
                 
                 case STATE_INDEX: {
-                    AMBRO_ASSERT(o->m_length == 1 || o->m_length == 3)
-                    if (avail - o->m_length < o->m_num_parts) {
+                    AMBRO_ASSERT(m_length == 1 || m_length == 3)
+                    if (avail - m_length < m_num_parts) {
                         return false;
                     }
-                    BufferSizeType index_offset = o->m_length;
-                    o->m_length += o->m_num_parts;
-                    o->m_total_size = o->m_length;
-                    for (PartsSizeType i = 0; i < o->m_num_parts; i++) {
-                        uint8_t index_byte = o->m_buffer[index_offset + i];
+                    BufferSizeType index_offset = m_length;
+                    m_length += m_num_parts;
+                    m_total_size = m_length;
+                    for (PartsSizeType i = 0; i < m_num_parts; i++) {
+                        uint8_t index_byte = m_buffer[index_offset + i];
                         BufferSizeType data_size;
                         switch (index_byte >> 5) {
                             case DATA_TYPE_FLOAT:
@@ -196,126 +189,117 @@ public:
                                 data_size = 0;
                                 break;
                             default:
-                                o->m_num_parts = GCODE_ERROR_INVALID_PART;
+                                m_num_parts = GCODE_ERROR_INVALID_PART;
                                 goto finish;
                         }
-                        o->m_parts[i].data_type = index_byte >> 5;
-                        o->m_parts[i].code = 'A' + (index_byte & 0x1f);
-                        o->m_parts[i].data_size = data_size;
-                        o->m_total_size += data_size;
+                        m_parts[i].data_type = index_byte >> 5;
+                        m_parts[i].code = 'A' + (index_byte & 0x1f);
+                        m_parts[i].data_size = data_size;
+                        m_total_size += data_size;
                     }
-                    o->m_state = STATE_PAYLOAD;
+                    m_state = STATE_PAYLOAD;
                 } break;
                 
                 case STATE_PAYLOAD: {
-                    if (avail < o->m_total_size) {
+                    if (avail < m_total_size) {
                         return false;
                     }
-                    BufferSizeType offset = o->m_length;
-                    for (PartsSizeType i = 0; i < o->m_num_parts; i++) {
-                        o->m_parts[i].data = o->m_buffer + offset;
-                        offset += o->m_parts[i].data_size;
+                    BufferSizeType offset = m_length;
+                    for (PartsSizeType i = 0; i < m_num_parts; i++) {
+                        m_parts[i].data = m_buffer + offset;
+                        offset += m_parts[i].data_size;
                     }
-                    o->m_length = o->m_total_size;
+                    m_length = m_total_size;
                     goto finish;
                 } break;
             }
         }
         
     finish:
-        o->m_state = STATE_NOCMD;
+        m_state = STATE_NOCMD;
         return true;
     }
     
-    static void resetCommand (Context c)
+    void resetCommand (Context c)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state != STATE_NOCMD)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state != STATE_NOCMD)
         
-        o->m_state = STATE_NOCMD;
+        m_state = STATE_NOCMD;
     }
     
-    static BufferSizeType getLength (Context c)
+    BufferSizeType getLength (Context c)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_NOCMD)
         
-        return o->m_length;
+        return m_length;
     }
     
-    static PartsSizeType getNumParts (Context c)
+    PartsSizeType getNumParts (Context c)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_NOCMD)
         
-        return o->m_num_parts;
+        return m_num_parts;
     }
     
-    static char getCmdCode (Context c)
+    char getCmdCode (Context c)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
-        AMBRO_ASSERT(o->m_num_parts >= 0)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_NOCMD)
+        AMBRO_ASSERT(m_num_parts >= 0)
         
-        return o->m_cmd_code;
+        return m_cmd_code;
     }
     
-    static uint16_t getCmdNumber (Context c)
+    uint16_t getCmdNumber (Context c)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
-        AMBRO_ASSERT(o->m_num_parts >= 0)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_NOCMD)
+        AMBRO_ASSERT(m_num_parts >= 0)
         
-        return o->m_cmd_num;
+        return m_cmd_num;
     }
     
-    static PartRef getPart (Context c, PartsSizeType i)
+    PartRef getPart (Context c, PartsSizeType i)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
-        AMBRO_ASSERT(o->m_num_parts >= 0)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_NOCMD)
+        AMBRO_ASSERT(m_num_parts >= 0)
         AMBRO_ASSERT(i >= 0)
-        AMBRO_ASSERT(i < o->m_num_parts)
+        AMBRO_ASSERT(i < m_num_parts)
         
-        return &o->m_parts[i];
+        return PartRef{&m_parts[i]};
     }
     
-    static char getPartCode (Context c, PartRef part)
+    char getPartCode (Context c, PartRef part)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
-        AMBRO_ASSERT(o->m_num_parts >= 0)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_NOCMD)
+        AMBRO_ASSERT(m_num_parts >= 0)
         
-        return part->code;
+        return cast_part_ref(part)->code;
     }
     
-    template <typename FpType>
-    static FpType getPartFpValue (Context c, PartRef part)
+    FpType getPartFpValue (Context c, PartRef part)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
-        AMBRO_ASSERT(o->m_num_parts >= 0)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_NOCMD)
+        AMBRO_ASSERT(m_num_parts >= 0)
         
-        switch (part->data_type) {
+        switch (cast_part_ref(part)->data_type) {
             case DATA_TYPE_FLOAT: {
                 float val;
                 static_assert(sizeof(val) == 4, "");
-                memcpy(&val, part->data, sizeof(val));
+                memcpy(&val, cast_part_ref(part)->data, sizeof(val));
                 return val;
             } break;
             
             case DATA_TYPE_UINT32: {
                 uint32_t val;
                 static_assert(sizeof(val) == 4, "");
-                memcpy(&val, part->data, sizeof(val));
+                memcpy(&val, cast_part_ref(part)->data, sizeof(val));
                 return val;
             } break;
             
@@ -324,18 +308,17 @@ public:
         }
     }
     
-    static uint32_t getPartUint32Value (Context c, PartRef part)
+    uint32_t getPartUint32Value (Context c, PartRef part)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
-        AMBRO_ASSERT(o->m_num_parts >= 0)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_NOCMD)
+        AMBRO_ASSERT(m_num_parts >= 0)
         
-        switch (part->data_type) {
+        switch (cast_part_ref(part)->data_type) {
             case DATA_TYPE_UINT32: {
                 uint32_t val;
                 static_assert(sizeof(val) == 4, "");
-                memcpy(&val, part->data, sizeof(val));
+                memcpy(&val, cast_part_ref(part)->data, sizeof(val));
                 return val;
             } break;
             
@@ -344,30 +327,31 @@ public:
         }
     }
     
-    static char const * getPartStringValue (Context c, PartRef part)
+    char const * getPartStringValue (Context c, PartRef part)
     {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_NOCMD)
-        AMBRO_ASSERT(o->m_num_parts >= 0)
+        this->debugAccess(c);
+        AMBRO_ASSERT(m_state == STATE_NOCMD)
+        AMBRO_ASSERT(m_num_parts >= 0)
         
-        return NULL;
+        return nullptr;
     }
     
 private:
     enum {STATE_NOCMD, STATE_HEADER, STATE_HEADER_LONG, STATE_INDEX, STATE_PAYLOAD};
     
-public:
-    struct Object : public ObjBase<BinaryGcodeParser, ParentObject, MakeTypeList<TheDebugObject>> {
-        uint8_t m_state;
-        uint8_t *m_buffer;
-        BufferSizeType m_length;
-        uint8_t m_cmd_code;
-        uint16_t m_cmd_num;
-        PartsSizeType m_num_parts;
-        BufferSizeType m_total_size;
-        Part m_parts[Params::MaxParts];
-    };
+    static Part * cast_part_ref (PartRef part_ref)
+    {
+        return (Part *)part_ref.ptr;
+    }
+    
+    uint8_t m_state;
+    uint8_t *m_buffer;
+    BufferSizeType m_length;
+    uint8_t m_cmd_code;
+    uint16_t m_cmd_num;
+    PartsSizeType m_num_parts;
+    BufferSizeType m_total_size;
+    Part m_parts[Params::MaxParts];
 };
 
 #include <aprinter/EndNamespace.h>
