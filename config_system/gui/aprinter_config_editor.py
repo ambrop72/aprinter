@@ -741,6 +741,7 @@ def editor():
                                 ce.Integer(key='MaxClients', title='Maximum number of clients', default=2),
                                 ce.Integer(key='MaxParts', title='Max parts in GCode command', default=16),
                                 ce.Integer(key='MaxCommandSize', title='Maximum command size', default=64),
+                                ce.Float(key='SendBufTimeout', title='Timeout when waiting for send buffer space', default=5.0),
                             ]),
                         ]),
                     ])

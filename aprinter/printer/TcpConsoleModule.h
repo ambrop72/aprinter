@@ -48,17 +48,23 @@ public:
     struct Object;
     
 private:
+    using TimeType = typename Context::Clock::TimeType;
+    using TheTcpListener = typename Context::Network::TcpListener;
     using TheTcpConnection = typename Context::Network::TcpConnection;
     
-    static int const MaxClients = Params::MaxClients;
-    static size_t const MaxFinishLen = sizeof(TCPCONSOLE_OK_STR) - 1;
-    static size_t const BufferBaseSize = TheTcpConnection::RequiredRxBufSize;
-    static_assert(Params::MaxCommandSize > 0, "");
-    static_assert(BufferBaseSize >= Params::MaxCommandSize, "");
-    static size_t const WrapExtraSize = Params::MaxCommandSize - 1;
-    static_assert(TheTcpConnection::ProvidedTxBufSize >= MaxFinishLen, "");
-    
     using TheGcodeParser = GcodeParser<Context, typename Params::TheGcodeParserParams, size_t, typename ThePrinterMain::FpType, GcodeParserTypeSerial>;
+    
+    static int const MaxClients = Params::MaxClients;
+    static_assert(MaxClients > 0, "");
+    static size_t const MaxCommandSize = Params::MaxCommandSize;
+    static_assert(MaxCommandSize > 0, "");
+    static size_t const WrapExtraSize = MaxCommandSize - 1;
+    static size_t const BufferBaseSize = TheTcpConnection::RequiredRxBufSize;
+    static_assert(BufferBaseSize >= MaxCommandSize, "");
+    static size_t const MaxFinishLen = sizeof(TCPCONSOLE_OK_STR) - 1;
+    static_assert(MaxFinishLen <= TheTcpConnection::ProvidedTxBufSize , "");
+    
+    static TimeType const SendBufTimeoutTicks = Params::SendBufTimeout::value() * Context::Clock::time_freq;
     
 public:
     static void init (Context c)
@@ -66,7 +72,10 @@ public:
         auto *o = Object::self(c);
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&TcpConsoleModule::listener_accept_handler));
-        o->listener.startListening(c, Params::Port);
+        
+        if (!o->listener.startListening(c, Params::Port)) {
+            APRINTER_CONSOLE_MSG("//TcpConsoleListenError");
+        }
         
         for (int i = 0; i < MaxClients; i++) {
             o->clients[i].init(c);
@@ -97,7 +106,7 @@ private:
             }
         }
         
-        APRINTER_CONSOLE_MSG("//TcpConsoleAcceptNoSpace");
+        APRINTER_CONSOLE_MSG("//TcpConsoleAcceptNoSlot");
         return false;
     }
     
@@ -109,6 +118,7 @@ private:
         {
             m_next_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::next_event_handler, this));
             m_send_buf_check_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_buf_check_event_handler, this));
+            m_send_buf_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_buf_timeout_event_handler, this));
             m_connection.init(c, APRINTER_CB_OBJFUNC_T(&Client::connection_error_handler, this),
                                  APRINTER_CB_OBJFUNC_T(&Client::connection_recv_handler, this),
                                  APRINTER_CB_OBJFUNC_T(&Client::connection_send_handler, this));
@@ -121,7 +131,9 @@ private:
                 m_command_stream.deinit(c);
                 m_gcode_parser.deinit(c);
             }
+            
             m_connection.deinit(c);
+            m_send_buf_timeout_event.deinit(c);
             m_send_buf_check_event.deinit(c);
             m_next_event.deinit(c);
         }
@@ -131,15 +143,17 @@ private:
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
-            APRINTER_CONSOLE_MSG("//TcpConsoleAccept");
+            APRINTER_CONSOLE_MSG("//TcpConsoleConnected");
             
             m_connection.acceptConnection(c, &o->listener);
+            
+            m_gcode_parser.init(c);
+            m_command_stream.init(c, this);
+            
             m_state = State::CONNECTED;
             m_rx_buf_start = 0;
             m_rx_buf_length = 0;
             m_send_buf_request = 0;
-            m_gcode_parser.init(c);
-            m_command_stream.init(c, this);
         }
         
         void disconnect (Context c)
@@ -148,9 +162,12 @@ private:
             
             m_command_stream.deinit(c);
             m_gcode_parser.deinit(c);
+            
             m_next_event.unset(c);
             m_send_buf_check_event.unset(c);
+            m_send_buf_timeout_event.unset(c);
             m_connection.reset(c);
+            
             m_state = State::NOT_CONNECTED;
         }
         
@@ -180,11 +197,7 @@ private:
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             
-            if (remote_closed) {
-                APRINTER_CONSOLE_MSG("//TcpConsoleClosed");
-            } else {
-                APRINTER_CONSOLE_MSG("//TcpConsoleError");
-            }
+            APRINTER_CONSOLE_MSG("//TcpConsoleDisconnected");
             
             start_disconnect(c);
         }
@@ -241,8 +254,8 @@ private:
                 return disconnect(c);
             }
             
-            size_t avail = MinValue(Params::MaxCommandSize, m_rx_buf_length);
-            bool line_buffer_exhausted = (avail == Params::MaxCommandSize);
+            size_t avail = MinValue(MaxCommandSize, m_rx_buf_length);
+            bool line_buffer_exhausted = (avail == MaxCommandSize);
             
             if (!m_gcode_parser.haveCommand(c)) {
                 m_gcode_parser.startCommand(c, m_rx_buf + m_rx_buf_start, 0);
@@ -253,6 +266,7 @@ private:
             }
             
             if (line_buffer_exhausted) {
+                APRINTER_CONSOLE_MSG("//TcpConsoleLineTooLong");
                 return disconnect(c);
             }
         }
@@ -264,8 +278,19 @@ private:
             
             if (m_state != State::CONNECTED || m_connection.getSendBufferSpace(c) >= m_send_buf_request + MaxFinishLen) {
                 m_send_buf_request = 0;
+                m_send_buf_timeout_event.unset(c);
                 return m_command_stream.reportSendBufEventDirectly(c);
             }
+        }
+        
+        void send_buf_timeout_event_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
+            AMBRO_ASSERT(m_send_buf_request > 0)
+            
+            APRINTER_CONSOLE_MSG("//TcpConsoleSendBufTimeout");
+            
+            start_disconnect(c);
         }
         
         bool start_command_impl (Context c)
@@ -285,10 +310,8 @@ private:
                 
                 size_t cmd_len = m_gcode_parser.getLength(c);
                 AMBRO_ASSERT(cmd_len <= m_rx_buf_length)
-                
                 m_rx_buf_start = buf_add(m_rx_buf_start, cmd_len);
                 m_rx_buf_length -= cmd_len;
-                
                 m_connection.acceptReceivedData(c, cmd_len);
             }
             
@@ -311,6 +334,7 @@ private:
             if (m_state == State::CONNECTED) {
                 size_t avail = m_connection.getSendBufferSpace(c);
                 if (avail < length) {
+                    APRINTER_CONSOLE_MSG("//TcpConsoleSendOverrun");
                     m_connection.raiseError(c);
                     return;
                 }
@@ -329,6 +353,7 @@ private:
             }
             m_send_buf_request = length;
             m_send_buf_check_event.prependNowNotAlready(c);
+            m_send_buf_timeout_event.appendAt(c, (TimeType)(Context::Clock::getTime(c) + SendBufTimeoutTicks));
             return true;
         }
         
@@ -339,10 +364,12 @@ private:
             
             m_send_buf_request = 0;
             m_send_buf_check_event.unset(c);
+            m_send_buf_timeout_event.unset(c);
         }
         
         typename Context::EventLoop::QueuedEvent m_next_event;
         typename Context::EventLoop::QueuedEvent m_send_buf_check_event;
+        typename Context::EventLoop::TimedEvent m_send_buf_timeout_event;
         TheTcpConnection m_connection;
         TheGcodeParser m_gcode_parser;
         typename ThePrinterMain::CommandStream m_command_stream;
@@ -355,7 +382,7 @@ private:
     
 public:
     struct Object : public ObjBase<TcpConsoleModule, ParentObject, EmptyTypeList> {
-        typename Context::Network::TcpListener listener;
+        TheTcpListener listener;
         Client clients[MaxClients];
     };
 };
@@ -364,13 +391,15 @@ template <
     typename TTheGcodeParserParams,
     uint16_t TPort,
     int TMaxClients,
-    size_t TMaxCommandSize
+    size_t TMaxCommandSize,
+    typename TSendBufTimeout
 >
 struct TcpConsoleModuleService {
     using TheGcodeParserParams = TTheGcodeParserParams;
     static uint16_t const Port = TPort;
     static int const MaxClients = TMaxClients;
     static size_t const MaxCommandSize = TMaxCommandSize;
+    using SendBufTimeout = TSendBufTimeout;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
     using Module = TcpConsoleModule<Context, ParentObject, ThePrinterMain, TcpConsoleModuleService>;

@@ -1463,6 +1463,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 console_port,
                                 console_max_clients,
                                 console_max_command_size,
+                                gen.add_float_constant('TcpConsoleSendBufTimeout', tcpconsole_config.get_float('SendBufTimeout')),
                             ]))
                         
                         network_config.do_selection('tcpconsole', tcpconsole_sel)
