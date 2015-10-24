@@ -52,6 +52,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/hal/common/EthernetCommon.h>
 #include <aprinter/printer/Console.h>
 
@@ -310,6 +311,9 @@ public:
             m_state = State::RUNNING;
             m_recv_remote_closed = false;
             m_recv_pending = 0;
+            m_send_buf_start = 0;
+            m_send_buf_length = 0;
+            m_send_buf_passed_length = 0;
         }
         
         void raiseError (Context c)
@@ -362,24 +366,17 @@ public:
         {
             AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
             
-            if (m_state == State::RUNNING) {
-                return tcp_sndbuf(m_pcb);
-            } else {
-                return ProvidedTxBufSize;
-            }
+            return (ProvidedTxBufSize - m_send_buf_length);
         }
         
         void copySendData (Context c, char const *data, size_t amount)
         {
             AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
-            AMBRO_ASSERT(m_state != State::RUNNING || amount <= tcp_sndbuf(m_pcb))
+            AMBRO_ASSERT(amount <= ProvidedTxBufSize - m_send_buf_length)
             
-            if (m_state == State::RUNNING) {
-                auto err = tcp_write(m_pcb, data, amount, TCP_WRITE_FLAG_COPY);
-                if (err != ERR_OK) {
-                    go_erroring(c, false);
-                }
-            }
+            size_t write_offset = send_buf_add(m_send_buf_start, m_send_buf_length);
+            WrapBuffer::Make(ProvidedTxBufSize - write_offset, m_send_buf + write_offset, m_send_buf).copyIn(0, amount, data);
+            m_send_buf_length += amount;
         }
         
         void pokeSending (Context c)
@@ -387,10 +384,7 @@ public:
             AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
             
             if (m_state == State::RUNNING) {
-                auto err = tcp_output(m_pcb);
-                if (err != ERR_OK) {
-                    go_erroring(c, false);
-                }
+                do_send(c);
             }
         }
         
@@ -422,6 +416,54 @@ public:
             
             if (!m_closed_event.isSet(c)) {
                 m_closed_event.prependNowNotAlready(c);
+            }
+        }
+        
+        void do_send (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING)
+            
+            while (m_send_buf_passed_length < m_send_buf_length) {
+                size_t pass_offset = send_buf_add(m_send_buf_start, m_send_buf_passed_length);
+                size_t pass_avail = m_send_buf_length - m_send_buf_passed_length;
+                size_t pass_length = MinValue(pass_avail, (size_t)(ProvidedTxBufSize - pass_offset));
+                
+                /*
+                auto *out = Context::Printer::get_msg_output(c);
+                out->reply_append_str(c, "//tcp_write ");
+                out->reply_append_uint32(c, pass_length);
+                out->reply_append_ch(c, '\n');
+                out->reply_poke(c);
+                */
+                
+                u16_t written;
+                auto err = tcp_write_ext(m_pcb, m_send_buf + pass_offset, pass_length, TCP_WRITE_FLAG_PARTIAL, &written);
+                if (err != ERR_OK) {
+                    if (err == ERR_MEM) {
+                        APRINTER_CONSOLE_MSG("//tcp_write ERR_MEM");
+                    } else if (err == ERR_BUF) {
+                        APRINTER_CONSOLE_MSG("//tcp_write ERR_BUF");
+                    } else {
+                        APRINTER_CONSOLE_MSG("//tcp_write ERR_???");
+                    }
+                    go_erroring(c, false);
+                    return;
+                }
+                
+                AMBRO_ASSERT(written <= pass_length)
+                m_send_buf_passed_length += written;
+                
+                if (written < pass_length) {
+                    //APRINTER_CONSOLE_MSG("//tcp_write partial");
+                    break;
+                }
+            }
+            
+            //APRINTER_CONSOLE_MSG("//tcp_output");
+            
+            auto err = tcp_output(m_pcb);
+            if (err != ERR_OK) {
+                go_erroring(c, false);
             }
         }
         
@@ -486,10 +528,17 @@ public:
         {
             Context c;
             AMBRO_ASSERT(m_state == State::RUNNING)
+            AMBRO_ASSERT(len <= m_send_buf_passed_length)
+            AMBRO_ASSERT(m_send_buf_passed_length <= m_send_buf_length)
+            
+            m_send_buf_start = send_buf_add(m_send_buf_start, len);
+            m_send_buf_length -= len;
+            m_send_buf_passed_length -= len;
             
             if (!m_sent_event.isSet(c)) {
                 m_sent_event.prependNowNotAlready(c);
             }
+            
             return ERR_OK;
         }
         
@@ -520,6 +569,8 @@ public:
         {
             AMBRO_ASSERT(m_state == State::RUNNING)
             
+            do_send(c);
+            
             return m_send_handler(c);
         }
         
@@ -539,6 +590,15 @@ public:
             }
         }
         
+        static size_t send_buf_add (size_t start, size_t count)
+        {
+            size_t x = start + count;
+            if (x >= ProvidedTxBufSize) {
+                x -= ProvidedTxBufSize;
+            }
+            return x;
+        }
+        
         typename Context::EventLoop::QueuedEvent m_closed_event;
         typename Context::EventLoop::QueuedEvent m_sent_event;
         ErrorHandler m_error_handler;
@@ -550,6 +610,10 @@ public:
         struct pbuf *m_received_pbuf;
         size_t m_received_offset;
         size_t m_recv_pending;
+        size_t m_send_buf_start;
+        size_t m_send_buf_length;
+        size_t m_send_buf_passed_length;
+        char m_send_buf[ProvidedTxBufSize];
     };
     
 private:
