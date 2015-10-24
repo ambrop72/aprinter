@@ -29,14 +29,11 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <aprinter/meta/WrapFunction.h>
-#include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/printer/InputCommon.h>
-#include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/GcodeCommand.h>
 #include <aprinter/printer/Console.h>
@@ -51,9 +48,17 @@ public:
     struct Object;
     
 private:
-    static size_t const MaxFinishLen = sizeof(TCPCONSOLE_OK_STR) - 1;
+    using TheTcpConnection = typename Context::Network::TcpConnection;
     
-    using TheGcodeParser = GcodeParser<Context, Object, typename Params::TheGcodeParserParams, size_t, GcodeParserTypeSerial>;
+    static int const MaxClients = Params::MaxClients;
+    static size_t const MaxFinishLen = sizeof(TCPCONSOLE_OK_STR) - 1;
+    static size_t const BufferBaseSize = TheTcpConnection::RequiredRxBufSize;
+    static_assert(Params::MaxCommandSize > 0, "");
+    static_assert(BufferBaseSize >= Params::MaxCommandSize, "");
+    static size_t const WrapExtraSize = Params::MaxCommandSize - 1;
+    static_assert(TheTcpConnection::ProvidedTxBufSize >= MaxFinishLen, "");
+    
+    using TheGcodeParser = GcodeParser<Context, typename Params::TheGcodeParserParams, size_t, typename ThePrinterMain::FpType, GcodeParserTypeSerial>;
     
 public:
     static void init (Context c)
@@ -61,267 +66,311 @@ public:
         auto *o = Object::self(c);
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&TcpConsoleModule::listener_accept_handler));
-        o->listener_working = o->listener.startListening(c, Params::Port);
+        o->listener.startListening(c, Params::Port);
         
-        o->connection.init(c, APRINTER_CB_STATFUNC_T(&TcpConsoleModule::connection_error_handler),
-                              APRINTER_CB_STATFUNC_T(&TcpConsoleModule::connection_recv_handler),
-                              APRINTER_CB_STATFUNC_T(&TcpConsoleModule::connection_send_handler));
-        o->have_connection = false;
-        
-        /*
-        TheGcodeParser::init(c);
-        o->command_stream.init(c, &o->callback);
-        o->m_recv_next_error = 0;
-        o->m_line_number = 1;
-        */
+        for (int i = 0; i < MaxClients; i++) {
+            o->clients[i].init(c);
+        }
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
         
-        /*
-        o->command_stream.deinit(c);
-        TheGcodeParser::deinit(c);
-        */
+        for (int i = 0; i < MaxClients; i++) {
+            o->clients[i].deinit(c);
+        }
         
-        o->connection.deinit(c);
         o->listener.deinit(c);
     }
     
-    static bool check_command (Context c, typename ThePrinterMain::TheCommand *cmd)
-    {
-        auto *o = Object::self(c);
-        
-        if (cmd->getCmdNumber(c) == 988) {
-            if (!o->listener_working) {
-                o->listener_working = o->listener.startListening(c, Params::Port);
-            }
-            cmd->finishCommand(c);
-            return false;
-        }
-        if (cmd->getCmdNumber(c) == 987) {
-            cmd->reply_append_uint32(c, o->listener_working);
-            cmd->reply_append_ch(c, ' ');
-            cmd->reply_append_uint32(c, o->have_connection);
-            cmd->reply_append_ch(c, '\n');
-            cmd->finishCommand(c);
-            return false;
-        }
-        return true;
-    }
-    
 private:
-    static void close_connection (Context c)
-    {
-        auto *o = Object::self(c);
-        
-        o->connection.reset(c);
-        o->have_connection = false;
-    }
-    
     static bool listener_accept_handler (Context c)
     {
         auto *o = Object::self(c);
         
-        APRINTER_CONSOLE_MSG("//TcpAccept");
-        
-        if (o->have_connection) {
-            close_connection(c);
+        for (int i = 0; i < MaxClients; i++) {
+            Client *cl = &o->clients[i];
+            if (cl->m_state == Client::State::NOT_CONNECTED) {
+                cl->accept_connection(c);
+                return true;
+            }
         }
         
-        o->connection.acceptConnection(c, &o->listener);
-        o->have_connection = true;
-        
-        return true;
+        APRINTER_CONSOLE_MSG("//TcpConsoleAcceptNoSpace");
+        return false;
     }
     
-    static void connection_error_handler (Context c, bool remote_closed)
+    struct Client : public ThePrinterMain::CommandStreamCallback
     {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(o->have_connection)
+        enum class State : uint8_t {NOT_CONNECTED, CONNECTED, DISCONNECTED_WAIT_CMD};
         
-        if (remote_closed) {
-            APRINTER_CONSOLE_MSG("//TcpClosed");
-        } else {
-            APRINTER_CONSOLE_MSG("//TcpError");
+        void init (Context c)
+        {
+            m_next_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::next_event_handler, this));
+            m_send_buf_check_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_buf_check_event_handler, this));
+            m_connection.init(c, APRINTER_CB_OBJFUNC_T(&Client::connection_error_handler, this),
+                                 APRINTER_CB_OBJFUNC_T(&Client::connection_recv_handler, this),
+                                 APRINTER_CB_OBJFUNC_T(&Client::connection_send_handler, this));
+            m_state = State::NOT_CONNECTED;
         }
         
-        close_connection(c);
-    }
-    
-    static void connection_recv_handler (Context c, size_t length)
-    {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(o->have_connection)
+        void deinit (Context c)
+        {
+            if (m_state != State::NOT_CONNECTED) {
+                m_command_stream.deinit(c);
+                m_gcode_parser.deinit(c);
+            }
+            m_connection.deinit(c);
+            m_send_buf_check_event.deinit(c);
+            m_next_event.deinit(c);
+        }
         
-        auto *out = ThePrinterMain::get_msg_output(c);
-        out->reply_append_pstr(c, AMBRO_PSTR("//TcpRx len="));
-        out->reply_append_uint32(c, length);
-        out->reply_append_ch(c, '\n');
-        out->reply_poke(c);
-        
-        o->connection.acceptReceivedData(c, length);
-    }
-    
-    static void connection_send_handler (Context c)
-    {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(o->have_connection)
-        
-        //
-    }
-    
-    /*
-    struct StreamCallback : public ThePrinterMain::CommandStreamCallback {
-        bool start_command_impl (Context c)
+        void accept_connection (Context c)
         {
             auto *o = Object::self(c);
-            AMBRO_ASSERT(o->command_stream.hasCommand(c))
+            AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
-            bool is_m110 = (TheGcodeParser::getCmdCode(c) == 'M' && TheGcodeParser::getCmdNumber(c) == 110);
-            if (is_m110) {
-                o->m_line_number = o->command_stream.get_command_param_uint32(c, 'L', (TheGcodeParser::getCmd(c)->have_line_number ? TheGcodeParser::getCmd(c)->line_number : -1));
+            APRINTER_CONSOLE_MSG("//TcpConsoleAccept");
+            
+            m_connection.acceptConnection(c, &o->listener);
+            m_state = State::CONNECTED;
+            m_rx_buf_start = 0;
+            m_rx_buf_length = 0;
+            m_send_buf_request = 0;
+            m_gcode_parser.init(c);
+            m_command_stream.init(c, this);
+        }
+        
+        void disconnect (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
+            
+            m_command_stream.deinit(c);
+            m_gcode_parser.deinit(c);
+            m_next_event.unset(c);
+            m_send_buf_check_event.unset(c);
+            m_connection.reset(c);
+            m_state = State::NOT_CONNECTED;
+        }
+        
+        void start_disconnect (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED)
+            
+            if (m_command_stream.hasCommand(c)) {
+                m_connection.reset(c);
+                m_state = State::DISCONNECTED_WAIT_CMD;
+                update_send_buf_event(c);
+            } else {
+                disconnect(c);
             }
-            if (TheGcodeParser::getCmd(c)->have_line_number) {
-                if (TheGcodeParser::getCmd(c)->line_number != o->m_line_number) {
-                    o->command_stream.reply_append_pstr(c, AMBRO_PSTR("Error:Line Number is not Last Line Number+1, Last Line:"));
-                    o->command_stream.reply_append_uint32(c, (uint32_t)(o->m_line_number - 1));
-                    o->command_stream.reply_append_ch(c, '\n');
-                    return false;
-                }
+        }
+        
+        void update_send_buf_event (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
+            
+            if (m_send_buf_request > 0 && !m_send_buf_check_event.isSet(c)) {
+                m_send_buf_check_event.prependNowNotAlready(c);
             }
-            if (TheGcodeParser::getCmd(c)->have_line_number || is_m110) {
-                o->m_line_number++;
+        }
+        
+        void connection_error_handler (Context c, bool remote_closed)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED)
+            
+            if (remote_closed) {
+                APRINTER_CONSOLE_MSG("//TcpConsoleClosed");
+            } else {
+                APRINTER_CONSOLE_MSG("//TcpConsoleError");
             }
+            
+            start_disconnect(c);
+        }
+        
+        void connection_recv_handler (Context c, size_t bytes_read)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED)
+            AMBRO_ASSERT(bytes_read <= BufferBaseSize - m_rx_buf_length)
+            
+            size_t write_offset = buf_add(m_rx_buf_start, m_rx_buf_length);
+            size_t first_chunk_len = MinValue(bytes_read, (size_t)(BufferBaseSize - write_offset));
+            
+            m_connection.copyReceivedData(c, m_rx_buf + write_offset, first_chunk_len);
+            if (first_chunk_len < bytes_read) {
+                m_connection.copyReceivedData(c, m_rx_buf, bytes_read - first_chunk_len);
+            }
+            
+            if (write_offset < WrapExtraSize) {
+                memcpy(m_rx_buf + BufferBaseSize + write_offset, m_rx_buf + write_offset, MinValue(bytes_read, WrapExtraSize - write_offset));
+            }
+            if (bytes_read > BufferBaseSize - write_offset) {
+                memcpy(m_rx_buf + BufferBaseSize, m_rx_buf, MinValue(bytes_read - (BufferBaseSize - write_offset), WrapExtraSize));
+            }
+            
+            m_rx_buf_length += bytes_read;
+            
+            if (!m_command_stream.hasCommand(c) && !m_next_event.isSet(c)) {
+                m_next_event.prependNowNotAlready(c);
+            }
+        }
+        
+        void connection_send_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED)
+            
+            update_send_buf_event(c);
+        }
+        
+        static size_t buf_add (size_t start, size_t count)
+        {
+            size_t x = start + count;
+            if (x >= BufferBaseSize) {
+                x -= BufferBaseSize;
+            }
+            return x;
+        }
+        
+        void next_event_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
+            AMBRO_ASSERT(!m_command_stream.hasCommand(c))
+            
+            if (m_state == State::DISCONNECTED_WAIT_CMD) {
+                return disconnect(c);
+            }
+            
+            size_t avail = MinValue(Params::MaxCommandSize, m_rx_buf_length);
+            bool line_buffer_exhausted = (avail == Params::MaxCommandSize);
+            
+            if (!m_gcode_parser.haveCommand(c)) {
+                m_gcode_parser.startCommand(c, m_rx_buf + m_rx_buf_start, 0);
+            }
+            
+            if (m_gcode_parser.extendCommand(c, avail, line_buffer_exhausted)) {
+                return m_command_stream.startCommand(c, &m_gcode_parser);
+            }
+            
+            if (line_buffer_exhausted) {
+                return disconnect(c);
+            }
+        }
+        
+        void send_buf_check_event_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
+            AMBRO_ASSERT(m_send_buf_request > 0)
+            
+            if (m_state != State::CONNECTED || m_connection.getSendBufferSpace(c) >= m_send_buf_request + MaxFinishLen) {
+                m_send_buf_request = 0;
+                return m_command_stream.reportSendBufEventDirectly(c);
+            }
+        }
+        
+        bool start_command_impl (Context c)
+        {
             return true;
         }
         
         void finish_command_impl (Context c, bool no_ok)
         {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->command_stream.hasCommand(c))
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
             
-            if (!no_ok) {
-                o->command_stream.reply_append_pstr(c, AMBRO_PSTR(SERIALMODULE_OK_STR));
+            if (m_state == State::CONNECTED) {
+                if (!no_ok) {
+                    m_command_stream.reply_append_pstr(c, AMBRO_PSTR(TCPCONSOLE_OK_STR));
+                }
+                m_connection.pokeSending(c);
+                
+                size_t cmd_len = m_gcode_parser.getLength(c);
+                AMBRO_ASSERT(cmd_len <= m_rx_buf_length)
+                
+                m_rx_buf_start = buf_add(m_rx_buf_start, cmd_len);
+                m_rx_buf_length -= cmd_len;
+                
+                m_connection.acceptReceivedData(c, cmd_len);
             }
-            TheSerial::sendPoke(c);
-            TheSerial::recvConsume(c, RecvSizeType::import(TheGcodeParser::getLength(c)));
-            TheSerial::recvForceEvent(c);
+            
+            m_next_event.prependNowNotAlready(c);
         }
         
         void reply_poke_impl (Context c)
         {
-            TheSerial::sendPoke(c);
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
+            
+            if (m_state == State::CONNECTED) {
+                m_connection.pokeSending(c);
+            }
         }
         
         void reply_append_buffer_impl (Context c, char const *str, size_t length)
         {
-            SendSizeType avail = TheSerial::sendQuery(c);
-            if (length > avail.value()) {
-                length = avail.value();
-            }
-            while (length > 0) {
-                char *chunk_data = TheSerial::sendGetChunkPtr(c);
-                uint8_t chunk_length = TheSerial::sendGetChunkLen(c, SendSizeType::import(length)).value();
-                memcpy(chunk_data, str, chunk_length);
-                str += chunk_length;
-                TheSerial::sendProvide(c, SendSizeType::import(chunk_length));
-                length -= chunk_length;
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
+            
+            if (m_state == State::CONNECTED) {
+                size_t avail = m_connection.getSendBufferSpace(c);
+                if (avail < length) {
+                    m_connection.raiseError(c);
+                    return;
+                }
+                m_connection.copySendData(c, str, length);
             }
         }
-        
-#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
-        void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length)
-        {
-            SendSizeType avail = TheSerial::sendQuery(c);
-            if (length > avail.value()) {
-                length = avail.value();
-            }
-            while (length > 0) {
-                char *chunk_data = TheSerial::sendGetChunkPtr(c);
-                uint8_t chunk_length = TheSerial::sendGetChunkLen(c, SendSizeType::import(length)).value();
-                AMBRO_PGM_MEMCPY(chunk_data, pstr, chunk_length);
-                pstr += chunk_length;
-                TheSerial::sendProvide(c, SendSizeType::import(chunk_length));
-                length -= chunk_length;
-            }
-        }
-#endif
         
         bool request_send_buf_event_impl (Context c, size_t length)
         {
-            if (length > SendSizeType::maxIntValue() - MaxFinishLen) {
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
+            AMBRO_ASSERT(m_send_buf_request == 0)
+            AMBRO_ASSERT(length > 0)
+            
+            if (length > TheTcpConnection::ProvidedTxBufSize - MaxFinishLen) {
                 return false;
             }
-            TheSerial::sendRequestEvent(c, SendSizeType::import(length + MaxFinishLen));
+            m_send_buf_request = length;
+            m_send_buf_check_event.prependNowNotAlready(c);
             return true;
         }
         
         void cancel_send_buf_event_impl (Context c)
         {
-            TheSerial::sendRequestEvent(c, SendSizeType::import(0));
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
+            AMBRO_ASSERT(m_send_buf_request > 0)
+            
+            m_send_buf_request = 0;
+            m_send_buf_check_event.unset(c);
         }
+        
+        typename Context::EventLoop::QueuedEvent m_next_event;
+        typename Context::EventLoop::QueuedEvent m_send_buf_check_event;
+        TheTcpConnection m_connection;
+        TheGcodeParser m_gcode_parser;
+        typename ThePrinterMain::CommandStream m_command_stream;
+        size_t m_rx_buf_start;
+        size_t m_rx_buf_length;
+        size_t m_send_buf_request;
+        State m_state;
+        char m_rx_buf[BufferBaseSize + WrapExtraSize];
     };
     
-    static void serial_recv_handler (Context c)
-    {
-        auto *o = Object::self(c);
-        
-        if (o->command_stream.hasCommand(c)) {
-            return;
-        }
-        if (!TheGcodeParser::haveCommand(c)) {
-            TheGcodeParser::startCommand(c, TheSerial::recvGetChunkPtr(c), o->m_recv_next_error);
-            o->m_recv_next_error = 0;
-        }
-        bool overrun;
-        RecvSizeType avail = TheSerial::recvQuery(c, &overrun);
-        if (TheGcodeParser::extendCommand(c, avail.value())) {
-            return o->command_stream.startCommand(c, &o->gcode_command);
-        }
-        if (overrun) {
-            TheSerial::recvConsume(c, avail);
-            TheSerial::recvClearOverrun(c);
-            TheGcodeParser::resetCommand(c);
-            o->m_recv_next_error = GCODE_ERROR_RECV_OVERRUN;
-        }
-    }
-    struct SerialRecvHandler : public AMBRO_WFUNC_TD(&SerialModule::serial_recv_handler) {};
-    
-    static void serial_send_handler (Context c)
-    {
-        auto *o = Object::self(c);
-        o->command_stream.reportSendBufEventDirectly(c);
-    }
-    struct SerialSendHandler : public AMBRO_WFUNC_TD(&SerialModule::serial_send_handler) {};
-    */
-    
 public:
-    struct Object : public ObjBase<TcpConsoleModule, ParentObject, MakeTypeList<
-        TheGcodeParser
-    >> {
+    struct Object : public ObjBase<TcpConsoleModule, ParentObject, EmptyTypeList> {
         typename Context::Network::TcpListener listener;
-        bool listener_working;
-        typename Context::Network::TcpConnection connection;
-        bool have_connection;
-        /*
-        typename ThePrinterMain::CommandStream command_stream;
-        StreamCallback callback;
-        GcodeCommandWrapper<Context, typename ThePrinterMain::FpType, TheGcodeParser> gcode_command;
-        int8_t m_recv_next_error;
-        uint32_t m_line_number;
-        */
+        Client clients[MaxClients];
     };
 };
 
 template <
     typename TTheGcodeParserParams,
-    uint16_t TPort
+    uint16_t TPort,
+    int TMaxClients,
+    size_t TMaxCommandSize
 >
 struct TcpConsoleModuleService {
     using TheGcodeParserParams = TTheGcodeParserParams;
     static uint16_t const Port = TPort;
+    static int const MaxClients = TMaxClients;
+    static size_t const MaxCommandSize = TMaxCommandSize;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
     using Module = TcpConsoleModule<Context, ParentObject, ThePrinterMain, TcpConsoleModuleService>;

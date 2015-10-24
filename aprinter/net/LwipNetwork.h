@@ -251,7 +251,7 @@ public:
     };
     
     class TcpConnection {
-        enum class State : uint8_t {IDLE, RUNNING, ERRORED};
+        enum class State : uint8_t {IDLE, RUNNING, ERRORING, ERRORED};
         
     public:
         using ErrorHandler = Callback<void(Context, bool remote_closed)>;
@@ -265,9 +265,13 @@ public:
         
         using SendHandler = Callback<void(Context)>;
         
+        static size_t const RequiredRxBufSize = TCP_WND;
+        static size_t const ProvidedTxBufSize = TCP_SND_BUF;
+        
         void init (Context c, ErrorHandler error_handler, RecvHandler recv_handler, SendHandler send_handler)
         {
             m_closed_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::closed_event_handler, this));
+            m_sent_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::sent_event_handler, this));
             m_error_handler = error_handler;
             m_recv_handler = recv_handler;
             m_send_handler = send_handler;
@@ -279,6 +283,7 @@ public:
         void deinit (Context c)
         {
             reset_internal(c);
+            m_sent_event.deinit(c);
             m_closed_event.deinit(c);
         }
         
@@ -307,10 +312,18 @@ public:
             m_recv_pending = 0;
         }
         
+        void raiseError (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            
+            if (m_state == State::RUNNING) {
+                go_erroring(c, false);
+            }
+        }
+        
         void copyReceivedData (Context c, char *buffer, size_t length)
         {
             AMBRO_ASSERT(m_state == State::RUNNING)
-            AMBRO_ASSERT(m_pcb)
             AMBRO_ASSERT(m_received_pbuf)
             
             while (length > 0) {
@@ -325,7 +338,7 @@ public:
                 
                 size_t bytes_to_take = MinValue(length, rem_bytes_in_pbuf);
                 
-                memcpy(buffer, m_received_pbuf->payload + m_received_offset, bytes_to_take);
+                memcpy(buffer, (char *)m_received_pbuf->payload + m_received_offset, bytes_to_take);
                 buffer += bytes_to_take;
                 length -= bytes_to_take;
                 
@@ -335,13 +348,49 @@ public:
         
         void acceptReceivedData (Context c, size_t amount)
         {
-            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORED)
+            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
             AMBRO_ASSERT(amount <= m_recv_pending)
             
             m_recv_pending -= amount;
             
             if (m_state == State::RUNNING) {
                 tcp_recved(m_pcb, amount);
+            }
+        }
+        
+        size_t getSendBufferSpace (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            
+            if (m_state == State::RUNNING) {
+                return tcp_sndbuf(m_pcb);
+            } else {
+                return ProvidedTxBufSize;
+            }
+        }
+        
+        void copySendData (Context c, char const *data, size_t amount)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            AMBRO_ASSERT(m_state != State::RUNNING || amount <= tcp_sndbuf(m_pcb))
+            
+            if (m_state == State::RUNNING) {
+                auto err = tcp_write(m_pcb, data, amount, TCP_WRITE_FLAG_COPY);
+                if (err != ERR_OK) {
+                    go_erroring(c, false);
+                }
+            }
+        }
+        
+        void pokeSending (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            
+            if (m_state == State::RUNNING) {
+                auto err = tcp_output(m_pcb);
+                if (err != ERR_OK) {
+                    go_erroring(c, false);
+                }
             }
         }
         
@@ -352,14 +401,28 @@ public:
             
             if (m_pcb) {
                 remove_pcb_callbacks(m_pcb);
-                auto err = tcp_close(m_pcb);
-                if (err != ERR_OK) {
-                    tcp_abort(m_pcb);
-                }
+                close_pcb(m_pcb);
                 m_pcb = nullptr;
             }
+            m_sent_event.unset(c);
             m_closed_event.unset(c);
             m_state = State::IDLE;
+        }
+        
+        void go_erroring (Context c, bool pcb_gone)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING)
+            
+            remove_pcb_callbacks(m_pcb);
+            if (pcb_gone) {
+                m_pcb = nullptr;
+            }
+            m_state = State::ERRORING;
+            m_sent_event.unset(c);
+            
+            if (!m_closed_event.isSet(c)) {
+                m_closed_event.prependNowNotAlready(c);
+            }
         }
         
         static void pcb_err_handler_wrapper (void *arg, err_t err)
@@ -372,15 +435,8 @@ public:
         {
             Context c;
             AMBRO_ASSERT(m_state == State::RUNNING)
-            AMBRO_ASSERT(m_pcb)
             
-            remove_pcb_callbacks(m_pcb);
-            m_pcb = nullptr;
-            m_state = State::ERRORED;
-            
-            if (!m_closed_event.isSet(c)) {
-                m_closed_event.prependNowNotAlready(c);
-            }
+            go_erroring(c, true);
         }
         
         static err_t pcb_recv_handler_wrapper (void *arg, struct tcp_pcb *tpcb, struct pbuf *p, err_t err)
@@ -393,10 +449,10 @@ public:
         {
             Context c;
             AMBRO_ASSERT(m_state == State::RUNNING)
-            AMBRO_ASSERT(m_pcb)
             AMBRO_ASSERT(!m_received_pbuf)
             AMBRO_ASSERT(tpcb == m_pcb)
             AMBRO_ASSERT(err == ERR_OK)
+            AMBRO_ASSERT(!p || p->tot_len <= RequiredRxBufSize - m_recv_pending)
             
             if (!p) {
                 if (!m_recv_remote_closed) {
@@ -428,28 +484,43 @@ public:
         
         err_t pcb_sent_handler (struct tcp_pcb *tpcb, uint16_t len)
         {
-            //
+            Context c;
+            AMBRO_ASSERT(m_state == State::RUNNING)
+            
+            if (!m_sent_event.isSet(c)) {
+                m_sent_event.prependNowNotAlready(c);
+            }
             return ERR_OK;
         }
         
         void closed_event_handler (Context c)
         {
             switch (m_state) {
-                case State::ERRORED: {
-                    AMBRO_ASSERT(!m_pcb)
-                    
-                    return m_error_handler(c, false);
-                } break;
-                
                 case State::RUNNING: {
-                    AMBRO_ASSERT(m_pcb)
                     AMBRO_ASSERT(m_recv_remote_closed)
                     
                     return m_error_handler(c, true);
                 } break;
                 
+                case State::ERRORING: {
+                    if (m_pcb) {
+                        close_pcb(m_pcb);
+                        m_pcb = nullptr;
+                    }
+                    m_state = State::ERRORED;
+                    
+                    return m_error_handler(c, false);
+                } break;
+                
                 default: AMBRO_ASSERT(false);
             }
+        }
+        
+        void sent_event_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING)
+            
+            return m_send_handler(c);
         }
         
         static void remove_pcb_callbacks (struct tcp_pcb *pcb)
@@ -460,7 +531,16 @@ public:
             tcp_sent(pcb, nullptr);
         }
         
+        static void close_pcb (struct tcp_pcb *pcb)
+        {
+            auto err = tcp_close(pcb);
+            if (err != ERR_OK) {
+                tcp_abort(pcb);
+            }
+        }
+        
         typename Context::EventLoop::QueuedEvent m_closed_event;
+        typename Context::EventLoop::QueuedEvent m_sent_event;
         ErrorHandler m_error_handler;
         RecvHandler m_recv_handler;
         SendHandler m_send_handler;

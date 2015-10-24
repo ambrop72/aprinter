@@ -1432,12 +1432,40 @@ def generate(config_root_data, cfg_name, main_template):
                             gen.add_mac_addr_config('NetworkMacAddress', network_config.get_mac_addr('MacAddress')),
                         ]))
                         
-                        gen.add_aprinter_include('printer/TcpConsoleModule.h')
-                        tcp_console_module = gen.add_module()
-                        tcp_console_module.set_expr(TemplateExpr('TcpConsoleModuleService', [
-                            TemplateExpr('GcodeParserParams', [32]),
-                            23
-                        ]))
+                        tcpconsole_sel = selection.Selection()
+                        
+                        @tcpconsole_sel.option('NoTcpConsole')
+                        def option(tcpconsole_config):
+                            pass
+                        
+                        @tcpconsole_sel.option('TcpConsole')
+                        def option(tcpconsole_config):
+                            console_port = tcpconsole_config.get_int('Port')
+                            if not (1 <= console_port <= 65534):
+                                tcpconsole_config.key_path('Port').error('Bad value.')
+                            
+                            console_max_clients = tcpconsole_config.get_int('MaxClients')
+                            if not (1 <= console_max_clients <= 20):
+                                tcpconsole_config.key_path('MaxClients').error('Bad value.')
+                            
+                            console_max_parts = tcpconsole_config.get_int('MaxParts')
+                            if not (1 <= console_max_parts <= 64):
+                                tcpconsole_config.key_path('MaxParts').error('Bad value.')
+                            
+                            console_max_command_size = tcpconsole_config.get_int('MaxCommandSize')
+                            if not (1 <= console_max_command_size <= 512):
+                                tcpconsole_config.key_path('MaxCommandSize').error('Bad value.')
+                            
+                            gen.add_aprinter_include('printer/TcpConsoleModule.h')
+                            tcp_console_module = gen.add_module()
+                            tcp_console_module.set_expr(TemplateExpr('TcpConsoleModuleService', [
+                                TemplateExpr('GcodeParserParams', [console_max_parts]),
+                                console_port,
+                                console_max_clients,
+                                console_max_command_size,
+                            ]))
+                        
+                        network_config.do_selection('tcpconsole', tcpconsole_sel)
                 
                 config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
                 

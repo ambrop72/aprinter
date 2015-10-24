@@ -734,6 +734,15 @@ def editor():
                             ]),
                         ]),
                         ce.String(key='MacAddress', title='MAC address', default='BE:EF:DE:AD:FE:ED'),
+                        ce.OneOf(key='tcpconsole', title='TCP console', choices=[
+                            ce.Compound('NoTcpConsole', title='Disabled', attrs=[]),
+                            ce.Compound('TcpConsole', title='Enabled', attrs=[
+                                ce.Integer(key='Port', title='Console port number', default=23),
+                                ce.Integer(key='MaxClients', title='Maximum number of clients', default=2),
+                                ce.Integer(key='MaxParts', title='Max parts in GCode command', default=16),
+                                ce.Integer(key='MaxCommandSize', title='Maximum command size', default=64),
+                            ]),
+                        ]),
                     ])
                 ]),
             ]),
