@@ -304,10 +304,11 @@ tcp_seg_add_chksum(u16_t chksum, u16_t len, u16_t *seg_chksum,
  *
  * @param pcb the tcp pcb to check for
  * @param len length of data to send (checked agains snd_buf)
+ * @param apiflags flags passed to tcp_write (we consider TCP_WRITE_FLAG_PARTIAL)
  * @return ERR_OK if tcp_write is allowed to proceed, another err_t otherwise
  */
 static err_t
-tcp_write_checks(struct tcp_pcb *pcb, u16_t len)
+tcp_write_checks(struct tcp_pcb *pcb, u16_t len, u8_t apiflags)
 {
   /* connection is in invalid state for data transmission? */
   if ((pcb->state != ESTABLISHED) &&
@@ -333,7 +334,8 @@ tcp_write_checks(struct tcp_pcb *pcb, u16_t len)
   /* If total number of pbufs on the unsent/unacked queues exceeds the
    * configured maximum, return an error */
   /* check for configured max queuelen and possible overflow */
-  if ((pcb->snd_queuelen >= TCP_SND_QUEUELEN) || (pcb->snd_queuelen > TCP_SNDQUEUELEN_OVERFLOW)) {
+  if (!(apiflags & TCP_WRITE_FLAG_PARTIAL) &&
+      ((pcb->snd_queuelen >= TCP_SND_QUEUELEN) || (pcb->snd_queuelen > TCP_SNDQUEUELEN_OVERFLOW))) {
     LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 3, ("tcp_write: too long queue %"U16_F" (max %"U16_F")\n",
       pcb->snd_queuelen, TCP_SND_QUEUELEN));
     TCP_STATS_INC(tcp.memerr);
@@ -351,6 +353,15 @@ tcp_write_checks(struct tcp_pcb *pcb, u16_t len)
 }
 
 /**
+ * Same as tcp_write_ext with written_len==NULL.
+ */
+err_t
+tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
+{
+  return tcp_write_ext(pcb, arg, len, apiflags, NULL);
+}
+
+/**
  * Write data for sending (but does not send it immediately).
  *
  * It waits in the expectation of more data being sent soon (as
@@ -364,10 +375,15 @@ tcp_write_checks(struct tcp_pcb *pcb, u16_t len)
  * @param apiflags combination of following flags :
  * - TCP_WRITE_FLAG_COPY (0x01) data will be copied into memory belonging to the stack
  * - TCP_WRITE_FLAG_MORE (0x02) for TCP connection, PSH flag will not be set on last segment sent,
+ * - TCP_WRITE_FLAG_PARTIAL (0x04) allow writing less data than requested in case there are no
+ *                                 segments available
+ * @param written_len when not NULL and we return ERR_OK, this is set to the number
+ *                    of bytes written. It is only relevant when TCP_WRITE_FLAG_PARTIAL
+ *                    is used, in which case this must not be NULL.
  * @return ERR_OK if enqueued, another err_t on error
  */
 err_t
-tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
+tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u16_t *written_len)
 {
   struct pbuf *concat_p = NULL;
   struct tcp_seg *last_unsent = NULL, *seg = NULL, *prev_seg = NULL, *queue = NULL;
@@ -398,8 +414,10 @@ tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
     (void *)pcb, arg, len, (u16_t)apiflags));
   LWIP_ERROR("tcp_write: arg == NULL (programmer violates API)", 
              arg != NULL, return ERR_ARG;);
+  LWIP_ERROR("tcp_write: written_len == NULL with TCP_WRITE_FLAG_PARTIAL",
+             !(apiflags & TCP_WRITE_FLAG_PARTIAL) || written_len != NULL, return ERR_ARG;);
 
-  err = tcp_write_checks(pcb, len);
+  err = tcp_write_checks(pcb, len, apiflags);
   if (err != ERR_OK) {
     return err;
   }
@@ -551,6 +569,16 @@ tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
     u8_t chksum_swapped = 0;
 #endif /* TCP_CHECKSUM_ON_COPY */
 
+    /* If partial writes are allowed and we won't be able to allocate another segment,
+     * stop gracefully. */
+    if (apiflags & TCP_WRITE_FLAG_PARTIAL) {
+      u8_t num_seg_pbufs = (apiflags & TCP_WRITE_FLAG_COPY) ? 1 : 2;
+      u16_t new_queuelen = queuelen + num_seg_pbufs;
+      if ((new_queuelen > TCP_SND_QUEUELEN) || (new_queuelen > TCP_SNDQUEUELEN_OVERFLOW)) {
+        break;
+      }
+    }
+    
     if (apiflags & TCP_WRITE_FLAG_COPY) {
       /* If copy is set, memory should be allocated and data copied
        * into pbuf */
@@ -704,8 +732,8 @@ tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
   /*
    * Finally update the pcb state.
    */
-  pcb->snd_lbb += len;
-  pcb->snd_buf -= len;
+  pcb->snd_lbb += pos;
+  pcb->snd_buf -= pos;
   pcb->snd_queuelen = queuelen;
 
   LWIP_DEBUGF(TCP_QLEN_DEBUG, ("tcp_write: %"S16_F" (after enqueued)\n",
@@ -720,6 +748,9 @@ tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
     TCPH_SET_FLAG(seg->tcphdr, TCP_PSH);
   }
 
+  if (written_len != NULL) {
+    *written_len = pos;
+  }
   return ERR_OK;
 memerr:
   pcb->flags |= TF_NAGLEMEMERR;
