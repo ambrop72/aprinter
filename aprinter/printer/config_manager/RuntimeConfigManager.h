@@ -241,6 +241,75 @@ private:
         }
     };
     
+    template <typename Dummy>
+    struct TypeSpecific<ConfigTypeIpAddress, Dummy> {
+        static size_t const MaxStringValueLength = 15;
+        
+        static void get_value_cmd (Context c, TheCommand<> *cmd, ConfigTypeIpAddress value)
+        {
+            char str[MaxStringValueLength+1];
+            print_ip_addr(value, str);
+            cmd->reply_append_str(c, str);
+        }
+        
+        static void set_value_cmd (Context c, TheCommand<> *cmd, ConfigTypeIpAddress *value, ConfigTypeIpAddress default_value)
+        {
+            char const *str = cmd->get_command_param_str(c, 'V', nullptr);
+            if (!str || !parse_ip_addr(str, value)) {
+                *value = default_value;
+            }
+        }
+        
+        static void get_value_str (ConfigTypeIpAddress value, char *out_str)
+        {
+            print_ip_addr(value, out_str);
+        }
+        
+        static void set_value_str (ConfigTypeIpAddress *value, char const *in_str)
+        {
+            if (!parse_ip_addr(in_str, value)) {
+                *value = ConfigTypeIpAddress();
+            }
+        }
+        
+    private:
+        static void print_ip_addr (ConfigTypeIpAddress value, char *out_str)
+        {
+            sprintf(out_str, "%" PRIu8 ".%" PRIu8 ".%" PRIu8 ".%" PRIu8,
+                    value.ip_addr[0], value.ip_addr[1], value.ip_addr[2], value.ip_addr[3]);
+        }
+        
+        static bool parse_ip_addr (char const *str, ConfigTypeIpAddress *out_value)
+        {
+            for (size_t i = 0; i < ConfigTypeIpAddress::Size; i++) {
+                if (*str == '\0') {
+                    return false;
+                }
+                
+                char *end;
+                long int val = strtol(str, &end, 10);
+                
+                if (!(*end == '.' || *end == '\0')) {
+                    return false;
+                }
+                
+                if (!(val >= 0 && val <= 255)) {
+                    return false;
+                }
+                
+                out_value->ip_addr[i] = val;
+                
+                str = (*end == '\0') ? end : (end + 1);
+            }
+            
+            if (*str != '\0') {
+                return false;
+            }
+            
+            return true;
+        }
+    };
+    
     template <int TypeIndex, typename Dummy=void>
     struct TypeGeneral {
         using Type = TypeListGet<TypesList, TypeIndex>;

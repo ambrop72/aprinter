@@ -53,6 +53,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
+#include <aprinter/base/BinaryTools.h>
 #include <aprinter/hal/common/EthernetCommon.h>
 #include <aprinter/printer/Console.h>
 
@@ -78,8 +79,13 @@ private:
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)
     
 public:
-    struct ActivateParams {
-        uint8_t const *mac_addr;
+    struct NetworkParams {
+        uint8_t mac_addr[6];
+        bool link_up; // for getStatus() only 
+        bool dhcp_enabled;
+        uint8_t ip_addr[4];
+        uint8_t ip_netmask[4];
+        uint8_t ip_gateway[4];
     };
     
     static void init (Context c)
@@ -103,7 +109,7 @@ public:
         TheEthernet::deinit(c);
     }
     
-    static void activate (Context c, ActivateParams params)
+    static void activate (Context c, NetworkParams const *params)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(!o->net_activated)
@@ -131,12 +137,20 @@ public:
         return o->net_activated;
     }
     
-    static uint8_t const * getMacAddress (Context c)
+    static NetworkParams getStatus (Context c)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->net_activated)
         
-        return o->netif.hwaddr;
+        NetworkParams status;
+        memcpy(status.mac_addr, o->netif.hwaddr, sizeof(status.mac_addr));
+        status.link_up = TheEthernet::getLinkUp(c);
+        status.dhcp_enabled = (o->netif.dhcp != nullptr);
+        memcpy(status.ip_addr,    netif_ip4_addr(&o->netif),    sizeof(status.ip_addr));
+        memcpy(status.ip_netmask, netif_ip4_netmask(&o->netif), sizeof(status.ip_netmask));
+        memcpy(status.ip_gateway, netif_ip4_gw(&o->netif),      sizeof(status.ip_gateway));
+        
+        return status;
     }
     
     class TcpListener {
@@ -617,36 +631,55 @@ public:
     };
     
 private:
-    static void init_netif (Context c, ActivateParams params)
+    static ip4_addr_t make_ip4_addr (uint8_t const *addr)
+    {
+        uint32_t hostorder_addr = ReadBinaryInt<uint32_t, BinaryBigEndian>((char const *)addr);
+        return ip4_addr_t{PP_HTONL(hostorder_addr)};
+    }
+    
+    static void init_netif (Context c, NetworkParams const *params)
     {
         auto *o = Object::self(c);
         
         ip_addr_t the_ipaddr;
         ip_addr_t the_netmask;
         ip_addr_t the_gw;
-        ip_addr_set_zero(&the_ipaddr);
-        ip_addr_set_zero(&the_netmask);
-        ip_addr_set_zero(&the_gw);
+        
+        if (params->dhcp_enabled) {
+            ip_addr_set_zero_ip4(&the_ipaddr);
+            ip_addr_set_zero_ip4(&the_netmask);
+            ip_addr_set_zero_ip4(&the_gw);
+        } else {
+            ip_addr_copy_from_ip4(the_ipaddr,  make_ip4_addr(params->ip_addr));
+            ip_addr_copy_from_ip4(the_netmask, make_ip4_addr(params->ip_netmask));
+            ip_addr_copy_from_ip4(the_gw,      make_ip4_addr(params->ip_gateway));
+        }
         
         memset(&o->netif, 0, sizeof(o->netif));
         
-        netif_add(&o->netif, &the_ipaddr, &the_netmask, &the_gw, &params, &LwipNetwork::netif_if_init, ethernet_input);
+        netif_add(&o->netif, &the_ipaddr, &the_netmask, &the_gw, (void *)params, &LwipNetwork::netif_if_init, ethernet_input);
         netif_set_up(&o->netif);
         netif_set_default(&o->netif);
-        dhcp_start(&o->netif);
+        
+        if (params->dhcp_enabled) {
+            dhcp_start(&o->netif);
+        }
     }
     
     static void deinit_netif (Context c)
     {
         auto *o = Object::self(c);
         
-        dhcp_stop(&o->netif);
+        if (o->netif.dhcp != nullptr) {
+            dhcp_stop(&o->netif);
+        }
+        
         netif_remove(&o->netif);
     }
     
     static err_t netif_if_init (struct netif *netif)
     {
-        ActivateParams const *params = (ActivateParams const *)netif->state;
+        NetworkParams const *params = (NetworkParams const *)netif->state;
         
         netif->hostname = (char *)"aprinter";
         

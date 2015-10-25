@@ -26,8 +26,11 @@
 #define APRINTER_NETWORK_SUPPORT_MODULE_H
 
 #include <string.h>
+#include <stdio.h>
+#include <inttypes.h>
 
 #include <aprinter/base/Object.h>
+#include <aprinter/base/ProgramMemory.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -42,32 +45,134 @@ private:
     using TheNetwork = typename Context::Network;
     
     using CMacAddress = decltype(Config::e(Params::MacAddress::i()));
+    using CDhcpEnabled = decltype(Config::e(Params::DhcpEnabled::i()));
+    using CIpAddress = decltype(Config::e(Params::IpAddress::i()));
+    using CIpNetmask = decltype(Config::e(Params::IpNetmask::i()));
+    using CIpGateway = decltype(Config::e(Params::IpGateway::i()));
     
 public:
     static void configuration_changed (Context c)
     {
-        ConfigTypeMacAddress mac = APRINTER_CFG(Config, CMacAddress, c);
+        ConfigTypeMacAddress cfg_mac       = APRINTER_CFG(Config, CMacAddress, c);
+        bool cfg_dhcp_enabled              = APRINTER_CFG(Config, CDhcpEnabled, c);
+        ConfigTypeIpAddress cfg_ip_addr    = APRINTER_CFG(Config, CIpAddress, c);
+        ConfigTypeIpAddress cfg_ip_netmask = APRINTER_CFG(Config, CIpNetmask, c);
+        ConfigTypeIpAddress cfg_ip_gateway = APRINTER_CFG(Config, CIpGateway, c);
         
-        if (TheNetwork::isActivated(c) && memcmp(mac.mac_addr, TheNetwork::getMacAddress(c), sizeof(mac.mac_addr))) {
-            TheNetwork::deactivate(c);
+        if (TheNetwork::isActivated(c)) {
+            auto status = TheNetwork::getStatus(c);
+            
+            bool match =
+                memcmp(cfg_mac.mac_addr, status.mac_addr, ConfigTypeMacAddress::Size) == 0 &&
+                cfg_dhcp_enabled == status.dhcp_enabled &&
+                (cfg_dhcp_enabled || (
+                    memcmp(cfg_ip_addr.ip_addr,    status.ip_addr,    ConfigTypeIpAddress::Size) == 0 &&
+                    memcmp(cfg_ip_netmask.ip_addr, status.ip_netmask, ConfigTypeIpAddress::Size) == 0 &&
+                    memcmp(cfg_ip_gateway.ip_addr, status.ip_gateway, ConfigTypeIpAddress::Size) == 0
+                ));
+            
+            if (!match) {
+                TheNetwork::deactivate(c);
+            }
         }
         
         if (!TheNetwork::isActivated(c)) {
-            TheNetwork::activate(c, typename TheNetwork::ActivateParams{mac.mac_addr});
+            auto params = typename TheNetwork::NetworkParams();
+            memcpy(params.mac_addr, cfg_mac.mac_addr, ConfigTypeMacAddress::Size);
+            params.dhcp_enabled = cfg_dhcp_enabled;
+            if (!cfg_dhcp_enabled) {
+                memcpy(params.ip_addr,    cfg_ip_addr.ip_addr,    ConfigTypeIpAddress::Size);
+                memcpy(params.ip_netmask, cfg_ip_netmask.ip_addr, ConfigTypeIpAddress::Size);
+                memcpy(params.ip_gateway, cfg_ip_gateway.ip_addr, ConfigTypeIpAddress::Size);
+            }
+            
+            TheNetwork::activate(c, &params);
+        }
+    }
+    
+    static bool check_command (Context c, typename ThePrinterMain::TheCommand *cmd)
+    {
+        if (cmd->getCmdNumber(c) == 940) {
+            handle_status_command(c, cmd);
+            return false;
+        }
+        return true;
+    }
+    
+private:
+    static void handle_status_command (Context c, typename ThePrinterMain::TheCommand *cmd)
+    {
+        cmd->reply_append_pstr(c, AMBRO_PSTR("Network: "));
+        
+        if (!TheNetwork::isActivated(c)) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Inactive"));
+        } else {
+            auto status = TheNetwork::getStatus(c);
+            
+            cmd->reply_append_pstr(c, AMBRO_PSTR("MAC="));
+            print_mac_addr(c, cmd, status.mac_addr);
+            
+            cmd->reply_append_pstr(c, AMBRO_PSTR(" Link="));
+            cmd->reply_append_pstr(c, status.link_up ? AMBRO_PSTR("Up") : AMBRO_PSTR("Down"));
+            
+            cmd->reply_append_pstr(c, AMBRO_PSTR(" DHCP="));
+            cmd->reply_append_pstr(c, status.dhcp_enabled ? AMBRO_PSTR("On") : AMBRO_PSTR("Off"));
+            
+            cmd->reply_append_pstr(c, AMBRO_PSTR(" Addr="));
+            print_ip_addr(c, cmd, status.ip_addr);
+            
+            cmd->reply_append_pstr(c, AMBRO_PSTR(" Mask="));
+            print_ip_addr(c, cmd, status.ip_netmask);
+            
+            cmd->reply_append_pstr(c, AMBRO_PSTR(" Gateway="));
+            print_ip_addr(c, cmd, status.ip_gateway);
+        }
+        
+        cmd->reply_append_ch(c, '\n');
+        cmd->finishCommand(c);
+    }
+    
+    static void print_mac_addr (Context c, typename ThePrinterMain::TheCommand *cmd, uint8_t const *addr)
+    {
+        for (int i = 0; i < 6; i++) {
+            if (i > 0) {
+                cmd->reply_append_ch(c, ':');
+            }
+            char str[3];
+            sprintf(str, "%02" PRIx8, addr[i]);
+            cmd->reply_append_str(c, str);
+        }
+    }
+    
+    static void print_ip_addr (Context c, typename ThePrinterMain::TheCommand *cmd, uint8_t const *addr)
+    {
+        for (int i = 0; i < 4; i++) {
+            if (i > 0) {
+                cmd->reply_append_ch(c, '.');
+            }
+            cmd->reply_append_uint32(c, addr[i]);
         }
     }
     
 public:
-    using ConfigExprs = MakeTypeList<CMacAddress>;
+    using ConfigExprs = MakeTypeList<CMacAddress, CDhcpEnabled, CIpAddress, CIpNetmask, CIpGateway>;
     
     struct Object : public ObjBase<NetworkSupportModule, ParentObject, EmptyTypeList> {};
 };
 
 template <
-    typename TMacAddress
+    typename TMacAddress,
+    typename TDhcpEnabled,
+    typename TIpAddress,
+    typename TIpNetmask,
+    typename TIpGateway
 >
 struct NetworkSupportModuleService {
     using MacAddress = TMacAddress;
+    using DhcpEnabled = TDhcpEnabled;
+    using IpAddress = TIpAddress;
+    using IpNetmask = TIpNetmask;
+    using IpGateway = TIpGateway;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
     using Module = NetworkSupportModule<Context, ParentObject, ThePrinterMain, NetworkSupportModuleService>;

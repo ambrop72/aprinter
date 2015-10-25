@@ -88,6 +88,11 @@ class GenState(object):
         val_str = '(ConfigTypeMacAddress{{{{{}}}}})'.format(', '.join('0x{:02x}'.format(x) for x in value))
         return self.add_config(name, 'ConfigTypeMacAddress', val_str, is_complex=True, **kwargs)
     
+    def add_ip_addr_config (self, name, value, **kwargs):
+        assert len(value) == 4
+        val_str = '(ConfigTypeIpAddress{{{{{}}}}})'.format(', '.join('{}'.format(x) for x in value))
+        return self.add_config(name, 'ConfigTypeIpAddress', val_str, is_complex=True, **kwargs)
+    
     def add_float_constant (self, name, value):
         self._constants.append({'type':'using', 'name':name, 'value':'AMBRO_WRAP_DOUBLE({})'.format(format_cpp_float(value))})
         return name
@@ -261,6 +266,18 @@ class GenConfigReader(config_reader.ConfigReader):
         if not m:
             self.key_path(key).error('Incorrect format.')
         return [int(m.group(i), 16) for i in range(1, 7)]
+    
+    def get_ip_addr (self, key):
+        val = self.get_string(key)
+        br = '([0-9]{1,3})'
+        ip_re = '\\A{}\\.{}\\.{}\\.{}\\Z'.format(br, br, br, br)
+        m = re.match(ip_re, val)
+        if not m:
+            self.key_path(key).error('Incorrect format A.')
+        ints = [int(m.group(i), 10) for i in range(1, 5)]
+        if any(d > 255 for d in ints):
+            self.key_path(key).error('Incorrect format B.')
+        return ints
     
     def do_selection (self, key, sel_def):
         for config in self.enter_config(key):
@@ -1441,6 +1458,10 @@ def generate(config_root_data, cfg_name, main_template):
                         network_support_module = gen.add_module()
                         network_support_module.set_expr(TemplateExpr('NetworkSupportModuleService', [
                             gen.add_mac_addr_config('NetworkMacAddress', network_config.get_mac_addr('MacAddress')),
+                            gen.add_bool_config('NetworkDhcpEnabled', network_config.get_bool('DhcpEnabled')),
+                            gen.add_ip_addr_config('NetworkIpAddress', network_config.get_ip_addr('IpAddress')),
+                            gen.add_ip_addr_config('NetworkIpNetmask', network_config.get_ip_addr('IpNetmask')),
+                            gen.add_ip_addr_config('NetworkIpGateway', network_config.get_ip_addr('IpGateway')),
                         ]))
                         
                         tcpconsole_sel = selection.Selection()

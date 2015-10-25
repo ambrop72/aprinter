@@ -95,6 +95,12 @@ struct ConfigTypeMacAddress {
     uint8_t mac_addr[Size];
 };
 
+struct ConfigTypeIpAddress {
+    static size_t const Size = 4;
+    
+    uint8_t ip_addr[Size];
+};
+
 template <typename Context, typename ParentObject, typename DelayedExprsList>
 class ConfigCache {
 public:

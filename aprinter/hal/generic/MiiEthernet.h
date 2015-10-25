@@ -125,6 +125,12 @@ public:
         return TheMii::sendFrame(c, send_buffer);
     }
     
+    static bool getLinkUp (Context c)
+    {
+        auto *o = Object::self(c);
+        return o->link_up;
+    }
+    
 private:
     static void mii_activate_handler (Context c, bool error)
     {
