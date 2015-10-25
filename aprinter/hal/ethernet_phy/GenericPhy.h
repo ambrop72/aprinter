@@ -324,10 +324,10 @@ public:
                     }
                 }
                 
-                PhyRequester::linkIsUp(c, MiiLinkParams{speed, pause_config});
-                
                 o->state = State::LINK_UP_WAIT;
                 o->timer.appendNowNotAlready(c);
+                
+                return PhyRequester::linkIsUp(c, MiiLinkParams{speed, pause_config});
             } break;
             
             case State::LINK_UP_READ_STATUS: {
@@ -337,9 +337,9 @@ public:
                     return;
                 }
                 
-                PhyRequester::linkIsDown(c);
-                
                 go_waiting_link(c);
+                
+                return PhyRequester::linkIsDown(c);
             } break;
             
             default: AMBRO_ASSERT(false);
@@ -415,12 +415,14 @@ private:
     {
         auto *o = Object::self(c);
         
-        if (o->state == State::LINK_UP_WAIT || o->state == State::LINK_UP_READ_STATUS) {
-            PhyRequester::linkIsDown(c);
-        }
+        bool call_link_down = (o->state == State::LINK_UP_WAIT || o->state == State::LINK_UP_READ_STATUS);
         
         o->state = State::WAIT_TO_RESET;
         set_timer_after(c, BeforeResetTicks);
+        
+        if (call_link_down) {
+            return PhyRequester::linkIsDown(c);
+        }
     }
     
     static void go_resetting (Context c)

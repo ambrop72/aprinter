@@ -69,17 +69,14 @@ public:
         
         TheMii::init(c);
         ThePhy::init(c);
-        o->event.init(c, APRINTER_CB_STATFUNC_T(&MiiEthernet::event_handler));
         o->init_state = InitState::INACTIVE;
         o->link_up = false;
-        o->link_downup = false;
     }
     
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
         
-        o->event.deinit(c);
         ThePhy::deinit(c);
         TheMii::deinit(c);
     }
@@ -88,12 +85,10 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->event.unset(c);
         ThePhy::reset(c);
         TheMii::reset(c);
         o->init_state = InitState::INACTIVE;
         o->link_up = false;
-        o->link_downup = false;
     }
     
     static void activate (Context c, uint8_t const *mac_addr)
@@ -202,16 +197,11 @@ private:
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->init_state == InitState::RUNNING)
             AMBRO_ASSERT(!o->link_up)
-            AMBRO_ASSERT(!o->link_downup)
             
             TheMii::configureLink(c, link_params);
             o->link_up = true;
             
-            if (o->event.isSet(c)) {
-                o->link_downup = true;
-            } else {
-                o->event.prependNowNotAlready(c);
-            }
+            return ClientParams::LinkHandler::call(c, true);
         }
         
         static void linkIsDown (Context c)
@@ -226,35 +216,9 @@ private:
             TheMii::resetLink(c);
             o->link_up = false;
             
-            if (o->event.isSet(c)) {
-                if (o->link_downup) {
-                    o->link_downup = false;
-                } else {
-                    o->event.unset(c);
-                }
-            } else {
-                AMBRO_ASSERT(!o->link_downup)
-                o->event.prependNowNotAlready(c);
-            }
+            return ClientParams::LinkHandler::call(c, false);
         }
     };
-    
-    static void event_handler (Context c)
-    {
-        auto *o = Object::self(c);
-        
-        bool report_link;
-        
-        if (o->link_downup) {
-            report_link = false;
-            o->event.prependNowNotAlready(c);
-            o->link_downup = false;
-        } else {
-            report_link = o->link_up;
-        }
-        
-        return ClientParams::LinkHandler::call(c, report_link);
-    }
     
 public:
     using GetMii = TheMii;
@@ -263,10 +227,8 @@ public:
         TheMii,
         ThePhy
     >> {
-        typename Context::EventLoop::QueuedEvent event;
         InitState init_state;
         bool link_up;
-        bool link_downup;
     };
 };
 

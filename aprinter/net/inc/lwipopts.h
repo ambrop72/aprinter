@@ -41,6 +41,7 @@
 #define LWIP_SOCKET 0
 #define LWIP_STATS 0
 #define LWIP_DHCP_CHECK_LINK_UP 1
+#define LWIP_NETIF_STATUS_CALLBACK 1
 #define LWIP_DISABLE_TCP_SANITY_CHECKS 1
 
 // Size of ARP table. Add one extra entry for every TCP connection.

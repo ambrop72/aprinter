@@ -31,6 +31,7 @@
 
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
+#include <aprinter/base/Callback.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -51,6 +52,19 @@ private:
     using CIpGateway = decltype(Config::e(Params::IpGateway::i()));
     
 public:
+    static void init (Context c)
+    {
+        auto *o = Object::self(c);
+        o->network_event_listener.init(c, APRINTER_CB_STATFUNC_T(&NetworkSupportModule::network_event_handler));
+        o->network_event_listener.startListening(c);
+    }
+    
+    static void deinit (Context c)
+    {
+        auto *o = Object::self(c);
+        o->network_event_listener.deinit(c);
+    }
+    
     static void configuration_changed (Context c)
     {
         ConfigTypeMacAddress cfg_mac       = APRINTER_CFG(Config, CMacAddress, c);
@@ -154,10 +168,34 @@ private:
         }
     }
     
+    static void network_event_handler (Context c, typename TheNetwork::NetworkEvent event)
+    {
+        auto *out = ThePrinterMain::get_msg_output(c);
+        
+        switch (event.type) {
+            case TheNetwork::NetworkEventType::ACTIVATION: {
+                out->reply_append_pstr(c, event.activation.error ? AMBRO_PSTR("//EthActivateErr\n") : AMBRO_PSTR("//EthActivateOk\n"));
+                out->reply_poke(c);
+            } break;
+            
+            case TheNetwork::NetworkEventType::LINK: {
+                out->reply_append_pstr(c, event.link.up ? AMBRO_PSTR("//EthLinkUp\n") : AMBRO_PSTR("//EthLinkDown\n"));
+                out->reply_poke(c);
+            } break;
+            
+            case TheNetwork::NetworkEventType::DHCP: {
+                out->reply_append_pstr(c, event.dhcp.up ? AMBRO_PSTR("//DhcpLeaseObtained\n") : AMBRO_PSTR("//DhcpLeaseLost\n"));
+                out->reply_poke(c);
+            } break;
+        }
+    }
+    
 public:
     using ConfigExprs = MakeTypeList<CMacAddress, CDhcpEnabled, CIpAddress, CIpNetmask, CIpGateway>;
     
-    struct Object : public ObjBase<NetworkSupportModule, ParentObject, EmptyTypeList> {};
+    struct Object : public ObjBase<NetworkSupportModule, ParentObject, EmptyTypeList> {
+        typename TheNetwork::NetworkEventListener network_event_listener;
+    };
 };
 
 template <

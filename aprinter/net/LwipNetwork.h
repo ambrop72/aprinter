@@ -54,8 +54,8 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/BinaryTools.h>
+#include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/hal/common/EthernetCommon.h>
-#include <aprinter/printer/Console.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -93,6 +93,7 @@ public:
         auto *o = Object::self(c);
         
         TheEthernet::init(c);
+        o->event_listeners.init();
         Context::EventLoop::template initFastEvent<TimeoutsFastEvent>(c, LwipNetwork::timeouts_event_handler);
         o->net_activated = false;
         o->eth_activated = false;
@@ -104,6 +105,7 @@ public:
     static void deinit (Context c)
     {
         auto *o = Object::self(c);
+        AMBRO_ASSERT(o->event_listeners.isEmpty())
         
         Context::EventLoop::template resetFastEvent<TimeoutsFastEvent>(c);
         TheEthernet::deinit(c);
@@ -152,6 +154,71 @@ public:
         
         return status;
     }
+    
+    enum class NetworkEventType {ACTIVATION, LINK, DHCP};
+    
+    struct NetworkEvent {
+        NetworkEventType type;
+        union {
+            struct {
+                bool error;
+            } activation;
+            struct {
+                bool up;
+            } link;
+            struct {
+                bool up;
+            } dhcp;
+        };
+    };
+    
+    class NetworkEventListener {
+        friend LwipNetwork;
+        
+    public:
+        // WARNING: Don't do any funny calls back to this module directly from the event handler,
+        // especially not deinit/reset the NetworkEventListener.
+        using EventHandler = Callback<void(Context, NetworkEvent)>;
+        
+        void init (Context c, EventHandler event_handler)
+        {
+            m_event_handler = event_handler;
+            m_listening = false;
+        }
+        
+        void deinit (Context c)
+        {
+            reset_internal(c);
+        }
+        
+        void reset (Context c)
+        {
+            reset_internal(c);
+        }
+        
+        void startListening (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(!m_listening)
+            
+            m_listening = true;
+            o->event_listeners.prepend(this);
+        }
+        
+    private:
+        void reset_internal (Context c)
+        {
+            if (m_listening) {
+                auto *o = Object::self(c);
+                o->event_listeners.remove(this);
+                m_listening = false;
+            }
+        }
+        
+        EventHandler m_event_handler;
+        bool m_listening;
+        DoubleEndedListNode<NetworkEventListener> m_node;
+    };
     
     class TcpListener {
         friend class TcpConnection;
@@ -442,24 +509,9 @@ public:
                 size_t pass_avail = m_send_buf_length - m_send_buf_passed_length;
                 size_t pass_length = MinValue(pass_avail, (size_t)(ProvidedTxBufSize - pass_offset));
                 
-                /*
-                auto *out = Context::Printer::get_msg_output(c);
-                out->reply_append_str(c, "//tcp_write ");
-                out->reply_append_uint32(c, pass_length);
-                out->reply_append_ch(c, '\n');
-                out->reply_poke(c);
-                */
-                
                 u16_t written;
                 auto err = tcp_write_ext(m_pcb, m_send_buf + pass_offset, pass_length, TCP_WRITE_FLAG_PARTIAL, &written);
                 if (err != ERR_OK) {
-                    if (err == ERR_MEM) {
-                        APRINTER_CONSOLE_MSG("//tcp_write ERR_MEM");
-                    } else if (err == ERR_BUF) {
-                        APRINTER_CONSOLE_MSG("//tcp_write ERR_BUF");
-                    } else {
-                        APRINTER_CONSOLE_MSG("//tcp_write ERR_???");
-                    }
                     go_erroring(c, false);
                     return;
                 }
@@ -468,12 +520,9 @@ public:
                 m_send_buf_passed_length += written;
                 
                 if (written < pass_length) {
-                    //APRINTER_CONSOLE_MSG("//tcp_write partial");
                     break;
                 }
             }
-            
-            //APRINTER_CONSOLE_MSG("//tcp_output");
             
             auto err = tcp_output(m_pcb);
             if (err != ERR_OK) {
@@ -664,11 +713,17 @@ private:
         if (params->dhcp_enabled) {
             dhcp_start(&o->netif);
         }
+        
+        // Set the status callback last so we don't get unwanted callbacks.
+        netif_set_status_callback(&o->netif, &LwipNetwork::netif_status_callback);
     }
     
     static void deinit_netif (Context c)
     {
         auto *o = Object::self(c);
+        
+        // Remove the status callback first.
+        netif_set_status_callback(&o->netif, nullptr);
         
         if (o->netif.dhcp != nullptr) {
             dhcp_stop(&o->netif);
@@ -702,6 +757,19 @@ private:
         return ERR_OK;
     }
     
+    static void netif_status_callback (struct netif *netif)
+    {
+        Context c;
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->net_activated)
+        
+        if (o->netif.dhcp != nullptr) {
+            NetworkEvent event{NetworkEventType::DHCP};
+            event.dhcp.up = !ip_addr_isany(&o->netif.ip_addr);
+            raise_network_event(c, event);
+        }
+    }
+    
     static void timeouts_event_handler (Context c)
     {
         auto *o = Object::self(c);
@@ -716,11 +784,13 @@ private:
         AMBRO_ASSERT(o->net_activated)
         AMBRO_ASSERT(!o->eth_activated)
         
-        if (error) {
-            APRINTER_CONSOLE_MSG("//EthActivateErr");
-            return;
+        if (!error) {
+            o->eth_activated = true;
         }
-        o->eth_activated = true;
+        
+        NetworkEvent event{NetworkEventType::ACTIVATION};
+        event.activation.error = error;
+        raise_network_event(c, event);
     }
     struct EthernetActivateHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_activate_handler) {};
     
@@ -730,16 +800,14 @@ private:
         AMBRO_ASSERT(o->eth_activated)
         
         if (link_status) {
-            APRINTER_CONSOLE_MSG("//EthLinkUp");
-        } else {
-            APRINTER_CONSOLE_MSG("//EthLinkDown");
-        }
-        
-        if (link_status) {
             netif_set_link_up(&o->netif);
         } else {
             netif_set_link_down(&o->netif);
         }
+        
+        NetworkEvent event{NetworkEventType::LINK};
+        event.link.up = link_status;
+        raise_network_event(c, event);
     }
     struct EthernetLinkHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_link_handler) {};
     
@@ -927,6 +995,17 @@ private:
 #endif
     }
     
+    static void raise_network_event (Context c, NetworkEvent event)
+    {
+        auto *o = Object::self(c);
+        
+        for (NetworkEventListener *nel = o->event_listeners.first(); nel != nullptr; nel = o->event_listeners.next(nel)) {
+            AMBRO_ASSERT(nel->m_listening)
+            nel->m_event_handler(c, event);
+            AMBRO_ASSERT(nel->m_listening)
+        }
+    }
+    
 public:
     using EventLoopFastEvents = JoinTypeLists<
         MakeTypeList<TimeoutsFastEvent>,
@@ -938,6 +1017,7 @@ public:
     struct Object : public ObjBase<LwipNetwork, ParentObject, MakeTypeList<
         TheEthernet
     >> {
+        DoubleEndedList<NetworkEventListener, &NetworkEventListener::m_node, false> event_listeners;
         bool net_activated;
         bool eth_activated;
         struct netif netif;
