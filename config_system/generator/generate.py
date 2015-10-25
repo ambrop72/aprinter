@@ -1364,6 +1364,11 @@ def generate(config_root_data, cfg_name, main_template):
                     build_with_clang = development.get_bool('BuildWithClang')
                     verbose_build = development.get_bool('VerboseBuild')
                     debug_symbols = development.get_bool('DebugSymbols')
+                    
+                    if development.get_bool('EnableBulkOutputTest'):
+                        gen.add_aprinter_include('printer/BulkOutputTestModule.h')
+                        bulk_output_test_module = gen.add_module()
+                        bulk_output_test_module.set_expr('BulkOutputTestModuleService')
                 
                 for serial in board_data.enter_config('serial'):
                     gen.add_aprinter_include('printer/SerialModule.h')
