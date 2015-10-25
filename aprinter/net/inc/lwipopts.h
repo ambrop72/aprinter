@@ -43,21 +43,52 @@
 #define LWIP_DHCP_CHECK_LINK_UP 1
 #define LWIP_DISABLE_TCP_SANITY_CHECKS 1
 
-// Some limits.
-#define ARP_TABLE_SIZE 10
-#define MEMP_NUM_UDP_PCB 1 // one PCB for DHCP
+// Size of ARP table. Add one extra entry for every TCP connection.
+#define ARP_TABLE_SIZE (8 + APRINTER_NUM_TCP_CONN)
+
+// Number of UDP PCBs. Need just one for DHCP.
+#define MEMP_NUM_UDP_PCB 1
+
+// Maximum number of IP packets being reassembled.
+// Also setting MEMP_NUM_REASSDATA the same value should be fine.
 #define IP_REASS_MAX_PBUFS APRINTER_NUM_IP_REASS_PKTS
 #define MEMP_NUM_REASSDATA APRINTER_NUM_IP_REASS_PKTS
 
-// TCP limits.
+// Number of TCP PCBs.
 #define MEMP_NUM_TCP_PCB APRINTER_NUM_TCP_CONN
 #define MEMP_NUM_TCP_PCB_LISTEN APRINTER_NUM_TCP_LISTEN
+
+// Number of IP fragments simultaneously sent.
+// We can use 1 because packets are sent immediately never queued.
 #define MEMP_NUM_FRAG_PBUF 1
-#define TCP_MSS 1460
-#define TCP_SND_BUF 2920
-#define TCP_SND_QUEUELEN 10
+
+// Oversize can be disabled since it does nothing when tcp_write()
+// is called without TCP_WRITE_FLAG_COPY.
 #define TCP_OVERSIZE 0
+
+// This enables a custom feature that reduces the number of pbufs
+// needed for TCP sending (see MEMP_NUM_PBUF comments).
 #define TCP_EXTEND_ROM_PBUFS 1
+
+// TCP Maximum Segment Size, use the Ethernet value.
+#define TCP_MSS 1460
+
+// TCP receive and send buffer sizes.
+// Note that we actually have ring buffers of these sizes in
+// LwipNetwork::TcpConnection, lwIP just needs to be aware of
+// how large they are.
+#define TCP_WND (2 * TCP_MSS)
+#define TCP_SND_BUF (2 * TCP_MSS)
+
+// Maximum number of pbufs in the TCP send queue for a single connection.
+// Note that currently lwIP only enforces this limit when adding new
+// segments and not when adding a pbuf to an existing segment.
+// Nevertheless we should not run out of pbufs due to TCP_EXTEND_ROM_PBUFS.
+#define TCP_SND_QUEUELEN 10
+
+// Number of TCP segments in the pool.
+// Each connection uses at most TCP_SND_QUEUELEN segments since each segment
+// contains has one or more pbufs.
 #define MEMP_NUM_TCP_SEG (APRINTER_NUM_TCP_CONN * TCP_SND_QUEUELEN)
 
 // Number of pbufs in PBUF pool.
