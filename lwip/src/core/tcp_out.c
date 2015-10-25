@@ -386,6 +386,9 @@ err_t
 tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u16_t *written_len)
 {
   struct pbuf *concat_p = NULL;
+#if TCP_EXTEND_ROM_PBUFS
+  u16_t extendlen = 0;
+#endif /* TCP_EXTEND_ROM_PBUFS */
   struct tcp_seg *last_unsent = NULL, *seg = NULL, *prev_seg = NULL, *queue = NULL;
   u16_t pos = 0; /* position in 'arg' data */
   u16_t queuelen;
@@ -526,25 +529,36 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
 #if TCP_CHECKSUM_ON_COPY
         concat_chksummed += seglen;
 #endif /* TCP_CHECKSUM_ON_COPY */
+        queuelen += pbuf_clen(concat_p);
       } else {
         /* Data is not copied */
-        if ((concat_p = pbuf_alloc(PBUF_RAW, seglen, PBUF_ROM)) == NULL) {
-          LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2,
-                      ("tcp_write: could not allocate memory for zero-copy pbuf\n"));
-          goto memerr;
+#if TCP_EXTEND_ROM_PBUFS
+        /* If possible extend an existing PBUF_ROM pbuf. */
+        struct pbuf *last_p = pbuf_last(last_unsent->p);
+        if (pos == 0 && last_p->type == PBUF_ROM && (const u8_t*)last_p->payload + last_p->len == (const u8_t*)arg) {
+          extendlen = seglen;
+        } else {
+#endif
+          if ((concat_p = pbuf_alloc(PBUF_RAW, seglen, PBUF_ROM)) == NULL) {
+            LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2,
+                        ("tcp_write: could not allocate memory for zero-copy pbuf\n"));
+            goto memerr;
+          }
+          /* reference the non-volatile payload data */
+          ((struct pbuf_rom*)concat_p)->payload = (const u8_t*)arg + pos;
+          queuelen += pbuf_clen(concat_p);
+#if TCP_EXTEND_ROM_PBUFS
         }
+#endif
 #if TCP_CHECKSUM_ON_COPY
         /* calculate the checksum of nocopy-data */
         tcp_seg_add_chksum(~inet_chksum((const u8_t*)arg + pos, seglen), seglen,
           &concat_chksum, &concat_chksum_swapped);
         concat_chksummed += seglen;
 #endif /* TCP_CHECKSUM_ON_COPY */
-        /* reference the non-volatile payload data */
-        ((struct pbuf_rom*)concat_p)->payload = (const u8_t*)arg + pos;
       }
 
       pos += seglen;
-      queuelen += pbuf_clen(concat_p);
     }
   } else {
 #if TCP_OVERSIZE
@@ -706,18 +720,30 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
       (last_unsent != NULL));
     pbuf_cat(last_unsent->p, concat_p);
     last_unsent->len += concat_p->tot_len;
-#if TCP_CHECKSUM_ON_COPY
-    if (concat_chksummed) {
-      /*if concat checksumm swapped - swap it back */
-      if (concat_chksum_swapped){
-        concat_chksum = SWAP_BYTES_IN_WORD(concat_chksum);
-      }
-      tcp_seg_add_chksum(concat_chksum, concat_chksummed, &last_unsent->chksum,
-        &last_unsent->chksum_swapped);
-      last_unsent->flags |= TF_SEG_DATA_CHECKSUMMED;
-    }
-#endif /* TCP_CHECKSUM_ON_COPY */
   }
+#if TCP_EXTEND_ROM_PBUFS
+  else if (extendlen > 0) {
+    struct pbuf *p;
+    for (p = last_unsent->p; p->next != NULL; p = p->next) {
+      p->tot_len += extendlen;
+    }
+    p->tot_len += extendlen;
+    p->len += extendlen;
+    last_unsent->len += extendlen;
+  }
+#endif /* TCP_EXTEND_ROM_PBUFS */
+
+#if TCP_CHECKSUM_ON_COPY
+  if (concat_chksummed) {
+    /*if concat checksumm swapped - swap it back */
+    if (concat_chksum_swapped){
+      concat_chksum = SWAP_BYTES_IN_WORD(concat_chksum);
+    }
+    tcp_seg_add_chksum(concat_chksum, concat_chksummed, &last_unsent->chksum,
+      &last_unsent->chksum_swapped);
+    last_unsent->flags |= TF_SEG_DATA_CHECKSUMMED;
+  }
+#endif /* TCP_CHECKSUM_ON_COPY */
 
   /*
    * Phase 3: Append queue to pcb->unsent. Queue may be NULL, but that

@@ -218,6 +218,7 @@ void pbuf_put_at(struct pbuf* p, u16_t offset, u8_t data);
 u16_t pbuf_memcmp(struct pbuf* p, u16_t offset, const void* s2, u16_t n);
 u16_t pbuf_memfind(struct pbuf* p, const void* mem, u16_t mem_len, u16_t start_offset);
 u16_t pbuf_strstr(struct pbuf* p, const char* substr);
+struct pbuf* pbuf_last(struct pbuf* p);
 
 #ifdef __cplusplus
 }

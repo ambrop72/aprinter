@@ -1338,3 +1338,17 @@ pbuf_strstr(struct pbuf* p, const char* substr)
   }
   return pbuf_memfind(p, substr, (u16_t)substr_len, 0);
 }
+
+/**
+ * Returns the last pbuf in a chain.
+ * 
+ * @param p pbuf chain (not NULL)
+ * @return the last pbuf in the chain
+ */
+struct pbuf* pbuf_last(struct pbuf* p)
+{
+  while (p->next != NULL) {
+    p = p->next;
+  }
+  return p;
+}

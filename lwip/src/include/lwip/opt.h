@@ -1244,6 +1244,20 @@
 #endif
 
 /**
+ * TCP_EXTEND_ROM_PBUFS: If enabled, a buffer passed to tcp_write() that
+ * is a continuation of the previous passed buffer will be combined into the
+ * existing pbuf when possible, instead of allocating a new pbuf and adding
+ * it to the chain.
+ * This only works when tcp_write() is called without TCP_WRITE_FLAG_COPY.
+ * It greatly reduces the worst case number of needed pbufs for TCP
+ * transmission when the application sends data from a single buffer
+ * (to a little more than TCP_SND_QUEUELEN per connection).
+ */
+#ifndef TCP_EXTEND_ROM_PBUFS
+#define TCP_EXTEND_ROM_PBUFS 0
+#endif
+
+/**
  * LWIP_TCP_TIMESTAMPS==1: support the TCP timestamp option.
  * The timestamp option is currently only used to help remote hosts, it is not
  * really used locally. Therefore, it is only enabled when a TS option is
