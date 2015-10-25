@@ -36,7 +36,6 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/GcodeCommand.h>
-#include <aprinter/printer/Console.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -74,7 +73,7 @@ public:
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&TcpConsoleModule::listener_accept_handler));
         
         if (!o->listener.startListening(c, Params::Port)) {
-            APRINTER_CONSOLE_MSG("//TcpConsoleListenError");
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleListenError\n"));
         }
         
         for (int i = 0; i < MaxClients; i++) {
@@ -106,7 +105,7 @@ private:
             }
         }
         
-        APRINTER_CONSOLE_MSG("//TcpConsoleAcceptNoSlot");
+        ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleAcceptNoSlot\n"));
         return false;
     }
     
@@ -143,7 +142,7 @@ private:
             auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
-            APRINTER_CONSOLE_MSG("//TcpConsoleConnected");
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleConnected\n"));
             
             m_connection.acceptConnection(c, &o->listener);
             
@@ -197,7 +196,7 @@ private:
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             
-            APRINTER_CONSOLE_MSG("//TcpConsoleDisconnected");
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleDisconnected\n"));
             
             start_disconnect(c);
         }
@@ -266,7 +265,7 @@ private:
             }
             
             if (line_buffer_exhausted) {
-                APRINTER_CONSOLE_MSG("//TcpConsoleLineTooLong");
+                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleLineTooLong\n"));
                 return disconnect(c);
             }
         }
@@ -288,7 +287,7 @@ private:
             AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
             AMBRO_ASSERT(m_send_buf_request > 0)
             
-            APRINTER_CONSOLE_MSG("//TcpConsoleSendBufTimeout");
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendBufTimeout\n"));
             
             start_disconnect(c);
         }
@@ -334,7 +333,7 @@ private:
             if (m_state == State::CONNECTED) {
                 size_t avail = m_connection.getSendBufferSpace(c);
                 if (avail < length) {
-                    APRINTER_CONSOLE_MSG("//TcpConsoleSendOverrun");
+                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendOverrun\n"));
                     m_connection.raiseError(c);
                     return;
                 }
