@@ -22,11 +22,11 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-// TBD: These should come from generate.py.
-#define APRINTER_NUM_IP_REASS_PKTS 1
-#define APRINTER_NUM_TCP_CONN 2
-#define APRINTER_NUM_TCP_LISTEN 1
-#define APRINTER_MEM_ALIGNMENT 4
+// We expect these to be defined externally:
+//#define APRINTER_NUM_IP_REASS_PKTS <count>
+//#define APRINTER_NUM_TCP_CONN <count>
+//#define APRINTER_NUM_TCP_LISTEN <count>
+//#define APRINTER_MEM_ALIGNMENT <bytes>
 
 // Simple options, mostly enable/disable.
 #define NO_SYS 1

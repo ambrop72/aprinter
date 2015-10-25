@@ -24,7 +24,7 @@
 
 { stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, avrgcclibc
 , asf, stm32cubef4, teensyCores, aprinterSource, buildVars, extraSources
-, extraIncludes
+, extraIncludes, defines
 , mainText, boardName, buildName ? "nixbuild", desiredOutputs ? ["bin" "hex"]
 , optimizeForSize ? false, assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false, detectOverloadEnabled ? false
@@ -44,11 +44,15 @@ let
     } else {}) // board.targetVars // buildVars // {
         EXTRA_C_SOURCES = stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix ".c") extraSources);
         EXTRA_CXX_SOURCES = stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix ".cpp") extraSources);
-        EXTRA_COMPILE_FLAGS = stdenv.lib.concatStringsSep " " (map (f: "-I" + f) extraIncludes);
+        EXTRA_COMPILE_FLAGS = (map (f: "-I" + f) extraIncludes) ++ (map (define: "-D${define.name}=${define.value}") defines);
     };
     
+    targetVarEncoding = value: if builtins.isList value then (
+        "( " + (stdenv.lib.concatStringsSep " " (map (elem: stdenv.lib.escapeShellArg elem) value)) + " )"
+    ) else (stdenv.lib.escapeShellArg value);
+    
     targetVarsText = stdenv.lib.concatStrings (
-        stdenv.lib.mapAttrsToList (name: value: "    ${name}=${stdenv.lib.escapeShellArg value}\n") targetVars
+        stdenv.lib.mapAttrsToList (name: value: "    ${name}=${targetVarEncoding value}\n") targetVars
     );
     
     isAvr = board.platform == "avr";

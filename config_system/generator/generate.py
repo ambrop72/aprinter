@@ -58,6 +58,7 @@ class GenState(object):
         self._extra_includes = []
         self._need_millisecond_clock = False
         self._fast_event_roots = []
+        self._defines = []
     
     def add_subst (self, key, val, indent=-1):
         self._subst[key] = {'val':val, 'indent':indent}
@@ -177,14 +178,8 @@ class GenState(object):
     def add_fast_event_root (self, fast_event_root):
         self._fast_event_roots.append(fast_event_root)
     
-    def get_modules_exprs (self):
-        return self._modules_exprs
-    
-    def get_need_millisecond_clock (self):
-        return self._need_millisecond_clock
-    
-    def get_fast_event_roots (self):
-        return self._fast_event_roots
+    def add_define (self, name, value):
+        self._defines.append({'name': name, 'value': str(value)})
     
     def finalize (self):
         for action in reversed(self._finalize_actions):
@@ -222,15 +217,6 @@ class GenState(object):
             res[key] = val if type(val) is str else val.build(indent)
         return res
     
-    def get_build_vars (self):
-        return self._build_vars
-    
-    def get_extra_sources (self):
-        return self._extra_sources
-    
-    def get_extra_includes (self):
-        return self._extra_includes
-
 class GenPrinterModule(object):
     def __init__ (self, gen, index):
         self._gen = gen
@@ -352,7 +338,7 @@ def setup_event_loop(gen):
     code_before_expr = 'struct MyLoopExtraDelay;'
     expr = TemplateExpr('BusyEventLoop', ['MyContext', 'Program', 'MyLoopExtraDelay'])
     
-    fast_event_roots_list = 'JoinTypeLists<{}>'.format(', '.join('typename {}::EventLoopFastEvents'.format(r) for r in gen.get_fast_event_roots()))
+    fast_event_roots_list = 'JoinTypeLists<{}>'.format(', '.join('typename {}::EventLoopFastEvents'.format(r) for r in gen._fast_event_roots))
     
     code_before_program  = 'using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, {}>;\n'.format(fast_event_roots_list)
     code_before_program += 'struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};'
@@ -367,27 +353,32 @@ def setup_platform(gen, config, key):
     def option(platform):
         gen.add_platform_include('aprinter/platform/at91sam3x/at91sam3x_support.h')
         gen.add_init_call(-1, 'platform_init();')
+        gen.register_singleton_object('alignment', 4)
     
     @platform_sel.option('At91Sam3u4e')
     def option(platform):
         gen.add_platform_include('aprinter/platform/at91sam3u/at91sam3u_support.h')
         gen.add_init_call(-1, 'platform_init();')
+        gen.register_singleton_object('alignment', 4)
     
     @platform_sel.option('Teensy3')
     def option(platform):
         gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
+        gen.register_singleton_object('alignment', 4)
     
     @platform_sel.options(['AVR ATmega2560', 'AVR ATmega1284p'])
     def option(platform_name, platform):
         gen.add_platform_include('avr/io.h')
         gen.add_platform_include('aprinter/platform/avr/avr_support.h')
         gen.add_init_call(-3, 'sei();')
+        gen.register_singleton_object('alignment', 1)
     
     @platform_sel.option('Stm32f4')
     def option(platform):
         gen.add_platform_include('aprinter/platform/stm32f4/stm32f4_support.h')
         gen.add_init_call(-1, 'platform_init();')
         gen.add_final_init_call(-1, 'platform_init_final();')
+        gen.register_singleton_object('alignment', 4)
     
     config.do_selection(key, platform_sel)
 
@@ -1185,6 +1176,15 @@ def get_letter_number_name(config, key):
     normalized_name = '{}{}'.format(letter, number) if number != 0 else letter
     return normalized_name, TemplateExpr('AuxControlName', [TemplateChar(letter), number])
 
+class NetworkConfigState(object):
+    def __init__(self):
+        self._num_listeners = 0
+        self._num_connections = 0
+    
+    def add_resource_counts(self, listeners=0, connections=0):
+        self._num_listeners += listeners
+        self._num_connections += connections
+
 def setup_network(gen, config, key):
     network_sel = selection.Selection()
     
@@ -1229,6 +1229,17 @@ def setup_network(gen, config, key):
         
         gen.add_global_resource(27, 'MyNetwork', network_expr, context_name='Network')
         gen.add_fast_event_root('MyNetwork')
+        
+        network_state = NetworkConfigState()
+        gen.register_singleton_object('network', network_state)
+        
+        def finalize():
+            gen.add_define('APRINTER_NUM_TCP_LISTEN', network_state._num_listeners)
+            gen.add_define('APRINTER_NUM_TCP_CONN', network_state._num_connections)
+            gen.add_define('APRINTER_NUM_IP_REASS_PKTS', 1)
+            gen.add_define('APRINTER_MEM_ALIGNMENT', gen.get_singleton_object('alignment'))
+        
+        gen.add_finalize_action(finalize)
         
         return True
     
@@ -1457,6 +1468,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 tcpconsole_config.key_path('MaxCommandSize').error('Bad value.')
                             
                             gen.add_aprinter_include('printer/TcpConsoleModule.h')
+                            
                             tcp_console_module = gen.add_module()
                             tcp_console_module.set_expr(TemplateExpr('TcpConsoleModuleService', [
                                 TemplateExpr('GcodeParserParams', [console_max_parts]),
@@ -1465,6 +1477,8 @@ def generate(config_root_data, cfg_name, main_template):
                                 console_max_command_size,
                                 gen.add_float_constant('TcpConsoleSendBufTimeout', tcpconsole_config.get_float('SendBufTimeout')),
                             ]))
+                            
+                            gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=console_max_clients)
                         
                         network_config.do_selection('tcpconsole', tcpconsole_sel)
                 
@@ -1981,7 +1995,7 @@ def generate(config_root_data, cfg_name, main_template):
                 fans_expr,
             ]))
             
-            if gen.get_need_millisecond_clock():
+            if gen._need_millisecond_clock:
                 gen.add_aprinter_include('system/MillisecondClock.h')
                 gen.add_global_resource(5, 'MyMillisecondClock', TemplateExpr('MillisecondClock', ['MyContext', 'Program']), context_name='MillisecondClock')
                 
@@ -2006,7 +2020,7 @@ def generate(config_root_data, cfg_name, main_template):
                 steppers_expr,
                 transform_expr,
                 lasers_expr,
-                TemplateList(gen.get_modules_exprs()),
+                TemplateList(gen._modules_exprs),
             ])
             
             printer_params_typedef = 'struct ThePrinterParams : public {} {{}};'.format(printer_params.build(0))
@@ -2030,9 +2044,10 @@ def generate(config_root_data, cfg_name, main_template):
         'build_with_clang': build_with_clang,
         'verbose_build': verbose_build,
         'debug_symbols': debug_symbols,
-        'build_vars': gen.get_build_vars(),
-        'extra_sources': gen.get_extra_sources(),
-        'extra_includes': gen.get_extra_includes(),
+        'build_vars': gen._build_vars,
+        'extra_sources': gen._extra_sources,
+        'extra_includes': gen._extra_includes,
+        'defines': gen._defines,
     }
 
 def main():
@@ -2064,7 +2079,7 @@ def main():
         '    boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; optimizeForSize = {};\n'
         '    assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {};\n'
         '    buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; buildVars = {};\n'
-        '    extraSources = {}; extraIncludes = {}; mainText = {};\n'
+        '    extraSources = {}; extraIncludes = {}; defines = {}; mainText = {};\n'
         '}}\n'
     ).format(
         nix_utils.escape_string_for_nix(nix_dir),
@@ -2080,6 +2095,7 @@ def main():
         nix_utils.convert_for_nix(result['build_vars']),
         nix_utils.convert_for_nix(result['extra_sources']),
         nix_utils.convert_for_nix(result['extra_includes']),
+        nix_utils.convert_for_nix(result['defines']),
         nix_utils.escape_string_for_nix(result['main_source'])
     )
     

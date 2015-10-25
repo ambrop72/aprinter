@@ -106,7 +106,7 @@ configure_arm() {
         -Wfatal-errors
         -Wno-absolute-value -Wno-undefined-internal -Wno-deprecated-register
         -ffunction-sections -fdata-sections
-        $EXTRA_COMPILE_FLAGS
+        "${EXTRA_COMPILE_FLAGS[@]}"
     )
     FLAGS_LD=(
         -T"${LINKER_SCRIPT}" -nostartfiles -Wl,--gc-sections

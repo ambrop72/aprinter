@@ -40,4 +40,4 @@ def convert_for_nix(value):
         if len(value) == 0:
             return '{}'
         else:
-            return '{{ {} }}'.format(' '.join('{} = {};'.format(convert_for_nix(k), convert_for_nix(v)) for k, v in value.iteritems()))
+            return '{{ {} }}'.format(' '.join('{} = {};'.format(convert_for_nix(k), convert_for_nix(v)) for k, v in sorted(value.iteritems())))
