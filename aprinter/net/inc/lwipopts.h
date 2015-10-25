@@ -56,6 +56,8 @@
 #define TCP_MSS 1460
 #define TCP_SND_BUF 2920
 #define TCP_SND_QUEUELEN 10
+#define TCP_OVERSIZE 0
+#define TCP_EXTEND_ROM_PBUFS 1
 #define MEMP_NUM_TCP_SEG (APRINTER_NUM_TCP_CONN * TCP_SND_QUEUELEN)
 
 // Number of pbufs in PBUF pool.
@@ -63,13 +65,15 @@
 // reference external data. They are used:
 // - In the TCP TX path (tcp_write), they reference application data
 //   that is passed to tcp_write() without TCP_WRITE_FLAG_COPY.
-//   Note that lots of small pbufs might get allocated if we call tcp_output
-//   many times with small bits of data. So currently we reserve something
-//   and hope for the best.
+//   Note that we patched lwIP so that it internally detects when
+//   the buffer is a continuation of the previous buffer and extends
+//   an existing pbuf instead of allocating a new one, when possible.
+//   With this (TCP_EXTEND_ROM_PBUFS), little more than TCP_SND_QUEUELEN
+//   of these pbufs are needed per connection.
 // - In the fragmentation of IP packets, they reference parts of the
 //   original full packet. Since we don't need and disable fragmentation,
 //   we don't reserve anything for this.
-#define MEMP_NUM_PBUF (APRINTER_NUM_TCP_CONN * (4 * TCP_SND_QUEUELEN))
+#define MEMP_NUM_PBUF (APRINTER_NUM_TCP_CONN * (3 + TCP_SND_QUEUELEN))
 
 // Number of pbufs in PBUF_POOL pool.
 // These are allocated via pbuf_alloc(..., PBUF_POOL) and are used only
