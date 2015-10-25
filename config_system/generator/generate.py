@@ -1457,6 +1457,7 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_aprinter_include('printer/NetworkSupportModule.h')
                         network_support_module = gen.add_module()
                         network_support_module.set_expr(TemplateExpr('NetworkSupportModuleService', [
+                            gen.add_bool_config('NetworkEnabled', network_config.get_bool('NetEnabled')),
                             gen.add_mac_addr_config('NetworkMacAddress', network_config.get_mac_addr('MacAddress')),
                             gen.add_bool_config('NetworkDhcpEnabled', network_config.get_bool('DhcpEnabled')),
                             gen.add_ip_addr_config('NetworkIpAddress', network_config.get_ip_addr('IpAddress')),

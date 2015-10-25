@@ -733,11 +733,12 @@ def editor():
                                 phy_choice(key='PhyDriver', title='PHY driver')
                             ]),
                         ]),
+                        ce.Boolean(key='NetEnabled', title='Networking enabled', default=True),
                         ce.String(key='MacAddress', title='MAC address', default='BE:EF:DE:AD:FE:ED'),
                         ce.Boolean(key='DhcpEnabled', title='DHCP enabled', default=True),
-                        ce.String(key='IpAddress', title='IP address', default='0.0.0.0'),
-                        ce.String(key='IpNetmask', title='Network mask', default='0.0.0.0'),
-                        ce.String(key='IpGateway', title='Default gateway', default='0.0.0.0'),
+                        ce.String(key='IpAddress', title='IP address (when DHCP is disabled)', default='0.0.0.0'),
+                        ce.String(key='IpNetmask', title='Network mask (when DHCP is disabled)', default='0.0.0.0'),
+                        ce.String(key='IpGateway', title='Default gateway (when DHCP is disabled)', default='0.0.0.0'),
                         ce.OneOf(key='tcpconsole', title='TCP console', choices=[
                             ce.Compound('NoTcpConsole', title='Disabled', attrs=[]),
                             ce.Compound('TcpConsole', title='Enabled', attrs=[

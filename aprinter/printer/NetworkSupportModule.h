@@ -45,6 +45,7 @@ private:
     using Config = typename ThePrinterMain::Config;
     using TheNetwork = typename Context::Network;
     
+    using CNetEnabled = decltype(Config::e(Params::NetEnabled::i()));
     using CMacAddress = decltype(Config::e(Params::MacAddress::i()));
     using CDhcpEnabled = decltype(Config::e(Params::DhcpEnabled::i()));
     using CIpAddress = decltype(Config::e(Params::IpAddress::i()));
@@ -67,6 +68,7 @@ public:
     
     static void configuration_changed (Context c)
     {
+        bool cfg_net_enabled               = APRINTER_CFG(Config, CNetEnabled, c);
         ConfigTypeMacAddress cfg_mac       = APRINTER_CFG(Config, CMacAddress, c);
         bool cfg_dhcp_enabled              = APRINTER_CFG(Config, CDhcpEnabled, c);
         ConfigTypeIpAddress cfg_ip_addr    = APRINTER_CFG(Config, CIpAddress, c);
@@ -77,6 +79,7 @@ public:
             auto status = TheNetwork::getStatus(c);
             
             bool match =
+                cfg_net_enabled &&
                 memcmp(cfg_mac.mac_addr, status.mac_addr, ConfigTypeMacAddress::Size) == 0 &&
                 cfg_dhcp_enabled == status.dhcp_enabled &&
                 (cfg_dhcp_enabled || (
@@ -90,7 +93,7 @@ public:
             }
         }
         
-        if (!TheNetwork::isActivated(c)) {
+        if (!TheNetwork::isActivated(c) && cfg_net_enabled) {
             auto params = typename TheNetwork::NetworkParams();
             memcpy(params.mac_addr, cfg_mac.mac_addr, ConfigTypeMacAddress::Size);
             params.dhcp_enabled = cfg_dhcp_enabled;
@@ -191,7 +194,7 @@ private:
     }
     
 public:
-    using ConfigExprs = MakeTypeList<CMacAddress, CDhcpEnabled, CIpAddress, CIpNetmask, CIpGateway>;
+    using ConfigExprs = MakeTypeList<CNetEnabled, CMacAddress, CDhcpEnabled, CIpAddress, CIpNetmask, CIpGateway>;
     
     struct Object : public ObjBase<NetworkSupportModule, ParentObject, EmptyTypeList> {
         typename TheNetwork::NetworkEventListener network_event_listener;
@@ -199,6 +202,7 @@ public:
 };
 
 template <
+    typename TNetEnabled,
     typename TMacAddress,
     typename TDhcpEnabled,
     typename TIpAddress,
@@ -206,6 +210,7 @@ template <
     typename TIpGateway
 >
 struct NetworkSupportModuleService {
+    using NetEnabled = TNetEnabled;
     using MacAddress = TMacAddress;
     using DhcpEnabled = TDhcpEnabled;
     using IpAddress = TIpAddress;
