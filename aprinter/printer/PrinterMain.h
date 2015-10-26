@@ -70,6 +70,7 @@
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/GcodeCommand.h>
+#include <aprinter/printer/OutputStream.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -385,6 +386,9 @@ private:
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
     
 public:
+    using TheOutputStream = OutputStream<Context, FpType>;
+    
+public:
     class CommandStreamCallback {
     public:
         virtual bool start_command_impl (Context c) = 0;
@@ -398,7 +402,7 @@ public:
         virtual void cancel_send_buf_event_impl (Context c) = 0;
     };
     
-    class CommandStream {
+    class CommandStream : public TheOutputStream {
         friend PrinterMain;
         
     public:
@@ -535,7 +539,7 @@ public:
             
             m_error = true;
             if (errstr) {
-                reply_append_error(c, errstr);
+                this->reply_append_error(c, errstr);
             }
         }
         
@@ -675,11 +679,6 @@ public:
         {
             m_callback->reply_append_pbuffer_impl(c, pstr, length);
         }
-#else
-        void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
-        {
-            reply_append_buffer(c, pstr, length);
-        }
 #endif
         
     public:
@@ -768,64 +767,6 @@ public:
             }
             *out = getPartFpValue(c, part);
             return true;
-        }
-        
-        APRINTER_NO_INLINE
-        void reply_append_str (Context c, char const *str)
-        {
-            reply_append_buffer(c, str, strlen(str));
-        }
-        
-    public:
-        APRINTER_NO_INLINE
-        void reply_append_ch (Context c, char ch)
-        {
-            m_callback->reply_append_buffer_impl(c, &ch, 1);
-        }
-        
-#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
-        APRINTER_NO_INLINE
-        void reply_append_pstr (Context c, AMBRO_PGM_P pstr)
-        {
-            reply_append_pbuffer(c, pstr, AMBRO_PGM_STRLEN(pstr));
-        }
-#else
-        void reply_append_pstr (Context c, AMBRO_PGM_P pstr)
-        {
-            reply_append_str(c, pstr);
-        }
-#endif
-        APRINTER_NO_INLINE
-        void reply_append_error (Context c, AMBRO_PGM_P errstr)
-        {
-            reply_append_pstr(c, AMBRO_PSTR("Error:"));
-            reply_append_pstr(c, errstr);
-            reply_append_ch(c, '\n');
-        }
-        
-        APRINTER_NO_INLINE
-        void reply_append_fp (Context c, FpType x)
-        {
-            char buf[30];
-#if defined(AMBROLIB_AVR)
-            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%g"), x);
-            reply_append_buffer(c, buf, len);
-#else        
-            FloatToStrSoft(x, buf);
-            reply_append_buffer(c, buf, strlen(buf));
-#endif
-        }
-        
-        APRINTER_NO_INLINE
-        void reply_append_uint32 (Context c, uint32_t x)
-        {
-            char buf[11];
-#if defined(AMBROLIB_AVR)
-            uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%" PRIu32), x);
-#else
-            uint8_t len = PrintNonnegativeIntDecimal<uint32_t>(x, buf);
-#endif
-            reply_append_buffer(c, buf, len);
         }
         
     private:
@@ -2291,7 +2232,7 @@ public:
         return get_command_in_state(c, COMMAND_LOCKED, true);
     }
     
-    static TheCommand * get_msg_output (Context c)
+    static TheOutputStream * get_msg_output (Context c)
     {
         using SerialModule = GetServiceProviderModule<ServiceList::SerialService>;
         return SerialModule::get_serial_stream(c);

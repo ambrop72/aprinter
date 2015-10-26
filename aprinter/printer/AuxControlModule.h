@@ -64,6 +64,7 @@ private:
     using TimeType = typename Clock::TimeType;
     using TheClockUtils = ClockUtils<Context>;
     using Config = typename ThePrinterMain::Config;
+    using TheOutputStream = typename ThePrinterMain::TheOutputStream;
     using TheCommand = typename ThePrinterMain::TheCommand;
     using FpType = typename ThePrinterMain::FpType;
     using TimeConversion = typename ThePrinterMain::TimeConversion;
@@ -148,7 +149,7 @@ public:
     
 private:
     template <typename Name>
-    static void print_name (Context c, TheCommand *cmd)
+    static void print_name (Context c, TheOutputStream *cmd)
     {
         cmd->reply_append_ch(c, Name::Letter);
         if (Name::Number != 0) {
@@ -260,7 +261,7 @@ private:
             return adc_to_temp(c, adc_raw);
         }
         
-        static void append_value (Context c, TheCommand *cmd)
+        static void append_value (Context c, TheOutputStream *cmd)
         {
             auto *o = Object::self(c);
             
@@ -622,7 +623,7 @@ private:
         cmd->finishCommand(c, true);
     }
     
-    static void print_heaters (Context c, TheCommand *cmd)
+    static void print_heaters (Context c, TheOutputStream *cmd)
     {
         ListForEachForward<HeatersList>(LForeach_append_value(), c, cmd);
         cmd->reply_append_ch(c, '\n');
