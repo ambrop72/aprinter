@@ -356,6 +356,7 @@
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "DisableWatchdog": false,
+        "EnableBulkOutputTest": false,
         "EventLoopBenchmarkEnabled": false,
         "VerboseBuild": false,
         "_compoundName": "development"
@@ -902,6 +903,7 @@
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "DisableWatchdog": false,
+        "EnableBulkOutputTest": false,
         "EventLoopBenchmarkEnabled": false,
         "VerboseBuild": false,
         "_compoundName": "development"
@@ -1336,6 +1338,7 @@
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "DisableWatchdog": false,
+        "EnableBulkOutputTest": false,
         "EventLoopBenchmarkEnabled": false,
         "VerboseBuild": false,
         "_compoundName": "development"
@@ -1712,6 +1715,7 @@
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "DisableWatchdog": false,
+        "EnableBulkOutputTest": false,
         "EventLoopBenchmarkEnabled": false,
         "VerboseBuild": false,
         "_compoundName": "development"
@@ -2129,6 +2133,7 @@
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "DisableWatchdog": false,
+        "EnableBulkOutputTest": false,
         "EventLoopBenchmarkEnabled": false,
         "VerboseBuild": false,
         "_compoundName": "development"
@@ -2489,6 +2494,7 @@
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "DisableWatchdog": false,
+        "EnableBulkOutputTest": false,
         "EventLoopBenchmarkEnabled": false,
         "VerboseBuild": false,
         "_compoundName": "development"
@@ -2851,6 +2857,7 @@
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "DisableWatchdog": false,
+        "EnableBulkOutputTest": false,
         "EventLoopBenchmarkEnabled": false,
         "VerboseBuild": false,
         "_compoundName": "development"
@@ -3151,6 +3158,7 @@
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "DisableWatchdog": false,
+        "EnableBulkOutputTest": false,
         "EventLoopBenchmarkEnabled": false,
         "VerboseBuild": false,
         "_compoundName": "development"
@@ -3505,6 +3513,7 @@
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
         "DisableWatchdog": false,
+        "EnableBulkOutputTest": false,
         "EventLoopBenchmarkEnabled": false,
         "VerboseBuild": false,
         "_compoundName": "development"
@@ -3515,6 +3524,7 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
+          "DhcpEnabled": true,
           "EthernetDriver": {
             "MiiDriver": {
               "_compoundName": "At91SamEmacMii"
@@ -3526,7 +3536,20 @@
             },
             "_compoundName": "MiiEthernet"
           },
-          "_compoundName": "Network"
+          "IpAddress": "192.168.111.63",
+          "IpGateway": "192.168.111.1",
+          "IpNetmask": "255.255.255.0",
+          "MacAddress": "BE:EF:DE:AD:FE:ED",
+          "NetEnabled": true,
+          "_compoundName": "Network",
+          "tcpconsole": {
+            "MaxClients": 2,
+            "MaxCommandSize": 64,
+            "MaxParts": 16,
+            "Port": 23,
+            "SendBufTimeout": 5,
+            "_compoundName": "TcpConsole"
+          }
         }
       },
       "performance": {
