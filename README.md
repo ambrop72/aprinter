@@ -19,6 +19,7 @@ The following machines are supported out of the box (meaning that a functional C
 - Bed probing using a digital input line (e.g. microswitch). Height measurements are printed to the console.
 - Bed height correction, either with a linear or quadratic polynomial, calculated by the least-squares method.
 - SD card and FAT32 filesystem support. G-code can be read from the SD-card. Optionally, the SD card can be used for storage of runtime configuration options. A custom (fully asynchronous) FAT32 implementation is used, with limited write support (can write to existing files only).
+- Ethernet network (currently on Duet only). Gcode console over TCP is supported (equivalent to the serial-port interface), with multiple concurrent connections. Pronterface can connect this way.
 - Supports heaters and fans. Any number of these may be defined, limited only by available hardware resources.
 - Experimental support for lasers (PWM output with a duty cycle proportional to the current speed).
 - Supports multiple extruders. However, the interface is not compatible to typical firmwares. There are no tool commands, instead the extruders appear as separate axes. A g-code post-processor is provided to translate tool-using gcode into what the firmware understands. This post-processor can also control fans based on the "current tool".
@@ -236,6 +237,22 @@ Example: repeat a successful print.
 M26
 M24
 ```
+
+### Networking
+
+On the Duet board, Ethernet networking is supported. Currently, the only network service provided is a Gcode console over a TCP connection.
+
+By default, DHCP will be used to acquire an IP address automatically. You can run the command `M940` to see the assigned IP address and other network status information. Alternatively, you can configure a static IP, as shown. Don't forget to run `M930` and/or `M500` to apply/save this configuration (see the Runtime Configuration section).
+
+```
+M926 INetworkDhcpEnabled V0
+M926 INetworkIpAddress V192.168.1.234
+M926 INetworkIpNetmask V255.255.255.0
+M926 INetworkIpGateway V192.168.1.1
+M930
+```
+
+The TCP console will be available on port 23. You tell Pronterface to connect to this TCP interface by entering `<ip_address>:23` into the Port box. By default, two concurrent connections are permitted.
 
 ### Heaters
 
