@@ -79,6 +79,7 @@ public:
         auto *o = Object::self(c);
         TheInput::init(c);
         o->command_stream.init(c, &o->callback);
+        o->command_stream.setAcceptMsg(c, false);
         o->m_next_event.init(c, APRINTER_CB_STATFUNC_T(&SdCardModule::next_event_handler));
         o->m_retry_timer.init(c, APRINTER_CB_STATFUNC_T(&SdCardModule::retry_timer_handler));
         o->m_state = SDCARD_PAUSED;

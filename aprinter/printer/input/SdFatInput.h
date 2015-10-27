@@ -56,6 +56,7 @@ private:
     struct UnionMbrPart;
     struct UnionFsPart;
     using ThePrinterMain = typename ClientParams::ThePrinterMain;
+    using TheCommand = typename ThePrinterMain::TheCommand;
     using TheDebugObject = DebugObject<Context, Object>;
     struct BlockAccessActivateHandler;
     using TheBlockAccess = typename BlockAccessService<typename Params::SdCardService>::template Access<Context, Object, BlockAccessActivateHandler>;
@@ -386,14 +387,16 @@ private:
         
         auto *output = ThePrinterMain::get_msg_output(c);
         if (error_code) {
+            TheCommand *cmd = nullptr;
             if (o->for_command) {
-                auto *cmd = ThePrinterMain::get_locked(c);
+                cmd = ThePrinterMain::get_locked(c);
                 cmd->reportError(c, nullptr);
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:SdMount:"));
                 cmd->reply_append_uint32(c, error_code);
                 cmd->reply_append_ch(c, '\n');
             }
-            if (!o->for_command || output != ThePrinterMain::get_locked(c)) {
+            {
+                typename TheCommand::InhibitMsg inhibit(cmd);
                 output->reply_append_pstr(c, AMBRO_PSTR("//Error:SdMount:"));
                 output->reply_append_uint32(c, error_code);
                 output->reply_append_ch(c, '\n');
@@ -418,12 +421,14 @@ private:
         auto *output = ThePrinterMain::get_msg_output(c);
         if (error) {
             AMBRO_PGM_P errstr = is_mount ? AMBRO_PSTR("Error:SdWriteMount\n") : AMBRO_PSTR("Error:SdWriteUnmount\n");
+            TheCommand *cmd = nullptr;
             if (o->for_command) {
-                auto *cmd = ThePrinterMain::get_locked(c);
+                cmd = ThePrinterMain::get_locked(c);
                 cmd->reportError(c, nullptr);
                 cmd->reply_append_pstr(c, errstr);
             }
-            if (!o->for_command || output != ThePrinterMain::get_locked(c)) {
+            {
+                typename TheCommand::InhibitMsg inhibit(cmd);
                 output->reply_append_pstr(c, AMBRO_PSTR("//"));
                 output->reply_append_pstr(c, errstr);
             }

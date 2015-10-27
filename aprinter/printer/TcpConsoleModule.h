@@ -50,6 +50,7 @@ private:
     using TimeType = typename Context::Clock::TimeType;
     using TheTcpListener = typename Context::Network::TcpListener;
     using TheTcpConnection = typename Context::Network::TcpConnection;
+    using TheCommandStream = typename ThePrinterMain::CommandStream;
     
     using TheGcodeParser = GcodeParser<Context, typename Params::TheGcodeParserParams, size_t, typename ThePrinterMain::FpType, GcodeParserTypeSerial>;
     
@@ -196,7 +197,10 @@ private:
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             
-            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleDisconnected\n"));
+            {
+                typename TheCommandStream::InhibitMsg inhibit(&m_command_stream);
+                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleDisconnected\n"));
+            }
             
             start_disconnect(c);
         }
@@ -265,7 +269,10 @@ private:
             }
             
             if (line_buffer_exhausted) {
-                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleLineTooLong\n"));
+                {
+                    typename TheCommandStream::InhibitMsg inhibit(&m_command_stream);
+                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleLineTooLong\n"));
+                }
                 return disconnect(c);
             }
         }
@@ -287,7 +294,10 @@ private:
             AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
             AMBRO_ASSERT(m_send_buf_request > 0)
             
-            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendBufTimeout\n"));
+            {
+                typename TheCommandStream::InhibitMsg inhibit(&m_command_stream);
+                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendBufTimeout\n"));
+            }
             
             start_disconnect(c);
         }
@@ -333,7 +343,10 @@ private:
             if (m_state == State::CONNECTED) {
                 size_t avail = m_connection.getSendBufferSpace(c);
                 if (avail < length) {
-                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendOverrun\n"));
+                    {
+                        typename TheCommandStream::InhibitMsg inhibit(&m_command_stream);
+                        ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendOverrun\n"));
+                    }
                     m_connection.raiseError(c);
                     return;
                 }

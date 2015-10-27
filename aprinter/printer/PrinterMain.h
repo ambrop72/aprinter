@@ -413,6 +413,7 @@ public:
             auto *mo = Object::self(c);
             
             m_state = COMMAND_IDLE;
+            m_accept_msg = true;
             m_callback = callback;
             m_cmd = nullptr;
             m_error = false;
@@ -425,6 +426,11 @@ public:
             auto *mo = Object::self(c);
             
             mo->command_stream_list.remove(this);
+        }
+        
+        void setAcceptMsg (Context c, bool accept_msg)
+        {
+            m_accept_msg = accept_msg;
         }
         
         bool hasCommand (Context c)
@@ -769,9 +775,37 @@ public:
             return true;
         }
         
+    public:
+        class InhibitMsg {
+        public:
+            InhibitMsg (CommandStream *command_stream)
+            {
+                m_command_stream = command_stream;
+                if (m_command_stream) {
+                    m_saved_accept_msg = m_command_stream->m_accept_msg;
+                    m_command_stream->m_accept_msg = false;
+                }
+            }
+            
+            ~InhibitMsg ()
+            {
+                if (m_command_stream) {
+                    m_command_stream->m_accept_msg = m_saved_accept_msg;
+                }
+            }
+            
+        private:
+            InhibitMsg (InhibitMsg const &) = delete;
+            InhibitMsg & operator= (InhibitMsg const &) = delete;
+            
+            CommandStream *m_command_stream;
+            bool m_saved_accept_msg;
+        };
+        
     private:
         uint8_t m_state : 4;
         bool m_error : 1;
+        bool m_accept_msg : 1;
         CommandStreamCallback *m_callback;
         TheGcodeCommand *m_cmd;
         SendBufEventHandler m_send_buf_event_handler;
@@ -781,6 +815,42 @@ public:
 public:
     using TheCommand = CommandStream;
     using CommandPartRef = typename TheCommand::PartRef;
+    
+private:
+    class MsgOutputStream : public TheOutputStream {
+    private:
+        void reply_poke (Context c)
+        {
+            auto *o = Object::self(c);
+            for (CommandStream *stream = o->command_stream_list.first(); stream; stream = o->command_stream_list.next(stream)) {
+                if (stream->m_accept_msg) {
+                    stream->reply_poke(c);
+                }
+            }
+        }
+        
+        void reply_append_buffer (Context c, char const *str, size_t length)
+        {
+            auto *o = Object::self(c);
+            for (CommandStream *stream = o->command_stream_list.first(); stream; stream = o->command_stream_list.next(stream)) {
+                if (stream->m_accept_msg) {
+                    stream->reply_append_buffer(c, str, length);
+                }
+            }
+        }
+        
+#if AMBRO_HAS_NONTRANSPARENT_PROGMEM
+        void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
+        {
+            auto *o = Object::self(c);
+            for (CommandStream *stream = o->command_stream_list.first(); stream; stream = o->command_stream_list.next(stream)) {
+                if (stream->m_accept_msg) {
+                    stream->reply_append_pbuffer(c, pstr, length);
+                }
+            }
+        }
+#endif
+    };
     
 public:
     using MoveEndCallback = void(*)(Context c, bool error);
@@ -2153,6 +2223,7 @@ public:
         ob->unlocked_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::unlocked_timer_handler));
         ob->disable_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::disable_timer_handler));
         ob->force_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::force_timer_handler));
+        ob->command_stream_list.init();
         TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
         TheSteppers::init(c);
         ob->axis_homing = 0;
@@ -2165,7 +2236,6 @@ public:
         ob->underrun_count = 0;
         ob->locked = false;
         ob->planner_state = PLANNER_NONE;
-        ob->command_stream_list.init();
         ListForEachForward<ModulesList>(LForeach_init(), c);
         
         print_pgm_string(c, AMBRO_PSTR("start\nAPrinter\n"));
@@ -2184,11 +2254,11 @@ public:
             ThePlanner::deinit(c);
         }
         ListForEachReverse<ModulesList>(LForeach_deinit(), c);
-        AMBRO_ASSERT(ob->command_stream_list.isEmpty())
         ListForEachReverse<LasersList>(LForeach_deinit(), c);
         ListForEachReverse<AxesList>(LForeach_deinit(), c);
         TheSteppers::deinit(c);
         TheBlinker::deinit(c);
+        AMBRO_ASSERT(ob->command_stream_list.isEmpty())
         ob->force_timer.deinit(c);
         ob->disable_timer.deinit(c);
         ob->unlocked_timer.deinit(c);
@@ -2234,8 +2304,8 @@ public:
     
     static TheOutputStream * get_msg_output (Context c)
     {
-        using SerialModule = GetServiceProviderModule<ServiceList::SerialService>;
-        return SerialModule::get_serial_stream(c);
+        auto *ob = Object::self(c);
+        return &ob->msg_output_stream;
     }
     
     APRINTER_NO_INLINE
@@ -2986,6 +3056,8 @@ public:
         typename Context::EventLoop::QueuedEvent unlocked_timer;
         typename Context::EventLoop::TimedEvent disable_timer;
         typename Context::EventLoop::TimedEvent force_timer;
+        DoubleEndedList<CommandStream, &CommandStream::m_list_node, false> command_stream_list;
+        MsgOutputStream msg_output_stream;
         FpType time_freq_by_max_speed;
         FpType speed_ratio;
         uint32_t underrun_count;
@@ -2999,7 +3071,6 @@ public:
         PhysVirtAxisMaskType axis_homing;
         PhysVirtAxisMaskType axis_relative;
         PhysVirtAxisMaskType m_homing_rem_axes;
-        DoubleEndedList<CommandStream, &CommandStream::m_list_node, false> command_stream_list;
     };
 };
 
