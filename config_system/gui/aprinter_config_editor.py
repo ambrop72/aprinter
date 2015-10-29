@@ -462,7 +462,7 @@ def editor():
                 ce.Float(key='MaxSpeed', title='Maximum speed [mm/s]', default=300),
                 ce.Float(key='MaxAccel', title='Maximum acceleration [mm/s^2]', default=1500),
                 ce.Float(key='DistanceFactor', title='Distance factor [1]', default=1),
-                ce.Float(key='CorneringDistance', title='Cornering distance [step]', default=40),
+                ce.Float(key='CorneringDistance', title='Cornering distance (greater values allow greater change of speed at corners) [step]', default=40),
                 ce.Boolean(key='EnableCartesianSpeedLimit', title='Is cartesian (Yes for X/Y/Z, No for extruders)', default=True),
                 ce.Boolean(key='IsExtruder', title='Is an extruder (e.g. subject to M82/M83)', default=False),
                 stepper_homing_params(key='homing'),
