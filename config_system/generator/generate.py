@@ -1716,6 +1716,8 @@ def generate(config_root_data, cfg_name, main_template):
             
             @transform_sel.default()
             def default(transform_type, transform):
+                virt_homing_axes = []
+                
                 def virtual_axis_cb(virtual_axis, virtual_axis_index):
                     name = virtual_axis.get_id_char('Name')
                     transform_axes.append(name)
@@ -1724,11 +1726,12 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @homing_sel.option('no_homing')
                     def option(homing):
-                        return 'PrinterMainNoVirtualHomingParams'
+                        pass
                     
                     @homing_sel.option('homing')
                     def option(homing):
-                        return TemplateExpr('PrinterMainVirtualHomingParams', [
+                        virt_homing_axes.append(TemplateExpr('VirtualHomingModuleAxisParams', [
+                            TemplateChar(name),
                             use_digital_input(gen, homing, 'HomeEndstopInput'),
                             gen.add_bool_config('{}HomeEndInvert'.format(name), homing.get_bool('HomeEndInvert')),
                             gen.add_bool_config('{}HomeDir'.format(name), homing.get_bool('HomeDir')),
@@ -1738,14 +1741,15 @@ def generate(config_root_data, cfg_name, main_template):
                             gen.add_float_config('{}HomeFastSpeed'.format(name), homing.get_float('HomeFastSpeed')),
                             gen.add_float_config('{}HomeRetractSpeed'.format(name), homing.get_float('HomeRetractSpeed')),
                             gen.add_float_config('{}HomeSlowSpeed'.format(name), homing.get_float('HomeSlowSpeed')),
-                        ])
+                        ]))
+                    
+                    virtual_axis.do_selection('homing', homing_sel)
                     
                     return TemplateExpr('PrinterMainVirtualAxisParams', [
                         TemplateChar(name),
                         gen.add_float_config('{}MinPos'.format(name), virtual_axis.get_float('MinPos')),
                         gen.add_float_config('{}MaxPos'.format(name), virtual_axis.get_float('MaxPos')),
                         gen.add_float_config('{}MaxSpeed'.format(name), virtual_axis.get_float('MaxSpeed')),
-                        virtual_axis.do_selection('homing', homing_sel),
                     ])
                 
                 def transform_stepper_cb(transform_stepper, transform_stepper_index):
@@ -1876,6 +1880,13 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 if dimension_count == 0:
                     transform.path().error('Need at least one dimension.')
+                
+                if len(virt_homing_axes) > 0:
+                    gen.add_aprinter_include('printer/VirtualHomingModule.h')
+                    virt_homing_module = gen.add_module()
+                    virt_homing_module.set_expr(TemplateExpr('VirtualHomingModuleService', [
+                        TemplateList(virt_homing_axes),
+                    ]))
                 
                 return TemplateExpr('PrinterMainTransformParams', [
                     virtual_axes,

@@ -199,37 +199,13 @@ struct PrinterMainTransformParams {
 
 template <
     char TName, typename TMinPos, typename TMaxPos,
-    typename TMaxSpeed, typename TVirtualHoming
+    typename TMaxSpeed
 >
 struct PrinterMainVirtualAxisParams {
     static char const Name = TName;
     using MinPos = TMinPos;
     using MaxPos = TMaxPos;
     using MaxSpeed = TMaxSpeed;
-    using VirtualHoming = TVirtualHoming;
-};
-
-struct PrinterMainNoVirtualHomingParams {
-    static bool const Enabled = false;
-};
-
-template <
-    typename TEndPin, typename TEndPinInputMode, typename TEndInvert, typename THomeDir,
-    typename TFastExtraDist, typename TRetractDist, typename TSlowExtraDist,
-    typename TFastSpeed, typename TRetractSpeed, typename TSlowSpeed
->
-struct PrinterMainVirtualHomingParams {
-    static bool const Enabled = true;
-    using EndPin = TEndPin;
-    using EndPinInputMode = TEndPinInputMode;
-    using EndInvert = TEndInvert;
-    using HomeDir = THomeDir;
-    using FastExtraDist = TFastExtraDist;
-    using RetractDist = TRetractDist;
-    using SlowExtraDist = TSlowExtraDist;
-    using FastSpeed = TFastSpeed;
-    using RetractSpeed = TRetractSpeed;
-    using SlowSpeed = TSlowSpeed;
 };
 
 template <
@@ -265,7 +241,6 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_split, compute_split)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_emergency, emergency)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_homing, start_homing)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_virt_homing, start_virt_homing)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prestep_callback, prestep_callback)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_homing_mask, update_homing_mask)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_enable_disable_stepper, enable_disable_stepper)
@@ -289,16 +264,15 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_save_req_pos, save_req_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_restore_req_pos, restore_req_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_configuration_changed, configuration_changed)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_reverse_update_pos, reverse_update_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_forward_update_pos, forward_update_pos)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheModule, TheModule)
-    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_CorrectionFeature, CorrectionFeature)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ConfigExprs, ConfigExprs)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ProvidedServices, ProvidedServices)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_MotionPlannerChannels, MotionPlannerChannels)
+    APRINTER_DEFINE_MEMBER_TYPE(MemberType_CorrectionFeature, CorrectionFeature)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_init, init)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_deinit, deinit)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_command, check_command)
@@ -383,6 +357,22 @@ private:
     
     enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
+    
+private:
+    using ServicesDict = ListGroup<ListCollect<ParamsModulesList, MemberType_ProvidedServices>>;
+    
+    template <typename ServiceType>
+    using HasServiceProvider = WrapBool<TypeDictFind<ServicesDict, ServiceType>::Found>;
+    
+    template <typename ServiceType>
+    struct FindServiceProvider {
+        using FindResult = TypeDictFind<ServicesDict, ServiceType>;
+        static_assert(FindResult::Found, "The requested service type is not provided by any module.");
+        static int const ModuleIndex = TypeListGet<typename FindResult::Result, 0>::Value;
+    };
+    
+private:
+    static bool const HasVirtHoming = HasServiceProvider<typename ServiceList::VirtHomingService>::Value;
     
 public:
     using TheOutputStream = OutputStream<Context, FpType>;
@@ -913,18 +903,6 @@ private:
     };
     using ModulesList = IndexElemList<ParamsModulesList, Module>;
     
-    using ServicesDict = ListGroup<ListCollect<ParamsModulesList, MemberType_ProvidedServices>>;
-    
-    template <typename ServiceType>
-    using HasServiceProvider = WrapBool<TypeDictFind<ServicesDict, ServiceType>::Found>;
-    
-    template <typename ServiceType>
-    struct FindServiceProvider {
-        using FindResult = TypeDictFind<ServicesDict, ServiceType>;
-        static_assert(FindResult::Found, "The requested service type is not provided by any module.");
-        static int const ModuleIndex = TypeListGet<typename FindResult::Result, 0>::Value;
-    };
-    
 public:
     template <int ModuleIndex>
     using GetModule = typename Module<ModuleIndex>::TheModule;
@@ -934,6 +912,17 @@ public:
     
     template <typename This=PrinterMain>
     using GetFsAccess = typename This::template GetServiceProviderModule<ServiceList::FsAccessService>::template GetFsAccess<>;
+    
+private:
+    template <typename DefaultService, typename ServiceProviderId, typename ServiceProviderMember>
+    using GetServiceFromModuleOrDefault = FuncCall<
+        IfFunc<
+            TemplateFunc<HasServiceProvider>,
+            ComposeFunctions<typename ServiceProviderMember::Get, TemplateFunc<GetServiceProviderModule>>,
+            ConstantFunc<DefaultService>
+        >,
+        ServiceProviderId
+    >;
     
 private:
     template <int TAxisIndex>
@@ -948,6 +937,7 @@ private:
         static const char AxisName = AxisSpec::Name;
         using WrappedAxisName = WrapInt<AxisName>;
         using HomingSpec = typename AxisSpec::Homing;
+        static bool const ConsiderForHoming = HomingSpec::Enabled;
         static bool const IsExtruder = AxisSpec::IsExtruder;
         
         using DistConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i()));
@@ -1043,10 +1033,13 @@ private:
             
             using InitPosition = decltype(ExprIf(Config::e(HomingSpec::HomeDir::i()), MaxReqPos(), MinReqPos()) + Config::e(HomingSpec::HomeOffset::i()));
             
-            template <typename ThisContext>
-            static bool endstop_is_triggered (ThisContext c)
+            static void m119_append_endstop (Context c, TheCommand *cmd)
             {
-                return HomerGlobal::endstop_is_triggered(c);
+                bool triggered = HomerGlobal::endstop_is_triggered(c);
+                cmd->reply_append_ch(c, ' ');
+                cmd->reply_append_ch(c, AxisName);
+                cmd->reply_append_ch(c, ':');
+                cmd->reply_append_ch(c, (triggered ? '1' : '0'));
             }
             
             struct Object : public ObjBase<HomingFeature, typename Axis::Object, MakeTypeList<
@@ -1059,8 +1052,7 @@ private:
             static void deinit (Context c) {}
             static void start_phys_homing (Context c) {}
             using InitPosition = APRINTER_FP_CONST_EXPR(0.0);
-            template <typename ThisContext>
-            static bool endstop_is_triggered (ThisContext c) { return false; }
+            static void m119_append_endstop (Context c, TheCommand *cmd) {}
             struct Object {};
         };
         
@@ -1218,6 +1210,11 @@ private:
         static void emergency ()
         {
             Stepper::emergency();
+        }
+        
+        static void m119_append_endstop (Context c, TheCommand *cmd)
+        {
+            HomingFeature::m119_append_endstop(c, cmd);
         }
         
         using CDistConversion = decltype(ExprCast<FpType>(DistConversion()));
@@ -1627,17 +1624,6 @@ public:
             return true;
         }
         
-        static bool start_virt_homing (Context c)
-        {
-            return ListForEachForwardInterruptible<VirtAxesList>(LForeach_start_virt_homing(), c);
-        }
-        
-        template <typename CallbackContext>
-        static bool prestep_callback (CallbackContext c)
-        {
-            return !ListForEachForwardInterruptible<VirtAxesList>(LForeach_prestep_callback(), c);
-        }
-        
     public:
         static void handle_corrections_change (Context c)
         {
@@ -1647,19 +1633,34 @@ public:
             update_virt_from_phys(c);
         }
         
-    private:
+    public:
         template <int VirtAxisIndex>
-        struct VirtAxis {
+        class VirtAxis {
+            friend PrinterMain;
+            
+        public:
             struct Object;
+            
+        private:
             using VirtAxisParams = TypeListGet<ParamsVirtAxesList, VirtAxisIndex>;
             static int const AxisName = VirtAxisParams::Name;
             static int const PhysAxisIndex = FindAxis<TypeListGet<ParamsPhysAxesList, VirtAxisIndex>::Value>::Value;
             using ThePhysAxis = Axis<PhysAxisIndex>;
             static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
-            using HomingSpec = typename VirtAxisParams::VirtualHoming;
+            static bool const ConsiderForHoming = HasVirtHoming;
             static bool const IsExtruder = false;
             
+        public:
+            using CMinPos = decltype(ExprCast<FpType>(Config::e(VirtAxisParams::MinPos::i())));
+            using CMaxPos = decltype(ExprCast<FpType>(Config::e(VirtAxisParams::MaxPos::i())));
+            
+        private:
+            using CMaxSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(VirtAxisParams::MaxSpeed::i())));
+            
+            using ConfigExprs = MakeTypeList<CMinPos, CMaxPos, CMaxSpeedFactor>;
+            
+        private:
             template <typename ThePrinterMain=PrinterMain>
             static constexpr typename ThePrinterMain::PhysVirtAxisMaskType AxisMask () { return (PhysVirtAxisMaskType)1 << (NumAxes + VirtAxisIndex); }
             
@@ -1667,7 +1668,6 @@ public:
             {
                 auto *mo = PrinterMain::Object::self(c);
                 AMBRO_ASSERT(!(mo->axis_relative & AxisMask()))
-                HomingFeature::init(c);
             }
             
             static void update_new_pos (Context c, FpType req, bool ignore_limits)
@@ -1730,209 +1730,12 @@ public:
                 return FloatMax(APRINTER_CFG(Config, CMinPos, c), FloatMin(APRINTER_CFG(Config, CMaxPos, c), req));
             }
             
-            static bool start_virt_homing (Context c)
-            {
-                return HomingFeature::start_virt_homing(c);
-            }
-            
-            template <typename CallbackContext>
-            static bool prestep_callback (CallbackContext c)
-            {
-                return HomingFeature::prestep_callback(c);
-            }
-            
             static void start_phys_homing (Context c) {}
-            
-            AMBRO_STRUCT_IF(HomingFeature, HomingSpec::Enabled) {
-                struct Object;
-                
-                static void init (Context c)
-                {
-                    Context::Pins::template setInput<typename HomingSpec::EndPin, typename HomingSpec::EndPinInputMode>(c);
-                }
-                
-                template <typename ThisContext>
-                static bool endstop_is_triggered (ThisContext c)
-                {
-                    return (Context::Pins::template get<typename HomingSpec::EndPin>(c) != APRINTER_CFG(Config, CEndInvert, c));
-                }
-                
-                static bool start_virt_homing (Context c)
-                {
-                    auto *o = Object::self(c);
-                    auto *mo = PrinterMain::Object::self(c);
-                    
-                    if (!(mo->m_homing_rem_axes & AxisMask())) {
-                        return true;
-                    }
-                    set_position(c, home_start_pos(c));
-                    if (!mo->homing_error) {
-                        custom_planner_init(c, &o->planner_client, true);
-                        o->state = 0;
-                        o->command_sent = false;
-                    }
-                    return false;
-                }
-                
-                template <typename CallbackContext>
-                static bool prestep_callback (CallbackContext c)
-                {
-                    return !endstop_is_triggered(c);
-                }
-                
-                static void set_position (Context c, FpType value)
-                {
-                    auto *mo = PrinterMain::Object::self(c);
-                    
-                    set_position_begin(c);
-                    set_position_add_axis<(NumAxes + VirtAxisIndex)>(c, value);
-                    if (!set_position_end(c, get_locked(c))) {
-                        mo->homing_error = true;
-                    }
-                }
-                
-                static FpType home_start_pos (Context c)
-                {
-                    return APRINTER_CFG(Config, CHomeDir, c) ? APRINTER_CFG(Config, CMinPos, c) : APRINTER_CFG(Config, CMaxPos, c);
-                }
-                
-                static FpType home_end_pos (Context c)
-                {
-                    return APRINTER_CFG(Config, CHomeDir, c) ? APRINTER_CFG(Config, CMaxPos, c) : APRINTER_CFG(Config, CMinPos, c);
-                }
-                
-                static FpType home_dir (Context c)
-                {
-                    return APRINTER_CFG(Config, CHomeDir, c) ? 1.0f : -1.0f;
-                }
-                
-                static void virt_homing_move_end_callback (Context c, bool error)
-                {
-                    auto *mo = PrinterMain::Object::self(c);
-                    if (error) {
-                        mo->homing_error = true;
-                    }
-                }
-                
-                static void axis_virt_homing_completed (Context c)
-                {
-                    auto *mo = PrinterMain::Object::self(c);
-                    mo->m_homing_rem_axes &= ~AxisMask();
-                    work_virt_homing(c);
-                }
-                
-                struct VirtHomingPlannerClient : public PlannerClient {
-                    void pull_handler (Context c)
-                    {
-                        auto *o = Object::self(c);
-                        auto *axis = VirtAxis::Object::self(c);
-                        
-                        if (o->command_sent) {
-                            return custom_planner_wait_finished(c);
-                        }
-                        move_begin(c);
-                        FpType position;
-                        FpType speed;
-                        bool ignore_limits = false;
-                        switch (o->state) {
-                            case 0: {
-                                position = home_end_pos(c) + home_dir(c) * APRINTER_CFG(Config, CFastExtraDist, c);
-                                speed = APRINTER_CFG(Config, CFastSpeed, c);
-                                ignore_limits = true;
-                            } break;
-                            case 1: {
-                                position = home_end_pos(c) - home_dir(c) * APRINTER_CFG(Config, CRetractDist, c);
-                                speed = APRINTER_CFG(Config, CRetractSpeed, c);
-                            } break;
-                            case 2: {
-                                position = home_end_pos(c) + home_dir(c) * APRINTER_CFG(Config, CSlowExtraDist, c);
-                                speed = APRINTER_CFG(Config, CSlowSpeed, c);
-                                ignore_limits = true;
-                            } break;
-                        }
-                        move_add_axis<(NumAxes + VirtAxisIndex)>(c, position, ignore_limits);
-                        o->command_sent = true;
-                        return move_end(c, (FpType)TimeConversion::value() / speed, true, get_locked(c), HomingFeature::virt_homing_move_end_callback);
-                    }
-                    
-                    void finished_handler (Context c)
-                    {
-                        finished_or_aborted(c, false);
-                    }
-                    
-                    void aborted_handler (Context c)
-                    {
-                        finished_or_aborted(c, true);
-                    }
-                    
-                    void finished_or_aborted (Context c, bool aborted)
-                    {
-                        auto *o = Object::self(c);
-                        auto *mo = PrinterMain::Object::self(c);
-                        AMBRO_ASSERT(o->state < 3)
-                        AMBRO_ASSERT(o->command_sent)
-                        
-                        custom_planner_deinit(c);
-                        if (o->state != 1) {
-                            set_position(c, home_end_pos(c));
-                        }
-                        
-                        if (!mo->homing_error) {
-                            if ((o->state == 1) ? endstop_is_triggered(c) : !aborted) {
-                                mo->homing_error = true;
-                                auto *cmd = get_locked(c);
-                                cmd->reply_append_error(c, (o->state == 1) ? AMBRO_PSTR("EndstopTriggeredAfterRetract") : AMBRO_PSTR("EndstopNotTriggered"));
-                                cmd->reply_poke(c);
-                            }
-                        }
-                        
-                        if (mo->homing_error || o->state == 2) {
-                            return axis_virt_homing_completed(c);
-                        }
-                        
-                        o->state++;
-                        o->command_sent = false;
-                        custom_planner_init(c, &o->planner_client, o->state == 2);
-                    }
-                };
-                
-                using CEndInvert = decltype(ExprCast<bool>(Config::e(HomingSpec::EndInvert::i())));
-                using CHomeDir = decltype(ExprCast<bool>(Config::e(HomingSpec::HomeDir::i())));
-                using CFastExtraDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::FastExtraDist::i())));
-                using CRetractDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::RetractDist::i())));
-                using CSlowExtraDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::SlowExtraDist::i())));
-                using CFastSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::FastSpeed::i())));
-                using CRetractSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::RetractSpeed::i())));
-                using CSlowSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::SlowSpeed::i())));
-                
-                using ConfigExprs = MakeTypeList<CEndInvert, CHomeDir, CFastExtraDist, CRetractDist, CSlowExtraDist, CFastSpeed, CRetractSpeed, CSlowSpeed>;
-                
-                struct Object : public ObjBase<HomingFeature, typename VirtAxis::Object, EmptyTypeList> {
-                    VirtHomingPlannerClient planner_client;
-                    uint8_t state;
-                    bool command_sent;
-                };
-            } AMBRO_STRUCT_ELSE(HomingFeature) {
-                static void init (Context c) {}
-                template <typename ThisContext>
-                static bool endstop_is_triggered (ThisContext c) { return false; }
-                static bool start_virt_homing (Context c) { return true; }
-                template <typename CallbackContext>
-                static bool prestep_callback (CallbackContext c) { return true; }
-                struct Object {};
-            };
-            
-            using CMinPos = decltype(ExprCast<FpType>(Config::e(VirtAxisParams::MinPos::i())));
-            using CMaxPos = decltype(ExprCast<FpType>(Config::e(VirtAxisParams::MaxPos::i())));
-            using CMaxSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(VirtAxisParams::MaxSpeed::i())));
-            
-            using ConfigExprs = MakeTypeList<CMinPos, CMaxPos, CMaxSpeedFactor>;
             
         public:
             struct Object : public ObjBase<VirtAxis, typename TransformFeature::Object, MakeTypeList<
                 TheTransformAlg,
-                TheSplitterClass,
-                HomingFeature
+                TheSplitterClass
             >>
             {
                 FpType m_req_pos;
@@ -2016,7 +1819,6 @@ public:
         static void do_split (Context c) {}
         static void handle_aborted (Context c) {}
         static bool handle_set_position (Context c, TheCommand *err_output) { return true; }
-        static bool start_virt_homing (Context c) { return true; }
         template <typename CallbackContext>
         static bool prestep_callback (CallbackContext c) { return false; }
         struct Object {};
@@ -2032,6 +1834,9 @@ public:
     
     template <int PhysVirtAxisIndex>
     using GetVirtAxisVirtIndex = WrapInt<(PhysVirtAxisIndex - NumAxes)>;
+    
+    template <int PhysVirtAxisIndex>
+    using GetVirtAxis = typename TransformFeature::template VirtAxis<GetVirtAxisVirtIndex<PhysVirtAxisIndex>::Value>;
     
 private:
     template <bool IsVirt, int PhysVirtAxisIndex>
@@ -2141,21 +1946,9 @@ public:
         static void start_homing (Context c, PhysVirtAxisMaskType mask)
         {
             auto *m = PrinterMain::Object::self(c);
-            if (!TheAxis::HomingSpec::Enabled || !(mask & AxisMask)) {
-                return;
-            }
-            m->m_homing_rem_axes |= AxisMask;
-            TheAxis::start_phys_homing(c);
-        }
-        
-        static void m119_append_endstop (Context c, TheCommand *cmd)
-        {
-            if (TheAxis::HomingSpec::Enabled) {
-                bool triggered = TheAxis::HomingFeature::endstop_is_triggered(c);
-                cmd->reply_append_ch(c, ' ');
-                cmd->reply_append_ch(c, TheAxis::AxisName);
-                cmd->reply_append_ch(c, ':');
-                cmd->reply_append_ch(c, (triggered ? '1' : '0'));
+            if (TheAxis::ConsiderForHoming && (mask & AxisMask)) {
+                m->m_homing_rem_axes |= AxisMask;
+                TheAxis::start_phys_homing(c);
             }
         }
     };
@@ -2191,15 +1984,7 @@ private:
         static bool const CorrectionEnabled = false;
         template <typename Src, typename Dst, bool Reverse> static void do_correction (Context c, Src src, Dst dst, WrapBool<Reverse>) {}
     };
-    
-    using TheCorrectionService = FuncCall<
-        IfFunc<
-            TemplateFunc<HasServiceProvider>,
-            ComposeFunctions<GetMemberType_CorrectionFeature, TemplateFunc<GetServiceProviderModule>>,
-            ConstantFunc<DummyCorrectionService>
-        >,
-        typename ServiceList::CorrectionService
-    >;
+    using TheCorrectionService = GetServiceFromModuleOrDefault<DummyCorrectionService, typename ServiceList::CorrectionService, MemberType_CorrectionFeature>;
     
     AMBRO_STRUCT_IF(LoadConfigFeature, TheConfigManager::HasStore) {
         static void start_loading (Context c)
@@ -2209,6 +1994,36 @@ private:
         }
     } AMBRO_STRUCT_ELSE(LoadConfigFeature) {
         static void start_loading (Context c) {}
+    };
+    
+public:
+    AMBRO_STRUCT_IF(VirtHomingFeature, HasVirtHoming) {
+        friend PrinterMain;
+        
+    private:
+        using VirtHomingModule = GetServiceProviderModule<typename ServiceList::VirtHomingService>;
+        
+        static bool start_virt_homing (Context c)
+        {
+            auto *ob = PrinterMain::Object::self(c);
+            VirtHomingModule::startVirtHoming(c, ob->m_homing_rem_axes, get_locked(c));
+            return true;
+        }
+        
+    public:
+        static void virtualHomingFinished (Context c, bool error)
+        {
+            auto *ob = PrinterMain::Object::self(c);
+            AMBRO_ASSERT(!ob->homing_error)
+            
+            ob->homing_error = error;
+            homing_finished(c);
+        }
+    }
+    AMBRO_STRUCT_ELSE(VirtHomingFeature) {
+        friend PrinterMain;
+    private:
+        static bool start_virt_homing (Context c) { return false; }
     };
     
 public:
@@ -2387,7 +2202,7 @@ private:
                 
                 case 119: {
                     cmd->reply_append_pstr(c, AMBRO_PSTR("endstops:"));
-                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_m119_append_endstop(), c, cmd);
+                    ListForEachForward<AxesList>(LForeach_m119_append_endstop(), c, cmd);
                     ListForEachForward<ModulesList>(LForeach_m119_append_endstop(), c, cmd);
                     cmd->reply_append_ch(c, '\n');                    
                     return cmd->finishCommand(c);
@@ -2608,9 +2423,12 @@ private:
         AMBRO_ASSERT(!(ob->m_homing_rem_axes & PhysAxisMask))
         
         TransformFeature::do_pending_virt_update(c);
-        work_virt_homing(c);
+        if (ob->homing_error || !VirtHomingFeature::start_virt_homing(c)) {
+            return homing_finished(c);
+        }
     }
     
+private:
     static void homing_finished (Context c)
     {
         auto *ob = Object::self(c);
@@ -2621,17 +2439,6 @@ private:
             cmd->reportError(c, nullptr);
         }
         cmd->finishCommand(c);
-    }
-    
-    static void work_virt_homing (Context c)
-    {
-        auto *ob = Object::self(c);
-        AMBRO_ASSERT(ob->locked)
-        AMBRO_ASSERT(!(ob->m_homing_rem_axes & PhysAxisMask))
-        
-        if (ob->homing_error || TransformFeature::start_virt_homing(c) || ob->homing_error) {
-            return homing_finished(c);
-        }
     }
     
     static void now_inactive (Context c)
@@ -2784,8 +2591,7 @@ private:
     template <int AxisIndex>
     static bool planner_prestep_callback (typename ThePlanner::template Axis<AxisIndex>::StepperCommandCallbackContext c)
     {
-        return TransformFeature::prestep_callback(c) ||
-               !ListForEachForwardInterruptible<ModulesList>(LForeach_prestep_callback(), c);
+        return !ListForEachForwardInterruptible<ModulesList>(LForeach_prestep_callback(), c);
     }
     
 public:
