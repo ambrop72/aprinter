@@ -296,7 +296,6 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheModule, TheModule)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_CorrectionFeature, CorrectionFeature)
-    APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ConfigExprs, ConfigExprs)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ProvidedServices, ProvidedServices)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_MotionPlannerChannels, MotionPlannerChannels)
@@ -3036,8 +3035,6 @@ private:
     };
     
 public:
-    using EventLoopFastEvents = ObjCollect<MakeTypeList<PrinterMain>, MemberType_EventLoopFastEvents, true>;
-    
     struct Object : public ObjBase<PrinterMain, ParentObject, JoinTypeLists<
         AxesList,
         LasersList,

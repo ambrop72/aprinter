@@ -57,7 +57,6 @@ class GenState(object):
         self._extra_sources = []
         self._extra_includes = []
         self._need_millisecond_clock = False
-        self._fast_event_roots = []
         self._defines = []
     
     def add_subst (self, key, val, indent=-1):
@@ -154,12 +153,13 @@ class GenState(object):
     def add_finalize_action (self, action):
         self._finalize_actions.append(action)
     
-    def add_global_resource (self, priority, name, expr, context_name=None, code_before=None, code_before_program=None, extra_program_child=None):
+    def add_global_resource (self, priority, name, expr, context_name=None, code_before=None, code_before_program=None, extra_program_child=None, is_fast_event_root=False):
         code_before = '' if code_before is None else '{}\n'.format(code_before)
         self._global_resources.append({
             'priority':priority, 'name':name, 'expr':expr, 'context_name':context_name,
             'code_before':code_before, 'code_before_program':code_before_program,
             'extra_program_child':extra_program_child,
+            'is_fast_event_root':is_fast_event_root,
         })
     
     def add_module (self):
@@ -179,9 +179,6 @@ class GenState(object):
     
     def set_need_millisecond_clock (self):
         self._need_millisecond_clock = True
-    
-    def add_fast_event_root (self, fast_event_root):
-        self._fast_event_roots.append(fast_event_root)
     
     def add_define (self, name, value):
         self._defines.append({'name': name, 'value': str(value)})
@@ -355,9 +352,10 @@ def setup_event_loop(gen):
     code_before_expr = 'struct MyLoopExtraDelay;'
     expr = TemplateExpr('BusyEventLoop', ['MyContext', 'Program', 'MyLoopExtraDelay'])
     
-    fast_event_roots_list = 'JoinTypeLists<{}>'.format(', '.join('typename {}::EventLoopFastEvents'.format(r) for r in gen._fast_event_roots))
+    fast_events = 'ObjCollect<MakeTypeList<{}>, MemberType_EventLoopFastEvents>'.format(', '.join(gr['name'] for gr in gen._global_resources if gr['is_fast_event_root']))
     
-    code_before_program  = 'using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, {}>;\n'.format(fast_event_roots_list)
+    code_before_program  = 'APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)\n'
+    code_before_program += 'using MyLoopExtra = BusyEventLoopExtra<Program, MyLoop, {}>;\n'.format(fast_events)
     code_before_program += 'struct MyLoopExtraDelay : public WrapType<MyLoopExtra> {};'
     
     gen.add_global_resource(0, 'MyLoop', expr, context_name='EventLoop', code_before=code_before_expr, code_before_program=code_before_program, extra_program_child='MyLoopExtra')
@@ -1244,8 +1242,7 @@ def setup_network(gen, config, key):
             use_ethernet(gen, network_config, 'EthernetDriver', 'MyNetwork::GetEthernet'),
         ])
         
-        gen.add_global_resource(27, 'MyNetwork', network_expr, context_name='Network')
-        gen.add_fast_event_root('MyNetwork')
+        gen.add_global_resource(27, 'MyNetwork', network_expr, context_name='Network', is_fast_event_root=True)
         
         network_state = NetworkConfigState()
         gen.register_singleton_object('network', network_state)
@@ -2052,9 +2049,8 @@ def generate(config_root_data, cfg_name, main_template):
             
             printer_params_typedef = 'struct ThePrinterParams : public {} {{}};'.format(printer_params.build(0))
             
-            gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', 'ThePrinterParams']), context_name='Printer', code_before=printer_params_typedef)
+            gen.add_global_resource(30, 'MyPrinter', TemplateExpr('PrinterMain', ['MyContext', 'Program', 'ThePrinterParams']), context_name='Printer', code_before=printer_params_typedef, is_fast_event_root=True)
             gen.add_subst('EmergencyProvider', 'MyPrinter')
-            gen.add_fast_event_root('MyPrinter')
             
             setup_event_loop(gen)
     

@@ -47,7 +47,6 @@
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
@@ -75,8 +74,6 @@ private:
     using TheEthernet = typename EthernetService::template Ethernet<Context, Object, TheEthernetClientParams>;
     
     using TimeoutsFastEvent = typename Context::EventLoop::template FastEventSpec<LwipNetwork>;
-    
-    APRINTER_DEFINE_MEMBER_TYPE(MemberType_EventLoopFastEvents, EventLoopFastEvents)
     
 public:
     struct NetworkParams {
@@ -1007,10 +1004,7 @@ private:
     }
     
 public:
-    using EventLoopFastEvents = JoinTypeLists<
-        MakeTypeList<TimeoutsFastEvent>,
-        ObjCollect<MakeTypeList<LwipNetwork>, MemberType_EventLoopFastEvents, true>
-    >;
+    using EventLoopFastEvents = MakeTypeList<TimeoutsFastEvent>;
     
     using GetEthernet = TheEthernet;
     
