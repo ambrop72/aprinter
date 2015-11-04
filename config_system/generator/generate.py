@@ -1433,6 +1433,27 @@ def generate(config_root_data, cfg_name, main_template):
                             fs_test_module = gen.add_module()
                             fs_test_module.set_expr('FsTestModuleService')
                         
+                        gcode_upload_sel = selection.Selection()
+                        
+                        @gcode_upload_sel.option('NoGcodeUpload')
+                        def option(gcode_upload_config):
+                            pass
+                        
+                        @gcode_upload_sel.option('GcodeUpload')
+                        def option(gcode_upload_config):
+                            gen.add_aprinter_include('printer/GcodeUploadModule.h')
+                            
+                            max_command_size = gcode_upload_config.get_int('MaxCommandSize')
+                            if not (32 <= max_command_size <= 1024):
+                                gcode_upload_config.key_path('MaxCommandSize').error('Bad value.')
+                            
+                            gcode_upload_module = gen.add_module()
+                            gcode_upload_module.set_expr(TemplateExpr('GcodeUploadModuleService', [
+                                max_command_size,
+                            ]))
+                        
+                        fs_config.do_selection('GcodeUpload', gcode_upload_sel)
+                        
                         return TemplateExpr('SdFatInputService', [
                             use_sdcard(gen, sdcard, 'SdCardService', sdcard_user),
                             TemplateExpr('FatFsService', [

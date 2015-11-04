@@ -407,12 +407,19 @@ public:
             m_cmd = nullptr;
             m_error = false;
             m_send_buf_event_handler = nullptr;
+            m_captured_command_handler = nullptr;
             mo->command_stream_list.prepend(this);
         }
         
         void deinit (Context c)
         {
             auto *mo = Object::self(c);
+            
+            if (m_captured_command_handler) {
+                auto func = m_captured_command_handler;
+                m_captured_command_handler = nullptr;
+                func(c, nullptr);
+            }
             
             mo->command_stream_list.remove(this);
         }
@@ -791,6 +798,27 @@ public:
             bool m_saved_accept_msg;
         };
         
+    public:
+        // NOTE: Null cmd means the stream is gone, do not stopCapture.
+        // In this case this is an in-line callback from deinit(), so no funny business there.
+        using CapturedCommandHandler = void (*) (Context c, CommandStream *cmd);
+        
+        void startCapture (Context c, CapturedCommandHandler captured_command_handler)
+        {
+            AMBRO_ASSERT(!m_captured_command_handler)
+            AMBRO_ASSERT(captured_command_handler)
+            
+            m_captured_command_handler = captured_command_handler;
+        }
+        
+        // NOTE: It is advised to only stopCapture as part of handling a captured command.
+        void stopCapture (Context c)
+        {
+            AMBRO_ASSERT(m_captured_command_handler)
+            
+            m_captured_command_handler = nullptr;
+        }
+        
     private:
         uint8_t m_state : 4;
         bool m_error : 1;
@@ -798,6 +826,7 @@ public:
         CommandStreamCallback *m_callback;
         TheGcodeCommand *m_cmd;
         SendBufEventHandler m_send_buf_event_handler;
+        CapturedCommandHandler m_captured_command_handler;
         DoubleEndedListNode<CommandStream> m_list_node;
     };
     
@@ -2144,6 +2173,10 @@ private:
     static void work_command (Context c, TheCommand *cmd)
     {
         auto *ob = Object::self(c);
+        
+        if (AMBRO_UNLIKELY(bool(cmd->m_captured_command_handler))) {
+            return cmd->m_captured_command_handler(c, cmd);
+        }
         
         switch (cmd->getCmdCode(c)) {
             case 'M': switch (cmd->getCmdNumber(c)) {

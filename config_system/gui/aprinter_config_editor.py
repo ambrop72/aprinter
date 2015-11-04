@@ -699,6 +699,12 @@ def editor():
                                 ce.Boolean(key='FsWritable', title='Writable filesystem', default=False),
                                 ce.Boolean(key='HaveAccessInterface', title='Enable internal FS access interface', default=False),
                                 ce.Boolean(key='EnableFsTest', title='Enable FS test module', default=False),
+                                ce.OneOf(key='GcodeUpload', title='G-code upload', choices=[
+                                    ce.Compound('NoGcodeUpload', title='Disabled', attrs=[]),
+                                    ce.Compound('GcodeUpload', title='Enabled', attrs=[
+                                        ce.Integer(key='MaxCommandSize', title='Maximum command size', default=128),
+                                    ]),
+                                ]),
                             ]),
                         ]),
                         ce.Integer(key='BufferBaseSize', title='Buffer size'),
