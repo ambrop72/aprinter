@@ -79,18 +79,18 @@
 // Note that we actually have ring buffers of these sizes in
 // LwipNetwork::TcpConnection, lwIP just needs to be aware of
 // how large they are.
-#define TCP_WND (5 * TCP_MSS)
+#define TCP_WND (6 * TCP_MSS)
 #define TCP_SND_BUF (2 * TCP_MSS)
 
 // Maximum number of pbufs in the TCP send queue for a single connection.
 // Note that currently lwIP only enforces this limit when adding new
 // segments and not when adding a pbuf to an existing segment.
 // Nevertheless we should not run out of pbufs due to TCP_EXTEND_ROM_PBUFS.
-#define TCP_SND_QUEUELEN 8
+#define TCP_SND_QUEUELEN 6
 
 // Number of TCP segments in the pool.
 // Each connection uses at most TCP_SND_QUEUELEN segments since each segment
-// contains has one or more pbufs.
+// contains one or more pbufs.
 #define MEMP_NUM_TCP_SEG (APRINTER_NUM_TCP_CONN * TCP_SND_QUEUELEN)
 
 // Number of pbufs in PBUF pool.
@@ -133,4 +133,5 @@
 // - Outgoing TCP ACK and RST packets.
 // - Headers for outgoing TCP segments generated in tcp_write() when used
 //   without TCP_WRITE_FLAG_COPY.
-#define MEM_SIZE (1024 + APRINTER_NUM_TCP_CONN * (256 + TCP_SND_QUEUELEN * 128))
+// - ICMP echo-reply packets.
+#define MEM_SIZE (768 + APRINTER_NUM_TCP_CONN * (256 + TCP_SND_QUEUELEN * 112))
