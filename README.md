@@ -197,9 +197,13 @@ If configuration is stored on the SD card, the file `aprinter.cfg` in the root o
 The firmware supports reading G-code from a file in a FAT32 partition on an SD card.
 When the SD card is being initialized, the first primary partition with a FAT32 filesystem signature will be used.
 
-SD card support is enabled by default on the following boards: RADDS, RAMPS-FD, RAMPS 1.3, Melzi.
+There is partial write support; existing files can be written but new files cannot be created. Write support can be utilized for uploading G-code (M28, M29) and for storing the configuration (see the Runtime Configuration section).
 
-The following SD-card related commands will be available when SD card support is enabled:
+**WARNING**: Back up any important data on the SD cards you would be using with the device. Data loss is possible, e.g. due to bugs in the SD card driver and the FAT filesystem code.
+
+SD card support is enabled by default on the following boards: RADDS, RAMPS-FD, 4pi, RAMPS 1.3, Melzi, Duet. Write support is enabled on RADDS, RAMPS-FD, 4pi, Duet.
+
+The following SD-card related commands are implemented:
 
 - M21 - Initialize the SD card. On success the root directory will become the current directory.
 - M22 - Deinitialize the SD card.
@@ -211,8 +215,12 @@ The following SD-card related commands will be available when SD card support is
 - M24 - Start or resume SD printing.
 - M25 - Pause SD printing. Note that pause automatically happens at end of file.
 - M26 - Rewind the current file to the beginning.
+- M28 F\<file\> - Start writing commands to a file (in the current directory).
+- M29 - Stop writing commands to file.
 
 When passing a file or directory name to a command, any spaces in the name have to be replaced with the escape sequence `\20`, because a space would be parsed as a delimiter between command parameters.
+
+Note, currently Pronterface's SD button does not work with Aprinter, you need to use the SD commands directly.
 
 Example: start printing from the file `gcodes/test.gcode`.
 
@@ -236,6 +244,14 @@ Example: repeat a successful print.
 ```
 M26
 M24
+```
+
+G-code can be uploaded using the commands M28 and M29. You should send M28, then send all the gcode to be written to the file (you can just tell Pronterface to "print"), then send M29. Alternatively, you can put M28/M29 into the start/end gcode in your slicer's settings. Please make sure that the file exists, the firmware currently cannot create new files, only overwrite existing ones.
+
+```
+M28 Fprint.gcode
+// Send your gcode.
+M28
 ```
 
 ### Networking
