@@ -1864,8 +1864,8 @@ public:
     template <int PhysVirtAxisIndex>
     using GetVirtAxisVirtIndex = WrapInt<(PhysVirtAxisIndex - NumAxes)>;
     
-    template <int PhysVirtAxisIndex>
-    using GetVirtAxis = typename TransformFeature::template VirtAxis<GetVirtAxisVirtIndex<PhysVirtAxisIndex>::Value>;
+    template <int PhysVirtAxisIndex, typename This=PrinterMain>
+    using GetVirtAxis = typename This::TransformFeature::template VirtAxis<GetVirtAxisVirtIndex<PhysVirtAxisIndex>::Value>;
     
 private:
     template <bool IsVirt, int PhysVirtAxisIndex>
