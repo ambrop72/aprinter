@@ -25,8 +25,8 @@
 #ifndef CONF_EMAC_H_INCLUDED
 #define CONF_EMAC_H_INCLUDED
 
-#define EMAC_RX_BUFFERS (32)
-#define EMAC_TX_BUFFERS (8)
+#define EMAC_RX_BUFFERS (6*12)
+#define EMAC_TX_BUFFERS (7)
 
 // We wait for EMAC_NSR_IDLE ourselves so emac_wait_phy should never have to.
 #define MAC_PHY_RETRY_MAX 0

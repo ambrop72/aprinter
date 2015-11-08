@@ -79,14 +79,14 @@
 // Note that we actually have ring buffers of these sizes in
 // LwipNetwork::TcpConnection, lwIP just needs to be aware of
 // how large they are.
-#define TCP_WND (2 * TCP_MSS)
+#define TCP_WND (5 * TCP_MSS)
 #define TCP_SND_BUF (2 * TCP_MSS)
 
 // Maximum number of pbufs in the TCP send queue for a single connection.
 // Note that currently lwIP only enforces this limit when adding new
 // segments and not when adding a pbuf to an existing segment.
 // Nevertheless we should not run out of pbufs due to TCP_EXTEND_ROM_PBUFS.
-#define TCP_SND_QUEUELEN 10
+#define TCP_SND_QUEUELEN 8
 
 // Number of TCP segments in the pool.
 // Each connection uses at most TCP_SND_QUEUELEN segments since each segment
@@ -101,12 +101,14 @@
 //   Note that we patched lwIP so that it internally detects when
 //   the buffer is a continuation of the previous buffer and extends
 //   an existing pbuf instead of allocating a new one, when possible.
-//   With this (TCP_EXTEND_ROM_PBUFS), little more than TCP_SND_QUEUELEN
-//   of these pbufs are needed per connection.
+//   The magic number in this define is based on the fact these REF
+//   pbufs always appear as part of TCP segments together with a header
+//   pbuf; usually we have a single REF pbuf following a header, except
+//   at buffer wrap-around we may have one extra REF pbuf.
 // - In the fragmentation of IP packets, they reference parts of the
 //   original full packet. Since we don't need and disable fragmentation,
 //   we don't reserve anything for this.
-#define MEMP_NUM_PBUF (APRINTER_NUM_TCP_CONN * (3 + TCP_SND_QUEUELEN))
+#define MEMP_NUM_PBUF (APRINTER_NUM_TCP_CONN * ((TCP_SND_QUEUELEN+1)/2+1))
 
 // Number of pbufs in PBUF_POOL pool.
 // These are allocated via pbuf_alloc(..., PBUF_POOL) and are used only
