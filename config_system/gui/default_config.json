@@ -1362,14 +1362,14 @@
       },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
+        "EventChannelBufferSize": 36,
         "EventChannelTimerClearance": 0.002,
         "FpType": "double",
-        "LookaheadBufferSize": 28,
-        "LookaheadCommitCount": 10,
+        "LookaheadBufferSize": 24,
+        "LookaheadCommitCount": 6,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": true,
-        "StepperSegmentBufferSize": 32,
+        "StepperSegmentBufferSize": 36,
         "_compoundName": "performance"
       },
       "EventChannelTimer": {
@@ -1394,16 +1394,7 @@
         "_compoundName": "RuntimeConfig",
         "config_manager": {
           "ConfigStore": {
-            "Eeprom": {
-              "FlashDriver": {
-                "DeviceIndex": 1,
-                "_compoundName": "At91SamFlash"
-              },
-              "_compoundName": "FlashWrapper"
-            },
-            "EndBlock": 512,
-            "StartBlock": 0,
-            "_compoundName": "EepromConfigStore"
+            "_compoundName": "FileConfigStore"
           },
           "_compoundName": "RuntimeConfigManager"
         }
@@ -1411,7 +1402,34 @@
       "sdcard_config": {
         "_compoundName": "SdCardConfig",
         "sdcard": {
-          "_compoundName": "NoSdCard"
+          "BufferBaseSize": 2048,
+          "FsType": {
+            "CaseInsensFileName": true,
+            "EnableFsTest": false,
+            "FsWritable": true,
+            "GcodeUpload": {
+              "MaxCommandSize": 128,
+              "_compoundName": "GcodeUpload"
+            },
+            "HaveAccessInterface": true,
+            "MaxFileNameSize": 256,
+            "NumCacheEntries": 8,
+            "_compoundName": "Fat32"
+          },
+          "GcodeParser": {
+            "MaxParts": 16,
+            "_compoundName": "TextGcodeParser"
+          },
+          "MaxCommandSize": 256,
+          "SdCardService": {
+            "SdioService": {
+              "IsWideMode": true,
+              "Slot": 0,
+              "_compoundName": "At91SamSdio"
+            },
+            "_compoundName": "SdioSdCard"
+          },
+          "_compoundName": "SdCard"
         }
       },
       "serial": {
