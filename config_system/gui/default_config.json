@@ -407,8 +407,12 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
-            "EnableFsTest": true,
+            "EnableFsTest": false,
             "FsWritable": true,
+            "GcodeUpload": {
+              "MaxCommandSize": 128,
+              "_compoundName": "GcodeUpload"
+            },
             "HaveAccessInterface": true,
             "MaxFileNameSize": 256,
             "NumCacheEntries": 8,
@@ -954,8 +958,12 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
-            "EnableFsTest": true,
+            "EnableFsTest": false,
             "FsWritable": true,
+            "GcodeUpload": {
+              "MaxCommandSize": 128,
+              "_compoundName": "GcodeUpload"
+            },
             "HaveAccessInterface": true,
             "MaxFileNameSize": 256,
             "NumCacheEntries": 8,
@@ -2192,6 +2200,9 @@
             "CaseInsensFileName": true,
             "EnableFsTest": false,
             "FsWritable": false,
+            "GcodeUpload": {
+              "_compoundName": "NoGcodeUpload"
+            },
             "HaveAccessInterface": false,
             "MaxFileNameSize": 32,
             "NumCacheEntries": 1,
@@ -2553,6 +2564,9 @@
             "CaseInsensFileName": true,
             "EnableFsTest": false,
             "FsWritable": false,
+            "GcodeUpload": {
+              "_compoundName": "NoGcodeUpload"
+            },
             "HaveAccessInterface": false,
             "MaxFileNameSize": 128,
             "NumCacheEntries": 2,
@@ -3153,7 +3167,7 @@
       ],
       "name": "STM32F407-Discovery",
       "development": {
-        "AssertionsEnabled": true,
+        "AssertionsEnabled": false,
         "BuildWithClang": false,
         "DebugSymbols": false,
         "DetectOverloadEnabled": false,
@@ -3210,8 +3224,12 @@
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
-            "FsWritable": false,
-            "HaveAccessInterface": false,
+            "FsWritable": true,
+            "GcodeUpload": {
+              "MaxCommandSize": 128,
+              "_compoundName": "GcodeUpload"
+            },
+            "HaveAccessInterface": true,
             "MaxFileNameSize": 256,
             "NumCacheEntries": 4,
             "_compoundName": "Fat32"
@@ -3554,14 +3572,14 @@
       },
       "performance": {
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 64,
+        "EventChannelBufferSize": 24,
         "EventChannelTimerClearance": 0.002,
         "FpType": "double",
-        "LookaheadBufferSize": 48,
-        "LookaheadCommitCount": 16,
+        "LookaheadBufferSize": 32,
+        "LookaheadCommitCount": 8,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
-        "StepperSegmentBufferSize": 64,
+        "StepperSegmentBufferSize": 48,
         "_compoundName": "performance"
       },
       "EventChannelTimer": {
@@ -3589,8 +3607,12 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
-            "EnableFsTest": true,
+            "EnableFsTest": false,
             "FsWritable": true,
+            "GcodeUpload": {
+              "MaxCommandSize": 128,
+              "_compoundName": "GcodeUpload"
+            },
             "HaveAccessInterface": true,
             "MaxFileNameSize": 256,
             "NumCacheEntries": 8,
