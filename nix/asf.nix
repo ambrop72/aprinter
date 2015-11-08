@@ -45,6 +45,9 @@ stdenv.mkDerivation rec {
         
         # Fix __always_inline conflicts with gcc-arm-embedded headers.
         find "$out" \( -name '*.h' -o -name '*.c' \) -exec sed -i 's/__always_inline\(\s\|$\)/__asf_always_inline\1/g' {} \;
+        
+        # Apply patches.
+        patch -d "$out" -p1 < ${ ../patches/asf-emac-write.patch }
     '';
     
     dontStrip = true;

@@ -60,7 +60,6 @@ private:
     
     static TimeType const ResetPollTicks = 0.1 * Context::Clock::time_freq;
     static uint16_t const MaxResetPolls = 50;
-    static size_t const RwBufSize = 1536;
     static TimeType const PhyMaintPollTicks = 0.01 * Context::Clock::time_freq;
     static uint16_t const MaxPhyMaintPolls = 200;
     
@@ -123,7 +122,10 @@ public:
         AMBRO_ASSERT(o->init_state == InitState::RUNNING)
         
         size_t total_length = send_buffer->getTotalLength();
-        if (total_length > RwBufSize) {
+        
+        void *dev_buffer;
+        auto write_start_res = emac_dev_write_start(&o->emac_dev, total_length, &dev_buffer);
+        if (write_start_res != EMAC_OK) {
             return false;
         }
         
@@ -131,15 +133,13 @@ public:
         do {
             size_t chunk_length = send_buffer->getChunkLength();
             AMBRO_ASSERT(chunk_length <= total_length - buf_pos)
-            memcpy(o->frame_buf + buf_pos, send_buffer->getChunkPtr(), chunk_length);
+            memcpy((char *)dev_buffer + buf_pos, send_buffer->getChunkPtr(), chunk_length);
             buf_pos += chunk_length;
         } while (send_buffer->nextChunk());
         AMBRO_ASSERT(buf_pos == total_length)
         
-        memset(o->frame_buf + buf_pos, 0, RwBufSize - buf_pos);
-        
-        auto write_res = emac_dev_write(&o->emac_dev, o->frame_buf, total_length, nullptr);
-        if (write_res != EMAC_OK) {
+        auto write_end_res = emac_dev_write_end(&o->emac_dev, total_length, nullptr);
+        if (write_end_res != EMAC_OK) {
             return false;
         }
         
@@ -374,7 +374,6 @@ public:
         uint8_t const *mac_addr;
         uint16_t poll_counter;
         emac_device_t emac_dev;
-        char frame_buf[RwBufSize];
     };
 };
 
