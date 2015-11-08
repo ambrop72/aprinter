@@ -883,41 +883,39 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->eth_activated)
         
-        while (true) {
+        if (!o->rx_pbuf) {
+            o->rx_pbuf = pbuf_alloc(PBUF_RAW, PBUF_POOL_BUFSIZE, PBUF_POOL);
             if (!o->rx_pbuf) {
-                o->rx_pbuf = pbuf_alloc(PBUF_RAW, PBUF_POOL_BUFSIZE, PBUF_POOL);
-                if (!o->rx_pbuf) {
-                    return;
-                }
-            }
-            
-            struct pbuf *p = o->rx_pbuf;
-            
-            size_t length;
-            if (!TheEthernet::recvFrame(c, (char *)p->payload + ETH_PAD_SIZE, RxPbufPayloadSize, &length)) {
                 return;
             }
-            AMBRO_ASSERT(length <= RxPbufPayloadSize)
-            
-            if (length == 0) {
-                LINK_STATS_INC(link.memerr);
-                LINK_STATS_INC(link.drop);
-                continue;
-            }
-            
-            p->tot_len = ETH_PAD_SIZE + length;
-            p->len = ETH_PAD_SIZE + length;
-            
-            debug_print_pbuf(c, "Rx", p, ETH_PAD_SIZE);
-            
-            LINK_STATS_INC(link.recv);
-            
-            if (o->netif.input(p, &o->netif) != ERR_OK) {
-                pbuf_free(p);
-            }
-            
-            o->rx_pbuf = nullptr;
         }
+        
+        struct pbuf *p = o->rx_pbuf;
+        
+        size_t length;
+        if (!TheEthernet::recvFrame(c, (char *)p->payload + ETH_PAD_SIZE, RxPbufPayloadSize, &length)) {
+            return;
+        }
+        AMBRO_ASSERT(length <= RxPbufPayloadSize)
+        
+        if (length == 0) {
+            LINK_STATS_INC(link.memerr);
+            LINK_STATS_INC(link.drop);
+            return;
+        }
+        
+        p->tot_len = ETH_PAD_SIZE + length;
+        p->len = ETH_PAD_SIZE + length;
+        
+        debug_print_pbuf(c, "Rx", p, ETH_PAD_SIZE);
+        
+        LINK_STATS_INC(link.recv);
+        
+        if (o->netif.input(p, &o->netif) != ERR_OK) {
+            pbuf_free(p);
+        }
+        
+        o->rx_pbuf = nullptr;
     }
     struct EthernetReceiveHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_receive_handler) {};
     

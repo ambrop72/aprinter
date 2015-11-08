@@ -157,6 +157,7 @@ public:
             if (read_res == EMAC_RX_NULL) {
                 return false;
             }
+            Context::EventLoop::template triggerFastEvent<FastEvent>(c);
             *out_length = 0;
             return true;
         }
@@ -164,6 +165,7 @@ public:
         AMBRO_ASSERT(u_length <= max_length)
         
         *out_length = u_length;
+        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
         return true;
     }
     
