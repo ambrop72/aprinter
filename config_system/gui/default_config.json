@@ -5943,7 +5943,7 @@
           "MicroSteps": 0,
           "MinPos": -100000,
           "Name": "E",
-          "StepsPerUnit": 144,
+          "StepsPerUnit": 137,
           "_compoundName": "stepper",
           "homing": {
             "_compoundName": "no_homing"
