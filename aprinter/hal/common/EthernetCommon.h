@@ -31,15 +31,13 @@ template <
     typename TActivateHandler,
     typename TLinkHandler,
     typename TReceiveHandler,
-    typename TSendBufferType,
-    typename TRecvBufferType
+    typename TSendBufferType
 >
 struct EthernetClientParams {
     using ActivateHandler = TActivateHandler;
     using LinkHandler = TLinkHandler;
     using ReceiveHandler = TReceiveHandler;
     using SendBufferType = TSendBufferType;
-    using RecvBufferType = TRecvBufferType;
 };
 
 #include <aprinter/EndNamespace.h>

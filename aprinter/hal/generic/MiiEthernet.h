@@ -49,11 +49,10 @@ public:
     
 private:
     using SendBufferType = typename ClientParams::SendBufferType;
-    using RecvBufferType = typename ClientParams::RecvBufferType;
     
     struct MiiActivateHandler;
     struct MiiPhyMaintHandler;
-    using TheMiiClientParams = MiiClientParams<MiiActivateHandler, MiiPhyMaintHandler, typename ClientParams::ReceiveHandler, SendBufferType, RecvBufferType, Params::PhyService::Rmii>;
+    using TheMiiClientParams = MiiClientParams<MiiActivateHandler, MiiPhyMaintHandler, typename ClientParams::ReceiveHandler, SendBufferType, Params::PhyService::Rmii>;
     using TheMii = typename Params::MiiService::template Mii<Context, Object, TheMiiClientParams>;
     
     class PhyRequester;
@@ -100,14 +99,14 @@ public:
         TheMii::activate(c, mac_addr);
     }
     
-    static bool recvFrame (Context c, RecvBufferType *recv_buffer)
+    static bool recvFrame (Context c, char *data, size_t max_length, size_t *out_length)
     {
         auto *o = Object::self(c);
         
         if (o->init_state != InitState::RUNNING) {
             return false;
         }
-        return TheMii::recvFrame(c, recv_buffer);
+        return TheMii::recvFrame(c, data, max_length, out_length);
     }
     
     static bool sendFrame (Context c, SendBufferType *send_buffer)

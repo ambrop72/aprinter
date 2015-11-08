@@ -54,7 +54,6 @@ public:
 private:
     using TimeType = typename Context::Clock::TimeType;
     using SendBufferType = typename ClientParams::SendBufferType;
-    using RecvBufferType = typename ClientParams::RecvBufferType;
     
     enum class InitState : uint8_t {INACTIVE, WAIT_RST, RUNNING};
     enum class PhyMaintState : uint8_t {IDLE, BUSY};
@@ -147,33 +146,24 @@ public:
         return true;
     }
     
-    static bool recvFrame (Context c, RecvBufferType *recv_buffer)
+    static bool recvFrame (Context c, char *data, size_t max_length, size_t *out_length)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->init_state == InitState::RUNNING)
         
         uint32_t u_length;
-        auto read_res = emac_dev_read(&o->emac_dev, (uint8_t *)o->frame_buf, RwBufSize, &u_length);
+        auto read_res = emac_dev_read(&o->emac_dev, (uint8_t *)data, max_length, &u_length);
         if (read_res != EMAC_OK) {
-            return read_res != EMAC_RX_NULL;
-        }
-        size_t total_length = u_length;
-        
-        if (!recv_buffer->allocate(total_length)) {
+            if (read_res == EMAC_RX_NULL) {
+                return false;
+            }
+            *out_length = 0;
             return true;
         }
         
-        size_t buf_pos = 0;
-        do {
-            size_t chunk_length = recv_buffer->getChunkLength();
-            AMBRO_ASSERT(chunk_length <= total_length - buf_pos)
-            memcpy(recv_buffer->getChunkPtr(), o->frame_buf + buf_pos, chunk_length);
-            buf_pos += chunk_length;
-        } while (recv_buffer->nextChunk());
-        AMBRO_ASSERT(buf_pos == total_length)
+        AMBRO_ASSERT(u_length <= max_length)
         
-        recv_buffer->setValid();
-        
+        *out_length = u_length;
         return true;
     }
     

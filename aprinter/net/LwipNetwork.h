@@ -69,11 +69,12 @@ private:
     struct EthernetLinkHandler;
     struct EthernetReceiveHandler;
     class EthernetSendBuffer;
-    class EthernetRecvBuffer;
-    using TheEthernetClientParams = EthernetClientParams<EthernetActivateHandler, EthernetLinkHandler, EthernetReceiveHandler, EthernetSendBuffer, EthernetRecvBuffer>;
+    using TheEthernetClientParams = EthernetClientParams<EthernetActivateHandler, EthernetLinkHandler, EthernetReceiveHandler, EthernetSendBuffer>;
     using TheEthernet = typename EthernetService::template Ethernet<Context, Object, TheEthernetClientParams>;
     
     using TimeoutsFastEvent = typename Context::EventLoop::template FastEventSpec<LwipNetwork>;
+    
+    static size_t const RxPbufPayloadSize = PBUF_POOL_BUFSIZE - ETH_PAD_SIZE;
     
 public:
     struct NetworkParams {
@@ -95,6 +96,7 @@ public:
         o->net_activated = false;
         o->eth_activated = false;
         lwip_init();
+        o->rx_pbuf = nullptr;
         Context::EventLoop::template triggerFastEvent<TimeoutsFastEvent>(c);
     }
     
@@ -819,7 +821,7 @@ private:
 #endif
         err_t ret = ERR_BUF;
         
-        debug_print_pbuf(c, "Tx", p);
+        debug_print_pbuf(c, "Tx", p, 0);
         
         if (!o->eth_activated) {
             goto out;
@@ -882,98 +884,47 @@ private:
         AMBRO_ASSERT(o->eth_activated)
         
         while (true) {
-            EthernetRecvBuffer recv_buf;
-            recv_buf.m_first_pbuf = nullptr;
-            recv_buf.m_current_pbuf = nullptr;
-            recv_buf.m_valid = false;
-            
-            if (!TheEthernet::recvFrame(c, &recv_buf)) {
-                if (recv_buf.m_first_pbuf) {
-                    pbuf_free(recv_buf.m_first_pbuf);
+            if (!o->rx_pbuf) {
+                o->rx_pbuf = pbuf_alloc(PBUF_RAW, PBUF_POOL_BUFSIZE, PBUF_POOL);
+                if (!o->rx_pbuf) {
+                    return;
                 }
-                return;
             }
             
-            if (!recv_buf.m_valid) {
-                if (recv_buf.m_first_pbuf) {
-                    pbuf_free(recv_buf.m_first_pbuf);
-                }
+            struct pbuf *p = o->rx_pbuf;
+            
+            size_t length;
+            if (!TheEthernet::recvFrame(c, (char *)p->payload + ETH_PAD_SIZE, RxPbufPayloadSize, &length)) {
+                return;
+            }
+            AMBRO_ASSERT(length <= RxPbufPayloadSize)
+            
+            if (length == 0) {
                 LINK_STATS_INC(link.memerr);
                 LINK_STATS_INC(link.drop);
                 continue;
             }
             
-            AMBRO_ASSERT(recv_buf.m_first_pbuf)
-            AMBRO_ASSERT(!recv_buf.m_current_pbuf)
-            struct pbuf *p = recv_buf.m_first_pbuf;
+            p->tot_len = ETH_PAD_SIZE + length;
+            p->len = ETH_PAD_SIZE + length;
             
-            debug_print_pbuf(c, "Rx", p);
+            debug_print_pbuf(c, "Rx", p, ETH_PAD_SIZE);
             
-#if ETH_PAD_SIZE
-            pbuf_header(p, ETH_PAD_SIZE);
-#endif
             LINK_STATS_INC(link.recv);
             
             if (o->netif.input(p, &o->netif) != ERR_OK) {
                 pbuf_free(p);
             }
+            
+            o->rx_pbuf = nullptr;
         }
     }
     struct EthernetReceiveHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_receive_handler) {};
     
-    class EthernetRecvBuffer {
-        friend LwipNetwork;
-        
-    public:
-        bool allocate (size_t length)
-        {
-            AMBRO_ASSERT(!m_first_pbuf)
-            
-            struct pbuf *p = pbuf_alloc(PBUF_RAW, ETH_PAD_SIZE + length, PBUF_POOL);
-            if (!p) {
-                return false;
-            }
-#if ETH_PAD_SIZE
-            pbuf_header(p, -ETH_PAD_SIZE);
-#endif
-            m_first_pbuf = p;
-            m_current_pbuf = p;
-            return true;
-        }
-        
-        size_t getChunkLength ()
-        {
-            AMBRO_ASSERT(m_current_pbuf)
-            return m_current_pbuf->len;
-        }
-        
-        char * getChunkPtr ()
-        {
-            AMBRO_ASSERT(m_current_pbuf)
-            return (char *)m_current_pbuf->payload;
-        }
-        
-        bool nextChunk ()
-        {
-            AMBRO_ASSERT(m_current_pbuf)
-            m_current_pbuf = m_current_pbuf->next;
-            return m_current_pbuf != nullptr;
-        }
-        
-        void setValid ()
-        {
-            m_valid = true;
-        }
-        
-    private:
-        struct pbuf *m_first_pbuf;
-        struct pbuf *m_current_pbuf;
-        bool m_valid;
-    };
-    
-    static void debug_print_pbuf (Context c, char const *event, struct pbuf *p)
+    static void debug_print_pbuf (Context c, char const *event, struct pbuf *p, int16_t skip_header)
     {
 #ifdef APRINTER_DEBUG_NETWORK
+        pbuf_header(p, -skip_header);
         auto *out = Context::Printer::get_msg_output(c);
         out->reply_append_str(c, "//");
         out->reply_append_str(c, event);
@@ -989,6 +940,7 @@ private:
         }
         out->reply_append_ch(c, '\n');
         out->reply_poke(c);
+        pbuf_header(p, skip_header);
 #endif
     }
     
@@ -1014,6 +966,7 @@ public:
         DoubleEndedList<NetworkEventListener, &NetworkEventListener::m_node, false> event_listeners;
         bool net_activated;
         bool eth_activated;
+        struct pbuf *rx_pbuf;
         struct netif netif;
     };
 };

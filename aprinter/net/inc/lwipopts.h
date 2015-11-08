@@ -27,6 +27,7 @@
 //#define APRINTER_NUM_TCP_CONN <count>
 //#define APRINTER_NUM_TCP_LISTEN <count>
 //#define APRINTER_MEM_ALIGNMENT <bytes>
+//#define APRINTER_RX_MTU <bytes>
 
 // Simple options, mostly enable/disable.
 #define NO_SYS 1
@@ -120,6 +121,9 @@
 // Based on this knowledge, the value below should be sufficient, we should
 // never run out of pbufs in PBUF_POOL for receiving packets.
 #define PBUF_POOL_SIZE (1 + APRINTER_NUM_IP_REASS_PKTS)
+
+// Size of pbufs in the PBUF_POOL, used for RX only.
+#define PBUF_POOL_BUFSIZE LWIP_MEM_ALIGN_SIZE(APRINTER_RX_MTU+PBUF_LINK_ENCAPSULATION_HLEN+PBUF_LINK_HLEN)
 
 // Memory size for the general allocator.
 // Importantly, this is used for pbuf_alloc(..., PBUF_RAM). This includes:
