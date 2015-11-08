@@ -60,7 +60,7 @@
 template <
     int tstep_bits, int ttime_bits,
     int ttime_mul_bits, int tdiscriminant_prec,
-    int trel_t_extra_prec
+    int trel_t_extra_prec, bool tpreshift_accel
 >
 struct AxisDriverPrecisionParams {
     static const int step_bits = tstep_bits;
@@ -68,10 +68,11 @@ struct AxisDriverPrecisionParams {
     static const int time_mul_bits = ttime_mul_bits;
     static const int discriminant_prec = tdiscriminant_prec;
     static const int rel_t_extra_prec = trel_t_extra_prec;
+    static const bool preshift_accel = tpreshift_accel;
 };
 
-using AxisDriverAvrPrecisionParams = AxisDriverPrecisionParams<11, 22, 24, 1, 0>;
-using AxisDriverDuePrecisionParams = AxisDriverPrecisionParams<11, 28, 28, 3, 4>;
+using AxisDriverAvrPrecisionParams = AxisDriverPrecisionParams<11, 22, 24, 1, 0, true>;
+using AxisDriverDuePrecisionParams = AxisDriverPrecisionParams<11, 28, 28, 3, 4, false>;
 
 template <typename Context, typename ParentObject, typename Stepper, typename TConsumersList, typename Params>
 class AxisDriver {
@@ -107,11 +108,68 @@ public:
     using DiscriminantType = decltype(AXIS_STEPPER_DISCRIMINANT_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
     using V0Type = decltype(AXIS_STEPPER_V0_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
     using AMulType = decltype(AXIS_STEPPER_AMUL_EXPR_HELPER(AXIS_STEPPER_DUMMY_VARS));
+    using ADiscShiftedType = decltype(AccelFixedType().template shiftBits<(-discriminant_prec)>());
     using DelayParams = typename Params::DelayParams;
     using StepContext = typename TimerInstance::HandlerContext;
     
 private:
     using TheDebugObject = DebugObject<Context, Object>;
+    
+    AMBRO_STRUCT_IF(AccelShiftMode, Params::PrecisionParams::preshift_accel) {
+        using CommandAccelType = AMulType;
+        
+        struct ExtraMembers {};
+        
+        AMBRO_ALWAYS_INLINE
+        static CommandAccelType make_command_accel (AccelFixedType a)
+        {
+            return a.template shiftBits<(-amul_shift)>();
+        }
+        
+        AMBRO_ALWAYS_INLINE
+        static ADiscShiftedType compute_accel_for_load (Context c, CommandAccelType accel)
+        {
+            return accel.template undoShiftBitsLeft<(amul_shift-discriminant_prec)>();
+        }
+        
+        template <typename TheCommand>
+        AMBRO_ALWAYS_INLINE
+        static AMulType get_a_mul_for_step (Context c, TheCommand *command)
+        {
+            return command->accel;
+        }
+    }
+    AMBRO_STRUCT_ELSE(AccelShiftMode) {
+        using CommandAccelType = AccelFixedType;
+        
+        struct ExtraMembers {
+            AMulType m_a_mul;
+        };
+        
+        AMBRO_ALWAYS_INLINE
+        static CommandAccelType make_command_accel (AccelFixedType a)
+        {
+            return a;
+        }
+        
+        AMBRO_ALWAYS_INLINE
+        static ADiscShiftedType compute_accel_for_load (Context c, CommandAccelType accel)
+        {
+            auto *o = Object::self(c);
+            
+            o->m_a_mul = accel.template shiftBits<(-amul_shift)>();
+            return accel.template shiftBits<(-discriminant_prec)>();
+        }
+        
+        template <typename TheCommand>
+        AMBRO_ALWAYS_INLINE
+        static AMulType get_a_mul_for_step (Context c, TheCommand *command)
+        {
+            auto *o = Object::self(c);
+            
+            return o->m_a_mul;
+        }
+    };
     
 public:
     static constexpr double AsyncMinStepTime() { return DelayFeature::AsyncMinStepTime(); }
@@ -119,7 +177,7 @@ public:
     
     struct Command {
         DirStepFixedType dir_x;
-        AMulType a_mul;
+        typename AccelShiftMode::CommandAccelType accel;
         TMulStored t_mul_stored;
     };
     
@@ -135,7 +193,7 @@ public:
             ((DirStepIntType)dir << step_bits) |
             ((DirStepIntType)(a.bitsValue() >= 0) << (step_bits + 1))
         );
-        cmd->a_mul = AXIS_STEPPER_AMUL_EXPR(x, t, a);
+        cmd->accel = AccelShiftMode::make_command_accel(a);
     }
     
     static void init (Context c)
@@ -301,8 +359,8 @@ private:
         }
         
         auto xs = x.toSigned().template shiftBits<(-discriminant_prec)>();
-        AMulType a_mul = AMulType::importBits(volatile_read(command->a_mul.m_bits.m_int));
-        auto a = a_mul.template undoShiftBitsLeft<(amul_shift-discriminant_prec)>();
+        auto command_accel = AccelShiftMode::CommandAccelType::importBits(volatile_read(command->accel.m_bits.m_int));
+        ADiscShiftedType a = AccelShiftMode::compute_accel_for_load(c, command_accel);
         auto x_minus_a = (xs - a).toUnsignedUnsafe();
         if (AMBRO_LIKELY(o->m_notdecel)) {
             o->m_v0 = (xs + a).toUnsignedUnsafe();
@@ -392,7 +450,7 @@ private:
             // we do a volatile read of the discriminant (an input to the calculation).
             
             auto discriminant_bits = volatile_read(o->m_discriminant.m_bits.m_int);
-            o->m_discriminant.m_bits.m_int = discriminant_bits + current_command->a_mul.m_bits.m_int;
+            o->m_discriminant.m_bits.m_int = discriminant_bits + AccelShiftMode::get_a_mul_for_step(c, current_command).m_bits.m_int;
             AMBRO_ASSERT(o->m_discriminant.bitsValue() >= 0)
             
             auto q = (o->m_v0 + FixedSquareRoot<true>(o->m_discriminant, OptionForceInline())).template shift<-1>();
@@ -544,7 +602,8 @@ public:
         TheDebugObject,
         TimerInstance,
         DelayFeature
-    >> {
+    >>, public AccelShiftMode::ExtraMembers
+    {
 #ifdef AMBROLIB_ASSERTIONS
         bool m_running;
 #endif
