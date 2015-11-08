@@ -75,6 +75,19 @@ private:
         Context::Pins::template setPeripheral<At91SamPin<At91SamPioA, 23>>(c, At91SamPeriphA());
         Context::Pins::template setPeripheral<At91SamPin<At91SamPioA, 24>>(c, At91SamPeriphA());
     }
+#elif defined(__SAM3U4E__)
+    static int const DmaChannel = 0;
+    static int const DmaHwId = 0;
+    
+    static void chip_specific_config (Context c)
+    {
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioA, 3>>(c, At91SamPeriphA());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioA, 4>>(c, At91SamPeriphA());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioA, 5>>(c, At91SamPeriphA());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioA, 6>>(c, At91SamPeriphA());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioA, 7>>(c, At91SamPeriphA());
+        Context::Pins::template setPeripheral<At91SamPin<At91SamPioA, 8>>(c, At91SamPeriphA());
+    }
 #else
 #error "Unsupported device"
 #endif
