@@ -65,6 +65,8 @@ public:
     class TcpConnection;
     
 private:
+    using TimeType = typename Context::Clock::TimeType;
+    
     struct EthernetActivateHandler;
     struct EthernetLinkHandler;
     struct EthernetReceiveHandler;
@@ -75,6 +77,9 @@ private:
     using TimeoutsFastEvent = typename Context::EventLoop::template FastEventSpec<LwipNetwork>;
     
     static size_t const RxPbufPayloadSize = PBUF_POOL_BUFSIZE - ETH_PAD_SIZE;
+    
+    static TimeType const WriteDelayTicks = 0.001 * Context::Clock::time_freq;
+    static TimeType const ShortWriteDelayTicks = 0.00005 * Context::Clock::time_freq;
     
 public:
     struct NetworkParams {
@@ -353,6 +358,7 @@ public:
         {
             m_closed_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::closed_event_handler, this));
             m_sent_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::sent_event_handler, this));
+            m_write_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::write_event_handler, this));
             m_error_handler = error_handler;
             m_recv_handler = recv_handler;
             m_send_handler = send_handler;
@@ -364,6 +370,7 @@ public:
         void deinit (Context c)
         {
             reset_internal(c);
+            m_write_event.deinit(c);
             m_sent_event.deinit(c);
             m_closed_event.deinit(c);
         }
@@ -463,8 +470,9 @@ public:
         {
             AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
             
-            if (m_state == State::RUNNING) {
-                do_send(c);
+            if (m_state == State::RUNNING && !m_write_event.isSet(c)) {
+                TimeType delay = (m_send_buf_passed_length == 0) ? ShortWriteDelayTicks : WriteDelayTicks;
+                m_write_event.appendAfter(c, delay);
             }
         }
         
@@ -478,6 +486,7 @@ public:
                 close_pcb(m_pcb);
                 m_pcb = nullptr;
             }
+            m_write_event.unset(c);
             m_sent_event.unset(c);
             m_closed_event.unset(c);
             m_state = State::IDLE;
@@ -492,40 +501,11 @@ public:
                 m_pcb = nullptr;
             }
             m_state = State::ERRORING;
+            m_write_event.unset(c);
             m_sent_event.unset(c);
             
             if (!m_closed_event.isSet(c)) {
                 m_closed_event.prependNowNotAlready(c);
-            }
-        }
-        
-        void do_send (Context c)
-        {
-            AMBRO_ASSERT(m_state == State::RUNNING)
-            
-            while (m_send_buf_passed_length < m_send_buf_length) {
-                size_t pass_offset = send_buf_add(m_send_buf_start, m_send_buf_passed_length);
-                size_t pass_avail = m_send_buf_length - m_send_buf_passed_length;
-                size_t pass_length = MinValue(pass_avail, (size_t)(ProvidedTxBufSize - pass_offset));
-                
-                u16_t written;
-                auto err = tcp_write_ext(m_pcb, m_send_buf + pass_offset, pass_length, TCP_WRITE_FLAG_PARTIAL, &written);
-                if (err != ERR_OK) {
-                    go_erroring(c, false);
-                    return;
-                }
-                
-                AMBRO_ASSERT(written <= pass_length)
-                m_send_buf_passed_length += written;
-                
-                if (written < pass_length) {
-                    break;
-                }
-            }
-            
-            auto err = tcp_output(m_pcb);
-            if (err != ERR_OK) {
-                go_erroring(c, false);
             }
         }
         
@@ -597,6 +577,11 @@ public:
             m_send_buf_length -= len;
             m_send_buf_passed_length -= len;
             
+            if (m_send_buf_passed_length < m_send_buf_length) {
+                m_write_event.unset(c);
+                m_write_event.appendAfter(c, WriteDelayTicks);
+            }
+            
             if (!m_sent_event.isSet(c)) {
                 m_sent_event.prependNowNotAlready(c);
             }
@@ -627,11 +612,39 @@ public:
             }
         }
         
-        void sent_event_handler (Context c)
+        void write_event_handler (Context c)
         {
             AMBRO_ASSERT(m_state == State::RUNNING)
             
-            do_send(c);
+            while (m_send_buf_passed_length < m_send_buf_length) {
+                size_t pass_offset = send_buf_add(m_send_buf_start, m_send_buf_passed_length);
+                size_t pass_avail = m_send_buf_length - m_send_buf_passed_length;
+                size_t pass_length = MinValue(pass_avail, (size_t)(ProvidedTxBufSize - pass_offset));
+                
+                u16_t written;
+                auto err = tcp_write_ext(m_pcb, m_send_buf + pass_offset, pass_length, TCP_WRITE_FLAG_PARTIAL, &written);
+                if (err != ERR_OK) {
+                    go_erroring(c, false);
+                    return;
+                }
+                
+                AMBRO_ASSERT(written <= pass_length)
+                m_send_buf_passed_length += written;
+                
+                if (written < pass_length) {
+                    break;
+                }
+            }
+            
+            auto err = tcp_output(m_pcb);
+            if (err != ERR_OK) {
+                go_erroring(c, false);
+            }
+        }
+        
+        void sent_event_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING)
             
             return m_send_handler(c);
         }
@@ -663,6 +676,7 @@ public:
         
         typename Context::EventLoop::QueuedEvent m_closed_event;
         typename Context::EventLoop::QueuedEvent m_sent_event;
+        typename Context::EventLoop::TimedEvent m_write_event;
         ErrorHandler m_error_handler;
         RecvHandler m_recv_handler;
         SendHandler m_send_handler;

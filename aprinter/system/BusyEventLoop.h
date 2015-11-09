@@ -409,6 +409,16 @@ public:
         this->time = time;
     }
     
+    void appendAfter (Context c, TimeType after_time)
+    {
+        this->debugAccess(c);
+        auto *lo = Loop::Object::self(c);
+        AMBRO_ASSERT(Loop::EventList::isRemoved(this))
+        
+        lo->m_event_list.append(this);
+        this->time = Context::Clock::getTime(c) + after_time;
+    }
+    
     void appendAfterPrevious (Context c, TimeType after_time)
     {
         this->debugAccess(c);
