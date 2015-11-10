@@ -596,7 +596,7 @@ def setup_clock(gen, config, key, clock_name, priority, allow_disabled):
 def setup_millisecond_clock(gen, config, key, priority):
     clock_sel = selection.Selection()
     
-    @clock_sel.option('NoClock')
+    @clock_sel.option('NoMillisecondClock')
     def option(clock):
         return None
     
