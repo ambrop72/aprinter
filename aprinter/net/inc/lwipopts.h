@@ -79,7 +79,7 @@
 // Note that we actually have ring buffers of these sizes in
 // LwipNetwork::TcpConnection, lwIP just needs to be aware of
 // how large they are.
-#define TCP_WND (6 * TCP_MSS)
+#define TCP_WND (5 * TCP_MSS)
 #define TCP_SND_BUF (2 * TCP_MSS)
 
 // Maximum number of pbufs in the TCP send queue for a single connection.
