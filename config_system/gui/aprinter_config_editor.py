@@ -154,6 +154,10 @@ def platform_At91Sam3x8e():
                 ce.String(key='primary_timer', title='Timer'),
             ]),
         ]),
+        ce.OneOf(key='millisecond_clock', title='Millisecond clock', choices=[
+            ce.Compound('NoMillisecondClock', title='Disabled', attrs=[]),
+            ce.Compound('ArmSysTickMillisecondClock', title='ARM SysTick', attrs=[]),
+        ]),
     ])
 
 def platform_At91Sam3u4e():

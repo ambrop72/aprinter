@@ -57,6 +57,7 @@ class GenState(object):
         self._extra_sources = []
         self._extra_includes = []
         self._need_millisecond_clock = False
+        self._have_hw_millisecond_clock = False
         self._defines = []
     
     def add_subst (self, key, val, indent=-1):
@@ -179,6 +180,9 @@ class GenState(object):
     
     def set_need_millisecond_clock (self):
         self._need_millisecond_clock = True
+    
+    def set_have_hw_millisecond_clock (self):
+        self._have_hw_millisecond_clock = True
     
     def add_define (self, name, value):
         self._defines.append({'name': name, 'value': str(value)})
@@ -588,6 +592,24 @@ def setup_clock(gen, config, key, clock_name, priority, allow_disabled):
     clock_object = config.do_selection(key, clock_sel)
     if clock_object is not None:
         gen.register_singleton_object(clock_name, clock_object)
+
+def setup_millisecond_clock(gen, config, key, priority):
+    clock_sel = selection.Selection()
+    
+    @clock_sel.option('NoClock')
+    def option(clock):
+        return None
+    
+    @clock_sel.option('ArmSysTickMillisecondClock')
+    def option(clock):
+        gen.add_aprinter_include('hal/generic/ArmSysTickMillisecondClock.h')
+        gen.add_isr('APRINTER_ARM_SYSTICK_MILLISECOND_CLOCK_GLOBAL(MyMillisecondClock, MyContext())')
+        gen.set_have_hw_millisecond_clock()
+        return TemplateExpr('ArmSysTickMillisecondClock', ['MyContext', 'Program'])
+    
+    clock_expr = config.do_selection(key, clock_sel)
+    if clock_expr is not None:
+        gen.add_global_resource(priority, 'MyMillisecondClock', clock_expr, context_name='MillisecondClock')
 
 def setup_pins (gen, config, key):
     pin_regexes = [IDENTIFIER_REGEX]
@@ -1332,6 +1354,8 @@ def generate(config_root_data, cfg_name, main_template):
                             setup_pwm(gen, platform, 'pwm')
                         if platform.has('fast_clock'):
                             setup_clock(gen, platform, 'fast_clock', clock_name='FastClock', priority=-12, allow_disabled=True)
+                        if platform.has('millisecond_clock'):
+                            setup_millisecond_clock(gen, platform, 'millisecond_clock', priority=-13)
                     
                     setup_debug_interface(gen, platform_config, 'debug_interface')
                     
@@ -2053,8 +2077,9 @@ def generate(config_root_data, cfg_name, main_template):
             ]))
             
             if gen._need_millisecond_clock:
-                gen.add_aprinter_include('system/MillisecondClock.h')
-                gen.add_global_resource(5, 'MyMillisecondClock', TemplateExpr('MillisecondClock', ['MyContext', 'Program']), context_name='MillisecondClock')
+                if not gen._have_hw_millisecond_clock:
+                    gen.add_aprinter_include('system/MillisecondClock.h')
+                    gen.add_global_resource(5, 'MyMillisecondClock', TemplateExpr('MillisecondClock', ['MyContext', 'Program']), context_name='MillisecondClock')
                 
                 gen.add_aprinter_include('printer/MillisecondClockInfoModule.h')
                 millisecond_clock_module = gen.add_module()

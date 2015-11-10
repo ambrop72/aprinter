@@ -107,6 +107,9 @@
             "prescaler": 2,
             "primary_timer": "TC8"
           },
+          "millisecond_clock": {
+            "_compoundName": "NoMillisecondClock"
+          },
           "pins": {
             "_compoundName": "At91SamPins",
             "input_mode_type": "At91SamPinInputMode"
@@ -697,6 +700,9 @@
             "_compoundName": "At91Sam3xClock",
             "prescaler": 2,
             "primary_timer": "TC8"
+          },
+          "millisecond_clock": {
+            "_compoundName": "NoMillisecondClock"
           },
           "pins": {
             "_compoundName": "At91SamPins",
@@ -3411,6 +3417,9 @@
             "_compoundName": "At91Sam3xClock",
             "prescaler": 2,
             "primary_timer": "TC8"
+          },
+          "millisecond_clock": {
+            "_compoundName": "ArmSysTickMillisecondClock"
           },
           "pins": {
             "_compoundName": "At91SamPins",
