@@ -35,6 +35,7 @@
 #define ETH_PAD_SIZE 2
 #define ARP_QUEUEING 0
 #define IP_FRAG 0
+#define IP_REASSEMBLY 0
 #define LWIP_NETIF_HOSTNAME 1
 #define LWIP_RAW 0
 #define LWIP_DHCP 1
@@ -54,8 +55,8 @@
 
 // Maximum number of IP packets being reassembled.
 // Also setting MEMP_NUM_REASSDATA the same value should be fine.
-#define IP_REASS_MAX_PBUFS APRINTER_NUM_IP_REASS_PKTS
-#define MEMP_NUM_REASSDATA APRINTER_NUM_IP_REASS_PKTS
+//#define IP_REASS_MAX_PBUFS APRINTER_NUM_IP_REASS_PKTS
+//#define MEMP_NUM_REASSDATA APRINTER_NUM_IP_REASS_PKTS
 
 // Number of TCP PCBs.
 #define MEMP_NUM_TCP_PCB APRINTER_NUM_TCP_CONN
@@ -82,6 +83,11 @@
 // how large they are.
 #define TCP_WND (5 * TCP_MSS)
 #define TCP_SND_BUF (2 * TCP_MSS)
+
+// Disable queuing of received out-of-sequence segments.
+// Because this has the potential to exhaust PBUF_POOL pbufs,
+// killing all reception.
+#define TCP_QUEUE_OOSEQ 0
 
 // Maximum number of pbufs in the TCP send queue for a single connection.
 // Note that currently lwIP only enforces this limit when adding new
@@ -123,7 +129,7 @@
 //   for IP reassembly.
 // Based on this knowledge, the value below should be sufficient, we should
 // never run out of pbufs in PBUF_POOL for receiving packets.
-#define PBUF_POOL_SIZE (1 + APRINTER_NUM_IP_REASS_PKTS)
+#define PBUF_POOL_SIZE 1 // +APRINTER_NUM_IP_REASS_PKTS
 
 // Size of pbufs in the PBUF_POOL, used for RX only.
 #define PBUF_POOL_BUFSIZE LWIP_MEM_ALIGN_SIZE(APRINTER_RX_MTU+PBUF_LINK_ENCAPSULATION_HLEN+PBUF_LINK_HLEN)
@@ -135,4 +141,5 @@
 // - Headers for outgoing TCP segments generated in tcp_write() when used
 //   without TCP_WRITE_FLAG_COPY.
 // - ICMP echo-reply packets.
+// - Outgoing packets queued by ARP.
 #define MEM_SIZE (768 + APRINTER_NUM_TCP_CONN * (256 + TCP_SND_QUEUELEN * 112))
