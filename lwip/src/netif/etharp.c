@@ -107,6 +107,7 @@ enum etharp_state {
 };
 
 struct etharp_entry {
+#if !ARP_NO_QUEUING
 #if ARP_QUEUEING
   /** Pointer to queue of pending outgoing packets on this ARP entry. */
   struct etharp_q_entry *q;
@@ -114,6 +115,7 @@ struct etharp_entry {
   /** Pointer to a single pending outgoing packet on this ARP entry. */
   struct pbuf *q;
 #endif /* ARP_QUEUEING */
+#endif
   ip4_addr_t ipaddr;
   struct netif *netif;
   struct eth_addr ethaddr;
@@ -151,6 +153,7 @@ static u8_t etharp_cached_entry;
 
 static err_t etharp_request_dst(struct netif *netif, const ip4_addr_t *ipaddr, const struct eth_addr* hw_dst_addr);
 
+#if !ARP_NO_QUEUING
 
 #if ARP_QUEUEING
 /**
@@ -179,12 +182,15 @@ free_etharp_q(struct etharp_q_entry *q)
 
 #endif /* ARP_QUEUEING */
 
+#endif
+
 /** Clean up ARP table entries */
 static void
 etharp_free_entry(int i)
 {
   /* remove from SNMP ARP index tree */
   mib2_remove_arp_entry(arp_table[i].netif, &arp_table[i].ipaddr);
+#if !ARP_NO_QUEUING
   /* and empty packet queue */
   if (arp_table[i].q != NULL) {
     /* remove all queued packets */
@@ -192,6 +198,7 @@ etharp_free_entry(int i)
     free_etharp_q(arp_table[i].q);
     arp_table[i].q = NULL;
   }
+#endif
   /* recycle entry for re-use */
   arp_table[i].state = ETHARP_STATE_EMPTY;
 #ifdef LWIP_DEBUG
@@ -319,12 +326,14 @@ etharp_find_entry(const ip4_addr_t *ipaddr, u8_t flags, struct netif* netif)
       /* pending entry? */
       if (state == ETHARP_STATE_PENDING) {
         /* pending with queued packets? */
+#if !ARP_NO_QUEUING
         if (arp_table[i].q != NULL) {
           if (arp_table[i].ctime >= age_queue) {
             old_queue = i;
             age_queue = arp_table[i].ctime;
           }
         } else
+#endif
         /* pending without queued packets? */
         {
           if (arp_table[i].ctime >= age_pending) {
@@ -378,7 +387,9 @@ etharp_find_entry(const ip4_addr_t *ipaddr, u8_t flags, struct netif* netif)
       i = old_stable;
       LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE, ("etharp_find_entry: selecting oldest stable entry %"U16_F"\n", (u16_t)i));
       /* no queued packets should exist on stable entries */
+#if !ARP_NO_QUEUING
       LWIP_ASSERT("arp_table[i].q == NULL", arp_table[i].q == NULL);
+#endif
     /* 3) found recyclable pending entry without queued packets? */
     } else if (old_pending < ARP_TABLE_SIZE) {
       /* recycle oldest pending */
@@ -520,6 +531,7 @@ etharp_update_arp_entry(struct netif *netif, const ip4_addr_t *ipaddr, struct et
   /* reset time stamp */
   arp_table[i].ctime = 0;
   /* this is where we will send out queued packets! */
+#if !ARP_NO_QUEUING
 #if ARP_QUEUEING
   while (arp_table[i].q != NULL) {
     struct pbuf *p;
@@ -541,6 +553,7 @@ etharp_update_arp_entry(struct netif *netif, const ip4_addr_t *ipaddr, struct et
     /* free the queued IP packet */
     pbuf_free(p);
   }
+#endif
   return ERR_OK;
 }
 
@@ -1132,6 +1145,9 @@ etharp_query(struct netif *netif, const ip4_addr_t *ipaddr, struct pbuf *q)
     result = etharp_send_ip(netif, q, srcaddr, &(arp_table[i].ethaddr));
   /* pending entry? (either just created or already pending */
   } else if (arp_table[i].state == ETHARP_STATE_PENDING) {
+#if ARP_NO_QUEUING
+    result = ERR_BUF;
+#else
     /* entry is still pending, queue the given packet 'q' */
     struct pbuf *p;
     int copy_needed = 0;
@@ -1218,6 +1234,7 @@ etharp_query(struct netif *netif, const ip4_addr_t *ipaddr, struct pbuf *q)
       LWIP_DEBUGF(ETHARP_DEBUG | LWIP_DBG_TRACE, ("etharp_query: could not queue a copy of PBUF_REF packet %p (out of memory)\n", (void *)q));
       result = ERR_MEM;
     }
+#endif
   }
   return result;
 }

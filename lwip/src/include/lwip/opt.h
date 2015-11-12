@@ -515,6 +515,19 @@
 #endif
 
 /**
+ * ARP_NO_QUEUING==1: Disable ARP queuing completely, i.e. not even one packet
+ * per hardware address.
+ */
+#ifndef ARP_NO_QUEUING
+#define ARP_NO_QUEUING                  0
+#endif
+
+#if ARP_NO_QUEUING
+#undef ARP_QUEUEING
+#define ARP_QUEUEING 0
+#endif
+
+/**
  * ETHARP_TRUST_IP_MAC==1: Incoming IP packets cause the ARP table to be
  * updated with the source MAC and IP addresses supplied in the packet.
  * You may want to disable this if you do not trust LAN peers to have the
