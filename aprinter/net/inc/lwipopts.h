@@ -56,6 +56,11 @@
 // try to allocate up to ARP_TABLE_SIZE full-sized PBUF_RAM pbufs.
 #define ARP_NO_QUEUING 1
 
+// Do update the ARP table based on incoming packets.
+// This means we can immediately respond to requests even
+// though we have ARP queuing disabled.
+#define ETHARP_TRUST_IP_MAC 1
+
 // Number of UDP PCBs. Need just one for DHCP.
 #define MEMP_NUM_UDP_PCB 1
 
