@@ -709,7 +709,7 @@ etharp_ip_input(struct netif *netif, struct pbuf *p)
   /* update the source IP address in the cache, if present */
   /* @todo We could use ETHARP_FLAG_TRY_HARD if we think we are going to talk
    * back soon (for example, if the destination IP address is ours. */
-  etharp_update_arp_entry(netif, &iphdr_src, &(ethhdr->src), ETHARP_FLAG_FIND_ONLY);
+  etharp_update_arp_entry(netif, &iphdr_src, &(ethhdr->src), 0);
 }
 #endif /* ETHARP_TRUST_IP_MAC */
 
