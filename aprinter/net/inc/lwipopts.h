@@ -50,6 +50,12 @@
 // Size of ARP table. Add one extra entry for every TCP connection.
 #define ARP_TABLE_SIZE (8 + APRINTER_NUM_TCP_CONN)
 
+// Disable ARP queuing entirely.
+// This is a custom feature implemented in lwIP.
+// ARP queuing can exhaust the general allocator, since it may
+// try to allocate up to ARP_TABLE_SIZE full-sized PBUF_RAM pbufs.
+#define ARP_NO_QUEUING 1
+
 // Number of UDP PCBs. Need just one for DHCP.
 #define MEMP_NUM_UDP_PCB 1
 
