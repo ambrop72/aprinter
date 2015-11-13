@@ -1272,9 +1272,7 @@ def setup_network(gen, config, key):
         def finalize():
             gen.add_define('APRINTER_NUM_TCP_LISTEN', network_state._num_listeners)
             gen.add_define('APRINTER_NUM_TCP_CONN', network_state._num_connections)
-            gen.add_define('APRINTER_NUM_IP_REASS_PKTS', 1)
             gen.add_define('APRINTER_MEM_ALIGNMENT', gen.get_singleton_object('alignment'))
-            gen.add_define('APRINTER_RX_MTU', 1500)
         
         gen.add_finalize_action(finalize)
         

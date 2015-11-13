@@ -1,0 +1,187 @@
+commit a7b1a29036374540ff5cbe78fbd23521a042e3e8
+Author: Ambroz Bizjak <ambrop7@gmail.com>
+Date:   Fri Nov 13 23:12:18 2015 +0100
+
+    emac: Implement read functions allowing the user to avoid a memcpy.
+
+diff --git a/sam/drivers/emac/emac.c b/sam/drivers/emac/emac.c
+index e29496a..ce53b19 100644
+--- a/sam/drivers/emac/emac.c
++++ b/sam/drivers/emac/emac.c
+@@ -402,19 +402,48 @@ void emac_dev_init(Emac* p_emac, emac_device_t* p_emac_dev,
+ uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+ 		uint32_t ul_frame_size, uint32_t* p_rcv_size)
+ {
+-	uint16_t us_buffer_length;
+-	uint32_t tmp_ul_frame_size = 0;
+-	uint8_t *p_tmp_frame = 0;
+-	uint16_t us_tmp_idx = p_emac_dev->us_rx_idx;
+-	emac_rx_descriptor_t *p_rx_td =
+-			&p_emac_dev->p_rx_dscr[p_emac_dev->us_rx_idx];
+-	int8_t c_is_frame = 0;
+-
++	uint8_t *data1;
++	uint8_t *data2;
++	uint32_t size1;
++	uint32_t size2;
++	emac_dev_read_state_t state;
++	uint32_t res;
++	
+ 	if (p_frame == NULL)
+ 		return EMAC_PARAM;
+ 
+ 	/* Set the default return value */
+ 	*p_rcv_size = 0;
++	
++	res = emac_dev_read_start(p_emac_dev, &state, &data1, &data2, &size1, &size2);
++	if (res != EMAC_OK) {
++		return res;
++	}
++	
++	*p_rcv_size = size1 + size2;
++	
++	if (*p_rcv_size > ul_frame_size) {
++		res = EMAC_SIZE_TOO_SMALL;
++	} else {
++		memcpy(p_frame, data1, size1);
++		if (size2 > 0) {
++			memcpy(p_frame + size1, data2, size2);
++		}
++	}
++	
++	emac_dev_read_end(p_emac_dev, &state);
++	
++	return res;
++}
++
++uint32_t emac_dev_read_start(emac_device_t* p_emac_dev, emac_dev_read_state_t *state,
++		uint8_t** p_data1, uint8_t** p_data2,
++		uint32_t* p_size1, uint32_t *p_size2)
++{
++	uint16_t us_tmp_idx = p_emac_dev->us_rx_idx;
++	emac_rx_descriptor_t *p_rx_td =
++			&p_emac_dev->p_rx_dscr[p_emac_dev->us_rx_idx];
++	int8_t c_is_frame = 0;
+ 
+ 	/* Process received RX descriptor */
+ 	while ((p_rx_td->addr.val & EMAC_RXD_OWNERSHIP) == EMAC_RXD_OWNERSHIP) {
+@@ -427,9 +456,6 @@ uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+ 
+ 				circ_inc(&p_emac_dev->us_rx_idx, p_emac_dev->us_rx_list_size);
+ 			}
+-			/* Reset the temporary frame pointer */
+-			p_tmp_frame = p_frame;
+-			tmp_ul_frame_size = 0;
+ 			/* Start to gather buffers in a frame */
+ 			c_is_frame = 1;
+ 		}
+@@ -437,7 +463,6 @@ uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+ 		/* Increment the pointer */
+ 		circ_inc(&us_tmp_idx, p_emac_dev->us_rx_list_size);
+ 
+-		/* Copy data in the frame buffer */
+ 		if (c_is_frame) {
+ 			if (us_tmp_idx == p_emac_dev->us_rx_idx) {
+ 				do {
+@@ -449,36 +474,30 @@ uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+ 
+ 				return EMAC_RX_NULL;
+ 			}
+-			/* Copy the buffer into the application frame */
+-			us_buffer_length = EMAC_RX_UNITSIZE;
+-			if ((tmp_ul_frame_size + us_buffer_length) > ul_frame_size) {
+-				us_buffer_length = ul_frame_size - tmp_ul_frame_size;
+-			}
+-
+-			memcpy(p_tmp_frame,
+-					(void *)(p_rx_td->addr.val & EMAC_RXD_ADDR_MASK),
+-					us_buffer_length);
+-			p_tmp_frame += us_buffer_length;
+-			tmp_ul_frame_size += us_buffer_length;
+-
++			
+ 			/* An end of frame has been received, return the data */
+ 			if ((p_rx_td->status.val & EMAC_RXD_EOF) == EMAC_RXD_EOF) {
+ 				/* Frame size from the EMAC */
+-				*p_rcv_size = (p_rx_td->status.val & EMAC_RXD_LEN_MASK);
+-
+-				/* All data have been copied in the application frame buffer => release TD */
+-				while (p_emac_dev->us_rx_idx != us_tmp_idx) {
+-					p_rx_td = &p_emac_dev->p_rx_dscr[p_emac_dev->us_rx_idx];
+-					p_rx_td->addr.val &= ~(EMAC_RXD_OWNERSHIP);
+-					circ_inc(&p_emac_dev->us_rx_idx, p_emac_dev->us_rx_list_size);
+-				}
+-
+-				/* Application frame buffer is too small so that all data have not been copied */
+-				if (tmp_ul_frame_size < *p_rcv_size) {
+-					return EMAC_SIZE_TOO_SMALL;
+-				}
+-
++				uint32_t rcv_size = (p_rx_td->status.val & EMAC_RXD_LEN_MASK);
++				
++				/* Figure out how the frame wraps */
++				uint16_t num_first_buffers = (us_tmp_idx >= p_emac_dev->us_rx_idx) ?
++					(us_tmp_idx - p_emac_dev->us_rx_idx) : (p_emac_dev->us_rx_list_size - p_emac_dev->us_rx_idx);
++				uint32_t first_buffers_size = (uint32_t)num_first_buffers * EMAC_RX_UNITSIZE;
++				
++				/* Provide data pointers to application */
++				*p_data1 = (void *)(p_emac_dev->p_rx_dscr[p_emac_dev->us_rx_idx].addr.val & EMAC_RXD_ADDR_MASK);
++				*p_data2 = (void *)(p_emac_dev->p_rx_dscr[0                    ].addr.val & EMAC_RXD_ADDR_MASK);
++				
++				/* Provide data sizes to application */
++				*p_size1 = (rcv_size <= first_buffers_size) ? rcv_size : first_buffers_size;
++				*p_size2 = rcv_size - *p_size1;
++				
++				/* Remember buffer index, continuing in emac_dev_read_end */
++				state->us_tmp_idx = us_tmp_idx;
++				
+ 				return EMAC_OK;
++				
+ 			}
+ 		}
+ 		/* SOF has not been detected, skip the fragment */
+@@ -494,6 +513,18 @@ uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+ 	return EMAC_RX_NULL;
+ }
+ 
++void emac_dev_read_end(emac_device_t* p_emac_dev, emac_dev_read_state_t *state)
++{
++	emac_rx_descriptor_t *p_rx_td;
++	
++	/* All data have been processed by the application => release TD */
++	while (p_emac_dev->us_rx_idx != state->us_tmp_idx) {
++		p_rx_td = &p_emac_dev->p_rx_dscr[p_emac_dev->us_rx_idx];
++		p_rx_td->addr.val &= ~(EMAC_RXD_OWNERSHIP);
++		circ_inc(&p_emac_dev->us_rx_idx, p_emac_dev->us_rx_list_size);
++	}
++}
++
+ /**
+  * \brief Send ulLength bytes from pcFrom. This copies the buffer to one of the
+  * EMAC Tx buffers, and then indicates to the EMAC that the buffer is ready.
+diff --git a/sam/drivers/emac/emac.h b/sam/drivers/emac/emac.h
+index e50cf5c..095868f 100644
+--- a/sam/drivers/emac/emac.h
++++ b/sam/drivers/emac/emac.h
+@@ -248,6 +248,10 @@ typedef struct emac_device {
+ 	uint8_t uc_wakeup_threshold;
+ } emac_device_t;
+ 
++typedef struct emac_dev_read_state {
++    uint16_t us_tmp_idx;
++} emac_dev_read_state_t;
++
+ /**
+  * \brief Write network control value.
+  *
+@@ -1005,6 +1009,10 @@ void emac_dev_init(Emac* p_emac, emac_device_t* p_emac_dev,
+ 		emac_options_t* p_opt);
+ uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+ 		uint32_t ul_frame_size, uint32_t* p_rcv_size);
++uint32_t emac_dev_read_start(emac_device_t* p_emac_dev, emac_dev_read_state_t *state,
++		uint8_t** p_data1, uint8_t** p_data2,
++		uint32_t* p_size1, uint32_t *p_size2);
++void emac_dev_read_end(emac_device_t* p_emac_dev, emac_dev_read_state_t *state);
+ uint32_t emac_dev_write(emac_device_t* p_emac_dev, void *p_buffer,
+ 		uint32_t ul_size, emac_dev_tx_cb_t func_tx_cb);
+ uint32_t emac_dev_write_start(emac_device_t* p_emac_dev, uint32_t ul_size, void **out_buffer);

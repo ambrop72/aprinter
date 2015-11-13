@@ -23,16 +23,14 @@
  */
 
 // We expect these to be defined externally:
-//#define APRINTER_NUM_IP_REASS_PKTS <count>
 //#define APRINTER_NUM_TCP_CONN <count>
 //#define APRINTER_NUM_TCP_LISTEN <count>
 //#define APRINTER_MEM_ALIGNMENT <bytes>
-//#define APRINTER_RX_MTU <bytes>
 
 // Simple options, mostly enable/disable.
 #define NO_SYS 1
 #define MEM_ALIGNMENT APRINTER_MEM_ALIGNMENT
-#define ETH_PAD_SIZE 2
+#define ETH_PAD_SIZE 0
 #define ARP_QUEUEING 0
 #define IP_FRAG 0
 #define IP_REASSEMBLY 0
@@ -64,11 +62,6 @@
 // Number of UDP PCBs. Need just one for DHCP.
 #define MEMP_NUM_UDP_PCB 1
 
-// Maximum number of IP packets being reassembled.
-// Also setting MEMP_NUM_REASSDATA the same value should be fine.
-//#define IP_REASS_MAX_PBUFS APRINTER_NUM_IP_REASS_PKTS
-//#define MEMP_NUM_REASSDATA APRINTER_NUM_IP_REASS_PKTS
-
 // Number of TCP PCBs.
 #define MEMP_NUM_TCP_PCB APRINTER_NUM_TCP_CONN
 #define MEMP_NUM_TCP_PCB_LISTEN APRINTER_NUM_TCP_LISTEN
@@ -96,8 +89,8 @@
 #define TCP_SND_BUF (2 * TCP_MSS)
 
 // Disable queuing of received out-of-sequence segments.
-// Because this has the potential to exhaust PBUF_POOL pbufs,
-// killing all reception.
+// This must be disabled because our RX code expects pbufs fed into the stack
+// to be immediately freed, never queued.
 #define TCP_QUEUE_OOSEQ 0
 
 // Maximum number of pbufs in the TCP send queue for a single connection.
@@ -113,7 +106,9 @@
 
 // Number of pbufs in PBUF pool.
 // These are allocated via pbuf_alloc(..., PBUF_ROM or PBUF_REF) and
-// reference external data. They are used:
+// reference external data. They are used for:
+// - Our RX code allocates two static PBUF_REF pbufs, which it uses
+//   to refer to received data as it feeds packets into the stack.
 // - In the TCP TX path (tcp_write), they reference application data
 //   that is passed to tcp_write() without TCP_WRITE_FLAG_COPY.
 //   Note that we patched lwIP so that it internally detects when
@@ -126,24 +121,13 @@
 // - In the fragmentation of IP packets, they reference parts of the
 //   original full packet. Since we don't need and disable fragmentation,
 //   we don't reserve anything for this.
-#define MEMP_NUM_PBUF (APRINTER_NUM_TCP_CONN * ((TCP_SND_QUEUELEN+1)/2+1))
+#define MEMP_NUM_PBUF (2 + APRINTER_NUM_TCP_CONN * ((TCP_SND_QUEUELEN+1)/2+1))
 
 // Number of pbufs in PBUF_POOL pool.
-// These are allocated via pbuf_alloc(..., PBUF_POOL) and are used only
-// in the RX path. They come with their own payload space.
-// Note that:
-// - The RX code and nothing else allocates pbufs from PBUF_POOL.
-// - The RX code immediately inputs allocated pbufs into the stack,
-//   it does not queue them.
-// - The application code never refuses received pbufs in the tcp_recv callback.
-// - The stack may internally buffer up to IP_REASS_MAX_PBUFS received pbufs
-//   for IP reassembly.
-// Based on this knowledge, the value below should be sufficient, we should
-// never run out of pbufs in PBUF_POOL for receiving packets.
-#define PBUF_POOL_SIZE 1 // +APRINTER_NUM_IP_REASS_PKTS
-
-// Size of pbufs in the PBUF_POOL, used for RX only.
-#define PBUF_POOL_BUFSIZE LWIP_MEM_ALIGN_SIZE(APRINTER_RX_MTU+PBUF_LINK_ENCAPSULATION_HLEN+PBUF_LINK_HLEN)
+// These are allocated via pbuf_alloc(..., PBUF_POOL).
+// Typically they would be used for received packets, but we use PBUF_REF
+// instead for this purpose.
+#define PBUF_POOL_SIZE 0
 
 // Memory size for the general allocator.
 // Importantly, this is used for pbuf_alloc(..., PBUF_RAM). This includes:
@@ -151,6 +135,5 @@
 // - Outgoing TCP ACK and RST packets.
 // - Headers for outgoing TCP segments generated in tcp_write() when used
 //   without TCP_WRITE_FLAG_COPY.
-// - ICMP echo-reply packets.
 // - Outgoing packets queued by ARP.
 #define MEM_SIZE (768 + APRINTER_NUM_TCP_CONN * (256 + TCP_SND_QUEUELEN * 112))

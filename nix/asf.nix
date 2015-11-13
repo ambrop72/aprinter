@@ -48,6 +48,7 @@ stdenv.mkDerivation rec {
         
         # Apply patches.
         patch -d "$out" -p1 < ${ ../patches/asf-emac-write.patch }
+        patch -d "$out" -p1 < ${ ../patches/asf-emac-read.patch }
     '';
     
     dontStrip = true;

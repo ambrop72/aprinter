@@ -76,8 +76,6 @@ private:
     
     using TimeoutsFastEvent = typename Context::EventLoop::template FastEventSpec<LwipNetwork>;
     
-    static size_t const RxPbufPayloadSize = PBUF_POOL_BUFSIZE - ETH_PAD_SIZE;
-    
     static TimeType const WriteDelayTicks = 0.001 * Context::Clock::time_freq;
     static TimeType const ShortWriteDelayTicks = 0.00005 * Context::Clock::time_freq;
     
@@ -101,7 +99,10 @@ public:
         o->net_activated = false;
         o->eth_activated = false;
         lwip_init();
-        o->rx_pbuf = nullptr;
+        for (int i = 0; i < 2; i++) {
+            o->rx_pbuf[i] = pbuf_alloc(PBUF_RAW, 0, PBUF_REF);
+            AMBRO_ASSERT(o->rx_pbuf[i])
+        }
         Context::EventLoop::template triggerFastEvent<TimeoutsFastEvent>(c);
     }
     
@@ -830,12 +831,9 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->net_activated)
         
-#if ETH_PAD_SIZE
-        pbuf_header(p, -ETH_PAD_SIZE);
-#endif
         err_t ret = ERR_BUF;
         
-        debug_print_pbuf(c, "Tx", p, 0);
+        debug_print_pbuf(c, "Tx", p);
         
         if (!o->eth_activated) {
             goto out;
@@ -853,9 +851,6 @@ private:
         ret = ERR_OK;
         
     out:
-#if ETH_PAD_SIZE
-        pbuf_header(p, ETH_PAD_SIZE);
-#endif
         return ret;
     }
     
@@ -892,36 +887,39 @@ private:
         struct pbuf *m_current_pbuf;
     };
     
-    static void ethernet_receive_handler (Context c)
+    static void ethernet_receive_handler (Context c, uint8_t *data1, uint8_t *data2, size_t size1, size_t size2)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->eth_activated)
+        AMBRO_ASSERT(size2 == 0 || size1 > 0)
+        AMBRO_ASSERT(o->rx_pbuf[0]->ref == 1)
+        AMBRO_ASSERT(o->rx_pbuf[1]->ref == 1)
         
-        if (!o->rx_pbuf) {
-            o->rx_pbuf = pbuf_alloc(PBUF_RAW, PBUF_POOL_BUFSIZE, PBUF_POOL);
-            if (!o->rx_pbuf) {
-                return;
-            }
-        }
-        
-        struct pbuf *p = o->rx_pbuf;
-        
-        size_t length;
-        if (!TheEthernet::recvFrame(c, (char *)p->payload + ETH_PAD_SIZE, RxPbufPayloadSize, &length)) {
-            return;
-        }
-        AMBRO_ASSERT(length <= RxPbufPayloadSize)
-        
-        if (length == 0) {
-            LINK_STATS_INC(link.memerr);
+        if (size1 == 0) {
             LINK_STATS_INC(link.drop);
             return;
         }
         
-        p->tot_len = ETH_PAD_SIZE + length;
-        p->len = ETH_PAD_SIZE + length;
+        struct pbuf *p = o->rx_pbuf[0]; 
+        p->ref++;
+        p->payload = data1;
+        p->len = size1;
+        p->tot_len = size1 + size2;
+        p->flags = 0;
         
-        debug_print_pbuf(c, "Rx", p, ETH_PAD_SIZE);
+        if (size2 == 0) {
+            p->next = nullptr;
+        } else {
+            struct pbuf *q = o->rx_pbuf[1];
+            p->next = q;
+            q->payload = data2;
+            q->len = size2;
+            q->tot_len = size2;
+            q->next = nullptr;
+            q->flags = 0;
+        }
+        
+        debug_print_pbuf(c, "Rx", p);
         
         LINK_STATS_INC(link.recv);
         
@@ -929,14 +927,14 @@ private:
             pbuf_free(p);
         }
         
-        o->rx_pbuf = nullptr;
+        AMBRO_ASSERT(o->rx_pbuf[0]->ref == 1)
+        AMBRO_ASSERT(o->rx_pbuf[1]->ref == 1)
     }
     struct EthernetReceiveHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_receive_handler) {};
     
-    static void debug_print_pbuf (Context c, char const *event, struct pbuf *p, int16_t skip_header)
+    static void debug_print_pbuf (Context c, char const *event, struct pbuf *p)
     {
 #ifdef APRINTER_DEBUG_NETWORK
-        pbuf_header(p, -skip_header);
         auto *out = Context::Printer::get_msg_output(c);
         out->reply_append_str(c, "//");
         out->reply_append_str(c, event);
@@ -952,7 +950,6 @@ private:
         }
         out->reply_append_ch(c, '\n');
         out->reply_poke(c);
-        pbuf_header(p, skip_header);
 #endif
     }
     
@@ -978,7 +975,7 @@ public:
         DoubleEndedList<NetworkEventListener, &NetworkEventListener::m_node, false> event_listeners;
         bool net_activated;
         bool eth_activated;
-        struct pbuf *rx_pbuf;
+        struct pbuf *rx_pbuf[2];
         struct netif netif;
     };
 };

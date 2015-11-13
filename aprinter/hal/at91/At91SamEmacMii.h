@@ -37,6 +37,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/hal/common/MiiCommon.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 #include <aprinter/base/Lock.h>
@@ -143,29 +144,6 @@ public:
             return false;
         }
         
-        return true;
-    }
-    
-    static bool recvFrame (Context c, char *data, size_t max_length, size_t *out_length)
-    {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(o->init_state == InitState::RUNNING)
-        
-        uint32_t u_length;
-        auto read_res = emac_dev_read(&o->emac_dev, (uint8_t *)data, max_length, &u_length);
-        if (read_res != EMAC_OK) {
-            if (read_res == EMAC_RX_NULL) {
-                return false;
-            }
-            Context::EventLoop::template triggerFastEvent<FastEvent>(c);
-            *out_length = 0;
-            return true;
-        }
-        
-        AMBRO_ASSERT(u_length <= max_length)
-        
-        *out_length = u_length;
-        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
         return true;
     }
     
@@ -363,7 +341,31 @@ private:
         NVIC_ClearPendingIRQ(EMAC_IRQn);
         NVIC_EnableIRQ(EMAC_IRQn);
         
-        return ClientParams::ReceiveHandler::call(c);
+        uint8_t *data1;
+        uint8_t *data2;
+        uint32_t size1;
+        uint32_t size2;
+        emac_dev_read_state_t state;
+        
+        uint32_t read_res = emac_dev_read_start(&o->emac_dev, &state, &data1, &data2, &size1, &size2);
+        if (read_res == EMAC_RX_NULL) {
+            return;
+        }
+        
+        if (read_res != EMAC_OK) {
+            data1 = nullptr;
+            data2 = nullptr;
+            size1 = 0;
+            size2 = 0;
+        }
+        
+        ClientParams::ReceiveHandler::call(c, data1, data2, size1, size2);
+        
+        if (read_res == EMAC_OK) {
+            emac_dev_read_end(&o->emac_dev, &state);
+        }
+        
+        Context::EventLoop::template triggerFastEvent<FastEvent>(c);
     }
     
 public:

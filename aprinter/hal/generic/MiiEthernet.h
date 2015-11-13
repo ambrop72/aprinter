@@ -99,16 +99,6 @@ public:
         TheMii::activate(c, mac_addr);
     }
     
-    static bool recvFrame (Context c, char *data, size_t max_length, size_t *out_length)
-    {
-        auto *o = Object::self(c);
-        
-        if (o->init_state != InitState::RUNNING) {
-            return false;
-        }
-        return TheMii::recvFrame(c, data, max_length, out_length);
-    }
-    
     static bool sendFrame (Context c, SendBufferType *send_buffer)
     {
         auto *o = Object::self(c);
