@@ -66,10 +66,6 @@
 #define MEMP_NUM_TCP_PCB APRINTER_NUM_TCP_CONN
 #define MEMP_NUM_TCP_PCB_LISTEN APRINTER_NUM_TCP_LISTEN
 
-// Number of IP fragments simultaneously sent.
-// We can use 1 because packets are sent immediately never queued.
-#define MEMP_NUM_FRAG_PBUF 1
-
 // Oversize can be disabled since it does nothing when tcp_write()
 // is called without TCP_WRITE_FLAG_COPY.
 #define TCP_OVERSIZE 0
