@@ -117,6 +117,7 @@ private:
         void init (Context c)
         {
             m_next_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::next_event_handler, this));
+            m_disconnect_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::disconnect_event_handler, this));
             m_send_buf_check_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_buf_check_event_handler, this));
             m_send_buf_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_buf_timeout_event_handler, this));
             m_connection.init(c, APRINTER_CB_OBJFUNC_T(&Client::connection_error_handler, this),
@@ -135,6 +136,7 @@ private:
             m_connection.deinit(c);
             m_send_buf_timeout_event.deinit(c);
             m_send_buf_check_event.deinit(c);
+            m_disconnect_event.deinit(c);
             m_next_event.deinit(c);
         }
         
@@ -164,6 +166,7 @@ private:
             m_gcode_parser.deinit(c);
             
             m_next_event.unset(c);
+            m_disconnect_event.unset(c);
             m_send_buf_check_event.unset(c);
             m_send_buf_timeout_event.unset(c);
             m_connection.reset(c);
@@ -177,6 +180,7 @@ private:
             
             if (m_command_stream.hasCommand(c)) {
                 m_connection.reset(c);
+                m_disconnect_event.unset(c);
                 m_state = State::DISCONNECTED_WAIT_CMD;
                 update_send_buf_event(c);
             } else {
@@ -277,6 +281,13 @@ private:
             }
         }
         
+        void disconnect_event_handler (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED)
+            
+            start_disconnect(c);
+        }
+        
         void send_buf_check_event_handler (Context c)
         {
             AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
@@ -340,14 +351,14 @@ private:
         {
             AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
             
-            if (m_state == State::CONNECTED) {
+            if (m_state == State::CONNECTED && !m_disconnect_event.isSet(c)) {
                 size_t avail = m_connection.getSendBufferSpace(c);
                 if (avail < length) {
                     {
                         typename TheCommandStream::InhibitMsg inhibit(&m_command_stream);
                         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleSendOverrun\n"));
                     }
-                    m_connection.raiseError(c);
+                    m_disconnect_event.prependNowNotAlready(c);
                     return;
                 }
                 m_connection.copySendData(c, str, length);
@@ -380,6 +391,7 @@ private:
         }
         
         typename Context::EventLoop::QueuedEvent m_next_event;
+        typename Context::EventLoop::QueuedEvent m_disconnect_event;
         typename Context::EventLoop::QueuedEvent m_send_buf_check_event;
         typename Context::EventLoop::TimedEvent m_send_buf_timeout_event;
         TheTcpConnection m_connection;

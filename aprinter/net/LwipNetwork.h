@@ -404,15 +404,6 @@ public:
             m_send_buf_passed_length = 0;
         }
         
-        void raiseError (Context c)
-        {
-            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
-            
-            if (m_state == State::RUNNING) {
-                go_erroring(c, false);
-            }
-        }
-        
         void copyReceivedData (Context c, char *buffer, size_t length)
         {
             AMBRO_ASSERT(m_state == State::RUNNING)
