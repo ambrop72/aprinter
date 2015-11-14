@@ -402,10 +402,11 @@ public:
             auto *mo = Object::self(c);
             
             m_state = COMMAND_IDLE;
-            m_accept_msg = true;
             m_callback = callback;
             m_cmd = nullptr;
+            m_accept_msg = true;
             m_error = false;
+            m_refuse_on_error = false;
             m_send_buf_event_handler = nullptr;
             m_captured_command_handler = nullptr;
             mo->command_stream_list.prepend(this);
@@ -821,8 +822,9 @@ public:
         
     private:
         uint8_t m_state : 4;
-        bool m_error : 1;
         bool m_accept_msg : 1;
+        bool m_error : 1;
+        bool m_refuse_on_error : 1;
         CommandStreamCallback *m_callback;
         TheGcodeCommand *m_cmd;
         SendBufEventHandler m_send_buf_event_handler;
@@ -2174,12 +2176,30 @@ private:
     {
         auto *ob = Object::self(c);
         
+        char cmd_code = cmd->getCmdCode(c);
+        uint16_t cmd_number = cmd->getCmdNumber(c);
+        
+        if (AMBRO_UNLIKELY(cmd_code == 'M' && (cmd_number == 932 || cmd_number == 933))) {
+            if (cmd_number == 932) {
+                cmd->m_error = false;
+                cmd->m_refuse_on_error = true;
+            } else {
+                cmd->m_refuse_on_error = false;
+            }
+            return cmd->finishCommand(c);
+        }
+        
+        if (AMBRO_UNLIKELY(cmd->m_error) && cmd->m_refuse_on_error) {
+            cmd->reply_append_error(c, AMBRO_PSTR("PreviousCommandFailed"));
+            return cmd->finishCommand(c);
+        }
+        
         if (AMBRO_UNLIKELY(bool(cmd->m_captured_command_handler))) {
             return cmd->m_captured_command_handler(c, cmd);
         }
         
-        switch (cmd->getCmdCode(c)) {
-            case 'M': switch (cmd->getCmdNumber(c)) {
+        switch (cmd_code) {
+            case 'M': switch (cmd_number) {
                 default:
                     if (
                         TheConfigManager::checkCommand(c, cmd) &&
@@ -2217,7 +2237,7 @@ private:
                 
                 case 82:   // extruders to absolute positioning
                 case 83: { // extruders to relative positioning
-                    bool relative = (cmd->getCmdNumber(c) == 83);
+                    bool relative = (cmd_number == 83);
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_set_relative_positioning(), c, relative, true);
                     return cmd->finishCommand(c);
                 } break;
@@ -2310,7 +2330,7 @@ private:
                 } break;
             } break;
             
-            case 'G': switch (cmd->getCmdNumber(c)) {
+            case 'G': switch (cmd_number) {
                 default:
                     if (ListForEachForwardInterruptible<ModulesList>(LForeach_check_g_command(), c, cmd)) {
                         goto unknown_command;
@@ -2341,7 +2361,7 @@ private:
                         }
                     }
                     FpType time_freq_by_max_speed = AMBRO_UNLIKELY(seen_t) ? 0.0f : ob->time_freq_by_max_speed;
-                    bool is_positioning_move = (cmd->getCmdNumber(c) == 0);
+                    bool is_positioning_move = (cmd_number == 0);
                     return move_end(c, time_freq_by_max_speed, false, get_locked(c), PrinterMain::normal_move_end_callback, is_positioning_move);
                 } break;
                 
@@ -2395,7 +2415,7 @@ private:
                 
                 case 90:   // absolute positioning
                 case 91: { // relative positioning
-                    bool relative = (cmd->getCmdNumber(c) == 91);
+                    bool relative = (cmd_number == 91);
                     ListForEachForward<PhysVirtAxisHelperList>(LForeach_set_relative_positioning(), c, relative, false);
                     return cmd->finishCommand(c);
                 } break;
@@ -2422,8 +2442,8 @@ private:
             default: {
                 cmd->reportError(c, nullptr);
                 cmd->reply_append_pstr(c, AMBRO_PSTR("Error:Unknown command "));
-                cmd->reply_append_ch(c, cmd->getCmdCode(c));
-                cmd->reply_append_uint32(c, cmd->getCmdNumber(c));
+                cmd->reply_append_ch(c, cmd_code);
+                cmd->reply_append_uint32(c, cmd_number);
                 cmd->reply_append_ch(c, '\n');
                 return cmd->finishCommand(c);
             } break;
