@@ -975,6 +975,7 @@ private:
         }
         
         template <typename CallbackContext>
+        AMBRO_ALWAYS_INLINE
         static bool prestep_callback (CallbackContext c)
         {
             return !CallIfExists_prestep_callback::template call_ret<TheModule, bool, false>(c);
@@ -2694,6 +2695,7 @@ private:
     }
     
     template <int AxisIndex>
+    AMBRO_ALWAYS_INLINE
     static bool planner_prestep_callback (typename ThePlanner::template Axis<AxisIndex>::StepperCommandCallbackContext c)
     {
         return !ListForEachForwardInterruptible<ModulesList>(LForeach_prestep_callback(), c);

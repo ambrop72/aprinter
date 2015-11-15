@@ -27,6 +27,8 @@
 
 #include <stdint.h>
 
+#include <aprinter/base/Inline.h>
+
 static inline int32_t mul_s24_16_trunc32 (__int24 op1, uint16_t op2)
 {
     int32_t res;
@@ -296,7 +298,8 @@ static inline __uint24 mul_24_16_r16 (__uint24 op1, uint16_t op2)
     return res;
 }
 
-static inline uint32_t mul_24_16_r15 (__uint24 op1, uint16_t op2)
+AMBRO_ALWAYS_INLINE
+static uint32_t mul_24_16_r15 (__uint24 op1, uint16_t op2)
 {
     uint8_t low;
     uint32_t res;
@@ -474,7 +477,8 @@ static inline int32_t mul_s16_16 (int16_t op1, uint16_t op2)
     return res;
 }
 
-static inline uint32_t mul_16_16 (uint16_t op1, uint16_t op2)
+AMBRO_ALWAYS_INLINE
+static uint32_t mul_16_16 (uint16_t op1, uint16_t op2)
 {
     uint32_t res;
     uint8_t zero;

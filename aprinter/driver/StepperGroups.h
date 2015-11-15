@@ -30,6 +30,7 @@
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/MemberType.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/driver/Steppers.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -95,18 +96,21 @@ public:
         }
         
         template <typename ThisContext>
+        AMBRO_ALWAYS_INLINE
         static void setDir (ThisContext c, bool dir)
         {
             ListForEachForward<GroupSteppersList>(Foreach_setDir(), c, dir);
         }
         
         template <typename ThisContext>
+        AMBRO_ALWAYS_INLINE
         static void stepOn (ThisContext c)
         {
             ListForEachForward<GroupSteppersList>(Foreach_stepOn(), c);
         }
         
         template <typename ThisContext>
+        AMBRO_ALWAYS_INLINE
         static void stepOff (ThisContext c)
         {
             ListForEachForward<GroupSteppersList>(Foreach_stepOff(), c);

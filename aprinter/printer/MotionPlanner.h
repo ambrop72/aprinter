@@ -48,6 +48,7 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/driver/AxisDriverConsumer.h>
@@ -644,6 +645,7 @@ public:
             TheAxisDriver::template start<TheAxisDriverConsumer<AxisIndex>>(c, start_time, cmd);
         }
         
+        AMBRO_ALWAYS_INLINE
         static bool stepper_prestep_callback (StepperCommandCallbackContext c)
         {
             auto *m = MotionPlanner::Object::self(c);

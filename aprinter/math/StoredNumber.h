@@ -29,6 +29,7 @@
 
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/EnableIf.h>
+#include <aprinter/base/Inline.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -37,6 +38,7 @@ class StoredNumber {
 public:
     using IntType = ChooseInt<NumBits, Signed>;
     
+    AMBRO_ALWAYS_INLINE
     static StoredNumber store (IntType value)
     {
         StoredNumber res;
@@ -44,6 +46,7 @@ public:
         return res;
     }
     
+    AMBRO_ALWAYS_INLINE
     static IntType retrieve (StoredNumber inp)
     {
         return inp.m_value;
@@ -60,6 +63,7 @@ public:
     using ThisClass = StoredNumber<NumBits, false, EnableIf<(NumBits >= 24 && NumBits < 32), void>>;
     using IntType = ChooseInt<NumBits, false>;
     
+    AMBRO_ALWAYS_INLINE
     static ThisClass store (IntType value)
     {
         ThisClass res;
@@ -69,6 +73,7 @@ public:
         return res;
     }
     
+    AMBRO_ALWAYS_INLINE
     static IntType retrieve (ThisClass inp)
     {
         union {

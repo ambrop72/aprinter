@@ -32,6 +32,7 @@
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/ExprFixedPoint.h>
@@ -53,6 +54,7 @@ public:
     }
     
     template <typename ThisContext>
+    AMBRO_ALWAYS_INLINE
     static bool endstop_is_triggered (ThisContext c)
     {
         return (Context::Pins::template get<typename Params::SwitchPin>(c) != APRINTER_CFG(Config, CSwitchInvert, c));
@@ -235,6 +237,7 @@ private:
     }
     struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&AxisHomer::planner_underrun_callback) {};
     
+    AMBRO_ALWAYS_INLINE
     static bool planner_prestep_callback (typename Planner::template Axis<0>::StepperCommandCallbackContext c)
     {
         return TheGlobal::endstop_is_triggered(c);

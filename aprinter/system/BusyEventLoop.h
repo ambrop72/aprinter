@@ -41,6 +41,7 @@
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/misc/ClockUtils.h>
 
@@ -186,6 +187,7 @@ public:
     }
     
     template <typename EventSpec, typename ThisContext>
+    AMBRO_ALWAYS_INLINE
     static void triggerFastEvent (ThisContext c)
     {
         auto *o = Object::self(c);

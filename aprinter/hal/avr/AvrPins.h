@@ -34,6 +34,7 @@
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/hal/avr/AvrIo.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -183,6 +184,7 @@ public:
     }
     
     template <typename Pin, typename ThisContext>
+    AMBRO_ALWAYS_INLINE
     static bool get (ThisContext c)
     {
         TheDebugObject::access(c);
@@ -191,6 +193,7 @@ public:
     }
     
     template <typename Pin, typename ThisContext>
+    AMBRO_ALWAYS_INLINE
     static void set (ThisContext c, bool x)
     {
         TheDebugObject::access(c);

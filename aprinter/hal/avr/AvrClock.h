@@ -48,6 +48,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Lock.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/hal/avr/AvrPins.h>
 
@@ -529,6 +530,7 @@ public:
         }
     }
     
+    AMBRO_ALWAYS_INLINE
     static void setNext (HandlerContext c, TimeType time)
     {
         auto *o = Object::self(c);
@@ -756,6 +758,7 @@ public:
         }
     }
     
+    AMBRO_ALWAYS_INLINE
     static void setNext (HandlerContext c, TimeType time)
     {
         auto *o = Object::self(c);
@@ -944,6 +947,7 @@ private:
         static TheDutyCycleType const TheMaxDutyCycle = PwmTopValPlus1;
         
         template <typename ThisContext>
+        AMBRO_ALWAYS_INLINE
         static void setDutyCycle (ThisContext c, TheDutyCycleType duty_cycle)
         {
             uint16_t ocr_val = (duty_cycle < MaxDutyCycle) ? duty_cycle : (MaxDutyCycle - 1);
@@ -959,6 +963,7 @@ private:
         static TheDutyCycleType const TheMaxDutyCycle = UINT16_C(0x100);
         
         template <typename ThisContext>
+        AMBRO_ALWAYS_INLINE
         static void setDutyCycle (ThisContext c, TheDutyCycleType duty_cycle)
         {
             *TcChannel::ocr() = (duty_cycle < MaxDutyCycle) ? duty_cycle : (MaxDutyCycle - 1);
@@ -1000,6 +1005,7 @@ public:
     }
     
     template <typename ThisContext>
+    AMBRO_ALWAYS_INLINE
     static void setDutyCycle (ThisContext c, DutyCycleType duty_cycle)
     {
         AMBRO_ASSERT(duty_cycle <= MaxDutyCycle)

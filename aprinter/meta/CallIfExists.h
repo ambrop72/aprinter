@@ -25,6 +25,8 @@
 #ifndef APRINTER_CALL_IF_EXISTS_H
 #define APRINTER_CALL_IF_EXISTS_H
 
+#include <aprinter/base/Inline.h>
+
 #include <aprinter/BeginNamespace.h>
 
 template <typename X, typename Y>
@@ -34,37 +36,66 @@ using CallIfExists__TypeHelper = X;
 class ClassName { \
 public: \
     template <typename CallIfExists__Class, typename... CallIfExists__Args> \
+    AMBRO_ALWAYS_INLINE \
     static void call_void (CallIfExists__Args... args) \
     { \
-        return CallIfExists__void_helper_func<CallIfExists__Class>(0, args...); \
+        return decltype(CallIfExists__void_helper_func<CallIfExists__Class>(0, args...))::template CallIfExists__call<CallIfExists__Class>(args...); \
     } \
     \
     template <typename CallIfExists__Class, typename CallIfExists__ReturnType=void, CallIfExists__ReturnType CallIfExists__DefaultValue=CallIfExists__ReturnType(), typename... CallIfExists__Args> \
+    AMBRO_ALWAYS_INLINE \
     static CallIfExists__ReturnType call_ret (CallIfExists__Args... args) \
     { \
-        return CallIfExists__ret_helper_func<CallIfExists__Class, CallIfExists__ReturnType, CallIfExists__DefaultValue>(0, args...); \
+        return decltype(CallIfExists__ret_helper_func<CallIfExists__Class, CallIfExists__ReturnType, CallIfExists__DefaultValue>(0, args...))::template CallIfExists__call<CallIfExists__Class, CallIfExists__ReturnType, CallIfExists__DefaultValue>(args...); \
     } \
     \
 private: \
+    struct CallIfExists__VoidHelperCall { \
+        template <typename CallIfExists__Class, typename... CallIfExists__Args> \
+        AMBRO_ALWAYS_INLINE \
+        static void CallIfExists__call (CallIfExists__Args... args) \
+        { \
+            return CallIfExists__Class::func_name(args...); \
+        } \
+    }; \
+    \
+    struct CallIfExists__VoidHelperNoCall { \
+        template <typename CallIfExists__Class, typename... CallIfExists__Args> \
+        AMBRO_ALWAYS_INLINE \
+        static void CallIfExists__call (CallIfExists__Args... args) \
+        { \
+        } \
+    }; \
+    \
     template <typename CallIfExists__Class, typename... CallIfExists__Args> \
-    static auto CallIfExists__void_helper_func (int, CallIfExists__Args... args) -> APrinter::CallIfExists__TypeHelper<void, decltype(CallIfExists__Class::func_name(args...))> \
-    { \
-        return CallIfExists__Class::func_name(args...); \
-    } \
+    static auto CallIfExists__void_helper_func (int, CallIfExists__Args... args) -> APrinter::CallIfExists__TypeHelper<CallIfExists__VoidHelperCall, decltype(CallIfExists__Class::func_name(args...))>; \
     \
     template <typename CallIfExists__Class> \
-    static void CallIfExists__void_helper_func (...) {} \
+    static auto CallIfExists__void_helper_func (...) -> CallIfExists__VoidHelperNoCall; \
+    \
+    struct CallIfExists__RetHelperCall { \
+        template <typename CallIfExists__Class, typename CallIfExists__ReturnType, CallIfExists__ReturnType CallIfExists__DefaultValue, typename... CallIfExists__Args> \
+        AMBRO_ALWAYS_INLINE \
+        static CallIfExists__ReturnType CallIfExists__call (CallIfExists__Args... args) \
+        { \
+            return CallIfExists__Class::func_name(args...); \
+        } \
+    }; \
+    \
+    struct CallIfExists__RetHelperNoCall { \
+        template <typename CallIfExists__Class, typename CallIfExists__ReturnType, CallIfExists__ReturnType CallIfExists__DefaultValue, typename... CallIfExists__Args> \
+        AMBRO_ALWAYS_INLINE \
+        static CallIfExists__ReturnType CallIfExists__call (CallIfExists__Args... args) \
+        { \
+            return CallIfExists__DefaultValue; \
+        } \
+    }; \
     \
     template <typename CallIfExists__Class, typename CallIfExists__ReturnType, CallIfExists__ReturnType CallIfExists__DefaultValue, typename... CallIfExists__Args> \
-    static auto CallIfExists__ret_helper_func (int, CallIfExists__Args... args) -> APrinter::CallIfExists__TypeHelper<CallIfExists__ReturnType, decltype(CallIfExists__Class::func_name(args...))>  \
-    { \
-        return CallIfExists__Class::func_name(args...); \
-    } \
+    static auto CallIfExists__ret_helper_func (int, CallIfExists__Args... args) -> APrinter::CallIfExists__TypeHelper<CallIfExists__RetHelperCall, decltype(CallIfExists__Class::func_name(args...))>;  \
     \
     template <typename CallIfExists__Class, typename CallIfExists__ReturnType, CallIfExists__ReturnType CallIfExists__DefaultValue> \
-    static CallIfExists__ReturnType CallIfExists__ret_helper_func (...) { \
-        return CallIfExists__DefaultValue; \
-    } \
+    static auto CallIfExists__ret_helper_func (...) -> CallIfExists__RetHelperNoCall; \
 };
 
 #include <aprinter/EndNamespace.h>

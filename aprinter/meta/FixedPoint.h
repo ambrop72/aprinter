@@ -164,6 +164,7 @@ public:
     }
     
     template <int NewBits>
+    AMBRO_ALWAYS_INLINE
     FixedPoint<NewBits, Signed, Exp - (NewBits - NumBits)> bitsTo () const
     {
         return FixedPoint<NewBits, Signed, Exp - (NewBits - NumBits)>::importBoundedBits(bitsBoundedValue().template shift<(NumBits - NewBits)>());

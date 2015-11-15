@@ -32,6 +32,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/ServiceList.h>
 
@@ -78,6 +79,7 @@ public:
     }
     
     template <typename CallbackContext>
+    AMBRO_ALWAYS_INLINE
     static bool prestep_callback (CallbackContext c)
     {
         return !ListForEachForwardInterruptible<VirtHomingAxisList>(LForeach_prestep_callback(), c);
@@ -135,6 +137,7 @@ private:
         }
         
         template <typename CallbackContext>
+        AMBRO_ALWAYS_INLINE
         static bool prestep_callback (CallbackContext c)
         {
             return !endstop_is_triggered(c);

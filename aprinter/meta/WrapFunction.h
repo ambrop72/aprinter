@@ -25,6 +25,8 @@
 #ifndef AMBROLIB_WRAP_FUNCTION_H
 #define AMBROLIB_WRAP_FUNCTION_H
 
+#include <aprinter/base/Inline.h>
+
 #include <aprinter/BeginNamespace.h>
 
 namespace WrapFunctionPrivate {
@@ -32,6 +34,7 @@ namespace WrapFunctionPrivate {
     struct Helper {
         template <R (*Func) (Args...)>
         struct Wrapper {
+            AMBRO_ALWAYS_INLINE
             static R call (Args... args)
             {
                 return Func(args...);

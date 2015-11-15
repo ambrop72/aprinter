@@ -38,6 +38,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/math/Matrix.h>
 #include <aprinter/math/LinearLeastSquares.h>
 #include <aprinter/printer/Configuration.h>
@@ -393,6 +394,7 @@ public:
     }
     
     template <typename CallbackContext>
+    AMBRO_ALWAYS_INLINE
     static bool prestep_callback (CallbackContext c)
     {
         return endstop_is_triggered(c);

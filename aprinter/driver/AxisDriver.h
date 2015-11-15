@@ -307,12 +307,14 @@ private:
         using TheConsumer = TypeListGet<typename ConsumersList::List, ConsumerIndex>;
         
         template <typename... Args>
+        AMBRO_ALWAYS_INLINE
         static bool call_command_callback (Args... args)
         {
             return TheConsumer::CommandCallback::call(args...);
         }
         
         template <typename... Args>
+        AMBRO_ALWAYS_INLINE
         static bool call_prestep_callback (Args... args)
         {
             return TheConsumer::PrestepCallback::call(args...);
@@ -335,6 +337,7 @@ private:
     }
     
     template <typename ThisContext>
+    AMBRO_ALWAYS_INLINE
     static bool load_command (ThisContext c, Command *command)
     {
         auto *o = Object::self(c);

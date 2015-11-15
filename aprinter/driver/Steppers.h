@@ -36,6 +36,7 @@
 #include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -129,6 +130,7 @@ public:
         }
         
         template <typename ThisContext>
+        AMBRO_ALWAYS_INLINE
         static void setDir (ThisContext c, bool dir)
         {
             TheDebugObject::access(c);
@@ -136,6 +138,7 @@ public:
         }
         
         template <typename ThisContext>
+        AMBRO_ALWAYS_INLINE
         static void stepOn (ThisContext c)
         {
             TheDebugObject::access(c);
@@ -143,6 +146,7 @@ public:
         }
         
         template <typename ThisContext>
+        AMBRO_ALWAYS_INLINE
         static void stepOff (ThisContext c)
         {
             TheDebugObject::access(c);
