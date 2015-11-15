@@ -168,9 +168,8 @@ When runtime configuration is available, the values of many parameters can be ad
 
 Board-specific notes:
 
-  * Duet, RADDS, RAMPS-FD: SD card is used for configuration storage.
-  * RAMPS, Melzi: EEPROM in the microcontroller is used.
-  * 4pi: The internal flash is used for storage, which gets erased every time the device is programmed.
+  * Duet, RADDS, RAMPS-FD, 4pi, Melzi: SD card is used for configuration storage.
+  * RAMPS: EEPROM in the microcontroller is used.
 
 Runtime configuration commands:
 
@@ -192,6 +191,19 @@ The `M930` command does not alter the current set of configuration values in any
 
 If configuration is stored on the SD card, the file `aprinter.cfg` in the root of the filesystem needs to exist. The firmware is not capable of creating the file when saving the configuration! An empty file will suffice.
 
+### Error handling
+
+The firmware understands the concept of failed commands. The conditions for failure are command-specific.
+
+This error information is used by a special feature which prevents executing commands after one command fails:
+
+- M932 - Clears error status and enables refuse-after-error mode. After this, when a command fails, further commands will immediately be rejected.
+- M933 - Disables refuse-after-error mode.
+
+This feature is intended to be used when printing via serial or TCP - you can put M932 at the top of the program, and M933 at the end. Please note if you do this and an error appears, your host software probably won't be able to recover, but will just send the rest of all the gcodes which will fail. If you want to use this feature and have the option to recover, you should implement this in your host software :)
+
+However, some host software will itself stop sending commands when an error is returned in one of the commands. This works fine when the host waits for each "ok" before sending the next command. But if you want to stream commands (presumably over TCP), the use of M932/M933 is essential for stopping at the first error.
+
 ### SD card
 
 The firmware supports reading G-code from a file in a FAT32 partition on an SD card.
@@ -201,7 +213,7 @@ There is partial write support; existing files can be written but new files cann
 
 **WARNING**: Back up any important data on the SD cards you would be using with the device. Data loss is possible, e.g. due to bugs in the SD card driver and the FAT filesystem code.
 
-SD card support is enabled by default on the following boards: RADDS, RAMPS-FD, 4pi, RAMPS 1.3, Melzi, Duet. Write support is enabled on RADDS, RAMPS-FD, 4pi, Duet.
+SD card support is enabled by default on the following boards: Duet, RADDS, RAMPS-FD, 4pi, RAMPS 1.3, Melzi. Write support is enabled on Duet, RADDS, RAMPS-FD, 4pi, Melzi. Note, the ATMEGA2560 has too little RAM for enabling write support.
 
 The following SD-card related commands are implemented:
 
@@ -222,13 +234,14 @@ When passing a file or directory name to a command, any spaces in the name have 
 
 Note, currently Pronterface's SD button does not work with Aprinter, you need to use the SD commands directly.
 
+When printing from SD card, the firmware will stop on the first failed command (the error will be printed to the console). You can resume at the next command using M24.
+
 Example: start printing from the file `gcodes/test.gcode`.
 
 ```
 M21
 M23 Dgcodes
-M23 Ftest.gcode
-M24
+M32 Ftest.gcode
 ```
 
 Example: interrupt and restart the same print.
@@ -248,10 +261,14 @@ M24
 
 G-code can be uploaded using the commands M28 and M29. You should send M28, then send all the gcode to be written to the file (you can just tell Pronterface to "print"), then send M29. Alternatively, you can put M28/M29 into the start/end gcode in your slicer's settings. Please make sure that the file exists, the firmware currently cannot create new files, only overwrite existing ones.
 
+Futher, to avoid accidentally executing the commands in case opening the file fails, you should wrap the whole thing in M932/M933.
+
 ```
+M932
 M28 Fprint.gcode
 // Send your gcode.
-M28
+M29
+M933
 ```
 
 ### Networking
@@ -280,13 +297,15 @@ The command M116 can be used to wait for the set temperatures of the specified h
 
 Optionally, heater-specific M-codes can be defined in the configuration editor. For example is M123 is configured for the heater `T1`, the command `M123 S<temperature>` is equivalent to `M104 T1 S<temperature>`. Note, `M104` itself may be configured as a heater-specific M-code. In this case `M104` may still be used to configure any heater, but if no heater is specified, it configures that particular heater. It is useful to configure `M140` as the heater-specific code for the bed, and `M104` for an only extruder.
 
-### Fans
+### Fans (or Spindles)
 
-Fans are identified in much the same way as heaters, with a letter and a number. For fans attached to extruders, the names T/T0/T1 are also recommended. 
+Fans are identified in much the same way as heaters, with a letter and a number. For fans attached to extruders, the names T/T0/T1 are also recommended.
 
 A fan is turned on using `M106 <fan> S<speed_0_to_255>`. Turning off is achieved either by setting the speed to 0 or using `M107 <fan>`.
 
 Much like heater-specific M-codes, one can have fan-specific M-codes for setting the speed of or turning off a fan. If there is only one fan, it is useful to use `M106` and `M107` themselves as heater-specific M-codes for the fan.
+
+You can also use this feature for simple PWM-control of spindles or anything else; for spindles you may map the on- and off-commands to M3 and M5 respectively.
 
 ### Extruders
 
