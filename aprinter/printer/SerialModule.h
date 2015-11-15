@@ -49,14 +49,14 @@ public:
     struct Object;
     
 private:
-    static size_t const MaxFinishLen = sizeof(SERIALMODULE_OK_STR) - 1;
-    
     struct SerialRecvHandler;
     struct SerialSendHandler;
     using TheSerial = typename Params::SerialService::template Serial<Context, Object, Params::RecvBufferSizeExp, Params::SendBufferSizeExp, SerialRecvHandler, SerialSendHandler>;
     using RecvSizeType = typename TheSerial::RecvSizeType;
     using SendSizeType = typename TheSerial::SendSizeType;
     using TheGcodeParser = GcodeParser<Context, typename Params::TheGcodeParserParams, typename RecvSizeType::IntType, typename ThePrinterMain::FpType, GcodeParserTypeSerial>;
+    
+    static_assert(SendSizeType::maxIntValue() >= ThePrinterMain::CommandSendBufClearance, "Serial send buffer is too small");
     
 public:
     static void init (Context c)
@@ -161,13 +161,17 @@ private:
             }
         }
 #endif
+        bool have_send_buf_impl (Context c, size_t length)
+        {
+            return (TheSerial::sendQuery(c).value() >= length);
+        }
         
         bool request_send_buf_event_impl (Context c, size_t length)
         {
-            if (length > SendSizeType::maxIntValue() - MaxFinishLen) {
+            if (length > SendSizeType::maxIntValue()) {
                 return false;
             }
-            TheSerial::sendRequestEvent(c, SendSizeType::import(length + MaxFinishLen));
+            TheSerial::sendRequestEvent(c, SendSizeType::import(length));
             return true;
         }
         

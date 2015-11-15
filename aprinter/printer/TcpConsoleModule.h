@@ -61,10 +61,10 @@ private:
     static size_t const WrapExtraSize = MaxCommandSize - 1;
     static size_t const BufferBaseSize = TheTcpConnection::RequiredRxBufSize;
     static_assert(BufferBaseSize >= MaxCommandSize, "");
-    static size_t const MaxFinishLen = sizeof(TCPCONSOLE_OK_STR) - 1;
-    static_assert(MaxFinishLen <= TheTcpConnection::ProvidedTxBufSize , "");
     
     static TimeType const SendBufTimeoutTicks = Params::SendBufTimeout::value() * Context::Clock::time_freq;
+    
+    static_assert(TheTcpConnection::ProvidedTxBufSize >= ThePrinterMain::CommandSendBufClearance, "TCP send buffer is too small");
     
 public:
     static void init (Context c)
@@ -293,7 +293,7 @@ private:
             AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
             AMBRO_ASSERT(m_send_buf_request > 0)
             
-            if (m_state != State::CONNECTED || m_connection.getSendBufferSpace(c) >= m_send_buf_request + MaxFinishLen) {
+            if (m_state != State::CONNECTED || m_connection.getSendBufferSpace(c) >= m_send_buf_request) {
                 m_send_buf_request = 0;
                 m_send_buf_timeout_event.unset(c);
                 return m_command_stream.reportSendBufEventDirectly(c);
@@ -365,13 +365,20 @@ private:
             }
         }
         
+        bool have_send_buf_impl (Context c, size_t length)
+        {
+            AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
+            
+            return (m_state != State::CONNECTED || m_connection.getSendBufferSpace(c) >= length);
+        }
+        
         bool request_send_buf_event_impl (Context c, size_t length)
         {
             AMBRO_ASSERT(m_state == State::CONNECTED || m_state == State::DISCONNECTED_WAIT_CMD)
             AMBRO_ASSERT(m_send_buf_request == 0)
             AMBRO_ASSERT(length > 0)
             
-            if (length > TheTcpConnection::ProvidedTxBufSize - MaxFinishLen) {
+            if (length > TheTcpConnection::ProvidedTxBufSize) {
                 return false;
             }
             m_send_buf_request = length;

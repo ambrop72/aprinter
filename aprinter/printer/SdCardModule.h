@@ -232,6 +232,10 @@ private:
             }
         }
 #endif
+        bool have_send_buf_impl (Context c, size_t length)
+        {
+            return true;
+        }
         
         bool request_send_buf_event_impl (Context c, size_t length)
         {
@@ -263,7 +267,7 @@ private:
             start_read(c);
         }
         
-        if (!o->command_stream.maybeResumeLockingCommand(c)) {
+        if (!o->command_stream.maybeResumeCommand(c)) {
             o->m_next_event.prependNowNotAlready(c);
         }
         
@@ -304,9 +308,9 @@ private:
             AMBRO_ASSERT(o->m_state != SDCARD_PAUSING || o->m_reading)
             o->m_next_event.unset(c);
             if (o->command_stream.getGcodeCommand(c) == &o->gcode_m400_command) {
-                o->command_stream.maybeCancelLockingCommand(c);
+                o->command_stream.maybeCancelCommand(c);
             } else {
-                o->command_stream.maybePauseLockingCommand(c);
+                o->command_stream.maybePauseCommand(c);
             }
             if (o->m_reading) {
                 o->m_state = SDCARD_PAUSING;
@@ -398,7 +402,7 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->m_state == SDCARD_PAUSED)
         
-        o->command_stream.maybeCancelLockingCommand(c);
+        o->command_stream.maybeCancelCommand(c);
         deinit_buffering(c);
         init_buffering(c);
     }

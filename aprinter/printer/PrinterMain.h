@@ -76,6 +76,8 @@
 
 template <
     typename TLedPin, typename TLedBlinkInterval, typename TInactiveTime,
+    size_t TExpectedResponseLength,
+    size_t TExtraSendBufClearance,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
     int TStepperSegmentBufferSize, int TLookaheadBufferSize,
     int TLookaheadCommitCount,
@@ -90,6 +92,8 @@ struct PrinterMainParams {
     using LedPin = TLedPin;
     using LedBlinkInterval = TLedBlinkInterval;
     using InactiveTime = TInactiveTime;
+    static size_t const ExpectedResponseLength = TExpectedResponseLength;
+    static size_t const ExtraSendBufClearance = TExtraSendBufClearance;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using MaxStepsPerCycle = TMaxStepsPerCycle;
     static int const StepperSegmentBufferSize = TStepperSegmentBufferSize;
@@ -355,7 +359,7 @@ private:
     
     using MyConfigExprs = MakeTypeList<CInactiveTimeTicks, CForceTimeoutTicks>;
     
-    enum {COMMAND_IDLE, COMMAND_LOCKING, COMMAND_LOCKED};
+    enum {COMMAND_IDLE, COMMAND_WAITBUF, COMMAND_WAITBUF_PAUSED, COMMAND_LOCKING, COMMAND_LOCKING_PAUSED, COMMAND_LOCKED};
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
     
 private:
@@ -375,6 +379,14 @@ private:
     static bool const HasVirtHoming = HasServiceProvider<typename ServiceList::VirtHomingService>::Value;
     
 public:
+    static_assert(Params::ExpectedResponseLength >= 60, "");
+    static_assert(Params::ExtraSendBufClearance >= 60, "");
+    
+    static size_t const ExpectedResponseLength = Params::ExpectedResponseLength;
+    static size_t const ExtraSendBufClearance = Params::ExtraSendBufClearance;
+    static size_t const CommandSendBufClearance = ExpectedResponseLength + ExtraSendBufClearance;
+    
+public:
     using TheOutputStream = OutputStream<Context, FpType>;
     
 public:
@@ -387,6 +399,7 @@ public:
 #if AMBRO_HAS_NONTRANSPARENT_PROGMEM
         virtual void reply_append_pbuffer_impl (Context c, AMBRO_PGM_P pstr, size_t length) = 0;
 #endif
+        virtual bool have_send_buf_impl (Context c, size_t length) = 0;
         virtual bool request_send_buf_event_impl (Context c, size_t length) = 0;
         virtual void cancel_send_buf_event_impl (Context c) = 0;
     };
@@ -443,73 +456,83 @@ public:
             
             m_cmd = cmd;
             
-            PartsSizeType num_parts = m_cmd->getNumParts(c);
-            if (num_parts < 0) {
-                if (num_parts == GCODE_ERROR_NO_PARTS) {
-                    return finishCommand(c, true);
+            if (!m_callback->have_send_buf_impl(c, CommandSendBufClearance)) {
+                if (m_callback->request_send_buf_event_impl(c, CommandSendBufClearance)) {
+                    m_state = COMMAND_WAITBUF;
+                    return;
                 }
-                
-                AMBRO_PGM_P err = AMBRO_PSTR("unknown error");
-                switch (num_parts) {
-                    case GCODE_ERROR_NO_PARTS:       err = AMBRO_PSTR("empty command");          break;
-                    case GCODE_ERROR_TOO_MANY_PARTS: err = AMBRO_PSTR("too many parts");         break;
-                    case GCODE_ERROR_INVALID_PART:   err = AMBRO_PSTR("invalid part");           break;
-                    case GCODE_ERROR_CHECKSUM:       err = AMBRO_PSTR("incorrect checksum");     break;
-                    case GCODE_ERROR_RECV_OVERRUN:   err = AMBRO_PSTR("receive buffer overrun"); break;
-                    case GCODE_ERROR_BAD_ESCAPE:     err = AMBRO_PSTR("bad escape sequence");    break;
-                }
-                
-                reportError(c, err);
-                return finishCommand(c);
+                // Bad luck. Shouldn't happen anyway because the send buffer should
+                // be at least as large as CommandSendBufClearance.
             }
             
-            if (!m_callback->start_command_impl(c)) {
-                return finishCommand(c);
-            }
-            
-            work_command(c, this);
+            return process_command(c);
         }
         
-        void maybePauseLockingCommand (Context c)
+        void maybePauseCommand (Context c)
         {
-            AMBRO_ASSERT(!m_cmd || m_state == COMMAND_LOCKING)
-            AMBRO_ASSERT(m_cmd || m_state == COMMAND_IDLE)
+            AMBRO_ASSERT(!m_cmd || (m_state != COMMAND_IDLE && m_state != COMMAND_LOCKED))
             
-            m_state = COMMAND_IDLE;
+            if (m_cmd) {
+                if (m_state == COMMAND_WAITBUF) {
+                    m_callback->cancel_send_buf_event_impl(c);
+                    m_state = COMMAND_WAITBUF_PAUSED;
+                }
+                else if (m_state == COMMAND_LOCKING) {
+                    m_state = COMMAND_LOCKING_PAUSED;
+                }
+            }
         }
         
-        bool maybeResumeLockingCommand (Context c)
+        bool maybeResumeCommand (Context c)
         {
             auto *mo = Object::self(c);
-            AMBRO_ASSERT(m_state == COMMAND_IDLE)
+            AMBRO_ASSERT(!m_cmd || (m_state == COMMAND_WAITBUF_PAUSED || m_state == COMMAND_LOCKING_PAUSED))
             
-            if (!m_cmd) {
-                return false;
+            if (m_cmd) {
+                if (m_state == COMMAND_WAITBUF_PAUSED) {
+                    bool res = m_callback->request_send_buf_event_impl(c, CommandSendBufClearance);
+                    AMBRO_ASSERT(res)
+                    m_state = COMMAND_WAITBUF;
+                } else {
+                    m_state = COMMAND_LOCKING;
+                    if (!mo->unlocked_timer.isSet(c)) {
+                        mo->unlocked_timer.prependNowNotAlready(c);
+                    }
+                }
             }
-            m_state = COMMAND_LOCKING;
-            if (!mo->unlocked_timer.isSet(c)) {
-                mo->unlocked_timer.prependNowNotAlready(c);
-            }
-            return true;
+            
+            return bool(m_cmd);
         }
         
-        void maybeCancelLockingCommand (Context c)
+        void maybeCancelCommand (Context c)
         {
-            AMBRO_ASSERT(m_state != COMMAND_LOCKED)
+            AMBRO_ASSERT(!m_cmd || (m_state != COMMAND_IDLE && m_state != COMMAND_LOCKED))
             
-            m_state = COMMAND_IDLE;
-            m_cmd = nullptr;
+            if (m_cmd) {
+                if (m_state == COMMAND_WAITBUF) {
+                    m_callback->cancel_send_buf_event_impl(c);
+                }
+                m_state = COMMAND_IDLE;
+                m_cmd = nullptr;
+            }
         }
         
         void reportSendBufEventDirectly (Context c)
         {
-            AMBRO_ASSERT(m_state == COMMAND_LOCKED)
-            AMBRO_ASSERT(m_send_buf_event_handler)
+            AMBRO_ASSERT(m_state == COMMAND_WAITBUF || m_state == COMMAND_LOCKED)
+            AMBRO_ASSERT(m_state != COMMAND_WAITBUF || !m_send_buf_event_handler)
+            AMBRO_ASSERT(m_state != COMMAND_LOCKED || m_send_buf_event_handler)
             
-            auto handler = m_send_buf_event_handler;
-            m_send_buf_event_handler = nullptr;
-            
-            return handler(c);
+            if (m_state == COMMAND_WAITBUF) {
+                m_state = COMMAND_IDLE;
+                
+                return process_command(c);
+            } else {
+                auto handler = m_send_buf_event_handler;
+                m_send_buf_event_handler = nullptr;
+                
+                return handler(c);
+            }
         }
         
         bool haveError (Context c)
@@ -519,8 +542,6 @@ public:
         
         void clearError (Context c)
         {
-            AMBRO_ASSERT(m_state == COMMAND_IDLE)
-            
             m_error = false;
         }
         
@@ -567,9 +588,10 @@ public:
         bool tryLockedCommand (Context c)
         {
             auto *mo = Object::self(c);
+            AMBRO_ASSERT(m_cmd)
+            AMBRO_ASSERT(m_state == COMMAND_IDLE || m_state == COMMAND_LOCKING || m_state == COMMAND_LOCKED)
             AMBRO_ASSERT(m_state != COMMAND_LOCKING || !mo->locked)
             AMBRO_ASSERT(m_state != COMMAND_LOCKED || mo->locked)
-            AMBRO_ASSERT(m_cmd)
             
             if (m_state == COMMAND_LOCKED) {
                 return true;
@@ -693,7 +715,7 @@ public:
             AMBRO_ASSERT(length > 0)
             AMBRO_ASSERT(handler)
             
-            if (!m_callback->request_send_buf_event_impl(c, length)) {
+            if (!m_callback->request_send_buf_event_impl(c, length + CommandSendBufClearance)) {
                 return false;
             }
             m_send_buf_event_handler = handler;
@@ -818,6 +840,36 @@ public:
             AMBRO_ASSERT(m_captured_command_handler)
             
             m_captured_command_handler = nullptr;
+        }
+        
+    private:
+        void process_command (Context c)
+        {
+            PartsSizeType num_parts = m_cmd->getNumParts(c);
+            if (num_parts < 0) {
+                if (num_parts == GCODE_ERROR_NO_PARTS) {
+                    return finishCommand(c, true);
+                }
+                
+                AMBRO_PGM_P err = AMBRO_PSTR("unknown error");
+                switch (num_parts) {
+                    case GCODE_ERROR_NO_PARTS:       err = AMBRO_PSTR("empty command");          break;
+                    case GCODE_ERROR_TOO_MANY_PARTS: err = AMBRO_PSTR("too many parts");         break;
+                    case GCODE_ERROR_INVALID_PART:   err = AMBRO_PSTR("invalid part");           break;
+                    case GCODE_ERROR_CHECKSUM:       err = AMBRO_PSTR("incorrect checksum");     break;
+                    case GCODE_ERROR_RECV_OVERRUN:   err = AMBRO_PSTR("receive buffer overrun"); break;
+                    case GCODE_ERROR_BAD_ESCAPE:     err = AMBRO_PSTR("bad escape sequence");    break;
+                }
+                
+                reportError(c, err);
+                return finishCommand(c);
+            }
+            
+            if (!m_callback->start_command_impl(c)) {
+                return finishCommand(c);
+            }
+            
+            return work_command(c, this);
         }
         
     private:

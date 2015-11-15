@@ -374,11 +374,13 @@
         }
       },
       "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 64,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
         "LookaheadBufferSize": 48,
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 256,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "EventChannelBufferSize": 64,
         "LookaheadCommitCount": 16,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
@@ -441,7 +443,7 @@
         "BaudRate": 115200,
         "GcodeMaxParts": 16,
         "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 9,
+        "SendBufferSizeExp": 10,
         "Service": {
           "_compoundName": "AsfUsbSerial"
         },
@@ -928,11 +930,13 @@
         }
       },
       "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 64,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
         "LookaheadBufferSize": 48,
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 256,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "EventChannelBufferSize": 64,
         "LookaheadCommitCount": 16,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
@@ -995,7 +999,7 @@
         "BaudRate": 115200,
         "GcodeMaxParts": 16,
         "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 9,
+        "SendBufferSizeExp": 10,
         "Service": {
           "_compoundName": "AsfUsbSerial"
         },
@@ -1367,11 +1371,13 @@
         }
       },
       "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 36,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
         "LookaheadBufferSize": 24,
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 256,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "EventChannelBufferSize": 36,
         "LookaheadCommitCount": 6,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": true,
@@ -1442,7 +1448,7 @@
         "BaudRate": 115200,
         "GcodeMaxParts": 16,
         "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 9,
+        "SendBufferSizeExp": 10,
         "Service": {
           "_compoundName": "AsfUsbSerial"
         },
@@ -1762,11 +1768,13 @@
         }
       },
       "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "float",
         "LookaheadBufferSize": 28,
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 256,
+        "ExtraSendBufClearance": 256,
+        "FpType": "float",
+        "EventChannelBufferSize": 32,
         "LookaheadCommitCount": 10,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
@@ -1809,7 +1817,7 @@
         "BaudRate": 0,
         "GcodeMaxParts": 16,
         "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 8,
+        "SendBufferSizeExp": 10,
         "Service": {
           "_compoundName": "TeensyUsbSerial"
         },
@@ -2180,11 +2188,13 @@
         }
       },
       "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
-        "EventChannelBufferSize": 24,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
         "LookaheadBufferSize": 10,
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 64,
+        "ExtraSendBufClearance": 64,
+        "FpType": "double",
+        "EventChannelBufferSize": 24,
         "LookaheadCommitCount": 5,
         "MaxStepsPerCycle": 0.00137,
         "OptimizeForSize": false,
@@ -2252,7 +2262,7 @@
         "BaudRate": 250000,
         "GcodeMaxParts": 8,
         "RecvBufferSizeExp": 7,
-        "SendBufferSizeExp": 6,
+        "SendBufferSizeExp": 8,
         "Service": {
           "DoubleSpeed": true,
           "_compoundName": "AvrSerial"
@@ -2544,11 +2554,13 @@
         }
       },
       "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
         "LookaheadBufferSize": 16,
+        "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 128,
+        "ExtraSendBufClearance": 128,
+        "FpType": "double",
+        "EventChannelBufferSize": 32,
         "LookaheadCommitCount": 8,
         "MaxStepsPerCycle": 0.00137,
         "OptimizeForSize": false,
@@ -2616,7 +2628,7 @@
         "BaudRate": 115200,
         "GcodeMaxParts": 8,
         "RecvBufferSizeExp": 7,
-        "SendBufferSizeExp": 8,
+        "SendBufferSizeExp": 9,
         "Service": {
           "DoubleSpeed": true,
           "_compoundName": "AvrSerial"
@@ -2910,11 +2922,13 @@
         }
       },
       "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
         "LookaheadBufferSize": 28,
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 256,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "EventChannelBufferSize": 32,
         "LookaheadCommitCount": 10,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
@@ -3211,11 +3225,13 @@
         }
       },
       "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 32,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
         "LookaheadBufferSize": 28,
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 256,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "EventChannelBufferSize": 32,
         "LookaheadCommitCount": 10,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
@@ -3598,11 +3614,13 @@
         }
       },
       "performance": {
-        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
-        "EventChannelBufferSize": 24,
-        "EventChannelTimerClearance": 0.002,
-        "FpType": "double",
         "LookaheadBufferSize": 32,
+        "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
+        "EventChannelTimerClearance": 0.002,
+        "ExpectedResponseLength": 256,
+        "ExtraSendBufClearance": 256,
+        "FpType": "double",
+        "EventChannelBufferSize": 24,
         "LookaheadCommitCount": 8,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
@@ -3665,7 +3683,7 @@
         "BaudRate": 115200,
         "GcodeMaxParts": 16,
         "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 9,
+        "SendBufferSizeExp": 10,
         "Service": {
           "_compoundName": "AsfUsbSerial"
         },

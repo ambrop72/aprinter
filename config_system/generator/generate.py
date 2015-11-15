@@ -2087,6 +2087,8 @@ def generate(config_root_data, cfg_name, main_template):
                 led_pin_expr,
                 'LedBlinkInterval',
                 gen.add_float_config('InactiveTime', config.get_float('InactiveTime')),
+                performance.get_int_constant('ExpectedResponseLength'),
+                performance.get_int_constant('ExtraSendBufClearance'),
                 gen.add_float_constant('SpeedLimitMultiply', 1.0 / 60.0),
                 gen.add_float_config('MaxStepsPerCycle', performance.get_float('MaxStepsPerCycle')),
                 performance.get_int_constant('StepperSegmentBufferSize'),

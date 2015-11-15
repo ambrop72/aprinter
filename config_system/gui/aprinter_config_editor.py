@@ -763,6 +763,8 @@ def editor():
                 ]),
             ]),
             ce.Compound('performance', key='performance', title='Performance parameters', collapsable=True, attrs=[
+                ce.Integer(key='ExpectedResponseLength', title='Maximum expected length of command responses', default=60),
+                ce.Integer(key='ExtraSendBufClearance', title='Extra space to reserve in send buffers (e.g. for async messages)', default=60),
                 ce.Float(key='MaxStepsPerCycle', title='Max steps per cycle'),
                 ce.Integer(key='StepperSegmentBufferSize', title='Stepper segment buffer size'),
                 ce.Integer(key='EventChannelBufferSize', title='Event channel buffer size'),
