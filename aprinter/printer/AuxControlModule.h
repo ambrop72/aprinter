@@ -383,7 +383,7 @@ private:
         static void channel_callback (ThisContext c, TheChannelPayloadUnion *payload_union)
         {
             ChannelPayload *payload = UnionGetElem<HeaterIndex>(payload_union);
-            if (AMBRO_LIKELY(!isnan(payload->target))) {
+            if (AMBRO_LIKELY(!FloatIsNan(payload->target))) {
                 set(c, payload->target);
             } else {
                 unset(c);
@@ -456,7 +456,7 @@ private:
                     }
                 }
                 
-                if (!isnan(target)) {
+                if (!FloatIsNan(target)) {
                     mo->waiting_heaters |= HeaterMask();
                     TheObserver::startObserving(c, target);
                 }

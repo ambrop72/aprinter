@@ -35,6 +35,7 @@
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/PowerOfTwo.h>
 #include <aprinter/meta/IntTypeInfo.h>
+#include <aprinter/base/Inline.h>
 #include <aprinter/math/PrintInt.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -79,11 +80,19 @@ T FloatMakePosOrPosZero (T x)
 }
 
 template <typename T>
+AMBRO_ALWAYS_INLINE
 bool FloatIsNan (T x)
 {
     static_assert(IsFpType<T>::Value, "");
     
+#ifdef AMBROLIB_AVR
+    static_assert(sizeof(x) == 4, "");
+    union { float f; uint8_t b[4]; } u;
+    u.f = x;
+    return (u.b[3] & 0x7F) == 0x7F && (u.b[2] & 0x80) == 0x80 && ((u.b[2] & 0x7F) | u.b[1] | u.b[0]) != 0;
+#else
     return isnan(x);
+#endif
 }
 
 static void FloatToStrSoft (double x, char *s, int prec_approx = 6, bool pretty = true)
