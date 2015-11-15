@@ -2563,7 +2563,7 @@
         "EventChannelBufferSize": 32,
         "LookaheadCommitCount": 8,
         "MaxStepsPerCycle": 0.00137,
-        "OptimizeForSize": false,
+        "OptimizeForSize": true,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
@@ -2581,13 +2581,7 @@
         "_compoundName": "RuntimeConfig",
         "config_manager": {
           "ConfigStore": {
-            "Eeprom": {
-              "FakeBlockSize": 16,
-              "_compoundName": "AvrEeprom"
-            },
-            "EndBlock": 256,
-            "StartBlock": 0,
-            "_compoundName": "EepromConfigStore"
+            "_compoundName": "FileConfigStore"
           },
           "_compoundName": "RuntimeConfigManager"
         }
@@ -2599,13 +2593,14 @@
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
-            "FsWritable": false,
+            "FsWritable": true,
             "GcodeUpload": {
-              "_compoundName": "NoGcodeUpload"
+              "MaxCommandSize": 128,
+              "_compoundName": "GcodeUpload"
             },
-            "HaveAccessInterface": false,
+            "HaveAccessInterface": true,
             "MaxFileNameSize": 128,
-            "NumCacheEntries": 2,
+            "NumCacheEntries": 7,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
