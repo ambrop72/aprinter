@@ -7,6 +7,7 @@ It supports many controller boards based on different microcontroller families: 
 Here is a list of the boards which are supported out of the box. This means that a predefined Board configuration is provided in the configuration editor. Note that for some of the supported microcontrollers (STM32F4, Teensy 3), there is no specific board supported. It is up to you to build a board and bring the code to life :)
 - Duet (based on AT91SAM3XE).
 - RADDS, RAMPS-FD (based on Arduino Due / AT91SAM3XE).
+- 4pi.
 - RAMPS 1.3/1.4 (based Arduino Mega / ATMEGA2560).
 - Melzi (based on ATMEGA1284p).
 
