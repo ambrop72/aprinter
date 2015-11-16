@@ -78,6 +78,7 @@ template <
     typename TLedPin, typename TLedBlinkInterval, typename TInactiveTime,
     size_t TExpectedResponseLength,
     size_t TExtraSendBufClearance,
+    size_t TMaxMsgSize,
     typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
     int TStepperSegmentBufferSize, int TLookaheadBufferSize,
     int TLookaheadCommitCount,
@@ -94,6 +95,7 @@ struct PrinterMainParams {
     using InactiveTime = TInactiveTime;
     static size_t const ExpectedResponseLength = TExpectedResponseLength;
     static size_t const ExtraSendBufClearance = TExtraSendBufClearance;
+    static size_t const MaxMsgSize = TMaxMsgSize;
     using SpeedLimitMultiply = TSpeedLimitMultiply;
     using MaxStepsPerCycle = TMaxStepsPerCycle;
     static int const StepperSegmentBufferSize = TStepperSegmentBufferSize;
@@ -381,10 +383,13 @@ private:
 public:
     static_assert(Params::ExpectedResponseLength >= 60, "");
     static_assert(Params::ExtraSendBufClearance >= 60, "");
+    static_assert(Params::MaxMsgSize >= 50, "");
+    static_assert(Params::MaxMsgSize <= Params::ExtraSendBufClearance, "");
     
     static size_t const ExpectedResponseLength = Params::ExpectedResponseLength;
     static size_t const ExtraSendBufClearance = Params::ExtraSendBufClearance;
     static size_t const CommandSendBufClearance = ExpectedResponseLength + ExtraSendBufClearance;
+    static size_t const MaxMsgSize = Params::MaxMsgSize;
     
 public:
     using TheOutputStream = OutputStream<Context, FpType>;
@@ -890,36 +895,60 @@ public:
     
 private:
     class MsgOutputStream : public TheOutputStream {
+        friend PrinterMain;
+        
     private:
         void reply_poke (Context c)
         {
             auto *o = Object::self(c);
-            for (CommandStream *stream = o->command_stream_list.first(); stream; stream = o->command_stream_list.next(stream)) {
-                if (stream->m_accept_msg) {
-                    stream->reply_poke(c);
+            AMBRO_ASSERT(o->msg_length <= MaxMsgSize)
+            
+            if (o->msg_length == 0) {
+                return;
+            }
+            
+            if (o->msg_buffer[o->msg_length - 1] != '\n') {
+                if (o->msg_length < MaxMsgSize) {
+                    o->msg_buffer[o->msg_length] = '\n';
+                    o->msg_length++;
+                } else {
+                    o->msg_buffer[MaxMsgSize - 1] = '\n';
                 }
             }
+            
+            for (CommandStream *stream = o->command_stream_list.first(); stream; stream = o->command_stream_list.next(stream)) {
+                if (stream->m_accept_msg) {
+                    size_t need_space = o->msg_length;
+                    if (stream->m_cmd && (stream->m_state != COMMAND_WAITBUF && stream->m_state != COMMAND_WAITBUF_PAUSED)) {
+                        need_space += ExpectedResponseLength;
+                    }
+                    if (stream->m_callback->have_send_buf_impl(c, need_space)) {
+                        stream->reply_append_buffer(c, o->msg_buffer, o->msg_length);
+                        stream->reply_poke(c);
+                    }
+                }
+            }
+            
+            o->msg_length = 0;
         }
         
         void reply_append_buffer (Context c, char const *str, size_t length)
         {
             auto *o = Object::self(c);
-            for (CommandStream *stream = o->command_stream_list.first(); stream; stream = o->command_stream_list.next(stream)) {
-                if (stream->m_accept_msg) {
-                    stream->reply_append_buffer(c, str, length);
-                }
-            }
+            
+            size_t write_length = MinValue(length, (size_t)(MaxMsgSize - o->msg_length));
+            memcpy(o->msg_buffer + o->msg_length, str, write_length);
+            o->msg_length += write_length;
         }
         
 #if AMBRO_HAS_NONTRANSPARENT_PROGMEM
         void reply_append_pbuffer (Context c, AMBRO_PGM_P pstr, size_t length)
         {
             auto *o = Object::self(c);
-            for (CommandStream *stream = o->command_stream_list.first(); stream; stream = o->command_stream_list.next(stream)) {
-                if (stream->m_accept_msg) {
-                    stream->reply_append_pbuffer(c, pstr, length);
-                }
-            }
+            
+            size_t write_length = MinValue(length, (size_t)(MaxMsgSize - o->msg_length));
+            AMBRO_PGM_MEMCPY(o->msg_buffer + o->msg_length, pstr, write_length);
+            o->msg_length += write_length;
         }
 #endif
     };
@@ -2122,6 +2151,7 @@ public:
         ob->disable_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::disable_timer_handler));
         ob->force_timer.init(c, APRINTER_CB_STATFUNC_T(&PrinterMain::force_timer_handler));
         ob->command_stream_list.init();
+        ob->msg_length = 0;
         TheBlinker::init(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
         TheSteppers::init(c);
         ob->axis_homing = 0;
@@ -2971,6 +3001,7 @@ public:
         FpType time_freq_by_max_speed;
         FpType speed_ratio;
         uint32_t underrun_count;
+        size_t msg_length;
         uint8_t locked : 1;
         uint8_t planner_state : 3;
         uint8_t m_planning_pull_pending : 1;
@@ -2981,6 +3012,7 @@ public:
         PhysVirtAxisMaskType axis_homing;
         PhysVirtAxisMaskType axis_relative;
         PhysVirtAxisMaskType m_homing_rem_axes;
+        char msg_buffer[MaxMsgSize];
     };
 };
 
