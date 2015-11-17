@@ -30,10 +30,6 @@
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/PowerOfTwo.h>
 
-#ifdef AMBROLIB_AVR
-#include <aprinter/avr-asm-ops/shift.h>
-#endif
-
 #include <aprinter/BeginNamespace.h>
 
 template <int NumBits, bool Signed, int ShiftCount>
@@ -46,34 +42,7 @@ public:
     template <typename Option = int>
     __attribute__((always_inline)) inline static ResType call (OpType op)
     {
-        return
-#ifdef AMBROLIB_AVR
-#if 0
-            (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 7) ? shift_s24_r7(op) :
-            (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 6) ? shift_s24_r6(op) :
-            (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 5) ? shift_s24_r5(op) :
-            (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 4) ? shift_s24_r4(op) :
-            (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 3) ? shift_s24_r3(op) :
-            (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 2) ? shift_s24_r2(op) :
-            (Signed && NumBits > 15 && NumBits <= 23 && ShiftCount == 1) ? shift_s24_r1(op) :
-#endif
-            (!Signed && NumBits > 16 && NumBits <= 32 && ShiftCount == 3) ? shift_32_r3(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 15) ? shift_s32_r15(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 14) ? shift_s32_r14(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 13) ? shift_s32_r13(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 12) ? shift_s32_r12(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 11) ? shift_s32_r11(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 10) ? shift_s32_r10(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 9) ? shift_s32_r9(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 7) ? shift_s32_r7(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 6) ? shift_s32_r6(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 5) ? shift_s32_r5(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 4) ? shift_s32_r4(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 3) ? shift_s32_r3(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 2) ? shift_s32_r2(op) :
-            (Signed && NumBits > 15 && NumBits <= 31 && ShiftCount == 1) ? shift_s32_r1(op) :
-#endif
-            (op / PowerOfTwo<OpType, ShiftCount>::Value);
+        return (op / PowerOfTwo<OpType, ShiftCount>::Value);
     }
 };
 
@@ -88,24 +57,7 @@ public:
     template <typename Option = int>
     __attribute__((always_inline)) inline static ResType call (OpType op)
     {
-        return
-#ifdef AMBROLIB_AVR
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 1) ? shift_s32_l1(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 2) ? shift_s32_l2(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 3) ? shift_s32_l3(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 4) ? shift_s32_l4(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 5) ? shift_s32_l5(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 6) ? shift_s32_l6(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 7) ? shift_s32_l7(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 9) ? shift_s32_l9(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 10) ? shift_s32_l10(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 11) ? shift_s32_l11(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 12) ? shift_s32_l12(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 13) ? shift_s32_l13(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 14) ? shift_s32_l14(op) :
-            (Signed && ResBits > 15 && ResBits <= 31 && ShiftCount == 15) ? shift_s32_l15(op) :
-#endif
-            (op * PowerOfTwo<ResType, ShiftCount>::Value);
+        return (op * PowerOfTwo<ResType, ShiftCount>::Value);
     }
 };
 

@@ -93,53 +93,6 @@
 "    rol %D[x]\n"
 
 /*
- * Square root 26-bit.
- * 
- * Cycles in worst case: 127
- * = 11 + 3 * 8 + 8 + 10 + 6 * 10 + 10 + 4
- */
-__attribute__((always_inline)) inline static uint16_t sqrt_26_large (uint32_t x, OptionForceInline opt)
-{
-    uint16_t goo;
-    
-    asm(
-        "    ldi %A[goo],0x80\n"
-        "    ldi %B[goo],0x08\n"
-        "    lsl %B[x]\n"
-        "    rol %C[x]\n"
-        "    rol %D[x]\n"
-        "    lsl %B[x]\n"
-        "    rol %C[x]\n"
-        "    rol %D[x]\n"
-        "    lsl %B[x]\n"
-        "    rol %C[x]\n"
-        "    rol %D[x]\n"
-        SQRT_26_ITER_3_5(3)
-        SQRT_26_ITER_3_5(4)
-        SQRT_26_ITER_3_5(5)
-        SQRT_26_ITER_6_6(6)
-        SQRT_26_ITER_7_7(7)
-        SQRT_26_ITER_8_13(8)
-        SQRT_26_ITER_8_13(9)
-        SQRT_26_ITER_8_13(10)
-        SQRT_26_ITER_8_13(11)
-        SQRT_26_ITER_8_13(12)
-        SQRT_26_ITER_8_13(13)
-        SQRT_26_ITER_14_14(14)
-        "    lsl %A[x]\n"
-        "    cpc %A[goo],%C[x]\n"
-        "    cpc %B[goo],%D[x]\n"
-        "    adc %A[goo],__zero_reg__\n"
-        
-        : [goo] "=&d" (goo),
-          [x] "=&r" (x)
-        : "[x]" (x)
-    );
-    
-    return goo;
-}
-
-/*
  * Square root 26-bit with rounding.
  * 
  * Cycles in worst case: 137
@@ -195,12 +148,6 @@ __attribute__((always_inline)) inline static uint16_t sqrt_26_large_round (uint3
     );
     
     return goo;
-}
-
-template <typename Option = int>
-static uint16_t sqrt_26_large (uint32_t x, Option opt = 0)
-{
-    return sqrt_26_large(x, OptionForceInline());
 }
 
 template <typename Option = int>

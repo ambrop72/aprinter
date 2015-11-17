@@ -52,7 +52,6 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
-            (NumBits <= 26 && !Round) ? sqrt_26_large(op, opt) :
             (NumBits <= 26 && Round) ? sqrt_26_large_round(op, opt) :
 #endif
             DefaultSqrt<OverflowPossible>::call(op);

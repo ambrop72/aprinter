@@ -56,30 +56,10 @@ public:
     {
         return
 #ifdef AMBROLIB_AVR
-#if 0
-            (RightShift >= 16 && Signed1 && NumBits1 > 7 && NumBits1 <= 15 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
-                IntShiftRight<MaxValue(1, TempBits - 16), Signed, MaxValue(0, RightShift - 16)>::call(mul_s16_16_r16(op1, op2)) :
-            (RightShift >= 8 && Signed1 && NumBits1 > 7 && NumBits1 <= 15 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
-                IntShiftRight<MaxValue(1, TempBits - 8), Signed, MaxValue(0, RightShift - 8)>::call(mul_s16_16_r8(op1, op2)) :
-#endif
             (RightShift >= 0 && !Signed1 && NumBits1 > 8 && NumBits1 <= 16 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
                 IntShiftRight<MaxValue(1, TempBits - 0), Signed, MaxValue(0, RightShift - 0)>::call(mul_16_16(op1, op2)) :
-            (RightShift >= 0 && Signed1 && NumBits1 > 7 && NumBits1 <= 15 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
-                IntShiftRight<MaxValue(1, TempBits - 0), Signed, MaxValue(0, RightShift - 0)>::call(mul_s16_16(op1, op2)) :
-            (RightShift >= 16 && Signed1 && NumBits1 > 15 && NumBits1 <= 23 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
-                IntShiftRight<MaxValue(1, TempBits - 16), Signed, MaxValue(0, RightShift - 16)>::call(mul_s24_16_r16(op1, op2)) :
-            (RightShift >= 8 && Signed1 && NumBits1 > 15 && NumBits1 <= 23 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
-                IntShiftRight<MaxValue(1, TempBits - 8), Signed, MaxValue(0, RightShift - 8)>::call(mul_s24_16_r8(op1, op2)) :
-            (RightShift >= 0 && Signed1 && NumBits1 > 15 && NumBits1 <= 23 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16 && NumBits1 + NumBits2 <= 31) ?
-                IntShiftRight<MaxValue(1, TempBits - 0), Signed, MaxValue(0, RightShift - 0)>::call(mul_s24_16_trunc32(op1, op2)) :
-            (RightShift >= 16 && !Signed1 && NumBits1 > 16 && NumBits1 <= 24 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
-                IntShiftRight<MaxValue(1, TempBits - 16), Signed, MaxValue(0, RightShift - 16)>::call(mul_24_16_r16(op1, op2)) :
             (RightShift >= 15 && !Signed1 && NumBits1 > 16 && NumBits1 <= 24 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
                 IntShiftRight<MaxValue(1, TempBits - 15), Signed, MaxValue(0, RightShift - 15)>::call(mul_24_16_r15(op1, op2)) :
-            (RightShift >= 8 && !Signed1 && NumBits1 > 24 && NumBits1 <= 32 && !Signed2 && NumBits2 > 0 && NumBits2 <= 8) ?
-                IntShiftRight<MaxValue(1, TempBits - 8), Signed, MaxValue(0, RightShift - 8)>::call(mul_32_8_r8(op1, op2)) :
-            (RightShift >= 16 && !Signed1 && NumBits1 > 24 && NumBits1 <= 32 && !Signed2 && NumBits2 > 8 && NumBits2 <= 16) ?
-                IntShiftRight<MaxValue(1, TempBits - 16), Signed, MaxValue(0, RightShift - 16)>::call(mul_32_16_r16(op1, op2)) :
 #endif
             default_multiply(op1, op2);
     }
