@@ -32,8 +32,7 @@
 
 template <typename FpType>
 struct LinearPlanner {
-    class SegmentData {
-        friend LinearPlanner;
+    struct SegmentData {
         FpType a_x;
         FpType max_v;
         FpType max_start_v;
