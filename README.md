@@ -292,9 +292,11 @@ The TCP console will be available on port 23. You tell Pronterface to connect to
 
 Each heater is identified with a one-character name and a number. In the configuration editor, the number may be omitted, in which case it is assumed to be zero. On the other hand, the firmware will assume the number 0 if a heater is specified in a heater-related command with just a letter. Typical heater names are B (bed), T/T0 (first extruder) and T1 (second extruder).
 
-To configure the setpoint for a heater and enable it, use `M104 <heater> S<temperature>`. For example: `M104 B S100`, `M104 T S220`, `M104 T1 S200`. To disable a heater, set the setpoint to nan (or a value outside of the defined safe range): `M104 B Snan`.
+To configure the setpoint for a heater and enable it, use `M104 <heater> S<temperature>`. For example: `M104 B S100`, `M104 T S220`, `M104 T1 S200`. To remove the setpoint (disabling the heater), set it to nan (or a value outside of the defined safe range): `M104 B Snan`.
 
-The command M116 can be used to wait for the set temperatures of the specified heaters to be reached: `M116 <heater> ...`. For example: `M116 T0 T1 B`. Without any heaters specified, the effect is as if all heaters were specified. If one of the waited-for heaters is disabled at start or subsequently, the wait operation aborts.
+The command M116 can be used to wait for the set temperatures of heaters to be reached: `M116 <heater> ...`. For example: `M116 T0 T1 B`. Without any known heaters specified, the effect is as if all heaters with configured setpoints were specified. The command will fail immediately if a heater which is explicitcly specified does not have a setpoint configured.
+
+The firmware detects thermal runaways, when the temperature falls outside the defined safe range. Upon runaway, the specific heater is automatically disabled, and a `//HeaterOverrun` message is generated. The command `M922` can be used to re-enable heaters which had experienced a thermal runaway. Note, a heater being disabled due to a thermal runaway does not change its setpoint - this is implemented such to provide predictable semantics of M116.
 
 Optionally, heater-specific M-codes can be defined in the configuration editor. For example is M123 is configured for the heater `T1`, the command `M123 S<temperature>` is equivalent to `M104 T1 S<temperature>`. Note, `M104` itself may be configured as a heater-specific M-code. In this case `M104` may still be used to configure any heater, but if no heater is specified, it configures that particular heater. It is useful to configure `M140` as the heater-specific code for the bed, and `M104` for an only extruder.
 
