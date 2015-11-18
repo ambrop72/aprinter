@@ -463,15 +463,14 @@ private:
             
             if (report_thermal_runaway) {
                 auto *output = ThePrinterMain::get_msg_output(c);
-                output->reply_append_pstr(c, AMBRO_PSTR("//HeaterOverrun:"));
-                print_name<typename HeaterSpec::Name>(c, output);
-                output->reply_append_ch(c, '\n');
+                output->reply_append_pstr(c, AMBRO_PSTR("//"));
+                print_heater_error(c, output, AMBRO_PSTR("HeaterThermalRunaway"));
                 output->reply_poke(c);
             }
             
             if (TheObserver::isObserving(c) && !enabled) {
                 TheCommand *cmd = ThePrinterMain::get_locked(c);
-                print_heater_error(c, cmd, AMBRO_PSTR("HeaterOverrun"));
+                print_heater_error(c, cmd, AMBRO_PSTR("HeaterThermalRunaway"));
                 complete_wait(c, true, nullptr);
             }
             
@@ -502,7 +501,7 @@ private:
                 
                 if (!FloatIsNan(target)) {
                     if (!enabled) {
-                        print_heater_error(c, cmd, AMBRO_PSTR("HeaterOverrun"));
+                        print_heater_error(c, cmd, AMBRO_PSTR("HeaterThermalRunaway"));
                         return false;
                     }
                     mo->waiting_heaters |= HeaterMask();
@@ -517,7 +516,7 @@ private:
             return true;
         }
         
-        static void print_heater_error (Context c, TheCommand *cmd, AMBRO_PGM_P errstr)
+        static void print_heater_error (Context c, TheOutputStream *cmd, AMBRO_PGM_P errstr)
         {
             cmd->reply_append_pstr(c, AMBRO_PSTR("Error:"));
             cmd->reply_append_pstr(c, errstr);
