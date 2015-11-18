@@ -86,6 +86,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_emergency, emergency)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_safety, check_safety)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_adc_value, append_adc_value)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_clear_error, clear_error)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_wait_mask, update_wait_mask)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_wait, start_wait)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_stop_wait, stop_wait)
@@ -130,6 +131,10 @@ public:
         }
         if (cmd->getCmdNumber(c) == 921) {
             handle_print_adc_command(c, cmd);
+            return false;
+        }
+        if (cmd->getCmdNumber(c) == 922) {
+            handle_clear_error_command(c, cmd);
             return false;
         }
         return ListForEachForwardInterruptible<HeatersList>(LForeach_check_command(), c, cmd) &&
@@ -211,8 +216,8 @@ private:
         {
             auto *o = Object::self(c);
             o->m_enabled = false;
-            o->m_target = 0.0f;
             o->m_was_not_unset = false;
+            o->m_target = NAN;
             TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
             o->m_control_event.init(c, APRINTER_CB_STATFUNC_T(&Heater::control_event_handler));
             o->m_control_event.appendAt(c, time + (APRINTER_CFG(Config, CControlIntervalTicks, c) / 2));
@@ -266,11 +271,11 @@ private:
             auto *o = Object::self(c);
             
             FpType value = get_temp(c);
-            FpType target = NAN;
+            FpType target;
+            bool enabled;
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                if (o->m_enabled) {
-                    target = o->m_target;
-                }
+                target = o->m_target;
+                enabled = o->m_enabled;
             }
             
             cmd->reply_append_ch(c, ' ');
@@ -279,6 +284,9 @@ private:
             cmd->reply_append_fp(c, value);
             cmd->reply_append_pstr(c, AMBRO_PSTR(" /"));
             cmd->reply_append_fp(c, target);
+            if (!FloatIsNan(target) && !enabled) {
+                cmd->reply_append_pstr(c, AMBRO_PSTR(",err"));
+            }
         }
         
         static void append_adc_value (Context c, TheCommand *cmd)
@@ -290,10 +298,27 @@ private:
             cmd->reply_append_fp(c, adc_value.template fpValue<FpType>());
         }
         
+        static void clear_error (Context c, TheCommand *cmd)
+        {
+            auto *o = Object::self(c);
+            
+            FpType target;
+            bool enabled;
+            AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                target = o->m_target;
+                enabled = o->m_enabled;
+            }
+            
+            if (!FloatIsNan(target) && !enabled) {
+                set(c, target);
+            }
+        }
+        
         template <typename ThisContext>
         static void set (ThisContext c, FpType target)
         {
             auto *o = Object::self(c);
+            AMBRO_ASSERT(!FloatIsNan(target))
             
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 o->m_target = target;
@@ -302,10 +327,13 @@ private:
         }
         
         template <typename ThisContext>
-        static void unset (ThisContext c)
+        static void unset (ThisContext c, bool orderly)
         {
             auto *o = Object::self(c);
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
+                if (orderly) {
+                    o->m_target = NAN;
+                }
                 o->m_enabled = false;
                 o->m_was_not_unset = false;
                 PwmDutyCycleData duty;
@@ -355,7 +383,7 @@ private:
             
             AdcFixedType adc_value = get_adc(c);
             if (adc_is_unsafe(c, adc_value)) {
-                unset(c);
+                unset(c, false);
             }
         }
         
@@ -386,7 +414,7 @@ private:
             if (AMBRO_LIKELY(!FloatIsNan(payload->target))) {
                 set(c, payload->target);
             } else {
-                unset(c);
+                unset(c, true);
             }
         }
         
@@ -398,7 +426,7 @@ private:
             
             AdcFixedType adc_value = get_adc(c);
             if (adc_is_unsafe(c, adc_value)) {
-                unset(c);
+                unset(c, false);
             }
             
             bool enabled;
@@ -428,7 +456,9 @@ private:
             }
             
             if (TheObserver::isObserving(c) && !enabled) {
-                fail_wait(c);
+                TheCommand *cmd = ThePrinterMain::get_locked(c);
+                print_heater_error(c, cmd, AMBRO_PSTR("HeaterOverrun"));
+                complete_wait(c, true, nullptr);
             }
             
             maybe_report(c);
@@ -443,24 +473,43 @@ private:
         }
         
         template <typename TheHeatersMaskType>
-        static void start_wait (Context c, TheHeatersMaskType mask)
+        static bool start_wait (Context c, TheCommand *cmd, TheHeatersMaskType mask)
         {
             auto *o = Object::self(c);
             auto *mo = AuxControlModule::Object::self(c);
             
-            if ((mask & HeaterMask())) {
-                FpType target = NAN;
+            if ((mask & HeaterMask()) || mask == 0) {
+                FpType target;
+                bool enabled;
                 AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
-                    if (o->m_enabled) {
-                        target = o->m_target;
-                    }
+                    target = o->m_target;
+                    enabled = o->m_enabled;
                 }
                 
                 if (!FloatIsNan(target)) {
+                    if (!enabled) {
+                        print_heater_error(c, cmd, AMBRO_PSTR("HeaterOverrun"));
+                        return false;
+                    }
                     mo->waiting_heaters |= HeaterMask();
                     TheObserver::startObserving(c, target);
                 }
+                else if ((mask & HeaterMask())) {
+                    print_heater_error(c, cmd, AMBRO_PSTR("HeaterNotEnabled"));
+                    return false;
+                }
             }
+            
+            return true;
+        }
+        
+        static void print_heater_error (Context c, TheCommand *cmd, AMBRO_PGM_P errstr)
+        {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("Error:"));
+            cmd->reply_append_pstr(c, errstr);
+            cmd->reply_append_ch(c, ':');
+            print_name<typename HeaterSpec::Name>(c, cmd);
+            cmd->reply_append_ch(c, '\n');
         }
         
         static void stop_wait (Context c)
@@ -653,15 +702,11 @@ private:
         AMBRO_ASSERT(o->waiting_heaters == 0)
         HeatersMaskType heaters_mask = 0;
         ListForEachForward<HeatersList>(LForeach_update_wait_mask(), c, cmd, &heaters_mask);
-        if (heaters_mask == 0) {
-            heaters_mask = AllHeatersMask;
-        }
         o->waiting_heaters = 0;
         o->inrange_heaters = 0;
         o->wait_started_time = Clock::getTime(c);
-        ListForEachForward<HeatersList>(LForeach_start_wait(), c, heaters_mask);
-        if (o->waiting_heaters != heaters_mask) {
-            cmd->reportError(c, AMBRO_PSTR("HeaterNotEnabled"));
+        if (!ListForEachForwardInterruptible<HeatersList>(LForeach_start_wait(), c, cmd, heaters_mask)) {
+            cmd->reportError(c, nullptr);
             cmd->finishCommand(c);
             ListForEachForward<HeatersList>(LForeach_stop_wait(), c);
             o->waiting_heaters = 0;
@@ -683,13 +728,19 @@ private:
         cmd->finishCommand(c, true);
     }
     
-    static void complete_wait (Context c, AMBRO_PGM_P errstr)
+    static void handle_clear_error_command (Context c, TheCommand *cmd)
+    {
+        ListForEachForward<HeatersList>(LForeach_clear_error(), c, cmd);
+        cmd->finishCommand(c);
+    }
+    
+    static void complete_wait (Context c, bool error, AMBRO_PGM_P errstr)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->waiting_heaters)
         
         TheCommand *cmd = ThePrinterMain::get_locked(c);
-        if (errstr) {
+        if (error) {
             cmd->reportError(c, errstr);
         }
         cmd->finishCommand(c);
@@ -707,13 +758,8 @@ private:
         bool timed_out = (TimeType)(Clock::getTime(c) - o->wait_started_time) >= APRINTER_CFG(Config, CWaitTimeoutTicks, c);
         
         if (reached || timed_out) {
-            complete_wait(c, timed_out ? AMBRO_PSTR("WaitTimedOut") : nullptr);
+            complete_wait(c, timed_out, AMBRO_PSTR("WaitTimedOut"));
         }
-    }
-    
-    static void fail_wait (Context c)
-    {
-        complete_wait(c, AMBRO_PSTR("HeaterDisabled"));
     }
     
     static void maybe_report (Context c)
