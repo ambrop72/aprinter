@@ -217,6 +217,7 @@ private:
             auto *o = Object::self(c);
             o->m_enabled = false;
             o->m_was_not_unset = false;
+            o->m_report_thermal_runaway = false;
             o->m_target = NAN;
             TimeType time = Clock::getTime(c) + (TimeType)(0.05 * TimeConversion::value());
             o->m_control_event.init(c, APRINTER_CB_STATFUNC_T(&Heater::control_event_handler));
@@ -333,6 +334,8 @@ private:
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 if (orderly) {
                     o->m_target = NAN;
+                } else if (o->m_enabled) {
+                    o->m_report_thermal_runaway = true;
                 }
                 o->m_enabled = false;
                 o->m_was_not_unset = false;
@@ -432,11 +435,14 @@ private:
             bool enabled;
             FpType target;
             bool was_not_unset;
+            bool report_thermal_runaway;
             AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
                 enabled = o->m_enabled;
                 target = o->m_target;
                 was_not_unset = o->m_was_not_unset;
                 o->m_was_not_unset = enabled;
+                report_thermal_runaway = o->m_report_thermal_runaway;
+                o->m_report_thermal_runaway = false;
             }
             if (AMBRO_LIKELY(enabled)) {
                 if (!was_not_unset) {
@@ -453,6 +459,14 @@ private:
                         }
                     }
                 }
+            }
+            
+            if (report_thermal_runaway) {
+                auto *output = ThePrinterMain::get_msg_output(c);
+                output->reply_append_pstr(c, AMBRO_PSTR("//HeaterOverrun:"));
+                print_name<typename HeaterSpec::Name>(c, output);
+                output->reply_append_ch(c, '\n');
+                output->reply_poke(c);
             }
             
             if (TheObserver::isObserving(c) && !enabled) {
@@ -533,6 +547,7 @@ private:
         >> {
             uint8_t m_enabled : 1;
             uint8_t m_was_not_unset : 1;
+            uint8_t m_report_thermal_runaway : 1;
             FpType m_target;
             typename Context::EventLoop::TimedEvent m_control_event;
         };
