@@ -40,6 +40,8 @@
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/If.h>
+#include <aprinter/meta/StructIf.h>
+#include <aprinter/meta/WrapValue.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -68,6 +70,7 @@ private:
     using TheCommand = typename ThePrinterMain::TheCommand;
     using FpType = typename ThePrinterMain::FpType;
     using TimeConversion = typename ThePrinterMain::TimeConversion;
+    using PhysVirtAxisMaskType = typename ThePrinterMain::PhysVirtAxisMaskType;
     
     using ParamsHeatersList = typename Params::HeatersList;
     using ParamsFansList = typename Params::FansList;
@@ -94,6 +97,9 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_append_value, append_value)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_set_command, check_set_command)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_command, check_command)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_move_interlocks, check_move_interlocks)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_cold_extrude, print_cold_extrude)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_set_cold_extrude, set_cold_extrude)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_ChannelPayload, ChannelPayload)
     
 public:
@@ -137,6 +143,10 @@ public:
             handle_clear_error_command(c, cmd);
             return false;
         }
+        if (cmd->getCmdNumber(c) == 302) {
+            handle_cold_extrude_command(c, cmd);
+            return false;
+        }
         return ListForEachForwardInterruptible<HeatersList>(LForeach_check_command(), c, cmd) &&
                ListForEachForwardInterruptible<FansList>(LForeach_check_command(), c, cmd);
     }
@@ -150,6 +160,11 @@ public:
     static void check_safety (Context c)
     {
         ListForEachForward<HeatersList>(LForeach_check_safety(), c);
+    }
+    
+    static bool check_move_interlocks (Context c, TheOutputStream *err_output, PhysVirtAxisMaskType move_axes)
+    {
+        return ListForEachForwardInterruptible<HeatersList>(LForeach_check_move_interlocks(), c, err_output, move_axes);
     }
     
 private:
@@ -225,6 +240,7 @@ private:
             ThePwm::init(c, time);
             TheObserver::init(c);
             TheAnalogInput::init(c);
+            ColdExtrusionFeature::init(c);
         }
         
         static void deinit (Context c)
@@ -266,6 +282,7 @@ private:
             AdcFixedType adc_raw = get_adc(c);
             return adc_to_temp(c, adc_raw);
         }
+        struct ObserverGetValueCallback : public AMBRO_WFUNC_TD(&Heater::get_temp) {};
         
         static void append_value (Context c, TheOutputStream *cmd)
         {
@@ -404,6 +421,7 @@ private:
             }
             check_wait_completion(c);
         }
+        struct ObserverHandler : public AMBRO_WFUNC_TD(&Heater::observer_handler) {};
         
         static void emergency ()
         {
@@ -534,15 +552,90 @@ private:
             }
         }
         
-        struct ObserverGetValueCallback : public AMBRO_WFUNC_TD(&Heater::get_temp) {};
-        struct ObserverHandler : public AMBRO_WFUNC_TD(&Heater::observer_handler) {};
+        static bool check_move_interlocks (Context c, TheOutputStream *err_output, PhysVirtAxisMaskType move_axes)
+        {
+            return ColdExtrusionFeature::check_move_interlocks(c, err_output, move_axes);
+        }
+        
+        static void print_cold_extrude (Context c, TheOutputStream *output)
+        {
+            ColdExtrusionFeature::print_cold_extrude(c, output);
+        }
+        
+        template <typename TheHeatersMaskType>
+        static void set_cold_extrude (Context c, bool allow, TheHeatersMaskType heaters_mask)
+        {
+            ColdExtrusionFeature::set_cold_extrude(c, allow, heaters_mask);
+        }
+        
+        AMBRO_STRUCT_IF(ColdExtrusionFeature, HeaterSpec::ColdExtrusion::Enabled) {
+            template <typename AxisName, typename AccumMask>
+            using ExtrudersMaskFoldFunc = WrapValue<PhysVirtAxisMaskType, (AccumMask::Value | ThePrinterMain::template GetPhysVirtAxisByName<AxisName::Value>::AxisMask)>;
+            using ExtrudersMask = TypeListFold<typename HeaterSpec::ColdExtrusion::ExtruderAxes, WrapValue<PhysVirtAxisMaskType, 0>, ExtrudersMaskFoldFunc>;
+            
+            using CMinExtrusionTemp = decltype(ExprCast<FpType>(Config::e(HeaterSpec::ColdExtrusion::MinExtrusionTemp::i())));
+            using ConfigExprs = MakeTypeList<CMinExtrusionTemp>;
+            
+            static void init (Context c)
+            {
+                auto *o = Object::self(c);
+                o->cold_extrusion_allowed = false;
+            }
+            
+            static bool check_move_interlocks (Context c, TheOutputStream *err_output, PhysVirtAxisMaskType move_axes)
+            {
+                auto *o = Object::self(c);
+                if (!o->cold_extrusion_allowed && (move_axes & ExtrudersMask::Value)) {
+                    FpType temp = get_temp(c);
+                    if (!(temp >= APRINTER_CFG(Config, CMinExtrusionTemp, c)) || isinf(temp)) {
+                        err_output->reply_append_pstr(c, AMBRO_PSTR("Error:"));
+                        err_output->reply_append_pstr(c, AMBRO_PSTR("ColdExtrusionPrevented:"));
+                        print_name<typename HeaterSpec::Name>(c, err_output);
+                        err_output->reply_append_ch(c, '\n');
+                        return false;
+                    }
+                }
+                return true;
+            }
+            
+            static void print_cold_extrude (Context c, TheOutputStream *output)
+            {
+                auto *o = Object::self(c);
+                output->reply_append_ch(c, ' ');
+                print_name<typename HeaterSpec::Name>(c, output);
+                output->reply_append_ch(c, '=');
+                output->reply_append_ch(c, o->cold_extrusion_allowed ? '1' : '0');
+            }
+            
+            template <typename TheHeatersMaskType>
+            static void set_cold_extrude (Context c, bool allow, TheHeatersMaskType heaters_mask)
+            {
+                auto *o = Object::self(c);
+                if ((heaters_mask & HeaterMask())) {
+                    o->cold_extrusion_allowed = allow;
+                }
+            }
+            
+            struct Object : public ObjBase<ColdExtrusionFeature, typename Heater::Object, EmptyTypeList> {
+                bool cold_extrusion_allowed;
+            };
+        }
+        AMBRO_STRUCT_ELSE(ColdExtrusionFeature) {
+            static void init (Context c) {}
+            static bool check_move_interlocks (Context c, TheOutputStream *err_output, PhysVirtAxisMaskType move_axes) { return true; }
+            static void print_cold_extrude (Context c, TheOutputStream *output) {}
+            template <typename TheHeatersMaskType>
+            static void set_cold_extrude (Context c, bool allow, TheHeatersMaskType heaters_mask) {}
+            struct Object {};
+        };
         
         struct Object : public ObjBase<Heater, typename AuxControlModule::Object, MakeTypeList<
             TheControl,
             ThePwm,
             TheObserver,
             TheFormula,
-            TheAnalogInput
+            TheAnalogInput,
+            ColdExtrusionFeature
         >> {
             uint8_t m_enabled : 1;
             uint8_t m_was_not_unset : 1;
@@ -748,6 +841,24 @@ private:
         cmd->finishCommand(c);
     }
     
+    static void handle_cold_extrude_command (Context c, TheCommand *cmd)
+    {
+        if (!cmd->find_command_param(c, 'P', nullptr)) {
+            cmd->reply_append_pstr(c, AMBRO_PSTR("ColdExtrude:"));
+            ListForEachForward<HeatersList>(LForeach_print_cold_extrude(), c, cmd);
+            cmd->reply_append_ch(c, '\n');
+        } else {
+            bool allow = (cmd->get_command_param_uint32(c, 'P', 0) > 0);
+            HeatersMaskType heaters_mask = 0;
+            ListForEachForward<HeatersList>(LForeach_update_wait_mask(), c, cmd, &heaters_mask);
+            if (heaters_mask == 0) {
+                heaters_mask = AllHeatersMask;
+            }
+            ListForEachForward<HeatersList>(LForeach_set_cold_extrude(), c, allow, heaters_mask);
+        }
+        cmd->finishCommand(c);
+    }
+    
     static void complete_wait (Context c, bool error, AMBRO_PGM_P errstr)
     {
         auto *o = Object::self(c);
@@ -836,6 +947,20 @@ struct AuxControlName {
     static uint8_t const Number = TNumber;
 };
 
+struct AuxControlNoColdExtrusionParams {
+    static bool const Enabled = false;
+};
+
+template <
+    typename TMinExtrusionTemp,
+    typename TExtruderAxes
+>
+struct AuxControlColdExtrusionParams {
+    static bool const Enabled = true;
+    using MinExtrusionTemp = TMinExtrusionTemp;
+    using ExtruderAxes = TExtruderAxes;
+};
+
 template <
     typename TName,
     int TSetMCommand,
@@ -846,7 +971,8 @@ template <
     typename TControlInterval,
     typename TControlService,
     typename TObserverService,
-    typename TPwmService
+    typename TPwmService,
+    typename TColdExtrusion
 >
 struct AuxControlModuleHeaterParams {
     using Name = TName;
@@ -859,6 +985,7 @@ struct AuxControlModuleHeaterParams {
     using ControlService = TControlService;
     using ObserverService = TObserverService;
     using PwmService = TPwmService;
+    using ColdExtrusion = TColdExtrusion;
 };
 
 template <

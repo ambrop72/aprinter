@@ -566,7 +566,14 @@ def editor():
                     ce.Float(key='ObserverTolerance', title='The temperature must be within [K]', default=3),
                     ce.Float(key='ObserverMinTime', title='For at least this long [s]', default=3),
                     ce.Float(key='ObserverInterval', title='With a measurement taken each [s]', default=0.5),
-                ])
+                ]),
+                ce.OneOf(key='cold_extrusion_prevention', title='Cold-extrusion prevention', choices=[
+                    ce.Compound('NoColdExtrusionPrevention', title='Disabled', attrs=[]),
+                    ce.Compound('ColdExtrusionPrevention', title='Enabled', attrs=[
+                        ce.Float(key='MinExtrusionTemp', title='Minimum temperature for extrusion [C]', default=200),
+                        ce.Array(key='ExtruderAxes', title='Extruder axes', table=True, elem=ce.String(key='AxisName', title='Axis name')),
+                    ]),
+                ]),
             ])),
             ce.Array(key='fans', title='Fans', copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('fan', title='Fan', title_key='Name', collapsable=True, ident='id_configuration_fan', attrs=[
                 ce.String(key='Name', title='Name (capital letter optionally followed by a number)'),

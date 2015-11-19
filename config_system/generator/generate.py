@@ -1736,6 +1736,25 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_config('{}HeaterObserverMinTime'.format(name), observer.get_float('ObserverMinTime')),
                     ])
                 
+                cold_extrusion_sel = selection.Selection()
+                
+                @cold_extrusion_sel.option('NoColdExtrusionPrevention')
+                def option(cold_extrusion_config):
+                    return 'AuxControlNoColdExtrusionParams'
+                
+                @cold_extrusion_sel.option('ColdExtrusionPrevention')
+                def option(cold_extrusion_config):
+                    extruders_exprs = []
+                    for axis_name in cold_extrusion_config.get_list(config_reader.ConfigTypeString(), 'ExtruderAxes', max_count=20):
+                        extruders_exprs.append(TemplateExpr('WrapInt', [TemplateChar(axis_name)]))
+                    
+                    return TemplateExpr('AuxControlColdExtrusionParams', [
+                        gen.add_float_config('{}HeaterMinExtrusionTemp'.format(name), cold_extrusion_config.get_float('MinExtrusionTemp')),
+                        TemplateList(extruders_exprs),
+                    ])
+                
+                cold_extrusion = heater.do_selection('cold_extrusion_prevention', cold_extrusion_sel)
+                
                 return TemplateExpr('AuxControlModuleHeaterParams', [
                     name_expr,
                     heater.get_int('SetMCommand'),
@@ -1746,7 +1765,8 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_float_config('{}HeaterControlInterval'.format(name), control_interval),
                     control_service,
                     observer_service,
-                    use_pwm_output(gen, heater, 'pwm_output', '{}::GetHeaterPwm<{}>'.format(aux_control_module_user, heater_index), '{}Heater'.format(name))
+                    use_pwm_output(gen, heater, 'pwm_output', '{}::GetHeaterPwm<{}>'.format(aux_control_module_user, heater_index), '{}Heater'.format(name)),
+                    cold_extrusion,
                 ])
             
             heaters_expr = config.do_list('heaters', heater_cb, max_count=15)

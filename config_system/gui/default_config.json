@@ -3823,12 +3823,19 @@
       "WaitReportPeriod": 1,
       "heaters": [
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T0",
           "SetMCommand": 104,
           "ThermistorInput": "T0",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "ExtruderAxes": [
+              "E"
+            ],
+            "MinExtrusionTemp": 200,
+            "_compoundName": "ColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.17,
@@ -3856,12 +3863,15 @@
           "pwm_output": "FET6 (extruder 1)"
         },
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 120,
-          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T4",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "_compoundName": "NoColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.3,
             "PidD": 2.5,
@@ -3889,12 +3899,19 @@
           "pwm_output": "FET1 (bed)"
         },
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T1",
           "SetMCommand": 404,
           "ThermistorInput": "T1",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "ExtruderAxes": [
+              "U"
+            ],
+            "MinExtrusionTemp": 200,
+            "_compoundName": "ColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.17,
@@ -4145,12 +4162,19 @@
       "WaitReportPeriod": 1,
       "heaters": [
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T0",
           "SetMCommand": 104,
           "ThermistorInput": "T1",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "ExtruderAxes": [
+              "E"
+            ],
+            "MinExtrusionTemp": 200,
+            "_compoundName": "ColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.17,
@@ -4178,12 +4202,15 @@
           "pwm_output": "FET2/D9 (extruder 1)"
         },
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 120,
-          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T0",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "_compoundName": "NoColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.3,
             "PidD": 2.5,
@@ -4211,12 +4238,19 @@
           "pwm_output": "FET1/D8 (bed)"
         },
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T1",
           "SetMCommand": 404,
           "ThermistorInput": "T2",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "ExtruderAxes": [
+              "U"
+            ],
+            "MinExtrusionTemp": 200,
+            "_compoundName": "ColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.17,
@@ -4407,12 +4441,19 @@
       "WaitReportPeriod": 1,
       "heaters": [
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T0",
           "SetMCommand": 104,
           "ThermistorInput": "T1",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "ExtruderAxes": [
+              "E"
+            ],
+            "MinExtrusionTemp": 200,
+            "_compoundName": "ColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.17,
@@ -4440,12 +4481,19 @@
           "pwm_output": "Hot End 1"
         },
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T1",
           "SetMCommand": 404,
           "ThermistorInput": "T2",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "ExtruderAxes": [
+              "U"
+            ],
+            "MinExtrusionTemp": 200,
+            "_compoundName": "ColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.17,
@@ -4473,12 +4521,15 @@
           "pwm_output": "Hot End 2"
         },
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 120,
-          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T0",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "_compoundName": "NoColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.3,
             "PidD": 2.5,
@@ -4722,12 +4773,19 @@
       "WaitReportPeriod": 1,
       "heaters": [
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "ExtruderAxes": [
+              "E"
+            ],
+            "MinExtrusionTemp": 200,
+            "_compoundName": "ColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.17,
@@ -4905,12 +4963,15 @@
       "WaitReportPeriod": 1,
       "heaters": [
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 120,
-          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "T1",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "_compoundName": "NoColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.3,
             "PidD": 2.5,
@@ -4938,12 +4999,19 @@
           "pwm_output": "D8 (bed)"
         },
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "T0",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "ExtruderAxes": [
+              "E"
+            ],
+            "MinExtrusionTemp": 200,
+            "_compoundName": "ColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.17,
@@ -5121,12 +5189,19 @@
       "WaitReportPeriod": 1,
       "heaters": [
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "etemp",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "ExtruderAxes": [
+              "E"
+            ],
+            "MinExtrusionTemp": 200,
+            "_compoundName": "ColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.17,
@@ -5154,12 +5229,15 @@
           "pwm_output": "hot end"
         },
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 120,
-          "MinSafeTemp": 10,
           "Name": "B",
           "SetMCommand": 140,
           "ThermistorInput": "btemp",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "_compoundName": "NoColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 2.5,
@@ -5329,12 +5407,15 @@
       "WaitReportPeriod": 1,
       "heaters": [
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "PF6",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "_compoundName": "NoColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.2,
@@ -5429,12 +5510,15 @@
       "WaitReportPeriod": 1,
       "heaters": [
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 280,
-          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "PA2",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "_compoundName": "NoColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.2,
@@ -5702,12 +5786,19 @@
       "WaitReportPeriod": 1,
       "heaters": [
         {
+          "_compoundName": "heater",
           "MaxSafeTemp": 260,
-          "MinSafeTemp": 10,
           "Name": "T",
           "SetMCommand": 104,
           "ThermistorInput": "E0_THERMISTOR",
-          "_compoundName": "heater",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "ExtruderAxes": [
+              "E"
+            ],
+            "MinExtrusionTemp": 200,
+            "_compoundName": "ColdExtrusionPrevention"
+          },
           "control": {
             "ControlInterval": 0.2,
             "PidD": 0.2,

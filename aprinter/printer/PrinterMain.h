@@ -271,6 +271,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_restore_req_pos, restore_req_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_configuration_changed, configuration_changed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_forward_update_pos, forward_update_pos)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_move_interlocks, check_move_interlocks)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
@@ -288,6 +289,7 @@ private:
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_safety, check_safety)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_m119_append_endstop, m119_append_endstop)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_prestep_callback, prestep_callback)
+    APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_move_interlocks, check_move_interlocks)
     
     struct PlannerUnion;
     struct PlannerUnionPlanner;
@@ -1010,6 +1012,12 @@ private:
             return !CallIfExists_prestep_callback::template call_ret<TheModule, bool, false>(c);
         }
         
+        template <typename ThePhysVirtAxisMaskType>
+        static bool check_move_interlocks (Context c, TheOutputStream *err_output, ThePhysVirtAxisMaskType move_axes)
+        {
+            return CallIfExists_check_move_interlocks::template call_ret<TheModule, bool, true>(c, err_output, move_axes);
+        }
+        
         struct Object : public ObjBase<Module, typename PrinterMain::Object, MakeTypeList<
             TheModule
         >> {};
@@ -1622,13 +1630,19 @@ public:
             o->move_err_output->reply_append_error(c, AMBRO_PSTR("Transform"));
             o->move_err_output->reply_poke(c);
             
-            o->virt_update_pending = false;
-            o->splitting = false;
+            correct_after_aborted_move(c);
             
             ThePlanner::emptyDone(c);
             submitted_planner_command(c);
             
             return o->move_end_callback(c, true);
+        }
+        
+        static void correct_after_aborted_move (Context c)
+        {
+            auto *o = Object::self(c);
+            o->virt_update_pending = false;
+            o->splitting = false;
         }
         
         template <int PhysAxisIndex>
@@ -1925,6 +1939,7 @@ public:
         static int const NumVirtAxes = 0;
         static void init (Context c) {}
         static void handle_virt_move (Context c, FpType time_freq_by_max_speed, TheCommand *move_err_output, MoveEndCallback callback, bool is_positioning_move) {}
+        static void correct_after_aborted_move (Context c) {}
         template <int PhysAxisIndex>
         static void mark_phys_moved (Context c) {}
         static void do_pending_virt_update (Context c) {}
@@ -2071,6 +2086,9 @@ public:
     
     template <int AxisName>
     using FindPhysVirtAxis = TypeListIndexMapped<PhysVirtAxisHelperList, GetMemberType_WrappedAxisName, WrapInt<AxisName>>;
+    
+    template <int AxisName>
+    using GetPhysVirtAxisByName = PhysVirtAxisHelper<FindPhysVirtAxis<AxisName>::Value>;
     
 private:
     using ModuleClassesList = MapTypeList<ModulesList, GetMemberType_TheModule>;
@@ -2739,6 +2757,7 @@ public:
         
         o->move_seen_cartesian = false;
         o->custom_planner_deinit_allowed = false;
+        o->move_axes = 0;
         ListForEachForward<PhysVirtAxisHelperList>(LForeach_save_pos_to_old(), c);
         ListForEachForward<LasersList>(LForeach_prepare_laser_for_move(), c);
         
@@ -2749,6 +2768,9 @@ public:
     template <int PhysVirtAxisIndex>
     static void move_add_axis (Context c, FpType value, bool ignore_limits=false)
     {
+        auto *o = Object::self(c);
+        
+        o->move_axes |= PhysVirtAxisHelper<PhysVirtAxisIndex>::AxisMask;
         PhysVirtAxisHelper<PhysVirtAxisIndex>::update_new_pos(c, value, ignore_limits);
     }
     
@@ -2780,6 +2802,14 @@ public:
         
         if (use_speed_ratio) {
             time_freq_by_max_speed /= ob->speed_ratio;
+        }
+        
+        if (!ListForEachForwardInterruptible<ModulesList>(LForeach_check_move_interlocks(), c, err_output, ob->move_axes)) {
+            ListForEachForward<PhysVirtAxisHelperList>(LForeach_restore_pos_from_old(), c);
+            TransformFeature::correct_after_aborted_move(c);
+            ThePlanner::emptyDone(c);
+            submitted_planner_command(c);
+            return callback(c, true);
         }
         
         if (TransformFeature::is_splitting(c)) {
@@ -3011,7 +3041,10 @@ public:
         PlannerClient *planner_client;
         PhysVirtAxisMaskType axis_homing;
         PhysVirtAxisMaskType axis_relative;
-        PhysVirtAxisMaskType m_homing_rem_axes;
+        union {
+            PhysVirtAxisMaskType m_homing_rem_axes;
+            PhysVirtAxisMaskType move_axes;
+        };
         char msg_buffer[MaxMsgSize];
     };
 };
