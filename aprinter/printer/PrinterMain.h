@@ -1594,7 +1594,7 @@ public:
             bool transform_success = update_phys_from_virt(c);
             
             if (!transform_success) {
-                ListForEachForward<PhysVirtAxisHelperList>(LForeach_restore_pos_from_old(), c);
+                restore_all_pos_from_old(c);
                 return handle_transform_error(c);
             }
             
@@ -2755,10 +2755,13 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(!TransformFeature::is_splitting(c))
         
-        o->move_seen_cartesian = false;
         o->custom_planner_deinit_allowed = false;
+        
+        o->move_seen_cartesian = false;
         o->move_axes = 0;
-        ListForEachForward<PhysVirtAxisHelperList>(LForeach_save_pos_to_old(), c);
+        
+        save_all_pos_to_old(c);
+        
         ListForEachForward<LasersList>(LForeach_prepare_laser_for_move(), c);
         
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
@@ -2805,7 +2808,7 @@ public:
         }
         
         if (!ListForEachForwardInterruptible<ModulesList>(LForeach_check_move_interlocks(), c, err_output, ob->move_axes)) {
-            ListForEachForward<PhysVirtAxisHelperList>(LForeach_restore_pos_from_old(), c);
+            restore_all_pos_from_old(c);
             TransformFeature::correct_after_aborted_move(c);
             ThePlanner::emptyDone(c);
             submitted_planner_command(c);
@@ -2839,7 +2842,7 @@ public:
         AMBRO_ASSERT(o->locked)
         AMBRO_ASSERT(!TransformFeature::is_splitting(c))
         
-        ListForEachForward<PhysVirtAxisHelperList>(LForeach_save_pos_to_old(), c);
+        save_all_pos_to_old(c);
     }
     
     template <int PhysVirtAxisIndex>
@@ -2853,7 +2856,7 @@ public:
         AMBRO_ASSERT(err_output)
         
         if (!TransformFeature::handle_set_position(c, err_output)) {
-            ListForEachForward<PhysVirtAxisHelperList>(LForeach_restore_pos_from_old(), c);
+            restore_all_pos_from_old(c);
             return false;
         }
         
@@ -2867,6 +2870,16 @@ private:
         template <int LaserIndex>
         FpType get () { return Laser<LaserIndex>::Object::self(m_c)->move_energy; }
     };
+    
+    static void save_all_pos_to_old (Context c)
+    {
+        ListForEachForward<PhysVirtAxisHelperList>(LForeach_save_pos_to_old(), c);
+    }
+    
+    static void restore_all_pos_from_old (Context c)
+    {
+        ListForEachForward<PhysVirtAxisHelperList>(LForeach_restore_pos_from_old(), c);
+    }
     
 public:
     static void submitted_planner_command (Context c)
