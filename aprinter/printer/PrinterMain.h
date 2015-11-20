@@ -475,9 +475,14 @@ public:
             return process_command(c);
         }
         
+        bool canCancelOrPause (Context c)
+        {
+            return (!m_cmd || (m_state != COMMAND_IDLE && m_state != COMMAND_LOCKED));
+        }
+        
         void maybePauseCommand (Context c)
         {
-            AMBRO_ASSERT(!m_cmd || (m_state != COMMAND_IDLE && m_state != COMMAND_LOCKED))
+            AMBRO_ASSERT(canCancelOrPause(c))
             
             if (m_cmd) {
                 if (m_state == COMMAND_WAITBUF) {
@@ -513,7 +518,7 @@ public:
         
         void maybeCancelCommand (Context c)
         {
-            AMBRO_ASSERT(!m_cmd || (m_state != COMMAND_IDLE && m_state != COMMAND_LOCKED))
+            AMBRO_ASSERT(canCancelOrPause(c))
             
             if (m_cmd) {
                 if (m_state == COMMAND_WAITBUF) {

@@ -178,6 +178,10 @@ private:
         {
             AMBRO_ASSERT(m_state == State::CONNECTED)
             
+            if (m_command_stream.canCancelOrPause(c)) {
+                m_command_stream.maybeCancelCommand(c);
+            }
+            
             if (m_command_stream.hasCommand(c)) {
                 m_connection.reset(c);
                 m_disconnect_event.unset(c);
