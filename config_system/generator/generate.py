@@ -1386,12 +1386,12 @@ def generate(config_root_data, cfg_name, main_template):
                     debug_symbols = development.get_bool('DebugSymbols')
                     
                     if development.get_bool('EnableBulkOutputTest'):
-                        gen.add_aprinter_include('printer/BulkOutputTestModule.h')
+                        gen.add_aprinter_include('printer/modules/BulkOutputTestModule.h')
                         bulk_output_test_module = gen.add_module()
                         bulk_output_test_module.set_expr('BulkOutputTestModuleService')
                 
                 for serial in board_data.enter_config('serial'):
-                    gen.add_aprinter_include('printer/SerialModule.h')
+                    gen.add_aprinter_include('printer/modules/SerialModule.h')
                     
                     serial_module = gen.add_module()
                     serial_user = 'MyPrinter::GetModule<{}>::GetSerial'.format(serial_module.index)
@@ -1412,7 +1412,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 @sdcard_sel.option('SdCard')
                 def option(sdcard):
-                    gen.add_aprinter_include('printer/SdCardModule.h')
+                    gen.add_aprinter_include('printer/modules/SdCardModule.h')
                     
                     sdcard_module = gen.add_module()
                     sdcard_user = 'MyPrinter::GetModule<{}>::GetInput::GetSdCard'.format(sdcard_module.index)
@@ -1452,7 +1452,7 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_aprinter_include('fs/FatFs.h')
                         
                         if fs_config.get_bool('EnableFsTest'):
-                            gen.add_aprinter_include('printer/FsTestModule.h')
+                            gen.add_aprinter_include('printer/modules/FsTestModule.h')
                             fs_test_module = gen.add_module()
                             fs_test_module.set_expr('FsTestModuleService')
                         
@@ -1464,7 +1464,7 @@ def generate(config_root_data, cfg_name, main_template):
                         
                         @gcode_upload_sel.option('GcodeUpload')
                         def option(gcode_upload_config):
-                            gen.add_aprinter_include('printer/GcodeUploadModule.h')
+                            gen.add_aprinter_include('printer/modules/GcodeUploadModule.h')
                             
                             max_command_size = gcode_upload_config.get_int('MaxCommandSize')
                             if not (32 <= max_command_size <= 1024):
@@ -1500,7 +1500,7 @@ def generate(config_root_data, cfg_name, main_template):
                 have_network = setup_network(gen, board_data.get_config('network_config'), 'network')
                 if have_network:
                     for network_config in board_data.get_config('network_config').enter_config('network'):
-                        gen.add_aprinter_include('printer/NetworkSupportModule.h')
+                        gen.add_aprinter_include('printer/modules/NetworkSupportModule.h')
                         network_support_module = gen.add_module()
                         network_support_module.set_expr(TemplateExpr('NetworkSupportModuleService', [
                             gen.add_bool_config('NetworkEnabled', network_config.get_bool('NetEnabled')),
@@ -1535,7 +1535,7 @@ def generate(config_root_data, cfg_name, main_template):
                             if not (1 <= console_max_command_size <= 512):
                                 tcpconsole_config.key_path('MaxCommandSize').error('Bad value.')
                             
-                            gen.add_aprinter_include('printer/TcpConsoleModule.h')
+                            gen.add_aprinter_include('printer/modules/TcpConsoleModule.h')
                             
                             tcp_console_module = gen.add_module()
                             tcp_console_module.set_expr(TemplateExpr('TcpConsoleModuleService', [
@@ -1946,7 +1946,7 @@ def generate(config_root_data, cfg_name, main_template):
                     transform.path().error('Need at least one dimension.')
                 
                 if len(virt_homing_axes) > 0:
-                    gen.add_aprinter_include('printer/VirtualHomingModule.h')
+                    gen.add_aprinter_include('printer/modules/VirtualHomingModule.h')
                     virt_homing_module = gen.add_module()
                     virt_homing_module.set_expr(TemplateExpr('VirtualHomingModuleService', [
                         TemplateList(virt_homing_axes),
@@ -1969,7 +1969,7 @@ def generate(config_root_data, cfg_name, main_template):
             
             @probe_sel.option('Probe')
             def option(probe):
-                gen.add_aprinter_include('printer/BedProbeModule.h')
+                gen.add_aprinter_include('printer/modules/BedProbeModule.h')
                 
                 probe_module = gen.add_module()
                 
@@ -2075,7 +2075,7 @@ def generate(config_root_data, cfg_name, main_template):
             
             @current_sel.option('Current')
             def option(current):
-                gen.add_aprinter_include('printer/MotorCurrentModule.h')
+                gen.add_aprinter_include('printer/modules/MotorCurrentModule.h')
                 current_module = gen.add_module()
                 current_module.set_expr(TemplateExpr('MotorCurrentModuleService', [
                     TemplateList(current_control_channel_list),
@@ -2084,7 +2084,7 @@ def generate(config_root_data, cfg_name, main_template):
             
             current_config.do_selection('current', current_sel)
             
-            gen.add_aprinter_include('printer/AuxControlModule.h')
+            gen.add_aprinter_include('printer/modules/AuxControlModule.h')
             aux_control_module.set_expr(TemplateExpr('AuxControlModuleService', [
                 performance.get_int_constant('EventChannelBufferSize'),
                 event_channel_timer_expr,
@@ -2099,7 +2099,7 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_aprinter_include('system/MillisecondClock.h')
                     gen.add_global_resource(5, 'MyMillisecondClock', TemplateExpr('MillisecondClock', ['MyContext', 'Program']), context_name='MillisecondClock')
                 
-                gen.add_aprinter_include('printer/MillisecondClockInfoModule.h')
+                gen.add_aprinter_include('printer/modules/MillisecondClockInfoModule.h')
                 millisecond_clock_module = gen.add_module()
                 millisecond_clock_module.set_expr('MillisecondClockInfoModuleService')
             
