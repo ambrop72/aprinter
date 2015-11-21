@@ -806,6 +806,7 @@ def editor():
                 pin_choice(key='DirPin', title='Direction pin'),
                 pin_choice(key='StepPin', title='Step pin'),
                 pin_choice(key='EnablePin', title='Enable pin'),
+                ce.Boolean(key='EnableLevel', title='Enable level', default=False, false_title='Enabled at low', true_title='Enabled at high'),
                 ce.OneOf(key='StepperTimer', title='Stepper timer', choices=[
                     interrupt_timer_choice(title='Defined'),
                     ce.Compound('NoTimer', title='Not defined (for slave steppers only)', attrs=[]),

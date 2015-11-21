@@ -41,11 +41,12 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TDirPin, typename TStepPin, typename TEnablePin, typename TInvertDir>
+template <typename TDirPin, typename TStepPin, typename TEnablePin, bool TEnableLevel, typename TInvertDir>
 struct StepperDef {
     using DirPin = TDirPin;
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
+    static bool const EnableLevel = TEnableLevel;
     using InvertDir = TInvertDir;
 };
 
@@ -72,6 +73,7 @@ public:
         
         using ThisDef = TypeListGet<StepperDefsList, StepperIndex>;
         using EnablePin = typename ThisDef::EnablePin;
+        static bool const EnableLevel = ThisDef::EnableLevel;
         static MaskType const TheMask = (MaskType)1 << StepperIndex;
         using TheWrappedMask = WrapValue<MaskType, TheMask>;
         
@@ -112,7 +114,7 @@ public:
             if (SharesEnable) {
                 s->mask |= TheMask;
             }
-            Context::Pins::template set<EnablePin>(c, false);
+            Context::Pins::template set<EnablePin>(c, EnableLevel);
         }
         
         static void disable (Context c)
@@ -122,10 +124,10 @@ public:
             if (SharesEnable) {
                 s->mask &= ~TheMask;
                 if (!(s->mask & SameEnableMask)) {
-                    Context::Pins::template set<EnablePin>(c, true);
+                    Context::Pins::template set<EnablePin>(c, !EnableLevel);
                 }
             } else {
-                Context::Pins::template set<EnablePin>(c, true);
+                Context::Pins::template set<EnablePin>(c, !EnableLevel);
             }
         }
         
@@ -155,7 +157,7 @@ public:
         
         static void emergency ()
         {
-            Context::Pins::template emergencySet<typename ThisDef::EnablePin>(true);
+            Context::Pins::template emergencySet<EnablePin>(!EnableLevel);
         }
         
         struct Object {};
@@ -172,15 +174,15 @@ public:
         {
             Context::Pins::template set<typename ThisDef::DirPin>(c, maybe_invert_dir(c, false));
             Context::Pins::template set<typename ThisDef::StepPin>(c, false);
-            Context::Pins::template set<typename ThisDef::EnablePin>(c, true);
+            Context::Pins::template set<EnablePin>(c, !EnableLevel);
             Context::Pins::template setOutput<typename ThisDef::DirPin>(c);
             Context::Pins::template setOutput<typename ThisDef::StepPin>(c);
-            Context::Pins::template setOutput<typename ThisDef::EnablePin>(c);
+            Context::Pins::template setOutput<EnablePin>(c);
         }
         
         static void deinit (Context c)
         {
-            Context::Pins::template set<typename ThisDef::EnablePin>(c, true);
+            Context::Pins::template set<EnablePin>(c, !EnableLevel);
         }
     };
     

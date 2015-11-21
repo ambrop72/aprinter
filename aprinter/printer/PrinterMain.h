@@ -114,7 +114,8 @@ struct PrinterMainParams {
 
 template <
     char TName,
-    typename TDirPin, typename TStepPin, typename TEnablePin, typename TInvertDir,
+    typename TDirPin, typename TStepPin, typename TEnablePin,
+    bool TEnableLevel, typename TInvertDir,
     typename TDefaultStepsPerUnit, typename TDefaultMin, typename TDefaultMax,
     typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
@@ -127,6 +128,7 @@ struct PrinterMainAxisParams {
     using DirPin = TDirPin;
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
+    static bool const EnableLevel = TEnableLevel;
     using InvertDir = TInvertDir;
     using DefaultStepsPerUnit = TDefaultStepsPerUnit;
     using DefaultMin = TDefaultMin;
@@ -145,12 +147,17 @@ struct PrinterMainAxisParams {
 };
 
 template <
-    typename TDirPin, typename TStepPin, typename TEnablePin, typename TInvertDir
+    typename TDirPin,
+    typename TStepPin,
+    typename TEnablePin,
+    bool TEnableLevel,
+    typename TInvertDir
 >
 struct PrinterMainSlaveStepperParams {
     using DirPin = TDirPin;
     using StepPin = TStepPin;
     using EnablePin = TEnablePin;
+    static bool const EnableLevel = TEnableLevel;
     using InvertDir = TInvertDir;
 };
 
@@ -329,6 +336,7 @@ private:
         typename TheSlaveStepper::DirPin,
         typename TheSlaveStepper::StepPin,
         typename TheSlaveStepper::EnablePin,
+        TheSlaveStepper::EnableLevel,
         decltype(Config::e(TheSlaveStepper::InvertDir::i()))
     >;
     
@@ -340,6 +348,7 @@ private:
                     typename TheAxis::DirPin,
                     typename TheAxis::StepPin,
                     typename TheAxis::EnablePin,
+                    TheAxis::EnableLevel,
                     decltype(Config::e(TheAxis::InvertDir::i()))
                 >
             >,

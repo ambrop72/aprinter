@@ -1605,6 +1605,7 @@ def generate(config_root_data, cfg_name, main_template):
                         get_pin(gen, slave_stepper_port, 'DirPin'),
                         get_pin(gen, slave_stepper_port, 'StepPin'),
                         get_pin(gen, slave_stepper_port, 'EnablePin'),
+                        slave_stepper_port.get_bool('EnableLevel'),
                         gen.add_bool_config('{}S{}InvertDir'.format(name, 1 + slave_stepper_index), slave_stepper.get_bool('InvertDir')),
                     ])
                 
@@ -1657,6 +1658,7 @@ def generate(config_root_data, cfg_name, main_template):
                     get_pin(gen, stepper_port, 'DirPin'),
                     get_pin(gen, stepper_port, 'StepPin'),
                     get_pin(gen, stepper_port, 'EnablePin'),
+                    stepper_port.get_bool('EnableLevel'),
                     gen.add_bool_config('{}InvertDir'.format(name), stepper.get_bool('InvertDir')),
                     gen.add_float_config('{}StepsPerUnit'.format(name), stepper.get_float('StepsPerUnit')),
                     gen.add_float_config('{}MinPos'.format(name), stepper.get_float('MinPos')),
