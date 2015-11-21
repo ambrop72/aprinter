@@ -452,11 +452,12 @@
       },
       "stepper_ports": [
         {
+          "StepPin": "DuePin24",
           "DirPin": "DuePin23",
           "EnablePin": "DuePin26",
           "Name": "X",
           "PreloadCommands": false,
-          "StepPin": "DuePin24",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0B"
@@ -476,11 +477,12 @@
           }
         },
         {
+          "StepPin": "DuePin17",
           "DirPin": "DuePin16",
           "EnablePin": "DuePin22",
           "Name": "Y",
           "PreloadCommands": false,
-          "StepPin": "DuePin17",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0C"
@@ -500,11 +502,12 @@
           }
         },
         {
+          "StepPin": "DuePin2",
           "DirPin": "DuePin3",
           "EnablePin": "DuePin15",
           "Name": "Z",
           "PreloadCommands": false,
-          "StepPin": "DuePin2",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1A"
@@ -524,11 +527,12 @@
           }
         },
         {
+          "StepPin": "DuePinA7",
           "DirPin": "DuePinA6",
           "EnablePin": "DuePinA8",
           "Name": "E1",
           "PreloadCommands": false,
-          "StepPin": "DuePinA7",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1B"
@@ -548,11 +552,12 @@
           }
         },
         {
+          "StepPin": "DuePinA10",
           "DirPin": "DuePinA9",
           "EnablePin": "DuePinA11",
           "Name": "E2",
           "PreloadCommands": false,
-          "StepPin": "DuePinA10",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1C"
@@ -572,11 +577,12 @@
           }
         },
         {
+          "StepPin": "DuePin51",
           "DirPin": "DuePin53",
           "EnablePin": "DuePin49",
           "Name": "E3",
           "PreloadCommands": false,
-          "StepPin": "DuePin51",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2A"
@@ -1009,11 +1015,12 @@
       },
       "stepper_ports": [
         {
+          "StepPin": "DuePinA9",
           "DirPin": "DuePinA8",
           "EnablePin": "DuePin48",
           "Name": "X",
           "PreloadCommands": false,
-          "StepPin": "DuePinA9",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0B"
@@ -1033,11 +1040,12 @@
           }
         },
         {
+          "StepPin": "DuePinA11",
           "DirPin": "DuePinA10",
           "EnablePin": "DuePin46",
           "Name": "Y",
           "PreloadCommands": false,
-          "StepPin": "DuePinA11",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0C"
@@ -1057,11 +1065,12 @@
           }
         },
         {
+          "StepPin": "DuePinA13",
           "DirPin": "DuePinA12",
           "EnablePin": "DuePin44",
           "Name": "Z",
           "PreloadCommands": false,
-          "StepPin": "DuePinA13",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1A"
@@ -1081,11 +1090,12 @@
           }
         },
         {
+          "StepPin": "DuePin36",
           "DirPin": "DuePin28",
           "EnablePin": "DuePin42",
           "Name": "E0",
           "PreloadCommands": false,
-          "StepPin": "DuePin36",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1B"
@@ -1105,11 +1115,12 @@
           }
         },
         {
+          "StepPin": "DuePin43",
           "DirPin": "DuePin41",
           "EnablePin": "DuePin39",
           "Name": "E1",
           "PreloadCommands": false,
-          "StepPin": "DuePin43",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1C"
@@ -1129,11 +1140,12 @@
           }
         },
         {
+          "StepPin": "DuePin32",
           "DirPin": "DuePin47",
           "EnablePin": "DuePin45",
           "Name": "E2",
           "PreloadCommands": false,
-          "StepPin": "DuePin32",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2A"
@@ -1459,11 +1471,12 @@
       },
       "stepper_ports": [
         {
+          "StepPin": "At91SamPin<At91SamPioC,28>",
           "DirPin": "At91SamPin<At91SamPioB,8>",
           "EnablePin": "At91SamPin<At91SamPioC,31>",
           "Name": "X",
           "PreloadCommands": false,
-          "StepPin": "At91SamPin<At91SamPioC,28>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1A"
@@ -1490,11 +1503,12 @@
           }
         },
         {
+          "StepPin": "At91SamPin<At91SamPioC,23>",
           "DirPin": "At91SamPin<At91SamPioA,31>",
           "EnablePin": "At91SamPin<At91SamPioA,22>",
           "Name": "Y",
           "PreloadCommands": false,
-          "StepPin": "At91SamPin<At91SamPioC,23>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2A"
@@ -1521,11 +1535,12 @@
           }
         },
         {
+          "StepPin": "At91SamPin<At91SamPioA,27>",
           "DirPin": "At91SamPin<At91SamPioC,27>",
           "EnablePin": "At91SamPin<At91SamPioB,7>",
           "Name": "Z",
           "PreloadCommands": false,
-          "StepPin": "At91SamPin<At91SamPioA,27>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0B"
@@ -1552,11 +1567,12 @@
           }
         },
         {
+          "StepPin": "At91SamPin<At91SamPioC,26>",
           "DirPin": "At91SamPin<At91SamPioB,2>",
           "EnablePin": "At91SamPin<At91SamPioB,13>",
           "Name": "E",
           "PreloadCommands": false,
-          "StepPin": "At91SamPin<At91SamPioC,26>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1B"
@@ -1583,11 +1599,12 @@
           }
         },
         {
+          "StepPin": "At91SamPin<At91SamPioB,1>",
           "DirPin": "At91SamPin<At91SamPioC,25>",
           "EnablePin": "At91SamPin<At91SamPioC,13>",
           "Name": "U",
           "PreloadCommands": false,
-          "StepPin": "At91SamPin<At91SamPioB,1>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2B"
@@ -1829,11 +1846,12 @@
       },
       "stepper_ports": [
         {
+          "StepPin": "TeensyPin0",
           "DirPin": "TeensyPin1",
           "EnablePin": "TeensyPin8",
           "Name": "X",
           "PreloadCommands": false,
-          "StepPin": "TeensyPin0",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_1"
@@ -1850,11 +1868,12 @@
           }
         },
         {
+          "StepPin": "TeensyPin2",
           "DirPin": "TeensyPin3",
           "EnablePin": "TeensyPin9",
           "Name": "Y",
           "PreloadCommands": false,
-          "StepPin": "TeensyPin2",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_2"
@@ -1871,11 +1890,12 @@
           }
         },
         {
+          "StepPin": "TeensyPin4",
           "DirPin": "TeensyPin5",
           "EnablePin": "TeensyPin10",
           "Name": "Z",
           "PreloadCommands": false,
-          "StepPin": "TeensyPin4",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_3"
@@ -1892,11 +1912,12 @@
           }
         },
         {
+          "StepPin": "TeensyPin6",
           "DirPin": "TeensyPin7",
           "EnablePin": "TeensyPin11",
           "Name": "E",
           "PreloadCommands": false,
-          "StepPin": "TeensyPin6",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_4"
@@ -2276,11 +2297,12 @@
       },
       "stepper_ports": [
         {
+          "StepPin": "MegaPin54",
           "DirPin": "MegaPin55",
           "EnablePin": "MegaPin38",
           "Name": "X",
           "PreloadCommands": false,
-          "StepPin": "MegaPin54",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_A"
@@ -2297,11 +2319,12 @@
           }
         },
         {
+          "StepPin": "MegaPin60",
           "DirPin": "MegaPin61",
           "EnablePin": "MegaPin56",
           "Name": "Y",
           "PreloadCommands": false,
-          "StepPin": "MegaPin60",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_B"
@@ -2318,11 +2341,12 @@
           }
         },
         {
+          "StepPin": "MegaPin46",
           "DirPin": "MegaPin48",
           "EnablePin": "MegaPin62",
           "Name": "Z",
           "PreloadCommands": false,
-          "StepPin": "MegaPin46",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_C"
@@ -2339,11 +2363,12 @@
           }
         },
         {
+          "StepPin": "MegaPin26",
           "DirPin": "MegaPin28",
           "EnablePin": "MegaPin24",
           "Name": "E0",
           "PreloadCommands": false,
-          "StepPin": "MegaPin26",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC4_A"
@@ -2360,11 +2385,12 @@
           }
         },
         {
+          "StepPin": "MegaPin36",
           "DirPin": "MegaPin34",
           "EnablePin": "MegaPin30",
           "Name": "E1",
           "PreloadCommands": false,
-          "StepPin": "MegaPin36",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC4_B"
@@ -2638,11 +2664,12 @@
       },
       "stepper_ports": [
         {
+          "StepPin": "AvrPin<AvrPortD,7>",
           "DirPin": "AvrPin<AvrPortC,5>",
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "X",
           "PreloadCommands": false,
-          "StepPin": "AvrPin<AvrPortD,7>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0_A"
@@ -2659,11 +2686,12 @@
           }
         },
         {
+          "StepPin": "AvrPin<AvrPortC,6>",
           "DirPin": "AvrPin<AvrPortC,7>",
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "Y",
           "PreloadCommands": false,
-          "StepPin": "AvrPin<AvrPortC,6>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0_B"
@@ -2680,11 +2708,12 @@
           }
         },
         {
+          "StepPin": "AvrPin<AvrPortB,3>",
           "DirPin": "AvrPin<AvrPortB,2>",
           "EnablePin": "AvrPin<AvrPortA,5>",
           "Name": "Z",
           "PreloadCommands": false,
-          "StepPin": "AvrPin<AvrPortB,3>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_A"
@@ -2701,11 +2730,12 @@
           }
         },
         {
+          "StepPin": "AvrPin<AvrPortB,1>",
           "DirPin": "AvrPin<AvrPortB,0>",
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "E",
           "PreloadCommands": false,
-          "StepPin": "AvrPin<AvrPortB,1>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_B"
@@ -2851,11 +2881,38 @@
       "digital_inputs": [
         {
           "InputMode": {
-            "PullMode": "Normal",
+            "PullMode": "Pull-up",
             "_compoundName": "Stm32f4PinInputMode"
           },
           "Name": "ButtonUser",
           "Pin": "DiscoveryPinButtonUser",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Stm32f4PinInputMode"
+          },
+          "Name": "PG9",
+          "Pin": "Stm32f4Pin<Stm32f4PortG,9>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Stm32f4PinInputMode"
+          },
+          "Name": "PB4",
+          "Pin": "Stm32f4Pin<Stm32f4PortB,4>",
+          "_compoundName": "digital_input"
+        },
+        {
+          "InputMode": {
+            "PullMode": "Pull-up",
+            "_compoundName": "Stm32f4PinInputMode"
+          },
+          "Name": "PB7",
+          "Pin": "Stm32f4Pin<Stm32f4PortB,7>",
           "_compoundName": "digital_input"
         }
       ],
@@ -2889,15 +2946,29 @@
         {
           "Backend": {
             "OutputInvert": false,
-            "OutputPin": "DiscoveryPinLedRed",
+            "OutputPin": "Stm32f4Pin<Stm32f4PortG,14>",
             "PulseInterval": 0.01,
             "Timer": {
               "_compoundName": "interrupt_timer",
-              "oc_unit": "TIM2_3"
+              "oc_unit": "TIM3_2"
             },
             "_compoundName": "SoftPwm"
           },
-          "Name": "LedRed",
+          "Name": "PG14",
+          "_compoundName": "pwm_output"
+        },
+        {
+          "Backend": {
+            "OutputInvert": false,
+            "OutputPin": "Stm32f4Pin<Stm32f4PortE,3>",
+            "PulseInterval": 0.01,
+            "Timer": {
+              "_compoundName": "interrupt_timer",
+              "oc_unit": "TIM3_3"
+            },
+            "_compoundName": "SoftPwm"
+          },
+          "Name": "PE3",
           "_compoundName": "pwm_output"
         }
       ],
@@ -2974,14 +3045,90 @@
       },
       "stepper_ports": [
         {
+          "StepPin": "Stm32f4Pin<Stm32f4PortG,3>",
           "DirPin": "Stm32f4Pin<Stm32f4PortG,2>",
           "EnablePin": "Stm32f4Pin<Stm32f4PortB,2>",
           "Name": "X",
           "PreloadCommands": false,
-          "StepPin": "Stm32f4Pin<Stm32f4PortG,3>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TIM2_2"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        },
+        {
+          "StepPin": "Stm32f4Pin<Stm32f4PortD,5>",
+          "DirPin": "Stm32f4Pin<Stm32f4PortD,7>",
+          "EnablePin": "Stm32f4Pin<Stm32f4PortD,4>",
+          "Name": "Y",
+          "PreloadCommands": false,
+          "EnableLevel": false,
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TIM2_3"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        },
+        {
+          "StepPin": "Stm32f4Pin<Stm32f4PortA,9>",
+          "DirPin": "Stm32f4Pin<Stm32f4PortC,8>",
+          "EnablePin": "Stm32f4Pin<Stm32f4PortA,10>",
+          "Name": "Z",
+          "PreloadCommands": false,
+          "EnableLevel": false,
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TIM2_4"
+          },
+          "_compoundName": "stepper_port",
+          "current": {
+            "_compoundName": "NoCurrent"
+          },
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
+          "microstep": {
+            "_compoundName": "NoMicroStep"
+          }
+        },
+        {
+          "StepPin": "Stm32f4Pin<Stm32f4PortC,12>",
+          "DirPin": "Stm32f4Pin<Stm32f4PortC,11>",
+          "EnablePin": "Stm32f4Pin<Stm32f4PortD,2>",
+          "Name": "E",
+          "PreloadCommands": false,
+          "EnableLevel": false,
+          "StepperTimer": {
+            "_compoundName": "interrupt_timer",
+            "oc_unit": "TIM3_1"
           },
           "_compoundName": "stepper_port",
           "current": {
@@ -3305,11 +3452,12 @@
       },
       "stepper_ports": [
         {
+          "StepPin": "Stm32f4Pin<Stm32f4PortD,6>",
           "DirPin": "Stm32f4Pin<Stm32f4PortD,3>",
           "EnablePin": "Stm32f4Pin<Stm32f4PortD,7>",
           "Name": "X",
           "PreloadCommands": false,
-          "StepPin": "Stm32f4Pin<Stm32f4PortD,6>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TIM2_2"
@@ -3695,11 +3843,12 @@
       },
       "stepper_ports": [
         {
+          "StepPin": "At91SamPin<At91SamPioD,4>",
           "DirPin": "At91SamPin<At91SamPioD,5>",
           "EnablePin": "At91SamPin<At91SamPioD,6>",
           "Name": "X",
           "PreloadCommands": false,
-          "StepPin": "At91SamPin<At91SamPioD,4>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1A"
@@ -3719,11 +3868,12 @@
           }
         },
         {
+          "StepPin": "At91SamPin<At91SamPioD,0>",
           "DirPin": "At91SamPin<At91SamPioD,1>",
           "EnablePin": "At91SamPin<At91SamPioD,2>",
           "Name": "Y",
           "PreloadCommands": false,
-          "StepPin": "At91SamPin<At91SamPioD,0>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2A"
@@ -3743,11 +3893,12 @@
           }
         },
         {
+          "StepPin": "At91SamPin<At91SamPioC,25>",
           "DirPin": "At91SamPin<At91SamPioC,26>",
           "EnablePin": "At91SamPin<At91SamPioC,27>",
           "Name": "Z",
           "PreloadCommands": false,
-          "StepPin": "At91SamPin<At91SamPioC,25>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3A"
@@ -3767,11 +3918,12 @@
           }
         },
         {
+          "StepPin": "At91SamPin<At91SamPioA,0>",
           "DirPin": "At91SamPin<At91SamPioA,1>",
           "EnablePin": "At91SamPin<At91SamPioA,5>",
           "Name": "E0",
           "PreloadCommands": false,
-          "StepPin": "At91SamPin<At91SamPioA,0>",
+          "EnableLevel": false,
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC4A"
@@ -5440,7 +5592,43 @@
             "ObserverTolerance": 3,
             "_compoundName": "observer"
           },
-          "pwm_output": "LedRed"
+          "pwm_output": "PG14"
+        },
+        {
+          "_compoundName": "heater",
+          "MaxSafeTemp": 130,
+          "Name": "B",
+          "SetMCommand": 140,
+          "ThermistorInput": "PC3",
+          "MinSafeTemp": 10,
+          "cold_extrusion_prevention": {
+            "_compoundName": "NoColdExtrusionPrevention"
+          },
+          "control": {
+            "ControlInterval": 0.2,
+            "PidD": 0.2,
+            "PidDHistory": 0.7,
+            "PidI": 0.0005,
+            "PidIStateMax": 0.6,
+            "PidIStateMin": 0,
+            "PidP": 0.05,
+            "_compoundName": "control"
+          },
+          "conversion": {
+            "Beta": 3960,
+            "MaxTemp": 300,
+            "MinTemp": 10,
+            "R0": 100000,
+            "ResistorR": 4700,
+            "_compoundName": "conversion"
+          },
+          "observer": {
+            "ObserverInterval": 0.5,
+            "ObserverMinTime": 3,
+            "ObserverTolerance": 3,
+            "_compoundName": "observer"
+          },
+          "pwm_output": "PE3"
         }
       ],
       "lasers": [],
@@ -5470,7 +5658,7 @@
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
-            "HomeEndstopInput": "ButtonUser",
+            "HomeEndstopInput": "PG9",
             "HomeFastMaxDist": 250,
             "HomeFastSpeed": 40,
             "HomeEndInvert": false,
@@ -5482,6 +5670,89 @@
           },
           "slave_steppers": [],
           "stepper_port": "X"
+        },
+        {
+          "MaxSpeed": 300,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "IsExtruder": false,
+          "MaxAccel": 1500,
+          "MaxPos": 200,
+          "Current": 0,
+          "MicroSteps": 0,
+          "MinPos": 0,
+          "Name": "Y",
+          "StepsPerUnit": 80,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeOffset": 0,
+            "HomeDir": false,
+            "HomeEndstopInput": "PB4",
+            "HomeFastMaxDist": 250,
+            "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "Y"
+        },
+        {
+          "MaxSpeed": 300,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": true,
+          "InvertDir": false,
+          "IsExtruder": false,
+          "MaxAccel": 1500,
+          "MaxPos": 200,
+          "Current": 0,
+          "MicroSteps": 0,
+          "MinPos": 0,
+          "Name": "Z",
+          "StepsPerUnit": 80,
+          "_compoundName": "stepper",
+          "homing": {
+            "HomeOffset": 0,
+            "HomeDir": false,
+            "HomeEndstopInput": "PB7",
+            "HomeFastMaxDist": 250,
+            "HomeFastSpeed": 40,
+            "HomeEndInvert": false,
+            "HomeRetractDist": 3,
+            "HomeRetractSpeed": 50,
+            "HomeSlowMaxDist": 5,
+            "HomeSlowSpeed": 5,
+            "_compoundName": "homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "Z"
+        },
+        {
+          "MaxSpeed": 45,
+          "CorneringDistance": 40,
+          "DistanceFactor": 1,
+          "EnableCartesianSpeedLimit": false,
+          "InvertDir": false,
+          "IsExtruder": true,
+          "MaxAccel": 250,
+          "MaxPos": 40000,
+          "Current": 0,
+          "MicroSteps": 0,
+          "MinPos": -40000,
+          "Name": "E",
+          "StepsPerUnit": 2000,
+          "_compoundName": "stepper",
+          "homing": {
+            "_compoundName": "no_homing"
+          },
+          "slave_steppers": [],
+          "stepper_port": "E"
         }
       ],
       "transform": {
