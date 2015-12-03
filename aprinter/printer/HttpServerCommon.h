@@ -66,24 +66,24 @@ public:
     virtual char const * getMethod (Context c) = 0;
     virtual char const * getPath (Context c) = 0;
     virtual bool hasRequestBody (Context c) = 0;
-    virtual size_t getRxBufferSize (Context c) = 0;
-    virtual size_t getTxBufferSize (Context c) = 0;
     
-    virtual void acceptRequest (Context c, RequestUserCallback *callback) = 0;
+    virtual void adoptRequest (Context c, RequestUserCallback *callback) = 0;
     virtual void abandonRequest (Context c) = 0;
+    
     virtual void willAcceptRequestBody (Context c) = 0;
     virtual void willProvideResponseBody (Context c) = 0;
     virtual void acceptRequestHead (Context c) = 0;
     virtual void setResponseStatus (Context c, char const *status) = 0;
-    virtual void sentResponseContentType (Context c, char const *content_type) = 0;
+    virtual void setResponseContentType (Context c, char const *content_type) = 0;
+    virtual void acceptRequestBody (Context c) = 0;
     
+    virtual size_t getRequestBodyBufferSize (Context c) = 0;
     virtual RequestBodyBufferState getRequestBodyBufferState (Context c) = 0;
     virtual void acceptRequestBodyData (Context c, size_t length) = 0;
-    virtual void acceptRequestBodyEof (Context c) = 0;
     
+    virtual size_t getResponseBodyBufferSize (Context c) = 0;
     virtual ResponseBodyBufferState getResponseBodyBufferState (Context c) = 0;
     virtual void provideResponseBodyData (Context c, size_t length) = 0;
-    virtual void provideResponseBodyEof (Context c) = 0;
 };
 
 #include <aprinter/EndNamespace.h>

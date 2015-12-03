@@ -39,6 +39,16 @@ struct BitsInInt<0> {
     static const int Value = 0;
 };
 
+template <uintmax_t N>
+struct DecimalDititsInInt {
+    static const int Value = 1 + DecimalDititsInInt<N / 10>::Value;
+};
+
+template <>
+struct DecimalDititsInInt<0> {
+    static const int Value = 0;
+};
+
 #include <aprinter/EndNamespace.h>
 
 #endif

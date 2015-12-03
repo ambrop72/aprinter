@@ -441,10 +441,13 @@ public:
             }
         }
         
-        size_t getSendBufferSpace (Context c)
+        size_t getSendBufferSpace (Context c, WrapBuffer *out_buffer=nullptr)
         {
             AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
             
+            if (out_buffer) {
+                *out_buffer = make_send_avail_wrap_buffer(c);
+            }
             return (ProvidedTxBufSize - m_send_buf_length);
         }
         
@@ -453,8 +456,10 @@ public:
             AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
             AMBRO_ASSERT(amount <= ProvidedTxBufSize - m_send_buf_length)
             
-            size_t write_offset = send_buf_add(m_send_buf_start, m_send_buf_length);
-            WrapBuffer::Make(ProvidedTxBufSize - write_offset, m_send_buf + write_offset, m_send_buf).copyIn(0, amount, data);
+            if (data) {
+                WrapBuffer buffer = make_send_avail_wrap_buffer(c);
+                buffer.copyIn(0, amount, data);
+            }
             m_send_buf_length += amount;
         }
         
@@ -639,6 +644,12 @@ public:
             AMBRO_ASSERT(m_state == State::RUNNING)
             
             return m_send_handler(c);
+        }
+        
+        WrapBuffer make_send_avail_wrap_buffer (Context c)
+        {
+            size_t write_offset = send_buf_add(m_send_buf_start, m_send_buf_length);
+            return WrapBuffer::Make(ProvidedTxBufSize - write_offset, m_send_buf + write_offset, m_send_buf);
         }
         
         static void remove_pcb_callbacks (struct tcp_pcb *pcb)

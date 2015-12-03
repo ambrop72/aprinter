@@ -75,6 +75,15 @@ struct WrapBuffer {
         }
     }
     
+    inline WrapBuffer subFrom (size_t offset) const
+    {
+        if (offset < wrap) {
+            return WrapBuffer::Make(wrap - offset, ptr1 + offset, ptr2);
+        } else {
+            return WrapBuffer::Make(ptr2 + (offset - wrap));
+        }
+    }
+    
     size_t wrap;
     char *ptr1;
     char *ptr2;
