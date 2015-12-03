@@ -28,7 +28,7 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <aprinter/base/Callback.h>
+#include <aprinter/base/WrapBuffer.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -38,6 +38,7 @@ struct HttpStatusCodes {
     static constexpr char const * NotFound() { return "404 Not Found"; }
     static constexpr char const * MethodNotAllowed() { return "405 Method Not Allowed"; }
     static constexpr char const * UriTooLong() { return "414 URI Too Long"; }
+    static constexpr char const * ExpectationFailed() { return "417 Expectation Failed"; }
     static constexpr char const * InternalServerError() { return "500 Internal Server Error"; }
     static constexpr char const * HttpVersionNotSupported() { return "505 HTTP Version Not Supported"; }
 };
@@ -45,24 +46,44 @@ struct HttpStatusCodes {
 template <typename Context>
 class HttpRequestInterface {
 public:
-    using RequestBodyCallback = Callback<void(Context c)>;
-    using ResponseBodyCallback = Callback<void(Context c)>;
+    struct RequestUserCallback {
+        virtual void requestTerminated (Context c) = 0;
+        virtual void requestBufferEvent (Context c) = 0;
+        virtual void responseBufferEvent (Context c) = 0;
+    };
+    
+    struct RequestBodyBufferState {
+        WrapBuffer data;
+        size_t length;
+        bool eof;
+    };
+    
+    struct ResponseBodyBufferState {
+        WrapBuffer data;
+        size_t length;
+    };
     
     virtual char const * getMethod (Context c) = 0;
     virtual char const * getPath (Context c) = 0;
-    virtual bool hasBody (Context c) = 0;
+    virtual bool hasRequestBody (Context c) = 0;
+    virtual size_t getRxBufferSize (Context c) = 0;
+    virtual size_t getTxBufferSize (Context c) = 0;
     
-    virtual void setRequestBodyCallback (Context c, RequestBodyCallback callback) = 0;
-    virtual void setResponseBodyCallback (Context c, ResponseBodyCallback callback) = 0;
-    
+    virtual void acceptRequest (Context c, RequestUserCallback *callback) = 0;
+    virtual void abandonRequest (Context c) = 0;
+    virtual void willAcceptRequestBody (Context c) = 0;
+    virtual void willProvideResponseBody (Context c) = 0;
+    virtual void acceptRequestHead (Context c) = 0;
     virtual void setResponseStatus (Context c, char const *status) = 0;
-    virtual void provideResponseBody (Context c, char const *content_type, bool length_is_known, uint32_t length) = 0;
+    virtual void sentResponseContentType (Context c, char const *content_type) = 0;
     
-    virtual void getRequestBodyChunk (Context c, char const **data, size_t *length) = 0;
+    virtual RequestBodyBufferState getRequestBodyBufferState (Context c) = 0;
     virtual void acceptRequestBodyData (Context c, size_t length) = 0;
+    virtual void acceptRequestBodyEof (Context c) = 0;
     
-    virtual void getResponseBodyChunk (Context c, char **data, size_t *length) = 0;
+    virtual ResponseBodyBufferState getResponseBodyBufferState (Context c) = 0;
     virtual void provideResponseBodyData (Context c, size_t length) = 0;
+    virtual void provideResponseBodyEof (Context c) = 0;
 };
 
 #include <aprinter/EndNamespace.h>
