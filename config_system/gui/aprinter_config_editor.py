@@ -786,6 +786,8 @@ def editor():
                                 phy_choice(key='PhyDriver', title='PHY driver')
                             ]),
                         ]),
+                        ce.Integer(key='TcpRxBufPkts', title='TCP receive buffer size in packets (for each connection!)', default=4),
+                        ce.Integer(key='TcpTxBufPkts', title='TCP send buffer size in packets (for each connection!)', default=2),
                         ce.Boolean(key='NetEnabled', title='Networking enabled', default=True),
                         ce.String(key='MacAddress', title='MAC address', default='BE:EF:DE:AD:FE:ED'),
                         ce.Boolean(key='DhcpEnabled', title='DHCP enabled', default=True),

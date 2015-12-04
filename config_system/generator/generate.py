@@ -1258,6 +1258,14 @@ def setup_network(gen, config, key):
         gen.set_need_millisecond_clock()
         gen.add_global_code(0, 'extern "C" uint32_t sys_now (void) { MyContext c; return MyMillisecondClock::getTime(c); }')
         
+        tcp_rx_buf_pkts = network_config.get_int('TcpRxBufPkts')
+        if not 1 <= tcp_rx_buf_pkts <= 32:
+            network_config.path('TcpRxBufPkts').error('Value out of range.')
+        
+        tcp_tx_buf_pkts = network_config.get_int('TcpTxBufPkts')
+        if not 1 <= tcp_tx_buf_pkts <= 32:
+            network_config.path('TcpTxBufPkts').error('Value out of range.')
+        
         network_expr = TemplateExpr('LwipNetwork', [
             'MyContext',
             'Program',
@@ -1272,6 +1280,8 @@ def setup_network(gen, config, key):
         def finalize():
             gen.add_define('APRINTER_NUM_TCP_LISTEN', network_state._num_listeners)
             gen.add_define('APRINTER_NUM_TCP_CONN', network_state._num_connections)
+            gen.add_define('APRINTER_TCP_RX_BUF_PKTS', tcp_rx_buf_pkts)
+            gen.add_define('APRINTER_TCP_TX_BUF_PKTS', tcp_tx_buf_pkts)
             gen.add_define('APRINTER_MEM_ALIGNMENT', gen.get_singleton_object('alignment'))
         
         gen.add_finalize_action(finalize)
