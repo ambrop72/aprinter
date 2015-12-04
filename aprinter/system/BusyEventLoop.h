@@ -339,6 +339,17 @@ public:
         
         lo->m_event_list.prepend(this);
     }
+    
+    void prependNow (Context c)
+    {
+        this->debugAccess(c);
+        auto *lo = Loop::Object::self(c);
+        
+        if (!Loop::EventList::isRemoved(this)) {
+            lo->m_event_list.remove(this);
+        }
+        lo->m_event_list.prepend(this);
+    }
 };
 
 template <typename Loop>

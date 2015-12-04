@@ -22,8 +22,10 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef APRINTER_ASCII_TOOLS
-#define APRINTER_ASCII_TOOLS
+#ifndef APRINTER_STRING_TOOLS_H
+#define APRINTER_STRING_TOOLS_H
+
+#include <stddef.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -46,6 +48,30 @@ static bool AsciiCaseInsensStringEqual (char const *str1, char const *str2)
         ++str1;
         ++str2;
     }
+}
+
+static bool StringRemovePrefix (char const **data, size_t *length, char const *prefix)
+{
+    size_t pos = 0;
+    while (prefix[pos] != '\0') {
+        if (pos == *length || (*data)[pos] != prefix[pos]) {
+            return false;
+        }
+        pos++;
+    }
+    *data += pos;
+    *length -= pos;
+    return true;
+}
+
+static bool StringEqualsCaseIns (char const *data, size_t length, char const *low_str)
+{
+    while (length > 0 && *low_str != '\0' && AsciiToLower(*data) == *low_str) {
+        data++;
+        length--;
+        low_str++;
+    }
+    return (length == 0 && *low_str == '\0');
 }
 
 #include <aprinter/EndNamespace.h>

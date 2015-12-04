@@ -29,25 +29,21 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <uintmax_t N>
-struct BitsInInt {
-    static const int Value = 1 + BitsInInt<N / 2>::Value;
+template <int Base, uintmax_t N>
+struct DigitsInInt {
+    static const int Value = 1 + DigitsInInt<Base, N / Base>::Value;
 };
 
-template <>
-struct BitsInInt<0> {
+template <int Base>
+struct DigitsInInt<Base, 0> {
     static const int Value = 0;
 };
 
 template <uintmax_t N>
-struct DecimalDititsInInt {
-    static const int Value = 1 + DecimalDititsInInt<N / 10>::Value;
-};
+using BitsInInt = DigitsInInt<2, N>;
 
-template <>
-struct DecimalDititsInInt<0> {
-    static const int Value = 0;
-};
+template <uintmax_t N>
+using HexDigitsInInt = DigitsInInt<16, N>;
 
 #include <aprinter/EndNamespace.h>
 

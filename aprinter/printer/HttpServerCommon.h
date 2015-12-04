@@ -77,11 +77,9 @@ public:
     virtual void setResponseContentType (Context c, char const *content_type) = 0;
     virtual void acceptRequestBody (Context c) = 0;
     
-    virtual size_t getRequestBodyBufferSize (Context c) = 0;
     virtual RequestBodyBufferState getRequestBodyBufferState (Context c) = 0;
     virtual void acceptRequestBodyData (Context c, size_t length) = 0;
     
-    virtual size_t getResponseBodyBufferSize (Context c) = 0;
     virtual ResponseBodyBufferState getResponseBodyBufferState (Context c) = 0;
     virtual void provideResponseBodyData (Context c, size_t length) = 0;
 };

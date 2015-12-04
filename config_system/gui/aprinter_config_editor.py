@@ -810,6 +810,13 @@ def editor():
                                 ce.Float(key='SendBufTimeout', title='Timeout when waiting for send buffer space', default=5.0),
                             ]),
                         ]),
+                        ce.OneOf(key='webinterface', title='Web interface', choices=[
+                            ce.Compound('NoWebInterface', title='Disabled', attrs=[]),
+                            ce.Compound('WebInterface', title='Enabled', attrs=[
+                                ce.Integer(key='Port', title='HTTP port number', default=80),
+                                ce.Integer(key='MaxClients', title='Maximum number of clients', default=2),
+                            ]),
+                        ]),
                     ])
                 ]),
             ]),

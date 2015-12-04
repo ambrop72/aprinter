@@ -1575,6 +1575,34 @@ def generate(config_root_data, cfg_name, main_template):
                             gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=console_max_clients)
                         
                         network_config.do_selection('tcpconsole', tcpconsole_sel)
+                        
+                        webif_sel = selection.Selection()
+                        
+                        @webif_sel.option('NoWebInterface')
+                        def option(webif_config):
+                            pass
+                        
+                        @webif_sel.option('WebInterface')
+                        def option(webif_config):
+                            webif_port = webif_config.get_int('Port')
+                            if not (1 <= webif_port <= 65534):
+                                webif_config.key_path('Port').error('Bad value.')
+                            
+                            webif_max_clients = webif_config.get_int('MaxClients')
+                            if not (1 <= webif_max_clients <= 20):
+                                webif_config.key_path('MaxClients').error('Bad value.')
+                            
+                            gen.add_aprinter_include('printer/modules/WebInterfaceModule.h')
+                            
+                            webif_module = gen.add_module()
+                            webif_module.set_expr(TemplateExpr('WebInterfaceModuleService', [
+                                webif_port,
+                                webif_max_clients,
+                            ]))
+                            
+                            gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients)
+                        
+                        network_config.do_selection('webinterface', webif_sel)
                 
                 config_manager_expr = use_config_manager(gen, board_data.get_config('runtime_config'), 'config_manager', 'MyPrinter::GetConfigManager')
                 

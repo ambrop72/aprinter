@@ -44,10 +44,13 @@ private:
     static size_t const HttpMaxRequestLineLength = 128;
     static size_t const HttpMaxHeaderLineLength = 128;
     static size_t const HttpExpectedResponseLength = 250;
+    static size_t const HttpMaxRequestHeadLength = 10000;
+    static size_t const HttpTxChunkHeaderDigits = 4;
     
     struct HttpRequestHandler;
-    using TheTheHttpServerService = HttpServerService<Params::Port, Params::MaxClients, HttpMaxRequestLineLength, HttpMaxHeaderLineLength, HttpExpectedResponseLength>;
+    using TheTheHttpServerService = HttpServerService<Params::Port, Params::MaxClients, HttpMaxRequestLineLength, HttpMaxHeaderLineLength, HttpExpectedResponseLength, HttpMaxRequestHeadLength, HttpTxChunkHeaderDigits>;
     using TheHttpServer = typename TheTheHttpServerService::template Server<Context, Object, ThePrinterMain, HttpRequestHandler>;
+    using TheRequestInterface = typename TheHttpServer::TheRequestInterface;
     
 public:
     static void init (Context c)
@@ -65,20 +68,22 @@ public:
     }
     
 private:
-    static bool http_request_handler (Context c, typename TheHttpServer::HttpRequest const *request, char const **status)
+    static void http_request_handler (Context c, TheRequestInterface *request)
     {
         auto *o = Object::self(c);
         
         auto *output = ThePrinterMain::get_msg_output(c);
         output->reply_append_pstr(c, AMBRO_PSTR("//HttpRequest "));
-        output->reply_append_str(c, request->method);
+        output->reply_append_str(c, request->getMethod(c));
         output->reply_append_ch(c, ' ');
-        output->reply_append_str(c, request->path);
+        output->reply_append_str(c, request->getPath(c));
+        output->reply_append_pstr(c, AMBRO_PSTR(" body="));
+        output->reply_append_ch(c, request->hasRequestBody(c)?'1':'0');
         output->reply_append_ch(c, '\n');
         output->reply_poke(c);
         
-        *status = TheHttpServer::HttpStatusCodes::NotFound();
-        return false;
+        request->setResponseStatus(c, HttpStatusCodes::NotFound());
+        request->acceptRequestHead(c);
     }
     struct HttpRequestHandler : public AMBRO_WFUNC_TD(&WebInterfaceModule::http_request_handler) {};
     

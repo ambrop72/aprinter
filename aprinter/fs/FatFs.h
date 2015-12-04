@@ -43,7 +43,7 @@
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/misc/Utf8Encoder.h>
-#include <aprinter/misc/AsciiTools.h>
+#include <aprinter/misc/StringTools.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/fs/BlockCache.h>
 #include <aprinter/fs/BlockRange.h>

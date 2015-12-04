@@ -50,7 +50,7 @@
 #include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/misc/AsciiTools.h>
+#include <aprinter/misc/StringTools.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 
