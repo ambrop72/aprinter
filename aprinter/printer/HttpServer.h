@@ -113,7 +113,7 @@ private:
         for (int i = 0; i < Params::MaxClients; i++) {
             Client *cl = &o->clients[i];
             if (cl->m_state == Client::State::NOT_CONNECTED) {
-                cl->accept_connection(c);
+                cl->accept_connection(c, &o->listener);
                 return true;
             }
         }
@@ -130,30 +130,29 @@ private:
         return x;
     }
     
-    static bool remove_header_name (char const **data, size_t *length, char const *low_header_name)
+    static bool remove_header_name (char const **data, char const *low_header_name)
     {
         // The header name.
         size_t pos = 0;
         while (low_header_name[pos] != '\0') {
-            if (pos == *length || AsciiToLower((*data)[pos]) != low_header_name[pos]) {
+            if (AsciiToLower((*data)[pos]) != low_header_name[pos]) {
                 return false;
             }
             pos++;
         }
         
         // A colon.
-        if (pos == *length || (*data)[pos] != ':') {
+        if ((*data)[pos] != ':') {
             return false;
         }
         pos++;
         
         // Any spaces after the colon.
-        while (pos != *length && (*data)[pos] == ' ') {
+        while ((*data)[pos] == ' ') {
             pos++;
         }
         
         *data += pos;
-        *length -= pos;
         return true;
     }
     
@@ -167,21 +166,7 @@ private:
             CALLING_REQUEST_TERMINATED
         };
         
-        bool have_request (Context c)
-        {
-            switch (m_state) {
-                case State::HEAD_RECEIVED:
-                case State::RECV_KNOWN_LENGTH_BODY:
-                case State::RECV_CHUNK_HEADER:
-                case State::RECV_CHUNK_DATA:
-                case State::SEND_RESPONSE_BODY:
-                case State::SEND_LAST_CHUNK:
-                    return true;
-            }
-            return false;
-        }
-        
-        bool have_request_before_headers_sent (Context c)
+        bool response_is_pending (Context c)
         {
             switch (m_state) {
                 case State::HEAD_RECEIVED:
@@ -206,6 +191,7 @@ private:
         
         void accept_rx_data (Context c, size_t amount)
         {
+            AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             AMBRO_ASSERT(amount <= m_rx_buf_length)
             
             m_rx_buf_start = buf_add(m_rx_buf_start, amount);
@@ -215,6 +201,8 @@ private:
         
         void send_string (Context c, char const *str)
         {
+            AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
+            
             m_connection.copySendData(c, str, strlen(str));
         }
         
@@ -234,16 +222,15 @@ private:
             m_event.deinit(c);
         }
         
-        void accept_connection (Context c)
+        void accept_connection (Context c, TheTcpListener *listener)
         {
-            auto *o = Object::self(c);
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             AMBRO_ASSERT(!m_user)
             
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientConnected\n"));
             
             // Accept the connection.
-            m_connection.acceptConnection(c, &o->listener);
+            m_connection.acceptConnection(c, listener);
             
             // Initialzie the RX buffer.
             m_rx_buf_start = 0;
@@ -258,16 +245,26 @@ private:
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             
             // Inform the user that the request is over, if necessary.
-            if (m_user) {
-                m_state = State::CALLING_REQUEST_TERMINATED;
-                m_user->requestTerminated(c);
-            }
+            terminate_user(c);
             
             // Clean up in preparation to accept another client.
             m_connection.reset(c);
             m_event.unset(c);
             m_state = State::NOT_CONNECTED;
-            m_user = nullptr;
+        }
+        
+        void terminate_user (Context c)
+        {
+            if (m_user) {
+                // Change the state temporarily so that assetions can
+                // catch unexpected calls from the user.
+                auto state = m_state;
+                auto user = m_user;
+                m_state = State::CALLING_REQUEST_TERMINATED;
+                m_user = nullptr;
+                user->requestTerminated(c);
+                m_state = state;
+            }
         }
         
         void prepare_line_parsing (Context c)
@@ -279,6 +276,8 @@ private:
         
         void prepare_for_request (Context c)
         {
+            AMBRO_ASSERT(!m_user)
+            
             // Set initial values to the various request-parsing states.
             m_null_in_line = false;
             m_bad_content_length = false;
@@ -389,26 +388,23 @@ private:
                     }
                     
                     // There won't be any more data, now we have to send a zero-chunk.
+                    AMBRO_ASSERT(!m_user)
                     m_state = State::SEND_LAST_CHUNK;
                     m_event.prependNow(c);
                 } break;
                 
                 case State::SEND_LAST_CHUNK: {
+                    AMBRO_ASSERT(!m_user)
+                    
+                    // Waiting for enough space to send the zero-chunk.
                     if (m_connection.getSendBufferSpace(c) >= 3) {
-                        // We have enough space in the send buffer, send the zero-chunk.
+                        // Send the zero-chunk.
                         send_string(c, "0\r\n");
+                        m_connection.pokeSending(c);
                         
                         // Prepare for receiving the next request.
                         prepare_for_request(c);
                     }
-                } break;
-                
-                case State::SEND_ERROR_AND_DISCONNECT: {
-                    AMBRO_ASSERT(!m_user)
-                    AMBRO_ASSERT(!m_user_providing_response_body)
-                    
-                    // This will send a response and go to State::DISCONNECT_AFTER_SENDING.
-                    send_response(c, true);
                 } break;
                 
                 case State::DISCONNECT_AFTER_SENDING: {
@@ -489,7 +485,7 @@ private:
             // Detect too long request bodies.
             if (pos > m_rem_allowed_length) {
                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientRequestTooLong\n"));
-                return disconnect(c);
+                return send_error_and_disconnect(c, HttpStatusCodes::RequestHeaderFieldsTooLarge());
             }
             m_rem_allowed_length -= pos;
             
@@ -517,8 +513,6 @@ private:
         {
             switch (m_state) {
                 case State::RECV_REQUEST_LINE: {
-                    //ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//DEBUG RequestLineReceived\n"));
-                    
                     // Remember the request line and continue parsing the header lines.
                     m_request_line_length = length;
                     m_request_line_overflow = overflow;
@@ -528,17 +522,14 @@ private:
                 
                 case State::RECV_HEADER_LINE: {
                     if (length == 0) {
-                        //ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//DEBUG EndLineReceived\n"));
                         // This is the empty line which terminates the request head.
                         return request_head_received(c);
                     }
                     
-                    //ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//DEBUG HeaderLineReceived\n"));
-                    
                     // Extract and remember any useful information the header and continue parsing.
                     // We do not remember the headers themselves, this would use too much RAM.
                     if (!overflow && !m_null_in_line) {
-                        handle_header(c, m_header_line, length);
+                        handle_header(c, m_header_line);
                     }
                     m_event.prependNow(c);
                 } break;
@@ -549,7 +540,7 @@ private:
                     // Check for errors in line parsing.
                     if (overflow || m_null_in_line) {
                         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
-                        return disconnect(c);
+                        return send_error_and_disconnect(c, HttpStatusCodes::BadRequest());
                     }
                     
                     // Parse the chunk length.
@@ -557,7 +548,7 @@ private:
                     unsigned long long int value = strtoull(m_header_line, &endptr, 16);
                     if (endptr == m_header_line || (*endptr != '\0' && *endptr != ';')) {
                         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
-                        return disconnect(c);
+                        return send_error_and_disconnect(c, HttpStatusCodes::BadRequest());
                     }
                     
                     // Remember the chunk length and continue in event_handler.
@@ -571,9 +562,9 @@ private:
             }
         }
         
-        void handle_header (Context c, char const *header, size_t length)
+        void handle_header (Context c, char const *header)
         {
-            if (remove_header_name(&header, &length, "content-length")) {
+            if (remove_header_name(&header, "content-length")) {
                 char *endptr;
                 unsigned long long int value = strtoull(header, &endptr, 10);
                 if (endptr == header || *endptr != '\0' || m_have_content_length) {
@@ -583,17 +574,17 @@ private:
                     m_rem_req_body_length = value;
                 }
             }
-            else if (remove_header_name(&header, &length, "transfer-encoding")) {
-                if (!StringEqualsCaseIns(header, length, "identity")) {
-                    if (!StringEqualsCaseIns(header, length, "chunked") || m_have_chunked) {
+            else if (remove_header_name(&header, "transfer-encoding")) {
+                if (!StringEqualsCaseIns(header, "identity")) {
+                    if (!StringEqualsCaseIns(header, "chunked") || m_have_chunked) {
                         m_bad_transfer_encoding = true;
                     } else {
                         m_have_chunked = true;
                     }
                 }
             }
-            else if (remove_header_name(&header, &length, "expect")) {
-                if (!StringEqualsCaseIns(header, length, "100-continue")) {
+            else if (remove_header_name(&header, "expect")) {
+                if (!StringEqualsCaseIns(header, "100-continue")) {
                     m_expectation_failed = true;
                 } else {
                     m_expect_100_continue = true;
@@ -605,90 +596,87 @@ private:
         {
             AMBRO_ASSERT(!m_user)
             
+            char const *status = HttpStatusCodes::InternalServerError();
             do {
                 // Check for nulls in the request.
                 if (m_null_in_line) {
-                    m_resp_status = HttpStatusCodes::BadRequest();
+                    status = HttpStatusCodes::BadRequest();
                     goto error;
                 }
                 
                 // Start parsing the request line.
                 char *buf = m_request_line;
-                size_t buf_length = m_request_line_length;
                 
                 // Extract the request method.
-                char *first_space = (char *)memchr(buf, ' ', buf_length);
+                char *first_space = strchr(buf, ' ');
                 if (!first_space) {
-                    m_resp_status = HttpStatusCodes::BadRequest();
+                    status = HttpStatusCodes::BadRequest();
                     goto error;
                 }
                 *first_space = '\0';
                 m_request_method = buf;
-                size_t method_length = first_space - buf;
-                buf        += method_length + 1;
-                buf_length -= method_length + 1;
+                buf = first_space + 1;
                 
                 // Extract the request path.
-                char *second_space = (char *)memchr(buf, ' ', buf_length);
+                char *second_space = strchr(buf, ' ');
                 if (!second_space) {
-                    m_resp_status = HttpStatusCodes::BadRequest();
+                    status = HttpStatusCodes::BadRequest();
                     goto error;
                 }
                 *second_space = '\0';
                 m_request_path = buf;
-                size_t path_length = second_space - buf;
-                buf        += path_length + 1;
-                buf_length -= path_length + 1;
+                buf = second_space + 1;
                 
-                // Extract the HTTP version string.
-                if (memchr(buf, ' ', buf_length)) {
-                    m_resp_status = HttpStatusCodes::BadRequest();
+                // Check that there are no spaces after the HTTP version string.
+                if (strchr(buf, ' ')) {
+                    status = HttpStatusCodes::BadRequest();
                     goto error;
                 }
-                char const *http = buf;
-                size_t http_length = buf_length;
                 
                 // Remove HTTP/ prefix from the version.
-                if (!StringRemovePrefix(&http, &http_length, "HTTP/")) {
-                    m_resp_status = HttpStatusCodes::HttpVersionNotSupported();
+                if (!StringRemovePrefix(&buf, "HTTP/")) {
+                    status = HttpStatusCodes::HttpVersionNotSupported();
                     goto error;
                 }
                 
-                // Parse the major and minor version.
+                // Parse the major version.
                 char *endptr1;
-                unsigned long int http_major = strtoul(http, &endptr1, 10);
-                if (*endptr1 != '.' || endptr1 == http) {
-                    m_resp_status = HttpStatusCodes::HttpVersionNotSupported();
+                unsigned long int http_major = strtoul(buf, &endptr1, 10);
+                if (endptr1 == buf || *endptr1 != '.') {
+                    status = HttpStatusCodes::HttpVersionNotSupported();
                     goto error;
                 }
+                buf = endptr1 + 1;
+                
+                // Parse the minor version.
                 char *endptr2;
-                unsigned long int http_minor = strtoul(endptr1 + 1, &endptr2, 10);
-                if (*endptr2 != '\0' || endptr2 == endptr1 + 1) {
-                    m_resp_status = HttpStatusCodes::HttpVersionNotSupported();
+                unsigned long int http_minor = strtoul(buf, &endptr2, 10);
+                if (endptr2 == buf || *endptr2 != '\0') {
+                    status = HttpStatusCodes::HttpVersionNotSupported();
                     goto error;
                 }
                 
-                // Check the version.
+                // Check the version. We want 1.X where X >= 1.
                 if (http_major != 1 || http_minor == 0) {
-                    m_resp_status = HttpStatusCodes::HttpVersionNotSupported();
+                    status = HttpStatusCodes::HttpVersionNotSupported();
                     goto error;
                 }
                 
                 // Check for request line overflow.
                 if (m_request_line_overflow) {
-                    m_resp_status = HttpStatusCodes::UriTooLong();
+                    status = HttpStatusCodes::UriTooLong();
                     goto error;
                 }
                 
                 // Check request-body-related stuff.
                 if (m_bad_content_length || m_bad_transfer_encoding || (m_have_content_length && m_have_chunked)) {
-                    m_resp_status = HttpStatusCodes::BadRequest();
+                    status = HttpStatusCodes::BadRequest();
                     goto error;
                 }
                 
                 // Check for failed expectations.
                 if (m_expectation_failed) {
-                    m_resp_status = HttpStatusCodes::ExpectationFailed();
+                    status = HttpStatusCodes::ExpectationFailed();
                     goto error;
                 }
                 
@@ -706,8 +694,7 @@ private:
             
         error:
             // Respond with an error and close the connection.
-            m_state = State::SEND_ERROR_AND_DISCONNECT;
-            m_event.prependNow(c);
+            send_error_and_disconnect(c, status);
         }
         
         void continue_after_head_accepted (Context c)
@@ -746,6 +733,18 @@ private:
                 m_state = State::RECV_KNOWN_LENGTH_BODY;
             }
             m_event.prependNow(c);
+        }
+        
+        void send_error_and_disconnect (Context c, char const *status)
+        {
+            // Terminate the request with the user, if any.
+            terminate_user(c);
+            m_user_accepting_request_body = false;
+            m_user_providing_response_body = false;
+            
+            // Send a response and go to State::DISCONNECT_AFTER_SENDING.
+            m_resp_status = status;
+            send_response(c, true);
         }
         
         void send_response (Context c, bool close_connection)
@@ -787,6 +786,7 @@ private:
                     m_state = State::DISCONNECT_AFTER_SENDING;
                     m_event.prependNow(c);
                 } else {
+                    // TBD: m_user
                     prepare_for_request(c);
                 }
             } else {
@@ -800,21 +800,21 @@ private:
     public: // HttpRequestInterface functions
         char const * getMethod (Context c)
         {
-            AMBRO_ASSERT(have_request(c))
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED || m_user)
             
             return m_request_method;
         }
         
         char const * getPath (Context c)
         {
-            AMBRO_ASSERT(have_request(c))
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED || m_user)
             
             return m_request_path;
         }
         
         bool hasRequestBody (Context c)
         {
-            AMBRO_ASSERT(have_request(c))
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED || m_user)
             
             return m_have_request_body;
         }
@@ -830,7 +830,6 @@ private:
         
         void abandonRequest (Context c)
         {
-            AMBRO_ASSERT(have_request(c))
             AMBRO_ASSERT(m_user)
             
             // Remember that the user is gone. We will not call any
@@ -864,7 +863,7 @@ private:
         
         void willProvideResponseBody (Context c)
         {
-            AMBRO_ASSERT(have_request_before_headers_sent(c))
+            AMBRO_ASSERT(response_is_pending(c))
             AMBRO_ASSERT(m_user)
             
             m_user_providing_response_body = true;
@@ -879,7 +878,7 @@ private:
         
         void setResponseStatus (Context c, char const *status)
         {
-            AMBRO_ASSERT(have_request_before_headers_sent(c))
+            AMBRO_ASSERT(response_is_pending(c))
             AMBRO_ASSERT(status)
             
             m_resp_status = status;
@@ -887,7 +886,7 @@ private:
         
         void setResponseContentType (Context c, char const *content_type)
         {
-            AMBRO_ASSERT(have_request_before_headers_sent(c))
+            AMBRO_ASSERT(response_is_pending(c))
             AMBRO_ASSERT(content_type)
             
             m_resp_content_type = content_type;

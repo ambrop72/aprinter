@@ -50,28 +50,26 @@ static bool AsciiCaseInsensStringEqual (char const *str1, char const *str2)
     }
 }
 
-static bool StringRemovePrefix (char const **data, size_t *length, char const *prefix)
+static bool StringRemovePrefix (char **data, char const *prefix)
 {
     size_t pos = 0;
     while (prefix[pos] != '\0') {
-        if (pos == *length || (*data)[pos] != prefix[pos]) {
+        if ((*data)[pos] != prefix[pos]) {
             return false;
         }
         pos++;
     }
     *data += pos;
-    *length -= pos;
     return true;
 }
 
-static bool StringEqualsCaseIns (char const *data, size_t length, char const *low_str)
+static bool StringEqualsCaseIns (char const *data, char const *low_str)
 {
-    while (length > 0 && *low_str != '\0' && AsciiToLower(*data) == *low_str) {
+    while (*data != '\0' && *low_str != '\0' && AsciiToLower(*data) == *low_str) {
         data++;
-        length--;
         low_str++;
     }
-    return (length == 0 && *low_str == '\0');
+    return (*data == '\0' && *low_str == '\0');
 }
 
 #include <aprinter/EndNamespace.h>
