@@ -72,6 +72,32 @@ static bool StringEqualsCaseIns (char const *data, char const *low_str)
     return (*data == '\0' && *low_str == '\0');
 }
 
+static bool StringRemoveHttpHeader (char const **data, char const *low_header_name)
+{
+    // The header name.
+    size_t pos = 0;
+    while (low_header_name[pos] != '\0') {
+        if (AsciiToLower((*data)[pos]) != low_header_name[pos]) {
+            return false;
+        }
+        pos++;
+    }
+    
+    // A colon.
+    if ((*data)[pos] != ':') {
+        return false;
+    }
+    pos++;
+    
+    // Any spaces after the colon.
+    while ((*data)[pos] == ' ') {
+        pos++;
+    }
+    
+    *data += pos;
+    return true;
+}
+
 #include <aprinter/EndNamespace.h>
 
 #endif

@@ -62,6 +62,11 @@ private:
     static size_t const RxBufferSize = TheTcpConnection::RequiredRxBufSize;
     static size_t const TxBufferSize = TheTcpConnection::ProvidedTxBufSize;
     
+    // Note, via the ExpectedResponseLength we ensure that we do not overflow the send buffer.
+    // This has to be set to a sufficiently large value that accomodates the worst case
+    // (100-continue + largest possible response head). The limit really needs to be sufficient,
+    // crashes will happen if we do overflow the send buffer.
+    
     // Basic checks of parameters.
     static_assert(Params::MaxClients > 0, "");
     static_assert(Params::MaxRequestLineLength >= 32, "");
@@ -84,11 +89,9 @@ public:
         auto *o = Object::self(c);
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&HttpServer::listener_accept_handler));
-        
         if (!o->listener.startListening(c, Params::Port)) {
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
-        
         for (int i = 0; i < Params::MaxClients; i++) {
             o->clients[i].init(c);
         }
@@ -101,7 +104,6 @@ public:
         for (int i = 0; i < Params::MaxClients; i++) {
             o->clients[i].deinit(c);
         }
-        
         o->listener.deinit(c);
     }
     
@@ -130,64 +132,16 @@ private:
         return x;
     }
     
-    static bool remove_header_name (char const **data, char const *low_header_name)
-    {
-        // The header name.
-        size_t pos = 0;
-        while (low_header_name[pos] != '\0') {
-            if (AsciiToLower((*data)[pos]) != low_header_name[pos]) {
-                return false;
-            }
-            pos++;
-        }
-        
-        // A colon.
-        if ((*data)[pos] != ':') {
-            return false;
-        }
-        pos++;
-        
-        // Any spaces after the colon.
-        while ((*data)[pos] == ' ') {
-            pos++;
-        }
-        
-        *data += pos;
-        return true;
-    }
-    
     struct Client : public TheRequestInterface {
         enum class State : uint8_t {
             NOT_CONNECTED, WAIT_SEND_BUF_FOR_REQUEST,
-            RECV_REQUEST_LINE, RECV_HEADER_LINE, HEAD_RECEIVED,
-            RECV_KNOWN_LENGTH_BODY, RECV_CHUNK_HEADER, RECV_CHUNK_DATA,
-            SEND_RESPONSE_BODY, SEND_LAST_CHUNK,
-            SEND_ERROR_AND_DISCONNECT, DISCONNECT_AFTER_SENDING,
-            CALLING_REQUEST_TERMINATED
+            RECV_REQUEST_LINE, RECV_HEADER_LINE, HEAD_RECEIVED, USER_GONE,
+            DISCONNECT_AFTER_SENDING, CALLING_REQUEST_TERMINATED
         };
         
-        bool response_is_pending (Context c)
-        {
-            switch (m_state) {
-                case State::HEAD_RECEIVED:
-                case State::RECV_KNOWN_LENGTH_BODY:
-                case State::RECV_CHUNK_HEADER:
-                case State::RECV_CHUNK_DATA:
-                    return true;
-            }
-            return false;
-        }
+        enum RecvState : uint8_t {INVALID, NOT_STARTED, RECV_KNOWN_LENGTH, RECV_CHUNK_HEADER, RECV_CHUNK_DATA, COMPLETED};
         
-        bool receiving_request_body (Context c)
-        {
-            switch (m_state) {
-                case State::RECV_KNOWN_LENGTH_BODY:
-                case State::RECV_CHUNK_HEADER:
-                case State::RECV_CHUNK_DATA:
-                    return true;
-            }
-            return false;
-        }
+        enum SendState : uint8_t {INVALID, HEAD_NOT_SENT, SEND_BODY, SEND_LAST_CHUNK, COMPLETED};
         
         void accept_rx_data (Context c, size_t amount)
         {
@@ -208,24 +162,27 @@ private:
         
         void init (Context c)
         {
-            m_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::event_handler, this));
+            m_send_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_event_handler, this));
+            m_recv_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::recv_event_handler, this));
             m_connection.init(c, APRINTER_CB_OBJFUNC_T(&Client::connection_error_handler, this),
                                  APRINTER_CB_OBJFUNC_T(&Client::connection_recv_handler, this),
                                  APRINTER_CB_OBJFUNC_T(&Client::connection_send_handler, this));
-            m_state = State::NOT_CONNECTED;
             m_user = nullptr;
+            m_state = State::NOT_CONNECTED;
+            m_recv_state = RecvState::INVALID;
+            m_send_state = SendState::INVALID;
         }
         
         void deinit (Context c)
         {
             m_connection.deinit(c);
-            m_event.deinit(c);
+            m_recv_event.deinit(c);
+            m_send_event.deinit(c);
         }
         
         void accept_connection (Context c, TheTcpListener *listener)
         {
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
-            AMBRO_ASSERT(!m_user)
             
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientConnected\n"));
             
@@ -236,8 +193,9 @@ private:
             m_rx_buf_start = 0;
             m_rx_buf_length = 0;
             
-            // Prepare for receiving the first request.
-            prepare_for_request(c);
+            // Waiting for space in the send buffer.
+            m_state = State::WAIT_SEND_BUF_FOR_REQUEST;
+            m_send_event.prependNow(c);
         }
         
         void disconnect (Context c)
@@ -249,8 +207,11 @@ private:
             
             // Clean up in preparation to accept another client.
             m_connection.reset(c);
-            m_event.unset(c);
+            m_recv_event.unset(c);
+            m_send_event.unset(c);
             m_state = State::NOT_CONNECTED;
+            m_recv_state = RecvState::INVALID;
+            m_send_state = SendState::INVALID;
         }
         
         void terminate_user (Context c)
@@ -277,6 +238,8 @@ private:
         void prepare_for_request (Context c)
         {
             AMBRO_ASSERT(!m_user)
+            AMBRO_ASSERT(m_recv_state == RecvState::INVALID)
+            AMBRO_ASSERT(m_send_state == SendState::INVALID)
             
             // Set initial values to the various request-parsing states.
             m_null_in_line = false;
@@ -290,17 +253,31 @@ private:
             
             // And set some values related to higher-level processing of the request.
             m_have_request_body = false;
-            m_resp_status = HttpStatusCodes::InternalServerError();
+            m_resp_status = nullptr;
             m_resp_content_type = nullptr;
             m_user_accepting_request_body = false;
-            m_user_providing_response_body = false;
             
             // Prepare for parsing the request as a sequence of lines.
             prepare_line_parsing(c);
             
             // Waiting for space in the send buffer.
-            m_state = State::WAIT_SEND_BUF_FOR_REQUEST;
-            m_event.prependNow(c);
+            m_state = State::RECV_REQUEST_LINE;
+            m_recv_event.prependNow(c);
+        }
+        
+        void check_for_next_request (Context c)
+        {
+            // When a request is completed, move on to the next one.
+            if (m_state == State::USER_GONE &&
+                m_recv_state == RecvState::COMPLETED &&
+                m_send_state == SendState::COMPLETED)
+            {
+                AMBRO_ASSERT(!m_user)
+                m_state = State::WAIT_SEND_BUF_FOR_REQUEST;
+                m_recv_state = RecvState::INVALID;
+                m_send_state = SendState::INVALID;
+                m_send_event.prependNow(c);
+            }
         }
         
         void connection_error_handler (Context c, bool remote_closed)
@@ -326,7 +303,7 @@ private:
             m_rx_buf_length += bytes_read;
             
             // Check for things to be done now that we have new data.
-            m_event.prependNow(c);
+            m_recv_event.prependNow(c);
         }
         
         void connection_send_handler (Context c)
@@ -334,76 +311,38 @@ private:
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             
             // Check for things to be done now that we have more space.
-            m_event.prependNow(c);
+            m_send_event.prependNow(c);
         }
         
-        void event_handler (Context c)
+        void send_event_handler (Context c)
         {
-            // Check for stuff to be done and do it.
-            // A call to this is scheduled by m_event.prependNow(c).
-            
             switch (m_state) {
                 case State::WAIT_SEND_BUF_FOR_REQUEST: {
                     // When we have sufficient space in the send buffer, start receiving a request.
                     if (m_connection.getSendBufferSpace(c) >= Params::ExpectedResponseLength) {
-                        m_state = State::RECV_REQUEST_LINE;
-                        m_event.prependNow(c);
-                    }
-                } break;
-                
-                case State::RECV_REQUEST_LINE: {
-                    // Receiving the request line.
-                    recv_line(c, m_request_line, Params::MaxRequestLineLength);
-                } break;
-                
-                case State::RECV_HEADER_LINE:
-                case State::RECV_CHUNK_HEADER: {
-                    // Receiving a line (request header or chunk header).
-                    recv_line(c, m_header_line, Params::MaxHeaderLineLength);
-                } break;
-                
-                case State::RECV_KNOWN_LENGTH_BODY:
-                case State::RECV_CHUNK_DATA: {
-                    // When the user is accepting the request body,
-                    // call the callback whenever we may have new data.
-                    if (m_user_accepting_request_body) {
-                        return m_user->requestBufferEvent(c);
-                    }
-                    
-                    // Accept request body data ourselves and discard it.
-                    if (m_req_body_recevied) {
-                        return send_response(c, false);
-                    }
-                    size_t amount = get_request_body_avail(c);
-                    if (amount > 0) {
-                        consume_request_body(c, amount);
-                    }
-                } break;
-                
-                case State::SEND_RESPONSE_BODY: {
-                    // When the user is providing the response body,
-                    // call the callback whenever we may have new space in the buffer.
-                    if (m_user_providing_response_body) {
-                        return m_user->responseBufferEvent(c);
-                    }
-                    
-                    // There won't be any more data, now we have to send a zero-chunk.
-                    AMBRO_ASSERT(!m_user)
-                    m_state = State::SEND_LAST_CHUNK;
-                    m_event.prependNow(c);
-                } break;
-                
-                case State::SEND_LAST_CHUNK: {
-                    AMBRO_ASSERT(!m_user)
-                    
-                    // Waiting for enough space to send the zero-chunk.
-                    if (m_connection.getSendBufferSpace(c) >= 3) {
-                        // Send the zero-chunk.
-                        send_string(c, "0\r\n");
-                        m_connection.pokeSending(c);
-                        
-                        // Prepare for receiving the next request.
                         prepare_for_request(c);
+                    }
+                } break;
+                
+                case State::HEAD_RECEIVED:
+                case State::USER_GONE: {
+                    switch (m_send_state) {
+                        case SendState::SEND_BODY: {
+                            // The user is providing the response body, so call
+                            // the callback whenever we may have new space in the buffer.
+                            AMBRO_ASSERT(m_user)
+                            return m_user->responseBufferEvent(c);
+                        } break;
+                        
+                        case SendState::SEND_LAST_CHUNK: {
+                            // When we have enough space in the send buffer, send the zero-chunk.
+                            if (m_connection.getSendBufferSpace(c) >= 3) {
+                                send_string(c, "0\r\n");
+                                m_connection.pokeSending(c);
+                                m_send_state = SendState::COMPLETED;
+                                check_for_next_request(c);
+                            }
+                        } break;
                     }
                 } break;
                 
@@ -416,42 +355,57 @@ private:
             }
         }
         
-        size_t get_request_body_avail (Context c)
+        void recv_event_handler (Context c)
         {
-            AMBRO_ASSERT(receiving_request_body(c))
-            
-            if (m_state == State::RECV_CHUNK_HEADER) {
-                return 0;
+            switch (m_state) {
+                case State::RECV_REQUEST_LINE: {
+                    // Receiving the request line.
+                    recv_line(c, m_request_line, Params::MaxRequestLineLength);
+                } break;
+                
+                case State::RECV_HEADER_LINE: {
+                    // Receiving a header line.
+                    recv_line(c, m_header_line, Params::MaxHeaderLineLength);
+                } break;
+                
+                case State::HEAD_RECEIVED:
+                case State::USER_GONE: {
+                    switch (m_recv_state) {
+                        case RecvState::RECV_CHUNK_HEADER: {
+                            // Receiving the chunk-header line.
+                            recv_line(c, m_header_line, Params::MaxHeaderLineLength);
+                        } break;
+                        
+                        case RecvState::RECV_KNOWN_LENGTH:
+                        case RecvState::RECV_CHUNK_DATA: {
+                            // When the user is accepting the request body, call the callback whenever
+                            // we may have new data. Note that even after the user has received the
+                            // entire body, we wait for abandonResponseBody() or completeHandling()
+                            // before moving on to RecvState::COMPLETED.
+                            if (m_user_accepting_request_body) {
+                                AMBRO_ASSERT(m_user)
+                                return m_user->requestBufferEvent(c);
+                            }
+                            
+                            // If the entire body is received, move on to RecvState::COMPLETED.
+                            if (m_req_body_recevied) {
+                                m_recv_state = RecvState::COMPLETED;
+                                check_for_next_request(c);
+                                return;
+                            }
+                            
+                            // Accept and discard any available request-body data.
+                            size_t amount = get_request_body_avail(c);
+                            if (amount > 0) {
+                                consume_request_body(c, amount);
+                            }
+                        } break;
+                    }
+                } break;
             }
-            return (size_t)MinValue((uint64_t)m_rx_buf_length, m_rem_req_body_length);
         }
         
-        void consume_request_body (Context c, size_t amount)
-        {
-            AMBRO_ASSERT(m_state == State::RECV_KNOWN_LENGTH_BODY || m_state == State::RECV_CHUNK_DATA)
-            AMBRO_ASSERT(!m_req_body_recevied)
-            AMBRO_ASSERT(amount > 0)
-            AMBRO_ASSERT(amount <= m_rx_buf_length)
-            AMBRO_ASSERT(amount <= m_rem_req_body_length)
-            
-            // Adjust RX buffer and remaining-data length.
-            accept_rx_data(c, amount);
-            m_rem_req_body_length -= amount;
-            
-            // End of known-length body or chunk?
-            if (m_rem_req_body_length == 0) {
-                if (m_state == State::RECV_KNOWN_LENGTH_BODY) {
-                    m_req_body_recevied = true;
-                } else {
-                    m_state = State::RECV_CHUNK_HEADER;
-                    m_rem_allowed_length = Params::MaxHeaderLineLength;
-                }
-                // Continue in event_handler.
-                m_event.prependNow(c);
-            }
-        }
-        
-        void recv_line (Context c, char *line_buf, size_t line_max_length)
+        void recv_line (Context c, char *line_buf, size_t line_buf_size)
         {
             // Examine the received data, looking for a newline and copying
             // characters into line_buf.
@@ -466,7 +420,7 @@ private:
                     m_null_in_line = true;
                 }
                 
-                if (m_line_length >= line_max_length) {
+                if (m_line_length >= line_buf_size) {
                     m_line_overflow = true;
                 } else {
                     line_buf[m_line_length] = ch;
@@ -482,7 +436,7 @@ private:
             // Adjust the RX buffer, accepting all the data we have looked at.
             accept_rx_data(c, pos);
             
-            // Detect too long request bodies.
+            // Detect too long request bodies / lines.
             if (pos > m_rem_allowed_length) {
                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientRequestTooLong\n"));
                 return send_error_and_disconnect(c, HttpStatusCodes::RequestHeaderFieldsTooLarge());
@@ -494,7 +448,7 @@ private:
                 return;
             }
             
-            // Null-terminate the line, striping the \n and possibly a \r.
+            // Null-terminate the line, striping the \n and possibly an \r.
             size_t length = m_line_length - 1;
             if (length > 0 && line_buf[length - 1] == '\r') {
                 length--;
@@ -513,28 +467,28 @@ private:
         {
             switch (m_state) {
                 case State::RECV_REQUEST_LINE: {
-                    // Remember the request line and continue parsing the header lines.
-                    m_request_line_length = length;
+                    // Remember the request line and move on to parsing the header lines.
                     m_request_line_overflow = overflow;
                     m_state = State::RECV_HEADER_LINE;
-                    m_event.prependNow(c);
+                    m_recv_event.prependNow(c);
                 } break;
                 
                 case State::RECV_HEADER_LINE: {
+                    // An empty line terminates the request head.
                     if (length == 0) {
-                        // This is the empty line which terminates the request head.
                         return request_head_received(c);
                     }
                     
                     // Extract and remember any useful information the header and continue parsing.
-                    // We do not remember the headers themselves, this would use too much RAM.
                     if (!overflow && !m_null_in_line) {
                         handle_header(c, m_header_line);
                     }
-                    m_event.prependNow(c);
+                    m_recv_event.prependNow(c);
                 } break;
                 
-                case State::RECV_CHUNK_HEADER: {
+                case State::HEAD_RECEIVED:
+                case State::USER_GONE: {
+                    AMBRO_ASSERT(m_recv_state == RecvState::RECV_CHUNK_HEADER)
                     AMBRO_ASSERT(!m_req_body_recevied)
                     
                     // Check for errors in line parsing.
@@ -554,8 +508,8 @@ private:
                     // Remember the chunk length and continue in event_handler.
                     m_rem_req_body_length = value;
                     m_req_body_recevied = (value == 0);
-                    m_state = State::RECV_CHUNK_DATA;
-                    m_event.prependNow(c);
+                    m_recv_state = RecvState::RECV_CHUNK_DATA;
+                    m_recv_event.prependNow(c);
                 } break;
                 
                 default: AMBRO_ASSERT(false);
@@ -564,7 +518,7 @@ private:
         
         void handle_header (Context c, char const *header)
         {
-            if (remove_header_name(&header, "content-length")) {
+            if (StringRemoveHttpHeader(&header, "content-length")) {
                 char *endptr;
                 unsigned long long int value = strtoull(header, &endptr, 10);
                 if (endptr == header || *endptr != '\0' || m_have_content_length) {
@@ -574,7 +528,7 @@ private:
                     m_rem_req_body_length = value;
                 }
             }
-            else if (remove_header_name(&header, "transfer-encoding")) {
+            else if (StringRemoveHttpHeader(&header, "transfer-encoding")) {
                 if (!StringEqualsCaseIns(header, "identity")) {
                     if (!StringEqualsCaseIns(header, "chunked") || m_have_chunked) {
                         m_bad_transfer_encoding = true;
@@ -583,7 +537,7 @@ private:
                     }
                 }
             }
-            else if (remove_header_name(&header, "expect")) {
+            else if (StringRemoveHttpHeader(&header, "expect")) {
                 if (!StringEqualsCaseIns(header, "100-continue")) {
                     m_expectation_failed = true;
                 } else {
@@ -594,6 +548,8 @@ private:
         
         void request_head_received (Context c)
         {
+            AMBRO_ASSERT(m_recv_state == RecvState::INVALID)
+            AMBRO_ASSERT(m_send_state == SendState::INVALID)
             AMBRO_ASSERT(!m_user)
             
             char const *status = HttpStatusCodes::InternalServerError();
@@ -601,6 +557,12 @@ private:
                 // Check for nulls in the request.
                 if (m_null_in_line) {
                     status = HttpStatusCodes::BadRequest();
+                    goto error;
+                }
+                
+                // Check for request line overflow.
+                if (m_request_line_overflow) {
+                    status = HttpStatusCodes::UriTooLong();
                     goto error;
                 }
                 
@@ -626,12 +588,6 @@ private:
                 *second_space = '\0';
                 m_request_path = buf;
                 buf = second_space + 1;
-                
-                // Check that there are no spaces after the HTTP version string.
-                if (strchr(buf, ' ')) {
-                    status = HttpStatusCodes::BadRequest();
-                    goto error;
-                }
                 
                 // Remove HTTP/ prefix from the version.
                 if (!StringRemovePrefix(&buf, "HTTP/")) {
@@ -662,14 +618,8 @@ private:
                     goto error;
                 }
                 
-                // Check for request line overflow.
-                if (m_request_line_overflow) {
-                    status = HttpStatusCodes::UriTooLong();
-                    goto error;
-                }
-                
-                // Check request-body-related stuff.
-                if (m_bad_content_length || m_bad_transfer_encoding || (m_have_content_length && m_have_chunked)) {
+                // Check for errors concerning headers describing the request-body.
+                if (m_bad_content_length || m_bad_transfer_encoding) {
                     status = HttpStatusCodes::BadRequest();
                     goto error;
                 }
@@ -681,12 +631,16 @@ private:
                 }
                 
                 // Determine if we are receiving a request body.
+                // Note: we allow both "content-length" and "transfer-encoding: chunked"
+                // at the same time, where chunked takes precedence.
                 if (m_have_content_length || m_have_chunked) {
                     m_have_request_body = true;
                 }
                 
                 // Change state before passing the request to the user.
                 m_state = State::HEAD_RECEIVED;
+                m_recv_state = m_have_request_body ? RecvState::NOT_STARTED : RecvState::COMPLETED;
+                m_send_state = SendState::HEAD_NOT_SENT;
                 
                 // Call the user's request handler.
                 return RequestHandler::call(c, this);
@@ -697,212 +651,245 @@ private:
             send_error_and_disconnect(c, status);
         }
         
-        void continue_after_head_accepted (Context c)
+        bool receiving_request_body (Context c)
         {
-            AMBRO_ASSERT(!m_user_accepting_request_body || m_user)
-            
-            // If there is no request body, treat it like there is a zero-length
-            // one, for simpler code.
-            if (!m_have_request_body) {
-                m_rem_req_body_length = 0;
-            }
-            
-            // Handle 100-continue stuff.
-            if (m_have_request_body && m_expect_100_continue) {
-                if (m_user_accepting_request_body) {
-                    // The user is prepared to accept the request body.
-                    // Send 100-continue and receive the reqeust body.
-                    send_string(c, "HTTP/1.1 100 Continue\r\n\r\n");
-                    m_connection.pokeSending(c);
-                } else {
-                    // The user will not be accepting the request body, so
-                    // skip receiving the request body.
-                    m_have_chunked = false;
-                    m_rem_req_body_length = 0;
-                }
-            }
-            
-            // Check if the entire body is already received.
-            m_req_body_recevied = (!m_have_chunked && m_rem_req_body_length == 0);
-            
-            // Go on receiving the request body.
-            if (m_have_chunked) {
-                m_state = State::RECV_CHUNK_HEADER;
-                m_rem_allowed_length = Params::MaxHeaderLineLength;
-            } else {
-                m_state = State::RECV_KNOWN_LENGTH_BODY;
-            }
-            m_event.prependNow(c);
+            return (m_recv_state == RecvState::RECV_KNOWN_LENGTH ||
+                    m_recv_state == RecvState::RECV_CHUNK_HEADER ||
+                    m_recv_state == RecvState::RECV_CHUNK_DATA);
         }
         
-        void send_error_and_disconnect (Context c, char const *status)
+        void start_receiving_request_body (Context c, bool user_accepting)
         {
+            AMBRO_ASSERT(m_recv_state == RecvState::NOT_STARTED)
+            AMBRO_ASSERT(!user_accepting || m_user)
+            AMBRO_ASSERT(!m_user_accepting_request_body)
+            AMBRO_ASSERT(m_have_request_body)
+            
+            // Send 100-continue if needed.
+            if (m_expect_100_continue && m_send_state == SendState::HEAD_NOT_SENT) {
+                send_string(c, "HTTP/1.1 100 Continue\r\n\r\n");
+                m_connection.pokeSending(c);
+            }
+            
+            // Remember if the user is accepting the body (else we're discarding it).
+            if (user_accepting) {
+                m_user_accepting_request_body = true;
+            }
+            
+            // Start receiving the request body, chunked or known-length.
+            if (m_have_chunked) {
+                m_req_body_recevied = false;
+                prepare_for_receiving_chunk_header(c);
+            } else {
+                m_req_body_recevied = (m_rem_req_body_length == 0);
+                m_recv_state = RecvState::RECV_KNOWN_LENGTH;
+            }
+            m_recv_event.prependNow(c);
+        }
+        
+        size_t get_request_body_avail (Context c)
+        {
+            AMBRO_ASSERT(receiving_request_body(c))
+            
+            if (m_recv_state == RecvState::RECV_CHUNK_HEADER) {
+                return 0;
+            }
+            return (size_t)MinValue((uint64_t)m_rx_buf_length, m_rem_req_body_length);
+        }
+        
+        void consume_request_body (Context c, size_t amount)
+        {
+            AMBRO_ASSERT(m_recv_state == RecvState::RECV_KNOWN_LENGTH || m_recv_state == RecvState::RECV_CHUNK_DATA)
+            AMBRO_ASSERT(amount > 0)
+            AMBRO_ASSERT(amount <= m_rx_buf_length)
+            AMBRO_ASSERT(amount <= m_rem_req_body_length)
+            AMBRO_ASSERT(!m_req_body_recevied)
+            
+            // Adjust RX buffer and remaining-data length.
+            accept_rx_data(c, amount);
+            m_rem_req_body_length -= amount;
+            
+            // End of known-length body or chunk?
+            if (m_rem_req_body_length == 0) {
+                if (m_recv_state == RecvState::RECV_KNOWN_LENGTH) {
+                    m_req_body_recevied = true;
+                } else {
+                    prepare_for_receiving_chunk_header(c);
+                }
+                m_recv_event.prependNow(c);
+            }
+        }
+        
+        void abandon_request_body (Context c)
+        {
+            AMBRO_ASSERT(m_recv_state != RecvState::INVALID)
+            
+            if (m_recv_state == RecvState::NOT_STARTED) {
+                // Start receiving the request body now, discarding all data.
+                start_receiving_request_body(c, false);
+            }
+            else if (m_recv_state != RecvState::COMPLETED) {
+                // Discard any remaining request-body data.
+                m_user_accepting_request_body = false;
+                m_recv_event.prependNow(c);
+            }
+        }
+        
+        void prepare_for_receiving_chunk_header (Context c)
+        {
+            // We need to set m_rem_allowed_length each time we start to receive a chunk header.
+            m_recv_state = RecvState::RECV_CHUNK_HEADER;
+            m_rem_allowed_length = Params::MaxHeaderLineLength;
+        }
+        
+        void send_error_and_disconnect (Context c, char const *resp_status)
+        {
+            AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
+            AMBRO_ASSERT(m_state != State::WAIT_SEND_BUF_FOR_REQUEST)
+            AMBRO_ASSERT(m_send_state == SendState::INVALID || m_send_state == SendState::HEAD_NOT_SENT)
+            AMBRO_ASSERT(resp_status)
+            
             // Terminate the request with the user, if any.
             terminate_user(c);
-            m_user_accepting_request_body = false;
-            m_user_providing_response_body = false;
             
-            // Send a response and go to State::DISCONNECT_AFTER_SENDING.
-            m_resp_status = status;
-            send_response(c, true);
+            // Send a response with the given status.
+            send_response(c, resp_status, true);
+            
+            // Disconnect the client after all data has been sent.
+            m_state = State::DISCONNECT_AFTER_SENDING;
+            m_recv_state = RecvState::INVALID;
+            m_send_state = SendState::INVALID;
+            m_send_event.prependNow(c);
         }
         
-        void send_response (Context c, bool close_connection)
+        void send_response (Context c, char const *resp_status, bool send_status_as_body, char const *content_type=nullptr)
         {
-            AMBRO_ASSERT(!m_user_providing_response_body || m_user)
-            AMBRO_ASSERT(!close_connection || !m_user_providing_response_body)
-            
-            // Use text/plain content-type, unless the user is providing the
-            // response payload and has specified the content type.
-            if (!m_user_providing_response_body || !m_resp_content_type) {
-                m_resp_content_type = "text/plain; charset=utf-8";
+            if (!resp_status) {
+                resp_status = HttpStatusCodes::Okay();
+            }
+            if (!content_type) {
+                content_type = HttpContentTypes::TextPlainUtf8();
             }
             
             // Send the response head.
             send_string(c, "HTTP/1.1 ");
-            send_string(c, m_resp_status);
+            send_string(c, resp_status);
             send_string(c, "\r\nServer: Aprinter\r\nContent-Type: ");
-            send_string(c, m_resp_content_type);
+            send_string(c, content_type);
             send_string(c, "\r\n");
-            if (!m_user_providing_response_body) {
+            if (send_status_as_body) {
                 send_string(c, "Content-Length: ");
                 char length_buf[12];
-                sprintf(length_buf, "%d", (int)(strlen(m_resp_status) + 1));
+                sprintf(length_buf, "%d", (int)(strlen(resp_status) + 1));
                 send_string(c, length_buf);
             } else {
                 send_string(c, "Transfer-Encoding: chunked");
             }
             send_string(c, "\r\n\r\n");
             
-            if (!m_user_providing_response_body) {
-                // We send the status as the response.
-                send_string(c, m_resp_status);
+            // If desired send the status as the response body.
+            if (send_status_as_body) {
+                send_string(c, resp_status);
                 send_string(c, "\n");
-                m_connection.pokeSending(c);
-                
-                // Either we prepare for another request or close the connection
-                // after sending the response, as desired.
-                if (close_connection) {
-                    m_state = State::DISCONNECT_AFTER_SENDING;
-                    m_event.prependNow(c);
-                } else {
-                    // TBD: m_user
-                    prepare_for_request(c);
-                }
-            } else {
-                // The user will now be producing the response body.
-                m_connection.pokeSending(c);
-                m_state = State::SEND_RESPONSE_BODY;
-                m_event.prependNow(c);
+            }
+            
+            m_connection.pokeSending(c);
+        }
+        
+        void abandon_response (Context c)
+        {
+            if (m_send_state == SendState::HEAD_NOT_SENT) {
+                // The response head has not been sent.
+                // Send the response now, with the status as the body.
+                send_response(c, m_resp_status, true);
+                m_send_state = SendState::COMPLETED;
+            }
+            else if (m_send_state == SendState::SEND_BODY) {
+                // The response hread has been sent and possibly some body,
+                // but we need to terminate it with a zero-chunk.
+                m_send_state = SendState::SEND_LAST_CHUNK;
+                m_send_event.prependNow(c);
             }
         }
         
-    public: // HttpRequestInterface functions
+    public:
+        // HttpRequestInterface functions
+        
         char const * getMethod (Context c)
         {
-            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED || m_user)
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             
             return m_request_method;
         }
         
         char const * getPath (Context c)
         {
-            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED || m_user)
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             
             return m_request_path;
         }
         
         bool hasRequestBody (Context c)
         {
-            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED || m_user)
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             
             return m_have_request_body;
         }
         
-        void adoptRequest (Context c, RequestUserCallback *callback)
+        void setCallback (Context c, RequestUserCallback *callback)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             AMBRO_ASSERT(!m_user)
             AMBRO_ASSERT(callback)
             
+            // Remember the user-callback object.
             m_user = callback;
         }
         
-        void abandonRequest (Context c)
+        void completeHandling (Context c)
         {
-            AMBRO_ASSERT(m_user)
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_recv_state != RecvState::INVALID)
+            AMBRO_ASSERT(m_send_state != SendState::INVALID)
             
-            // Remember that the user is gone. We will not call any
-            // more HttpRequestInterface callbacks from this point or
-            // expect/allow calls from the user.
+            // Remember that the user is gone.
+            m_state = State::USER_GONE;
             m_user = nullptr;
             
-            // The user is not able to accept a request body or
-            // provide a response body from now on.
-            m_user_accepting_request_body = false;
-            m_user_providing_response_body = false;
+            // Make sure that receiving the request body proceeds.
+            // Note: this is done before abandon_response so that we
+            // have a better chance of being able to send 100-continue.
+            abandon_request_body(c);
             
-            if (m_state == State::HEAD_RECEIVED) {
-                // Continue handling the request, since we will not get an
-                // acceptRequestHead call from the user.
-                continue_after_head_accepted(c);
-            } else {
-                // We may need to continue dealing with a pending request or
-                // response body ourselves.
-                m_event.prependNow(c);
-            }
+            // Make sure that sending the response proceeds.
+            abandon_response(c);
+            
+            // Check if the next request can begin.
+            check_for_next_request(c);
         }
         
-        void willAcceptRequestBody (Context c)
+        void adoptRequestBody (Context c)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_recv_state == RecvState::NOT_STARTED)
             AMBRO_ASSERT(m_user)
             
-            m_user_accepting_request_body = true;
+            // Start receiving the request body, passing it to the user.
+            start_receiving_request_body(c, true);
         }
         
-        void willProvideResponseBody (Context c)
-        {
-            AMBRO_ASSERT(response_is_pending(c))
-            AMBRO_ASSERT(m_user)
-            
-            m_user_providing_response_body = true;
-        }
-        
-        void acceptRequestHead (Context c)
+        void abandonRequestBody (Context c)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_recv_state == RecvState::NOT_STARTED || receiving_request_body(c))
+            AMBRO_ASSERT(m_recv_state == RecvState::NOT_STARTED || m_user_accepting_request_body)
             
-            continue_after_head_accepted(c);
-        }
-        
-        void setResponseStatus (Context c, char const *status)
-        {
-            AMBRO_ASSERT(response_is_pending(c))
-            AMBRO_ASSERT(status)
-            
-            m_resp_status = status;
-        }
-        
-        void setResponseContentType (Context c, char const *content_type)
-        {
-            AMBRO_ASSERT(response_is_pending(c))
-            AMBRO_ASSERT(content_type)
-            
-            m_resp_content_type = content_type;
-        }
-        
-        void acceptRequestBody (Context c)
-        {
-            AMBRO_ASSERT(receiving_request_body(c))
-            AMBRO_ASSERT(m_user_accepting_request_body)
-            AMBRO_ASSERT(m_req_body_recevied)
-            
-            send_response(c, false);
+            abandon_request_body(c);
         }
         
         RequestBodyBufferState getRequestBodyBufferState (Context c)
         {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             AMBRO_ASSERT(receiving_request_body(c))
             AMBRO_ASSERT(m_user_accepting_request_body)
             
@@ -918,6 +905,7 @@ private:
         
         void acceptRequestBodyData (Context c, size_t length)
         {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             AMBRO_ASSERT(receiving_request_body(c))
             AMBRO_ASSERT(m_user_accepting_request_body)
             AMBRO_ASSERT(length <= get_request_body_avail(c))
@@ -927,49 +915,94 @@ private:
             }
         }
         
+        void setResponseStatus (Context c, char const *status)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT)
+            AMBRO_ASSERT(status)
+            
+            m_resp_status = status;
+        }
+        
+        void setResponseContentType (Context c, char const *content_type)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT)
+            AMBRO_ASSERT(content_type)
+            
+            m_resp_content_type = content_type;
+        }
+        
+        void adoptResponseBody (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT)
+            AMBRO_ASSERT(m_user)
+            
+            // Send the response head.
+            send_response(c, m_resp_status, false, m_resp_content_type);
+            
+            // The user will now be producing the response body.
+            m_send_state = SendState::SEND_BODY;
+            m_send_event.prependNow(c);
+        }
+        
+        void abandonResponseBody (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT || m_send_state == SendState::SEND_BODY)
+            AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT || m_user)
+            
+            abandon_response(c);
+        }
+        
         ResponseBodyBufferState getResponseBodyBufferState (Context c)
         {
-            AMBRO_ASSERT(m_state == State::SEND_RESPONSE_BODY)
-            AMBRO_ASSERT(m_user_providing_response_body)
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_send_state == SendState::SEND_BODY)
+            AMBRO_ASSERT(m_user)
             
             WrapBuffer con_space_buffer;
             size_t con_space_avail = m_connection.getSendBufferSpace(c, &con_space_buffer);
             
             if (con_space_avail < TxChunkHeaderSize) {
                 return ResponseBodyBufferState{con_space_buffer, 0};
-            } else {
-                return ResponseBodyBufferState{con_space_buffer.subFrom(TxChunkHeaderSize), con_space_avail - TxChunkHeaderSize};
             }
+            return ResponseBodyBufferState{con_space_buffer.subFrom(TxChunkHeaderSize), con_space_avail - TxChunkHeaderSize};
         }
         
         void provideResponseBodyData (Context c, size_t length)
         {
-            AMBRO_ASSERT(m_state == State::SEND_RESPONSE_BODY)
-            AMBRO_ASSERT(m_user_providing_response_body)
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            AMBRO_ASSERT(m_send_state == SendState::SEND_BODY)
+            AMBRO_ASSERT(m_user)
             
             if (length > 0) {
+                // Get the send buffer reference and sanity check the length / space.
                 WrapBuffer con_space_buffer;
                 size_t con_space_avail = m_connection.getSendBufferSpace(c, &con_space_buffer);
                 AMBRO_ASSERT(con_space_avail >= TxChunkHeaderSize)
                 AMBRO_ASSERT(length <= con_space_avail - TxChunkHeaderSize)
                 
+                // Write the chunk header into the send buffer.
                 char chunk_header[TxChunkHeaderSize + 1];
                 sprintf(chunk_header, "%.*" PRIu32 "\r\n", (int)Params::TxChunkHeaderDigits, (uint32_t)length);
                 con_space_buffer.copyIn(0, TxChunkHeaderSize, chunk_header);
-                
                 m_connection.copySendData(c, nullptr, TxChunkHeaderSize + length);
+                
+                // Poke the connection to send data.
                 m_connection.pokeSending(c);
             }
         }
         
     public:
-        typename Context::EventLoop::QueuedEvent m_event;
+        typename Context::EventLoop::QueuedEvent m_send_event;
+        typename Context::EventLoop::QueuedEvent m_recv_event;
         TheTcpConnection m_connection;
         RequestUserCallback *m_user;
         size_t m_rx_buf_start;
         size_t m_rx_buf_length;
         size_t m_line_length;
-        size_t m_request_line_length;
         size_t m_rem_allowed_length;
         uint64_t m_rem_req_body_length;
         char const *m_request_method;
@@ -977,6 +1010,8 @@ private:
         char const *m_resp_status;
         char const *m_resp_content_type;
         State m_state;
+        RecvState m_recv_state;
+        SendState m_send_state;
         bool m_line_overflow;
         bool m_null_in_line;
         bool m_request_line_overflow;
@@ -987,9 +1022,8 @@ private:
         bool m_expect_100_continue;
         bool m_expectation_failed;
         bool m_have_request_body;
-        bool m_user_accepting_request_body;
-        bool m_user_providing_response_body;
         bool m_req_body_recevied;
+        bool m_user_accepting_request_body;
         char m_rx_buf[RxBufferSize];
         char m_request_line[Params::MaxRequestLineLength];
         char m_header_line[Params::MaxHeaderLineLength];

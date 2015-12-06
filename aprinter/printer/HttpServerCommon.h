@@ -44,6 +44,10 @@ struct HttpStatusCodes {
     static constexpr char const * HttpVersionNotSupported() { return "505 HTTP Version Not Supported"; }
 };
 
+struct HttpContentTypes {
+    static constexpr char const * TextPlainUtf8() { return "text/plain; charset=utf-8"; }
+};
+
 template <typename Context>
 class HttpRequestInterface {
 public:
@@ -68,19 +72,19 @@ public:
     virtual char const * getPath (Context c) = 0;
     virtual bool hasRequestBody (Context c) = 0;
     
-    virtual void adoptRequest (Context c, RequestUserCallback *callback) = 0;
-    virtual void abandonRequest (Context c) = 0;
+    virtual void setCallback (Context c, RequestUserCallback *callback) = 0;
+    virtual void completeHandling (Context c) = 0;
     
-    virtual void willAcceptRequestBody (Context c) = 0;
-    virtual void willProvideResponseBody (Context c) = 0;
-    virtual void acceptRequestHead (Context c) = 0;
-    virtual void setResponseStatus (Context c, char const *status) = 0;
-    virtual void setResponseContentType (Context c, char const *content_type) = 0;
-    virtual void acceptRequestBody (Context c) = 0;
-    
+    virtual void adoptRequestBody (Context c) = 0;
+    virtual void abandonRequestBody (Context c) = 0;
     virtual RequestBodyBufferState getRequestBodyBufferState (Context c) = 0;
     virtual void acceptRequestBodyData (Context c, size_t length) = 0;
     
+    virtual void setResponseStatus (Context c, char const *status) = 0;
+    virtual void setResponseContentType (Context c, char const *content_type) = 0;
+    
+    virtual void adoptResponseBody (Context c) = 0;
+    virtual void abandonResponseBody (Context c) = 0;
     virtual ResponseBodyBufferState getResponseBodyBufferState (Context c) = 0;
     virtual void provideResponseBodyData (Context c, size_t length) = 0;
 };
