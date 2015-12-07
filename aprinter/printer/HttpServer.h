@@ -439,7 +439,7 @@ private:
             // Detect too long request bodies / lines.
             if (pos > m_rem_allowed_length) {
                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientRequestTooLong\n"));
-                return send_error_and_disconnect(c, HttpStatusCodes::RequestHeaderFieldsTooLarge());
+                return send_error_if_possible_and_disconnect(c, HttpStatusCodes::RequestHeaderFieldsTooLarge());
             }
             m_rem_allowed_length -= pos;
             
@@ -494,7 +494,7 @@ private:
                     // Check for errors in line parsing.
                     if (overflow || m_null_in_line) {
                         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
-                        return send_error_and_disconnect(c, HttpStatusCodes::BadRequest());
+                        return send_error_if_possible_and_disconnect(c, HttpStatusCodes::BadRequest());
                     }
                     
                     // Parse the chunk length.
@@ -502,7 +502,7 @@ private:
                     unsigned long long int value = strtoull(m_header_line, &endptr, 16);
                     if (endptr == m_header_line || (*endptr != '\0' && *endptr != ';')) {
                         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
-                        return send_error_and_disconnect(c, HttpStatusCodes::BadRequest());
+                        return send_error_if_possible_and_disconnect(c, HttpStatusCodes::BadRequest());
                     }
                     
                     // Remember the chunk length and continue in event_handler.
@@ -648,7 +648,7 @@ private:
             
         error:
             // Respond with an error and close the connection.
-            send_error_and_disconnect(c, status);
+            send_error_if_possible_and_disconnect(c, status);
         }
         
         bool receiving_request_body (Context c)
@@ -742,18 +742,19 @@ private:
             m_rem_allowed_length = Params::MaxHeaderLineLength;
         }
         
-        void send_error_and_disconnect (Context c, char const *resp_status)
+        void send_error_if_possible_and_disconnect (Context c, char const *resp_status)
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             AMBRO_ASSERT(m_state != State::WAIT_SEND_BUF_FOR_REQUEST)
-            AMBRO_ASSERT(m_send_state == SendState::INVALID || m_send_state == SendState::HEAD_NOT_SENT)
             AMBRO_ASSERT(resp_status)
             
             // Terminate the request with the user, if any.
             terminate_user(c);
             
-            // Send a response with the given status.
-            send_response(c, resp_status, true);
+            // If we have not yet sent a response, send an error response.
+            if (m_send_state == SendState::INVALID || m_send_state == SendState::HEAD_NOT_SENT) {
+                send_response(c, resp_status, true);
+            }
             
             // Disconnect the client after all data has been sent.
             m_state = State::DISCONNECT_AFTER_SENDING;
