@@ -26,7 +26,6 @@
 #define APRINTER_HTTP_SERVER_COMMON_H
 
 #include <stddef.h>
-#include <stdint.h>
 
 #include <aprinter/base/WrapBuffer.h>
 

@@ -139,9 +139,9 @@ private:
             DISCONNECT_AFTER_SENDING, CALLING_REQUEST_TERMINATED
         };
         
-        enum RecvState : uint8_t {INVALID, NOT_STARTED, RECV_KNOWN_LENGTH, RECV_CHUNK_HEADER, RECV_CHUNK_DATA, COMPLETED};
+        enum class RecvState : uint8_t {INVALID, NOT_STARTED, RECV_KNOWN_LENGTH, RECV_CHUNK_HEADER, RECV_CHUNK_DATA, COMPLETED};
         
-        enum SendState : uint8_t {INVALID, HEAD_NOT_SENT, SEND_BODY, SEND_LAST_CHUNK, COMPLETED};
+        enum class SendState : uint8_t {INVALID, HEAD_NOT_SENT, SEND_BODY, SEND_LAST_CHUNK, COMPLETED};
         
         void accept_rx_data (Context c, size_t amount)
         {
@@ -746,6 +746,7 @@ private:
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             AMBRO_ASSERT(m_state != State::WAIT_SEND_BUF_FOR_REQUEST)
+            AMBRO_ASSERT(m_state != State::DISCONNECT_AFTER_SENDING)
             AMBRO_ASSERT(resp_status)
             
             // Terminate the request with the user, if any.
@@ -797,8 +798,10 @@ private:
             m_connection.pokeSending(c);
         }
         
-        void abandon_response (Context c)
+        void abandon_response_body (Context c)
         {
+            AMBRO_ASSERT(m_send_state != SendState::INVALID)
+            
             if (m_send_state == SendState::HEAD_NOT_SENT) {
                 // The response head has not been sent.
                 // Send the response now, with the status as the body.
@@ -857,15 +860,16 @@ private:
             m_state = State::USER_GONE;
             m_user = nullptr;
             
+            // Make sure that sending the response proceeds.
+            abandon_response_body(c);
+            
             // Make sure that receiving the request body proceeds.
-            // Note: this is done before abandon_response so that we
-            // have a better chance of being able to send 100-continue.
+            // Note: this is done after abandon_response_body so that we
+            // don't unnecessarily send 100-continue.
             abandon_request_body(c);
             
-            // Make sure that sending the response proceeds.
-            abandon_response(c);
-            
-            // Check if the next request can begin.
+            // Check if the next request can begin already; we may have to complete
+            // receiving the request body and sending the response.
             check_for_next_request(c);
         }
         
@@ -894,14 +898,9 @@ private:
             AMBRO_ASSERT(receiving_request_body(c))
             AMBRO_ASSERT(m_user_accepting_request_body)
             
+            WrapBuffer data = WrapBuffer::Make(RxBufferSize - m_rx_buf_start, m_rx_buf + m_rx_buf_start, m_rx_buf);
             size_t data_len = get_request_body_avail(c);
-            size_t first_chunk_len = MinValue(data_len, (size_t)(RxBufferSize - m_rx_buf_start));
-            
-            return RequestBodyBufferState{
-                WrapBuffer::Make(first_chunk_len, m_rx_buf + m_rx_buf_start, m_rx_buf),
-                data_len,
-                m_req_body_recevied
-            };
+            return RequestBodyBufferState{data, data_len, m_req_body_recevied};
         }
         
         void acceptRequestBodyData (Context c, size_t length)
@@ -954,7 +953,7 @@ private:
             AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT || m_send_state == SendState::SEND_BODY)
             AMBRO_ASSERT(m_send_state == SendState::HEAD_NOT_SENT || m_user)
             
-            abandon_response(c);
+            abandon_response_body(c);
         }
         
         ResponseBodyBufferState getResponseBodyBufferState (Context c)
@@ -967,7 +966,7 @@ private:
             size_t con_space_avail = m_connection.getSendBufferSpace(c, &con_space_buffer);
             
             if (con_space_avail < TxChunkHeaderSize) {
-                return ResponseBodyBufferState{con_space_buffer, 0};
+                return ResponseBodyBufferState{WrapBuffer::Make(nullptr), 0};
             }
             return ResponseBodyBufferState{con_space_buffer.subFrom(TxChunkHeaderSize), con_space_avail - TxChunkHeaderSize};
         }
@@ -978,22 +977,24 @@ private:
             AMBRO_ASSERT(m_send_state == SendState::SEND_BODY)
             AMBRO_ASSERT(m_user)
             
-            if (length > 0) {
-                // Get the send buffer reference and sanity check the length / space.
-                WrapBuffer con_space_buffer;
-                size_t con_space_avail = m_connection.getSendBufferSpace(c, &con_space_buffer);
-                AMBRO_ASSERT(con_space_avail >= TxChunkHeaderSize)
-                AMBRO_ASSERT(length <= con_space_avail - TxChunkHeaderSize)
-                
-                // Write the chunk header into the send buffer.
-                char chunk_header[TxChunkHeaderSize + 1];
-                sprintf(chunk_header, "%.*" PRIu32 "\r\n", (int)Params::TxChunkHeaderDigits, (uint32_t)length);
-                con_space_buffer.copyIn(0, TxChunkHeaderSize, chunk_header);
-                m_connection.copySendData(c, nullptr, TxChunkHeaderSize + length);
-                
-                // Poke the connection to send data.
-                m_connection.pokeSending(c);
+            if (length == 0) {
+                return;
             }
+            
+            // Get the send buffer reference and sanity check the length / space.
+            WrapBuffer con_space_buffer;
+            size_t con_space_avail = m_connection.getSendBufferSpace(c, &con_space_buffer);
+            AMBRO_ASSERT(con_space_avail >= TxChunkHeaderSize)
+            AMBRO_ASSERT(length <= con_space_avail - TxChunkHeaderSize)
+            
+            // Write the chunk header into the send buffer.
+            char chunk_header[TxChunkHeaderSize + 1];
+            sprintf(chunk_header, "%.*" PRIu32 "\r\n", (int)Params::TxChunkHeaderDigits, (uint32_t)length);
+            con_space_buffer.copyIn(0, TxChunkHeaderSize, chunk_header);
+            m_connection.copySendData(c, nullptr, TxChunkHeaderSize + length);
+            
+            // Poke the connection to send data.
+            m_connection.pokeSending(c);
         }
         
     public:

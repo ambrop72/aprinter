@@ -47,8 +47,12 @@ private:
     static size_t const HttpMaxRequestHeadLength = 10000;
     static size_t const HttpTxChunkHeaderDigits = 4;
     
+    using TheTheHttpServerService = HttpServerService<
+        Params::Port, Params::MaxClients, HttpMaxRequestLineLength, HttpMaxHeaderLineLength,
+        HttpExpectedResponseLength, HttpMaxRequestHeadLength, HttpTxChunkHeaderDigits
+    >;
+    
     struct HttpRequestHandler;
-    using TheTheHttpServerService = HttpServerService<Params::Port, Params::MaxClients, HttpMaxRequestLineLength, HttpMaxHeaderLineLength, HttpExpectedResponseLength, HttpMaxRequestHeadLength, HttpTxChunkHeaderDigits>;
     using TheHttpServer = typename TheTheHttpServerService::template Server<Context, Object, ThePrinterMain, HttpRequestHandler>;
     using TheRequestInterface = typename TheHttpServer::TheRequestInterface;
     
@@ -83,7 +87,7 @@ private:
         output->reply_poke(c);
         
         request->setResponseStatus(c, HttpStatusCodes::NotFound());
-        request->acceptRequestHead(c);
+        request->completeHandling(c);
     }
     struct HttpRequestHandler : public AMBRO_WFUNC_TD(&WebInterfaceModule::http_request_handler) {};
     
