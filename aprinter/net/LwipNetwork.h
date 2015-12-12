@@ -475,7 +475,7 @@ public:
             
             if (m_pcb) {
                 remove_pcb_callbacks(m_pcb);
-                close_pcb(m_pcb);
+                close_pcb(m_pcb, m_send_buf_passed_length);
                 m_pcb = nullptr;
             }
             m_write_event.unset(c);
@@ -592,7 +592,7 @@ public:
                 
                 case State::ERRORING: {
                     if (m_pcb) {
-                        close_pcb(m_pcb);
+                        close_pcb(m_pcb, m_send_buf_passed_length);
                         m_pcb = nullptr;
                     }
                     m_state = State::ERRORED;
@@ -649,10 +649,11 @@ public:
             tcp_sent(pcb, nullptr);
         }
         
-        static void close_pcb (struct tcp_pcb *pcb)
+        static void close_pcb (struct tcp_pcb *pcb, size_t send_buf_passed_length)
         {
-            auto err = tcp_close(pcb);
-            if (err != ERR_OK) {
+            // If we have unacked data queued for sending, we have to resort
+            // to tcp_abort() because the referenced m_send_buf may go away.
+            if (send_buf_passed_length > 0 || tcp_close(pcb) != ERR_OK) {
                 tcp_abort(pcb);
             }
         }
