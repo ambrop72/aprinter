@@ -192,6 +192,7 @@ private:
             // Initialzie the RX buffer.
             m_rx_buf_start = 0;
             m_rx_buf_length = 0;
+            m_rx_buf_eof = false;
             
             // Waiting for space in the send buffer.
             m_state = State::WAIT_SEND_BUF_FOR_REQUEST;
@@ -283,14 +284,23 @@ private:
         void connection_error_handler (Context c, bool remote_closed)
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
+            AMBRO_ASSERT(!remote_closed || !m_rx_buf_eof)
             
-            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientDisconnected\n"));
+            // If this is an EOF from the client, just note it and handle it later.
+            if (remote_closed) {
+                m_rx_buf_eof = true;
+                m_recv_event.prependNow(c);
+                return;
+            }
+            
+            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientError\n"));
             disconnect(c);
         }
         
         void connection_recv_handler (Context c, size_t bytes_read)
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
+            AMBRO_ASSERT(!m_rx_buf_eof)
             AMBRO_ASSERT(bytes_read <= RxBufferSize - m_rx_buf_length)
             
             // Write the received data to the RX buffer.
@@ -378,6 +388,13 @@ private:
                         
                         case RecvState::RECV_KNOWN_LENGTH:
                         case RecvState::RECV_CHUNK_DATA: {
+                            // Detect premature EOF from the client.
+                            // We don't bother passing any remaining data to the user, this is easier.
+                            if (m_rx_buf_eof && m_rx_buf_length < m_rem_req_body_length) {
+                                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInData\n"));
+                                return close_gracefully(c, nullptr);
+                            }
+                            
                             // When the user is accepting the request body, call the callback whenever
                             // we may have new data. Note that even after the user has received the
                             // entire body, we wait for abandonResponseBody() or completeHandling()
@@ -439,12 +456,16 @@ private:
             // Detect too long request bodies / lines.
             if (pos > m_rem_allowed_length) {
                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientRequestTooLong\n"));
-                return send_error_if_possible_and_disconnect(c, HttpStatusCodes::RequestHeaderFieldsTooLarge());
+                return close_gracefully(c, HttpStatusCodes::RequestHeaderFieldsTooLarge());
             }
             m_rem_allowed_length -= pos;
             
-            // If there was no newline yet, wait for more data.
+            // If there was no newline yet, wait for more data, or give up upon EOF.
             if (!end_of_line) {
+                if (m_rx_buf_eof) {
+                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInLine\n"));
+                    return close_gracefully(c, nullptr);
+                }
                 return;
             }
             
@@ -494,7 +515,7 @@ private:
                     // Check for errors in line parsing.
                     if (overflow || m_null_in_line) {
                         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
-                        return send_error_if_possible_and_disconnect(c, HttpStatusCodes::BadRequest());
+                        return close_gracefully(c, HttpStatusCodes::BadRequest());
                     }
                     
                     // Parse the chunk length.
@@ -502,7 +523,7 @@ private:
                     unsigned long long int value = strtoull(m_header_line, &endptr, 16);
                     if (endptr == m_header_line || (*endptr != '\0' && *endptr != ';')) {
                         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
-                        return send_error_if_possible_and_disconnect(c, HttpStatusCodes::BadRequest());
+                        return close_gracefully(c, HttpStatusCodes::BadRequest());
                     }
                     
                     // Remember the chunk length and continue in event_handler.
@@ -648,7 +669,7 @@ private:
             
         error:
             // Respond with an error and close the connection.
-            send_error_if_possible_and_disconnect(c, status);
+            close_gracefully(c, status);
         }
         
         bool receiving_request_body (Context c)
@@ -742,18 +763,17 @@ private:
             m_rem_allowed_length = Params::MaxHeaderLineLength;
         }
         
-        void send_error_if_possible_and_disconnect (Context c, char const *resp_status)
+        void close_gracefully (Context c, char const *resp_status)
         {
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
-            AMBRO_ASSERT(m_state != State::WAIT_SEND_BUF_FOR_REQUEST)
             AMBRO_ASSERT(m_state != State::DISCONNECT_AFTER_SENDING)
-            AMBRO_ASSERT(resp_status)
+            AMBRO_ASSERT(!resp_status || m_state != State::WAIT_SEND_BUF_FOR_REQUEST)
             
             // Terminate the request with the user, if any.
             terminate_user(c);
             
-            // If we have not yet sent a response, send an error response.
-            if (m_send_state == SendState::INVALID || m_send_state == SendState::HEAD_NOT_SENT) {
+            // Send an error response if desired and possible.
+            if (resp_status && (m_send_state == SendState::INVALID || m_send_state == SendState::HEAD_NOT_SENT)) {
                 send_response(c, resp_status, true);
             }
             
@@ -1026,6 +1046,7 @@ private:
         bool m_have_request_body;
         bool m_req_body_recevied;
         bool m_user_accepting_request_body;
+        bool m_rx_buf_eof;
         char m_rx_buf[RxBufferSize];
         char m_request_line[Params::MaxRequestLineLength];
         char m_header_line[Params::MaxHeaderLineLength];
