@@ -43,14 +43,17 @@ private:
     
     enum class State {
         IDLE,
-        WRITE_ACCESS, WRITE_BUFFER, WRITE_OPEN, WRITE_OPENWR, WRITE_READY,
-        WRITE_EVENT, WRITE_WRITE, WRITE_TRUNCATE, WRITE_FLUSH
+        OPEN_ACCESS, OPEN_BUFFER, OPEN_OPEN, OPEN_OPENWR,
+        READY,
+        WRITE_EVENT, WRITE_WRITE, WRITE_TRUNCATE, WRITE_FLUSH,
+        READ_EVENT, READ_READ
     };
     
 public:
+    enum class OpenMode {OPEN_READ, OPEN_WRITE};
     enum class Error {NO_ERROR, OTHER_ERROR, NOT_FOUND};
     
-    using CompletionHandler = Callback<void(Context c, Error error)>;
+    using CompletionHandler = Callback<void(Context c, Error error, size_t read_length)>;
     
     void init (Context c, CompletionHandler completion_handler)
     {
@@ -77,19 +80,21 @@ public:
         reset_internal(c);
     }
     
-    void startOpen (Context c, char const *filename, bool in_current_dir)
+    void startOpen (Context c, char const *filename, bool in_current_dir, OpenMode mode)
     {
         AMBRO_ASSERT(m_state == State::IDLE)
         
-        m_state = State::WRITE_ACCESS;
+        m_state = State::OPEN_ACCESS;
         m_filename = filename;
         m_in_current_dir = in_current_dir;
-        m_access_client.requestAccess(c, true);
+        m_write_mode = (mode == OpenMode::OPEN_WRITE);
+        m_access_client.requestAccess(c, m_write_mode);
     }
     
     void startWriteData (Context c, char const *data, size_t length)
     {
-        AMBRO_ASSERT(m_state == State::WRITE_READY)
+        AMBRO_ASSERT(m_state == State::READY)
+        AMBRO_ASSERT(m_write_mode)
         AMBRO_ASSERT(!m_write_eof)
         
         m_write_data = data;
@@ -100,7 +105,8 @@ public:
     
     void startWriteEof (Context c)
     {
-        AMBRO_ASSERT(m_state == State::WRITE_READY)
+        AMBRO_ASSERT(m_state == State::READY)
+        AMBRO_ASSERT(m_write_mode)
         AMBRO_ASSERT(!m_write_eof)
         
         m_write_eof = true;
@@ -109,9 +115,21 @@ public:
         m_event.prependNowNotAlready(c);
     }
     
-    bool isWriteReady (Context c)
+    void startReadData (Context c, char *data, size_t avail)
     {
-        return (m_state == State::WRITE_READY);
+        AMBRO_ASSERT(m_state == State::READY)
+        AMBRO_ASSERT(!m_write_mode)
+        
+        m_read_data = data;
+        m_read_avail = avail;
+        m_read_pos = 0;
+        m_state = State::READ_EVENT;
+        m_event.prependNowNotAlready(c);
+    }
+    
+    bool isReady (Context c)
+    {
+        return (m_state == State::READY);
     }
     
 private:
@@ -138,31 +156,31 @@ private:
     void reset_and_complete (Context c, Error error)
     {
         reset_internal(c);
-        return m_completion_handler(c, error);
+        return m_completion_handler(c, error, 0);
     }
     
     void access_client_handler (Context c, bool error)
     {
-        AMBRO_ASSERT(m_state == State::WRITE_ACCESS)
+        AMBRO_ASSERT(m_state == State::OPEN_ACCESS)
         
         if (error) {
             return reset_and_complete(c, Error::OTHER_ERROR);
         }
         
-        m_state = State::WRITE_BUFFER;
+        m_state = State::OPEN_BUFFER;
         m_user_buffer.requestUserBuffer(c);
     }
     
     void user_buffer_handler (Context c, bool error)
     {
-        AMBRO_ASSERT(m_state == State::WRITE_BUFFER)
+        AMBRO_ASSERT(m_state == State::OPEN_BUFFER)
         AMBRO_ASSERT(!m_have_opener)
         
         if (error) {
             return reset_and_complete(c, Error::OTHER_ERROR);
         }
         
-        m_state = State::WRITE_OPEN;
+        m_state = State::OPEN_OPEN;
         auto dir_entry = m_in_current_dir ? m_access_client.getCurrentDirectory(c) : TheFs::getRootEntry(c);
         m_fs_opener.init(c, dir_entry, TheFs::EntryType::FILE_TYPE, m_filename, APRINTER_CB_OBJFUNC_T(&BufferedFile::fs_opener_handler, this));
         m_have_opener = true;
@@ -170,7 +188,7 @@ private:
     
     void fs_opener_handler (Context c, typename TheFs::Opener::OpenerStatus status, typename TheFs::FsEntry entry)
     {
-        AMBRO_ASSERT(m_state == State::WRITE_OPEN)
+        AMBRO_ASSERT(m_state == State::OPEN_OPEN)
         AMBRO_ASSERT(m_have_opener)
         AMBRO_ASSERT(!m_have_file)
         
@@ -185,27 +203,42 @@ private:
         m_fs_file.init(c, entry, APRINTER_CB_OBJFUNC_T(&BufferedFile::fs_file_handler, this));
         m_have_file = true;
         
-        m_state = State::WRITE_OPENWR;
-        m_fs_file.startOpenWritable(c);
+        if (m_write_mode) {
+            m_state = State::OPEN_OPENWR;
+            m_fs_file.startOpenWritable(c);
+        } else {
+            m_state = State::READY;
+            m_read_buffer_pos = TheFs::BlockSize;
+            m_read_buffer_length = TheFs::BlockSize;
+            return m_completion_handler(c, Error::NO_ERROR, 0);
+        }
     }
     
     void fs_file_handler (Context c, bool io_error, size_t read_length)
     {
-        AMBRO_ASSERT(m_state == State::WRITE_OPENWR || m_state == State::WRITE_WRITE || m_state == State::WRITE_TRUNCATE)
+        AMBRO_ASSERT(m_state == State::OPEN_OPENWR || m_state == State::WRITE_WRITE || m_state == State::WRITE_TRUNCATE)
         
         if (io_error) {
             return reset_and_complete(c, Error::OTHER_ERROR);
         }
         
-        if (m_state == State::WRITE_OPENWR) {
-            m_state = State::WRITE_READY;
+        if (m_state == State::OPEN_OPENWR) {
+            m_state = State::READY;
             m_write_eof = false;
-            m_buffer_pos = 0;
-            return m_completion_handler(c, Error::NO_ERROR);
+            m_write_buffer_pos = 0;
+            return m_completion_handler(c, Error::NO_ERROR, 0);
         }
         else if (m_state == State::WRITE_WRITE) {
             m_state = State::WRITE_EVENT;
-            m_buffer_pos = 0;
+            m_write_buffer_pos = 0;
+            m_event.prependNowNotAlready(c);
+        }
+        else if (m_state == State::READ_READ) {
+            AMBRO_ASSERT(read_length <= TheFs::BlockSize)
+            
+            m_state = State::READ_EVENT;
+            m_read_buffer_pos = 0;
+            m_read_buffer_length = read_length;
             m_event.prependNowNotAlready(c);
         }
         else { // m_state == State::WRITE_TRUNCATE
@@ -233,30 +266,51 @@ private:
     
     void event_handler (Context c)
     {
-        AMBRO_ASSERT(m_state == State::WRITE_EVENT)
+        AMBRO_ASSERT(m_state == State::WRITE_EVENT || m_state == State::READ_EVENT)
         
-        size_t to_copy = MinValue(m_write_length, (size_t)(TheFs::BlockSize - m_buffer_pos));
-        if (to_copy > 0) {
-            memcpy(m_user_buffer.getUserBuffer(c) + m_buffer_pos, m_write_data, to_copy);
-            m_write_data += to_copy;
-            m_write_length -= to_copy;
-            m_buffer_pos += to_copy;
+        size_t read_length_for_callback = 0;
+        
+        if (m_state == State::WRITE_EVENT) {
+            size_t to_copy = MinValue(m_write_length, (size_t)(TheFs::BlockSize - m_write_buffer_pos));
+            if (to_copy > 0) {
+                memcpy(m_user_buffer.getUserBuffer(c) + m_write_buffer_pos, m_write_data, to_copy);
+                m_write_data += to_copy;
+                m_write_length -= to_copy;
+                m_write_buffer_pos += to_copy;
+            }
+            
+            if (m_write_buffer_pos == TheFs::BlockSize || (m_write_eof && m_write_buffer_pos > 0)) {
+                m_state = State::WRITE_WRITE;
+                m_fs_file.startWrite(c, WrapBuffer::Make(m_user_buffer.getUserBuffer(c)), m_write_buffer_pos);
+                return;
+            }
+            
+            if (m_write_eof) {
+                m_fs_file.startTruncate(c);
+                m_state = State::WRITE_TRUNCATE;
+                return;
+            }
+        } else {
+            size_t to_copy = MinValue(m_read_avail, (size_t)(m_read_buffer_length - m_read_buffer_pos));
+            if (to_copy > 0) {
+                memcpy(m_read_data, m_user_buffer.getUserBuffer(c) + m_read_buffer_pos, to_copy);
+                m_read_data += to_copy;
+                m_read_avail -= to_copy;
+                m_read_pos += to_copy;
+                m_read_buffer_pos += to_copy;
+            }
+            
+            if (m_read_avail > 0 && m_read_buffer_pos == TheFs::BlockSize) {
+                m_state = State::READ_READ;
+                m_fs_file.startRead(c, WrapBuffer::Make(m_user_buffer.getUserBuffer(c)));
+                return;
+            }
+            
+            read_length_for_callback = m_read_pos;
         }
         
-        if (m_buffer_pos == TheFs::BlockSize || (m_write_eof && m_buffer_pos > 0)) {
-            m_state = State::WRITE_WRITE;
-            m_fs_file.startWrite(c, WrapBuffer::Make(m_user_buffer.getUserBuffer(c)), m_buffer_pos);
-            return;
-        }
-        
-        if (m_write_eof) {
-            m_fs_file.startTruncate(c);
-            m_state = State::WRITE_TRUNCATE;
-            return;
-        }
-        
-        m_state = State::WRITE_READY;
-        return m_completion_handler(c, Error::NO_ERROR);
+        m_state = State::READY;
+        return m_completion_handler(c, Error::NO_ERROR, read_length_for_callback);
     }
     
 public:
@@ -273,16 +327,26 @@ public:
     bool m_have_opener : 1;
     bool m_have_file : 1;
     bool m_have_flush : 1;
+    bool m_write_mode : 1;
     bool m_in_current_dir : 1;
     bool m_write_eof : 1;
     union {
         struct {
             char const *m_filename;
         };
-        struct {
-            char const *m_write_data;
-            size_t m_write_length;
-            size_t m_buffer_pos;
+        union {
+            struct {
+                char const *m_write_data;
+                size_t m_write_length;
+                size_t m_write_buffer_pos;
+            };
+            struct {
+                char *m_read_data;
+                size_t m_read_avail;
+                size_t m_read_pos;
+                size_t m_read_buffer_pos;
+                size_t m_read_buffer_length;
+            };
         };
     };
 };
