@@ -216,7 +216,7 @@ private:
     
     void fs_file_handler (Context c, bool io_error, size_t read_length)
     {
-        AMBRO_ASSERT(m_state == State::OPEN_OPENWR || m_state == State::WRITE_WRITE || m_state == State::WRITE_TRUNCATE)
+        AMBRO_ASSERT(m_state == State::OPEN_OPENWR || m_state == State::WRITE_WRITE || m_state == State::READ_READ || m_state == State::WRITE_TRUNCATE)
         
         if (io_error) {
             return reset_and_complete(c, Error::OTHER_ERROR);
