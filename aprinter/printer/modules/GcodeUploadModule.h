@@ -107,7 +107,7 @@ private:
         }
         
         o->state = State::OPENING;
-        o->file.startOpen(c, filename, true);
+        o->file.startOpen(c, filename, true, TheBufferedFile::OpenMode::OPEN_WRITE);
     }
     
     static void handle_stop_command (Context c, TheCommand *cmd)
@@ -126,7 +126,7 @@ private:
         start_closing(c, true);
     }
     
-    static void file_handler (Context c, typename TheBufferedFile::Error error)
+    static void file_handler (Context c, typename TheBufferedFile::Error error, size_t read_length)
     {
         auto *o = Object::self(c);
         
@@ -202,7 +202,7 @@ private:
             return cmd->finishCommand(c);
         }
         
-        if (!o->file.isWriteReady(c)) {
+        if (!o->file.isReady(c)) {
             cmd->reportError(c, AMBRO_PSTR("FileNotReady"));
             return cmd->finishCommand(c);
         }
@@ -225,7 +225,7 @@ private:
         o->state = State::CLOSING;
         o->closing_for_command = for_command;
         
-        if (!o->file.isWriteReady(c)) {
+        if (!o->file.isReady(c)) {
             return complete_close(c, AMBRO_PSTR("FileNotReady"));
         }
         

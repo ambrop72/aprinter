@@ -47,7 +47,7 @@ struct HttpContentTypes {
     static constexpr char const * TextPlainUtf8() { return "text/plain; charset=utf-8"; }
 };
 
-template <typename Context>
+template <typename Context, typename UserClientState>
 class HttpRequestInterface {
 public:
     struct RequestUserCallback {
@@ -67,6 +67,7 @@ public:
         size_t length;
     };
     
+    virtual UserClientState * getUserClientState (Context c) = 0;
     virtual char const * getMethod (Context c) = 0;
     virtual char const * getPath (Context c) = 0;
     virtual bool hasRequestBody (Context c) = 0;

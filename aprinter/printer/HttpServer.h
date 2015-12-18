@@ -44,13 +44,13 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename RequestHandler, typename Params>
+template <typename Context, typename ParentObject, typename ThePrinterMain, typename RequestHandler, typename UserClientState, typename Params>
 class HttpServer {
 public:
     struct Object;
     
 public:
-    using TheRequestInterface = HttpRequestInterface<Context>;
+    using TheRequestInterface = HttpRequestInterface<Context, UserClientState>;
     
 private:
     using TheTcpListener   = typename Context::Network::TcpListener;
@@ -84,6 +84,8 @@ private:
     static_assert(Params::TxChunkHeaderDigits >= HexDigitsInInt<TxBufferSizeForChunkData>::Value, "");
     
 public:
+    static size_t const MaxTxChunkSize = TxBufferSizeForChunkData;
+    
     static void init (Context c)
     {
         auto *o = Object::self(c);
@@ -171,10 +173,12 @@ private:
             m_state = State::NOT_CONNECTED;
             m_recv_state = RecvState::INVALID;
             m_send_state = SendState::INVALID;
+            m_user_client_state.init(c);
         }
         
         void deinit (Context c)
         {
+            m_user_client_state.deinit(c);
             m_connection.deinit(c);
             m_recv_event.deinit(c);
             m_send_event.deinit(c);
@@ -839,6 +843,11 @@ private:
     public:
         // HttpRequestInterface functions
         
+        UserClientState * getUserClientState (Context c)
+        {
+            return &m_user_client_state;
+        }
+        
         char const * getMethod (Context c)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
@@ -1009,7 +1018,7 @@ private:
             
             // Write the chunk header into the send buffer.
             char chunk_header[TxChunkHeaderSize + 1];
-            sprintf(chunk_header, "%.*" PRIu32 "\r\n", (int)Params::TxChunkHeaderDigits, (uint32_t)length);
+            sprintf(chunk_header, "%.*" PRIx32 "\r\n", (int)Params::TxChunkHeaderDigits, (uint32_t)length);
             con_space_buffer.copyIn(0, TxChunkHeaderSize, chunk_header);
             m_connection.copySendData(c, nullptr, TxChunkHeaderSize + length);
             
@@ -1022,6 +1031,7 @@ private:
         typename Context::EventLoop::QueuedEvent m_recv_event;
         TheTcpConnection m_connection;
         RequestUserCallback *m_user;
+        UserClientState m_user_client_state;
         size_t m_rx_buf_start;
         size_t m_rx_buf_length;
         size_t m_line_length;
@@ -1077,8 +1087,8 @@ struct HttpServerService {
     static size_t const MaxRequestHeadLength = TMaxRequestHeadLength;
     static size_t const TxChunkHeaderDigits = TTxChunkHeaderDigits;
     
-    template <typename Context, typename ParentObject, typename ThePrinterMain, typename RequestHandler>
-    using Server = HttpServer<Context, ParentObject, ThePrinterMain, RequestHandler, HttpServerService>;
+    template <typename Context, typename ParentObject, typename ThePrinterMain, typename RequestHandler, typename UserClientState>
+    using Server = HttpServer<Context, ParentObject, ThePrinterMain, RequestHandler, UserClientState, HttpServerService>;
 };
 
 #include <aprinter/EndNamespace.h>
