@@ -1591,53 +1591,58 @@ def generate(config_root_data, cfg_name, main_template):
                         ])
                     ])
                 
-                stepper_port = gen.get_object('stepper_port', stepper, 'stepper_port')
-                
-                if stepper_port.get_config('StepperTimer').get_string('_compoundName') != 'interrupt_timer':
-                    stepper.key_path('stepper_port').error('Selected stepper port must have a timer unit defined.')
-                
                 gen.add_aprinter_include('driver/AxisDriver.h')
+                
+                stepper_ports_for_axis = []
                 
                 def slave_steppers_cb(slave_stepper, slave_stepper_index):
                     slave_stepper_port = gen.get_object('stepper_port', slave_stepper, 'stepper_port')
+                    stepper_ports_for_axis.append(slave_stepper_port)
+                    
+                    stepper_config_prefix = name if slave_stepper_index == 0 else '{}S{}'.format(name, slave_stepper_index)
+                    
+                    stepper_current_sel = selection.Selection()
+                    
+                    @stepper_current_sel.option('NoCurrent')
+                    def option(stepper_current_config):
+                        pass
+                    
+                    @stepper_current_sel.option('Current')
+                    def option(stepper_current_config):
+                        stepper_current_expr = TemplateExpr('MotorCurrentAxisParams', [
+                            TemplateChar(name), # M906 will only work on all slave steppers of an axis...
+                            gen.add_float_config('{}Current'.format(stepper_config_prefix), slave_stepper.get_float('Current')),
+                            use_current_driver_channel(gen, stepper_current_config, 'DriverChannelParams', stepper_config_prefix),
+                        ])
+                        current_control_channel_list.append(stepper_current_expr)
+                    
+                    slave_stepper_port.do_selection('current', stepper_current_sel)
+                    
+                    microstep_sel = selection.Selection()
+                    
+                    @microstep_sel.option('NoMicroStep')
+                    def option(microstep_config):
+                        return 'PrinterMainNoMicroStepParams'
+                    
+                    @microstep_sel.option('MicroStep')
+                    def option(microstep_config):
+                        return TemplateExpr('PrinterMainMicroStepParams', [
+                            use_microstep(gen, microstep_config, 'MicroStepDriver'),
+                            slave_stepper.get_int('MicroSteps'),
+                        ])
+                    
+                    microstep_expr = slave_stepper_port.do_selection('microstep', microstep_sel)
                     
                     return TemplateExpr('PrinterMainSlaveStepperParams', [
                         get_pin(gen, slave_stepper_port, 'DirPin'),
                         get_pin(gen, slave_stepper_port, 'StepPin'),
                         get_pin(gen, slave_stepper_port, 'EnablePin'),
                         slave_stepper_port.get_bool('EnableLevel'),
-                        gen.add_bool_config('{}S{}InvertDir'.format(name, 1 + slave_stepper_index), slave_stepper.get_bool('InvertDir')),
+                        gen.add_bool_config('{}InvertDir'.format(stepper_config_prefix), slave_stepper.get_bool('InvertDir')),
+                        microstep_expr,
                     ])
                 
-                microstep_sel = selection.Selection()
-                
-                @microstep_sel.option('NoMicroStep')
-                def option(microstep_config):
-                    return 'PrinterMainNoMicroStepParams'
-                
-                @microstep_sel.option('MicroStep')
-                def option(microstep_config):
-                    return TemplateExpr('PrinterMainMicroStepParams', [
-                        use_microstep(gen, microstep_config, 'MicroStepDriver'),
-                        stepper.get_int('MicroSteps'),
-                    ])
-                
-                stepper_current_sel = selection.Selection()
-                
-                @stepper_current_sel.option('NoCurrent')
-                def option(stepper_current_config):
-                    pass
-                
-                @stepper_current_sel.option('Current')
-                def option(stepper_current_config):
-                    stepper_current_expr = TemplateExpr('MotorCurrentAxisParams', [
-                        TemplateChar(name),
-                        gen.add_float_config('{}Current'.format(name), stepper.get_float('Current')),
-                        use_current_driver_channel(gen, stepper_current_config, 'DriverChannelParams', name),
-                    ])
-                    current_control_channel_list.append(stepper_current_expr)
-                
-                stepper_port.do_selection('current', stepper_current_sel)
+                slave_steppers_expr = stepper.do_list('slave_steppers', slave_steppers_cb, min_count=1, max_count=10)
                 
                 delay_sel = selection.Selection()
                 
@@ -1653,13 +1658,12 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_constant('{}StepLowTime'.format(name), delay_config.get_float('StepLowTime')),
                     ])
                 
+                first_stepper_port = stepper_ports_for_axis[0]
+                if first_stepper_port.get_config('StepperTimer').get_string('_compoundName') != 'interrupt_timer':
+                    first_stepper_port.key_path('StepperTimer').error('Stepper port of first stepper in axis must have a timer unit defined.')
+                
                 return TemplateExpr('PrinterMainAxisParams', [
                     TemplateChar(name),
-                    get_pin(gen, stepper_port, 'DirPin'),
-                    get_pin(gen, stepper_port, 'StepPin'),
-                    get_pin(gen, stepper_port, 'EnablePin'),
-                    stepper_port.get_bool('EnableLevel'),
-                    gen.add_bool_config('{}InvertDir'.format(name), stepper.get_bool('InvertDir')),
                     gen.add_float_config('{}StepsPerUnit'.format(name), stepper.get_float('StepsPerUnit')),
                     gen.add_float_config('{}MinPos'.format(name), stepper.get_float('MinPos')),
                     gen.add_float_config('{}MaxPos'.format(name), stepper.get_float('MaxPos')),
@@ -1672,13 +1676,12 @@ def generate(config_root_data, cfg_name, main_template):
                     stepper.get_bool('IsExtruder'),
                     32,
                     TemplateExpr('AxisDriverService', [
-                        use_interrupt_timer(gen, stepper_port, 'StepperTimer', user='MyPrinter::GetAxisTimer<{}>'.format(stepper_index)),
+                        use_interrupt_timer(gen, first_stepper_port, 'StepperTimer', user='MyPrinter::GetAxisTimer<{}>'.format(stepper_index)),
                         'TheAxisDriverPrecisionParams',
-                        stepper_port.get_bool('PreloadCommands'),
-                        stepper_port.do_selection('delay', delay_sel),
+                        stepper.get_bool('PreloadCommands'),
+                        stepper.do_selection('delay', delay_sel),
                     ]),
-                    stepper_port.do_selection('microstep', microstep_sel),
-                    stepper.do_list('slave_steppers', slave_steppers_cb, max_count=10),
+                    slave_steppers_expr,
                 ])
             
             steppers_expr = config.do_list('steppers', stepper_cb, min_count=1, max_count=15)

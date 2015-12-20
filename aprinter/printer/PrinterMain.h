@@ -114,22 +114,15 @@ struct PrinterMainParams {
 
 template <
     char TName,
-    typename TDirPin, typename TStepPin, typename TEnablePin,
-    bool TEnableLevel, typename TInvertDir,
     typename TDefaultStepsPerUnit, typename TDefaultMin, typename TDefaultMax,
     typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
     typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
     typename THoming, bool TIsCartesian, bool TIsExtruder, int TStepBits,
-    typename TTheAxisDriverService, typename TMicroStep,
-    typename TSlaveSteppersList = EmptyTypeList
+    typename TTheAxisDriverService,
+    typename TSlaveSteppersList
 >
 struct PrinterMainAxisParams {
     static char const Name = TName;
-    using DirPin = TDirPin;
-    using StepPin = TStepPin;
-    using EnablePin = TEnablePin;
-    static bool const EnableLevel = TEnableLevel;
-    using InvertDir = TInvertDir;
     using DefaultStepsPerUnit = TDefaultStepsPerUnit;
     using DefaultMin = TDefaultMin;
     using DefaultMax = TDefaultMax;
@@ -142,7 +135,6 @@ struct PrinterMainAxisParams {
     static bool const IsExtruder = TIsExtruder;
     static int const StepBits = TStepBits;
     using TheAxisDriverService = TTheAxisDriverService;
-    using MicroStep = TMicroStep;
     using SlaveSteppersList = TSlaveSteppersList;
 };
 
@@ -151,7 +143,8 @@ template <
     typename TStepPin,
     typename TEnablePin,
     bool TEnableLevel,
-    typename TInvertDir
+    typename TInvertDir,
+    typename TMicroStep
 >
 struct PrinterMainSlaveStepperParams {
     using DirPin = TDirPin;
@@ -159,6 +152,7 @@ struct PrinterMainSlaveStepperParams {
     using EnablePin = TEnablePin;
     static bool const EnableLevel = TEnableLevel;
     using InvertDir = TInvertDir;
+    using MicroStep = TMicroStep;
 };
 
 struct PrinterMainNoMicroStepParams {
@@ -342,18 +336,7 @@ private:
     
     template <typename TheAxis>
     using MakeStepperGroupParams = StepperGroupParams<
-        JoinTypeLists<
-            MakeTypeList<
-                StepperDef<
-                    typename TheAxis::DirPin,
-                    typename TheAxis::StepPin,
-                    typename TheAxis::EnablePin,
-                    TheAxis::EnableLevel,
-                    decltype(Config::e(TheAxis::InvertDir::i()))
-                >
-            >,
-            MapTypeList<typename TheAxis::SlaveSteppersList, TemplateFunc<MakeSlaveStepperDef>>
-        >
+        MapTypeList<typename TheAxis::SlaveSteppersList, TemplateFunc<MakeSlaveStepperDef>>
     >;
     
     using StepperGroupParamsList = MapTypeList<ParamsAxesList, TemplateFunc<MakeStepperGroupParams>>;
@@ -1063,8 +1046,10 @@ private:
     template <int TAxisIndex>
     struct Axis {
         struct Object;
+        
         static const int AxisIndex = TAxisIndex;
         using AxisSpec = TypeListGet<ParamsAxesList, AxisIndex>;
+        using SlaveSteppersList = typename AxisSpec::SlaveSteppersList;
         using Stepper = typename TheSteppers::template Stepper<AxisIndex>;
         using TheAxisDriver = typename AxisSpec::TheAxisDriverService::template AxisDriver<Context, Object, Stepper, AxisDriverConsumersList<AxisIndex>>;
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
@@ -1193,22 +1178,38 @@ private:
         
         using HomingState = typename HomingFeature::HomingState;
         
-        AMBRO_STRUCT_IF(MicroStepFeature, AxisSpec::MicroStep::Enabled) {
+        template <int AxisStepperIndex>
+        struct AxisStepper {
             struct Object;
-            using MicroStep = typename AxisSpec::MicroStep::template MicroStepTemplate<Context, Object, typename AxisSpec::MicroStep::MicroStepParams>;
+            using StepperSpec = TypeListGet<SlaveSteppersList, AxisStepperIndex>;
             
             static void init (Context c)
             {
-                MicroStep::init(c, AxisSpec::MicroStep::MicroSteps);
+                MicroStepFeature::init(c);
             }
             
-            struct Object : public ObjBase<MicroStepFeature, typename Axis::Object, MakeTypeList<
-                MicroStep
+            AMBRO_STRUCT_IF(MicroStepFeature, StepperSpec::MicroStep::Enabled) {
+                struct Object;
+                using MicroStep = typename StepperSpec::MicroStep::template MicroStepTemplate<Context, Object, typename StepperSpec::MicroStep::MicroStepParams>;
+                
+                static void init (Context c)
+                {
+                    MicroStep::init(c, StepperSpec::MicroStep::MicroSteps);
+                }
+                
+                struct Object : public ObjBase<MicroStepFeature, typename AxisStepper::Object, MakeTypeList<
+                    MicroStep
+                >> {};
+            } AMBRO_STRUCT_ELSE(MicroStepFeature) {
+                static void init (Context c) {}
+                struct Object {};
+            };
+            
+            struct Object : public ObjBase<AxisStepper, typename Axis::Object, MakeTypeList<
+                MicroStepFeature
             >> {};
-        } AMBRO_STRUCT_ELSE(MicroStepFeature) {
-            static void init (Context c) {}
-            struct Object {};
         };
+        using AxisSteppersList = IndexElemList<SlaveSteppersList, AxisStepper>;
         
         static FpType clamp_req_pos (Context c, FpType req)
         {
@@ -1222,7 +1223,7 @@ private:
             AMBRO_ASSERT(!(mob->axis_relative & AxisMask()))
             TheAxisDriver::init(c);
             HomingFeature::init(c);
-            MicroStepFeature::init(c);
+            ListForEachForward<AxisSteppersList>(LForeach_init(), c);
             o->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
             forward_update_pos(c);
         }
@@ -1360,10 +1361,12 @@ private:
         
         using ConfigExprs = MakeTypeList<CDistConversion, CDistConversionRec, CMinReqPos, CMaxReqPos, CInitPosition>;
         
-        struct Object : public ObjBase<Axis, typename PrinterMain::Object, MakeTypeList<
-            TheAxisDriver,
-            HomingFeature,
-            MicroStepFeature
+        struct Object : public ObjBase<Axis, typename PrinterMain::Object, JoinTypeLists<
+            MakeTypeList<
+                TheAxisDriver,
+                HomingFeature
+            >,
+            AxisSteppersList
         >>
         {
             AbsStepFixedType m_end_pos;

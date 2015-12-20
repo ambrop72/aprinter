@@ -71,7 +71,7 @@ public:
             auto num_parts = cmd->getNumParts(c);
             for (decltype(num_parts) i = 0; i < num_parts; i++) {
                 auto part = cmd->getPart(c, i);
-                ListForEachForwardInterruptible<CurrentAxesList>(LForeach_check_current_axis(), c, cmd, cmd->getPartCode(c, part), cmd->getPartFpValue(c, part));
+                ListForEachForward<CurrentAxesList>(LForeach_check_current_axis(), c, cmd, cmd->getPartCode(c, part), cmd->getPartFpValue(c, part));
             }
             cmd->finishCommand(c);
             return false;
@@ -101,13 +101,11 @@ private:
             Current::template setCurrent<CurrentAxisIndex>(c, APRINTER_CFG(Config, CCurrent, c));
         }
         
-        static bool check_current_axis (Context c, TheCommand *cmd, char axis_name, FpType current)
+        static void check_current_axis (Context c, TheCommand *cmd, char axis_name, FpType current)
         {
             if (axis_name == CurrentAxisParams::AxisName) {
                 Current::template setCurrent<CurrentAxisIndex>(c, current);
-                return false;
             }
-            return true;
         }
         
         using CCurrent = decltype(ExprCast<FpType>(Config::e(CurrentAxisParams::DefaultCurrent::i())));

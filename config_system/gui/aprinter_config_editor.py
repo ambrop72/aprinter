@@ -387,9 +387,6 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
         ]
     ))
 
-def stepper_port_reference(context):
-    return ce.Reference(key='stepper_port', title='Stepper port', ref_array=context.board_ref(['stepper_ports']), ref_id_key='Name', ref_name_key='Name')
-
 def microstep_choice(**kwargs):
     return ce.OneOf(choices=[
         ce.Compound('A4982', attrs=[
@@ -450,16 +447,14 @@ def editor():
                 ce.Float(key='LedBlinkInterval', title='LED blink interval [s]', default=0.5),
                 ce.Float(key='ForceTimeout', title='Force motion timeout [s]', default=0.1),
             ]),
-            ce.Array(key='steppers', title='Steppers', copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('stepper', title='Stepper', title_key='Name', collapsable=True, ident='id_configuration_stepper', attrs=[
+            ce.Array(key='steppers', title='Axes', copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('stepper', title='Axis', title_key='Name', collapsable=True, ident='id_configuration_stepper', attrs=[
                 ce.String(key='Name', title='Name (cartesian X/Y/Z, extruders E/U/V, delta A/B/C)'),
-                stepper_port_reference(configuration_context),
-                ce.Boolean(key='InvertDir', title='Invert direction', false_title='No (high StepPin is positive motion)', true_title='Yes (high StepPin is negative motion)', default=False),
-                ce.Array(key='slave_steppers', title='Slave steppers', table=True, elem=ce.Compound('slave_stepper', ident='id_slave_stepper', title='Slave stepper', attrs=[
-                    stepper_port_reference(configuration_context),
+                ce.Array(key='slave_steppers', title='Steppers', elem=ce.Compound('slave_stepper', ident='id_slave_stepper', title='Stepper', attrs=[
+                    ce.Reference(key='stepper_port', title='Stepper port', ref_array=configuration_context.board_ref(['stepper_ports']), ref_id_key='Name', ref_name_key='Name'),
                     ce.Boolean(key='InvertDir', title='Invert direction', default=False),
+                    ce.Integer(key='MicroSteps', title='Micro-steps (if board supports micro-step configuration)', default=0),
+                    ce.Float(key='Current', title='Motor current (if board supports current control) [mA]', default=0),
                 ])),
-                ce.Integer(key='MicroSteps', title='Micro-steps (if board supports micro-step configuration)', default=0),
-                ce.Float(key='Current', title='Motor current (if board supports current control) [mA]', default=0),
                 ce.Float(key='StepsPerUnit', title='Steps per unit [1/mm]', default=80),
                 ce.Float(key='MinPos', title='Minimum position [mm] (~-40000 for extruders)', default=0),
                 ce.Float(key='MaxPos', title='Maximum position [mm] (~40000 for extruders)', default=200),
@@ -470,6 +465,15 @@ def editor():
                 ce.Boolean(key='EnableCartesianSpeedLimit', title='Is cartesian (Yes for X/Y/Z, No for extruders)', default=True),
                 ce.Boolean(key='IsExtruder', title='Is an extruder (e.g. subject to M82/M83)', default=False),
                 stepper_homing_params(key='homing'),
+                ce.Boolean(key='PreloadCommands', title='Command loading mode', default=False, false_title='At first step', true_title='At last step of previous command (use when direction-ahead-of-step-time is large)'),
+                ce.OneOf(key='delay', title='Step signals timing', choices=[
+                    ce.Compound('NoDelay', title='No special delays', attrs=[]),
+                    ce.Compound('Delay', title='Use delays to ensure required timing', attrs=[
+                        ce.Float(key='DirSetTime', title='Minimum direction ahead of step time [us]', default=0.2),
+                        ce.Float(key='StepHighTime', title='Minimum step high time [us]', default=1.0),
+                        ce.Float(key='StepLowTime', title='Minimum step low time [us]', default=1.0),
+                    ]),
+                ]),
             ])),
             ce.OneOf(key='transform', title='Coordinate transformation', choices=[
                 ce.Compound('NoTransform', title='None (cartesian)', attrs=[]),
@@ -821,15 +825,6 @@ def editor():
                     ce.Compound('NoCurrent', title='Not controlled', attrs=[]),
                     ce.Compound('Current', title='Controlled', attrs=[
                         current_driver_channel_choice(key='DriverChannelParams', title='Driver-specific parameters'),
-                    ]),
-                ]),
-                ce.Boolean(key='PreloadCommands', title='Command loading mode', default=False, false_title='At first step', true_title='At last step of previous command (use when direction-ahead-of-step-time is large)'),
-                ce.OneOf(key='delay', title='Step signals timing', choices=[
-                    ce.Compound('NoDelay', title='No special delays', attrs=[]),
-                    ce.Compound('Delay', title='Use delays to ensure required timing', attrs=[
-                        ce.Float(key='DirSetTime', title='Minimum direction ahead of step time [us]', default=0.2),
-                        ce.Float(key='StepHighTime', title='Minimum step high time [us]', default=1.0),
-                        ce.Float(key='StepLowTime', title='Minimum step low time [us]', default=1.0),
                     ]),
                 ]),
             ])),

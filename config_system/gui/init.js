@@ -145,23 +145,6 @@ function each_in(obj, prop, func) {
 }
 
 function fixup_config(config) {
-    each_in(config, "configurations", function(i, configuration) {
-        if (JSONEditor_utils.has(configuration, "transform")) {
-            var transform = configuration["transform"];
-            if (!JSONEditor_utils.has(transform, "Splitter")) {
-                if (JSONEditor_utils.has(transform, "MinSplitLength")) {
-                    transform["Splitter"] = {
-                        "_compoundName": "DistanceSplitter",
-                        "MinSplitLength": transform["MinSplitLength"],
-                        "MaxSplitLength": transform["MaxSplitLength"],
-                        "SegmentsPerSecond": transform["SegmentsPerSecond"]
-                    };
-                } else {
-                    transform["Splitter"] = {"_compoundName": "NoSplitter"};
-                }
-            }
-        }
-    });
     each_in(config, "boards", function(i, board) {
         each_in(board, "analog_inputs", function(j, analog_input) {
             if (JSONEditor_utils.isObject(analog_input)) {
@@ -188,6 +171,53 @@ function fixup_config(config) {
                 if (JSONEditor_utils.has(input_modes_conversion, digital_input["InputMode"])) {
                     digital_input["InputMode"] = input_modes_conversion[digital_input["InputMode"]];
                 }
+            }
+        });
+    });
+    each_in(config, "configurations", function(i, configuration) {
+        var board_of_configuration = null;
+        each_in(config, "boards", function(j, board) {
+            if (board["name"] === configuration["board"]) {
+                board_of_configuration = board;
+            }
+        });
+        if (JSONEditor_utils.has(configuration, "transform")) {
+            var transform = configuration["transform"];
+            if (!JSONEditor_utils.has(transform, "Splitter")) {
+                if (JSONEditor_utils.has(transform, "MinSplitLength")) {
+                    transform["Splitter"] = {
+                        "_compoundName": "DistanceSplitter",
+                        "MinSplitLength": transform["MinSplitLength"],
+                        "MaxSplitLength": transform["MaxSplitLength"],
+                        "SegmentsPerSecond": transform["SegmentsPerSecond"]
+                    };
+                } else {
+                    transform["Splitter"] = {"_compoundName": "NoSplitter"};
+                }
+            }
+        }
+        each_in(configuration, "steppers", function(j, axis) {
+            if (JSONEditor_utils.has(axis, "stepper_port")) {
+                var stepper_port_of_stepper = null;
+                each_in(board_of_configuration, "stepper_ports", function(j, stepper_port) {
+                    if (stepper_port["Name"] === axis["stepper_port"]) {
+                        stepper_port_of_stepper = stepper_port;
+                    }
+                });
+                if (!JSONEditor_utils.has(axis, "PreloadCommands") && JSONEditor_utils.has(stepper_port_of_stepper, "PreloadCommands")) {
+                    axis["PreloadCommands"] = stepper_port_of_stepper["PreloadCommands"];
+                }
+                if (!JSONEditor_utils.has(axis, "delay") && JSONEditor_utils.has(stepper_port_of_stepper, "delay")) {
+                    axis["delay"] = stepper_port_of_stepper["delay"];
+                }
+                var first_stepper = {
+                    "stepper_port": axis["stepper_port"],
+                    "InvertDir": axis["InvertDir"],
+                    "MicroSteps": axis["MicroSteps"],
+                    "Current": axis["Current"]
+                };
+                axis["slave_steppers"] = [first_stepper].concat(axis["slave_steppers"]);
+                delete axis["stepper_port"];
             }
         });
     });
