@@ -371,7 +371,8 @@ private:
         
         if (o->m_state == SDCARD_PAUSING) {
             if (o->m_pausing_on_command) {
-                ThePrinterMain::finish_locked(c);
+                auto *cmd = ThePrinterMain::get_locked(c);
+                cmd->finishCommand(c);
             }
             return complete_pause(c);
         }

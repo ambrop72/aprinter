@@ -62,7 +62,6 @@
 #include <aprinter/base/Inline.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
-#include <aprinter/math/PrintInt.h>
 #include <aprinter/devices/Blinker.h>
 #include <aprinter/printer/actuators/Steppers.h>
 #include <aprinter/printer/actuators/StepperGroup.h>
@@ -1910,8 +1909,6 @@ public:
         static void do_split (Context c) {}
         static void handle_aborted (Context c) {}
         static bool handle_set_position (Context c, TheCommand *err_output) { return true; }
-        template <typename CallbackContext>
-        static bool prestep_callback (CallbackContext c) { return false; }
         struct Object {};
     };
     
@@ -2192,15 +2189,6 @@ public:
         ListForEachForward<AxesList>(LForeach_emergency());
         ListForEachForward<LasersList>(LForeach_emergency());
         ListForEachForward<ModulesList>(LForeach_emergency());
-    }
-    
-    static void finish_locked (Context c)
-    {
-        auto *ob = Object::self(c);
-        AMBRO_ASSERT(ob->locked)
-        
-        TheCommand *cmd = get_locked(c);
-        cmd->finishCommand(c);
     }
     
     static TheCommand * get_locked (Context c)
