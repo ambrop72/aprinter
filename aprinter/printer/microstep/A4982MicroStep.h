@@ -31,15 +31,6 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    typename TMs1Pin,
-    typename TMs2Pin
->
-struct A4982MicroStepParams {
-    using Ms1Pin = TMs1Pin;
-    using Ms2Pin = TMs2Pin;
-};
-
 template <typename Context, typename ParentObject, typename Params>
 class A4982MicroStep {
 public:
@@ -81,6 +72,18 @@ public:
     
 public:
     struct Object : public ObjBase<A4982MicroStep, ParentObject, EmptyTypeList> {};
+};
+
+template <
+    typename TMs1Pin,
+    typename TMs2Pin
+>
+struct A4982MicroStepService {
+    using Ms1Pin = TMs1Pin;
+    using Ms2Pin = TMs2Pin;
+    
+    template <typename Context, typename ParentObject>
+    using MicroStep = A4982MicroStep<Context, ParentObject, A4982MicroStepService>;
 };
 
 #include <aprinter/EndNamespace.h>

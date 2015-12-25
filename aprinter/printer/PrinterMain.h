@@ -140,28 +140,10 @@ struct PrinterMainAxisParams {
 };
 
 template <
-    typename TTheStepperDef,
-    typename TMicroStep
+    typename TTheStepperDef
 >
 struct PrinterMainSlaveStepperParams {
     using TheStepperDef = TTheStepperDef;
-    using MicroStep = TMicroStep;
-};
-
-struct PrinterMainNoMicroStepParams {
-    static bool const Enabled = false;
-};
-
-template <
-    template<typename, typename, typename> class TMicroStepTemplate,
-    typename TMicroStepParams,
-    uint8_t TMicroSteps
->
-struct PrinterMainMicroStepParams {
-    static bool const Enabled = true;
-    template <typename X, typename Y, typename Z> using MicroStepTemplate = TMicroStepTemplate<X, Y, Z>;
-    using MicroStepParams = TMicroStepParams;
-    static uint8_t const MicroSteps = TMicroSteps;
 };
 
 struct PrinterMainNoHomingParams {
@@ -1179,29 +1161,9 @@ private:
             
             static void init (Context c)
             {
-                MicroStepFeature::init(c);
             }
             
-            AMBRO_STRUCT_IF(MicroStepFeature, StepperSpec::MicroStep::Enabled) {
-                struct Object;
-                using MicroStep = typename StepperSpec::MicroStep::template MicroStepTemplate<Context, Object, typename StepperSpec::MicroStep::MicroStepParams>;
-                
-                static void init (Context c)
-                {
-                    MicroStep::init(c, StepperSpec::MicroStep::MicroSteps);
-                }
-                
-                struct Object : public ObjBase<MicroStepFeature, typename AxisStepper::Object, MakeTypeList<
-                    MicroStep
-                >> {};
-            } AMBRO_STRUCT_ELSE(MicroStepFeature) {
-                static void init (Context c) {}
-                struct Object {};
-            };
-            
-            struct Object : public ObjBase<AxisStepper, typename Axis::Object, MakeTypeList<
-                MicroStepFeature
-            >> {};
+            struct Object : public ObjBase<AxisStepper, typename Axis::Object, EmptyTypeList> {};
         };
         using AxisSteppersList = IndexElemList<SlaveSteppersList, AxisStepper>;
         

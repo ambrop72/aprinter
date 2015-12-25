@@ -1160,7 +1160,7 @@ def use_microstep(gen, config, key):
     def option(ms_driver_config):
         gen.add_aprinter_include('printer/microstep/A4982MicroStep.h')
         
-        return 'A4982MicroStep, A4982MicroStepParams<{}, {}>'.format(
+        return 'A4982MicroStepService<{}, {}>'.format(
             get_pin(gen, ms_driver_config, 'Ms1Pin'),
             get_pin(gen, ms_driver_config, 'Ms2Pin'),
         )
@@ -1169,7 +1169,7 @@ def use_microstep(gen, config, key):
     def option(ms_driver_config):
         gen.add_aprinter_include('printer/microstep/A4988MicroStep.h')
         
-        return 'A4988MicroStep, A4988MicroStepParams<{}, {}>'.format(
+        return 'A4988MicroStepService<{}, {}>'.format(
             get_pin(gen, ms_driver_config, 'Ms1Pin'),
             get_pin(gen, ms_driver_config, 'Ms2Pin'),
             get_pin(gen, ms_driver_config, 'Ms3Pin'),
@@ -1562,6 +1562,7 @@ def generate(config_root_data, cfg_name, main_template):
                 gen.add_float_config('ForceTimeout', advanced.get_float('ForceTimeout'))
             
             current_control_channel_list = []
+            microstep_axis_list = []
             
             def stepper_cb(stepper, stepper_index):
                 name = stepper.get_id_char('Name')
@@ -1622,16 +1623,17 @@ def generate(config_root_data, cfg_name, main_template):
                     
                     @microstep_sel.option('NoMicroStep')
                     def option(microstep_config):
-                        return 'PrinterMainNoMicroStepParams'
+                        pass
                     
                     @microstep_sel.option('MicroStep')
                     def option(microstep_config):
-                        return TemplateExpr('PrinterMainMicroStepParams', [
+                        microstep_expr = TemplateExpr('MicroStepAxisParams', [
                             use_microstep(gen, microstep_config, 'MicroStepDriver'),
                             slave_stepper.get_int('MicroSteps'),
                         ])
+                        microstep_axis_list.append(microstep_expr)
                     
-                    microstep_expr = slave_stepper_port.do_selection('microstep', microstep_sel)
+                    slave_stepper_port.do_selection('microstep', microstep_sel)
                     
                     return TemplateExpr('PrinterMainSlaveStepperParams', [
                         TemplateExpr('StepperDef', [
@@ -1641,7 +1643,6 @@ def generate(config_root_data, cfg_name, main_template):
                             slave_stepper_port.get_bool('EnableLevel'),
                             gen.add_bool_config('{}InvertDir'.format(stepper_config_prefix), slave_stepper.get_bool('InvertDir')),
                         ]),
-                        microstep_expr,
                     ])
                 
                 slave_steppers_expr = stepper.do_list('slave_steppers', slave_steppers_cb, min_count=1, max_count=10)
@@ -2090,6 +2091,13 @@ def generate(config_root_data, cfg_name, main_template):
                 ]))
             
             current_config.do_selection('current', current_sel)
+            
+            if len(microstep_axis_list) > 0:
+                gen.add_aprinter_include('printer/modules/MicroStepConfigModule.h')
+                microstep_module = gen.add_module()
+                microstep_module.set_expr(TemplateExpr('MicroStepConfigModuleService', [
+                    TemplateList(microstep_axis_list),
+                ]))
             
             gen.add_aprinter_include('printer/modules/AuxControlModule.h')
             aux_control_module.set_expr(TemplateExpr('AuxControlModuleService', [
