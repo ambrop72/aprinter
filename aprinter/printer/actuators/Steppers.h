@@ -104,7 +104,7 @@ public:
         
         static bool const SharesEnable = (SameEnableMask != TheMask);
         
-        using CInvertDir = decltype(ExprCast<bool>(ThisDef::InvertDir::e()));
+        using CInvertDir = decltype(ExprCast<bool>(Config::e(ThisDef::InvertDir::i())));
         
     public:
         static void enable (Context c)

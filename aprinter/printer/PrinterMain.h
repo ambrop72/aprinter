@@ -64,7 +64,8 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/math/PrintInt.h>
 #include <aprinter/devices/Blinker.h>
-#include <aprinter/printer/actuators/StepperGroups.h>
+#include <aprinter/printer/actuators/Steppers.h>
+#include <aprinter/printer/actuators/StepperGroup.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>
@@ -139,19 +140,11 @@ struct PrinterMainAxisParams {
 };
 
 template <
-    typename TDirPin,
-    typename TStepPin,
-    typename TEnablePin,
-    bool TEnableLevel,
-    typename TInvertDir,
+    typename TTheStepperDef,
     typename TMicroStep
 >
 struct PrinterMainSlaveStepperParams {
-    using DirPin = TDirPin;
-    using StepPin = TStepPin;
-    using EnablePin = TEnablePin;
-    static bool const EnableLevel = TEnableLevel;
-    using InvertDir = TInvertDir;
+    using TheStepperDef = TTheStepperDef;
     using MicroStep = TMicroStep;
 };
 
@@ -277,6 +270,8 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheModule, TheModule)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheStepper, TheStepper)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheStepperDef, TheStepperDef)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ConfigExprs, ConfigExprs)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ProvidedServices, ProvidedServices)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_MotionPlannerChannels, MotionPlannerChannels)
@@ -325,23 +320,17 @@ public:
     static const bool IsTransformEnabled = TransformParams::Enabled;
     
 private:
-    template <typename TheSlaveStepper>
-    using MakeSlaveStepperDef = StepperDef<
-        typename TheSlaveStepper::DirPin,
-        typename TheSlaveStepper::StepPin,
-        typename TheSlaveStepper::EnablePin,
-        TheSlaveStepper::EnableLevel,
-        decltype(Config::e(TheSlaveStepper::InvertDir::i()))
-    >;
+    template <typename TheAxisSpec>
+    using StepperDefsForAxis = MapTypeList<typename TheAxisSpec::SlaveSteppersList, GetMemberType_TheStepperDef>;
     
-    template <typename TheAxis>
-    using MakeStepperGroupParams = StepperGroupParams<
-        MapTypeList<typename TheAxis::SlaveSteppersList, TemplateFunc<MakeSlaveStepperDef>>
-    >;
+    using StepperDefsByAxis = MapTypeList<ParamsAxesList, TemplateFunc<StepperDefsForAxis>>;
     
-    using StepperGroupParamsList = MapTypeList<ParamsAxesList, TemplateFunc<MakeStepperGroupParams>>;
-    using TheSteppers = StepperGroups<Context, Object, Config, StepperGroupParamsList>;
+    using TheSteppers = Steppers<Context, Object, Config, JoinTypeListList<StepperDefsByAxis>>;
     
+    template <int AxisIndex, int AxisStepperIndex>
+    using GetStepper = typename TheSteppers::template Stepper<(GetJoinedListOffset<StepperDefsByAxis, AxisIndex>::Value + AxisStepperIndex)>;
+    
+private:
     static_assert(Params::LedBlinkInterval::value() < TheWatchdog::WatchdogTime / 2.0, "");
     
 public:
@@ -1050,15 +1039,19 @@ private:
         static const int AxisIndex = TAxisIndex;
         using AxisSpec = TypeListGet<ParamsAxesList, AxisIndex>;
         using SlaveSteppersList = typename AxisSpec::SlaveSteppersList;
-        using Stepper = typename TheSteppers::template Stepper<AxisIndex>;
-        using TheAxisDriver = typename AxisSpec::TheAxisDriverService::template AxisDriver<Context, Object, Stepper, AxisDriverConsumersList<AxisIndex>>;
-        using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
-        using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
         static const char AxisName = AxisSpec::Name;
         using WrappedAxisName = WrapInt<AxisName>;
         using HomingSpec = typename AxisSpec::Homing;
         static bool const ConsiderForHoming = HomingSpec::Enabled;
         static bool const IsExtruder = AxisSpec::IsExtruder;
+        
+        struct LazySteppersList;
+        using TheStepperGroup = StepperGroup<Context, LazySteppersList>;
+        
+        using TheAxisDriver = typename AxisSpec::TheAxisDriverService::template AxisDriver<Context, Object, TheStepperGroup, AxisDriverConsumersList<AxisIndex>>;
+        
+        using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
+        using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
         
         using DistConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i()));
         using SpeedConversion = decltype(Config::e(AxisSpec::DefaultStepsPerUnit::i()) / TimeConversion());
@@ -1146,7 +1139,7 @@ private:
                 AMBRO_ASSERT(!(mob->axis_homing & AxisMask()))
                 AMBRO_ASSERT(mob->m_homing_rem_axes & AxisMask())
                 
-                Stepper::enable(c);
+                TheStepperGroup::enable(c);
                 HomingState::Homer::init(c, get_locked(c));
                 mob->axis_homing |= AxisMask();
             }
@@ -1182,6 +1175,7 @@ private:
         struct AxisStepper {
             struct Object;
             using StepperSpec = TypeListGet<SlaveSteppersList, AxisStepperIndex>;
+            using TheStepper = GetStepper<AxisIndex, AxisStepperIndex>;
             
             static void init (Context c)
             {
@@ -1210,6 +1204,10 @@ private:
             >> {};
         };
         using AxisSteppersList = IndexElemList<SlaveSteppersList, AxisStepper>;
+        
+        struct LazySteppersList {
+            using List = MapTypeList<AxisSteppersList, GetMemberType_TheStepper>;
+        };
         
         static FpType clamp_req_pos (Context c, FpType req)
         {
@@ -1242,9 +1240,9 @@ private:
         static void enable_disable_stepper (Context c, bool enable)
         {
             if (enable) {
-                Stepper::enable(c);
+                TheStepperGroup::enable(c);
             } else {
-                Stepper::disable(c);
+                TheStepperGroup::disable(c);
             }
         }
         
@@ -1297,7 +1295,7 @@ private:
                     FpType delta = move.template fpValue<FpType>() * APRINTER_CFG(Config, CDistConversionRec, c);
                     *distance_squared += delta * delta;
                 }
-                Stepper::enable(c);
+                TheStepperGroup::enable(c);
             }
             
             auto *mycmd = TupleGetElem<AxisIndex>(cmd->axes.axes());
@@ -1345,7 +1343,7 @@ private:
         
         static void emergency ()
         {
-            Stepper::emergency();
+            TheStepperGroup::emergency();
         }
         
         static void m119_append_endstop (Context c, TheCommand *cmd)

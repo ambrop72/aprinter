@@ -202,6 +202,12 @@ using JoinTypeLists = TypeListFoldRight<MakeTypeList<Lists...>, EmptyTypeList, J
 template <typename Lists>
 using JoinTypeListList = TypeListFoldRight<Lists, EmptyTypeList, JoinTwoTypeLists>;
 
+template <typename Lists, int ListIndex>
+using GetJoinedListOffset = WrapInt<(
+    TypeListLength<JoinTypeListList<Lists>>::Value -
+    TypeListLength<JoinTypeListList<TypeListRangeFrom<Lists, ListIndex>>>::Value
+)>;
+
 template <typename List, typename Predicate>
 struct FilterTypeListHelper;
 
