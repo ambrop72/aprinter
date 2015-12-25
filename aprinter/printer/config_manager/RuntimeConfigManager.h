@@ -355,7 +355,8 @@ private:
             }
         }
         
-        static bool get_set_cmd (Context c, TheCommand<> *cmd, bool get_it, char const *name)
+        template <typename This=RuntimeConfigManager>
+        static bool get_set_cmd (Context c, TheCommand<This> *cmd, bool get_it, char const *name)
         {
             auto *o = Object::self(c);
             int index = find_option(name);
@@ -370,7 +371,8 @@ private:
             return false;
         }
         
-        static bool dump_options_helper (Context c, TheCommand<> *cmd, int global_option_index)
+        template <typename This=RuntimeConfigManager>
+        static bool dump_options_helper (Context c, TheCommand<This> *cmd, int global_option_index)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(global_option_index >= PrevTypeGeneral::OptionCounter)
