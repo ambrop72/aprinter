@@ -64,7 +64,7 @@
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/math/PrintInt.h>
 #include <aprinter/devices/Blinker.h>
-#include <aprinter/driver/StepperGroups.h>
+#include <aprinter/printer/actuators/StepperGroups.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/printer/MotionPlanner.h>
 #include <aprinter/printer/Configuration.h>

@@ -31,7 +31,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/base/Inline.h>
-#include <aprinter/driver/Steppers.h>
+#include <aprinter/printer/actuators/Steppers.h>
 
 #include <aprinter/BeginNamespace.h>
 

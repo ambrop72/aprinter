@@ -1591,7 +1591,7 @@ def generate(config_root_data, cfg_name, main_template):
                         ])
                     ])
                 
-                gen.add_aprinter_include('driver/AxisDriver.h')
+                gen.add_aprinter_include('printer/actuators/AxisDriver.h')
                 
                 stepper_ports_for_axis = []
                 
@@ -2050,7 +2050,7 @@ def generate(config_root_data, cfg_name, main_template):
             fans_expr = config.do_list('fans', fan_cb, max_count=15)
             
             def laser_cb(laser, laser_index):
-                gen.add_aprinter_include('driver/LaserDriver.h')
+                gen.add_aprinter_include('printer/actuators/LaserDriver.h')
                 gen.add_aprinter_include('printer/duty_formula/LinearDutyFormula.h')
                 
                 name = laser.get_id_char('Name')
