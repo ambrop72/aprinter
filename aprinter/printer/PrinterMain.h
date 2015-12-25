@@ -1335,12 +1335,6 @@ private:
             o->m_req_pos = o->m_end_pos.template fpValue<FpType>() * APRINTER_CFG(Config, CDistConversionRec, c);
         }
         
-        static void set_position_try (Context c, FpType value)
-        {
-            auto *o = Object::self(c);
-            o->m_req_pos = clamp_req_pos(c, value);
-        }
-        
         static void emergency ()
         {
             TheStepperGroup::emergency();
@@ -1851,14 +1845,6 @@ public:
             {
                 auto *o = Object::self(c);
                 o->m_req_pos = o->m_old_pos + (frac * o->m_delta);
-            }
-            
-            static void set_position_try (Context c, FpType value)
-            {
-                auto *o = Object::self(c);
-                auto *t = TransformFeature::Object::self(c);
-                o->m_req_pos = clamp_virt_pos(c, value);
-                t->splitting = true;
             }
             
             static FpType limit_virt_axis_speed (FpType accum, Context c)
