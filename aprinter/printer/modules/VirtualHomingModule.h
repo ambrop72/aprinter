@@ -332,7 +332,7 @@ template <
 struct VirtualHomingModuleService {
     using VirtHomingAxisParamsList = TVirtHomingAxisParamsList;
     
-    using ProvidedServices = MakeTypeList<ServiceList::VirtHomingService>;
+    using ProvidedServices = MakeTypeList<ServiceDefinition<ServiceList::VirtHomingService>>;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
     using Module = VirtualHomingModule<Context, ParentObject, ThePrinterMain, VirtualHomingModuleService>;

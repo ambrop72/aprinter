@@ -329,7 +329,23 @@ private:
     enum {PLANNER_NONE, PLANNER_RUNNING, PLANNER_STOPPING, PLANNER_WAITING, PLANNER_CUSTOM};
     
 private:
-    using ServicesDict = ListGroup<ListCollect<ParamsModulesList, MemberType_ProvidedServices>>;
+    using ServicesList = ListCollect<ParamsModulesList, MemberType_ProvidedServices>;
+    
+    template <typename Entry>
+    using GetServiceEntryServiceType = typename Entry::Value::ServiceType;
+    
+    using ServicesDictUnsorted = ListGroup<ServicesList, TemplateFunc<GetServiceEntryServiceType>>;
+    
+    template<typename Entry1, typename Entry2>
+    using IsServicePriorityLesser = WrapBool<(Entry1::Value::Priority < Entry2::Value::Priority)>;
+    
+    template <typename ServiceGroup>
+    using SortServiceGroup = TypeDictEntry<typename ServiceGroup::Key, ListSort<typename ServiceGroup::Value, IsServicePriorityLesser>>;
+    
+    using ServicesDict = MapTypeList<ServicesDictUnsorted, TemplateFunc<SortServiceGroup>>;
+    
+    template <typename ServiceType>
+    using GetServiceProviders = TypeDictGetOrDefault<ServicesDict, ServiceType, EmptyTypeList>;
     
     template <typename ServiceType>
     using HasServiceProvider = WrapBool<TypeDictFind<ServicesDict, ServiceType>::Found>;
@@ -338,7 +354,7 @@ private:
     struct FindServiceProvider {
         using FindResult = TypeDictFind<ServicesDict, ServiceType>;
         static_assert(FindResult::Found, "The requested service type is not provided by any module.");
-        static int const ModuleIndex = TypeListGet<typename FindResult::Result, 0>::Value;
+        static int const ModuleIndex = TypeListGet<typename FindResult::Result, 0>::Key::Value;
     };
     
 private:

@@ -86,6 +86,16 @@ namespace Private {
     struct TypeDictRemoveDuplicatesHelper<Current, EmptyTypeList> {
         using Result = Current;
     };
+    
+    template <typename Default, typename FindResult>
+    struct TypeDictDefaultHelper {
+        using Result = typename FindResult::Result;
+    };
+    
+    template <typename Default>
+    struct TypeDictDefaultHelper<Default, TypeDictNotFound> {
+        using Result = Default;
+    };
 }
 
 template <typename EntriesList, typename Key>
@@ -96,6 +106,9 @@ using TypeDictRemoveDuplicatesAndReverse = typename Private::TypeDictRemoveDupli
 
 template <typename EntriesList, typename Key>
 using TypeDictFind = TypeDictFindNoDupl<TypeDictRemoveDuplicatesAndReverse<EntriesList>, Key>;
+
+template <typename EntriesList, typename Key, typename Default>
+using TypeDictGetOrDefault = typename Private::template TypeDictDefaultHelper<Default, TypeDictFind<EntriesList, Key>>::Result;
 
 #include <aprinter/EndNamespace.h>
 

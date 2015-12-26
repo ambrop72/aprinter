@@ -577,7 +577,7 @@ struct SdCardModuleService {
     static size_t const BufferBaseSize = TBufferBaseSize;
     static size_t const MaxCommandSize = TMaxCommandSize;
     
-    using ProvidedServices = If<InputService::ProvidesFsAccess, MakeTypeList<ServiceList::FsAccessService>, EmptyTypeList>;
+    using ProvidedServices = If<InputService::ProvidesFsAccess, MakeTypeList<ServiceDefinition<ServiceList::FsAccessService>>, EmptyTypeList>;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
     using Module = SdCardModule<Context, ParentObject, ThePrinterMain, SdCardModuleService>;

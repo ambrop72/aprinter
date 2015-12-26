@@ -239,7 +239,7 @@ struct SerialModuleService {
     using TheGcodeParserParams = TTheGcodeParserParams;
     using SerialService = TSerialService;
     
-    using ProvidedServices = MakeTypeList<ServiceList::SerialService>;
+    using ProvidedServices = MakeTypeList<ServiceDefinition<ServiceList::SerialService>>;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
     using Module = SerialModule<Context, ParentObject, ThePrinterMain, SerialModuleService>;

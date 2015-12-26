@@ -25,6 +25,8 @@
 #ifndef APRINTER_SERVICE_LIST_H
 #define APRINTER_SERVICE_LIST_H
 
+#include <stdint.h>
+
 #include <aprinter/BeginNamespace.h>
 
 namespace ServiceList {
@@ -33,6 +35,12 @@ namespace ServiceList {
     struct CorrectionService {};
     struct VirtHomingService {};
 }
+
+template <typename TServiceType, int8_t TPriority=0>
+struct ServiceDefinition {
+    using ServiceType = TServiceType;
+    static int8_t const Priority = TPriority;
+};
 
 #include <aprinter/EndNamespace.h>
 

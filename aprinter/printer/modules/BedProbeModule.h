@@ -762,7 +762,7 @@ struct BedProbeModuleService {
     using ProbePoints = TProbePoints;
     using ProbeCorrectionParams = TProbeCorrectionParams;
     
-    using ProvidedServices = If<ProbeCorrectionParams::Enabled, MakeTypeList<ServiceList::CorrectionService>, EmptyTypeList>;
+    using ProvidedServices = If<ProbeCorrectionParams::Enabled, MakeTypeList<ServiceDefinition<ServiceList::CorrectionService>>, EmptyTypeList>;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
     using Module = BedProbeModule<Context, ParentObject, ThePrinterMain, BedProbeModuleService>;

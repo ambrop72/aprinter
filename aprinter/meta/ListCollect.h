@@ -55,55 +55,95 @@ namespace ListCollectImpl {
         >;
     };
     
-    template <typename CurrentGroups, typename NumberedEntry>
-    struct AddToNewGroupFunc {
-        template <typename FindResult>
-        struct Call {
-            using Type = ConsTypeList<TypeDictEntry<typename NumberedEntry::Value, MakeTypeList<typename NumberedEntry::Key>>, CurrentGroups>;
+    template <typename GroupFunc>
+    struct GroupHelper {
+        template <typename CurrentGroups, typename Element>
+        struct AddToNewGroupFunc {
+            template <typename FindResult>
+            struct Call {
+                using Type = ConsTypeList<
+                    TypeDictEntry<
+                        FuncCall<GroupFunc, Element>,
+                        MakeTypeList<
+                            Element
+                        >
+                    >,
+                    CurrentGroups
+                >;
+            };
         };
-    };
-    
-    template <typename NumberedEntry>
-    struct PrependToGroupFunc {
-        template <typename OldGroup>
-        struct Call {
-            using Type = TypeDictEntry<typename OldGroup::Key, ConsTypeList<typename NumberedEntry::Key, typename OldGroup::Value>>;
+        
+        template <typename Element>
+        struct PrependToGroupFunc {
+            template <typename OldGroup>
+            struct Call {
+                using Type = TypeDictEntry<
+                    typename OldGroup::Key,
+                    ConsTypeList<
+                        Element,
+                        typename OldGroup::Value
+                    >
+                >;
+            };
         };
-    };
-    
-    struct DontChangeGroupFunc {
-        template <typename OldGroup>
-        struct Call {
-            using Type = OldGroup;
+        
+        struct DontChangeGroupFunc {
+            template <typename OldGroup>
+            struct Call {
+                using Type = OldGroup;
+            };
         };
-    };
-    
-    template <typename CurrentGroups, typename NumberedEntry>
-    struct AddToExistingGroupFunc {
-        template <typename FindResult>
-        struct Call {
-            using Type = MapTypeList<
-                CurrentGroups,
-                IfFunc<
-                    ComposeFunctions<IsEqualFunc<typename NumberedEntry::Value>, typename MemberType_Key::Get>,
-                    PrependToGroupFunc<NumberedEntry>,
-                    DontChangeGroupFunc
-                >
-            >;
+        
+        template <typename CurrentGroups, typename Element>
+        struct AddToExistingGroupFunc {
+            template <typename FindResult>
+            struct Call {
+                using Type = MapTypeList<
+                    CurrentGroups,
+                    IfFunc<
+                        ComposeFunctions<IsEqualFunc<FuncCall<GroupFunc, Element>>, typename MemberType_Key::Get>,
+                        PrependToGroupFunc<Element>,
+                        DontChangeGroupFunc
+                    >
+                >;
+            };
         };
+        
+        template <typename Element, typename CurrentGroups>
+        using GroupFoldFunc = FuncCall<
+            IfFunc<
+                IsEqualFunc<TypeDictNotFound>,
+                AddToNewGroupFunc<CurrentGroups, Element>,
+                AddToExistingGroupFunc<CurrentGroups, Element>
+            >,
+            TypeDictFind<CurrentGroups, FuncCall<GroupFunc, Element>>
+        >;
     };
-    
-    template <typename NumberedEntry, typename CurrentGroups>
-    using GroupFoldFunc = FuncCall<
-        IfFunc<
-            IsEqualFunc<TypeDictNotFound>,
-            AddToNewGroupFunc<CurrentGroups, NumberedEntry>,
-            AddToExistingGroupFunc<CurrentGroups, NumberedEntry>
-        >,
-        TypeDictFind<CurrentGroups, typename NumberedEntry::Value>
-    >;
 }
 
+/**
+ * Collect all the MemberType lists in the given List and return a
+ * list of (index, element) pairs, where element is an element of one
+ * of the MemberType lists, and index indicates which element of List
+ * it comes from. Order is preserved.
+ * 
+ * Example:
+ * 
+ * \code
+ * struct A { using X = MakeTypeList<int>; };
+ * struct B { using X = MakeTypeList<float, int>; };
+ * 
+ * APRINTER_DEFINE_MEMBER_TYPE(MemberType_X, X)
+ * 
+ * ListCollect<MakeTypeList<A, B>, MemberType_X>
+ * // produces
+ * MakeTypeList<
+ *     TypeDictEntry<WrapInt<0>, int>,
+ *     TypeDictEntry<WrapInt<1>, float>,
+ *     TypeDictEntry<WrapInt<1>, int>
+ * >
+ * \endcode
+ */
 template <typename List, typename MemberType>
 using ListCollect = JoinTypeListList<
     MapTypeList<
@@ -116,8 +156,31 @@ using ListCollect = JoinTypeListList<
     >
 >;
 
-template <typename List>
-using ListGroup = TypeListFold<List, EmptyTypeList, ListCollectImpl::GroupFoldFunc>;
+/**
+ * Group the elements of List based on the function GroupFunc,
+ * which given an element of List should return the group ID.
+ * The order of the groups and group elements is unspecified.
+ * 
+ * Example:
+ * 
+ * \code
+ * struct A { using Group = int; };
+ * struct B { using Group = float; };
+ * struct C { using Group = int; };
+ * 
+ * template <typename X>
+ * using GroupFunc = typename X::Group;
+ * 
+ * ListGroup<MakeTypeList<A, B, C>, TemplateFunc<GroupFunc>>
+ * // produces
+ * MakeTypeList<
+ *     TypeDictEntry<float, MakeTypeList<B>>,
+ *     TypeDictEntry<int, MakeTypeList<C, A>>
+ * >
+ * \endcode
+ */
+template <typename List, typename GroupFunc>
+using ListGroup = TypeListFold<List, EmptyTypeList, ListCollectImpl::template GroupHelper<GroupFunc>::template GroupFoldFunc>;
 
 #include <aprinter/EndNamespace.h>
 

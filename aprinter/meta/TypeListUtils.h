@@ -29,6 +29,7 @@
 #include <aprinter/meta/TypeDict.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/FuncUtils.h>
+#include <aprinter/meta/If.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -389,6 +390,79 @@ using TypeDictKeys = MapTypeList<List, Private::TypeDictGetKeyFunc>;
 
 template <typename List>
 using TypeDictValues = MapTypeList<List, Private::TypeDictGetValueFunc>;
+
+namespace ListSortPrivate {
+    template <template<typename, typename> class LessFunc>
+    struct SortHelper {
+        template <typename Dummy, typename List1, typename List2>
+        struct Merge;
+        
+        template <typename Dummy>
+        struct Merge<Dummy, EmptyTypeList, EmptyTypeList> {
+            using Result = EmptyTypeList;
+        };
+        
+        template <typename Dummy, typename Head1, typename Tail1>
+        struct Merge<Dummy, ConsTypeList<Head1, Tail1>, EmptyTypeList> {
+            using Result = ConsTypeList<Head1, Tail1>;
+        };
+        
+        template <typename Dummy, typename Head2, typename Tail2>
+        struct Merge<Dummy, EmptyTypeList, ConsTypeList<Head2, Tail2>> {
+            using Result = ConsTypeList<Head2, Tail2>;
+        };
+        
+        template <typename Dummy, typename Head1, typename Tail1, typename Head2, typename Tail2>
+        struct Merge<Dummy, ConsTypeList<Head1, Tail1>, ConsTypeList<Head2, Tail2>> {
+            using Result = If<
+                !(LessFunc<Head2, Head1>::Value),
+                ConsTypeList<Head1, typename Merge<Dummy, Tail1, ConsTypeList<Head2, Tail2>>::Result>,
+                ConsTypeList<Head2, typename Merge<Dummy, ConsTypeList<Head1, Tail1>, Tail2>::Result>
+            >;
+        };
+        
+        template <typename Dummy, typename List>
+        struct Sort {
+            static int const SplitIndex = TypeListLength<List>::Value / 2;
+            using Result = typename Merge<
+                void,
+                typename Sort<Dummy, TypeListRangeTo<List, SplitIndex>>::Result,
+                typename Sort<Dummy, TypeListRangeFrom<List, SplitIndex>>::Result
+            >::Result;
+        };
+        
+        template <typename Dummy, typename Head>
+        struct Sort<Dummy, ConsTypeList<Head, EmptyTypeList>> {
+            using Result = ConsTypeList<Head, EmptyTypeList>;
+        };
+        
+        template <typename Dummy>
+        struct Sort<Dummy, EmptyTypeList> {
+            using Result = EmptyTypeList;
+        };
+    };
+}
+
+/**
+ * Sort the elements of List based on the comparision function.
+ * The LessFunc is given two elements of List and should
+ * expand to a WrapBool determining if the first element is lesser
+ * than the second. The order of elements which compare equal is
+ * preserved.
+ * 
+ * Example:
+ * 
+ * \code
+ * template <typename X, typename Y>
+ * using LessFunc = WrapBool<(X::Value < Y::Value)>;
+ * 
+ * ListSort<MakeTypeList<WrapInt<6>, WrapInt<3>, WrapInt<4>>, LessFunc>
+ * // produces
+ * MakeTypeList<WrapInt<3>, WrapInt<4>, WrapInt<6>>
+ * \endcode
+ */
+template <typename List, template<typename, typename> class LessFunc>
+using ListSort = typename ListSortPrivate::template SortHelper<LessFunc>::template Sort<void, List>::Result;
 
 #include <aprinter/EndNamespace.h>
 
