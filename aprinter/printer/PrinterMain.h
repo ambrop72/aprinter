@@ -247,6 +247,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_configuration_changed, configuration_changed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_forward_update_pos, forward_update_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_move_interlocks, check_move_interlocks)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_startHook, startHook)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
@@ -356,9 +357,6 @@ private:
         static_assert(FindResult::Found, "The requested service type is not provided by any module.");
         static int const ModuleIndex = TypeListGet<typename FindResult::Result, 0>::Key::Value;
     };
-    
-private:
-    static bool const HasVirtHoming = HasServiceProvider<typename ServiceList::VirtHomingService>::Value;
     
 public:
     static_assert(Params::ExpectedResponseLength >= 60, "");
@@ -1761,7 +1759,7 @@ public:
             using ThePhysAxis = Axis<PhysAxisIndex>;
             static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
             using WrappedPhysAxisIndex = WrapInt<PhysAxisIndex>;
-            static bool const ConsiderForHoming = HasVirtHoming;
+            static bool const ConsiderForHoming = true;
             static bool const IsExtruder = false;
             
         public:
@@ -2103,35 +2101,128 @@ private:
         static void start_loading (Context c) {}
     };
     
-public:
-    AMBRO_STRUCT_IF(VirtHomingFeature, HasVirtHoming) {
-        friend PrinterMain;
+private:
+    template <typename HookParentObject, typename HookType, typename CompletedHandler, typename HookServiceProviders>
+    class HookBase {
+    public:
+        struct Object;
         
     private:
-        using VirtHomingModule = GetServiceProviderModule<typename ServiceList::VirtHomingService>;
+        static int const NumHookProviders = TypeListLength<HookServiceProviders>::Value;
         
-        static bool start_virt_homing (Context c)
+    public:
+        static void init (Context c)
         {
-            auto *ob = PrinterMain::Object::self(c);
-            VirtHomingModule::startVirtHoming(c, ob->m_homing_rem_axes, get_locked(c));
-            return true;
+            auto *o = Object::self(c);
+            
+            o->current_provider = -1;
+        }
+        
+        static void start (Context c, TheCommand *err_output)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->current_provider == -1)
+            AMBRO_ASSERT(err_output)
+            
+            o->current_provider = 0;
+            o->err_output = err_output;
+            
+            return work_hooks(c);
+        }
+        
+        static void hookCompleted (Context c, bool error)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->current_provider >= 0)
+            AMBRO_ASSERT(o->current_provider < NumHookProviders)
+            
+            if (error) {
+                o->current_provider = -1;
+                return CompletedHandler::call(c, true);
+            }
+            
+            o->current_provider++;
+            return work_hooks(c);
+        }
+        
+    private:
+        template <int ProviderIndex>
+        struct ProviderHelper {
+            using TheServiceProvider = TypeListGet<HookServiceProviders, ProviderIndex>;
+            using TheProviderModule = GetModule<TheServiceProvider::Key::Value>;
+            
+            static bool startHook (Context c, TheCommand *err_output)
+            {
+                return TheProviderModule::startHook(c, HookType(), err_output);
+            }
+        };
+        using ProviderHelperList = IndexElemList<HookServiceProviders, ProviderHelper>;
+        
+        static void work_hooks (Context c)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(o->current_provider >= 0)
+            AMBRO_ASSERT(o->current_provider <= NumHookProviders)
+            
+            while (o->current_provider < NumHookProviders) {
+                if (!ListForOneOffset<ProviderHelperList, 0, bool>(o->current_provider, LForeach_startHook(), c, o->err_output)) {
+                    return;
+                }
+                o->current_provider++;
+            }
+            
+            o->current_provider = -1;
+            return CompletedHandler::call(c, false);
         }
         
     public:
-        static void virtualHomingFinished (Context c, bool error)
-        {
-            auto *ob = PrinterMain::Object::self(c);
-            AMBRO_ASSERT(!ob->homing_error)
-            
-            ob->homing_error = error;
-            homing_finished(c);
-        }
-    }
-    AMBRO_STRUCT_ELSE(VirtHomingFeature) {
-        friend PrinterMain;
-    private:
-        static bool start_virt_homing (Context c) { return false; }
+        struct Object : public ObjBase<HookBase, HookParentObject, EmptyTypeList> {
+            int8_t current_provider;
+            TheCommand *err_output;
+        };
     };
+    
+    template <typename HookParentObject, typename HookType, typename CompletedHandler>
+    class HookBase<HookParentObject, HookType, CompletedHandler, EmptyTypeList> {
+    public:
+        static void init (Context c) {}
+        
+        static void start (Context c, TheCommand *err_output)
+        {
+            AMBRO_ASSERT(err_output)
+            return CompletedHandler::call(c, false);
+        }
+        
+        struct Object {};
+    };
+    
+    template <typename HookType, typename CompletedHandler>
+    using MakeHook = HookBase<typename PrinterMain::Object, HookType, CompletedHandler, GetServiceProviders<HookType>>;
+    
+private:
+    static void homing_hooks_completed (Context c, bool error)
+    {
+        auto *ob = PrinterMain::Object::self(c);
+        AMBRO_ASSERT(!ob->homing_error)
+        
+        ob->homing_error = error;
+        return homing_finished(c);
+    }
+    
+    using HomingHook = MakeHook<ServiceList::HomingHookService, AMBRO_WFUNC_T(&PrinterMain::homing_hooks_completed)>;
+    
+public:
+    static void homingHookCompleted (Context c, bool error)
+    {
+        HomingHook::hookCompleted(c, error);
+    }
+    
+public:
+    static PhysVirtAxisMaskType getVirtHomingAxes (Context c)
+    {
+        auto *ob = PrinterMain::Object::self(c);
+        return ob->m_homing_rem_axes;
+    }
     
 public:
     static void init (Context c)
@@ -2158,6 +2249,7 @@ public:
         ob->underrun_count = 0;
         ob->locked = false;
         ob->planner_state = PLANNER_NONE;
+        HomingHook::init(c);
         ListForEachForward<ModulesList>(LForeach_init(), c);
         
         print_pgm_string(c, AMBRO_PSTR("start\nAPrinter\n"));
@@ -2544,9 +2636,10 @@ private:
         AMBRO_ASSERT(!(ob->m_homing_rem_axes & PhysAxisMask))
         
         TransformFeature::do_pending_virt_update(c);
-        if (ob->homing_error || !VirtHomingFeature::start_virt_homing(c)) {
+        if (ob->homing_error) {
             return homing_finished(c);
         }
+        return HomingHook::start(c, get_locked(c));
     }
     
 private:
@@ -3000,7 +3093,8 @@ public:
             TheBlinker,
             TheSteppers,
             TransformFeature,
-            PlannerUnion
+            PlannerUnion,
+            HomingHook
         >
     >> {
         typename Context::EventLoop::QueuedEvent unlocked_timer;

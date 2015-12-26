@@ -85,16 +85,18 @@ public:
         return !ListForEachForwardInterruptible<VirtHomingAxisList>(LForeach_prestep_callback(), c);
     }
     
-    static void startVirtHoming (Context c, PhysVirtAxisMaskType virt_axes, TheCommand *err_output)
+    static bool startHook (Context c, ServiceList::HomingHookService, TheCommand *err_output)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == State::IDLE)
         
         o->state = State::RUNNING;
         o->err_output = err_output;
-        o->rem_axes = virt_axes;
+        o->rem_axes = ThePrinterMain::getVirtHomingAxes(c);
         o->homing_error = false;
         o->event.prependNowNotAlready(c);
+        
+        return false;
     }
     
 private:
@@ -108,7 +110,7 @@ private:
             o->homing_error
         ) {
             o->state = State::IDLE;
-            return ThePrinterMain::VirtHomingFeature::virtualHomingFinished(c, o->homing_error);
+            return ThePrinterMain::homingHookCompleted(c, o->homing_error);
         }
     }
     
@@ -332,7 +334,9 @@ template <
 struct VirtualHomingModuleService {
     using VirtHomingAxisParamsList = TVirtHomingAxisParamsList;
     
-    using ProvidedServices = MakeTypeList<ServiceDefinition<ServiceList::VirtHomingService>>;
+    using ProvidedServices = MakeTypeList<
+        ServiceDefinition<ServiceList::HomingHookService, 0>
+    >;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
     using Module = VirtualHomingModule<Context, ParentObject, ThePrinterMain, VirtualHomingModuleService>;

@@ -32,7 +32,7 @@
 namespace ServiceList {
     struct FsAccessService {};
     struct CorrectionService {};
-    struct VirtHomingService {};
+    struct HomingHookService {};
 }
 
 template <typename TServiceType, int8_t TPriority=0>
