@@ -146,6 +146,10 @@ function each_in(obj, prop, func) {
 
 function fixup_config(config) {
     each_in(config, "boards", function(i, board) {
+        if (JSONEditor_utils.has(board, "serial") && !JSONEditor_utils.has(board, "serial_ports")) {
+            board["serial_ports"] = [board["serial"]];
+            delete board["serial"];
+        }
         each_in(board, "analog_inputs", function(j, analog_input) {
             if (JSONEditor_utils.isObject(analog_input)) {
                 if (!JSONEditor_utils.has(analog_input, "Driver") && JSONEditor_utils.has(analog_input, "Pin")) {

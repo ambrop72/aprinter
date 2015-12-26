@@ -683,7 +683,7 @@ def editor():
                     ]),
                 ]),
             ]),
-            ce.Compound('serial', key='serial', title='Serial parameters', collapsable=True, attrs=[
+            ce.Array(key='serial_ports', title='Serial ports', elem=ce.Compound('serial', title='Serial port', collapsable=True, attrs=[
                 ce.Integer(key='BaudRate', title='Baud rate'),
                 ce.Integer(key='RecvBufferSizeExp', title='Receive buffer size (power of two exponent)'),
                 ce.Integer(key='SendBufferSizeExp', title='Send buffer size (power of two exponent)'),
@@ -700,7 +700,7 @@ def editor():
                     ce.Compound('Stm32f4UsbSerial', title='STM32F4 USB', attrs=[]),
                     ce.Compound('NullSerial', title='Null serial driver', attrs=[]),
                 ])
-            ]),
+            ])),
             ce.Compound('SdCardConfig', key='sdcard_config', title='SD card configuration', collapsable=True, attrs=[
                 ce.OneOf(key='sdcard', title='SD card', choices=[
                     ce.Compound('NoSdCard', title='Disabled',attrs=[]),

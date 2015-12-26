@@ -1390,7 +1390,7 @@ def generate(config_root_data, cfg_name, main_template):
                         bulk_output_test_module = gen.add_module()
                         bulk_output_test_module.set_expr('BulkOutputTestModuleService')
                 
-                for serial in board_data.enter_config('serial'):
+                for serial in board_data.iter_list_config('serial_ports', max_count=5):
                     gen.add_aprinter_include('printer/modules/SerialModule.h')
                     
                     serial_module = gen.add_module()
