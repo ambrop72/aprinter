@@ -35,7 +35,6 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/InputCommon.h>
-#include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/GcodeCommand.h>
 
@@ -238,8 +237,6 @@ struct SerialModuleService {
     static int const SendBufferSizeExp = TSendBufferSizeExp;
     using TheGcodeParserParams = TTheGcodeParserParams;
     using SerialService = TSerialService;
-    
-    using ProvidedServices = MakeTypeList<ServiceDefinition<ServiceList::SerialService>>;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
     using Module = SerialModule<Context, ParentObject, ThePrinterMain, SerialModuleService>;

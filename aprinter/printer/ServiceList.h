@@ -30,7 +30,6 @@
 #include <aprinter/BeginNamespace.h>
 
 namespace ServiceList {
-    struct SerialService {};
     struct FsAccessService {};
     struct CorrectionService {};
     struct VirtHomingService {};
