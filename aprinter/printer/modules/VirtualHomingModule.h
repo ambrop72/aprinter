@@ -110,7 +110,7 @@ private:
             o->homing_error
         ) {
             o->state = State::IDLE;
-            return ThePrinterMain::homingHookCompleted(c, o->homing_error);
+            return ThePrinterMain::template hookCompletedByProvider<ServiceList::HomingHookService>(c, o->homing_error);
         }
     }
     

@@ -71,6 +71,7 @@
 #include <aprinter/printer/ServiceList.h>
 #include <aprinter/printer/GcodeCommand.h>
 #include <aprinter/printer/OutputStream.h>
+#include <aprinter/printer/HookExecutor.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -247,7 +248,6 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_configuration_changed, configuration_changed)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_forward_update_pos, forward_update_pos)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_check_move_interlocks, check_move_interlocks)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_startHook, startHook)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedAxisName, WrappedAxisName)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_WrappedPhysAxisIndex, WrappedPhysAxisIndex)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HomingState, HomingState)
@@ -2102,105 +2102,7 @@ private:
     };
     
 private:
-    template <typename HookParentObject, typename HookType, typename CompletedHandler, typename HookServiceProviders>
-    class HookBase {
-    public:
-        struct Object;
-        
-    private:
-        static int const NumHookProviders = TypeListLength<HookServiceProviders>::Value;
-        
-    public:
-        static void init (Context c)
-        {
-            auto *o = Object::self(c);
-            
-            o->current_provider = -1;
-        }
-        
-        static void start (Context c, TheCommand *err_output)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->current_provider == -1)
-            AMBRO_ASSERT(err_output)
-            
-            o->current_provider = 0;
-            o->err_output = err_output;
-            
-            return work_hooks(c);
-        }
-        
-        static void hookCompleted (Context c, bool error)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->current_provider >= 0)
-            AMBRO_ASSERT(o->current_provider < NumHookProviders)
-            
-            if (error) {
-                o->current_provider = -1;
-                return CompletedHandler::call(c, true);
-            }
-            
-            o->current_provider++;
-            return work_hooks(c);
-        }
-        
-    private:
-        template <int ProviderIndex>
-        struct ProviderHelper {
-            using TheServiceProvider = TypeListGet<HookServiceProviders, ProviderIndex>;
-            using TheProviderModule = GetModule<TheServiceProvider::Key::Value>;
-            
-            static bool startHook (Context c, TheCommand *err_output)
-            {
-                return TheProviderModule::startHook(c, HookType(), err_output);
-            }
-        };
-        using ProviderHelperList = IndexElemList<HookServiceProviders, ProviderHelper>;
-        
-        static void work_hooks (Context c)
-        {
-            auto *o = Object::self(c);
-            AMBRO_ASSERT(o->current_provider >= 0)
-            AMBRO_ASSERT(o->current_provider <= NumHookProviders)
-            
-            while (o->current_provider < NumHookProviders) {
-                if (!ListForOneOffset<ProviderHelperList, 0, bool>(o->current_provider, LForeach_startHook(), c, o->err_output)) {
-                    return;
-                }
-                o->current_provider++;
-            }
-            
-            o->current_provider = -1;
-            return CompletedHandler::call(c, false);
-        }
-        
-    public:
-        struct Object : public ObjBase<HookBase, HookParentObject, EmptyTypeList> {
-            int8_t current_provider;
-            TheCommand *err_output;
-        };
-    };
-    
-    template <typename HookParentObject, typename HookType, typename CompletedHandler>
-    class HookBase<HookParentObject, HookType, CompletedHandler, EmptyTypeList> {
-    public:
-        static void init (Context c) {}
-        
-        static void start (Context c, TheCommand *err_output)
-        {
-            AMBRO_ASSERT(err_output)
-            return CompletedHandler::call(c, false);
-        }
-        
-        struct Object {};
-    };
-    
-    template <typename HookType, typename CompletedHandler>
-    using MakeHook = HookBase<typename PrinterMain::Object, HookType, CompletedHandler, GetServiceProviders<HookType>>;
-    
-private:
-    static void homing_hooks_completed (Context c, bool error)
+    static void homing_hook_completed (Context c, bool error)
     {
         auto *ob = PrinterMain::Object::self(c);
         AMBRO_ASSERT(!ob->homing_error)
@@ -2209,17 +2111,34 @@ private:
         return homing_finished(c);
     }
     
-    using HomingHook = MakeHook<ServiceList::HomingHookService, AMBRO_WFUNC_T(&PrinterMain::homing_hooks_completed)>;
+private:
+    struct GenericHookDispatcher {
+        template <typename HookType>
+        using GetHookProviders = GetServiceProviders<HookType>;
+        
+        template <typename HookType, typename TheServiceProvider>
+        static bool dispatchHookToProvider (Context c)
+        {
+            return GetModule<TheServiceProvider::Key::Value>::startHook(c, HookType(), get_locked(c));
+        }
+    };
+    
+    using HookDefinitionList = MakeTypeList<
+        HookDefinition<ServiceList::HomingHookService, GenericHookDispatcher, AMBRO_WFUNC_T(&PrinterMain::homing_hook_completed)>
+    >;
+    
+    using TheHookExecutor = HookExecutor<Context, typename PrinterMain::Object, HookDefinitionList>;
     
 public:
-    static void homingHookCompleted (Context c, bool error)
+    template <typename HookType>
+    static void hookCompletedByProvider (Context c, bool error)
     {
-        HomingHook::hookCompleted(c, error);
+        return TheHookExecutor::template hookCompletedByProvider<HookType>(c, error);
     }
     
-public:
     static PhysVirtAxisMaskType getVirtHomingAxes (Context c)
     {
+        AMBRO_ASSERT(TheHookExecutor::template hookIsRunning<ServiceList::HomingHookService>(c))
         auto *ob = PrinterMain::Object::self(c);
         return ob->m_homing_rem_axes;
     }
@@ -2249,7 +2168,7 @@ public:
         ob->underrun_count = 0;
         ob->locked = false;
         ob->planner_state = PLANNER_NONE;
-        HomingHook::init(c);
+        TheHookExecutor::init(c);
         ListForEachForward<ModulesList>(LForeach_init(), c);
         
         print_pgm_string(c, AMBRO_PSTR("start\nAPrinter\n"));
@@ -2268,6 +2187,7 @@ public:
             ThePlanner::deinit(c);
         }
         ListForEachReverse<ModulesList>(LForeach_deinit(), c);
+        TheHookExecutor::deinit(c);
         ListForEachReverse<LasersList>(LForeach_deinit(), c);
         ListForEachReverse<AxesList>(LForeach_deinit(), c);
         TheSteppers::deinit(c);
@@ -2639,7 +2559,7 @@ private:
         if (ob->homing_error) {
             return homing_finished(c);
         }
-        return HomingHook::start(c, get_locked(c));
+        return TheHookExecutor::template startHook<ServiceList::HomingHookService>(c);
     }
     
 private:
@@ -3094,7 +3014,7 @@ public:
             TheSteppers,
             TransformFeature,
             PlannerUnion,
-            HomingHook
+            TheHookExecutor
         >
     >> {
         typename Context::EventLoop::QueuedEvent unlocked_timer;
