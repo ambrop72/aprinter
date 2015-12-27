@@ -31,7 +31,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/TypesAreEqual.h>

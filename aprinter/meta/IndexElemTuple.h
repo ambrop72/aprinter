@@ -26,7 +26,7 @@
 #define AMBROLIB_INDEX_ELEM_TUPLE_H
 
 #include <aprinter/meta/Tuple.h>
-#include <aprinter/meta/IndexElemList.h>
+#include <aprinter/meta/TypeListUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

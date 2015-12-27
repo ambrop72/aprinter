@@ -32,7 +32,6 @@
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/WrapValue.h>
-#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/base/Object.h>

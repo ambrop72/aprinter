@@ -32,7 +32,6 @@
 #include <aprinter/meta/Options.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
-#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/ConstexprMath.h>
 #include <aprinter/base/Object.h>

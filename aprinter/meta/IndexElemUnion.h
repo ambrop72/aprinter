@@ -26,7 +26,7 @@
 #define AMBROLIB_INDEX_ELEM_UNION_H
 
 #include <aprinter/meta/Union.h>
-#include <aprinter/meta/IndexElemList.h>
+#include <aprinter/meta/TypeListUtils.h>
 
 #include <aprinter/BeginNamespace.h>
 

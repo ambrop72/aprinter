@@ -28,7 +28,6 @@
 #include <stdint.h>
 
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/TypeDict.h>

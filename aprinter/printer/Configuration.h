@@ -32,7 +32,6 @@
 #include <aprinter/meta/TypeListBuilder.h>
 #include <aprinter/meta/Expr.h>
 #include <aprinter/base/Object.h>
-#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/If.h>

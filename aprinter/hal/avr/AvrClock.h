@@ -35,7 +35,6 @@
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypesAreEqual.h>
 #include <aprinter/meta/MemberType.h>

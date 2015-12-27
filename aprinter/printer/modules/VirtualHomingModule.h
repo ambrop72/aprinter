@@ -25,7 +25,6 @@
 #ifndef APRINTER_VIRTUAL_HOMING_MODULE
 #define APRINTER_VIRTUAL_HOMING_MODULE
 
-#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/base/Object.h>

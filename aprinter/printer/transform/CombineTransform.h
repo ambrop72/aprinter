@@ -26,7 +26,6 @@
 #define APRINTER_COMBINE_TRANSFORM_H
 
 #include <aprinter/meta/TypeListUtils.h>
-#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/DedummyIndexTemplate.h>
 #include <aprinter/base/Object.h>

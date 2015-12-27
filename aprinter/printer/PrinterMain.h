@@ -37,7 +37,6 @@
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/ChooseInt.h>
-#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/Union.h>
 #include <aprinter/meta/UnionGet.h>

@@ -474,6 +474,42 @@ namespace ListSortPrivate {
 template <typename List, template<typename, typename> class LessFunc>
 using ListSort = typename ListSortPrivate::template SortHelper<LessFunc>::template Sort<void, List>::Result;
 
+namespace SequenceListPrivate {
+    template <int Count, int Start>
+    struct SequenceListHelper {
+        typedef ConsTypeList<
+            WrapInt<Start>,
+            typename SequenceListHelper<(Count - 1), (Start + 1)>::Type
+        > Type;
+    };
+
+    template <int Start>
+    struct SequenceListHelper<0, Start> {
+        typedef EmptyTypeList Type;
+    };
+}
+
+/**
+ * Create a list of WrapInt\<index\> for index from Start up to
+ * Start+Count exclusive.
+ */
+template <int Count, int Start=0>
+using SequenceList = typename SequenceListPrivate::SequenceListHelper<Count, Start>::Type;
+
+/**
+ * Create a list of ElemTemplate\<index\> for index from
+ * 0 up to Count exclusive.
+ */
+template <int Count, template<int> class ElemTemplate>
+using IndexElemListCount = MapTypeList<SequenceList<Count>, ValueTemplateFunc<int, ElemTemplate>>;
+
+/**
+ * Create a list of ElemTemplate\<index\> for index from
+ * 0 up to the length of List exclusive.
+ */
+template <typename List, template<int> class ElemTemplate>
+using IndexElemList = IndexElemListCount<TypeListLength<List>::Value, ElemTemplate>;
+
 #include <aprinter/EndNamespace.h>
 
 #endif

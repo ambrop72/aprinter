@@ -35,7 +35,6 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemTuple.h>
-#include <aprinter/meta/IndexElemList.h>
 #include <aprinter/meta/TupleGet.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/meta/ChooseInt.h>
