@@ -1459,8 +1459,7 @@ private:
 public:
     struct PlannerClient {
         virtual void pull_handler (Context c) = 0;
-        virtual void finished_handler (Context c) = 0;
-        virtual void aborted_handler (Context c) = 0;
+        virtual void finished_handler (Context c, bool aborted) = 0;
     };
     
 public:
@@ -2681,7 +2680,7 @@ private:
         
         if (ob->planner_state == PLANNER_CUSTOM) {
             ob->custom_planner_deinit_allowed = true;
-            return ob->planner_client->finished_handler(c);
+            return ob->planner_client->finished_handler(c, false);
         }
         
         uint8_t old_state = ob->planner_state;
@@ -2706,7 +2705,7 @@ private:
         TransformFeature::handle_aborted(c);
         ob->custom_planner_deinit_allowed = true;
         
-        return ob->planner_client->aborted_handler(c);
+        return ob->planner_client->finished_handler(c, true);
     }
     
     static void planner_underrun_callback (Context c)

@@ -642,6 +642,21 @@ def editor():
                 ce.Float(key='MaxPower', title='Maximum power [Energy/s] (values <LaserPower limit laser output)', default=100),
                 ce.Float(key='AdjustmentInterval', title='Output adjustment interval [s]', default=0.005),
             ])),
+            ce.OneOf(key='Moves', title='Predefined moves', choices=[
+                ce.Compound('NoMoves', title='Disabled', attrs=[]),
+                ce.Compound('Moves', title='Enabled', attrs=[
+                    ce.Array(key='Moves', title='Moves', elem=ce.Compound('Move', title='Move', attrs=[
+                        ce.String(key='HookType', title='Upon event', enum=['After homing']),
+                        ce.Integer(key='HookPriority', title='Priority', default=10),
+                        ce.Boolean(key='Enabled', title='Enabled', default=True),
+                        ce.Float(key='Speed', title='Speed [mm/s]', default=200),
+                        ce.Array(key='Coordinates', title='Coordinates', table=True, elem=ce.Compound('Coordinate', title='Coordinate', attrs=[
+                            ce.String(key='AxisName', title='Axis', default='X'),
+                            ce.Float(key='Value', title='Value', default=100),
+                        ])),
+                    ])),
+                ]),
+            ]),
         ])),
         ce.Array(key='boards', title='Boards', processing_order=-2, copy_name_key='name', elem=ce.Compound('board', title='Board', title_key='name', collapsable=True, ident='id_board', attrs=[
             ce.String(key='name', title='Name (modifying will break references from configurations and lose data)'),

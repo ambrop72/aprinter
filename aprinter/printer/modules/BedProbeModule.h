@@ -515,7 +515,7 @@ private:
     using AxisHelperList = IndexElemList<PlatformAxesList, AxisHelper>;
     
     class ProbePlannerClient : public ThePrinterMain::PlannerClient {
-    public:
+    private:
         void pull_handler (Context c)
         {
             auto *o = Object::self(c);
@@ -560,18 +560,7 @@ private:
             return ThePrinterMain::move_end(c, time_freq_by_speed, true, ThePrinterMain::get_locked(c), BedProbeModule::move_end_callback);
         }
         
-        void finished_handler (Context c)
-        {
-            finished_or_aborted(c, false);
-        }
-        
-        void aborted_handler (Context c)
-        {
-            finished_or_aborted(c, true);
-        }
-        
-    private:
-        void finished_or_aborted (Context c, bool aborted)
+        void finished_handler (Context c, bool aborted)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->m_current_point != -1)

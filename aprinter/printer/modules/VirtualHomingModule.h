@@ -202,7 +202,8 @@ private:
             }
         }
         
-        struct VirtHomingPlannerClient : public ThePrinterMain::PlannerClient {
+        class VirtHomingPlannerClient : public ThePrinterMain::PlannerClient {
+        private:
             void pull_handler (Context c)
             {
                 auto *o = Object::self(c);
@@ -236,17 +237,7 @@ private:
                 return ThePrinterMain::move_end(c, (FpType)ThePrinterMain::TimeConversion::value() / speed, true, mo->err_output, VirtHomingAxis::virt_homing_move_end_callback);
             }
             
-            void finished_handler (Context c)
-            {
-                finished_or_aborted(c, false);
-            }
-            
-            void aborted_handler (Context c)
-            {
-                finished_or_aborted(c, true);
-            }
-            
-            void finished_or_aborted (Context c, bool aborted)
+            void finished_handler (Context c, bool aborted)
             {
                 auto *o = Object::self(c);
                 auto *mo = VirtualHomingModule::Object::self(c);

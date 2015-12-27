@@ -156,13 +156,13 @@ AMBRO_ALWAYS_INLINE auto ListForEachForwardAccRes (InitialAccRes initial_acc_res
     return ListForEach<List>::call_forward_accres(initial_acc_res, func, args...);
 }
 
-template <typename List, int Offset, typename Ret = void, typename IndexType, typename Func, typename... Args>
+template <typename List, int Offset = 0, typename Ret = void, typename IndexType, typename Func, typename... Args>
 AMBRO_ALWAYS_INLINE Ret ListForOneOffset (IndexType index, Func func, Args... args)
 {
     return ListForOneHelper<List, Offset, Ret, IndexType>::call(index, func, args...);
 }
 
-template <typename List, int Offset, typename IndexType, typename Func, typename... Args>
+template <typename List, int Offset = 0, typename IndexType, typename Func, typename... Args>
 AMBRO_ALWAYS_INLINE bool ListForOneBoolOffset (IndexType index, Func func, Args... args)
 {
     return ListForOneHelper<List, Offset, void, IndexType>::call_bool(index, func, args...);

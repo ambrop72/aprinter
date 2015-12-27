@@ -366,6 +366,16 @@ namespace Private {
     };
 };
 
+/**
+ * Produce a new list based on List whose elements are (index, element) pairs,
+ * where the indices start with the given Offset and increase by one.
+ * 
+ * \code
+ * TypeListEnumerate<MakeTypeList<int, float>>
+ * // produces
+ * MakeTypeList<TypeDictEntry<WrapInt<0>, int>, TypeDictEntry<WrapInt<1>, float>>
+ * \endcode
+ */
 template <typename List, int Offset=0>
 using TypeListEnumerate = typename Private::TypeListEnumerateHelper<Offset, List>::Result;
 

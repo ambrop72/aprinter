@@ -2120,6 +2120,46 @@ def generate(config_root_data, cfg_name, main_template):
                 fans_expr,
             ]))
             
+            moves_sel = selection.Selection()
+            
+            @moves_sel.option('NoMoves')
+            def option(moves_config):
+                pass
+            
+            @moves_sel.option('Moves')
+            def option(moves_config):
+                gen.add_aprinter_include('printer/modules/MoveToModule.h')
+                
+                def move_cb(move_config, move_index):
+                    move_config_prefix = 'Move{}'.format(move_index+1)
+                    move_coords = set()
+                    
+                    def coord_cb(coord_config, coord_index):
+                        axis_name = coord_config.get_id_char('AxisName')
+                        if axis_name in move_coords:
+                            coord_config.key_path('AxisName').error('Duplicate axis in coordinate.')
+                        move_coords.add(axis_name)
+                        
+                        return TemplateExpr('MoveCoordSpec', [
+                            TemplateChar(axis_name),
+                            gen.add_float_config('{}{}'.format(move_config_prefix, axis_name), coord_config.get_float('Value')),
+                        ])
+                    
+                    return TemplateExpr('MoveSpec', [
+                        move_config.do_enum('HookType', {'After homing': 'ServiceList::HomingHookService'}),
+                        move_config.get_int('HookPriority'),
+                        gen.add_bool_config('{}Enabled'.format(move_config_prefix), move_config.get_bool('Enabled')),
+                        gen.add_float_config('{}Speed'.format(move_config_prefix), move_config.get_float('Speed')),
+                        move_config.do_list('Coordinates', coord_cb, max_count=10),
+                    ])
+                
+                moveto_module = gen.add_module()
+                moveto_module.set_expr(TemplateExpr('MoveToModuleService', [
+                    moves_config.do_list('Moves', move_cb, max_count=10),
+                ]))
+            
+            config.do_selection('Moves', moves_sel)
+            
             if gen._need_millisecond_clock:
                 if not gen._have_hw_millisecond_clock:
                     gen.add_aprinter_include('system/MillisecondClock.h')
