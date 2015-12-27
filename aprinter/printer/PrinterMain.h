@@ -2119,7 +2119,8 @@ private:
         template <typename HookType, typename TheServiceProvider>
         static bool dispatchHookToProvider (Context c)
         {
-            return GetModule<TheServiceProvider::Key::Value>::startHook(c, HookType(), get_locked(c));
+            using TheModule = GetModule<TheServiceProvider::Key::Value>;
+            return TheModule::startHook(c, typename TheServiceProvider::Value::UserId(), get_locked(c));
         }
     };
     

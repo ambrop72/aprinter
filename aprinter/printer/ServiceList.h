@@ -35,10 +35,13 @@ namespace ServiceList {
     struct HomingHookService {};
 }
 
-template <typename TServiceType, int8_t TPriority=0>
+struct DummyServiceUserId {};
+
+template <typename TServiceType, int8_t TPriority=0, typename TUserId=DummyServiceUserId>
 struct ServiceDefinition {
     using ServiceType = TServiceType;
     static int8_t const Priority = TPriority;
+    using UserId = TUserId;
 };
 
 #include <aprinter/EndNamespace.h>

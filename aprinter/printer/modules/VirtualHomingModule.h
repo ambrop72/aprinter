@@ -85,7 +85,7 @@ public:
         return !ListForEachForwardInterruptible<VirtHomingAxisList>(LForeach_prestep_callback(), c);
     }
     
-    static bool startHook (Context c, ServiceList::HomingHookService, TheCommand *err_output)
+    static bool startHook (Context c, DummyServiceUserId, TheCommand *err_output)
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == State::IDLE)
