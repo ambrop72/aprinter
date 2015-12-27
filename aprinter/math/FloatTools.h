@@ -273,6 +273,16 @@ float FloatCos (float x)
     return cosf(x);
 }
 
+double FloatAcos (double x)
+{
+    return acos(x);
+}
+
+float FloatAcos (float x)
+{
+    return acosf(x);
+}
+
 double FloatAtan2 (double y, double x)
 {
     return atan2(y, x);

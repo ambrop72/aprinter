@@ -531,6 +531,23 @@ def editor():
                         ce.Float(key='ZOffset', title='Z offset [mm]', default=200.0),
                     ]
                 ),
+                make_transform_type(transform_type='SCARA', transform_title='SCARA',
+                    stepper_defs=[
+                        {'default_name': 'A', 'title': 'Shoulder stepper (Arm1)'},
+                        {'default_name': 'B', 'title': 'Elbow stepper (Arm2)'},
+                    ],
+                    axis_defs=[
+                        {'axis_name': 'X', 'homing_allowed': False},
+                        {'axis_name': 'Y', 'homing_allowed': False},
+                    ],
+                    specific_params=[
+                        ce.Float(key='Arm1Length', title='Length of first arm [mm]', default=150.0),
+                        ce.Float(key='Arm2Length', title='Length of second arm [mm]', default=150.0),
+                        ce.Boolean(key='ExternalArm2Motor', title='Is the driving motor of the second arm external (i.e. not built into arm1)', default=True),
+                        ce.Float(key='XOffset', title='X offset [mm]', default=0.0),
+                        ce.Float(key='YOffset', title='Y offset [mm]', default=0.0),
+                    ]
+                ),
             ]),
             ce.Array(key='heaters', title='Heaters', copy_name_key='Name', copy_name_suffix='?', elem=ce.Compound('heater', title='Heater', title_key='Name', collapsable=True, ident='id_configuration_heater', attrs=[
                 ce.String(key='Name', title='Name (capital letter optionally followed by a number; T=extruder, B=bed)'),

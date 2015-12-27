@@ -1871,6 +1871,17 @@ def generate(config_root_data, cfg_name, main_template):
                         gen.add_float_config('DeltaZOffset', transform.get_float('ZOffset')),
                     ]), 'Delta'
                 
+                @transform_type_sel.option('SCARA')
+                def option():
+                    gen.add_aprinter_include('printer/transform/SCARATransform.h')
+                    return TemplateExpr('SCARATransformService', [
+                        gen.add_float_config('SCARAArm1Length', transform.get_float('Arm1Length')),
+                        gen.add_float_config('SCARAArm2Length', transform.get_float('Arm2Length')),
+                        gen.add_bool_config('SCARAExternalArm2Motor', transform.get_bool('ExternalArm2Motor')),
+                        gen.add_float_config('SCARAXOffset', transform.get_float('XOffset')),
+                        gen.add_float_config('SCARAYOffset', transform.get_float('YOffset')),
+                    ]), 'SCARA'
+                
                 transform_type_expr, transform_prefix = transform_type_sel.run(transform_type)
                 
                 splitter_sel = selection.Selection()
