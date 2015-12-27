@@ -110,7 +110,7 @@ private:
             o->command_sent = true;
             ThePrinterMain::move_begin(c);
             FpType speed;
-            ListForOneOffset<MoveHelperList>(o->move_index, Foreach_fill_move_command(), c, &speed);
+            ListForOne<MoveHelperList>(o->move_index, Foreach_fill_move_command(), c, &speed);
             return ThePrinterMain::move_end(c, (FpType)ThePrinterMain::TimeConversion::value() / speed, true, o->err_output, MoveToModule::move_end_callback);
         }
         
@@ -122,7 +122,7 @@ private:
             ThePrinterMain::custom_planner_deinit(c);
             int8_t move_index = o->move_index;
             o->move_index = -1;
-            return ListForOneOffset<MoveHelperList>(move_index, Foreach_hook_completed(), c, o->move_error);
+            return ListForOne<MoveHelperList>(move_index, Foreach_hook_completed(), c, o->move_error);
         }
     };
     

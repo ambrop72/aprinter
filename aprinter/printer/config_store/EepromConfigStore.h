@@ -245,7 +245,7 @@ private:
             return finish(c, true);
         }
         memset(o->buffer, 0, sizeof(o->buffer));
-        int block_number = ListForOneOffset<BlockWriteHelperList, 0, int>(o->current_block, Foreach_write(), c);
+        int block_number = ListForOne<BlockWriteHelperList, 0, int>(o->current_block, Foreach_write(), c);
         TheEeprom::startWrite(c, block_number * TheEeprom::BlockSize, o->buffer, TheEeprom::BlockSize);
     }
     
@@ -257,7 +257,7 @@ private:
         if (o->current_block == NumReadBlocks) {
             return finish(c, true);
         }
-        int block_number = ListForOneOffset<BlockReadHelperList, 0, int>(o->current_block, Foreach_get_block_number());
+        int block_number = ListForOne<BlockReadHelperList, 0, int>(o->current_block, Foreach_get_block_number());
         TheEeprom::startRead(c, block_number * TheEeprom::BlockSize, o->buffer, TheEeprom::BlockSize);
     }
     
@@ -274,7 +274,7 @@ private:
             o->current_block++;
             return do_write(c);
         } else {
-            if (!ListForOneOffset<BlockReadHelperList, 0, bool>(o->current_block, Foreach_read(), c)) {
+            if (!ListForOne<BlockReadHelperList, 0, bool>(o->current_block, Foreach_read(), c)) {
                 return finish(c, false);
             }
             o->current_block++;

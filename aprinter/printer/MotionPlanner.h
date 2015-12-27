@@ -1311,7 +1311,7 @@ private:
                     t0, t2, t1, v_start, v_end, v_const);
                 v_start = v_end;
             } else {
-                ListForOneOffset<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_gen_command(), c, entry, time);
+                ListForOne<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_gen_command(), c, entry, time);
             }
             i++;
             if (AMBRO_UNLIKELY(i == commit_count)) {
@@ -1562,7 +1562,7 @@ private:
                 o->m_split_buffer.type = 0xFF;
             }
         } else {
-            ListForOneOffset<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_write_segment(), c, entry);
+            ListForOne<ChannelsList, 1>((entry->dir_and_type & TypeMask), LForeach_write_segment(), c, entry);
             o->m_split_buffer.type = 0xFF;
         }
         

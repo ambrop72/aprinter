@@ -445,13 +445,13 @@ private:
     
     static FpType get_point_z_offset (Context c, PointIndexType point_index)
     {
-        return ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_z_offset(), c);
+        return ListForOne<PointHelperList, 0, FpType>(point_index, LForeach_get_z_offset(), c);
     }
     
     template <int PlatformAxisIndex>
     static FpType get_point_coord (Context c, PointIndexType point_index)
     {
-        return ListForOneOffset<PointHelperList, 0, FpType>(point_index, LForeach_get_coord(), c, WrapInt<PlatformAxisIndex>());
+        return ListForOne<PointHelperList, 0, FpType>(point_index, LForeach_get_coord(), c, WrapInt<PlatformAxisIndex>());
     }
     
     static void skip_disabled_points_and_detect_end (Context c)

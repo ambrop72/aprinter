@@ -903,8 +903,8 @@ private:
     {
         auto *ob = Object::self(c);
         
-        ListForOneBoolOffset<HeatersList, 0>(payload->type, LForeach_channel_callback(), c, &payload->heaters) ||
-        ListForOneBoolOffset<FansList, NumHeaters>(payload->type, LForeach_channel_callback(), c, &payload->fans);
+        ListForOneBool<HeatersList, 0>(payload->type, LForeach_channel_callback(), c, &payload->heaters) ||
+        ListForOneBool<FansList, NumHeaters>(payload->type, LForeach_channel_callback(), c, &payload->fans);
     }
     template <typename This> struct PlannerChannelCallback : public AMBRO_WFUNC_TD(&AuxControlModule::template planner_channel_callback<This>) {};
     

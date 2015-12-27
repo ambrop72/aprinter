@@ -382,7 +382,7 @@ private:
     {
         auto *o = Object::self(c);
         
-        bool res = ListForOneOffset<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_command_callback(), c, command);
+        bool res = ListForOne<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_command_callback(), c, command);
         if (AMBRO_UNLIKELY(!res)) {
 #ifdef AMBROLIB_ASSERTIONS
             o->m_running = false;
@@ -431,7 +431,7 @@ private:
         
         if (!PreloadCommands || AMBRO_LIKELY(o->m_notend)) {
             if (AMBRO_UNLIKELY(o->m_prestep_callback_enabled)) {
-                bool res = ListForOneOffset<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_prestep_callback(), c);
+                bool res = ListForOne<CallbackHelperList<>, 0, bool>(o->m_consumer_id, Foreach_call_prestep_callback(), c);
                 if (AMBRO_UNLIKELY(res)) {
     #ifdef AMBROLIB_ASSERTIONS
                     o->m_running = false;

@@ -158,7 +158,7 @@ private:
             
             if (!o->error) {
                 while (o->current_provider < NumHookProviders) {
-                    if (!ListForOneOffset<ProviderHelperList, 0, bool>(o->current_provider, Foreach_dispatchHook(), c)) {
+                    if (!ListForOne<ProviderHelperList, 0, bool>(o->current_provider, Foreach_dispatchHook(), c)) {
                         return;
                     }
                     o->current_provider++;
