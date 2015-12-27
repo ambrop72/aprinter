@@ -33,6 +33,7 @@
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/Callback.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -49,18 +50,20 @@ public:
     struct Object;
     
 private:
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_dispatchHook, dispatchHook)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_init, init)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_deinit, deinit)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(Foreach_dispatchHook, dispatchHook)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HookType, HookType)
     
 public:
     static void init (Context c)
     {
-        ListForEachForward<HookList>(LForeach_init(), c);
+        ListForEachForward<HookList>(Foreach_init(), c);
     }
     
     static void deinit (Context c)
     {
+        ListForEachForward<HookList>(Foreach_deinit(), c);
     }
     
     template <typename HookType>
@@ -95,7 +98,15 @@ private:
         {
             auto *o = Object::self(c);
             
+            o->event.init(c, APRINTER_CB_STATFUNC_T(&Hook::event_handler));
             o->current_provider = -1;
+        }
+        
+        static void deinit (Context c)
+        {
+            auto *o = Object::self(c);
+            
+            o->event.deinit(c);
         }
         
         static void startHook (Context c)
@@ -104,7 +115,8 @@ private:
             AMBRO_ASSERT(o->current_provider == -1)
             
             o->current_provider = 0;
-            return work_hooks(c);
+            o->error = false;
+            o->event.prependNowNotAlready(c);
         }
         
         static void hookCompletedByProvider (Context c, bool error)
@@ -112,14 +124,13 @@ private:
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->current_provider >= 0)
             AMBRO_ASSERT(o->current_provider < NumHookProviders)
+            AMBRO_ASSERT(!o->event.isSet(c))
             
             if (error) {
-                o->current_provider = -1;
-                return CompletedHandler::call(c, true);
+                o->error = true;
             }
-            
             o->current_provider++;
-            return work_hooks(c);
+            o->event.prependNowNotAlready(c);
         }
         
         static bool hookIsRunning (Context c)
@@ -140,25 +151,29 @@ private:
         };
         using ProviderHelperList = IndexElemList<HookProviders, ProviderHelper>;
         
-        static void work_hooks (Context c)
+        static void event_handler (Context c)
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(o->current_provider >= 0)
             AMBRO_ASSERT(o->current_provider <= NumHookProviders)
             
-            while (o->current_provider < NumHookProviders) {
-                if (!ListForOneOffset<ProviderHelperList, 0, bool>(o->current_provider, LForeach_dispatchHook(), c)) {
-                    return;
+            if (!o->error) {
+                while (o->current_provider < NumHookProviders) {
+                    if (!ListForOneOffset<ProviderHelperList, 0, bool>(o->current_provider, Foreach_dispatchHook(), c)) {
+                        return;
+                    }
+                    o->current_provider++;
                 }
-                o->current_provider++;
             }
             
             o->current_provider = -1;
-            return CompletedHandler::call(c, false);
+            return CompletedHandler::call(c, o->error);
         }
         
         struct Object : public ObjBase<Hook, typename HookExecutor::Object, EmptyTypeList> {
+            typename Context::EventLoop::QueuedEvent event;
             int8_t current_provider;
+            bool error;
         };
     };
     
