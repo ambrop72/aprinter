@@ -529,34 +529,35 @@ private:
             ThePrinterMain::move_begin(c);
             
             FpType height;
-            FpType time_freq_by_speed;
+            FpType speed;
             switch (o->m_point_state) {
                 case 0: {
                     ListForEachForward<AxisHelperList>(LForeach_add_axis(), c, o->m_current_point);
                     height = APRINTER_CFG(Config, CProbeStartHeight, c);
-                    time_freq_by_speed = APRINTER_CFG(Config, CProbeMoveSpeedFactor, c);
+                    speed = APRINTER_CFG(Config, CProbeMoveSpeed, c);
                 } break;
                 case 1: {
                     height = APRINTER_CFG(Config, CProbeLowHeight, c);
-                    time_freq_by_speed = APRINTER_CFG(Config, CProbeFastSpeedFactor, c);
+                    speed = APRINTER_CFG(Config, CProbeFastSpeed, c);
                 } break;
                 case 2: {
                     height = get_height(c) + APRINTER_CFG(Config, CProbeRetractDist, c);
-                    time_freq_by_speed = APRINTER_CFG(Config, CProbeRetractSpeedFactor, c);
+                    speed = APRINTER_CFG(Config, CProbeRetractSpeed, c);
                 } break;
                 case 3: {
                     height = APRINTER_CFG(Config, CProbeLowHeight, c);
-                    time_freq_by_speed = APRINTER_CFG(Config, CProbeSlowSpeedFactor, c);
+                    speed = APRINTER_CFG(Config, CProbeSlowSpeed, c);
                 } break;
                 case 4: {
                     height = APRINTER_CFG(Config, CProbeStartHeight, c);
-                    time_freq_by_speed = APRINTER_CFG(Config, CProbeRetractSpeedFactor, c);
+                    speed = APRINTER_CFG(Config, CProbeRetractSpeed, c);
                 } break;
             }
             
             ThePrinterMain::template move_add_axis<ProbeAxisIndex>(c, height, true);
+            ThePrinterMain::move_set_max_speed(c, speed);
             o->m_command_sent = true;
-            return ThePrinterMain::move_end(c, time_freq_by_speed, true, ThePrinterMain::get_locked(c), BedProbeModule::move_end_callback);
+            return ThePrinterMain::move_end(c, ThePrinterMain::get_locked(c), BedProbeModule::move_end_callback);
         }
         
         void finished_handler (Context c, bool aborted)
@@ -663,16 +664,16 @@ private:
     using CProbeStartHeight = decltype(ExprCast<FpType>(Config::e(Params::ProbeStartHeight::i())));
     using CProbeLowHeight = decltype(ExprCast<FpType>(Config::e(Params::ProbeLowHeight::i())));
     using CProbeRetractDist = decltype(ExprCast<FpType>(Config::e(Params::ProbeRetractDist::i())));
-    using CProbeMoveSpeedFactor = decltype(ExprCast<FpType>(typename ThePrinterMain::TimeConversion() / Config::e(Params::ProbeMoveSpeed::i())));
-    using CProbeFastSpeedFactor = decltype(ExprCast<FpType>(typename ThePrinterMain::TimeConversion() / Config::e(Params::ProbeFastSpeed::i())));
-    using CProbeRetractSpeedFactor = decltype(ExprCast<FpType>(typename ThePrinterMain::TimeConversion() / Config::e(Params::ProbeRetractSpeed::i())));
-    using CProbeSlowSpeedFactor = decltype(ExprCast<FpType>(typename ThePrinterMain::TimeConversion() / Config::e(Params::ProbeSlowSpeed::i())));
+    using CProbeMoveSpeed = decltype(ExprCast<FpType>(Config::e(Params::ProbeMoveSpeed::i())));
+    using CProbeFastSpeed = decltype(ExprCast<FpType>(Config::e(Params::ProbeFastSpeed::i())));
+    using CProbeRetractSpeed = decltype(ExprCast<FpType>(Config::e(Params::ProbeRetractSpeed::i())));
+    using CProbeSlowSpeed = decltype(ExprCast<FpType>(Config::e(Params::ProbeSlowSpeed::i())));
     using CProbeGeneralZOffset = decltype(ExprCast<FpType>(Config::e(Params::ProbeGeneralZOffset::i())));
     
 public:
     using ConfigExprs = MakeTypeList<
-        CProbeInvert, CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeedFactor,
-        CProbeFastSpeedFactor, CProbeRetractSpeedFactor, CProbeSlowSpeedFactor, CProbeGeneralZOffset
+        CProbeInvert, CProbeStartHeight, CProbeLowHeight, CProbeRetractDist, CProbeMoveSpeed,
+        CProbeFastSpeed, CProbeRetractSpeed, CProbeSlowSpeed, CProbeGeneralZOffset
     >;
     
 public:

@@ -111,7 +111,8 @@ private:
             ThePrinterMain::move_begin(c);
             FpType speed;
             ListForOne<MoveHelperList>(o->move_index, Foreach_fill_move_command(), c, &speed);
-            return ThePrinterMain::move_end(c, (FpType)ThePrinterMain::TimeConversion::value() / speed, true, o->err_output, MoveToModule::move_end_callback);
+            ThePrinterMain::move_set_max_speed(c, speed);
+            return ThePrinterMain::move_end(c, o->err_output, MoveToModule::move_end_callback);
         }
         
         void finished_handler (Context c, bool aborted)

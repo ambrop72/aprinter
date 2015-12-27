@@ -2440,8 +2440,9 @@ private:
                         }
                     }
                     FpType time_freq_by_max_speed = AMBRO_UNLIKELY(seen_t) ? 0.0f : ob->time_freq_by_max_speed;
+                    move_set_max_speed_opt(c, time_freq_by_max_speed);
                     bool is_positioning_move = (cmd_number == 0);
-                    return move_end(c, time_freq_by_max_speed, false, get_locked(c), PrinterMain::normal_move_end_callback, is_positioning_move);
+                    return move_end(c, get_locked(c), PrinterMain::normal_move_end_callback, is_positioning_move);
                 } break;
                 
                 case 4: { // dwell
@@ -2465,7 +2466,7 @@ private:
                         }
                     }
                     move_set_nominal_time(c, FloatMax(dwell_time_ticks, (FpType)1.0f));
-                    return move_end(c, 0.0f, false, get_locked(c), PrinterMain::normal_move_end_callback, false);
+                    return move_end(c, get_locked(c), PrinterMain::normal_move_end_callback, false);
                 } break;
                 
                 case 21: // set units to millimeters
@@ -2738,6 +2739,7 @@ public:
         
         o->move_seen_cartesian = false;
         o->move_axes = 0;
+        o->move_time_freq_by_max_speed = 0.0f;
         
         save_all_pos_to_old(c);
         
@@ -2773,18 +2775,32 @@ public:
         cmd->axes.rel_max_v_rec = nominal_time_ticks;
     }
     
-    static void move_end (Context c, FpType time_freq_by_max_speed, bool use_speed_ratio, TheCommand *err_output, MoveEndCallback callback, bool is_positioning_move=true)
+    static void move_set_max_speed (Context c, FpType max_speed, bool use_speed_ratio=true)
+    {
+        auto *o = Object::self(c);
+        
+        max_speed = FloatMakePosOrPosZero(max_speed);
+        if (use_speed_ratio) {
+            max_speed *= o->speed_ratio;
+        }
+        o->move_time_freq_by_max_speed = (FpType)TimeConversion::value() / max_speed;
+    }
+    
+    static void move_set_max_speed_opt (Context c, FpType time_freq_by_max_speed)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
+        
+        o->move_time_freq_by_max_speed = time_freq_by_max_speed;
+    }
+    
+    static void move_end (Context c, TheCommand *err_output, MoveEndCallback callback, bool is_positioning_move=true)
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->planner_state == PLANNER_RUNNING || ob->planner_state == PLANNER_CUSTOM)
         AMBRO_ASSERT(ob->m_planning_pull_pending)
-        AMBRO_ASSERT(FloatIsPosOrPosZero(time_freq_by_max_speed))
         AMBRO_ASSERT(err_output)
         AMBRO_ASSERT(callback)
-        
-        if (use_speed_ratio) {
-            time_freq_by_max_speed /= ob->speed_ratio;
-        }
         
         if (!ListForEachForwardInterruptible<ModulesList>(LForeach_check_move_interlocks(), c, err_output, ob->move_axes)) {
             restore_all_pos_from_old(c);
@@ -2795,7 +2811,7 @@ public:
         }
         
         if (TransformFeature::is_splitting(c)) {
-            return TransformFeature::handle_virt_move(c, time_freq_by_max_speed, err_output, callback, is_positioning_move);
+            return TransformFeature::handle_virt_move(c, ob->move_time_freq_by_max_speed, err_output, callback, is_positioning_move);
         }
         
         PlannerSplitBuffer *cmd = ThePlanner::getBuffer(c);
@@ -2804,10 +2820,10 @@ public:
         TransformFeature::do_pending_virt_update(c);
         if (ob->move_seen_cartesian) {
             FpType distance = FloatSqrt(distance_squared);
-            cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, distance * time_freq_by_max_speed);
+            cmd->axes.rel_max_v_rec = FloatMax(cmd->axes.rel_max_v_rec, distance * ob->move_time_freq_by_max_speed);
             ListForEachForward<LasersList>(LForeach_handle_automatic_energy(), c, distance, is_positioning_move);
         } else {
-            ListForEachForward<AxesList>(LForeach_limit_axis_move_speed(), c, time_freq_by_max_speed, cmd);
+            ListForEachForward<AxesList>(LForeach_limit_axis_move_speed(), c, ob->move_time_freq_by_max_speed, cmd);
         }
         ListForEachForward<LasersList>(LForeach_write_planner_cmd(), c, LaserExtraSrc{c}, cmd);
         ThePlanner::axesCommandDone(c);
@@ -3023,13 +3039,14 @@ public:
         MsgOutputStream msg_output_stream;
         FpType time_freq_by_max_speed;
         FpType speed_ratio;
+        FpType move_time_freq_by_max_speed;
         uint32_t underrun_count;
         size_t msg_length;
-        uint8_t locked : 1;
+        bool locked : 1;
         uint8_t planner_state : 3;
-        uint8_t m_planning_pull_pending : 1;
-        uint8_t move_seen_cartesian : 1;
-        uint8_t custom_planner_deinit_allowed : 1;
+        bool m_planning_pull_pending : 1;
+        bool move_seen_cartesian : 1;
+        bool custom_planner_deinit_allowed : 1;
         bool homing_error : 1;
         PlannerClient *planner_client;
         PhysVirtAxisMaskType axis_homing;

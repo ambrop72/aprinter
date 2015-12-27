@@ -232,8 +232,9 @@ private:
                     } break;
                 }
                 ThePrinterMain::template move_add_axis<AxisIndex>(c, position, ignore_limits);
+                ThePrinterMain::move_set_max_speed(c, speed);
                 o->command_sent = true;
-                return ThePrinterMain::move_end(c, (FpType)ThePrinterMain::TimeConversion::value() / speed, true, mo->err_output, VirtHomingAxis::virt_homing_move_end_callback);
+                return ThePrinterMain::move_end(c, mo->err_output, VirtHomingAxis::virt_homing_move_end_callback);
             }
             
             void finished_handler (Context c, bool aborted)
