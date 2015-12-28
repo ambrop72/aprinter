@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -74,17 +75,13 @@ public:
     struct Object : public ObjBase<A4982MicroStep, ParentObject, EmptyTypeList> {};
 };
 
-template <
-    typename TMs1Pin,
-    typename TMs2Pin
->
-struct A4982MicroStepService {
-    using Ms1Pin = TMs1Pin;
-    using Ms2Pin = TMs2Pin;
-    
+APRINTER_ALIAS_STRUCT_EXT(A4982MicroStepService, (
+    APRINTER_AS_TYPE(Ms1Pin),
+    APRINTER_AS_TYPE(Ms2Pin)
+), (
     template <typename Context, typename ParentObject>
     using MicroStep = A4982MicroStep<Context, ParentObject, A4982MicroStepService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

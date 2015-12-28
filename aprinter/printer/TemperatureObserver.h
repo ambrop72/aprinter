@@ -27,11 +27,12 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
-#include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -131,19 +132,14 @@ public:
     using ConfigExprs = MakeTypeList<CIntervalTicks, CMinIntervals, CValueTolerance>;
 };
 
-template <
-    typename TSampleInterval,
-    typename TValueTolerance,
-    typename TMinTime
->
-struct TemperatureObserverService {
-    using SampleInterval = TSampleInterval;
-    using ValueTolerance = TValueTolerance;
-    using MinTime = TMinTime;
-    
+APRINTER_ALIAS_STRUCT_EXT(TemperatureObserverService, (
+    APRINTER_AS_TYPE(SampleInterval),
+    APRINTER_AS_TYPE(ValueTolerance),
+    APRINTER_AS_TYPE(MinTime)
+), (
     template <typename Context, typename ParentObject, typename Config, typename FpType, typename GetValueCallback, typename Handler>
     using Observer = TemperatureObserver<Context, ParentObject, Config, FpType, GetValueCallback, Handler, TemperatureObserverService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

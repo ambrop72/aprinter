@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
@@ -330,15 +331,11 @@ public:
     };
 };
 
-template <
-    size_t TMaxCommandSize
->
-struct GcodeUploadModuleService {
-    static size_t const MaxCommandSize = TMaxCommandSize;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = GcodeUploadModule<Context, ParentObject, ThePrinterMain, GcodeUploadModuleService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(GcodeUploadModuleService, (
+    APRINTER_AS_VALUE(size_t, MaxCommandSize)
+), (
+    APRINTER_MODULE_TEMPLATE(GcodeUploadModuleService, GcodeUploadModule)
+))
 
 #include <aprinter/EndNamespace.h>
 

@@ -30,6 +30,7 @@
 #include <string.h>
 
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
@@ -52,7 +53,7 @@ private:
     using TheTcpConnection = typename Context::Network::TcpConnection;
     using TheCommandStream = typename ThePrinterMain::CommandStream;
     
-    using TheGcodeParser = GcodeParser<Context, typename Params::TheGcodeParserParams, size_t, typename ThePrinterMain::FpType, GcodeParserTypeSerial>;
+    using TheGcodeParser = typename Params::TheGcodeParserService::template Parser<Context, size_t, typename ThePrinterMain::FpType>;
     
     static int const MaxClients = Params::MaxClients;
     static_assert(MaxClients > 0, "");
@@ -422,23 +423,15 @@ public:
     };
 };
 
-template <
-    typename TTheGcodeParserParams,
-    uint16_t TPort,
-    int TMaxClients,
-    size_t TMaxCommandSize,
-    typename TSendBufTimeout
->
-struct TcpConsoleModuleService {
-    using TheGcodeParserParams = TTheGcodeParserParams;
-    static uint16_t const Port = TPort;
-    static int const MaxClients = TMaxClients;
-    static size_t const MaxCommandSize = TMaxCommandSize;
-    using SendBufTimeout = TSendBufTimeout;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = TcpConsoleModule<Context, ParentObject, ThePrinterMain, TcpConsoleModuleService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(TcpConsoleModuleService, (
+    APRINTER_AS_TYPE(TheGcodeParserService),
+    APRINTER_AS_VALUE(uint16_t, Port),
+    APRINTER_AS_VALUE(int, MaxClients),
+    APRINTER_AS_VALUE(size_t, MaxCommandSize),
+    APRINTER_AS_TYPE(SendBufTimeout)
+), (
+    APRINTER_MODULE_TEMPLATE(TcpConsoleModuleService, TcpConsoleModule)
+))
 
 #include <aprinter/EndNamespace.h>
 

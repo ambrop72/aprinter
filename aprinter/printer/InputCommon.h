@@ -25,15 +25,16 @@
 #ifndef AMBROLIB_INPUT_COMMON_H
 #define AMBROLIB_INPUT_COMMON_H
 
+#include <aprinter/meta/AliasStruct.h>
+
 #include <aprinter/BeginNamespace.h>
 
-template <typename TThePrinterMain, typename TReadHandler, typename TClearBufferHandler, typename TStartHandler>
-struct InputClientParams {
-    using ThePrinterMain = TThePrinterMain;
-    using ReadHandler = TReadHandler;
-    using ClearBufferHandler = TClearBufferHandler;
-    using StartHandler = TStartHandler;
-};
+APRINTER_ALIAS_STRUCT(InputClientParams, (
+    APRINTER_AS_TYPE(ThePrinterMain),
+    APRINTER_AS_TYPE(ReadHandler),
+    APRINTER_AS_TYPE(ClearBufferHandler),
+    APRINTER_AS_TYPE(StartHandler)
+))
 
 #include <aprinter/EndNamespace.h>
 

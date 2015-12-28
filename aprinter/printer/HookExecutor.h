@@ -30,18 +30,18 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/MemberType.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename THookType, typename TDispatcher, typename TCompletedHandler>
-struct HookDefinition {
-    using HookType = THookType;
-    using Dispatcher = TDispatcher;
-    using CompletedHandler = TCompletedHandler;
-};
+APRINTER_ALIAS_STRUCT(HookDefinition, (
+    APRINTER_AS_TYPE(HookType),
+    APRINTER_AS_TYPE(Dispatcher),
+    APRINTER_AS_TYPE(CompletedHandler)
+))
 
 template <typename Context, typename ParentObject, typename HookDefinitionList>
 class HookExecutor {

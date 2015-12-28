@@ -27,8 +27,9 @@
 
 #include <stdint.h>
 
-#include <aprinter/math/FloatTools.h>
 #include <aprinter/meta/PowerOfTwo.h>
+#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/math/FloatTools.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/printer/Configuration.h>
 
@@ -85,19 +86,14 @@ public:
     struct Object : public ObjBase<DistanceSplitter, ParentObject, EmptyTypeList> {};
 };
 
-template <
-    typename TMinSplitLength,
-    typename TMaxSplitLength,
-    typename TSegmentsPerSecond
->
-struct DistanceSplitterService {
-    using MinSplitLength = TMinSplitLength;
-    using MaxSplitLength = TMaxSplitLength;
-    using SegmentsPerSecond = TSegmentsPerSecond;
-    
+APRINTER_ALIAS_STRUCT_EXT(DistanceSplitterService, (
+    APRINTER_AS_TYPE(MinSplitLength),
+    APRINTER_AS_TYPE(MaxSplitLength),
+    APRINTER_AS_TYPE(SegmentsPerSecond)
+), (
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Splitter = DistanceSplitter<Context, ParentObject, Config, FpType, DistanceSplitterService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

@@ -25,6 +25,8 @@
 #ifndef APRINTER_ADC_ANALOG_INPUT_H
 #define APRINTER_ADC_ANALOG_INPUT_H
 
+#include <aprinter/meta/AliasStruct.h>
+
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename ParentObject, typename Params>
@@ -62,15 +64,12 @@ public:
     struct Object {};
 };
 
-template <
-    typename TAdcPin
->
-struct AdcAnalogInputService {
-    using AdcPin = TAdcPin;
-    
+APRINTER_ALIAS_STRUCT_EXT(AdcAnalogInputService, (
+    APRINTER_AS_TYPE(AdcPin)
+), (
     template <typename Context, typename ParentObject>
     using AnalogInput = AdcAnalogInput<Context, ParentObject, AdcAnalogInputService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

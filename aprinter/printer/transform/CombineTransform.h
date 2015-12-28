@@ -28,6 +28,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/DedummyIndexTemplate.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -112,13 +113,12 @@ public:
     struct Object : public ObjBase<CombineTransform, ParentObject, HelpersList> {};
 };
 
-template <typename TTransformServicesList>
-struct CombineTransformService {
-    using TransformServicesList = TTransformServicesList;
-    
+APRINTER_ALIAS_STRUCT_EXT(CombineTransformService, (
+    APRINTER_AS_TYPE(TransformServicesList)
+), (
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Transform = CombineTransform<Context, ParentObject, Config, FpType, CombineTransformService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

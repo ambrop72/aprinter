@@ -25,6 +25,7 @@
 #ifndef AMBROLIB_GENERIC_THERMISTOR_H
 #define AMBROLIB_GENERIC_THERMISTOR_H
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 
@@ -71,23 +72,16 @@ public:
     using ConfigExprs = MakeTypeList<CAdcMinTemp, CAdcMaxTemp, CThermistorBeta, CLogRByRInf>;
 };
 
-template <
-    typename TResistorR,
-    typename TThermistorR0,
-    typename TThermistorBeta,
-    typename TMinTemp,
-    typename TMaxTemp
->
-struct GenericThermistorService {
-    using ResistorR = TResistorR;
-    using ThermistorR0 = TThermistorR0;
-    using ThermistorBeta = TThermistorBeta;
-    using MinTemp = TMinTemp;
-    using MaxTemp = TMaxTemp;
-    
+APRINTER_ALIAS_STRUCT_EXT(GenericThermistorService, (
+    APRINTER_AS_TYPE(ResistorR),
+    APRINTER_AS_TYPE(ThermistorR0),
+    APRINTER_AS_TYPE(ThermistorBeta),
+    APRINTER_AS_TYPE(MinTemp),
+    APRINTER_AS_TYPE(MaxTemp)
+), (
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Formula = GenericThermistor<Context, ParentObject, Config, FpType, GenericThermistorService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

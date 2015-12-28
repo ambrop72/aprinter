@@ -51,6 +51,7 @@
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/ListCollect.h>
 #include <aprinter/meta/TypeDict.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -74,139 +75,91 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    typename TLedPin, typename TLedBlinkInterval, typename TInactiveTime,
-    size_t TExpectedResponseLength,
-    size_t TExtraSendBufClearance,
-    size_t TMaxMsgSize,
-    typename TSpeedLimitMultiply, typename TMaxStepsPerCycle,
-    int TStepperSegmentBufferSize, int TLookaheadBufferSize,
-    int TLookaheadCommitCount,
-    typename TForceTimeout, typename TFpType,
-    typename TWatchdogService,
-    typename TConfigManagerService,
-    typename TConfigList,
-    typename TAxesList, typename TTransformParams,
-    typename TLasersList, typename TModulesList
->
-struct PrinterMainParams {
-    using LedPin = TLedPin;
-    using LedBlinkInterval = TLedBlinkInterval;
-    using InactiveTime = TInactiveTime;
-    static size_t const ExpectedResponseLength = TExpectedResponseLength;
-    static size_t const ExtraSendBufClearance = TExtraSendBufClearance;
-    static size_t const MaxMsgSize = TMaxMsgSize;
-    using SpeedLimitMultiply = TSpeedLimitMultiply;
-    using MaxStepsPerCycle = TMaxStepsPerCycle;
-    static int const StepperSegmentBufferSize = TStepperSegmentBufferSize;
-    static int const LookaheadBufferSize = TLookaheadBufferSize;
-    static int const LookaheadCommitCount = TLookaheadCommitCount;
-    using ForceTimeout = TForceTimeout;
-    using FpType = TFpType;
-    using WatchdogService = TWatchdogService;
-    using ConfigManagerService = TConfigManagerService;
-    using ConfigList = TConfigList;
-    using AxesList = TAxesList;
-    using TransformParams = TTransformParams;
-    using LasersList = TLasersList;
-    using ModulesList = TModulesList;
-};
+APRINTER_ALIAS_STRUCT(PrinterMainParams, (
+    APRINTER_AS_TYPE(LedPin),
+    APRINTER_AS_TYPE(LedBlinkInterval),
+    APRINTER_AS_TYPE(InactiveTime),
+    APRINTER_AS_VALUE(size_t, ExpectedResponseLength),
+    APRINTER_AS_VALUE(size_t, ExtraSendBufClearance),
+    APRINTER_AS_VALUE(size_t, MaxMsgSize),
+    APRINTER_AS_TYPE(SpeedLimitMultiply),
+    APRINTER_AS_TYPE(MaxStepsPerCycle),
+    APRINTER_AS_VALUE(int, StepperSegmentBufferSize),
+    APRINTER_AS_VALUE(int, LookaheadBufferSize),
+    APRINTER_AS_VALUE(int, LookaheadCommitCount),
+    APRINTER_AS_TYPE(ForceTimeout),
+    APRINTER_AS_TYPE(FpType),
+    APRINTER_AS_TYPE(WatchdogService),
+    APRINTER_AS_TYPE(ConfigManagerService),
+    APRINTER_AS_TYPE(ConfigList),
+    APRINTER_AS_TYPE(AxesList),
+    APRINTER_AS_TYPE(TransformParams),
+    APRINTER_AS_TYPE(LasersList),
+    APRINTER_AS_TYPE(ModulesList)
+))
 
-template <
-    char TName,
-    typename TDefaultStepsPerUnit, typename TDefaultMin, typename TDefaultMax,
-    typename TDefaultMaxSpeed, typename TDefaultMaxAccel,
-    typename TDefaultDistanceFactor, typename TDefaultCorneringDistance,
-    typename THoming, bool TIsCartesian, bool TIsExtruder, int TStepBits,
-    typename TTheAxisDriverService,
-    typename TSlaveSteppersList
->
-struct PrinterMainAxisParams {
-    static char const Name = TName;
-    using DefaultStepsPerUnit = TDefaultStepsPerUnit;
-    using DefaultMin = TDefaultMin;
-    using DefaultMax = TDefaultMax;
-    using DefaultMaxSpeed = TDefaultMaxSpeed;
-    using DefaultMaxAccel = TDefaultMaxAccel;
-    using DefaultDistanceFactor = TDefaultDistanceFactor;
-    using DefaultCorneringDistance = TDefaultCorneringDistance;
-    using Homing = THoming;
-    static bool const IsCartesian = TIsCartesian;
-    static bool const IsExtruder = TIsExtruder;
-    static int const StepBits = TStepBits;
-    using TheAxisDriverService = TTheAxisDriverService;
-    using SlaveSteppersList = TSlaveSteppersList;
-};
+APRINTER_ALIAS_STRUCT(PrinterMainAxisParams, (
+    APRINTER_AS_VALUE(char, Name),
+    APRINTER_AS_TYPE(DefaultStepsPerUnit),
+    APRINTER_AS_TYPE(DefaultMin),
+    APRINTER_AS_TYPE(DefaultMax),
+    APRINTER_AS_TYPE(DefaultMaxSpeed),
+    APRINTER_AS_TYPE(DefaultMaxAccel),
+    APRINTER_AS_TYPE(DefaultDistanceFactor),
+    APRINTER_AS_TYPE(DefaultCorneringDistance),
+    APRINTER_AS_TYPE(Homing),
+    APRINTER_AS_VALUE(bool, IsCartesian),
+    APRINTER_AS_VALUE(bool, IsExtruder),
+    APRINTER_AS_VALUE(int, StepBits),
+    APRINTER_AS_TYPE(TheAxisDriverService),
+    APRINTER_AS_TYPE(SlaveSteppersList)
+))
 
-template <
-    typename TTheStepperDef
->
-struct PrinterMainSlaveStepperParams {
-    using TheStepperDef = TTheStepperDef;
-};
+APRINTER_ALIAS_STRUCT(PrinterMainSlaveStepperParams, (
+    APRINTER_AS_TYPE(TheStepperDef)
+))
 
 struct PrinterMainNoHomingParams {
     static bool const Enabled = false;
 };
 
-template <
-    typename THomeDir,
-    typename THomeOffset,
-    typename THomerService
->
-struct PrinterMainHomingParams {
+APRINTER_ALIAS_STRUCT_EXT(PrinterMainHomingParams, (
+    APRINTER_AS_TYPE(HomeDir),
+    APRINTER_AS_TYPE(HomeOffset),
+    APRINTER_AS_TYPE(HomerService)
+), (
     static bool const Enabled = true;
-    using HomeDir = THomeDir;
-    using HomeOffset = THomeOffset;
-    using HomerService = THomerService;
-};
+))
 
 struct PrinterMainNoTransformParams {
     static const bool Enabled = false;
 };
 
-template <
-    typename TVirtAxesList, typename TPhysAxesList,
-    typename TTransformService,
-    typename TSplitterService
->
-struct PrinterMainTransformParams {
+APRINTER_ALIAS_STRUCT_EXT(PrinterMainTransformParams, (
+    APRINTER_AS_TYPE(VirtAxesList),
+    APRINTER_AS_TYPE(PhysAxesList),
+    APRINTER_AS_TYPE(TransformService),
+    APRINTER_AS_TYPE(SplitterService)
+), (
     static bool const Enabled = true;
-    using VirtAxesList = TVirtAxesList;
-    using PhysAxesList = TPhysAxesList;
-    using TransformService = TTransformService;
-    using SplitterService = TSplitterService;
-};
+))
 
-template <
-    char TName, typename TMinPos, typename TMaxPos,
-    typename TMaxSpeed
->
-struct PrinterMainVirtualAxisParams {
-    static char const Name = TName;
-    using MinPos = TMinPos;
-    using MaxPos = TMaxPos;
-    using MaxSpeed = TMaxSpeed;
-};
+APRINTER_ALIAS_STRUCT(PrinterMainVirtualAxisParams, (
+    APRINTER_AS_VALUE(char, Name),
+    APRINTER_AS_TYPE(MinPos),
+    APRINTER_AS_TYPE(MaxPos),
+    APRINTER_AS_TYPE(MaxSpeed)
+))
 
-template <
-    char TName,
-    char TDensityName,
-    typename TLaserPower,
-    typename TMaxPower,
-    typename TPwmService,
-    typename TDutyFormulaService,
-    typename TTheLaserDriverService
->
-struct PrinterMainLaserParams {
-    static char const Name = TName;
-    static char const DensityName = TDensityName;
-    using LaserPower = TLaserPower;
-    using MaxPower = TMaxPower;
-    using PwmService = TPwmService;
-    using DutyFormulaService = TDutyFormulaService;
-    using TheLaserDriverService = TTheLaserDriverService;
-};
+APRINTER_ALIAS_STRUCT(PrinterMainLaserParams, (
+    APRINTER_AS_VALUE(char, Name),
+    APRINTER_AS_VALUE(char, DensityName),
+    APRINTER_AS_TYPE(LaserPower),
+    APRINTER_AS_TYPE(MaxPower),
+    APRINTER_AS_TYPE(PwmService),
+    APRINTER_AS_TYPE(DutyFormulaService),
+    APRINTER_AS_TYPE(TheLaserDriverService)
+))
 
 template <typename Context, typename ParentObject, typename Params>
 class PrinterMain {
@@ -336,7 +289,7 @@ private:
     
     using ServicesDictUnsorted = ListGroup<ServicesList, TemplateFunc<GetServiceEntryServiceType>>;
     
-    template<typename Entry1, typename Entry2>
+    template <typename Entry1, typename Entry2>
     using IsServicePriorityLesser = WrapBool<(Entry1::Value::Priority < Entry2::Value::Priority)>;
     
     template <typename ServiceGroup>

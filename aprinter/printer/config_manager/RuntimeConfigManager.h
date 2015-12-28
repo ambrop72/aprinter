@@ -47,6 +47,7 @@
 #include <aprinter/meta/ConstexprString.h>
 #include <aprinter/meta/StaticArray.h>
 #include <aprinter/meta/MemberType.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/AsciiTools.h>
@@ -692,15 +693,12 @@ public:
     };
 };
 
-template <
-    typename TStoreService
->
-struct RuntimeConfigManagerService {
-    using StoreService = TStoreService;
-    
+APRINTER_ALIAS_STRUCT_EXT(RuntimeConfigManagerService, (
+    APRINTER_AS_TYPE(StoreService)
+), (
     template <typename Context, typename ParentObject, typename ConfigOptionsList, typename ThePrinterMain, typename Handler>
     using ConfigManager = RuntimeConfigManager<Context, ParentObject, ConfigOptionsList, ThePrinterMain, Handler, RuntimeConfigManagerService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

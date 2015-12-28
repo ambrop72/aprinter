@@ -34,6 +34,7 @@
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -1035,17 +1036,16 @@ public:
     };
 };
 
-template <typename TSdCardService, typename TFsService, bool THaveAccessInterface>
-struct SdFatInputService {
-    using SdCardService = TSdCardService;
-    using FsService = TFsService;
-    static bool const HaveAccessInterface = THaveAccessInterface;
-    
+APRINTER_ALIAS_STRUCT_EXT(SdFatInputService, (
+    APRINTER_AS_TYPE(SdCardService),
+    APRINTER_AS_TYPE(FsService),
+    APRINTER_AS_VALUE(bool, HaveAccessInterface)
+), (
     static bool const ProvidesFsAccess = HaveAccessInterface;
     
     template <typename Context, typename ParentObject, typename ClientParams>
     using Input = SdFatInput<Context, ParentObject, ClientParams, SdFatInputService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

@@ -32,20 +32,17 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FixedPoint.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    uint8_t TDevChannelIndex,
-    typename TConversionFactor
->
-struct Ad5206CurrentChannelParams {
-    static uint8_t const DevChannelIndex = TDevChannelIndex;
-    using ConversionFactor = TConversionFactor;
-};
+APRINTER_ALIAS_STRUCT(Ad5206CurrentChannelParams, (
+    APRINTER_AS_VALUE(uint8_t, DevChannelIndex),
+    APRINTER_AS_TYPE(ConversionFactor)
+))
 
 template <typename Context, typename ParentObject, typename Config, typename FpType, typename ChannelsList, typename Params>
 class Ad5206Current {
@@ -171,17 +168,13 @@ public:
     };
 };
 
-template <
-    typename TSsPin,
-    typename TSpiService
->
-struct Ad5206CurrentService {
-    using SsPin = TSsPin;
-    using SpiService = TSpiService;
-    
+APRINTER_ALIAS_STRUCT_EXT(Ad5206CurrentService, (
+    APRINTER_AS_TYPE(SsPin),
+    APRINTER_AS_TYPE(SpiService)
+), (
     template <typename Context, typename ParentObject, typename Config, typename FpType, typename ChannelsList>
     using Current = Ad5206Current<Context, ParentObject, Config, FpType, ChannelsList, Ad5206CurrentService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

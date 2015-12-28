@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include <inttypes.h>
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
@@ -201,25 +202,16 @@ public:
     };
 };
 
-template <
-    typename TNetEnabled,
-    typename TMacAddress,
-    typename TDhcpEnabled,
-    typename TIpAddress,
-    typename TIpNetmask,
-    typename TIpGateway
->
-struct NetworkSupportModuleService {
-    using NetEnabled = TNetEnabled;
-    using MacAddress = TMacAddress;
-    using DhcpEnabled = TDhcpEnabled;
-    using IpAddress = TIpAddress;
-    using IpNetmask = TIpNetmask;
-    using IpGateway = TIpGateway;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = NetworkSupportModule<Context, ParentObject, ThePrinterMain, NetworkSupportModuleService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(NetworkSupportModuleService, (
+    APRINTER_AS_TYPE(NetEnabled),
+    APRINTER_AS_TYPE(MacAddress),
+    APRINTER_AS_TYPE(DhcpEnabled),
+    APRINTER_AS_TYPE(IpAddress),
+    APRINTER_AS_TYPE(IpNetmask),
+    APRINTER_AS_TYPE(IpGateway)
+), (
+    APRINTER_MODULE_TEMPLATE(NetworkSupportModuleService, NetworkSupportModule)
+))
 
 #include <aprinter/EndNamespace.h>
 

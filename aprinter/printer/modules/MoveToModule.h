@@ -31,6 +31,7 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/Configuration.h>
@@ -179,45 +180,29 @@ public:
     };
 };
 
-template <
-    char TAxisName,
-    typename TValue
->
-struct MoveCoordSpec {
-    static char const AxisName = TAxisName;
-    using Value = TValue;
-};
+APRINTER_ALIAS_STRUCT(MoveCoordSpec, (
+    APRINTER_AS_VALUE(char, AxisName),
+    APRINTER_AS_TYPE(Value)
+))
 
-template <
-    typename THookType,
-    int8_t THookPriority,
-    typename TEnabled,
-    typename TSpeed,
-    typename TCoordSpecList
->
-struct MoveSpec {
-    using HookType = THookType;
-    static int8_t const HookPriority = THookPriority;
-    using Enabled = TEnabled;
-    using Speed = TSpeed;
-    using CoordSpecList = TCoordSpecList;
-};
+APRINTER_ALIAS_STRUCT(MoveSpec, (
+    APRINTER_AS_TYPE(HookType),
+    APRINTER_AS_VALUE(int8_t, HookPriority),
+    APRINTER_AS_TYPE(Enabled),
+    APRINTER_AS_TYPE(Speed),
+    APRINTER_AS_TYPE(CoordSpecList)
+))
 
-template <
-    typename TMoveSpecList
->
-class MoveToModuleService {
+APRINTER_ALIAS_STRUCT_EXT(MoveToModuleService, (
+    APRINTER_AS_TYPE(MoveSpecList)
+), (
+    APRINTER_MODULE_TEMPLATE(MoveToModuleService, MoveToModule)
+    
     template <typename IndexAndMoveSpec>
     using MakeMoveHookService = ServiceDefinition<typename IndexAndMoveSpec::Value::HookType, IndexAndMoveSpec::Value::HookPriority, typename IndexAndMoveSpec::Key>;
     
-public:
-    using MoveSpecList = TMoveSpecList; 
-    
     using ProvidedServices = MapTypeList<TypeListEnumerate<MoveSpecList>, TemplateFunc<MakeMoveHookService>>;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = MoveToModule<Context, ParentObject, ThePrinterMain, MoveToModuleService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

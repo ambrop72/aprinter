@@ -28,6 +28,7 @@
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/printer/Configuration.h>
 
@@ -123,28 +124,18 @@ public:
     >> {};
 };
 
-template <
-    char TAxisName,
-    typename TDefaultCurrent,
-    typename TParams
->
-struct MotorCurrentAxisParams {
-    static char const AxisName = TAxisName;
-    using DefaultCurrent = TDefaultCurrent;
-    using Params = TParams;
-};
+APRINTER_ALIAS_STRUCT(MotorCurrentAxisParams, (
+    APRINTER_AS_VALUE(char, AxisName),
+    APRINTER_AS_TYPE(DefaultCurrent),
+    APRINTER_AS_TYPE(Params)
+))
 
-template <
-    typename TCurrentAxesList,
-    typename TCurrentService
->
-struct MotorCurrentModuleService {
-    using CurrentAxesList = TCurrentAxesList;
-    using CurrentService = TCurrentService;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = MotorCurrentModule<Context, ParentObject, ThePrinterMain, MotorCurrentModuleService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(MotorCurrentModuleService, (
+    APRINTER_AS_TYPE(CurrentAxesList),
+    APRINTER_AS_TYPE(CurrentService)
+), (
+    APRINTER_MODULE_TEMPLATE(MotorCurrentModuleService, MotorCurrentModule)
+))
 
 #include <aprinter/EndNamespace.h>
 

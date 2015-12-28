@@ -31,11 +31,11 @@
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/printer/InputCommon.h>
-#include <aprinter/printer/GcodeParser.h>
 #include <aprinter/printer/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -53,7 +53,7 @@ private:
     using TheSerial = typename Params::SerialService::template Serial<Context, Object, Params::RecvBufferSizeExp, Params::SendBufferSizeExp, SerialRecvHandler, SerialSendHandler>;
     using RecvSizeType = typename TheSerial::RecvSizeType;
     using SendSizeType = typename TheSerial::SendSizeType;
-    using TheGcodeParser = GcodeParser<Context, typename Params::TheGcodeParserParams, typename RecvSizeType::IntType, typename ThePrinterMain::FpType, GcodeParserTypeSerial>;
+    using TheGcodeParser = typename Params::TheGcodeParserService::template Parser<Context, typename RecvSizeType::IntType, typename ThePrinterMain::FpType>;
     
     static_assert(SendSizeType::maxIntValue() >= ThePrinterMain::CommandSendBufClearance, "Serial send buffer is too small");
     
@@ -224,23 +224,15 @@ public:
     };
 };
 
-template <
-    uint32_t TBaud,
-    int TRecvBufferSizeExp,
-    int TSendBufferSizeExp,
-    typename TTheGcodeParserParams,
-    typename TSerialService
->
-struct SerialModuleService {
-    static uint32_t const Baud = TBaud;
-    static int const RecvBufferSizeExp = TRecvBufferSizeExp;
-    static int const SendBufferSizeExp = TSendBufferSizeExp;
-    using TheGcodeParserParams = TTheGcodeParserParams;
-    using SerialService = TSerialService;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = SerialModule<Context, ParentObject, ThePrinterMain, SerialModuleService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(SerialModuleService, (
+    APRINTER_AS_VALUE(uint32_t, Baud),
+    APRINTER_AS_VALUE(int, RecvBufferSizeExp),
+    APRINTER_AS_VALUE(int, SendBufferSizeExp),
+    APRINTER_AS_TYPE(TheGcodeParserService),
+    APRINTER_AS_TYPE(SerialService)
+), (
+    APRINTER_MODULE_TEMPLATE(SerialModuleService, SerialModule)
+))
 
 #include <aprinter/EndNamespace.h>
 

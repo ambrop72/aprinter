@@ -28,8 +28,9 @@
 #include <stdint.h>
 
 #include <aprinter/meta/WrapFunction.h>
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/TupleGet.h>
+#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Inline.h>
@@ -266,22 +267,17 @@ public:
     };
 };
 
-template <
-    typename TSwitchPin, typename TSwitchPinInputMode, typename TSwitchInvert,
-    typename TFastMaxDist, typename TRetractDist, typename TSlowMaxDist,
-    typename TFastSpeed, typename TRetractSpeed, typename TSlowSpeed
->
-struct AxisHomerService {
-    using SwitchPin = TSwitchPin;
-    using SwitchPinInputMode = TSwitchPinInputMode;
-    using SwitchInvert = TSwitchInvert;
-    using FastMaxDist = TFastMaxDist;
-    using RetractDist = TRetractDist;
-    using SlowMaxDist = TSlowMaxDist;
-    using FastSpeed = TFastSpeed;
-    using RetractSpeed = TRetractSpeed;
-    using SlowSpeed = TSlowSpeed;
-    
+APRINTER_ALIAS_STRUCT_EXT(AxisHomerService, (
+    APRINTER_AS_TYPE(SwitchPin),
+    APRINTER_AS_TYPE(SwitchPinInputMode),
+    APRINTER_AS_TYPE(SwitchInvert),
+    APRINTER_AS_TYPE(FastMaxDist),
+    APRINTER_AS_TYPE(RetractDist),
+    APRINTER_AS_TYPE(SlowMaxDist),
+    APRINTER_AS_TYPE(FastSpeed),
+    APRINTER_AS_TYPE(RetractSpeed),
+    APRINTER_AS_TYPE(SlowSpeed)
+), (
     template <
         typename Context, typename ThePrinterMain, int PlannerStepBits,
         int StepperSegmentBufferSize, int MaxLookaheadBufferSize,
@@ -299,7 +295,7 @@ struct AxisHomerService {
             DistConversion, TimeConversion, HomeDir, FinishedHandler, AxisHomerService
         >;
     };
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

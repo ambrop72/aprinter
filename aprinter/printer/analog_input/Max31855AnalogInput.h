@@ -30,6 +30,7 @@
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/BitsInInt.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
@@ -166,17 +167,13 @@ public:
     };
 };
 
-template <
-    typename TSsPin,
-    typename TSpiService
->
-struct Max31855AnalogInputService {
-    using SsPin = TSsPin;
-    using SpiService = TSpiService;
-    
+APRINTER_ALIAS_STRUCT_EXT(Max31855AnalogInputService, (
+    APRINTER_AS_TYPE(SsPin),
+    APRINTER_AS_TYPE(SpiService)
+), (
     template <typename Context, typename ParentObject>
     using AnalogInput = Max31855AnalogInput<Context, ParentObject, Max31855AnalogInputService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

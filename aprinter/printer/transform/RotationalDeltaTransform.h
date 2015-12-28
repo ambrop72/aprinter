@@ -27,6 +27,7 @@
 
 #include <stdint.h>
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/Vector3.h>
 #include <aprinter/math/FloatTools.h>
@@ -181,23 +182,16 @@ public:
     struct Object : public ObjBase<RotationalDeltaTransform, ParentObject, EmptyTypeList> {};
 };
 
-template <
-    typename TEndEffectorLength,
-    typename TBaseLength,
-    typename TRodLength,
-    typename TArmLength,
-    typename TZOffset
->
-struct RotationalDeltaTransformService {
-    using EndEffectorLength = TEndEffectorLength;
-    using BaseLength = TBaseLength;
-    using RodLength = TRodLength;
-    using ArmLength = TArmLength;
-    using ZOffset = TZOffset;
-    
+APRINTER_ALIAS_STRUCT_EXT(RotationalDeltaTransformService, (
+    APRINTER_AS_TYPE(EndEffectorLength),
+    APRINTER_AS_TYPE(BaseLength),
+    APRINTER_AS_TYPE(RodLength),
+    APRINTER_AS_TYPE(ArmLength),
+    APRINTER_AS_TYPE(ZOffset)
+), (
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Transform = RotationalDeltaTransform<Context, ParentObject, Config, FpType, RotationalDeltaTransformService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

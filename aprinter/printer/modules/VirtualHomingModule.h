@@ -27,6 +27,7 @@
 
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
@@ -299,39 +300,29 @@ public:
     };
 };
 
-template <
-    char TAxisName,
-    typename TEndPin, typename TEndPinInputMode, typename TEndInvert, typename THomeDir,
-    typename TFastExtraDist, typename TRetractDist, typename TSlowExtraDist,
-    typename TFastSpeed, typename TRetractSpeed, typename TSlowSpeed
->
-struct VirtualHomingModuleAxisParams {
-    static char const AxisName = TAxisName;
-    using EndPin = TEndPin;
-    using EndPinInputMode = TEndPinInputMode;
-    using EndInvert = TEndInvert;
-    using HomeDir = THomeDir;
-    using FastExtraDist = TFastExtraDist;
-    using RetractDist = TRetractDist;
-    using SlowExtraDist = TSlowExtraDist;
-    using FastSpeed = TFastSpeed;
-    using RetractSpeed = TRetractSpeed;
-    using SlowSpeed = TSlowSpeed;
-};
+APRINTER_ALIAS_STRUCT(VirtualHomingModuleAxisParams, (
+    APRINTER_AS_VALUE(char, AxisName),
+    APRINTER_AS_TYPE(EndPin),
+    APRINTER_AS_TYPE(EndPinInputMode),
+    APRINTER_AS_TYPE(EndInvert),
+    APRINTER_AS_TYPE(HomeDir),
+    APRINTER_AS_TYPE(FastExtraDist),
+    APRINTER_AS_TYPE(RetractDist),
+    APRINTER_AS_TYPE(SlowExtraDist),
+    APRINTER_AS_TYPE(FastSpeed),
+    APRINTER_AS_TYPE(RetractSpeed),
+    APRINTER_AS_TYPE(SlowSpeed)
+))
 
-template <
-    typename TVirtHomingAxisParamsList
->
-struct VirtualHomingModuleService {
-    using VirtHomingAxisParamsList = TVirtHomingAxisParamsList;
+APRINTER_ALIAS_STRUCT_EXT(VirtualHomingModuleService, (
+    APRINTER_AS_TYPE(VirtHomingAxisParamsList)
+), (
+    APRINTER_MODULE_TEMPLATE(VirtualHomingModuleService, VirtualHomingModule)
     
     using ProvidedServices = MakeTypeList<
         ServiceDefinition<ServiceList::HomingHookService, 0>
     >;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = VirtualHomingModule<Context, ParentObject, ThePrinterMain, VirtualHomingModuleService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

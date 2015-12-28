@@ -33,6 +33,7 @@
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/ChooseFixedForFloat.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -40,11 +41,10 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <int TTimeBits, int TIntervalTimeBits>
-struct LaserDriverPrecisionParams {
-    static int const TimeBits = TTimeBits;
-    static int const IntervalTimeBits = TIntervalTimeBits;
-};
+APRINTER_ALIAS_STRUCT(LaserDriverPrecisionParams, (
+    APRINTER_AS_VALUE(int, TimeBits),
+    APRINTER_AS_VALUE(int, IntervalTimeBits)
+))
 
 using LaserDriverDefaultPrecisionParams = LaserDriverPrecisionParams<26, 32>;
 
@@ -199,19 +199,14 @@ public:
     };
 };
 
-template <
-    typename TInterruptTimerService,
-    typename TAdjustmentInterval,
-    typename TPrecisionParams
->
-struct LaserDriverService {
-    using InterruptTimerService = TInterruptTimerService;
-    using AdjustmentInterval = TAdjustmentInterval;
-    using PrecisionParams = TPrecisionParams;
-    
+APRINTER_ALIAS_STRUCT_EXT(LaserDriverService, (
+    APRINTER_AS_TYPE(InterruptTimerService),
+    APRINTER_AS_TYPE(AdjustmentInterval),
+    APRINTER_AS_TYPE(PrecisionParams)
+), (
     template <typename Context, typename ParentObject, typename FpType, typename PowerInterface, typename CommandCallback>
     using LaserDriver = LaserDriver<Context, ParentObject, FpType, PowerInterface, CommandCallback, LaserDriverService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

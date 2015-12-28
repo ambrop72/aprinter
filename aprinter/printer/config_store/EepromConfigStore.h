@@ -34,6 +34,7 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/DedummyIndexTemplate.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
@@ -308,15 +309,14 @@ public:
     };
 };
 
-template <typename TEeepromService, int TStartBlock, int TEndBlock>
-struct EepromConfigStoreService {
-    using EepromService = TEeepromService;
-    static int const StartBlock = TStartBlock;
-    static int const EndBlock = TEndBlock;
-    
+APRINTER_ALIAS_STRUCT_EXT(EepromConfigStoreService, (
+    APRINTER_AS_TYPE(EepromService),
+    APRINTER_AS_VALUE(int, StartBlock),
+    APRINTER_AS_VALUE(int, EndBlock)
+), (
     template <typename Context, typename ParentObject, typename ConfigManager, typename ThePrinterMain, typename Handler>
     using Store = EepromConfigStore<Context, ParentObject, ConfigManager, Handler, EepromConfigStoreService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

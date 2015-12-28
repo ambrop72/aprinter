@@ -27,6 +27,7 @@
 
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/ListForEach.h>
+#include <aprinter/meta/AliasStruct.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -65,13 +66,12 @@ public:
     struct Object {};
 };
 
-template <int TNumAxes>
-struct IdentityTransformService {
-    static int const NumAxes = TNumAxes;
-    
+APRINTER_ALIAS_STRUCT_EXT(IdentityTransformService, (
+    APRINTER_AS_VALUE(int, NumAxes)
+), (
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Transform = IdentityTransform<Context, FpType, IdentityTransformService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

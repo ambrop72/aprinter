@@ -29,24 +29,24 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/FuncUtils.h>
 #include <aprinter/meta/MemberType.h>
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/ListForEach.h>
+#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Inline.h>
 #include <aprinter/printer/Configuration.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename TDirPin, typename TStepPin, typename TEnablePin, bool TEnableLevel, typename TInvertDir>
-struct StepperDef {
-    using DirPin = TDirPin;
-    using StepPin = TStepPin;
-    using EnablePin = TEnablePin;
-    static bool const EnableLevel = TEnableLevel;
-    using InvertDir = TInvertDir;
-};
+APRINTER_ALIAS_STRUCT(StepperDef, (
+    APRINTER_AS_TYPE(DirPin),
+    APRINTER_AS_TYPE(StepPin),
+    APRINTER_AS_TYPE(EnablePin),
+    APRINTER_AS_VALUE(bool, EnableLevel),
+    APRINTER_AS_TYPE(InvertDir)
+))
 
 template <typename Context, typename ParentObject, typename Config, typename StepperDefsList>
 class Steppers {

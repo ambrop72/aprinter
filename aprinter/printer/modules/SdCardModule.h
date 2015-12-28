@@ -35,6 +35,7 @@
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/TypeList.h>
 #include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -66,7 +67,7 @@ private:
     static_assert(BufferBaseSize >= TheInput::NeedBufAvail + (MaxCommandSize - 1), "");
     static const size_t WrapExtraSize = MaxCommandSize - 1;
     using ParserSizeType = ChooseIntForMax<MaxCommandSize, false>;
-    using TheGcodeParser = typename Params::template GcodeParserTemplate<Context, typename Params::TheGcodeParserParams, ParserSizeType, typename ThePrinterMain::FpType>;
+    using TheGcodeParser = typename Params::TheGcodeParserService::template Parser<Context, ParserSizeType, typename ThePrinterMain::FpType>;
     
     static TimeType const BaseRetryTimeTicks = 0.5 * Context::Clock::time_freq;
     static int const ReadRetryCount = 5;
@@ -563,25 +564,16 @@ public:
     };
 };
 
-template <
-    typename TInputService,
-    template<typename, typename, typename, typename> class TGcodeParserTemplate,
-    typename TTheGcodeParserParams,
-    size_t TBufferBaseSize,
-    size_t TMaxCommandSize
->
-struct SdCardModuleService {
-    using InputService = TInputService;
-    template <typename X, typename Y, typename Z, typename W> using GcodeParserTemplate = TGcodeParserTemplate<X, Y, Z, W>;
-    using TheGcodeParserParams = TTheGcodeParserParams;
-    static size_t const BufferBaseSize = TBufferBaseSize;
-    static size_t const MaxCommandSize = TMaxCommandSize;
+APRINTER_ALIAS_STRUCT_EXT(SdCardModuleService, (
+    APRINTER_AS_TYPE(InputService),
+    APRINTER_AS_TYPE(TheGcodeParserService),
+    APRINTER_AS_VALUE(size_t, BufferBaseSize),
+    APRINTER_AS_VALUE(size_t, MaxCommandSize)
+), (
+    APRINTER_MODULE_TEMPLATE(SdCardModuleService, SdCardModule)
     
     using ProvidedServices = If<InputService::ProvidesFsAccess, MakeTypeList<ServiceDefinition<ServiceList::FsAccessService>>, EmptyTypeList>;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = SdCardModule<Context, ParentObject, ThePrinterMain, SdCardModuleService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

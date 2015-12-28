@@ -30,6 +30,7 @@
 #include <limits.h>
 
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
@@ -38,7 +39,7 @@
 
 #define APRINTER_BULKOUTPUT_TEST_DATA "0123456789ABCDEF"
 
-template <typename Context, typename ParentObject, typename ThePrinterMain>
+template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
 class BulkOutputTestModule {
     static size_t const TestDataLength = sizeof(APRINTER_BULKOUTPUT_TEST_DATA) - 1;
     
@@ -127,8 +128,7 @@ public:
 };
 
 struct BulkOutputTestModuleService {
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = BulkOutputTestModule<Context, ParentObject, ThePrinterMain>;
+    APRINTER_MODULE_TEMPLATE(BulkOutputTestModuleService, BulkOutputTestModule)
 };
 
 #include <aprinter/EndNamespace.h>

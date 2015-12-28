@@ -25,10 +25,15 @@
 #ifndef AMBROLIB_AXIS_DRIVER_CONSUMER_H
 #define AMBROLIB_AXIS_DRIVER_CONSUMER_H
 
-template <typename TCommandCallback, typename TPrestepCallback>
-struct AxisDriverConsumer {
-    using CommandCallback = TCommandCallback;
-    using PrestepCallback = TPrestepCallback;
-};
+#include <aprinter/meta/AliasStruct.h>
+
+#include <aprinter/BeginNamespace.h>
+
+APRINTER_ALIAS_STRUCT(AxisDriverConsumer, (
+    APRINTER_AS_TYPE(CommandCallback),
+    APRINTER_AS_TYPE(PrestepCallback)
+))
+
+#include <aprinter/EndNamespace.h>
 
 #endif

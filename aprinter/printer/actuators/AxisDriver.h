@@ -34,6 +34,7 @@
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/ConstexprMath.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/StoredNumber.h>
 #include <aprinter/base/DebugObject.h>
@@ -56,19 +57,14 @@
 
 #define AXIS_STEPPER_DUMMY_VARS (StepFixedType()), (TimeFixedType()), (AccelFixedType())
 
-template <
-    int tstep_bits, int ttime_bits,
-    int ttime_mul_bits, int tdiscriminant_prec,
-    int trel_t_extra_prec, bool tpreshift_accel
->
-struct AxisDriverPrecisionParams {
-    static const int step_bits = tstep_bits;
-    static const int time_bits = ttime_bits;
-    static const int time_mul_bits = ttime_mul_bits;
-    static const int discriminant_prec = tdiscriminant_prec;
-    static const int rel_t_extra_prec = trel_t_extra_prec;
-    static const bool preshift_accel = tpreshift_accel;
-};
+APRINTER_ALIAS_STRUCT(AxisDriverPrecisionParams, (
+    APRINTER_AS_VALUE(int, step_bits),
+    APRINTER_AS_VALUE(int, time_bits),
+    APRINTER_AS_VALUE(int, time_mul_bits),
+    APRINTER_AS_VALUE(int, discriminant_prec),
+    APRINTER_AS_VALUE(int, rel_t_extra_prec),
+    APRINTER_AS_VALUE(bool, preshift_accel)
+))
 
 using AxisDriverAvrPrecisionParams = AxisDriverPrecisionParams<11, 22, 24, 1, 0, true>;
 using AxisDriverDuePrecisionParams = AxisDriverPrecisionParams<11, 28, 28, 3, 4, false>;
@@ -630,33 +626,23 @@ struct AxisDriverNoDelayParams {
     static bool const Enabled = false;
 };
 
-template <
-    typename TDirSetTime,
-    typename TStepHighTime,
-    typename TStepLowTime
->
-struct AxisDriverDelayParams {
+APRINTER_ALIAS_STRUCT_EXT(AxisDriverDelayParams, (
+    APRINTER_AS_TYPE(DirSetTime),
+    APRINTER_AS_TYPE(StepHighTime),
+    APRINTER_AS_TYPE(StepLowTime)
+), (
     static bool const Enabled = true;
-    using DirSetTime = TDirSetTime;
-    using StepHighTime = TStepHighTime;
-    using StepLowTime = TStepLowTime;
-};
+))
 
-template <
-    typename TTimerService,
-    typename TPrecisionParams,
-    bool TPreloadCommands,
-    typename TDelayParams
->
-struct AxisDriverService {
-    using TimerService = TTimerService;
-    using PrecisionParams = TPrecisionParams;
-    static bool const PreloadCommands = TPreloadCommands;
-    using DelayParams = TDelayParams;
-    
+APRINTER_ALIAS_STRUCT_EXT(AxisDriverService, (
+    APRINTER_AS_TYPE(TimerService),
+    APRINTER_AS_TYPE(PrecisionParams),
+    APRINTER_AS_VALUE(bool, PreloadCommands),
+    APRINTER_AS_TYPE(DelayParams)
+), (
     template <typename Context, typename ParentObject, typename Stepper, typename ConsumersList>
     using AxisDriver = AxisDriver<Context, ParentObject, Stepper, ConsumersList, AxisDriverService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

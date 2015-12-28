@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 #include <aprinter/meta/WrapFunction.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Lock.h>
@@ -160,16 +161,15 @@ public:
     };
 };
 
-template <typename TPin, bool TInvert, typename TPulseInterval, typename TTimerService>
-struct SoftPwmService {
-    using Pin = TPin;
-    static bool const Invert = TInvert;
-    using PulseInterval = TPulseInterval;
-    using TimerService = TTimerService;
-    
+APRINTER_ALIAS_STRUCT_EXT(SoftPwmService, (
+    APRINTER_AS_TYPE(Pin),
+    APRINTER_AS_VALUE(bool, Invert),
+    APRINTER_AS_TYPE(PulseInterval),
+    APRINTER_AS_TYPE(TimerService)
+), (
     template <typename Context, typename ParentObject>
     using Pwm = SoftPwm<Context, ParentObject, SoftPwmService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

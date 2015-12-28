@@ -29,6 +29,7 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -36,11 +37,6 @@
 #include <aprinter/printer/GcodeCommand.h>
 
 #include <aprinter/BeginNamespace.h>
-
-template <int TMaxParts>
-struct GcodeParserParams {
-    static const int MaxParts = TMaxParts;
-};
 
 struct GcodeParserTypeSerial {};
 struct GcodeParserTypeFile {};
@@ -55,7 +51,7 @@ struct GcodeParserExtraMembers<GcodeParserTypeSerial> {
     uint8_t m_checksum;
 };
 
-template <typename Context, typename Params, typename TBufferSizeType, typename FpType, typename ParserType>
+template <typename Context, typename TBufferSizeType, typename FpType, typename ParserType, typename Params>
 class GcodeParser
 : public GcodeCommand<Context, FpType>,
   private SimpleDebugObject<Context>,
@@ -528,8 +524,19 @@ private:
     Command m_command;
 };
 
-template <typename Context, typename Params, typename TBufferSizeType, typename FpType>
-using FileGcodeParser = GcodeParser<Context, Params, TBufferSizeType, FpType, GcodeParserTypeFile>;
+APRINTER_ALIAS_STRUCT_EXT(SerialGcodeParserService, (
+    APRINTER_AS_VALUE(int, MaxParts)
+), (
+    template <typename Context, typename TBufferSizeType, typename FpType>
+    using Parser = GcodeParser<Context, TBufferSizeType, FpType, GcodeParserTypeSerial, SerialGcodeParserService>;
+))
+
+APRINTER_ALIAS_STRUCT_EXT(FileGcodeParserService, (
+    APRINTER_AS_VALUE(int, MaxParts)
+), (
+    template <typename Context, typename TBufferSizeType, typename FpType>
+    using Parser = GcodeParser<Context, TBufferSizeType, FpType, GcodeParserTypeFile, FileGcodeParserService>;
+))
 
 #include <aprinter/EndNamespace.h>
 

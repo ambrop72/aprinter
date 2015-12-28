@@ -25,6 +25,7 @@
 #ifndef APRINTER_PT_RTD_FORMULA_H
 #define APRINTER_PT_RTD_FORMULA_H
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/printer/Configuration.h>
 
@@ -79,25 +80,17 @@ public:
     using ConfigExprs = MakeTypeList<CAdcMinTemp, CAdcMaxTemp, CResistorRByR0, CPtA, CTwoPtB>;
 };
 
-template <
-    typename TResistorR,
-    typename TPtR0,
-    typename TPtA,
-    typename TPtB,
-    typename TMinTemp,
-    typename TMaxTemp
->
-struct PtRtdFormulaService {
-    using ResistorR = TResistorR;
-    using PtR0 = TPtR0;
-    using PtA = TPtA;
-    using PtB = TPtB;
-    using MinTemp = TMinTemp;
-    using MaxTemp = TMaxTemp;
-
+APRINTER_ALIAS_STRUCT_EXT(PtRtdFormulaService, (
+    APRINTER_AS_TYPE(ResistorR),
+    APRINTER_AS_TYPE(PtR0),
+    APRINTER_AS_TYPE(PtA),
+    APRINTER_AS_TYPE(PtB),
+    APRINTER_AS_TYPE(MinTemp),
+    APRINTER_AS_TYPE(MaxTemp)
+), (
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Formula = PtRtdFormula<Context, ParentObject, Config, FpType, PtRtdFormulaService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

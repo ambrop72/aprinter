@@ -25,6 +25,7 @@
 #ifndef AMBROLIB_PID_CONTROL_H
 #define AMBROLIB_PID_CONTROL_H
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/math/FloatTools.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Likely.h>
@@ -79,21 +80,17 @@ public:
     using ConfigExprs = MakeTypeList<CIntegralFactor, CIStateMin, CIStateMax, CDHistory, CC5, CP>;
 };
 
-template <
-    typename TP, typename TI, typename TD, typename TIStateMin, typename TIStateMax,
-    typename TDHistory
->
-struct PidControlService {
-    using P = TP;
-    using I = TI;
-    using D = TD;
-    using IStateMin = TIStateMin;
-    using IStateMax = TIStateMax;
-    using DHistory = TDHistory;
-    
+APRINTER_ALIAS_STRUCT_EXT(PidControlService, (
+    APRINTER_AS_TYPE(P),
+    APRINTER_AS_TYPE(I),
+    APRINTER_AS_TYPE(D),
+    APRINTER_AS_TYPE(IStateMin),
+    APRINTER_AS_TYPE(IStateMax),
+    APRINTER_AS_TYPE(DHistory)
+), (
     template <typename Context, typename ParentObject, typename Config, typename MeasurementInterval, typename FpType>
     using Control = PidControl<Context, ParentObject, Config, MeasurementInterval, FpType, PidControlService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

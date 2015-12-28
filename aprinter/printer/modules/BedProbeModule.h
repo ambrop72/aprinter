@@ -34,6 +34,7 @@
 #include <aprinter/meta/WrapValue.h>
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/ChooseInt.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -694,68 +695,41 @@ struct BedProbeNoCorrectionParams {
     static bool const Enabled = false;
 };
 
-template <
-    bool TQuadraticCorrectionSupported,
-    typename TQuadraticCorrectionEnabled
->
-struct BedProbeCorrectionParams {
+APRINTER_ALIAS_STRUCT_EXT(BedProbeCorrectionParams, (
+    APRINTER_AS_VALUE(bool, QuadraticCorrectionSupported),
+    APRINTER_AS_TYPE(QuadraticCorrectionEnabled)
+), (
     static bool const Enabled = true;
-    static bool const QuadraticCorrectionSupported = TQuadraticCorrectionSupported;
-    using QuadraticCorrectionEnabled = TQuadraticCorrectionEnabled;
-};
+))
 
-template <
-    typename TEnabled,
-    typename TCoords,
-    typename TZOffset
->
-struct BedProbePointParams {
-    using Enabled = TEnabled;
-    using Coords = TCoords;
-    using ZOffset = TZOffset;
-};
+APRINTER_ALIAS_STRUCT(BedProbePointParams, (
+    APRINTER_AS_TYPE(Enabled),
+    APRINTER_AS_TYPE(Coords),
+    APRINTER_AS_TYPE(ZOffset)
+))
 
-template <
-    typename TPlatformAxesList,
-    char TProbeAxis,
-    typename TProbePin,
-    typename TProbePinInputMode,
-    typename TProbeInvert,
-    typename TProbePlatformOffset,
-    typename TProbeStartHeight,
-    typename TProbeLowHeight,
-    typename TProbeRetractDist,
-    typename TProbeMoveSpeed,
-    typename TProbeFastSpeed,
-    typename TProbeRetractSpeed,
-    typename TProbeSlowSpeed,
-    typename TProbeGeneralZOffset,
-    typename TProbePoints,
-    typename TProbeCorrectionParams
->
-struct BedProbeModuleService {
-    using PlatformAxesList = TPlatformAxesList;
-    static char const ProbeAxis = TProbeAxis;
-    using ProbePin = TProbePin;
-    using ProbePinInputMode = TProbePinInputMode;
-    using ProbeInvert = TProbeInvert;
-    using ProbePlatformOffset = TProbePlatformOffset;
-    using ProbeStartHeight = TProbeStartHeight;
-    using ProbeLowHeight = TProbeLowHeight;
-    using ProbeRetractDist = TProbeRetractDist;
-    using ProbeMoveSpeed = TProbeMoveSpeed;
-    using ProbeFastSpeed = TProbeFastSpeed;
-    using ProbeRetractSpeed = TProbeRetractSpeed;
-    using ProbeSlowSpeed = TProbeSlowSpeed;
-    using ProbeGeneralZOffset = TProbeGeneralZOffset;
-    using ProbePoints = TProbePoints;
-    using ProbeCorrectionParams = TProbeCorrectionParams;
+APRINTER_ALIAS_STRUCT_EXT(BedProbeModuleService, (
+    APRINTER_AS_TYPE(PlatformAxesList),
+    APRINTER_AS_VALUE(char, ProbeAxis),
+    APRINTER_AS_TYPE(ProbePin),
+    APRINTER_AS_TYPE(ProbePinInputMode),
+    APRINTER_AS_TYPE(ProbeInvert),
+    APRINTER_AS_TYPE(ProbePlatformOffset),
+    APRINTER_AS_TYPE(ProbeStartHeight),
+    APRINTER_AS_TYPE(ProbeLowHeight),
+    APRINTER_AS_TYPE(ProbeRetractDist),
+    APRINTER_AS_TYPE(ProbeMoveSpeed),
+    APRINTER_AS_TYPE(ProbeFastSpeed),
+    APRINTER_AS_TYPE(ProbeRetractSpeed),
+    APRINTER_AS_TYPE(ProbeSlowSpeed),
+    APRINTER_AS_TYPE(ProbeGeneralZOffset),
+    APRINTER_AS_TYPE(ProbePoints),
+    APRINTER_AS_TYPE(ProbeCorrectionParams)
+), (
+    APRINTER_MODULE_TEMPLATE(BedProbeModuleService, BedProbeModule)
     
     using ProvidedServices = If<ProbeCorrectionParams::Enabled, MakeTypeList<ServiceDefinition<ServiceList::CorrectionService>>, EmptyTypeList>;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = BedProbeModule<Context, ParentObject, ThePrinterMain, BedProbeModuleService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

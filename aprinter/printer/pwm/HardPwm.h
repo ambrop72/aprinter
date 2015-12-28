@@ -27,9 +27,10 @@
 
 #include <stdint.h>
 
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/FixedPoint.h>
 #include <aprinter/meta/BitsInInt.h>
+#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/Lock.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -87,13 +88,12 @@ public:
     >> {};
 };
 
-template <typename TPwmService>
-struct HardPwmService {
-    using PwmService = TPwmService;
-    
+APRINTER_ALIAS_STRUCT_EXT(HardPwmService, (
+    APRINTER_AS_TYPE(PwmService)
+), (
     template <typename Context, typename ParentObject>
     using Pwm = HardPwm<Context, ParentObject, HardPwmService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

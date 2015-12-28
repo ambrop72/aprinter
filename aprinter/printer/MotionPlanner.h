@@ -36,7 +36,6 @@
 #include <aprinter/meta/TypeListUtils.h>
 #include <aprinter/meta/IndexElemTuple.h>
 #include <aprinter/meta/TupleGet.h>
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/BitsInInt.h>
 #include <aprinter/meta/Union.h>
@@ -45,6 +44,8 @@
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MemberType.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/Inline.h>
@@ -56,48 +57,28 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <
-    typename TTheAxisDriver,
-    int TStepBits,
-    typename TDistanceFactor,
-    typename TCorneringDistance,
-    typename TMaxSpeedRec,
-    typename TMaxAccelRec,
-    typename TPrestepCallback
->
-struct MotionPlannerAxisSpec {
-    using TheAxisDriver = TTheAxisDriver;
-    static const int StepBits = TStepBits;
-    using DistanceFactor = TDistanceFactor;
-    using CorneringDistance = TCorneringDistance;
-    using MaxSpeedRec = TMaxSpeedRec;
-    using MaxAccelRec = TMaxAccelRec;
-    using PrestepCallback = TPrestepCallback;
-};
+APRINTER_ALIAS_STRUCT(MotionPlannerAxisSpec, (
+    APRINTER_AS_TYPE(TheAxisDriver),
+    APRINTER_AS_VALUE(int, StepBits),
+    APRINTER_AS_TYPE(DistanceFactor),
+    APRINTER_AS_TYPE(CorneringDistance),
+    APRINTER_AS_TYPE(MaxSpeedRec),
+    APRINTER_AS_TYPE(MaxAccelRec),
+    APRINTER_AS_TYPE(PrestepCallback)
+))
 
-template <
-    typename TPayload,
-    typename TCallback,
-    int TBufferSize,
-    typename TTimerService
->
-struct MotionPlannerChannelSpec {
-    using Payload = TPayload;
-    using Callback = TCallback;
-    static const int BufferSize = TBufferSize;
-    using TimerService = TTimerService;
-};
+APRINTER_ALIAS_STRUCT(MotionPlannerChannelSpec, (
+    APRINTER_AS_TYPE(Payload),
+    APRINTER_AS_TYPE(Callback),
+    APRINTER_AS_VALUE(int, BufferSize),
+    APRINTER_AS_TYPE(TimerService)
+))
 
-template <
-    typename TTheLaserDriverService,
-    typename TPowerInterface,
-    typename TMaxSpeedRec
->
-struct MotionPlannerLaserSpec {
-    using TheLaserDriverService = TTheLaserDriverService;
-    using PowerInterface = TPowerInterface;
-    using MaxSpeedRec = TMaxSpeedRec;
-};
+APRINTER_ALIAS_STRUCT(MotionPlannerLaserSpec, (
+    APRINTER_AS_TYPE(TheLaserDriverService),
+    APRINTER_AS_TYPE(PowerInterface),
+    APRINTER_AS_TYPE(MaxSpeedRec)
+))
 
 template <typename Context>
 struct MotionPlannerConstants {

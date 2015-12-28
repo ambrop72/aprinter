@@ -28,6 +28,7 @@
 #include <stdint.h>
 
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/Vector3.h>
 #include <aprinter/math/FloatTools.h>
@@ -107,23 +108,16 @@ public:
     struct Object : public ObjBase<DeltaTransform, ParentObject, EmptyTypeList> {};
 };
 
-template <
-    typename TDiagonalRod,
-    typename TSmoothRodOffset,
-    typename TEffectorOffset,
-    typename TCarriageOffset,
-    typename TLimitRadius
->
-struct DeltaTransformService {
-    using DiagonalRod = TDiagonalRod;
-    using SmoothRodOffset = TSmoothRodOffset;
-    using EffectorOffset = TEffectorOffset;
-    using CarriageOffset = TCarriageOffset;
-    using LimitRadius = TLimitRadius;
-    
+APRINTER_ALIAS_STRUCT_EXT(DeltaTransformService, (
+    APRINTER_AS_TYPE(DiagonalRod),
+    APRINTER_AS_TYPE(SmoothRodOffset),
+    APRINTER_AS_TYPE(EffectorOffset),
+    APRINTER_AS_TYPE(CarriageOffset),
+    APRINTER_AS_TYPE(LimitRadius)
+), (
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Transform = DeltaTransform<Context, ParentObject, Config, FpType, DeltaTransformService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

@@ -25,9 +25,11 @@
 #ifndef APRINTER_MILLISECOND_CLOCK_INFO_MODULE_H
 #define APRINTER_MILLISECOND_CLOCK_INFO_MODULE_H
 
+#include <aprinter/meta/AliasStruct.h>
+
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain>
+template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
 class MillisecondClockInfoModule {
 public:
     static bool check_command (Context c, typename ThePrinterMain::TheCommand *cmd)
@@ -45,8 +47,7 @@ public:
 };
 
 struct MillisecondClockInfoModuleService {
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = MillisecondClockInfoModule<Context, ParentObject, ThePrinterMain>;
+    APRINTER_MODULE_TEMPLATE(MillisecondClockInfoModuleService, MillisecondClockInfoModule)
 };
 
 #include <aprinter/EndNamespace.h>

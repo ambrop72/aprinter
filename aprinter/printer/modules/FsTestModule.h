@@ -28,16 +28,17 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/meta/MinMax.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain>
+template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
 class FsTestModule {
 public:
     struct Object;
@@ -302,8 +303,7 @@ public:
 };
 
 struct FsTestModuleService {
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = FsTestModule<Context, ParentObject, ThePrinterMain>;
+    APRINTER_MODULE_TEMPLATE(FsTestModuleService, FsTestModule)
 };
 
 #include <aprinter/EndNamespace.h>

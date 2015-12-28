@@ -30,6 +30,7 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
@@ -37,12 +38,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <int TMaxParts>
-struct BinaryGcodeParserParams {
-    static const int MaxParts = TMaxParts;
-};
-
-template <typename Context, typename Params, typename TBufferSizeType, typename FpType>
+template <typename Context, typename TBufferSizeType, typename FpType, typename Params>
 class BinaryGcodeParser
 : public GcodeCommand<Context, FpType>,
   private SimpleDebugObject<Context>
@@ -353,6 +349,13 @@ private:
     BufferSizeType m_total_size;
     Part m_parts[Params::MaxParts];
 };
+
+APRINTER_ALIAS_STRUCT_EXT(BinaryGcodeParserService, (
+    APRINTER_AS_VALUE(int, MaxParts)
+), (
+    template <typename Context, typename TBufferSizeType, typename FpType>
+    using Parser = BinaryGcodeParser<Context, TBufferSizeType, FpType, BinaryGcodeParserService>;
+))
 
 #include <aprinter/EndNamespace.h>
 

@@ -30,6 +30,7 @@
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -258,15 +259,14 @@ public:
     };
 };
 
-template <typename TSdCardService>
-struct SdRawInputService {
-    using SdCardService = TSdCardService;
-    
+APRINTER_ALIAS_STRUCT_EXT(SdRawInputService, (
+    APRINTER_AS_TYPE(SdCardService)
+), (
     static bool const ProvidesFsAccess = false;
     
     template <typename Context, typename ParentObject, typename ClientParams>
     using Input = SdRawInput<Context, ParentObject, ClientParams, SdRawInputService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

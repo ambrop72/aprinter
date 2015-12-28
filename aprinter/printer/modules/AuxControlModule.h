@@ -41,6 +41,7 @@
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -937,90 +938,54 @@ public:
     };
 };
 
-template <
-    char TLetter,
-    uint8_t TNumber
->
-struct AuxControlName {
-    static char const Letter = TLetter;
-    static uint8_t const Number = TNumber;
-};
+APRINTER_ALIAS_STRUCT(AuxControlName, (
+    APRINTER_AS_VALUE(char, Letter),
+    APRINTER_AS_VALUE(uint8_t, Number)
+))
 
 struct AuxControlNoColdExtrusionParams {
     static bool const Enabled = false;
 };
 
-template <
-    typename TMinExtrusionTemp,
-    typename TExtruderAxes
->
-struct AuxControlColdExtrusionParams {
+APRINTER_ALIAS_STRUCT_EXT(AuxControlColdExtrusionParams, (
+    APRINTER_AS_TYPE(MinExtrusionTemp),
+    APRINTER_AS_TYPE(ExtruderAxes)
+), (
     static bool const Enabled = true;
-    using MinExtrusionTemp = TMinExtrusionTemp;
-    using ExtruderAxes = TExtruderAxes;
-};
+))
 
-template <
-    typename TName,
-    int TSetMCommand,
-    typename TAnalogInput,
-    typename TFormula,
-    typename TMinSafeTemp,
-    typename TMaxSafeTemp,
-    typename TControlInterval,
-    typename TControlService,
-    typename TObserverService,
-    typename TPwmService,
-    typename TColdExtrusion
->
-struct AuxControlModuleHeaterParams {
-    using Name = TName;
-    static int const SetMCommand = TSetMCommand;
-    using AnalogInput = TAnalogInput;
-    using Formula = TFormula;
-    using MinSafeTemp = TMinSafeTemp;
-    using MaxSafeTemp = TMaxSafeTemp;
-    using ControlInterval = TControlInterval;
-    using ControlService = TControlService;
-    using ObserverService = TObserverService;
-    using PwmService = TPwmService;
-    using ColdExtrusion = TColdExtrusion;
-};
+APRINTER_ALIAS_STRUCT(AuxControlModuleHeaterParams, (
+    APRINTER_AS_TYPE(Name),
+    APRINTER_AS_VALUE(int, SetMCommand),
+    APRINTER_AS_TYPE(AnalogInput),
+    APRINTER_AS_TYPE(Formula),
+    APRINTER_AS_TYPE(MinSafeTemp),
+    APRINTER_AS_TYPE(MaxSafeTemp),
+    APRINTER_AS_TYPE(ControlInterval),
+    APRINTER_AS_TYPE(ControlService),
+    APRINTER_AS_TYPE(ObserverService),
+    APRINTER_AS_TYPE(PwmService),
+    APRINTER_AS_TYPE(ColdExtrusion)
+))
 
-template <
-    typename TName,
-    int TSetMCommand,
-    int TOffMCommand,
-    typename TSpeedMultiply,
-    typename TPwmService
->
-struct AuxControlModuleFanParams {
-    using Name = TName;
-    static int const SetMCommand = TSetMCommand;
-    static int const OffMCommand = TOffMCommand;
-    using SpeedMultiply = TSpeedMultiply;
-    using PwmService = TPwmService;
-};
+APRINTER_ALIAS_STRUCT(AuxControlModuleFanParams, (
+    APRINTER_AS_TYPE(Name),
+    APRINTER_AS_VALUE(int, SetMCommand),
+    APRINTER_AS_VALUE(int, OffMCommand),
+    APRINTER_AS_TYPE(SpeedMultiply),
+    APRINTER_AS_TYPE(PwmService)
+))
 
-template <
-    int TEventChannelBufferSize,
-    typename TEventChannelTimerService,
-    typename TWaitTimeout,
-    typename TWaitReportPeriod,
-    typename THeatersList,
-    typename TFansList
->
-struct AuxControlModuleService {
-    static int const EventChannelBufferSize = TEventChannelBufferSize;
-    using EventChannelTimerService = TEventChannelTimerService;
-    using WaitTimeout = TWaitTimeout;
-    using WaitReportPeriod = TWaitReportPeriod;
-    using HeatersList = THeatersList;
-    using FansList = TFansList;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = AuxControlModule<Context, ParentObject, ThePrinterMain, AuxControlModuleService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(AuxControlModuleService, (
+    APRINTER_AS_VALUE(int, EventChannelBufferSize),
+    APRINTER_AS_TYPE(EventChannelTimerService),
+    APRINTER_AS_TYPE(WaitTimeout),
+    APRINTER_AS_TYPE(WaitReportPeriod),
+    APRINTER_AS_TYPE(HeatersList),
+    APRINTER_AS_TYPE(FansList)
+), (
+    APRINTER_MODULE_TEMPLATE(AuxControlModuleService, AuxControlModule)
+))
 
 #include <aprinter/EndNamespace.h>
 

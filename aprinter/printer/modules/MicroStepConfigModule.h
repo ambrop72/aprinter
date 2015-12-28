@@ -29,6 +29,7 @@
 
 #include <aprinter/meta/ListForEach.h>
 #include <aprinter/meta/TypeListUtils.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -69,24 +70,16 @@ public:
     struct Object : public ObjBase<MicroStepConfigModule, ParentObject, MicroStepAxisList> {};
 };
 
-template <
-    typename TMicroStepService,
-    uint8_t TMicroSteps
->
-struct MicroStepAxisParams {
-    using MicroStepService = TMicroStepService;
-    static uint8_t const MicroSteps = TMicroSteps;
-};
+APRINTER_ALIAS_STRUCT(MicroStepAxisParams, (
+    APRINTER_AS_TYPE(MicroStepService),
+    APRINTER_AS_VALUE(uint8_t, MicroSteps)
+))
 
-template <
-    typename TMicroStepAxisList
->
-struct MicroStepConfigModuleService {
-    using MicroStepAxisList = TMicroStepAxisList;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = MicroStepConfigModule<Context, ParentObject, ThePrinterMain, MicroStepConfigModuleService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(MicroStepConfigModuleService, (
+    APRINTER_AS_TYPE(MicroStepAxisList)
+), (
+    APRINTER_MODULE_TEMPLATE(MicroStepConfigModuleService, MicroStepConfigModule)
+))
 
 #include <aprinter/EndNamespace.h>
 

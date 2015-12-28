@@ -1402,6 +1402,7 @@ def generate(config_root_data, cfg_name, main_template):
                 
                 for serial in board_data.iter_list_config('serial_ports', max_count=5):
                     gen.add_aprinter_include('printer/modules/SerialModule.h')
+                    gen.add_aprinter_include('printer/GcodeParser.h')
                     
                     serial_module = gen.add_module()
                     serial_user = 'MyPrinter::GetModule<{}>::GetSerial'.format(serial_module.index)
@@ -1410,7 +1411,9 @@ def generate(config_root_data, cfg_name, main_template):
                         'UINT32_C({})'.format(serial.get_int_constant('BaudRate')),
                         serial.get_int_constant('RecvBufferSizeExp'),
                         serial.get_int_constant('SendBufferSizeExp'),
-                        TemplateExpr('GcodeParserParams', [serial.get_int_constant('GcodeMaxParts')]),
+                        TemplateExpr('SerialGcodeParserService', [
+                            serial.get_int_constant('GcodeMaxParts'),
+                        ]),
                         use_serial(gen, serial, 'Service', serial_user),
                     ]))
                 
@@ -1432,12 +1435,16 @@ def generate(config_root_data, cfg_name, main_template):
                     @gcode_parser_sel.option('TextGcodeParser')
                     def option(parser):
                         gen.add_aprinter_include('printer/GcodeParser.h')
-                        return 'FileGcodeParser, GcodeParserParams<{}>'.format(parser.get_int('MaxParts'))
+                        return TemplateExpr('FileGcodeParserService', [
+                            parser.get_int('MaxParts'),
+                        ])
                     
                     @gcode_parser_sel.option('BinaryGcodeParser')
                     def option(parser):
                         gen.add_aprinter_include('printer/BinaryGcodeParser.h')
-                        return 'BinaryGcodeParser, BinaryGcodeParserParams<{}>'.format(parser.get_int('MaxParts'))
+                        return TemplateExpr('BinaryGcodeParserService', [
+                            parser.get_int('MaxParts'),
+                        ])
                     
                     fs_sel = selection.Selection()
                     
@@ -1546,10 +1553,13 @@ def generate(config_root_data, cfg_name, main_template):
                                 tcpconsole_config.key_path('MaxCommandSize').error('Bad value.')
                             
                             gen.add_aprinter_include('printer/modules/TcpConsoleModule.h')
+                            gen.add_aprinter_include('printer/GcodeParser.h')
                             
                             tcp_console_module = gen.add_module()
                             tcp_console_module.set_expr(TemplateExpr('TcpConsoleModuleService', [
-                                TemplateExpr('GcodeParserParams', [console_max_parts]),
+                                TemplateExpr('SerialGcodeParserService', [
+                                    console_max_parts,
+                                ]),
                                 console_port,
                                 console_max_clients,
                                 console_max_command_size,

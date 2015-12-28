@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/math/Vector3.h>
 #include <aprinter/math/FloatTools.h>
@@ -90,8 +91,8 @@ public:
         return true;
     }
 
-    template<typename Src, typename Dst>
-    static void physToVirt(Context c, Src phys, Dst out_virt)
+    template <typename Src, typename Dst>
+    static void physToVirt (Context c, Src phys, Dst out_virt)
     {
         // SCARA forward kinematic equations
 
@@ -141,23 +142,16 @@ public:
     struct Object : public ObjBase<SCARATransform, ParentObject, EmptyTypeList> {};
 };
 
-template <
-    typename TArm1Length,
-    typename TArm2Length,
-    typename TExternalArm2Motor,
-    typename TXOffset,
-    typename TYOffset
->
-struct SCARATransformService {
-    using Arm1Length = TArm1Length;
-    using Arm2Length = TArm2Length;
-    using ExternalArm2Motor = TExternalArm2Motor;
-    using XOffset = TXOffset;
-    using YOffset = TYOffset;
-
+APRINTER_ALIAS_STRUCT_EXT(SCARATransformService, (
+    APRINTER_AS_TYPE(Arm1Length),
+    APRINTER_AS_TYPE(Arm2Length),
+    APRINTER_AS_TYPE(ExternalArm2Motor),
+    APRINTER_AS_TYPE(XOffset),
+    APRINTER_AS_TYPE(YOffset)
+), (
     template <typename Context, typename ParentObject, typename Config, typename FpType>
     using Transform = SCARATransform<Context, ParentObject, Config, FpType, SCARATransformService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 
