@@ -1964,7 +1964,6 @@ def generate(config_root_data, cfg_name, main_template):
                             limits[0],
                             limits[1],
                             gen.add_float_config('{}MaxSpeed'.format(virt_axis_name), float('inf'), is_constant=True),
-                            'PrinterMainNoVirtualHomingParams',
                         ]))
                         
                         transform_steppers.append_arg(TemplateExpr('WrapInt', [TemplateChar(stepper_name)]))
