@@ -254,13 +254,7 @@ private:
 #ifdef DIDR2
             DIDR2 = mask >> 8;
 #endif
-#ifdef MUX5
-            ADMUX = (AdcRefSel << REFS0) | (AdcPin<0>::AdcIndex & 0x1F);
-            ADCSRB = (AdcPin<0>::AdcIndex >> 5) << MUX5;
-#else
-            ADMUX = (AdcRefSel << REFS0) | AdcPin<0>::AdcIndex;
-            ADCSRB = 0;
-#endif
+            AdcPin<0>::configure_adc_for_pin();
             ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE) | (AdcPrescaler << ADPS0);
             
             while (!*(volatile bool *)&o->m_finished);
@@ -298,6 +292,17 @@ private:
             return (accum | AdcPinMask<Pin>::Value);
         }
         
+        static void configure_adc_for_pin ()
+        {
+#ifdef MUX5
+            ADMUX = (AdcRefSel << REFS0) | (AdcIndex & 0x1F);
+            ADCSRB = (AdcIndex >> 5) << MUX5;
+#else
+            ADMUX = (AdcRefSel << REFS0) | AdcIndex;
+            ADCSRB = 0;
+#endif
+        }
+        
         static bool handle_isr (AtomicContext<Context> c)
         {
             auto *o = Object::self(c);
@@ -307,12 +312,7 @@ private:
                 return true;
             }
             o->m_value = ADC;
-#ifdef MUX5
-            ADMUX = (AdcRefSel << REFS0) | (AdcPin<NextPinIndex>::AdcIndex & 0x1F);
-            ADCSRB = (AdcPin<NextPinIndex>::AdcIndex >> 5) << MUX5;
-#else
-            ADMUX = (AdcRefSel << REFS0) | AdcPin<NextPinIndex>::AdcIndex;
-#endif
+            AdcPin<NextPinIndex>::configure_adc_for_pin();
             ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE) | (AdcPrescaler << ADPS0);
             ao->m_current_pin = NextPinIndex;
             if (PinIndex == NumPins - 1) {
