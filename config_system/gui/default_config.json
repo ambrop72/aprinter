@@ -3783,7 +3783,33 @@
       },
       "InactiveTime": 480,
       "Moves": {
-        "_compoundName": "NoMoves"
+        "Moves": [
+          {
+            "Coordinates": [
+              {
+                "AxisName": "X",
+                "Value": -40,
+                "_compoundName": "Coordinate"
+              },
+              {
+                "AxisName": "Y",
+                "Value": 10,
+                "_compoundName": "Coordinate"
+              },
+              {
+                "AxisName": "Z",
+                "Value": 10,
+                "_compoundName": "Coordinate"
+              }
+            ],
+            "Enabled": true,
+            "HookPriority": 10,
+            "HookType": "After homing",
+            "Speed": 120,
+            "_compoundName": "Move"
+          }
+        ],
+        "_compoundName": "Moves"
       },
       "fans": [
         {
@@ -3931,12 +3957,47 @@
           "MoveSpeed": 120,
           "OffsetX": -18,
           "OffsetY": -31,
-          "GeneralZOffset": 0,
+          "GeneralZOffset": -4.55,
           "ProbePoints": [
             {
               "Enabled": true,
               "X": 0,
               "Y": 31,
+              "Z-offset": 0,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": 102.5,
+              "Y": 31,
+              "Z-offset": 0,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": 205,
+              "Y": 31,
+              "Z-offset": 0,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": 205,
+              "Y": 93,
+              "Z-offset": 0,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": 102.5,
+              "Y": 93,
+              "Z-offset": 0,
+              "_compoundName": "ProbePoint"
+            },
+            {
+              "Enabled": true,
+              "X": 0,
+              "Y": 93,
               "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
@@ -3949,8 +4010,8 @@
             },
             {
               "Enabled": true,
-              "X": 205,
-              "Y": 31,
+              "X": 102.5,
+              "Y": 155,
               "Z-offset": 0,
               "_compoundName": "ProbePoint"
             },
@@ -3968,7 +4029,9 @@
           "StartHeight": 9,
           "_compoundName": "Probe",
           "correction": {
-            "_compoundName": "NoCorrection"
+            "QuadraticCorrectionEnabled": true,
+            "QuadraticCorrectionSupported": true,
+            "_compoundName": "Correction"
           }
         }
       },
@@ -3976,13 +4039,13 @@
         {
           "MinPos": -53,
           "CorneringDistance": 40,
-          "EnableCartesianSpeedLimit": true,
+          "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
           "MaxSpeed": 300,
           "DistanceFactor": 1,
-          "Name": "X",
+          "Name": "A",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -4018,13 +4081,13 @@
         {
           "MinPos": 0,
           "CorneringDistance": 40,
-          "EnableCartesianSpeedLimit": true,
+          "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 650,
           "MaxPos": 157,
           "MaxSpeed": 300,
           "DistanceFactor": 1,
-          "Name": "Y",
+          "Name": "B",
           "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
@@ -4058,15 +4121,15 @@
           ]
         },
         {
-          "MinPos": 0,
+          "MinPos": -1,
           "CorneringDistance": 40,
-          "EnableCartesianSpeedLimit": true,
+          "EnableCartesianSpeedLimit": false,
           "IsExtruder": false,
           "MaxAccel": 30,
-          "MaxPos": 100,
+          "MaxPos": 110,
           "MaxSpeed": 3,
           "DistanceFactor": 1,
-          "Name": "Z",
+          "Name": "C",
           "PreloadCommands": false,
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
@@ -4077,7 +4140,7 @@
             "_compoundName": "Delay"
           },
           "homing": {
-            "HomeOffset": 0,
+            "HomeOffset": 2,
             "HomeDir": false,
             "HomeEndstopInput": "Z-MIN",
             "HomeFastMaxDist": 101,
@@ -4165,7 +4228,44 @@
         }
       ],
       "transform": {
-        "_compoundName": "NoTransform"
+        "CartesianAxes": {},
+        "DimensionCount": 0,
+        "IdentityAxes": [
+          {
+            "Limits": {
+              "_compoundName": "LimitsAsStepper"
+            },
+            "Name": "X",
+            "StepperName": "A",
+            "_compoundName": "IdentityAxis"
+          },
+          {
+            "Limits": {
+              "_compoundName": "LimitsAsStepper"
+            },
+            "Name": "Y",
+            "StepperName": "B",
+            "_compoundName": "IdentityAxis"
+          },
+          {
+            "Limits": {
+              "MaxPos": 100,
+              "MinPos": 0,
+              "_compoundName": "LimitsSpecified"
+            },
+            "Name": "Z",
+            "StepperName": "C",
+            "_compoundName": "IdentityAxis"
+          }
+        ],
+        "Splitter": {
+          "MaxSplitLength": 10,
+          "MinSplitLength": 1,
+          "SegmentsPerSecond": 100,
+          "_compoundName": "DistanceSplitter"
+        },
+        "Steppers": {},
+        "_compoundName": "Null"
       }
     },
     {
