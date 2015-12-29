@@ -206,6 +206,8 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheModule, TheModule)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheStepper, TheStepper)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheStepperDef, TheStepperDef)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_PlannerAxisSpec, PlannerAxisSpec)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_PlannerLaserSpec, PlannerLaserSpec)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ConfigExprs, ConfigExprs)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ProvidedServices, ProvidedServices)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_MotionPlannerChannels, MotionPlannerChannels)
@@ -230,8 +232,6 @@ private:
     struct PlannerFinishedHandler;
     struct PlannerAbortedHandler;
     struct PlannerUnderrunCallback;
-    template <int AxisIndex> struct PlannerPrestepCallback;
-    template <int AxisIndex> struct AxisDriverConsumersList;
     struct DelayedConfigExprs;
     
     using Clock = typename Context::Clock;
@@ -995,7 +995,8 @@ private:
         struct LazySteppersList;
         using TheStepperGroup = StepperGroup<Context, LazySteppersList>;
         
-        using TheAxisDriver = typename AxisSpec::TheAxisDriverService::template AxisDriver<Context, Object, TheStepperGroup, AxisDriverConsumersList<AxisIndex>>;
+        template <typename ThePrinterMain=PrinterMain> struct DelayedAxisDriverConsumersList;
+        using TheAxisDriver = typename AxisSpec::TheAxisDriverService::template AxisDriver<Context, Object, TheStepperGroup, DelayedAxisDriverConsumersList<>>;
         
         using StepFixedType = FixedPoint<AxisSpec::StepBits, false, 0>;
         using AbsStepFixedType = FixedPoint<AxisSpec::StepBits - 1, true, 0>;
@@ -1015,6 +1016,17 @@ private:
         
         template <typename ThePrinterMain=PrinterMain>
         static constexpr typename ThePrinterMain::PhysVirtAxisMaskType AxisMask () { return (PhysVirtAxisMaskType)1 << AxisIndex; }
+        
+        struct PlannerPrestepCallback;
+        using PlannerAxisSpec = MotionPlannerAxisSpec<
+            TheAxisDriver,
+            AxisSpec::StepBits,
+            decltype(Config::e(AxisSpec::DefaultDistanceFactor::i())),
+            decltype(Config::e(AxisSpec::DefaultCorneringDistance::i())),
+            PlannerMaxSpeedRec,
+            PlannerMaxAccelRec,
+            PlannerPrestepCallback
+        >;
         
         AMBRO_STRUCT_IF(HomingFeature, HomingSpec::Enabled) {
             struct Object;
@@ -1272,6 +1284,21 @@ private:
             HomingFeature::m119_append_endstop(c, cmd);
         }
         
+        AMBRO_ALWAYS_INLINE
+        static bool planner_prestep_callback (typename TheAxisDriver::CommandCallbackContext c)
+        {
+            return !ListForEachForwardInterruptible<ModulesList>(LForeach_prestep_callback(), c);
+        }
+        struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&Axis::planner_prestep_callback) {};
+        
+        template <typename ThePrinterMain>
+        struct DelayedAxisDriverConsumersList {
+            using List = JoinTypeLists<
+                MakeTypeList<typename ThePrinterMain::ThePlanner::template TheAxisDriverConsumer<AxisIndex>>,
+                typename HomingFeature::AxisDriverConsumersList
+            >;
+        };
+        
         using CDistConversion = decltype(ExprCast<FpType>(DistConversion()));
         using CDistConversionRec = decltype(ExprCast<FpType>(ExprRec(DistConversion())));
         using CMinReqPos = decltype(ExprCast<FpType>(MinReqPos()));
@@ -1296,19 +1323,8 @@ private:
     
     using AxesList = IndexElemList<ParamsAxesList, Axis>;
     
-    template <int AxisName>
+    template <char AxisName>
     using FindAxis = TypeListIndexMapped<AxesList, GetMemberType_WrappedAxisName, WrapInt<AxisName>>;
-    
-    template <typename TheAxis>
-    using MakePlannerAxisSpec = MotionPlannerAxisSpec<
-        typename TheAxis::TheAxisDriver,
-        TheAxis::AxisSpec::StepBits,
-        decltype(Config::e(TheAxis::AxisSpec::DefaultDistanceFactor::i())),
-        decltype(Config::e(TheAxis::AxisSpec::DefaultCorneringDistance::i())),
-        typename TheAxis::PlannerMaxSpeedRec,
-        typename TheAxis::PlannerMaxAccelRec,
-        PlannerPrestepCallback<TheAxis::AxisIndex>
-    >;
     
     template <int LaserIndex>
     struct Laser {
@@ -1320,6 +1336,9 @@ private:
         using MaxPower = decltype(Config::e(LaserSpec::MaxPower::i()));
         using LaserPower = decltype(Config::e(LaserSpec::LaserPower::i()));
         using PlannerMaxSpeedRec = decltype(TimeConversion() / (MaxPower() / LaserPower()));
+        
+        struct PowerInterface;
+        using PlannerLaserSpec = MotionPlannerLaserSpec<typename LaserSpec::TheLaserDriverService, PowerInterface, PlannerMaxSpeedRec>;
         
         static void init (Context c)
         {
@@ -1400,13 +1419,6 @@ private:
     };
     
     using LasersList = IndexElemList<ParamsLasersList, Laser>;
-    
-    template <typename TheLaser>
-    using MakePlannerLaserSpec = MotionPlannerLaserSpec<
-        typename TheLaser::LaserSpec::TheLaserDriverService,
-        typename TheLaser::PowerInterface,
-        typename TheLaser::PlannerMaxSpeedRec
-    >;
     
 public:
     struct PlannerClient {
@@ -1705,7 +1717,7 @@ public:
             
         private:
             using VirtAxisParams = TypeListGet<ParamsVirtAxesList, VirtAxisIndex>;
-            static int const AxisName = VirtAxisParams::Name;
+            static char const AxisName = VirtAxisParams::Name;
             static int const PhysAxisIndex = FindAxis<TypeListGet<ParamsPhysAxesList, VirtAxisIndex>::Value>::Value;
             using ThePhysAxis = Axis<PhysAxisIndex>;
             static_assert(!ThePhysAxis::AxisSpec::IsCartesian, "");
@@ -1720,6 +1732,7 @@ public:
         private:
             using CMaxSpeedFactor = decltype(ExprCast<FpType>(TimeConversion() / Config::e(VirtAxisParams::MaxSpeed::i())));
             
+        public:
             using ConfigExprs = MakeTypeList<CMinPos, CMaxPos, CMaxSpeedFactor>;
             
         private:
@@ -1743,7 +1756,6 @@ public:
             static bool check_phys_limits (Context c)
             {
                 auto *axis = ThePhysAxis::Object::self(c);
-                auto *t = TransformFeature::Object::self(c);
                 return AMBRO_LIKELY(axis->m_req_pos >= APRINTER_CFG(Config, typename ThePhysAxis::CMinReqPos, c)) &&
                        AMBRO_LIKELY(axis->m_req_pos <= APRINTER_CFG(Config, typename ThePhysAxis::CMaxReqPos, c));
             }
@@ -1797,7 +1809,6 @@ public:
                 FpType m_delta;
             };
         };
-        
         using VirtAxesList = IndexElemList<ParamsVirtAxesList, VirtAxis>;
         
         template <typename PhysAxisIndex>
@@ -1831,7 +1842,6 @@ public:
                 axis->m_req_pos = axis->m_old_pos + (frac * (saved_phys_req_pos[AxisIndex] - axis->m_old_pos));
             }
         };
-        
         using SecondaryAxesList = IndexElemList<SecondaryAxisIndices, SecondaryAxis>;
         
         template <int LaserIndex>
@@ -1847,7 +1857,6 @@ public:
                 FpType energy;
             };
         };
-        
         using LaserSplitsList = IndexElemList<ParamsLasersList, LaserSplit>;
         
     public:
@@ -2009,10 +2018,10 @@ public:
 public:
     using PhysVirtAxisHelperList = IndexElemListCount<NumPhysVirtAxes, PhysVirtAxisHelper>;
     
-    template <int AxisName>
+    template <char AxisName>
     using FindPhysVirtAxis = TypeListIndexMapped<PhysVirtAxisHelperList, GetMemberType_WrappedAxisName, WrapInt<AxisName>>;
     
-    template <int AxisName>
+    template <char AxisName>
     using GetPhysVirtAxisByName = PhysVirtAxisHelper<FindPhysVirtAxis<AxisName>::Value>;
     
 private:
@@ -2020,8 +2029,8 @@ private:
     using MotionPlannerChannelsDict = ListCollect<ModuleClassesList, MemberType_MotionPlannerChannels>;
     
     using MotionPlannerChannels = TypeDictValues<MotionPlannerChannelsDict>;
-    using MotionPlannerAxes = MapTypeList<AxesList, TemplateFunc<MakePlannerAxisSpec>>;
-    using MotionPlannerLasers = MapTypeList<LasersList, TemplateFunc<MakePlannerLaserSpec>>;
+    using MotionPlannerAxes = MapTypeList<AxesList, GetMemberType_PlannerAxisSpec>;
+    using MotionPlannerLasers = MapTypeList<LasersList, GetMemberType_PlannerLaserSpec>;
     
 public:
     using ThePlanner = MotionPlanner<
@@ -2042,6 +2051,7 @@ private:
     };
     using TheCorrectionService = GetServiceFromModuleOrDefault<DummyCorrectionService, typename ServiceList::CorrectionService, MemberType_CorrectionFeature>;
     
+private:
     AMBRO_STRUCT_IF(LoadConfigFeature, TheConfigManager::HasStore) {
         static void start_loading (Context c)
         {
@@ -2202,6 +2212,7 @@ private:
         ListForEachForward<ModulesList>(LForeach_check_safety(), c);
         TheWatchdog::reset(c);
     }
+    struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
     
     APRINTER_NO_INLINE
     static void work_command (Context c, TheCommand *cmd)
@@ -2515,7 +2526,6 @@ private:
         return TheHookExecutor::template startHook<ServiceList::HomingHookService>(c);
     }
     
-private:
     static void homing_finished (Context c)
     {
         auto *ob = Object::self(c);
@@ -2526,15 +2536,6 @@ private:
             cmd->reportError(c, nullptr);
         }
         cmd->finishCommand(c);
-    }
-    
-    static void now_inactive (Context c)
-    {
-        auto *ob = Object::self(c);
-        
-        TimeType now = Clock::getTime(c);
-        ob->disable_timer.appendAt(c, now + APRINTER_CFG(Config, CInactiveTimeTicks, c));
-        TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
     }
     
     static void normal_move_end_callback (Context c, bool error)
@@ -2553,6 +2554,15 @@ public:
         
         ob->disable_timer.unset(c);
         TheBlinker::setInterval(c, (FpType)((Params::LedBlinkInterval::value() / 2) * TimeConversion::value()));
+    }
+    
+    static void now_inactive (Context c)
+    {
+        auto *ob = Object::self(c);
+        
+        TimeType now = Clock::getTime(c);
+        ob->disable_timer.appendAt(c, now + APRINTER_CFG(Config, CInactiveTimeTicks, c));
+        TheBlinker::setInterval(c, (FpType)(Params::LedBlinkInterval::value() * TimeConversion::value()));
     }
     
     static void set_force_timer (Context c)
@@ -2581,7 +2591,6 @@ private:
     
     static void disable_timer_handler (Context c)
     {
-        auto *ob = Object::self(c);
         TheDebugObject::access(c);
         
         ListForEachForward<AxesList>(LForeach_enable_disable_stepper(), c, false);
@@ -2622,6 +2631,7 @@ private:
             ob->planner_client->pull_handler(c);
         }
     }
+    struct PlannerPullHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_pull_handler) {};
     
     static void planner_finished_handler (Context c)
     {
@@ -2647,6 +2657,7 @@ private:
             work_command(c, cmd);
         }
     }
+    struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_finished_handler) {};
     
     static void planner_aborted_handler (Context c)
     {
@@ -2660,10 +2671,12 @@ private:
         
         return ob->planner_client->finished_handler(c, true);
     }
+    struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_aborted_handler) {};
     
     static void planner_underrun_callback (Context c)
     {
         auto *ob = Object::self(c);
+        
         ob->underrun_count++;
         
 #ifdef AXISDRIVER_DETECT_OVERLOAD
@@ -2674,13 +2687,7 @@ private:
         }
 #endif
     }
-    
-    template <int AxisIndex>
-    AMBRO_ALWAYS_INLINE
-    static bool planner_prestep_callback (typename ThePlanner::template Axis<AxisIndex>::StepperCommandCallbackContext c)
-    {
-        return !ListForEachForwardInterruptible<ModulesList>(LForeach_prestep_callback(), c);
-    }
+    struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_underrun_callback) {};
     
 public:
     static void move_begin (Context c)
@@ -2888,6 +2895,7 @@ private:
         auto msg = success ? AMBRO_PSTR("//LoadConfigOk\n") : AMBRO_PSTR("//LoadConfigErr\n");
         print_pgm_string(c, msg);
     }
+    struct ConfigManagerHandler : public AMBRO_WFUNC_TD(&PrinterMain::config_manager_handler) {};
     
     static void update_configuration (Context c)
     {
@@ -2936,19 +2944,6 @@ private:
         struct Object : public ObjBase<PlannerUnionHoming, typename PlannerUnion::Object, MapTypeList<AxesList, GetMemberType_HomingState>> {};
     };
     
-    struct ConfigManagerHandler : public AMBRO_WFUNC_TD(&PrinterMain::config_manager_handler) {};
-    struct BlinkerHandler : public AMBRO_WFUNC_TD(&PrinterMain::blinker_handler) {};
-    struct PlannerPullHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_pull_handler) {};
-    struct PlannerFinishedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_finished_handler) {};
-    struct PlannerAbortedHandler : public AMBRO_WFUNC_TD(&PrinterMain::planner_aborted_handler) {};
-    struct PlannerUnderrunCallback : public AMBRO_WFUNC_TD(&PrinterMain::planner_underrun_callback) {};
-    template <int AxisIndex> struct PlannerPrestepCallback : public AMBRO_WFUNC_TD(&PrinterMain::template planner_prestep_callback<AxisIndex>) {};
-    template <int AxisIndex> struct AxisDriverConsumersList {
-        using List = JoinTypeLists<
-            MakeTypeList<typename ThePlanner::template TheAxisDriverConsumer<AxisIndex>>,
-            typename Axis<AxisIndex>::HomingFeature::AxisDriverConsumersList
-        >;
-    };
     struct DelayedConfigExprs {
         using List = JoinTypeLists<
             MyConfigExprs,
