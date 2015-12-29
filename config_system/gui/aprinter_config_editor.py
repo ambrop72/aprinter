@@ -502,7 +502,7 @@ def editor():
                     axis_defs=[
                         {'axis_name': 'X', 'homing_allowed': False},
                         {'axis_name': 'Y', 'homing_allowed': False},
-                        {'axis_name': 'Z', 'homing_allowed': False},
+                        {'axis_name': 'Z', 'homing_allowed': True},
                     ],
                     specific_params=[
                         ce.Float(key='DiagnalRod', title='Diagonal rod length [mm]', default=214),
