@@ -645,7 +645,7 @@ def editor():
             ce.OneOf(key='Moves', title='Predefined moves', choices=[
                 ce.Compound('NoMoves', title='Disabled', attrs=[]),
                 ce.Compound('Moves', title='Enabled', attrs=[
-                    ce.Array(key='Moves', title='Moves', elem=ce.Compound('Move', title='Move', attrs=[
+                    ce.Array(key='Moves', title='Moves', elem=ce.Compound('Move', title='Move', collapsable=True, attrs=[
                         ce.String(key='HookType', title='Upon event', enum=['After homing']),
                         ce.Integer(key='HookPriority', title='Priority', default=10),
                         ce.Boolean(key='Enabled', title='Enabled', default=True),
