@@ -239,6 +239,7 @@ def platform_Avr(variant):
         ce.Compound('AvrAdc', key='adc', title='ADC', collapsable=True, attrs=[
             ce.Integer(key='RefSel'),
             ce.Integer(key='Prescaler'),
+            ce.Integer(key='OverSamplingBits', default=0),
         ]),
         ce.Compound('AvrWatchdog', key='watchdog', title='Watchdog', collapsable=True, attrs=[
             ce.String(key='Timeout', title='Timeout (WDTO_*)'),

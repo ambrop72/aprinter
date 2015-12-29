@@ -47,10 +47,15 @@ struct AvrAdcDifferentialInput {};
 struct AvrAdcVbgPin {};
 struct AvrAdcGndPin {};
 
-template <typename Context, typename ParentObject, typename ParamsPinsList, int AdcRefSel, int AdcPrescaler>
+template <typename Context, typename ParentObject, typename ParamsPinsList, int AdcRefSel, int AdcPrescaler, int AdcOverSamplingBits>
 class AvrAdc {
 private:
     static const int NumPins = TypeListLength<ParamsPinsList>::Value;
+    
+    static_assert(AdcOverSamplingBits >= 0 && AdcOverSamplingBits <= 3, "");
+    static const int NumSamplesPerPin = 1 << (AdcOverSamplingBits * 2);
+    static const int NumValueBits = 10 + AdcOverSamplingBits;
+    
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_make_pin_mask, make_pin_mask)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_handle_isr, handle_isr)
     
@@ -200,7 +205,7 @@ private:
     using TheDebugObject = DebugObject<Context, Object>;
     
 public:
-    using FixedType = FixedPoint<10, false, -10>;
+    using FixedType = FixedPoint<NumValueBits, false, -NumValueBits>;
     
     static void init (Context c)
     {
@@ -238,6 +243,11 @@ public:
     }
     
 private:
+    static void start_conversion ()
+    {
+        ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE) | (AdcPrescaler << ADPS0);
+    }
+    
     template <int NumPins, typename Dummy = void>
     struct AdcMaybe {
         static void init (Context c)
@@ -246,6 +256,8 @@ private:
             
             o->m_current_pin = 0;
             o->m_finished = false;
+            o->m_accumulator = 0;
+            o->m_counter = 0;
             
             memory_barrier();
             
@@ -255,7 +267,7 @@ private:
             DIDR2 = mask >> 8;
 #endif
             AdcPin<0>::configure_adc_for_pin();
-            ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE) | (AdcPrescaler << ADPS0);
+            start_conversion();
             
             while (!*(volatile bool *)&o->m_finished);
         }
@@ -305,20 +317,40 @@ private:
         
         static bool handle_isr (AtomicContext<Context> c)
         {
-            auto *o = Object::self(c);
             auto *ao = AvrAdc::Object::self(c);
             
             if (ao->m_current_pin != PinIndex) {
                 return true;
             }
-            o->m_value = ADC;
+            handle_isr_for_this_pin(c);
+            return false;
+        }
+        
+        static void handle_isr_for_this_pin (AtomicContext<Context> c)
+        {
+            auto *o = Object::self(c);
+            auto *ao = AvrAdc::Object::self(c);
+            
+            if (AdcOverSamplingBits == 0) {
+                o->m_value = ADC;
+            } else {
+                ao->m_accumulator += ADC;
+                ao->m_counter++;
+                if (ao->m_counter < NumSamplesPerPin) {
+                    start_conversion();
+                    return;
+                }
+                o->m_value = ao->m_accumulator >> AdcOverSamplingBits;
+                ao->m_accumulator = 0;
+                ao->m_counter = 0;
+            }
+            
             AdcPin<NextPinIndex>::configure_adc_for_pin();
-            ADCSRA = (1 << ADEN) | (1 << ADSC) | (1 << ADIE) | (AdcPrescaler << ADPS0);
+            start_conversion();
             ao->m_current_pin = NextPinIndex;
             if (PinIndex == NumPins - 1) {
                 ao->m_finished = true;
             }
-            return false;
         }
         
         struct Object : public ObjBase<AdcPin, typename AvrAdc::Object, EmptyTypeList> {
@@ -334,6 +366,8 @@ public:
         MakeTypeList<TheDebugObject>
     >> {
         uint8_t m_current_pin;
+        uint16_t m_accumulator;
+        uint8_t m_counter;
         bool m_finished;
     };
 };

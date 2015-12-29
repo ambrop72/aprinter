@@ -760,10 +760,11 @@ def setup_adc (gen, config, key):
         gen.add_aprinter_include('hal/avr/AvrAdc.h')
         gen.add_int_constant('int32', 'AdcRefSel', adc_config.get_int('RefSel'))
         gen.add_int_constant('int32', 'AdcPrescaler', adc_config.get_int('Prescaler'))
+        gen.add_int_constant('int32', 'AdcOverSamplingBits', adc_config.get_int('OverSamplingBits'))
         gen.add_isr('AMBRO_AVR_ADC_ISRS(MyAdc, MyContext())')
         
         return {
-            'value_func': lambda pins: TemplateExpr('AvrAdc', ['MyContext', 'Program', pins, 'AdcRefSel', 'AdcPrescaler']),
+            'value_func': lambda pins: TemplateExpr('AvrAdc', ['MyContext', 'Program', pins, 'AdcRefSel', 'AdcPrescaler', 'AdcOverSamplingBits']),
             'pin_func': lambda pin: pin
         }
     
