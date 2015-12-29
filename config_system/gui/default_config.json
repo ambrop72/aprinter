@@ -450,6 +450,17 @@
             "_compoundName": "AsfUsbSerial"
           },
           "_compoundName": "serial"
+        },
+        {
+          "BaudRate": 115200,
+          "GcodeMaxParts": 16,
+          "RecvBufferSizeExp": 8,
+          "SendBufferSizeExp": 10,
+          "Service": {
+            "UseForDebug": true,
+            "_compoundName": "At91Sam3xSerial"
+          },
+          "_compoundName": "serial"
         }
       ],
       "stepper_ports": [
@@ -971,6 +982,17 @@
           "SendBufferSizeExp": 10,
           "Service": {
             "_compoundName": "AsfUsbSerial"
+          },
+          "_compoundName": "serial"
+        },
+        {
+          "BaudRate": 115200,
+          "GcodeMaxParts": 16,
+          "RecvBufferSizeExp": 8,
+          "SendBufferSizeExp": 10,
+          "Service": {
+            "UseForDebug": true,
+            "_compoundName": "At91Sam3xSerial"
           },
           "_compoundName": "serial"
         }
