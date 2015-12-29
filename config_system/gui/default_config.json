@@ -6341,7 +6341,57 @@
       },
       "InactiveTime": 480,
       "Moves": {
-        "_compoundName": "NoMoves"
+        "Moves": [
+          {
+            "Coordinates": [
+              {
+                "AxisName": "X",
+                "Value": 0,
+                "_compoundName": "Coordinate"
+              },
+              {
+                "AxisName": "Y",
+                "Value": 0,
+                "_compoundName": "Coordinate"
+              },
+              {
+                "AxisName": "Z",
+                "Value": 155,
+                "_compoundName": "Coordinate"
+              }
+            ],
+            "Enabled": true,
+            "HookPriority": 10,
+            "HookType": "After homing",
+            "Speed": 150,
+            "_compoundName": "Move"
+          },
+          {
+            "Coordinates": [
+              {
+                "AxisName": "X",
+                "Value": 0,
+                "_compoundName": "Coordinate"
+              },
+              {
+                "AxisName": "Y",
+                "Value": 0,
+                "_compoundName": "Coordinate"
+              },
+              {
+                "AxisName": "Z",
+                "Value": 50,
+                "_compoundName": "Coordinate"
+              }
+            ],
+            "Enabled": true,
+            "HookPriority": 10,
+            "HookType": "After bed probing",
+            "Speed": 150,
+            "_compoundName": "Move"
+          }
+        ],
+        "_compoundName": "Moves"
       },
       "fans": [],
       "heaters": [
@@ -6392,13 +6442,13 @@
         "_compoundName": "ProbeConfig",
         "probe": {
           "ProbePin": "E0_STOP",
-          "FastSpeed": 10,
+          "FastSpeed": 15,
           "InvertInput": false,
           "LowHeight": -5,
-          "MoveSpeed": 200,
+          "MoveSpeed": 150,
           "OffsetX": 0,
           "OffsetY": 0,
-          "GeneralZOffset": 0.3,
+          "GeneralZOffset": 0.23,
           "ProbePoints": [
             {
               "Enabled": true,
@@ -6506,10 +6556,10 @@
               "_compoundName": "ProbePoint"
             }
           ],
-          "RetractDist": 1,
-          "RetractSpeed": 200,
-          "SlowSpeed": 0.5,
-          "StartHeight": 5,
+          "RetractDist": 0.5,
+          "RetractSpeed": 150,
+          "SlowSpeed": 1,
+          "StartHeight": 1,
           "_compoundName": "Probe",
           "correction": {
             "QuadraticCorrectionEnabled": true,
