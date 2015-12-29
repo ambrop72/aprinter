@@ -1828,7 +1828,7 @@
         "platform": {
           "_compoundName": "AVR ATmega2560",
           "adc": {
-            "OverSamplingBits": 0,
+            "OverSamplingBits": 2,
             "Prescaler": 7,
             "RefSel": 1,
             "_compoundName": "AvrAdc"
@@ -2284,7 +2284,7 @@
         "platform": {
           "_compoundName": "AVR ATmega1284p",
           "adc": {
-            "OverSamplingBits": 0,
+            "OverSamplingBits": 2,
             "Prescaler": 7,
             "RefSel": 1,
             "_compoundName": "AvrAdc"
