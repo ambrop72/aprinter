@@ -440,24 +440,25 @@
           "_compoundName": "SdCard"
         }
       },
-      "serial": {
-        "BaudRate": 115200,
-        "GcodeMaxParts": 16,
-        "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 10,
-        "Service": {
-          "_compoundName": "AsfUsbSerial"
-        },
-        "_compoundName": "serial"
-      },
+      "serial_ports": [
+        {
+          "BaudRate": 115200,
+          "GcodeMaxParts": 16,
+          "RecvBufferSizeExp": 8,
+          "SendBufferSizeExp": 10,
+          "Service": {
+            "_compoundName": "AsfUsbSerial"
+          },
+          "_compoundName": "serial"
+        }
+      ],
       "stepper_ports": [
         {
-          "StepPin": "DuePin24",
           "DirPin": "DuePin23",
+          "EnableLevel": false,
           "EnablePin": "DuePin26",
           "Name": "X",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePin24",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0B"
@@ -466,23 +467,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "DuePin17",
           "DirPin": "DuePin16",
+          "EnableLevel": false,
           "EnablePin": "DuePin22",
           "Name": "Y",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePin17",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0C"
@@ -491,23 +485,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "DuePin2",
           "DirPin": "DuePin3",
+          "EnableLevel": false,
           "EnablePin": "DuePin15",
           "Name": "Z",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePin2",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1A"
@@ -516,23 +503,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "DuePinA7",
           "DirPin": "DuePinA6",
+          "EnableLevel": false,
           "EnablePin": "DuePinA8",
           "Name": "E1",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePinA7",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1B"
@@ -541,23 +521,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "DuePinA10",
           "DirPin": "DuePinA9",
+          "EnableLevel": false,
           "EnablePin": "DuePinA11",
           "Name": "E2",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePinA10",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1C"
@@ -566,23 +539,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "DuePin51",
           "DirPin": "DuePin53",
+          "EnableLevel": false,
           "EnablePin": "DuePin49",
           "Name": "E3",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePin51",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2A"
@@ -590,12 +556,6 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
-          },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -1003,24 +963,25 @@
           "_compoundName": "SdCard"
         }
       },
-      "serial": {
-        "BaudRate": 115200,
-        "GcodeMaxParts": 16,
-        "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 10,
-        "Service": {
-          "_compoundName": "AsfUsbSerial"
-        },
-        "_compoundName": "serial"
-      },
+      "serial_ports": [
+        {
+          "BaudRate": 115200,
+          "GcodeMaxParts": 16,
+          "RecvBufferSizeExp": 8,
+          "SendBufferSizeExp": 10,
+          "Service": {
+            "_compoundName": "AsfUsbSerial"
+          },
+          "_compoundName": "serial"
+        }
+      ],
       "stepper_ports": [
         {
-          "StepPin": "DuePinA9",
           "DirPin": "DuePinA8",
+          "EnableLevel": false,
           "EnablePin": "DuePin48",
           "Name": "X",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePinA9",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0B"
@@ -1029,23 +990,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "DuePinA11",
           "DirPin": "DuePinA10",
+          "EnableLevel": false,
           "EnablePin": "DuePin46",
           "Name": "Y",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePinA11",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0C"
@@ -1054,23 +1008,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "DuePinA13",
           "DirPin": "DuePinA12",
+          "EnableLevel": false,
           "EnablePin": "DuePin44",
           "Name": "Z",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePinA13",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1A"
@@ -1079,23 +1026,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "DuePin36",
           "DirPin": "DuePin28",
+          "EnableLevel": false,
           "EnablePin": "DuePin42",
           "Name": "E0",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePin36",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1B"
@@ -1104,23 +1044,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "DuePin43",
           "DirPin": "DuePin41",
+          "EnableLevel": false,
           "EnablePin": "DuePin39",
           "Name": "E1",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePin43",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1C"
@@ -1129,23 +1062,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "DuePin32",
           "DirPin": "DuePin47",
+          "EnableLevel": false,
           "EnablePin": "DuePin45",
           "Name": "E2",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "DuePin32",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2A"
@@ -1153,12 +1079,6 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
-          },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -1459,24 +1379,25 @@
           "_compoundName": "SdCard"
         }
       },
-      "serial": {
-        "BaudRate": 115200,
-        "GcodeMaxParts": 16,
-        "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 10,
-        "Service": {
-          "_compoundName": "AsfUsbSerial"
-        },
-        "_compoundName": "serial"
-      },
+      "serial_ports": [
+        {
+          "BaudRate": 115200,
+          "GcodeMaxParts": 16,
+          "RecvBufferSizeExp": 8,
+          "SendBufferSizeExp": 10,
+          "Service": {
+            "_compoundName": "AsfUsbSerial"
+          },
+          "_compoundName": "serial"
+        }
+      ],
       "stepper_ports": [
         {
-          "StepPin": "At91SamPin<At91SamPioC,28>",
           "DirPin": "At91SamPin<At91SamPioB,8>",
+          "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioC,31>",
           "Name": "X",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "At91SamPin<At91SamPioC,28>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1A"
@@ -1490,9 +1411,6 @@
             },
             "_compoundName": "Current"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "MicroStepDriver": {
               "Ms1Pin": "At91SamPin<At91SamPioC,30>",
@@ -1503,12 +1421,11 @@
           }
         },
         {
-          "StepPin": "At91SamPin<At91SamPioC,23>",
           "DirPin": "At91SamPin<At91SamPioA,31>",
+          "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioA,22>",
           "Name": "Y",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "At91SamPin<At91SamPioC,23>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2A"
@@ -1522,9 +1439,6 @@
             },
             "_compoundName": "Current"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "MicroStepDriver": {
               "Ms1Pin": "At91SamPin<At91SamPioC,11>",
@@ -1535,12 +1449,11 @@
           }
         },
         {
-          "StepPin": "At91SamPin<At91SamPioA,27>",
           "DirPin": "At91SamPin<At91SamPioC,27>",
+          "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioB,7>",
           "Name": "Z",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "At91SamPin<At91SamPioA,27>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0B"
@@ -1554,9 +1467,6 @@
             },
             "_compoundName": "Current"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "MicroStepDriver": {
               "Ms1Pin": "At91SamPin<At91SamPioB,6>",
@@ -1567,12 +1477,11 @@
           }
         },
         {
-          "StepPin": "At91SamPin<At91SamPioC,26>",
           "DirPin": "At91SamPin<At91SamPioB,2>",
+          "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioB,13>",
           "Name": "E",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "At91SamPin<At91SamPioC,26>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1B"
@@ -1586,9 +1495,6 @@
             },
             "_compoundName": "Current"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "MicroStepDriver": {
               "Ms1Pin": "At91SamPin<At91SamPioB,12>",
@@ -1599,12 +1505,11 @@
           }
         },
         {
-          "StepPin": "At91SamPin<At91SamPioB,1>",
           "DirPin": "At91SamPin<At91SamPioC,25>",
+          "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioC,13>",
           "Name": "U",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "At91SamPin<At91SamPioB,1>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2B"
@@ -1617,9 +1522,6 @@
               "_compoundName": "Ad5206CurrentChannelParams"
             },
             "_compoundName": "Current"
-          },
-          "delay": {
-            "_compoundName": "NoDelay"
           },
           "microstep": {
             "MicroStepDriver": {
@@ -1834,24 +1736,25 @@
           "_compoundName": "NoSdCard"
         }
       },
-      "serial": {
-        "BaudRate": 0,
-        "GcodeMaxParts": 16,
-        "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 10,
-        "Service": {
-          "_compoundName": "TeensyUsbSerial"
-        },
-        "_compoundName": "serial"
-      },
+      "serial_ports": [
+        {
+          "BaudRate": 0,
+          "GcodeMaxParts": 16,
+          "RecvBufferSizeExp": 8,
+          "SendBufferSizeExp": 10,
+          "Service": {
+            "_compoundName": "TeensyUsbSerial"
+          },
+          "_compoundName": "serial"
+        }
+      ],
       "stepper_ports": [
         {
-          "StepPin": "TeensyPin0",
           "DirPin": "TeensyPin1",
+          "EnableLevel": false,
           "EnablePin": "TeensyPin8",
           "Name": "X",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "TeensyPin0",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_1"
@@ -1860,20 +1763,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "TeensyPin2",
           "DirPin": "TeensyPin3",
+          "EnableLevel": false,
           "EnablePin": "TeensyPin9",
           "Name": "Y",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "TeensyPin2",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_2"
@@ -1882,20 +1781,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "TeensyPin4",
           "DirPin": "TeensyPin5",
+          "EnableLevel": false,
           "EnablePin": "TeensyPin10",
           "Name": "Z",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "TeensyPin4",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_3"
@@ -1904,20 +1799,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "TeensyPin6",
           "DirPin": "TeensyPin7",
+          "EnableLevel": false,
           "EnablePin": "TeensyPin11",
           "Name": "E",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "TeensyPin6",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "FTM0_4"
@@ -1925,9 +1816,6 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
-          },
-          "delay": {
-            "_compoundName": "NoDelay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -1940,6 +1828,7 @@
         "platform": {
           "_compoundName": "AVR ATmega2560",
           "adc": {
+            "OverSamplingBits": 0,
             "Prescaler": 7,
             "RefSel": 1,
             "_compoundName": "AvrAdc"
@@ -2284,25 +2173,26 @@
           "_compoundName": "SdCard"
         }
       },
-      "serial": {
-        "BaudRate": 250000,
-        "GcodeMaxParts": 8,
-        "RecvBufferSizeExp": 7,
-        "SendBufferSizeExp": 8,
-        "Service": {
-          "DoubleSpeed": true,
-          "_compoundName": "AvrSerial"
-        },
-        "_compoundName": "serial"
-      },
+      "serial_ports": [
+        {
+          "BaudRate": 250000,
+          "GcodeMaxParts": 8,
+          "RecvBufferSizeExp": 7,
+          "SendBufferSizeExp": 8,
+          "Service": {
+            "DoubleSpeed": true,
+            "_compoundName": "AvrSerial"
+          },
+          "_compoundName": "serial"
+        }
+      ],
       "stepper_ports": [
         {
-          "StepPin": "MegaPin54",
           "DirPin": "MegaPin55",
+          "EnableLevel": false,
           "EnablePin": "MegaPin38",
           "Name": "X",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "MegaPin54",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_A"
@@ -2311,20 +2201,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "MegaPin60",
           "DirPin": "MegaPin61",
+          "EnableLevel": false,
           "EnablePin": "MegaPin56",
           "Name": "Y",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "MegaPin60",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_B"
@@ -2333,20 +2219,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "MegaPin46",
           "DirPin": "MegaPin48",
+          "EnableLevel": false,
           "EnablePin": "MegaPin62",
           "Name": "Z",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "MegaPin46",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_C"
@@ -2355,20 +2237,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "MegaPin26",
           "DirPin": "MegaPin28",
+          "EnableLevel": false,
           "EnablePin": "MegaPin24",
           "Name": "E0",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "MegaPin26",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC4_A"
@@ -2377,20 +2255,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "MegaPin36",
           "DirPin": "MegaPin34",
+          "EnableLevel": false,
           "EnablePin": "MegaPin30",
           "Name": "E1",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "MegaPin36",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC4_B"
@@ -2398,9 +2272,6 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
-          },
-          "delay": {
-            "_compoundName": "NoDelay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -2413,6 +2284,7 @@
         "platform": {
           "_compoundName": "AVR ATmega1284p",
           "adc": {
+            "OverSamplingBits": 0,
             "Prescaler": 7,
             "RefSel": 1,
             "_compoundName": "AvrAdc"
@@ -2651,25 +2523,26 @@
           "_compoundName": "SdCard"
         }
       },
-      "serial": {
-        "BaudRate": 115200,
-        "GcodeMaxParts": 8,
-        "RecvBufferSizeExp": 7,
-        "SendBufferSizeExp": 9,
-        "Service": {
-          "DoubleSpeed": true,
-          "_compoundName": "AvrSerial"
-        },
-        "_compoundName": "serial"
-      },
+      "serial_ports": [
+        {
+          "BaudRate": 115200,
+          "GcodeMaxParts": 8,
+          "RecvBufferSizeExp": 7,
+          "SendBufferSizeExp": 9,
+          "Service": {
+            "DoubleSpeed": true,
+            "_compoundName": "AvrSerial"
+          },
+          "_compoundName": "serial"
+        }
+      ],
       "stepper_ports": [
         {
-          "StepPin": "AvrPin<AvrPortD,7>",
           "DirPin": "AvrPin<AvrPortC,5>",
+          "EnableLevel": false,
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "X",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "AvrPin<AvrPortD,7>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0_A"
@@ -2678,20 +2551,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "AvrPin<AvrPortC,6>",
           "DirPin": "AvrPin<AvrPortC,7>",
+          "EnableLevel": false,
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "Y",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "AvrPin<AvrPortC,6>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC0_B"
@@ -2700,20 +2569,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "AvrPin<AvrPortB,3>",
           "DirPin": "AvrPin<AvrPortB,2>",
+          "EnableLevel": false,
           "EnablePin": "AvrPin<AvrPortA,5>",
           "Name": "Z",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "AvrPin<AvrPortB,3>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_A"
@@ -2722,20 +2587,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "_compoundName": "NoDelay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "AvrPin<AvrPortB,1>",
           "DirPin": "AvrPin<AvrPortB,0>",
+          "EnableLevel": false,
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "E",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "AvrPin<AvrPortB,1>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3_B"
@@ -2743,9 +2604,6 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
-          },
-          "delay": {
-            "_compoundName": "NoDelay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -3033,24 +2891,25 @@
           "_compoundName": "NoSdCard"
         }
       },
-      "serial": {
-        "BaudRate": 115200,
-        "GcodeMaxParts": 32,
-        "RecvBufferSizeExp": 9,
-        "SendBufferSizeExp": 10,
-        "Service": {
-          "_compoundName": "Stm32f4UsbSerial"
-        },
-        "_compoundName": "serial"
-      },
+      "serial_ports": [
+        {
+          "BaudRate": 115200,
+          "GcodeMaxParts": 32,
+          "RecvBufferSizeExp": 9,
+          "SendBufferSizeExp": 10,
+          "Service": {
+            "_compoundName": "Stm32f4UsbSerial"
+          },
+          "_compoundName": "serial"
+        }
+      ],
       "stepper_ports": [
         {
-          "StepPin": "Stm32f4Pin<Stm32f4PortG,3>",
           "DirPin": "Stm32f4Pin<Stm32f4PortG,2>",
+          "EnableLevel": false,
           "EnablePin": "Stm32f4Pin<Stm32f4PortB,2>",
           "Name": "X",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "Stm32f4Pin<Stm32f4PortG,3>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TIM2_2"
@@ -3059,23 +2918,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "Stm32f4Pin<Stm32f4PortD,5>",
           "DirPin": "Stm32f4Pin<Stm32f4PortD,7>",
+          "EnableLevel": false,
           "EnablePin": "Stm32f4Pin<Stm32f4PortD,4>",
           "Name": "Y",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "Stm32f4Pin<Stm32f4PortD,5>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TIM2_3"
@@ -3084,23 +2936,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "Stm32f4Pin<Stm32f4PortA,9>",
           "DirPin": "Stm32f4Pin<Stm32f4PortC,8>",
+          "EnableLevel": false,
           "EnablePin": "Stm32f4Pin<Stm32f4PortA,10>",
           "Name": "Z",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "Stm32f4Pin<Stm32f4PortA,9>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TIM2_4"
@@ -3109,23 +2954,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "Stm32f4Pin<Stm32f4PortC,12>",
           "DirPin": "Stm32f4Pin<Stm32f4PortC,11>",
+          "EnableLevel": false,
           "EnablePin": "Stm32f4Pin<Stm32f4PortD,2>",
           "Name": "E",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "Stm32f4Pin<Stm32f4PortC,12>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TIM3_1"
@@ -3133,12 +2971,6 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
-          },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -3440,24 +3272,25 @@
           "_compoundName": "SdCard"
         }
       },
-      "serial": {
-        "BaudRate": 115200,
-        "GcodeMaxParts": 32,
-        "RecvBufferSizeExp": 9,
-        "SendBufferSizeExp": 10,
-        "Service": {
-          "_compoundName": "Stm32f4UsbSerial"
-        },
-        "_compoundName": "serial"
-      },
+      "serial_ports": [
+        {
+          "BaudRate": 115200,
+          "GcodeMaxParts": 32,
+          "RecvBufferSizeExp": 9,
+          "SendBufferSizeExp": 10,
+          "Service": {
+            "_compoundName": "Stm32f4UsbSerial"
+          },
+          "_compoundName": "serial"
+        }
+      ],
       "stepper_ports": [
         {
-          "StepPin": "Stm32f4Pin<Stm32f4PortD,6>",
           "DirPin": "Stm32f4Pin<Stm32f4PortD,3>",
+          "EnableLevel": false,
           "EnablePin": "Stm32f4Pin<Stm32f4PortD,7>",
           "Name": "X",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "Stm32f4Pin<Stm32f4PortD,6>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TIM2_2"
@@ -3465,12 +3298,6 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
-          },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -3736,7 +3563,11 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
+          "MacAddress": "BE:EF:DE:AD:FE:ED",
           "DhcpEnabled": true,
+          "IpAddress": "192.168.111.63",
+          "IpGateway": "192.168.111.1",
+          "IpNetmask": "255.255.255.0",
           "EthernetDriver": {
             "MiiDriver": {
               "_compoundName": "At91SamEmacMii"
@@ -3748,11 +3579,9 @@
             },
             "_compoundName": "MiiEthernet"
           },
-          "IpAddress": "192.168.111.63",
-          "IpGateway": "192.168.111.1",
-          "IpNetmask": "255.255.255.0",
-          "MacAddress": "BE:EF:DE:AD:FE:ED",
           "NetEnabled": true,
+          "TcpRxBufPkts": 4,
+          "TcpTxBufPkts": 2,
           "_compoundName": "Network",
           "tcpconsole": {
             "MaxClients": 2,
@@ -3831,24 +3660,25 @@
           "_compoundName": "SdCard"
         }
       },
-      "serial": {
-        "BaudRate": 115200,
-        "GcodeMaxParts": 16,
-        "RecvBufferSizeExp": 8,
-        "SendBufferSizeExp": 10,
-        "Service": {
-          "_compoundName": "AsfUsbSerial"
-        },
-        "_compoundName": "serial"
-      },
+      "serial_ports": [
+        {
+          "BaudRate": 115200,
+          "GcodeMaxParts": 16,
+          "RecvBufferSizeExp": 8,
+          "SendBufferSizeExp": 10,
+          "Service": {
+            "_compoundName": "AsfUsbSerial"
+          },
+          "_compoundName": "serial"
+        }
+      ],
       "stepper_ports": [
         {
-          "StepPin": "At91SamPin<At91SamPioD,4>",
           "DirPin": "At91SamPin<At91SamPioD,5>",
+          "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioD,6>",
           "Name": "X",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "At91SamPin<At91SamPioD,4>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC1A"
@@ -3857,23 +3687,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "At91SamPin<At91SamPioD,0>",
           "DirPin": "At91SamPin<At91SamPioD,1>",
+          "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioD,2>",
           "Name": "Y",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "At91SamPin<At91SamPioD,0>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC2A"
@@ -3882,23 +3705,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "At91SamPin<At91SamPioC,25>",
           "DirPin": "At91SamPin<At91SamPioC,26>",
+          "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioC,27>",
           "Name": "Z",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "At91SamPin<At91SamPioC,25>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC3A"
@@ -3907,23 +3723,16 @@
           "current": {
             "_compoundName": "NoCurrent"
           },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
-          },
           "microstep": {
             "_compoundName": "NoMicroStep"
           }
         },
         {
-          "StepPin": "At91SamPin<At91SamPioA,0>",
           "DirPin": "At91SamPin<At91SamPioA,1>",
+          "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioA,5>",
           "Name": "E0",
-          "PreloadCommands": false,
-          "EnableLevel": false,
+          "StepPin": "At91SamPin<At91SamPioA,0>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
             "oc_unit": "TC4A"
@@ -3931,12 +3740,6 @@
           "_compoundName": "stepper_port",
           "current": {
             "_compoundName": "NoCurrent"
-          },
-          "delay": {
-            "DirSetTime": 0.2,
-            "StepHighTime": 1,
-            "StepLowTime": 1,
-            "_compoundName": "Delay"
           },
           "microstep": {
             "_compoundName": "NoMicroStep"
@@ -3948,6 +3751,18 @@
   "configurations": [
     {
       "board": "RADDS",
+      "WaitReportPeriod": 1,
+      "WaitTimeout": 500,
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "fans": [
         {
           "Name": "T0",
@@ -3964,15 +3779,6 @@
           "pwm_output": "FET2 (fan 2)"
         }
       ],
-      "WaitTimeout": 500,
-      "_compoundName": "config",
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "WaitReportPeriod": 1,
       "heaters": [
         {
           "_compoundName": "heater",
@@ -4146,20 +3952,24 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": -53,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -53,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "X",
+          "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -4173,24 +3983,35 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "X"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "X"
+            }
+          ]
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 650,
           "MaxPos": 157,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "Y",
+          "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -4204,24 +4025,35 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Y"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Y"
+            }
+          ]
         },
         {
-          "MaxSpeed": 3,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": true,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 3,
+          "DistanceFactor": 1,
           "Name": "Z",
+          "PreloadCommands": false,
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -4235,50 +4067,79 @@
             "HomeSlowSpeed": 0.6,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Z"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": true,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Z"
+            }
+          ]
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -40000,
+          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "Name": "E",
+          "PreloadCommands": false,
           "StepsPerUnit": 1856,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "E1"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "E1"
+            }
+          ]
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -40000,
+          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "Name": "U",
+          "PreloadCommands": false,
           "StepsPerUnit": 1320,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "E2"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "E2"
+            }
+          ]
         }
       ],
       "transform": {
@@ -4287,6 +4148,18 @@
     },
     {
       "board": "RAMPS-FD",
+      "WaitReportPeriod": 1,
+      "WaitTimeout": 500,
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "fans": [
         {
           "Name": "T0",
@@ -4303,15 +4176,6 @@
           "pwm_output": "FET6 (fan 2)"
         }
       ],
-      "WaitTimeout": 500,
-      "_compoundName": "config",
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "WaitReportPeriod": 1,
       "heaters": [
         {
           "_compoundName": "heater",
@@ -4440,20 +4304,24 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": -53,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -53,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "X",
+          "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -4467,24 +4335,35 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "X"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "X"
+            }
+          ]
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 650,
           "MaxPos": 157,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "Y",
+          "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -4498,24 +4377,35 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Y"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Y"
+            }
+          ]
         },
         {
-          "MaxSpeed": 3,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": true,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 3,
+          "DistanceFactor": 1,
           "Name": "Z",
+          "PreloadCommands": false,
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -4529,50 +4419,79 @@
             "HomeSlowSpeed": 0.6,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Z"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": true,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Z"
+            }
+          ]
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -40000,
+          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "Name": "E",
+          "PreloadCommands": false,
           "StepsPerUnit": 1856,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "E0"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "E0"
+            }
+          ]
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -40000,
+          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "Name": "U",
+          "PreloadCommands": false,
           "StepsPerUnit": 1320,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "E1"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "E1"
+            }
+          ]
         }
       ],
       "transform": {
@@ -4581,7 +4500,7 @@
     },
     {
       "board": "4pi",
-      "fans": [],
+      "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
@@ -4590,7 +4509,10 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitReportPeriod": 1,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
+      "fans": [],
       "heaters": [
         {
           "_compoundName": "heater",
@@ -4764,20 +4686,21 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": -53,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
-          "Current": 128,
-          "MicroSteps": 16,
-          "MinPos": -53,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "X",
+          "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -4791,24 +4714,32 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "X"
+          "slave_steppers": [
+            {
+              "Current": 128,
+              "InvertDir": false,
+              "MicroSteps": 16,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "X"
+            }
+          ]
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 650,
           "MaxPos": 157,
-          "Current": 128,
-          "MicroSteps": 16,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "Y",
+          "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -4822,24 +4753,32 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Y"
+          "slave_steppers": [
+            {
+              "Current": 128,
+              "InvertDir": false,
+              "MicroSteps": 16,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Y"
+            }
+          ]
         },
         {
-          "MaxSpeed": 3,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": true,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
-          "Current": 128,
-          "MicroSteps": 16,
-          "MinPos": 0,
+          "MaxSpeed": 3,
+          "DistanceFactor": 1,
           "Name": "Z",
+          "PreloadCommands": false,
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -4853,50 +4792,73 @@
             "HomeSlowSpeed": 0.6,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Z"
+          "slave_steppers": [
+            {
+              "Current": 128,
+              "InvertDir": true,
+              "MicroSteps": 16,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Z"
+            }
+          ]
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "Current": 128,
-          "MicroSteps": 16,
-          "MinPos": -40000,
+          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "Name": "E",
+          "PreloadCommands": false,
           "StepsPerUnit": 1856,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "E"
+          "slave_steppers": [
+            {
+              "Current": 128,
+              "InvertDir": false,
+              "MicroSteps": 16,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "E"
+            }
+          ]
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "Current": 128,
-          "MicroSteps": 16,
-          "MinPos": -40000,
+          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "Name": "U",
+          "PreloadCommands": false,
           "StepsPerUnit": 1856,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "U"
+          "slave_steppers": [
+            {
+              "Current": 128,
+              "InvertDir": false,
+              "MicroSteps": 16,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "U"
+            }
+          ]
         }
       ],
       "transform": {
@@ -4905,6 +4867,18 @@
     },
     {
       "board": "Teensy 3",
+      "WaitReportPeriod": 1,
+      "WaitTimeout": 500,
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "fans": [
         {
           "Name": "T",
@@ -4914,15 +4888,6 @@
           "pwm_output": "Fan"
         }
       ],
-      "WaitTimeout": 500,
-      "_compoundName": "config",
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "WaitReportPeriod": 1,
       "heaters": [
         {
           "_compoundName": "heater",
@@ -4975,20 +4940,21 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "X",
+          "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5002,24 +4968,32 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "X"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "X"
+            }
+          ]
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "Y",
+          "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5033,24 +5007,32 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Y"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Y"
+            }
+          ]
         },
         {
-          "MaxSpeed": 3,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 3,
+          "DistanceFactor": 1,
           "Name": "Z",
+          "PreloadCommands": false,
           "StepsPerUnit": 8000,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5064,29 +5046,44 @@
             "HomeSlowSpeed": 0.5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Z"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Z"
+            }
+          ]
         },
         {
-          "MaxSpeed": 40,
+          "MinPos": -40000,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -40000,
+          "MaxSpeed": 40,
+          "DistanceFactor": 1,
           "Name": "E",
+          "PreloadCommands": false,
           "StepsPerUnit": 1856,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "E"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "E"
+            }
+          ]
         }
       ],
       "transform": {
@@ -5095,6 +5092,18 @@
     },
     {
       "board": "RAMPS 1.3",
+      "WaitReportPeriod": 1,
+      "WaitTimeout": 500,
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "fans": [
         {
           "Name": "T",
@@ -5104,15 +5113,6 @@
           "pwm_output": "D4"
         }
       ],
-      "WaitTimeout": 500,
-      "_compoundName": "config",
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "WaitReportPeriod": 1,
       "heaters": [
         {
           "_compoundName": "heater",
@@ -5201,20 +5201,21 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": -53,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 210,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -53,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "X",
+          "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5228,24 +5229,32 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "X"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "X"
+            }
+          ]
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 650,
           "MaxPos": 155,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "Y",
+          "PreloadCommands": false,
           "StepsPerUnit": 160,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5259,24 +5268,32 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Y"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Y"
+            }
+          ]
         },
         {
-          "MaxSpeed": 3,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 3,
+          "DistanceFactor": 1,
           "Name": "Z",
+          "PreloadCommands": false,
           "StepsPerUnit": 4000,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5290,29 +5307,44 @@
             "HomeSlowSpeed": 0.6,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Z"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Z"
+            }
+          ]
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -40000,
+          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "Name": "E",
+          "PreloadCommands": false,
           "StepsPerUnit": 928,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "E0"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "E0"
+            }
+          ]
         }
       ],
       "transform": {
@@ -5321,6 +5353,18 @@
     },
     {
       "board": "Melzi",
+      "WaitReportPeriod": 1,
+      "WaitTimeout": 500,
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "fans": [
         {
           "Name": "T",
@@ -5330,15 +5374,6 @@
           "pwm_output": "fan"
         }
       ],
-      "WaitTimeout": 500,
-      "_compoundName": "config",
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "WaitReportPeriod": 1,
       "heaters": [
         {
           "_compoundName": "heater",
@@ -5427,20 +5462,21 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "X",
+          "PreloadCommands": false,
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5454,24 +5490,32 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "X"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "X"
+            }
+          ]
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "Y",
+          "PreloadCommands": false,
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5485,24 +5529,32 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Y"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Y"
+            }
+          ]
         },
         {
-          "MaxSpeed": 3,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 30,
           "MaxPos": 100,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 3,
+          "DistanceFactor": 1,
           "Name": "Z",
+          "PreloadCommands": false,
           "StepsPerUnit": 4000,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5516,29 +5568,44 @@
             "HomeSlowSpeed": 0.6,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Z"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Z"
+            }
+          ]
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -40000,
+          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "Name": "E",
+          "PreloadCommands": false,
           "StepsPerUnit": 928,
           "_compoundName": "stepper",
+          "delay": {
+            "_compoundName": "NoDelay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "E"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "E"
+            }
+          ]
         }
       ],
       "transform": {
@@ -5547,7 +5614,7 @@
     },
     {
       "board": "STM32F429I-Discovery",
-      "fans": [],
+      "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
@@ -5556,7 +5623,10 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitReportPeriod": 1,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
+      "fans": [],
       "heaters": [
         {
           "_compoundName": "heater",
@@ -5641,20 +5711,24 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "X",
+          "PreloadCommands": false,
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5668,24 +5742,35 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "X"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "X"
+            }
+          ]
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "Y",
+          "PreloadCommands": false,
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5699,24 +5784,35 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Y"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Y"
+            }
+          ]
         },
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "Z",
+          "PreloadCommands": false,
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5730,29 +5826,47 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Z"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Z"
+            }
+          ]
         },
         {
-          "MaxSpeed": 45,
+          "MinPos": -40000,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": true,
           "MaxAccel": 250,
           "MaxPos": 40000,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -40000,
+          "MaxSpeed": 45,
+          "DistanceFactor": 1,
           "Name": "E",
+          "PreloadCommands": false,
           "StepsPerUnit": 2000,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "E"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "E"
+            }
+          ]
         }
       ],
       "transform": {
@@ -5761,6 +5875,18 @@
     },
     {
       "board": "STM32F407-Discovery",
+      "WaitReportPeriod": 1,
+      "WaitTimeout": 500,
+      "_compoundName": "config",
+      "advanced": {
+        "ForceTimeout": 0.1,
+        "LedBlinkInterval": 0.5,
+        "_compoundName": "advanced"
+      },
+      "InactiveTime": 480,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
       "fans": [
         {
           "Name": "T",
@@ -5770,15 +5896,6 @@
           "pwm_output": "LedOrange"
         }
       ],
-      "WaitTimeout": 500,
-      "_compoundName": "config",
-      "advanced": {
-        "ForceTimeout": 0.1,
-        "LedBlinkInterval": 0.5,
-        "_compoundName": "advanced"
-      },
-      "InactiveTime": 480,
-      "WaitReportPeriod": 1,
       "heaters": [
         {
           "_compoundName": "heater",
@@ -5827,20 +5944,24 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 300,
+          "MinPos": 0,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": true,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1500,
           "MaxPos": 200,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 0,
+          "MaxSpeed": 300,
+          "DistanceFactor": 1,
           "Name": "X",
+          "PreloadCommands": false,
           "StepsPerUnit": 80,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5854,8 +5975,15 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "X"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "X"
+            }
+          ]
         }
       ],
       "transform": {
@@ -5864,7 +5992,7 @@
     },
     {
       "board": "RADDS",
-      "fans": [],
+      "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
@@ -5873,7 +6001,10 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitReportPeriod": 1,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
+      "fans": [],
       "heaters": [],
       "lasers": [],
       "name": "Rotational Delta example",
@@ -5885,20 +6016,24 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 220,
+          "MinPos": -30,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1100,
           "MaxPos": 80,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -30,
+          "MaxSpeed": 220,
+          "DistanceFactor": 1,
           "Name": "A",
+          "PreloadCommands": false,
           "StepsPerUnit": 218.181818182,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5912,24 +6047,35 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "X"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "X"
+            }
+          ]
         },
         {
-          "MaxSpeed": 220,
+          "MinPos": -30,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": false,
           "IsExtruder": false,
           "MaxAccel": 1100,
           "MaxPos": 80,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -30,
+          "MaxSpeed": 220,
+          "DistanceFactor": 1,
           "Name": "B",
+          "PreloadCommands": false,
           "StepsPerUnit": 218.181818182,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5943,24 +6089,35 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Y"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": false,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Y"
+            }
+          ]
         },
         {
-          "MaxSpeed": 220,
+          "MinPos": -30,
           "CorneringDistance": 40,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": true,
           "IsExtruder": false,
           "MaxAccel": 1100,
           "MaxPos": 80,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -30,
+          "MaxSpeed": 220,
+          "DistanceFactor": 1,
           "Name": "C",
+          "PreloadCommands": false,
           "StepsPerUnit": 218.181818182,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": false,
@@ -5974,8 +6131,15 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Z"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": true,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Z"
+            }
+          ]
         }
       ],
       "transform": {
@@ -6045,7 +6209,7 @@
     },
     {
       "board": "Duet v0.6",
-      "fans": [],
+      "WaitReportPeriod": 1,
       "WaitTimeout": 500,
       "_compoundName": "config",
       "advanced": {
@@ -6054,7 +6218,10 @@
         "_compoundName": "advanced"
       },
       "InactiveTime": 480,
-      "WaitReportPeriod": 1,
+      "Moves": {
+        "_compoundName": "NoMoves"
+      },
+      "fans": [],
       "heaters": [
         {
           "_compoundName": "heater",
@@ -6231,20 +6398,24 @@
       },
       "steppers": [
         {
-          "MaxSpeed": 250,
+          "MinPos": 30,
           "CorneringDistance": 20,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": true,
           "IsExtruder": false,
           "MaxAccel": 4000,
           "MaxPos": 318,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 30,
+          "MaxSpeed": 250,
+          "DistanceFactor": 1,
           "Name": "A",
+          "PreloadCommands": false,
           "StepsPerUnit": 87.489,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": true,
@@ -6258,24 +6429,35 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "X"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": true,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "X"
+            }
+          ]
         },
         {
-          "MaxSpeed": 250,
+          "MinPos": 30,
           "CorneringDistance": 20,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": true,
           "IsExtruder": false,
           "MaxAccel": 4000,
           "MaxPos": 318,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 30,
+          "MaxSpeed": 250,
+          "DistanceFactor": 1,
           "Name": "B",
+          "PreloadCommands": false,
           "StepsPerUnit": 87.489,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": true,
@@ -6289,24 +6471,35 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Y"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": true,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Y"
+            }
+          ]
         },
         {
-          "MaxSpeed": 250,
+          "MinPos": 30,
           "CorneringDistance": 20,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": true,
           "IsExtruder": false,
           "MaxAccel": 4000,
           "MaxPos": 318,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": 30,
+          "MaxSpeed": 250,
+          "DistanceFactor": 1,
           "Name": "C",
+          "PreloadCommands": false,
           "StepsPerUnit": 87.489,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "HomeOffset": 0,
             "HomeDir": true,
@@ -6320,29 +6513,47 @@
             "HomeSlowSpeed": 5,
             "_compoundName": "homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "Z"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": true,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "Z"
+            }
+          ]
         },
         {
-          "MaxSpeed": 60,
+          "MinPos": -100000,
           "CorneringDistance": 20,
-          "DistanceFactor": 1,
           "EnableCartesianSpeedLimit": false,
-          "InvertDir": true,
           "IsExtruder": true,
           "MaxAccel": 4000,
           "MaxPos": 100000,
-          "Current": 0,
-          "MicroSteps": 0,
-          "MinPos": -100000,
+          "MaxSpeed": 60,
+          "DistanceFactor": 1,
           "Name": "E",
+          "PreloadCommands": false,
           "StepsPerUnit": 137,
           "_compoundName": "stepper",
+          "delay": {
+            "DirSetTime": 0.2,
+            "StepHighTime": 1,
+            "StepLowTime": 1,
+            "_compoundName": "Delay"
+          },
           "homing": {
             "_compoundName": "no_homing"
           },
-          "slave_steppers": [],
-          "stepper_port": "E0"
+          "slave_steppers": [
+            {
+              "Current": 0,
+              "InvertDir": true,
+              "MicroSteps": 0,
+              "_compoundName": "slave_stepper",
+              "stepper_port": "E0"
+            }
+          ]
         }
       ],
       "transform": {
