@@ -95,63 +95,6 @@ bool FloatIsNan (T x)
 #endif
 }
 
-static void FloatToStrSoft (double x, char *s, int prec_approx = 6, bool pretty = true)
-{
-    if (isnan(x)) {
-        strcpy(s, "nan");
-        return;
-    }
-    if (signbit(x)) {
-        *s++ = '-';
-        x = -x;
-    }
-    if (x == INFINITY) {
-        strcpy(s, "inf");
-        return;
-    }
-    int e;
-    double m = frexp(x, &e);
-    double f = 0.3010299956639811952137388947244930267681898814621085 * e;
-    double fi;
-    double ff = modf(f, &fi);
-    if (f < 0.0) {
-        fi -= 1.0;
-        ff += 1.0;
-    }
-    int ep = 1 - prec_approx;
-    double n = m * pow(10.0, ff - ep);
-    if (n < pow(10.0, prec_approx - 1)) {
-        ep--;
-        n = m * pow(10.0, ff - ep);
-    }
-    uint64_t n_int = n;
-    int n_len = PrintNonnegativeIntDecimal<uint64_t>(n_int, s);
-    s += n_len;
-    int e10 = fi + ep;
-    if (pretty) {
-        char *dot = s;
-        while (e10 != 0 && n_len > 1) {
-            *dot = *(dot - 1);
-            dot--;
-            e10++;
-            n_len--;
-        }
-        if (dot != s) {
-            *dot = '.';
-            s++;
-        }
-    }
-    if (!pretty || (e10 != 0 && n_int != 0)) {
-        *s++ = 'e';
-        if (e10 < 0) {
-            e10 = -e10;
-            *s++ = '-';
-        }
-        s += PrintNonnegativeIntDecimal<int>(e10, s);
-    }
-    *s = '\0';
-}
-
 template <typename T>
 bool FloatSignBit (T x)
 {

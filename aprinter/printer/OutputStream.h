@@ -29,6 +29,7 @@
 #include <stddef.h>
 #include <string.h>
 #include <inttypes.h>
+#include <stdio.h>
 
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Inline.h>
@@ -94,8 +95,8 @@ public:
 #if defined(AMBROLIB_AVR)
         uint8_t len = AMBRO_PGM_SPRINTF(buf, AMBRO_PSTR("%g"), x);
         reply_append_buffer(c, buf, len);
-#else        
-        FloatToStrSoft(x, buf);
+#else
+        snprintf(buf, sizeof(buf), "%g", (double)x);
         reply_append_buffer(c, buf, strlen(buf));
 #endif
     }
