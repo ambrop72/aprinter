@@ -115,7 +115,7 @@ configure_arm() {
 
     if [ "$BUILD_WITH_CLANG" = 1 ]; then
         FLAGS_C_CXX_LD+=( -fshort-enums )
-        FLAGS_C_CXX+=( -DAPRINTER_BROKEN_FABS )
+        FLAGS_C_CXX+=( -DAPRINTER_BROKEN_FABS -Wno-unsequenced )
     fi
     
     C_SOURCES=( $(eval echo "$EXTRA_C_SOURCES") )
