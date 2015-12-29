@@ -6706,7 +6706,7 @@
           "DistanceFactor": 1,
           "Name": "E",
           "PreloadCommands": false,
-          "StepsPerUnit": 137,
+          "StepsPerUnit": 127,
           "_compoundName": "stepper",
           "delay": {
             "DirSetTime": 0.2,
