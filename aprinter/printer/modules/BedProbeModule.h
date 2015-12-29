@@ -35,6 +35,7 @@
 #include <aprinter/meta/If.h>
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/AliasStruct.h>
+#include <aprinter/meta/WrapFunction.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -43,6 +44,7 @@
 #include <aprinter/math/LinearLeastSquares.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/ServiceList.h>
+#include <aprinter/printer/HookExecutor.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -63,6 +65,8 @@ private:
     using TheCommand = typename ThePrinterMain::TheCommand;
     using FpType = typename ThePrinterMain::FpType;
     static const int ProbeAxisIndex = ThePrinterMain::template FindPhysVirtAxis<Params::ProbeAxis>::Value;
+    
+    struct BedProbeHookCompletedHandler;
     
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_correction, print_correction)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_print_quadratic_corrections, print_quadratic_corrections)
@@ -230,7 +234,7 @@ public:
             o->heights_matrix--(point_index, 0) = height;
         }
         
-        static void probing_completing (Context c, TheCommand *cmd)
+        static bool probing_completing (Context c, TheCommand *cmd)
         {
             auto *o = Object::self(c);
             
@@ -260,7 +264,7 @@ public:
             
             if (num_valid_points < num_columns) {
                 cmd->reportError(c, AMBRO_PSTR("TooFewPointsForCorrection"));
-                return;
+                return false;
             }
             
             auto effective_coordinates_matrix = coordinates_matrix--.range(0, 0, num_valid_points, num_columns);
@@ -283,13 +287,15 @@ public:
             
             if (bad_corrections) {
                 cmd->reportError(c, AMBRO_PSTR("BadCorrections"));
-                return;
+                return false;
             }
             
             if (!cmd->find_command_param(c, 'D', nullptr)) {
                 MatrixElemOpInPlace<MatrixElemOpAdd>(o->corrections--, new_corrections++);
                 apply_corrections(c);
             }
+            
+            return true;
         }
         
         template <typename Src>
@@ -342,7 +348,7 @@ public:
         static bool check_command (Context c, TheCommand *cmd) { return true; }
         static void probing_staring (Context c) {}
         static void probing_measurement (Context c, PointIndexType point_index, FpType height) {}
-        static void probing_completing (Context c, TheCommand *cmd) {}
+        static bool probing_completing (Context c, TheCommand *cmd) { return true; }
         struct Object {};
     };
     
@@ -399,6 +405,10 @@ public:
     {
         return endstop_is_triggered(c);
     }
+    
+    using HookDefinitionList = MakeTypeList<
+        HookDefinition<ServiceList::BedProbeHookService, typename ThePrinterMain::GenericHookDispatcher, BedProbeHookCompletedHandler>
+    >;
     
 private:
     template <typename ThisContext>
@@ -634,16 +644,36 @@ private:
     {
         auto *o = Object::self(c);
         
-        o->m_current_point = -1;
-        
+        bool success = false;
         TheCommand *cmd = ThePrinterMain::get_locked(c);
         if (errstr) {
             cmd->reportError(c, errstr);
         } else {
-            CorrectionFeature::probing_completing(c, cmd);
+            success = CorrectionFeature::probing_completing(c, cmd);
         }
+        
+        if (!success) {
+            o->m_current_point = -1;
+            return cmd->finishCommand(c);
+        }
+        
+        o->m_current_point = -2;
+        return ThePrinterMain::template startHookByInitiator<ServiceList::BedProbeHookService>(c);
+    }
+    
+    static void bed_probe_hook_completed (Context c, bool error)
+    {
+        auto *o = Object::self(c);
+        AMBRO_ASSERT(o->m_current_point == -2)
+        
+        TheCommand *cmd = ThePrinterMain::get_locked(c);
+        if (error) {
+            cmd->reportError(c, nullptr);
+        }
+        o->m_current_point = -1;
         cmd->finishCommand(c);
     }
+    struct BedProbeHookCompletedHandler : public AMBRO_WFUNC_TD(&BedProbeModule::bed_probe_hook_completed) {};
     
     static bool is_point_state_watching (PointIndexType point_state)
     {

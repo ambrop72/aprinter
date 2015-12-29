@@ -2003,7 +2003,7 @@ def generate(config_root_data, cfg_name, main_template):
             
             @probe_sel.option('NoProbe')
             def option(probe):
-                pass
+                return False
             
             @probe_sel.option('Probe')
             def option(probe):
@@ -2066,8 +2066,10 @@ def generate(config_root_data, cfg_name, main_template):
                     TemplateList(['BedProbePointParams<ProbeP{0}Enabled, MakeTypeList<ProbeP{0}X, ProbeP{0}Y>, ProbeP{0}ZOffset>'.format(i+1) for i in range(num_points)]),
                     correction_expr,
                 ]))
+                
+                return True
             
-            config.get_config('probe_config').do_selection('probe', probe_sel)
+            have_bed_probing = config.get_config('probe_config').do_selection('probe', probe_sel)
             
             def fan_cb(fan, fan_index):
                 name, name_expr = get_letter_number_name(fan, 'Name')
@@ -2164,8 +2166,16 @@ def generate(config_root_data, cfg_name, main_template):
                             gen.add_float_config('{}{}'.format(move_config_prefix, axis_name), coord_config.get_float('Value')),
                         ])
                     
+                    hook_type = move_config.do_enum('HookType', {
+                        'After homing': 'ServiceList::HomingHookService',
+                        'After bed probing': 'ServiceList::BedProbeHookService',
+                    })
+                    
+                    if hook_type == 'ServiceList::BedProbeHookService' and not have_bed_probing:
+                        move_config.key_path('HookType').error('Cannot use bed probing hook without bed probing configured.')
+                    
                     return TemplateExpr('MoveSpec', [
-                        move_config.do_enum('HookType', {'After homing': 'ServiceList::HomingHookService'}),
+                        hook_type,
                         move_config.get_int('HookPriority'),
                         gen.add_bool_config('{}Enabled'.format(move_config_prefix), move_config.get_bool('Enabled')),
                         gen.add_float_config('{}Speed'.format(move_config_prefix), move_config.get_float('Speed')),

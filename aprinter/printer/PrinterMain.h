@@ -208,10 +208,12 @@ private:
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_TheStepperDef, TheStepperDef)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_PlannerAxisSpec, PlannerAxisSpec)
     AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_PlannerLaserSpec, PlannerLaserSpec)
+    AMBRO_DECLARE_GET_MEMBER_TYPE_FUNC(GetMemberType_HookType, HookType)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ConfigExprs, ConfigExprs)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_ProvidedServices, ProvidedServices)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_MotionPlannerChannels, MotionPlannerChannels)
     APRINTER_DEFINE_MEMBER_TYPE(MemberType_CorrectionFeature, CorrectionFeature)
+    APRINTER_DEFINE_MEMBER_TYPE(MemberType_HookDefinitionList, HookDefinitionList)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_init, init)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_deinit, deinit)
     APRINTER_DEFINE_CALL_IF_EXISTS(CallIfExists_check_command, check_command)
@@ -891,6 +893,8 @@ private:
 public:
     using MoveEndCallback = void(*)(Context c, bool error);
     
+    struct GenericHookDispatcher;
+    
 private:
     template <int ModuleIndex>
     struct Module {
@@ -958,6 +962,8 @@ private:
     using ModulesList = IndexElemList<ParamsModulesList, Module>;
     
 public:
+    using ModuleClassesList = MapTypeList<ModulesList, GetMemberType_TheModule>;
+    
     template <int ModuleIndex>
     using GetModule = typename Module<ModuleIndex>::TheModule;
     
@@ -2025,7 +2031,6 @@ public:
     using GetPhysVirtAxisByName = PhysVirtAxisHelper<FindPhysVirtAxis<AxisName>::Value>;
     
 private:
-    using ModuleClassesList = MapTypeList<ModulesList, GetMemberType_TheModule>;
     using MotionPlannerChannelsDict = ListCollect<ModuleClassesList, MemberType_MotionPlannerChannels>;
     
     using MotionPlannerChannels = TypeDictValues<MotionPlannerChannelsDict>;
@@ -2072,7 +2077,7 @@ private:
         return homing_finished(c);
     }
     
-private:
+public:
     struct GenericHookDispatcher {
         template <typename HookType>
         using GetHookProviders = GetServiceProviders<HookType>;
@@ -2085,11 +2090,22 @@ private:
         }
     };
     
-    using HookDefinitionList = MakeTypeList<
+private:
+    using MyHooks = MakeTypeList<
         HookDefinition<ServiceList::HomingHookService, GenericHookDispatcher, AMBRO_WFUNC_T(&PrinterMain::homing_hook_completed)>
     >;
     
-    using TheHookExecutor = HookExecutor<Context, typename PrinterMain::Object, HookDefinitionList>;
+    using ModulesHooks = TypeDictValues<ListCollect<ModuleClassesList, MemberType_HookDefinitionList>>;
+    
+    using TheHookExecutor = HookExecutor<Context, typename PrinterMain::Object, JoinTypeLists<MyHooks, ModulesHooks>>;
+    
+public:
+    template <typename HookType>
+    static void startHookByInitiator (Context c)
+    {
+        static_assert(TypeListFindMapped<ModulesHooks, GetMemberType_HookType, HookType>::Found, "This hook is not defined by any module");
+        return TheHookExecutor::template startHook<HookType>(c);
+    }
     
 public:
     template <typename HookType>
