@@ -28,9 +28,10 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/misc/ClockUtils.h>
@@ -197,23 +198,16 @@ public:
     };
 };
 
-template <
-    typename TI2cService,
-    uint8_t TI2cAddr,
-    uint32_t TSize,
-    uint32_t TBlockSize,
-    typename TWriteTimeout
->
-struct I2cEepromService {
-    using I2cService = TI2cService;
-    static uint8_t const I2cAddr = TI2cAddr;
-    static uint32_t const Size = TSize;
-    static uint32_t const BlockSize = TBlockSize;
-    using WriteTimeout = TWriteTimeout;
-    
+APRINTER_ALIAS_STRUCT_EXT(I2cEepromService, (
+    APRINTER_AS_TYPE(I2cService),
+    APRINTER_AS_VALUE(uint8_t, I2cAddr),
+    APRINTER_AS_VALUE(uint32_t, Size),
+    APRINTER_AS_VALUE(uint32_t, BlockSize),
+    APRINTER_AS_TYPE(WriteTimeout)
+), (
     template <typename Context, typename ParentObject, typename Handler>
     using Eeprom = I2cEeprom<Context, ParentObject, Handler, I2cEepromService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

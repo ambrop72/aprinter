@@ -35,6 +35,7 @@
 #include <aprinter/meta/FunctionIf.h>
 #include <aprinter/meta/StructIf.h>
 #include <aprinter/meta/If.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
@@ -1906,21 +1907,15 @@ public:
     };
 };
 
-template <
-    int TMaxFileNameSize,
-    int TNumCacheEntries,
-    bool TCaseInsens,
-    bool TWritable
->
-struct FatFsService {
-    static int const MaxFileNameSize = TMaxFileNameSize;
-    static int const NumCacheEntries = TNumCacheEntries;
-    static bool const CaseInsens = TCaseInsens;
-    static bool const Writable = TWritable;
-    
+APRINTER_ALIAS_STRUCT_EXT(FatFsService, (
+    APRINTER_AS_VALUE(int, MaxFileNameSize),
+    APRINTER_AS_VALUE(int, NumCacheEntries),
+    APRINTER_AS_VALUE(bool, CaseInsens),
+    APRINTER_AS_VALUE(bool, Writable)
+), (
     template <typename Context, typename ParentObject, typename TheBlockAccess, typename InitHandler, typename WriteMountHandler>
     using Fs = FatFs<Context, ParentObject, TheBlockAccess, InitHandler, WriteMountHandler, FatFsService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

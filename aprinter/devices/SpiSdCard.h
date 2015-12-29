@@ -27,10 +27,11 @@
 
 #include <stdint.h>
 
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInInt.h>
+#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -523,17 +524,13 @@ public:
     };
 };
 
-template <
-    typename TSsPin,
-    typename TSpiService
->
-struct SpiSdCardService {
-    using SsPin = TSsPin;
-    using SpiService = TSpiService;
-    
+APRINTER_ALIAS_STRUCT_EXT(SpiSdCardService, (
+    APRINTER_AS_TYPE(SsPin),
+    APRINTER_AS_TYPE(SpiService)
+), (
     template <typename Context, typename ParentObject, typename InitHandler, typename CommandHandler>
     using SdCard = SpiSdCard<Context, ParentObject, InitHandler, CommandHandler, SpiSdCardService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

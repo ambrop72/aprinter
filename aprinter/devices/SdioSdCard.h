@@ -28,9 +28,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include <aprinter/base/Object.h>
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/WrapValue.h>
+#include <aprinter/meta/AliasStruct.h>
+#include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
@@ -479,15 +480,12 @@ public:
     };
 };
 
-template <
-    typename TSdioService
->
-struct SdioSdCardService {
-    using SdioService = TSdioService;
-    
+APRINTER_ALIAS_STRUCT_EXT(SdioSdCardService, (
+    APRINTER_AS_TYPE(SdioService)
+), (
     template <typename Context, typename ParentObject, typename InitHandler, typename CommandHandler>
     using SdCard = SdioSdCard<Context, ParentObject, InitHandler, CommandHandler, SdioSdCardService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

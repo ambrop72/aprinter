@@ -29,6 +29,7 @@
 #include <stddef.h>
 
 #include <aprinter/meta/WrapFunction.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
@@ -286,13 +287,12 @@ public:
     };
 };
 
-template <typename TSdService>
-struct BlockAccessService {
-    using SdService = TSdService;
-    
+APRINTER_ALIAS_STRUCT_EXT(BlockAccessService, (
+    APRINTER_AS_TYPE(SdService)
+), (
     template <typename Context, typename ParentObject, typename ActivateHandler>
     using Access = BlockAccess<Context, ParentObject, ActivateHandler, BlockAccessService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 

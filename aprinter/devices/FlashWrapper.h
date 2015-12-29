@@ -31,6 +31,7 @@
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
@@ -208,15 +209,12 @@ public:
     };
 };
 
-template <
-    typename TFlashService
->
-struct FlashWrapperService {
-    using FlashService = TFlashService;
-    
+APRINTER_ALIAS_STRUCT_EXT(FlashWrapperService, (
+    APRINTER_AS_TYPE(FlashService)
+), (
     template <typename Context, typename ParentObject, typename Handler>
     using Eeprom = FlashWrapper<Context, ParentObject, Handler, FlashWrapperService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 
