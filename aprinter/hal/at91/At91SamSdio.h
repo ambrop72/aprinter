@@ -134,6 +134,8 @@ public:
         pmc_enable_periph_clk(ID_HSMCI);
         pmc_enable_periph_clk(ID_DMAC);
         
+        HSMCI->HSMCI_CR = HSMCI_CR_SWRST;
+        
         HSMCI->HSMCI_DTOR = HSMCI_DTOR_DTOMUL_1048576 | HSMCI_DTOR_DTOCYC(2);
         HSMCI->HSMCI_CSTOR = HSMCI_CSTOR_CSTOMUL_1048576 | HSMCI_CSTOR_CSTOCYC(2);
         HSMCI->HSMCI_CFG = HSMCI_CFG_FIFOMODE | HSMCI_CFG_FERRCTRL;
