@@ -5,12 +5,12 @@ stdenv.mkDerivation {
 
   srcs = [
     (fetchurl {
-        url = "mirror://gnu/binutils/binutils-2.25.tar.bz2";
-        sha256 = "08r9i26b05zcwb9zxb6zllpfdiiicdfsgbpsjlrjmvx3rxjzrpi2";
+        url = "mirror://gnu/binutils/binutils-2.25.1.tar.bz2";
+        sha256 = "b5b14added7d78a8d1ca70b5cb75fef57ce2197264f4f5835326b0df22ac9f22";
     })
     (fetchurl {
-        url = "mirror://gcc/releases/gcc-5.2.0/gcc-5.2.0.tar.bz2";
-        sha256 = "5f835b04b5f7dd4f4d2dc96190ec1621b8d89f2dc6f638f9f8bc1b1014ba8cad";
+        url = "mirror://gcc/releases/gcc-5.3.0/gcc-5.3.0.tar.bz2";
+        sha256 = "b84f5592e9218b73dbae612b5253035a7b34a9a1f7688d2e1bfaaf7267d5c4db";
     })
     (fetchsvn {
         url = http://svn.savannah.nongnu.org/svn/avr-libc/trunk/avr-libc;
