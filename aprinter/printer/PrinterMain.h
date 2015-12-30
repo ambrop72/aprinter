@@ -2268,9 +2268,6 @@ private:
                     }
                     return;
                 
-                case 110: // set line number
-                    return cmd->finishCommand(c);
-                
                 case 17: { // enable steppers (all steppers if no args, or specific ones)
                     if (!cmd->tryUnplannedCommand(c)) {
                         return;

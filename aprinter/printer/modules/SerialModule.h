@@ -93,7 +93,7 @@ private:
             
             bool is_m110 = (o->gcode_parser.getCmdCode(c) == 'M' && o->gcode_parser.getCmdNumber(c) == 110);
             if (is_m110) {
-                o->m_line_number = o->command_stream.get_command_param_uint32(c, 'L', (o->gcode_parser.getCmd(c)->have_line_number ? o->gcode_parser.getCmd(c)->line_number : -1));
+                o->m_line_number = o->command_stream.get_command_param_uint32(c, 'L', (o->gcode_parser.getCmd(c)->have_line_number ? o->gcode_parser.getCmd(c)->line_number : (uint32_t)-1));
             }
             if (o->gcode_parser.getCmd(c)->have_line_number) {
                 if (o->gcode_parser.getCmd(c)->line_number != o->m_line_number) {
@@ -105,6 +105,9 @@ private:
             }
             if (o->gcode_parser.getCmd(c)->have_line_number || is_m110) {
                 o->m_line_number++;
+            }
+            if (is_m110) {
+                return false;
             }
             return true;
         }
