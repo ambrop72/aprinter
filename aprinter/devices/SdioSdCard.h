@@ -49,8 +49,7 @@ public:
 private:
     using TheDebugObject = DebugObject<Context, Object>;
     struct SdioCommandHandler;
-    struct SdioDataHandler;
-    using TheSdio = typename Params::SdioService::template Sdio<Context, Object, SdioCommandHandler, SdioDataHandler>;
+    using TheSdio = typename Params::SdioService::template Sdio<Context, Object, SdioCommandHandler>;
     using TheClockUtils = ClockUtils<Context>;
     using TimeType = typename TheClockUtils::TimeType;
     
@@ -66,7 +65,7 @@ private:
     static TimeType const PowerOnTimeTicks = 0.0015 * TheClockUtils::time_freq;
     static TimeType const PowerClocksTimeTicks = 0.001 * TheClockUtils::time_freq;
     static TimeType const InitTimeoutTicks = 1.2 * TheClockUtils::time_freq;
-    static TimeType const ProgrammingTimeoutTicks = 5.0 * TheClockUtils::time_freq;
+    static TimeType const ProgrammingTimeoutTicks = 3.0 * TheClockUtils::time_freq;
     static uint32_t const IfCondArgumentResponse = UINT32_C(0x1AA);
     static uint32_t const OpCondArgument = UINT32_C(0x40100000);
     
@@ -160,13 +159,11 @@ public:
         AMBRO_ASSERT(block < o->capacity_blocks)
         
         uint32_t addr = o->is_sdhc ? block : (block * 512);
-        TheSdio::startData(c, SdioIface::DataParams{SdioIface::DATA_DIR_READ, 1, o->buffer});
-        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_READ_SINGLE_BLOCK, addr, SdioIface::RESPONSE_SHORT, SdioIface::CMD_FLAG_READ_DATA});
+        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_READ_SINGLE_BLOCK, addr, SdioIface::RESPONSE_SHORT, 0, SdioIface::DATA_DIR_READ, 1, o->buffer});
         
         o->io_state = IO_STATE_READING;
-        o->io_user_buffer = buffer;
         o->cmd_finished = false;
-        o->data_finished = false;
+        o->io_user_buffer = buffer;
     }
     
     static void startWriteBlock (Context c, BlockIndexType block, WrapBuffer buffer)
@@ -177,13 +174,13 @@ public:
         AMBRO_ASSERT(o->io_state == IO_STATE_IDLE)
         AMBRO_ASSERT(block < o->capacity_blocks)
         
+        buffer.copyOut(0, BlockSize, (char *)o->buffer);
+        
         uint32_t addr = o->is_sdhc ? block : (block * 512);
-        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_WRITE_BLOCK, addr, SdioIface::RESPONSE_SHORT, SdioIface::CMD_FLAG_WRITE_DATA});
+        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_WRITE_BLOCK, addr, SdioIface::RESPONSE_SHORT, 0, SdioIface::DATA_DIR_WRITE, 1, o->buffer});
         
         o->io_state = IO_STATE_WRITING;
-        o->io_user_buffer = buffer;
         o->cmd_finished = false;
-        o->data_finished = false;
     }
     
     using GetSdio = TheSdio;
@@ -206,7 +203,7 @@ private:
         }
     }
     
-    static void sdio_command_handler (Context c, SdioIface::CommandResults results)
+    static void sdio_command_handler (Context c, SdioIface::CommandResults results, SdioIface::DataErrorCode data_error)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -335,38 +332,37 @@ private:
             
             case STATE_RUNNING: {
                 AMBRO_ASSERT(o->io_state == IO_STATE_READING || o->io_state == IO_STATE_WRITING)
-                AMBRO_ASSERT(!o->cmd_finished)
+                AMBRO_ASSERT(!o->cmd_finished || o->io_state == IO_STATE_WRITING)
                 
-                if (!check_r1_response(results)) {
-                    if (o->io_state == IO_STATE_READING && !o->data_finished) {
-                        TheSdio::abortData(c);
+                if (!o->cmd_finished) {
+                    bool error = (!check_r1_response(results) || data_error != SdioIface::DATA_ERROR_NONE);
+                    
+                    if (o->io_state == IO_STATE_READING) {
+                        if (!error) {
+                            o->io_user_buffer.copyIn(0, BlockSize, (char const *)o->buffer);
+                        }
+                        return complete_operation(c, error);
+                    } else {
+                        o->write_error = error;
+                        o->cmd_finished = true;
+                        o->poll_timer.setAfter(c, ProgrammingTimeoutTicks);
+                        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_STATUS, (uint32_t)o->rca << 16, SdioIface::RESPONSE_SHORT});
                     }
-                    return complete_operation(c, true);
-                }
-                
-                o->cmd_finished = true;
-                
-                if (o->io_state == IO_STATE_READING) {
-                    return check_read_complete(c);
                 } else {
-                    if (!o->data_finished) {
-                        o->io_user_buffer.copyOut(0, BlockSize, (char *)o->buffer);
-                        TheSdio::startData(c, SdioIface::DataParams{SdioIface::DATA_DIR_WRITE, 1, o->buffer});
+                    if (!check_r1_response(results)) {
+                        o->write_error = true;
                     } else {
                         uint8_t card_state = (results.response[0] >> 9) & 0xF;
                         if (card_state == 6 || card_state == 7) {
                             if (o->poll_timer.isExpired(c)) {
-                                return complete_operation(c, true);
+                                o->write_error = true;
+                            } else {
+                                TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_STATUS, (uint32_t)o->rca << 16, SdioIface::RESPONSE_SHORT});
+                                return;
                             }
-                            
-                            o->cmd_finished = false;
-                            TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_STATUS, (uint32_t)o->rca << 16, SdioIface::RESPONSE_SHORT});
-                            return;
                         }
-                        
-                        bool error = o->data_error != SdioIface::DATA_ERROR_NONE;
-                        return complete_operation(c, error);
                     }
+                    return complete_operation(c, o->write_error);
                 }
             } break;
             
@@ -375,28 +371,6 @@ private:
         }
     }
     struct SdioCommandHandler : public AMBRO_WFUNC_TD(&SdioSdCard::sdio_command_handler) {};
-    
-    static void sdio_data_handler (Context c, typename SdioIface::DataResults results)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_RUNNING)
-        AMBRO_ASSERT(o->io_state == IO_STATE_READING || o->io_state == IO_STATE_WRITING)
-        AMBRO_ASSERT(!o->data_finished)
-        AMBRO_ASSERT(o->io_state != IO_STATE_WRITING || o->cmd_finished)
-        
-        o->data_finished = true;
-        o->data_error = results.error_code;
-        
-        if (o->io_state == IO_STATE_READING) {
-            return check_read_complete(c);
-        } else {
-            o->poll_timer.setAfter(c, ProgrammingTimeoutTicks);
-            o->cmd_finished = false;
-            TheSdio::startCommand(c, SdioIface::CommandParams{CMD_SEND_STATUS, (uint32_t)o->rca << 16, SdioIface::RESPONSE_SHORT});
-        }
-    }
-    struct SdioDataHandler : public AMBRO_WFUNC_TD(&SdioSdCard::sdio_data_handler) {};
     
     static void deactivate_common (Context c)
     {
@@ -441,23 +415,9 @@ private:
         AMBRO_ASSERT(o->state == STATE_RUNNING)
         AMBRO_ASSERT(o->io_state != IO_STATE_IDLE)
         
-        if (o->io_state == IO_STATE_READING && !error) {
-            o->io_user_buffer.copyIn(0, BlockSize, (char const *)o->buffer);
-        }
-        
         o->io_state = IO_STATE_IDLE;
         
         return CommandHandler::call(c, error);
-    }
-    
-    static void check_read_complete (Context c)
-    {
-        auto *o = Object::self(c);
-        
-        if (o->cmd_finished && o->data_finished) {
-            bool error = o->data_error != SdioIface::DATA_ERROR_NONE;
-            return complete_operation(c, error);
-        }
     }
     
 public:
@@ -474,8 +434,7 @@ public:
         uint8_t io_state;
         WrapBuffer io_user_buffer;
         bool cmd_finished;
-        bool data_finished;
-        SdioIface::DataErrorCode data_error;
+        bool write_error;
         uint32_t buffer[BlockSize / 4];
     };
 };
