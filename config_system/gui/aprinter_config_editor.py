@@ -317,6 +317,7 @@ def virtual_homing_params(**kwargs):
     return ce.OneOf(title='Homing', choices=[
         ce.Compound('no_homing', title='Disabled', attrs=[]),
         ce.Compound('homing', title='Enabled', ident='id_board_steppers_homing', attrs=[
+            ce.Boolean(key='ByDefault', title='Enabled by default (in plain G28)', default=True),
             ce.Boolean(key='HomeDir', title='Homing direction', false_title='Negative', true_title='Positive', default=False),
             digital_input_choice(key='HomeEndstopInput', title='Endstop digital input'),
             ce.Boolean(key='HomeEndInvert', title='Invert endstop', false_title='No (high signal is pressed)', true_title='Yes (low signal is pressed)', default=False),

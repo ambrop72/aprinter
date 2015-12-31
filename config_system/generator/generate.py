@@ -1825,6 +1825,7 @@ def generate(config_root_data, cfg_name, main_template):
                     def option(homing):
                         virt_homing_axes.append(TemplateExpr('VirtualHomingModuleAxisParams', [
                             TemplateChar(name),
+                            gen.add_bool_config('{}HomeByDefault'.format(name), homing.get_bool('ByDefault')),
                             use_digital_input(gen, homing, 'HomeEndstopInput'),
                             gen.add_bool_config('{}HomeEndInvert'.format(name), homing.get_bool('HomeEndInvert')),
                             gen.add_bool_config('{}HomeDir'.format(name), homing.get_bool('HomeDir')),

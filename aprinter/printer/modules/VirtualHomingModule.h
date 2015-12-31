@@ -56,6 +56,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_init, init)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_m119_append_endstop, m119_append_endstop)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_virt_homing, start_virt_homing)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_remove_nondefault_axes, remove_nondefault_axes)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prestep_callback, prestep_callback)
     
 public:
@@ -90,7 +91,12 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == State::IDLE)
         
-        ThePrinterMain::getHomingRequest(c, &o->homing_axes, &o->homing_default);
+        bool homing_default;
+        ThePrinterMain::getHomingRequest(c, &o->homing_axes, &homing_default);
+        
+        if (homing_default) {
+            ListForEachForward<VirtHomingAxisList>(LForeach_remove_nondefault_axes(), c);
+        }
         
         o->state = State::RUNNING;
         o->err_output = err_output;
@@ -150,6 +156,15 @@ private:
         static bool endstop_is_triggered (ThisContext c)
         {
             return (Context::Pins::template get<typename HomingSpec::EndPin>(c) != APRINTER_CFG(Config, CEndInvert, c));
+        }
+        
+        static void remove_nondefault_axes (Context c)
+        {
+            auto *mo = VirtualHomingModule::Object::self(c);
+            
+            if (!APRINTER_CFG(Config, CByDefault, c)) {
+                mo->homing_axes &= ~PhysVirtAxis::AxisMask;
+            }
         }
         
         static bool start_virt_homing (Context c)
@@ -272,6 +287,7 @@ private:
             }
         };
         
+        using CByDefault = decltype(ExprCast<bool>(Config::e(HomingSpec::ByDefault::i())));
         using CEndInvert = decltype(ExprCast<bool>(Config::e(HomingSpec::EndInvert::i())));
         using CHomeDir = decltype(ExprCast<bool>(Config::e(HomingSpec::HomeDir::i())));
         using CFastExtraDist = decltype(ExprCast<FpType>(Config::e(HomingSpec::FastExtraDist::i())));
@@ -281,7 +297,7 @@ private:
         using CRetractSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::RetractSpeed::i())));
         using CSlowSpeed = decltype(ExprCast<FpType>(Config::e(HomingSpec::SlowSpeed::i())));
         
-        using ConfigExprs = MakeTypeList<CEndInvert, CHomeDir, CFastExtraDist, CRetractDist, CSlowExtraDist, CFastSpeed, CRetractSpeed, CSlowSpeed>;
+        using ConfigExprs = MakeTypeList<CByDefault, CEndInvert, CHomeDir, CFastExtraDist, CRetractDist, CSlowExtraDist, CFastSpeed, CRetractSpeed, CSlowSpeed>;
         
         struct Object : public ObjBase<VirtHomingAxis, typename VirtualHomingModule::Object, EmptyTypeList> {
             VirtHomingPlannerClient planner_client;
@@ -296,7 +312,6 @@ public:
         typename Context::EventLoop::QueuedEvent event;
         State state;
         bool homing_error;
-        bool homing_default;
         PhysVirtAxisMaskType homing_axes;
         TheCommand *err_output;
     };
@@ -304,6 +319,7 @@ public:
 
 APRINTER_ALIAS_STRUCT(VirtualHomingModuleAxisParams, (
     APRINTER_AS_VALUE(char, AxisName),
+    APRINTER_AS_TYPE(ByDefault),
     APRINTER_AS_TYPE(EndPin),
     APRINTER_AS_TYPE(EndPinInputMode),
     APRINTER_AS_TYPE(EndInvert),
