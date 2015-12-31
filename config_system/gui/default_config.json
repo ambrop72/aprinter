@@ -6762,7 +6762,17 @@
             "Name": "Z",
             "_compoundName": "VirtualAxisParams",
             "homing": {
-              "_compoundName": "no_homing"
+              "HomeFastSpeed": 15,
+              "ByDefault": false,
+              "HomeEndInvert": false,
+              "HomeEndstopInput": "E0_STOP",
+              "HomeFastExtraDist": 40,
+              "HomeDir": false,
+              "HomeRetractDist": 0.5,
+              "HomeRetractSpeed": 150,
+              "HomeSlowExtraDist": 1,
+              "HomeSlowSpeed": 0.5,
+              "_compoundName": "homing"
             }
           },
           "_compoundName": "CartesianAxes"
