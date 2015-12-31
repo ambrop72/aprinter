@@ -3256,7 +3256,7 @@
         "_compoundName": "RuntimeConfig",
         "config_manager": {
           "ConfigStore": {
-            "_compoundName": "NoStore"
+            "_compoundName": "FileConfigStore"
           },
           "_compoundName": "RuntimeConfigManager"
         }
@@ -3285,7 +3285,7 @@
           "MaxCommandSize": 256,
           "SdCardService": {
             "SdioService": {
-              "DataTimeoutBusClocks": 536870912,
+              "DataTimeoutBusClocks": 72000000,
               "IsWideMode": true,
               "_compoundName": "Stm32f4Sdio"
             },
