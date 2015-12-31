@@ -6766,7 +6766,7 @@
               "ByDefault": false,
               "HomeEndInvert": false,
               "HomeEndstopInput": "E0_STOP",
-              "HomeFastExtraDist": 40,
+              "HomeFastExtraDist": 0,
               "HomeDir": false,
               "HomeRetractDist": 0.5,
               "HomeRetractSpeed": 150,
