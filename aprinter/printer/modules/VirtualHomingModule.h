@@ -90,9 +90,10 @@ public:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->state == State::IDLE)
         
+        ThePrinterMain::getHomingRequest(c, &o->homing_axes, &o->homing_default);
+        
         o->state = State::RUNNING;
         o->err_output = err_output;
-        o->rem_axes = ThePrinterMain::getVirtHomingAxes(c);
         o->homing_error = false;
         o->event.prependNowNotAlready(c);
         
@@ -156,7 +157,7 @@ private:
             auto *o = Object::self(c);
             auto *mo = VirtualHomingModule::Object::self(c);
             
-            if (!(mo->rem_axes & PhysVirtAxis::AxisMask)) {
+            if (!(mo->homing_axes & PhysVirtAxis::AxisMask)) {
                 return true;
             }
             set_position(c, home_start_pos(c));
@@ -260,7 +261,7 @@ private:
                 }
                 
                 if (mo->homing_error || o->state == 2) {
-                    mo->rem_axes &= ~PhysVirtAxis::AxisMask;
+                    mo->homing_axes &= ~PhysVirtAxis::AxisMask;
                     mo->event.prependNowNotAlready(c);
                     return;
                 }
@@ -295,7 +296,8 @@ public:
         typename Context::EventLoop::QueuedEvent event;
         State state;
         bool homing_error;
-        PhysVirtAxisMaskType rem_axes;
+        bool homing_default;
+        PhysVirtAxisMaskType homing_axes;
         TheCommand *err_output;
     };
 };

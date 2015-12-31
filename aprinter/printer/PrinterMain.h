@@ -174,7 +174,7 @@ private:
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prepare_split, prepare_split)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_compute_split, compute_split)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_emergency, emergency)
-    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_homing, start_homing)
+    AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_start_phys_homing, start_phys_homing)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_prestep_callback, prestep_callback)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_update_homing_mask, update_homing_mask)
     AMBRO_DECLARE_LIST_FOREACH_HELPER(LForeach_enable_disable_stepper, enable_disable_stepper)
@@ -1057,7 +1057,6 @@ private:
                     auto *mob = PrinterMain::Object::self(c);
                     AMBRO_ASSERT(mob->axis_homing & AxisMask())
                     AMBRO_ASSERT(mob->locked)
-                    AMBRO_ASSERT(mob->m_homing_rem_axes & AxisMask())
                     
                     Homer::deinit(c);
                     axis->m_req_pos = APRINTER_CFG(Config, CInitPosition, c);
@@ -1065,12 +1064,11 @@ private:
                     
                     mob->axis_homing &= ~AxisMask();
                     TransformFeature::template mark_phys_moved<AxisIndex>(c);
-                    mob->m_homing_rem_axes &= ~AxisMask();
                     if (!success) {
                         mob->homing_error = true;
                     }
                     
-                    if (!(mob->m_homing_rem_axes & PhysAxisMask)) {
+                    if (mob->axis_homing == 0) {
                         phys_homing_finished(c);
                     }
                 }
@@ -1102,11 +1100,12 @@ private:
             {
                 auto *mob = PrinterMain::Object::self(c);
                 AMBRO_ASSERT(!(mob->axis_homing & AxisMask()))
-                AMBRO_ASSERT(mob->m_homing_rem_axes & AxisMask())
                 
-                TheStepperGroup::enable(c);
-                HomingState::Homer::init(c, get_locked(c));
-                mob->axis_homing |= AxisMask();
+                if ((mob->homing_req_axes & AxisMask())) {
+                    TheStepperGroup::enable(c);
+                    HomingState::Homer::init(c, get_locked(c));
+                    mob->axis_homing |= AxisMask();
+                }
             }
             
             using InitPosition = decltype(ExprIf(Config::e(HomingSpec::HomeDir::i()), MaxReqPos(), MinReqPos()) + Config::e(HomingSpec::HomeOffset::i()));
@@ -2011,13 +2010,9 @@ public:
             }
         }
         
-        static void start_homing (Context c, PhysVirtAxisMaskType mask)
+        static void start_phys_homing (Context c)
         {
-            auto *m = PrinterMain::Object::self(c);
-            if (TheAxis::ConsiderForHoming && (mask & AxisMask)) {
-                m->m_homing_rem_axes |= AxisMask;
-                TheAxis::start_phys_homing(c);
-            }
+            TheAxis::start_phys_homing(c);
         }
     };
     
@@ -2114,11 +2109,13 @@ public:
         return TheHookExecutor::template hookCompletedByProvider<HookType>(c, error);
     }
     
-    static PhysVirtAxisMaskType getVirtHomingAxes (Context c)
+    static void getHomingRequest (Context c, PhysVirtAxisMaskType *req_axes, bool *default_homing)
     {
         AMBRO_ASSERT(TheHookExecutor::template hookIsRunning<ServiceList::HomingHookService>(c))
         auto *ob = PrinterMain::Object::self(c);
-        return ob->m_homing_rem_axes;
+        
+        *req_axes = ob->homing_req_axes;
+        *default_homing = ob->homing_default;
     }
     
 public:
@@ -2453,19 +2450,23 @@ private:
                     if (!cmd->tryUnplannedCommand(c)) {
                         return;
                     }
-                    PhysVirtAxisMaskType mask = 0;
+                    AMBRO_ASSERT(ob->axis_homing == 0)
+                    PhysVirtAxisMaskType req_axes = 0;
                     auto num_parts = cmd->getNumParts(c);
                     for (decltype(num_parts) i = 0; i < num_parts; i++) {
-                        ListForEachForward<PhysVirtAxisHelperList>(LForeach_update_homing_mask(), c, cmd, &mask, cmd->getPart(c, i));
+                        ListForEachForward<PhysVirtAxisHelperList>(LForeach_update_homing_mask(), c, cmd, &req_axes, cmd->getPart(c, i));
                     }
-                    if (mask == 0) {
-                        mask = -1;
+                    if (req_axes == 0) {
+                        ob->homing_default = true;
+                        ob->homing_req_axes = -1;
+                    } else {
+                        ob->homing_default = false;
+                        ob->homing_req_axes = req_axes;
                     }
-                    ob->m_homing_rem_axes = 0;
                     ob->homing_error = false;
                     now_active(c);
-                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_start_homing(), c, mask);
-                    if (!(ob->m_homing_rem_axes & PhysAxisMask)) {
+                    ListForEachForward<PhysVirtAxisHelperList>(LForeach_start_phys_homing(), c);
+                    if (ob->axis_homing == 0) {
                         return phys_homing_finished(c);
                     }
                 } break;
@@ -2530,7 +2531,7 @@ private:
     {
         auto *ob = Object::self(c);
         AMBRO_ASSERT(ob->locked)
-        AMBRO_ASSERT(!(ob->m_homing_rem_axes & PhysAxisMask))
+        AMBRO_ASSERT(ob->axis_homing == 0)
         
         TransformFeature::do_pending_virt_update(c);
         if (ob->homing_error) {
@@ -3009,11 +3010,12 @@ public:
         bool move_seen_cartesian : 1;
         bool custom_planner_deinit_allowed : 1;
         bool homing_error : 1;
+        bool homing_default : 1;
         PlannerClient *planner_client;
         PhysVirtAxisMaskType axis_homing;
         PhysVirtAxisMaskType axis_relative;
         union {
-            PhysVirtAxisMaskType m_homing_rem_axes;
+            PhysVirtAxisMaskType homing_req_axes;
             PhysVirtAxisMaskType move_axes;
         };
         char msg_buffer[MaxMsgSize];
