@@ -2063,10 +2063,23 @@ private:
     };
     
 private:
-    static void homing_hook_completed (Context c, bool error)
+    static void virtual_homing_hook_completed (Context c, bool error)
     {
         auto *ob = PrinterMain::Object::self(c);
         AMBRO_ASSERT(!ob->homing_error)
+        
+        ob->homing_error = error;
+        if (ob->homing_error || !ob->homing_default) {
+            return homing_finished(c);
+        }
+        return TheHookExecutor::template startHook<ServiceList::AfterDefaultHomingHookService>(c);
+    }
+    
+    static void after_default_homing_hook_completed (Context c, bool error)
+    {
+        auto *ob = PrinterMain::Object::self(c);
+        AMBRO_ASSERT(!ob->homing_error)
+        AMBRO_ASSERT(ob->homing_default)
         
         ob->homing_error = error;
         return homing_finished(c);
@@ -2087,7 +2100,8 @@ public:
     
 private:
     using MyHooks = MakeTypeList<
-        HookDefinition<ServiceList::HomingHookService, GenericHookDispatcher, AMBRO_WFUNC_T(&PrinterMain::homing_hook_completed)>
+        HookDefinition<ServiceList::VirtualHomingHookService,      GenericHookDispatcher, AMBRO_WFUNC_T(&PrinterMain::virtual_homing_hook_completed)>,
+        HookDefinition<ServiceList::AfterDefaultHomingHookService, GenericHookDispatcher, AMBRO_WFUNC_T(&PrinterMain::after_default_homing_hook_completed)>
     >;
     
     using ModulesHooks = TypeDictValues<ListCollect<ModuleClassesList, MemberType_HookDefinitionList>>;
@@ -2109,9 +2123,15 @@ public:
         return TheHookExecutor::template hookCompletedByProvider<HookType>(c, error);
     }
     
+    template <typename HookType>
+    static bool hookIsRunning (Context c)
+    {
+        return TheHookExecutor::template hookIsRunning<HookType>(c);
+    }
+    
     static void getHomingRequest (Context c, PhysVirtAxisMaskType *req_axes, bool *default_homing)
     {
-        AMBRO_ASSERT(TheHookExecutor::template hookIsRunning<ServiceList::HomingHookService>(c))
+        AMBRO_ASSERT(hookIsRunning<ServiceList::VirtualHomingHookService>(c) || hookIsRunning<ServiceList::AfterDefaultHomingHookService>(c))
         auto *ob = PrinterMain::Object::self(c);
         
         *req_axes = ob->homing_req_axes;
@@ -2537,7 +2557,7 @@ private:
         if (ob->homing_error) {
             return homing_finished(c);
         }
-        return TheHookExecutor::template startHook<ServiceList::HomingHookService>(c);
+        return TheHookExecutor::template startHook<ServiceList::VirtualHomingHookService>(c);
     }
     
     static void homing_finished (Context c)

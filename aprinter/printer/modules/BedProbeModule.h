@@ -407,7 +407,7 @@ public:
     }
     
     using HookDefinitionList = MakeTypeList<
-        HookDefinition<ServiceList::BedProbeHookService, typename ThePrinterMain::GenericHookDispatcher, BedProbeHookCompletedHandler>
+        HookDefinition<ServiceList::AfterBedProbingHookService, typename ThePrinterMain::GenericHookDispatcher, BedProbeHookCompletedHandler>
     >;
     
 private:
@@ -658,7 +658,7 @@ private:
         }
         
         o->m_current_point = -2;
-        return ThePrinterMain::template startHookByInitiator<ServiceList::BedProbeHookService>(c);
+        return ThePrinterMain::template startHookByInitiator<ServiceList::AfterBedProbingHookService>(c);
     }
     
     static void bed_probe_hook_completed (Context c, bool error)

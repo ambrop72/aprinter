@@ -117,7 +117,7 @@ private:
             o->homing_error
         ) {
             o->state = State::IDLE;
-            return ThePrinterMain::template hookCompletedByProvider<ServiceList::HomingHookService>(c, o->homing_error);
+            return ThePrinterMain::template hookCompletedByProvider<ServiceList::VirtualHomingHookService>(c, o->homing_error);
         }
     }
     
@@ -338,7 +338,7 @@ APRINTER_ALIAS_STRUCT_EXT(VirtualHomingModuleService, (
     APRINTER_MODULE_TEMPLATE(VirtualHomingModuleService, VirtualHomingModule)
     
     using ProvidedServices = MakeTypeList<
-        ServiceDefinition<ServiceList::HomingHookService, 0>
+        ServiceDefinition<ServiceList::VirtualHomingHookService, 0>
     >;
 ))
 

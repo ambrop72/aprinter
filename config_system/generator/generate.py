@@ -2169,11 +2169,11 @@ def generate(config_root_data, cfg_name, main_template):
                         ])
                     
                     hook_type = move_config.do_enum('HookType', {
-                        'After homing': 'ServiceList::HomingHookService',
-                        'After bed probing': 'ServiceList::BedProbeHookService',
+                        'After homing':      'ServiceList::AfterDefaultHomingHookService',
+                        'After bed probing': 'ServiceList::AfterBedProbingHookService',
                     })
                     
-                    if hook_type == 'ServiceList::BedProbeHookService' and not have_bed_probing:
+                    if hook_type == 'ServiceList::AfterBedProbingHookService' and not have_bed_probing:
                         move_config.key_path('HookType').error('Cannot use bed probing hook without bed probing configured.')
                     
                     return TemplateExpr('MoveSpec', [

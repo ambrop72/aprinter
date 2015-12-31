@@ -32,8 +32,9 @@
 namespace ServiceList {
     struct FsAccessService {};
     struct CorrectionService {};
-    struct HomingHookService {};
-    struct BedProbeHookService {};
+    struct VirtualHomingHookService {};
+    struct AfterDefaultHomingHookService {};
+    struct AfterBedProbingHookService {};
 }
 
 struct DummyServiceUserId {};
