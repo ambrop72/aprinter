@@ -16,7 +16,7 @@ The following machines are supported out of the box (meaning that a functional C
 
 ## Major functionality
 
-- Linear-delta, rotational-delta and CoreXY support. New geometries can be added by implementing a foward and inverse coordinate transformation. A processor with sufficient speed and RAM is needed (not AVR).
+- Supports many geometries (in addition to Cartesian): linear-delta, rotational-delta, SCARA (like Morgan) and CoreXY. New geometries can be added by implementing a foward and inverse coordinate transformation. A processor with sufficient speed and RAM is needed (not AVR).
 - Bed probing using a digital input line (e.g. microswitch). Height measurements are printed to the console.
 - Bed height correction, either with a linear or quadratic polynomial, calculated by the least-squares method.
 - SD card and FAT32 filesystem support. G-code can be read from the SD-card. Optionally, the SD card can be used for storage of runtime configuration options. A custom (fully asynchronous) FAT32 implementation is used, with limited write support (can write to existing files only).
@@ -30,9 +30,10 @@ The following machines are supported out of the box (meaning that a functional C
 
 - Homing of multiple axes in parallel.
 - Homing cartesian axes involved in a coordinate transformation (e.g. homing X and Y in CoreXY).
-- Slave steppers, driven synchronously, can be configured for an axis (e.g. two Z motors driven by separate drivers).
+- Multiple steppers, driven synchronously, can be configured for an axis (e.g. two Z motors driven by separate drivers).
 - Constant-acceleration motion planning with look-ahead. To speed up calculations, the firmware will only calculate a new plan every N ("Lookahead commit count") commands. This allows increasing the lookahead without an asymptotic increase of CPU usage, only limited by the available RAM.
 - High precision step timing. For each stepper, a separate timer compare channel is used. In the interrupt handler, a step pulse for a stepper is generated, and the time of the next step is calculated analytically.
+- Multiple serial ports can be configured (e.g. both UART and USB CDC), assuming drivers are written.
 
 ## Coding style
 
@@ -133,14 +134,11 @@ bossac -p ttyACM0 -U false -i -e -w -v -b ~/aprinter-build/aprinter-nixbuild.bin
 
 Some Due clones have a problem resetting. If after uploading, the firmware does not start (LED doesn't blink), press the reset button.
 
-*NOTE*: You need to **use the native USB port** to connect. The programming port is only used for uploading.
-However, it is possible to configure the firmware to use the programming port for communication.
-To do that in the web GUI, expand the specific board definition (in the Boards list), expand "Serial parameters" and for the "Backend",
-choose "AT91 UART".
+For communication with host software (not programming), the software supports both the programming and native USB ports at the same time. The programming port is by default configured at baud rate 115200, because 250000 does not work on all Due boards due to a design defect. It is recommented to use the native USB port due to greater speed.
 
 ### Duet
 
-Before flashing, you need to bring the chip to boot mode by pressing the erase button (near the Ethernet jack).
+Before flashing, you need to bring the chip to boot mode by pressing the erase button (near the Ethernet jack). If the board does not reset after flashing (despite us telling it to reset, go figure), you will have to power cycle.
 
 ```
 bossac -p ttyACM0 -i -e -w -v -b ~/aprinter-build/aprinter-nixbuild.bin -R
@@ -319,45 +317,49 @@ The recommented naming for extruder axes is E, U, V in order.
 
 The included `DeTool.py` script can be used to convert tool-using g-code to a format which the firmware understands, but more about that will be explained later.
 
-### Slave steppers
+### Multiple steppers per axis
 
-Slave steppers are extra steppers assigned to an axis. They will be driven synchronously with the main stepper for the axis. Actually, the only difference between the main stepper and slave steppers is the way they are specified in the configuration.
+More than one stepper can be assigned to an axis, and they will be driven synchronously.
 
-In the web GUI, slave steppers can be added in the Stepper section for a particular stepper.
+In the web GUI, additional steppers can be added in the Stepper section for a particular stepper.
 If there is no existing suitable stepper port definition, you will need to add one in the Board configuration.
-When doing this, note that for slave steppers, the "Stepper timer" does not need to be defined (set it to "Not defined").
+When doing this, note that for the additional (non-first) steppers in an axis, the "Stepper timer" does not need to be defined (you may set it to "Not defined").
 
 ### Coordinate transformation
 
 APrinter has generic support for non-cartesian coordinate systems.
-Currently, delta (towers) and CoreXY/H-bot are supported out of the box.
+Currently, linear delta, rotationa delta, SCARA and CoreXY/H-bot are supported out of the box.
 
-*NOTE*: Delta will not work well on AVR based platforms due to lack of CPU speed and RAM. CoreXY may or may not.
+*NOTE*: The nonlinear transforms will not work well on AVR based platforms due to lack of CPU speed and RAM. CoreXY may or may not, depending on how many axes (esp. extruders) you configure.
 
 Generally, the transformation is configured as follows in the web GUI:
 
 - In the Steppers list, define the steppers (actuators) that are involved in the transform,
-  with names that are *not* cartesian axes (delta: A, B, C, CoreXY: A, B).
-  Make that for each such stepper, "Is cartesian" is set to No.
+  with names that are *not* cartesian axes (linear/rotational delta: A, B, C, CoreXY/SCARA: A, B).
+  Ensure that for each such stepper, "Is cartesian" is set to No.
   Set the position limits correctly (see the sub-section next).
+  Note that for rotational delta and SCARA, the positions of these axes are measured in degrees.
   For delta, enable homing for all three steppers, for CoreXY disable homing for both.
-- Define any remaining cartesian steppers. So for CoreXY that would be Z, and none for delta.
+- Define any remaining Cartesian steppers. So for CoreXY and SCARA that would be Z, and for linear/rotational delta none.
   Of course extruders still belong to the Steppers list.
 - In the "Coordinate transformation" section, select your particular transformation type.
   More configuration is made available.
-- Set up the "Stepper mapping" to map the transformation to the steppers defined earlier.
-  Type the stepper name letter to map a stepper.
+- Set up the "Stepper mapping" to map the physical axes (actuators) defined earlier.
+  Type the axis name (A, B, C) to map an axis.
   Note that you are free to define the mapping in any order, to achieve correct motion.
   Which is a bit tricky woth CoreXY - you may also have to invert stepper direction.
 - Set the transformation-type specific parameters. The delta-related parameters mean exactly
   the same as for Marlin, so no further explanation will be given here.
+- Configure the segmentation. You have to enable segmentation if you use a nonlinear geometry
+  (all but CoreXY). Note that when performing segmentation, the firmware first calculates an initial
+  number of segments based on the desired speed of a move and the segments-per-second setting,
+  than clamps this value to the limits obtained based on the configured minimum and maximum segment length.
 - Configure the cartesian axes. Currently this is just position limits and maximum speed.
-  But, for CoreXY, you have the option of enabling homing for cartesian axes
-  (which is a different concept than stepper-specific homing).
+  But, for CoreXY, you have the option of enabling homing for cartesian axes.
 
 #### Stepper configuration
 
-Steppers involved in the coordinate transform have their own configuration which is generally the same as for other steppers.
+Steppers involved in the coordinate transform (typically A, B and maybe C) have their own configuration which is generally the same as for other steppers.
 In particular they need to be defined the position limits.
 
 For CoreXY, the position limits should not constrain motion as defined by the limits of the cartesian axes.
@@ -368,6 +370,10 @@ For delta, the stepper limits should be configured appropriately for the machine
 It helps to know that the A/B/C stepper positions are actually cartesian Z coordinates
 of assemblies on the towers, and that the maximum position limit corresponds to
 meeting the endstop at the top.
+
+For rotational delta and SCARA, these steppers use units of degrees, not millimeters.
+You should not get confused when the configuration editor mentions millimeters.
+For example, the position limits are degrees, speeds (accelerations) are degrees per second (squared), and steps-per-unit are steps per degree.
 
 ### Bed probing and correction
 
@@ -411,6 +417,16 @@ e.g. E does appear in "G1 E0" while X does not.
   Euclidean speed of the move, based on the Euclidean distance calculated from all Cartesian axes.
 - Otherwise (no T parameter, no Cartesian axes - e.g. extruders only), the last seen F value will be used to limit
   the speed of each individual stepper axis (and not virtual axes).
+
+Note that the desired speed as described above is only understood as a nominal value.
+The machine will not move faster than that, but it may move slower.
+For example the software will still respect the configured maximum accelerations and maximum speeds of the actuator axes.
+
+The speed is also bound to not exceed the capability of the processor.
+The configuration parameter `MaxStepsPerCycle` controls this limit; it is available in the Board configuration section under Performance parameters, and also as a runtime setting.
+The firmware will ensure that the cumulative step frequency (across all actuator axes) does not exceed the frequency of the processor multiplied by `MaxStepsPerCycle`.
+
+If you are aiming for high step rates , check that the firmware is being compiled without size optimization (under Board, Performance parameters) and with assertions disabled (under Board, Development features).
 
 ### Lasers
 
