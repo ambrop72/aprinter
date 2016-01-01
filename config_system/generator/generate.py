@@ -1661,6 +1661,7 @@ def generate(config_root_data, cfg_name, main_template):
                             get_pin(gen, slave_stepper_port, 'DirPin'),
                             get_pin(gen, slave_stepper_port, 'StepPin'),
                             get_pin(gen, slave_stepper_port, 'EnablePin'),
+                            slave_stepper_port.get_bool('StepLevel'),
                             slave_stepper_port.get_bool('EnableLevel'),
                             gen.add_bool_config('{}InvertDir'.format(stepper_config_prefix), slave_stepper.get_bool('InvertDir')),
                         ]),

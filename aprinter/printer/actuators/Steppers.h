@@ -44,6 +44,7 @@ APRINTER_ALIAS_STRUCT(StepperDef, (
     APRINTER_AS_TYPE(DirPin),
     APRINTER_AS_TYPE(StepPin),
     APRINTER_AS_TYPE(EnablePin),
+    APRINTER_AS_VALUE(bool, StepLevel),
     APRINTER_AS_VALUE(bool, EnableLevel),
     APRINTER_AS_TYPE(InvertDir)
 ))
@@ -71,6 +72,7 @@ public:
         
         using ThisDef = TypeListGet<StepperDefsList, StepperIndex>;
         using EnablePin = typename ThisDef::EnablePin;
+        static bool const StepLevel = ThisDef::StepLevel;
         static bool const EnableLevel = ThisDef::EnableLevel;
         static MaskType const TheMask = (MaskType)1 << StepperIndex;
         using TheWrappedMask = WrapValue<MaskType, TheMask>;
@@ -142,7 +144,7 @@ public:
         static void stepOn (ThisContext c)
         {
             TheDebugObject::access(c);
-            Context::Pins::template set<typename ThisDef::StepPin>(c, true);
+            Context::Pins::template set<typename ThisDef::StepPin>(c, StepLevel);
         }
         
         template <typename ThisContext>
@@ -150,7 +152,7 @@ public:
         static void stepOff (ThisContext c)
         {
             TheDebugObject::access(c);
-            Context::Pins::template set<typename ThisDef::StepPin>(c, false);
+            Context::Pins::template set<typename ThisDef::StepPin>(c, !StepLevel);
         }
         
         static void emergency ()
@@ -171,7 +173,7 @@ public:
         static void init (Context c)
         {
             Context::Pins::template set<typename ThisDef::DirPin>(c, maybe_invert_dir(c, false));
-            Context::Pins::template set<typename ThisDef::StepPin>(c, false);
+            Context::Pins::template set<typename ThisDef::StepPin>(c, !StepLevel);
             Context::Pins::template set<EnablePin>(c, !EnableLevel);
             Context::Pins::template setOutput<typename ThisDef::DirPin>(c);
             Context::Pins::template setOutput<typename ThisDef::StepPin>(c);
