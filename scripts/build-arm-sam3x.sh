@@ -28,34 +28,11 @@
 #########################################################################################
 # SAM3X stuff
 
-SAM3X_URL=(
-    "http://www.atmel.com/images/asf-standalone-archive-3.20.1.101.zip"
-)
-SAM3X_CHECKSUM=(
-    "c9fecef57c9dd57bcc3a5265fba7382e022fa911bbf97ba2d14c2a6b92f1e8cc  asf-standalone-archive-3.20.1.101.zip"
-)
-
 sam3x_to_upper() {
     echo "$1"| tr 'a-z' 'A-Z'
 }
 
 configure_sam3x() {
-    DEPS_ASF_DIR=${DEPS}/xdk-asf-3.20.1
-    
-    if [ -n "$CUSTOM_ASF" ]; then
-        ASF_DIR=${CUSTOM_ASF}
-    else
-        ASF_DIR=${DEPS_ASF_DIR}
-    fi
-
-    BOSSA_DIR=${DEPS}/bossa
-
-    if [ -n "$CUSTOM_BOSSAC" ]; then
-        BOSSAC=${CUSTOM_BOSSAC}
-    else
-        BOSSAC=${BOSSA_DIR}/bin/bossac
-    fi
-
     CMSIS_DIR=${ASF_DIR}/sam/utils/cmsis/${ARCH}
     TEMPLATES_DIR=${CMSIS_DIR}/source/templates
     LINKER_SCRIPT=${ASF_DIR}/sam/utils/linker_scripts/${ARCH}/${ARCH}${SUBARCH}/gcc/flash.ld
@@ -136,9 +113,7 @@ configure_sam3x() {
     fi
     
     # define target functions
-    INSTALL=install_sam3x
     RUNBUILD=build_sam3x
-    UPLOAD=upload_sam3x
     CHECK=check_depends_sam3x
 }
 
@@ -149,59 +124,4 @@ check_depends_sam3x() {
 
 build_sam3x() {
     build_arm
-}
-
-upload_sam3x() {
-    local bossa_args=()
-    echo -n "  Uploading to Sam3X MCU "
-    if [ "$BOSSA_USE_USB" = 1 ]; then
-        echo "over Native USB"
-    else
-        echo "over UART"
-        bossa_args=(-U false)
-        if [ "$BOSSA_IS_ARDUINO_DUE" = 1 ]; then
-            if [ "${SYSARCH}" == "mac" ]; then
-                stty -f "${BOSSA_PORT}" 1200
-            else
-                stty -F "${BOSSA_PORT}" 1200
-            fi
-            sleep 0.5
-        fi
-    fi
-    ( $V; "${BOSSAC}" -p "${BOSSA_PORT#/dev/}" "${bossa_args[@]}" -i -e -w -v -b "${TARGET}.bin" -R )
-}
-
-install_sam3x() {
-    install_arm
-
-    # install ASF
-    if [ -z "$CUSTOM_ASF" ]; then
-        if [ -d "${DEPS_ASF_DIR}" ]; then
-            echo "   [!] Atmel Software Framework already installed"
-        else
-            echo "   Installation of Atmel Software Framework"
-            retr_and_extract SAM3X_URL[@] SAM3X_CHECKSUM[@]
-        fi
-    fi
-    
-    # install SAM3X flasher
-    if [ -z "$CUSTOM_BOSSAC" ]; then
-        if [ -f "${BOSSA_DIR}/bin/bossac" ]; then
-            echo "   [!] BOSSA already installed"
-        else
-            echo "   Installation of BOSSA"
-            (
-            [ -d "${BOSSA_DIR}" ] || git clone -b arduino https://github.com/shumatech/BOSSA "${BOSSA_DIR}"
-            cd "${BOSSA_DIR}"
-
-            if [ "${SYSARCH}" == "mac" ]; then
-                FIX_MAKEFILE="-Werror -Wno-error=unused-but-set-variable"
-                REPLACE_TO="-Wno-error"
-                sed -i '' "s/${FIX_MAKEFILE}/${REPLACE_TO}/g" "Makefile"
-            fi
-
-            make strip-bossac
-            )
-        fi
-    fi
 }

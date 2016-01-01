@@ -34,18 +34,6 @@
 ROOT=$(dirname $0)
 SPATH=$ROOT/main
 BUILD=$ROOT/build
-DEPS=$ROOT/depends
-
-#####################################################################################
-# detect build operating system
-
-if [ "$(uname)" == "Linux" ]; then
-    SYSARCH=linux
-elif [ "$(uname)" == "Darwin" ]; then
-    SYSARCH=mac
-else
-    SYSARCH=""
-fi
 
 #####################################################################################
 # Guard to avoid running this script with another shell than bash
@@ -74,7 +62,7 @@ done
 # main
 
 TARGETS_STR=$(IFS=\| ; echo "${TARGETS[*]}")
-USAGE="Usage: $0 (${TARGETS_STR}|all) [-v] (install|build|upload [-p <port>|-b <baudrate>|-B <bitrate>])"
+USAGE="Usage: $0 (${TARGETS_STR}|all) [-v] build"
 
 if [ $# -lt 2 ]; then
     echo $USAGE
@@ -105,17 +93,9 @@ while true; do
             shift;
             V="set -x"
             ;;
-        install)
-            shift;
-            ACT+=("install")
-            ;;
         build)
             shift;
             ACT+=("build")
-            ;;
-        upload)
-            ACT+=("upload")
-            shift;
             ;;
         *)
             echo "Unknown command: $1"
@@ -131,31 +111,15 @@ done
 
 if [ "$DEST" = "all" ]; then
     for DEST in ${TARGETS[@]}; do
-         in_array "install" ${ACT[*]} && (
-            configure $DEST
-            ${INSTALL}
-         )
          in_array "build" ${ACT[*]} && (
             configure $DEST
             build
          )
     done
-    for DEST in ${TARGETS[@]}; do
-         in_array "upload" ${ACT[*]} && (
-            configure $DEST
-            ${UPLOAD}
-         )
-    done
 else
     configure $DEST
-    in_array "install" ${ACT[*]} && (
-        ${INSTALL}
-    )
     in_array "build" ${ACT[*]} && (
         build
-    )
-    in_array "upload" ${ACT[*]} && (
-        ${UPLOAD}
     )
 fi
 

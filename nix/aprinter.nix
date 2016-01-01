@@ -66,13 +66,13 @@ let
     needTeensyCores = board.platform == "teensy";
     
     targetFile = writeText "aprinter-nixbuild.sh" ''
-        ${stdenv.lib.optionalString isAvr "CUSTOM_AVR_GCC=${avrgcclibc}/bin/avr-"}
-        ${stdenv.lib.optionalString isArm "CUSTOM_ARM_GCC=${gcc-arm-embedded}/bin/arm-none-eabi-"}
+        ${stdenv.lib.optionalString isAvr "AVR_GCC_PREFIX=${avrgcclibc}/bin/avr-"}
+        ${stdenv.lib.optionalString isArm "ARM_GCC_PREFIX=${gcc-arm-embedded}/bin/arm-none-eabi-"}
         ${stdenv.lib.optionalString buildWithClang "BUILD_WITH_CLANG=1"}
         ${stdenv.lib.optionalString buildWithClang "CLANG_ARM_EMBEDDED=${clang-arm-embedded}/bin/arm-none-eabi-"}
-        ${stdenv.lib.optionalString needAsf "CUSTOM_ASF=${asf}"}
-        ${stdenv.lib.optionalString needStm32CubeF4 "CUSTOM_STM32CUBEF4=${stm32cubef4}"}
-        ${stdenv.lib.optionalString needTeensyCores "CUSTOM_TEENSY_CORES=${teensyCores}"}
+        ${stdenv.lib.optionalString needAsf "ASF_DIR=${asf}"}
+        ${stdenv.lib.optionalString needStm32CubeF4 "STM32CUBEF4_DIR=${stm32cubef4}"}
+        ${stdenv.lib.optionalString needTeensyCores "TEENSY_CORES=${teensyCores}"}
         
         TARGETS+=( "nixbuild" )
         target_nixbuild() {

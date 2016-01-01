@@ -28,41 +28,9 @@
 #####################################################################################
 # AVR SPECIFIC STUFF
 
-ATMEL_AVR_GCC_PATH="${ROOT}/depends/avr8-gnu-toolchain-linux_x86"
-
-if [ -n "${CUSTOM_AVR_GCC}" ]; then
-    AVR_GCC_PREFIX=${CUSTOM_AVR_GCC}
-else
-    AVR_GCC_PREFIX=${ATMEL_AVR_GCC_PATH}/bin/avr-
-fi
-
 AVR_CC=${AVR_GCC_PREFIX}gcc
 AVR_OBJCOPY=${AVR_GCC_PREFIX}objcopy
 AVR_SIZE=${AVR_GCC_PREFIX}size
-
-if [ -n "${CUSTOM_AVRDUDE}" ]; then
-    AVRDUDE=${CUSTOM_AVRDUDE}
-else
-    AVRDUDE=avrdude
-fi
-
-ATMEL_AVR_GCC_URL=(
-    "http://www.atmel.com/images/avr8-gnu-toolchain-3.4.3.1072-linux.any.x86.tar.gz"
-)
-ATMEL_AVR_GCC_CHECKSUM=(
-    "fa815c9e966b67353a16fb37b78e4b7d3e4eec72e8416f2d933a89262a46cbfb  avr8-gnu-toolchain-3.4.3.1072-linux.any.x86.tar.gz"
-)
-
-install_avr() {
-    if [ -z "${CUSTOM_AVR_GCC}" ]; then
-        echo "  Installing Atmel AVR toolchain"
-        [ -f "${AVR_CC}" ] && \
-        [ -f "${AVR_OBJCOPY}" ] && echo "   [!] Atmel AVR toolchain already installed" && return 0
-
-        create_depends_dir
-        retr_and_extract ATMEL_AVR_GCC_URL[@] ATMEL_AVR_GCC_CHECKSUM[@]
-    fi
-}
 
 check_depends_avr() {
     echo "   Checking depends"
@@ -85,16 +53,7 @@ configure_avr() {
         ${CXXFLAGS} ${CCXXLDFLAGS}
     )
     
-    AVRDUDE_FLAGS=(
-        -p $MCU -P $AVRDUDE_PORT -b $AVRDUDE_BAUDRATE -c $AVRDUDE_PROGRAMMER
-    )
-    if [ "$AVRDUDE_ERASE" != 1 ]; then
-        AVRDUDE_FLAGS=("${AVRDUDE_FLAGS[@]}" -D)
-    fi
-    
-    INSTALL=install_avr
     RUNBUILD=build_avr
-    UPLOAD=upload_avr
     CHECK=check_depends_avr
 }
 
@@ -115,10 +74,4 @@ build_avr() {
         echo "   Size of build: "
         "$AVR_SIZE" "${TARGET}.elf" | sed 's/^/    /'
     fi
-}
-
-upload_avr() {
-    echo "  Uploading to AVR"
-    
-    ($V; "$AVRDUDE" "${AVRDUDE_FLAGS[@]}" -U "flash:w:$TARGET.hex:i" || exit 3)
 }

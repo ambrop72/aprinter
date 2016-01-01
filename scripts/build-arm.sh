@@ -28,31 +28,6 @@
 #########################################################################################
 # ARM stuff
 
-GCCARM_CURRENT=4_8-2014q1
-
-if [ "$(uname)" == "Linux" ]; then
-    GCCARM_RELEASE=20140314
-    GCCARM_CHECKSUM="ce92859550819d4a3d1a6e2672ea64882b30afa2c08cf67fa8e1d93788c2c577  gcc-arm-none-eabi-4_8-2014q1-20140314-linux.tar.bz2"
-elif [ "$(uname)" == "Darwin" ]; then
-    GCCARM_RELEASE=20140314
-    GCCARM_CHECKSUM="d8d037d56e37c513f13f3b8864265489dca9ffaca616f679d45dff6e500c47af  gcc-arm-none-eabi-4_8-2014q1-20140314-mac.tar.bz2"
-else
-    GCCARM_RELEASE=""
-    GCCARM_CHECKSUM=""
-fi
-
-GCCARM_URL=(
-    "https://launchpad.net/gcc-arm-embedded/4.8/4.8-2014-q1-update/+download/gcc-arm-none-eabi-${GCCARM_CURRENT}-${GCCARM_RELEASE}-${SYSARCH}.tar.bz2" 
-)
-
-ARM_GCC_PATH="${ROOT}/depends/gcc-arm-none-eabi-${GCCARM_CURRENT}"
-
-if [ -n "${CUSTOM_ARM_GCC}" ]; then
-    ARM_GCC_PREFIX=${CUSTOM_ARM_GCC}
-else
-    ARM_GCC_PREFIX=${ARM_GCC_PATH}/bin/arm-none-eabi-
-fi
-
 ARM_GCC=${ARM_GCC_PREFIX}gcc
 
 if [ "$BUILD_WITH_CLANG" = 1 ]; then
@@ -63,17 +38,6 @@ fi
 
 ARM_OBJCOPY=${ARM_GCC_PREFIX}objcopy
 ARM_SIZE=${ARM_GCC_PREFIX}size
-
-install_arm() {
-    if [ -z "${CUSTOM_ARM_GCC}" ]; then
-        echo "  Installing ARM toolchain"
-        [ -f "${ARM_CC}" ] && \
-        [ -f "${ARM_OBJCOPY}" ] && echo "   [!] ARM toolchain already installed" && return 0
-
-        create_depends_dir
-        retr_and_extract GCCARM_URL[@] GCCARM_CHECKSUM[@]
-    fi
-}
 
 check_depends_arm() {
     echo "   Checking depends"

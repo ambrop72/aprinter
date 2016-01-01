@@ -28,24 +28,8 @@
 #####################################################################################
 # Teensy
 
-TEENSY_LOADER_URL=(
-    "http://www.pjrc.com/teensy/teensy_loader_cli.2.1.zip"
-)
-TEENSY_LOADER_CHECKSUM=(
-    "dafd040d6748b52e0d4a01846d4136f3354ca27ddc36a55ed00d0a0af0902d46  teensy_loader_cli.2.1.zip"
-)
-
 configure_teensy() {
-    DEPS_TEENSY_CORES=${DEPS}/teensy-cores
-    if [ -n "$CUSTOM_TEENSY_CORES" ]; then
-        TEENSY_CORES=${CUSTOM_TEENSY_CORES}
-    else
-        TEENSY_CORES=${DEPS_TEENSY_CORES}
-    fi
     TEENSY3=${TEENSY_CORES}/teensy3
-    
-    TEENSY_LOADER_DIR=${DEPS}/teensy_loader_cli
-    TEENSY_LOADER=${TEENSY_LOADER_DIR}/teensy_loader_cli
 
     if [[ "$TEENSY_VERSION" = 3.1 ]]; then
         CPU_DEF=__MK20DX256__
@@ -92,40 +76,11 @@ configure_teensy() {
     )
 
     # define target functions
-    INSTALL=install_teensy
     RUNBUILD=build_arm
-    UPLOAD=upload_teensy
     CHECK=check_depends_teensy
 }
 
 check_depends_teensy() {
     check_depends_arm
     [ -d "${TEENSY3}" ] || fail "Teensy3 Framework missing in dependences"
-}
-
-install_teensy() {
-    install_arm
-    
-    if [ -z "$CUSTOM_TEENSY_CORES" ]; then
-        if [ -d "${DEPS_TEENSY_CORES}" ]; then
-            echo "   [!] Teensy3 Framework already installed"
-        else
-            echo "   Installation of Teensy3 Framework"
-            git clone https://github.com/PaulStoffregen/cores "${DEPS_TEENSY_CORES}"
-        fi
-    fi
-    
-    if [ -e "${TEENSY_LOADER}" ]; then
-        echo "   [!] Teensy3 Loader already installed"
-    else
-        echo "   Installation of Teensy3 Loader"
-        retr_and_extract TEENSY_LOADER_URL[@] TEENSY_LOADER_CHECKSUM[@]
-        cd "${TEENSY_LOADER_DIR}"
-        make
-    fi
-}
-
-upload_teensy() {
-    echo "  Uploading to Teensy"
-    "${TEENSY_LOADER}" -mmcu=mk20dx128 "${TARGET}.hex"
 }

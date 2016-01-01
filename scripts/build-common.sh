@@ -60,47 +60,6 @@ checksum() {
     printf "%s\n" "${checksums[@]}" | shasum -a 256 -c -
 }
 
-retr_and_extract() {
-    declare -a urls=("${!1}")
-    declare -a cs=("${!2}")
-
-    (
-    create_depends_dir
-    cd "${DEPS}"
-
-    files=()
-    for url in "${urls[@]}"; do
-        f=$(basename $url)
-        echo "   Downloading '$f'"
-        curl "${url}" -C- -L -o "$f"
-        files+=( "$f" )
-    done
-
-    checksum cs[@]
-
-    for f in "${files[@]}"; do
-        echo "   Extraction of $f"
-        case "${f}" in
-            *.zip)
-                ($V; unzip -qq "$f" && rm "$f")
-                ;;
-            *.tar.gz)
-                ($V; tar xzf "$f" && rm "$f")
-                ;;
-            *.tar.bz2)
-                ($V; tar xjf "$f" && rm "$f")
-                ;;
-            *.7z)
-                ($V; 7z x "$f" && rm "$f")
-                ;;
-            *)
-                echo "extension '${f#*.}' not handled for '$f'"
-                ;;
-        esac
-    done
-    )
-}
-
 # http://stackoverflow.com/a/15736713/1290438
 in_array() {
     local -r NEEDLE=$1
