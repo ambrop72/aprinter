@@ -110,7 +110,6 @@ configure_arm() {
     )
     FLAGS_LD=(
         -T"${LINKER_SCRIPT}" -nostartfiles -Wl,--gc-sections
-        --specs=nano.specs -u _printf_float
     )
 
     if [ "$BUILD_WITH_CLANG" = 1 ]; then

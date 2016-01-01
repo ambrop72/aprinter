@@ -28,14 +28,16 @@ rec {
     /* This is where the APrinter source is taken from. */
     aprinterSource = stdenv.lib.cleanSource ./..;
     
-    /* Atmel AVR toolchain. */
-    gccAvrAtmel = pkgs.callPackage ./gcc_avr_atmel.nix {};
-    
-    /* Atmel AVR toolchain, built from source. */
+    /* AVR toolchain, built from source. */
     avrgcclibc = pkgs.callPackage ./avr-gcc-libc.nix {};
     
+    /* ARM microcontrollers toolchain, build from source. */
+    gcc-arm-embedded-fromsrc = pkgs.callPackage ./gcc-arm-embedded-fromsrc.nix {};
+    
     /* Clang compiler for ARM microcontrollers. */
-    clang-arm-embedded = pkgs.callPackage ./clang-arm-embedded.nix {};
+    clang-arm-embedded = pkgs.callPackage ./clang-arm-embedded.nix {
+        gcc-arm-embedded = gcc-arm-embedded-fromsrc;
+    };
     
     /* Atmel Software Framework (chip support for Atmel ARM chips). */
     asf = pkgs.callPackage ./asf.nix {};
@@ -47,32 +49,16 @@ rec {
     /* Teensy-cores (chip support for Teensy 3). */
     teensyCores = pkgs.callPackage ./teensy_cores.nix {};
     
-    /*
-        The primary APrinter build function.
-        It takes an aprinterConfig attrset with specific settings.
-        
-        The mandatory attributes are: buildName, boardName, mainText, desiredOutputs.        
-        The optional attributes are shown below, with examples of non-default values.
-        
-        assertionsEnabled = true;
-        eventLoopBenchmarkEnabled = true;
-        detectOverloadEnabled = true;
-        
-        To pass them, either modify aprinterTestFunc to use them for all targets,
-        or use .override, like this:
-        
-        aprinterTestMelziWithAssertions = aprinterTestMelzi.override { assertionsEnabled = true; };
-    */    
+    /* The primary APrinter build function. */    
     aprinterFunc = aprinterConfig: pkgs.callPackage ./aprinter.nix (
         {
             inherit clang-arm-embedded asf stm32cubef4 teensyCores aprinterSource;
-            inherit avrgcclibc; /* avrgcclibc = gccAvrAtmel; */
+            inherit avrgcclibc;
+            gcc-arm-embedded = gcc-arm-embedded-fromsrc;
         } // aprinterConfig
     );
     
-    /*
-        We need a specific version of NCD for the service.
-    */
+    /* We need a specific version of NCD for the service. */
     ncd = pkgs.callPackage ./ncd.nix {};
     
     /*
@@ -83,5 +69,5 @@ rec {
     aprinterServiceExprs = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
     aprinterService = aprinterServiceExprs.service;
     
-    buildDeps = [aprinterSource avrgcclibc clang-arm-embedded asf stm32cubef4 teensyCores];
+    buildDeps = [aprinterSource avrgcclibc gcc-arm-embedded-fromsrc clang-arm-embedded asf stm32cubef4 teensyCores];
 }

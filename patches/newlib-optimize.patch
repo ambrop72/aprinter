@@ -1,0 +1,14 @@
+--- linux-crt0.c
++++ linux-crt0.c
+@@ -22,7 +22,10 @@ asm("\n"
+ 	"\tbx r0\n"
+ 	".size _start, .-_start\n");
+ 
+-__attribute__((naked, used))
++/* Force _start_thumb in the .text section so this will still compile when
++ * enabling -ffunction-sections.
++ */
++__attribute__((naked, used)) __attribute__((section(".text")))
+ static void _start_thumb(void)
+ #else
+ __attribute__((naked))
