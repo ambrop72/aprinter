@@ -469,6 +469,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePin26",
           "Name": "X",
+          "StepLevel": true,
           "StepPin": "DuePin24",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -487,6 +488,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePin22",
           "Name": "Y",
+          "StepLevel": true,
           "StepPin": "DuePin17",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -505,6 +507,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePin15",
           "Name": "Z",
+          "StepLevel": true,
           "StepPin": "DuePin2",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -523,6 +526,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePinA8",
           "Name": "E1",
+          "StepLevel": true,
           "StepPin": "DuePinA7",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -541,6 +545,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePinA11",
           "Name": "E2",
+          "StepLevel": true,
           "StepPin": "DuePinA10",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -559,6 +564,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePin49",
           "Name": "E3",
+          "StepLevel": true,
           "StepPin": "DuePin51",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1003,6 +1009,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePin48",
           "Name": "X",
+          "StepLevel": true,
           "StepPin": "DuePinA9",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1021,6 +1028,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePin46",
           "Name": "Y",
+          "StepLevel": true,
           "StepPin": "DuePinA11",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1039,6 +1047,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePin44",
           "Name": "Z",
+          "StepLevel": true,
           "StepPin": "DuePinA13",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1057,6 +1066,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePin42",
           "Name": "E0",
+          "StepLevel": true,
           "StepPin": "DuePin36",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1075,6 +1085,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePin39",
           "Name": "E1",
+          "StepLevel": true,
           "StepPin": "DuePin43",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1093,6 +1104,7 @@
           "EnableLevel": false,
           "EnablePin": "DuePin45",
           "Name": "E2",
+          "StepLevel": true,
           "StepPin": "DuePin32",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1419,6 +1431,7 @@
           "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioC,31>",
           "Name": "X",
+          "StepLevel": true,
           "StepPin": "At91SamPin<At91SamPioC,28>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1447,6 +1460,7 @@
           "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioA,22>",
           "Name": "Y",
+          "StepLevel": true,
           "StepPin": "At91SamPin<At91SamPioC,23>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1475,6 +1489,7 @@
           "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioB,7>",
           "Name": "Z",
+          "StepLevel": true,
           "StepPin": "At91SamPin<At91SamPioA,27>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1503,6 +1518,7 @@
           "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioB,13>",
           "Name": "E",
+          "StepLevel": true,
           "StepPin": "At91SamPin<At91SamPioC,26>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1531,6 +1547,7 @@
           "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioC,13>",
           "Name": "U",
+          "StepLevel": true,
           "StepPin": "At91SamPin<At91SamPioB,1>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1776,6 +1793,7 @@
           "EnableLevel": false,
           "EnablePin": "TeensyPin8",
           "Name": "X",
+          "StepLevel": true,
           "StepPin": "TeensyPin0",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1794,6 +1812,7 @@
           "EnableLevel": false,
           "EnablePin": "TeensyPin9",
           "Name": "Y",
+          "StepLevel": true,
           "StepPin": "TeensyPin2",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1812,6 +1831,7 @@
           "EnableLevel": false,
           "EnablePin": "TeensyPin10",
           "Name": "Z",
+          "StepLevel": true,
           "StepPin": "TeensyPin4",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -1830,6 +1850,7 @@
           "EnableLevel": false,
           "EnablePin": "TeensyPin11",
           "Name": "E",
+          "StepLevel": true,
           "StepPin": "TeensyPin6",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2214,6 +2235,7 @@
           "EnableLevel": false,
           "EnablePin": "MegaPin38",
           "Name": "X",
+          "StepLevel": true,
           "StepPin": "MegaPin54",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2232,6 +2254,7 @@
           "EnableLevel": false,
           "EnablePin": "MegaPin56",
           "Name": "Y",
+          "StepLevel": true,
           "StepPin": "MegaPin60",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2250,6 +2273,7 @@
           "EnableLevel": false,
           "EnablePin": "MegaPin62",
           "Name": "Z",
+          "StepLevel": true,
           "StepPin": "MegaPin46",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2268,6 +2292,7 @@
           "EnableLevel": false,
           "EnablePin": "MegaPin24",
           "Name": "E0",
+          "StepLevel": true,
           "StepPin": "MegaPin26",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2286,6 +2311,7 @@
           "EnableLevel": false,
           "EnablePin": "MegaPin30",
           "Name": "E1",
+          "StepLevel": true,
           "StepPin": "MegaPin36",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2564,6 +2590,7 @@
           "EnableLevel": false,
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "X",
+          "StepLevel": true,
           "StepPin": "AvrPin<AvrPortD,7>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2582,6 +2609,7 @@
           "EnableLevel": false,
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "Y",
+          "StepLevel": true,
           "StepPin": "AvrPin<AvrPortC,6>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2600,6 +2628,7 @@
           "EnableLevel": false,
           "EnablePin": "AvrPin<AvrPortA,5>",
           "Name": "Z",
+          "StepLevel": true,
           "StepPin": "AvrPin<AvrPortB,3>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2618,6 +2647,7 @@
           "EnableLevel": false,
           "EnablePin": "AvrPin<AvrPortD,6>",
           "Name": "E",
+          "StepLevel": true,
           "StepPin": "AvrPin<AvrPortB,1>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2931,6 +2961,7 @@
           "EnableLevel": false,
           "EnablePin": "Stm32f4Pin<Stm32f4PortB,2>",
           "Name": "X",
+          "StepLevel": true,
           "StepPin": "Stm32f4Pin<Stm32f4PortG,3>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2949,6 +2980,7 @@
           "EnableLevel": false,
           "EnablePin": "Stm32f4Pin<Stm32f4PortD,4>",
           "Name": "Y",
+          "StepLevel": true,
           "StepPin": "Stm32f4Pin<Stm32f4PortD,5>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2967,6 +2999,7 @@
           "EnableLevel": false,
           "EnablePin": "Stm32f4Pin<Stm32f4PortA,10>",
           "Name": "Z",
+          "StepLevel": true,
           "StepPin": "Stm32f4Pin<Stm32f4PortA,9>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -2985,6 +3018,7 @@
           "EnableLevel": false,
           "EnablePin": "Stm32f4Pin<Stm32f4PortD,2>",
           "Name": "E",
+          "StepLevel": true,
           "StepPin": "Stm32f4Pin<Stm32f4PortC,12>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3312,6 +3346,7 @@
           "EnableLevel": false,
           "EnablePin": "Stm32f4Pin<Stm32f4PortD,7>",
           "Name": "X",
+          "StepLevel": true,
           "StepPin": "Stm32f4Pin<Stm32f4PortD,6>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3700,6 +3735,7 @@
           "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioD,6>",
           "Name": "X",
+          "StepLevel": true,
           "StepPin": "At91SamPin<At91SamPioD,4>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3718,6 +3754,7 @@
           "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioD,2>",
           "Name": "Y",
+          "StepLevel": true,
           "StepPin": "At91SamPin<At91SamPioD,0>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3736,6 +3773,7 @@
           "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioC,27>",
           "Name": "Z",
+          "StepLevel": true,
           "StepPin": "At91SamPin<At91SamPioC,25>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
@@ -3754,6 +3792,7 @@
           "EnableLevel": false,
           "EnablePin": "At91SamPin<At91SamPioA,5>",
           "Name": "E0",
+          "StepLevel": true,
           "StepPin": "At91SamPin<At91SamPioA,0>",
           "StepperTimer": {
             "_compoundName": "interrupt_timer",
