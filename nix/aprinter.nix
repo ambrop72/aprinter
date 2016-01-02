@@ -25,7 +25,7 @@
 { stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, avrgcclibc
 , asf, stm32cubef4, teensyCores, aprinterSource, buildVars, extraSources
 , extraIncludes, defines
-, mainText, boardName, buildName ? "nixbuild", desiredOutputs ? ["bin" "hex"]
+, mainText, boardName, buildName, desiredOutputs
 , optimizeForSize ? false, assertionsEnabled ? false
 , eventLoopBenchmarkEnabled ? false, detectOverloadEnabled ? false
 , buildWithClang ? false, verboseBuild ? false, debugSymbols ? false

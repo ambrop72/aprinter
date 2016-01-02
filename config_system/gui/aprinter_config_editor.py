@@ -664,7 +664,11 @@ def editor():
             ce.String(key='name', title='Name (modifying will break references from configurations and lose data)'),
             ce.Compound('PlatformConfig', key='platform_config', title='Platform configuration', collapsable=True, processing_order=-10, attrs=[
                 ce.String(key='board_for_build', title='Board for building (see nix/boards.nix)'),
-                ce.String(key='output_type', title='Build output type', enum=['hex', 'bin', 'elf']),
+                ce.Compound('output_types', key='output_types', title='Binary outputs types', attrs=[
+                    ce.Boolean(key='output_elf', title='.elf'),
+                    ce.Boolean(key='output_bin', title='.bin'),
+                    ce.Boolean(key='output_hex', title='.hex'),
+                ]),
                 ce.Array(key='board_helper_includes', title='Board helper includes', table=True, elem=ce.String(title='Name')),
                 ce.OneOf(key='platform', title='Platform', processing_order=-1, choices=[
                     platform_At91Sam3x8e(),
@@ -830,7 +834,7 @@ def editor():
                 ce.Boolean(key='DisableWatchdog', title='Disable the watchdog timer', default=False),
                 ce.Boolean(key='BuildWithClang', title='Build with the Clang compiler', default=False),
                 ce.Boolean(key='VerboseBuild', title='Verbose build output', default=False),
-                ce.Boolean(key='DebugSymbols', title='Build with debug symbols (compile may crash)', default=False),
+                ce.Boolean(key='DebugSymbols', title='Build with debug symbols (need lots of RAM, use of Clang advised)', default=False),
                 ce.Boolean(key='EnableBulkOutputTest', title='Enable bulk output test command (M942)', default=False),
             ]),
             ce.Compound('CurrentConfig', key='current_config', title='Motor current control', collapsable=True, attrs=[

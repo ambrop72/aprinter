@@ -177,6 +177,18 @@ function fixup_config(config) {
                 }
             }
         });
+        if (JSONEditor_utils.has(board, "platform_config")) {
+            var platform_config = board["platform_config"];
+            if (JSONEditor_utils.has(platform_config, "output_type") && !JSONEditor_utils.has(platform_config, "output_types")) {
+                var output_type = platform_config["output_type"];
+                platform_config["output_types"] = {
+                    "output_elf": (output_type == "elf"),
+                    "output_bin": (output_type == "bin"),
+                    "output_hex": (output_type == "hex")
+                };
+                delete platform_config["output_type"];
+            }
+        }
     });
     each_in(config, "configurations", function(i, configuration) {
         var board_of_configuration = null;

@@ -134,7 +134,12 @@
         "debug_interface": {
           "_compoundName": "NoDebug"
         },
-        "output_type": "bin"
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": false,
+          "output_hex": false
+        }
       },
       "digital_inputs": [
         {
@@ -714,7 +719,12 @@
         "debug_interface": {
           "_compoundName": "NoDebug"
         },
-        "output_type": "bin"
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": false,
+          "output_hex": false
+        }
       },
       "digital_inputs": [
         {
@@ -1181,7 +1191,12 @@
         "debug_interface": {
           "_compoundName": "NoDebug"
         },
-        "output_type": "bin"
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": false,
+          "output_hex": false
+        }
       },
       "digital_inputs": [
         {
@@ -1636,7 +1651,12 @@
         "debug_interface": {
           "_compoundName": "NoDebug"
         },
-        "output_type": "hex"
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": false,
+          "output_elf": false,
+          "output_hex": true
+        }
       },
       "digital_inputs": [
         {
@@ -1975,7 +1995,12 @@
         "debug_interface": {
           "_compoundName": "NoDebug"
         },
-        "output_type": "hex"
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": false,
+          "output_elf": false,
+          "output_hex": true
+        }
       },
       "digital_inputs": [
         {
@@ -2394,7 +2419,12 @@
         "debug_interface": {
           "_compoundName": "NoDebug"
         },
-        "output_type": "hex"
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": false,
+          "output_elf": false,
+          "output_hex": true
+        }
       },
       "digital_inputs": [
         {
@@ -2786,7 +2816,12 @@
         "debug_interface": {
           "_compoundName": "NoDebug"
         },
-        "output_type": "elf"
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": true,
+          "output_hex": false
+        }
       },
       "digital_inputs": [
         {
@@ -3157,7 +3192,12 @@
         "debug_interface": {
           "_compoundName": "NoDebug"
         },
-        "output_type": "elf"
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": true,
+          "output_hex": false
+        }
       },
       "digital_inputs": [
         {
@@ -3494,7 +3534,12 @@
         "debug_interface": {
           "_compoundName": "NoDebug"
         },
-        "output_type": "bin"
+        "output_types": {
+          "_compoundName": "output_types",
+          "output_bin": true,
+          "output_elf": false,
+          "output_hex": false
+        }
       },
       "digital_inputs": [
         {

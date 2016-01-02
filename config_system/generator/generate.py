@@ -1349,9 +1349,14 @@ def generate(config_root_data, cfg_name, main_template):
                         platform_config.key_path('board_for_build').error('Incorrect format.')
                     gen.add_subst('BoardForBuild', board_for_build)
                     
-                    output_type = platform_config.get_string('output_type')
-                    if output_type not in ('hex', 'bin', 'elf'):
-                        platform_config.key_path('output_type').error('Incorrect value.')
+                    output_types = []
+                    for output_types_config in platform_config.enter_config('output_types'):
+                        if output_types_config.get_bool('output_elf'):
+                            output_types.append('elf')
+                        if output_types_config.get_bool('output_bin'):
+                            output_types.append('bin')
+                        if output_types_config.get_bool('output_hex'):
+                            output_types.append('hex')
                     
                     setup_platform(gen, platform_config, 'platform')
                     
@@ -2236,7 +2241,7 @@ def generate(config_root_data, cfg_name, main_template):
     return {
         'main_source': rich_template.RichTemplate(main_template).substitute(gen.get_subst()),
         'board_for_build': board_for_build,
-        'output_type': output_type,
+        'output_types': output_types,
         'optimize_for_size': optimize_for_size,
         'assertions_enabled': assertions_enabled,
         'event_loop_benchmark_enabled': event_loop_benchmark_enabled,
@@ -2276,7 +2281,7 @@ def main():
     # Build the Nix expression.
     nix_expr = (
         'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{\n'
-        '    boardName = {}; buildName = "aprinter"; desiredOutputs = [{}]; optimizeForSize = {};\n'
+        '    boardName = {}; buildName = "aprinter"; desiredOutputs = {}; optimizeForSize = {};\n'
         '    assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {};\n'
         '    buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; buildVars = {};\n'
         '    extraSources = {}; extraIncludes = {}; defines = {}; mainText = {};\n'
@@ -2284,7 +2289,7 @@ def main():
     ).format(
         nix_utils.escape_string_for_nix(nix_dir),
         nix_utils.escape_string_for_nix(result['board_for_build']),
-        nix_utils.escape_string_for_nix(result['output_type']),
+        nix_utils.convert_for_nix(result['output_types']),
         nix_utils.convert_bool_for_nix(result['optimize_for_size']),
         nix_utils.convert_bool_for_nix(result['assertions_enabled']),
         nix_utils.convert_bool_for_nix(result['event_loop_benchmark_enabled']),
