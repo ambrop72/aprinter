@@ -40,10 +40,12 @@ template <typename Context, typename TheFsAccess>
 class BufferedFile {
 private:
     using TheFs = typename TheFsAccess::TheFileSystem;
+    using TheOpener = typename TheFs::Opener;
+    using TheFile = typename TheFs::template File<true>;
     
     enum class State {
         IDLE,
-        OPEN_ACCESS, OPEN_BUFFER, OPEN_OPEN, OPEN_OPENWR,
+        OPEN_ACCESS, OPEN_OPEN, OPEN_OPENWR,
         READY,
         WRITE_EVENT, WRITE_WRITE, WRITE_TRUNCATE, WRITE_FLUSH,
         READ_EVENT, READ_READ
@@ -60,7 +62,6 @@ public:
         m_completion_handler = completion_handler;
         m_event.init(c, APRINTER_CB_OBJFUNC_T(&BufferedFile::event_handler, this));
         m_access_client.init(c, APRINTER_CB_OBJFUNC_T(&BufferedFile::access_client_handler, this));
-        m_user_buffer.init(c, APRINTER_CB_OBJFUNC_T(&BufferedFile::user_buffer_handler, this));
         m_state = State::IDLE;
         m_have_opener = false;
         m_have_file = false;
@@ -70,7 +71,6 @@ public:
     void deinit (Context c)
     {
         reset_internal(c);
-        m_user_buffer.deinit(c);
         m_access_client.deinit(c);
         m_event.deinit(c);
     }
@@ -83,6 +83,8 @@ public:
     void startOpen (Context c, char const *filename, bool in_current_dir, OpenMode mode)
     {
         AMBRO_ASSERT(m_state == State::IDLE)
+        AMBRO_ASSERT(filename)
+        AMBRO_ASSERT(mode == OpenMode::OPEN_READ || mode == OpenMode::OPEN_WRITE)
         
         m_state = State::OPEN_ACCESS;
         m_filename = filename;
@@ -147,7 +149,6 @@ private:
             m_fs_opener.deinit(c);
             m_have_opener = false;
         }
-        m_user_buffer.reset(c);
         m_access_client.reset(c);
         m_event.unset(c);
         m_state = State::IDLE;
@@ -162,18 +163,6 @@ private:
     void access_client_handler (Context c, bool error)
     {
         AMBRO_ASSERT(m_state == State::OPEN_ACCESS)
-        
-        if (error) {
-            return reset_and_complete(c, Error::OTHER_ERROR);
-        }
-        
-        m_state = State::OPEN_BUFFER;
-        m_user_buffer.requestUserBuffer(c);
-    }
-    
-    void user_buffer_handler (Context c, bool error)
-    {
-        AMBRO_ASSERT(m_state == State::OPEN_BUFFER)
         AMBRO_ASSERT(!m_have_opener)
         
         if (error) {
@@ -186,21 +175,21 @@ private:
         m_have_opener = true;
     }
     
-    void fs_opener_handler (Context c, typename TheFs::Opener::OpenerStatus status, typename TheFs::FsEntry entry)
+    void fs_opener_handler (Context c, typename TheOpener::OpenerStatus status, typename TheFs::FsEntry entry)
     {
         AMBRO_ASSERT(m_state == State::OPEN_OPEN)
         AMBRO_ASSERT(m_have_opener)
         AMBRO_ASSERT(!m_have_file)
         
-        if (status != TheFs::Opener::OpenerStatus::SUCCESS) {
-            Error user_error = (status == TheFs::Opener::OpenerStatus::NOT_FOUND) ? Error::NOT_FOUND : Error::OTHER_ERROR;
+        if (status != TheOpener::OpenerStatus::SUCCESS) {
+            Error user_error = (status == TheOpener::OpenerStatus::NOT_FOUND) ? Error::NOT_FOUND : Error::OTHER_ERROR;
             return reset_and_complete(c, user_error);
         }
         
         m_fs_opener.deinit(c);
         m_have_opener = false;
         
-        m_fs_file.init(c, entry, APRINTER_CB_OBJFUNC_T(&BufferedFile::fs_file_handler, this));
+        m_fs_file.init(c, entry, APRINTER_CB_OBJFUNC_T(&BufferedFile::fs_file_handler, this), TheFile::IoMode::FS_BUFFER);
         m_have_file = true;
         
         if (m_write_mode) {
@@ -217,6 +206,7 @@ private:
     void fs_file_handler (Context c, bool io_error, size_t read_length)
     {
         AMBRO_ASSERT(m_state == State::OPEN_OPENWR || m_state == State::WRITE_WRITE || m_state == State::READ_READ || m_state == State::WRITE_TRUNCATE)
+        AMBRO_ASSERT(m_have_file)
         
         if (io_error) {
             return reset_and_complete(c, Error::OTHER_ERROR);
@@ -225,7 +215,7 @@ private:
         if (m_state == State::OPEN_OPENWR) {
             m_state = State::READY;
             m_write_eof = false;
-            m_write_buffer_pos = 0;
+            m_write_buffer_pos = TheFs::BlockSize;
             return m_completion_handler(c, Error::NO_ERROR, 0);
         }
         else if (m_state == State::WRITE_WRITE) {
@@ -242,7 +232,6 @@ private:
             m_event.prependNowNotAlready(c);
         }
         else { // m_state == State::WRITE_TRUNCATE
-            AMBRO_ASSERT(m_have_file)
             AMBRO_ASSERT(!m_have_flush)
             
             m_fs_file.deinit(c);
@@ -266,61 +255,80 @@ private:
     
     void event_handler (Context c)
     {
-        AMBRO_ASSERT(m_state == State::WRITE_EVENT || m_state == State::READ_EVENT)
-        
-        size_t read_length_for_callback = 0;
-        
         if (m_state == State::WRITE_EVENT) {
-            size_t to_copy = MinValue(m_write_length, (size_t)(TheFs::BlockSize - m_write_buffer_pos));
-            if (to_copy > 0) {
-                memcpy(m_user_buffer.getUserBuffer(c) + m_write_buffer_pos, m_write_data, to_copy);
-                m_write_data += to_copy;
-                m_write_length -= to_copy;
-                m_write_buffer_pos += to_copy;
-            }
-            
-            if (m_write_buffer_pos == TheFs::BlockSize || (m_write_eof && m_write_buffer_pos > 0)) {
-                m_state = State::WRITE_WRITE;
-                m_fs_file.startWrite(c, WrapBuffer::Make(m_user_buffer.getUserBuffer(c)), m_write_buffer_pos);
-                return;
-            }
-            
-            if (m_write_eof) {
-                m_fs_file.startTruncate(c);
-                m_state = State::WRITE_TRUNCATE;
-                return;
-            }
+            handle_event_write(c);
         } else {
-            size_t to_copy = MinValue(m_read_avail, (size_t)(m_read_buffer_length - m_read_buffer_pos));
-            if (to_copy > 0) {
-                memcpy(m_read_data, m_user_buffer.getUserBuffer(c) + m_read_buffer_pos, to_copy);
-                m_read_data += to_copy;
-                m_read_avail -= to_copy;
-                m_read_pos += to_copy;
-                m_read_buffer_pos += to_copy;
+            AMBRO_ASSERT(m_state == State::READ_EVENT)
+            handle_event_read(c);
+        }
+    }
+    
+    void handle_event_write (Context c)
+    {
+        if (m_write_eof) {
+            if (m_write_buffer_pos < TheFs::BlockSize) {
+                m_fs_file.finishWrite(c, m_write_buffer_pos);
             }
+            m_fs_file.startTruncate(c);
+            m_state = State::WRITE_TRUNCATE;
+            return;
+        }
+        
+        size_t to_copy = MinValue(m_write_length, (size_t)(TheFs::BlockSize - m_write_buffer_pos));
+        if (to_copy > 0) {
+            memcpy(m_fs_file.getWritePointer(c) + m_write_buffer_pos, m_write_data, to_copy);
+            m_write_data += to_copy;
+            m_write_length -= to_copy;
+            m_write_buffer_pos += to_copy;
             
-            if (m_read_avail > 0 && m_read_buffer_pos == TheFs::BlockSize) {
-                m_state = State::READ_READ;
-                m_fs_file.startRead(c, WrapBuffer::Make(m_user_buffer.getUserBuffer(c)));
-                return;
+            if (m_write_buffer_pos == TheFs::BlockSize) {
+                m_fs_file.finishWrite(c, m_write_buffer_pos);
             }
-            
-            read_length_for_callback = m_read_pos;
+        }
+        
+        if (m_write_length > 0) {
+            AMBRO_ASSERT(m_write_buffer_pos == TheFs::BlockSize)
+            m_state = State::WRITE_WRITE;
+            m_fs_file.startWrite(c);
+            return;
         }
         
         m_state = State::READY;
-        return m_completion_handler(c, Error::NO_ERROR, read_length_for_callback);
+        return m_completion_handler(c, Error::NO_ERROR, 0);
+    }
+    
+    void handle_event_read (Context c)
+    {
+        size_t to_copy = MinValue(m_read_avail, (size_t)(m_read_buffer_length - m_read_buffer_pos));
+        if (to_copy > 0) {
+            memcpy(m_read_data, m_fs_file.getReadPointer(c) + m_read_buffer_pos, to_copy);
+            m_read_data += to_copy;
+            m_read_avail -= to_copy;
+            m_read_pos += to_copy;
+            m_read_buffer_pos += to_copy;
+            
+            if (m_read_buffer_pos == m_read_buffer_length) {
+                m_fs_file.finishRead(c);
+            }
+        }
+        
+        if (m_read_avail > 0 && m_read_buffer_pos == TheFs::BlockSize) {
+            m_state = State::READ_READ;
+            m_fs_file.startRead(c);
+            return;
+        }
+        
+        m_state = State::READY;
+        return m_completion_handler(c, Error::NO_ERROR, m_read_pos);
     }
     
 public:
     CompletionHandler m_completion_handler;
     typename Context::EventLoop::QueuedEvent m_event;
     typename TheFsAccess::Client m_access_client;
-    typename TheFsAccess::UserBuffer m_user_buffer;
     union {
-        typename TheFs::Opener m_fs_opener;
-        typename TheFs::template File<true> m_fs_file;
+        TheOpener m_fs_opener;
+        TheFile m_fs_file;
         typename TheFs::template FlushRequest<> m_fs_flush;
     };
     State m_state;
