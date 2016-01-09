@@ -137,7 +137,7 @@ public:
         o->state = FsState::INIT;
         
         o->init_block_ref.init(c, APRINTER_CB_STATFUNC_T(&FatFs::init_block_ref_handler));
-        o->init_block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
+        o->init_block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION);
         
         fs_writable_init(c);
         
@@ -183,7 +183,7 @@ public:
         AMBRO_ASSERT(o->alloc_state == AllocationState::IDLE)
         
         o->write_mount_state = WriteMountState::MOUNT_META;
-        o->write_block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
+        o->write_block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION);
     }
     
     APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, startWriteUnmount (Context c))
@@ -303,6 +303,7 @@ public:
         size_t m_write_bytes_in_block;
         BlockIndexType m_dir_entry_block_index;
         DirEntriesPerBlockType m_dir_entry_block_offset;
+        bool m_no_need_to_read_for_write;
         WriteReference<true> m_write_ref;
     };
     
@@ -429,19 +430,30 @@ public:
             clean_up_writability(c);
         }
         
-        APRINTER_FUNCTION_IF(Writable, void, startWrite (Context c, WrapBuffer buf=WrapBuffer::Make(nullptr), size_t bytes_in_block=0))
+        APRINTER_FUNCTION_IF(Writable, void, startWriteUserBuf (Context c, WrapBuffer buf, size_t bytes_in_block))
         {
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == State::IDLE)
-            AMBRO_ASSERT(bool(buf.ptr1) == (m_io_mode == IoMode::USER_BUFFER))
-            AMBRO_ASSERT(m_io_mode != IoMode::USER_BUFFER || bytes_in_block > 0)
-            AMBRO_ASSERT(m_io_mode != IoMode::USER_BUFFER || bytes_in_block <= BlockSize)
             AMBRO_ASSERT(m_file_pos % BlockSize == 0)
+            AMBRO_ASSERT(m_io_mode == IoMode::USER_BUFFER)
+            AMBRO_ASSERT(buf.ptr1)
+            AMBRO_ASSERT(bytes_in_block > 0)
+            AMBRO_ASSERT(bytes_in_block <= BlockSize)
             
-            if (m_io_mode == IoMode::USER_BUFFER) {
-                m_user_buffer_mode.request_buf = buf;
-                this->m_write_bytes_in_block = bytes_in_block;
-            }
+            m_user_buffer_mode.request_buf = buf;
+            this->m_write_bytes_in_block = bytes_in_block;
+            m_state = State::WRITE_EVENT;
+            m_event.prependNowNotAlready(c);
+        }
+        
+        APRINTER_FUNCTION_IF(Writable, void, startWriteFsBuf (Context c, bool no_need_to_read))
+        {
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::IDLE)
+            AMBRO_ASSERT(m_file_pos % BlockSize == 0)
+            AMBRO_ASSERT(m_io_mode == IoMode::FS_BUFFER)
+            
+            this->m_no_need_to_read_for_write = no_need_to_read;
             m_state = State::WRITE_EVENT;
             m_event.prependNowNotAlready(c);
         }
@@ -524,7 +536,7 @@ public:
             if (m_io_mode == IoMode::USER_BUFFER) {
                 m_user_buffer_mode.block_user.startRead(c, abs_block_idx, m_user_buffer_mode.request_buf);
             } else {
-                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, true);
+                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION);
             }
         }
         
@@ -535,6 +547,7 @@ public:
                 return complete_request(c, true);
             }
             if (m_block_in_cluster == o->blocks_per_cluster) {
+                this->m_no_need_to_read_for_write = true;
                 m_state = State::WRITE_NEXT_CLUSTER;
                 m_chain.requestNext(c);
                 return;
@@ -547,7 +560,11 @@ public:
             if (m_io_mode == IoMode::USER_BUFFER) {
                 m_user_buffer_mode.block_user.startWrite(c, abs_block_idx, m_user_buffer_mode.request_buf);
             } else {
-                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, true);
+                uint8_t flags = CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION;
+                if (this->m_no_need_to_read_for_write) {
+                    flags |= CacheBlockRef::FLAG_NO_NEED_TO_READ;
+                }
+                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, flags);
             }
         }
         
@@ -975,7 +992,7 @@ private:
             return complete_write_mount_request(c, true);
         }
         o->write_mount_state = WriteMountState::MOUNT_FSINFO;
-        o->fs_info_block_ref.requestBlock(c, get_abs_block_index(c, o->fs_info_block), 0, 1, true);
+        o->fs_info_block_ref.requestBlock(c, get_abs_block_index(c, o->fs_info_block), 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION);
     }
     
     APRINTER_FUNCTION_IF_EXT(FsWritable, static, void, flush_request_handler (Context c, bool error))
@@ -998,7 +1015,7 @@ private:
                     return complete_write_unmount_request(c, true);
                 }
                 o->write_mount_state = WriteMountState::UMOUNT_META;
-                o->write_block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, true);
+                o->write_block_ref.requestBlock(c, get_abs_block_index(c, 0), 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION);
             } break;
             
             case WriteMountState::UMOUNT_FLUSH2: {
@@ -1088,7 +1105,7 @@ private:
         
         BlockIndexType abs_block_idx = get_abs_block_index_for_fat_entry(c, cluster_idx);
         BlockIndexType num_blocks_per_fat = o->num_fat_entries / FatEntriesPerBlock;
-        return block_ref->requestBlock(c, abs_block_idx, num_blocks_per_fat, o->num_fats, disable_immediate_completion);
+        return block_ref->requestBlock(c, abs_block_idx, num_blocks_per_fat, o->num_fats, disable_immediate_completion ? CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION : 0);
     }
     
     template <bool ForWriting>
@@ -1641,7 +1658,7 @@ private:
             
             m_state = State::REQUESTING_BLOCK;
             m_block_offset = block_offset;
-            m_block_ref.requestBlock(c, get_abs_block_index(c, block_index), 0, 1, true);
+            m_block_ref.requestBlock(c, get_abs_block_index(c, block_index), 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION);
         }
         
         ClusterIndexType getFirstCluster (Context c)
@@ -1765,7 +1782,7 @@ private:
                 }
                 
                 BlockIndexType abs_block_idx = get_cluster_data_abs_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster);
-                if (!m_dir_block_ref.requestBlock(c, abs_block_idx, 0, 1)) {
+                if (!m_dir_block_ref.requestBlock(c, abs_block_idx, 0, 1, 0)) {
                     m_state = State::REQUESTING_BLOCK;
                     return;
                 }

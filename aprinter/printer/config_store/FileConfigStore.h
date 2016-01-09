@@ -191,7 +191,7 @@ private:
     {
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->data_length > 0)
-        o->fs_file.startWrite(c, WrapBuffer::Make(o->user_buffer.getUserBuffer(c)), o->data_length);
+        o->fs_file.startWriteUserBuf(c, WrapBuffer::Make(o->user_buffer.getUserBuffer(c)), o->data_length);
         o->state = STATE_WRITE_WRITE;
     }
     

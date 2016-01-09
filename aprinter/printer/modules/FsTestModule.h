@@ -252,7 +252,7 @@ private:
         }
         
         if (o->buffer_pos > 0) {
-            o->fs_file.startWrite(c, WrapBuffer::Make(o->user_buffer.getUserBuffer(c)), o->buffer_pos);
+            o->fs_file.startWriteUserBuf(c, WrapBuffer::Make(o->user_buffer.getUserBuffer(c)), o->buffer_pos);
             o->state = STATE_WRITE;
             auto *output = ThePrinterMain::get_msg_output(c);
             output->reply_append_pstr(c, AMBRO_PSTR("//FsTest:Write="));

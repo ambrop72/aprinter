@@ -185,6 +185,7 @@ public:
         BlockIndexType m_write_stride;
         uint8_t m_write_count;
         bool m_allocating_for_user;
+        bool m_no_need_to_read;
     };
     
     class CacheRef : private SimpleDebugObject<Context>, private CacheRefWritableMemebers<Writable> {
@@ -195,6 +196,11 @@ public:
         
     public:
         using CacheHandler = Callback<void(Context c, bool error)>;
+        
+        enum Flags : uint8_t {
+            FLAG_NO_IMMEDIATE_COMPLETION = 1 << 0,
+            FLAG_NO_NEED_TO_READ         = 1 << 1
+        };
         
         void init (Context c, CacheHandler handler)
         {
@@ -218,16 +224,16 @@ public:
             reset_internal(c);
         }
         
-        bool requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, bool disable_immediate_completion=false)
+        bool requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags)
         {
             this->debugAccess(c);
             TheDebugObject::access(c);
             
-            if (!disable_immediate_completion && (is_allocating_block(block) || (m_entry_index != -1 && !get_entry(c)->isAssignedForUser(c) && block == get_entry(c)->getBlock(c)))) {
+            if (!(flags & FLAG_NO_IMMEDIATE_COMPLETION) && (is_allocating_block(block) || (m_entry_index != -1 && !get_entry(c)->isAssignedForUser(c) && block == get_entry(c)->getBlock(c)))) {
                 check_write_params(write_stride, write_count);
                 return m_state == State::AVAILABLE;
             }
-            request_common(c, block, write_stride, write_count, false);
+            request_common(c, block, write_stride, write_count, flags, false);
             return false; // never do we end up in State::AVAILABLE in this branch
         }
         
@@ -236,7 +242,7 @@ public:
             this->debugAccess(c);
             TheDebugObject::access(c);
             
-            request_common(c, 0, 0, 0, true);
+            request_common(c, 0, 0, 0, 0, true);
         }
         
         bool isAvailable (Context c)
@@ -297,10 +303,11 @@ public:
             AMBRO_ASSERT(write_count == this->m_write_count)
         }
         
-        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, set_write_params (BlockIndexType write_stride, uint8_t write_count))
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, set_write_params (BlockIndexType write_stride, uint8_t write_count, uint8_t flags))
         {
             this->m_write_stride = write_stride;
             this->m_write_count = write_count;
+            this->m_no_need_to_read = (flags & FLAG_NO_NEED_TO_READ);
         }
         
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, start_allocation (Context c, BlockIndexType block, bool for_user))
@@ -325,6 +332,12 @@ public:
             return false;
         })
         
+        APRINTER_FUNCTION_IF_ELSE(Writable, bool, get_no_need_to_read (), {
+            return this->m_no_need_to_read;
+        }, {
+            return false;
+        })
+        
         void reset_internal (Context c)
         {
             if (m_state == State::INVALID) {
@@ -343,11 +356,11 @@ public:
             m_state = State::INVALID;
         }
         
-        void request_common (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, bool for_user)
+        void request_common (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags, bool for_user)
         {
             reset_internal(c);
             
-            set_write_params(write_stride, write_count);
+            set_write_params(write_stride, write_count, flags);
             
             CacheEntryIndexType entry_index = get_entry_for_block(c, block, for_user);
             if (entry_index != -1) {
@@ -380,7 +393,7 @@ public:
                 get_entry(c)->assignToUserBlock(c, this);
                 complete_init(c);
             } else {
-                get_entry(c)->assignBlockAndAttachUser(c, block, write_stride, write_count, this);
+                get_entry(c)->assignBlockAndAttachUser(c, block, write_stride, write_count, get_no_need_to_read(), this);
                 if (!get_entry(c)->isInitialized(c)) {
                     m_state = State::WAITING_READ;
                 } else {
@@ -762,25 +775,34 @@ private:
             return this->m_dirt_time;
         }
         
-        void assignBlockAndAttachUser (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, CacheRef *user)
+        void assignBlockAndAttachUser (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, bool no_need_to_read, CacheRef *user)
         {
             AMBRO_ASSERT(write_count >= 1)
             AMBRO_ASSERT(!isBeingReleased(c))
             
             if (isAssignedForBlock(c) && block == m_block) {
                 check_write_params(write_stride, write_count);
-            } else {
-                AMBRO_ASSERT(m_cache_users_list.isEmpty())
-                AMBRO_ASSERT(m_state == State::INVALID || m_state == State::IDLE)
-                AMBRO_ASSERT(m_state == State::INVALID || get_dirt_state() == DirtState::CLEAN)
-                
-                m_state = State::READING;
-                m_block = block;
-                writable_assign(c, write_stride, write_count);
-                m_block_user.startRead(c, m_block, WrapBuffer::Make(get_buffer(c)));
+                m_cache_users_list.prepend(user);
+                return;
             }
             
+            AMBRO_ASSERT(m_cache_users_list.isEmpty())
+            AMBRO_ASSERT(m_state == State::INVALID || m_state == State::IDLE)
+            AMBRO_ASSERT(m_state == State::INVALID || get_dirt_state() == DirtState::CLEAN)
+            
+            m_block = block;
+            writable_assign(c, write_stride, write_count);
+            
             m_cache_users_list.prepend(user);
+            
+            if (Writable && no_need_to_read) {
+                m_state = State::IDLE;
+                memset(get_buffer(c), 0, BlockSize);
+                // No implicit markDirty.
+            } else {
+                m_state = State::READING;
+                m_block_user.startRead(c, m_block, WrapBuffer::Make(get_buffer(c)));
+            }
         }
         
         void assignToUserBlock (Context c, CacheRef *user)

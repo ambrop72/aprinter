@@ -289,7 +289,7 @@ private:
         if (m_write_length > 0) {
             AMBRO_ASSERT(m_write_buffer_pos == TheFs::BlockSize)
             m_state = State::WRITE_WRITE;
-            m_fs_file.startWrite(c);
+            m_fs_file.startWriteFsBuf(c, true);
             return;
         }
         
