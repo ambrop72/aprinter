@@ -25,8 +25,8 @@
 // We expect these to be defined externally:
 //#define APRINTER_NUM_TCP_CONN <count>
 //#define APRINTER_NUM_TCP_LISTEN <count>
-//#define APRINTER_TCP_RX_BUF_PKTS <count>
-//#define APRINTER_TCP_TX_BUF_PKTS <count>
+//#define APRINTER_TCP_RX_BUF <bytes>
+//#define APRINTER_TCP_TX_BUF <bytes>
 //#define APRINTER_MEM_ALIGNMENT <bytes>
 
 // Simple options, mostly enable/disable.
@@ -83,8 +83,8 @@
 // Note that we actually have ring buffers of these sizes in
 // LwipNetwork::TcpConnection, lwIP just needs to be aware of
 // how large they are.
-#define TCP_WND (APRINTER_TCP_RX_BUF_PKTS * TCP_MSS)
-#define TCP_SND_BUF (APRINTER_TCP_TX_BUF_PKTS * TCP_MSS)
+#define TCP_WND APRINTER_TCP_RX_BUF
+#define TCP_SND_BUF APRINTER_TCP_TX_BUF
 
 // Disable queuing of received out-of-sequence segments.
 // This must be disabled because our RX code expects pbufs fed into the stack
