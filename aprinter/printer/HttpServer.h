@@ -77,10 +77,14 @@ private:
     static_assert(Params::TxChunkHeaderDigits >= 3, "");
     static_assert(Params::TxChunkHeaderDigits <= 8, "");
     
-    // Check TxChunkHeaderDigits (needs to be large enough to encode the largest possible chunk size).
+    // Check sizes related to sending by chunked-encoding.
+    // - The send buffer needs to be large enough that we can build a chunk with at least 1 byte of payload.
+    // - The number of digits for the chunk length needs to be enough for the largest possible chunk.
     static size_t const TxChunkHeaderSize = Params::TxChunkHeaderDigits + 2;
-    static_assert(TxChunkHeaderSize < TxBufferSize, "");
-    static size_t const TxBufferSizeForChunkData = TxBufferSize - TxChunkHeaderSize;
+    static size_t const TxChunkFooterSize = 2;
+    static size_t const TxChunkOverhead = TxChunkHeaderSize + TxChunkFooterSize;
+    static_assert(TxBufferSize > TxChunkOverhead, "");
+    static size_t const TxBufferSizeForChunkData = TxBufferSize - TxChunkOverhead;
     static_assert(Params::TxChunkHeaderDigits >= HexDigitsInInt<TxBufferSizeForChunkData>::Value, "");
     
 public:
@@ -350,8 +354,8 @@ private:
                         
                         case SendState::SEND_LAST_CHUNK: {
                             // When we have enough space in the send buffer, send the zero-chunk.
-                            if (m_connection.getSendBufferSpace(c) >= 3) {
-                                send_string(c, "0\r\n");
+                            if (m_connection.getSendBufferSpace(c) >= 5) {
+                                send_string(c, "0\r\n\r\n");
                                 m_connection.pokeSending(c);
                                 m_send_state = SendState::COMPLETED;
                                 check_for_next_request(c);
@@ -833,7 +837,7 @@ private:
                 m_send_state = SendState::COMPLETED;
             }
             else if (m_send_state == SendState::SEND_BODY) {
-                // The response hread has been sent and possibly some body,
+                // The response head has been sent and possibly some body,
                 // but we need to terminate it with a zero-chunk.
                 m_send_state = SendState::SEND_LAST_CHUNK;
                 m_send_event.prependNow(c);
@@ -994,10 +998,10 @@ private:
             WrapBuffer con_space_buffer;
             size_t con_space_avail = m_connection.getSendBufferSpace(c, &con_space_buffer);
             
-            if (con_space_avail < TxChunkHeaderSize) {
+            if (con_space_avail <= TxChunkOverhead) {
                 return ResponseBodyBufferState{WrapBuffer::Make(nullptr), 0};
             }
-            return ResponseBodyBufferState{con_space_buffer.subFrom(TxChunkHeaderSize), con_space_avail - TxChunkHeaderSize};
+            return ResponseBodyBufferState{con_space_buffer.subFrom(TxChunkHeaderSize), con_space_avail - TxChunkOverhead};
         }
         
         void provideResponseBodyData (Context c, size_t length)
@@ -1013,16 +1017,17 @@ private:
             // Get the send buffer reference and sanity check the length / space.
             WrapBuffer con_space_buffer;
             size_t con_space_avail = m_connection.getSendBufferSpace(c, &con_space_buffer);
-            AMBRO_ASSERT(con_space_avail >= TxChunkHeaderSize)
-            AMBRO_ASSERT(length <= con_space_avail - TxChunkHeaderSize)
+            AMBRO_ASSERT(con_space_avail >= TxChunkOverhead)
+            AMBRO_ASSERT(length <= con_space_avail - TxChunkOverhead)
             
-            // Write the chunk header into the send buffer.
+            // Write the chunk header and footer.
             char chunk_header[TxChunkHeaderSize + 1];
             sprintf(chunk_header, "%.*" PRIx32 "\r\n", (int)Params::TxChunkHeaderDigits, (uint32_t)length);
             con_space_buffer.copyIn(0, TxChunkHeaderSize, chunk_header);
-            m_connection.copySendData(c, nullptr, TxChunkHeaderSize + length);
+            con_space_buffer.copyIn(TxChunkHeaderSize + length, 2, "\r\n");
             
-            // Poke the connection to send data.
+            // Submit data to the connection and poke sending.
+            m_connection.copySendData(c, nullptr, TxChunkOverhead + length);
             m_connection.pokeSending(c);
         }
         
