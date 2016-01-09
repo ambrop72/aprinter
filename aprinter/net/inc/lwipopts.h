@@ -95,7 +95,7 @@
 // Note that currently lwIP only enforces this limit when adding new
 // segments and not when adding a pbuf to an existing segment.
 // Nevertheless we should not run out of pbufs due to TCP_EXTEND_ROM_PBUFS.
-#define TCP_SND_QUEUELEN 6
+#define TCP_SND_QUEUELEN (2 * ((TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS) + 2)
 
 // Number of TCP segments in the pool.
 // Each connection uses at most TCP_SND_QUEUELEN segments since each segment
