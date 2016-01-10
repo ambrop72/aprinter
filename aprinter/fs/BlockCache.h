@@ -224,7 +224,7 @@ public:
             reset_internal(c);
         }
         
-        bool requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags)
+        bool requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags, uint8_t eviction_priority=128)
         {
             this->debugAccess(c);
             TheDebugObject::access(c);
@@ -233,7 +233,7 @@ public:
                 check_write_params(write_stride, write_count);
                 return m_state == State::AVAILABLE;
             }
-            request_common(c, block, write_stride, write_count, flags, false);
+            request_common(c, block, write_stride, write_count, flags, eviction_priority, false);
             return false; // never do we end up in State::AVAILABLE in this branch
         }
         
@@ -242,7 +242,7 @@ public:
             this->debugAccess(c);
             TheDebugObject::access(c);
             
-            request_common(c, 0, 0, 0, 0, true);
+            request_common(c, 0, 0, 0, 0, 0, true);
         }
         
         bool isAvailable (Context c)
@@ -278,13 +278,13 @@ public:
             return get_entry(c)->getDataForWriting(c);
         }
         
-        APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c, uint8_t dirt_priority=8))
+        APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c))
         {
             this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
             AMBRO_ASSERT(get_entry(c)->isAssignedForBlock(c))
             
-            get_entry(c)->markDirty(c, dirt_priority);
+            get_entry(c)->markDirty(c);
         }
         
         char * getUserBuffer (Context c)
@@ -310,14 +310,14 @@ public:
             this->m_no_need_to_read = (flags & FLAG_NO_NEED_TO_READ);
         }
         
-        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, start_allocation (Context c, BlockIndexType block, bool for_user))
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, register_allocation (Context c, BlockIndexType block, bool for_user))
         {
             auto *o = Object::self(c);
+            
             m_state = State::ALLOCATING_ENTRY;
             this->m_allocating_block = block;
             this->m_allocating_for_user = for_user;
             o->pending_allocations.append(this);
-            schedule_allocations_check(c);
         }
         
         CacheEntry * get_entry (Context c)
@@ -356,21 +356,25 @@ public:
             m_state = State::INVALID;
         }
         
-        void request_common (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags, bool for_user)
+        void request_common (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags, uint8_t eviction_priority, bool for_user)
         {
             reset_internal(c);
             
+            m_eviction_priority = eviction_priority;
             set_write_params(write_stride, write_count, flags);
             
-            CacheEntryIndexType entry_index = get_entry_for_block(c, block, for_user);
-            if (entry_index != -1) {
-                attach_to_entry(c, entry_index, block, write_stride, write_count, for_user);
-            } else {
-                if (Writable) {
-                    start_allocation(c, block, for_user);
-                } else {
-                    complete_init(c);
-                }
+            CacheEntryIndexType alloc_result = get_entry_for_block(c, block, for_user);
+            if (alloc_result >= 0) {
+                attach_to_entry(c, alloc_result, block, write_stride, write_count, for_user);
+            }
+            else if (Writable && alloc_result == -1) {
+                // There's an entry being released, register for notification to retry then.
+                register_allocation(c, block, for_user);
+            }
+            else {
+                AMBRO_ASSERT(alloc_result == -2)
+                // Fail.
+                complete_init(c);
             }
         }
         
@@ -393,7 +397,7 @@ public:
                 get_entry(c)->assignToUserBlock(c, this);
                 complete_init(c);
             } else {
-                get_entry(c)->assignBlockAndAttachUser(c, block, write_stride, write_count, get_no_need_to_read(), this);
+                get_entry(c)->assignBlockAndAttachUser(c, block, write_stride, write_count, get_no_need_to_read(), m_eviction_priority, this);
                 if (!get_entry(c)->isInitialized(c)) {
                     m_state = State::WAITING_READ;
                 } else {
@@ -419,16 +423,33 @@ public:
             AMBRO_ASSERT(m_state == State::ALLOCATING_ENTRY)
             AMBRO_ASSERT(m_entry_index == -1)
             
+            CacheEntryIndexType alloc_result;
+            
             if (error) {
-                o->pending_allocations.remove(this);
-                return complete_init(c);
+                goto fail;
             }
             
-            CacheEntryIndexType entry_index = get_entry_for_block(c, this->m_allocating_block, this->m_allocating_for_user);
-            if (entry_index != -1) {
+            alloc_result = get_entry_for_block(c, this->m_allocating_block, this->m_allocating_for_user);
+            if (alloc_result >= 0) {
                 o->pending_allocations.remove(this);
-                attach_to_entry(c, entry_index, this->m_allocating_block, this->m_write_stride, this->m_write_count, this->m_allocating_for_user);
+                attach_to_entry(c, alloc_result, this->m_allocating_block, this->m_write_stride, this->m_write_count, this->m_allocating_for_user);
             }
+            else if (alloc_result == -1) {
+                // There's an entry being released, so remain registered for notification.
+                // Note that it cannot happen that another CacheRef then steals this entry
+                // in that same report_allocation_event call, because get_entry_for_block
+                // does not touch entries that are being released.
+            }
+            else {
+                AMBRO_ASSERT(alloc_result == -2)
+                goto fail;
+            }
+            
+            return;
+            
+        fail:
+            o->pending_allocations.remove(this);
+            return complete_init(c);
         }
         
         void cache_read_completed (Context c, bool error)
@@ -449,6 +470,7 @@ public:
         DoubleEndedListNode<CacheRef> m_list_node;
         CacheEntryIndexType m_entry_index;
         State m_state;
+        uint8_t m_eviction_priority;
     };
     
 private:
@@ -520,12 +542,19 @@ private:
         o->waiting_flush_requests.init();
     }
     
+    // Meaning of the return value:
+    // >=0 - Can use this entry right away. It could be either free, assigned to the requested block,
+    //       or assigned to another block but suitable for immediate reassignment.
+    // -1  - No entry available, but you should wait. An entry is being released.
+    //       This function itself might have started a release of an entry.
+    // -2  - No entry available, and do not wait. This is an error.
     static CacheEntryIndexType get_entry_for_block (Context c, BlockIndexType block, bool for_user)
     {
         auto *o = Object::self(c);
         
-        CacheEntryIndexType invalid_entry = -1;
-        CacheEntryIndexType recyclable_entry = -1;
+        CacheEntryIndexType free_entry = -1;
+        CacheEntryIndexType evictable_entry = -1;
+        CacheEntryIndexType releasing_entry = -1;
         
         for (CacheEntryIndexType entry_index = 0; entry_index < NumCacheEntries; entry_index++) {
             CacheEntry *ce = &o->cache_entries[entry_index];
@@ -536,15 +565,54 @@ private:
             
             if (!ce->isBeingReleased(c)) {
                 if (!ce->isAssigned(c)) {
-                    invalid_entry = entry_index;
-                } else if (ce->canReassign(c)) {
-                    recyclable_entry = entry_index;
+                    free_entry = entry_index;
                 }
+                else if (!Writable ? ce->canReassign(c) : (ce->isAssignedForBlock(c) && !ce->isReferenced(c))) {
+                    if (evictable_entry == -1 || eviction_lesser_than(c, ce, &o->cache_entries[evictable_entry])) {
+                        evictable_entry = entry_index;
+                    }
+                }
+            } else {
+                releasing_entry = entry_index;
             }
         }
         
-        return (invalid_entry != -1) ? invalid_entry : recyclable_entry;
+        if (free_entry != -1) {
+            return free_entry;
+        }
+        
+        if (evictable_entry != -1) {
+            CacheEntry *ee = &o->cache_entries[evictable_entry];
+            
+            if (!Writable) {
+                AMBRO_ASSERT(ee->canReassign(c))
+                return evictable_entry;
+            }
+            
+            if (ee->canReassign(c) && (releasing_entry == -1 || !eviction_lesser_than(c, &o->cache_entries[releasing_entry], ee))) {
+                return evictable_entry;
+            }
+            
+            if (releasing_entry == -1) {
+                ee->startRelease(c);
+                releasing_entry = evictable_entry;
+            }
+        }
+        
+        if (Writable && releasing_entry != -1) {
+            return -1;
+        }
+        
+        return -2;
     }
+    
+    APRINTER_FUNCTION_IF_ELSE_EXT(Writable, static, bool, eviction_lesser_than (Context c, CacheEntry *e1, CacheEntry *e2), {
+        uint8_t ep1 = e1->getEvictionPriority(c);
+        uint8_t ep2 = e2->getEvictionPriority(c);
+        return (ep1 < ep2) || (ep1 == ep2 && (!e1->isDirty(c) || (e2->isDirty(c) && (DirtTimeType)(e1->getDirtTime(c) - e2->getDirtTime(c)) >= DirtSignBit)));
+    }, {
+        return (e1->getEvictionPriority(c) < e2->getEvictionPriority(c));
+    })
     
     APRINTER_FUNCTION_IF_EXT(Writable, static, void, report_allocation_event (Context c, bool error))
     {
@@ -579,44 +647,6 @@ private:
         }
         
         report_allocation_event(c, false);
-        
-        if (!o->pending_allocations.isEmpty()) {
-            bool could_assure_release = assure_release_in_progress(c);
-            if (!could_assure_release) {
-                report_allocation_event(c, true);
-            }
-        }
-    }
-    
-    APRINTER_FUNCTION_IF_EXT(Writable, static, bool, assure_release_in_progress (Context c))
-    {
-        auto *o = Object::self(c);
-        
-        CacheEntry *release_entry = nullptr;
-        for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
-            CacheEntry *ce = &o->cache_entries[i];
-            if (ce->isBeingReleased(c)) {
-                AMBRO_ASSERT(ce->isAssignedForBlock(c))
-                return true;
-            }
-            if (ce->canStartRelease(c)) {
-                if (!release_entry || !ce->isDirty(c) || (release_entry->isDirty(c) && dirt_less(c, ce, release_entry))) {
-                    release_entry = ce;
-                }
-            }
-        }
-        if (!release_entry) {
-            return false;
-        }
-        release_entry->startRelease(c);
-        return true;
-    }
-    
-    APRINTER_FUNCTION_IF_EXT(Writable, static, bool, dirt_less (Context c, CacheEntry *e1, CacheEntry *e2))
-    {
-        uint8_t p1 = e1->getDirtPriority(c);
-        uint8_t p2 = e2->getDirtPriority(c);
-        return (p1 < p2) || (p1 == p2 && (DirtTimeType)(e1->getDirtTime(c) - e2->getDirtTime(c)) >= DirtSignBit);
     }
     
     APRINTER_FUNCTION_IF_EXT(Writable, static, BufferIndexType, find_free_buffer (Context c))
@@ -647,7 +677,6 @@ private:
         DirtState m_dirt_state;
         uint8_t m_write_count;
         uint8_t m_write_index;
-        uint8_t m_dirt_priority;
         DirtTimeType m_dirt_time;
         BlockIndexType m_write_stride;
         BufferIndexType m_active_buffer;
@@ -743,6 +772,12 @@ private:
             return m_block;
         }
         
+        uint8_t getEvictionPriority (Context c)
+        {
+            AMBRO_ASSERT(isAssignedForBlock(c))
+            return m_eviction_priority;
+        }
+        
         char const * getDataForReading (Context c)
         {
             AMBRO_ASSERT(isInitialized(c))
@@ -778,13 +813,7 @@ private:
             return this->m_dirt_time;
         }
         
-        APRINTER_FUNCTION_IF(Writable, uint8_t, getDirtPriority (Context c))
-        {
-            AMBRO_ASSERT(isDirty(c))
-            return this->m_dirt_priority;
-        }
-        
-        void assignBlockAndAttachUser (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, bool no_need_to_read, CacheRef *user)
+        void assignBlockAndAttachUser (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, bool no_need_to_read, uint8_t eviction_priority, CacheRef *user)
         {
             AMBRO_ASSERT(write_count >= 1)
             AMBRO_ASSERT(!isBeingReleased(c))
@@ -800,9 +829,8 @@ private:
             AMBRO_ASSERT(m_state == State::INVALID || get_dirt_state() == DirtState::CLEAN)
             
             m_block = block;
+            m_eviction_priority = eviction_priority;
             writable_assign(c, write_stride, write_count);
-            
-            m_cache_users_list.prepend(user);
             
             if (Writable && no_need_to_read) {
                 m_state = State::IDLE;
@@ -812,6 +840,8 @@ private:
                 m_state = State::READING;
                 m_block_user.startRead(c, m_block, WrapBuffer::Make(get_buffer(c)));
             }
+            
+            m_cache_users_list.prepend(user);
         }
         
         void assignToUserBlock (Context c, CacheRef *user)
@@ -835,7 +865,7 @@ private:
             }
         }
         
-        APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c, uint8_t dirt_priority))
+        APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c))
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(isInitialized(c))
@@ -845,7 +875,6 @@ private:
             if (this->m_dirt_state != DirtState::DIRTY) {
                 this->m_dirt_state = DirtState::DIRTY;
                 this->m_dirt_time = o->current_dirt_time++;
-                this->m_dirt_priority = dirt_priority;
             }
             
             if (!o->waiting_flush_requests.isEmpty() && m_state == State::IDLE) {
@@ -878,7 +907,7 @@ private:
             m_block_user.startWrite(c, m_block, WrapBuffer::Make(get_buffer(c)));
         }
         
-        APRINTER_FUNCTION_IF(Writable, void, startRelease (Context c))
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, startRelease (Context c))
         {
             AMBRO_ASSERT(isAssignedForBlock(c))
             AMBRO_ASSERT(!canReassign(c))
@@ -1055,6 +1084,7 @@ private:
         DoubleEndedList<CacheRef, &CacheRef::m_list_node, false> m_cache_users_list;
         BlockIndexType m_block;
         State m_state;
+        uint8_t m_eviction_priority;
     };
     
     APRINTER_STRUCT_IF_TEMPLATE(CacheWritableMembers) {

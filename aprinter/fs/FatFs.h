@@ -97,10 +97,10 @@ private:
     static size_t const FsInfoAllocatedClusterOffset = 0x1EC;
     static size_t const FsInfoSig3Offset = 0x1FC;
     
-    // Use a lesser dirt priority value for data blocks than for metadata.
+    // Use a lesser eviction priority value for data blocks than for metadata.
     // This way data blocks will be evicted from the cache before metadata,
     // allowing reuse of the metadata and less writes.
-    static uint8_t const FileDataDirtPriority = 5;
+    static uint8_t const FileDataEvictionPriority = 5;
     
     enum class FsState : uint8_t {INIT, READY, FAILED};
     enum class WriteMountState : uint8_t {NOT_MOUNTED, MOUNT_META, MOUNT_FSINFO, MOUNT_FLUSH, MOUNTED, UMOUNT_FLUSH1, UMOUNT_META, UMOUNT_FLUSH2};
@@ -489,7 +489,7 @@ public:
             
             if (bytes_in_block > 0) {
                 finish_write(c, bytes_in_block);
-                m_fs_buffer_mode.block_ref.markDirty(c, FileDataDirtPriority);
+                m_fs_buffer_mode.block_ref.markDirty(c);
             }
             m_fs_buffer_mode.block_ref.reset(c);
             m_state = State::IDLE;
@@ -548,7 +548,7 @@ public:
             if (m_io_mode == IoMode::USER_BUFFER) {
                 m_user_buffer_mode.block_user.startRead(c, abs_block_idx, m_user_buffer_mode.request_buf);
             } else {
-                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION);
+                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION, FileDataEvictionPriority);
             }
         }
         
@@ -576,7 +576,7 @@ public:
                 if (this->m_no_need_to_read_for_write) {
                     flags |= CacheBlockRef::FLAG_NO_NEED_TO_READ;
                 }
-                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, flags);
+                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, flags, FileDataEvictionPriority);
             }
         }
         
