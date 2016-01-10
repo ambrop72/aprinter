@@ -278,13 +278,13 @@ public:
             return get_entry(c)->getDataForWriting(c);
         }
         
-        APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c))
+        APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c, uint8_t dirt_priority=8))
         {
             this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
             AMBRO_ASSERT(get_entry(c)->isAssignedForBlock(c))
             
-            get_entry(c)->markDirty(c);
+            get_entry(c)->markDirty(c, dirt_priority);
         }
         
         char * getUserBuffer (Context c)
@@ -600,7 +600,7 @@ private:
                 return true;
             }
             if (ce->canStartRelease(c)) {
-                if (!release_entry || !ce->isDirty(c) || (release_entry->isDirty(c) && dirt_times_less(ce->getDirtTime(c), release_entry->getDirtTime(c)))) {
+                if (!release_entry || !ce->isDirty(c) || (release_entry->isDirty(c) && dirt_less(c, ce, release_entry))) {
                     release_entry = ce;
                 }
             }
@@ -612,9 +612,11 @@ private:
         return true;
     }
     
-    static bool dirt_times_less (DirtTimeType t1, DirtTimeType t2)
+    APRINTER_FUNCTION_IF_EXT(Writable, static, bool, dirt_less (Context c, CacheEntry *e1, CacheEntry *e2))
     {
-        return ((DirtTimeType)(t1 - t2) >= DirtSignBit);
+        uint8_t p1 = e1->getDirtPriority(c);
+        uint8_t p2 = e2->getDirtPriority(c);
+        return (p1 < p2) || (p1 == p2 && (DirtTimeType)(e1->getDirtTime(c) - e2->getDirtTime(c)) >= DirtSignBit);
     }
     
     APRINTER_FUNCTION_IF_EXT(Writable, static, BufferIndexType, find_free_buffer (Context c))
@@ -645,6 +647,7 @@ private:
         DirtState m_dirt_state;
         uint8_t m_write_count;
         uint8_t m_write_index;
+        uint8_t m_dirt_priority;
         DirtTimeType m_dirt_time;
         BlockIndexType m_write_stride;
         BufferIndexType m_active_buffer;
@@ -775,6 +778,12 @@ private:
             return this->m_dirt_time;
         }
         
+        APRINTER_FUNCTION_IF(Writable, uint8_t, getDirtPriority (Context c))
+        {
+            AMBRO_ASSERT(isDirty(c))
+            return this->m_dirt_priority;
+        }
+        
         void assignBlockAndAttachUser (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, bool no_need_to_read, CacheRef *user)
         {
             AMBRO_ASSERT(write_count >= 1)
@@ -826,7 +835,7 @@ private:
             }
         }
         
-        APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c))
+        APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c, uint8_t dirt_priority))
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(isInitialized(c))
@@ -836,6 +845,7 @@ private:
             if (this->m_dirt_state != DirtState::DIRTY) {
                 this->m_dirt_state = DirtState::DIRTY;
                 this->m_dirt_time = o->current_dirt_time++;
+                this->m_dirt_priority = dirt_priority;
             }
             
             if (!o->waiting_flush_requests.isEmpty() && m_state == State::IDLE) {

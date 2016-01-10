@@ -57,6 +57,9 @@ public:
     static bool const FsWritable = Params::Writable;
     
 private:
+    static_assert(Params::NumCacheEntries >= 1, "");
+    static_assert(Params::MaxFileNameSize >= 12, "");
+    
     using TheDebugObject = DebugObject<Context, Object>;
     using TheBlockCache = BlockCache<Context, Object, TheBlockAccess, Params::NumCacheEntries, FsWritable>;
     
@@ -69,26 +72,35 @@ private:
     static_assert(BlockSize >= 0x47, "BlockSize not enough for EBPB");
     static_assert(BlockSize % 32 == 0, "BlockSize not a multiple of 32");
     static_assert(BlockSize >= 512, "BlockSize not enough for FS Information Sector");
-    using ClusterIndexType = uint32_t;
-    using ClusterBlockIndexType = uint16_t;
+    
     static size_t const FatEntriesPerBlock = BlockSize / 4;
     static size_t const DirEntriesPerBlock = BlockSize / 32;
+    
+    using ClusterIndexType = uint32_t;
+    using ClusterBlockIndexType = uint16_t;
     using DirEntriesPerBlockType = ChooseIntForMax<DirEntriesPerBlock, false>;
-    static_assert(Params::MaxFileNameSize >= 12, "");
     using FileNameLenType = ChooseIntForMax<Params::MaxFileNameSize, false>;
-    static_assert(Params::NumCacheEntries >= 1, "");
+    
     static size_t const EbpbStatusBitsOffset = 0x41;
     static uint8_t const StatusBitsDirty = 0x01;
+    
     static ClusterIndexType const EndOfChainMarker = UINT32_C(0x0FFFFFFF);
     static ClusterIndexType const FreeClusterMarker = UINT32_C(0x00000000);
     static ClusterIndexType const EmptyFileMarker = UINT32_C(0x00000000);
     static ClusterIndexType const NormalClusterIndexEnd = UINT32_C(0x0FFFFFF8);
+    
     static size_t const DirEntrySizeOffset = 0x1C;
+    
     static size_t const FsInfoSig1Offset = 0x0;
     static size_t const FsInfoSig2Offset = 0x1E4;
     static size_t const FsInfoFreeClustersOffset = 0x1E8;
     static size_t const FsInfoAllocatedClusterOffset = 0x1EC;
     static size_t const FsInfoSig3Offset = 0x1FC;
+    
+    // Use a lesser dirt priority value for data blocks than for metadata.
+    // This way data blocks will be evicted from the cache before metadata,
+    // allowing reuse of the metadata and less writes.
+    static uint8_t const FileDataDirtPriority = 5;
     
     enum class FsState : uint8_t {INIT, READY, FAILED};
     enum class WriteMountState : uint8_t {NOT_MOUNTED, MOUNT_META, MOUNT_FSINFO, MOUNT_FLUSH, MOUNTED, UMOUNT_FLUSH1, UMOUNT_META, UMOUNT_FLUSH2};
@@ -477,7 +489,7 @@ public:
             
             if (bytes_in_block > 0) {
                 finish_write(c, bytes_in_block);
-                m_fs_buffer_mode.block_ref.markDirty(c);
+                m_fs_buffer_mode.block_ref.markDirty(c, FileDataDirtPriority);
             }
             m_fs_buffer_mode.block_ref.reset(c);
             m_state = State::IDLE;
