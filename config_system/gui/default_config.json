@@ -2229,7 +2229,7 @@
             "MaxParts": 8,
             "_compoundName": "TextGcodeParser"
           },
-          "MaxCommandSize": 100,
+          "MaxCommandSize": 64,
           "SdCardService": {
             "SpiService": {
               "SpeedDiv": 32,
@@ -3665,11 +3665,12 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "MacAddress": "BE:EF:DE:AD:FE:ED",
+          "NetEnabled": true,
           "DhcpEnabled": true,
           "IpAddress": "192.168.111.63",
           "IpGateway": "192.168.111.1",
           "IpNetmask": "255.255.255.0",
+          "MacAddress": "BE:EF:DE:AD:FE:ED",
           "EthernetDriver": {
             "MiiDriver": {
               "_compoundName": "At91SamEmacMii"
@@ -3681,9 +3682,8 @@
             },
             "_compoundName": "MiiEthernet"
           },
-          "NetEnabled": true,
-          "TcpRxBufPkts": 4,
-          "TcpTxBufPkts": 2,
+          "TcpRxBuf": 5840,
+          "TcpTxBuf": 3450,
           "_compoundName": "Network",
           "tcpconsole": {
             "MaxClients": 2,
@@ -3692,6 +3692,9 @@
             "Port": 23,
             "SendBufTimeout": 5,
             "_compoundName": "TcpConsole"
+          },
+          "webinterface": {
+            "_compoundName": "NoWebInterface"
           }
         }
       },
