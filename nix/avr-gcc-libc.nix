@@ -28,6 +28,11 @@ stdenv.mkDerivation {
   # Make sure we don't strip the libraries in lib/gcc/avr.
   stripDebugList= [ "bin" "avr/bin" "libexec" ];
   
+  # Fix for https://gcc.gnu.org/bugzilla/show_bug.cgi?id=60040
+  patchPhase = ''
+    patch -d gcc* -p1 < ${ ../patches/gcc-avr-bug60040.patch }
+  '';
+  
   installPhase = ''
     # Make sure gcc finds the binutils.
     export PATH=$PATH:$out/bin

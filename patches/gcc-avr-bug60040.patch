@@ -1,0 +1,74 @@
+--- a/gcc/reload1.c	
++++ a/gcc/reload1.c	
+@@ -350,8 +350,8 @@ static void maybe_fix_stack_asms (void);
+ static void copy_reloads (struct insn_chain *);
+ static void calculate_needs_all_insns (int);
+ static int find_reg (struct insn_chain *, int);
+-static void find_reload_regs (struct insn_chain *);
+-static void select_reload_regs (void);
++static void find_reload_regs (struct insn_chain *, bool tentative);
++static void select_reload_regs (bool);
+ static void delete_caller_save_insns (void);
+ 
+ static void spill_failure (rtx, enum reg_class);
+@@ -970,8 +970,9 @@ reload (rtx first, int global)
+ 	  something_changed = 1;
+ 	}
+ 
+-      select_reload_regs ();
+-      if (failure)
++      select_reload_regs (something_changed);
++      if (failure && !something_changed)
+ 	goto failed;
++      else failure = 0;
+ 
+       if (insns_need_reload != 0 || did_spill)
+@@ -1977,10 +1977,14 @@ find_reg (struct insn_chain *chain, int order)
+    is given by CHAIN.
+    Do it by ascending class number, since otherwise a reg
+    might be spilled for a big class and might fail to count
+-   for a smaller class even though it belongs to that class.  */
++   for a smaller class even though it belongs to that class.
++   TENTATIVE means that we had some changes that might have invalidated
++   the reloads, e.g. on AVR, not eliminating FP to SP means we can address
++   stack slots directly - while at the same time we loose a pointer
++   reg that could otherwise be used for reloads.  */
+ 
+ static void
+-find_reload_regs (struct insn_chain *chain)
++find_reload_regs (struct insn_chain *chain, bool tentative)
+ {
+   int i;
+ 
+@@ -2029,9 +2033,12 @@ find_reload_regs (struct insn_chain *chain)
+ 	  {
+ 	    if (dump_file)
+ 	      fprintf (dump_file, "reload failure for reload %d\n", r);
+-	    spill_failure (chain->insn, rld[r].rclass);
+ 	    failure = 1;
+-	    return;
++	    if (!tentative)
++	      {
++		spill_failure (chain->insn, rld[r].rclass);
++		return;
++	      }
+ 	  }
+     }
+ 
+@@ -2042,14 +2049,14 @@ find_reload_regs (struct insn_chain *chain)
+ }
+ 
+ static void
+-select_reload_regs (void)
++select_reload_regs (bool tentative)
+ {
+   struct insn_chain *chain;
+ 
+   /* Try to satisfy the needs for each insn.  */
+   for (chain = insns_need_reload; chain != 0;
+        chain = chain->next_need_reload)
+-    find_reload_regs (chain);
++    find_reload_regs (chain, tentative);
+ }
+ 
+ /* Delete all insns that were inserted by emit_caller_save_insns during
