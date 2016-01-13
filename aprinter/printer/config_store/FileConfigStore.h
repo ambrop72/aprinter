@@ -29,12 +29,11 @@
 #include <stdint.h>
 #include <string.h>
 
-#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/WrapBuffer.h>
+#include <aprinter/printer/BufferedFile.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -46,15 +45,15 @@ public:
 private:
     using TheDebugObject = DebugObject<Context, Object>;
     using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;
-    using TheFs = typename TheFsAccess::TheFileSystem;
+    using TheBufferedFile = BufferedFile<Context, TheFsAccess>;
     
     static constexpr char const *ConfigFileName = "aprinter.cfg";
     static size_t const MaxLineSize = 128;
     
-    enum {
-        STATE_IDLE,
-        STATE_WRITE_ACCESS, STATE_WRITE_BUFFER, STATE_WRITE_OPEN, STATE_WRITE_OPENWR, STATE_WRITE_WRITE, STATE_WRITE_TRUNCATE, STATE_WRITE_FLUSH,
-        STATE_READ_ACCESS, STATE_READ_BUFFER, STATE_READ_OPEN, STATE_READ_READ
+    enum class State : uint8_t {
+        IDLE,
+        WRITE_OPEN, WRITE_OPTION, WRITE_EOF,
+        READ_OPEN, READ_DATA
     };
     
 public:
@@ -62,12 +61,8 @@ public:
     {
         auto *o = Object::self(c);
         
-        o->access_client.init(c, APRINTER_CB_STATFUNC_T(&FileConfigStore::access_client_handler));
-        o->user_buffer.init(c, APRINTER_CB_STATFUNC_T(&FileConfigStore::user_buffer_handler));
-        o->state = STATE_IDLE;
-        o->have_opener = false;
-        o->have_file = false;
-        o->have_flush = false;
+        o->buffered_file.init(c, APRINTER_CB_STATFUNC_T(&FileConfigStore::file_handler));
+        o->state = State::IDLE;
         
         TheDebugObject::init(c);
     }
@@ -77,171 +72,89 @@ public:
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         
-        reset_internal(c);
-        o->user_buffer.deinit(c);
-        o->access_client.deinit(c);
+        o->buffered_file.deinit(c);
     }
     
     static void startWriting (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_IDLE)
+        AMBRO_ASSERT(o->state == State::IDLE)
         
-        o->access_client.requestAccess(c, true);
-        o->state = STATE_WRITE_ACCESS;
+        o->buffered_file.startOpen(c, ConfigFileName, false, TheBufferedFile::OpenMode::OPEN_WRITE);
+        o->state = State::WRITE_OPEN;
     }
     
     static void startReading (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_IDLE)
+        AMBRO_ASSERT(o->state == State::IDLE)
         
-        o->access_client.requestAccess(c, false);
-        o->state = STATE_READ_ACCESS;
+        o->buffered_file.startOpen(c, ConfigFileName, false, TheBufferedFile::OpenMode::OPEN_READ);
+        o->state = State::READ_OPEN;
     }
     
 private:
-    static void reset_internal (Context c)
+    static void complete_command (Context c, bool error)
     {
         auto *o = Object::self(c);
         
-        if (o->have_flush) {
-            o->have_flush = false;
-            o->fs_flush.deinit(c);
-        }
-        if (o->have_file) {
-            o->have_file = false;
-            o->fs_file.deinit(c);
-        }
-        if (o->have_opener) {
-            o->have_opener = false;
-            o->fs_opener.deinit(c);
-        }
-        o->user_buffer.reset(c);
-        o->access_client.reset(c);
-        o->state = STATE_IDLE;
-    }
-    
-    static void complete_command (Context c, bool error)
-    {
-        reset_internal(c);
+        o->buffered_file.reset(c);
+        o->state = State::IDLE;
+        
         return Handler::call(c, !error);
     }
     
-    static void access_client_handler (Context c, bool error)
+    static void file_handler (Context c, typename TheBufferedFile::Error error, size_t read_length)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_WRITE_ACCESS || o->state == STATE_READ_ACCESS)
+        AMBRO_ASSERT(o->state != State::IDLE)
         
-        if (error) {
+        if (error != TheBufferedFile::Error::NO_ERROR) {
             return complete_command(c, true);
         }
         
-        o->state = (o->state == STATE_WRITE_ACCESS) ? STATE_WRITE_BUFFER : STATE_READ_BUFFER;
-        o->user_buffer.requestUserBuffer(c);
-    }
-    
-    static void user_buffer_handler (Context c, bool error)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_WRITE_BUFFER || o->state == STATE_READ_BUFFER)
-        AMBRO_ASSERT(!o->have_opener)
-        
-        if (error) {
-            return complete_command(c, true);
-        }
-        
-        o->state = (o->state == STATE_WRITE_BUFFER) ? STATE_WRITE_OPEN : STATE_READ_OPEN;
-        o->fs_opener.init(c, TheFs::getRootEntry(c), TheFs::EntryType::FILE_TYPE, ConfigFileName, APRINTER_CB_STATFUNC_T(&FileConfigStore::fs_opener_handler));
-        o->have_opener = true;
-    }
-    
-    static void fs_opener_handler (Context c, typename TheFs::Opener::OpenerStatus status, typename TheFs::FsEntry entry)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_WRITE_OPEN || o->state == STATE_READ_OPEN)
-        AMBRO_ASSERT(o->have_opener)
-        AMBRO_ASSERT(!o->have_file)
-        
-        if (status != TheFs::Opener::OpenerStatus::SUCCESS) {
-            return complete_command(c, true);
-        }
-        
-        o->fs_opener.deinit(c);
-        o->have_opener = false;
-        
-        o->fs_file.init(c, entry, APRINTER_CB_STATFUNC_T(&FileConfigStore::fs_file_handler));
-        o->have_file = true;
-        
-        if (o->state == STATE_WRITE_OPEN) {
-            o->state = STATE_WRITE_OPENWR;
-            o->fs_file.startOpenWritable(c);
-        } else {
-            o->line_buffer_length = 0;
-            start_read(c);
-        }
-    }
-    
-    static void start_write (Context c)
-    {
-        auto *o = Object::self(c);
-        AMBRO_ASSERT(o->data_length > 0)
-        o->fs_file.startWriteUserBuf(c, WrapBuffer::Make(o->user_buffer.getUserBuffer(c)), o->data_length);
-        o->state = STATE_WRITE_WRITE;
-    }
-    
-    static void start_read (Context c)
-    {
-        auto *o = Object::self(c);
-        o->fs_file.startRead(c, WrapBuffer::Make(o->user_buffer.getUserBuffer(c)));
-        o->state = STATE_READ_READ;
-    }
-    
-    static void fs_file_handler (Context c, bool io_error, size_t read_length)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_WRITE_OPENWR || o->state == STATE_WRITE_WRITE || o->state == STATE_WRITE_TRUNCATE || o->state == STATE_READ_READ)
-        
-        if (io_error) {
-            return complete_command(c, true);
-        }
-        
-        if (o->state == STATE_WRITE_OPENWR) {
-            o->write_option_index = 0;
-            o->data_length = 0;
-            o->line_buffer_length = 0;
+        switch (o->state) {
+            case State::WRITE_OPEN: {
+                o->write_option_index = 0;
+                
+                work_write(c);
+            } break;
             
-            return work_write(c);
-        }
-        else if (o->state == STATE_WRITE_WRITE) {
-            o->data_length = 0;
+            case State::WRITE_OPTION: {
+                work_write(c);
+            } break;
             
-            return work_write(c);
-        }
-        else if (o->state == STATE_WRITE_TRUNCATE) {
-            AMBRO_ASSERT(o->have_file)
-            AMBRO_ASSERT(!o->have_flush)
+            case State::WRITE_EOF: {
+                return complete_command(c, false);
+            } break;
             
-            o->fs_file.deinit(c);
-            o->have_file = false;
+            case State::READ_OPEN: {
+                o->read_data_length = 0;
+                o->read_line_overflow = false;
+                o->read_error = false;
+                
+                work_read(c);
+            } break;
             
-            o->fs_flush.init(c, APRINTER_CB_STATFUNC_T(&FileConfigStore::fs_flush_handler));
-            o->have_flush = true;
+            case State::READ_DATA: {
+                AMBRO_ASSERT(read_length <= MaxLineSize - o->read_data_length)
+                
+                if (read_length == 0) {
+                    if (o->read_data_length > 0) {
+                        o->read_error = true;
+                    }
+                    return complete_command(c, o->read_error);
+                }
+                
+                o->read_data_length += read_length;
+                
+                work_read(c);
+            } break;
             
-            o->fs_flush.requestFlush(c);
-            o->state = STATE_WRITE_FLUSH;
-        }
-        else { // STATE_READ_READ
-            AMBRO_ASSERT(read_length <= TheFs::TheBlockSize)
-            o->data_length = read_length;
-            
-            return work_read(c);
+            default: AMBRO_ASSERT(false);
         }
     }
     
@@ -249,107 +162,71 @@ private:
     {
         auto *o = Object::self(c);
         
-        while (true) {
-            size_t amount = MinValue(o->line_buffer_length, TheFs::TheBlockSize - o->data_length);
-            if (amount != 0) {
-                memcpy(o->user_buffer.getUserBuffer(c) + o->data_length, o->line_buffer, amount);
-                o->line_buffer_length -= amount;
-                memmove(o->line_buffer, o->line_buffer + amount, o->line_buffer_length);
-                o->data_length += amount;
-            }
-            
-            if (o->line_buffer_length != 0 || o->write_option_index == ConfigManager::NumRuntimeOptions) {
-                break;
-            }
-            
-            ConfigManager::getOptionString(c, o->write_option_index, o->line_buffer, MaxLineSize);
-            size_t base_length = strlen(o->line_buffer);
-            AMBRO_ASSERT(base_length < MaxLineSize)
-            o->line_buffer[base_length] = '\n';
-            o->line_buffer_length = base_length + 1;
-            o->write_option_index++;
-        }
-        
-        if (o->data_length == 0) {
-            o->fs_file.startTruncate(c);
-            o->state = STATE_WRITE_TRUNCATE;
+        if (o->write_option_index >= ConfigManager::NumRuntimeOptions) {
+            o->buffered_file.startWriteEof(c);
+            o->state = State::WRITE_EOF;
             return;
         }
         
-        start_write(c);
+        ConfigManager::getOptionString(c, o->write_option_index, o->line_buffer, MaxLineSize);
+        size_t base_length = strlen(o->line_buffer);
+        AMBRO_ASSERT(base_length < MaxLineSize)
+        o->line_buffer[base_length] = '\n';
+        
+        o->write_option_index++;
+        
+        o->buffered_file.startWriteData(c, o->line_buffer, base_length + 1);
+        o->state = State::WRITE_OPTION;
     }
     
     static void work_read (Context c)
     {
         auto *o = Object::self(c);
         
-        size_t parse_pos = 0;
-        
-        while (true) {
-            char *data_ptr = o->user_buffer.getUserBuffer(c) + parse_pos;
-            size_t data_left = o->data_length - parse_pos;
-            
-            size_t allowed_rem_line_length = MaxLineSize - o->line_buffer_length;
-            size_t look_forward_length = MinValue(data_left, allowed_rem_line_length);
-            char *newline_ptr = (char *)memchr(data_ptr, '\n', look_forward_length);
-            
-            size_t line_data_length = newline_ptr ? ((newline_ptr + 1) - data_ptr) : look_forward_length;
-            memcpy(o->line_buffer + o->line_buffer_length, data_ptr, line_data_length);
-            o->line_buffer_length += line_data_length;
-            parse_pos += line_data_length;
-            
+        while (o->read_data_length > 0) {
+            char *newline_ptr = (char *)memchr(o->line_buffer, '\n', o->read_data_length);
             if (!newline_ptr) {
-                if (data_left >= allowed_rem_line_length) {
-                    return complete_command(c, true);
+                if (o->read_data_length == MaxLineSize) {
+                    o->read_data_length = 0;
+                    o->read_line_overflow = true;
+                    o->read_error = true;
                 }
-                AMBRO_ASSERT(parse_pos == o->data_length)
-                AMBRO_ASSERT(o->line_buffer_length < MaxLineSize)
                 break;
             }
             
-            char *equals_ptr = (char *)memchr(o->line_buffer, '=', o->line_buffer_length - 1);
-            if (equals_ptr) {
-                *equals_ptr = '\0';
-                o->line_buffer[o->line_buffer_length - 1] = '\0';
-                ConfigManager::setOptionByStrings(c, o->line_buffer, equals_ptr + 1);
+            size_t line_length = (newline_ptr + 1) - o->line_buffer;
+            
+            if (o->read_line_overflow) {
+                o->read_line_overflow = false;
+            } else {
+                char *equals_ptr = (char *)memchr(o->line_buffer, '=', line_length - 1);
+                if (equals_ptr) {
+                    *equals_ptr = '\0';
+                    *newline_ptr = '\0';
+                    ConfigManager::setOptionByStrings(c, o->line_buffer, equals_ptr + 1);
+                } else {
+                    o->read_error = true;
+                }
             }
-            o->line_buffer_length = 0;
+            
+            o->read_data_length -= line_length;
+            memmove(o->line_buffer, o->line_buffer + line_length, o->read_data_length);
         }
         
-        if (o->data_length == 0) {
-            return complete_command(c, (o->line_buffer_length > 0));
-        }
-        
-        start_read(c);
-    }
-    
-    static void fs_flush_handler (Context c, bool error)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_WRITE_FLUSH)
-        
-        return complete_command(c, error);
+        o->buffered_file.startReadData(c, o->line_buffer + o->read_data_length, MaxLineSize - o->read_data_length);
+        o->state = State::READ_DATA;
     }
     
 public:
     struct Object : public ObjBase<FileConfigStore, ParentObject, MakeTypeList<
         TheDebugObject
     >> {
-        typename TheFsAccess::Client access_client;
-        typename TheFsAccess::UserBuffer user_buffer;
-        union {
-            typename TheFs::Opener fs_opener;
-            typename TheFs::template File<true> fs_file;
-            typename TheFs::template FlushRequest<> fs_flush;
-        };
-        uint8_t state : 4;
-        bool have_opener : 1;
-        bool have_file : 1;
-        bool have_flush : 1;
+        TheBufferedFile buffered_file;
+        State state;
         int write_option_index;
-        size_t data_length;
-        size_t line_buffer_length;
+        size_t read_data_length;
+        bool read_line_overflow : 1;
+        bool read_error : 1;
         char line_buffer[MaxLineSize];
     };
 };
