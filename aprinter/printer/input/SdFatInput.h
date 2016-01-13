@@ -931,39 +931,6 @@ private:
             bool m_writable : 1;
         };
         
-        class UserBuffer {
-        public:
-            using UserBufferHandler = Callback<void(Context c, bool error)>;
-            
-            void init (Context c, UserBufferHandler handler)
-            {
-                m_cache_ref.init(c, handler);
-            }
-            
-            void deinit (Context c)
-            {
-                m_cache_ref.deinit(c);
-            }
-            
-            void reset (Context c)
-            {
-                m_cache_ref.reset(c);
-            }
-            
-            void requestUserBuffer (Context c)
-            {
-                m_cache_ref.requestUserBuffer(c);
-            }
-            
-            char * getUserBuffer (Context c)
-            {
-                return m_cache_ref.getUserBuffer(c);
-            }
-            
-        private:
-            typename TheFs::CacheRefForUser m_cache_ref;
-        };
-        
     public:
         struct Object : public ObjBase<AccessInterface, typename SdFatInput::Object, EmptyTypeList> {
             size_t num_ro_refs;
