@@ -35,6 +35,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/printer/BufferedFile.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -46,20 +47,18 @@ public:
 private:
     using TheDebugObject = DebugObject<Context, Object>;
     using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;
-    using TheFs = typename TheFsAccess::TheFileSystem;
+    using TheBufferedFile = BufferedFile<Context, TheFsAccess>;
     
-    enum {STATE_IDLE, STATE_ACCESS, STATE_BUFFER, STATE_OPEN, STATE_OPENWR, STATE_WRITE, STATE_TRUNCATE, STATE_FLUSH};
+    enum class State : uint8_t {IDLE, OPEN, WRITE_DATA, WRITE_EOF};
     
 public:
     static void init (Context c)
     {
         auto *o = Object::self(c);
-        o->access_client.init(c, APRINTER_CB_STATFUNC_T(&FsTestModule::access_client_handler));
-        o->user_buffer.init(c, APRINTER_CB_STATFUNC_T(&FsTestModule::user_buffer_handler));
-        o->state = STATE_IDLE;
-        o->have_opener = false;
-        o->have_file = false;
-        o->have_flush = false;
+        
+        o->buffered_file.init(c, APRINTER_CB_STATFUNC_T(&FsTestModule::file_handler));
+        o->state = State::IDLE;
+        
         TheDebugObject::init(c);
     }
     
@@ -67,9 +66,8 @@ public:
     {
         auto *o = Object::self(c);
         TheDebugObject::deinit(c);
-        reset_internal(c);
-        o->user_buffer.deinit(c);
-        o->access_client.deinit(c);
+        
+        o->buffered_file.deinit(c);
     }
     
     static bool check_command (Context c, typename ThePrinterMain::TheCommand *cmd)
@@ -84,36 +82,13 @@ public:
     }
     
 private:
-    static void reset_internal (Context c)
-    {
-        auto *o = Object::self(c);
-        if (o->have_opener) {
-            o->have_opener = false;
-            o->fs_opener.deinit(c);
-        }
-        if (o->have_file) {
-            o->have_file = false;
-            o->fs_file.deinit(c);
-        }
-        if (o->have_flush) {
-            o->have_flush = false;
-            o->fs_flush.deinit(c);
-        }
-        o->user_buffer.reset(c);
-        o->access_client.reset(c);
-        o->state = STATE_IDLE;
-    }
-    
-    static void debug_msg (Context c, AMBRO_PGM_P msg)
-    {
-        auto *output = ThePrinterMain::get_msg_output(c);
-        output->reply_append_pstr(c, msg);
-        output->reply_poke(c);
-    }
-    
     static void complete_command (Context c, AMBRO_PGM_P errstr)
     {
-        reset_internal(c);
+        auto *o = Object::self(c);
+        
+        o->buffered_file.reset(c);
+        o->state = State::IDLE;
+        
         auto *cmd = ThePrinterMain::get_locked(c);
         if (errstr) {
             cmd->reportError(c, errstr);
@@ -128,102 +103,49 @@ private:
         if (!cmd->tryLockedCommand(c)) {
             return;
         }
-        AMBRO_ASSERT(o->state == STATE_IDLE)
-        if (!(o->open_file_name = cmd->get_command_param_str(c, 'F', nullptr))) {
+        AMBRO_ASSERT(o->state == State::IDLE)
+        
+        char const *open_file_name = cmd->get_command_param_str(c, 'F', nullptr);
+        if (!open_file_name) {
             return complete_command(c, AMBRO_PSTR("NoFileSpecified"));
         }
+        
         o->write_data = cmd->get_command_param_str(c, 'D', "1234567890");
         o->write_data_size = strlen(o->write_data);
         o->write_size = cmd->find_command_param(c, 'S', nullptr) ? cmd->get_command_param_uint32(c, 'S', 0) : o->write_data_size;
         if (o->write_data_size == 0) {
             o->write_size = 0;
         }
-        o->access_client.requestAccess(c, true);
-        o->state = STATE_ACCESS;
-        debug_msg(c, AMBRO_PSTR("//FsTest:Access\n"));
-    }
-    
-    static void access_client_handler (Context c, bool error)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_ACCESS)
         
-        if (error) {
-            return complete_command(c, AMBRO_PSTR("Access"));
-        }
-        o->user_buffer.requestUserBuffer(c);
-        o->state = STATE_BUFFER;
-        debug_msg(c, AMBRO_PSTR("//FsTest:Buffer\n"));
+        o->buffered_file.startOpen(c, open_file_name, true, TheBufferedFile::OpenMode::OPEN_WRITE);
+        o->state = State::OPEN;
     }
     
-    static void user_buffer_handler (Context c, bool error)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_BUFFER)
-        
-        if (error) {
-            return complete_command(c, AMBRO_PSTR("Buffer"));
-        }
-        o->fs_opener.init(c, o->access_client.getCurrentDirectory(c), TheFs::EntryType::FILE_TYPE, o->open_file_name, APRINTER_CB_STATFUNC_T(&FsTestModule::fs_opener_handler));
-        o->have_opener = true;
-        o->state = STATE_OPEN;
-        debug_msg(c, AMBRO_PSTR("//FsTest:Open\n"));
-    }
-    
-    static void fs_opener_handler (Context c, typename TheFs::Opener::OpenerStatus status, typename TheFs::FsEntry entry)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_OPEN)
-        
-        if (status != TheFs::Opener::OpenerStatus::SUCCESS) {
-            return complete_command(c, AMBRO_PSTR("Open"));
-        }
-        o->fs_opener.deinit(c);
-        o->have_opener = false;
-        o->fs_file.init(c, entry, APRINTER_CB_STATFUNC_T(&FsTestModule::fs_file_handler));
-        o->have_file = true;
-        o->fs_file.startOpenWritable(c);
-        o->state = STATE_OPENWR;
-        debug_msg(c, AMBRO_PSTR("//FsTest:OpenWr\n"));
-    }
-    
-    static void fs_file_handler (Context c, bool io_error, size_t read_length)
+    static void file_handler (Context c, typename TheBufferedFile::Error error, size_t read_length)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         switch (o->state) {
-            case STATE_OPENWR: {
-                if (io_error) {
-                    return complete_command(c, AMBRO_PSTR("OpenWr"));
+            case State::OPEN: {
+                if (error != TheBufferedFile::Error::NO_ERROR) {
+                    return complete_command(c, AMBRO_PSTR("Open"));
                 }
-                o->write_pos = 0;
-                o->buffer_pos = 0;
-                return work_write(c);
+                work_write(c);
             } break;
             
-            case STATE_WRITE: {
-                if (io_error) {
-                    return complete_command(c, AMBRO_PSTR("Write"));
+            case State::WRITE_DATA: {
+                if (error != TheBufferedFile::Error::NO_ERROR) {
+                    return complete_command(c, AMBRO_PSTR("WriteData"));
                 }
-                o->buffer_pos = 0;
-                return work_write(c);
+                work_write(c);
             } break;
             
-            case STATE_TRUNCATE: {
-                if (io_error) {
-                    return complete_command(c, AMBRO_PSTR("Truncate"));
+            case State::WRITE_EOF: {
+                if (error != TheBufferedFile::Error::NO_ERROR) {
+                    return complete_command(c, AMBRO_PSTR("WriteEof"));
                 }
-                o->fs_file.deinit(c);
-                o->have_file = false;
-                o->fs_flush.init(c, APRINTER_CB_STATFUNC_T(&FsTestModule::fs_flush_handler));
-                o->have_flush = true;
-                o->fs_flush.requestFlush(c);
-                o->state = STATE_FLUSH;
-                debug_msg(c, AMBRO_PSTR("//FsTest:Flush\n"));
+                return complete_command(c, nullptr);
             } break;
             
             default: AMBRO_ASSERT(false);
@@ -234,71 +156,30 @@ private:
     {
         auto *o = Object::self(c);
         
-        while (o->write_size > 0) {
-            size_t amount = MinValue(o->write_data_size - o->write_pos, TheFs::TheBlockSize - o->buffer_pos);
-            if (amount == 0) {
-                break;
-            }
-            if (amount > o->write_size) {
-                amount = o->write_size;
-            }
-            memcpy(o->user_buffer.getUserBuffer(c) + o->buffer_pos, o->write_data + o->write_pos, amount);
-            o->write_pos += amount;
-            if (o->write_pos == o->write_data_size) {
-                o->write_pos = 0;
-            }
-            o->buffer_pos += amount;
-            o->write_size -= amount;
-        }
-        
-        if (o->buffer_pos > 0) {
-            o->fs_file.startWriteUserBuf(c, WrapBuffer::Make(o->user_buffer.getUserBuffer(c)), o->buffer_pos);
-            o->state = STATE_WRITE;
-            auto *output = ThePrinterMain::get_msg_output(c);
-            output->reply_append_pstr(c, AMBRO_PSTR("//FsTest:Write="));
-            output->reply_append_uint32(c, o->buffer_pos);
-            output->reply_append_pstr(c, AMBRO_PSTR(";Remain="));
-            output->reply_append_uint32(c, o->write_size);
-            output->reply_append_ch(c, '\n');
-            output->reply_poke(c);
+        if (o->write_size == 0) {
+            o->buffered_file.startWriteEof(c);
+            o->state = State::WRITE_EOF;
             return;
         }
         
-        o->fs_file.startTruncate(c);
-        o->state = STATE_TRUNCATE;
-        debug_msg(c, AMBRO_PSTR("//FsTest:Truncate\n"));
-    }
-    
-    static void fs_flush_handler (Context c, bool error)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->state == STATE_FLUSH)
-        
-        return complete_command(c, error ? AMBRO_PSTR("Flush") : nullptr);
+        size_t amount = o->write_data_size;
+        if (amount > o->write_size) {
+            amount = o->write_size;
+        }
+        o->write_size -= amount;
+        o->buffered_file.startWriteData(c, o->write_data, amount);
+        o->state = State::WRITE_DATA;
     }
     
 public:
     struct Object : public ObjBase<FsTestModule, ParentObject, MakeTypeList<
         TheDebugObject
     >> {
-        typename TheFsAccess::Client access_client;
-        typename TheFsAccess::UserBuffer user_buffer;
-        union {
-            typename TheFs::Opener fs_opener;
-            typename TheFs::template File<true> fs_file;
-            typename TheFs::template FlushRequest<> fs_flush;
-        };
-        uint8_t state : 4;
-        bool have_opener : 1;
-        bool have_file : 1;
-        bool have_flush : 1;
-        char const *open_file_name;
+        TheBufferedFile buffered_file;
+        State state;
         char const *write_data;
         size_t write_data_size;
         uint32_t write_size;
-        size_t write_pos;
-        size_t buffer_pos;
     };
 };
 
