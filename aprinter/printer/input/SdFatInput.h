@@ -187,7 +187,7 @@ public:
         AMBRO_ASSERT(buf_avail >= TheBlockAccess::BlockSize)
         AMBRO_ASSERT(buf.wrap > 0)
         
-        fs_o->file.startRead(c, buf);
+        fs_o->file.startReadUserBuf(c, buf);
         o->file_state = FILE_STATE_READING;
     }
     

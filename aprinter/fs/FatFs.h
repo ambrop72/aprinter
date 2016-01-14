@@ -391,15 +391,23 @@ public:
             m_block_in_cluster = o->blocks_per_cluster;
         }
         
-        void startRead (Context c, WrapBuffer buf=WrapBuffer::Make(nullptr))
+        void startReadUserBuf (Context c, WrapBuffer buf)
         {
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == State::IDLE)
-            AMBRO_ASSERT(bool(buf.ptr1) == (m_io_mode == IoMode::USER_BUFFER))
+            AMBRO_ASSERT(m_io_mode == IoMode::USER_BUFFER)
             
-            if (m_io_mode == IoMode::USER_BUFFER) {
-                m_user_buffer_mode.request_buf = buf;
-            }
+            m_user_buffer_mode.request_buf = buf;
+            m_state = State::READ_EVENT;
+            m_event.prependNowNotAlready(c);
+        }
+        
+        void startRead (Context c)
+        {
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::IDLE)
+            AMBRO_ASSERT(m_io_mode == IoMode::FS_BUFFER)
+            
             m_state = State::READ_EVENT;
             m_event.prependNowNotAlready(c);
         }
@@ -442,23 +450,7 @@ public:
             clean_up_writability(c);
         }
         
-        APRINTER_FUNCTION_IF(Writable, void, startWriteUserBuf (Context c, WrapBuffer buf, size_t bytes_in_block))
-        {
-            TheDebugObject::access(c);
-            AMBRO_ASSERT(m_state == State::IDLE)
-            AMBRO_ASSERT(m_file_pos % BlockSize == 0)
-            AMBRO_ASSERT(m_io_mode == IoMode::USER_BUFFER)
-            AMBRO_ASSERT(buf.ptr1)
-            AMBRO_ASSERT(bytes_in_block > 0)
-            AMBRO_ASSERT(bytes_in_block <= BlockSize)
-            
-            m_user_buffer_mode.request_buf = buf;
-            this->m_write_bytes_in_block = bytes_in_block;
-            m_state = State::WRITE_EVENT;
-            m_event.prependNowNotAlready(c);
-        }
-        
-        APRINTER_FUNCTION_IF(Writable, void, startWriteFsBuf (Context c, bool no_need_to_read))
+        APRINTER_FUNCTION_IF(Writable, void, startWrite (Context c, bool no_need_to_read))
         {
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == State::IDLE)
@@ -555,6 +547,8 @@ public:
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, handle_event_write (Context c))
         {
             auto *o = Object::self(c);
+            AMBRO_ASSERT(m_io_mode == IoMode::FS_BUFFER)
+            
             if (!this->m_write_ref.isTaken(c)) {
                 return complete_request(c, true);
             }
@@ -569,15 +563,11 @@ public:
             }
             m_state = State::WRITE_BLOCK;
             BlockIndexType abs_block_idx = get_cluster_data_abs_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster);
-            if (m_io_mode == IoMode::USER_BUFFER) {
-                m_user_buffer_mode.block_user.startWrite(c, abs_block_idx, m_user_buffer_mode.request_buf);
-            } else {
-                uint8_t flags = CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION;
-                if (this->m_no_need_to_read_for_write) {
-                    flags |= CacheBlockRef::FLAG_NO_NEED_TO_READ;
-                }
-                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, flags, FileDataEvictionPriority);
+            uint8_t flags = CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION;
+            if (this->m_no_need_to_read_for_write) {
+                flags |= CacheBlockRef::FLAG_NO_NEED_TO_READ;
             }
+            m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, flags, FileDataEvictionPriority);
         }
         
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, handle_event_trunc (Context c))
@@ -648,15 +638,12 @@ public:
         
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, handle_block_write (Context c, bool error))
         {
+            AMBRO_ASSERT(m_io_mode == IoMode::FS_BUFFER)
+            
             if (error) {
                 return complete_request(c, true);
             }
-            if (m_io_mode == IoMode::USER_BUFFER) {
-                finish_write(c, this->m_write_bytes_in_block);
-                return complete_request(c, false);
-            } else {
-                return complete_request(c, false, 0, State::WRITE_READY);
-            }
+            return complete_request(c, false, 0, State::WRITE_READY);
         }
         
         void complete_request (Context c, bool error, size_t length=0, State new_state=State::IDLE)
