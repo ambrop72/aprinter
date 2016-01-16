@@ -245,39 +245,73 @@ public:
     };
     
     class Opener {
-        enum class State : uint8_t {REQUESTING_ENTRY, COMPLETED};
+        enum class State : uint8_t {INIT_ERROR, REQUESTING_ENTRY, COMPLETED};
         
     public:
         enum class OpenerStatus : uint8_t {SUCCESS, NOT_FOUND, ERROR};
         
         using OpenerHandler = Callback<void(Context c, OpenerStatus status, FsEntry entry)>;
         
-        void init (Context c, FsEntry dir_entry, EntryType entry_type, char const *name, OpenerHandler handler)
+        void init (Context c, FsEntry dir_entry, EntryType entry_type, char const *path, OpenerHandler handler)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == FsState::READY)
             AMBRO_ASSERT(dir_entry.type == EntryType::DIR_TYPE)
-            AMBRO_ASSERT(name)
+            AMBRO_ASSERT(path)
             
             m_entry_type = entry_type;
-            m_name = name;
             m_handler = handler;
-            m_state = State::REQUESTING_ENTRY;
-            m_dir_iter.init(c, dir_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&Opener::dir_iter_handler, this));
-            m_dir_iter.requestEntry(c);
+            
+            m_path_comp = path;
+            find_name_component_length();
+            
+            if (m_path_comp_len == 0) {
+                m_state = State::INIT_ERROR;
+                m_init_error_event.init(c, APRINTER_CB_OBJFUNC_T(&Opener::init_error_event_handler, this));
+                m_init_error_event.prependNowNotAlready(c);
+            } else {
+                m_state = State::REQUESTING_ENTRY;
+                m_dir_iter.init(c, dir_entry.cluster_index, APRINTER_CB_OBJFUNC_T(&Opener::dir_iter_handler, this));
+                m_dir_iter.requestEntry(c);
+            }
         }
         
         void deinit (Context c)
         {
             TheDebugObject::access(c);
             
-            if (m_state != State::COMPLETED) {
+            if (m_state == State::INIT_ERROR) {
+                m_init_error_event.deinit(c);
+            }
+            else if (m_state == State::REQUESTING_ENTRY) {
                 m_dir_iter.deinit(c);
             }
         }
         
     private:
+        void find_name_component_length ()
+        {
+            while (*m_path_comp == '/') {
+                m_path_comp++;
+            }
+            
+            m_path_comp_len = 0;
+            while (m_path_comp[m_path_comp_len] != '\0' && m_path_comp[m_path_comp_len] != '/') {
+                m_path_comp_len++;
+            }
+        }
+        
+        void init_error_event_handler (Context c)
+        {
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::INIT_ERROR)
+            
+            m_state = State::COMPLETED;
+            m_init_error_event.deinit(c);
+            return m_handler(c, OpenerStatus::NOT_FOUND, FsEntry{});
+        }
+        
         void dir_iter_handler (Context c, bool is_error, char const *name, FsEntry entry)
         {
             TheDebugObject::access(c);
@@ -289,25 +323,49 @@ public:
                 OpenerStatus status = is_error ? OpenerStatus::ERROR : OpenerStatus::NOT_FOUND;
                 return m_handler(c, status, FsEntry{});
             }
-            if (entry.type != m_entry_type || !compare_filename_equal(name, m_name)) {
+            
+            if (!compare_filename_equal(name, m_path_comp, m_path_comp_len)) {
                 m_dir_iter.requestEntry(c);
                 return;
             }
-            m_state = State::COMPLETED;
+            
             m_dir_iter.deinit(c);
-            return m_handler(c, OpenerStatus::SUCCESS, entry);
+            
+            m_path_comp += m_path_comp_len;
+            find_name_component_length();
+            
+            if (m_path_comp_len > 0) {
+                if (entry.type != EntryType::DIR_TYPE) {
+                    m_state = State::COMPLETED;
+                    return m_handler(c, OpenerStatus::NOT_FOUND, FsEntry{});
+                }
+                m_dir_iter.init(c, entry.cluster_index, APRINTER_CB_OBJFUNC_T(&Opener::dir_iter_handler, this));
+                m_dir_iter.requestEntry(c);
+                return;
+            }
+            
+            m_state = State::COMPLETED;
+            if (entry.type == m_entry_type) {
+                return m_handler(c, OpenerStatus::SUCCESS, entry);
+            } else {
+                return m_handler(c, OpenerStatus::NOT_FOUND, FsEntry{});
+            }
         }
         
-        static bool compare_filename_equal (char const *str1, char const *str2)
+        static bool compare_filename_equal (char const *str1, char const *str2, size_t str2_len)
         {
-            return Params::CaseInsens ? AsciiCaseInsensStringEqual(str1, str2) : !strcmp(str1, str2);
+            return Params::CaseInsens ? AsciiCaseInsensStringEqualToMem(str1, str2, str2_len) : (strlen(str1) == str2_len && !memcmp(str1, str2, str2_len));
         }
         
         EntryType m_entry_type;
         State m_state;
-        char const *m_name;
+        char const *m_path_comp;
+        size_t m_path_comp_len;
         OpenerHandler m_handler;
-        DirectoryIterator m_dir_iter;
+        union {
+            typename Context::EventLoop::QueuedEvent m_init_error_event;
+            DirectoryIterator m_dir_iter;
+        };
     };
     
     APRINTER_STRUCT_IF_TEMPLATE(FileExtraMembers) {

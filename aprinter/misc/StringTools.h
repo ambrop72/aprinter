@@ -34,20 +34,17 @@ static char AsciiToLower (char c)
     return (c >= 'A' && c <= 'Z') ? (c + 32) : c;
 }
 
-static bool AsciiCaseInsensStringEqual (char const *str1, char const *str2)
+static bool AsciiCaseInsensStringEqualToMem (char const *str1, char const *str2, size_t str2_len)
 {
-    while (1) {
-        char c1 = AsciiToLower(*str1);
-        char c2 = AsciiToLower(*str2);
-        if (c1 != c2) {
+    while (*str1 != '\0') {
+        if (str2_len == 0 || AsciiToLower(*str1) != AsciiToLower(*str2)) {
             return false;
         }
-        if (c1 == '\0') {
-            return true;
-        }
-        ++str1;
-        ++str2;
+        str1++;
+        str2++;
+        str2_len--;
     }
+    return (str2_len == 0);
 }
 
 static bool StringRemovePrefix (char **data, char const *prefix)
