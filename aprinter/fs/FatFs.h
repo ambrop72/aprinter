@@ -290,16 +290,20 @@ public:
         }
         
     private:
-        void find_name_component_length ()
+        bool find_name_component_length ()
         {
+            bool skipped_slashes = false;
             while (*m_path_comp == '/') {
                 m_path_comp++;
+                skipped_slashes = true;
             }
             
             m_path_comp_len = 0;
             while (m_path_comp[m_path_comp_len] != '\0' && m_path_comp[m_path_comp_len] != '/') {
                 m_path_comp_len++;
             }
+            
+            return skipped_slashes;
         }
         
         void init_error_event_handler (Context c)
@@ -332,7 +336,7 @@ public:
             m_dir_iter.deinit(c);
             
             m_path_comp += m_path_comp_len;
-            find_name_component_length();
+            bool skipped_slashes = find_name_component_length();
             
             if (m_path_comp_len > 0) {
                 if (entry.type != EntryType::DIR_TYPE) {
@@ -345,7 +349,7 @@ public:
             }
             
             m_state = State::COMPLETED;
-            if (entry.type == m_entry_type) {
+            if (entry.type == m_entry_type && !skipped_slashes) {
                 return m_handler(c, OpenerStatus::SUCCESS, entry);
             } else {
                 return m_handler(c, OpenerStatus::NOT_FOUND, FsEntry{});
