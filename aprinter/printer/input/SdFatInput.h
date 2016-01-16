@@ -39,7 +39,6 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/fs/FatFs.h>
 #include <aprinter/fs/BlockAccess.h>
@@ -65,8 +64,9 @@ private:
     struct FsWriteMountHandler;
     using TheFs = typename Params::FsService::template Fs<Context, typename UnionFsPart::Object, TheBlockAccess, FsInitHandler, FsWriteMountHandler>;
     
+    static size_t const BlockSize = TheBlockAccess::BlockSize;
     static size_t const DirListReplyRequestExtra = 24;
-    static_assert(TheBlockAccess::BlockSize == 512, "BlockSize must be 512");
+    static_assert(BlockSize == 512, "BlockSize must be 512");
     
     // NOTE: Check bit field widths at the bottom before adding new state values.
     enum InitState {
@@ -100,7 +100,8 @@ private:
     // always executing ClearBufferHandler as part of commands that take the printer lock.
     
 public:
-    static size_t const NeedBufAvail = TheBlockAccess::BlockSize;
+    static size_t const ReadBlockSize = BlockSize;
+    using DataWordType = typename TheBlockAccess::DataWordType;
     
     static void init (Context c)
     {
@@ -168,24 +169,22 @@ public:
         return o->file_eof;
     }
     
-    static bool canRead (Context c, size_t buf_avail)
+    static bool canRead (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->file_state == FILE_STATE_RUNNING)
         
-        return (!o->file_eof && buf_avail >= TheBlockAccess::BlockSize);
+        return !o->file_eof;
     }
     
-    static void startRead (Context c, size_t buf_avail, WrapBuffer buf)
+    static void startRead (Context c, DataWordType *buf)
     {
         auto *o = Object::self(c);
         auto *fs_o = UnionFsPart::Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->file_state == FILE_STATE_RUNNING)
         AMBRO_ASSERT(!o->file_eof)
-        AMBRO_ASSERT(buf_avail >= TheBlockAccess::BlockSize)
-        AMBRO_ASSERT(buf.wrap > 0)
         
         fs_o->file.startReadUserBuf(c, buf);
         o->file_state = FILE_STATE_READING;
@@ -283,7 +282,7 @@ private:
         
         o->init_state = INIT_STATE_READ_MBR;
         mbr_o->block_user.init(c, APRINTER_CB_STATFUNC_T(&SdFatInput::block_user_handler));
-        mbr_o->block_user.startRead(c, 0, WrapBuffer::Make(mbr_o->block_buffer));
+        mbr_o->block_user.startRead(c, 0, mbr_o->block_buffer);
     }
     struct BlockAccessActivateHandler : public AMBRO_WFUNC_TD(&SdFatInput::block_access_activate_handler) {};
     
@@ -302,7 +301,7 @@ private:
             }
             
             BlockRange<typename TheBlockAccess::BlockIndexType> part_range;
-            if (!FindMbrPartition<TheFs>(mbr_o->block_buffer, TheBlockAccess::getCapacityBlocks(c), &part_range)) {
+            if (!FindMbrPartition<TheFs>((char const *)mbr_o->block_buffer, TheBlockAccess::getCapacityBlocks(c), &part_range)) {
                 error_code = 42;
                 goto error;
             }
@@ -737,7 +736,7 @@ private:
         AMBRO_ASSERT(o->file_state == FILE_STATE_READING)
         AMBRO_ASSERT(!o->file_eof)
         
-        if (!is_error && length == 0) {
+        if (!is_error && length < BlockSize) {
             o->file_eof = true;
         }
         o->file_state = FILE_STATE_RUNNING;
@@ -959,7 +958,7 @@ private:
     struct UnionMbrPart {
         struct Object : public ObjBase<UnionMbrPart, typename InitUnion::Object, EmptyTypeList> {
             typename TheBlockAccess::User block_user;
-            char block_buffer[TheBlockAccess::BlockSize];
+            DataWordType block_buffer[BlockSize / sizeof(DataWordType)];
         };
     };
     

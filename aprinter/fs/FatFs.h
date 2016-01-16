@@ -41,7 +41,6 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/BinaryTools.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/misc/Utf8Encoder.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/structure/DoubleEndedList.h>
@@ -66,6 +65,8 @@ private:
     using BlockAccessUser = typename TheBlockAccess::User;
     using BlockIndexType = typename TheBlockAccess::BlockIndexType;
     static size_t const BlockSize = TheBlockAccess::BlockSize;
+    using DataWordType = typename TheBlockAccess::DataWordType;
+    
     using CacheBlockRef = typename TheBlockCache::CacheRef;
     using CacheFlushRequest = typename TheBlockCache::template FlushRequest<>;
     
@@ -453,7 +454,7 @@ public:
             m_block_in_cluster = o->blocks_per_cluster;
         }
         
-        void startReadUserBuf (Context c, WrapBuffer buf)
+        void startReadUserBuf (Context c, DataWordType *buf)
         {
             TheDebugObject::access(c);
             AMBRO_ASSERT(m_state == State::IDLE)
@@ -838,7 +839,7 @@ public:
         union {
             struct {
                 BlockAccessUser block_user;
-                WrapBuffer request_buf;
+                DataWordType *request_buf;
             } m_user_buffer_mode;
             struct {
                 CacheBlockRef block_ref;

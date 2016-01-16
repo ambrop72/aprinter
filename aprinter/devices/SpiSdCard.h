@@ -35,7 +35,6 @@
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/BinaryTools.h>
 #include <aprinter/misc/CrcItuT.h>
 #include <aprinter/misc/ClockUtils.h>
@@ -64,6 +63,7 @@ private:
 public:
     using BlockIndexType = uint32_t;
     static size_t const BlockSize = 512;
+    using DataWordType = uint8_t;
     
     static void init (Context c)
     {
@@ -127,14 +127,14 @@ public:
         return true;
     }
     
-    static void startReadBlock (Context c, BlockIndexType block, WrapBuffer buffer)
+    static void startReadBlock (Context c, BlockIndexType block, DataWordType *buffer)
     {
         start_io_operation(c, block, buffer, false);
     }
     
-    static void startWriteBlock (Context c, BlockIndexType block, WrapBuffer buffer)
+    static void startWriteBlock (Context c, BlockIndexType block, DataWordType const *buffer)
     {
-        start_io_operation(c, block, buffer, true);
+        start_io_operation(c, block, (DataWordType *)buffer, true);
     }
     
     using GetSpi = TheSpi;
@@ -377,11 +377,7 @@ private:
                 if (o->m_io_buf[0] != 0 || o->m_io_buf[1] != 0xfe) {
                     goto complete_request;
                 }
-                size_t first_part_length = MinValue(o->m_request_buf.wrap, BlockSize);
-                TheSpi::cmdReadBuffer(c, (uint8_t *)o->m_request_buf.ptr1, first_part_length, 0xff);
-                if (first_part_length < BlockSize) {
-                    TheSpi::cmdReadBuffer(c, (uint8_t *)o->m_request_buf.ptr2, BlockSize - first_part_length, 0xff);
-                }
+                TheSpi::cmdReadBuffer(c, o->m_request_buf, BlockSize, 0xff);
                 TheSpi::cmdReadBuffer(c, o->m_io_buf + 2, 2, 0xff);
                 o->m_io_state = IO_STATE_READING_DATA;
                 return;
@@ -389,12 +385,7 @@ private:
             
             case IO_STATE_READING_DATA: {
                 uint16_t checksum_received = ReadBinaryInt<uint16_t, BinaryBigEndian>((char *)(o->m_io_buf + 2));
-                size_t first_part_length = MinValue(o->m_request_buf.wrap, BlockSize);
-                uint16_t checksum_computed = CrcItuTInitial;
-                checksum_computed = CrcItuTUpdate(checksum_computed, o->m_request_buf.ptr1, first_part_length);
-                if (first_part_length < BlockSize) {
-                    checksum_computed = CrcItuTUpdate(checksum_computed, o->m_request_buf.ptr2, BlockSize - first_part_length);
-                }
+                uint16_t checksum_computed = CrcItuTUpdate(CrcItuTInitial, (char const *)o->m_request_buf, BlockSize);
                 if (checksum_received != checksum_computed) {
                     goto complete_request;
                 }
@@ -405,16 +396,8 @@ private:
                 if (o->m_io_buf[0] != 0) {
                     goto complete_request;
                 }
-                uint16_t checksum = CrcItuTInitial;
-                size_t first_part_length = MinValue(o->m_request_buf.wrap, BlockSize);
-                TheSpi::cmdWriteBuffer(c, 0xfe, (uint8_t *)o->m_request_buf.ptr1, first_part_length);
-                checksum = CrcItuTUpdate(checksum, o->m_request_buf.ptr1, first_part_length);
-                if (first_part_length < BlockSize) {
-                    char const *data2 = o->m_request_buf.ptr2;
-                    size_t len2 = BlockSize - first_part_length;
-                    TheSpi::cmdWriteBuffer(c, ((uint8_t *)data2)[0], (uint8_t *)data2 + 1, len2 - 1);
-                    checksum = CrcItuTUpdate(checksum, data2, len2);
-                }
+                TheSpi::cmdWriteBuffer(c, 0xfe, o->m_request_buf, BlockSize);
+                uint16_t checksum = CrcItuTUpdate(CrcItuTInitial, (char const *)o->m_request_buf, BlockSize);
                 WriteBinaryInt<uint16_t, BinaryBigEndian>(checksum, (char *)o->m_io_buf);
                 TheSpi::cmdWriteBuffer(c, o->m_io_buf[0], o->m_io_buf + 1, 1);
                 o->m_io_state = IO_STATE_WRITING_DATA;
@@ -482,7 +465,7 @@ private:
         return InitHandler::call(c, code);
     }
     
-    static void start_io_operation (Context c, BlockIndexType block, WrapBuffer buffer, bool write)
+    static void start_io_operation (Context c, BlockIndexType block, DataWordType *buffer, bool write)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -518,7 +501,7 @@ public:
             struct {
                 uint32_t m_capacity_blocks;
                 uint8_t m_io_buf[6];
-                WrapBuffer m_request_buf;
+                DataWordType *m_request_buf;
             };
         };
     };

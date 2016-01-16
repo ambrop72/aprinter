@@ -40,7 +40,6 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/printer/Configuration.h>
 #include <aprinter/printer/InputCommon.h>
 #include <aprinter/printer/ServiceList.h>
@@ -61,11 +60,24 @@ private:
     struct InputClearBufferHandler;
     struct InputStartHandler;
     using TheInput = typename Params::InputService::template Input<Context, Object, InputClientParams<ThePrinterMain, InputReadHandler, InputClearBufferHandler, InputStartHandler>>;
+    
+    using DataWordType = typename TheInput::DataWordType;
+    
     static const size_t BufferBaseSize = Params::BufferBaseSize;
+    static_assert(BufferBaseSize % sizeof(DataWordType) == 0, "Buffer size must be a multiple of data word size");
+    static const size_t BufferBaseSizeWords = BufferBaseSize / sizeof(DataWordType);
+    
+    static const size_t BlockSize = TheInput::ReadBlockSize;
+    static_assert(BlockSize % sizeof(DataWordType) == 0, "");
+    static_assert(BufferBaseSize % BlockSize == 0, "Buffer size must be a multiple of block size");
+    
     static const size_t MaxCommandSize = Params::MaxCommandSize;
     static_assert(MaxCommandSize > 0, "");
-    static_assert(BufferBaseSize >= TheInput::NeedBufAvail + (MaxCommandSize - 1), "");
+    static_assert(BufferBaseSize >= BlockSize + (MaxCommandSize - 1), "");
+    
     static const size_t WrapExtraSize = MaxCommandSize - 1;
+    static const size_t WrapExtraSizeWords = (WrapExtraSize + (sizeof(DataWordType) - 1)) / sizeof(DataWordType);
+    
     using ParserSizeType = ChooseIntForMax<MaxCommandSize, false>;
     using TheGcodeParser = typename Params::TheGcodeParserService::template Parser<Context, ParserSizeType, typename ThePrinterMain::FpType>;
     
@@ -362,10 +374,10 @@ private:
         if (!error) {
             size_t write_offset = buf_add(o->m_start, o->m_length);
             if (write_offset < WrapExtraSize) {
-                memcpy(o->m_buffer + BufferBaseSize + write_offset, o->m_buffer + write_offset, MinValue(bytes_read, WrapExtraSize - write_offset));
+                memcpy((char *)o->m_buffer + BufferBaseSize + write_offset, (char *)o->m_buffer + write_offset, MinValue(bytes_read, WrapExtraSize - write_offset));
             }
             if (bytes_read > BufferBaseSize - write_offset) {
-                memcpy(o->m_buffer + BufferBaseSize, o->m_buffer, MinValue(bytes_read - (BufferBaseSize - write_offset), WrapExtraSize));
+                memcpy((char *)o->m_buffer + BufferBaseSize, (char *)o->m_buffer, MinValue(bytes_read - (BufferBaseSize - write_offset), WrapExtraSize));
             }
             o->m_length += bytes_read;
         }
@@ -434,7 +446,7 @@ private:
         }
         
         if (!o->gcode_parser.haveCommand(c)) {
-            o->gcode_parser.startCommand(c, o->m_buffer + o->m_start, 0);
+            o->gcode_parser.startCommand(c, (char *)o->m_buffer + o->m_start, 0);
         }
         
         avail = MinValue(MaxCommandSize, o->m_length);
@@ -499,7 +511,7 @@ private:
     static bool can_read (Context c)
     {
         auto *o = Object::self(c);
-        return TheInput::canRead(c, BufferBaseSize - o->m_length);
+        return (BufferBaseSize - o->m_length >= BlockSize && TheInput::canRead(c));
     }
     
     static size_t buf_add (size_t start, size_t count)
@@ -520,7 +532,8 @@ private:
         
         o->m_reading = true;
         size_t write_offset = buf_add(o->m_start, o->m_length);
-        TheInput::startRead(c, BufferBaseSize - o->m_length, WrapBuffer::Make(BufferBaseSize - write_offset, o->m_buffer + write_offset, o->m_buffer));
+        AMBRO_ASSERT(write_offset % BlockSize == 0)
+        TheInput::startRead(c, o->m_buffer + write_offset / sizeof(DataWordType));
     }
     
     static void buf_sanity (Context c)
@@ -560,7 +573,7 @@ public:
         uint8_t m_retry_counter;
         size_t m_start;
         size_t m_length;
-        char m_buffer[BufferBaseSize + WrapExtraSize];
+        DataWordType m_buffer[BufferBaseSizeWords + WrapExtraSizeWords];
     };
 };
 

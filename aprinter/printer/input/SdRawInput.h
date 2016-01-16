@@ -34,7 +34,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/WrapBuffer.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -53,7 +52,8 @@ private:
     enum {STATE_INACTIVE, STATE_ACTIVATING, STATE_PAUSED, STATE_READY, STATE_READING};
     
 public:
-    static size_t const NeedBufAvail = BlockSize;
+    static size_t const ReadBlockSize = BlockSize;
+    using DataWordType = typename TheSdCard::DataWordType;
     
     static void init (Context c)
     {
@@ -117,23 +117,21 @@ public:
         return (o->block >= TheSdCard::getCapacityBlocks(c));
     }
     
-    static bool canRead (Context c, size_t buf_avail)
+    static bool canRead (Context c)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_READY)
         
-        return (o->block < TheSdCard::getCapacityBlocks(c) && buf_avail >= BlockSize);
+        return (o->block < TheSdCard::getCapacityBlocks(c));
     }
     
-    static void startRead (Context c, size_t buf_avail, WrapBuffer buf)
+    static void startRead (Context c, DataWordType *buf)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
         AMBRO_ASSERT(o->state == STATE_READY)
         AMBRO_ASSERT(o->block < TheSdCard::getCapacityBlocks(c))
-        AMBRO_ASSERT(buf_avail >= BlockSize)
-        AMBRO_ASSERT(buf.wrap > 0)
         
         TheSdCard::startReadBlock(c, o->block, buf);
         o->state = STATE_READING;

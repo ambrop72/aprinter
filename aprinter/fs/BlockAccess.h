@@ -33,7 +33,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
@@ -57,6 +56,7 @@ private:
 public:
     using BlockIndexType = typename TheSd::BlockIndexType;
     static size_t const BlockSize = TheSd::BlockSize;
+    using DataWordType = typename TheSd::DataWordType;
     static int const MaxBufferLocks = 1;
     
     static void init (Context c)
@@ -141,18 +141,18 @@ public:
         {
         }
         
-        void startRead (Context c, BlockIndexType block_idx, WrapBuffer buf)
+        void startRead (Context c, BlockIndexType block_idx, DataWordType *buf)
         {
             return start_request(c, block_idx, buf, USER_STATE_READING);
         }
         
-        void startWrite (Context c, BlockIndexType block_idx, WrapBuffer buf)
+        void startWrite (Context c, BlockIndexType block_idx, DataWordType const *buf)
         {
-            return start_request(c, block_idx, buf, USER_STATE_WRITING);
+            return start_request(c, block_idx, (DataWordType *)buf, USER_STATE_WRITING);
         }
         
     private:
-        void start_request (Context c, BlockIndexType block_idx, WrapBuffer buf, uint8_t state_for_request_type)
+        void start_request (Context c, BlockIndexType block_idx, DataWordType *buf, uint8_t state_for_request_type)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
@@ -181,7 +181,7 @@ public:
         uint8_t m_state : 3;
         bool m_is_full : 1;
         BlockIndexType m_block_idx;
-        WrapBuffer m_buf;
+        DataWordType *m_buf;
         DoubleEndedListNode<User> m_list_node;
     };
     
@@ -271,7 +271,7 @@ private:
                 TheSd::startReadBlock(c, user->m_block_idx, user->m_buf);
             } else {
                 user->maybe_call_locker(c, true);
-                TheSd::startWriteBlock(c, user->m_block_idx, user->m_buf);
+                TheSd::startWriteBlock(c, user->m_block_idx, (DataWordType const *)user->m_buf);
             }
             o->state = STATE_BUSY;
         }

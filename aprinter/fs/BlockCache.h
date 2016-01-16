@@ -38,7 +38,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/DebugObject.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -56,6 +55,8 @@ private:
     
     class CacheEntry;
     using TheDebugObject = DebugObject<Context, Object>;
+    using DataWordType = typename TheBlockAccess::DataWordType;
+    static size_t const BlockSizeInWords = TheBlockAccess::BlockSize / sizeof(DataWordType);
     using BlockAccessUser = If<Writable, typename TheBlockAccess::UserFull, typename TheBlockAccess::User>;
     using DirtTimeType = uint32_t;
     static constexpr DirtTimeType DirtSignBit = ((DirtTimeType)-1 / 2) + 1;
@@ -747,7 +748,7 @@ private:
         char const * getDataForReading (Context c)
         {
             AMBRO_ASSERT(isInitialized(c))
-            return get_buffer(c);
+            return (char const *)get_buffer(c);
         }
         
         APRINTER_FUNCTION_IF(Writable, char *, getDataForWriting (Context c))
@@ -764,7 +765,7 @@ private:
                 this->m_active_buffer = new_buffer;
             }
             
-            return get_buffer(c);
+            return (char *)get_buffer(c);
         }
         
         APRINTER_FUNCTION_IF(Writable, DirtTimeType, getDirtTime (Context c))
@@ -798,7 +799,7 @@ private:
                 // No implicit markDirty.
             } else {
                 m_state = State::READING;
-                m_block_user.startRead(c, m_block, WrapBuffer::Make(get_buffer(c)));
+                m_block_user.startRead(c, m_block, get_buffer(c));
             }
             
             m_cache_users_list.prepend(user);
@@ -848,7 +849,7 @@ private:
             this->m_write_index = 1;
             this->m_write_event.unset(c);
             
-            m_block_user.startWrite(c, m_block, WrapBuffer::Make(get_buffer(c)));
+            m_block_user.startWrite(c, m_block, (DataWordType const *)get_buffer(c));
         }
         
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, startRelease (Context c))
@@ -918,7 +919,7 @@ private:
             this->m_write_count = write_count;
         }
         
-        APRINTER_FUNCTION_IF_ELSE(Writable, char *, get_buffer (Context c), {
+        APRINTER_FUNCTION_IF_ELSE(Writable, DataWordType *, get_buffer (Context c), {
             auto *o = Object::self(c);
             return o->buffers[this->m_active_buffer];
         }, {
@@ -994,7 +995,7 @@ private:
             if (!error && this->m_write_index < this->m_write_count) {
                 BlockIndexType write_block = m_block + this->m_write_index * this->m_write_stride;
                 this->m_write_index++;
-                return m_block_user.startWrite(c, write_block, WrapBuffer::Make(get_buffer(c)));
+                return m_block_user.startWrite(c, write_block, (DataWordType const *)get_buffer(c));
             }
             
             m_state = State::IDLE;
@@ -1044,7 +1045,7 @@ public:
         TheDebugObject
     >>, public CacheWritableMembers<Writable> {
         CacheEntry cache_entries[NumCacheEntries];
-        char buffers[NumBuffers][BlockSize];
+        DataWordType buffers[NumBuffers][BlockSizeInWords];
     };
 };
 

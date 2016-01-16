@@ -34,7 +34,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/devices/SdioInterface.h>
 #include <aprinter/misc/ClockUtils.h>
@@ -88,6 +87,7 @@ private:
 public:
     using BlockIndexType = uint32_t;
     static size_t const BlockSize = TheSdio::BlockSize;
+    using DataWordType = uint32_t;
     
     static void init (Context c)
     {
@@ -150,7 +150,7 @@ public:
         return true;
     }
     
-    static void startReadBlock (Context c, BlockIndexType block, WrapBuffer buffer)
+    static void startReadBlock (Context c, BlockIndexType block, DataWordType *buffer)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -159,14 +159,13 @@ public:
         AMBRO_ASSERT(block < o->capacity_blocks)
         
         uint32_t addr = o->is_sdhc ? block : (block * 512);
-        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_READ_SINGLE_BLOCK, addr, SdioIface::RESPONSE_SHORT, 0, SdioIface::DATA_DIR_READ, 1, o->buffer});
+        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_READ_SINGLE_BLOCK, addr, SdioIface::RESPONSE_SHORT, 0, SdioIface::DATA_DIR_READ, 1, buffer});
         
         o->io_state = IO_STATE_READING;
         o->cmd_finished = false;
-        o->io_user_buffer = buffer;
     }
     
-    static void startWriteBlock (Context c, BlockIndexType block, WrapBuffer buffer)
+    static void startWriteBlock (Context c, BlockIndexType block, DataWordType const *buffer)
     {
         auto *o = Object::self(c);
         TheDebugObject::access(c);
@@ -174,10 +173,8 @@ public:
         AMBRO_ASSERT(o->io_state == IO_STATE_IDLE)
         AMBRO_ASSERT(block < o->capacity_blocks)
         
-        buffer.copyOut(0, BlockSize, (char *)o->buffer);
-        
         uint32_t addr = o->is_sdhc ? block : (block * 512);
-        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_WRITE_BLOCK, addr, SdioIface::RESPONSE_SHORT, 0, SdioIface::DATA_DIR_WRITE, 1, o->buffer});
+        TheSdio::startCommand(c, SdioIface::CommandParams{CMD_WRITE_BLOCK, addr, SdioIface::RESPONSE_SHORT, 0, SdioIface::DATA_DIR_WRITE, 1, (DataWordType *)buffer});
         
         o->io_state = IO_STATE_WRITING;
         o->cmd_finished = false;
@@ -338,9 +335,6 @@ private:
                     bool error = (!check_r1_response(results) || data_error != SdioIface::DATA_ERROR_NONE);
                     
                     if (o->io_state == IO_STATE_READING) {
-                        if (!error) {
-                            o->io_user_buffer.copyIn(0, BlockSize, (char const *)o->buffer);
-                        }
                         return complete_operation(c, error);
                     } else {
                         o->write_error = error;
@@ -432,10 +426,8 @@ public:
         uint16_t rca;
         uint32_t capacity_blocks;
         uint8_t io_state;
-        WrapBuffer io_user_buffer;
         bool cmd_finished;
         bool write_error;
-        uint32_t buffer[BlockSize / 4];
     };
 };
 
