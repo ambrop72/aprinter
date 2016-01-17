@@ -321,6 +321,9 @@ public:
             
             tcp_accepted(m_pcb);
             
+            // Raise the priority of the new PCB to prevent it from getting killed due to subsequent new connections.
+            tcp_setprio(newpcb, TCP_PRIO_NORMAL+5);
+            
             m_accepted_pcb = newpcb;
             bool accept_res = m_accept_handler(c);
             
