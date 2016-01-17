@@ -192,7 +192,9 @@ private:
         {
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
+#if APRINTER_DEBUG_HTTP_SERVER
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientConnected\n"));
+#endif
             
             // Accept the connection.
             m_connection.acceptConnection(c, listener);
@@ -301,7 +303,9 @@ private:
                 return;
             }
             
+#if APRINTER_DEBUG_HTTP_SERVER
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientError\n"));
+#endif
             disconnect(c);
         }
         
@@ -399,7 +403,9 @@ private:
                             // Detect premature EOF from the client.
                             // We don't bother passing any remaining data to the user, this is easier.
                             if (m_rx_buf_eof && m_rx_buf_length < m_rem_req_body_length) {
+#if APRINTER_DEBUG_HTTP_SERVER
                                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInData\n"));
+#endif
                                 return close_gracefully(c, nullptr);
                             }
                             
@@ -471,7 +477,9 @@ private:
             // If there was no newline yet, wait for more data, or give up upon EOF.
             if (!end_of_line) {
                 if (m_rx_buf_eof) {
+#if APRINTER_DEBUG_HTTP_SERVER
                     ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInLine\n"));
+#endif
                     return close_gracefully(c, nullptr);
                 }
                 return;

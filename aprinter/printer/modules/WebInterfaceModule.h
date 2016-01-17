@@ -61,6 +61,7 @@ private:
     struct UserClientState;
     using TheHttpServer = typename TheTheHttpServerService::template Server<Context, Object, ThePrinterMain, HttpRequestHandler, UserClientState>;
     using TheRequestInterface = typename TheHttpServer::TheRequestInterface;
+    
     using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;
     using TheBufferedFile = BufferedFile<Context, TheFsAccess>;
     
@@ -70,26 +71,43 @@ private:
 public:
     static void init (Context c)
     {
-        auto *o = Object::self(c);
-        
         TheHttpServer::init(c);
     }
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
-        
         TheHttpServer::deinit(c);
     }
     
 private:
+    static char const * get_content_type (char const *path)
+    {
+        size_t path_len = strlen(path);
+        
+        if (AsciiCaseInsensEndsWith(path, path_len, ".htm") || AsciiCaseInsensEndsWith(path, path_len, ".html")) {
+            return "text/html";
+        }
+        if (AsciiCaseInsensEndsWith(path, path_len, ".css")) {
+            return "text/css";
+        }
+        if (AsciiCaseInsensEndsWith(path, path_len, ".js")) {
+            return "application/javascript";
+        }
+        if (AsciiCaseInsensEndsWith(path, path_len, ".png")) {
+            return "image/png";
+        }
+        if (AsciiCaseInsensEndsWith(path, path_len, ".ico")) {
+            return "image/x-icon";
+        }
+        return "application/octet-stream";
+    }
+    
     static void http_request_handler (Context c, TheRequestInterface *request)
     {
-        auto *o = Object::self(c);
-        
         char const *method = request->getMethod(c);
         char const *path = request->getPath(c);
         
+#if APRINTER_DEBUG_HTTP_SERVER
         auto *output = ThePrinterMain::get_msg_output(c);
         output->reply_append_pstr(c, AMBRO_PSTR("//HttpRequest "));
         output->reply_append_str(c, method);
@@ -99,6 +117,7 @@ private:
         output->reply_append_ch(c, request->hasRequestBody(c)?'1':'0');
         output->reply_append_ch(c, '\n');
         output->reply_poke(c);
+#endif
         
         if (path[0] == '/') {
             if (strcmp(method, "GET")) {
@@ -112,12 +131,7 @@ private:
             }
             
             UserClientState *st = request->getUserClientState(c);
-            AMBRO_ASSERT(st->m_state == UserClientState::State::NO_CLIENT)
-            
-            request->setCallback(c, st);
-            st->m_request = request;
-            st->m_state = UserClientState::State::OPEN;
-            st->m_buffered_file.startOpen(c, path + 1, false, TheBufferedFile::OpenMode::OPEN_READ);
+            st->acceptRequest(c, request, path + 1);
             return;
         }
         else {
@@ -141,6 +155,17 @@ private:
         void deinit (Context c)
         {
             m_buffered_file.deinit(c);
+        }
+        
+        void acceptRequest (Context c, TheRequestInterface *request, char const *file_path)
+        {
+            AMBRO_ASSERT(m_state == State::NO_CLIENT)
+            
+            request->setCallback(c, this);
+            m_request = request;
+            m_file_path = file_path;
+            m_state = State::OPEN;
+            m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ);
         }
         
         void requestTerminated (Context c)
@@ -181,7 +206,7 @@ private:
                         return requestTerminated(c);
                     }
                     
-                    m_request->setResponseContentType(c, "application/octet-stream");
+                    m_request->setResponseContentType(c, get_content_type(m_file_path));
                     m_request->adoptResponseBody(c);
                     
                     m_state = State::WAIT;
@@ -218,6 +243,7 @@ private:
         
         TheBufferedFile m_buffered_file;
         TheRequestInterface *m_request;
+        char const *m_file_path;
         size_t m_cur_chunk_size;
         State m_state;
     };
@@ -225,9 +251,7 @@ private:
 public:
     struct Object : public ObjBase<WebInterfaceModule, ParentObject, MakeTypeList<
         TheHttpServer
-    >> {
-        //
-    };
+    >> {};
 };
 
 template <
