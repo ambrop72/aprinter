@@ -95,7 +95,10 @@ def sdio_choice(**kwargs):
 
 def mii_choice(**kwargs):
     return ce.OneOf(choices=[
-        ce.Compound('At91SamEmacMii', attrs=[]),
+        ce.Compound('At91SamEmacMii', attrs=[
+            ce.Integer(key='NumRxBufers', title='Number of RX buffers [128 B]', default=48),
+            ce.Integer(key='NumTxBufers', title='Number of TX buffers [frame]', default=4),
+        ]),
     ], **kwargs)
 
 def phy_choice(**kwargs):

@@ -1311,9 +1311,19 @@ def use_mii(gen, config, key, user):
     
     @mii_sel.option('At91SamEmacMii')
     def option(mii_config):
+        num_rx_buffers = mii_config.get_int('NumRxBufers')
+        if not 12 <= num_rx_buffers <= 240:
+            mii_config.key_path('NumRxBufers').error('Value out of range.')
+        
+        num_tx_buffers = mii_config.get_int('NumTxBufers')
+        if not 1 <= num_tx_buffers <= 20:
+            mii_config.key_path('NumTxBufers').error('Value out of range.')
+        
         gen.add_aprinter_include('hal/at91/At91SamEmacMii.h')
         gen.add_extra_source('${ASF_DIR}/sam/drivers/emac/emac.c')
         gen.add_isr('APRINTER_AT91SAM_EMAC_MII_GLOBAL({}, MyContext())'.format(user))
+        gen.add_define('APRINTER_AT91SAM_EMAC_NUM_RX_BUFFERS', num_rx_buffers)
+        gen.add_define('APRINTER_AT91SAM_EMAC_NUM_TX_BUFFERS', num_tx_buffers)
         return 'At91SamEmacMiiService'
     
     return config.do_selection(key, mii_sel)
