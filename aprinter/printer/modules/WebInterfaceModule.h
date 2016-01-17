@@ -29,6 +29,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#define APRINTER_DEBUG_HTTP_SERVER 1
+
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Object.h>
@@ -67,6 +69,8 @@ private:
     
     static size_t const GetSdChunkSize = 512;
     static_assert(GetSdChunkSize <= TheHttpServer::MaxTxChunkSize, "");
+    
+    static constexpr char const *WebRootPath = "www";
     
 public:
     static void init (Context c)
@@ -165,7 +169,7 @@ private:
             m_request = request;
             m_file_path = file_path;
             m_state = State::OPEN;
-            m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ);
+            m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ, WebRootPath);
         }
         
         void requestTerminated (Context c)

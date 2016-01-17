@@ -45,7 +45,7 @@ private:
     
     enum class State {
         IDLE,
-        OPEN_ACCESS, OPEN_OPEN, OPEN_OPENWR,
+        OPEN_ACCESS, OPEN_BASEDIR, OPEN_OPEN, OPEN_OPENWR,
         READY,
         WRITE_EVENT, WRITE_WRITE, WRITE_TRUNCATE, WRITE_FLUSH,
         READ_EVENT, READ_READ
@@ -80,7 +80,7 @@ public:
         reset_internal(c);
     }
     
-    void startOpen (Context c, char const *filename, bool in_current_dir, OpenMode mode)
+    void startOpen (Context c, char const *filename, bool in_current_dir, OpenMode mode, char const *basedir=nullptr)
     {
         AMBRO_ASSERT(m_state == State::IDLE)
         AMBRO_ASSERT(filename)
@@ -88,6 +88,7 @@ public:
         
         m_state = State::OPEN_ACCESS;
         m_filename = filename;
+        m_basedir = basedir;
         m_in_current_dir = in_current_dir;
         m_write_mode = (mode == OpenMode::OPEN_WRITE);
         m_access_client.requestAccess(c, m_write_mode);
@@ -169,15 +170,20 @@ private:
             return reset_and_complete(c, Error::OTHER_ERROR);
         }
         
-        m_state = State::OPEN_OPEN;
         auto dir_entry = m_in_current_dir ? m_access_client.getCurrentDirectory(c) : TheFs::getRootEntry(c);
-        m_fs_opener.init(c, dir_entry, TheFs::EntryType::FILE_TYPE, m_filename, APRINTER_CB_OBJFUNC_T(&BufferedFile::fs_opener_handler, this));
+        if (m_basedir) {
+            m_state = State::OPEN_BASEDIR;
+            m_fs_opener.init(c, dir_entry, TheFs::EntryType::DIR_TYPE, m_basedir, APRINTER_CB_OBJFUNC_T(&BufferedFile::fs_opener_handler, this));
+        } else {
+            m_state = State::OPEN_OPEN;
+            m_fs_opener.init(c, dir_entry, TheFs::EntryType::FILE_TYPE, m_filename, APRINTER_CB_OBJFUNC_T(&BufferedFile::fs_opener_handler, this));
+        }
         m_have_opener = true;
     }
     
     void fs_opener_handler (Context c, typename TheOpener::OpenerStatus status, typename TheFs::FsEntry entry)
     {
-        AMBRO_ASSERT(m_state == State::OPEN_OPEN)
+        AMBRO_ASSERT(m_state == State::OPEN_BASEDIR || m_state == State::OPEN_OPEN)
         AMBRO_ASSERT(m_have_opener)
         AMBRO_ASSERT(!m_have_file)
         
@@ -187,6 +193,13 @@ private:
         }
         
         m_fs_opener.deinit(c);
+        
+        if (m_state == State::OPEN_BASEDIR) {
+            m_state = State::OPEN_OPEN;
+            m_fs_opener.init(c, entry, TheFs::EntryType::FILE_TYPE, m_filename, APRINTER_CB_OBJFUNC_T(&BufferedFile::fs_opener_handler, this));
+            return;
+        }
+        
         m_have_opener = false;
         
         m_fs_file.init(c, entry, APRINTER_CB_OBJFUNC_T(&BufferedFile::fs_file_handler, this), TheFile::IoMode::FS_BUFFER);
@@ -341,6 +354,7 @@ public:
     union {
         struct {
             char const *m_filename;
+            char const *m_basedir;
         };
         union {
             struct {
