@@ -127,7 +127,17 @@ public:
         void *dev_buffer;
         auto write_start_res = emac_dev_write_start(&o->emac_dev, total_length, &dev_buffer);
         if (write_start_res != EMAC_OK) {
-            return false;
+            if (write_start_res == EMAC_TX_BUSY) {
+                // Try again after cleaning up transmitted frames in the TX buffer.
+                // Since we're calling emac_handler we also have to schedule the
+                // event_handler, to avoid losing any receive events.
+                emac_handler(&o->emac_dev);
+                Context::EventLoop::template triggerFastEvent<FastEvent>(c);
+                write_start_res = emac_dev_write_start(&o->emac_dev, total_length, &dev_buffer);
+            }
+            if (write_start_res != EMAC_OK) {
+                return false;
+            }
         }
         
         size_t buf_pos = 0;
