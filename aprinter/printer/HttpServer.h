@@ -95,7 +95,7 @@ public:
         auto *o = Object::self(c);
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&HttpServer::listener_accept_handler));
-        if (!o->listener.startListening(c, Params::Port)) {
+        if (!o->listener.startListening(c, Params::Port, Params::MaxClients)) {
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
         for (int i = 0; i < Params::MaxClients; i++) {

@@ -256,9 +256,13 @@ public:
             reset_internal(c);
         }
         
-        bool startListening (Context c, uint16_t port)
+        bool startListening (Context c, uint16_t port, int max_clients)
         {
             AMBRO_ASSERT(!m_pcb)
+            AMBRO_ASSERT(max_clients > 0)
+            
+            m_max_clients = MinValue(255, max_clients);
+            m_num_clients = 0;
             
             do {
                 m_pcb = tcp_new();
@@ -274,7 +278,7 @@ public:
                     goto fail;
                 }
                 
-                struct tcp_pcb *listen_pcb = tcp_listen(m_pcb);
+                struct tcp_pcb *listen_pcb = tcp_listen_with_backlog(m_pcb, m_max_clients);
                 if (!listen_pcb) {
                     goto fail;
                 }
@@ -335,9 +339,48 @@ public:
             return accept_res ? ERR_OK : ERR_ABRT;
         }
         
+        // We play with pcb->backlog to ensure that the combined number
+        // of connected PCBs and PBCs in the backlog (SYN_RCVD state)
+        // does not exceed m_max_clients. It's hacky but correct.
+        // Note that pcb->backlog is really the limit of the size of the
+        // backlog; when a SYN is received, if pcb->accepts_pending is
+        // greater or equal to pcb->backlog, the connection is refused.
+        
+        struct tcp_pcb * yank_client_pcb ()
+        {
+            AMBRO_ASSERT(m_accepted_pcb)
+            
+            struct tcp_pcb *pcb = m_accepted_pcb;
+            m_accepted_pcb = nullptr;
+            
+            AMBRO_ASSERT(m_num_clients < m_max_clients)
+            m_num_clients++;
+            
+            AMBRO_ASSERT(get_lpcb()->backlog > 0)
+            get_lpcb()->backlog--;
+            
+            return pcb;
+        }
+        
+        void client_pcb_closed ()
+        {
+            AMBRO_ASSERT(m_num_clients > 0)
+            m_num_clients--;
+            
+            AMBRO_ASSERT(get_lpcb()->backlog < m_max_clients)
+            get_lpcb()->backlog++;
+        }
+        
+        struct tcp_pcb_listen * get_lpcb ()
+        {
+            return (struct tcp_pcb_listen *)m_pcb;
+        }
+        
         AcceptHandler m_accept_handler;
         struct tcp_pcb *m_pcb;
         struct tcp_pcb *m_accepted_pcb;
+        uint8_t m_max_clients;
+        uint8_t m_num_clients;
     };
     
     class TcpConnection {
@@ -391,8 +434,8 @@ public:
             AMBRO_ASSERT(!m_received_pbuf)
             AMBRO_ASSERT(listener->m_accepted_pcb)
             
-            m_pcb = listener->m_accepted_pcb;
-            listener->m_accepted_pcb = nullptr;
+            m_pcb = listener->yank_client_pcb();
+            m_listener = listener;
             
             tcp_arg(m_pcb, this);
             tcp_err(m_pcb, &TcpConnection::pcb_err_handler_wrapper);
@@ -485,6 +528,7 @@ public:
                 remove_pcb_callbacks(m_pcb);
                 close_pcb(m_pcb, m_send_buf_passed_length);
                 m_pcb = nullptr;
+                m_listener->client_pcb_closed();
             }
             m_write_event.unset(c);
             m_sent_event.unset(c);
@@ -499,6 +543,7 @@ public:
             remove_pcb_callbacks(m_pcb);
             if (pcb_gone) {
                 m_pcb = nullptr;
+                m_listener->client_pcb_closed();
             }
             m_state = State::ERRORING;
             m_write_event.unset(c);
@@ -602,6 +647,7 @@ public:
                     if (m_pcb) {
                         close_pcb(m_pcb, m_send_buf_passed_length);
                         m_pcb = nullptr;
+                        m_listener->client_pcb_closed();
                     }
                     m_state = State::ERRORED;
                     
@@ -690,6 +736,7 @@ public:
         State m_state;
         bool m_recv_remote_closed;
         struct tcp_pcb *m_pcb;
+        TcpListener *m_listener;
         struct pbuf *m_received_pbuf;
         size_t m_received_offset;
         size_t m_recv_pending;

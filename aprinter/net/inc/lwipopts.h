@@ -68,6 +68,12 @@
 #define MEMP_NUM_TCP_PCB APRINTER_NUM_TCP_CONN
 #define MEMP_NUM_TCP_PCB_LISTEN APRINTER_NUM_TCP_LISTEN
 
+// Enable TCP listen backlog.
+// Note that in LwipNetwork we decrement/increment pcb->backlog
+// as connections are accepted/closed, in order to limit the combined
+// number of pending and established connections.
+#define TCP_LISTEN_BACKLOG 1
+
 // Oversize can be disabled since it does nothing when tcp_write()
 // is called without TCP_WRITE_FLAG_COPY.
 #define TCP_OVERSIZE 0
