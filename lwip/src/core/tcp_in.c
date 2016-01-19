@@ -556,6 +556,8 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
 #if TCP_LISTEN_BACKLOG
     if (pcb->accepts_pending >= pcb->backlog) {
       LWIP_DEBUGF(TCP_DEBUG, ("tcp_listen_input: listen backlog exceeded for port %"U16_F"\n", tcphdr->dest));
+      tcp_rst(ackno, seqno + tcplen, ip_current_dest_addr(),
+        ip_current_src_addr(), tcphdr->dest, tcphdr->src);
       return ERR_ABRT;
     }
 #endif /* TCP_LISTEN_BACKLOG */
