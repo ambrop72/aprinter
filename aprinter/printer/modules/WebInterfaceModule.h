@@ -55,7 +55,8 @@ private:
     static size_t const HttpTxChunkHeaderDigits = 4;
     
     using TheTheHttpServerService = HttpServerService<
-        Params::Port, Params::MaxClients, HttpMaxRequestLineLength, HttpMaxHeaderLineLength,
+        Params::Port, Params::MaxClients,
+        HttpMaxRequestLineLength, HttpMaxHeaderLineLength,
         HttpExpectedResponseLength, HttpMaxRequestHeadLength, HttpTxChunkHeaderDigits
     >;
     
@@ -70,7 +71,8 @@ private:
     static size_t const GetSdChunkSize = 512;
     static_assert(GetSdChunkSize <= TheHttpServer::MaxTxChunkSize, "");
     
-    static constexpr char const *WebRootPath = "www";
+    static constexpr char const * WebRootPath() { return "www"; }
+    static constexpr char const * IndexPage() { return "reprap.htm"; }
     
 public:
     static void init (Context c)
@@ -103,6 +105,7 @@ private:
         if (AsciiCaseInsensEndsWith(path, path_len, ".ico")) {
             return "image/x-icon";
         }
+        
         return "application/octet-stream";
     }
     
@@ -134,8 +137,9 @@ private:
                 goto error;
             }
             
-            UserClientState *st = request->getUserClientState(c);
-            st->acceptRequest(c, request, path + 1);
+            char const *file_path = !strcmp(path, "/") ? IndexPage() : (path + 1);
+            
+            request->getUserClientState(c)->acceptGetFileRequest(c, request, file_path);
             return;
         }
         else {
@@ -161,7 +165,7 @@ private:
             m_buffered_file.deinit(c);
         }
         
-        void acceptRequest (Context c, TheRequestInterface *request, char const *file_path)
+        void acceptGetFileRequest (Context c, TheRequestInterface *request, char const *file_path)
         {
             AMBRO_ASSERT(m_state == State::NO_CLIENT)
             
@@ -169,7 +173,7 @@ private:
             m_request = request;
             m_file_path = file_path;
             m_state = State::OPEN;
-            m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ, WebRootPath);
+            m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ, WebRootPath());
         }
         
         void requestTerminated (Context c)
