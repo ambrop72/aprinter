@@ -684,7 +684,15 @@ public:
             
             auto err = tcp_output(m_pcb);
             if (err != ERR_OK) {
-                go_erroring(c, false);
+                if (err == ERR_BUF) {
+                    // Most likely this is because the TX buffer of the driver is full.
+                    // This is not fatal, TCP will retransmit.
+                    // In the future we can make the driver tell us when there is space
+                    // in the TX buffer again, and call tcp_txnow() to speed up the
+                    // retransmission.
+                } else {
+                    go_erroring(c, false);
+                }
             }
         }
         
