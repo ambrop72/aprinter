@@ -208,7 +208,8 @@ private:
             
             {
                 typename TheCommandStream::InhibitMsg inhibit(&m_command_stream);
-                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleDisconnected\n"));
+                auto err = remote_closed ? AMBRO_PSTR("//TcpConsoleDisconnected\n") : AMBRO_PSTR("//TcpConsoleError\n");
+                ThePrinterMain::print_pgm_string(c, err);
             }
             
             start_disconnect(c);
