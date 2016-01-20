@@ -97,16 +97,26 @@
 // to be immediately freed, never queued.
 #define TCP_QUEUE_OOSEQ 0
 
+// Estimate how many TCP segments are needed to fully utilize the TX buffer space.
+#define APRINTER_NUM_TCP_DATA_SEG ((TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS)
+
 // Maximum number of pbufs in the TCP send queue for a single connection.
 // Note that currently lwIP only enforces this limit when adding new
 // segments and not when adding a pbuf to an existing segment.
 // Nevertheless we should not run out of pbufs due to TCP_EXTEND_ROM_PBUFS.
-#define TCP_SND_QUEUELEN (2 * ((TCP_SND_BUF + (TCP_MSS - 1)) / TCP_MSS) + 2)
+// We compute this based on our estimation of how many segments are needed,
+// counting, each segment twice, since segments will typically have a header
+// pbuf and a data pbuf. Allow one more to accomodate segments with one
+// additional pbuf at ring buffer wrap-around.
+#define TCP_SND_QUEUELEN (2 * APRINTER_NUM_TCP_DATA_SEG + 1)
 
 // Number of TCP segments in the pool.
-// Each connection uses at most TCP_SND_QUEUELEN segments since each segment
-// contains one or more pbufs.
-#define MEMP_NUM_TCP_SEG (APRINTER_NUM_TCP_CONN * TCP_SND_QUEUELEN)
+// For each connection we reserve:
+// - APRINTER_NUM_TCP_DATA_SEG segments for data segments.
+//   Note that TCP_SND_QUEUELEN should ensure that indeed no more than
+//   this many data segments are queued.
+// - 2 segments for segments created by tcp_enqueue_flags() (SYN/ACK, FIN).
+#define MEMP_NUM_TCP_SEG (APRINTER_NUM_TCP_CONN * (APRINTER_NUM_TCP_DATA_SEG + 2))
 
 // Number of pbufs in PBUF pool.
 // These are allocated via pbuf_alloc(..., PBUF_ROM or PBUF_REF) and
@@ -125,7 +135,7 @@
 // - In the fragmentation of IP packets, they reference parts of the
 //   original full packet. Since we don't need and disable fragmentation,
 //   we don't reserve anything for this.
-#define MEMP_NUM_PBUF (2 + APRINTER_NUM_TCP_CONN * ((TCP_SND_QUEUELEN+1)/2+1))
+#define MEMP_NUM_PBUF (2 + APRINTER_NUM_TCP_CONN * (APRINTER_NUM_TCP_DATA_SEG + 1))
 
 // Number of pbufs in PBUF_POOL pool.
 // These are allocated via pbuf_alloc(..., PBUF_POOL).
@@ -140,4 +150,4 @@
 // - Headers for outgoing TCP segments generated in tcp_write() when used
 //   without TCP_WRITE_FLAG_COPY.
 // - Outgoing packets queued by ARP.
-#define MEM_SIZE (768 + APRINTER_NUM_TCP_CONN * (256 + TCP_SND_QUEUELEN * 112))
+#define MEM_SIZE (768 + APRINTER_NUM_TCP_CONN * (256 + APRINTER_NUM_TCP_DATA_SEG * 112))
