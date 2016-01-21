@@ -629,7 +629,7 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
       ((struct pbuf_rom*)p2)->payload = (const u8_t*)arg + pos;
 
       /* Second, allocate a pbuf for the headers. */
-      if ((p = pbuf_alloc(PBUF_TRANSPORT, optlen, PBUF_RAM)) == NULL) {
+      if ((p = pbuf_alloc(PBUF_TRANSPORT, optlen, PBUF_TCP)) == NULL) {
         /* If allocation fails, we have to deallocate the data pbuf as
          * well. */
         pbuf_free(p2);
@@ -859,7 +859,7 @@ tcp_enqueue_flags(struct tcp_pcb *pcb, u8_t flags)
   }
 
   /* Allocate pbuf with room for TCP header + options */
-  if ((p = pbuf_alloc(PBUF_TRANSPORT, optlen, PBUF_RAM)) == NULL) {
+  if ((p = pbuf_alloc(PBUF_TRANSPORT, optlen, PBUF_TCP)) == NULL) {
     pcb->flags |= TF_NAGLEMEMERR;
     TCP_STATS_INC(tcp.memerr);
     return ERR_MEM;

@@ -449,6 +449,13 @@
 #define PBUF_POOL_SIZE                  16
 #endif
 
+/**
+ * PBUF_TCP_SIZE: the number of buffers in the PBUF_TCP pool (tcp headers).
+ */
+#ifndef PBUF_TCP_SIZE
+#define PBUF_TCP_SIZE                   MEMP_NUM_TCP_SEG
+#endif
+
 /** MEMP_NUM_API_MSG: the number of concurrently active calls to various
  * socket, netconn, and tcpip functions
  */
@@ -1347,6 +1354,15 @@
  */
 #ifndef PBUF_POOL_BUFSIZE
 #define PBUF_POOL_BUFSIZE               LWIP_MEM_ALIGN_SIZE(TCP_MSS+40+PBUF_LINK_ENCAPSULATION_HLEN+PBUF_LINK_HLEN)
+#endif
+
+
+
+/**
+ * PBUF_TCP_BUFSIZE: the size of each pbuf in the PBUF_TCP pool (TCP headers).
+ */
+#ifndef PBUF_TCP_BUFSIZE
+#define PBUF_TCP_BUFSIZE                LWIP_MEM_ALIGN_SIZE(PBUF_LINK_ENCAPSULATION_HLEN+PBUF_LINK_HLEN+PBUF_IP_HLEN+PBUF_TRANSPORT_HLEN+LWIP_TCP_MAX_OPT_LENGTH)
 #endif
 
 /*

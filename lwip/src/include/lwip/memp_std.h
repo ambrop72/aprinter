@@ -136,6 +136,7 @@ LWIP_MEMPOOL(MLD6_GROUP,     MEMP_NUM_MLD6_GROUP,      sizeof(struct mld_group),
  */
 LWIP_PBUF_MEMPOOL(PBUF,      MEMP_NUM_PBUF,            0,                             "PBUF_REF/ROM")
 LWIP_PBUF_MEMPOOL(PBUF_POOL, PBUF_POOL_SIZE,           PBUF_POOL_BUFSIZE,             "PBUF_POOL")
+LWIP_PBUF_MEMPOOL(PBUF_TCP,  PBUF_TCP_SIZE,            PBUF_TCP_BUFSIZE,              "PBUF_TCP")
 
 
 /*

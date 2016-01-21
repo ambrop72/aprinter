@@ -69,7 +69,7 @@
 #include "lwip/memp.h"
 #include "lwip/pbuf.h"
 #include "lwip/sys.h"
-#if LWIP_TCP && TCP_QUEUE_OOSEQ
+#if LWIP_TCP
 #include "lwip/tcp_impl.h"
 #endif
 #if LWIP_CHECKSUM_ON_COPY
@@ -307,6 +307,22 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
     /*r->next = NULL;*/
 
     break;
+  case PBUF_TCP:
+    LWIP_ASSERT("pbuf_alloc: layer for PBUF_TCP is PBUF_TRANSPORT", layer == PBUF_TRANSPORT);
+    LWIP_ASSERT("pbuf_alloc: length for PBUF_TCP is <= LWIP_TCP_MAX_OPT_LENGTH", length <= LWIP_TCP_MAX_OPT_LENGTH);
+    
+    p = (struct pbuf *)memp_malloc(MEMP_PBUF_TCP);
+    if (p == NULL) {
+      return NULL;
+    }
+    p->payload = LWIP_MEM_ALIGN((void *)((u8_t *)p + SIZEOF_STRUCT_PBUF + offset));
+    p->len = p->tot_len = length;
+    p->next = NULL;
+    p->type = type;
+    
+    LWIP_ASSERT("pbuf_alloc: pbuf->payload properly aligned",
+           ((mem_ptr_t)p->payload % MEM_ALIGNMENT) == 0);
+    break;
   case PBUF_RAM:
     /* If pbuf is to be allocated in RAM, allocate memory for it. */
     p = (struct pbuf*)mem_malloc(LWIP_MEM_ALIGN_SIZE(SIZEOF_STRUCT_PBUF + offset) + LWIP_MEM_ALIGN_SIZE(length));
@@ -532,8 +548,8 @@ pbuf_header_impl(struct pbuf *p, s16_t header_size_increment, u8_t force)
     /* Can't assert these as some callers speculatively call
          pbuf_header() to see if it's OK.  Will return 1 below instead. */
     /* Check that we've got the correct type of pbuf to work with */
-    LWIP_ASSERT("p->type == PBUF_RAM || p->type == PBUF_POOL", 
-                p->type == PBUF_RAM || p->type == PBUF_POOL);
+    LWIP_ASSERT("p->type == PBUF_RAM || p->type == PBUF_POOL || p->type == PBUF_TCP",
+                p->type == PBUF_RAM || p->type == PBUF_POOL || p->type == PBUF_TCP);
     /* Check that we aren't going to move off the beginning of the pbuf */
     LWIP_ASSERT("p->payload - increment_magnitude >= p + SIZEOF_STRUCT_PBUF",
                 (u8_t *)p->payload - increment_magnitude >= (u8_t *)p + SIZEOF_STRUCT_PBUF);
@@ -545,7 +561,7 @@ pbuf_header_impl(struct pbuf *p, s16_t header_size_increment, u8_t force)
   payload = p->payload;
 
   /* pbuf types containing payloads? */
-  if (type == PBUF_RAM || type == PBUF_POOL) {
+  if (type == PBUF_RAM || type == PBUF_POOL || type == PBUF_TCP) {
     /* set new payload pointer */
     p->payload = (u8_t *)p->payload - header_size_increment;
     /* boundary check fails? */
@@ -675,7 +691,7 @@ pbuf_free(struct pbuf *p)
 
   LWIP_ASSERT("pbuf_free: sane type",
     p->type == PBUF_RAM || p->type == PBUF_ROM ||
-    p->type == PBUF_REF || p->type == PBUF_POOL);
+    p->type == PBUF_REF || p->type == PBUF_POOL || p->type == PBUF_TCP);
 
   count = 0;
   /* de-allocate all consecutive pbufs from the head of the chain that
@@ -713,6 +729,8 @@ pbuf_free(struct pbuf *p)
         /* is this a ROM or RAM referencing pbuf? */
         } else if (type == PBUF_ROM || type == PBUF_REF) {
           memp_free(MEMP_PBUF, p);
+        } else if (type == PBUF_TCP) {
+          memp_free(MEMP_PBUF_TCP, p);
         /* type == PBUF_RAM */
         } else {
           mem_free(p);

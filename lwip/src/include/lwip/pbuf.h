@@ -87,7 +87,9 @@ typedef enum {
       for RX. Payload can be chained (scatter-gather RX) but like PBUF_RAM, struct
       pbuf and its payload are allocated in one piece of contiguous memory (so
       the first payload byte can be calculated from struct pbuf) */
-  PBUF_POOL
+  PBUF_POOL,
+  /** pbufs for TCP headers. These come from the pool PBUF_TCP. */
+  PBUF_TCP
 } pbuf_type;
 
 
