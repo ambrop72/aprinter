@@ -39,6 +39,14 @@ rec {
         gcc-arm-embedded = gcc-arm-embedded-fromsrc;
     };
     
+    /* ARM toolchain but with newlib optimized for size. */
+    gcc-arm-embedded-fromsrc-optsize = gcc-arm-embedded-fromsrc.override { optimizeForSize = true; };
+    
+    /* Clang with newlib optimized for size. */
+    clang-arm-embedded-optize = clang-arm-embedded.override {
+        gcc-arm-embedded = gcc-arm-embedded-fromsrc-optsize;
+    };
+    
     /* Atmel Software Framework (chip support for Atmel ARM chips). */
     asf = pkgs.callPackage ./asf.nix {};
     
@@ -50,12 +58,12 @@ rec {
     teensyCores = pkgs.callPackage ./teensy_cores.nix {};
     
     /* The primary APrinter build function. */    
-    aprinterFunc = aprinterConfig: pkgs.callPackage ./aprinter.nix (
+    aprinterFunc = aprinterConfig@{ optimizeLibcForSize, ... }: pkgs.callPackage ./aprinter.nix (
         {
-            inherit clang-arm-embedded asf stm32cubef4 teensyCores aprinterSource;
-            inherit avrgcclibc;
-            gcc-arm-embedded = gcc-arm-embedded-fromsrc;
-        } // aprinterConfig
+            inherit aprinterSource avrgcclibc asf stm32cubef4 teensyCores;
+            gcc-arm-embedded = if optimizeLibcForSize then gcc-arm-embedded-fromsrc-optsize else gcc-arm-embedded-fromsrc;
+            clang-arm-embedded = if optimizeLibcForSize then clang-arm-embedded-optize else clang-arm-embedded;
+        } // (removeAttrs aprinterConfig ["optimizeLibcForSize"])
     );
     
     /* We need a specific version of NCD for the service. */
@@ -69,5 +77,17 @@ rec {
     aprinterServiceExprs = pkgs.callPackage ./service.nix { inherit aprinterSource ncd; };
     aprinterService = aprinterServiceExprs.service;
     
-    buildDeps = [aprinterSource avrgcclibc gcc-arm-embedded-fromsrc clang-arm-embedded asf stm32cubef4 teensyCores];
+    /* This is used by the service deployment expression to ensure that the
+     * build dependencies are already in the Nix store. */
+    buildDeps = [
+        aprinterSource
+        avrgcclibc
+        gcc-arm-embedded-fromsrc
+        clang-arm-embedded
+        gcc-arm-embedded-fromsrc-optsize
+        clang-arm-embedded-optize
+        asf
+        stm32cubef4
+        teensyCores
+    ];
 }

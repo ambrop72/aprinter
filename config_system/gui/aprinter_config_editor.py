@@ -836,6 +836,7 @@ def editor():
                 ce.String(key='AxisDriverPrecisionParams', title='Stepping precision parameters', enum=['AxisDriverAvrPrecisionParams', 'AxisDriverDuePrecisionParams']),
                 ce.Float(key='EventChannelTimerClearance', title='Event channel timer clearance'),
                 ce.Boolean(key='OptimizeForSize', title='Optimize compilation for program size', default=False),
+                ce.Boolean(key='OptimizeLibcForSize', title='Optimize libc for program size (newlib/ARM only)', default=False),
             ]),
             ce.Compound('development', key='development', title='Development features', collapsable=True, attrs=[
                 ce.Boolean(key='AssertionsEnabled', title='Enable assertions', default=False),

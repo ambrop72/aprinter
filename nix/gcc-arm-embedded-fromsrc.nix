@@ -1,7 +1,10 @@
 # This was written partly based on https://github.com/EliasOenal/TNT,
 # and the patches were also taken from there.
 
-{ stdenv, fetchurl, fetchgit, gmp, mpfr, libmpc, isl_0_11, cloog_0_18_0, zlib, libelf, texinfo, bison, flex, automake111x, autoconf }:
+{ stdenv, fetchurl, fetchgit, gmp, mpfr, libmpc, isl_0_11, cloog_0_18_0
+, zlib, libelf, texinfo, bison, flex, automake111x, autoconf
+, optimizeForSize ? false
+}:
 let
     gcc_version = "5.3.0";
     binutils_version = "2.25.1";
@@ -76,6 +79,7 @@ let
         --enable-newlib-global-atexit \
         --enable-newlib-io-c99-formats \
         --enable-newlib-io-long-long \
+    '' + stdenv.lib.optionalString optimizeForSize ''
         --enable-target-optspace \
     '';
     

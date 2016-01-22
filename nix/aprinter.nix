@@ -26,9 +26,13 @@
 , asf, stm32cubef4, teensyCores, aprinterSource, buildVars, extraSources
 , extraIncludes, defines
 , mainText, boardName, buildName, desiredOutputs
-, optimizeForSize ? false, assertionsEnabled ? false
-, eventLoopBenchmarkEnabled ? false, detectOverloadEnabled ? false
-, buildWithClang ? false, verboseBuild ? false, debugSymbols ? false
+, optimizeForSize ? false
+, assertionsEnabled ? false
+, eventLoopBenchmarkEnabled ? false
+, detectOverloadEnabled ? false
+, buildWithClang ? false
+, verboseBuild ? false
+, debugSymbols ? false
 }:
 
 let

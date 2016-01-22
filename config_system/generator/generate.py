@@ -1403,6 +1403,7 @@ def generate(config_root_data, cfg_name, main_template):
                     gen.add_typedef('TheAxisDriverPrecisionParams', performance.get_identifier('AxisDriverPrecisionParams'))
                     gen.add_float_constant('EventChannelTimerClearance', performance.get_float('EventChannelTimerClearance'))
                     optimize_for_size = performance.get_bool('OptimizeForSize')
+                    optimize_libc_for_size = performance.get_bool('OptimizeLibcForSize')
                 
                 for development in board_data.enter_config('development'):
                     assertions_enabled = development.get_bool('AssertionsEnabled')
@@ -2283,6 +2284,7 @@ def generate(config_root_data, cfg_name, main_template):
         'board_for_build': board_for_build,
         'output_types': output_types,
         'optimize_for_size': optimize_for_size,
+        'optimize_libc_for_size': optimize_libc_for_size,
         'assertions_enabled': assertions_enabled,
         'event_loop_benchmark_enabled': event_loop_benchmark_enabled,
         'detect_overload_enabled': detect_overload_enabled,
@@ -2322,6 +2324,7 @@ def main():
     nix_expr = (
         'with ((import (builtins.toPath {})) {{}}); aprinterFunc {{\n'
         '    boardName = {}; buildName = "aprinter"; desiredOutputs = {}; optimizeForSize = {};\n'
+        '    optimizeLibcForSize = {};\n'
         '    assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {};\n'
         '    buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; buildVars = {};\n'
         '    extraSources = {}; extraIncludes = {}; defines = {}; mainText = {};\n'
@@ -2331,6 +2334,7 @@ def main():
         nix_utils.escape_string_for_nix(result['board_for_build']),
         nix_utils.convert_for_nix(result['output_types']),
         nix_utils.convert_bool_for_nix(result['optimize_for_size']),
+        nix_utils.convert_bool_for_nix(result['optimize_libc_for_size']),
         nix_utils.convert_bool_for_nix(result['assertions_enabled']),
         nix_utils.convert_bool_for_nix(result['event_loop_benchmark_enabled']),
         nix_utils.convert_bool_for_nix(result['detect_overload_enabled']),

@@ -379,17 +379,18 @@
         }
       },
       "performance": {
-        "LookaheadBufferSize": 48,
+        "LookaheadCommitCount": 16,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
+        "LookaheadBufferSize": 48,
         "EventChannelBufferSize": 64,
-        "LookaheadCommitCount": 16,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 64,
         "_compoundName": "performance"
       },
@@ -924,17 +925,18 @@
         }
       },
       "performance": {
-        "LookaheadBufferSize": 48,
+        "LookaheadCommitCount": 16,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
+        "LookaheadBufferSize": 48,
         "EventChannelBufferSize": 64,
-        "LookaheadCommitCount": 16,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 64,
         "_compoundName": "performance"
       },
@@ -1354,17 +1356,18 @@
         }
       },
       "performance": {
-        "LookaheadBufferSize": 24,
+        "LookaheadCommitCount": 6,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
+        "LookaheadBufferSize": 24,
         "EventChannelBufferSize": 36,
-        "LookaheadCommitCount": 6,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": true,
+        "OptimizeLibcForSize": true,
         "StepperSegmentBufferSize": 36,
         "_compoundName": "performance"
       },
@@ -1749,17 +1752,18 @@
         }
       },
       "performance": {
-        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "float",
+        "LookaheadBufferSize": 28,
         "EventChannelBufferSize": 32,
-        "LookaheadCommitCount": 10,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
@@ -2170,17 +2174,18 @@
         }
       },
       "performance": {
-        "LookaheadBufferSize": 10,
+        "LookaheadCommitCount": 5,
         "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 64,
         "ExtraSendBufClearance": 64,
         "FpType": "double",
+        "LookaheadBufferSize": 10,
         "EventChannelBufferSize": 24,
-        "LookaheadCommitCount": 5,
         "MaxMsgSize": 50,
         "MaxStepsPerCycle": 0.00137,
         "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 24,
         "_compoundName": "performance"
       },
@@ -2535,17 +2540,18 @@
         }
       },
       "performance": {
-        "LookaheadBufferSize": 16,
+        "LookaheadCommitCount": 8,
         "AxisDriverPrecisionParams": "AxisDriverAvrPrecisionParams",
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 128,
         "FpType": "double",
+        "LookaheadBufferSize": 16,
         "EventChannelBufferSize": 32,
-        "LookaheadCommitCount": 8,
         "MaxMsgSize": 64,
         "MaxStepsPerCycle": 0.00137,
         "OptimizeForSize": true,
+        "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
@@ -2939,17 +2945,18 @@
         }
       },
       "performance": {
-        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
+        "LookaheadBufferSize": 28,
         "EventChannelBufferSize": 32,
-        "LookaheadCommitCount": 10,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
@@ -3302,17 +3309,18 @@
         }
       },
       "performance": {
-        "LookaheadBufferSize": 28,
+        "LookaheadCommitCount": 10,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
+        "LookaheadBufferSize": 28,
         "EventChannelBufferSize": 32,
-        "LookaheadCommitCount": 10,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 32,
         "_compoundName": "performance"
       },
@@ -3673,6 +3681,8 @@
           "MacAddress": "BE:EF:DE:AD:FE:ED",
           "EthernetDriver": {
             "MiiDriver": {
+              "NumRxBufers": 48,
+              "NumTxBufers": 4,
               "_compoundName": "At91SamEmacMii"
             },
             "PhyDriver": {
@@ -3699,17 +3709,18 @@
         }
       },
       "performance": {
-        "LookaheadBufferSize": 32,
+        "LookaheadCommitCount": 8,
         "AxisDriverPrecisionParams": "AxisDriverDuePrecisionParams",
         "EventChannelTimerClearance": 0.002,
         "ExpectedResponseLength": 128,
         "ExtraSendBufClearance": 256,
         "FpType": "double",
+        "LookaheadBufferSize": 32,
         "EventChannelBufferSize": 24,
-        "LookaheadCommitCount": 8,
         "MaxMsgSize": 128,
         "MaxStepsPerCycle": 0.0017,
         "OptimizeForSize": false,
+        "OptimizeLibcForSize": false,
         "StepperSegmentBufferSize": 48,
         "_compoundName": "performance"
       },
