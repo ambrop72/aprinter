@@ -1218,10 +1218,12 @@ class NetworkConfigState(object):
     def __init__(self):
         self._num_listeners = 0
         self._num_connections = 0
+        self._num_queued_connections = 0
     
-    def add_resource_counts(self, listeners=0, connections=0):
+    def add_resource_counts(self, listeners=0, connections=0, queued_connections=0):
         self._num_listeners += listeners
         self._num_connections += connections
+        self._num_queued_connections += queued_connections
 
 def setup_network(gen, config, key):
     network_sel = selection.Selection()
@@ -1283,6 +1285,7 @@ def setup_network(gen, config, key):
         def finalize():
             gen.add_define('APRINTER_NUM_TCP_LISTEN', network_state._num_listeners)
             gen.add_define('APRINTER_NUM_TCP_CONN', network_state._num_connections)
+            gen.add_define('APRINTER_NUM_TCP_CONN_QUEUED', network_state._num_queued_connections)
             gen.add_define('APRINTER_TCP_RX_BUF', tcp_rx_buf)
             gen.add_define('APRINTER_TCP_TX_BUF', tcp_tx_buf)
             gen.add_define('APRINTER_MEM_ALIGNMENT', gen.get_singleton_object('alignment'))
@@ -1605,15 +1608,20 @@ def generate(config_root_data, cfg_name, main_template):
                             if not (1 <= webif_max_clients <= 20):
                                 webif_config.key_path('MaxClients').error('Bad value.')
                             
+                            webif_queue_size = webif_config.get_int('QueueSize')
+                            if not (0 <= webif_queue_size <= 50):
+                                webif_config.key_path('QueueSize').error('Bad value.')
+                            
                             gen.add_aprinter_include('printer/modules/WebInterfaceModule.h')
                             
                             webif_module = gen.add_module()
                             webif_module.set_expr(TemplateExpr('WebInterfaceModuleService', [
                                 webif_port,
                                 webif_max_clients,
+                                webif_queue_size,
                             ]))
                             
-                            gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients)
+                            gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)
                         
                         network_config.do_selection('webinterface', webif_sel)
                 

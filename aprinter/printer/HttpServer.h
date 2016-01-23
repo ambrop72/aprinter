@@ -53,8 +53,9 @@ public:
     using TheRequestInterface = HttpRequestInterface<Context, UserClientState>;
     
 private:
-    using TheTcpListener   = typename Context::Network::TcpListener;
-    using TheTcpConnection = typename Context::Network::TcpConnection;
+    using TheTcpListener           = typename Context::Network::TcpListener;
+    using TheTcpListenerQueueEntry = typename Context::Network::TcpListenerQueueEntry;
+    using TheTcpConnection         = typename Context::Network::TcpConnection;
     using RequestUserCallback     = typename TheRequestInterface::RequestUserCallback; 
     using RequestBodyBufferState  = typename TheRequestInterface::RequestBodyBufferState;
     using ResponseBodyBufferState = typename TheRequestInterface::ResponseBodyBufferState;
@@ -69,6 +70,7 @@ private:
     
     // Basic checks of parameters.
     static_assert(Params::MaxClients > 0, "");
+    static_assert(Params::QueueSize >= 0, "");
     static_assert(Params::MaxRequestLineLength >= 32, "");
     static_assert(Params::MaxHeaderLineLength >= 40, "");
     static_assert(Params::ExpectedResponseLength >= 250, "");
@@ -95,7 +97,7 @@ public:
         auto *o = Object::self(c);
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&HttpServer::listener_accept_handler));
-        if (!o->listener.startListening(c, Params::Port, Params::MaxClients)) {
+        if (!o->listener.startListening(c, Params::Port, Params::MaxClients, Params::QueueSize, o->queue)) {
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
         for (int i = 0; i < Params::MaxClients; i++) {
@@ -211,6 +213,7 @@ private:
         
         void disconnect (Context c)
         {
+            auto *o = Object::self(c);
             AMBRO_ASSERT(m_state != State::NOT_CONNECTED)
             
             // Inform the user that the request is over, if necessary.
@@ -223,6 +226,9 @@ private:
             m_state = State::NOT_CONNECTED;
             m_recv_state = RecvState::INVALID;
             m_send_state = SendState::INVALID;
+            
+            // Remind the listener to give any queued connection.
+            o->listener.scheduleDequeue(c);
         }
         
         void terminate_user (Context c)
@@ -1078,6 +1084,7 @@ private:
 public:
     struct Object : public ObjBase<HttpServer, ParentObject, EmptyTypeList> {
         TheTcpListener listener;
+        TheTcpListenerQueueEntry queue[Params::QueueSize];
         Client clients[Params::MaxClients];
     };
 };
@@ -1085,6 +1092,7 @@ public:
 template <
     uint16_t TPort,
     int TMaxClients,
+    int TQueueSize,
     size_t TMaxRequestLineLength,
     size_t TMaxHeaderLineLength,
     size_t TExpectedResponseLength,
@@ -1094,6 +1102,7 @@ template <
 struct HttpServerService {
     static uint16_t const Port = TPort;
     static int const MaxClients = TMaxClients;
+    static int const QueueSize = TQueueSize;
     static size_t const MaxRequestLineLength = TMaxRequestLineLength;
     static size_t const MaxHeaderLineLength = TMaxHeaderLineLength;
     static size_t const ExpectedResponseLength = TExpectedResponseLength;

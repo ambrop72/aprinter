@@ -320,6 +320,7 @@ struct tcp_pcb_listen {
 #if LWIP_IPV4 && LWIP_IPV6
   u8_t accept_any_ip_version;
 #endif /* LWIP_IPV4 && LWIP_IPV6 */
+  tcpwnd_size_t initial_rcv_wnd;
 };
 
 #if LWIP_EVENT_API

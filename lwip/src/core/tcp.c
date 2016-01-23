@@ -591,6 +591,7 @@ tcp_listen_with_backlog(struct tcp_pcb *pcb, u8_t backlog)
   lpcb->accepts_pending = 0;
   lpcb->backlog = (backlog ? backlog : 1);
 #endif /* TCP_LISTEN_BACKLOG */
+  lpcb->initial_rcv_wnd = TCPWND_MIN16(TCP_WND);
   TCP_REG(&tcp_listen_pcbs.pcbs, (struct tcp_pcb *)lpcb);
   return (struct tcp_pcb *)lpcb;
 }

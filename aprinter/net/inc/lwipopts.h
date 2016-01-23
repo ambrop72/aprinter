@@ -24,6 +24,7 @@
 
 // We expect these to be defined externally:
 //#define APRINTER_NUM_TCP_CONN <count>
+//#define APRINTER_NUM_TCP_CONN_QUEUED <count>
 //#define APRINTER_NUM_TCP_LISTEN <count>
 //#define APRINTER_TCP_RX_BUF <bytes>
 //#define APRINTER_TCP_TX_BUF <bytes>
@@ -48,7 +49,7 @@
 #define LWIP_CHKSUM_ALGORITHM 3
 
 // Size of ARP table. Add one extra entry for every TCP connection.
-#define ARP_TABLE_SIZE (8 + APRINTER_NUM_TCP_CONN)
+#define ARP_TABLE_SIZE (8 + APRINTER_NUM_TCP_CONN + APRINTER_NUM_TCP_CONN_QUEUED)
 
 // Disable ARP queuing entirely.
 // This is a custom feature implemented in lwIP.
@@ -65,7 +66,7 @@
 #define MEMP_NUM_UDP_PCB 1
 
 // Number of TCP PCBs.
-#define MEMP_NUM_TCP_PCB APRINTER_NUM_TCP_CONN
+#define MEMP_NUM_TCP_PCB (APRINTER_NUM_TCP_CONN + APRINTER_NUM_TCP_CONN_QUEUED)
 #define MEMP_NUM_TCP_PCB_LISTEN APRINTER_NUM_TCP_LISTEN
 
 // Enable TCP listen backlog.
@@ -116,7 +117,7 @@
 //   Note that TCP_SND_QUEUELEN should ensure that indeed no more than
 //   this many data segments are queued.
 // - 2 segments for segments created by tcp_enqueue_flags() (SYN/ACK, FIN).
-#define MEMP_NUM_TCP_SEG (APRINTER_NUM_TCP_CONN * (APRINTER_NUM_TCP_DATA_SEG + 2))
+#define MEMP_NUM_TCP_SEG (APRINTER_NUM_TCP_CONN * (APRINTER_NUM_TCP_DATA_SEG + 2) + APRINTER_NUM_TCP_CONN_QUEUED * 2)
 
 // Number of pbufs in PBUF pool.
 // These are allocated via pbuf_alloc(..., PBUF_ROM or PBUF_REF) and
