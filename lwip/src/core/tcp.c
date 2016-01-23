@@ -1678,7 +1678,22 @@ tcp_pcb_purge(struct tcp_pcb *pcb)
 
 #if TCP_LISTEN_BACKLOG
     if (pcb->state == SYN_RCVD) {
-      tcp_pcb_decrement_accepts_pending_of_listener(pcb);
+      /* Need to find the corresponding listen_pcb and decrease its accepts_pending */
+      struct tcp_pcb_listen *lpcb;
+      LWIP_ASSERT("tcp_pcb_purge: pcb->state == SYN_RCVD but tcp_listen_pcbs is NULL",
+        tcp_listen_pcbs.listen_pcbs != NULL);
+      for (lpcb = tcp_listen_pcbs.listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
+        if ((lpcb->local_port == pcb->local_port) &&
+            IP_PCB_IPVER_EQ(pcb, lpcb) &&
+            (ip_addr_isany(&lpcb->local_ip) ||
+             ip_addr_cmp(&pcb->local_ip, &lpcb->local_ip))) {
+            /* port and address of the listen pcb match the timed-out pcb */
+            LWIP_ASSERT("tcp_pcb_purge: listen pcb does not have accepts pending",
+              lpcb->accepts_pending > 0);
+            lpcb->accepts_pending--;
+            break;
+          }
+      }
     }
 #endif /* TCP_LISTEN_BACKLOG */
 
@@ -1750,29 +1765,6 @@ tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
 
   LWIP_ASSERT("tcp_pcb_remove: tcp_pcbs_sane()", tcp_pcbs_sane());
 }
-
-#if TCP_LISTEN_BACKLOG
-void
-tcp_pcb_decrement_accepts_pending_of_listener(struct tcp_pcb *pcb)
-{
-  /* Need to find the corresponding listen_pcb and decrease its accepts_pending */
-  struct tcp_pcb_listen *lpcb;
-  LWIP_ASSERT("tcp_pcb_purge: pcb->state == SYN_RCVD but tcp_listen_pcbs is NULL",
-    tcp_listen_pcbs.listen_pcbs != NULL);
-  for (lpcb = tcp_listen_pcbs.listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
-    if ((lpcb->local_port == pcb->local_port) &&
-        IP_PCB_IPVER_EQ(pcb, lpcb) &&
-        (ip_addr_isany(&lpcb->local_ip) ||
-         ip_addr_cmp(&pcb->local_ip, &lpcb->local_ip))) {
-        /* port and address of the listen pcb match the timed-out pcb */
-        LWIP_ASSERT("tcp_pcb_purge: listen pcb does not have accepts pending",
-          lpcb->accepts_pending > 0);
-        lpcb->accepts_pending--;
-        break;
-      }
-  }
-}
-#endif /* TCP_LISTEN_BACKLOG */
 
 /**
  * Calculates a new initial sequence number for new connections.

@@ -459,10 +459,6 @@ struct tcp_pcb *tcp_pcb_copy(struct tcp_pcb *pcb);
 void tcp_pcb_purge(struct tcp_pcb *pcb);
 void tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb);
 
-#if TCP_LISTEN_BACKLOG
-void tcp_pcb_decrement_accepts_pending_of_listener(struct tcp_pcb *pcb);
-#endif /* TCP_LISTEN_BACKLOG */
-
 void tcp_segs_free(struct tcp_seg *seg);
 void tcp_seg_free(struct tcp_seg *seg);
 struct tcp_seg *tcp_seg_copy(struct tcp_seg *seg);

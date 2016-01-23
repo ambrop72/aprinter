@@ -790,9 +790,6 @@ tcp_process(struct tcp_pcb *pcb)
     if (flags & TCP_ACK) {
       /* expected ACK number? */
       if (TCP_SEQ_BETWEEN(ackno, pcb->lastack+1, pcb->snd_nxt)) {
-#if TCP_LISTEN_BACKLOG
-        tcp_pcb_decrement_accepts_pending_of_listener(pcb);
-#endif
         pcb->state = ESTABLISHED;
         LWIP_DEBUGF(TCP_DEBUG, ("TCP connection established %"U16_F" -> %"U16_F".\n", inseg.tcphdr->src, inseg.tcphdr->dest));
 #if LWIP_CALLBACK_API
