@@ -45,7 +45,7 @@
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename ThePrinterMain, typename RequestHandler, typename UserClientState, typename Params>
+template <typename Context, typename ParentObject, typename TheMain, typename RequestHandler, typename UserClientState, typename Params>
 class HttpServer {
 public:
     struct Object;
@@ -104,7 +104,7 @@ public:
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&HttpServer::listener_accept_handler));
         if (!o->listener.startListening(c, Params::Port, Params::MaxClients, TheTcpListenerQueueParams{Params::QueueSize, QueueTimeoutTicks, o->queue})) {
-            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
+            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
         for (int i = 0; i < Params::MaxClients; i++) {
             o->clients[i].init(c);
@@ -133,7 +133,7 @@ private:
                 return true;
             }
         }
-        ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerAcceptNoSlot\n"));
+        TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerAcceptNoSlot\n"));
         return false;
     }
     
@@ -201,7 +201,7 @@ private:
             AMBRO_ASSERT(m_state == State::NOT_CONNECTED)
             
 #if APRINTER_DEBUG_HTTP_SERVER
-            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientConnected\n"));
+            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientConnected\n"));
 #endif
             
             // Accept the connection.
@@ -316,7 +316,7 @@ private:
             }
             
 #if APRINTER_DEBUG_HTTP_SERVER
-            ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientError\n"));
+            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientError\n"));
 #endif
             disconnect(c);
         }
@@ -416,7 +416,7 @@ private:
                             // We don't bother passing any remaining data to the user, this is easier.
                             if (m_rx_buf_eof && m_rx_buf_length < m_rem_req_body_length) {
 #if APRINTER_DEBUG_HTTP_SERVER
-                                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInData\n"));
+                                TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInData\n"));
 #endif
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
@@ -481,7 +481,7 @@ private:
             
             // Detect too long request bodies / lines.
             if (pos > m_rem_allowed_length) {
-                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientRequestTooLong\n"));
+                TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientRequestTooLong\n"));
                 return close_gracefully(c, HttpStatusCodes::RequestHeaderFieldsTooLarge());
             }
             m_rem_allowed_length -= pos;
@@ -522,7 +522,7 @@ private:
         {
             if (eof) {
 #if APRINTER_DEBUG_HTTP_SERVER
-                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInLine\n"));
+                TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInLine\n"));
 #endif
                 // Respond with BadRequest, except when EOF was seen where a request would start.
                 char const *err_resp = HttpStatusCodes::BadRequest();
@@ -560,7 +560,7 @@ private:
                     
                     // Check for errors in line parsing.
                     if (overflow || m_null_in_line) {
-                        ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
+                        TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
                         return close_gracefully(c, HttpStatusCodes::BadRequest());
                     }
                     
@@ -568,7 +568,7 @@ private:
                     char *endptr;
                     unsigned long long int value = strtoull(m_header_line, &endptr, 16);
                     if (endptr == m_header_line || (*endptr != '\0' && *endptr != ';')) {
-                        ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
+                        TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
                         return close_gracefully(c, HttpStatusCodes::BadRequest());
                     }
                     
@@ -1127,8 +1127,8 @@ APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
     APRINTER_AS_VALUE(size_t, MaxRequestHeadLength),
     APRINTER_AS_VALUE(size_t, TxChunkHeaderDigits)
 ), (
-    template <typename Context, typename ParentObject, typename ThePrinterMain, typename RequestHandler, typename UserClientState>
-    using Server = HttpServer<Context, ParentObject, ThePrinterMain, RequestHandler, UserClientState, HttpServerService>;
+    template <typename Context, typename ParentObject, typename TheMain, typename RequestHandler, typename UserClientState>
+    using Server = HttpServer<Context, ParentObject, TheMain, RequestHandler, UserClientState, HttpServerService>;
 ))
 
 #include <aprinter/EndNamespace.h>
