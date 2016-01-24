@@ -33,6 +33,7 @@
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
@@ -262,21 +263,14 @@ public:
     >> {};
 };
 
-template <
-    uint16_t TPort,
-    int TMaxClients,
-    int TQueueSize,
-    typename TQueueTimeout
->
-struct WebInterfaceModuleService {
-    static uint16_t const Port = TPort;
-    static int const MaxClients = TMaxClients;
-    static int const QueueSize = TQueueSize;
-    using QueueTimeout = TQueueTimeout;
-    
-    template <typename Context, typename ParentObject, typename ThePrinterMain>
-    using Module = WebInterfaceModule<Context, ParentObject, ThePrinterMain, WebInterfaceModuleService>;
-};
+APRINTER_ALIAS_STRUCT_EXT(WebInterfaceModuleService, (
+    APRINTER_AS_VALUE(uint16_t, Port),
+    APRINTER_AS_VALUE(int, MaxClients),
+    APRINTER_AS_VALUE(int, QueueSize),
+    APRINTER_AS_TYPE(QueueTimeout)
+), (
+    APRINTER_MODULE_TEMPLATE(WebInterfaceModuleService, WebInterfaceModule)
+))
 
 #include <aprinter/EndNamespace.h>
 

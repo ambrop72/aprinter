@@ -34,6 +34,7 @@
 
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInInt.h>
+#include <aprinter/meta/AliasStruct.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/ProgramMemory.h>
@@ -1115,31 +1116,20 @@ public:
     };
 };
 
-template <
-    uint16_t TPort,
-    int TMaxClients,
-    int TQueueSize,
-    typename TQueueTimeout,
-    size_t TMaxRequestLineLength,
-    size_t TMaxHeaderLineLength,
-    size_t TExpectedResponseLength,
-    size_t TMaxRequestHeadLength,
-    size_t TTxChunkHeaderDigits
->
-struct HttpServerService {
-    static uint16_t const Port = TPort;
-    static int const MaxClients = TMaxClients;
-    static int const QueueSize = TQueueSize;
-    using QueueTimeout = TQueueTimeout;
-    static size_t const MaxRequestLineLength = TMaxRequestLineLength;
-    static size_t const MaxHeaderLineLength = TMaxHeaderLineLength;
-    static size_t const ExpectedResponseLength = TExpectedResponseLength;
-    static size_t const MaxRequestHeadLength = TMaxRequestHeadLength;
-    static size_t const TxChunkHeaderDigits = TTxChunkHeaderDigits;
-    
+APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
+    APRINTER_AS_VALUE(uint16_t, Port),
+    APRINTER_AS_VALUE(int, MaxClients),
+    APRINTER_AS_VALUE(int, QueueSize),
+    APRINTER_AS_TYPE(QueueTimeout),
+    APRINTER_AS_VALUE(size_t, MaxRequestLineLength),
+    APRINTER_AS_VALUE(size_t, MaxHeaderLineLength),
+    APRINTER_AS_VALUE(size_t, ExpectedResponseLength),
+    APRINTER_AS_VALUE(size_t, MaxRequestHeadLength),
+    APRINTER_AS_VALUE(size_t, TxChunkHeaderDigits)
+), (
     template <typename Context, typename ParentObject, typename ThePrinterMain, typename RequestHandler, typename UserClientState>
     using Server = HttpServer<Context, ParentObject, ThePrinterMain, RequestHandler, UserClientState, HttpServerService>;
-};
+))
 
 #include <aprinter/EndNamespace.h>
 
