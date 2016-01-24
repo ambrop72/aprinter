@@ -55,7 +55,7 @@ private:
     static size_t const HttpTxChunkHeaderDigits = 4;
     
     using TheTheHttpServerService = HttpServerService<
-        Params::Port, Params::MaxClients, Params::QueueSize,
+        Params::Port, Params::MaxClients, Params::QueueSize, typename Params::QueueTimeout,
         HttpMaxRequestLineLength, HttpMaxHeaderLineLength,
         HttpExpectedResponseLength, HttpMaxRequestHeadLength, HttpTxChunkHeaderDigits
     >;
@@ -265,12 +265,14 @@ public:
 template <
     uint16_t TPort,
     int TMaxClients,
-    int TQueueSize
+    int TQueueSize,
+    typename TQueueTimeout
 >
 struct WebInterfaceModuleService {
     static uint16_t const Port = TPort;
     static int const MaxClients = TMaxClients;
     static int const QueueSize = TQueueSize;
+    using QueueTimeout = TQueueTimeout;
     
     template <typename Context, typename ParentObject, typename ThePrinterMain>
     using Module = WebInterfaceModule<Context, ParentObject, ThePrinterMain, WebInterfaceModuleService>;

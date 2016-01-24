@@ -819,6 +819,7 @@ def editor():
                                 ce.Integer(key='Port', title='HTTP port number', default=80),
                                 ce.Integer(key='MaxClients', title='Maximum number of active clients', default=2),
                                 ce.Integer(key='QueueSize', title='Maximum number of queued clients', default=6),
+                                ce.Float(key='QueueTimeout', title='Timeout for queued clients [s]', default=10),
                             ]),
                         ]),
                     ])

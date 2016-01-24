@@ -1612,6 +1612,8 @@ def generate(config_root_data, cfg_name, main_template):
                             if not (0 <= webif_queue_size <= 50):
                                 webif_config.key_path('QueueSize').error('Bad value.')
                             
+                            gen.add_float_constant('WebInterfaceQueueTimeout', webif_config.get_float('QueueTimeout'))
+                            
                             gen.add_aprinter_include('printer/modules/WebInterfaceModule.h')
                             
                             webif_module = gen.add_module()
@@ -1619,6 +1621,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 webif_port,
                                 webif_max_clients,
                                 webif_queue_size,
+                                'WebInterfaceQueueTimeout',
                             ]))
                             
                             gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)

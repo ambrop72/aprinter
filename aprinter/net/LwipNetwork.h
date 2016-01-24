@@ -84,7 +84,6 @@ private:
     
     static TimeType const WriteDelayTicks = 0.001 * Context::Clock::time_freq;
     static TimeType const ShortWriteDelayTicks = 0.00005 * Context::Clock::time_freq;
-    static TimeType const QueueTimeoutTicks = 10.0 * Context::Clock::time_freq;
     
 public:
     struct NetworkParams {
@@ -241,6 +240,12 @@ public:
         TimeType m_time;
     };
     
+    struct TcpListenerQueueParams {
+        int size;
+        TimeType timeout;
+        TcpListenerQueueEntry *entries;
+    };
+    
     class TcpListener {
         friend class TcpConnection;
         
@@ -276,18 +281,19 @@ public:
             reset_internal(c);
         }
         
-        bool startListening (Context c, uint16_t port, int max_clients, int queue_size=0, TcpListenerQueueEntry *queue=nullptr)
+        bool startListening (Context c, uint16_t port, int max_clients, TcpListenerQueueParams queue_params=TcpListenerQueueParams{})
         {
             AMBRO_ASSERT(!m_pcb)
             AMBRO_ASSERT(max_clients > 0)
-            AMBRO_ASSERT(queue_size >= 0)
-            AMBRO_ASSERT(queue_size == 0 || queue)
+            AMBRO_ASSERT(queue_params.size >= 0)
+            AMBRO_ASSERT(queue_params.size == 0 || queue_params.entries)
             
             max_clients = MinValue(255, max_clients);
             
-            m_queue = queue;
+            m_queue = queue_params.entries;
+            m_queue_timeout = queue_params.timeout;
             m_num_clients = 0;
-            m_queue_size = MinValue(255 - max_clients, queue_size);
+            m_queue_size = MinValue(255 - max_clients, queue_params.size);
             
             for (int i = 0; i < m_queue_size; i++) {
                 m_queue[i].m_listener = this;
@@ -570,7 +576,7 @@ public:
         {
             TcpListenerQueueEntry *oldest_entry = find_oldest_queued_pcb();
             if (oldest_entry) {
-                TimeType expire_time = oldest_entry->m_time + QueueTimeoutTicks;
+                TimeType expire_time = oldest_entry->m_time + m_queue_timeout;
                 m_timeout_event.appendAt(c, expire_time);
             } else {
                 m_timeout_event.unset(c);
@@ -581,7 +587,6 @@ public:
         {
             AMBRO_ASSERT(m_pcb)
             AMBRO_ASSERT(m_queue_size > 0)
-            AMBRO_ASSERT(!m_accepted_pcb)
             
             // The oldest queued connection has expired, close it.
             TcpListenerQueueEntry *oldest_entry = find_oldest_queued_pcb();
@@ -598,6 +603,7 @@ public:
         struct tcp_pcb *m_pcb;
         struct tcp_pcb *m_accepted_pcb;
         TcpListenerQueueEntry *m_queue;
+        TimeType m_queue_timeout;
         uint8_t m_num_clients;
         uint8_t m_queue_size;
     };

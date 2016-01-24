@@ -53,9 +53,12 @@ public:
     using TheRequestInterface = HttpRequestInterface<Context, UserClientState>;
     
 private:
-    using TheTcpListener           = typename Context::Network::TcpListener;
-    using TheTcpListenerQueueEntry = typename Context::Network::TcpListenerQueueEntry;
-    using TheTcpConnection         = typename Context::Network::TcpConnection;
+    using TimeType = typename Context::Clock::TimeType;
+    using TheNetwork = typename Context::Network;
+    using TheTcpListener            = typename TheNetwork::TcpListener;
+    using TheTcpListenerQueueParams = typename TheNetwork::TcpListenerQueueParams;
+    using TheTcpListenerQueueEntry  = typename TheNetwork::TcpListenerQueueEntry;
+    using TheTcpConnection          = typename TheNetwork::TcpConnection;
     using RequestUserCallback     = typename TheRequestInterface::RequestUserCallback; 
     using RequestBodyBufferState  = typename TheRequestInterface::RequestBodyBufferState;
     using ResponseBodyBufferState = typename TheRequestInterface::ResponseBodyBufferState;
@@ -89,6 +92,8 @@ private:
     static size_t const TxBufferSizeForChunkData = TxBufferSize - TxChunkOverhead;
     static_assert(Params::TxChunkHeaderDigits >= HexDigitsInInt<TxBufferSizeForChunkData>::Value, "");
     
+    static TimeType const QueueTimeoutTicks = Params::QueueTimeout::value() * Context::Clock::time_freq;
+    
 public:
     static size_t const MaxTxChunkSize = TxBufferSizeForChunkData;
     
@@ -97,7 +102,7 @@ public:
         auto *o = Object::self(c);
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&HttpServer::listener_accept_handler));
-        if (!o->listener.startListening(c, Params::Port, Params::MaxClients, Params::QueueSize, o->queue)) {
+        if (!o->listener.startListening(c, Params::Port, Params::MaxClients, TheTcpListenerQueueParams{Params::QueueSize, QueueTimeoutTicks, o->queue})) {
             ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
         for (int i = 0; i < Params::MaxClients; i++) {
@@ -1114,6 +1119,7 @@ template <
     uint16_t TPort,
     int TMaxClients,
     int TQueueSize,
+    typename TQueueTimeout,
     size_t TMaxRequestLineLength,
     size_t TMaxHeaderLineLength,
     size_t TExpectedResponseLength,
@@ -1124,6 +1130,7 @@ struct HttpServerService {
     static uint16_t const Port = TPort;
     static int const MaxClients = TMaxClients;
     static int const QueueSize = TQueueSize;
+    using QueueTimeout = TQueueTimeout;
     static size_t const MaxRequestLineLength = TMaxRequestLineLength;
     static size_t const MaxHeaderLineLength = TMaxHeaderLineLength;
     static size_t const ExpectedResponseLength = TExpectedResponseLength;
