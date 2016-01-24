@@ -1614,6 +1614,9 @@ def generate(config_root_data, cfg_name, main_template):
                             
                             gen.add_float_constant('WebInterfaceQueueTimeout', webif_config.get_float('QueueTimeout'))
                             
+                            if webif_config.get_bool('EnableDebug'):
+                                gen.add_define('APRINTER_DEBUG_HTTP_SERVER', 1)
+                            
                             gen.add_aprinter_include('printer/modules/WebInterfaceModule.h')
                             
                             webif_module = gen.add_module()

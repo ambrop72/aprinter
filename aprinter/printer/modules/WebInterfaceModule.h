@@ -28,8 +28,6 @@
 #include <stddef.h>
 #include <string.h>
 
-#define APRINTER_DEBUG_HTTP_SERVER 1
-
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/AliasStruct.h>
