@@ -1618,10 +1618,12 @@ def generate(config_root_data, cfg_name, main_template):
                             
                             webif_module = gen.add_module()
                             webif_module.set_expr(TemplateExpr('WebInterfaceModuleService', [
-                                webif_port,
-                                webif_max_clients,
-                                webif_queue_size,
-                                'WebInterfaceQueueTimeout',
+                                TemplateExpr('HttpServerNetParams', [
+                                    webif_port,
+                                    webif_max_clients,
+                                    webif_queue_size,
+                                    'WebInterfaceQueueTimeout',
+                                ]),
                             ]))
                             
                             gen.get_singleton_object('network').add_resource_counts(listeners=1, connections=webif_max_clients, queued_connections=webif_queue_size)

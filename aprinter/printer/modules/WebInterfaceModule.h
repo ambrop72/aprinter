@@ -25,7 +25,6 @@
 #ifndef APRINTER_WEB_INTERFACE_MODULE_H
 #define APRINTER_WEB_INTERFACE_MODULE_H
 
-#include <stdint.h>
 #include <stddef.h>
 #include <string.h>
 
@@ -37,7 +36,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/net/http/HttpServerCommon.h>
 #include <aprinter/net/http/HttpServer.h>
 #include <aprinter/printer/BufferedFile.h>
 
@@ -56,7 +54,7 @@ private:
     static size_t const HttpTxChunkHeaderDigits = 4;
     
     using TheTheHttpServerService = HttpServerService<
-        Params::Port, Params::MaxClients, Params::QueueSize, typename Params::QueueTimeout,
+        typename Params::HttpServerNetParams,
         HttpMaxRequestLineLength, HttpMaxHeaderLineLength,
         HttpExpectedResponseLength, HttpMaxRequestHeadLength, HttpTxChunkHeaderDigits
     >;
@@ -264,10 +262,7 @@ public:
 };
 
 APRINTER_ALIAS_STRUCT_EXT(WebInterfaceModuleService, (
-    APRINTER_AS_VALUE(uint16_t, Port),
-    APRINTER_AS_VALUE(int, MaxClients),
-    APRINTER_AS_VALUE(int, QueueSize),
-    APRINTER_AS_TYPE(QueueTimeout)
+    APRINTER_AS_TYPE(HttpServerNetParams)
 ), (
     APRINTER_MODULE_TEMPLATE(WebInterfaceModuleService, WebInterfaceModule)
 ))

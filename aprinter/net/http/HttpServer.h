@@ -73,8 +73,8 @@ private:
     // crashes will happen if we do overflow the send buffer.
     
     // Basic checks of parameters.
-    static_assert(Params::MaxClients > 0, "");
-    static_assert(Params::QueueSize >= 0, "");
+    static_assert(Params::Net::MaxClients > 0, "");
+    static_assert(Params::Net::QueueSize >= 0, "");
     static_assert(Params::MaxRequestLineLength >= 32, "");
     static_assert(Params::MaxHeaderLineLength >= 40, "");
     static_assert(Params::ExpectedResponseLength >= 250, "");
@@ -93,7 +93,7 @@ private:
     static size_t const TxBufferSizeForChunkData = TxBufferSize - TxChunkOverhead;
     static_assert(Params::TxChunkHeaderDigits >= HexDigitsInInt<TxBufferSizeForChunkData>::Value, "");
     
-    static TimeType const QueueTimeoutTicks = Params::QueueTimeout::value() * Context::Clock::time_freq;
+    static TimeType const QueueTimeoutTicks = Params::Net::QueueTimeout::value() * Context::Clock::time_freq;
     
 public:
     static size_t const MaxTxChunkSize = TxBufferSizeForChunkData;
@@ -103,10 +103,10 @@ public:
         auto *o = Object::self(c);
         
         o->listener.init(c, APRINTER_CB_STATFUNC_T(&HttpServer::listener_accept_handler));
-        if (!o->listener.startListening(c, Params::Port, Params::MaxClients, TheTcpListenerQueueParams{Params::QueueSize, QueueTimeoutTicks, o->queue})) {
+        if (!o->listener.startListening(c, Params::Net::Port, Params::Net::MaxClients, TheTcpListenerQueueParams{Params::Net::QueueSize, QueueTimeoutTicks, o->queue})) {
             TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerListenError\n"));
         }
-        for (int i = 0; i < Params::MaxClients; i++) {
+        for (int i = 0; i < Params::Net::MaxClients; i++) {
             o->clients[i].init(c);
         }
     }
@@ -115,7 +115,7 @@ public:
     {
         auto *o = Object::self(c);
         
-        for (int i = 0; i < Params::MaxClients; i++) {
+        for (int i = 0; i < Params::Net::MaxClients; i++) {
             o->clients[i].deinit(c);
         }
         o->listener.deinit(c);
@@ -126,7 +126,7 @@ private:
     {
         auto *o = Object::self(c);
         
-        for (int i = 0; i < Params::MaxClients; i++) {
+        for (int i = 0; i < Params::Net::MaxClients; i++) {
             Client *cl = &o->clients[i];
             if (cl->m_state == Client::State::NOT_CONNECTED) {
                 cl->accept_connection(c, &o->listener);
@@ -1111,16 +1111,20 @@ private:
 public:
     struct Object : public ObjBase<HttpServer, ParentObject, EmptyTypeList> {
         TheTcpListener listener;
-        TheTcpListenerQueueEntry queue[Params::QueueSize];
-        Client clients[Params::MaxClients];
+        TheTcpListenerQueueEntry queue[Params::Net::QueueSize];
+        Client clients[Params::Net::MaxClients];
     };
 };
 
-APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
+APRINTER_ALIAS_STRUCT(HttpServerNetParams, (
     APRINTER_AS_VALUE(uint16_t, Port),
     APRINTER_AS_VALUE(int, MaxClients),
     APRINTER_AS_VALUE(int, QueueSize),
-    APRINTER_AS_TYPE(QueueTimeout),
+    APRINTER_AS_TYPE(QueueTimeout)
+))
+
+APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
+    APRINTER_AS_TYPE(Net),
     APRINTER_AS_VALUE(size_t, MaxRequestLineLength),
     APRINTER_AS_VALUE(size_t, MaxHeaderLineLength),
     APRINTER_AS_VALUE(size_t, ExpectedResponseLength),
