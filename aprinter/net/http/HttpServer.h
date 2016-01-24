@@ -41,7 +41,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/misc/StringTools.h>
-#include <aprinter/printer/HttpServerCommon.h>
+#include <aprinter/net/http/HttpServerCommon.h>
 
 #include <aprinter/BeginNamespace.h>
 

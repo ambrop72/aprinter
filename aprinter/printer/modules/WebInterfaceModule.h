@@ -37,8 +37,8 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/printer/HttpServerCommon.h>
-#include <aprinter/printer/HttpServer.h>
+#include <aprinter/net/http/HttpServerCommon.h>
+#include <aprinter/net/http/HttpServer.h>
 #include <aprinter/printer/BufferedFile.h>
 
 #include <aprinter/BeginNamespace.h>
