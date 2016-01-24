@@ -422,7 +422,7 @@ public:
         this->time = time;
     }
     
-    void appendAfter (Context c, TimeType after_time)
+    void appendAfterNotAlready (Context c, TimeType after_time)
     {
         this->debugAccess(c);
         auto *lo = Loop::Object::self(c);

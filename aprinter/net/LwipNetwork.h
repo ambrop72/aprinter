@@ -740,7 +740,7 @@ public:
             
             if (m_state == State::RUNNING && !m_write_event.isSet(c)) {
                 TimeType delay = (m_send_buf_passed_length == 0) ? ShortWriteDelayTicks : WriteDelayTicks;
-                m_write_event.appendAfter(c, delay);
+                m_write_event.appendAfterNotAlready(c, delay);
             }
         }
         
@@ -849,7 +849,7 @@ public:
             
             if (m_send_buf_passed_length < m_send_buf_length) {
                 m_write_event.unset(c);
-                m_write_event.appendAfter(c, WriteDelayTicks);
+                m_write_event.appendAfterNotAlready(c, WriteDelayTicks);
             }
             
             if (!m_sent_event.isSet(c)) {
