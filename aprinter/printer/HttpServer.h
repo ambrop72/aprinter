@@ -412,7 +412,7 @@ private:
 #if APRINTER_DEBUG_HTTP_SERVER
                                 ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInData\n"));
 #endif
-                                return close_gracefully(c, nullptr);
+                                return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
                             
                             // When the user is accepting the request body, call the callback whenever
@@ -480,15 +480,21 @@ private:
             }
             m_rem_allowed_length -= pos;
             
-            // If there was no newline yet, wait for more data, or give up upon EOF.
+            // No newline yet?
             if (!end_of_line) {
-                if (m_rx_buf_eof) {
-#if APRINTER_DEBUG_HTTP_SERVER
-                    ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInLine\n"));
-#endif
-                    return close_gracefully(c, nullptr);
+                // If no EOF either, wait for more data.
+                if (!m_rx_buf_eof) {
+                    return;
                 }
-                return;
+                
+                // No newline but got EOF. Pass the remainign data.
+                // Be careful that the line is null-terminated properly
+                // and raise overflow if there's no space for a null.
+                if (m_line_length < line_buf_size) {
+                    m_line_length++;
+                } else {
+                    m_line_overflow = true;
+                }
             }
             
             // Null-terminate the line, striping the \n and possibly an \r.
@@ -503,11 +509,23 @@ private:
             prepare_line_parsing(c);
             
             // Delegate the interpretation of the line to another function.
-            line_received(c, length, overflow);
+            line_received(c, length, overflow, !end_of_line);
         }
         
-        void line_received (Context c, size_t length, bool overflow)
+        void line_received (Context c, size_t length, bool overflow, bool eof)
         {
+            if (eof) {
+#if APRINTER_DEBUG_HTTP_SERVER
+                ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientEofInLine\n"));
+#endif
+                // Respond with BadRequest, except when EOF was seen where a request would start.
+                char const *err_resp = HttpStatusCodes::BadRequest();
+                if (m_state == State::RECV_REQUEST_LINE && length == 0) {
+                    err_resp = nullptr;
+                }
+                return close_gracefully(c, err_resp);
+            }
+            
             switch (m_state) {
                 case State::RECV_REQUEST_LINE: {
                     // Remember the request line and move on to parsing the header lines.
@@ -796,7 +814,7 @@ private:
             
             // Send an error response if desired and possible.
             if (resp_status && (m_send_state == SendState::INVALID || m_send_state == SendState::HEAD_NOT_SENT)) {
-                send_response(c, resp_status, true);
+                send_response(c, resp_status, true, nullptr, true);
             }
             
             // Disconnect the client after all data has been sent.
@@ -806,7 +824,7 @@ private:
             m_send_event.prependNow(c);
         }
         
-        void send_response (Context c, char const *resp_status, bool send_status_as_body, char const *content_type=nullptr)
+        void send_response (Context c, char const *resp_status, bool send_status_as_body, char const *content_type=nullptr, bool connection_close=false)
         {
             if (!resp_status) {
                 resp_status = HttpStatusCodes::Okay();
@@ -818,6 +836,9 @@ private:
             // Send the response head.
             send_string(c, "HTTP/1.1 ");
             send_string(c, resp_status);
+            if (connection_close) {
+                send_string(c, "\r\nConnection: close");
+            }
             send_string(c, "\r\nServer: Aprinter\r\nContent-Type: ");
             send_string(c, content_type);
             send_string(c, "\r\n");
