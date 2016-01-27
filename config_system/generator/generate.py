@@ -1613,6 +1613,7 @@ def generate(config_root_data, cfg_name, main_template):
                                 webif_config.key_path('QueueSize').error('Bad value.')
                             
                             gen.add_float_constant('WebInterfaceQueueTimeout', webif_config.get_float('QueueTimeout'))
+                            gen.add_float_constant('WebInterfaceInactivityTimeout', webif_config.get_float('InactivityTimeout'))
                             
                             if webif_config.get_bool('EnableDebug'):
                                 gen.add_define('APRINTER_DEBUG_HTTP_SERVER', 1)
@@ -1626,6 +1627,7 @@ def generate(config_root_data, cfg_name, main_template):
                                     webif_max_clients,
                                     webif_queue_size,
                                     'WebInterfaceQueueTimeout',
+                                    'WebInterfaceInactivityTimeout',
                                 ]),
                             ]))
                             

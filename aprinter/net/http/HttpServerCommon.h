@@ -36,6 +36,7 @@ struct HttpStatusCodes {
     static constexpr char const * BadRequest() { return "400 Bad Request"; }
     static constexpr char const * NotFound() { return "404 Not Found"; }
     static constexpr char const * MethodNotAllowed() { return "405 Method Not Allowed"; }
+    static constexpr char const * RequestTimeout() { return "408 Request Timeout"; }
     static constexpr char const * UriTooLong() { return "414 URI Too Long"; }
     static constexpr char const * ExpectationFailed() { return "417 Expectation Failed"; }
     static constexpr char const * RequestHeaderFieldsTooLarge() { return "431 Request Header Fields Too Large"; }

@@ -422,6 +422,11 @@ public:
         this->time = time;
     }
     
+    void appendAfter (Context c, TimeType after_time)
+    {
+        appendAt(c, Context::Clock::getTime(c) + after_time);
+    }
+    
     void appendAfterNotAlready (Context c, TimeType after_time)
     {
         this->debugAccess(c);

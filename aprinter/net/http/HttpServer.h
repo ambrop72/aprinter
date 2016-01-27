@@ -93,7 +93,8 @@ private:
     static size_t const TxBufferSizeForChunkData = TxBufferSize - TxChunkOverhead;
     static_assert(Params::TxChunkHeaderDigits >= HexDigitsInInt<TxBufferSizeForChunkData>::Value, "");
     
-    static TimeType const QueueTimeoutTicks = Params::Net::QueueTimeout::value() * Context::Clock::time_freq;
+    static TimeType const QueueTimeoutTicks      = Params::Net::QueueTimeout::value()      * Context::Clock::time_freq;
+    static TimeType const InactivityTimeoutTicks = Params::Net::InactivityTimeout::value() * Context::Clock::time_freq;
     
 public:
     static size_t const MaxTxChunkSize = TxBufferSizeForChunkData;
@@ -178,6 +179,9 @@ private:
         {
             m_send_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_event_handler, this));
             m_recv_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::recv_event_handler, this));
+            m_send_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_timeout_event_handler, this));
+            m_recv_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::recv_timeout_event_handler, this));
+            m_combined_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::combined_timeout_event_handler, this));
             m_connection.init(c, APRINTER_CB_OBJFUNC_T(&Client::connection_error_handler, this),
                                  APRINTER_CB_OBJFUNC_T(&Client::connection_recv_handler, this),
                                  APRINTER_CB_OBJFUNC_T(&Client::connection_send_handler, this));
@@ -192,6 +196,9 @@ private:
         {
             m_user_client_state.deinit(c);
             m_connection.deinit(c);
+            m_combined_timeout_event.deinit(c);
+            m_recv_timeout_event.deinit(c);
+            m_send_timeout_event.deinit(c);
             m_recv_event.deinit(c);
             m_send_event.deinit(c);
         }
@@ -212,7 +219,8 @@ private:
             m_rx_buf_length = 0;
             m_rx_buf_eof = false;
             
-            // Waiting for space in the send buffer.
+            // Go prepare_for_request() very soon through this state for simplicity.
+            // Really there will be no waiting.
             m_state = State::WAIT_SEND_BUF_FOR_REQUEST;
             m_send_event.prependNow(c);
         }
@@ -227,6 +235,9 @@ private:
             
             // Clean up in preparation to accept another client.
             m_connection.reset(c);
+            m_combined_timeout_event.unset(c);
+            m_recv_timeout_event.unset(c);
+            m_send_timeout_event.unset(c);
             m_recv_event.unset(c);
             m_send_event.unset(c);
             m_state = State::NOT_CONNECTED;
@@ -288,6 +299,11 @@ private:
             m_recv_event.prependNow(c);
         }
         
+        bool have_request (Context c)
+        {
+            return (m_state == State::HEAD_RECEIVED || m_state == State::USER_GONE);
+        }
+        
         void check_for_next_request (Context c)
         {
             // When a request is completed, move on to the next one.
@@ -299,6 +315,7 @@ private:
                 m_state = State::WAIT_SEND_BUF_FOR_REQUEST;
                 m_recv_state = RecvState::INVALID;
                 m_send_state = SendState::INVALID;
+                m_combined_timeout_event.unset(c);
                 m_send_event.prependNow(c);
             }
         }
@@ -354,7 +371,10 @@ private:
                 case State::WAIT_SEND_BUF_FOR_REQUEST: {
                     // When we have sufficient space in the send buffer, start receiving a request.
                     if (m_connection.getSendBufferSpace(c) >= Params::ExpectedResponseLength) {
+                        m_send_timeout_event.unset(c);
                         prepare_for_request(c);
+                    } else {
+                        m_send_timeout_event.appendAfter(c, InactivityTimeoutTicks);
                     }
                 } break;
                 
@@ -362,6 +382,13 @@ private:
                 case State::USER_GONE: {
                     switch (m_send_state) {
                         case SendState::SEND_BODY: {
+                            // If there is any data in the send buffer, start the send timeout, else clear it.
+                            if (m_connection.getSendBufferSpace(c) < TxBufferSize) {
+                                start_combined_timeout(c, CombinedTimeout::SEND);
+                            } else {
+                                clear_combined_timeout(c, CombinedTimeout::SEND);
+                            }
+                            
                             // The user is providing the response body, so call
                             // the callback whenever we may have new space in the buffer.
                             AMBRO_ASSERT(m_user)
@@ -369,13 +396,22 @@ private:
                         } break;
                         
                         case SendState::SEND_LAST_CHUNK: {
-                            // When we have enough space in the send buffer, send the zero-chunk.
-                            if (m_connection.getSendBufferSpace(c) >= 5) {
-                                send_string(c, "0\r\n\r\n");
-                                m_connection.pokeSending(c);
-                                m_send_state = SendState::COMPLETED;
-                                check_for_next_request(c);
+                            // Not enough space in the send buffer yet?
+                            if (m_connection.getSendBufferSpace(c) < 5) {
+                                start_combined_timeout(c, CombinedTimeout::SEND);
+                                return;
                             }
+                            
+                            // Send the terminating chunk with no payload.
+                            send_string(c, "0\r\n\r\n");
+                            m_connection.pokeSending(c);
+                            
+                            // Sending the response is now completed.
+                            clear_combined_timeout(c, CombinedTimeout::SEND);
+                            m_send_state = SendState::COMPLETED;
+                            
+                            // Maybe we can move on to the next request.
+                            check_for_next_request(c);
                         } break;
                     }
                 } break;
@@ -384,6 +420,8 @@ private:
                     // Disconnect the client once all data has been sent.
                     if (m_connection.getSendBufferSpace(c) >= TxBufferSize) {
                         disconnect(c);
+                    } else {
+                        m_send_timeout_event.appendAfter(c, InactivityTimeoutTicks);
                     }
                 } break;
             }
@@ -421,6 +459,13 @@ private:
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
                             
+                            // Start the inactivity timeout if more data can be received, else clear it.
+                            if (m_rx_buf_length < m_rem_req_body_length && m_rx_buf_length < RxBufferSize) {
+                                start_combined_timeout(c, CombinedTimeout::RECV);
+                            } else {
+                                clear_combined_timeout(c, CombinedTimeout::RECV);
+                            }
+                            
                             // When the user is accepting the request body, call the callback whenever
                             // we may have new data. Note that even after the user has received the
                             // entire body, we wait for abandonResponseBody() or completeHandling()
@@ -430,9 +475,13 @@ private:
                                 return m_user->requestBufferEvent(c);
                             }
                             
-                            // If the entire body is received, move on to RecvState::COMPLETED.
+                            // Is the entire body received?
                             if (m_req_body_recevied) {
+                                // Receiving the request body is now completed.
+                                AMBRO_ASSERT(is_combined_timeout_cleared(c, CombinedTimeout::RECV)) // was cleared above because m_rem_req_body_length==0
                                 m_recv_state = RecvState::COMPLETED;
+                                
+                                // Maybe we can move on to the next request.
                                 check_for_next_request(c);
                                 return;
                             }
@@ -445,6 +494,120 @@ private:
                         } break;
                     }
                 } break;
+            }
+        }
+        
+        void send_timeout_event_handler (Context c)
+        {
+#if APRINTER_DEBUG_HTTP_SERVER
+            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientSendTimeout\n"));
+#endif
+            
+            switch (m_state) {
+                case State::WAIT_SEND_BUF_FOR_REQUEST:
+                case State::DISCONNECT_AFTER_SENDING: {
+                    disconnect(c);
+                } break;
+                
+                case State::HEAD_RECEIVED:
+                case State::USER_GONE: {
+                    m_send_timeout_expired = true;
+                    m_combined_timeout_event.prependNow(c);
+                } break;
+                
+                default: AMBRO_ASSERT(false);
+            }
+        }
+        
+        void recv_timeout_event_handler (Context c)
+        {
+#if APRINTER_DEBUG_HTTP_SERVER
+            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientRecvTimeout\n"));
+#endif
+            
+            switch (m_state) {
+                case State::RECV_REQUEST_LINE:
+                case State::RECV_HEADER_LINE: {
+                    // Only send an error response if we received any part of a request.
+                    char const *err_resp = HttpStatusCodes::RequestTimeout();
+                    if (m_state == State::RECV_REQUEST_LINE && m_line_length == 0) {
+                        err_resp = nullptr;
+                    }
+                    close_gracefully(c, err_resp);
+                } break;
+                
+                case State::HEAD_RECEIVED:
+                case State::USER_GONE: {
+                    m_recv_timeout_expired = true;
+                    m_combined_timeout_event.prependNow(c);
+                } break;
+                
+                default: AMBRO_ASSERT(false);
+            }
+        }
+        
+        enum class CombinedTimeout {SEND, RECV};
+        
+        void start_combined_timeout (Context c, CombinedTimeout which)
+        {
+            AMBRO_ASSERT(have_request(c))
+            
+            // Set the right timer. Don't bother clearing the _expired flag, it's not needed.
+            if (which == CombinedTimeout::SEND) {
+                m_send_timeout_event.appendAfter(c, InactivityTimeoutTicks);
+            } else {
+                m_recv_timeout_event.appendAfter(c, InactivityTimeoutTicks);
+            }
+        }
+        
+        void clear_combined_timeout (Context c, CombinedTimeout which)
+        {
+            AMBRO_ASSERT(have_request(c))
+            
+            // Stop the right timer. Clear the _expired flag, so we know the timeout is inactive not expired.
+            if (which == CombinedTimeout::SEND) {
+                m_send_timeout_event.unset(c);
+                m_send_timeout_expired = false;
+            } else {
+                m_recv_timeout_event.unset(c);
+                m_recv_timeout_expired = false;
+            }
+            
+            // Schedule an expiration check. Because we may need to timeout right now,
+            // if one timeout was cleared but the other one is already expired.
+            m_combined_timeout_event.prependNow(c);
+        }
+        
+        bool is_combined_timeout_cleared (Context c, CombinedTimeout which)
+        {
+            AMBRO_ASSERT(have_request(c))
+            
+            if (which == CombinedTimeout::SEND) {
+                return (!m_send_timeout_event.isSet(c) && !m_send_timeout_expired);
+            } else {
+                return (!m_recv_timeout_event.isSet(c) && !m_recv_timeout_expired);
+            }
+        }
+        
+        void combined_timeout_event_handler (Context c)
+        {
+            AMBRO_ASSERT(have_request(c))
+            
+            // In these states we separately track inactivity in sending and receiving.
+            // We disconnect the client only when the inactivity timer is expired for
+            // all I/O directions that are currently active, and at least one direction
+            // is active.
+            
+            bool send_active = sending_response(c);
+            bool recv_active = receiving_request_body(c);
+            
+            if (send_active || recv_active) {
+                bool send_expired = !send_active || (!m_send_timeout_event.isSet(c) && m_send_timeout_expired);
+                bool recv_expired = !recv_active || (!m_recv_timeout_event.isSet(c) && m_recv_timeout_expired);
+                
+                if (send_expired && recv_expired) {
+                    close_gracefully(c, HttpStatusCodes::RequestTimeout());
+                }
             }
         }
         
@@ -490,7 +653,7 @@ private:
             if (!end_of_line) {
                 // If no EOF either, wait for more data.
                 if (!m_rx_buf_eof) {
-                    return;
+                    return line_not_received_yet(c);
                 }
                 
                 // No newline but got EOF. Pass the remainign data.
@@ -518,6 +681,15 @@ private:
             line_received(c, length, overflow, !end_of_line);
         }
         
+        void line_not_received_yet (Context c)
+        {
+            if (have_request(c)) {
+                start_combined_timeout(c, CombinedTimeout::RECV);
+            } else {
+                m_recv_timeout_event.appendAfter(c, InactivityTimeoutTicks);
+            }
+        }
+        
         void line_received (Context c, size_t length, bool overflow, bool eof)
         {
             if (eof) {
@@ -543,6 +715,7 @@ private:
                 case State::RECV_HEADER_LINE: {
                     // An empty line terminates the request head.
                     if (length == 0) {
+                        m_recv_timeout_event.unset(c);
                         return request_head_received(c);
                     }
                     
@@ -618,6 +791,9 @@ private:
             AMBRO_ASSERT(m_recv_state == RecvState::INVALID)
             AMBRO_ASSERT(m_send_state == SendState::INVALID)
             AMBRO_ASSERT(!m_user)
+            AMBRO_ASSERT(!m_send_timeout_event.isSet(c))
+            AMBRO_ASSERT(!m_recv_timeout_event.isSet(c))
+            AMBRO_ASSERT(!m_combined_timeout_event.isSet(c))
             
             char const *status = HttpStatusCodes::InternalServerError();
             do {
@@ -706,8 +882,10 @@ private:
                 
                 // Change state before passing the request to the user.
                 m_state = State::HEAD_RECEIVED;
-                m_recv_state = m_have_request_body ? RecvState::NOT_STARTED : RecvState::COMPLETED;
                 m_send_state = SendState::HEAD_NOT_SENT;
+                m_recv_state = m_have_request_body ? RecvState::NOT_STARTED : RecvState::COMPLETED;
+                m_send_timeout_expired = false;
+                m_recv_timeout_expired = false;
                 
                 // Call the user's request handler.
                 return RequestHandler::call(c, this);
@@ -772,6 +950,11 @@ private:
             AMBRO_ASSERT(amount <= m_rem_req_body_length)
             AMBRO_ASSERT(!m_req_body_recevied)
             
+            // If the RX buffer becomes no longer full, start the inactivity timeout.
+            if (m_rx_buf_length == RxBufferSize) {
+                start_combined_timeout(c, CombinedTimeout::RECV);
+            }
+            
             // Adjust RX buffer and remaining-data length.
             accept_rx_data(c, amount);
             m_rem_req_body_length -= amount;
@@ -827,6 +1010,9 @@ private:
             m_state = State::DISCONNECT_AFTER_SENDING;
             m_recv_state = RecvState::INVALID;
             m_send_state = SendState::INVALID;
+            m_send_timeout_event.unset(c);
+            m_recv_timeout_event.unset(c);
+            m_combined_timeout_event.unset(c);
             m_send_event.prependNow(c);
         }
         
@@ -867,6 +1053,12 @@ private:
             m_connection.pokeSending(c);
         }
         
+        bool sending_response (Context c)
+        {
+            return (m_send_state == SendState::SEND_BODY ||
+                    m_send_state == SendState::SEND_LAST_CHUNK);
+        }
+        
         void abandon_response_body (Context c)
         {
             AMBRO_ASSERT(m_send_state != SendState::INVALID)
@@ -875,6 +1067,9 @@ private:
                 // The response head has not been sent.
                 // Send the response now, with the status as the body.
                 send_response(c, m_resp_status, true);
+                
+                // Make the state transition.
+                AMBRO_ASSERT(is_combined_timeout_cleared(c, CombinedTimeout::SEND)) // was never started
                 m_send_state = SendState::COMPLETED;
             }
             else if (m_send_state == SendState::SEND_BODY) {
@@ -1070,11 +1265,19 @@ private:
             // Submit data to the connection and poke sending.
             m_connection.copySendData(c, nullptr, TxChunkOverhead + length);
             m_connection.pokeSending(c);
+            
+            // If we did not have any data in the send buffer, start the send timeout.
+            if (con_space_avail == TxBufferSize) {
+                start_combined_timeout(c, CombinedTimeout::SEND);
+            }
         }
         
     public:
         typename Context::EventLoop::QueuedEvent m_send_event;
         typename Context::EventLoop::QueuedEvent m_recv_event;
+        typename Context::EventLoop::TimedEvent m_send_timeout_event;
+        typename Context::EventLoop::TimedEvent m_recv_timeout_event;
+        typename Context::EventLoop::QueuedEvent m_combined_timeout_event;
         TheTcpConnection m_connection;
         RequestUserCallback *m_user;
         UserClientState m_user_client_state;
@@ -1103,6 +1306,8 @@ private:
         bool m_req_body_recevied;
         bool m_user_accepting_request_body;
         bool m_rx_buf_eof;
+        bool m_send_timeout_expired;
+        bool m_recv_timeout_expired;
         char m_rx_buf[RxBufferSize];
         char m_request_line[Params::MaxRequestLineLength];
         char m_header_line[Params::MaxHeaderLineLength];
@@ -1120,7 +1325,8 @@ APRINTER_ALIAS_STRUCT(HttpServerNetParams, (
     APRINTER_AS_VALUE(uint16_t, Port),
     APRINTER_AS_VALUE(int, MaxClients),
     APRINTER_AS_VALUE(int, QueueSize),
-    APRINTER_AS_TYPE(QueueTimeout)
+    APRINTER_AS_TYPE(QueueTimeout),
+    APRINTER_AS_TYPE(InactivityTimeout)
 ))
 
 APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
