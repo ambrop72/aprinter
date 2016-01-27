@@ -32,7 +32,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/base/WrapBuffer.h>
 
 #include <aprinter/BeginNamespace.h>
 

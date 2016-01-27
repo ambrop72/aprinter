@@ -37,7 +37,6 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/base/WrapBuffer.h>
 #include <aprinter/hal/common/MiiCommon.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 #include <aprinter/base/Lock.h>
