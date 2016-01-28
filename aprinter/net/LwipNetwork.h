@@ -621,6 +621,10 @@ public:
         // It is specifically prohibited to close (deinit/reset) this connection.
         using RecvHandler = Callback<void(Context, size_t length)>;
         
+        // This callback will be called when some data has been sent, i.e. there is
+        // more space in the send buffer.
+        // WARNING: Do not call any other network functions from this callback.
+        // It is specifically prohibited to close (deinit/reset) this connection.
         using SendHandler = Callback<void(Context)>;
         
         static size_t const RequiredRxBufSize = TCP_WND;
@@ -629,7 +633,6 @@ public:
         void init (Context c, ErrorHandler error_handler, RecvHandler recv_handler, SendHandler send_handler)
         {
             m_closed_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::closed_event_handler, this));
-            m_sent_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::sent_event_handler, this));
             m_write_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpConnection::write_event_handler, this));
             m_error_handler = error_handler;
             m_recv_handler = recv_handler;
@@ -643,7 +646,6 @@ public:
         {
             reset_internal(c);
             m_write_event.deinit(c);
-            m_sent_event.deinit(c);
             m_closed_event.deinit(c);
         }
         
@@ -756,7 +758,6 @@ public:
                 m_listener->client_pcb_closed();
             }
             m_write_event.unset(c);
-            m_sent_event.unset(c);
             m_closed_event.unset(c);
             m_state = State::IDLE;
         }
@@ -772,7 +773,6 @@ public:
             }
             m_state = State::ERRORING;
             m_write_event.unset(c);
-            m_sent_event.unset(c);
             
             if (!m_closed_event.isSet(c)) {
                 m_closed_event.prependNowNotAlready(c);
@@ -852,9 +852,7 @@ public:
                 m_write_event.appendAfterNotAlready(c, WriteDelayTicks);
             }
             
-            if (!m_sent_event.isSet(c)) {
-                m_sent_event.prependNowNotAlready(c);
-            }
+            m_send_handler(c);
             
             return ERR_OK;
         }
@@ -921,13 +919,6 @@ public:
             }
         }
         
-        void sent_event_handler (Context c)
-        {
-            AMBRO_ASSERT(m_state == State::RUNNING)
-            
-            return m_send_handler(c);
-        }
-        
         WrapBuffer make_send_avail_wrap_buffer (Context c)
         {
             size_t write_offset = send_buf_add(m_send_buf_start, m_send_buf_length);
@@ -961,7 +952,6 @@ public:
         }
         
         typename Context::EventLoop::QueuedEvent m_closed_event;
-        typename Context::EventLoop::QueuedEvent m_sent_event;
         typename Context::EventLoop::TimedEvent m_write_event;
         ErrorHandler m_error_handler;
         RecvHandler m_recv_handler;
