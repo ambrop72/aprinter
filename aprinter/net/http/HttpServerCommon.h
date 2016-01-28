@@ -53,8 +53,8 @@ class HttpRequestInterface {
 public:
     struct RequestUserCallback {
         virtual void requestTerminated (Context c) = 0;
-        virtual void requestBufferEvent (Context c) = 0;
-        virtual void responseBufferEvent (Context c) = 0;
+        virtual void requestBufferEvent (Context c) {};
+        virtual void responseBufferEvent (Context c) {};
     };
     
     struct RequestBodyBufferState {

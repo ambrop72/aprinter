@@ -887,6 +887,8 @@ private:
                 m_send_timeout_expired = false;
                 m_recv_timeout_expired = false;
                 
+                print_debug_request_info(c);
+                
                 // Call the user's request handler.
                 return RequestHandler::call(c, this);
             } while (false);
@@ -894,6 +896,21 @@ private:
         error:
             // Respond with an error and close the connection.
             close_gracefully(c, status);
+        }
+        
+        void print_debug_request_info (Context c)
+        {
+#if APRINTER_DEBUG_HTTP_SERVER
+            auto *output = TheMain::get_msg_output(c);
+            output->reply_append_pstr(c, AMBRO_PSTR("//HttpRequest "));
+            output->reply_append_str(c, getMethod(c));
+            output->reply_append_ch(c, ' ');
+            output->reply_append_str(c, getPath(c));
+            output->reply_append_pstr(c, AMBRO_PSTR(" body="));
+            output->reply_append_ch(c, hasRequestBody(c) ? '1' : '0');
+            output->reply_append_ch(c, '\n');
+            output->reply_poke(c);
+#endif
         }
         
         bool receiving_request_body (Context c)

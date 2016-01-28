@@ -45,21 +45,18 @@ public:
     struct Object;
     
 private:
-    static size_t const HttpMaxRequestLineLength = 128;
-    static size_t const HttpMaxHeaderLineLength = 128;
-    static size_t const HttpExpectedResponseLength = 250;
-    static size_t const HttpMaxRequestHeadLength = 10000;
-    static size_t const HttpTxChunkHeaderDigits = 4;
-    
-    using TheTheHttpServerService = HttpServerService<
+    using TheHttpServerService = HttpServerService<
         typename Params::HttpServerNetParams,
-        HttpMaxRequestLineLength, HttpMaxHeaderLineLength,
-        HttpExpectedResponseLength, HttpMaxRequestHeadLength, HttpTxChunkHeaderDigits
+        128,   // MaxRequestLineLength
+        128,   // MaxHeaderLineLength
+        250,   // ExpectedResponseLength
+        10000, // MaxRequestHeadLength
+        4      // TxChunkHeaderDigits
     >;
     
     struct HttpRequestHandler;
     struct UserClientState;
-    using TheHttpServer = typename TheTheHttpServerService::template Server<Context, Object, ThePrinterMain, HttpRequestHandler, UserClientState>;
+    using TheHttpServer = typename TheHttpServerService::template Server<Context, Object, ThePrinterMain, HttpRequestHandler, UserClientState>;
     using TheRequestInterface = typename TheHttpServer::TheRequestInterface;
     
     using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;
@@ -110,18 +107,6 @@ private:
     {
         char const *method = request->getMethod(c);
         char const *path = request->getPath(c);
-        
-#if APRINTER_DEBUG_HTTP_SERVER
-        auto *output = ThePrinterMain::get_msg_output(c);
-        output->reply_append_pstr(c, AMBRO_PSTR("//HttpRequest "));
-        output->reply_append_str(c, method);
-        output->reply_append_ch(c, ' ');
-        output->reply_append_str(c, path);
-        output->reply_append_pstr(c, AMBRO_PSTR(" body="));
-        output->reply_append_ch(c, request->hasRequestBody(c)?'1':'0');
-        output->reply_append_ch(c, '\n');
-        output->reply_poke(c);
-#endif
         
         if (path[0] == '/') {
             if (strcmp(method, "GET")) {
@@ -179,10 +164,6 @@ private:
             
             m_buffered_file.reset(c);
             m_state = State::NO_CLIENT;
-        }
-        
-        void requestBufferEvent (Context c)
-        {
         }
         
         void responseBufferEvent (Context c)
