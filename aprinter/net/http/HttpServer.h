@@ -150,11 +150,16 @@ private:
     struct Client : public TheRequestInterface {
         enum class State : uint8_t {
             NOT_CONNECTED, WAIT_SEND_BUF_FOR_REQUEST,
-            RECV_REQUEST_LINE, RECV_HEADER_LINE, HEAD_RECEIVED, USER_GONE,
+            RECV_REQUEST_LINE, RECV_HEADER_LINE,
+            HEAD_RECEIVED, USER_GONE,
             DISCONNECT_AFTER_SENDING, CALLING_REQUEST_TERMINATED
         };
         
-        enum class RecvState : uint8_t {INVALID, NOT_STARTED, RECV_KNOWN_LENGTH, RECV_CHUNK_HEADER, RECV_CHUNK_DATA, COMPLETED};
+        enum class RecvState : uint8_t {
+            INVALID, NOT_STARTED, RECV_KNOWN_LENGTH,
+            RECV_CHUNK_HEADER, RECV_CHUNK_DATA, RECV_CHUNK_TRAILER,
+            RECV_TRAILER, COMPLETED
+        };
         
         enum class SendState : uint8_t {INVALID, HEAD_NOT_SENT, SEND_BODY, SEND_LAST_CHUNK, COMPLETED};
         
@@ -443,8 +448,10 @@ private:
                 case State::HEAD_RECEIVED:
                 case State::USER_GONE: {
                     switch (m_recv_state) {
-                        case RecvState::RECV_CHUNK_HEADER: {
-                            // Receiving the chunk-header line.
+                        case RecvState::RECV_CHUNK_HEADER:
+                        case RecvState::RECV_CHUNK_TRAILER:
+                        case RecvState::RECV_TRAILER: {
+                            // Receiving a line.
                             recv_line(c, m_header_line, Params::MaxHeaderLineLength);
                         } break;
                         
@@ -475,22 +482,21 @@ private:
                                 return m_user->requestBufferEvent(c);
                             }
                             
-                            // Is the entire body received?
-                            if (m_req_body_recevied) {
-                                // Receiving the request body is now completed.
-                                AMBRO_ASSERT(is_combined_timeout_cleared(c, CombinedTimeout::RECV)) // was cleared above because m_rem_req_body_length==0
-                                m_recv_state = RecvState::COMPLETED;
-                                
-                                // Maybe we can move on to the next request.
-                                check_for_next_request(c);
+                            // Consume/discard data until the entire body is received.
+                            if (!m_req_body_recevied) {
+                                size_t amount = get_request_body_avail(c);
+                                if (amount > 0) {
+                                    consume_request_body(c, amount);
+                                }
                                 return;
                             }
                             
-                            // Accept and discard any available request-body data.
-                            size_t amount = get_request_body_avail(c);
-                            if (amount > 0) {
-                                consume_request_body(c, amount);
-                            }
+                            // Receiving the request body is now completed.
+                            AMBRO_ASSERT(is_combined_timeout_cleared(c, CombinedTimeout::RECV)) // was cleared above because m_rem_req_body_length==0
+                            m_recv_state = RecvState::COMPLETED;
+                            
+                            // Maybe we can move on to the next request.
+                            check_for_next_request(c);
                         } break;
                     }
                 } break;
@@ -728,28 +734,61 @@ private:
                 
                 case State::HEAD_RECEIVED:
                 case State::USER_GONE: {
-                    AMBRO_ASSERT(m_recv_state == RecvState::RECV_CHUNK_HEADER)
                     AMBRO_ASSERT(!m_req_body_recevied)
                     
-                    // Check for errors in line parsing.
-                    if (overflow || m_null_in_line) {
-                        TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
-                        return close_gracefully(c, HttpStatusCodes::BadRequest());
+                    switch (m_recv_state) {
+                        case RecvState::RECV_CHUNK_HEADER: {
+                            // Check for errors in line parsing.
+                            if (overflow || m_null_in_line) {
+                                TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
+                                return close_gracefully(c, HttpStatusCodes::BadRequest());
+                            }
+                            
+                            // Parse the chunk length.
+                            char *endptr;
+                            unsigned long long int value = strtoull(m_header_line, &endptr, 16);
+                            if (endptr == m_header_line || (*endptr != '\0' && *endptr != ';')) {
+                                TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
+                                return close_gracefully(c, HttpStatusCodes::BadRequest());
+                            }
+                            
+                            if (value == 0) {
+                                // This is the final zero chunk, move on to receiving the trailing headers.
+                                m_recv_state = RecvState::RECV_TRAILER;
+                                m_rem_allowed_length = Params::MaxRequestHeadLength;
+                            } else {
+                                // Remember the chunk length and continue in event_handler.
+                                m_recv_state = RecvState::RECV_CHUNK_DATA;
+                                m_rem_req_body_length = value;
+                            }
+                            m_recv_event.prependNow(c);
+                        } break;
+                        
+                        case RecvState::RECV_CHUNK_TRAILER: {
+                            // This is supposed to be just an empty line following the chunk payload.
+                            if (length > 0) {
+                                TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkTrailer\n"));
+                                return close_gracefully(c, HttpStatusCodes::BadRequest());
+                            }
+                            
+                            // Now read the other trailer lines.
+                            m_recv_state = RecvState::RECV_CHUNK_HEADER;
+                            m_rem_allowed_length = Params::MaxHeaderLineLength;
+                            m_recv_event.prependNow(c);
+                        } break;
+                        
+                        case RecvState::RECV_TRAILER: {
+                            if (length == 0) {
+                                // End of trailer, go via this state for simplicity.
+                                m_recv_state = RecvState::RECV_CHUNK_DATA;
+                                m_rem_req_body_length = 0;
+                                m_req_body_recevied = true;
+                            }
+                            m_recv_event.prependNow(c);
+                        } break;
+                        
+                        default: AMBRO_ASSERT(false);
                     }
-                    
-                    // Parse the chunk length.
-                    char *endptr;
-                    unsigned long long int value = strtoull(m_header_line, &endptr, 16);
-                    if (endptr == m_header_line || (*endptr != '\0' && *endptr != ';')) {
-                        TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
-                        return close_gracefully(c, HttpStatusCodes::BadRequest());
-                    }
-                    
-                    // Remember the chunk length and continue in event_handler.
-                    m_rem_req_body_length = value;
-                    m_req_body_recevied = (value == 0);
-                    m_recv_state = RecvState::RECV_CHUNK_DATA;
-                    m_recv_event.prependNow(c);
                 } break;
                 
                 default: AMBRO_ASSERT(false);
@@ -915,9 +954,11 @@ private:
         
         bool receiving_request_body (Context c)
         {
-            return (m_recv_state == RecvState::RECV_KNOWN_LENGTH ||
-                    m_recv_state == RecvState::RECV_CHUNK_HEADER ||
-                    m_recv_state == RecvState::RECV_CHUNK_DATA);
+            return (m_recv_state == RecvState::RECV_KNOWN_LENGTH   ||
+                    m_recv_state == RecvState::RECV_CHUNK_HEADER   ||
+                    m_recv_state == RecvState::RECV_CHUNK_DATA     ||
+                    m_recv_state == RecvState::RECV_CHUNK_TRAILER  ||
+                    m_recv_state == RecvState::RECV_TRAILER);
         }
         
         void start_receiving_request_body (Context c, bool user_accepting)
@@ -934,17 +975,16 @@ private:
             }
             
             // Remember if the user is accepting the body (else we're discarding it).
-            if (user_accepting) {
-                m_user_accepting_request_body = true;
-            }
+            m_user_accepting_request_body = user_accepting;
             
             // Start receiving the request body, chunked or known-length.
             if (m_have_chunked) {
+                m_recv_state = RecvState::RECV_CHUNK_HEADER;
+                m_rem_allowed_length = Params::MaxHeaderLineLength;
                 m_req_body_recevied = false;
-                prepare_for_receiving_chunk_header(c);
             } else {
-                m_req_body_recevied = (m_rem_req_body_length == 0);
                 m_recv_state = RecvState::RECV_KNOWN_LENGTH;
+                m_req_body_recevied = (m_rem_req_body_length == 0);
             }
             m_recv_event.prependNow(c);
         }
@@ -953,10 +993,11 @@ private:
         {
             AMBRO_ASSERT(receiving_request_body(c))
             
-            if (m_recv_state == RecvState::RECV_CHUNK_HEADER) {
+            if (m_recv_state == RecvState::RECV_KNOWN_LENGTH || m_recv_state == RecvState::RECV_CHUNK_DATA) {
+                return (size_t)MinValue((uint64_t)m_rx_buf_length, m_rem_req_body_length);
+            } else {
                 return 0;
             }
-            return (size_t)MinValue((uint64_t)m_rx_buf_length, m_rem_req_body_length);
         }
         
         void consume_request_body (Context c, size_t amount)
@@ -981,7 +1022,8 @@ private:
                 if (m_recv_state == RecvState::RECV_KNOWN_LENGTH) {
                     m_req_body_recevied = true;
                 } else {
-                    prepare_for_receiving_chunk_header(c);
+                    m_recv_state = RecvState::RECV_CHUNK_TRAILER;
+                    m_rem_allowed_length = Params::MaxHeaderLineLength;
                 }
                 m_recv_event.prependNow(c);
             }
@@ -1000,13 +1042,6 @@ private:
                 m_user_accepting_request_body = false;
                 m_recv_event.prependNow(c);
             }
-        }
-        
-        void prepare_for_receiving_chunk_header (Context c)
-        {
-            // We need to set m_rem_allowed_length each time we start to receive a chunk header.
-            m_recv_state = RecvState::RECV_CHUNK_HEADER;
-            m_rem_allowed_length = Params::MaxHeaderLineLength;
         }
         
         void close_gracefully (Context c, char const *resp_status)
