@@ -414,6 +414,11 @@ private:
                             send_string(c, "0\r\n\r\n");
                             m_connection.pokeSending(c);
                             
+                            // Close sending on the connection if needed.
+                            if (m_close_connection) {
+                                m_connection.closeSending(c);
+                            }
+                            
                             // Sending the response is now completed.
                             clear_combined_timeout(c, CombinedTimeout::SEND);
                             m_send_state = SendState::COMPLETED;
@@ -1134,6 +1139,11 @@ private:
                 // The response head has not been sent.
                 // Send the response now, with the status as the body.
                 send_response(c, m_resp_status, true, nullptr, m_close_connection);
+                
+                // Close sending on the connection if needed.
+                if (m_close_connection) {
+                    m_connection.closeSending(c);
+                }
                 
                 // Make the state transition.
                 AMBRO_ASSERT(is_combined_timeout_cleared(c, CombinedTimeout::SEND)) // was never started

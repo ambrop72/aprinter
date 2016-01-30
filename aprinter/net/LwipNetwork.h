@@ -672,6 +672,7 @@ public:
             m_state = State::RUNNING;
             m_recv_remote_closed = false;
             m_recv_pending = 0;
+            m_send_closed = false;
             m_send_buf_start = 0;
             m_send_buf_length = 0;
             m_send_buf_passed_length = 0;
@@ -717,6 +718,7 @@ public:
         size_t getSendBufferSpace (Context c, WrapBuffer *out_buffer=nullptr)
         {
             AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            // No assert !m_send_closed, so this can be used to see when data was acked.
             
             if (out_buffer) {
                 *out_buffer = make_send_avail_wrap_buffer(c);
@@ -728,6 +730,7 @@ public:
         {
             AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
             AMBRO_ASSERT(amount <= ProvidedTxBufSize - m_send_buf_length)
+            AMBRO_ASSERT(!m_send_closed)
             
             if (data) {
                 WrapBuffer buffer = make_send_avail_wrap_buffer(c);
@@ -739,10 +742,23 @@ public:
         void pokeSending (Context c)
         {
             AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            AMBRO_ASSERT(!m_send_closed)
             
             if (m_state == State::RUNNING && !m_write_event.isSet(c)) {
                 TimeType delay = (m_send_buf_passed_length == 0) ? ShortWriteDelayTicks : WriteDelayTicks;
                 m_write_event.appendAfterNotAlready(c, delay);
+            }
+        }
+        
+        void closeSending (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            AMBRO_ASSERT(!m_send_closed)
+            
+            m_send_closed = true;
+            if (m_state == State::RUNNING) {
+                m_send_shut_pending = true;
+                m_write_event.appendAfter(c, 0);
             }
         }
         
@@ -847,11 +863,11 @@ public:
             m_send_buf_length -= len;
             m_send_buf_passed_length -= len;
             
-            if (m_send_buf_passed_length < m_send_buf_length) {
-                m_write_event.unset(c);
-                m_write_event.appendAfterNotAlready(c, WriteDelayTicks);
+            if (m_send_buf_passed_length < m_send_buf_length || (m_send_closed && m_send_shut_pending)) {
+                m_write_event.appendAfter(c, WriteDelayTicks);
             }
             
+            // No !m_send_closed check before callback, see comment in getSendBufferSpace.
             m_send_handler(c);
             
             return ERR_OK;
@@ -901,10 +917,23 @@ public:
                 m_send_buf_passed_length += written;
                 
                 if (written < pass_length) {
-                    break;
+                    goto output;
                 }
             }
             
+            // We wait to have at least one free byte in the send buffer before
+            // shutting down the TX. See comment in tcp_enqueue_flags():
+            // "We need one available snd_buf byte to do that".
+            if (m_send_closed && m_send_shut_pending && m_send_buf_length < ProvidedTxBufSize) {
+                auto err = tcp_shutdown(m_pcb, 0, 1);
+                if (err != ERR_OK) {
+                    go_erroring(c, false);
+                    return;
+                }
+                m_send_shut_pending = false;
+            }
+            
+        output:;
             auto err = tcp_output(m_pcb);
             if (err != ERR_OK) {
                 if (err == ERR_BUF) {
@@ -958,6 +987,8 @@ public:
         SendHandler m_send_handler;
         State m_state;
         bool m_recv_remote_closed;
+        bool m_send_closed;
+        bool m_send_shut_pending;
         struct tcp_pcb *m_pcb;
         TcpListener *m_listener;
         struct pbuf *m_received_pbuf;
