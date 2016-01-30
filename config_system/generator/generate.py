@@ -1612,6 +1612,8 @@ def generate(config_root_data, cfg_name, main_template):
                             if not (0 <= webif_queue_size <= 50):
                                 webif_config.key_path('QueueSize').error('Bad value.')
                             
+                            allow_persistent = webif_config.get_bool('AllowPersistent')
+                            
                             gen.add_float_constant('WebInterfaceQueueTimeout', webif_config.get_float('QueueTimeout'))
                             gen.add_float_constant('WebInterfaceInactivityTimeout', webif_config.get_float('InactivityTimeout'))
                             
@@ -1626,6 +1628,7 @@ def generate(config_root_data, cfg_name, main_template):
                                     webif_port,
                                     webif_max_clients,
                                     webif_queue_size,
+                                    allow_persistent,
                                     'WebInterfaceQueueTimeout',
                                     'WebInterfaceInactivityTimeout',
                                 ]),

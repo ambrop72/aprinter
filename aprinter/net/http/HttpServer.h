@@ -292,7 +292,7 @@ private:
             
             // And set some values related to higher-level processing of the request.
             m_have_request_body = false;
-            m_close_connection = false;
+            m_close_connection = !Params::Net::AllowPersistent;
             m_resp_status = nullptr;
             m_resp_content_type = nullptr;
             m_user_accepting_request_body = false;
@@ -1403,6 +1403,7 @@ APRINTER_ALIAS_STRUCT(HttpServerNetParams, (
     APRINTER_AS_VALUE(uint16_t, Port),
     APRINTER_AS_VALUE(int, MaxClients),
     APRINTER_AS_VALUE(int, QueueSize),
+    APRINTER_AS_VALUE(bool, AllowPersistent),
     APRINTER_AS_TYPE(QueueTimeout),
     APRINTER_AS_TYPE(InactivityTimeout)
 ))
