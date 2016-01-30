@@ -28,6 +28,8 @@
 #include <stddef.h>
 #include <string.h>
 
+#include <aprinter/base/MemRef.h>
+
 #include <aprinter/BeginNamespace.h>
 
 static char AsciiToLower (char c)
@@ -74,13 +76,13 @@ static bool StringRemovePrefix (char **data, char const *prefix)
     return true;
 }
 
-static bool StringEqualsCaseIns (char const *data, char const *low_str)
+static bool MemEqualsCaseIns (MemRef data, char const *low_str)
 {
-    while (*data != '\0' && *low_str != '\0' && AsciiToLower(*data) == *low_str) {
-        data++;
-        low_str++;
+    size_t pos = 0;
+    while (pos < data.len && low_str[pos] != '\0' && AsciiToLower(data.ptr[pos]) == low_str[pos]) {
+        pos++;
     }
-    return (*data == '\0' && *low_str == '\0');
+    return (pos == data.len && low_str[pos] == '\0');
 }
 
 static bool StringRemoveHttpHeader (char const **data, char const *low_header_name)
@@ -107,6 +109,37 @@ static bool StringRemoveHttpHeader (char const **data, char const *low_header_na
     
     *data += pos;
     return true;
+}
+
+namespace StringToolsPrivate {
+    inline static bool is_http_token_sep (char ch)
+    {
+        return (ch == ' ' || ch == '\t' || ch == ',');
+    }
+}
+
+template <typename TokenCallback>
+void StringIterHttpTokens (MemRef data, TokenCallback token_cb)
+{
+    while (true) {
+        while (data.len > 0 && StringToolsPrivate::is_http_token_sep(data.ptr[0])) {
+            data = data.subFrom(1);
+        }
+        
+        if (data.len == 0) {
+            break;
+        }
+        
+        size_t token_len = 1;
+        while (token_len < data.len && !StringToolsPrivate::is_http_token_sep(data.ptr[token_len])) {
+            token_len++;
+        }
+        
+        MemRef token = data.subTo(token_len);
+        token_cb(token);
+        
+        data = data.subFrom(token_len);
+    }
 }
 
 #include <aprinter/EndNamespace.h>

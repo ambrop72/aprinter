@@ -292,6 +292,7 @@ private:
             
             // And set some values related to higher-level processing of the request.
             m_have_request_body = false;
+            m_close_connection = false;
             m_resp_status = nullptr;
             m_resp_content_type = nullptr;
             m_user_accepting_request_body = false;
@@ -311,13 +312,15 @@ private:
         
         void check_for_next_request (Context c)
         {
-            // When a request is completed, move on to the next one.
             if (m_state == State::USER_GONE &&
                 m_recv_state == RecvState::COMPLETED &&
                 m_send_state == SendState::COMPLETED)
             {
+                // The request is processed.
+                // If closing is desired, we want to wait until the send buffer is emptied,
+                // otherwise just until we have enough space in the send buffer for the next request.
                 AMBRO_ASSERT(!m_user)
-                m_state = State::WAIT_SEND_BUF_FOR_REQUEST;
+                m_state = m_close_connection ? State::DISCONNECT_AFTER_SENDING : State::WAIT_SEND_BUF_FOR_REQUEST;
                 m_recv_state = RecvState::INVALID;
                 m_send_state = SendState::INVALID;
                 m_combined_timeout_event.unset(c);
@@ -650,8 +653,7 @@ private:
             
             // Detect too long request bodies / lines.
             if (pos > m_rem_allowed_length) {
-                TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientRequestTooLong\n"));
-                return close_gracefully(c, HttpStatusCodes::RequestHeaderFieldsTooLarge());
+                return line_allowed_length_exceeded(c);
             }
             m_rem_allowed_length -= pos;
             
@@ -685,6 +687,12 @@ private:
             
             // Delegate the interpretation of the line to another function.
             line_received(c, length, overflow, !end_of_line);
+        }
+        
+        void line_allowed_length_exceeded (Context c)
+        {
+            TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientRequestTooLong\n"));
+            return close_gracefully(c, HttpStatusCodes::RequestHeaderFieldsTooLarge());
         }
         
         void line_not_received_yet (Context c)
@@ -808,8 +816,8 @@ private:
                 }
             }
             else if (StringRemoveHttpHeader(&header, "transfer-encoding")) {
-                if (!StringEqualsCaseIns(header, "identity")) {
-                    if (!StringEqualsCaseIns(header, "chunked") || m_have_chunked) {
+                if (!MemEqualsCaseIns(header, "identity")) {
+                    if (!MemEqualsCaseIns(header, "chunked") || m_have_chunked) {
                         m_bad_transfer_encoding = true;
                     } else {
                         m_have_chunked = true;
@@ -817,11 +825,18 @@ private:
                 }
             }
             else if (StringRemoveHttpHeader(&header, "expect")) {
-                if (!StringEqualsCaseIns(header, "100-continue")) {
+                if (!MemEqualsCaseIns(header, "100-continue")) {
                     m_expectation_failed = true;
                 } else {
                     m_expect_100_continue = true;
                 }
+            }
+            else if (StringRemoveHttpHeader(&header, "connection")) {
+                StringIterHttpTokens(header, [this](MemRef token) {
+                    if (MemEqualsCaseIns(token, "close")) {
+                        m_close_connection = true;
+                    }
+                });
             }
         }
         
@@ -1118,7 +1133,7 @@ private:
             if (m_send_state == SendState::HEAD_NOT_SENT) {
                 // The response head has not been sent.
                 // Send the response now, with the status as the body.
-                send_response(c, m_resp_status, true);
+                send_response(c, m_resp_status, true, nullptr, m_close_connection);
                 
                 // Make the state transition.
                 AMBRO_ASSERT(is_combined_timeout_cleared(c, CombinedTimeout::SEND)) // was never started
@@ -1261,7 +1276,7 @@ private:
             AMBRO_ASSERT(m_user)
             
             // Send the response head.
-            send_response(c, m_resp_status, false, m_resp_content_type);
+            send_response(c, m_resp_status, false, m_resp_content_type, m_close_connection);
             
             // The user will now be producing the response body.
             m_send_state = SendState::SEND_BODY;
@@ -1355,6 +1370,7 @@ private:
         bool m_expect_100_continue;
         bool m_expectation_failed;
         bool m_have_request_body;
+        bool m_close_connection;
         bool m_req_body_recevied;
         bool m_user_accepting_request_body;
         bool m_rx_buf_eof;
