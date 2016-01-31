@@ -791,7 +791,6 @@ public:
             AMBRO_ASSERT(!m_received_pbuf)
             
             if (m_pcb) {
-                remove_pcb_callbacks(m_pcb);
                 if (m_pcb == m_listener->m_newpcb) {
                     m_listener->m_newpcb = nullptr;
                     close_pcb(m_pcb, m_send_buf_passed_length, &m_listener->m_newpcb_aborted);
@@ -801,6 +800,7 @@ public:
                 m_pcb = nullptr;
                 m_listener->client_pcb_closed();
             }
+            
             m_write_event.unset(c);
             m_closed_event.unset(c);
             m_state = State::IDLE;
@@ -809,18 +809,17 @@ public:
         void go_erroring (Context c, bool pcb_gone)
         {
             AMBRO_ASSERT(m_state == State::RUNNING)
+            AMBRO_ASSERT(m_pcb)
             
-            remove_pcb_callbacks(m_pcb);
-            if (pcb_gone) {
-                m_pcb = nullptr;
-                m_listener->client_pcb_closed();
+            if (!pcb_gone) {
+                close_pcb(m_pcb, m_send_buf_passed_length);
             }
+            m_pcb = nullptr;
+            m_listener->client_pcb_closed();
+            
             m_state = State::ERRORING;
             m_write_event.unset(c);
-            
-            if (!m_closed_event.isSet(c)) {
-                m_closed_event.prependNowNotAlready(c);
-            }
+            m_closed_event.prependNow(c);
         }
         
         static void pcb_err_handler_wrapper (void *arg, err_t err)
@@ -903,26 +902,15 @@ public:
         
         void closed_event_handler (Context c)
         {
-            switch (m_state) {
-                case State::RUNNING: {
-                    AMBRO_ASSERT(m_recv_remote_closed)
-                    
-                    return m_error_handler(c, true);
-                } break;
-                
-                case State::ERRORING: {
-                    if (m_pcb) {
-                        close_pcb(m_pcb, m_send_buf_passed_length);
-                        m_pcb = nullptr;
-                        m_listener->client_pcb_closed();
-                    }
-                    m_state = State::ERRORED;
-                    
-                    return m_error_handler(c, false);
-                } break;
-                
-                default: AMBRO_ASSERT(false);
+            AMBRO_ASSERT(m_state == State::RUNNING || m_state == State::ERRORING)
+            AMBRO_ASSERT(m_state != State::RUNNING || m_recv_remote_closed)
+            AMBRO_ASSERT(m_state != State::ERRORING || !m_pcb)
+            
+            bool remote_closed = (m_state == State::RUNNING);
+            if (!remote_closed) {
+                m_state = State::ERRORED;
             }
+            return m_error_handler(c, remote_closed);
         }
         
         void write_event_handler (Context c)
@@ -937,8 +925,7 @@ public:
                 u16_t written;
                 auto err = tcp_write_ext(m_pcb, m_send_buf + pass_offset, pass_length, TCP_WRITE_FLAG_PARTIAL, &written);
                 if (err != ERR_OK) {
-                    go_erroring(c, false);
-                    return;
+                    return go_erroring(c, false);
                 }
                 
                 AMBRO_ASSERT(written <= pass_length)
@@ -955,8 +942,7 @@ public:
             if (m_send_closed && m_send_shut_pending && m_send_buf_length < ProvidedTxBufSize) {
                 auto err = tcp_shutdown(m_pcb, 0, 1);
                 if (err != ERR_OK) {
-                    go_erroring(c, false);
-                    return;
+                    return go_erroring(c, false);
                 }
                 m_send_shut_pending = false;
             }
@@ -971,7 +957,7 @@ public:
                     // in the TX buffer again, and call tcp_txnow() to speed up the
                     // retransmission.
                 } else {
-                    go_erroring(c, false);
+                    return go_erroring(c, false);
                 }
             }
         }
@@ -982,16 +968,13 @@ public:
             return WrapBuffer::Make(ProvidedTxBufSize - write_offset, m_send_buf + write_offset, m_send_buf);
         }
         
-        static void remove_pcb_callbacks (struct tcp_pcb *pcb)
+        static void close_pcb (struct tcp_pcb *pcb, size_t send_buf_passed_length, bool *aborted=nullptr)
         {
             tcp_arg(pcb, nullptr);
             tcp_err(pcb, nullptr);
             tcp_recv(pcb, nullptr);
             tcp_sent(pcb, nullptr);
-        }
-        
-        static void close_pcb (struct tcp_pcb *pcb, size_t send_buf_passed_length, bool *aborted=nullptr)
-        {
+            
             // If we have unacked data queued for sending, we have to resort
             // to tcp_abort() because the referenced m_send_buf may go away.
             if (send_buf_passed_length > 0 || tcp_close(pcb) != ERR_OK) {
