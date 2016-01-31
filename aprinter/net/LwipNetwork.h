@@ -186,8 +186,8 @@ public:
         friend LwipNetwork;
         
     public:
-        // WARNING: Don't do any funny calls back to this module directly from the event handler,
-        // especially not deinit/reset the NetworkEventListener.
+        // WARNING: Don't do any funny calls back to this module directly from the event handler.
+        // But it is permitted to reset/deinit this listener.
         using EventHandler = Callback<void(Context, NetworkEvent)>;
         
         void init (Context c, EventHandler event_handler)
@@ -1276,10 +1276,12 @@ private:
     {
         auto *o = Object::self(c);
         
-        for (NetworkEventListener *nel = o->event_listeners.first(); nel != nullptr; nel = o->event_listeners.next(nel)) {
+        NetworkEventListener *nel = o->event_listeners.first();
+        while (nel) {
             AMBRO_ASSERT(nel->m_listening)
-            nel->m_event_handler(c, event);
-            AMBRO_ASSERT(nel->m_listening)
+            auto handler = nel->m_event_handler;
+            nel = o->event_listeners.next(nel);
+            handler(c, event);
         }
     }
     
