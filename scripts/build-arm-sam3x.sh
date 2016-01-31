@@ -66,7 +66,7 @@ configure_sam3x() {
         -I"${ASF_DIR}/common/boards"
         -I"${ASF_DIR}/thirdparty/CMSIS/Include"
         -I"${ASF_DIR}"
-        -I aprinter/platform/at91${ARCH}
+        -I aprinter/platform/at91sam
     )
     
     if [ "$AT91SAM_ADC_TRIGGER_ERRATUM" = "1" ]; then
@@ -86,7 +86,7 @@ configure_sam3x() {
         "aprinter/platform/newlib_common.c"
     )
     CXX_SOURCES+=(
-        "aprinter/platform/at91${ARCH}/at91${ARCH}_support.cpp"
+        "aprinter/platform/at91sam/at91sam_support.cpp"
     )
 
     if [ $USE_USB_SERIAL -gt 0 ]; then

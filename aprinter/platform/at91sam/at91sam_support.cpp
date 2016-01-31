@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Ambroz Bizjak
+ * Copyright (c) 2013 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,7 +22,9 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CONF_BOARD_H_INCLUDED
-#define CONF_BOARD_H_INCLUDED
+#include "at91sam_support.h"
 
-#endif
+void platform_init (void)
+{
+    SystemInit();
+}

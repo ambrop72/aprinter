@@ -370,13 +370,13 @@ def setup_platform(gen, config, key):
     
     @platform_sel.option('At91Sam3x8e')
     def option(platform):
-        gen.add_platform_include('aprinter/platform/at91sam3x/at91sam3x_support.h')
+        gen.add_platform_include('aprinter/platform/at91sam/at91sam_support.h')
         gen.add_init_call(-1, 'platform_init();')
         gen.register_singleton_object('alignment', 4)
     
     @platform_sel.option('At91Sam3u4e')
     def option(platform):
-        gen.add_platform_include('aprinter/platform/at91sam3u/at91sam3u_support.h')
+        gen.add_platform_include('aprinter/platform/at91sam/at91sam_support.h')
         gen.add_init_call(-1, 'platform_init();')
         gen.register_singleton_object('alignment', 4)
     

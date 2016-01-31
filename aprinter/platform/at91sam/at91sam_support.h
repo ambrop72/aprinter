@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2015 Ambroz Bizjak
+ * Copyright (c) 2013 Ambroz Bizjak
  * All rights reserved.
  * 
  * Redistribution and use in source and binary forms, with or without
@@ -22,30 +22,31 @@
  * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#ifndef CONF_USB_H
-#define CONF_USB_H
+#ifndef AMBROLIB_AT91SAM_SUPPORT_H
+#define AMBROLIB_AT91SAM_SUPPORT_H
 
-#define USB_DEVICE_VENDOR_ID 0x2341
-#define USB_DEVICE_PRODUCT_ID 0x003e
-#define USB_DEVICE_MAJOR_VERSION 1
-#define USB_DEVICE_MINOR_VERSION 0
-#define USB_DEVICE_POWER 100
-#define USB_DEVICE_ATTR USB_CONFIG_ATTR_BUS_POWERED
-
-#define UDI_CDC_ENABLE_EXT(port) true
-#define UDI_CDC_DISABLE_EXT(port)
-#define UDI_CDC_SET_DTR_EXT(port, set)
-#define UDI_CDC_SET_RTS_EXT(port, set)
-#define UDI_CDC_SET_CODING_EXT(port, cfg)
-#define UDI_CDC_RX_NOTIFY(port)
-
-#define UDI_CDC_LOW_RATE
-#define UDI_CDC_DEFAULT_RATE 1000000
-#define UDI_CDC_DEFAULT_STOPBITS CDC_STOP_BITS_1
-#define UDI_CDC_DEFAULT_PARITY CDC_PAR_NONE
-#define UDI_CDC_DEFAULT_DATABITS 8
-
-#include "udi_cdc_conf.h"
-
+#if defined(__SAM3X8E__)
+#include <sam3xa.h>
+#elif defined(__SAM3U4E__)
+#include <sam3u.h>
+#elif defined(__SAM3S2A__)
+#include <sam3s.h>
+#else
+#error Unknown ASF include file for this chip
 #endif
 
+#include <aprinter/platform/arm_cortex_common.h>
+
+#define F_SCLK CHIP_FREQ_SLCK_RC
+#define F_MCK CHIP_FREQ_CPU_MAX
+#define F_CPU F_MCK
+
+#define INTERRUPT_PRIORITY 4
+
+#define GET_PERIPHERAL_ADDR(x) ((uint32_t) GET_PERIPHERAL_ADDR_ x)
+#define GET_PERIPHERAL_ADDR_(x) GET_PERIPHERAL_ADDR__ x
+#define GET_PERIPHERAL_ADDR__(x)
+
+void platform_init (void);
+
+#endif
