@@ -43,6 +43,10 @@ typedef uintptr_t mem_ptr_t;
 #define LWIP_PLATFORM_DIAG(x) do { printf x; } while (0)
 #define LWIP_PLATFORM_ASSERT(x) do { puts(__FILE__ ":" AMBRO_STRINGIFY(__LINE__) x); while (1); } while (0)
 
+#if !APRINTER_LWIP_ASSERTIONS
+#define LWIP_NOASSERT
+#endif
+
 #define U16_F PRIu16
 #define S16_F PRId16
 #define X16_F PRIx16

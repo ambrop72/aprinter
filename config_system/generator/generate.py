@@ -1289,6 +1289,7 @@ def setup_network(gen, config, key):
             gen.add_define('APRINTER_TCP_RX_BUF', tcp_rx_buf)
             gen.add_define('APRINTER_TCP_TX_BUF', tcp_tx_buf)
             gen.add_define('APRINTER_MEM_ALIGNMENT', gen.get_singleton_object('alignment'))
+            gen.add_define('APRINTER_LWIP_ASSERTIONS', int(network_config.get_bool('LwipAssertions')))
         
         gen.add_finalize_action(finalize)
         

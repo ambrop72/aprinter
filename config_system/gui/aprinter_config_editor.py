@@ -795,6 +795,7 @@ def editor():
                                 phy_choice(key='PhyDriver', title='PHY driver')
                             ]),
                         ]),
+                        ce.Boolean(key='LwipAssertions', title='Enable lwIP assertions', default=False),
                         ce.Integer(key='TcpRxBuf', title='TCP receive buffer size [bytes] (for each connection!)', default=5840),
                         ce.Integer(key='TcpTxBuf', title='TCP send buffer size [bytes] (for each connection!)', default=3450),
                         ce.Boolean(key='NetEnabled', title='Networking enabled', default=True),
