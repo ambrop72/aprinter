@@ -95,20 +95,18 @@ public:
     }
     
 private:
-    static bool listener_accept_handler (Context c)
+    static void listener_accept_handler (Context c)
     {
         auto *o = Object::self(c);
         
         for (int i = 0; i < MaxClients; i++) {
             Client *cl = &o->clients[i];
             if (cl->m_state == Client::State::NOT_CONNECTED) {
-                cl->accept_connection(c);
-                return true;
+                return cl->accept_connection(c);
             }
         }
         
         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//TcpConsoleAcceptNoSlot\n"));
-        return false;
     }
     
     struct Client : public ThePrinterMain::CommandStreamCallback

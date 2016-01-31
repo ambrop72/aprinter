@@ -82,7 +82,7 @@ private:
     
     using TimeoutsFastEvent = typename Context::EventLoop::template FastEventSpec<LwipNetwork>;
     
-    static TimeType const WriteDelayTicks = 0.001 * Context::Clock::time_freq;
+    static TimeType const WriteDelayTicks      = 0.001   * Context::Clock::time_freq;
     static TimeType const ShortWriteDelayTicks = 0.00005 * Context::Clock::time_freq;
     
 public:
@@ -162,11 +162,10 @@ public:
         memcpy(status.ip_addr,    netif_ip4_addr(&o->netif),    sizeof(status.ip_addr));
         memcpy(status.ip_netmask, netif_ip4_netmask(&o->netif), sizeof(status.ip_netmask));
         memcpy(status.ip_gateway, netif_ip4_gw(&o->netif),      sizeof(status.ip_gateway));
-        
         return status;
     }
     
-    enum class NetworkEventType {ACTIVATION, LINK, DHCP};
+    enum class NetworkEventType : uint8_t {ACTIVATION, LINK, DHCP};
     
     struct NetworkEvent {
         NetworkEventType type;
@@ -251,14 +250,14 @@ public:
         
     public:
         // The user is supposed to call TcpConnection::acceptConnection from within
-        // AcceptHandler. You must return true if and only if you have accepted the
-        // connection and not closed it.
+        // AcceptHandler (unless they are not ready to accept the connection).
         // WARNING: Do not call any other network functions from this callback,
-        // especially don't close the listener. Though the following is permitted:
+        // especially don't close the listener.
+        // But the following should work (but was not thoroughly tested):
         // - Closing the resulting connection (deinit/reset) from within this callback
-        //   after having accepted it, as long as you indicate this by returning false.
+        //   after having accepted it.
         // - Closing other connections (perhaps in order to make space for the new one).
-        using AcceptHandler = Callback<bool(Context)>;
+        using AcceptHandler = Callback<void(Context)>;
         
         void init (Context c, AcceptHandler accept_handler)
         {
@@ -266,7 +265,7 @@ public:
             m_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&TcpListener::timeout_event_handler, this));
             m_accept_handler = accept_handler;
             m_pcb = nullptr;
-            m_accepted_pcb = nullptr;
+            m_newpcb = nullptr;
         }
         
         void deinit (Context c)
@@ -306,10 +305,7 @@ public:
                     goto fail;
                 }
                 
-                ip_addr_t the_addr;
-                ip_addr_set_any(0, &the_addr);
-                
-                auto err = tcp_bind(m_pcb, &the_addr, port);
+                auto err = tcp_bind(m_pcb, IP_ADDR_ANY, port);
                 if (err != ERR_OK) {
                     goto fail;
                 }
@@ -326,11 +322,11 @@ public:
                 // If we will have a queue of connections, all connections have to start with zero
                 // receive window, since we are not prepared to accept any data on queued connections.
                 if (m_queue_size > 0) {
-                    get_lpcb()->initial_rcv_wnd = 0;
+                    ((struct tcp_pcb_listen *)m_pcb)->initial_rcv_wnd = 0;
                 }
-                
-                return true;
             } while (false);
+            
+            return true;
             
         fail:
             reset_internal(c);
@@ -349,7 +345,7 @@ public:
     private:
         void reset_internal (Context c)
         {
-            AMBRO_ASSERT(!m_accepted_pcb)
+            AMBRO_ASSERT(!m_newpcb)
             AMBRO_ASSERT(!m_pcb || m_num_clients == 0)
             
             if (m_pcb) {
@@ -382,29 +378,36 @@ public:
             AMBRO_ASSERT(m_pcb)
             AMBRO_ASSERT(newpcb)
             AMBRO_ASSERT(err == ERR_OK)
-            AMBRO_ASSERT(!m_accepted_pcb)
+            AMBRO_ASSERT(!m_newpcb)
             
             // Note that we are implcitly given an acccepts_pending reference.
             // We have to release it eventually using tcp_accepted(), regardless
             // of the return value.
             
-            // Give the connection to the accept handler.
-            m_accepted_pcb = newpcb;
-            bool accept_res = m_accept_handler(c);
+            // Publish the newpcb.
+            m_newpcb = newpcb;
+            m_newpcb_taken = false;
+            m_newpcb_aborted = false;
             
-            // If the handler did not take the connection, put it into the queue
-            // if there is space, else refuse it.
-            if (m_accepted_pcb) {
-                m_accepted_pcb = nullptr;
-                if (queue_connection(c, newpcb)) {
-                    return ERR_OK;
-                } else {
-                    tcp_accepted(m_pcb);
-                    return ERR_BUF;
-                }
+            // Call the accept handler.
+            m_accept_handler(c);
+            
+            // Unpublish.
+            m_newpcb = nullptr;
+            
+            // Was the newpcb taken?
+            if (m_newpcb_taken) {
+                return m_newpcb_aborted ? ERR_ABRT : ERR_OK;
             }
             
-            return accept_res ? ERR_OK : ERR_ABRT;
+            // Try to put it into the queue.
+            if (queue_connection(c, newpcb)) {
+                return ERR_OK;
+            }
+            
+            // No space in queue.
+            tcp_accepted(m_pcb);
+            return ERR_BUF;
         }
         
         bool queue_connection (Context c, struct tcp_pcb *pcb)
@@ -424,11 +427,9 @@ public:
             return false;
         }
         
-        err_t close_queued_connection (TcpListenerQueueEntry *entry, bool pcb_gone)
+        void close_queued_connection (TcpListenerQueueEntry *entry, bool pcb_gone, bool *aborted=nullptr)
         {
             AMBRO_ASSERT(entry->m_pcb)
-            
-            err_t err = ERR_OK;
             
             if (!pcb_gone) {
                 // If we started with zero window size, first bring it to normal.
@@ -448,15 +449,14 @@ public:
                 
                 if (tcp_close(entry->m_pcb) != ERR_OK) {
                     tcp_abort(entry->m_pcb);
-                    err = ERR_ABRT;
+                    if (aborted) {
+                        *aborted = true;
+                    }
                 }
             }
             
             entry->m_pcb = nullptr;
-            
             tcp_accepted(m_pcb);
-            
-            return err;
         }
         
         static void queued_pcb_err_handler_wrapper (void *arg, err_t err)
@@ -489,9 +489,10 @@ public:
             AMBRO_ASSERT(tpcb == entry->m_pcb)
             AMBRO_ASSERT(!p) // We've dropped the window size so no data should be passed to this callback.
             
-            err_t reterr = close_queued_connection(entry, false);
+            bool aborted = false;
+            close_queued_connection(entry, false, &aborted);
             update_timeout(c);
-            return reterr;
+            return aborted ? ERR_ABRT : ERR_OK;
         }
         
         // We delay calling tcp_accepted() until we abandon the connection.
@@ -502,10 +503,12 @@ public:
         
         struct tcp_pcb * yank_client_pcb ()
         {
-            AMBRO_ASSERT(m_accepted_pcb)
+            AMBRO_ASSERT(m_newpcb)
+            AMBRO_ASSERT(!m_newpcb_taken)
+            AMBRO_ASSERT(!m_newpcb_aborted)
             
-            struct tcp_pcb *pcb = m_accepted_pcb;
-            m_accepted_pcb = nullptr;
+            struct tcp_pcb *pcb = m_newpcb;
+            m_newpcb_taken = true;
             
             AMBRO_ASSERT(m_num_clients < 255)
             m_num_clients++;
@@ -530,11 +533,6 @@ public:
             tcp_accepted(m_pcb);
         }
         
-        struct tcp_pcb_listen * get_lpcb ()
-        {
-            return (struct tcp_pcb_listen *)m_pcb;
-        }
-        
         TcpListenerQueueEntry * find_oldest_queued_pcb ()
         {
             TcpListenerQueueEntry *oldest_entry = nullptr;
@@ -551,7 +549,7 @@ public:
         {
             AMBRO_ASSERT(m_pcb)
             AMBRO_ASSERT(m_queue_size > 0)
-            AMBRO_ASSERT(!m_accepted_pcb)
+            AMBRO_ASSERT(!m_newpcb)
             
             // Find the connection that has been queued for the longest time.
             TcpListenerQueueEntry *oldest_entry = find_oldest_queued_pcb();
@@ -559,16 +557,21 @@ public:
                 return;
             }
             
-            // Try to give the connection to the accept handler.
-            m_accepted_pcb = oldest_entry->m_pcb;
+            // Publish the newpcb.
+            m_newpcb = oldest_entry->m_pcb;
+            m_newpcb_taken = false;
+            m_newpcb_aborted = false;
+            
+            // Call the accept handler.
             m_accept_handler(c);
             
-            // Did the handler take the connection?
-            if (!m_accepted_pcb) {
+            // Unpublish.
+            m_newpcb = nullptr;
+            
+            // If the handler took the connection, release the queue entry.
+            if (m_newpcb_taken) {
                 oldest_entry->m_pcb = nullptr;
                 update_timeout(c);
-            } else {
-                m_accepted_pcb = nullptr;
             }
         }
         
@@ -592,8 +595,6 @@ public:
             TcpListenerQueueEntry *oldest_entry = find_oldest_queued_pcb();
             AMBRO_ASSERT(oldest_entry)
             close_queued_connection(oldest_entry, false);
-            
-            // Schedule next expiration if any.
             update_timeout(c);
         }
         
@@ -601,17 +602,31 @@ public:
         typename Context::EventLoop::TimedEvent m_timeout_event;
         AcceptHandler m_accept_handler;
         struct tcp_pcb *m_pcb;
-        struct tcp_pcb *m_accepted_pcb;
+        struct tcp_pcb *m_newpcb;
         TcpListenerQueueEntry *m_queue;
         TimeType m_queue_timeout;
         uint8_t m_num_clients;
         uint8_t m_queue_size;
+        bool m_newpcb_taken;
+        bool m_newpcb_aborted;
     };
     
     class TcpConnection {
         enum class State : uint8_t {IDLE, RUNNING, ERRORING, ERRORED};
         
     public:
+        // This callback is used for two events:
+        // 1. remote_closed==true
+        //    The remote has finished its stream (closed the sending).
+        //    This is called at most once. Note, you should keep using acceptReceivedData() as
+        //    you process remaining received data (though you don't strictly have to process
+        //    it in the first place).
+        // 2. remote_closed==false
+        //    There was a fatal error with the connection.
+        //    The connection is now unusable, the only thing you may do with it is
+        //    reset() or deinit(). Any other functions must not be called.
+        // This callback is safe (returns straight to event loop). So you are
+        // free to e.g. reset() this connection object directly from it.
         using ErrorHandler = Callback<void(Context, bool remote_closed)>;
         
         // The user is supposed to call TcpConnection::copyReceivedData from within
@@ -619,15 +634,23 @@ public:
         // equal to the 'length' in the callback (or less if not all data is needed).
         // WARNING: Do not call any other network functions from this callback.
         // It is specifically prohibited to close (deinit/reset) this connection.
+        // Typically one will copy the data to a buffer and set a QueuedEvent to
+        // process it later.
         using RecvHandler = Callback<void(Context, size_t length)>;
         
         // This callback will be called when some data has been sent, i.e. there is
         // more space in the send buffer.
         // WARNING: Do not call any other network functions from this callback.
         // It is specifically prohibited to close (deinit/reset) this connection.
+        // Typically one will set a QueuedEvent to possibly send data later.
         using SendHandler = Callback<void(Context)>;
         
+        // This is how much received data you are required to be able to buffer.
+        // This refers to the amount of data that was passed to RecvHandler but
+        // for which acceptReceivedData() has not yet been called.
         static size_t const RequiredRxBufSize = TCP_WND;
+        
+        // This is how large the send buffer of the connection is.
         static size_t const ProvidedTxBufSize = TCP_SND_BUF;
         
         void init (Context c, ErrorHandler error_handler, RecvHandler recv_handler, SendHandler send_handler)
@@ -654,12 +677,13 @@ public:
             reset_internal(c);
         }
         
+        // Call this from accept_handler to accept a connection.
+        // Actually this may only be called from accept_handler, at most once from each handler call.
         void acceptConnection (Context c, TcpListener *listener)
         {
             AMBRO_ASSERT(m_state == State::IDLE)
             AMBRO_ASSERT(!m_pcb)
             AMBRO_ASSERT(!m_received_pbuf)
-            AMBRO_ASSERT(listener->m_accepted_pcb)
             
             m_pcb = listener->yank_client_pcb();
             m_listener = listener;
@@ -709,7 +733,6 @@ public:
             AMBRO_ASSERT(amount <= m_recv_pending)
             
             m_recv_pending -= amount;
-            
             if (m_state == State::RUNNING) {
                 tcp_recved(m_pcb, amount);
             }
@@ -769,7 +792,12 @@ public:
             
             if (m_pcb) {
                 remove_pcb_callbacks(m_pcb);
-                close_pcb(m_pcb, m_send_buf_passed_length);
+                if (m_pcb == m_listener->m_newpcb) {
+                    m_listener->m_newpcb = nullptr;
+                    close_pcb(m_pcb, m_send_buf_passed_length, &m_listener->m_newpcb_aborted);
+                } else {
+                    close_pcb(m_pcb, m_send_buf_passed_length);
+                }
                 m_pcb = nullptr;
                 m_listener->client_pcb_closed();
             }
@@ -962,12 +990,15 @@ public:
             tcp_sent(pcb, nullptr);
         }
         
-        static void close_pcb (struct tcp_pcb *pcb, size_t send_buf_passed_length)
+        static void close_pcb (struct tcp_pcb *pcb, size_t send_buf_passed_length, bool *aborted=nullptr)
         {
             // If we have unacked data queued for sending, we have to resort
             // to tcp_abort() because the referenced m_send_buf may go away.
             if (send_buf_passed_length > 0 || tcp_close(pcb) != ERR_OK) {
                 tcp_abort(pcb);
+                if (aborted) {
+                    *aborted = true;
+                }
             }
         }
         
@@ -1057,7 +1088,7 @@ private:
     {
         NetworkParams const *params = (NetworkParams const *)netif->state;
         
-        netif->hostname = (char *)"aprinter";
+        netif->hostname = "aprinter";
         
         uint32_t link_speed_for_mib2 = UINT32_C(100000000);
         MIB2_INIT_NETIF(netif, snmp_ifType_ethernet_csmacd, link_speed_for_mib2);
@@ -1093,8 +1124,6 @@ private:
     
     static void timeouts_event_handler (Context c)
     {
-        auto *o = Object::self(c);
-        
         Context::EventLoop::template triggerFastEvent<TimeoutsFastEvent>(c);
         sys_check_timeouts();
     }

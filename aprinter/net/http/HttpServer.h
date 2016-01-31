@@ -123,19 +123,17 @@ public:
     }
     
 private:
-    static bool listener_accept_handler (Context c)
+    static void listener_accept_handler (Context c)
     {
         auto *o = Object::self(c);
         
         for (int i = 0; i < Params::Net::MaxClients; i++) {
             Client *cl = &o->clients[i];
             if (cl->m_state == Client::State::NOT_CONNECTED) {
-                cl->accept_connection(c, &o->listener);
-                return true;
+                return cl->accept_connection(c, &o->listener);
             }
         }
         TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerAcceptNoSlot\n"));
-        return false;
     }
     
     static size_t buf_add (size_t start, size_t count)
