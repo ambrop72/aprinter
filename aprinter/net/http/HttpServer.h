@@ -30,7 +30,6 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
-#include <inttypes.h>
 
 #include <aprinter/meta/MinMax.h>
 #include <aprinter/meta/BitsInInt.h>
@@ -86,12 +85,13 @@ private:
     // Check sizes related to sending by chunked-encoding.
     // - The send buffer needs to be large enough that we can build a chunk with at least 1 byte of payload.
     // - The number of digits for the chunk length needs to be enough for the largest possible chunk.
-    static size_t const TxChunkHeaderSize = Params::TxChunkHeaderDigits + 2;
+    static size_t const TxChunkHeaderDigits = Params::TxChunkHeaderDigits;
+    static size_t const TxChunkHeaderSize = TxChunkHeaderDigits + 2;
     static size_t const TxChunkFooterSize = 2;
     static size_t const TxChunkOverhead = TxChunkHeaderSize + TxChunkFooterSize;
     static_assert(TxBufferSize > TxChunkOverhead, "");
     static size_t const TxBufferSizeForChunkData = TxBufferSize - TxChunkOverhead;
-    static_assert(Params::TxChunkHeaderDigits >= HexDigitsInInt<TxBufferSizeForChunkData>::Value, "");
+    static_assert(TxChunkHeaderDigits >= HexDigitsInInt<TxBufferSizeForChunkData>::Value, "");
     
     static TimeType const QueueTimeoutTicks      = Params::Net::QueueTimeout::value()      * Context::Clock::time_freq;
     static TimeType const InactivityTimeoutTicks = Params::Net::InactivityTimeout::value() * Context::Clock::time_freq;
@@ -1331,9 +1331,18 @@ private:
             AMBRO_ASSERT(con_space_avail >= TxChunkOverhead)
             AMBRO_ASSERT(length <= con_space_avail - TxChunkOverhead)
             
+            // Prepare the chunk header. Avoid sprintf for speed.
+            char chunk_header[TxChunkHeaderSize];
+            chunk_header[TxChunkHeaderDigits+1] = '\n';
+            chunk_header[TxChunkHeaderDigits+0] = '\r';
+            size_t rem_length = length;
+            for (int i = TxChunkHeaderDigits-1; i >= 0; i--) {
+                char digit_num = rem_length & 0xF;
+                chunk_header[i] = (digit_num < 10) ? ('0' + digit_num) : ('A' + (digit_num - 10));
+                rem_length >>= 4;
+            }
+            
             // Write the chunk header and footer.
-            char chunk_header[TxChunkHeaderSize + 1];
-            sprintf(chunk_header, "%.*" PRIx32 "\r\n", (int)Params::TxChunkHeaderDigits, (uint32_t)length);
             con_space_buffer.copyIn(0, TxChunkHeaderSize, chunk_header);
             con_space_buffer.copyIn(TxChunkHeaderSize + length, 2, "\r\n");
             
