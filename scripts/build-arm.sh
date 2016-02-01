@@ -74,6 +74,7 @@ configure_arm() {
     )
     FLAGS_LD=(
         -T"${LINKER_SCRIPT}" -nostartfiles -Wl,--gc-sections
+        "${EXTRA_LINK_FLAGS[@]}"
     )
 
     if [ "$BUILD_WITH_CLANG" = 1 ]; then

@@ -119,8 +119,13 @@ def pins_at91sam():
         ce.Constant(key='input_mode_type', value='At91SamPinInputMode'),
     ])
 
+def at91sam_common():
+    return [
+        ce.Integer(key='StackSize', title='Stack size', default=8192),
+    ]
+
 def platform_At91Sam3x8e():
-    return ce.Compound('At91Sam3x8e', attrs=[
+    return ce.Compound('At91Sam3x8e', attrs=(at91sam_common() + [
         ce.Compound('At91Sam3xClock', key='clock', title='Clock', collapsable=True, attrs=[
             ce.Integer(key='prescaler', title='Prescaler'),
             ce.String(key='primary_timer', title='Primary timer'),
@@ -161,10 +166,10 @@ def platform_At91Sam3x8e():
             ce.Compound('NoMillisecondClock', title='Disabled', attrs=[]),
             ce.Compound('ArmSysTickMillisecondClock', title='ARM SysTick', attrs=[]),
         ]),
-    ])
+    ]))
 
 def platform_At91Sam3u4e():
-    return ce.Compound('At91Sam3u4e', attrs=[
+    return ce.Compound('At91Sam3u4e', attrs=(at91sam_common() + [
         ce.Compound('At91Sam3uClock', key='clock', title='Clock', collapsable=True, attrs=[
             ce.Integer(key='prescaler', title='Prescaler'),
             ce.String(key='primary_timer', title='Primary timer'),
@@ -183,7 +188,7 @@ def platform_At91Sam3u4e():
         ]),
         watchdog_at91sam(),
         pins_at91sam(),
-    ])
+    ]))
 
 def platform_Teensy3():
     return ce.Compound('Teensy3', attrs=[

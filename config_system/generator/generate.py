@@ -59,6 +59,7 @@ class GenState(object):
         self._need_millisecond_clock = False
         self._have_hw_millisecond_clock = False
         self._defines = []
+        self._linker_symbols = []
     
     def add_subst (self, key, val, indent=-1):
         self._subst[key] = {'val':val, 'indent':indent}
@@ -186,6 +187,9 @@ class GenState(object):
     
     def add_define (self, name, value):
         self._defines.append({'name': name, 'value': str(value)})
+    
+    def add_linker_symbol (self, name, value):
+        self._linker_symbols.append({'name': name, 'value': str(value)})
     
     def finalize (self):
         for action in reversed(self._finalize_actions):
@@ -368,17 +372,16 @@ def setup_event_loop(gen):
 def setup_platform(gen, config, key):
     platform_sel = selection.Selection()
     
-    @platform_sel.option('At91Sam3x8e')
-    def option(platform):
+    @platform_sel.options(['At91Sam3x8e', 'At91Sam3u4e'])
+    def option(platform_name, platform):
+        stack_size = platform.get_int('StackSize')
+        if not 512 <= stack_size <= 32768:
+            platform.key_path('StackSize').error('Value out of range.')
+        
         gen.add_platform_include('aprinter/platform/at91sam/at91sam_support.h')
         gen.add_init_call(-1, 'platform_init();')
         gen.register_singleton_object('alignment', 4)
-    
-    @platform_sel.option('At91Sam3u4e')
-    def option(platform):
-        gen.add_platform_include('aprinter/platform/at91sam/at91sam_support.h')
-        gen.add_init_call(-1, 'platform_init();')
-        gen.register_singleton_object('alignment', 4)
+        gen.add_linker_symbol('__stack_size__', stack_size)
     
     @platform_sel.option('Teensy3')
     def option(platform):
@@ -2317,6 +2320,7 @@ def generate(config_root_data, cfg_name, main_template):
         'extra_sources': gen._extra_sources,
         'extra_includes': gen._extra_includes,
         'defines': gen._defines,
+        'linker_symbols': gen._linker_symbols,
     }
 
 def main():
@@ -2349,7 +2353,8 @@ def main():
         '    optimizeLibcForSize = {};\n'
         '    assertionsEnabled = {}; eventLoopBenchmarkEnabled = {}; detectOverloadEnabled = {};\n'
         '    buildWithClang = {}; verboseBuild = {}; debugSymbols = {}; buildVars = {};\n'
-        '    extraSources = {}; extraIncludes = {}; defines = {}; mainText = {};\n'
+        '    extraSources = {}; extraIncludes = {}; defines = {}; linkerSymbols = {};\n'
+        '    mainText = {};\n'
         '}}\n'
     ).format(
         nix_utils.escape_string_for_nix(nix_dir),
@@ -2367,6 +2372,7 @@ def main():
         nix_utils.convert_for_nix(result['extra_sources']),
         nix_utils.convert_for_nix(result['extra_includes']),
         nix_utils.convert_for_nix(result['defines']),
+        nix_utils.convert_for_nix(result['linker_symbols']),
         nix_utils.escape_string_for_nix(result['main_source'])
     )
     

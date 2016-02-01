@@ -24,7 +24,7 @@
 
 { stdenv, writeText, bash, gcc-arm-embedded, clang-arm-embedded, avrgcclibc
 , asf, stm32cubef4, teensyCores, aprinterSource, buildVars, extraSources
-, extraIncludes, defines
+, extraIncludes, defines, linkerSymbols
 , mainText, boardName, buildName, desiredOutputs
 , optimizeForSize ? false
 , assertionsEnabled ? false
@@ -49,6 +49,7 @@ let
         EXTRA_C_SOURCES = stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix ".c") extraSources);
         EXTRA_CXX_SOURCES = stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix ".cpp") extraSources);
         EXTRA_COMPILE_FLAGS = (map (f: "-I" + f) extraIncludes) ++ (map (define: "-D${define.name}=${define.value}") defines);
+        EXTRA_LINK_FLAGS = (map (sym: "-Wl,--defsym,${sym.name}=${sym.value}") linkerSymbols);
     };
     
     targetVarEncoding = value: if builtins.isList value then (
