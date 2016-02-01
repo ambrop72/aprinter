@@ -3,6 +3,7 @@
     {
       "platform_config": {
         "platform": {
+          "StackSize": 4096,
           "_compoundName": "At91Sam3x8e",
           "adc": {
             "_compoundName": "At91SamAdc",
@@ -589,6 +590,7 @@
     {
       "platform_config": {
         "platform": {
+          "StackSize": 4096,
           "_compoundName": "At91Sam3x8e",
           "adc": {
             "_compoundName": "At91SamAdc",
@@ -1135,6 +1137,7 @@
     {
       "platform_config": {
         "platform": {
+          "StackSize": 4096,
           "_compoundName": "At91Sam3u4e",
           "adc": {
             "_compoundName": "At91Sam3uAdc",
@@ -3413,6 +3416,7 @@
     {
       "platform_config": {
         "platform": {
+          "StackSize": 4096,
           "_compoundName": "At91Sam3x8e",
           "adc": {
             "_compoundName": "At91SamAdc",
@@ -3673,12 +3677,12 @@
       "network_config": {
         "_compoundName": "NetworkConfig",
         "network": {
-          "NetEnabled": true,
+          "MacAddress": "BE:EF:DE:AD:FE:ED",
           "DhcpEnabled": true,
           "IpAddress": "192.168.111.63",
           "IpGateway": "192.168.111.1",
           "IpNetmask": "255.255.255.0",
-          "MacAddress": "BE:EF:DE:AD:FE:ED",
+          "LwipAssertions": false,
           "EthernetDriver": {
             "MiiDriver": {
               "NumRxBufers": 48,
@@ -3692,6 +3696,7 @@
             },
             "_compoundName": "MiiEthernet"
           },
+          "NetEnabled": true,
           "TcpRxBuf": 5840,
           "TcpTxBuf": 3450,
           "_compoundName": "Network",
