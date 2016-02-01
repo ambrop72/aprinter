@@ -63,6 +63,8 @@ private:
     static TimeType const PhyMaintPollTicks = 0.01 * Context::Clock::time_freq;
     static uint16_t const MaxPhyMaintPolls = 200;
     
+    static int const RxFrameOffset = 2;
+    
     using FastEvent = typename Context::EventLoop::template FastEventSpec<At91SamEmacMii>;
     
 public:
@@ -289,6 +291,8 @@ private:
                 
                 emac_enable_rmii(EMAC, ClientParams::Rmii);
                 
+                emac_set_rx_buffer_offset(EMAC, RxFrameOffset);
+                
                 NVIC_ClearPendingIRQ(EMAC_IRQn);
                 NVIC_SetPriority(EMAC_IRQn, INTERRUPT_PRIORITY);
                 
@@ -366,6 +370,8 @@ private:
             data2 = nullptr;
             size1 = 0;
             size2 = 0;
+        } else {
+            data1 += RxFrameOffset;
         }
         
         ClientParams::ReceiveHandler::call(c, data1, data2, size1, size2);
