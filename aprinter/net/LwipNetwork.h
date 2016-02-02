@@ -82,7 +82,7 @@ private:
     
     using TimeoutsFastEvent = typename Context::EventLoop::template FastEventSpec<LwipNetwork>;
     
-    static TimeType const WriteDelayTicks      = 0.001   * Context::Clock::time_freq;
+    static TimeType const WriteDelayTicks      = 0.00015 * Context::Clock::time_freq;
     static TimeType const ShortWriteDelayTicks = 0.00005 * Context::Clock::time_freq;
     
 public:
