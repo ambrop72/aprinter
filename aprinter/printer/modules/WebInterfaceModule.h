@@ -37,6 +37,8 @@
 #include <aprinter/net/http/HttpServer.h>
 #include <aprinter/printer/BufferedFile.h>
 
+#define APRINTER_ENABLE_HTTP_TEST 1
+
 #include <aprinter/BeginNamespace.h>
 
 template <typename Context, typename ParentObject, typename ThePrinterMain, typename Params>
@@ -134,7 +136,7 @@ private:
     struct HttpRequestHandler : public AMBRO_WFUNC_TD(&WebInterfaceModule::http_request_handler) {};
     
     struct UserClientState : public TheRequestInterface::RequestUserCallback {
-        enum class State {NO_CLIENT, OPEN, WAIT, READ};
+        enum class State {NO_CLIENT, OPEN, WAIT, READ, DL_TEST};
         
         void init (Context c)
         {
@@ -153,6 +155,16 @@ private:
             
             request->setCallback(c, this);
             m_request = request;
+            
+#if APRINTER_ENABLE_HTTP_TEST
+            if (!strcmp(file_path, "downloadTest")) {
+                m_request->setResponseContentType(c, "application/octet-stream");
+                m_request->adoptResponseBody(c);
+                m_state = State::DL_TEST;
+                return;
+            }
+#endif
+            
             m_file_path = file_path;
             m_state = State::OPEN;
             m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ, WebRootPath());
@@ -168,16 +180,39 @@ private:
         
         void responseBufferEvent (Context c)
         {
-            AMBRO_ASSERT(m_state == State::WAIT || m_state == State::READ)
-            
-            if (m_state == State::WAIT) {
-                auto buf_st = m_request->getResponseBodyBufferState(c);
-                size_t allowed_length = MinValue(GetSdChunkSize, buf_st.length);
-                if (m_cur_chunk_size < allowed_length) {
-                    auto dest_buf = buf_st.data.subFrom(m_cur_chunk_size);
-                    m_buffered_file.startReadData(c, dest_buf.ptr1, MinValue(dest_buf.wrap, (size_t)(allowed_length - m_cur_chunk_size)));
-                    m_state = State::READ;
-                }
+            switch (m_state) {
+                case State::WAIT: {
+                    auto buf_st = m_request->getResponseBodyBufferState(c);
+                    size_t allowed_length = MinValue(GetSdChunkSize, buf_st.length);
+                    if (m_cur_chunk_size < allowed_length) {
+                        auto dest_buf = buf_st.data.subFrom(m_cur_chunk_size);
+                        m_buffered_file.startReadData(c, dest_buf.ptr1, MinValue(dest_buf.wrap, (size_t)(allowed_length - m_cur_chunk_size)));
+                        m_state = State::READ;
+                    }
+                } break;
+                
+                case State::READ:
+                    break;
+                
+#if APRINTER_ENABLE_HTTP_TEST
+                case State::DL_TEST: {
+                    while (true) {
+                        auto buf_st = m_request->getResponseBodyBufferState(c);
+                        if (buf_st.length < GetSdChunkSize) {
+                            break;
+                        }
+                        size_t len1 = MinValue(GetSdChunkSize, buf_st.data.wrap);
+                        memset(buf_st.data.ptr1, 'X', len1);
+                        if (len1 < GetSdChunkSize) {
+                            memset(buf_st.data.ptr2, 'X', GetSdChunkSize-len1);
+                        }
+                        m_request->provideResponseBodyData(c, GetSdChunkSize);
+                    }
+                } break;
+#endif
+                
+                default:
+                    AMBRO_ASSERT(false);
             }
         }
         
