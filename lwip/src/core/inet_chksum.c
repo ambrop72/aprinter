@@ -197,7 +197,7 @@ lwip_standard_chksum(const void *dataptr, int len)
   const u16_t *ps;
   u16_t t = 0;
   const u32_t *pl;
-  u32_t sum = 0, tmp;
+  u32_t sum = 0, tmp, tmp2;
   /* starts at odd byte address? */
   int odd = ((mem_ptr_t)pb & 1);
 
@@ -215,17 +215,39 @@ lwip_standard_chksum(const void *dataptr, int len)
 
   pl = (const u32_t *)(const void*)ps;
 
+#define LWIP_CHECKSUM_PING_PONG \
+    tmp2 = *pl++; \
+    tmp = tmp2 + *pl++; \
+    if (tmp < tmp2) { \
+      tmp++; \
+    } \
+    sum = sum + tmp; \
+    if (sum < tmp) { \
+      sum++; \
+    }
+  
+  while (len > 127)  {
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    LWIP_CHECKSUM_PING_PONG
+    len -= 128;
+  }
+  
   while (len > 7)  {
-    tmp = sum + *pl++;          /* ping */
-    if (tmp < sum) {
-      tmp++;                    /* add back carry */
-    }
-
-    sum = tmp + *pl++;          /* pong */
-    if (sum < tmp) {
-      sum++;                    /* add back carry */
-    }
-
+    LWIP_CHECKSUM_PING_PONG
     len -= 8;
   }
 
