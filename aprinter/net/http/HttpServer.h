@@ -50,19 +50,15 @@ class HttpServer {
 public:
     struct Object;
     
-public:
-    using TheRequestInterface = HttpRequestInterface<Context, UserClientState>;
-    
 private:
+    class Client;
+    
     using TimeType = typename Context::Clock::TimeType;
     using TheNetwork = typename Context::Network;
     using TheTcpListener            = typename TheNetwork::TcpListener;
     using TheTcpListenerQueueParams = typename TheNetwork::TcpListenerQueueParams;
     using TheTcpListenerQueueEntry  = typename TheNetwork::TcpListenerQueueEntry;
     using TheTcpConnection          = typename TheNetwork::TcpConnection;
-    using RequestUserCallback     = typename TheRequestInterface::RequestUserCallback; 
-    using RequestBodyBufferState  = typename TheRequestInterface::RequestBodyBufferState;
-    using ResponseBodyBufferState = typename TheRequestInterface::ResponseBodyBufferState;
     
     static size_t const RxBufferSize = TheTcpConnection::RequiredRxBufSize;
     static size_t const TxBufferSize = TheTcpConnection::ProvidedTxBufSize;
@@ -98,6 +94,8 @@ private:
     static TimeType const InactivityTimeoutTicks = Params::Net::InactivityTimeout::value() * Context::Clock::time_freq;
     
 public:
+    using TheRequestInterface = Client;
+    
     static size_t const MaxTxChunkSize = TxBufferSizeForChunkData;
     
     static void init (Context c)
@@ -146,7 +144,10 @@ private:
         return x;
     }
     
-    struct Client : public TheRequestInterface {
+    class Client {
+        friend HttpServer;
+        
+    private:
         enum class State : uint8_t {
             NOT_CONNECTED, WAIT_SEND_BUF_FOR_REQUEST,
             RECV_REQUEST_LINE, RECV_HEADER_LINE,
@@ -1161,7 +1162,22 @@ private:
         }
         
     public:
-        // HttpRequestInterface functions
+        struct RequestUserCallback {
+            virtual void requestTerminated (Context c) = 0;
+            virtual void requestBufferEvent (Context c) {};
+            virtual void responseBufferEvent (Context c) {};
+        };
+        
+        struct RequestBodyBufferState {
+            WrapBuffer data;
+            size_t length;
+            bool eof;
+        };
+        
+        struct ResponseBodyBufferState {
+            WrapBuffer data;
+            size_t length;
+        };
         
         UserClientState * getUserClientState (Context c)
         {
@@ -1358,7 +1374,7 @@ private:
             }
         }
         
-    public:
+    private:
         typename Context::EventLoop::QueuedEvent m_send_event;
         typename Context::EventLoop::QueuedEvent m_recv_event;
         typename Context::EventLoop::TimedEvent m_send_timeout_event;

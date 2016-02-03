@@ -25,10 +25,6 @@
 #ifndef APRINTER_HTTP_SERVER_COMMON_H
 #define APRINTER_HTTP_SERVER_COMMON_H
 
-#include <stddef.h>
-
-#include <aprinter/base/WrapBuffer.h>
-
 #include <aprinter/BeginNamespace.h>
 
 struct HttpStatusCodes {
@@ -46,48 +42,6 @@ struct HttpStatusCodes {
 
 struct HttpContentTypes {
     static constexpr char const * TextPlainUtf8() { return "text/plain; charset=utf-8"; }
-};
-
-template <typename Context, typename UserClientState>
-class HttpRequestInterface {
-public:
-    struct RequestUserCallback {
-        virtual void requestTerminated (Context c) = 0;
-        virtual void requestBufferEvent (Context c) {};
-        virtual void responseBufferEvent (Context c) {};
-    };
-    
-    struct RequestBodyBufferState {
-        WrapBuffer data;
-        size_t length;
-        bool eof;
-    };
-    
-    struct ResponseBodyBufferState {
-        WrapBuffer data;
-        size_t length;
-    };
-    
-    virtual UserClientState * getUserClientState (Context c) = 0;
-    virtual char const * getMethod (Context c) = 0;
-    virtual char const * getPath (Context c) = 0;
-    virtual bool hasRequestBody (Context c) = 0;
-    
-    virtual void setCallback (Context c, RequestUserCallback *callback) = 0;
-    virtual void completeHandling (Context c) = 0;
-    
-    virtual void adoptRequestBody (Context c) = 0;
-    virtual void abandonRequestBody (Context c) = 0;
-    virtual RequestBodyBufferState getRequestBodyBufferState (Context c) = 0;
-    virtual void acceptRequestBodyData (Context c, size_t length) = 0;
-    
-    virtual void setResponseStatus (Context c, char const *status) = 0;
-    virtual void setResponseContentType (Context c, char const *content_type) = 0;
-    
-    virtual void adoptResponseBody (Context c) = 0;
-    virtual void abandonResponseBody (Context c) = 0;
-    virtual ResponseBodyBufferState getResponseBodyBufferState (Context c) = 0;
-    virtual void provideResponseBodyData (Context c, size_t length) = 0;
 };
 
 #include <aprinter/EndNamespace.h>
