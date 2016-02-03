@@ -369,9 +369,9 @@ def make_transform_type(transform_type, transform_title, stepper_defs, axis_defs
                 for (i, stepper_def) in enumerate(stepper_defs)
             ]),
             ce.Compound('CartesianAxes', key='CartesianAxes', title='Cartesian axes', attrs=[
-                ce.Compound('VirtualAxisParams', key='VirtualAxis{}'.format(i), title='Cartesian axis {}'.format(axis_def['axis_name']), collapsable=True, attrs=(
+                ce.Compound('VirtualAxisParams', key='VirtualAxis{}'.format(i), title='Cartesian axis / role {}'.format(axis_def['axis_name']), collapsable=True, attrs=(
                     [
-                        ce.Constant(key='Name', value=axis_def['axis_name']),
+                        ce.String(key='Name', default=axis_def['axis_name']),
                         ce.Float(key='MinPos', title='Minimum position [mm]', default=0),
                         ce.Float(key='MaxPos', title='Maximum position [mm]', default=200),
                         ce.Float(key='MaxSpeed', title='Maximum speed [mm/s]', default=300),
