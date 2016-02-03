@@ -150,7 +150,7 @@ public:
         } while (send_buffer->nextChunk());
         AMBRO_ASSERT(buf_pos == total_length)
         
-        auto write_end_res = emac_dev_write_end(&o->emac_dev, total_length, nullptr);
+        auto write_end_res = emac_dev_write_end(&o->emac_dev, total_length);
         if (write_end_res != EMAC_OK) {
             return false;
         }
