@@ -430,6 +430,8 @@ private:
                             // Maybe we can move on to the next request.
                             check_for_next_request(c);
                         } break;
+                        
+                        default: break;
                     }
                 } break;
                 
@@ -441,6 +443,8 @@ private:
                         m_send_timeout_event.appendAfter(c, InactivityTimeoutTicks);
                     }
                 } break;
+                
+                default: break;
             }
         }
         
@@ -510,8 +514,12 @@ private:
                             // Maybe we can move on to the next request.
                             check_for_next_request(c);
                         } break;
+                        
+                        default: break;
                     }
                 } break;
+                
+                default: break;
             }
         }
         
