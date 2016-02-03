@@ -39,6 +39,7 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
+#include <aprinter/base/Likely.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/net/http/HttpServerCommon.h>
 
@@ -180,6 +181,10 @@ private:
         
         void init (Context c)
         {
+            m_last_chunk_length = -1;
+            m_chunk_header[TxChunkHeaderDigits+0] = '\r';
+            m_chunk_header[TxChunkHeaderDigits+1] = '\n';
+            
             m_send_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_event_handler, this));
             m_recv_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::recv_event_handler, this));
             m_send_timeout_event.init(c, APRINTER_CB_OBJFUNC_T(&Client::send_timeout_event_handler, this));
@@ -1320,10 +1325,7 @@ private:
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             AMBRO_ASSERT(m_send_state == SendState::SEND_BODY)
             AMBRO_ASSERT(m_user)
-            
-            if (length == 0) {
-                return;
-            }
+            AMBRO_ASSERT(length > 0)
             
             // Get the send buffer reference and sanity check the length / space.
             WrapBuffer con_space_buffer;
@@ -1331,20 +1333,20 @@ private:
             AMBRO_ASSERT(con_space_avail >= TxChunkOverhead)
             AMBRO_ASSERT(length <= con_space_avail - TxChunkOverhead)
             
-            // Prepare the chunk header. Avoid sprintf for speed.
-            char chunk_header[TxChunkHeaderSize];
-            chunk_header[TxChunkHeaderDigits+1] = '\n';
-            chunk_header[TxChunkHeaderDigits+0] = '\r';
-            size_t rem_length = length;
-            for (int i = TxChunkHeaderDigits-1; i >= 0; i--) {
-                char digit_num = rem_length & 0xF;
-                chunk_header[i] = (digit_num < 10) ? ('0' + digit_num) : ('A' + (digit_num - 10));
-                rem_length >>= 4;
+            // Prepare the chunk header, with speed.
+            if (AMBRO_UNLIKELY(length != m_last_chunk_length)) {
+                size_t rem_length = length;
+                for (int i = TxChunkHeaderDigits-1; i >= 0; i--) {
+                    char digit_num = rem_length & 0xF;
+                    m_chunk_header[i] = (digit_num < 10) ? ('0' + digit_num) : ('A' + (digit_num - 10));
+                    rem_length >>= 4;
+                }
+                m_last_chunk_length = length;
             }
             
             // Write the chunk header and footer.
-            con_space_buffer.copyIn(0, TxChunkHeaderSize, chunk_header);
-            con_space_buffer.copyIn(TxChunkHeaderSize + length, 2, "\r\n");
+            con_space_buffer.copyIn(0, TxChunkHeaderSize, m_chunk_header);
+            con_space_buffer.copyIn(TxChunkHeaderSize + length, 2, m_chunk_header+TxChunkHeaderDigits);
             
             // Submit data to the connection and poke sending.
             m_connection.copySendData(c, nullptr, TxChunkOverhead + length);
@@ -1369,6 +1371,7 @@ private:
         size_t m_rx_buf_length;
         size_t m_line_length;
         size_t m_rem_allowed_length;
+        size_t m_last_chunk_length;
         uint64_t m_rem_req_body_length;
         char const *m_request_method;
         char const *m_request_path;
@@ -1396,6 +1399,7 @@ private:
         char m_rx_buf[RxBufferSize];
         char m_request_line[Params::MaxRequestLineLength];
         char m_header_line[Params::MaxHeaderLineLength];
+        char m_chunk_header[TxChunkHeaderSize];
     };
     
 public:
