@@ -106,8 +106,8 @@ public:
         o->eth_activated = false;
         lwip_init();
         for (int i = 0; i < 2; i++) {
-            o->rx_pbuf[i] = pbuf_alloc(PBUF_RAW, 0, PBUF_REF);
-            AMBRO_ASSERT(o->rx_pbuf[i])
+            // We statically allocate PBUF_REF pbufs instead of using pbuf_alloc().
+            init_rx_pbuf(&o->rx_pbuf[i]);
         }
         Context::EventLoop::template triggerFastEvent<TimeoutsFastEvent>(c);
     }
@@ -1015,6 +1015,12 @@ public:
     };
     
 private:
+    static void init_rx_pbuf (struct pbuf *p)
+    {
+        p->type = PBUF_REF;
+        p->ref = 1;
+    }
+    
     static ip4_addr_t make_ip4_addr (uint8_t const *addr)
     {
         uint32_t hostorder_addr = ReadBinaryInt<uint32_t, BinaryBigEndian>((char const *)addr);
@@ -1041,7 +1047,7 @@ private:
         
         memset(&o->netif, 0, sizeof(o->netif));
         
-        netif_add(&o->netif, &the_ipaddr, &the_netmask, &the_gw, (void *)params, &LwipNetwork::netif_if_init, ethernet_input);
+        netif_add(&o->netif, &the_ipaddr, &the_netmask, &the_gw, (void *)params, &LwipNetwork::netif_if_init, nullptr);
         netif_set_up(&o->netif);
         netif_set_default(&o->netif);
         
@@ -1211,16 +1217,16 @@ private:
         auto *o = Object::self(c);
         AMBRO_ASSERT(o->eth_activated)
         AMBRO_ASSERT(size2 == 0 || size1 > 0)
-        AMBRO_ASSERT(o->rx_pbuf[0]->ref == 1)
-        AMBRO_ASSERT(o->rx_pbuf[1]->ref == 1)
+        AMBRO_ASSERT(o->rx_pbuf[0].ref == 1)
+        AMBRO_ASSERT(o->rx_pbuf[1].ref == 1)
         
         if (size1 == 0) {
             LINK_STATS_INC(link.drop);
             return;
         }
         
-        struct pbuf *p = o->rx_pbuf[0]; 
-        p->ref++;
+        struct pbuf *p = &o->rx_pbuf[0];
+        p->ref = 2;
         p->payload = data1;
         p->len = size1;
         p->tot_len = size1 + size2;
@@ -1229,7 +1235,7 @@ private:
         if (size2 == 0) {
             p->next = nullptr;
         } else {
-            struct pbuf *q = o->rx_pbuf[1];
+            struct pbuf *q = &o->rx_pbuf[1];
             p->next = q;
             q->payload = data2;
             q->len = size2;
@@ -1242,12 +1248,11 @@ private:
         
         LINK_STATS_INC(link.recv);
         
-        if (o->netif.input(p, &o->netif) != ERR_OK) {
-            pbuf_free(p);
-        }
+        auto res = ethernet_input(p, &o->netif);
+        AMBRO_ASSERT(res == ERR_OK) // So no need to ever pbuf_free().
         
-        AMBRO_ASSERT(o->rx_pbuf[0]->ref == 1)
-        AMBRO_ASSERT(o->rx_pbuf[1]->ref == 1)
+        AMBRO_ASSERT(o->rx_pbuf[0].ref == 1)
+        AMBRO_ASSERT(o->rx_pbuf[1].ref == 1)
     }
     struct EthernetReceiveHandler : public AMBRO_WFUNC_TD(&LwipNetwork::ethernet_receive_handler) {};
     
@@ -1296,7 +1301,7 @@ public:
         DoubleEndedList<NetworkEventListener, &NetworkEventListener::m_node, false> event_listeners;
         bool net_activated;
         bool eth_activated;
-        struct pbuf *rx_pbuf[2];
+        struct pbuf rx_pbuf[2];
         struct netif netif;
     };
 };

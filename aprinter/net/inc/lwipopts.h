@@ -122,8 +122,6 @@
 // Number of pbufs in PBUF pool.
 // These are allocated via pbuf_alloc(..., PBUF_ROM or PBUF_REF) and
 // reference external data. They are used for:
-// - Our RX code allocates two static PBUF_REF pbufs, which it uses
-//   to refer to received data as it feeds packets into the stack.
 // - In the TCP TX path (tcp_write), they reference application data
 //   that is passed to tcp_write() without TCP_WRITE_FLAG_COPY.
 //   Note that we patched lwIP so that it internally detects when
@@ -136,7 +134,7 @@
 // - In the fragmentation of IP packets, they reference parts of the
 //   original full packet. Since we don't need and disable fragmentation,
 //   we don't reserve anything for this.
-#define MEMP_NUM_PBUF (2 + APRINTER_NUM_TCP_CONN * (APRINTER_NUM_TCP_DATA_SEG + 1))
+#define MEMP_NUM_PBUF (APRINTER_NUM_TCP_CONN * (APRINTER_NUM_TCP_DATA_SEG + 1))
 
 // Number of pbufs in PBUF_POOL pool.
 // These are allocated via pbuf_alloc(..., PBUF_POOL).
