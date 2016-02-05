@@ -84,7 +84,7 @@ configure_arm() {
     
     C_SOURCES=( $(eval echo "$EXTRA_C_SOURCES") )
     CXX_SOURCES=( $(eval echo "$EXTRA_CXX_SOURCES") "${SOURCE}" )
-    ASM_SOURCES=()
+    ASM_SOURCES=( $(eval echo "$EXTRA_ASM_SOURCES") )
 
     OBJS=()
 

@@ -372,6 +372,11 @@ def setup_event_loop(gen):
 def setup_platform(gen, config, key):
     platform_sel = selection.Selection()
     
+    lwip_cpu_info_arm = {
+        'alignment': 4,
+        'checksum_src_file': 'aprinter/net/inet_chksum_arm.S',
+    }
+    
     @platform_sel.options(['At91Sam3x8e', 'At91Sam3u4e'])
     def option(platform_name, platform):
         stack_size = platform.get_int('StackSize')
@@ -380,27 +385,27 @@ def setup_platform(gen, config, key):
         
         gen.add_platform_include('aprinter/platform/at91sam/at91sam_support.h')
         gen.add_init_call(-1, 'platform_init();')
-        gen.register_singleton_object('alignment', 4)
+        gen.register_singleton_object('lwip_cpu_info', lwip_cpu_info_arm)
         gen.add_linker_symbol('__stack_size__', stack_size)
     
     @platform_sel.option('Teensy3')
     def option(platform):
         gen.add_platform_include('aprinter/platform/teensy3/teensy3_support.h')
-        gen.register_singleton_object('alignment', 4)
+        gen.register_singleton_object('lwip_cpu_info', lwip_cpu_info_arm)
     
     @platform_sel.options(['AVR ATmega2560', 'AVR ATmega1284p'])
     def option(platform_name, platform):
         gen.add_platform_include('avr/io.h')
         gen.add_platform_include('aprinter/platform/avr/avr_support.h')
         gen.add_init_call(-3, 'sei();')
-        gen.register_singleton_object('alignment', 1)
+        gen.register_singleton_object('lwip_cpu_info', {'alignment': 1})
     
     @platform_sel.option('Stm32f4')
     def option(platform):
         gen.add_platform_include('aprinter/platform/stm32f4/stm32f4_support.h')
         gen.add_init_call(-1, 'platform_init();')
         gen.add_final_init_call(-1, 'platform_init_final();')
-        gen.register_singleton_object('alignment', 4)
+        gen.register_singleton_object('lwip_cpu_info', lwip_cpu_info_arm)
     
     config.do_selection(key, platform_sel)
 
@@ -1274,6 +1279,14 @@ def setup_network(gen, config, key):
         if not mss_for_check <= tcp_tx_buf <= 20000:
             network_config.key_path('TcpTxBuf').error('Value out of range.')
         
+        cpu_info = gen.get_singleton_object('lwip_cpu_info')
+        
+        if 'checksum_src_file' in cpu_info:
+            chksum_algorithm = 0
+            gen.add_extra_source(cpu_info['checksum_src_file'])
+        else:
+            chksum_algorithm = 3
+        
         network_expr = TemplateExpr('LwipNetwork', [
             'MyContext',
             'Program',
@@ -1291,7 +1304,8 @@ def setup_network(gen, config, key):
             gen.add_define('APRINTER_NUM_TCP_CONN_QUEUED', network_state._num_queued_connections)
             gen.add_define('APRINTER_TCP_RX_BUF', tcp_rx_buf)
             gen.add_define('APRINTER_TCP_TX_BUF', tcp_tx_buf)
-            gen.add_define('APRINTER_MEM_ALIGNMENT', gen.get_singleton_object('alignment'))
+            gen.add_define('APRINTER_MEM_ALIGNMENT', cpu_info['alignment'])
+            gen.add_define('APRINTER_LWIP_CHKSUM_ALGORITHM', chksum_algorithm)
             gen.add_define('APRINTER_LWIP_ASSERTIONS', int(network_config.get_bool('LwipAssertions')))
         
         gen.add_finalize_action(finalize)

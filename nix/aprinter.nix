@@ -40,14 +40,17 @@ let
     
     board = builtins.getAttr boardName boardDefinitions;
     
+    collectSources = suffix: (stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix suffix) extraSources));
+    
     targetVars = {
         PLATFORM = board.platform;
         OPTIMIZE_FOR_SIZE = if optimizeForSize then "1" else "0";
     } // (if board.platform == "sam3x" then {
         USE_USB_SERIAL = "1";
     } else {}) // board.targetVars // buildVars // {
-        EXTRA_C_SOURCES = stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix ".c") extraSources);
-        EXTRA_CXX_SOURCES = stdenv.lib.concatStringsSep " " (stdenv.lib.filter (stdenv.lib.hasSuffix ".cpp") extraSources);
+        EXTRA_C_SOURCES = collectSources ".c";
+        EXTRA_CXX_SOURCES = collectSources ".cpp";
+        EXTRA_ASM_SOURCES = collectSources ".S";
         EXTRA_COMPILE_FLAGS = (map (f: "-I" + f) extraIncludes) ++ (map (define: "-D${define.name}=${define.value}") defines);
         EXTRA_LINK_FLAGS = (map (sym: "-Wl,--defsym,${sym.name}=${sym.value}") linkerSymbols);
     };
