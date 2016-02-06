@@ -272,7 +272,6 @@ private:
         
         void prepare_line_parsing (Context c)
         {
-            // Note, m_null_in_line is not cleared!
             m_line_length = 0;
             m_line_overflow = false;
         }
@@ -284,7 +283,6 @@ private:
             AMBRO_ASSERT(m_send_state == SendState::INVALID)
             
             // Set initial values to the various request-parsing states.
-            m_null_in_line = false;
             m_bad_content_length = false;
             m_have_content_length = false;
             m_have_chunked = false;
@@ -647,10 +645,6 @@ private:
                 char ch = m_rx_buf[buf_add(m_rx_buf_start, pos)];
                 pos++;
                 
-                if (ch == '\0') {
-                    m_null_in_line = true;
-                }
-                
                 if (m_line_length >= line_buf_size) {
                     m_line_overflow = true;
                 } else {
@@ -750,7 +744,7 @@ private:
                     }
                     
                     // Extract and remember any useful information the header and continue parsing.
-                    if (!overflow && !m_null_in_line) {
+                    if (!overflow) {
                         handle_header(c, m_header_line);
                     }
                     m_recv_event.prependNow(c);
@@ -763,7 +757,7 @@ private:
                     switch (m_recv_state) {
                         case RecvState::RECV_CHUNK_HEADER: {
                             // Check for errors in line parsing.
-                            if (overflow || m_null_in_line) {
+                            if (overflow) {
                                 TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
@@ -867,12 +861,6 @@ private:
             
             char const *status = HttpStatusCodes::InternalServerError();
             do {
-                // Check for nulls in the request.
-                if (m_null_in_line) {
-                    status = HttpStatusCodes::BadRequest();
-                    goto error;
-                }
-                
                 // Check for request line overflow.
                 if (m_request_line_overflow) {
                     status = HttpStatusCodes::UriTooLong();
@@ -1404,7 +1392,6 @@ private:
         RecvState m_recv_state;
         SendState m_send_state;
         bool m_line_overflow;
-        bool m_null_in_line;
         bool m_request_line_overflow;
         bool m_bad_content_length;
         bool m_have_content_length;
