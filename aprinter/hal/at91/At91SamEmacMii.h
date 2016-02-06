@@ -367,8 +367,6 @@ private:
             data2 = nullptr;
             size1 = 0;
             size2 = 0;
-        } else {
-            data1 += RxFrameOffset;
         }
         
         ClientParams::ReceiveHandler::call(c, data1, data2, size1, size2);
