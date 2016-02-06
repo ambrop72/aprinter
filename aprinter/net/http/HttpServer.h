@@ -132,7 +132,6 @@ private:
                 return cl->accept_connection(c, &o->listener);
             }
         }
-        TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpServerAcceptNoSlot\n"));
     }
     
     static size_t buf_add (size_t start, size_t count)
