@@ -1269,6 +1269,8 @@ def setup_network(gen, config, key):
         gen.set_need_millisecond_clock()
         gen.add_global_code(0, 'extern "C" uint32_t sys_now (void) { MyContext c; return MyMillisecondClock::getTime(c); }')
         
+        gen.add_global_code(0, 'APRINTER_DEFINE_LWIP_PLATFORM_DIAG(MyContext, MyPrinter, MyNetwork)')
+        
         mss_for_check = 1460
         
         tcp_rx_buf = network_config.get_int('TcpRxBuf')

@@ -32,6 +32,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <inttypes.h>
+#include <stdarg.h>
 
 #include <lwip/init.h>
 #include <lwip/timers.h>
@@ -102,6 +103,7 @@ public:
         TheEthernet::init(c);
         o->event_listeners.init();
         Context::EventLoop::template initFastEvent<TimeoutsFastEvent>(c, LwipNetwork::timeouts_event_handler);
+        o->debug_messages = false;
         o->net_activated = false;
         o->eth_activated = false;
         lwip_init();
@@ -120,6 +122,16 @@ public:
         
         Context::EventLoop::template resetFastEvent<TimeoutsFastEvent>(c);
         TheEthernet::deinit(c);
+    }
+    
+    // We must not print lwIP's debug messages via PrinterMain before
+    // PrinterMain is able to accept them. So we ignore them until
+    // NetworkSupportModule calls this to enable the messages.
+    static void enableDebugMessages (Context c, bool enabled)
+    {
+        auto *o = Object::self(c);
+        
+        o->debug_messages = enabled;
     }
     
     static void activate (Context c, NetworkParams const *params)
@@ -1299,12 +1311,29 @@ public:
         TheEthernet
     >> {
         DoubleEndedList<NetworkEventListener, &NetworkEventListener::m_node, false> event_listeners;
+        bool debug_messages;
         bool net_activated;
         bool eth_activated;
         struct pbuf rx_pbuf[2];
         struct netif netif;
     };
 };
+
+#define APRINTER_DEFINE_LWIP_PLATFORM_DIAG(Context, TheMain, TheNetwork) \
+extern "C" void aprinter_lwip_platform_diag (char const *fmt, ...) \
+{ \
+    Context c; \
+    if (TheNetwork::Object::self(c)->debug_messages) { \
+        va_list args; \
+        char buffer[128]; \
+        va_start(args, fmt); \
+        vsnprintf(buffer, sizeof(buffer), fmt, args); \
+        va_end(args); \
+        auto *output = TheMain::get_msg_output(c); \
+        output->reply_append_str(c, buffer); \
+        output->reply_poke(c); \
+    } \
+}
 
 #include <aprinter/EndNamespace.h>
 

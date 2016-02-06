@@ -39,8 +39,14 @@ typedef uintptr_t mem_ptr_t;
 
 #define PACK_STRUCT_STRUCT __attribute__((packed))
 
+#ifdef __cplusplus
+extern "C"
+#endif
+void aprinter_lwip_platform_diag (char const *fmt, ...);
+
+#define LWIP_PLATFORM_DIAG(x) do { aprinter_lwip_platform_diag x; } while (0)
+
 // TBD: Improve this to use Assert.h.
-#define LWIP_PLATFORM_DIAG(x) do { printf x; } while (0)
 #define LWIP_PLATFORM_ASSERT(x) do { puts(__FILE__ ":" AMBRO_STRINGIFY(__LINE__) x); while (1); } while (0)
 
 #if !APRINTER_LWIP_ASSERTIONS

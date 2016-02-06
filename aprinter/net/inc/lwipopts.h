@@ -48,6 +48,14 @@
 #define LWIP_DISABLE_TCP_SANITY_CHECKS 1
 #define LWIP_CHKSUM_ALGORITHM APRINTER_LWIP_CHKSUM_ALGORITHM
 
+// Here you can enable debug messages from lwIP.
+// They will be output via PrinterMain to the consoles.
+/*
+#define LWIP_DEBUG 1
+#define TCP_DEBUG LWIP_DBG_ON
+#define TCP_INPUT_DEBUG LWIP_DBG_ON
+*/
+
 // Size of ARP table. Add one extra entry for every TCP connection.
 #define ARP_TABLE_SIZE (8 + APRINTER_NUM_TCP_CONN + APRINTER_NUM_TCP_CONN_QUEUED)
 
