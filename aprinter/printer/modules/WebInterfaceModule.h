@@ -110,24 +110,37 @@ private:
         char const *method = request->getMethod(c);
         char const *path = request->getPath(c);
         
-        if (path[0] == '/') {
-            if (strcmp(method, "GET")) {
-                request->setResponseStatus(c, HttpStatusCodes::MethodNotAllowed());
-                goto error;
-            }
-            
+        if (!strcmp(method, "GET")) {
             if (request->hasRequestBody(c)) {
                 request->setResponseStatus(c, HttpStatusCodes::BadRequest());
                 goto error;
             }
-            
+#if APRINTER_ENABLE_HTTP_TEST
+            if (!strcmp(path, "/downloadTest")) {
+                return request->getUserClientState(c)->acceptDownloadTestRequest(c, request);
+            }
+#endif
+            if (path[0] != '/') {
+                request->setResponseStatus(c, HttpStatusCodes::NotFound());
+                goto error;
+            }
             char const *file_path = !strcmp(path, "/") ? IndexPage() : (path + 1);
-            
-            request->getUserClientState(c)->acceptGetFileRequest(c, request, file_path);
-            return;
+            return request->getUserClientState(c)->acceptGetFileRequest(c, request, file_path);
+        }
+        else if (!strcmp(method, "POST")) {
+            if (!request->hasRequestBody(c)) {
+                request->setResponseStatus(c, HttpStatusCodes::BadRequest());
+                goto error;
+            }
+#if APRINTER_ENABLE_HTTP_TEST
+            if (!strcmp(path, "/uploadTest")) {
+                return request->getUserClientState(c)->acceptUploadTestRequest(c, request);
+            }
+#endif
+            request->setResponseStatus(c, HttpStatusCodes::NotFound());
         }
         else {
-            request->setResponseStatus(c, HttpStatusCodes::NotFound());
+            request->setResponseStatus(c, HttpStatusCodes::MethodNotAllowed());
         }
         
     error:
@@ -136,7 +149,7 @@ private:
     struct HttpRequestHandler : public AMBRO_WFUNC_TD(&WebInterfaceModule::http_request_handler) {};
     
     struct UserClientState : public TheRequestInterface::RequestUserCallback {
-        enum class State {NO_CLIENT, OPEN, WAIT, READ, DL_TEST};
+        enum class State {NO_CLIENT, OPEN, WAIT, READ, DL_TEST, UL_TEST};
         
         void init (Context c)
         {
@@ -155,20 +168,33 @@ private:
             
             request->setCallback(c, this);
             m_request = request;
-            
-#if APRINTER_ENABLE_HTTP_TEST
-            if (!strcmp(file_path, "downloadTest")) {
-                m_request->setResponseContentType(c, "application/octet-stream");
-                m_request->adoptResponseBody(c);
-                m_state = State::DL_TEST;
-                return;
-            }
-#endif
-            
             m_file_path = file_path;
             m_state = State::OPEN;
             m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ, WebRootPath());
         }
+        
+#if APRINTER_ENABLE_HTTP_TEST
+        void acceptDownloadTestRequest (Context c, TheRequestInterface *request)
+        {
+            AMBRO_ASSERT(m_state == State::NO_CLIENT)
+            
+            request->setCallback(c, this);
+            m_request = request;
+            m_request->setResponseContentType(c, "application/octet-stream");
+            m_request->adoptResponseBody(c);
+            m_state = State::DL_TEST;
+        }
+        
+        void acceptUploadTestRequest (Context c, TheRequestInterface *request)
+        {
+            AMBRO_ASSERT(m_state == State::NO_CLIENT)
+            
+            request->setCallback(c, this);
+            m_request = request;
+            m_request->adoptRequestBody(c);
+            m_state = State::UL_TEST;
+        }
+#endif
         
         void requestTerminated (Context c)
         {
@@ -177,6 +203,22 @@ private:
             m_buffered_file.reset(c);
             m_state = State::NO_CLIENT;
         }
+        
+#if APRINTER_ENABLE_HTTP_TEST
+        void requestBufferEvent (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::UL_TEST)
+            
+            auto buf_st = m_request->getRequestBodyBufferState(c);
+            if (buf_st.length > 0) {
+                m_request->acceptRequestBodyData(c, buf_st.length);
+            }
+            else if (buf_st.eof) {
+                m_request->completeHandling(c);
+                requestTerminated(c);
+            }
+        }
+#endif
         
         void responseBufferEvent (Context c)
         {
