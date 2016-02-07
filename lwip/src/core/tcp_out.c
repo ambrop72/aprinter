@@ -308,9 +308,7 @@ err_t
 tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u16_t *written_len)
 {
   struct pbuf *concat_p = NULL;
-#if TCP_EXTEND_ROM_PBUFS
   u16_t extendlen = 0;
-#endif /* TCP_EXTEND_ROM_PBUFS */
   struct tcp_seg *last_unsent = NULL, *seg = NULL, *prev_seg = NULL, *queue = NULL;
   u16_t pos = 0; /* position in 'arg' data */
   u16_t queuelen;
@@ -399,13 +397,11 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
       /* Create a pbuf with a copy or reference to seglen bytes. We
        * can use PBUF_RAW here since the data appears in the middle of
        * a segment. A header will never be prepended. */
-#if TCP_EXTEND_ROM_PBUFS
       /* If possible extend an existing PBUF_ROM pbuf. */
       struct pbuf *last_p = pbuf_last(last_unsent->p);
       if (pos == 0 && last_p->type == PBUF_ROM && (const u8_t*)last_p->payload + last_p->len == (const u8_t*)arg) {
         extendlen = seglen;
       } else {
-#endif
         if ((concat_p = pbuf_alloc(PBUF_RAW, seglen, PBUF_ROM)) == NULL) {
           LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2,
                       ("tcp_write: could not allocate memory for zero-copy pbuf\n"));
@@ -414,9 +410,7 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
         /* reference the non-volatile payload data */
         ((struct pbuf_rom*)concat_p)->payload = (const u8_t*)arg + pos;
         queuelen += pbuf_clen(concat_p);
-#if TCP_EXTEND_ROM_PBUFS
       }
-#endif
 #if TCP_CHECKSUM_ON_COPY
       /* calculate the checksum of nocopy-data */
       tcp_seg_add_chksum(~inet_chksum((const u8_t*)arg + pos, seglen), seglen,
@@ -538,7 +532,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
     pbuf_cat(last_unsent->p, concat_p);
     last_unsent->len += concat_p->tot_len;
   }
-#if TCP_EXTEND_ROM_PBUFS
   else if (extendlen > 0) {
     struct pbuf *p;
     for (p = last_unsent->p; p->next != NULL; p = p->next) {
@@ -548,7 +541,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
     p->len += extendlen;
     last_unsent->len += extendlen;
   }
-#endif /* TCP_EXTEND_ROM_PBUFS */
 
 #if TCP_CHECKSUM_ON_COPY
   if (concat_chksummed) {

@@ -87,10 +87,6 @@
 // is called without TCP_WRITE_FLAG_COPY.
 #define TCP_OVERSIZE 0
 
-// This enables a custom feature that reduces the number of pbufs
-// needed for TCP sending (see MEMP_NUM_PBUF comments).
-#define TCP_EXTEND_ROM_PBUFS 1
-
 // TCP Maximum Segment Size, use the Ethernet value.
 #define TCP_MSS 1460
 
@@ -112,7 +108,8 @@
 // Maximum number of pbufs in the TCP send queue for a single connection.
 // Note that currently lwIP only enforces this limit when adding new
 // segments and not when adding a pbuf to an existing segment.
-// Nevertheless we should not run out of pbufs due to TCP_EXTEND_ROM_PBUFS.
+// Nevertheless we should not run out of pbufs due to a custom feature
+// in tcp_out.c which resizes PBUF_ROM pbufs in place.
 // We compute this based on our estimation of how many segments are needed,
 // counting, each segment twice, since segments will typically have a header
 // pbuf and a data pbuf. Allow one more to accomodate segments with one
