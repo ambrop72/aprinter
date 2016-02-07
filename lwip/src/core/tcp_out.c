@@ -352,7 +352,7 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
           goto memerr;
         }
         /* reference the non-volatile payload data */
-        ((struct pbuf_rom*)concat_p)->payload = (const u8_t*)arg + pos;
+        concat_p->payload = (void *)((const u8_t*)arg + pos);
         queuelen += pbuf_clen(concat_p);
       }
 
@@ -392,7 +392,7 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
       goto memerr;
     }
     /* reference the non-volatile payload data */
-    ((struct pbuf_rom*)p2)->payload = (const u8_t*)arg + pos;
+    p2->payload = (void *)((const u8_t*)arg + pos);
 
     /* Second, allocate a pbuf for the headers. */
     if ((p = pbuf_alloc(PBUF_TRANSPORT, optlen, PBUF_TCP)) == NULL) {
