@@ -54,7 +54,6 @@
 #include "lwip/raw.h"
 #include "lwip/udp.h"
 #include "lwip/tcp_impl.h"
-#include "lwip/dhcp6.h"
 #include "lwip/nd6.h"
 #include "lwip/mld6.h"
 #include "lwip/debug.h"

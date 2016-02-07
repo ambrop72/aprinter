@@ -208,11 +208,6 @@ static struct mem *ram_end;
 /** pointer to the lowest free block, this is used for faster search */
 static struct mem *lfree;
 
-/** concurrent access protection */
-#if !NO_SYS
-static sys_mutex_t mem_mutex;
-#endif
-
 #if LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT
 
 static volatile u8_t mem_free_count;
@@ -227,11 +222,10 @@ static volatile u8_t mem_free_count;
 
 #else /* LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT */
 
-/* Protect the heap only by using a semaphore */
+/* No protection. */
 #define LWIP_MEM_FREE_DECL_PROTECT()
-#define LWIP_MEM_FREE_PROTECT()    sys_mutex_lock(&mem_mutex)
-#define LWIP_MEM_FREE_UNPROTECT()  sys_mutex_unlock(&mem_mutex)
-/* mem_malloc is protected using semaphore AND LWIP_MEM_ALLOC_PROTECT */
+#define LWIP_MEM_FREE_PROTECT()
+#define LWIP_MEM_FREE_UNPROTECT()
 #define LWIP_MEM_ALLOC_DECL_PROTECT()
 #define LWIP_MEM_ALLOC_PROTECT()
 #define LWIP_MEM_ALLOC_UNPROTECT()
@@ -313,10 +307,6 @@ mem_init(void)
   lfree = (struct mem *)(void *)ram;
 
   MEM_STATS_AVAIL(avail, MEM_SIZE_ALIGNED);
-
-  if(sys_mutex_new(&mem_mutex) != ERR_OK) {
-    LWIP_ASSERT("failed to create mem_mutex", 0);
-  }
 }
 
 /**
@@ -536,7 +526,6 @@ mem_malloc(mem_size_t size)
   }
 
   /* protect the heap from concurrent access */
-  sys_mutex_lock(&mem_mutex);
   LWIP_MEM_ALLOC_PROTECT();
 #if LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT
   /* run as long as a mem_free disturbed mem_malloc or mem_trim */
@@ -628,7 +617,6 @@ mem_malloc_adjust_lfree:
           LWIP_ASSERT("mem_malloc: !lfree->used", ((lfree == ram_end) || (!lfree->used)));
         }
         LWIP_MEM_ALLOC_UNPROTECT();
-        sys_mutex_unlock(&mem_mutex);
         LWIP_ASSERT("mem_malloc: allocated memory not above ram_end.",
          (mem_ptr_t)mem + SIZEOF_STRUCT_MEM + size <= (mem_ptr_t)ram_end);
         LWIP_ASSERT("mem_malloc: allocated memory properly aligned.",
@@ -646,7 +634,6 @@ mem_malloc_adjust_lfree:
   LWIP_DEBUGF(MEM_DEBUG | LWIP_DBG_LEVEL_SERIOUS, ("mem_malloc: could not allocate %"S16_F" bytes\n", (s16_t)size));
   MEM_STATS_INC(err);
   LWIP_MEM_ALLOC_UNPROTECT();
-  sys_mutex_unlock(&mem_mutex);
   return NULL;
 }
 

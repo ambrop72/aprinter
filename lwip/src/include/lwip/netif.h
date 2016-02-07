@@ -48,9 +48,6 @@ struct dhcp;
 #if LWIP_AUTOIP
 struct autoip;
 #endif
-#if LWIP_IPV6_DHCP6
-#include "lwip/dhcp6.h"
-#endif /* LWIP_IPV6_DHCP6 */
 
 #ifdef __cplusplus
 extern "C" {
@@ -246,10 +243,6 @@ struct netif {
   /** Number of Router Solicitation messages that remain to be sent. */
   u8_t rs_count;
 #endif /* LWIP_IPV6_SEND_ROUTER_SOLICIT */
-#if LWIP_IPV6_DHCP6
-  /** the DHCPv6 client state information for this netif */
-  struct dhcp6 *dhcp6;
-#endif /* LWIP_IPV6_DHCP6 */
 #if LWIP_NETIF_HOSTNAME
   /* the hostname for this netif, NULL is a valid value */
   const char*  hostname;
@@ -394,9 +387,7 @@ void netif_set_link_callback(struct netif *netif, netif_status_callback_fn link_
 #if ENABLE_LOOPBACK
 err_t netif_loop_output(struct netif *netif, struct pbuf *p);
 void netif_poll(struct netif *netif);
-#if !LWIP_NETIF_LOOPBACK_MULTITHREADING
 void netif_poll_all(void);
-#endif /* !LWIP_NETIF_LOOPBACK_MULTITHREADING */
 #endif /* ENABLE_LOOPBACK */
 
 #if LWIP_IPV6

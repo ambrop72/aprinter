@@ -57,10 +57,6 @@
 #include "netif/etharp.h"
 #include "lwip/ip6.h"
 
-#if PPPOE_SUPPORT
-#include "netif/ppp/pppoe.h"
-#endif /* PPPOE_SUPPORT */
-
 #include <string.h>
 
 const struct eth_addr ethbroadcast = {{0xff,0xff,0xff,0xff,0xff,0xff}};
@@ -1503,15 +1499,6 @@ ethernet_input(struct pbuf *p, struct netif *netif)
       etharp_arp_input(netif, (struct eth_addr*)(netif->hwaddr), p);
       break;
 #endif /* LWIP_IPV4 && LWIP_ARP */
-#if PPPOE_SUPPORT
-    case PP_HTONS(ETHTYPE_PPPOEDISC): /* PPP Over Ethernet Discovery Stage */
-      pppoe_disc_input(netif, p);
-      break;
-
-    case PP_HTONS(ETHTYPE_PPPOE): /* PPP Over Ethernet Session Stage */
-      pppoe_data_input(netif, p);
-      break;
-#endif /* PPPOE_SUPPORT */
 
 #if LWIP_IPV6
     case PP_HTONS(ETHTYPE_IPV6): /* IPv6 */

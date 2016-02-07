@@ -36,14 +36,11 @@
 #include "lwip/opt.h"
 
 /* Timers are not supported when NO_SYS==1 and NO_SYS_NO_TIMERS==1 */
-#define LWIP_TIMERS (!NO_SYS || (NO_SYS && !NO_SYS_NO_TIMERS))
+#define LWIP_TIMERS (!NO_SYS_NO_TIMERS)
 
 #if LWIP_TIMERS
 
 #include "lwip/err.h"
-#if !NO_SYS
-#include "lwip/sys.h"
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -84,13 +81,9 @@ void sys_timeout(u32_t msecs, sys_timeout_handler handler, void *arg);
 #endif /* LWIP_DEBUG_TIMERNAMES */
 
 void sys_untimeout(sys_timeout_handler handler, void *arg);
-#if NO_SYS
 void sys_check_timeouts(void);
 void sys_restart_timeouts(void);
 u32_t sys_timeouts_sleeptime(void);
-#else /* NO_SYS */
-void sys_timeouts_mbox_fetch(sys_mbox_t *mbox, void **msg);
-#endif /* NO_SYS */
 
 
 #ifdef __cplusplus

@@ -51,9 +51,6 @@
 #include "lwip/sys.h"
 #if ENABLE_LOOPBACK
 #include "lwip/sys.h"
-#if LWIP_NETIF_LOOPBACK_MULTITHREADING
-#include "lwip/tcpip.h"
-#endif /* LWIP_NETIF_LOOPBACK_MULTITHREADING */
 #endif /* ENABLE_LOOPBACK */
 
 #if LWIP_AUTOIP
@@ -62,9 +59,6 @@
 #if LWIP_DHCP
 #include "lwip/dhcp.h"
 #endif /* LWIP_DHCP */
-#if LWIP_IPV6_DHCP6
-#include "lwip/dhcp6.h"
-#endif /* LWIP_IPV6_DHCP6 */
 #if LWIP_IPV6_MLD
 #include "lwip/mld6.h"
 #endif /* LWIP_IPV6_MLD */
@@ -149,11 +143,7 @@ netif_init(void)
 #define LOOPIF_ADDRINIT
 #endif /* LWIP_IPV4 */
 
-#if NO_SYS
   netif_add(&loop_netif, LOOPIF_ADDRINIT NULL, netif_loopif_init, ip_input);
-#else  /* NO_SYS */
-  netif_add(&loop_netif, LOOPIF_ADDRINIT NULL, netif_loopif_init, tcpip_input);
-#endif /* NO_SYS */
 
 #if LWIP_IPV6
   IP_ADDR6(loop_netif.ip6_addr, 0, 0, 0, PP_HTONL(0x00000001UL));
@@ -223,10 +213,6 @@ netif_add(struct netif *netif,
 #if LWIP_IPV6_SEND_ROUTER_SOLICIT
   netif->rs_count = LWIP_ND6_MAX_MULTICAST_SOLICIT;
 #endif /* LWIP_IPV6_SEND_ROUTER_SOLICIT */
-#if LWIP_IPV6_DHCP6
-  /* netif not under DHCPv6 control by default */
-  netif->dhcp6 = NULL;
-#endif /* LWIP_IPV6_DHCP6 */
 #if LWIP_NETIF_STATUS_CALLBACK
   netif->status_callback = NULL;
 #endif /* LWIP_NETIF_STATUS_CALLBACK */
@@ -767,11 +753,6 @@ netif_loop_output(struct netif *netif, struct pbuf *p)
   MIB2_STATS_NETIF_ADD(stats_if, ifoutoctets, p->tot_len);
   MIB2_STATS_NETIF_INC(stats_if, ifoutucastpkts);
 
-#if LWIP_NETIF_LOOPBACK_MULTITHREADING
-  /* For multithreading environment, schedule a call to netif_poll */
-  tcpip_callback_with_block((tcpip_callback_fn)netif_poll, netif, 0);
-#endif /* LWIP_NETIF_LOOPBACK_MULTITHREADING */
-
   return ERR_OK;
 }
 
@@ -869,7 +850,6 @@ netif_poll(struct netif *netif)
   } while (netif->loop_first != NULL);
 }
 
-#if !LWIP_NETIF_LOOPBACK_MULTITHREADING
 /**
  * Calls netif_poll() for every netif on the netif_list.
  */
@@ -884,7 +864,6 @@ netif_poll_all(void)
     netif = netif->next;
   }
 }
-#endif /* !LWIP_NETIF_LOOPBACK_MULTITHREADING */
 #endif /* ENABLE_LOOPBACK */
 
 #if LWIP_IPV6

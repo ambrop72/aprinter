@@ -51,30 +51,6 @@ LWIP_MEMPOOL(REASSDATA,      MEMP_NUM_REASSDATA,       sizeof(struct ip_reassdat
 LWIP_MEMPOOL(FRAG_PBUF,      MEMP_NUM_FRAG_PBUF,       sizeof(struct pbuf_custom_ref),"FRAG_PBUF")
 #endif /* IP_FRAG && !IP_FRAG_USES_STATIC_BUF && !LWIP_NETIF_TX_SINGLE_PBUF */
 
-#if LWIP_NETCONN || LWIP_SOCKET
-LWIP_MEMPOOL(NETBUF,         MEMP_NUM_NETBUF,          sizeof(struct netbuf),         "NETBUF")
-LWIP_MEMPOOL(NETCONN,        MEMP_NUM_NETCONN,         sizeof(struct netconn),        "NETCONN")
-#endif /* LWIP_NETCONN || LWIP_SOCKET */
-
-#if NO_SYS==0
-LWIP_MEMPOOL(TCPIP_MSG_API,  MEMP_NUM_TCPIP_MSG_API,   sizeof(struct tcpip_msg),      "TCPIP_MSG_API")
-#if LWIP_MPU_COMPATIBLE
-LWIP_MEMPOOL(API_MSG,        MEMP_NUM_API_MSG,         sizeof(struct api_msg),        "API_MSG")
-#if LWIP_DNS
-LWIP_MEMPOOL(DNS_API_MSG,    MEMP_NUM_DNS_API_MSG,     sizeof(struct dns_api_msg),    "DNS_API_MSG")
-#endif
-#if LWIP_SOCKET && !LWIP_TCPIP_CORE_LOCKING
-LWIP_MEMPOOL(SOCKET_SETGETSOCKOPT_DATA, MEMP_NUM_SOCKET_SETGETSOCKOPT_DATA, sizeof(struct lwip_setgetsockopt_data), "SOCKET_SETGETSOCKOPT_DATA")
-#endif
-#if LWIP_NETIF_API
-LWIP_MEMPOOL(NETIFAPI_MSG,   MEMP_NUM_NETIFAPI_MSG,    sizeof(struct netifapi_msg),   "NETIFAPI_MSG")
-#endif
-#endif /* LWIP_MPU_COMPATIBLE */
-#if !LWIP_TCPIP_CORE_LOCKING_INPUT
-LWIP_MEMPOOL(TCPIP_MSG_INPKT,MEMP_NUM_TCPIP_MSG_INPKT, sizeof(struct tcpip_msg),      "TCPIP_MSG_INPKT")
-#endif /* !LWIP_TCPIP_CORE_LOCKING_INPUT */
-#endif /* NO_SYS==0 */
-
 #if LWIP_IPV4 && LWIP_ARP && ARP_QUEUEING
 LWIP_MEMPOOL(ARP_QUEUE,      MEMP_NUM_ARP_QUEUE,       sizeof(struct etharp_q_entry), "ARP_QUEUE")
 #endif /* LWIP_IPV4 && LWIP_ARP && ARP_QUEUEING */
@@ -83,35 +59,13 @@ LWIP_MEMPOOL(ARP_QUEUE,      MEMP_NUM_ARP_QUEUE,       sizeof(struct etharp_q_en
 LWIP_MEMPOOL(IGMP_GROUP,     MEMP_NUM_IGMP_GROUP,      sizeof(struct igmp_group),     "IGMP_GROUP")
 #endif /* LWIP_IGMP */
 
-#if (!NO_SYS || (NO_SYS && !NO_SYS_NO_TIMERS)) /* LWIP_TIMERS */
+#if !NO_SYS_NO_TIMERS /* LWIP_TIMERS */
 LWIP_MEMPOOL(SYS_TIMEOUT,    MEMP_NUM_SYS_TIMEOUT,     sizeof(struct sys_timeo),      "SYS_TIMEOUT")
 #endif /* LWIP_TIMERS */
 
-#if LWIP_SNMP
-LWIP_MEMPOOL(SNMP_ROOTNODE,  MEMP_NUM_SNMP_ROOTNODE,   sizeof(struct mib_list_rootnode), "SNMP_ROOTNODE")
-LWIP_MEMPOOL(SNMP_NODE,      MEMP_NUM_SNMP_NODE,       sizeof(struct mib_list_node),     "SNMP_NODE")
-LWIP_MEMPOOL(SNMP_VARBIND,   MEMP_NUM_SNMP_VARBIND,    sizeof(struct snmp_varbind),      "SNMP_VARBIND")
-LWIP_MEMPOOL(SNMP_VALUE,     MEMP_NUM_SNMP_VALUE,      SNMP_MAX_VALUE_SIZE,              "SNMP_VALUE")
-#endif /* LWIP_SNMP */
-#if LWIP_DNS && LWIP_SOCKET
-LWIP_MEMPOOL(NETDB,          MEMP_NUM_NETDB,           NETDB_ELEM_SIZE,               "NETDB")
-#endif /* LWIP_DNS && LWIP_SOCKET */
 #if LWIP_DNS && DNS_LOCAL_HOSTLIST && DNS_LOCAL_HOSTLIST_IS_DYNAMIC
 LWIP_MEMPOOL(LOCALHOSTLIST,  MEMP_NUM_LOCALHOSTLIST,   LOCALHOSTLIST_ELEM_SIZE,       "LOCALHOSTLIST")
 #endif /* LWIP_DNS && DNS_LOCAL_HOSTLIST && DNS_LOCAL_HOSTLIST_IS_DYNAMIC */
-
-#if PPP_SUPPORT
-LWIP_MEMPOOL(PPP_PCB,       MEMP_NUM_PPP_PCB,              sizeof(ppp_pcb),             "PPP_PCB")
-#if PPPOS_SUPPORT
-LWIP_MEMPOOL(PPPOS_PCB,     MEMP_NUM_PPPOS_INTERFACES,     sizeof(pppos_pcb),           "PPPOS_PCB")
-#endif /* PPPOS_SUPPORT */
-#if PPPOE_SUPPORT
-LWIP_MEMPOOL(PPPOE_IF,      MEMP_NUM_PPPOE_INTERFACES,     sizeof(struct pppoe_softc),  "PPPOE_IF")
-#endif /* PPPOE_SUPPORT */
-#if PPPOL2TP_SUPPORT
-LWIP_MEMPOOL(PPPOL2TP_PCB,  MEMP_NUM_PPPOL2TP_INTERFACES,  sizeof(pppol2tp_pcb),        "PPPOL2TP_PCB")
-#endif /* PPPOL2TP_SUPPORT */
-#endif /* PPP_SUPPORT */
 
 #if LWIP_IPV6 && LWIP_ND6_QUEUEING
 LWIP_MEMPOOL(ND6_QUEUE,      MEMP_NUM_ND6_QUEUE,       sizeof(struct nd6_q_entry), "ND6_QUEUE")
