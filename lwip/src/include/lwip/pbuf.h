@@ -158,6 +158,7 @@ struct pbuf_custom {
 #define pbuf_init()
 
 struct pbuf *pbuf_alloc(pbuf_layer l, u16_t length, pbuf_type type);
+struct pbuf *pbuf_alloc_pool(pbuf_layer l, u16_t length, u16_t min_first_len);
 #if LWIP_SUPPORT_CUSTOM_PBUF
 struct pbuf *pbuf_alloced_custom(pbuf_layer l, u16_t length, pbuf_type type,
                                  struct pbuf_custom *p, void *payload_mem,

@@ -275,6 +275,17 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
   return p;
 }
 
+struct pbuf *
+pbuf_alloc_pool(pbuf_layer layer, u16_t length, u16_t min_first_len)
+{
+  struct pbuf *p = pbuf_alloc(layer, length, PBUF_POOL);
+  if (p && p->len < min_first_len) {
+    pbuf_free(p);
+    p = NULL;
+  }
+  return p;
+}
+
 #if LWIP_SUPPORT_CUSTOM_PBUF
 /** Initialize a custom pbuf (already allocated).
  *

@@ -702,7 +702,7 @@ udp_sendto_if_src(struct udp_pcb *pcb, struct pbuf *p,
   /* not enough space to add an UDP header to first pbuf in given p chain? */
   if (pbuf_header(p, UDP_HLEN)) {
     /* allocate header in a separate new pbuf */
-    q = pbuf_alloc(PBUF_IP, UDP_HLEN, PBUF_RAM);
+    q = pbuf_alloc_pool(PBUF_IP, UDP_HLEN, UDP_HLEN);
     /* new header pbuf could not be allocated? */
     if (q == NULL) {
       LWIP_DEBUGF(UDP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_LEVEL_SERIOUS, ("udp_send: could not allocate header\n"));

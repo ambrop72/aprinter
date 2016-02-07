@@ -142,10 +142,11 @@
 #define MEMP_NUM_PBUF (APRINTER_NUM_TCP_CONN * (APRINTER_NUM_TCP_DATA_SEG + 1))
 
 // Number of pbufs in PBUF_POOL pool.
-// These are allocated via pbuf_alloc(..., PBUF_POOL).
-// Typically they would be used for received packets, but we use PBUF_REF
-// instead for this purpose.
-#define PBUF_POOL_SIZE 0
+// In a typical lwIP application these would be allocated by the drive for RX.
+// However, we use them for the various *outgoing* packets; the lwIP code has
+// been changed to allocate PBUF_POOL instead of PBUF_RAM pbufs in many places.
+#define PBUF_POOL_SIZE 1
+#define PBUF_POOL_BUFSIZE 384
 
 // Memory size for the general allocator.
 // Importantly, this is used for pbuf_alloc(..., PBUF_RAM). This includes:

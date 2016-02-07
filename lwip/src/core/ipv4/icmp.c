@@ -149,7 +149,7 @@ icmp_input(struct pbuf *p, struct netif *inp)
        */
       struct pbuf *r;
       /* allocate new packet buffer with space for link headers */
-      r = pbuf_alloc(PBUF_LINK, p->tot_len + hlen, PBUF_RAM);
+      r = pbuf_alloc_pool(PBUF_LINK, p->tot_len + hlen, hlen + sizeof(struct icmp_echo_hdr));
       if (r == NULL) {
         LWIP_DEBUGF(ICMP_DEBUG, ("icmp_input: allocating new pbuf failed\n"));
         goto icmperr;
@@ -308,14 +308,13 @@ icmp_send_response(struct pbuf *p, u8_t type, u8_t code)
   struct netif *netif;
 
   /* ICMP header + IP header + 8 bytes of data */
-  q = pbuf_alloc(PBUF_IP, sizeof(struct icmp_echo_hdr) + IP_HLEN + ICMP_DEST_UNREACH_DATASIZE,
-                 PBUF_RAM);
+  u16_t len = sizeof(struct icmp_echo_hdr) + IP_HLEN + ICMP_DEST_UNREACH_DATASIZE;
+  q = pbuf_alloc_pool(PBUF_IP, len, len);
   if (q == NULL) {
     LWIP_DEBUGF(ICMP_DEBUG, ("icmp_time_exceeded: failed to allocate pbuf for ICMP packet.\n"));
     return;
   }
-  LWIP_ASSERT("check that first pbuf can hold icmp message",
-             (q->len >= (sizeof(struct icmp_echo_hdr) + IP_HLEN + ICMP_DEST_UNREACH_DATASIZE)));
+  LWIP_ASSERT("check that first pbuf can hold icmp message", (q->len >= len));
 
   iphdr = (struct ip_hdr *)p->payload;
   LWIP_DEBUGF(ICMP_DEBUG, ("icmp_time_exceeded from "));

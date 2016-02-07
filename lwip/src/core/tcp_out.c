@@ -77,7 +77,7 @@ tcp_output_alloc_header(struct tcp_pcb *pcb, u16_t optlen, u16_t datalen,
                       u32_t seqno_be /* already in network byte order */)
 {
   struct tcp_hdr *tcphdr;
-  struct pbuf *p = pbuf_alloc(PBUF_IP, TCP_HLEN + optlen + datalen, PBUF_RAM);
+  struct pbuf *p = pbuf_alloc_pool(PBUF_IP, TCP_HLEN + optlen + datalen, TCP_HLEN + optlen);
   if (p != NULL) {
     LWIP_ASSERT("check that first pbuf can hold struct tcp_hdr",
                  (p->len >= TCP_HLEN + optlen));
@@ -993,7 +993,7 @@ tcp_rst(u32_t seqno, u32_t ackno,
   struct pbuf *p;
   struct tcp_hdr *tcphdr;
   struct netif *netif;
-  p = pbuf_alloc(PBUF_IP, TCP_HLEN, PBUF_RAM);
+  p = pbuf_alloc_pool(PBUF_IP, TCP_HLEN, TCP_HLEN);
   if (p == NULL) {
       LWIP_DEBUGF(TCP_DEBUG, ("tcp_rst: could not allocate memory for pbuf\n"));
       return;
