@@ -56,6 +56,10 @@ public:
             handle_test_bulk_output_command(c, cmd);
             return false;
         }
+        if (cmd->getCmdNumber(c) == 943) {
+            handle_message_test_command(c, cmd);
+            return false;
+        }
         return true;
     }
     
@@ -79,6 +83,28 @@ private:
         o->chunk_count = cmd->get_command_param_uint32(c, 'C', 64);
         
         return next_chunk(c);
+    }
+    
+    static void handle_message_test_command (Context c, typename ThePrinterMain::TheCommand *cmd)
+    {
+        uint32_t msg_length = cmd->get_command_param_uint32(c, 'L', 32);
+        uint32_t msg_count = cmd->get_command_param_uint32(c, 'C', 1);
+        
+        for (uint32_t i = 0; i < msg_count; i++) {
+            auto *out = ThePrinterMain::get_msg_output(c);
+            
+            uint32_t remain = msg_length;
+            while (remain > 0) {
+                size_t chunk_len = MinValue(remain, (uint32_t)TestDataLength);
+                out->reply_append_pbuffer(c, AMBRO_PSTR(APRINTER_BULKOUTPUT_TEST_DATA), chunk_len);
+                remain -= chunk_len;
+            }
+            
+            out->reply_append_ch(c, '\n');
+            out->reply_poke(c);
+        }
+        
+        cmd->finishCommand(c);
     }
     
     static void next_chunk (Context c)
