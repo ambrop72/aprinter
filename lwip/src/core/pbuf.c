@@ -83,94 +83,6 @@
    aligned there. Therefore, PBUF_POOL_BUFSIZE_ALIGNED can be used here. */
 #define PBUF_POOL_BUFSIZE_ALIGNED LWIP_MEM_ALIGN_SIZE(PBUF_POOL_BUFSIZE)
 
-#if !LWIP_TCP || !TCP_QUEUE_OOSEQ || !PBUF_POOL_FREE_OOSEQ
-#define PBUF_POOL_IS_EMPTY()
-#else /* !LWIP_TCP || !TCP_QUEUE_OOSEQ || !PBUF_POOL_FREE_OOSEQ */
-
-#if !NO_SYS
-#ifndef PBUF_POOL_FREE_OOSEQ_QUEUE_CALL
-#include "lwip/tcpip.h"
-#define PBUF_POOL_FREE_OOSEQ_QUEUE_CALL()  do { \
-  if(tcpip_callback_with_block(pbuf_free_ooseq_callback, NULL, 0) != ERR_OK) { \
-      SYS_ARCH_PROTECT(old_level); \
-      pbuf_free_ooseq_pending = 0; \
-      SYS_ARCH_UNPROTECT(old_level); \
-  } } while(0)
-#endif /* PBUF_POOL_FREE_OOSEQ_QUEUE_CALL */
-#endif /* !NO_SYS */
-
-volatile u8_t pbuf_free_ooseq_pending;
-#define PBUF_POOL_IS_EMPTY() pbuf_pool_is_empty()
-
-/**
- * Attempt to reclaim some memory from queued out-of-sequence TCP segments
- * if we run out of pool pbufs. It's better to give priority to new packets
- * if we're running out.
- *
- * This must be done in the correct thread context therefore this function
- * can only be used with NO_SYS=0 and through tcpip_callback.
- */
-#if !NO_SYS
-static
-#endif /* !NO_SYS */
-void
-pbuf_free_ooseq(void)
-{
-  struct tcp_pcb* pcb;
-  SYS_ARCH_DECL_PROTECT(old_level);
-
-  SYS_ARCH_PROTECT(old_level);
-  pbuf_free_ooseq_pending = 0;
-  SYS_ARCH_UNPROTECT(old_level);
-
-  for (pcb = tcp_active_pcbs; NULL != pcb; pcb = pcb->next) {
-    if (NULL != pcb->ooseq) {
-      /** Free the ooseq pbufs of one PCB only */
-      LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_free_ooseq: freeing out-of-sequence pbufs\n"));
-      tcp_segs_free(pcb->ooseq);
-      pcb->ooseq = NULL;
-      return;
-    }
-  }
-}
-
-#if !NO_SYS
-/**
- * Just a callback function for tcpip_callback() that calls pbuf_free_ooseq().
- */
-static void
-pbuf_free_ooseq_callback(void *arg)
-{
-  LWIP_UNUSED_ARG(arg);
-  pbuf_free_ooseq();
-}
-#endif /* !NO_SYS */
-
-/** Queue a call to pbuf_free_ooseq if not already queued. */
-static void
-pbuf_pool_is_empty(void)
-{
-#ifndef PBUF_POOL_FREE_OOSEQ_QUEUE_CALL
-  SYS_ARCH_DECL_PROTECT(old_level);
-  SYS_ARCH_PROTECT(old_level);
-  pbuf_free_ooseq_pending = 1;
-  SYS_ARCH_UNPROTECT(old_level);
-#else /* PBUF_POOL_FREE_OOSEQ_QUEUE_CALL */
-  u8_t queued;
-  SYS_ARCH_DECL_PROTECT(old_level);
-  SYS_ARCH_PROTECT(old_level);
-  queued = pbuf_free_ooseq_pending;
-  pbuf_free_ooseq_pending = 1;
-  SYS_ARCH_UNPROTECT(old_level);
-
-  if(!queued) {
-    /* queue a call to pbuf_free_ooseq if not already queued */
-    PBUF_POOL_FREE_OOSEQ_QUEUE_CALL();
-  }
-#endif /* PBUF_POOL_FREE_OOSEQ_QUEUE_CALL */
-}
-#endif /* !LWIP_TCP || !TCP_QUEUE_OOSEQ || !PBUF_POOL_FREE_OOSEQ */
-
 /**
  * Allocates a pbuf of the given type (possibly a chain for PBUF_POOL type).
  *
@@ -243,7 +155,6 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
     p = (struct pbuf *)memp_malloc(MEMP_PBUF_POOL);
     LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_alloc: allocated pbuf %p\n", (void *)p));
     if (p == NULL) {
-      PBUF_POOL_IS_EMPTY();
       return NULL;
     }
     p->type = type;
@@ -275,7 +186,6 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
     while (rem_len > 0) {
       q = (struct pbuf *)memp_malloc(MEMP_PBUF_POOL);
       if (q == NULL) {
-        PBUF_POOL_IS_EMPTY();
         /* free chain so far allocated */
         pbuf_free(p);
         /* bail out unsuccessfully */
@@ -1010,56 +920,6 @@ pbuf_copy_partial(struct pbuf *buf, void *dataptr, u16_t len, u16_t offset)
   }
   return copied_total;
 }
-
-#if LWIP_TCP && TCP_QUEUE_OOSEQ && LWIP_WND_SCALE
-/**
- * This method modifies a 'pbuf chain', so that its total length is
- * smaller than 64K. The remainder of the original pbuf chain is stored
- * in *rest.
- * This function never creates new pbufs, but splits an existing chain
- * in two parts. The tot_len of the modified packet queue will likely be
- * smaller than 64K.
- * 'packet queues' are not supported by this function.
- *
- * @param p the pbuf queue to be split
- * @param rest pointer to store the remainder (after the first 64K)
- */
-void pbuf_split_64k(struct pbuf *p, struct pbuf **rest)
-{
-  *rest = NULL;
-  if ((p != NULL) && (p->next != NULL)) {
-    u16_t tot_len_front = p->len;
-    struct pbuf *i = p;
-    struct pbuf *r = p->next;
-
-    /* continue until the total length (summed up as u16_t) overflows */
-    while ((r != NULL) && ((u16_t)(tot_len_front + r->len) > tot_len_front)) {
-      tot_len_front += r->len;
-      i = r;
-      r = r->next;
-    }
-    /* i now points to last packet of the first segment. Set next
-       pointer to NULL */
-    i->next = NULL;
-
-    if (r != NULL) {
-      /* Update the tot_len field in the first part */
-      for (i = p; i != NULL; i = i->next) {
-        i->tot_len -= r->tot_len;
-        LWIP_ASSERT("tot_len/len mismatch in last pbuf",
-                    (i->next != NULL) || (i->tot_len == i->len));
-      }
-      if (p->flags & PBUF_FLAG_TCP_FIN) {
-        r->flags |= PBUF_FLAG_TCP_FIN;
-      }
-
-      /* tot_len field in rest does not need modifications */
-      /* reference counters do not need modifications */
-      *rest = r;
-    }
-  }
-}
-#endif /* LWIP_TCP && TCP_QUEUE_OOSEQ && LWIP_WND_SCALE */
 
 /**
  * Skip a number of bytes at the start of a pbuf

@@ -449,9 +449,6 @@ sys_check_timeouts(void)
     diff = now - timeouts_last_time;
     do
     {
-#if PBUF_POOL_FREE_OOSEQ
-      PBUF_CHECK_FREE_OOSEQ();
-#endif /* PBUF_POOL_FREE_OOSEQ */
       had_one = 0;
       tmptimeout = next_timeout;
       if (tmptimeout && (tmptimeout->time <= diff)) {

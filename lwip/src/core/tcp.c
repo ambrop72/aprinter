@@ -393,11 +393,6 @@ tcp_abandon(struct tcp_pcb *pcb, int reset)
     if (pcb->unsent != NULL) {
       tcp_segs_free(pcb->unsent);
     }
-#if TCP_QUEUE_OOSEQ
-    if (pcb->ooseq != NULL) {
-      tcp_segs_free(pcb->ooseq);
-    }
-#endif /* TCP_QUEUE_OOSEQ */
     if (send_rst) {
       LWIP_DEBUGF(TCP_RST_DEBUG, ("tcp_abandon: sending RST\n"));
       tcp_rst(seqno, ackno, &pcb->local_ip, &pcb->remote_ip, local_port, pcb->remote_port);
@@ -996,18 +991,6 @@ tcp_slowtmr_start:
       }
     }
 
-    /* If this PCB has queued out of sequence data, but has been
-       inactive for too long, will drop the data (it will eventually
-       be retransmitted). */
-#if TCP_QUEUE_OOSEQ
-    if (pcb->ooseq != NULL &&
-        (u32_t)tcp_ticks - pcb->tmr >= pcb->rto * TCP_OOSEQ_TIMEOUT) {
-      tcp_segs_free(pcb->ooseq);
-      pcb->ooseq = NULL;
-      LWIP_DEBUGF(TCP_CWND_DEBUG, ("tcp_slowtmr: dropping OOSEQ queued data\n"));
-    }
-#endif /* TCP_QUEUE_OOSEQ */
-
     /* Check if this PCB has stayed too long in SYN-RCVD */
     if (pcb->state == SYN_RCVD) {
       if ((u32_t)(tcp_ticks - pcb->tmr) >
@@ -1210,29 +1193,6 @@ tcp_setprio(struct tcp_pcb *pcb, u8_t prio)
 {
   pcb->prio = prio;
 }
-
-#if TCP_QUEUE_OOSEQ
-/**
- * Returns a copy of the given TCP segment.
- * The pbuf and data are not copied, only the pointers
- *
- * @param seg the old tcp_seg
- * @return a copy of seg
- */ 
-struct tcp_seg *
-tcp_seg_copy(struct tcp_seg *seg)
-{
-  struct tcp_seg *cseg;
-
-  cseg = (struct tcp_seg *)memp_malloc(MEMP_TCP_SEG);
-  if (cseg == NULL) {
-    return NULL;
-  }
-  SMEMCPY((u8_t *)cseg, (const u8_t *)seg, sizeof(struct tcp_seg)); 
-  pbuf_ref(cseg->p);
-  return cseg;
-}
-#endif /* TCP_QUEUE_OOSEQ */
 
 #if LWIP_CALLBACK_API
 /**
@@ -1587,7 +1547,7 @@ tcp_poll(struct tcp_pcb *pcb, tcp_poll_fn poll, u8_t interval)
 
 /**
  * Purges a TCP PCB. Removes any buffered data and frees the buffer memory
- * (pcb->ooseq, pcb->unsent and pcb->unacked are freed).
+ * (pcb->unsent and pcb->unacked are freed).
  *
  * @param pcb tcp_pcb to purge. The pcb itself is not deallocated!
  */
@@ -1628,13 +1588,6 @@ tcp_pcb_purge(struct tcp_pcb *pcb)
     if (pcb->unacked != NULL) {
       LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge: data left on ->unacked\n"));
     }
-#if TCP_QUEUE_OOSEQ
-    if (pcb->ooseq != NULL) {
-      LWIP_DEBUGF(TCP_DEBUG, ("tcp_pcb_purge: data left on ->ooseq\n"));
-    }
-    tcp_segs_free(pcb->ooseq);
-    pcb->ooseq = NULL;
-#endif /* TCP_QUEUE_OOSEQ */
 
     /* Stop the retransmission timer as it will expect data on unacked
        queue if it fires */
@@ -1673,9 +1626,6 @@ tcp_pcb_remove(struct tcp_pcb **pcblist, struct tcp_pcb *pcb)
   if (pcb->state != LISTEN) {
     LWIP_ASSERT("unsent segments leaking", pcb->unsent == NULL);
     LWIP_ASSERT("unacked segments leaking", pcb->unacked == NULL);
-#if TCP_QUEUE_OOSEQ
-    LWIP_ASSERT("ooseq segments leaking", pcb->ooseq == NULL);
-#endif /* TCP_QUEUE_OOSEQ */
   }
 
   pcb->state = CLOSED;

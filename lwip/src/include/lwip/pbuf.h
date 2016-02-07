@@ -166,24 +166,6 @@ struct pbuf_custom {
 };
 #endif /* LWIP_SUPPORT_CUSTOM_PBUF */
 
-#if LWIP_TCP && TCP_QUEUE_OOSEQ
-/** Define this to 0 to prevent freeing ooseq pbufs when the PBUF_POOL is empty */
-#ifndef PBUF_POOL_FREE_OOSEQ
-#define PBUF_POOL_FREE_OOSEQ 1
-#endif /* PBUF_POOL_FREE_OOSEQ */
-#if NO_SYS && PBUF_POOL_FREE_OOSEQ
-extern volatile u8_t pbuf_free_ooseq_pending;
-void pbuf_free_ooseq(void);
-/** When not using sys_check_timeouts(), call PBUF_CHECK_FREE_OOSEQ()
-    at regular intervals from main level to check if ooseq pbufs need to be
-    freed! */
-#define PBUF_CHECK_FREE_OOSEQ() do { if(pbuf_free_ooseq_pending) { \
-  /* pbuf_alloc() reported PBUF_POOL to be empty -> try to free some \
-     ooseq queued pbufs now */ \
-  pbuf_free_ooseq(); }}while(0)
-#endif /* NO_SYS && PBUF_POOL_FREE_OOSEQ*/
-#endif /* LWIP_TCP && TCP_QUEUE_OOSEQ */
-
 /* Initializes the pbuf module. This call is empty for now, but may not be in future. */
 #define pbuf_init()
 
@@ -211,9 +193,6 @@ struct pbuf *pbuf_coalesce(struct pbuf *p, pbuf_layer layer);
 err_t pbuf_fill_chksum(struct pbuf *p, u16_t start_offset, const void *dataptr,
                        u16_t len, u16_t *chksum);
 #endif /* LWIP_CHECKSUM_ON_COPY */
-#if LWIP_TCP && TCP_QUEUE_OOSEQ && LWIP_WND_SCALE
-void pbuf_split_64k(struct pbuf *p, struct pbuf **rest);
-#endif /* LWIP_TCP && TCP_QUEUE_OOSEQ && LWIP_WND_SCALE */
 
 u8_t pbuf_get_at(struct pbuf* p, u16_t offset);
 void pbuf_put_at(struct pbuf* p, u16_t offset, u8_t data);

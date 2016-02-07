@@ -1148,14 +1148,6 @@
 #endif
 
 /**
- * TCP_QUEUE_OOSEQ==1: TCP will queue segments that arrive out of order.
- * Define to 0 if your device is low on memory.
- */
-#ifndef TCP_QUEUE_OOSEQ
-#define TCP_QUEUE_OOSEQ                 (LWIP_TCP)
-#endif
-
-/**
  * TCP_MSS: TCP Maximum segment size. (default is 536, a conservative default,
  * you might want to increase this.)
  * For the receive side, this MSS is advertised to the remote side
@@ -1211,22 +1203,6 @@
  */
 #ifndef TCP_SNDQUEUELOWAT
 #define TCP_SNDQUEUELOWAT               LWIP_MAX(((TCP_SND_QUEUELEN)/2), 5)
-#endif
-
-/**
- * TCP_OOSEQ_MAX_BYTES: The maximum number of bytes queued on ooseq per pcb.
- * Default is 0 (no limit). Only valid for TCP_QUEUE_OOSEQ==0.
- */
-#ifndef TCP_OOSEQ_MAX_BYTES
-#define TCP_OOSEQ_MAX_BYTES             0
-#endif
-
-/**
- * TCP_OOSEQ_MAX_PBUFS: The maximum number of pbufs queued on ooseq per pcb.
- * Default is 0 (no limit). Only valid for TCP_QUEUE_OOSEQ==0.
- */
-#ifndef TCP_OOSEQ_MAX_PBUFS
-#define TCP_OOSEQ_MAX_PBUFS             0
 #endif
 
 /**

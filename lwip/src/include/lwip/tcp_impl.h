@@ -134,8 +134,6 @@ u32_t            tcp_update_rcv_ann_wnd(struct tcp_pcb *pcb);
 #define TCP_FIN_WAIT_TIMEOUT 20000 /* milliseconds */
 #define TCP_SYN_RCVD_TIMEOUT 20000 /* milliseconds */
 
-#define TCP_OOSEQ_TIMEOUT        6U /* x RTO */
-
 #ifndef TCP_MSL
 #define TCP_MSL 60000UL /* The maximum segment lifetime in milliseconds */
 #endif
@@ -279,7 +277,7 @@ PACK_STRUCT_END
 /** Don't generate checksum on copy if CHECKSUM_GEN_TCP is disabled */
 #define TCP_CHECKSUM_ON_COPY  (LWIP_CHECKSUM_ON_COPY && CHECKSUM_GEN_TCP)
 
-/* This structure represents a TCP segment on the unsent, unacked and ooseq queues */
+/* This structure represents a TCP segment on the unsent, unacked queues */
 struct tcp_seg {
   struct tcp_seg *next;    /* used when putting segments on a queue */
   struct pbuf *p;          /* buffer containing data + TCP header */
