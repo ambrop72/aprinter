@@ -49,7 +49,9 @@ private:
     using TheFsAccess = typename ThePrinterMain::template GetFsAccess<>;
     using TheBufferedFile = BufferedFile<Context, TheFsAccess>;
     
-    enum class State : uint8_t {IDLE, OPEN, WRITE_DATA, WRITE_EOF};
+    enum class State : uint8_t {IDLE, WRITE_OPEN, WRITE_DATA, WRITE_EOF, READ_OPEN, READ_DATA};
+    
+    static size_t const ReadBufferSize = 128;
     
 public:
     static void init (Context c)
@@ -74,8 +76,9 @@ public:
     {
         TheDebugObject::access(c);
         
-        if (cmd->getCmdNumber(c) == 935) {
-            handle_write_command(c, cmd);
+        auto cmd_number = cmd->getCmdNumber(c);
+        if (cmd_number == 935 || cmd_number == 936) {
+            handle_read_write_command(c, cmd, cmd_number == 935);
             return false;
         }
         return true;
@@ -96,7 +99,7 @@ private:
         cmd->finishCommand(c);
     }
     
-    static void handle_write_command (Context c, typename ThePrinterMain::TheCommand *cmd)
+    static void handle_read_write_command (Context c, typename ThePrinterMain::TheCommand *cmd, bool is_write)
     {
         auto *o = Object::self(c);
         
@@ -110,15 +113,18 @@ private:
             return complete_command(c, AMBRO_PSTR("NoFileSpecified"));
         }
         
-        o->write_data = cmd->get_command_param_str(c, 'D', "1234567890");
-        o->write_data_size = strlen(o->write_data);
-        o->write_size = cmd->find_command_param(c, 'S', nullptr) ? cmd->get_command_param_uint32(c, 'S', 0) : o->write_data_size;
-        if (o->write_data_size == 0) {
-            o->write_size = 0;
+        if (is_write) {
+            o->write_data = cmd->get_command_param_str(c, 'D', "1234567890");
+            o->write_data_size = strlen(o->write_data);
+            o->write_size = cmd->find_command_param(c, 'S', nullptr) ? cmd->get_command_param_uint32(c, 'S', 0) : o->write_data_size;
+            if (o->write_data_size == 0) {
+                o->write_size = 0;
+            }
         }
         
-        o->buffered_file.startOpen(c, open_file_name, true, TheBufferedFile::OpenMode::OPEN_WRITE);
-        o->state = State::OPEN;
+        auto mode = is_write ? TheBufferedFile::OpenMode::OPEN_WRITE : TheBufferedFile::OpenMode::OPEN_READ;
+        o->buffered_file.startOpen(c, open_file_name, true, mode);
+        o->state = is_write ? State::WRITE_OPEN : State::READ_OPEN;
     }
     
     static void file_handler (Context c, typename TheBufferedFile::Error error, size_t read_length)
@@ -127,11 +133,16 @@ private:
         TheDebugObject::access(c);
         
         switch (o->state) {
-            case State::OPEN: {
+            case State::WRITE_OPEN:
+            case State::READ_OPEN: {
                 if (error != TheBufferedFile::Error::NO_ERROR) {
                     return complete_command(c, AMBRO_PSTR("Open"));
                 }
-                work_write(c);
+                if (o->state == State::WRITE_OPEN) {
+                    work_write(c);
+                } else {
+                    work_read(c);
+                }
             } break;
             
             case State::WRITE_DATA: {
@@ -146,6 +157,16 @@ private:
                     return complete_command(c, AMBRO_PSTR("WriteEof"));
                 }
                 return complete_command(c, nullptr);
+            } break;
+            
+            case State::READ_DATA: {
+                if (error != TheBufferedFile::Error::NO_ERROR) {
+                    return complete_command(c, AMBRO_PSTR("ReadData"));
+                }
+                if (read_length == 0) {
+                    return complete_command(c, nullptr);
+                }
+                work_read(c);
             } break;
             
             default: AMBRO_ASSERT(false);
@@ -171,15 +192,30 @@ private:
         o->state = State::WRITE_DATA;
     }
     
+    static void work_read (Context c)
+    {
+        auto *o = Object::self(c);
+        
+        o->buffered_file.startReadData(c, o->read_buffer, ReadBufferSize);
+        o->state = State::READ_DATA;
+    }
+    
 public:
     struct Object : public ObjBase<FsTestModule, ParentObject, MakeTypeList<
         TheDebugObject
     >> {
         TheBufferedFile buffered_file;
         State state;
-        char const *write_data;
-        size_t write_data_size;
-        uint32_t write_size;
+        union {
+            struct {
+                char const *write_data;
+                size_t write_data_size;
+                uint32_t write_size;
+            };
+            struct {
+                char read_buffer[ReadBufferSize];
+            };
+        };
     };
 };
 
