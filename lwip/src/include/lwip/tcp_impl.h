@@ -267,18 +267,11 @@ PACK_STRUCT_END
 
 #endif /* LWIP_EVENT_API */
 
-/** Don't generate checksum on copy if CHECKSUM_GEN_TCP is disabled */
-#define TCP_CHECKSUM_ON_COPY  (LWIP_CHECKSUM_ON_COPY && CHECKSUM_GEN_TCP)
-
 /* This structure represents a TCP segment on the unsent, unacked queues */
 struct tcp_seg {
   struct tcp_seg *next;    /* used when putting segments on a queue */
   struct pbuf *p;          /* buffer containing data + TCP header */
   u16_t len;               /* the TCP length of this segment */
-#if TCP_CHECKSUM_ON_COPY
-  u16_t chksum;
-  u8_t  chksum_swapped;
-#endif /* TCP_CHECKSUM_ON_COPY */
   u8_t  flags;
 #define TF_SEG_OPTS_MSS         (u8_t)0x01U /* Include MSS option. */
 #define TF_SEG_OPTS_TS          (u8_t)0x02U /* Include timestamp option. */

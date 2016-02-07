@@ -1349,14 +1349,6 @@
 #define CHECKSUM_CHECK_ICMP6            1
 #endif
 
-/**
- * LWIP_CHECKSUM_ON_COPY==1: Calculate checksum when copying data from
- * application buffers to pbufs.
- */
-#ifndef LWIP_CHECKSUM_ON_COPY
-#define LWIP_CHECKSUM_ON_COPY           0
-#endif
-
 /*
    ---------------------------------------
    ---------- IPv6 options ---------------

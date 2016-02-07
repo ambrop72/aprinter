@@ -187,11 +187,6 @@ err_t pbuf_copy(struct pbuf *p_to, struct pbuf *p_from);
 u16_t pbuf_copy_partial(struct pbuf *p, void *dataptr, u16_t len, u16_t offset);
 err_t pbuf_take(struct pbuf *buf, const void *dataptr, u16_t len);
 err_t pbuf_take_at(struct pbuf *buf, const void *dataptr, u16_t len, u16_t offset);
-#if LWIP_CHECKSUM_ON_COPY
-err_t pbuf_fill_chksum(struct pbuf *p, u16_t start_offset, const void *dataptr,
-                       u16_t len, u16_t *chksum);
-#endif /* LWIP_CHECKSUM_ON_COPY */
-
 u8_t pbuf_get_at(struct pbuf* p, u16_t offset);
 void pbuf_put_at(struct pbuf* p, u16_t offset, u8_t data);
 struct pbuf* pbuf_last(struct pbuf* p);

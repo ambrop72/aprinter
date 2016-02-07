@@ -592,23 +592,3 @@ inet_chksum_pbuf(struct pbuf *p)
   }
   return (u16_t)~(acc & 0xffffUL);
 }
-
-/* These are some implementations for LWIP_CHKSUM_COPY, which copies data
- * like MEMCPY but generates a checksum at the same time. Since this is a
- * performance-sensitive function, you might want to create your own version
- * in assembly targeted at your hardware by defining it in lwipopts.h:
- *   #define LWIP_CHKSUM_COPY(dst, src, len) your_chksum_copy(dst, src, len)
- */
-
-#if (LWIP_CHKSUM_COPY_ALGORITHM == 1) /* Version #1 */
-/** Safe but slow: first call MEMCPY, then call LWIP_CHKSUM.
- * For architectures with big caches, data might still be in cache when
- * generating the checksum after copying.
- */
-u16_t
-lwip_chksum_copy(void *dst, const void *src, u16_t len)
-{
-  MEMCPY(dst, src, len);
-  return LWIP_CHKSUM(dst, len);
-}
-#endif /* (LWIP_CHKSUM_COPY_ALGORITHM == 1) */

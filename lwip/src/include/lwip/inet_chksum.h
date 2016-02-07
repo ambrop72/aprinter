@@ -53,28 +53,12 @@
 #define FOLD_U32T(u)          (((u) >> 16) + ((u) & 0x0000ffffUL))
 #endif
 
-#if LWIP_CHECKSUM_ON_COPY
-/** Function-like macro: same as MEMCPY but returns the checksum of copied data
-    as u16_t */
-#ifndef LWIP_CHKSUM_COPY
-#define LWIP_CHKSUM_COPY(dst, src, len) lwip_chksum_copy(dst, src, len)
-#ifndef LWIP_CHKSUM_COPY_ALGORITHM
-#define LWIP_CHKSUM_COPY_ALGORITHM 1
-#endif /* LWIP_CHKSUM_COPY_ALGORITHM */
-#endif /* LWIP_CHKSUM_COPY */
-#else /* LWIP_CHECKSUM_ON_COPY */
-#define LWIP_CHKSUM_COPY_ALGORITHM 0
-#endif /* LWIP_CHECKSUM_ON_COPY */
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 u16_t inet_chksum(const void *dataptr, u16_t len);
 u16_t inet_chksum_pbuf(struct pbuf *p);
-#if LWIP_CHKSUM_COPY_ALGORITHM
-u16_t lwip_chksum_copy(void *dst, const void *src, u16_t len);
-#endif /* LWIP_CHKSUM_COPY_ALGORITHM */
 
 #if LWIP_IPV4
 u16_t inet_chksum_pseudo(struct pbuf *p, u8_t proto, u16_t proto_len,
