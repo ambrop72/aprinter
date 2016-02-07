@@ -1064,6 +1064,7 @@ private:
         netif_set_default(&o->netif);
         
         if (params->dhcp_enabled) {
+            dhcp_set_struct(&o->netif, &o->dhcp);
             dhcp_start(&o->netif);
         }
         
@@ -1316,6 +1317,7 @@ public:
         bool eth_activated;
         struct pbuf rx_pbuf[2];
         struct netif netif;
+        struct dhcp dhcp;
     };
 };
 
