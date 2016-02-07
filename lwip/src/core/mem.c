@@ -638,27 +638,5 @@ mem_malloc_adjust_lfree:
 }
 
 #endif /* MEM_USE_POOLS */
-/**
- * Contiguously allocates enough space for count objects that are size bytes
- * of memory each and returns a pointer to the allocated memory.
- *
- * The allocated memory is filled with bytes of value zero.
- *
- * @param count number of objects to allocate
- * @param size size of the objects to allocate
- * @return pointer to allocated memory / NULL pointer if there is an error
- */
-void *mem_calloc(mem_size_t count, mem_size_t size)
-{
-  void *p;
-
-  /* allocate 'count' objects of size 'size' */
-  p = mem_malloc(count * size);
-  if (p) {
-    /* zero the memory */
-    memset(p, 0, count * size);
-  }
-  return p;
-}
 
 #endif /* !MEM_LIBC_MALLOC */
