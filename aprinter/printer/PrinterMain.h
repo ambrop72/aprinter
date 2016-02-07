@@ -834,6 +834,26 @@ private:
     class MsgOutputStream : public TheOutputStream {
         friend PrinterMain;
         
+    public:
+        template <typename... Args>
+        void print (Context c, char const *fmt, Args... args)
+        {
+            auto *o = Object::self(c);
+            
+            if (o->msg_length < MaxMsgSize) {
+                snprintf(o->msg_buffer + o->msg_length, MaxMsgSize - o->msg_length, fmt, args...);
+                o->msg_length += strlen(o->msg_buffer + o->msg_length);
+                AMBRO_ASSERT(o->msg_length < MaxMsgSize)
+            }
+        }
+        
+        template <typename... Args>
+        void println (Context c, char const *fmt, Args... args)
+        {
+            print(c, fmt, args...);
+            reply_poke(c);
+        }
+        
     private:
         void reply_poke (Context c)
         {
@@ -2222,7 +2242,7 @@ public:
         return get_command_in_state(c, COMMAND_LOCKED, true);
     }
     
-    static TheOutputStream * get_msg_output (Context c)
+    static MsgOutputStream * get_msg_output (Context c)
     {
         auto *ob = Object::self(c);
         return &ob->msg_output_stream;
