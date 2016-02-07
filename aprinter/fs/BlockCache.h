@@ -28,6 +28,7 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <string.h>
+#include <inttypes.h>
 
 #include <aprinter/meta/ChooseInt.h>
 #include <aprinter/meta/StructIf.h>
@@ -41,6 +42,14 @@
 #include <aprinter/structure/DoubleEndedList.h>
 
 #include <aprinter/BeginNamespace.h>
+
+#define APRINTER_DEBUG_BLOCKCACHE 0
+
+#if APRINTER_DEBUG_BLOCKCACHE
+#define APRINTER_BLOCKCACHE_MSG(...) Context::Printer::get_msg_output(c)->println(c, __VA_ARGS__)
+#else
+#define APRINTER_BLOCKCACHE_MSG(...)
+#endif
 
 template <typename Context, typename ParentObject, typename TTheBlockAccess, int TNumCacheEntries, bool TWritable>
 class BlockCache {
@@ -798,6 +807,7 @@ private:
                 memset(get_buffer(c), 0, BlockSize);
                 // No implicit markDirty.
             } else {
+                APRINTER_BLOCKCACHE_MSG("startRead %" PRIu32, (uint32_t)block);
                 m_state = State::READING;
                 m_block_user.startRead(c, m_block, get_buffer(c));
             }
@@ -849,6 +859,7 @@ private:
             this->m_write_index = 1;
             this->m_write_event.unset(c);
             
+            APRINTER_BLOCKCACHE_MSG("startWrite %" PRIu32 " 1/%d", (uint32_t)m_block, (int)this->m_write_count);
             m_block_user.startWrite(c, m_block, (DataWordType const *)get_buffer(c));
         }
         
@@ -944,6 +955,7 @@ private:
             AMBRO_ASSERT(!isBeingReleased(c) || !isReferenced(c))
             
             if (m_state == State::READING) {
+                APRINTER_BLOCKCACHE_MSG("readDone %" PRIu32, (uint32_t)m_block);
                 if (isBeingReleased(c)) {
                     m_state = State::INVALID;
                     return schedule_allocations_check(c);
@@ -995,8 +1007,11 @@ private:
             if (!error && this->m_write_index < this->m_write_count) {
                 BlockIndexType write_block = m_block + this->m_write_index * this->m_write_stride;
                 this->m_write_index++;
+                APRINTER_BLOCKCACHE_MSG("startWrite %" PRIu32 " %d/%d (%" PRIu32 ")", (uint32_t)m_block, (int)this->m_write_index, (int)this->m_write_count, (uint32_t)write_block);
                 return m_block_user.startWrite(c, write_block, (DataWordType const *)get_buffer(c));
             }
+            
+            APRINTER_BLOCKCACHE_MSG("writeDone %" PRIu32, (uint32_t)m_block);
             
             m_state = State::IDLE;
             this->m_last_write_failed = error;
