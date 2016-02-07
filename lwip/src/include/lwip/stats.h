@@ -201,9 +201,6 @@ struct stats_ {
 #if TCP_STATS
   struct stats_proto tcp;
 #endif
-#if MEM_STATS
-  struct stats_mem mem;
-#endif
 #if MEMP_STATS
   struct stats_mem memp[MEMP_MAX];
 #endif
@@ -311,20 +308,6 @@ void stats_init(void);
 #else
 #define LINK_STATS_INC(x)
 #define LINK_STATS_DISPLAY()
-#endif
-
-#if MEM_STATS
-#define MEM_STATS_AVAIL(x, y) lwip_stats.mem.x = y
-#define MEM_STATS_INC(x) STATS_INC(mem.x)
-#define MEM_STATS_INC_USED(x, y) STATS_INC_USED(mem, y)
-#define MEM_STATS_DEC_USED(x, y) lwip_stats.mem.x -= y
-#define MEM_STATS_DISPLAY() stats_display_mem(&lwip_stats.mem, "HEAP")
-#else
-#define MEM_STATS_AVAIL(x, y)
-#define MEM_STATS_INC(x)
-#define MEM_STATS_INC_USED(x, y)
-#define MEM_STATS_DEC_USED(x, y)
-#define MEM_STATS_DISPLAY()
 #endif
 
 #if MEMP_STATS

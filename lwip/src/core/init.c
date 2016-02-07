@@ -132,12 +132,6 @@
 #if (LWIP_TCP && ((LWIP_EVENT_API && LWIP_CALLBACK_API) || (!LWIP_EVENT_API && !LWIP_CALLBACK_API)))
   #error "One and exactly one of LWIP_EVENT_API and LWIP_CALLBACK_API has to be enabled in your lwipopts.h"
 #endif
-#if (MEM_LIBC_MALLOC && MEM_USE_POOLS)
-  #error "MEM_LIBC_MALLOC and MEM_USE_POOLS may not both be simultaneously enabled in your lwipopts.h"
-#endif
-#if (MEM_USE_POOLS && !MEMP_USE_CUSTOM_POOLS)
-  #error "MEM_USE_POOLS requires custom pools (MEMP_USE_CUSTOM_POOLS) to be enabled in your lwipopts.h"
-#endif
 #if (PBUF_POOL_BUFSIZE <= MEM_ALIGNMENT)
   #error "PBUF_POOL_BUFSIZE must be greater than MEM_ALIGNMENT or the offset may take the full first pbuf"
 #endif
@@ -190,7 +184,6 @@ lwip_init(void)
 {
   /* Modules initialization */
   stats_init();
-  mem_init();
   memp_init();
   pbuf_init();
   netif_init();

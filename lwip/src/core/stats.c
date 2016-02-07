@@ -62,9 +62,6 @@ void stats_init(void)
     lwip_stats.memp[i].name = memp_names[i];
   }
 #endif /* MEMP_STATS */
-#if MEM_STATS
-  lwip_stats.mem.name = "MEM";
-#endif /* MEM_STATS */
 #endif /* LWIP_DEBUG */
 }
 
@@ -109,7 +106,7 @@ stats_display_igmp(struct stats_igmp *igmp, const char *name)
 }
 #endif /* IGMP_STATS || MLD6_STATS */
 
-#if MEM_STATS || MEMP_STATS
+#if MEMP_STATS
 void
 stats_display_mem(struct stats_mem *mem, const char *name)
 {
@@ -120,7 +117,6 @@ stats_display_mem(struct stats_mem *mem, const char *name)
   LWIP_PLATFORM_DIAG(("err: %"U32_F"\n", (u32_t)mem->err));
 }
 
-#if MEMP_STATS
 void
 stats_display_memp(struct stats_mem *mem, int index)
 {
@@ -133,7 +129,6 @@ stats_display_memp(struct stats_mem *mem, int index)
   }
 }
 #endif /* MEMP_STATS */
-#endif /* MEM_STATS || MEMP_STATS */
 
 #if SYS_STATS
 void

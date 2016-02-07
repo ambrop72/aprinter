@@ -69,22 +69,16 @@ typedef enum {
 } pbuf_layer;
 
 typedef enum {
-  /** pbuf data is stored in RAM, used for TX mostly, struct pbuf and its payload
-      are allocated in one piece of contiguous memory (so the first payload byte
-      can be calculated from struct pbuf)
-      pbuf_alloc() allocates PBUF_RAM pbufs as unchained pbufs (although that might
-      change in future versions) */
-  PBUF_RAM,
   /** pbuf data is stored in ROM, i.e. struct pbuf and its payload are located in
       totally different memory areas. Since it points to ROM, payload does not
       have to be copied when queued for transmission. */
-  PBUF_ROM,
+  PBUF_ROM = 1,
   /** pbuf comes from the pbuf pool. Much like PBUF_ROM but payload might change
       so it has to be duplicated when queued before transmitting, depending on
       who has a 'ref' to it. */
   PBUF_REF,
   /** pbuf payload refers to RAM. This one comes from a pool and should be used
-      for RX. Payload can be chained (scatter-gather RX) but like PBUF_RAM, struct
+      for RX. Payload can be chained (scatter-gather RX) but struct
       pbuf and its payload are allocated in one piece of contiguous memory (so
       the first payload byte can be calculated from struct pbuf) */
   PBUF_POOL,
@@ -96,7 +90,7 @@ typedef enum {
 /** indicates this packet's data should be immediately passed to the application */
 #define PBUF_FLAG_PUSH      0x01U
 /** indicates this is a custom pbuf: pbuf_free calls pbuf_custom->custom_free_function()
-    when the last reference is released (plus custom PBUF_RAM cannot be trimmed) */
+    when the last reference is released */
 #define PBUF_FLAG_IS_CUSTOM 0x02U
 /** indicates this pbuf is UDP multicast to be looped back */
 #define PBUF_FLAG_MCASTLOOP 0x04U

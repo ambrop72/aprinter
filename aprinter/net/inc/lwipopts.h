@@ -147,14 +147,3 @@
 // been changed to allocate PBUF_POOL instead of PBUF_RAM pbufs in many places.
 #define PBUF_POOL_SIZE 1
 #define PBUF_POOL_BUFSIZE 384
-
-// Memory size for the general allocator.
-// Importantly, this is used for pbuf_alloc(..., PBUF_RAM). This includes:
-// - Outgoing and incoming UDP packets (e.g. used in DHCP).
-// - Outgoing TCP ACK and RST packets.
-// - Outgoing packets queued by ARP.
-// Note, we do not need space here for headers for outgoing TCP segments
-// (tcp_write(), tcp_enqueue_flags()). Our patched lwip uses a PBUF_TCP pool
-// for these. We don't need to specifically configure the size of this pool,
-// it will automatically be MEMP_NUM_TCP_SEG.
-#define MEM_SIZE (768)

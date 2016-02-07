@@ -90,14 +90,6 @@
    ---------- Memory options ----------
    ------------------------------------
 */
-/**
- * MEM_LIBC_MALLOC==1: Use malloc/free/realloc provided by your C-library
- * instead of the lwip internal allocator. Can save code size if you
- * already use it.
- */
-#ifndef MEM_LIBC_MALLOC
-#define MEM_LIBC_MALLOC                 0
-#endif
 
 /**
 * MEMP_MEM_MALLOC==1: Use mem_malloc/mem_free instead of the lwip pool allocator.
@@ -115,14 +107,6 @@
  */
 #ifndef MEM_ALIGNMENT
 #define MEM_ALIGNMENT                   1
-#endif
-
-/**
- * MEM_SIZE: the size of the heap memory. If the application will send
- * a lot of data that needs to be copied, this should be set high.
- */
-#ifndef MEM_SIZE
-#define MEM_SIZE                        1600
 #endif
 
 /**
@@ -156,24 +140,6 @@
 #endif
 
 /**
- * MEM_USE_POOLS==1: Use an alternative to malloc() by allocating from a set
- * of memory pools of various sizes. When mem_malloc is called, an element of
- * the smallest pool that can provide the length needed is returned.
- * To use this, MEMP_USE_CUSTOM_POOLS also has to be enabled.
- */
-#ifndef MEM_USE_POOLS
-#define MEM_USE_POOLS                   0
-#endif
-
-/**
- * MEM_USE_POOLS_TRY_BIGGER_POOL==1: if one malloc-pool is empty, try the next
- * bigger pool - WARNING: THIS MIGHT WASTE MEMORY but it can make a system more
- * reliable. */
-#ifndef MEM_USE_POOLS_TRY_BIGGER_POOL
-#define MEM_USE_POOLS_TRY_BIGGER_POOL   0
-#endif
-
-/**
  * MEMP_USE_CUSTOM_POOLS==1: whether to include a user file lwippools.h
  * that defines additional pools beyond the "standard" ones required
  * by lwIP. If you set this to 1, you must have lwippools.h in your 
@@ -181,28 +147,6 @@
  */
 #ifndef MEMP_USE_CUSTOM_POOLS
 #define MEMP_USE_CUSTOM_POOLS           0
-#endif
-
-/**
- * Set this to 1 if you want to free PBUF_RAM pbufs (or call mem_free()) from
- * interrupt context (or another context that doesn't allow waiting for a
- * semaphore).
- * If set to 1, mem_malloc will be protected by a semaphore and SYS_ARCH_PROTECT,
- * while mem_free will only use SYS_ARCH_PROTECT. mem_malloc SYS_ARCH_UNPROTECTs
- * with each loop so that mem_free can run.
- *
- * ATTENTION: As you can see from the above description, this leads to dis-/
- * enabling interrupts often, which can be slow! Also, on low memory, mem_malloc
- * can need longer.
- *
- * If you don't want that, at least for NO_SYS=0, you can still use the following
- * functions to enqueue a deallocation call which then runs in the tcpip_thread
- * context:
- * - pbuf_free_callback(p);
- * - mem_free_callback(m);
- */
-#ifndef LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT
-#define LWIP_ALLOW_MEM_FREE_FROM_OTHER_CONTEXT 0
 #endif
 
 /*
@@ -1155,13 +1099,6 @@
 #endif
 
 /**
- * MEM_STATS==1: Enable mem.c stats.
- */
-#ifndef MEM_STATS
-#define MEM_STATS                       ((MEM_LIBC_MALLOC == 0) && (MEM_USE_POOLS == 0))
-#endif
-
-/**
  * MEMP_STATS==1: Enable memp.c pool stats.
  */
 #ifndef MEMP_STATS
@@ -1213,7 +1150,6 @@
 #define IGMP_STATS                      0
 #define UDP_STATS                       0
 #define TCP_STATS                       0
-#define MEM_STATS                       0
 #define MEMP_STATS                      0
 #define SYS_STATS                       0
 #define LWIP_STATS_DISPLAY              0
@@ -1700,13 +1636,6 @@
  */
 #ifndef RAW_DEBUG
 #define RAW_DEBUG                       LWIP_DBG_OFF
-#endif
-
-/**
- * MEM_DEBUG: Enable debugging in mem.c.
- */
-#ifndef MEM_DEBUG
-#define MEM_DEBUG                       LWIP_DBG_OFF
 #endif
 
 /**

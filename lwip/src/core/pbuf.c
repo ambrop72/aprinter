@@ -92,8 +92,6 @@
  * @param type this parameter decides how and where the pbuf
  * should be allocated as follows:
  *
- * - PBUF_RAM: buffer memory for pbuf is allocated as one large
- *             chunk. This includes protocol headers as well.
  * - PBUF_ROM: no buffer memory is allocated for the pbuf, even for
  *             protocol headers. Additional headers must be prepended
  *             by allocating another pbuf and chain in to the front of
@@ -230,21 +228,6 @@ pbuf_alloc(pbuf_layer layer, u16_t length, pbuf_type type)
     LWIP_ASSERT("pbuf_alloc: pbuf->payload properly aligned",
            ((mem_ptr_t)p->payload % MEM_ALIGNMENT) == 0);
     break;
-  case PBUF_RAM:
-    /* If pbuf is to be allocated in RAM, allocate memory for it. */
-    p = (struct pbuf*)mem_malloc(LWIP_MEM_ALIGN_SIZE(SIZEOF_STRUCT_PBUF + offset) + LWIP_MEM_ALIGN_SIZE(length));
-    if (p == NULL) {
-      return NULL;
-    }
-    /* Set up internal structure of the pbuf. */
-    p->payload = LWIP_MEM_ALIGN((void *)((u8_t *)p + SIZEOF_STRUCT_PBUF + offset));
-    p->len = p->tot_len = length;
-    p->next = NULL;
-    p->type = type;
-
-    LWIP_ASSERT("pbuf_alloc: pbuf->payload properly aligned",
-           ((mem_ptr_t)p->payload % MEM_ALIGNMENT) == 0);
-    break;
   /* pbuf references existing (non-volatile static constant) ROM payload? */
   case PBUF_ROM:
   /* pbuf references existing (externally allocated) RAM payload? */
@@ -378,7 +361,6 @@ pbuf_realloc(struct pbuf *p, u16_t new_len)
   LWIP_ASSERT("pbuf_realloc: p != NULL", p != NULL);
   LWIP_ASSERT("pbuf_realloc: sane p->type", p->type == PBUF_POOL ||
               p->type == PBUF_ROM ||
-              p->type == PBUF_RAM ||
               p->type == PBUF_REF);
 
   /* desired length larger than current length? */
@@ -408,17 +390,6 @@ pbuf_realloc(struct pbuf *p, u16_t new_len)
   /* we have now reached the new last pbuf (in q) */
   /* rem_len == desired length for pbuf q */
 
-  /* shrink allocated memory for PBUF_RAM */
-  /* (other types merely adjust their length fields */
-  if ((q->type == PBUF_RAM) && (rem_len != q->len)
-#if LWIP_SUPPORT_CUSTOM_PBUF
-      && ((q->flags & PBUF_FLAG_IS_CUSTOM) == 0)
-#endif /* LWIP_SUPPORT_CUSTOM_PBUF */
-     ) {
-    /* reallocate and adjust the length of the pbuf that will be split */
-    q = (struct pbuf *)mem_trim(q, (u16_t)((u8_t *)q->payload - (u8_t *)q) + rem_len);
-    LWIP_ASSERT("mem_trim returned q == NULL", q != NULL);
-  }
   /* adjust length fields for new last pbuf */
   q->len = rem_len;
   q->tot_len = q->len;
@@ -466,8 +437,8 @@ pbuf_header_impl(struct pbuf *p, s16_t header_size_increment, u8_t force)
     /* Can't assert these as some callers speculatively call
          pbuf_header() to see if it's OK.  Will return 1 below instead. */
     /* Check that we've got the correct type of pbuf to work with */
-    LWIP_ASSERT("p->type == PBUF_RAM || p->type == PBUF_POOL || p->type == PBUF_TCP",
-                p->type == PBUF_RAM || p->type == PBUF_POOL || p->type == PBUF_TCP);
+    LWIP_ASSERT("p->type == PBUF_POOL || p->type == PBUF_TCP",
+                p->type == PBUF_POOL || p->type == PBUF_TCP);
     /* Check that we aren't going to move off the beginning of the pbuf */
     LWIP_ASSERT("p->payload - increment_magnitude >= p + SIZEOF_STRUCT_PBUF",
                 (u8_t *)p->payload - increment_magnitude >= (u8_t *)p + SIZEOF_STRUCT_PBUF);
@@ -479,7 +450,7 @@ pbuf_header_impl(struct pbuf *p, s16_t header_size_increment, u8_t force)
   payload = p->payload;
 
   /* pbuf types containing payloads? */
-  if (type == PBUF_RAM || type == PBUF_POOL || type == PBUF_TCP) {
+  if (type == PBUF_POOL || type == PBUF_TCP) {
     /* set new payload pointer */
     p->payload = (u8_t *)p->payload - header_size_increment;
     /* boundary check fails? */
@@ -608,7 +579,7 @@ pbuf_free(struct pbuf *p)
   PERF_START;
 
   LWIP_ASSERT("pbuf_free: sane type",
-    p->type == PBUF_RAM || p->type == PBUF_ROM ||
+    p->type == PBUF_ROM ||
     p->type == PBUF_REF || p->type == PBUF_POOL || p->type == PBUF_TCP);
 
   count = 0;
@@ -649,9 +620,8 @@ pbuf_free(struct pbuf *p)
           memp_free(MEMP_PBUF, p);
         } else if (type == PBUF_TCP) {
           memp_free(MEMP_PBUF_TCP, p);
-        /* type == PBUF_RAM */
         } else {
-          mem_free(p);
+          LWIP_ASSERT("pbuf_free: bad type", 0);
         }
       }
       count++;
@@ -770,7 +740,7 @@ pbuf_chain(struct pbuf *h, struct pbuf *t)
 
 /**
  *
- * Create PBUF_RAM copies of pbufs.
+ * Create copies of pbufs.
  *
  * Used to queue packets on behalf of the lwIP stack, such as
  * ARP based queueing.

@@ -1255,7 +1255,6 @@ def setup_network(gen, config, key):
         gen.add_extra_source('lwip/src/core/dhcp.c')
         gen.add_extra_source('lwip/src/core/inet_chksum.c')
         gen.add_extra_source('lwip/src/core/init.c')
-        gen.add_extra_source('lwip/src/core/mem.c')
         gen.add_extra_source('lwip/src/core/memp.c')
         gen.add_extra_source('lwip/src/core/netif.c')
         gen.add_extra_source('lwip/src/core/pbuf.c')
