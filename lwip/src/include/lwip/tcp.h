@@ -355,7 +355,6 @@ err_t            tcp_close   (struct tcp_pcb *pcb);
 err_t            tcp_shutdown(struct tcp_pcb *pcb, int shut_rx, int shut_tx);
 
 /* Flags for "apiflags" parameter in tcp_write */
-#define TCP_WRITE_FLAG_COPY 0x01
 #define TCP_WRITE_FLAG_MORE 0x02
 #define TCP_WRITE_FLAG_PARTIAL 0x04
 

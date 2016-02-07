@@ -296,7 +296,6 @@ tcp_write(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags)
  * @param arg Pointer to the data to be enqueued for sending.
  * @param len Data length in bytes
  * @param apiflags combination of following flags :
- * - TCP_WRITE_FLAG_COPY (0x01) data will be copied into memory belonging to the stack
  * - TCP_WRITE_FLAG_MORE (0x02) for TCP connection, PSH flag will not be set on last segment sent,
  * - TCP_WRITE_FLAG_PARTIAL (0x04) allow writing less data than requested in case there are no
  *                                 segments available
@@ -400,46 +399,30 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
       /* Create a pbuf with a copy or reference to seglen bytes. We
        * can use PBUF_RAW here since the data appears in the middle of
        * a segment. A header will never be prepended. */
-      if (apiflags & TCP_WRITE_FLAG_COPY) {
-        /* Data is copied */
-        if ((concat_p = pbuf_alloc(PBUF_RAW, seglen, PBUF_RAM)) == NULL) {
+#if TCP_EXTEND_ROM_PBUFS
+      /* If possible extend an existing PBUF_ROM pbuf. */
+      struct pbuf *last_p = pbuf_last(last_unsent->p);
+      if (pos == 0 && last_p->type == PBUF_ROM && (const u8_t*)last_p->payload + last_p->len == (const u8_t*)arg) {
+        extendlen = seglen;
+      } else {
+#endif
+        if ((concat_p = pbuf_alloc(PBUF_RAW, seglen, PBUF_ROM)) == NULL) {
           LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2,
-                      ("tcp_write : could not allocate memory for pbuf copy size %"U16_F"\n",
-                       seglen));
+                      ("tcp_write: could not allocate memory for zero-copy pbuf\n"));
           goto memerr;
         }
-        TCP_DATA_COPY2(concat_p->payload, (const u8_t*)arg + pos, seglen, &concat_chksum, &concat_chksum_swapped);
-#if TCP_CHECKSUM_ON_COPY
-        concat_chksummed += seglen;
-#endif /* TCP_CHECKSUM_ON_COPY */
+        /* reference the non-volatile payload data */
+        ((struct pbuf_rom*)concat_p)->payload = (const u8_t*)arg + pos;
         queuelen += pbuf_clen(concat_p);
-      } else {
-        /* Data is not copied */
 #if TCP_EXTEND_ROM_PBUFS
-        /* If possible extend an existing PBUF_ROM pbuf. */
-        struct pbuf *last_p = pbuf_last(last_unsent->p);
-        if (pos == 0 && last_p->type == PBUF_ROM && (const u8_t*)last_p->payload + last_p->len == (const u8_t*)arg) {
-          extendlen = seglen;
-        } else {
-#endif
-          if ((concat_p = pbuf_alloc(PBUF_RAW, seglen, PBUF_ROM)) == NULL) {
-            LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2,
-                        ("tcp_write: could not allocate memory for zero-copy pbuf\n"));
-            goto memerr;
-          }
-          /* reference the non-volatile payload data */
-          ((struct pbuf_rom*)concat_p)->payload = (const u8_t*)arg + pos;
-          queuelen += pbuf_clen(concat_p);
-#if TCP_EXTEND_ROM_PBUFS
-        }
+      }
 #endif
 #if TCP_CHECKSUM_ON_COPY
-        /* calculate the checksum of nocopy-data */
-        tcp_seg_add_chksum(~inet_chksum((const u8_t*)arg + pos, seglen), seglen,
-          &concat_chksum, &concat_chksum_swapped);
-        concat_chksummed += seglen;
+      /* calculate the checksum of nocopy-data */
+      tcp_seg_add_chksum(~inet_chksum((const u8_t*)arg + pos, seglen), seglen,
+        &concat_chksum, &concat_chksum_swapped);
+      concat_chksummed += seglen;
 #endif /* TCP_CHECKSUM_ON_COPY */
-      }
 
       pos += seglen;
     }
@@ -464,56 +447,43 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
     /* If partial writes are allowed and we won't be able to allocate another segment,
      * stop gracefully. */
     if (apiflags & TCP_WRITE_FLAG_PARTIAL) {
-      u8_t num_seg_pbufs = (apiflags & TCP_WRITE_FLAG_COPY) ? 1 : 2;
-      u16_t new_queuelen = queuelen + num_seg_pbufs;
+      u16_t new_queuelen = queuelen + 2;
       if ((new_queuelen > TCP_SND_QUEUELEN) || (new_queuelen > TCP_SNDQUEUELEN_OVERFLOW)) {
         break;
       }
     }
     
-    if (apiflags & TCP_WRITE_FLAG_COPY) {
-      /* If copy is set, memory should be allocated and data copied
-       * into pbuf */
-      if ((p = pbuf_alloc(PBUF_TRANSPORT, seglen + optlen, PBUF_RAM)) == NULL) {
-        LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2, ("tcp_write : could not allocate memory for pbuf copy size %"U16_F"\n", seglen));
-        goto memerr;
-      }
-      LWIP_ASSERT("tcp_write: check that first pbuf can hold the complete seglen",
-                  (p->len >= seglen));
-      TCP_DATA_COPY2((char *)p->payload + optlen, (const u8_t*)arg + pos, seglen, &chksum, &chksum_swapped);
-    } else {
-      /* Copy is not set: First allocate a pbuf for holding the data.
-       * Since the referenced data is available at least until it is
-       * sent out on the link (as it has to be ACKed by the remote
-       * party) we can safely use PBUF_ROM instead of PBUF_REF here.
-       */
-      struct pbuf *p2;
-      if ((p2 = pbuf_alloc(PBUF_TRANSPORT, seglen, PBUF_ROM)) == NULL) {
-        LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2, ("tcp_write: could not allocate memory for zero-copy pbuf\n"));
-        goto memerr;
-      }
-#if TCP_CHECKSUM_ON_COPY
-      /* calculate the checksum of nocopy-data */
-      chksum = ~inet_chksum((const u8_t*)arg + pos, seglen);
-      if (seglen & 1) {
-        chksum_swapped = 1;
-        chksum = SWAP_BYTES_IN_WORD(chksum);
-      }
-#endif /* TCP_CHECKSUM_ON_COPY */
-      /* reference the non-volatile payload data */
-      ((struct pbuf_rom*)p2)->payload = (const u8_t*)arg + pos;
-
-      /* Second, allocate a pbuf for the headers. */
-      if ((p = pbuf_alloc(PBUF_TRANSPORT, optlen, PBUF_TCP)) == NULL) {
-        /* If allocation fails, we have to deallocate the data pbuf as
-         * well. */
-        pbuf_free(p2);
-        LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2, ("tcp_write: could not allocate memory for header pbuf\n"));
-        goto memerr;
-      }
-      /* Concatenate the headers and data pbufs together. */
-      pbuf_cat(p/*header*/, p2/*data*/);
+    /* Copy is not set: First allocate a pbuf for holding the data.
+      * Since the referenced data is available at least until it is
+      * sent out on the link (as it has to be ACKed by the remote
+      * party) we can safely use PBUF_ROM instead of PBUF_REF here.
+      */
+    struct pbuf *p2;
+    if ((p2 = pbuf_alloc(PBUF_TRANSPORT, seglen, PBUF_ROM)) == NULL) {
+      LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2, ("tcp_write: could not allocate memory for zero-copy pbuf\n"));
+      goto memerr;
     }
+#if TCP_CHECKSUM_ON_COPY
+    /* calculate the checksum of nocopy-data */
+    chksum = ~inet_chksum((const u8_t*)arg + pos, seglen);
+    if (seglen & 1) {
+      chksum_swapped = 1;
+      chksum = SWAP_BYTES_IN_WORD(chksum);
+    }
+#endif /* TCP_CHECKSUM_ON_COPY */
+    /* reference the non-volatile payload data */
+    ((struct pbuf_rom*)p2)->payload = (const u8_t*)arg + pos;
+
+    /* Second, allocate a pbuf for the headers. */
+    if ((p = pbuf_alloc(PBUF_TRANSPORT, optlen, PBUF_TCP)) == NULL) {
+      /* If allocation fails, we have to deallocate the data pbuf as
+        * well. */
+      pbuf_free(p2);
+      LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2, ("tcp_write: could not allocate memory for header pbuf\n"));
+      goto memerr;
+    }
+    /* Concatenate the headers and data pbufs together. */
+    pbuf_cat(p/*header*/, p2/*data*/);
 
     queuelen += pbuf_clen(p);
 
