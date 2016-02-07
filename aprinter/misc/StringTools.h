@@ -27,8 +27,11 @@
 
 #include <stddef.h>
 #include <string.h>
+#include <stdint.h>
 
 #include <aprinter/base/MemRef.h>
+#include <aprinter/base/Likely.h>
+#include <aprinter/base/Inline.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -140,6 +143,59 @@ void StringIterHttpTokens (MemRef data, TokenCallback token_cb)
         
         data = data.subFrom(token_len);
     }
+}
+
+namespace StringToolsPrivate {
+    AMBRO_ALWAYS_INLINE
+    static bool DecodeHexDigit (char c, int *out)
+    {
+        if (c >= '0' && c <= '9') {
+            *out = c - '0';
+        }
+        else if (c >= 'A' && c <= 'F') {
+            *out = 10 + (c - 'A');
+        }
+        else if (c >= 'a' && c <= 'f') {
+            *out = 10 + (c - 'a');
+        }
+        else {
+            return false;
+        }
+        return true;
+    }
+}
+
+static bool StringParseHexadecimal (MemRef data, uint64_t *out)
+{
+    while (data.len > 0 && *data.ptr == '0') {
+        data.ptr++;
+        data.len--;
+    }
+    
+#define APRINTER_PARSE_HEX_CODE(Type) \
+        Type res = 0; \
+        while (data.len > 0) { \
+            char ch = *data.ptr++; \
+            data.len--; \
+            int digit; \
+            if (!StringToolsPrivate::DecodeHexDigit(ch, &digit)) { \
+                return false; \
+            } \
+            res = (res << 4) | digit; \
+        } \
+        *out = res;
+    
+    if (AMBRO_LIKELY(data.len <= 8)) {
+        APRINTER_PARSE_HEX_CODE(uint32_t)
+    }
+    else if (data.len <= 16) {
+        APRINTER_PARSE_HEX_CODE(uint64_t)
+    }
+    else {
+        return false;
+    }
+    
+    return true;
 }
 
 #include <aprinter/EndNamespace.h>

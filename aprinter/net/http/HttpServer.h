@@ -641,15 +641,19 @@ private:
             size_t pos = 0;
             bool end_of_line = false;
             
+            char *data = m_rx_buf + m_rx_buf_start;
             while (pos < m_rx_buf_length) {
-                char ch = m_rx_buf[buf_add(m_rx_buf_start, pos)];
+                char ch = *data++;
                 pos++;
                 
-                if (m_line_length >= line_buf_size) {
+                if (AMBRO_UNLIKELY(data == m_rx_buf + RxBufferSize)) {
+                    data = m_rx_buf;
+                }
+                
+                if (AMBRO_UNLIKELY(m_line_length >= line_buf_size)) {
                     m_line_overflow = true;
                 } else {
-                    line_buf[m_line_length] = ch;
-                    m_line_length++;
+                    line_buf[m_line_length++] = ch;
                 }
                 
                 if (ch == '\n') {
@@ -763,9 +767,8 @@ private:
                             }
                             
                             // Parse the chunk length.
-                            char *endptr;
-                            unsigned long long int value = strtoull(m_header_line, &endptr, 16);
-                            if (endptr == m_header_line || (*endptr != '\0' && *endptr != ';')) {
+                            uint64_t value;
+                            if (!StringParseHexadecimal(MemRef(m_header_line, length), &value)) {
                                 TheMain::print_pgm_string(c, AMBRO_PSTR("//HttpClientBadChunkLine\n"));
                                 return close_gracefully(c, HttpStatusCodes::BadRequest());
                             }
