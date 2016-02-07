@@ -600,8 +600,7 @@ dhcp_handle_ack(struct netif *netif)
 #endif /* LWIP_DNS */
 }
 
-/** Set a statically allocated struct dhcp to work with.
- * Using this prevents dhcp_start to allocate it using mem_malloc.
+/** Set a statically allocated struct dhcp to work with (required).
  *
  * @param netif the netif for which to set the struct dhcp
  * @param dhcp (uninitialised) dhcp struct allocated by the application
@@ -617,23 +616,6 @@ dhcp_set_struct(struct netif *netif, struct dhcp *dhcp)
   memset(dhcp, 0, sizeof(struct dhcp));
   /* dhcp_set_state(&dhcp, DHCP_STATE_OFF); */
   netif->dhcp = dhcp;
-}
-
-/** Removes a struct dhcp from a netif.
- *
- * ATTENTION: Only use this when not using dhcp_set_struct() to allocate the
- *            struct dhcp since the memory is passed back to the heap.
- *
- * @param netif the netif from which to remove the struct dhcp
- */
-void dhcp_cleanup(struct netif *netif)
-{
-  LWIP_ASSERT("netif != NULL", netif != NULL);
-
-  if (netif->dhcp != NULL) {
-    mem_free(netif->dhcp);
-    netif->dhcp = NULL;
-  }
 }
 
 /**
@@ -654,8 +636,10 @@ dhcp_start(struct netif *netif)
   struct dhcp *dhcp;
   err_t result;
 
-  LWIP_ERROR("netif != NULL", (netif != NULL), return ERR_ARG;);
-  LWIP_ERROR("netif is not up, old style port?", netif_is_up(netif), return ERR_ARG;);
+  LWIP_ASSERT("netif != NULL", netif != NULL);
+  LWIP_ASSERT("netif is not up, old style port?", netif_is_up(netif));
+  LWIP_ASSERT("netif->dhcp != NULL", netif->dhcp != NULL);
+  
   dhcp = netif->dhcp;
   LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_start(netif=%p) %c%c%"U16_F"\n", (void*)netif, netif->name[0], netif->name[1], (u16_t)netif->num));
 
@@ -671,26 +655,11 @@ dhcp_start(struct netif *netif)
     return ERR_MEM;
   }
 
-  /* no DHCP client attached yet? */
-  if (dhcp == NULL) {
-    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_start(): starting new DHCP client\n"));
-    dhcp = (struct dhcp *)mem_malloc(sizeof(struct dhcp));
-    if (dhcp == NULL) {
-      LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_start(): could not allocate dhcp\n"));
-      return ERR_MEM;
-    }
-    /* store this dhcp client in the netif */
-    netif->dhcp = dhcp;
-    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_start(): allocated dhcp"));
-  /* already has DHCP client attached */
-  } else {
-    LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_start(): restarting DHCP configuration\n"));
-    if (dhcp->pcb != NULL) {
-      udp_remove(dhcp->pcb);
-    }
-    LWIP_ASSERT("pbuf p_out wasn't freed", dhcp->p_out == NULL);
-    LWIP_ASSERT("reply wasn't freed", dhcp->msg_in == NULL );
+  if (dhcp->pcb != NULL) {
+    udp_remove(dhcp->pcb);
   }
+  LWIP_ASSERT("pbuf p_out wasn't freed", dhcp->p_out == NULL);
+  LWIP_ASSERT("reply wasn't freed", dhcp->msg_in == NULL );
 
   /* clear data structure */
   memset(dhcp, 0, sizeof(struct dhcp));
