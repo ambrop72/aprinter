@@ -761,45 +761,6 @@ pbuf_chain(struct pbuf *h, struct pbuf *t)
 }
 
 /**
- * Dechains the first pbuf from its succeeding pbufs in the chain.
- *
- * Makes p->tot_len field equal to p->len.
- * @param p pbuf to dechain
- * @return remainder of the pbuf chain, or NULL if it was de-allocated.
- * @note May not be called on a packet queue.
- */
-struct pbuf *
-pbuf_dechain(struct pbuf *p)
-{
-  struct pbuf *q;
-  u8_t tail_gone = 1;
-  /* tail */
-  q = p->next;
-  /* pbuf has successor in chain? */
-  if (q != NULL) {
-    /* assert tot_len invariant: (p->tot_len == p->len + (p->next? p->next->tot_len: 0) */
-    LWIP_ASSERT("p->tot_len == p->len + q->tot_len", q->tot_len == p->tot_len - p->len);
-    /* enforce invariant if assertion is disabled */
-    q->tot_len = p->tot_len - p->len;
-    /* decouple pbuf from remainder */
-    p->next = NULL;
-    /* total length of pbuf p is its own length only */
-    p->tot_len = p->len;
-    /* q is no longer referenced by p, free it */
-    LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE, ("pbuf_dechain: unreferencing %p\n", (void *)q));
-    tail_gone = pbuf_free(q);
-    if (tail_gone > 0) {
-      LWIP_DEBUGF(PBUF_DEBUG | LWIP_DBG_TRACE,
-                  ("pbuf_dechain: deallocated %p (as it is no longer referenced)\n", (void *)q));
-    }
-    /* return remaining tail or NULL if deallocated */
-  }
-  /* assert tot_len invariant: (p->tot_len == p->len + (p->next? p->next->tot_len: 0) */
-  LWIP_ASSERT("p->tot_len == p->len", p->tot_len == p->len);
-  return ((tail_gone > 0) ? NULL : q);
-}
-
-/**
  *
  * Create PBUF_RAM copies of pbufs.
  *
@@ -1021,37 +982,6 @@ pbuf_take_at(struct pbuf *buf, const void *dataptr, u16_t len, u16_t offset)
   return ERR_MEM;
 }
 
-/**
- * Creates a single pbuf out of a queue of pbufs.
- *
- * @remark: Either the source pbuf 'p' is freed by this function or the original
- *          pbuf 'p' is returned, therefore the caller has to check the result!
- *
- * @param p the source pbuf
- * @param layer pbuf_layer of the new pbuf
- *
- * @return a new, single pbuf (p->next is NULL)
- *         or the old pbuf if allocation fails
- */
-struct pbuf*
-pbuf_coalesce(struct pbuf *p, pbuf_layer layer)
-{
-  struct pbuf *q;
-  err_t err;
-  if (p->next == NULL) {
-    return p;
-  }
-  q = pbuf_alloc(layer, p->tot_len, PBUF_RAM);
-  if (q == NULL) {
-    /* @todo: what do we do now? */
-    return p;
-  }
-  err = pbuf_copy(q, p);
-  LWIP_ASSERT("pbuf_copy failed", err == ERR_OK);
-  pbuf_free(p);
-  return q;
-}
-
 #if LWIP_CHECKSUM_ON_COPY
 /**
  * Copies data into a single pbuf (*not* into a pbuf queue!) and updates
@@ -1130,91 +1060,6 @@ pbuf_put_at(struct pbuf* p, u16_t offset, u8_t data)
   if ((q != NULL) && (q->len > q_idx)) {
     ((u8_t*)q->payload)[q_idx] = data;
   }
-}
-
-/** Compare pbuf contents at specified offset with memory s2, both of length n
- *
- * @param p pbuf to compare
- * @param offset offset into p at which to start comparing
- * @param s2 buffer to compare
- * @param n length of buffer to compare
- * @return zero if equal, nonzero otherwise
- *         (0xffff if p is too short, diffoffset+1 otherwise)
- */
-u16_t
-pbuf_memcmp(struct pbuf* p, u16_t offset, const void* s2, u16_t n)
-{
-  u16_t start = offset;
-  struct pbuf* q = p;
-
-  /* get the correct pbuf */
-  while ((q != NULL) && (q->len <= start)) {
-    start -= q->len;
-    q = q->next;
-  }
-  /* return requested data if pbuf is OK */
-  if ((q != NULL) && (q->len > start)) {
-    u16_t i;
-    for(i = 0; i < n; i++) {
-      u8_t a = pbuf_get_at(q, start + i);
-      u8_t b = ((const u8_t*)s2)[i];
-      if (a != b) {
-        return i+1;
-      }
-    }
-    return 0;
-  }
-  return 0xffff;
-}
-
-/** Find occurrence of mem (with length mem_len) in pbuf p, starting at offset
- * start_offset.
- *
- * @param p pbuf to search, maximum length is 0xFFFE since 0xFFFF is used as
- *        return value 'not found'
- * @param mem search for the contents of this buffer
- * @param mem_len length of 'mem'
- * @param start_offset offset into p at which to start searching
- * @return 0xFFFF if substr was not found in p or the index where it was found
- */
-u16_t
-pbuf_memfind(struct pbuf* p, const void* mem, u16_t mem_len, u16_t start_offset)
-{
-  u16_t i;
-  u16_t max = p->tot_len - mem_len;
-  if (p->tot_len >= mem_len + start_offset) {
-    for(i = start_offset; i <= max; i++) {
-      u16_t plus = pbuf_memcmp(p, i, mem, mem_len);
-      if (plus == 0) {
-        return i;
-      }
-    }
-  }
-  return 0xFFFF;
-}
-
-/** Find occurrence of substr with length substr_len in pbuf p, start at offset
- * start_offset
- * WARNING: in contrast to strstr(), this one does not stop at the first \0 in
- * the pbuf/source string!
- *
- * @param p pbuf to search, maximum length is 0xFFFE since 0xFFFF is used as
- *        return value 'not found'
- * @param substr string to search for in p, maximum length is 0xFFFE
- * @return 0xFFFF if substr was not found in p or the index where it was found
- */
-u16_t
-pbuf_strstr(struct pbuf* p, const char* substr)
-{
-  size_t substr_len;
-  if ((substr == NULL) || (substr[0] == 0) || (p->tot_len == 0xFFFF)) {
-    return 0xFFFF;
-  }
-  substr_len = strlen(substr);
-  if (substr_len >= 0xFFFF) {
-    return 0xFFFF;
-  }
-  return pbuf_memfind(p, substr, (u16_t)substr_len, 0);
 }
 
 /**
