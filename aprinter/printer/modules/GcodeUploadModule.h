@@ -36,7 +36,7 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/math/PrintInt.h>
-#include <aprinter/printer/BufferedFile.h>
+#include <aprinter/fs/BufferedFile.h>
 
 #include <aprinter/BeginNamespace.h>
 

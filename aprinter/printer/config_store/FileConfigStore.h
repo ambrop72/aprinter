@@ -33,7 +33,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/printer/BufferedFile.h>
+#include <aprinter/fs/BufferedFile.h>
 
 #include <aprinter/BeginNamespace.h>
 

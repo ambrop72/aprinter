@@ -35,7 +35,7 @@
 #include <aprinter/base/ProgramMemory.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/net/http/HttpServer.h>
-#include <aprinter/printer/BufferedFile.h>
+#include <aprinter/fs/BufferedFile.h>
 
 #define APRINTER_ENABLE_HTTP_TEST 1
 
