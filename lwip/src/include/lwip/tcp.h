@@ -242,11 +242,6 @@ struct tcp_pcb {
 #define TCP_SNDQUEUELEN_OVERFLOW (0xffffU-3)
   u16_t snd_queuelen; /* Available buffer space for sending (in pbufs). */
 
-#if TCP_OVERSIZE
-  /* Extra bytes available at the end of the last pbuf in unsent. */
-  u16_t unsent_oversize;
-#endif /* TCP_OVERSIZE */
-
   /* These are ordered by sequence number: */
   struct tcp_seg *unsent;   /* Unsent (queued) segments. */
   struct tcp_seg *unacked;  /* Sent but unacknowledged segments. */

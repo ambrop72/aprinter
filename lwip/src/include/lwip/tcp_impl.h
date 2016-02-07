@@ -267,13 +267,6 @@ PACK_STRUCT_END
 
 #endif /* LWIP_EVENT_API */
 
-/** Enabled extra-check for TCP_OVERSIZE if LWIP_DEBUG is enabled */
-#if TCP_OVERSIZE && defined(LWIP_DEBUG)
-#define TCP_OVERSIZE_DBGCHECK 1
-#else
-#define TCP_OVERSIZE_DBGCHECK 0
-#endif
-
 /** Don't generate checksum on copy if CHECKSUM_GEN_TCP is disabled */
 #define TCP_CHECKSUM_ON_COPY  (LWIP_CHECKSUM_ON_COPY && CHECKSUM_GEN_TCP)
 
@@ -282,11 +275,6 @@ struct tcp_seg {
   struct tcp_seg *next;    /* used when putting segments on a queue */
   struct pbuf *p;          /* buffer containing data + TCP header */
   u16_t len;               /* the TCP length of this segment */
-#if TCP_OVERSIZE_DBGCHECK
-  u16_t oversize_left;     /* Extra bytes available at the end of the last
-                              pbuf in unsent (used for asserting vs.
-                              tcp_pcb.unsent_oversized only) */
-#endif /* TCP_OVERSIZE_DBGCHECK */ 
 #if TCP_CHECKSUM_ON_COPY
   u16_t chksum;
   u8_t  chksum_swapped;

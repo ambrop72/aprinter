@@ -85,13 +85,6 @@
 #endif
 #endif
 
-#if TCP_OVERSIZE
-/** The size of segment pbufs created when TCP_OVERSIZE is enabled */
-#ifndef TCP_OVERSIZE_CALC_LENGTH
-#define TCP_OVERSIZE_CALC_LENGTH(length) ((length) + TCP_OVERSIZE)
-#endif
-#endif
-
 /* Forward declarations.*/
 static err_t tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb);
 
@@ -186,9 +179,6 @@ tcp_create_segment(struct tcp_pcb *pcb, struct pbuf *p, u8_t flags, u32_t seqno,
   seg->p = p;
   LWIP_ASSERT("p->tot_len >= optlen", p->tot_len >= optlen);
   seg->len = p->tot_len - optlen;
-#if TCP_OVERSIZE_DBGCHECK
-  seg->oversize_left = 0;
-#endif /* TCP_OVERSIZE_DBGCHECK */
 #if TCP_CHECKSUM_ON_COPY
   seg->chksum = 0;
   seg->chksum_swapped = 0;
@@ -214,64 +204,6 @@ tcp_create_segment(struct tcp_pcb *pcb, struct pbuf *p, u8_t flags, u32_t seqno,
   seg->tcphdr->urgp = 0;
   return seg;
 } 
-
-/**
- * Allocate a PBUF_RAM pbuf, perhaps with extra space at the end.
- *
- * This function is like pbuf_alloc(layer, length, PBUF_RAM) except
- * there may be extra bytes available at the end.
- *
- * @param layer flag to define header size.
- * @param length size of the pbuf's payload.
- * @param max_length maximum usable size of payload+oversize.
- * @param oversize pointer to a u16_t that will receive the number of usable tail bytes.
- * @param pcb The TCP connection that willo enqueue the pbuf.
- * @param apiflags API flags given to tcp_write.
- * @param first_seg true when this pbuf will be used in the first enqueued segment.
- * @param 
- */
-#if TCP_OVERSIZE
-static struct pbuf *
-tcp_pbuf_prealloc(pbuf_layer layer, u16_t length, u16_t max_length,
-                  u16_t *oversize, struct tcp_pcb *pcb, u8_t apiflags,
-                  u8_t first_seg)
-{
-  struct pbuf *p;
-  u16_t alloc = length;
-
-  if (length < max_length) {
-    /* Should we allocate an oversized pbuf, or just the minimum
-     * length required? If tcp_write is going to be called again
-     * before this segment is transmitted, we want the oversized
-     * buffer. If the segment will be transmitted immediately, we can
-     * save memory by allocating only length. We use a simple
-     * heuristic based on the following information:
-     *
-     * Did the user set TCP_WRITE_FLAG_MORE?
-     *
-     * Will the Nagle algorithm defer transmission of this segment?
-     */
-    if ((apiflags & TCP_WRITE_FLAG_MORE) ||
-        (!(pcb->flags & TF_NODELAY) &&
-         (!first_seg ||
-          pcb->unsent != NULL ||
-          pcb->unacked != NULL))) {
-      alloc = LWIP_MIN(max_length, LWIP_MEM_ALIGN_SIZE(TCP_OVERSIZE_CALC_LENGTH(length)));
-    }
-  }
-  p = pbuf_alloc(layer, alloc, PBUF_RAM);
-  if (p == NULL) {
-    return NULL;
-  }
-  LWIP_ASSERT("need unchained pbuf", p->next == NULL);
-  *oversize = p->len - length;
-  /* trim p->len to the currently used size */
-  p->len = p->tot_len = length;
-  return p;
-}
-#else /* TCP_OVERSIZE */
-#define tcp_pbuf_prealloc(layer, length, mx, os, pcb, api, fst) pbuf_alloc((layer), (length), PBUF_RAM)
-#endif /* TCP_OVERSIZE */
 
 #if TCP_CHECKSUM_ON_COPY
 /** Add a checksum of newly added data to the segment */
@@ -385,10 +317,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
   u16_t queuelen;
   u8_t optlen = 0;
   u8_t optflags = 0;
-#if TCP_OVERSIZE
-  u16_t oversize = 0;
-  u16_t oversize_used = 0;
-#endif /* TCP_OVERSIZE */
 #if TCP_CHECKSUM_ON_COPY
   u16_t concat_chksum = 0;
   u8_t concat_chksum_swapped = 0;
@@ -427,7 +355,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
   /*
    * TCP segmentation is done in three phases with increasing complexity:
    *
-   * 1. Copy data directly into an oversized pbuf.
    * 2. Chain a new pbuf to the end of pcb->unsent.
    * 3. Create new segments.
    *
@@ -437,7 +364,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
    * of the function. Some pcb fields are maintained in local copies:
    *
    * queuelen = pcb->snd_queuelen
-   * oversize = pcb->unsent_oversize
    *
    * These variables are set consistently by the phases:
    *
@@ -461,32 +387,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
     space = mss_local - (last_unsent->len + unsent_optlen);
 
     /*
-     * Phase 1: Copy data directly into an oversized pbuf.
-     *
-     * The number of bytes copied is recorded in the oversize_used
-     * variable. The actual copying is done at the bottom of the
-     * function.
-     */
-#if TCP_OVERSIZE
-#if TCP_OVERSIZE_DBGCHECK
-    /* check that pcb->unsent_oversize matches last_unsent->unsent_oversize */
-    LWIP_ASSERT("unsent_oversize mismatch (pcb vs. last_unsent)",
-                pcb->unsent_oversize == last_unsent->oversize_left);
-#endif /* TCP_OVERSIZE_DBGCHECK */
-    oversize = pcb->unsent_oversize;
-    if (oversize > 0) {
-      LWIP_ASSERT("inconsistent oversize vs. space", oversize_used <= space);
-      seg = last_unsent;
-      oversize_used = oversize < len ? oversize : len;
-      pos += oversize_used;
-      oversize -= oversize_used;
-      space -= oversize_used;
-    }
-    /* now we are either finished or oversize is zero */
-    LWIP_ASSERT("inconsistend oversize vs. len", (oversize == 0) || (pos == len));
-#endif /* TCP_OVERSIZE */
-
-    /*
      * Phase 2: Chain a new pbuf to the end of pcb->unsent.
      *
      * We don't extend segments containing SYN/FIN flags or options
@@ -502,15 +402,12 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
        * a segment. A header will never be prepended. */
       if (apiflags & TCP_WRITE_FLAG_COPY) {
         /* Data is copied */
-        if ((concat_p = tcp_pbuf_prealloc(PBUF_RAW, seglen, space, &oversize, pcb, apiflags, 1)) == NULL) {
+        if ((concat_p = pbuf_alloc(PBUF_RAW, seglen, PBUF_RAM)) == NULL) {
           LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2,
                       ("tcp_write : could not allocate memory for pbuf copy size %"U16_F"\n",
                        seglen));
           goto memerr;
         }
-#if TCP_OVERSIZE_DBGCHECK
-        last_unsent->oversize_left += oversize;
-#endif /* TCP_OVERSIZE_DBGCHECK */
         TCP_DATA_COPY2(concat_p->payload, (const u8_t*)arg + pos, seglen, &concat_chksum, &concat_chksum_swapped);
 #if TCP_CHECKSUM_ON_COPY
         concat_chksummed += seglen;
@@ -546,11 +443,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
 
       pos += seglen;
     }
-  } else {
-#if TCP_OVERSIZE
-    LWIP_ASSERT("unsent_oversize mismatch (pcb->unsent is NULL)",
-                pcb->unsent_oversize == 0);
-#endif /* TCP_OVERSIZE */
   }
 
   /*
@@ -582,7 +474,7 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
     if (apiflags & TCP_WRITE_FLAG_COPY) {
       /* If copy is set, memory should be allocated and data copied
        * into pbuf */
-      if ((p = tcp_pbuf_prealloc(PBUF_TRANSPORT, seglen + optlen, mss_local, &oversize, pcb, apiflags, queue == NULL)) == NULL) {
+      if ((p = pbuf_alloc(PBUF_TRANSPORT, seglen + optlen, PBUF_RAM)) == NULL) {
         LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2, ("tcp_write : could not allocate memory for pbuf copy size %"U16_F"\n", seglen));
         goto memerr;
       }
@@ -596,9 +488,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
        * party) we can safely use PBUF_ROM instead of PBUF_REF here.
        */
       struct pbuf *p2;
-#if TCP_OVERSIZE
-      LWIP_ASSERT("oversize == 0", oversize == 0);
-#endif /* TCP_OVERSIZE */
       if ((p2 = pbuf_alloc(PBUF_TRANSPORT, seglen, PBUF_ROM)) == NULL) {
         LWIP_DEBUGF(TCP_OUTPUT_DEBUG | 2, ("tcp_write: could not allocate memory for zero-copy pbuf\n"));
         goto memerr;
@@ -641,9 +530,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
     if ((seg = tcp_create_segment(pcb, p, 0, pcb->snd_lbb + pos, optflags)) == NULL) {
       goto memerr;
     }
-#if TCP_OVERSIZE_DBGCHECK
-    seg->oversize_left = oversize;
-#endif /* TCP_OVERSIZE_DBGCHECK */
 #if TCP_CHECKSUM_ON_COPY
     seg->chksum = chksum;
     seg->chksum_swapped = chksum_swapped;
@@ -672,31 +558,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
    * All three segmentation phases were successful. We can commit the
    * transaction.
    */
-
-  /*
-   * Phase 1: If data has been added to the preallocated tail of
-   * last_unsent, we update the length fields of the pbuf chain.
-   */
-#if TCP_OVERSIZE
-  if (oversize_used > 0) {
-    struct pbuf *p;
-    /* Bump tot_len of whole chain, len of tail */
-    for (p = last_unsent->p; p; p = p->next) {
-      p->tot_len += oversize_used;
-      if (p->next == NULL) {
-        TCP_DATA_COPY((char *)p->payload + p->len, arg, oversize_used, last_unsent);
-        p->len += oversize_used;
-      }
-    }
-    last_unsent->len += oversize_used;
-#if TCP_OVERSIZE_DBGCHECK
-    LWIP_ASSERT("last_unsent->oversize_left >= oversize_used",
-                last_unsent->oversize_left >= oversize_used);
-    last_unsent->oversize_left -= oversize_used;
-#endif /* TCP_OVERSIZE_DBGCHECK */
-  }
-  pcb->unsent_oversize = oversize;
-#endif /* TCP_OVERSIZE */
 
   /*
    * Phase 2: concat_p can be concatenated onto last_unsent->p
@@ -869,10 +730,6 @@ tcp_enqueue_flags(struct tcp_pcb *pcb, u8_t flags)
     for (useg = pcb->unsent; useg->next != NULL; useg = useg->next);
     useg->next = seg;
   }
-#if TCP_OVERSIZE
-  /* The new unsent tail has no space */
-  pcb->unsent_oversize = 0;
-#endif /* TCP_OVERSIZE */
 
   /* SYN and FIN bump the sequence number */
   if ((flags & TCP_SYN) || (flags & TCP_FIN)) {
@@ -1083,9 +940,6 @@ tcp_output(struct tcp_pcb *pcb)
       TCPH_SET_FLAG(seg->tcphdr, TCP_ACK);
     }
 
-#if TCP_OVERSIZE_DBGCHECK
-    seg->oversize_left = 0;
-#endif /* TCP_OVERSIZE_DBGCHECK */
     err = tcp_output_segment(seg, pcb);
     if (err != ERR_OK) {
       /* segment could not be sent, for whatever reason */
@@ -1133,12 +987,6 @@ tcp_output(struct tcp_pcb *pcb)
     }
     seg = pcb->unsent;
   }
-#if TCP_OVERSIZE
-  if (pcb->unsent == NULL) {
-    /* last unsent has been removed, reset unsent_oversize */
-    pcb->unsent_oversize = 0;
-  }
-#endif /* TCP_OVERSIZE */
 
   pcb->flags &= ~TF_NAGLEMEMERR;
   return ERR_OK;
@@ -1361,12 +1209,6 @@ tcp_rexmit_rto(struct tcp_pcb *pcb)
   for (seg = pcb->unacked; seg->next != NULL; seg = seg->next);
   /* concatenate unsent queue after unacked queue */
   seg->next = pcb->unsent;
-#if TCP_OVERSIZE_DBGCHECK
-  /* if last unsent changed, we need to update unsent_oversize */
-  if (pcb->unsent == NULL) {
-    pcb->unsent_oversize = seg->oversize_left;
-  }
-#endif /* TCP_OVERSIZE_DBGCHECK */
   /* unsent queue is the concatenated queue (of unacked, unsent) */
   pcb->unsent = pcb->unacked;
   /* unacked queue is now empty */
@@ -1411,12 +1253,6 @@ tcp_rexmit(struct tcp_pcb *pcb)
   }
   seg->next = *cur_seg;
   *cur_seg = seg;
-#if TCP_OVERSIZE
-  if (seg->next == NULL) {
-    /* the retransmitted segment is last in unsent, so reset unsent_oversize */
-    pcb->unsent_oversize = 0;
-  }
-#endif /* TCP_OVERSIZE */
 
   ++pcb->nrtx;
 

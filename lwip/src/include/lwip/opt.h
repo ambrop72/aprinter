@@ -928,24 +928,6 @@
 #endif
 
 /**
- * TCP_OVERSIZE: The maximum number of bytes that tcp_write may
- * allocate ahead of time in an attempt to create shorter pbuf chains
- * for transmission. The meaningful range is 0 to TCP_MSS. Some
- * suggested values are:
- *
- * 0:         Disable oversized allocation. Each tcp_write() allocates a new
-              pbuf (old behaviour).
- * 1:         Allocate size-aligned pbufs with minimal excess. Use this if your
- *            scatter-gather DMA requires aligned fragments.
- * 128:       Limit the pbuf/memory overhead to 20%.
- * TCP_MSS:   Try to create unfragmented TCP packets.
- * TCP_MSS/4: Try to create 4 fragments or less per TCP packet.
- */
-#ifndef TCP_OVERSIZE
-#define TCP_OVERSIZE                    TCP_MSS
-#endif
-
-/**
  * TCP_EXTEND_ROM_PBUFS: If enabled, a buffer passed to tcp_write() that
  * is a continuation of the previous passed buffer will be combined into the
  * existing pbuf when possible, instead of allocating a new pbuf and adding
