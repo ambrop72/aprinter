@@ -266,8 +266,6 @@ struct tcp_pcb {
   struct tcp_seg *ooseq;    /* Received out of sequence segments. */
 #endif /* TCP_QUEUE_OOSEQ */
 
-  struct pbuf *refused_data; /* Data previously received but not yet taken by upper layer */
-
 #if LWIP_CALLBACK_API
   /* Function to be called when more send buffer space is available. */
   tcp_sent_fn sent;

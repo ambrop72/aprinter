@@ -344,17 +344,6 @@ tcp_input(struct pbuf *p, struct netif *inp)
       p->flags |= PBUF_FLAG_PUSH;
     }
 
-    /* If there is data which was previously "refused" by upper layer */
-    if (pcb->refused_data != NULL) {
-      if ((tcp_process_refused_data(pcb) == ERR_ABRT) ||
-        ((pcb->refused_data != NULL) && (tcplen > 0))) {
-        /* pcb has been aborted or refused data is still refused and the new
-           segment contains data */
-        TCP_STATS_INC(tcp.drop);
-        MIB2_STATS_INC(mib2.tcpinerrs);
-        goto aborted;
-      }
-    }
     tcp_input_pcb = pcb;
     err = tcp_process(pcb);
     /* A return value of ERR_ABRT means that tcp_abort() was called
@@ -413,7 +402,6 @@ tcp_input(struct pbuf *p, struct netif *inp)
         if (recv_data != NULL) {
 #endif /* TCP_QUEUE_OOSEQ && LWIP_WND_SCALE */
 
-          LWIP_ASSERT("pcb->refused_data == NULL", pcb->refused_data == NULL);
           if (pcb->flags & TF_RXCLOSED) {
             /* received data although already closed -> abort (send RST) to
                notify the remote host that not all data has been processed */
@@ -438,40 +426,26 @@ tcp_input(struct pbuf *p, struct netif *inp)
             goto aborted;
           }
 
-          /* If the upper layer can't receive this data, store it */
-          if (err != ERR_OK) {
+          /* It is not allowed for the upper layer to refuse data. */
+          LWIP_ASSERT("received data refused", err == ERR_OK);
+          
 #if TCP_QUEUE_OOSEQ && LWIP_WND_SCALE
-            if (rest != NULL) {
-              pbuf_cat(recv_data, rest);
-            }
-#endif /* TCP_QUEUE_OOSEQ && LWIP_WND_SCALE */
-            pcb->refused_data = recv_data;
-            LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_input: keep incoming packet, because pcb is \"full\"\n"));
-#if TCP_QUEUE_OOSEQ && LWIP_WND_SCALE
-            break;
-          } else {
-            /* Upper layer received the data, go on with the rest if > 64K */
-            recv_data = rest;
-#endif /* TCP_QUEUE_OOSEQ && LWIP_WND_SCALE */
-          }
+          /* Upper layer received the data, go on with the rest if > 64K */
+          recv_data = rest;
+#endif
         }
 
         /* If a FIN segment was received, we call the callback
            function with a NULL buffer to indicate EOF. */
         if (recv_flags & TF_GOT_FIN) {
-          if (pcb->refused_data != NULL) {
-            /* Delay this if we have refused data. */
-            pcb->refused_data->flags |= PBUF_FLAG_TCP_FIN;
-          } else {
-            /* correct rcv_wnd as the application won't call tcp_recved()
-               for the FIN's seqno */
-            if (pcb->rcv_wnd != TCP_WND_MAX(pcb)) {
-              pcb->rcv_wnd++;
-            }
-            TCP_EVENT_CLOSED(pcb, err);
-            if (err == ERR_ABRT) {
-              goto aborted;
-            }
+          /* correct rcv_wnd as the application won't call tcp_recved()
+             for the FIN's seqno */
+          if (pcb->rcv_wnd != TCP_WND_MAX(pcb)) {
+            pcb->rcv_wnd++;
+          }
+          TCP_EVENT_CLOSED(pcb, err);
+          if (err == ERR_ABRT) {
+            goto aborted;
           }
         }
 
