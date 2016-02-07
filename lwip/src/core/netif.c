@@ -53,9 +53,6 @@
 #include "lwip/sys.h"
 #endif /* ENABLE_LOOPBACK */
 
-#if LWIP_AUTOIP
-#include "lwip/autoip.h"
-#endif /* LWIP_AUTOIP */
 #if LWIP_DHCP
 #include "lwip/dhcp.h"
 #endif /* LWIP_DHCP */
@@ -202,10 +199,6 @@ netif_add(struct netif *netif,
   /* netif not under DHCP control by default */
   netif->dhcp = NULL;
 #endif /* LWIP_DHCP */
-#if LWIP_AUTOIP
-  /* netif not under AutoIP control by default */
-  netif->autoip = NULL;
-#endif /* LWIP_AUTOIP */
 #if LWIP_IPV6_AUTOCONFIG
   /* IPv6 address autoconfiguration not enabled by default */
   netif->ip6_autoconfig_enabled = 0;
@@ -630,12 +623,6 @@ void netif_set_link_up(struct netif *netif )
       dhcp_network_changed(netif);
     }
 #endif /* LWIP_DHCP */
-
-#if LWIP_AUTOIP
-    if (netif->autoip) {
-      autoip_network_changed(netif);
-    }
-#endif /* LWIP_AUTOIP */
 
     if (netif->flags & NETIF_FLAG_UP) {
       netif_issue_reports(netif, NETIF_REPORT_TYPE_IPV4|NETIF_REPORT_TYPE_IPV6);

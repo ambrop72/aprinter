@@ -53,7 +53,6 @@
 #include "lwip/stats.h"
 #include "lwip/snmp_mib2.h"
 #include "lwip/dhcp.h"
-#include "lwip/autoip.h"
 #include "netif/etharp.h"
 #include "lwip/ip6.h"
 
@@ -732,9 +731,6 @@ etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, struct pbuf *p)
   /* these are aligned properly, whereas the ARP header fields might not be */
   ip4_addr_t sipaddr, dipaddr;
   u8_t for_us;
-#if LWIP_AUTOIP
-  const u8_t * ethdst_hwaddr;
-#endif /* LWIP_AUTOIP */
 
   LWIP_ERROR("netif != NULL", (netif != NULL), return;);
 
@@ -772,13 +768,6 @@ etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, struct pbuf *p)
     return;
   }
   ETHARP_STATS_INC(etharp.recv);
-
-#if LWIP_AUTOIP
-  /* We have to check if a host already has configured our random
-   * created link local address and continuously check if there is
-   * a host with this IP-address so we can detect collisions */
-  autoip_arp_reply(netif, hdr);
-#endif /* LWIP_AUTOIP */
 
   /* Copy struct ip4_addr2 to aligned ip4_addr, to support compilers without
    * structure packing (not using structure copy which breaks strict-aliasing rules). */
@@ -824,19 +813,9 @@ etharp_arp_input(struct netif *netif, struct eth_addr *ethaddr, struct pbuf *p)
 
       LWIP_ASSERT("netif->hwaddr_len must be the same as ETHARP_HWADDR_LEN for etharp!",
                   (netif->hwaddr_len == ETHARP_HWADDR_LEN));
-#if LWIP_AUTOIP
-      /* If we are using Link-Local, all ARP packets that contain a Link-Local
-       * 'sender IP address' MUST be sent using link-layer broadcast instead of
-       * link-layer unicast. (See RFC3927 Section 2.5, last paragraph) */
-      ethdst_hwaddr = ip4_addr_islinklocal(netif_ip4_addr(netif)) ? (const u8_t*)(ethbroadcast.addr) : hdr->shwaddr.addr;
-#endif /* LWIP_AUTOIP */
 
       ETHADDR16_COPY(&hdr->dhwaddr, &hdr->shwaddr);
-#if LWIP_AUTOIP
-      ETHADDR16_COPY(&ethhdr->dest, ethdst_hwaddr);
-#else  /* LWIP_AUTOIP */
       ETHADDR16_COPY(&ethhdr->dest, &hdr->shwaddr);
-#endif /* LWIP_AUTOIP */
       ETHADDR16_COPY(&hdr->shwaddr, ethaddr);
       ETHADDR16_COPY(&ethhdr->src, ethaddr);
 
@@ -971,18 +950,6 @@ etharp_output(struct netif *netif, struct pbuf *q, const ip4_addr_t *ipaddr)
        a subnet broadcast. */
     if (!ip4_addr_netcmp(ipaddr, netif_ip4_addr(netif), netif_ip4_netmask(netif)) &&
         !ip4_addr_islinklocal(ipaddr)) {
-#if LWIP_AUTOIP
-      struct ip_hdr *iphdr = (struct ip_hdr*)((u8_t*)q->payload +
-#if ETHARP_SUPPORT_VLAN && defined(LWIP_HOOK_VLAN_SET)
-        SIZEOF_VLAN_HDR +
-#endif /* ETHARP_SUPPORT_VLAN && defined(LWIP_HOOK_VLAN_SET) */
-        sizeof(struct eth_hdr));
-      /* According to RFC 3297, chapter 2.6.2 (Forwarding Rules), a packet with
-         a link-local source address must always be "directly to its destination
-         on the same physical link. The host MUST NOT send the packet to any
-         router for forwarding". */
-      if (!ip4_addr_islinklocal(&iphdr->src))
-#endif /* LWIP_AUTOIP */
       {
 #ifdef LWIP_HOOK_ETHARP_GET_GW
         /* For advanced routing, a single default gateway might not be enough, so get
@@ -1250,9 +1217,7 @@ etharp_query(struct netif *netif, const ip4_addr_t *ipaddr, struct pbuf *q)
  *         ERR_MEM if the ARP packet couldn't be allocated
  *         any other err_t on failure
  */
-#if !LWIP_AUTOIP
 static
-#endif /* LWIP_AUTOIP */
 err_t
 etharp_raw(struct netif *netif, const struct eth_addr *ethsrc_addr,
            const struct eth_addr *ethdst_addr,
@@ -1267,9 +1232,6 @@ etharp_raw(struct netif *netif, const struct eth_addr *ethsrc_addr,
   struct eth_vlan_hdr *vlanhdr;
 #endif /* ETHARP_SUPPORT_VLAN && defined(LWIP_HOOK_VLAN_SET) */
   struct etharp_hdr *hdr;
-#if LWIP_AUTOIP
-  const u8_t * ethdst_hwaddr;
-#endif /* LWIP_AUTOIP */
 
   LWIP_ASSERT("netif != NULL", netif != NULL);
 
@@ -1297,12 +1259,6 @@ etharp_raw(struct netif *netif, const struct eth_addr *ethsrc_addr,
 
   LWIP_ASSERT("netif->hwaddr_len must be the same as ETHARP_HWADDR_LEN for etharp!",
               (netif->hwaddr_len == ETHARP_HWADDR_LEN));
-#if LWIP_AUTOIP
-  /* If we are using Link-Local, all ARP packets that contain a Link-Local
-   * 'sender IP address' MUST be sent using link-layer broadcast instead of
-   * link-layer unicast. (See RFC3927 Section 2.5, last paragraph) */
-  ethdst_hwaddr = ip4_addr_islinklocal(ipsrc_addr) ? (const u8_t*)(ethbroadcast.addr) : ethdst_addr->addr;
-#endif /* LWIP_AUTOIP */
   /* Write the ARP MAC-Addresses */
   ETHADDR16_COPY(&hdr->shwaddr, hwsrc_addr);
   ETHADDR16_COPY(&hdr->dhwaddr, hwdst_addr);
@@ -1332,11 +1288,7 @@ etharp_raw(struct netif *netif, const struct eth_addr *ethsrc_addr,
 #endif /* ETHARP_SUPPORT_VLAN && defined(LWIP_HOOK_VLAN_SET) */
 
   /* Write the Ethernet MAC-Addresses */
-#if LWIP_AUTOIP
-  ETHADDR16_COPY(&ethhdr->dest, ethdst_hwaddr);
-#else  /* LWIP_AUTOIP */
   ETHADDR16_COPY(&ethhdr->dest, ethdst_addr);
-#endif /* LWIP_AUTOIP */
   ETHADDR16_COPY(&ethhdr->src, ethsrc_addr);
 
   /* send ARP query */

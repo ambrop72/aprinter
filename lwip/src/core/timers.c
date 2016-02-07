@@ -52,7 +52,6 @@
 #include "lwip/ip_frag.h"
 #include "netif/etharp.h"
 #include "lwip/dhcp.h"
-#include "lwip/autoip.h"
 #include "lwip/igmp.h"
 #include "lwip/dns.h"
 #include "lwip/nd6.h"
@@ -171,22 +170,6 @@ dhcp_timer_fine(void *arg)
 }
 #endif /* LWIP_DHCP */
 
-#if LWIP_AUTOIP
-/**
- * Timer callback function that calls autoip_tmr() and reschedules itself.
- *
- * @param arg unused argument
- */
-static void
-autoip_timer(void *arg)
-{
-  LWIP_UNUSED_ARG(arg);
-  LWIP_DEBUGF(TIMERS_DEBUG, ("tcpip: autoip_tmr()\n"));
-  autoip_tmr();
-  sys_timeout(AUTOIP_TMR_INTERVAL, autoip_timer, NULL);
-}
-#endif /* LWIP_AUTOIP */
-
 #if LWIP_IGMP
 /**
  * Timer callback function that calls igmp_tmr() and reschedules itself.
@@ -282,9 +265,6 @@ void sys_timeouts_init(void)
   sys_timeout(DHCP_COARSE_TIMER_MSECS, dhcp_timer_coarse, NULL);
   sys_timeout(DHCP_FINE_TIMER_MSECS, dhcp_timer_fine, NULL);
 #endif /* LWIP_DHCP */
-#if LWIP_AUTOIP
-  sys_timeout(AUTOIP_TMR_INTERVAL, autoip_timer, NULL);
-#endif /* LWIP_AUTOIP */
 #if LWIP_IGMP
   sys_timeout(IGMP_TMR_INTERVAL, igmp_timer, NULL);
 #endif /* LWIP_IGMP */

@@ -1718,10 +1718,6 @@ tcp_netif_ipv4_addr_changed_pcblist(const ip4_addr_t* old_addr, struct tcp_pcb* 
   while (pcb != NULL) {
     /* PCB bound to current local interface address? */
     if (!IP_IS_V6_VAL(pcb->local_ip) && ip4_addr_cmp(ip_2_ip4(&pcb->local_ip), old_addr)
-#if LWIP_AUTOIP
-      /* connections to link-local addresses must persist (RFC3927 ch. 1.9) */
-      && !ip4_addr_islinklocal(ip_2_ip4(&pcb->local_ip))
-#endif /* LWIP_AUTOIP */
       ) {
       /* this connection must be aborted */
       struct tcp_pcb *next = pcb->next;

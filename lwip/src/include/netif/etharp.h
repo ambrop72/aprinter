@@ -213,14 +213,6 @@ err_t etharp_add_static_entry(const ip4_addr_t *ipaddr, struct eth_addr *ethaddr
 err_t etharp_remove_static_entry(const ip4_addr_t *ipaddr);
 #endif /* ETHARP_SUPPORT_STATIC_ENTRIES */
 
-#if LWIP_AUTOIP
-err_t etharp_raw(struct netif *netif, const struct eth_addr *ethsrc_addr,
-                 const struct eth_addr *ethdst_addr,
-                 const struct eth_addr *hwsrc_addr, const ip4_addr_t *ipsrc_addr,
-                 const struct eth_addr *hwdst_addr, const ip4_addr_t *ipdst_addr,
-                 const u16_t opcode);
-#endif /* LWIP_AUTOIP */
-
 #endif /* LWIP_IPV4 && LWIP_ARP */
 
 err_t ethernet_input(struct pbuf *p, struct netif *netif);

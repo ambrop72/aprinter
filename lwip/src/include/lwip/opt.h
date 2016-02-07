@@ -305,7 +305,7 @@
  * The formula expects settings to be either '0' or '1'.
  */
 #ifndef MEMP_NUM_SYS_TIMEOUT
-#define MEMP_NUM_SYS_TIMEOUT            (LWIP_TCP + IP_REASSEMBLY + LWIP_ARP + (2*LWIP_DHCP) + LWIP_AUTOIP + LWIP_IGMP + LWIP_DNS + (LWIP_IPV6 ? (1 + LWIP_IPV6_REASS + LWIP_IPV6_MLD) : 0))
+#define MEMP_NUM_SYS_TIMEOUT            (LWIP_TCP + IP_REASSEMBLY + LWIP_ARP + (2*LWIP_DHCP) + LWIP_IGMP + LWIP_DNS + (LWIP_IPV6 ? (1 + LWIP_IPV6_REASS + LWIP_IPV6_MLD) : 0))
 #endif
 
 /**
@@ -434,8 +434,7 @@
 #endif
 
 /** ETHARP_TABLE_MATCH_NETIF==1: Match netif for ARP table entries.
- * If disabled, duplicate IP address on multiple netifs are not supported
- * (but this should only occur for AutoIP).
+ * If disabled, duplicate IP address on multiple netifs are not supported.
  */
 #ifndef ETHARP_TABLE_MATCH_NETIF
 #define ETHARP_TABLE_MATCH_NETIF        0
@@ -689,43 +688,6 @@
 #ifndef LWIP_DHCP_MAX_NTP_SERVERS
 #define LWIP_DHCP_MAX_NTP_SERVERS       1
 #endif
-
-/*
-   ------------------------------------
-   ---------- AUTOIP options ----------
-   ------------------------------------
-*/
-/**
- * LWIP_AUTOIP==1: Enable AUTOIP module.
- */
-#ifndef LWIP_AUTOIP
-#define LWIP_AUTOIP                     0
-#endif
-#if !LWIP_IPV4
-/* disable AUTOIP when IPv4 is disabled */
-#undef LWIP_AUTOIP
-#define LWIP_AUTOIP                     0
-#endif /* !LWIP_IPV4 */
-
-/**
- * LWIP_DHCP_AUTOIP_COOP==1: Allow DHCP and AUTOIP to be both enabled on
- * the same interface at the same time.
- */
-#ifndef LWIP_DHCP_AUTOIP_COOP
-#define LWIP_DHCP_AUTOIP_COOP           0
-#endif
-
-/**
- * LWIP_DHCP_AUTOIP_COOP_TRIES: Set to the number of DHCP DISCOVER probes
- * that should be sent before falling back on AUTOIP. This can be set
- * as low as 1 to get an AutoIP address very quickly, but you should
- * be prepared to handle a changing IP address when DHCP overrides
- * AutoIP.
- */
-#ifndef LWIP_DHCP_AUTOIP_COOP_TRIES
-#define LWIP_DHCP_AUTOIP_COOP_TRIES     9
-#endif
-
 
 /*
    ----------------------------------
@@ -1844,13 +1806,6 @@
  */
 #ifndef DHCP_DEBUG
 #define DHCP_DEBUG                      LWIP_DBG_OFF
-#endif
-
-/**
- * AUTOIP_DEBUG: Enable debugging in autoip.c.
- */
-#ifndef AUTOIP_DEBUG
-#define AUTOIP_DEBUG                    LWIP_DBG_OFF
 #endif
 
 /**

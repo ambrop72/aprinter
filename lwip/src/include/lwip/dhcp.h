@@ -38,9 +38,6 @@ struct dhcp
   u8_t state;
   /** retries of current request */
   u8_t tries;
-#if LWIP_DHCP_AUTOIP_COOP
-  u8_t autoip_coop_state;
-#endif
   u8_t subnet_mask_given;
 
   struct pbuf *p_out; /* pbuf of outcoming msg */
@@ -175,10 +172,6 @@ void dhcp_fine_tmr(void);
 /** not yet implemented #define DHCP_STATE_RELEASING 11 */
 #define DHCP_STATE_BACKING_OFF  12
 
-/** AUTOIP cooperation flags */
-#define DHCP_AUTOIP_COOP_STATE_OFF  0
-#define DHCP_AUTOIP_COOP_STATE_ON   1
- 
 #define DHCP_BOOTREQUEST  1
 #define DHCP_BOOTREPLY    2
 

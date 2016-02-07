@@ -54,7 +54,6 @@
 #include "lwip/udp.h"
 #include "lwip/tcp_impl.h"
 #include "lwip/dhcp.h"
-#include "lwip/autoip.h"
 #include "lwip/stats.h"
 
 #include <string.h>
@@ -521,17 +520,6 @@ ip4_input(struct pbuf *p, struct netif *inp)
           /* break out of for loop */
           break;
         }
-#if LWIP_AUTOIP
-        /* connections to link-local addresses must persist after changing
-           the netif's address (RFC3927 ch. 1.9) */
-        if ((netif->autoip != NULL) &&
-            ip4_addr_cmp(ip4_current_dest_addr(), &(netif->autoip->llipaddr))) {
-          LWIP_DEBUGF(IP_DEBUG, ("ip_input: LLA packet accepted on interface %c%c\n",
-              netif->name[0], netif->name[1]));
-          /* break out of for loop */
-          break;
-        }
-#endif /* LWIP_AUTOIP */
       }
       if (first) {
         first = 0;

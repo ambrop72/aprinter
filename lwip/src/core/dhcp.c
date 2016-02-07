@@ -77,7 +77,6 @@
 #include "lwip/netif.h"
 #include "lwip/def.h"
 #include "lwip/dhcp.h"
-#include "lwip/autoip.h"
 #include "lwip/dns.h"
 #include "netif/etharp.h"
 
@@ -812,12 +811,6 @@ dhcp_network_changed(struct netif *netif)
     /* INIT/REQUESTING/CHECKING/BACKING_OFF restart with new 'rid' because the
        state changes, SELECTING: continue with current 'rid' as we stay in the
        same state */
-#if LWIP_DHCP_AUTOIP_COOP
-    if(dhcp->autoip_coop_state == DHCP_AUTOIP_COOP_STATE_ON) {
-      autoip_stop(netif);
-      dhcp->autoip_coop_state = DHCP_AUTOIP_COOP_STATE_OFF;
-    }
-#endif /* LWIP_DHCP_AUTOIP_COOP */
     /* ensure we start with short timeouts, even if already discovering */
     dhcp->tries = 0;
     dhcp_discover(netif);
@@ -940,12 +933,6 @@ dhcp_discover(struct netif *netif)
   if (dhcp->tries < 255) {
     dhcp->tries++;
   }
-#if LWIP_DHCP_AUTOIP_COOP
-  if(dhcp->tries >= LWIP_DHCP_AUTOIP_COOP_TRIES && dhcp->autoip_coop_state == DHCP_AUTOIP_COOP_STATE_OFF) {
-    dhcp->autoip_coop_state = DHCP_AUTOIP_COOP_STATE_ON;
-    autoip_start(netif);
-  }
-#endif /* LWIP_DHCP_AUTOIP_COOP */
   msecs = (dhcp->tries < 6 ? 1 << dhcp->tries : 60) * 1000;
   dhcp->request_timeout = (msecs + DHCP_FINE_TIMER_MSECS - 1) / DHCP_FINE_TIMER_MSECS;
   LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE | LWIP_DBG_STATE, ("dhcp_discover(): set request timeout %"U16_F" msecs\n", msecs));
@@ -1044,13 +1031,6 @@ dhcp_bind(struct netif *netif)
     /* use first host address on network as gateway */
     ip4_addr_set_u32(&gw_addr, ip4_addr_get_u32(&gw_addr) | PP_HTONL(0x00000001UL));
   }
-
-#if LWIP_DHCP_AUTOIP_COOP
-  if(dhcp->autoip_coop_state == DHCP_AUTOIP_COOP_STATE_ON) {
-    autoip_stop(netif);
-    dhcp->autoip_coop_state = DHCP_AUTOIP_COOP_STATE_OFF;
-  }
-#endif /* LWIP_DHCP_AUTOIP_COOP */
 
   LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_STATE, ("dhcp_bind(): IP: 0x%08"X32_F" SN: 0x%08"X32_F" GW: 0x%08"X32_F"\n",
     ip4_addr_get_u32(&dhcp->offered_ip_addr), ip4_addr_get_u32(&sn_mask), ip4_addr_get_u32(&gw_addr)));
@@ -1272,13 +1252,6 @@ dhcp_stop(struct netif *netif)
   LWIP_DEBUGF(DHCP_DEBUG | LWIP_DBG_TRACE, ("dhcp_stop()\n"));
   /* netif is DHCP configured? */
   if (dhcp != NULL) {
-#if LWIP_DHCP_AUTOIP_COOP
-    if(dhcp->autoip_coop_state == DHCP_AUTOIP_COOP_STATE_ON) {
-      autoip_stop(netif);
-      dhcp->autoip_coop_state = DHCP_AUTOIP_COOP_STATE_OFF;
-    }
-#endif /* LWIP_DHCP_AUTOIP_COOP */
-
     if (dhcp->pcb != NULL) {
       udp_remove(dhcp->pcb);
       dhcp->pcb = NULL;

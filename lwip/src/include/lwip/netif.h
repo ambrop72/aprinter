@@ -45,9 +45,6 @@
 #if LWIP_DHCP
 struct dhcp;
 #endif
-#if LWIP_AUTOIP
-struct autoip;
-#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -66,8 +63,7 @@ extern "C" {
 /** Whether the network interface is 'up'. This is
  * a software flag used to control whether this network
  * interface is enabled and processes traffic.
- * It must be set by the startup code before this netif can be used
- * (also for dhcp/autoip).
+ * It must be set by the startup code before this netif can be used.
  */
 #define NETIF_FLAG_UP           0x01U
 /** If set, the netif has broadcast capability.
@@ -231,10 +227,6 @@ struct netif {
   /** the DHCP client state information for this netif */
   struct dhcp *dhcp;
 #endif /* LWIP_DHCP */
-#if LWIP_AUTOIP
-  /** the AutoIP client state information for this netif */
-  struct autoip *autoip;
-#endif
 #if LWIP_IPV6_AUTOCONFIG
   /** is this netif enabled for IPv6 autoconfiguration */
   u8_t ip6_autoconfig_enabled;
