@@ -642,7 +642,6 @@ nullreturn:
 static u8_t buf[LWIP_MEM_ALIGN_SIZE(IP_FRAG_MAX_MTU + MEM_ALIGNMENT - 1)];
 #else /* IP_FRAG_USES_STATIC_BUF */
 
-#if !LWIP_NETIF_TX_SINGLE_PBUF
 /** Allocate a new struct pbuf_custom_ref */
 static struct pbuf_custom_ref*
 ip_frag_alloc_pbuf_custom_ref(void)
@@ -671,7 +670,6 @@ ipfrag_free_pbuf_custom(struct pbuf *p)
   }
   ip_frag_free_pbuf_custom_ref(pcr);
 }
-#endif /* !LWIP_NETIF_TX_SINGLE_PBUF */
 #endif /* IP_FRAG_USES_STATIC_BUF */
 
 /**
@@ -694,9 +692,7 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
 #if IP_FRAG_USES_STATIC_BUF
   struct pbuf *header;
 #else
-#if !LWIP_NETIF_TX_SINGLE_PBUF
   struct pbuf *newpbuf;
-#endif
   struct ip_hdr *original_iphdr;
 #endif
   struct ip_hdr *iphdr;
@@ -707,7 +703,7 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
   u16_t last;
   u16_t poff = IP_HLEN;
   u16_t tmp;
-#if !IP_FRAG_USES_STATIC_BUF && !LWIP_NETIF_TX_SINGLE_PBUF
+#if !IP_FRAG_USES_STATIC_BUF
   u16_t newpbuflen = 0;
   u16_t left_to_copy;
 #endif
@@ -758,23 +754,6 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
 #if IP_FRAG_USES_STATIC_BUF
     poff += pbuf_copy_partial(p, (u8_t*)iphdr + IP_HLEN, cop, poff);
 #else /* IP_FRAG_USES_STATIC_BUF */
-#if LWIP_NETIF_TX_SINGLE_PBUF
-    rambuf = pbuf_alloc(PBUF_IP, cop, PBUF_RAM);
-    if (rambuf == NULL) {
-      return ERR_MEM;
-    }
-    LWIP_ASSERT("this needs a pbuf in one piece!",
-      (rambuf->len == rambuf->tot_len) && (rambuf->next == NULL));
-    poff += pbuf_copy_partial(p, rambuf->payload, cop, poff);
-    /* make room for the IP header */
-    if(pbuf_header(rambuf, IP_HLEN)) {
-      pbuf_free(rambuf);
-      return ERR_MEM;
-    }
-    /* fill in the IP header */
-    SMEMCPY(rambuf->payload, original_iphdr, IP_HLEN);
-    iphdr = (struct ip_hdr*)rambuf->payload;
-#else /* LWIP_NETIF_TX_SINGLE_PBUF */
     /* When not using a static buffer, create a chain of pbufs.
      * The first will be a PBUF_RAM holding the link and IP header.
      * The rest will be PBUF_REFs mirroring the pbuf chain to be fragged,
@@ -828,7 +807,6 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
       }
     }
     poff = newpbuflen;
-#endif /* LWIP_NETIF_TX_SINGLE_PBUF */
 #endif /* IP_FRAG_USES_STATIC_BUF */
 
     /* Correct header */

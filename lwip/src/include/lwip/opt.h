@@ -272,7 +272,7 @@
  * MEMP_NUM_FRAG_PBUF: the number of IP fragments simultaneously sent
  * (fragments, not whole packets!).
  * This is only used with IP_FRAG_USES_STATIC_BUF==0 and
- * LWIP_NETIF_TX_SINGLE_PBUF==0 and only has to be > 1 with DMA-enabled MACs
+ * only has to be > 1 with DMA-enabled MACs
  * where the packet is not yet sent when netif->output returns.
  */
 #ifndef MEMP_NUM_FRAG_PBUF
@@ -521,8 +521,7 @@
 /**
  * IP_FRAG_USES_STATIC_BUF==1: Use a static MTU-sized buffer for IP
  * fragmentation. Otherwise pbufs are allocated and reference the original
- * packet data to be fragmented (or with LWIP_NETIF_TX_SINGLE_PBUF==1,
- * new PBUF_RAM pbufs are used for fragments).
+ * packet data to be fragmented.
  * ATTENTION: IP_FRAG_USES_STATIC_BUF==1 may not be used for DMA-enabled MACs!
  */
 #ifndef IP_FRAG_USES_STATIC_BUF
@@ -1122,19 +1121,6 @@
 #ifndef LWIP_LOOPBACK_MAX_PBUFS
 #define LWIP_LOOPBACK_MAX_PBUFS         0
 #endif
-
-/**
- * LWIP_NETIF_TX_SINGLE_PBUF: if this is set to 1, lwIP tries to put all data
- * to be sent into one single pbuf. This is for compatibility with DMA-enabled
- * MACs that do not support scatter-gather.
- * Beware that this might involve CPU-memcpy before transmitting that would not
- * be needed without this flag! Use this only if you need to!
- *
- * @todo: TCP and IP-frag do not work with this, yet:
- */
-#ifndef LWIP_NETIF_TX_SINGLE_PBUF
-#define LWIP_NETIF_TX_SINGLE_PBUF             0
-#endif /* LWIP_NETIF_TX_SINGLE_PBUF */
 
 /*
    ------------------------------------

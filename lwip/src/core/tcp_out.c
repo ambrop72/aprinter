@@ -239,14 +239,6 @@ tcp_pbuf_prealloc(pbuf_layer layer, u16_t length, u16_t max_length,
   struct pbuf *p;
   u16_t alloc = length;
 
-#if LWIP_NETIF_TX_SINGLE_PBUF
-  LWIP_UNUSED_ARG(max_length);
-  LWIP_UNUSED_ARG(pcb);
-  LWIP_UNUSED_ARG(apiflags);
-  LWIP_UNUSED_ARG(first_seg);
-  /* always create MSS-sized pbufs */
-  alloc = max_length;
-#else /* LWIP_NETIF_TX_SINGLE_PBUF */
   if (length < max_length) {
     /* Should we allocate an oversized pbuf, or just the minimum
      * length required? If tcp_write is going to be called again
@@ -267,7 +259,6 @@ tcp_pbuf_prealloc(pbuf_layer layer, u16_t length, u16_t max_length,
       alloc = LWIP_MIN(max_length, LWIP_MEM_ALIGN_SIZE(TCP_OVERSIZE_CALC_LENGTH(length)));
     }
   }
-#endif /* LWIP_NETIF_TX_SINGLE_PBUF */
   p = pbuf_alloc(layer, alloc, PBUF_RAM);
   if (p == NULL) {
     return NULL;
@@ -407,11 +398,6 @@ tcp_write_ext(struct tcp_pcb *pcb, const void *arg, u16_t len, u8_t apiflags, u1
   /* don't allocate segments bigger than half the maximum window we ever received */
   u16_t mss_local = LWIP_MIN(pcb->mss, TCPWND_MIN16(pcb->snd_wnd_max/2));
   mss_local = mss_local ? mss_local : pcb->mss;
-
-#if LWIP_NETIF_TX_SINGLE_PBUF
-  /* Always copy to try to create single pbufs for TX */
-  apiflags |= TCP_WRITE_FLAG_COPY;
-#endif /* LWIP_NETIF_TX_SINGLE_PBUF */
 
   LWIP_DEBUGF(TCP_OUTPUT_DEBUG, ("tcp_write(pcb=%p, data=%p, len=%"U16_F", apiflags=%"U16_F")\n",
     (void *)pcb, arg, len, (u16_t)apiflags));

@@ -68,7 +68,7 @@ struct pbuf * ip4_reass(struct pbuf *p);
 #endif /* IP_REASSEMBLY */
 
 #if IP_FRAG
-#if !IP_FRAG_USES_STATIC_BUF && !LWIP_NETIF_TX_SINGLE_PBUF
+#if !IP_FRAG_USES_STATIC_BUF
 /** A custom pbuf that holds a reference to another pbuf, which is freed
  * when this custom pbuf is freed. This is used to create a custom PBUF_REF
  * that points into the original pbuf. */
@@ -81,7 +81,7 @@ struct pbuf_custom_ref {
   struct pbuf *original;
 };
 #endif /* LWIP_PBUF_CUSTOM_REF_DEFINED */
-#endif /* !IP_FRAG_USES_STATIC_BUF && !LWIP_NETIF_TX_SINGLE_PBUF */
+#endif /* !IP_FRAG_USES_STATIC_BUF */
 
 err_t ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest);
 #endif /* IP_FRAG */
