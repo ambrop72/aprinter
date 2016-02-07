@@ -642,9 +642,7 @@ u32_t tcp_update_rcv_ann_wnd(struct tcp_pcb *pcb)
     } else {
       /* keep the right edge of window constant */
       u32_t new_rcv_ann_wnd = pcb->rcv_ann_right_edge - pcb->rcv_nxt;
-#if !LWIP_WND_SCALE
       LWIP_ASSERT("new_rcv_ann_wnd <= 0xffff", new_rcv_ann_wnd <= 0xffff);
-#endif
       pcb->rcv_ann_wnd = (tcpwnd_size_t)new_rcv_ann_wnd;
     }
     return 0;
@@ -1370,11 +1368,6 @@ tcp_alloc(u8_t prio)
     /* Start with a window that does not need scaling. When window scaling is
        enabled and used, the window is enlarged when both sides agree on scaling. */
     pcb->rcv_wnd = pcb->rcv_ann_wnd = TCPWND_MIN16(TCP_WND);
-#if LWIP_WND_SCALE
-    /* snd_scale and rcv_scale are zero unless both sides agree to use scaling */
-    pcb->snd_scale = 0;
-    pcb->rcv_scale = 0;
-#endif
     pcb->tos = 0;
     pcb->ttl = TCP_TTL;
     /* As initial send MSS, we use TCP_MSS but limit it to 536.

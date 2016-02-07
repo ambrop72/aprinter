@@ -313,12 +313,7 @@ struct tcp_seg {
 #else
 #define LWIP_TCP_OPT_LEN_TS_OUT 0
 #endif
-#if LWIP_WND_SCALE
-#define LWIP_TCP_OPT_LEN_WS     3
-#define LWIP_TCP_OPT_LEN_WS_OUT 4 /* aligned for output (includes NOP padding) */
-#else
 #define LWIP_TCP_OPT_LEN_WS_OUT 0
-#endif
 
 #define LWIP_TCP_OPT_LENGTH(flags) \
   (flags & TF_SEG_OPTS_MSS       ? LWIP_TCP_OPT_LEN_MSS    : 0) + \
@@ -330,17 +325,10 @@ struct tcp_seg {
 /** This returns a TCP header option for MSS in an u32_t */
 #define TCP_BUILD_MSS_OPTION(mss) htonl(0x02040000 | ((mss) & 0xFFFF))
 
-#if LWIP_WND_SCALE
-#define TCPWNDSIZE_F       U32_F
-#define TCPWND_MAX         0xFFFFFFFFU
-#define TCPWND_CHECK16(x)  LWIP_ASSERT("window size > 0xFFFF", (x) <= 0xFFFF)
-#define TCPWND_MIN16(x)    ((u16_t)LWIP_MIN((x), 0xFFFF))
-#else /* LWIP_WND_SCALE */
 #define TCPWNDSIZE_F       U16_F
 #define TCPWND_MAX         0xFFFFU
 #define TCPWND_CHECK16(x)
 #define TCPWND_MIN16(x)    x
-#endif /* LWIP_WND_SCALE */
 
 /* Global variables: */
 extern struct tcp_pcb *tcp_input_pcb;

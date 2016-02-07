@@ -831,13 +831,6 @@ tcp_enqueue_flags(struct tcp_pcb *pcb, u8_t flags)
 
   if (flags & TCP_SYN) {
     optflags = TF_SEG_OPTS_MSS;
-#if LWIP_WND_SCALE
-    if ((pcb->state != SYN_RCVD) || (pcb->flags & TF_WND_SCALE)) {
-      /* In a <SYN,ACK> (sent in state SYN_RCVD), the window scale option may only
-         be sent if we received a window scale option from the remote host. */
-      optflags |= TF_SEG_OPTS_WND_SCALE;
-    }
-#endif /* LWIP_WND_SCALE */
   }
 #if LWIP_TCP_TIMESTAMPS
   if ((pcb->flags & TF_TIMESTAMP)) {
@@ -929,19 +922,6 @@ tcp_build_timestamp_option(struct tcp_pcb *pcb, u32_t *opts)
   opts[0] = PP_HTONL(0x0101080A);
   opts[1] = htonl(sys_now());
   opts[2] = htonl(pcb->ts_recent);
-}
-#endif
-
-#if LWIP_WND_SCALE
-/** Build a window scale option (3 bytes long) at the specified options pointer)
- *
- * @param opts option pointer where to store the window scale option
- */
-static void
-tcp_build_wnd_scale_option(u32_t *opts)
-{
-  /* Pad with one NOP option to make everything nicely aligned */
-  opts[0] = PP_HTONL(0x01030300 | TCP_RCV_SCALE);
 }
 #endif
 
@@ -1200,16 +1180,7 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb)
   seg->tcphdr->ackno = htonl(pcb->rcv_nxt);
 
   /* advertise our receive window size in this TCP segment */
-#if LWIP_WND_SCALE
-  if (seg->flags & TF_SEG_OPTS_WND_SCALE) {
-    /* The Window field in a SYN segment itself (the only type where we send
-       the window scale option) is never scaled. */
-    seg->tcphdr->wnd = htons(TCPWND_MIN16(pcb->rcv_ann_wnd));
-  } else
-#endif /* LWIP_WND_SCALE */
-  {
-    seg->tcphdr->wnd = htons(TCPWND_MIN16(RCV_WND_SCALE(pcb, pcb->rcv_ann_wnd)));
-  }
+  seg->tcphdr->wnd = htons(TCPWND_MIN16(RCV_WND_SCALE(pcb, pcb->rcv_ann_wnd)));
 
   pcb->rcv_ann_right_edge = pcb->rcv_nxt + pcb->rcv_ann_wnd;
 
@@ -1232,12 +1203,6 @@ tcp_output_segment(struct tcp_seg *seg, struct tcp_pcb *pcb)
   if (seg->flags & TF_SEG_OPTS_TS) {
     tcp_build_timestamp_option(pcb, opts);
     opts += 3;
-  }
-#endif
-#if LWIP_WND_SCALE
-  if (seg->flags & TF_SEG_OPTS_WND_SCALE) {
-    tcp_build_wnd_scale_option(opts);
-    opts += 1;
   }
 #endif
   
@@ -1368,11 +1333,7 @@ tcp_rst(u32_t seqno, u32_t ackno,
   tcphdr->seqno = htonl(seqno);
   tcphdr->ackno = htonl(ackno);
   TCPH_HDRLEN_FLAGS_SET(tcphdr, TCP_HLEN/4, TCP_RST | TCP_ACK);
-#if LWIP_WND_SCALE
-  tcphdr->wnd = PP_HTONS(((TCP_WND >> TCP_RCV_SCALE) & 0xFFFF));
-#else
   tcphdr->wnd = PP_HTONS(TCP_WND);
-#endif
   tcphdr->chksum = 0;
   tcphdr->urgp = 0;
 

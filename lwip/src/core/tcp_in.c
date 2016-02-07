@@ -364,17 +364,8 @@ tcp_input(struct pbuf *p, struct netif *inp)
            now. */
         if (pcb->acked > 0) {
           u16_t acked;
-#if LWIP_WND_SCALE
-          /* pcb->acked is u32_t but the sent callback only takes a u16_t,
-             so we might have to call it multiple times. */
-          u32_t pcb_acked = pcb->acked;
-          while(pcb_acked > 0) {
-            acked = (u16_t)LWIP_MIN(pcb_acked, 0xffffu);
-            pcb_acked -= acked;
-#else
           {
             acked = pcb->acked;
-#endif
             TCP_EVENT_SENT(pcb, (u16_t)acked, err);
             if (err == ERR_ABRT) {
               goto aborted;
@@ -1363,32 +1354,6 @@ tcp_parseopt(struct tcp_pcb *pcb)
         /* Limit the mss to the configured TCP_MSS and prevent division by zero */
         pcb->mss = ((mss > TCP_MSS) || (mss == 0)) ? TCP_MSS : mss;
         break;
-#if LWIP_WND_SCALE
-      case LWIP_TCP_OPT_WS:
-        LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: WND_SCALE\n"));
-        if (tcp_getoptbyte() != LWIP_TCP_OPT_LEN_WS || (tcp_optidx - 2 + LWIP_TCP_OPT_LEN_WS) > max_c) {
-          /* Bad length */
-          LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: bad length\n"));
-          return;
-        }
-        /* If syn was received with wnd scale option,
-           activate wnd scale opt, but only if this is not a retransmission */
-        if ((flags & TCP_SYN) && !(pcb->flags & TF_WND_SCALE)) {
-          /* An WND_SCALE option with the right option length. */
-          data = tcp_getoptbyte();
-          pcb->snd_scale = data;
-          if (pcb->snd_scale > 14U) {
-            pcb->snd_scale = 14U;
-          }
-          pcb->rcv_scale = TCP_RCV_SCALE;
-          pcb->flags |= TF_WND_SCALE;
-          /* window scaling is enabled, we can use the full receive window */
-          LWIP_ASSERT("window not at default value", pcb->rcv_wnd == TCPWND_MIN16(TCP_WND));
-          LWIP_ASSERT("window not at default value", pcb->rcv_ann_wnd == TCPWND_MIN16(TCP_WND));
-          pcb->rcv_wnd = pcb->rcv_ann_wnd = TCP_WND;
-        }
-        break;
-#endif
 #if LWIP_TCP_TIMESTAMPS
       case LWIP_TCP_OPT_TS:
         LWIP_DEBUGF(TCP_INPUT_DEBUG, ("tcp_parseopt: TS\n"));

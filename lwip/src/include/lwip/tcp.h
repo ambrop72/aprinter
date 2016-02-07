@@ -125,21 +125,12 @@ typedef void  (*tcp_err_fn)(void *arg, err_t err);
  */
 typedef err_t (*tcp_connected_fn)(void *arg, struct tcp_pcb *tpcb, err_t err);
 
-#if LWIP_WND_SCALE
-#define RCV_WND_SCALE(pcb, wnd) (((wnd) >> (pcb)->rcv_scale))
-#define SND_WND_SCALE(pcb, wnd) (((wnd) << (pcb)->snd_scale))
-#define TCPWND16(x)             ((u16_t)LWIP_MIN((x), 0xFFFF))
-#define TCP_WND_MAX(pcb)        ((tcpwnd_size_t)(((pcb)->flags & TF_WND_SCALE) ? TCP_WND : TCPWND16(TCP_WND)))
-typedef u32_t tcpwnd_size_t;
-typedef u16_t tcpflags_t;
-#else
 #define RCV_WND_SCALE(pcb, wnd) (wnd)
 #define SND_WND_SCALE(pcb, wnd) (wnd)
 #define TCPWND16(x)             (x)
 #define TCP_WND_MAX(pcb)        TCP_WND
 typedef u16_t tcpwnd_size_t;
 typedef u8_t tcpflags_t;
-#endif
 
 enum tcp_state {
   CLOSED      = 0,
@@ -201,9 +192,6 @@ struct tcp_pcb {
 #define TF_FIN         0x20U   /* Connection was closed locally (FIN segment enqueued). */
 #define TF_NODELAY     0x40U   /* Disable Nagle algorithm */
 #define TF_NAGLEMEMERR 0x80U   /* nagle enabled, memerr, try to output to prevent delayed ACK to happen */
-#if LWIP_WND_SCALE
-#define TF_WND_SCALE   0x0100U /* Window Scale option enabled */
-#endif
 
   /* the rest of the fields are in host byte order
      as we have to do some math with them */
@@ -295,11 +283,6 @@ struct tcp_pcb {
 
   /* KEEPALIVE counter */
   u8_t keep_cnt_sent;
-
-#if LWIP_WND_SCALE
-  u8_t snd_scale;
-  u8_t rcv_scale;
-#endif
 };
 
 struct tcp_pcb_listen {
