@@ -41,7 +41,7 @@
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/misc/StringTools.h>
-#include <aprinter/net/http/HttpServerCommon.h>
+#include <aprinter/net/http/HttpServerConstants.h>
 
 #include <aprinter/BeginNamespace.h>
 
