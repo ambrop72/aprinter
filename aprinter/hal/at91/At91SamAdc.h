@@ -221,7 +221,6 @@ public:
     
     static void init (Context c)
     {
-        auto *o = Object::self(c);
         if (NumPins > 0) {
             AvgFeature::init(c);
             ListForEachForward<PinsList>(LForeach_init(), c);
@@ -268,7 +267,6 @@ public:
     
     static void deinit (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::deinit(c);
         if (NumPins > 0) {
 #if defined(__SAM3X8E__) || defined(__SAM3S2A__)
@@ -294,7 +292,6 @@ public:
     template <typename Pin, typename ThisContext>
     static FixedType getValue (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         static int const PinIndex = TypeListIndex<FlatPinsList, Pin>::Value;

@@ -171,7 +171,6 @@ public:
     template <typename EventSpec>
     static void initFastEvent (Context c, FastHandlerType handler)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         Delay::extra(c)->m_fast_events[Delay::Extra::template get_event_index<EventSpec>()].handler = handler;
@@ -180,7 +179,6 @@ public:
     template <typename EventSpec>
     static void resetFastEvent (Context c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         Delay::extra(c)->m_fast_events[Delay::Extra::template get_event_index<EventSpec>()].not_triggered = true;
@@ -190,7 +188,6 @@ public:
     AMBRO_ALWAYS_INLINE
     static void triggerFastEvent (ThisContext c)
     {
-        auto *o = Object::self(c);
         TheDebugObject::access(c);
         
         AMBRO_LOCK_T(InterruptTempLock(), c, lock_c) {
