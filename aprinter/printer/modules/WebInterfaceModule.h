@@ -54,7 +54,7 @@ private:
         250,   // ExpectedResponseLength
         10000, // MaxRequestHeadLength
         4,     // TxChunkHeaderDigits
-        6      // MaxQueryParams
+        4      // MaxQueryParams
     >;
     
     struct HttpRequestHandler;
@@ -70,6 +70,7 @@ private:
     
     static constexpr char const * WebRootPath() { return "www"; }
     static constexpr char const * IndexPage() { return "reprap.htm"; }
+    static constexpr char const * UploadBasePath() { return nullptr; }
     
 public:
     static void init (Context c)
@@ -121,12 +122,10 @@ private:
                 return request->getUserClientState(c)->acceptDownloadTestRequest(c, request);
             }
 #endif
-            if (!(path.len > 0 && path.ptr[0] == '/')) {
-                request->setResponseStatus(c, HttpStatusCodes::NotFound());
-                goto error;
+            if (path.ptr[0] == '/') {
+                char const *file_path = path.equalTo("/") ? IndexPage() : (path.ptr + 1);
+                return request->getUserClientState(c)->acceptGetFileRequest(c, request, file_path);
             }
-            char const *file_path = path.equalTo("/") ? IndexPage() : (path.ptr + 1);
-            return request->getUserClientState(c)->acceptGetFileRequest(c, request, file_path);
         }
         else if (!strcmp(method, "POST")) {
             if (!request->hasRequestBody(c)) {
@@ -138,19 +137,33 @@ private:
                 return request->getUserClientState(c)->acceptUploadTestRequest(c, request);
             }
 #endif
-            request->setResponseStatus(c, HttpStatusCodes::NotFound());
+            if (path.equalTo("/rr_upload")) {
+                MemRef file_name;
+                if (!request->getParam(c, "name", &file_name)) {
+                    request->setResponseStatus(c, HttpStatusCodes::UnprocessableEntity());
+                    goto error;
+                }
+                return request->getUserClientState(c)->acceptUploadFileRequest(c, request, file_name.ptr);
+            }
         }
         else {
             request->setResponseStatus(c, HttpStatusCodes::MethodNotAllowed());
+            goto error;
         }
         
+        request->setResponseStatus(c, HttpStatusCodes::NotFound());
     error:
         request->completeHandling(c);
     }
     struct HttpRequestHandler : public AMBRO_WFUNC_TD(&WebInterfaceModule::http_request_handler) {};
     
     struct UserClientState : public TheRequestInterface::RequestUserCallback {
-        enum class State {NO_CLIENT, OPEN, WAIT, READ, DL_TEST, UL_TEST};
+        enum class State {
+            NO_CLIENT,
+            READ_OPEN, READ_WAIT, READ_READ,
+            WRITE_OPEN, WRITE_WAIT, WRITE_WRITE, WRITE_EOF,
+            DL_TEST, UL_TEST
+        };
         
         void init (Context c)
         {
@@ -163,24 +176,33 @@ private:
             m_buffered_file.deinit(c);
         }
         
-        void acceptGetFileRequest (Context c, TheRequestInterface *request, char const *file_path)
+        void accept_request_common (Context c, TheRequestInterface *request)
         {
             AMBRO_ASSERT(m_state == State::NO_CLIENT)
             
             request->setCallback(c, this);
             m_request = request;
+        }
+        
+        void acceptGetFileRequest (Context c, TheRequestInterface *request, char const *file_path)
+        {
+            accept_request_common(c, request);
             m_file_path = file_path;
-            m_state = State::OPEN;
+            m_state = State::READ_OPEN;
             m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_READ, WebRootPath());
+        }
+        
+        void acceptUploadFileRequest (Context c, TheRequestInterface *request, char const *file_path)
+        {
+            accept_request_common(c, request);
+            m_state = State::WRITE_OPEN;
+            m_buffered_file.startOpen(c, file_path, false, TheBufferedFile::OpenMode::OPEN_WRITE, UploadBasePath());
         }
         
 #if APRINTER_ENABLE_HTTP_TEST
         void acceptDownloadTestRequest (Context c, TheRequestInterface *request)
         {
-            AMBRO_ASSERT(m_state == State::NO_CLIENT)
-            
-            request->setCallback(c, this);
-            m_request = request;
+            accept_request_common(c, request);
             m_request->setResponseContentType(c, "application/octet-stream");
             m_request->adoptResponseBody(c);
             m_state = State::DL_TEST;
@@ -188,10 +210,7 @@ private:
         
         void acceptUploadTestRequest (Context c, TheRequestInterface *request)
         {
-            AMBRO_ASSERT(m_state == State::NO_CLIENT)
-            
-            request->setCallback(c, this);
-            m_request = request;
+            accept_request_common(c, request);
             m_request->adoptRequestBody(c);
             m_state = State::UL_TEST;
         }
@@ -205,36 +224,58 @@ private:
             m_state = State::NO_CLIENT;
         }
         
-#if APRINTER_ENABLE_HTTP_TEST
         void requestBufferEvent (Context c)
         {
-            AMBRO_ASSERT(m_state == State::UL_TEST)
-            
-            auto buf_st = m_request->getRequestBodyBufferState(c);
-            if (buf_st.length > 0) {
-                m_request->acceptRequestBodyData(c, buf_st.length);
-            }
-            else if (buf_st.eof) {
-                m_request->completeHandling(c);
-                requestTerminated(c);
+            switch (m_state) {
+                case State::WRITE_WAIT: {
+                    auto buf_st = m_request->getRequestBodyBufferState(c);
+                    if (buf_st.length > 0) {
+                        m_cur_chunk_size = MinValue(buf_st.data.wrap, buf_st.length);
+                        m_buffered_file.startWriteData(c, buf_st.data.ptr1, m_cur_chunk_size);
+                        m_state = State::WRITE_WRITE;
+                    }
+                    else if (buf_st.eof) {
+                        m_buffered_file.startWriteEof(c);
+                        m_state = State::WRITE_EOF;
+                    }
+                } break;
+                
+                case State::WRITE_WRITE:
+                case State::WRITE_EOF:
+                    break;
+                
+#if APRINTER_ENABLE_HTTP_TEST
+                case State::UL_TEST: {
+                    auto buf_st = m_request->getRequestBodyBufferState(c);
+                    if (buf_st.length > 0) {
+                        m_request->acceptRequestBodyData(c, buf_st.length);
+                    }
+                    else if (buf_st.eof) {
+                        m_request->completeHandling(c);
+                        requestTerminated(c);
+                    }
+                } break;
+#endif
+                
+                default:
+                    AMBRO_ASSERT(false);
             }
         }
-#endif
         
         void responseBufferEvent (Context c)
         {
             switch (m_state) {
-                case State::WAIT: {
+                case State::READ_WAIT: {
                     auto buf_st = m_request->getResponseBodyBufferState(c);
                     size_t allowed_length = MinValue(GetSdChunkSize, buf_st.length);
                     if (m_cur_chunk_size < allowed_length) {
                         auto dest_buf = buf_st.data.subFrom(m_cur_chunk_size);
                         m_buffered_file.startReadData(c, dest_buf.ptr1, MinValue(dest_buf.wrap, (size_t)(allowed_length - m_cur_chunk_size)));
-                        m_state = State::READ;
+                        m_state = State::READ_READ;
                     }
                 } break;
                 
-                case State::READ:
+                case State::READ_READ:
                     break;
                 
 #if APRINTER_ENABLE_HTTP_TEST
@@ -262,7 +303,8 @@ private:
         void buffered_file_handler (Context c, typename TheBufferedFile::Error error, size_t read_length)
         {
             switch (m_state) {
-                case State::OPEN: {
+                case State::READ_OPEN:
+                case State::WRITE_OPEN: {
                     if (error != TheBufferedFile::Error::NO_ERROR) {
                         auto status = (error == TheBufferedFile::Error::NOT_FOUND) ? HttpStatusCodes::NotFound() : HttpStatusCodes::InternalServerError();
                         m_request->setResponseStatus(c, status);
@@ -270,14 +312,20 @@ private:
                         return requestTerminated(c);
                     }
                     
-                    m_request->setResponseContentType(c, get_content_type(m_file_path));
-                    m_request->adoptResponseBody(c);
-                    
-                    m_state = State::WAIT;
-                    m_cur_chunk_size = 0;
+                    if (m_state == State::READ_OPEN) {
+                        m_request->setResponseContentType(c, get_content_type(m_file_path));
+                        m_request->adoptResponseBody(c);
+                        
+                        m_state = State::READ_WAIT;
+                        m_cur_chunk_size = 0;
+                    } else {
+                        m_request->adoptRequestBody(c);
+                        
+                        m_state = State::WRITE_WAIT;
+                    }
                 } break;
                 
-                case State::READ: {
+                case State::READ_READ: {
                     if (error != TheBufferedFile::Error::NO_ERROR) {
                         ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpSdReadError\n"));
                         m_request->completeHandling(c);
@@ -297,8 +345,28 @@ private:
                         return requestTerminated(c);
                     }
                     
-                    m_state = State::WAIT;
+                    m_state = State::READ_WAIT;
                     responseBufferEvent(c);
+                } break;
+                
+                case State::WRITE_WRITE:
+                case State::WRITE_EOF: {
+                    if (error != TheBufferedFile::Error::NO_ERROR) {
+                        ThePrinterMain::print_pgm_string(c, AMBRO_PSTR("//HttpSdWriteError\n"));
+                        m_request->setResponseStatus(c, HttpStatusCodes::InternalServerError());
+                        m_request->completeHandling(c);
+                        return requestTerminated(c);
+                    }
+                    
+                    if (m_state == State::WRITE_EOF) {
+                        m_request->completeHandling(c);
+                        return requestTerminated(c);
+                    }
+                    
+                    m_request->acceptRequestBodyData(c, m_cur_chunk_size);
+                    
+                    m_state = State::WRITE_WAIT;
+                    requestBufferEvent(c);
                 } break;
                 
                 default: AMBRO_ASSERT(false);
