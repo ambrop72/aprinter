@@ -145,24 +145,21 @@ void StringIterHttpTokens (MemRef data, TokenCallback token_cb)
     }
 }
 
-namespace StringToolsPrivate {
-    AMBRO_ALWAYS_INLINE
-    static bool DecodeHexDigit (char c, int *out)
-    {
-        if (c >= '0' && c <= '9') {
-            *out = c - '0';
-        }
-        else if (c >= 'A' && c <= 'F') {
-            *out = 10 + (c - 'A');
-        }
-        else if (c >= 'a' && c <= 'f') {
-            *out = 10 + (c - 'a');
-        }
-        else {
-            return false;
-        }
-        return true;
+static bool StringDecodeHexDigit (char c, int *out)
+{
+    if (c >= '0' && c <= '9') {
+        *out = c - '0';
     }
+    else if (c >= 'A' && c <= 'F') {
+        *out = 10 + (c - 'A');
+    }
+    else if (c >= 'a' && c <= 'f') {
+        *out = 10 + (c - 'a');
+    }
+    else {
+        return false;
+    }
+    return true;
 }
 
 static bool StringParseHexadecimal (MemRef data, uint64_t *out)
@@ -178,7 +175,7 @@ static bool StringParseHexadecimal (MemRef data, uint64_t *out)
             char ch = *data.ptr++; \
             data.len--; \
             int digit; \
-            if (!StringToolsPrivate::DecodeHexDigit(ch, &digit)) { \
+            if (!StringDecodeHexDigit(ch, &digit)) { \
                 return false; \
             } \
             res = (res << 4) | digit; \

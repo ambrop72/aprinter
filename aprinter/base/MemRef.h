@@ -71,6 +71,14 @@ struct MemRef {
         
         return MemRef(ptr, offset);
     }
+    
+    inline bool equalTo (MemRef other) const
+    {
+        AMBRO_ASSERT(ptr)
+        AMBRO_ASSERT(other.ptr)
+        
+        return len == other.len && !memcmp(ptr, other.ptr, len);
+    }
 };
 
 #include <aprinter/EndNamespace.h>

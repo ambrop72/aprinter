@@ -53,7 +53,8 @@ private:
         128,   // MaxHeaderLineLength
         250,   // ExpectedResponseLength
         10000, // MaxRequestHeadLength
-        4      // TxChunkHeaderDigits
+        4,     // TxChunkHeaderDigits
+        6      // MaxQueryParams
     >;
     
     struct HttpRequestHandler;
@@ -108,7 +109,7 @@ private:
     static void http_request_handler (Context c, TheRequestInterface *request)
     {
         char const *method = request->getMethod(c);
-        char const *path = request->getPath(c);
+        MemRef path = request->getPath(c);
         
         if (!strcmp(method, "GET")) {
             if (request->hasRequestBody(c)) {
@@ -116,15 +117,15 @@ private:
                 goto error;
             }
 #if APRINTER_ENABLE_HTTP_TEST
-            if (!strcmp(path, "/downloadTest")) {
+            if (path.equalTo("/downloadTest")) {
                 return request->getUserClientState(c)->acceptDownloadTestRequest(c, request);
             }
 #endif
-            if (path[0] != '/') {
+            if (!(path.len > 0 && path.ptr[0] == '/')) {
                 request->setResponseStatus(c, HttpStatusCodes::NotFound());
                 goto error;
             }
-            char const *file_path = !strcmp(path, "/") ? IndexPage() : (path + 1);
+            char const *file_path = path.equalTo("/") ? IndexPage() : (path.ptr + 1);
             return request->getUserClientState(c)->acceptGetFileRequest(c, request, file_path);
         }
         else if (!strcmp(method, "POST")) {
@@ -133,7 +134,7 @@ private:
                 goto error;
             }
 #if APRINTER_ENABLE_HTTP_TEST
-            if (!strcmp(path, "/uploadTest")) {
+            if (path.equalTo("/uploadTest")) {
                 return request->getUserClientState(c)->acceptUploadTestRequest(c, request);
             }
 #endif

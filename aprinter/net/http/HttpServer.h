@@ -40,8 +40,10 @@
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/Likely.h>
+#include <aprinter/base/MemRef.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/net/http/HttpServerConstants.h>
+#include <aprinter/net/http/HttpPathParser.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -890,7 +892,7 @@ private:
                     goto error;
                 }
                 *second_space = '\0';
-                m_request_path = buf;
+                char *request_path = buf;
                 buf = second_space + 1;
                 
                 // Remove HTTP/ prefix from the version.
@@ -940,6 +942,9 @@ private:
                 if (m_have_content_length || m_have_chunked) {
                     m_have_request_body = true;
                 }
+                
+                // Parse the request path.
+                m_path_parser.parse(request_path);
                 
                 // Change state before passing the request to the user.
                 m_state = State::HEAD_RECEIVED;
@@ -1189,11 +1194,32 @@ private:
             return m_request_method;
         }
         
-        char const * getPath (Context c)
+        MemRef getPath (Context c)
         {
             AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
             
-            return m_request_path;
+            return m_path_parser.getPath();
+        }
+        
+        int getNumParams (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            
+            return m_path_parser.getNumParams();
+        }
+        
+        void getParam (Context c, int idx, MemRef *name, MemRef *value) 
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            
+            return m_path_parser.getParam(idx, name, value);
+        }
+        
+        bool getParam (Context c, MemRef name, MemRef *value=nullptr)
+        {
+            AMBRO_ASSERT(m_state == State::HEAD_RECEIVED)
+            
+            return m_path_parser.getParam(name, value);
         }
         
         bool hasRequestBody (Context c)
@@ -1379,6 +1405,7 @@ private:
         typename Context::EventLoop::TimedEvent m_recv_timeout_event;
         typename Context::EventLoop::QueuedEvent m_combined_timeout_event;
         TheTcpConnection m_connection;
+        HttpPathParser<Params::MaxQueryParams> m_path_parser;
         RequestUserCallback *m_user;
         UserClientState m_user_client_state;
         size_t m_rx_buf_start;
@@ -1388,7 +1415,6 @@ private:
         size_t m_last_chunk_length;
         uint64_t m_rem_req_body_length;
         char const *m_request_method;
-        char const *m_request_path;
         char const *m_resp_status;
         char const *m_resp_content_type;
         State m_state;
@@ -1438,7 +1464,8 @@ APRINTER_ALIAS_STRUCT_EXT(HttpServerService, (
     APRINTER_AS_VALUE(size_t, MaxHeaderLineLength),
     APRINTER_AS_VALUE(size_t, ExpectedResponseLength),
     APRINTER_AS_VALUE(size_t, MaxRequestHeadLength),
-    APRINTER_AS_VALUE(size_t, TxChunkHeaderDigits)
+    APRINTER_AS_VALUE(size_t, TxChunkHeaderDigits),
+    APRINTER_AS_VALUE(int, MaxQueryParams)
 ), (
     template <typename Context, typename ParentObject, typename TheMain, typename RequestHandler, typename UserClientState>
     using Server = HttpServer<Context, ParentObject, TheMain, RequestHandler, UserClientState, HttpServerService>;
