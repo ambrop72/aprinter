@@ -47,11 +47,7 @@ stdenv.mkDerivation rec {
         find "$out" \( -name '*.h' -o -name '*.c' \) -exec sed -i 's/__always_inline\(\s\|$\)/__asf_always_inline\1/g' {} \;
         
         # Apply patches.
-        patch -d "$out" -p1 < ${ ../patches/asf-emac-write.patch }
-        patch -d "$out" -p1 < ${ ../patches/asf-emac-read.patch }
-        patch -d "$out" -p1 < ${ ../patches/asf-emac-txcb.patch }
-        patch -d "$out" -p1 < ${ ../patches/asf-emac-write_ret_void.patch }
-        patch -d "$out" -p1 < ${ ../patches/asf-emac-rxoffset.patch }
+        patch -d "$out" -p1 < ${ ../patches/asf-emac.patch }
     '';
     
     dontStrip = true;

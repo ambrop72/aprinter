@@ -1,0 +1,328 @@
+diff --git a/sam/drivers/emac/emac.c b/sam/drivers/emac/emac.c
+index 7d95817..5e5cc54 100644
+--- a/sam/drivers/emac/emac.c
++++ b/sam/drivers/emac/emac.c
+@@ -72,7 +72,6 @@ extern "C" {
+ COMPILER_ALIGNED(8)
+ static emac_tx_descriptor_t gs_tx_desc[EMAC_TX_BUFFERS];
+ /** TX callback lists */
+-static emac_dev_tx_cb_t gs_tx_callback[EMAC_TX_BUFFERS];
+ /** RX descriptors lists */
+ COMPILER_ALIGNED(8)
+ static emac_rx_descriptor_t gs_rx_desc[EMAC_RX_BUFFERS];
+@@ -230,15 +229,13 @@ static void emac_reset_rx_mem(emac_device_t* p_dev)
+  * \param p_emac Pointer to EMAC instance. 
+  * \param p_emac_dev Pointer to EMAC device instance.
+  * \param p_dev_mm Pointer to the EMAC memory management control block.
+- * \param p_tx_cb Pointer to allocated TX callback list.
+  *
+  * \return EMAC_OK or EMAC_PARAM.
+  */
+ static uint8_t emac_init_mem(Emac* p_emac, emac_device_t* p_emac_dev,
+-		emac_dev_mem_t* p_dev_mm,
+-		emac_dev_tx_cb_t* p_tx_cb)
++		emac_dev_mem_t* p_dev_mm)
+ {
+-	if (p_dev_mm->us_rx_size <= 1 || p_dev_mm->us_tx_size <= 1 || p_tx_cb == NULL) {
++	if (p_dev_mm->us_rx_size <= 1 || p_dev_mm->us_tx_size <= 1) {
+ 		return EMAC_PARAM;
+ 	}
+ 
+@@ -265,7 +262,6 @@ static uint8_t emac_init_mem(Emac* p_emac, emac_device_t* p_emac_dev,
+ 			(emac_tx_descriptor_t *) ((uint32_t) p_dev_mm->p_tx_dscr 
+ 			& 0xFFFFFFF8);
+ 	p_emac_dev->us_tx_list_size = p_dev_mm->us_tx_size;
+-	p_emac_dev->func_tx_cb_list = p_tx_cb;
+ 
+ 	/* Reset TX & RX */
+ 	emac_reset_rx_mem(p_emac_dev);
+@@ -379,43 +375,21 @@ void emac_dev_init(Emac* p_emac, emac_device_t* p_emac_dev,
+ 	emac_dev_mm.p_tx_dscr = gs_tx_desc;
+ 	emac_dev_mm.us_tx_size = EMAC_TX_BUFFERS;
+ 
+-	emac_init_mem(p_emac, p_emac_dev, &emac_dev_mm, gs_tx_callback);
++	emac_init_mem(p_emac, p_emac_dev, &emac_dev_mm);
+ 
+ 	emac_set_address(p_emac, 0, p_opt->uc_mac_addr);
+ 
+ }
+ 
+-/**
+- * \brief Frames can be read from the EMAC in multiple sections.
+- * Read ul_frame_size bytes from the EMAC receive buffers to pcTo.
+- * p_rcv_size is the size of the entire frame.  Generally emac_read
+- * will be repeatedly called until the sum of all the ul_frame_size equals
+- * the value of p_rcv_size.
+- *
+- * \param p_emac_dev Pointer to the EMAC device instance. 
+- * \param p_frame Address of the frame buffer.
+- * \param ul_frame_size  Length of the frame.
+- * \param p_rcv_size   Received frame size.
+- *
+- * \return EMAC_OK if receiving frame successfully, otherwise failed.
+- */
+-uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+-		uint32_t ul_frame_size, uint32_t* p_rcv_size)
++uint32_t emac_dev_read_start(emac_device_t* p_emac_dev, emac_dev_read_state_t *state,
++		uint8_t** p_data1, uint8_t** p_data2,
++		uint32_t* p_size1, uint32_t *p_size2)
+ {
+-	uint16_t us_buffer_length;
+-	uint32_t tmp_ul_frame_size = 0;
+-	uint8_t *p_tmp_frame = 0;
+ 	uint16_t us_tmp_idx = p_emac_dev->us_rx_idx;
+ 	emac_rx_descriptor_t *p_rx_td =
+ 			&p_emac_dev->p_rx_dscr[p_emac_dev->us_rx_idx];
+ 	int8_t c_is_frame = 0;
+ 
+-	if (p_frame == NULL)
+-		return EMAC_PARAM;
+-
+-	/* Set the default return value */
+-	*p_rcv_size = 0;
+-
+ 	/* Process received RX descriptor */
+ 	while ((p_rx_td->addr.val & EMAC_RXD_OWNERSHIP) == EMAC_RXD_OWNERSHIP) {
+ 		/* A start of frame has been received, discard previous fragments */
+@@ -427,9 +401,6 @@ uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+ 
+ 				circ_inc(&p_emac_dev->us_rx_idx, p_emac_dev->us_rx_list_size);
+ 			}
+-			/* Reset the temporary frame pointer */
+-			p_tmp_frame = p_frame;
+-			tmp_ul_frame_size = 0;
+ 			/* Start to gather buffers in a frame */
+ 			c_is_frame = 1;
+ 		}
+@@ -437,7 +408,6 @@ uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+ 		/* Increment the pointer */
+ 		circ_inc(&us_tmp_idx, p_emac_dev->us_rx_list_size);
+ 
+-		/* Copy data in the frame buffer */
+ 		if (c_is_frame) {
+ 			if (us_tmp_idx == p_emac_dev->us_rx_idx) {
+ 				do {
+@@ -449,36 +419,31 @@ uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+ 
+ 				return EMAC_RX_NULL;
+ 			}
+-			/* Copy the buffer into the application frame */
+-			us_buffer_length = EMAC_RX_UNITSIZE;
+-			if ((tmp_ul_frame_size + us_buffer_length) > ul_frame_size) {
+-				us_buffer_length = ul_frame_size - tmp_ul_frame_size;
+-			}
+-
+-			memcpy(p_tmp_frame,
+-					(void *)(p_rx_td->addr.val & EMAC_RXD_ADDR_MASK),
+-					us_buffer_length);
+-			p_tmp_frame += us_buffer_length;
+-			tmp_ul_frame_size += us_buffer_length;
+-
++			
+ 			/* An end of frame has been received, return the data */
+ 			if ((p_rx_td->status.val & EMAC_RXD_EOF) == EMAC_RXD_EOF) {
+ 				/* Frame size from the EMAC */
+-				*p_rcv_size = (p_rx_td->status.val & EMAC_RXD_LEN_MASK);
+-
+-				/* All data have been copied in the application frame buffer => release TD */
+-				while (p_emac_dev->us_rx_idx != us_tmp_idx) {
+-					p_rx_td = &p_emac_dev->p_rx_dscr[p_emac_dev->us_rx_idx];
+-					p_rx_td->addr.val &= ~(EMAC_RXD_OWNERSHIP);
+-					circ_inc(&p_emac_dev->us_rx_idx, p_emac_dev->us_rx_list_size);
+-				}
+-
+-				/* Application frame buffer is too small so that all data have not been copied */
+-				if (tmp_ul_frame_size < *p_rcv_size) {
+-					return EMAC_SIZE_TOO_SMALL;
+-				}
+-
++				uint32_t rcv_size = (p_rx_td->status.val & EMAC_RXD_LEN_MASK);
++                                uint32_t rcv_offset = (p_emac_dev->p_hw->EMAC_NCFGR & EMAC_NCFGR_RBOF_Msk) >> EMAC_NCFGR_RBOF_Pos;
++				
++				/* Figure out how the frame wraps */
++				uint16_t num_first_buffers = (us_tmp_idx >= p_emac_dev->us_rx_idx) ?
++					(us_tmp_idx - p_emac_dev->us_rx_idx) : (p_emac_dev->us_rx_list_size - p_emac_dev->us_rx_idx);
++				uint32_t first_buffers_size = (uint32_t)num_first_buffers * EMAC_RX_UNITSIZE - rcv_offset;
++				
++				/* Provide data pointers to application */
++				*p_data1 = &p_emac_dev->p_rx_buffer[p_emac_dev->us_rx_idx * EMAC_RX_UNITSIZE] + rcv_offset;
++				*p_data2 = &p_emac_dev->p_rx_buffer[0                     * EMAC_RX_UNITSIZE];
++                                
++				/* Provide data sizes to application */
++				*p_size1 = (rcv_size <= first_buffers_size) ? rcv_size : first_buffers_size;
++				*p_size2 = rcv_size - *p_size1;
++				
++				/* Remember buffer index, continuing in emac_dev_read_end */
++				state->us_tmp_idx = us_tmp_idx;
++				
+ 				return EMAC_OK;
++				
+ 			}
+ 		}
+ 		/* SOF has not been detected, skip the fragment */
+@@ -494,28 +459,21 @@ uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+ 	return EMAC_RX_NULL;
+ }
+ 
+-/**
+- * \brief Send ulLength bytes from pcFrom. This copies the buffer to one of the
+- * EMAC Tx buffers, and then indicates to the EMAC that the buffer is ready.
+- * If lEndOfFrame is true then the data being copied is the end of the frame
+- * and the frame can be transmitted.
+- *
+- * \param p_emac_dev Pointer to the EMAC device instance.
+- * \param p_buffer       Pointer to the data buffer.
+- * \param ul_size    Length of the frame.
+- * \param func_tx_cb  Transmit callback function.
+- *
+- * \return Length sent.
+- */
+-uint32_t emac_dev_write(emac_device_t* p_emac_dev, void *p_buffer,
+-		uint32_t ul_size, emac_dev_tx_cb_t func_tx_cb)
++void emac_dev_read_end(emac_device_t* p_emac_dev, emac_dev_read_state_t *state)
+ {
++	emac_rx_descriptor_t *p_rx_td;
++	
++	/* All data have been processed by the application => release TD */
++	while (p_emac_dev->us_rx_idx != state->us_tmp_idx) {
++		p_rx_td = &p_emac_dev->p_rx_dscr[p_emac_dev->us_rx_idx];
++		p_rx_td->addr.val &= ~(EMAC_RXD_OWNERSHIP);
++		circ_inc(&p_emac_dev->us_rx_idx, p_emac_dev->us_rx_list_size);
++	}
++}
+ 
++uint32_t emac_dev_write_start(emac_device_t* p_emac_dev, uint32_t ul_size, void **out_buffer)
++{
+ 	volatile emac_tx_descriptor_t *p_tx_td;
+-	volatile emac_dev_tx_cb_t *p_func_tx_cb;
+-
+-	Emac *p_hw = p_emac_dev->p_hw;
+-
+ 
+ 	/* Check parameter */
+ 	if (ul_size > EMAC_TX_UNITSIZE) {
+@@ -531,17 +489,18 @@ uint32_t emac_dev_write(emac_device_t* p_emac_dev, void *p_buffer,
+ 		return EMAC_TX_BUSY;
+ 	}
+ 
+-	/* Pointers to the current Tx callback */
+-	p_func_tx_cb = &p_emac_dev->func_tx_cb_list[p_emac_dev->us_tx_head];
+-
+-	/* Set up/copy data to transmission buffer */
+-	if (p_buffer && ul_size) {
+-		/* Driver manages the ring buffer */
+-		memcpy((void *)p_tx_td->addr, p_buffer, ul_size);
+-	}
++	*out_buffer = (void *)p_tx_td->addr;
++	
++	return EMAC_OK;
++}
+ 
+-	/* Tx callback */
+-	*p_func_tx_cb = func_tx_cb;
++void emac_dev_write_end(emac_device_t* p_emac_dev, uint32_t ul_size)
++{
++	volatile emac_tx_descriptor_t *p_tx_td;
++	Emac *p_hw = p_emac_dev->p_hw;
++	
++	/* Pointers to the current transmit descriptor */
++	p_tx_td = &p_emac_dev->p_tx_dscr[p_emac_dev->us_tx_head];
+ 
+ 	/* Update transmit descriptor status */
+ 
+@@ -560,8 +519,6 @@ uint32_t emac_dev_write(emac_device_t* p_emac_dev, void *p_buffer,
+ 
+ 	/* Now start to transmit if it is still not done */
+ 	emac_start_transmission(p_hw);
+-
+-	return EMAC_OK;
+ }
+ 
+ /**
+@@ -671,7 +628,6 @@ void emac_handler(emac_device_t* p_emac_dev)
+ 	Emac *p_hw = p_emac_dev->p_hw;
+ 
+ 	emac_tx_descriptor_t *p_tx_td;
+-	emac_dev_tx_cb_t *p_tx_cb;
+ 	volatile uint32_t ul_isr;
+ 	volatile uint32_t ul_rsr;
+ 	volatile uint32_t ul_tsr;
+@@ -717,7 +673,6 @@ void emac_handler(emac_device_t* p_emac_dev)
+ 			/* Status RLE & Number of discarded buffers */
+ 			ul_tx_status_flag = EMAC_TSR_RLES | CIRC_CNT(p_emac_dev->us_tx_head,
+ 					p_emac_dev->us_tx_tail, p_emac_dev->us_tx_list_size);
+-			p_tx_cb = &p_emac_dev->func_tx_cb_list[p_emac_dev->us_tx_tail];
+ 			emac_reset_tx_mem(p_emac_dev);
+ 			emac_enable_transmit(p_hw, 1);
+ 		}
+@@ -740,29 +695,16 @@ void emac_handler(emac_device_t* p_emac_dev)
+ 			/* Check the buffers */
+ 			do {
+ 				p_tx_td = &p_emac_dev->p_tx_dscr[p_emac_dev->us_tx_tail];
+-				p_tx_cb = &p_emac_dev->func_tx_cb_list[p_emac_dev->us_tx_tail];
+ 				/* Any error? Exit if buffer has not been sent yet */
+ 				if ((p_tx_td->status.val & EMAC_TXD_USED) == 0) {
+ 					break;
+ 				}
+ 
+-				/* Notify upper layer that a packet has been sent */
+-				if (*p_tx_cb) {
+-					(*p_tx_cb) (ul_tx_status_flag);
+-				}
+-
+ 				circ_inc(&p_emac_dev->us_tx_tail, p_emac_dev->us_tx_list_size);
+ 			} while (CIRC_CNT(p_emac_dev->us_tx_head, p_emac_dev->us_tx_tail,
+ 							p_emac_dev->us_tx_list_size));
+ 		}
+ 
+-		if (ul_tsr & EMAC_TSR_RLES) {
+-			/* Notify upper layer RLE */
+-			if (*p_tx_cb) {
+-				(*p_tx_cb) (ul_tx_status_flag);
+-			}
+-		}
+-
+ 		/* If a wakeup has been scheduled, notify upper layer that it can
+ 		   send other packets, and the sending will be successful. */
+ 		if ((CIRC_SPACE(p_emac_dev->us_tx_head, p_emac_dev->us_tx_tail,
+diff --git a/sam/drivers/emac/emac.h b/sam/drivers/emac/emac.h
+index 784c96b..4f8a3a3 100644
+--- a/sam/drivers/emac/emac.h
++++ b/sam/drivers/emac/emac.h
+@@ -231,8 +231,6 @@ typedef struct emac_device {
+ 	emac_dev_tx_cb_t func_rx_cb;
+ 	/** Optional callback to be invoked once several TDs have been released */
+ 	emac_dev_wakeup_cb_t func_wakeup_cb;
+-	/** Optional callback list to be invoked once TD has been processed */
+-	emac_dev_tx_cb_t *func_tx_cb_list;
+ 	/** RX TD list size */
+ 	uint16_t us_rx_list_size;
+ 	/** RX index for current processing TD */
+@@ -248,6 +246,10 @@ typedef struct emac_device {
+ 	uint8_t uc_wakeup_threshold;
+ } emac_device_t;
+ 
++typedef struct emac_dev_read_state {
++    uint16_t us_tmp_idx;
++} emac_dev_read_state_t;
++
+ /**
+  * \brief Write network control value.
+  *
+@@ -1003,10 +1005,12 @@ uint8_t emac_phy_write(Emac* p_emac, uint8_t uc_phy_address,
+ 		uint8_t uc_address, uint32_t ul_value);
+ void emac_dev_init(Emac* p_emac, emac_device_t* p_emac_dev,
+ 		emac_options_t* p_opt);
+-uint32_t emac_dev_read(emac_device_t* p_emac_dev, uint8_t* p_frame,
+-		uint32_t ul_frame_size, uint32_t* p_rcv_size);
+-uint32_t emac_dev_write(emac_device_t* p_emac_dev, void *p_buffer,
+-		uint32_t ul_size, emac_dev_tx_cb_t func_tx_cb);
++uint32_t emac_dev_read_start(emac_device_t* p_emac_dev, emac_dev_read_state_t *state,
++		uint8_t** p_data1, uint8_t** p_data2,
++		uint32_t* p_size1, uint32_t *p_size2);
++void emac_dev_read_end(emac_device_t* p_emac_dev, emac_dev_read_state_t *state);
++uint32_t emac_dev_write_start(emac_device_t* p_emac_dev, uint32_t ul_size, void **out_buffer);
++void emac_dev_write_end(emac_device_t* p_emac_dev, uint32_t ul_size);
+ uint32_t emac_dev_get_tx_load(emac_device_t* p_emac_dev);
+ void emac_dev_set_rx_callback(emac_device_t* p_emac_dev,
+ 		emac_dev_tx_cb_t func_rx_cb);
