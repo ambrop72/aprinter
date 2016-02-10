@@ -63,15 +63,24 @@ private:
     static_assert(NumCacheEntries > 0, "");
     
     class CacheEntry;
+    
     using TheDebugObject = DebugObject<Context, Object>;
+    
     using DataWordType = typename TheBlockAccess::DataWordType;
     static size_t const BlockSizeInWords = TheBlockAccess::BlockSize / sizeof(DataWordType);
+    
     using BlockAccessUser = If<Writable, typename TheBlockAccess::UserFull, typename TheBlockAccess::User>;
+    
     using DirtTimeType = uint32_t;
     static constexpr DirtTimeType DirtSignBit = ((DirtTimeType)-1 / 2) + 1;
+    
     using CacheEntryIndexType = ChooseIntForMax<NumCacheEntries, true>;
+    
     static int const NumBuffers = NumCacheEntries + (Writable ? TheBlockAccess::MaxBufferLocks : 0);
     using BufferIndexType = ChooseIntForMax<NumBuffers, true>;
+    
+    using NumRefsType = uint8_t;
+    static NumRefsType const MaxNumRefs = (NumRefsType)-1;
     
 public:
     using BlockIndexType = typename TheBlockAccess::BlockIndexType;
@@ -201,7 +210,7 @@ public:
         friend BlockCache;
         friend class CacheEntry;
         
-        enum class State : uint8_t {INVALID, ALLOCATING_ENTRY, WAITING_READ, INIT_COMPL_EVENT, AVAILABLE};
+        enum class State : uint8_t {INVALID, ALLOCATING_ENTRY, WAITING_READ, INIT_COMPL_EVENT, AVAILABLE, WEAK_REF};
         
     public:
         using CacheHandler = Callback<void(Context c, bool error)>;
@@ -233,16 +242,37 @@ public:
             reset_internal(c);
         }
         
-        bool requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags, uint8_t eviction_priority=128)
+        void resetWeak (Context c)
+        {
+            this->debugAccess(c);
+            
+            if (m_state == State::AVAILABLE) {
+                m_state = State::WEAK_REF;
+                get_entry(c)->detachUser(c, this, CacheEntry::DetachMode::HARD_TO_WEAK);
+            } else {
+                reset_internal(c);
+            }
+        }
+        
+        bool requestBlock (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags)
         {
             this->debugAccess(c);
             TheDebugObject::access(c);
             
-            if (!(flags & FLAG_NO_IMMEDIATE_COMPLETION) && (is_allocating_block(block) || (m_entry_index != -1 && block == get_entry(c)->getBlock(c)))) {
+            if (!(flags & FLAG_NO_IMMEDIATE_COMPLETION) && (is_allocating_block(block) || is_attached_to_block(c, block))) {
                 check_write_params(write_stride, write_count);
+                if (m_state == State::WEAK_REF) {
+                    if (!get_entry(c)->canIncrementRefCnt(c)) {
+                        goto fallback;
+                    }
+                    m_state = State::AVAILABLE;
+                    get_entry(c)->hardenWeakUser(c, this);
+                }
                 return m_state == State::AVAILABLE;
             }
-            request_common(c, block, write_stride, write_count, flags, eviction_priority);
+            
+        fallback:
+            request_common(c, block, write_stride, write_count, flags);
             return false; // never do we end up in State::AVAILABLE in this branch
         }
         
@@ -256,7 +286,6 @@ public:
         {
             this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
-            AMBRO_ASSERT(get_entry(c)->isAssigned(c))
             
             return get_entry(c)->getBlock(c);
         }
@@ -265,7 +294,6 @@ public:
         {
             this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
-            AMBRO_ASSERT(get_entry(c)->isAssigned(c))
             
             return get_entry(c)->getDataForReading(c);
         }
@@ -274,7 +302,6 @@ public:
         {
             this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
-            AMBRO_ASSERT(get_entry(c)->isAssigned(c))
             
             return get_entry(c)->getDataForWriting(c);
         }
@@ -283,7 +310,6 @@ public:
         {
             this->debugAccess(c);
             AMBRO_ASSERT(isAvailable(c))
-            AMBRO_ASSERT(get_entry(c)->isAssigned(c))
             
             get_entry(c)->markDirty(c);
         }
@@ -317,6 +343,11 @@ public:
             return &o->cache_entries[m_entry_index];
         }
         
+        bool is_attached_to_block (Context c, BlockIndexType block)
+        {
+            return m_entry_index != -1 && block == get_entry(c)->getBlock(c);
+        }
+        
         APRINTER_FUNCTION_IF_ELSE(Writable, bool, is_allocating_block (BlockIndexType block), {
             return (m_state == State::ALLOCATING_ENTRY && this->m_allocating_block == block);
         }, {
@@ -337,7 +368,8 @@ public:
                 return;
             }
             if (m_entry_index != -1) {
-                get_entry(c)->detachUser(c, this);
+                auto mode = (m_state == State::WEAK_REF) ? CacheEntry::DetachMode::DETACH_WEAK : CacheEntry::DetachMode::DETACH_HARD;
+                get_entry(c)->detachUser(c, this, mode);
                 m_entry_index = -1;
             }
             if (Writable && m_state == State::ALLOCATING_ENTRY) {
@@ -347,11 +379,10 @@ public:
             m_state = State::INVALID;
         }
         
-        void request_common (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags, uint8_t eviction_priority)
+        void request_common (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags)
         {
             reset_internal(c);
             
-            m_eviction_priority = eviction_priority;
             set_write_params(write_stride, write_count, flags);
             
             CacheEntryIndexType alloc_result = get_entry_for_block(c, block);
@@ -384,7 +415,7 @@ public:
         void attach_to_entry (Context c, CacheEntryIndexType entry_index, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count)
         {
             m_entry_index = entry_index;
-            get_entry(c)->assignBlockAndAttachUser(c, block, write_stride, write_count, get_no_need_to_read(), m_eviction_priority, this);
+            get_entry(c)->assignBlockAndAttachUser(c, block, write_stride, write_count, get_no_need_to_read(), this);
             if (!get_entry(c)->isInitialized(c)) {
                 m_state = State::WAITING_READ;
             } else {
@@ -445,10 +476,20 @@ public:
             AMBRO_ASSERT(m_state == State::WAITING_READ)
             
             if (error) {
-                get_entry(c)->detachUser(c, this);
+                get_entry(c)->detachUser(c, this, CacheEntry::DetachMode::DETACH_HARD);
                 m_entry_index = -1;
             }
             complete_init(c);
+        }
+        
+        void weak_ref_broken (Context c)
+        {
+            AMBRO_ASSERT(m_state == State::WEAK_REF)
+            AMBRO_ASSERT(m_entry_index != -1)
+            AMBRO_ASSERT(!m_event.isSet(c))
+            
+            m_state = State::INVALID;
+            m_entry_index = -1;
         }
         
         CacheHandler m_handler;
@@ -456,7 +497,6 @@ public:
         DoubleEndedListNode<CacheRef> m_list_node;
         CacheEntryIndexType m_entry_index;
         State m_state;
-        uint8_t m_eviction_priority;
     };
     
 private:
@@ -538,6 +578,17 @@ private:
     {
         auto *o = Object::self(c);
         
+        CacheEntryIndexType res = get_entry_for_block_core(c, block);
+        if (res >= 0 && !o->cache_entries[res].canIncrementRefCnt(c)) {
+            res = -2;
+        }
+        return res;
+    }
+    
+    static CacheEntryIndexType get_entry_for_block_core (Context c, BlockIndexType block)
+    {
+        auto *o = Object::self(c);
+        
         CacheEntryIndexType free_entry = -1;
         CacheEntryIndexType evictable_entry = -1;
         CacheEntryIndexType releasing_entry = -1;
@@ -593,11 +644,11 @@ private:
     }
     
     APRINTER_FUNCTION_IF_ELSE_EXT(Writable, static, bool, eviction_lesser_than (Context c, CacheEntry *e1, CacheEntry *e2), {
-        uint8_t ep1 = e1->getEvictionPriority(c);
-        uint8_t ep2 = e2->getEvictionPriority(c);
-        return (ep1 < ep2) || (ep1 == ep2 && (!e1->isDirty(c) || (e2->isDirty(c) && (DirtTimeType)(e1->getDirtTime(c) - e2->getDirtTime(c)) >= DirtSignBit)));
+        bool r1 = e1->isReferencedIncludingWeak(c);
+        bool r2 = e2->isReferencedIncludingWeak(c);
+        return (r1 < r2) || (r1 == r2 && (!e1->isDirty(c) || (e2->isDirty(c) && (DirtTimeType)(e1->getDirtTime(c) - e2->getDirtTime(c)) >= DirtSignBit)));
     }, {
-        return (e1->getEvictionPriority(c) < e2->getEvictionPriority(c));
+        return e1->isReferencedIncludingWeak(c) < e2->isReferencedIncludingWeak(c);
     })
     
     APRINTER_FUNCTION_IF_EXT(Writable, static, void, report_allocation_event (Context c, bool error))
@@ -677,6 +728,7 @@ private:
         {
             m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_handler, this));
             m_cache_users_list.init();
+            m_num_hard_refs = 0;
             m_state = State::INVALID;
             writable_entry_init(c);
         }
@@ -684,6 +736,7 @@ private:
         void deinit (Context c)
         {
             AMBRO_ASSERT(m_cache_users_list.isEmpty())
+            AMBRO_ASSERT(m_num_hard_refs == 0)
             
             writable_entry_deinit(c);
             m_block_user.deinit(c);
@@ -701,7 +754,7 @@ private:
         
         bool canReassign (Context c)
         {
-            return m_state == State::IDLE && get_dirt_state() == DirtState::CLEAN && m_cache_users_list.isEmpty();
+            return m_state == State::IDLE && get_dirt_state() == DirtState::CLEAN && m_num_hard_refs == 0;
         }
         
         APRINTER_FUNCTION_IF(Writable, bool, isDirty (Context c))
@@ -716,6 +769,13 @@ private:
         
         bool isReferenced (Context c)
         {
+            return m_num_hard_refs != 0;
+        }
+        
+        bool isReferencedIncludingWeak (Context c)
+        {
+            AMBRO_ASSERT(!m_cache_users_list.isEmpty() || m_num_hard_refs == 0)
+            
             return !m_cache_users_list.isEmpty();
         }
         
@@ -724,12 +784,6 @@ private:
         }, {
             return false;
         })
-        
-        APRINTER_FUNCTION_IF(Writable, bool, canStartRelease (Context c))
-        {
-            AMBRO_ASSERT(!isBeingReleased(c))
-            return m_cache_users_list.isEmpty() && m_state != State::INVALID && (m_state != State::IDLE || this->m_dirt_state != DirtState::CLEAN);
-        }
         
         APRINTER_FUNCTION_IF(Writable, bool, hasLastWriteFailed (Context c))
         {
@@ -746,12 +800,6 @@ private:
         {
             AMBRO_ASSERT(isAssigned(c))
             return m_block;
-        }
-        
-        uint8_t getEvictionPriority (Context c)
-        {
-            AMBRO_ASSERT(isAssigned(c))
-            return m_eviction_priority;
         }
         
         char const * getDataForReading (Context c)
@@ -783,41 +831,65 @@ private:
             return this->m_dirt_time;
         }
         
-        void assignBlockAndAttachUser (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, bool no_need_to_read, uint8_t eviction_priority, CacheRef *user)
+        bool canIncrementRefCnt (Context c)
+        {
+            return m_num_hard_refs < MaxNumRefs;
+        }
+        
+        void assignBlockAndAttachUser (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, bool no_need_to_read, CacheRef *user)
         {
             AMBRO_ASSERT(write_count >= 1)
             AMBRO_ASSERT(!isBeingReleased(c))
+            AMBRO_ASSERT(canIncrementRefCnt(c))
             
             if (isAssigned(c) && block == m_block) {
                 check_write_params(write_stride, write_count);
-                m_cache_users_list.prepend(user);
-                return;
-            }
-            
-            AMBRO_ASSERT(m_cache_users_list.isEmpty())
-            AMBRO_ASSERT(m_state == State::INVALID || m_state == State::IDLE)
-            AMBRO_ASSERT(m_state == State::INVALID || get_dirt_state() == DirtState::CLEAN)
-            
-            m_block = block;
-            m_eviction_priority = eviction_priority;
-            writable_assign(c, write_stride, write_count);
-            
-            if (Writable && no_need_to_read) {
-                m_state = State::IDLE;
-                memset(get_buffer(c), 0, BlockSize);
-                // No implicit markDirty.
             } else {
-                APRINTER_BLOCKCACHE_MSG("startRead %" PRIu32, (uint32_t)block);
-                m_state = State::READING;
-                m_block_user.startRead(c, m_block, get_buffer(c));
+                AMBRO_ASSERT(m_num_hard_refs == 0)
+                AMBRO_ASSERT(m_state == State::INVALID || m_state == State::IDLE)
+                AMBRO_ASSERT(m_state == State::INVALID || get_dirt_state() == DirtState::CLEAN)
+                
+                break_weak_refs(c);
+                
+                m_block = block;
+                writable_assign(c, write_stride, write_count);
+                
+                if (Writable && no_need_to_read) {
+                    m_state = State::IDLE;
+                    memset(get_buffer(c), 0, BlockSize);
+                    // No implicit markDirty.
+                } else {
+                    APRINTER_BLOCKCACHE_MSG("startRead %" PRIu32, (uint32_t)block);
+                    m_state = State::READING;
+                    m_block_user.startRead(c, m_block, get_buffer(c));
+                }
             }
             
             m_cache_users_list.prepend(user);
+            m_num_hard_refs++;
         }
         
-        void detachUser (Context c, CacheRef *user)
+        enum class DetachMode {HARD_TO_WEAK, DETACH_HARD, DETACH_WEAK};
+        
+        void detachUser (Context c, CacheRef *user, DetachMode mode)
         {
-            m_cache_users_list.remove(user);
+            AMBRO_ASSERT(mode == DetachMode::DETACH_WEAK || m_num_hard_refs > 0)
+            
+            if (mode != DetachMode::HARD_TO_WEAK) {
+                m_cache_users_list.remove(user);
+            }
+            if (mode != DetachMode::DETACH_WEAK) {
+                m_num_hard_refs--;
+            }
+        }
+        
+        void hardenWeakUser (Context c, CacheRef *user)
+        {
+            AMBRO_ASSERT(canIncrementRefCnt(c))
+            AMBRO_ASSERT(!m_cache_users_list.isEmpty())
+            AMBRO_ASSERT(!isBeingReleased(c))
+            
+            m_num_hard_refs++;
         }
         
         APRINTER_FUNCTION_IF(Writable, void, markDirty (Context c))
@@ -869,6 +941,8 @@ private:
             AMBRO_ASSERT(!canReassign(c))
             AMBRO_ASSERT(!isReferenced(c))
             AMBRO_ASSERT(!isBeingReleased(c))
+            
+            break_weak_refs(c);
             
             this->m_releasing = true;
             if (m_state == State::IDLE) {
@@ -948,11 +1022,21 @@ private:
             }
         }
         
+        void break_weak_refs (Context c)
+        {
+            AMBRO_ASSERT(m_num_hard_refs == 0)
+            
+            for (CacheRef *ref = m_cache_users_list.first(); ref; ref = m_cache_users_list.next(ref)) {
+                ref->weak_ref_broken(c);
+            }
+            m_cache_users_list.init();
+        }
+        
         void block_user_handler (Context c, bool error)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
-            AMBRO_ASSERT(!isBeingReleased(c) || !isReferenced(c))
+            AMBRO_ASSERT(!isBeingReleased(c) || !isReferencedIncludingWeak(c))
             
             if (m_state == State::READING) {
                 APRINTER_BLOCKCACHE_MSG("readDone %" PRIu32, (uint32_t)m_block);
@@ -962,7 +1046,7 @@ private:
                 }
                 m_state = error ? State::INVALID : State::IDLE;
                 raise_read_completed(c, error);
-                AMBRO_ASSERT(!error || !isReferenced(c))
+                AMBRO_ASSERT(!error || !isReferencedIncludingWeak(c))
             }
             else if (Writable && m_state == State::WRITING) {
                 block_write_completed(c, error);
@@ -1043,8 +1127,8 @@ private:
         BlockAccessUser m_block_user;
         DoubleEndedList<CacheRef, &CacheRef::m_list_node, false> m_cache_users_list;
         BlockIndexType m_block;
+        NumRefsType m_num_hard_refs;
         State m_state;
-        uint8_t m_eviction_priority;
     };
     
     APRINTER_STRUCT_IF_TEMPLATE(CacheWritableMembers) {

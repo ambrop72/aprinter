@@ -98,11 +98,6 @@ private:
     static size_t const FsInfoAllocatedClusterOffset = 0x1EC;
     static size_t const FsInfoSig3Offset = 0x1FC;
     
-    // Use a lesser eviction priority value for data blocks than for metadata.
-    // This way data blocks will be evicted from the cache before metadata,
-    // allowing reuse of the metadata and less writes.
-    static uint8_t const FileDataEvictionPriority = 5;
-    
     enum class FsState : uint8_t {INIT, READY, FAILED};
     enum class WriteMountState : uint8_t {NOT_MOUNTED, MOUNT_META, MOUNT_FSINFO, MOUNT_FLUSH, MOUNTED, UMOUNT_FLUSH1, UMOUNT_META, UMOUNT_FLUSH2};
     enum class AllocationState : uint8_t {IDLE, CHECK_EVENT, REQUESTING_BLOCK};
@@ -603,7 +598,7 @@ public:
             if (m_io_mode == IoMode::USER_BUFFER) {
                 m_user_buffer_mode.block_user.startRead(c, abs_block_idx, m_user_buffer_mode.request_buf);
             } else {
-                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION, FileDataEvictionPriority);
+                m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION);
             }
         }
         
@@ -630,7 +625,7 @@ public:
             if (this->m_no_need_to_read_for_write) {
                 flags |= CacheBlockRef::FLAG_NO_NEED_TO_READ;
             }
-            m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, flags, FileDataEvictionPriority);
+            m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, flags);
         }
         
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, handle_event_trunc (Context c))
@@ -1400,17 +1395,17 @@ private:
         o->alloc_event.prependNowNotAlready(c);
     }
     
-    APRINTER_STRUCT_IF_TEMPLATE(ClusterChainExtraMembers) {
-        CacheBlockRef m_fat_cache_ref2;
-        DoubleEndedListNode<ClusterChain<true>> m_allocating_chains_node;
-        ClusterIndexType m_prev_cluster;
-    };
-    
     APRINTER_FUNCTION_IF_OR_EMPTY_EXT(FsWritable, static, void, set_fs_entry_extra (FsEntry *entry, BlockIndexType dir_entry_block_index, DirEntriesPerBlockType dir_entry_block_offset))
     {
         entry->dir_entry_block_index = dir_entry_block_index;
         entry->dir_entry_block_offset = dir_entry_block_offset;
     }
+    
+    APRINTER_STRUCT_IF_TEMPLATE(ClusterChainExtraMembers) {
+        CacheBlockRef m_fat_cache_ref2;
+        DoubleEndedListNode<ClusterChain<true>> m_allocating_chains_node;
+        ClusterIndexType m_prev_cluster;
+    };
     
     template <bool Writable>
     class ClusterChain : public ClusterChainExtraMembers<Writable> {
@@ -1596,7 +1591,7 @@ private:
         void complete_request (Context c, bool error, bool first_cluster_changed=false)
         {
             m_state = State::IDLE;
-            m_fat_cache_ref1.reset(c);
+            m_fat_cache_ref1.resetWeak(c);
             extra_complete_request(c);
             return m_handler(c, error, first_cluster_changed);
         }
