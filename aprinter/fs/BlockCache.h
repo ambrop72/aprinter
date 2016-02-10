@@ -272,7 +272,24 @@ public:
             }
             
         fallback:
-            request_common(c, block, write_stride, write_count, flags);
+            reset_internal(c);
+            
+            set_write_params(write_stride, write_count, flags);
+            
+            CacheEntryIndexType alloc_result = get_entry_for_block(c, block);
+            if (alloc_result >= 0) {
+                attach_to_entry(c, alloc_result, block, write_stride, write_count);
+            }
+            else if (Writable && alloc_result == -1) {
+                // There's an entry being released, register for notification to retry then.
+                register_allocation(c, block);
+            }
+            else {
+                AMBRO_ASSERT(alloc_result == -2)
+                // Fail.
+                complete_init(c);
+            }
+            
             return false; // never do we end up in State::AVAILABLE in this branch
         }
         
@@ -379,27 +396,6 @@ public:
             m_state = State::INVALID;
         }
         
-        void request_common (Context c, BlockIndexType block, BlockIndexType write_stride, uint8_t write_count, uint8_t flags)
-        {
-            reset_internal(c);
-            
-            set_write_params(write_stride, write_count, flags);
-            
-            CacheEntryIndexType alloc_result = get_entry_for_block(c, block);
-            if (alloc_result >= 0) {
-                attach_to_entry(c, alloc_result, block, write_stride, write_count);
-            }
-            else if (Writable && alloc_result == -1) {
-                // There's an entry being released, register for notification to retry then.
-                register_allocation(c, block);
-            }
-            else {
-                AMBRO_ASSERT(alloc_result == -2)
-                // Fail.
-                complete_init(c);
-            }
-        }
-        
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, remove_from_pending_allocations (Context c))
         {
             auto *o = Object::self(c);
@@ -484,6 +480,7 @@ public:
         
         void weak_ref_broken (Context c)
         {
+            this->debugAccess(c);
             AMBRO_ASSERT(m_state == State::WEAK_REF)
             AMBRO_ASSERT(m_entry_index != -1)
             AMBRO_ASSERT(!m_event.isSet(c))
@@ -503,6 +500,7 @@ private:
     APRINTER_FUNCTION_IF_OR_EMPTY_EXT(Writable, static, void, writable_init (Context c))
     {
         auto *o = Object::self(c);
+        
         o->allocations_event.init(c, APRINTER_CB_STATFUNC_T(&BlockCache::allocations_event_handler<>));
         o->current_dirt_time = 0;
         o->waiting_flush_requests.init();
@@ -551,6 +549,7 @@ private:
     APRINTER_FUNCTION_IF_EXT(Writable, static, void, start_writing_for_flush (Context c))
     {
         auto *o = Object::self(c);
+        
         for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
             CacheEntry *ce = &o->cache_entries[i];
             if (ce->canStartWrite(c)) {
@@ -562,6 +561,7 @@ private:
     APRINTER_FUNCTION_IF_EXT(Writable, static, void, complete_flush (Context c, bool error))
     {
         auto *o = Object::self(c);
+        
         for (FlushRequest<> *req = o->waiting_flush_requests.first(); req; req = o->waiting_flush_requests.next(req)) {
             req->flush_request_result(c, error);
         }
@@ -644,9 +644,18 @@ private:
     }
     
     APRINTER_FUNCTION_IF_ELSE_EXT(Writable, static, bool, eviction_lesser_than (Context c, CacheEntry *e1, CacheEntry *e2), {
+        auto *o = Object::self(c);
         bool r1 = e1->isReferencedIncludingWeak(c);
         bool r2 = e2->isReferencedIncludingWeak(c);
-        return (r1 < r2) || (r1 == r2 && (!e1->isDirty(c) || (e2->isDirty(c) && (DirtTimeType)(e1->getDirtTime(c) - e2->getDirtTime(c)) >= DirtSignBit)));
+        if (r1 < r2) {
+            return true;
+        }
+        if (r1 == r2) {
+            DirtTimeType t1 = e1->isDirty(c) ? e1->getDirtTime(c) : o->current_dirt_time;
+            DirtTimeType t2 = e2->isDirty(c) ? e2->getDirtTime(c) : o->current_dirt_time;
+            return (DirtTimeType)(t1 - t2) >= DirtSignBit;
+        }
+        return false;
     }, {
         return e1->isReferencedIncludingWeak(c) < e2->isReferencedIncludingWeak(c);
     })
@@ -654,6 +663,7 @@ private:
     APRINTER_FUNCTION_IF_EXT(Writable, static, void, report_allocation_event (Context c, bool error))
     {
         auto *o = Object::self(c);
+        
         CacheRef *ref = o->pending_allocations.first();
         while (ref) {
             CacheRef *next = o->pending_allocations.next(ref);
@@ -666,9 +676,7 @@ private:
     APRINTER_FUNCTION_IF_OR_EMPTY_EXT(Writable, static, void, schedule_allocations_check (Context c))
     {
         auto *o = Object::self(c);
-        if (!o->allocations_event.isSet(c)) {
-            o->allocations_event.prependNowNotAlready(c);
-        }
+        o->allocations_event.prependNow(c);
     }
     
     APRINTER_FUNCTION_IF_EXT(Writable, static, void, allocations_event_handler (Context c))
@@ -689,6 +697,7 @@ private:
     APRINTER_FUNCTION_IF_EXT(Writable, static, BufferIndexType, find_free_buffer (Context c))
     {
         auto *o = Object::self(c);
+        
         for (BufferIndexType i = 0; i < NumBuffers; i++) {
             if (!o->buffer_usage[i]) {
                 return i;
@@ -914,25 +923,7 @@ private:
             AMBRO_ASSERT(m_state == State::IDLE)
             AMBRO_ASSERT(this->m_dirt_state == DirtState::DIRTY)
             
-            if (!this->m_write_event.isSet(c)) {
-                this->m_write_event.prependNowNotAlready(c);
-            }
-        }
-        
-        APRINTER_FUNCTION_IF(Writable, void, startWriting (Context c))
-        {
-            AMBRO_ASSERT(m_state == State::IDLE)
-            AMBRO_ASSERT(this->m_dirt_state == DirtState::DIRTY)
-            AMBRO_ASSERT(this->m_writing_buffer == -1)
-            
-            m_state = State::WRITING;
-            this->m_last_write_failed = false;
-            this->m_dirt_state = DirtState::WRITING;
-            this->m_write_index = 1;
-            this->m_write_event.unset(c);
-            
-            APRINTER_BLOCKCACHE_MSG("startWrite %" PRIu32 " 1/%d", (uint32_t)m_block, (int)this->m_write_count);
-            m_block_user.startWrite(c, m_block, (DataWordType const *)get_buffer(c));
+            this->m_write_event.prependNow(c);
         }
         
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, startRelease (Context c))
@@ -1077,7 +1068,18 @@ private:
         
         APRINTER_FUNCTION_IF(Writable, void, write_event_handler (Context c))
         {
-            startWriting(c);
+            AMBRO_ASSERT(m_state == State::IDLE)
+            AMBRO_ASSERT(this->m_dirt_state == DirtState::DIRTY)
+            AMBRO_ASSERT(this->m_writing_buffer == -1)
+            
+            m_state = State::WRITING;
+            this->m_last_write_failed = false;
+            this->m_dirt_state = DirtState::WRITING;
+            this->m_write_index = 1;
+            this->m_write_event.unset(c);
+            
+            APRINTER_BLOCKCACHE_MSG("startWrite %" PRIu32 " 1/%d", (uint32_t)m_block, (int)this->m_write_count);
+            m_block_user.startWrite(c, m_block, (DataWordType const *)get_buffer(c));
         }
         
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, block_write_completed (Context c, bool error))
@@ -1102,7 +1104,7 @@ private:
             this->m_dirt_state = (!error && this->m_dirt_state == DirtState::WRITING) ? DirtState::CLEAN : DirtState::DIRTY;
             
             if (!error && this->m_dirt_state == DirtState::DIRTY && (!o->waiting_flush_requests.isEmpty() || this->m_releasing)) {
-                return startWriting(c);
+                return write_event_handler(c);
             }
             
             if (this->m_releasing) {
