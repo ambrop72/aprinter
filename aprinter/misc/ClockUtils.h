@@ -75,6 +75,13 @@ public:
         return (TimeType)(Clock::getTime(c) + after_ticks);
     }
     
+    template <typename ThisContext>
+    inline static void delay (ThisContext c, TimeType ticks)
+    {
+        TimeType target_time = getTimeAfter(c, ticks);
+        while (!timeGreaterOrEqual(Clock::getTime(c), target_time));
+    }
+    
     class PollTimer {
     public:
         inline void setTo (TimeType set_time)

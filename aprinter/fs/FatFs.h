@@ -41,6 +41,7 @@
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/BinaryTools.h>
+#include <aprinter/base/TransferVector.h>
 #include <aprinter/misc/Utf8Encoder.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/structure/DoubleEndedList.h>
@@ -54,13 +55,14 @@ class FatFs {
 public:
     struct Object;
     static bool const FsWritable = Params::Writable;
+    static bool const EnableReadHinting = Params::EnableReadHinting;
     
 private:
     static_assert(Params::NumCacheEntries >= 1, "");
     static_assert(Params::MaxFileNameSize >= 12, "");
     
     using TheDebugObject = DebugObject<Context, Object>;
-    using TheBlockCache = BlockCache<Context, Object, TheBlockAccess, Params::NumCacheEntries, FsWritable>;
+    using TheBlockCache = BlockCache<Context, Object, TheBlockAccess, Params::NumCacheEntries, Params::NumIoUnits, Params::MaxIoBlocks, FsWritable>;
     
     using BlockAccessUser = typename TheBlockAccess::User;
     using BlockIndexType = typename TheBlockAccess::BlockIndexType;
@@ -368,7 +370,7 @@ public:
         };
     };
     
-    APRINTER_STRUCT_IF_TEMPLATE(FileExtraMembers) {
+    APRINTER_STRUCT_IF_TEMPLATE(FileWritableMembers) {
         DirEntryRef<true> m_dir_entry;
         size_t m_write_bytes_in_block;
         BlockIndexType m_dir_entry_block_index;
@@ -377,8 +379,12 @@ public:
         WriteReference<true> m_write_ref;
     };
     
+    APRINTER_STRUCT_IF_TEMPLATE(FileHintingMembers) {
+        BlockIndexType m_hint_block_pos;
+    };
+    
     template <bool Writable>
-    class File : public FileExtraMembers<Writable> {
+    class File : public FileWritableMembers<Writable>, public FileHintingMembers<EnableReadHinting> {
         static_assert(!Writable || FsWritable, "");
         
         enum class State : uint8_t {
@@ -455,7 +461,7 @@ public:
             AMBRO_ASSERT(m_state == State::IDLE)
             AMBRO_ASSERT(m_io_mode == IoMode::USER_BUFFER)
             
-            m_user_buffer_mode.request_buf = buf;
+            m_user_buffer_mode.transfer_desc = TransferDescriptor<DataWordType>{buf, BlockSize/sizeof(DataWordType)};
             m_state = State::READ_EVENT;
             m_event.prependNowNotAlready(c);
         }
@@ -596,9 +602,26 @@ public:
             m_state = State::READ_BLOCK;
             BlockIndexType abs_block_idx = get_cluster_data_abs_block_index(c, m_chain.getCurrentCluster(c), m_block_in_cluster);
             if (m_io_mode == IoMode::USER_BUFFER) {
-                m_user_buffer_mode.block_user.startRead(c, abs_block_idx, m_user_buffer_mode.request_buf);
+                m_user_buffer_mode.block_user.startReadOrWrite(c, false, abs_block_idx, 1, TransferVector<DataWordType>{&m_user_buffer_mode.transfer_desc, 1});
             } else {
                 m_fs_buffer_mode.block_ref.requestBlock(c, abs_block_idx, 0, 1, CacheBlockRef::FLAG_NO_IMMEDIATE_COMPLETION);
+                do_read_hinting(c, abs_block_idx);
+            }
+        }
+        
+        APRINTER_FUNCTION_IF_OR_EMPTY(EnableReadHinting, void, do_read_hinting (Context c, BlockIndexType abs_block_idx))
+        {
+            auto *o = Object::self(c);
+            
+            if (m_block_in_cluster == 0 || abs_block_idx >= this->m_hint_block_pos) {
+                BlockIndexType cluster_start_block = abs_block_idx - m_block_in_cluster;
+                BlockIndexType cluster_end_block = cluster_start_block + o->blocks_per_cluster;
+                if (m_block_in_cluster == 0) {
+                    this->m_hint_block_pos = cluster_start_block + 1;
+                }
+                if (m_block_in_cluster == 0 || abs_block_idx >= this->m_hint_block_pos) {
+                    this->m_hint_block_pos = TheBlockCache::hintBlocks(c, this->m_hint_block_pos, this->m_hint_block_pos, cluster_end_block, 0, 1);
+                }
             }
         }
         
@@ -834,7 +857,7 @@ public:
         union {
             struct {
                 BlockAccessUser block_user;
-                DataWordType *request_buf;
+                TransferDescriptor<DataWordType> transfer_desc;
             } m_user_buffer_mode;
             struct {
                 CacheBlockRef block_ref;
@@ -2112,8 +2135,11 @@ public:
 APRINTER_ALIAS_STRUCT_EXT(FatFsService, (
     APRINTER_AS_VALUE(int, MaxFileNameSize),
     APRINTER_AS_VALUE(int, NumCacheEntries),
+    APRINTER_AS_VALUE(int, NumIoUnits),
+    APRINTER_AS_VALUE(int, MaxIoBlocks),
     APRINTER_AS_VALUE(bool, CaseInsens),
-    APRINTER_AS_VALUE(bool, Writable)
+    APRINTER_AS_VALUE(bool, Writable),
+    APRINTER_AS_VALUE(bool, EnableReadHinting)
 ), (
     template <typename Context, typename ParentObject, typename TheBlockAccess, typename InitHandler, typename WriteMountHandler>
     using Fs = FatFs<Context, ParentObject, TheBlockAccess, InitHandler, WriteMountHandler, FatFsService>;

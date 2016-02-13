@@ -86,10 +86,12 @@ def sdio_choice(**kwargs):
         ce.Compound('Stm32f4Sdio', attrs=[
             ce.Boolean(key='IsWideMode', title='Data bus width', false_title='1-bit', true_title='4-bit', default=False),
             ce.Integer(key='DataTimeoutBusClocks', title='Data timeout (in SDIO bus clocks)', default=0x20000000),
+            ce.Integer(key='SdClockPrescaler', title='SD clock prescaler for transfer', default=0),
         ]),
         ce.Compound('At91SamSdio', attrs=[
             ce.Integer(key='Slot', title='Slot number', default=0),
             ce.Boolean(key='IsWideMode', title='Data bus width', false_title='1-bit', true_title='4-bit', default=False),
+            ce.Integer(key='MaxIoDescriptors', title='Maximum number of buffers in transfer', default=20),
         ]),
     ], **kwargs)
 
@@ -756,8 +758,10 @@ def editor():
                             ce.Compound('Fat32', title='FAT32', attrs=[
                                 ce.Integer(key='MaxFileNameSize', title='Maximum filename size', default=32),
                                 ce.Integer(key='NumCacheEntries', title='Block cache size (in blocks)', default=2),
+                                ce.Integer(key='MaxIoBlocks', title='Maximum blocks in single I/O command', default=1),
                                 ce.Boolean(key='CaseInsensFileName', title='Case-insensitive filename matching', default=True),
                                 ce.Boolean(key='FsWritable', title='Writable filesystem', default=False),
+                                ce.Boolean(key='EnableReadHinting', title='Enable read-ahead hinting', default=False),
                                 ce.Boolean(key='HaveAccessInterface', title='Enable internal FS access interface', default=False),
                                 ce.Boolean(key='EnableFsTest', title='Enable FS test module', default=False),
                                 ce.OneOf(key='GcodeUpload', title='G-code upload', choices=[

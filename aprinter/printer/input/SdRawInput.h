@@ -34,6 +34,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/TransferVector.h>
 
 #include <aprinter/BeginNamespace.h>
 
@@ -133,7 +134,8 @@ public:
         AMBRO_ASSERT(o->state == STATE_READY)
         AMBRO_ASSERT(o->block < TheSdCard::getCapacityBlocks(c))
         
-        TheSdCard::startReadBlock(c, o->block, buf);
+        o->desc = TransferDescriptor<DataWordType>{buf, BlockSize/sizeof(DataWordType)};
+        TheSdCard::startReadOrWrite(c, false, o->block, 1, TransferVector<DataWordType>{&o->desc, 1});
         o->state = STATE_READING;
     }
     
@@ -254,6 +256,7 @@ public:
     >> {
         uint8_t state;
         uint32_t block;
+        TransferDescriptor<DataWordType> desc;
     };
 };
 

@@ -26,6 +26,7 @@
 #define AMBROLIB_SPI_SDCARD_H
 
 #include <stdint.h>
+#include <stddef.h>
 
 #include <aprinter/meta/WrapFunction.h>
 #include <aprinter/meta/MinMax.h>
@@ -36,6 +37,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/BinaryTools.h>
+#include <aprinter/base/TransferVector.h>
 #include <aprinter/misc/CrcItuT.h>
 #include <aprinter/misc/ClockUtils.h>
 
@@ -64,6 +66,8 @@ public:
     using BlockIndexType = uint32_t;
     static size_t const BlockSize = 512;
     using DataWordType = uint8_t;
+    static size_t const MaxIoBlocks = 1;
+    static int const MaxIoDescriptors = 1;
     
     static void init (Context c)
     {
@@ -127,14 +131,24 @@ public:
         return true;
     }
     
-    static void startReadBlock (Context c, BlockIndexType block, DataWordType *buffer)
+    static void startReadOrWrite (Context c, bool is_write, BlockIndexType block, size_t num_blocks, TransferVector<DataWordType> data_vector)
     {
-        start_io_operation(c, block, buffer, false);
-    }
-    
-    static void startWriteBlock (Context c, BlockIndexType block, DataWordType const *buffer)
-    {
-        start_io_operation(c, block, (DataWordType *)buffer, true);
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(o->m_state == STATE_RUNNING)
+        AMBRO_ASSERT(o->m_io_state == IO_STATE_IDLE)
+        AMBRO_ASSERT(block < o->m_capacity_blocks)
+        AMBRO_ASSERT(num_blocks == 1)
+        AMBRO_ASSERT(data_vector.num_descriptors == 1)
+        AMBRO_ASSERT(data_vector.descriptors[0].num_words == BlockSize)
+        
+        o->m_request_buf = data_vector.descriptors[0].buffer_ptr;
+        uint32_t addr = o->m_sdhc ? block : (block * 512);
+        sd_command(c, (is_write ? CMD_WRITE_BLOCK : CMD_READ_SINGLE_BLOCK), addr, true, o->m_io_buf, o->m_io_buf);
+        if (!is_write) {
+            TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, o->m_io_buf + 1);
+        }
+        o->m_io_state = is_write ? IO_STATE_WRITING_CMD : IO_STATE_READING_CMD;
     }
     
     using GetSpi = TheSpi;
@@ -463,23 +477,6 @@ private:
     {
         deactivate_common(c);
         return InitHandler::call(c, code);
-    }
-    
-    static void start_io_operation (Context c, BlockIndexType block, DataWordType *buffer, bool write)
-    {
-        auto *o = Object::self(c);
-        TheDebugObject::access(c);
-        AMBRO_ASSERT(o->m_state == STATE_RUNNING)
-        AMBRO_ASSERT(o->m_io_state == IO_STATE_IDLE)
-        AMBRO_ASSERT(block < o->m_capacity_blocks)
-        
-        o->m_request_buf = buffer;
-        uint32_t addr = o->m_sdhc ? block : (block * 512);
-        sd_command(c, (write ? CMD_WRITE_BLOCK : CMD_READ_SINGLE_BLOCK), addr, true, o->m_io_buf, o->m_io_buf);
-        if (!write) {
-            TheSpi::cmdReadUntilDifferent(c, 0xff, 255, 0xff, o->m_io_buf + 1);
-        }
-        o->m_io_state = write ? IO_STATE_WRITING_CMD : IO_STATE_READING_CMD;
     }
     
     struct SpiHandler : public AMBRO_WFUNC_TD(&SpiSdCard::spi_handler) {};

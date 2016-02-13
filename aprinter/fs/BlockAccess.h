@@ -34,6 +34,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/Assert.h>
+#include <aprinter/base/TransferVector.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -57,6 +58,8 @@ public:
     using BlockIndexType = typename TheSd::BlockIndexType;
     static size_t const BlockSize = TheSd::BlockSize;
     using DataWordType = typename TheSd::DataWordType;
+    static size_t const MaxIoBlocks = TheSd::MaxIoBlocks;
+    static int const MaxIoDescriptors = TheSd::MaxIoDescriptors;
     static int const MaxBufferLocks = 1;
     
     static void init (Context c)
@@ -141,32 +144,22 @@ public:
         {
         }
         
-        void startRead (Context c, BlockIndexType block_idx, DataWordType *buf)
-        {
-            return start_request(c, block_idx, buf, USER_STATE_READING);
-        }
-        
-        void startWrite (Context c, BlockIndexType block_idx, DataWordType const *buf)
-        {
-            return start_request(c, block_idx, (DataWordType *)buf, USER_STATE_WRITING);
-        }
-        
-    private:
-        void start_request (Context c, BlockIndexType block_idx, DataWordType *buf, uint8_t state_for_request_type)
+        void startReadOrWrite (Context c, bool is_write, BlockIndexType block_idx, size_t num_blocks, TransferVector<DataWordType> data_vector)
         {
             auto *o = Object::self(c);
             TheDebugObject::access(c);
             AMBRO_ASSERT(o->state == STATE_READY || o->state == STATE_BUSY)
             AMBRO_ASSERT(m_state == USER_STATE_IDLE)
-            AMBRO_ASSERT(block_idx < TheSd::getCapacityBlocks(c))
             
-            m_state = state_for_request_type;
+            m_state = is_write ? USER_STATE_WRITING : USER_STATE_READING;
             m_block_idx = block_idx;
-            m_buf = buf;
+            m_num_blocks = num_blocks;
+            m_data_vector = data_vector;
             
             add_request(c, this);
         }
         
+    private:
         void maybe_call_locker (Context c, bool lock_else_unlock)
         {
             if (m_is_full) {
@@ -181,7 +174,8 @@ public:
         uint8_t m_state : 3;
         bool m_is_full : 1;
         BlockIndexType m_block_idx;
-        DataWordType *m_buf;
+        size_t m_num_blocks;
+        TransferVector<DataWordType> m_data_vector;
         DoubleEndedListNode<User> m_list_node;
     };
     
@@ -267,12 +261,11 @@ private:
         User *user = o->queue.first();
         if (user) {
             AMBRO_ASSERT(user->m_state == User::USER_STATE_READING || user->m_state == User::USER_STATE_WRITING)
-            if (user->m_state == User::USER_STATE_READING) {
-                TheSd::startReadBlock(c, user->m_block_idx, user->m_buf);
-            } else {
+            bool is_write = (user->m_state == User::USER_STATE_WRITING);
+            if (is_write) {
                 user->maybe_call_locker(c, true);
-                TheSd::startWriteBlock(c, user->m_block_idx, (DataWordType const *)user->m_buf);
             }
+            TheSd::startReadOrWrite(c, is_write, user->m_block_idx, user->m_num_blocks, user->m_data_vector);
             o->state = STATE_BUSY;
         }
     }

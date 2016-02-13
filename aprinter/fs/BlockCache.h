@@ -39,6 +39,7 @@
 #include <aprinter/base/Object.h>
 #include <aprinter/base/Callback.h>
 #include <aprinter/base/DebugObject.h>
+#include <aprinter/base/TransferVector.h>
 #include <aprinter/structure/DoubleEndedList.h>
 
 #include <aprinter/BeginNamespace.h>
@@ -51,18 +52,27 @@
 #define APRINTER_BLOCKCACHE_MSG(...)
 #endif
 
-template <typename Context, typename ParentObject, typename TTheBlockAccess, int TNumCacheEntries, bool TWritable>
+template <typename Context, typename ParentObject, typename TTheBlockAccess, int TNumCacheEntries, int TNumIoUnits, int TMaxIoBlocks, bool TWritable>
 class BlockCache {
 public:
     struct Object;
     using TheBlockAccess = TTheBlockAccess;
     static int const NumCacheEntries = TNumCacheEntries;
+    static int const NumIoUnits = TNumIoUnits;
+    static int const MaxIoBlocks = TMaxIoBlocks;
     static bool const Writable = TWritable;
     
 private:
     static_assert(NumCacheEntries > 0, "");
+    static_assert(NumCacheEntries <= 64, "");
+    static_assert(NumIoUnits > 0 && NumIoUnits <= NumCacheEntries, "");
+    static_assert(MaxIoBlocks > 0 && MaxIoBlocks <= NumCacheEntries, "");
+    static_assert(MaxIoBlocks <= TheBlockAccess::MaxIoBlocks, "");
+    static_assert(MaxIoBlocks <= TheBlockAccess::MaxIoDescriptors, "");
     
     class CacheEntry;
+    class IoDispatcher;
+    class IoUnit;
     
     using TheDebugObject = DebugObject<Context, Object>;
     
@@ -72,9 +82,10 @@ private:
     using BlockAccessUser = If<Writable, typename TheBlockAccess::UserFull, typename TheBlockAccess::User>;
     
     using DirtTimeType = uint32_t;
-    static constexpr DirtTimeType DirtSignBit = ((DirtTimeType)-1 / 2) + 1;
     
     using CacheEntryIndexType = ChooseIntForMax<NumCacheEntries, true>;
+    using IoUnitIndexType = ChooseIntForMax<NumIoUnits, true>;
+    using IoBlockIndexType = ChooseIntForMax<MaxIoBlocks, true>;
     
     static int const NumBuffers = NumCacheEntries + (Writable ? TheBlockAccess::MaxBufferLocks : 0);
     using BufferIndexType = ChooseIntForMax<NumBuffers, true>;
@@ -90,10 +101,16 @@ public:
     {
         auto *o = Object::self(c);
         
+        o->io_queue.init();
+        o->io_queue_event.init(c, APRINTER_CB_STATFUNC_T(&BlockCache::io_queue_event_handler));
         writable_init(c);
         
         for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
             o->cache_entries[i].init(c);
+        }
+        
+        for (IoUnitIndexType i = 0; i < NumIoUnits; i++) {
+            o->io_units[i].init(c);
         }
         
         TheDebugObject::init(c);
@@ -105,11 +122,81 @@ public:
         TheDebugObject::deinit(c);
         writable_deinit_assert(c);
         
+        for (IoUnitIndexType i = 0; i < NumIoUnits; i++) {
+            o->io_units[i].deinit(c);
+        }
+        
         for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
             o->cache_entries[i].deinit(c);
         }
         
         writable_deinit(c);
+        o->io_queue_event.deinit(c);
+    }
+    
+    static BlockIndexType hintBlocks (Context c, BlockIndexType protect_block, BlockIndexType start_block, BlockIndexType end_block, BlockIndexType write_stride, uint8_t write_count)
+    {
+        auto *o = Object::self(c);
+        TheDebugObject::access(c);
+        AMBRO_ASSERT(protect_block <= start_block)
+        AMBRO_ASSERT(start_block <= end_block)
+        
+        // Create two lists, of:
+        // 1) Block indices in the given range which are already in the cache.
+        // 2) Indices of cache entries which we may use to assign the blocks.
+        
+        BlockIndexType cached_blocks[NumCacheEntries];
+        CacheEntryIndexType num_cached_blocks = 0;
+        
+        CacheEntryIndexType free_entries[NumCacheEntries];
+        CacheEntryIndexType num_free_entries = 0;
+        
+        for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
+            CacheEntry *e = &o->cache_entries[i];
+            if (e->isAssigned(c)) {
+                BlockIndexType block = e->getBlock(c);
+                if (block >= protect_block && block < end_block) {
+                    if (block >= start_block) {
+                        cached_blocks[num_cached_blocks++] = block;
+                    }
+                    // This entry is assigned with a block in the while protected range,
+                    // so prevent it from being reassigned now to another hinted block.
+                    continue;
+                }
+            }
+            if (!e->isBeingReleased(c) && !e->isReferencedIncludingWeak(c) && (!e->isAssigned(c) || e->canReassign(c))) {
+                free_entries[num_free_entries++] = i;
+            }
+        }
+        
+        // Assign blocks based on information in these lists.
+        
+        BlockIndexType block = start_block;
+        while (block < end_block && num_free_entries > 0) {
+            // Skip this block if it is already in the cache.
+            bool already = false;
+            for (CacheEntryIndexType i = 0; i < num_cached_blocks; i++) {
+                if (cached_blocks[i] == block) {
+                    already = true;
+                    break;
+                }
+            }
+            
+            if (!already) {
+                // Pop a free entry from the list.
+                CacheEntryIndexType free_entry_index = free_entries[--num_free_entries];
+                CacheEntry *free_entry = &o->cache_entries[free_entry_index];
+                
+                // Assign this block to this entry.
+                free_entry->assignBlockAndAttachUser(c, block, write_stride, write_count, false, nullptr);
+            }
+            
+            block++;
+        }
+        
+        // Inform them at which block we ran out of free entries, so they may
+        // start the next hint at that block.
+        return block;
     }
     
     template <typename Dummy=void>
@@ -531,7 +618,7 @@ private:
         for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
             CacheEntry *ce = &o->cache_entries[i];
             if (ce->isDirty(c)) {
-                if (!for_new_request && ce->hasLastWriteFailed(c)) {
+                if (!for_new_request && ce->hasFlushWriteFailed(c)) {
                     error = true;
                 } else {
                     AMBRO_ASSERT(for_new_request || ce->isWriteScheduledOrActive(c))
@@ -643,6 +730,18 @@ private:
         return -2;
     }
     
+    /**
+     * Determines if eviction of e1 is preferred to eviction of e2.
+     * 
+     * We want, in order:
+     * (1) Eviction of completely unreferenced entries is preferred to eviction of
+     *     weak-only referenced entries.
+     * (2) Eviction of non-dirty entries is preferred to eviction of dirty entries.
+     * (3) Eviction of entries which have been dirty longer is preferred.
+     * 
+     * The purpose of (1) is to minimize writing of FAT table entries.
+     * The purpose of (2) and (3) is to take advantage of multi-block writes.
+     */
     APRINTER_FUNCTION_IF_ELSE_EXT(Writable, static, bool, eviction_lesser_than (Context c, CacheEntry *e1, CacheEntry *e2), {
         auto *o = Object::self(c);
         bool r1 = e1->isReferencedIncludingWeak(c);
@@ -651,9 +750,10 @@ private:
             return true;
         }
         if (r1 == r2) {
-            DirtTimeType t1 = e1->isDirty(c) ? e1->getDirtTime(c) : o->current_dirt_time;
-            DirtTimeType t2 = e2->isDirty(c) ? e2->getDirtTime(c) : o->current_dirt_time;
-            return (DirtTimeType)(t1 - t2) >= DirtSignBit;
+            DirtTimeType current = o->current_dirt_time;
+            DirtTimeType t1 = e1->isDirty(c) ? e1->getDirtTime(c) : (current + 1);
+            DirtTimeType t2 = e2->isDirty(c) ? e2->getDirtTime(c) : (current + 1);
+            return (DirtTimeType)(current - t1) > (DirtTimeType)(current - t2);
         }
         return false;
     }, {
@@ -720,6 +820,7 @@ private:
         typename Context::EventLoop::QueuedEvent m_write_event;
         bool m_releasing;
         bool m_last_write_failed;
+        bool m_flush_write_failed;
         DirtState m_dirt_state;
         uint8_t m_write_count;
         uint8_t m_write_index;
@@ -730,15 +831,18 @@ private:
     };
     
     class CacheEntry : private CacheEntryWritableMemebers<Writable> {
+        friend class IoDispatcher;
+        friend class IoUnit;
+        
         enum class State : uint8_t {INVALID, READING, IDLE, WRITING};
         
     public:
         void init (Context c)
         {
-            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_handler, this));
             m_cache_users_list.init();
             m_num_hard_refs = 0;
             m_state = State::INVALID;
+            IoQueue::markRemoved(this);
             writable_entry_init(c);
         }
         
@@ -748,7 +852,6 @@ private:
             AMBRO_ASSERT(m_num_hard_refs == 0)
             
             writable_entry_deinit(c);
-            m_block_user.deinit(c);
         }
         
         bool isAssigned (Context c)
@@ -761,6 +864,11 @@ private:
             return m_state == State::IDLE || m_state == State::WRITING;
         }
         
+        bool isIoActive (Context c)
+        {
+            return m_state == State::READING || (Writable && m_state == State::WRITING);
+        }
+        
         bool canReassign (Context c)
         {
             return m_state == State::IDLE && get_dirt_state() == DirtState::CLEAN && m_num_hard_refs == 0;
@@ -771,10 +879,11 @@ private:
             return isInitialized(c) && this->m_dirt_state != DirtState::CLEAN;
         }
         
-        APRINTER_FUNCTION_IF(Writable, bool, canStartWrite (Context c))
-        {
+        APRINTER_FUNCTION_IF_ELSE(Writable, bool, canStartWrite (Context c), {
             return m_state == State::IDLE && this->m_dirt_state != DirtState::CLEAN;
-        }
+        }, {
+            return false;
+        })
         
         bool isReferenced (Context c)
         {
@@ -794,10 +903,17 @@ private:
             return false;
         })
         
-        APRINTER_FUNCTION_IF(Writable, bool, hasLastWriteFailed (Context c))
-        {
+        APRINTER_FUNCTION_IF_ELSE(Writable, bool, hasLastWriteFailed (Context c), {
             AMBRO_ASSERT(isAssigned(c))
             return this->m_last_write_failed;
+        }, {
+            return false;
+        })
+        
+        APRINTER_FUNCTION_IF(Writable, bool, hasFlushWriteFailed (Context c))
+        {
+            AMBRO_ASSERT(isAssigned(c))
+            return this->m_flush_write_failed;
         }
         
         APRINTER_FUNCTION_IF(Writable, bool, isWriteScheduledOrActive (Context c))
@@ -849,7 +965,7 @@ private:
         {
             AMBRO_ASSERT(write_count >= 1)
             AMBRO_ASSERT(!isBeingReleased(c))
-            AMBRO_ASSERT(canIncrementRefCnt(c))
+            AMBRO_ASSERT(!user || canIncrementRefCnt(c))
             
             if (isAssigned(c) && block == m_block) {
                 check_write_params(write_stride, write_count);
@@ -868,14 +984,16 @@ private:
                     memset(get_buffer(c), 0, BlockSize);
                     // No implicit markDirty.
                 } else {
-                    APRINTER_BLOCKCACHE_MSG("startRead %" PRIu32, (uint32_t)block);
+                    APRINTER_BLOCKCACHE_MSG("c RS %" PRIu32, (uint32_t)block);
                     m_state = State::READING;
-                    m_block_user.startRead(c, m_block, get_buffer(c));
+                    IoDispatcher::dispatch(c, this);
                 }
             }
             
-            m_cache_users_list.prepend(user);
-            m_num_hard_refs++;
+            if (user) {
+                m_cache_users_list.prepend(user);
+                m_num_hard_refs++;
+            }
         }
         
         enum class DetachMode {HARD_TO_WEAK, DETACH_HARD, DETACH_WEAK};
@@ -958,7 +1076,6 @@ private:
         {
             auto *o = Object::self(c);
             
-            m_block_user.setLocker(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::block_user_locker<>, this));
             this->m_write_event.init(c, APRINTER_CB_OBJFUNC_T(&CacheEntry::write_event_handler<>, this));
             this->m_releasing = false;
             this->m_active_buffer = get_entry_index(c);
@@ -990,6 +1107,7 @@ private:
             AMBRO_ASSERT(this->m_writing_buffer == -1)
             
             this->m_last_write_failed = false;
+            this->m_flush_write_failed = false;
             this->m_dirt_state = DirtState::CLEAN;
             this->m_write_stride = write_stride;
             this->m_write_count = write_count;
@@ -1023,6 +1141,15 @@ private:
             m_cache_users_list.init();
         }
         
+        // In READING or WRITING state we return the block index we wish to read/write.
+        // In IDLE state we return the first block index we would write if we started writing now.
+        APRINTER_FUNCTION_IF_ELSE(Writable, BlockIndexType, get_io_block_index (), {
+            BlockIndexType block_offset = (m_state == State::WRITING) ? (this->m_write_index * this->m_write_stride) : 0;
+            return m_block + block_offset;
+        }, {
+            return m_block;
+        })
+        
         void block_user_handler (Context c, bool error)
         {
             auto *o = Object::self(c);
@@ -1030,7 +1157,7 @@ private:
             AMBRO_ASSERT(!isBeingReleased(c) || !isReferencedIncludingWeak(c))
             
             if (m_state == State::READING) {
-                APRINTER_BLOCKCACHE_MSG("readDone %" PRIu32, (uint32_t)m_block);
+                APRINTER_BLOCKCACHE_MSG("c RD %" PRIu32 " e%d", (uint32_t)m_block, (int)error);
                 if (isBeingReleased(c)) {
                     m_state = State::INVALID;
                     return schedule_allocations_check(c);
@@ -1068,39 +1195,45 @@ private:
         
         APRINTER_FUNCTION_IF(Writable, void, write_event_handler (Context c))
         {
+            write_starting(c);
+            IoDispatcher::dispatch(c, this);
+        }
+        
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, write_starting (Context c))
+        {
             AMBRO_ASSERT(m_state == State::IDLE)
             AMBRO_ASSERT(this->m_dirt_state == DirtState::DIRTY)
             AMBRO_ASSERT(this->m_writing_buffer == -1)
             
             m_state = State::WRITING;
-            this->m_last_write_failed = false;
+            this->m_flush_write_failed = false;
             this->m_dirt_state = DirtState::WRITING;
-            this->m_write_index = 1;
+            this->m_write_index = 0;
             this->m_write_event.unset(c);
             
-            APRINTER_BLOCKCACHE_MSG("startWrite %" PRIu32 " 1/%d", (uint32_t)m_block, (int)this->m_write_count);
-            m_block_user.startWrite(c, m_block, (DataWordType const *)get_buffer(c));
+            APRINTER_BLOCKCACHE_MSG("c WS %" PRIu32 " 1/%d", (uint32_t)m_block, (int)this->m_write_count);
         }
         
         APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, block_write_completed (Context c, bool error))
         {
             auto *o = Object::self(c);
             AMBRO_ASSERT(this->m_dirt_state != DirtState::CLEAN)
-            AMBRO_ASSERT(!this->m_last_write_failed)
-            AMBRO_ASSERT(this->m_write_index <= this->m_write_count)
+            AMBRO_ASSERT(!this->m_flush_write_failed)
+            AMBRO_ASSERT(this->m_write_index < this->m_write_count)
             AMBRO_ASSERT(this->m_writing_buffer == -1)
             
-            if (!error && this->m_write_index < this->m_write_count) {
-                BlockIndexType write_block = m_block + this->m_write_index * this->m_write_stride;
+            if (!error && this->m_write_index + 1 < this->m_write_count) {
                 this->m_write_index++;
-                APRINTER_BLOCKCACHE_MSG("startWrite %" PRIu32 " %d/%d (%" PRIu32 ")", (uint32_t)m_block, (int)this->m_write_index, (int)this->m_write_count, (uint32_t)write_block);
-                return m_block_user.startWrite(c, write_block, (DataWordType const *)get_buffer(c));
+                APRINTER_BLOCKCACHE_MSG("c WS %" PRIu32 " %d/%d (%" PRIu32 ")", (uint32_t)m_block, (int)(this->m_write_index + 1), (int)this->m_write_count, (uint32_t)get_io_block_index());
+                IoDispatcher::dispatch(c, this);
+                return;
             }
             
-            APRINTER_BLOCKCACHE_MSG("writeDone %" PRIu32, (uint32_t)m_block);
+            APRINTER_BLOCKCACHE_MSG("c WD %" PRIu32 " e%d", (uint32_t)m_block, (int)error);
             
             m_state = State::IDLE;
             this->m_last_write_failed = error;
+            this->m_flush_write_failed = error;
             this->m_dirt_state = (!error && this->m_dirt_state == DirtState::WRITING) ? DirtState::CLEAN : DirtState::DIRTY;
             
             if (!error && this->m_dirt_state == DirtState::DIRTY && (!o->waiting_flush_requests.isEmpty() || this->m_releasing)) {
@@ -1126,10 +1259,244 @@ private:
             }
         }
         
-        BlockAccessUser m_block_user;
         DoubleEndedList<CacheRef, &CacheRef::m_list_node, false> m_cache_users_list;
+        DoubleEndedListNode<CacheEntry> m_queue_node;
         BlockIndexType m_block;
         NumRefsType m_num_hard_refs;
+        State m_state;
+        
+    public:
+        using IoQueue = DoubleEndedList<CacheEntry, &CacheEntry::m_queue_node>;
+    };
+    
+    class IoDispatcher {
+    public:
+        static void dispatch (Context c, CacheEntry *e)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(e->isIoActive(c))
+            AMBRO_ASSERT(CacheEntry::IoQueue::isRemoved(e))
+            
+            o->io_queue.append(e);
+            if (!o->io_queue_event.isSet(c)) {
+                o->io_queue_event.appendNowNotAlready(c);
+            }
+        }
+        
+        static void workQueue (Context c)
+        {
+            auto *o = Object::self(c);
+            
+            CacheEntry *e;
+            while ((e = o->io_queue.first())) {
+                AMBRO_ASSERT(!CacheEntry::IoQueue::isRemoved(e))
+                
+                IoUnit *unit = find_empty_unit(c);
+                if (!unit) {
+                    break;
+                }
+                
+                o->io_queue.remove(e);
+                CacheEntry::IoQueue::markRemoved(e);
+                
+                unit->acceptJob(c, e);
+            }
+        }
+        
+    private:
+        static IoUnit * find_empty_unit (Context c)
+        {
+            auto *o = Object::self(c);
+            
+            for (IoUnitIndexType i = 0; i < NumIoUnits; i++) {
+                if (o->io_units[i].isIdle(c)) {
+                    return &o->io_units[i];
+                }
+            }
+            return nullptr;
+        }
+    };
+    
+    static void io_queue_event_handler (Context c)
+    {
+        IoDispatcher::workQueue(c);
+    }
+    
+    class IoUnit {
+        enum class State : uint8_t {IDLE, READING, WRITING};
+        
+    public:
+        void init (Context c)
+        {
+            m_block_user.init(c, APRINTER_CB_OBJFUNC_T(&IoUnit::block_user_handler, this));
+            m_state = State::IDLE;
+            writable_unit_init(c);
+        }
+        
+        void deinit (Context c)
+        {
+            m_block_user.deinit(c);
+        }
+        
+        bool isIdle (Context c)
+        {
+            return (m_state == State::IDLE);
+        }
+        
+        void acceptJob (Context c, CacheEntry *first_e)
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(m_state == State::IDLE)
+            AMBRO_ASSERT(first_e->isIoActive(c))
+            AMBRO_ASSERT(CacheEntry::IoQueue::isRemoved(first_e))
+            
+            // Look at what IO we will be doing (for the requested block).
+            BlockIndexType start_block = first_e->get_io_block_index();
+            bool is_write = (Writable && first_e->m_state == CacheEntry::State::WRITING);
+            
+            // The first entry in the chain will be the one requesting this I/O.
+            m_num_blocks = 1;
+            m_entry_indices[0] = (first_e - o->cache_entries);
+            
+            // Try to extend the I/O operation into the blocks that follow the requested block.
+            if (MaxIoBlocks > 1) {
+                extend_io(c, first_e, start_block);
+            }
+            
+            // Build transfer descriptors.
+            for (IoBlockIndexType i = 0; i < m_num_blocks; i++) {
+                CacheEntry *this_e = &o->cache_entries[m_entry_indices[i]];
+                m_descriptors[i] = TransferDescriptor<DataWordType>{this_e->get_buffer(c), BlockSizeInWords};
+            }
+            
+            APRINTER_BLOCKCACHE_MSG("c I%c %" PRIu32 " %d", (is_write?'W':'R'), start_block, (int)m_num_blocks);
+            
+            // Finally start this I/O.
+            m_state = is_write ? State::WRITING : State::READING;
+            m_block_user.startReadOrWrite(c, is_write, start_block, m_num_blocks, TransferVector<DataWordType>{m_descriptors, m_num_blocks});
+        }
+        
+    private:
+        APRINTER_FUNCTION_IF_OR_EMPTY(Writable, void, writable_unit_init (Context c))
+        {
+            m_block_user.setLocker(c, APRINTER_CB_OBJFUNC_T(&IoUnit::block_user_locker<>, this));
+        }
+        
+        void extend_io (Context c, CacheEntry *first_e, BlockIndexType start_block)
+        {
+            auto *o = Object::self(c);
+            
+            // Make sure that after a failed multi-block write, the next write attempt for all
+            // involved entries will be a single-block write (see also extension check below).
+            // The rationale is that a multi-block write may have failed due to a specific block.
+            if (first_e->hasLastWriteFailed(c)) {
+                return;
+            }
+            
+            // Clear entry indices for the remainder of the block sequence (needed for next step).
+            for (IoBlockIndexType i = 1; i < MaxIoBlocks; i++) {
+                m_entry_indices[i] = -1;
+            }
+            
+            // Find candidate blocks to add to the sequence.
+            for (CacheEntryIndexType i = 0; i < NumCacheEntries; i++) {
+                CacheEntry *this_e = &o->cache_entries[i];
+                
+                // Ignore unassigned entries (they do not have a block index).
+                if (!this_e->isAssigned(c)) {
+                    continue;
+                }
+                
+                // Check if the entry has a place in the sequence.
+                BlockIndexType block_index = this_e->get_io_block_index();
+                if (!(block_index > start_block && block_index - start_block < MaxIoBlocks)) {
+                    continue;
+                }
+                
+                // See above...
+                if (this_e->hasLastWriteFailed(c)) {
+                    continue;
+                }
+                
+                if (this_e->isIoActive(c)) {
+                    // Active I/O - we can take the entry if the I/O direction matches and it is still in the queue.
+                    if (!((!Writable || first_e->m_state == this_e->m_state) && !CacheEntry::IoQueue::isRemoved(this_e))) {
+                        continue;
+                    }
+                } else {
+                    // Inactive I/O - we can take the entry if we are writing and the entry is ready for writing.
+                    if (!(Writable && first_e->m_state == CacheEntry::State::WRITING && this_e->canStartWrite(c))) {
+                        continue;
+                    }
+                }
+                
+                // The entry is a candidate, add it to the list.
+                // Unless some other entry is already in this place - but the only way this can
+                // happen if the user caused a conflict with the write strides.
+                IoBlockIndexType io_index = block_index - start_block;
+                if (m_entry_indices[io_index] == -1) {
+                    m_entry_indices[io_index] = (this_e - o->cache_entries);
+                }
+            }
+            
+            // Extend the chain into the candidate entries as much as possible,
+            // keeping it contiguous. Update these entries to reflect start of I/O.
+            while (m_num_blocks < MaxIoBlocks && m_entry_indices[m_num_blocks] != -1) {
+                CacheEntry *this_e = &o->cache_entries[m_entry_indices[m_num_blocks]];
+                
+                if (this_e->isIoActive(c)) {
+                    // It was queued, so remove it from the I/O queue.
+                    o->io_queue.remove(this_e);
+                    CacheEntry::IoQueue::markRemoved(this_e);
+                } else {
+                    // It was idle, notify it that writing has started.
+                    AMBRO_ASSERT(Writable)
+                    this_e->write_starting(c);
+                }
+                
+                m_num_blocks++;
+            }
+        }
+        
+        APRINTER_FUNCTION_IF(Writable, void, block_user_locker (Context c, bool lock_else_unlock))
+        {
+            auto *o = Object::self(c);
+            AMBRO_ASSERT(m_state == State::WRITING)
+            
+            for (IoBlockIndexType i = 0; i < m_num_blocks; i++) {
+                CacheEntry *this_e = &o->cache_entries[m_entry_indices[i]];
+                this_e->block_user_locker(c, lock_else_unlock);
+            }
+        }
+        
+        void block_user_handler (Context c, bool error)
+        {
+            auto *o = Object::self(c);
+            TheDebugObject::access(c);
+            AMBRO_ASSERT(m_state == State::READING || (Writable && m_state == State::WRITING))
+            
+            if (error) {
+                APRINTER_BLOCKCACHE_MSG("I/O FAILED for %d blocks", (int)m_num_blocks);
+            }
+            
+            // Dispatch the results while the unit still appears busy.
+            // We wouldn't want jobs to be dispatched to this unit in this state.
+            for (IoBlockIndexType i = 0; i < m_num_blocks; i++) {
+                CacheEntry *this_e = &o->cache_entries[m_entry_indices[i]];
+                this_e->block_user_handler(c, error);
+            }
+            
+            // Only now mark the unit as idle.
+            m_state = State::IDLE;
+            
+            // Dispatch jobs now that unit is idle.
+            IoDispatcher::workQueue(c);
+        }
+        
+        BlockAccessUser m_block_user;
+        TransferDescriptor<DataWordType> m_descriptors[MaxIoBlocks];
+        CacheEntryIndexType m_entry_indices[MaxIoBlocks];
+        IoBlockIndexType m_num_blocks;
         State m_state;
     };
     
@@ -1146,6 +1513,9 @@ public:
         TheDebugObject
     >>, public CacheWritableMembers<Writable> {
         CacheEntry cache_entries[NumCacheEntries];
+        IoUnit io_units[NumIoUnits];
+        typename CacheEntry::IoQueue io_queue;
+        typename Context::EventLoop::QueuedEvent io_queue_event;
         DataWordType buffers[NumBuffers][BlockSizeInWords];
     };
 };

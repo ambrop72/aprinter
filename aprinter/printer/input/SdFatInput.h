@@ -39,6 +39,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
+#include <aprinter/base/TransferVector.h>
 #include <aprinter/structure/DoubleEndedList.h>
 #include <aprinter/fs/FatFs.h>
 #include <aprinter/fs/BlockAccess.h>
@@ -282,7 +283,8 @@ private:
         
         o->init_state = INIT_STATE_READ_MBR;
         mbr_o->block_user.init(c, APRINTER_CB_STATFUNC_T(&SdFatInput::block_user_handler));
-        mbr_o->block_user.startRead(c, 0, mbr_o->block_buffer);
+        mbr_o->transfer_desc = TransferDescriptor<DataWordType>{mbr_o->block_buffer, BlockSize/sizeof(DataWordType)};
+        mbr_o->block_user.startReadOrWrite(c, false, 0, 1, TransferVector<DataWordType>{&mbr_o->transfer_desc, 1});
     }
     struct BlockAccessActivateHandler : public AMBRO_WFUNC_TD(&SdFatInput::block_access_activate_handler) {};
     
@@ -958,7 +960,8 @@ private:
     struct UnionMbrPart {
         struct Object : public ObjBase<UnionMbrPart, typename InitUnion::Object, EmptyTypeList> {
             typename TheBlockAccess::User block_user;
-            DataWordType block_buffer[BlockSize / sizeof(DataWordType)];
+            TransferDescriptor<DataWordType> transfer_desc;
+            DataWordType block_buffer[BlockSize/sizeof(DataWordType)];
         };
     };
     

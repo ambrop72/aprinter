@@ -979,9 +979,11 @@ def use_sdio (gen, config, key, user):
     @sdio_sel.option('Stm32f4Sdio')
     def option(sdio_config):
         gen.add_aprinter_include('hal/stm32/Stm32f4Sdio.h')
+        gen.add_isr('APRINTER_STM32F4_SDIO_GLOBAL({}, MyContext())'.format(user))
         return TemplateExpr('Stm32f4SdioService', [
             sdio_config.get_bool('IsWideMode'),
             sdio_config.get_int('DataTimeoutBusClocks'),
+            sdio_config.get_int('SdClockPrescaler'),
         ])
     
     @sdio_sel.option('At91SamSdio')
@@ -990,6 +992,7 @@ def use_sdio (gen, config, key, user):
         return TemplateExpr('At91SamSdioService', [
             sdio_config.get_int('Slot'),
             sdio_config.get_bool('IsWideMode'),
+            sdio_config.get_int('MaxIoDescriptors'),
         ])
     
     return config.do_selection(key, sdio_sel)
@@ -1506,6 +1509,10 @@ def generate(config_root_data, cfg_name, main_template):
                         if not (1 <= num_cache_entries <= 64):
                             fs_config.key_path('NumCacheEntries').error('Bad value.')
                         
+                        max_io_blocks = fs_config.get_int('MaxIoBlocks')
+                        if not (1 <= max_io_blocks <= num_cache_entries):
+                            fs_config.key_path('MaxIoBlocks').error('Bad value.')
+                        
                         gen.add_aprinter_include('printer/input/SdFatInput.h')
                         gen.add_aprinter_include('fs/FatFs.h')
                         
@@ -1540,8 +1547,11 @@ def generate(config_root_data, cfg_name, main_template):
                             TemplateExpr('FatFsService', [
                                 max_filename_size,
                                 num_cache_entries,
+                                1, # NumIoUnits
+                                max_io_blocks,
                                 fs_config.get_bool_constant('CaseInsensFileName'),
                                 fs_config.get_bool_constant('FsWritable'),
+                                fs_config.get_bool_constant('EnableReadHinting'),
                             ]),
                             fs_config.get_bool_constant('HaveAccessInterface'),
                         ])

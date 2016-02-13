@@ -30,28 +30,31 @@
 #include <pmc.h>
 #include <dmac.h>
 
+#include <aprinter/meta/MinMax.h>
 #include <aprinter/base/Object.h>
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
-#include <aprinter/meta/MinMax.h>
+#include <aprinter/misc/ClockUtils.h>
 #include <aprinter/hal/generic/SdioInterface.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 
 #include <aprinter/BeginNamespace.h>
 
-template <typename Context, typename ParentObject, typename CommandHandler, typename Params>
+template <typename Context, typename ParentObject, typename CommandHandler, typename BusyTimeout, typename Params>
 class At91SamSdio {
 public:
     struct Object;
     
 private:
     static_assert(Params::Slot == 0 || Params::Slot == 1, "");
+    static_assert(Params::MaxIoDescriptors > 0, "");
     
+    using TheClockUtils = ClockUtils<Context>;
     using TheDebugObject = DebugObject<Context, Object>;
     using FastEvent = typename Context::EventLoop::template FastEventSpec<At91SamSdio>;
     
     enum {INIT_STATE_OFF, INIT_STATE_POWERON, INIT_STATE_ON};
-    enum {CMD_STATE_READY, CMD_STATE_BUSY};
+    enum {CMD_STATE_READY, CMD_STATE_BUSY, CMD_STATE_WAIT_BUSY};
     enum {DATA_STATE_READY, DATA_STATE_WAIT_XFRDONE, DATA_STATE_WAIT_DMA};
     
     static constexpr double InitSpeed = 400000.0;
@@ -61,6 +64,9 @@ private:
     {
         return (uint32_t)MaxValue(0.0, (double)F_MCK / (2.0 * speed) - 0.001);
     }
+    
+    static typename TheClockUtils::TimeType const DmaTimeoutTicks = 0.5 * TheClockUtils::time_freq;
+    static typename TheClockUtils::TimeType const BusyTimeoutTicks = BusyTimeout::value() * TheClockUtils::time_freq;
     
 #if defined(__SAM3X8E__)
     static int const DmaChannel = 0;
@@ -95,6 +101,8 @@ private:
 public:
     static bool const IsWideMode = Params::IsWideMode;
     static size_t const BlockSize = 512;
+    static size_t const MaxIoBlocks = UINT16_MAX;
+    static int const MaxIoDescriptors = Params::MaxIoDescriptors;
     
     static void init (Context c)
     {
@@ -197,6 +205,9 @@ public:
             case SdioIface::RESPONSE_SHORT:
                 cmdr |= HSMCI_CMDR_MAXLAT | HSMCI_CMDR_RSPTYP_48_BIT;
                 break;
+            case SdioIface::RESPONSE_SHORT_BUSY:
+                cmdr |= HSMCI_CMDR_MAXLAT | HSMCI_CMDR_RSPTYP_R1B;
+                break;
             case SdioIface::RESPONSE_LONG:
                 cmdr |= HSMCI_CMDR_MAXLAT | HSMCI_CMDR_RSPTYP_136_BIT;
                 break;
@@ -207,9 +218,11 @@ public:
         if (cmd_params.direction != SdioIface::DATA_DIR_NONE) {
             AMBRO_ASSERT(cmd_params.direction == SdioIface::DATA_DIR_READ || cmd_params.direction == SdioIface::DATA_DIR_WRITE)
             AMBRO_ASSERT(cmd_params.num_blocks >= 1)
+            AMBRO_ASSERT(cmd_params.num_blocks <= MaxIoBlocks)
+            AMBRO_ASSERT(cmd_params.data_vector.num_descriptors <= MaxIoDescriptors)
+            AMBRO_ASSERT(CheckTransferVector(cmd_params.data_vector, cmd_params.num_blocks * (size_t)(BlockSize/4)))
             
             bool is_read = cmd_params.direction == SdioIface::DATA_DIR_READ;
-            size_t data_len = cmd_params.num_blocks * BlockSize;
             
             dmac_enable(DMAC);
             AMBRO_ASSERT(!dmac_channel_is_enable(DMAC, DmaChannel))
@@ -217,29 +230,39 @@ public:
             uint32_t dma_cfg = DMAC_CFG_SOD_ENABLE | DMAC_CFG_AHB_PROT(1) | DMAC_CFG_FIFOCFG_ALAP_CFG;
             if (is_read) {
                 dma_cfg |= DMAC_CFG_SRC_H2SEL | DMAC_CFG_SRC_PER(DmaHwId);
-                cmdr |= HSMCI_CMDR_TRCMD_START_DATA | HSMCI_CMDR_TRDIR_READ | HSMCI_CMDR_TRTYP_SINGLE;
+                cmdr |= HSMCI_CMDR_TRDIR_READ;
             } else {
                 dma_cfg |= DMAC_CFG_DST_H2SEL | DMAC_CFG_DST_PER(DmaHwId);
-                cmdr |= HSMCI_CMDR_TRCMD_START_DATA | HSMCI_CMDR_TRDIR_WRITE | HSMCI_CMDR_TRTYP_SINGLE;
+                cmdr |= HSMCI_CMDR_TRDIR_WRITE;
             }
+            
+            cmdr |= HSMCI_CMDR_TRCMD_START_DATA;
+            cmdr |= (cmd_params.num_blocks == 1) ? HSMCI_CMDR_TRTYP_SINGLE : HSMCI_CMDR_TRTYP_MULTIPLE;
             
             dmac_channel_set_configuration(DMAC, DmaChannel, dma_cfg);
             
+            for (int i = 0; i < cmd_params.data_vector.num_descriptors; i++) {
+                auto *desc = &cmd_params.data_vector.descriptors[i];
+                
+                auto *hwdesc = &o->descriptors[i];
+                hwdesc->ul_source_addr = is_read ? (uint32_t)&HSMCI->HSMCI_RDR : (uint32_t)desc->buffer_ptr;
+                hwdesc->ul_destination_addr = is_read ? (uint32_t)desc->buffer_ptr : (uint32_t)&HSMCI->HSMCI_TDR;
+                hwdesc->ul_ctrlA = DMAC_CTRLA_BTSIZE(desc->num_words) | DMAC_CTRLA_SRC_WIDTH_WORD | DMAC_CTRLA_DST_WIDTH_WORD;
+                hwdesc->ul_ctrlB = DMAC_CTRLB_SRC_DSCR_FETCH_FROM_MEM | DMAC_CTRLB_DST_DSCR_FETCH_FROM_MEM | DMAC_CTRLB_IEN;
+                if (is_read) {
+                    hwdesc->ul_ctrlB |= DMAC_CTRLB_FC_PER2MEM_DMA_FC | DMAC_CTRLB_SRC_INCR_FIXED | DMAC_CTRLB_DST_INCR_INCREMENTING;
+                } else {
+                    hwdesc->ul_ctrlB |= DMAC_CTRLB_FC_MEM2PER_DMA_FC | DMAC_CTRLB_SRC_INCR_INCREMENTING | DMAC_CTRLB_DST_INCR_FIXED;
+                }
+                hwdesc->ul_descriptor_addr = (uint32_t)&o->descriptors[i + 1];
+            }
+            
+            auto *last_hwdesc = &o->descriptors[cmd_params.data_vector.num_descriptors - 1];
+            last_hwdesc->ul_descriptor_addr = 0;
+            
             memory_barrier_dma();
             
-            dma_transfer_descriptor_t desc;
-            desc.ul_source_addr = is_read ? (uint32_t)&HSMCI->HSMCI_RDR : (uint32_t)cmd_params.data_ptr;
-            desc.ul_destination_addr = is_read ? (uint32_t)cmd_params.data_ptr : (uint32_t)&HSMCI->HSMCI_TDR;
-            desc.ul_ctrlA = DMAC_CTRLA_BTSIZE(data_len / 4) | DMAC_CTRLA_SRC_WIDTH_WORD | DMAC_CTRLA_DST_WIDTH_WORD;
-            desc.ul_ctrlB = DMAC_CTRLB_SRC_DSCR_FETCH_DISABLE | DMAC_CTRLB_DST_DSCR_FETCH_DISABLE | DMAC_CTRLB_IEN;
-            if (is_read) {
-                desc.ul_ctrlB |= DMAC_CTRLB_FC_PER2MEM_DMA_FC | DMAC_CTRLB_SRC_INCR_FIXED | DMAC_CTRLB_DST_INCR_INCREMENTING;
-            } else {
-                desc.ul_ctrlB |= DMAC_CTRLB_FC_MEM2PER_DMA_FC | DMAC_CTRLB_SRC_INCR_INCREMENTING | DMAC_CTRLB_DST_INCR_FIXED;
-            }
-            desc.ul_descriptor_addr = 0;
-            dmac_channel_single_buf_transfer_init(DMAC, DmaChannel, &desc);
-            
+            dmac_channel_multi_buf_transfer_init(DMAC, DmaChannel, o->descriptors);
             dmac_channel_enable(DMAC, DmaChannel);
             
             o->data_state = DATA_STATE_WAIT_XFRDONE;
@@ -323,52 +346,71 @@ private:
     static void work_cmd (Context c, uint32_t status)
     {
         auto *o = Object::self(c);
-        AMBRO_ASSERT(o->cmd_state == CMD_STATE_READY || o->cmd_state == CMD_STATE_BUSY)
         
-        if (o->cmd_state == CMD_STATE_READY) {
-            return;
+        while (o->cmd_state != CMD_STATE_READY) {
+            switch (o->cmd_state) {
+                case CMD_STATE_BUSY: {
+                    if (!(status & HSMCI_SR_CMDRDY)) {
+                        return;
+                    }
+                    
+                    if (o->cmd_response_type != SdioIface::RESPONSE_NONE) {
+                        if (!(o->cmd_flags & SdioIface::CMD_FLAG_NO_CRC_CHECK)) {
+                            if ((status & HSMCI_SR_RCRCE)) {
+                                o->results.error_code = SdioIface::CMD_ERROR_RESPONSE_CHECKSUM;
+                                goto cmd_done;
+                            }
+                        }
+                        
+                        if ((status & HSMCI_SR_RTOE)) {
+                            o->results.error_code = SdioIface::CMD_ERROR_RESPONSE_TIMEOUT;
+                            goto cmd_done;
+                        }
+                        
+                        if (!(o->cmd_flags & SdioIface::CMD_FLAG_NO_CMDNUM_CHECK)) {
+                            if ((status & HSMCI_SR_RINDE)) {
+                                o->results.error_code = SdioIface::CMD_ERROR_BAD_RESPONSE_CMD;
+                                goto cmd_done;
+                            }
+                        }
+                        
+                        if ((status & HSMCI_SR_CSTOE) || (status & HSMCI_SR_RENDE) || (status & HSMCI_SR_RDIRE)) {
+                            o->results.error_code = SdioIface::CMD_ERROR_OTHER;
+                            goto cmd_done;
+                        }
+                        
+                        o->results.response[0] = HSMCI->HSMCI_RSPR[0];
+                        
+                        if (o->cmd_response_type == SdioIface::RESPONSE_LONG) {
+                            o->results.response[1] = HSMCI->HSMCI_RSPR[0];
+                            o->results.response[2] = HSMCI->HSMCI_RSPR[0];
+                            o->results.response[3] = HSMCI->HSMCI_RSPR[0];
+                        }
+                        
+                        if (o->cmd_response_type == SdioIface::RESPONSE_SHORT_BUSY) {
+                            o->cmd_state = CMD_STATE_WAIT_BUSY;
+                            o->busy_poll_timer.setAfter(c, BusyTimeoutTicks);
+                            break;
+                        }
+                    }
+                    
+                cmd_done:
+                    o->cmd_state = CMD_STATE_READY;
+                } break;
+                
+                case CMD_STATE_WAIT_BUSY: {
+                    if (!(status & HSMCI_SR_NOTBUSY)) {
+                        if (!(o->busy_poll_timer.isExpired(c))) {
+                            return;
+                        }
+                        o->results.error_code = SdioIface::CMD_ERROR_BUSY_TIMEOUT;
+                    }
+                    o->cmd_state = CMD_STATE_READY;
+                } break;
+                
+                default: AMBRO_ASSERT(false);
+            }
         }
-        
-        if (!(status & HSMCI_SR_CMDRDY)) {
-            return;
-        }
-        
-        if (o->cmd_response_type != SdioIface::RESPONSE_NONE) {
-            if (!(o->cmd_flags & SdioIface::CMD_FLAG_NO_CRC_CHECK)) {
-                if ((status & HSMCI_SR_RCRCE)) {
-                    o->results.error_code = SdioIface::CMD_ERROR_RESPONSE_CHECKSUM;
-                    goto cmd_done;
-                }
-            }
-            
-            if ((status & HSMCI_SR_RTOE)) {
-                o->results.error_code = SdioIface::CMD_ERROR_RESPONSE_TIMEOUT;
-                goto cmd_done;
-            }
-            
-            if (!(o->cmd_flags & SdioIface::CMD_FLAG_NO_CMDNUM_CHECK)) {
-                if ((status & HSMCI_SR_RINDE)) {
-                    o->results.error_code = SdioIface::CMD_ERROR_BAD_RESPONSE_CMD;
-                    goto cmd_done;
-                }
-            }
-            
-            if ((status & HSMCI_SR_CSTOE) || (status & HSMCI_SR_RENDE) || (status & HSMCI_SR_RDIRE)) {
-                o->results.error_code = SdioIface::CMD_ERROR_OTHER;
-                goto cmd_done;
-            }
-            
-            o->results.response[0] = HSMCI->HSMCI_RSPR[0];
-            
-            if (o->cmd_response_type == SdioIface::RESPONSE_LONG) {
-                o->results.response[1] = HSMCI->HSMCI_RSPR[0];
-                o->results.response[2] = HSMCI->HSMCI_RSPR[0];
-                o->results.response[3] = HSMCI->HSMCI_RSPR[0];
-            }
-        }
-        
-    cmd_done:
-        o->cmd_state = CMD_STATE_READY;
     }
     
     static void work_data (Context c, uint32_t status)
@@ -398,21 +440,25 @@ private:
             }
             
             o->data_state = DATA_STATE_WAIT_DMA;
+            o->poll_timer.setAfter(c, DmaTimeoutTicks);
         }
         
         if (o->data_state == DATA_STATE_WAIT_DMA) {
             if (o->data_error == SdioIface::DATA_ERROR_NONE) {
                 if (!dmac_channel_is_transfer_done(DMAC, DmaChannel)) {
-                    return;
-                }
-                
-                if (o->data_dir == SdioIface::DATA_DIR_READ) {
-                    memory_barrier_dma();
+                    if (!o->poll_timer.isExpired(c)) {
+                        return;
+                    }
+                    o->data_error = SdioIface::DATA_ERROR_DMA;
                 }
             }
             
             dmac_channel_disable(DMAC, DmaChannel);
             while (dmac_channel_is_enable(DMAC, DmaChannel));
+            
+            if (o->data_dir == SdioIface::DATA_DIR_READ) {
+                memory_barrier_dma();
+            }
             
             o->data_state = DATA_STATE_READY;
         }
@@ -431,19 +477,24 @@ public:
         uint8_t data_dir;
         SdioIface::CommandResults results;
         SdioIface::DataErrorCode data_error;
+        typename TheClockUtils::PollTimer poll_timer;
+        typename TheClockUtils::PollTimer busy_poll_timer;
+        dma_transfer_descriptor_t descriptors[MaxIoDescriptors];
     };
 };
 
 template <
     uint8_t TSlot,
-    bool TIsWideMode
+    bool TIsWideMode,
+    int TMaxIoDescriptors
 >
 struct At91SamSdioService {
     static uint8_t const Slot = TSlot;
     static bool const IsWideMode = TIsWideMode;
+    static int const MaxIoDescriptors = TMaxIoDescriptors;
     
-    template <typename Context, typename ParentObject, typename CommandHandler>
-    using Sdio = At91SamSdio<Context, ParentObject, CommandHandler, At91SamSdioService>;
+    template <typename Context, typename ParentObject, typename CommandHandler, typename BusyTimeout>
+    using Sdio = At91SamSdio<Context, ParentObject, CommandHandler, BusyTimeout, At91SamSdioService>;
 };
 
 #include <aprinter/EndNamespace.h>

@@ -28,6 +28,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <aprinter/base/TransferVector.h>
+
 #include <aprinter/BeginNamespace.h>
 
 namespace SdioIface {
@@ -39,6 +41,7 @@ namespace SdioIface {
     enum ResponseType {
         RESPONSE_NONE,
         RESPONSE_SHORT,
+        RESPONSE_SHORT_BUSY,
         RESPONSE_LONG
     };
     
@@ -60,11 +63,12 @@ namespace SdioIface {
         uint8_t flags;
         DataDirection direction;
         size_t num_blocks;
-        uint32_t *data_ptr;
+        TransferVector<uint32_t> data_vector;
     };
     
     enum CommandErrorCode {
         CMD_ERROR_NONE,
+        CMD_ERROR_BUSY_TIMEOUT,
         CMD_ERROR_RESPONSE_TIMEOUT,
         CMD_ERROR_RESPONSE_CHECKSUM,
         CMD_ERROR_BAD_RESPONSE_CMD,

@@ -328,6 +328,17 @@ public:
         lo->m_event_list.append(this);
     }
     
+    void appendNow (Context c)
+    {
+        this->debugAccess(c);
+        auto *lo = Loop::Object::self(c);
+        
+        if (!Loop::EventList::isRemoved(this)) {
+            lo->m_event_list.remove(this);
+        }
+        lo->m_event_list.append(this);
+    }
+    
     void prependNowNotAlready (Context c)
     {
         this->debugAccess(c);
