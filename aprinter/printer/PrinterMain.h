@@ -62,7 +62,7 @@
 #include <aprinter/base/Inline.h>
 #include <aprinter/system/InterruptLock.h>
 #include <aprinter/math/FloatTools.h>
-#include <aprinter/devices/Blinker.h>
+#include <aprinter/printer/Blinker.h>
 #include <aprinter/printer/actuators/Steppers.h>
 #include <aprinter/printer/actuators/StepperGroup.h>
 #include <aprinter/structure/DoubleEndedList.h>

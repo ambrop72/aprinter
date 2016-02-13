@@ -31,7 +31,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/hal/stm32/Stm32f4Pins.h>
-#include <aprinter/devices/SdioInterface.h>
+#include <aprinter/hal/generic/SdioInterface.h>
 
 #include <aprinter/BeginNamespace.h>
 

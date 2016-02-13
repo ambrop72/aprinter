@@ -34,7 +34,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/meta/MinMax.h>
-#include <aprinter/devices/SdioInterface.h>
+#include <aprinter/hal/generic/SdioInterface.h>
 #include <aprinter/hal/at91/At91SamPins.h>
 
 #include <aprinter/BeginNamespace.h>

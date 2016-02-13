@@ -1020,7 +1020,7 @@ def use_eeprom(gen, config, key, user):
     
     @eeprom_sel.option('I2cEeprom')
     def option(eeprom):
-        gen.add_aprinter_include('devices/I2cEeprom.h')
+        gen.add_aprinter_include('hal/generic/I2cEeprom.h')
         return TemplateExpr('I2cEepromService', [use_i2c(gen, eeprom, 'I2c', '{}::GetI2c'.format(user), 'ConfigEeprom'), eeprom.get_int('I2cAddr'), eeprom.get_int('Size'), eeprom.get_int('BlockSize'), gen.add_float_constant('ConfigEepromWriteTimeout', eeprom.get_float('WriteTimeout'))])
     
     @eeprom_sel.option('TeensyEeprom')
@@ -1036,7 +1036,7 @@ def use_eeprom(gen, config, key, user):
     
     @eeprom_sel.option('FlashWrapper')
     def option(eeprom):
-        gen.add_aprinter_include('devices/FlashWrapper.h')
+        gen.add_aprinter_include('hal/generic/FlashWrapper.h')
         return TemplateExpr('FlashWrapperService', [
             use_flash(gen, eeprom, 'FlashDriver', '{}::GetFlash'.format(user)),
         ])
@@ -1110,7 +1110,7 @@ def use_sdcard(gen, config, key, user):
 
     @sd_service_sel.option('SpiSdCard')
     def option(spi_sd):
-        gen.add_aprinter_include('devices/SpiSdCard.h')
+        gen.add_aprinter_include('hal/generic/SpiSdCard.h')
         return TemplateExpr('SpiSdCardService', [
             get_pin(gen, spi_sd, 'SsPin'),
             use_spi(gen, spi_sd, 'SpiService', '{}::GetSpi'.format(user)),
@@ -1118,7 +1118,7 @@ def use_sdcard(gen, config, key, user):
     
     @sd_service_sel.option('SdioSdCard')
     def option(sdio_sd):
-        gen.add_aprinter_include('devices/SdioSdCard.h')
+        gen.add_aprinter_include('hal/generic/SdioSdCard.h')
         return TemplateExpr('SdioSdCardService', [
             use_sdio(gen, sdio_sd, 'SdioService', '{}::GetSdio'.format(user)),
         ])

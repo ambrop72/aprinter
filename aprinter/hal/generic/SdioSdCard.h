@@ -35,7 +35,7 @@
 #include <aprinter/base/DebugObject.h>
 #include <aprinter/base/Assert.h>
 #include <aprinter/base/Callback.h>
-#include <aprinter/devices/SdioInterface.h>
+#include <aprinter/hal/generic/SdioInterface.h>
 #include <aprinter/misc/ClockUtils.h>
 
 #include <aprinter/BeginNamespace.h>
