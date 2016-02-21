@@ -421,6 +421,7 @@
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
+            "EnableReadHinting": false,
             "FsWritable": true,
             "GcodeUpload": {
               "MaxCommandSize": 128,
@@ -428,6 +429,7 @@
             },
             "HaveAccessInterface": true,
             "MaxFileNameSize": 256,
+            "MaxIoBlocks": 1,
             "NumCacheEntries": 8,
             "_compoundName": "Fat32"
           },
@@ -968,6 +970,7 @@
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
+            "EnableReadHinting": false,
             "FsWritable": true,
             "GcodeUpload": {
               "MaxCommandSize": 128,
@@ -975,6 +978,7 @@
             },
             "HaveAccessInterface": true,
             "MaxFileNameSize": 256,
+            "MaxIoBlocks": 1,
             "NumCacheEntries": 8,
             "_compoundName": "Fat32"
           },
@@ -1408,6 +1412,7 @@
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
+            "EnableReadHinting": false,
             "FsWritable": true,
             "GcodeUpload": {
               "MaxCommandSize": 128,
@@ -1415,6 +1420,7 @@
             },
             "HaveAccessInterface": true,
             "MaxFileNameSize": 256,
+            "MaxIoBlocks": 1,
             "NumCacheEntries": 8,
             "_compoundName": "Fat32"
           },
@@ -1426,6 +1432,7 @@
           "SdCardService": {
             "SdioService": {
               "IsWideMode": true,
+              "MaxIoDescriptors": 1,
               "Slot": 0,
               "_compoundName": "At91SamSdio"
             },
@@ -2224,12 +2231,14 @@
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
+            "EnableReadHinting": false,
             "FsWritable": false,
             "GcodeUpload": {
               "_compoundName": "NoGcodeUpload"
             },
             "HaveAccessInterface": false,
             "MaxFileNameSize": 32,
+            "MaxIoBlocks": 1,
             "NumCacheEntries": 1,
             "_compoundName": "Fat32"
           },
@@ -2584,6 +2593,7 @@
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
+            "EnableReadHinting": false,
             "FsWritable": true,
             "GcodeUpload": {
               "MaxCommandSize": 128,
@@ -2591,6 +2601,7 @@
             },
             "HaveAccessInterface": true,
             "MaxFileNameSize": 128,
+            "MaxIoBlocks": 1,
             "NumCacheEntries": 7,
             "_compoundName": "Fat32"
           },
@@ -3353,6 +3364,7 @@
           "FsType": {
             "CaseInsensFileName": true,
             "EnableFsTest": false,
+            "EnableReadHinting": false,
             "FsWritable": true,
             "GcodeUpload": {
               "MaxCommandSize": 128,
@@ -3360,6 +3372,7 @@
             },
             "HaveAccessInterface": true,
             "MaxFileNameSize": 256,
+            "MaxIoBlocks": 1,
             "NumCacheEntries": 4,
             "_compoundName": "Fat32"
           },
@@ -3372,6 +3385,7 @@
             "SdioService": {
               "DataTimeoutBusClocks": 72000000,
               "IsWideMode": true,
+              "SdClockPrescaler": 0,
               "_compoundName": "Stm32f4Sdio"
             },
             "_compoundName": "SdioSdCard"
@@ -3697,19 +3711,26 @@
             "_compoundName": "MiiEthernet"
           },
           "NetEnabled": true,
-          "TcpRxBuf": 5840,
-          "TcpTxBuf": 3450,
+          "TcpRxBuf": 3432,
+          "TcpTxBuf": 3432,
           "_compoundName": "Network",
           "tcpconsole": {
-            "MaxClients": 2,
-            "MaxCommandSize": 64,
+            "MaxClients": 1,
+            "MaxCommandSize": 128,
             "MaxParts": 16,
             "Port": 23,
             "SendBufTimeout": 5,
             "_compoundName": "TcpConsole"
           },
           "webinterface": {
-            "_compoundName": "NoWebInterface"
+            "AllowPersistent": false,
+            "EnableDebug": false,
+            "InactivityTimeout": 10,
+            "MaxClients": 2,
+            "Port": 80,
+            "QueueSize": 8,
+            "QueueTimeout": 10,
+            "_compoundName": "WebInterface"
           }
         }
       },
@@ -3754,7 +3775,8 @@
           "BufferBaseSize": 2048,
           "FsType": {
             "CaseInsensFileName": true,
-            "EnableFsTest": false,
+            "EnableFsTest": true,
+            "EnableReadHinting": true,
             "FsWritable": true,
             "GcodeUpload": {
               "MaxCommandSize": 128,
@@ -3762,7 +3784,8 @@
             },
             "HaveAccessInterface": true,
             "MaxFileNameSize": 256,
-            "NumCacheEntries": 8,
+            "MaxIoBlocks": 24,
+            "NumCacheEntries": 24,
             "_compoundName": "Fat32"
           },
           "GcodeParser": {
@@ -3773,6 +3796,7 @@
           "SdCardService": {
             "SdioService": {
               "IsWideMode": true,
+              "MaxIoDescriptors": 24,
               "Slot": 0,
               "_compoundName": "At91SamSdio"
             },
