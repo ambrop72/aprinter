@@ -41,6 +41,7 @@
 #include <aprinter/base/WrapBuffer.h>
 #include <aprinter/base/Likely.h>
 #include <aprinter/base/MemRef.h>
+#include <aprinter/base/OneOf.h>
 #include <aprinter/misc/StringTools.h>
 #include <aprinter/net/http/HttpServerConstants.h>
 #include <aprinter/net/http/HttpPathParser.h>
@@ -310,7 +311,7 @@ private:
         
         bool have_request (Context c)
         {
-            return (m_state == State::HEAD_RECEIVED || m_state == State::USER_GONE);
+            return (m_state == OneOf(State::HEAD_RECEIVED, State::USER_GONE));
         }
         
         void check_for_next_request (Context c)
@@ -981,11 +982,9 @@ private:
         
         bool receiving_request_body (Context c)
         {
-            return (m_recv_state == RecvState::RECV_KNOWN_LENGTH   ||
-                    m_recv_state == RecvState::RECV_CHUNK_HEADER   ||
-                    m_recv_state == RecvState::RECV_CHUNK_DATA     ||
-                    m_recv_state == RecvState::RECV_CHUNK_TRAILER  ||
-                    m_recv_state == RecvState::RECV_TRAILER);
+            return (m_recv_state == OneOf(RecvState::RECV_KNOWN_LENGTH, RecvState::RECV_CHUNK_HEADER,
+                                          RecvState::RECV_CHUNK_DATA, RecvState::RECV_CHUNK_TRAILER,
+                                          RecvState::RECV_TRAILER));
         }
         
         void start_receiving_request_body (Context c, bool user_accepting)
@@ -1020,7 +1019,7 @@ private:
         {
             AMBRO_ASSERT(receiving_request_body(c))
             
-            if (m_recv_state == RecvState::RECV_KNOWN_LENGTH || m_recv_state == RecvState::RECV_CHUNK_DATA) {
+            if (m_recv_state == OneOf(RecvState::RECV_KNOWN_LENGTH, RecvState::RECV_CHUNK_DATA)) {
                 return (size_t)MinValue((uint64_t)m_rx_buf_length, m_rem_req_body_length);
             } else {
                 return 0;
@@ -1029,7 +1028,7 @@ private:
         
         void consume_request_body (Context c, size_t amount)
         {
-            AMBRO_ASSERT(m_recv_state == RecvState::RECV_KNOWN_LENGTH || m_recv_state == RecvState::RECV_CHUNK_DATA)
+            AMBRO_ASSERT(m_recv_state == OneOf(RecvState::RECV_KNOWN_LENGTH, RecvState::RECV_CHUNK_DATA))
             AMBRO_ASSERT(amount > 0)
             AMBRO_ASSERT(amount <= m_rx_buf_length)
             AMBRO_ASSERT(amount <= m_rem_req_body_length)
@@ -1081,7 +1080,7 @@ private:
             terminate_user(c);
             
             // Send an error response if desired and possible.
-            if (resp_status && (m_send_state == SendState::INVALID || m_send_state == SendState::HEAD_NOT_SENT)) {
+            if (resp_status && (m_send_state == OneOf(SendState::INVALID, SendState::HEAD_NOT_SENT))) {
                 send_response(c, resp_status, true, nullptr, true);
             }
             
@@ -1134,8 +1133,7 @@ private:
         
         bool sending_response (Context c)
         {
-            return (m_send_state == SendState::SEND_BODY ||
-                    m_send_state == SendState::SEND_LAST_CHUNK);
+            return (m_send_state == OneOf(SendState::SEND_BODY, SendState::SEND_LAST_CHUNK));
         }
         
         void abandon_response_body (Context c)
