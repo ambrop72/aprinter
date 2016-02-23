@@ -288,7 +288,6 @@ private:
             AMBRO_ASSERT(m_send_state == SendState::INVALID)
             
             // Set initial values to the various request-parsing states.
-            m_bad_content_length = false;
             m_have_content_length = false;
             m_have_chunked = false;
             m_bad_transfer_encoding = false;
@@ -833,7 +832,7 @@ private:
                 char *endptr;
                 unsigned long long int value = strtoull(header, &endptr, 10);
                 if (endptr == header || *endptr != '\0' || m_have_content_length) {
-                    m_bad_content_length = true;
+                    m_bad_transfer_encoding = true;
                 } else {
                     m_have_content_length = true;
                     m_rem_req_body_length = value;
@@ -934,7 +933,7 @@ private:
                 }
                 
                 // Check for errors concerning headers describing the request-body.
-                if (m_bad_content_length || m_bad_transfer_encoding) {
+                if (m_bad_transfer_encoding) {
                     status = HttpStatusCodes::BadRequest();
                     goto error;
                 }
@@ -1428,7 +1427,6 @@ private:
         SendState m_send_state;
         bool m_line_overflow : 1;
         bool m_request_line_overflow : 1;
-        bool m_bad_content_length : 1;
         bool m_have_content_length : 1;
         bool m_have_chunked : 1;
         bool m_bad_transfer_encoding : 1;
